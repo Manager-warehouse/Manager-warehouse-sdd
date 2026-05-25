@@ -19,7 +19,7 @@ Styling: Tailwind CSS 3.x
 API: RESTful JSON API
 
 ## 3. ARCHITECTURE PRINCIPLES
-- Follow Clean Architecture / Layered Architecture (Controller → Service → Repository)
+- Follow Layered Architecture (Controller → Service → Repository)
 - API style: RESTful với proper HTTP status codes
 - Error handling: centralized exception handler với typed errors
 - No raw SQL — always use JPA/Hibernate ORM
