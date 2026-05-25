@@ -596,6 +596,319 @@ User Input → AI Model → MCP Client → MCP Server → External Service
 └───────────────┴───────────────┴───────────────┴───────────────┴────────────┘
 ```
 
+#### Sale Order Process (Đơn hàng Sale)
+```
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│ SALE ORDER PROCESS SWIMLANES                                                        │
+├──────────────┬──────────────┬──────────────┬──────────────┬──────────────┬──────────┤
+│   DEALER     │    SALE      │    SYSTEM    │  ACCOUNTING  │  WAREHOUSE   │  DELIVERY│
+├──────────────┼──────────────┼──────────────┼──────────────┼──────────────┼──────────┤
+│              │              │              │              │              │          │
+│ Contact Sale│              │              │              │              │          │
+│ ────────────►│              │              │              │              │          │
+│              │              │              │              │              │          │
+│              │ Create order │              │              │              │          │
+│              │ ─────────────►│              │              │              │          │
+│              │              │              │              │              │          │
+│              │              │ Status: CHỜ_KETOAN_DUYET │              │          │
+│              │◄─────────────│              │              │              │          │
+│              │              │              │              │              │          │
+│              │              │              │ Review order│              │          │
+│              │              │              │ ────────────►│              │          │
+│              │              │              │              │              │          │
+│              │              │              │ Upload contract photo      │          │
+│              │              │              │ ◄────────────│              │          │
+│              │              │              │              │              │          │
+│              │              │ Approve: Status=CHỜ_KHO_DUYET          │          │
+│              │              │ ◄────────────│              │              │          │
+│              │              │              │              │              │          │
+│              │              │              │              │ Review order│          │
+│              │              │              │              │ ────────────►│          │
+│              │              │              │              │              │          │
+│              │              │              │              │ Approve: DANG_CHUAN_BI     │
+│              │              │              │              │ ◄────────────│          │
+│              │              │              │              │              │          │
+│              │              │              │              │ Prepare goods             │
+│              │              │              │              │ ────────────►│          │
+│              │              │              │              │              │          │
+│              │              │              │              │ Confirm shipped           │
+│              │              │              │◄─────────────│              │          │
+│              │              │              │              │              │          │
+│              │              │ Sync to Accounting (công nợ)│              │          │
+│              │              │ ────────────►│              │              │          │
+│              │              │              │              │              │          │
+│              │ Notify dealer│              │              │              │          │
+│              │ ◄────────────│              │              │              │          │
+│              │              │              │              │              │          │
+└──────────────┴──────────────┴──────────────┴──────────────┴──────────────┴──────────┘
+
+Status Flow:
+CHỜ_KETOAN_DUYET → CHỜ_KHO_DUYET → DA_DUYET → DANG_CHUAN_BI → DA_XUAT_KHO → HOAN_THANH/DA_HUY
+```
+
+#### Delivery Process (Vận chuyển & Giao hàng)
+```
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│ DELIVERY PROCESS SWIMLANES                                                         │
+├──────────────┬──────────────┬──────────────┬──────────────┬──────────────┬──────────┤
+│   WAREHOUSE  │    SYSTEM    │   FLEET MGMT │    DRIVER    │   CUSTOMER   │ ACCTNG   │
+├──────────────┼──────────────┼──────────────┼──────────────┼──────────────┼──────────┤
+│              │              │              │              │              │          │
+│ Create delivery              │              │              │              │          │
+│ ────────────►│              │              │              │              │          │
+│              │              │              │              │              │          │
+│              │ Assign vehicle & driver      │              │              │          │
+│              │ ────────────►│              │              │              │          │
+│              │              │              │              │              │          │
+│              │              │ Assign driver│              │              │          │
+│              │◄─────────────│              │              │              │          │
+│              │              │              │              │              │          │
+│              │ Status: CHỜ_GIAO            │              │              │          │
+│              │              │              │              │              │          │
+│              │              │              │ Receive delivery          │          │
+│              │              │              │ ◄─────────────│          │          │
+│              │              │              │              │              │          │
+│              │              │              │ Start delivery│          │          │
+│              │              │              │ ─────────────►│          │          │
+│              │              │              │              │              │          │
+│              │ Update: ĐANG_GIAO            │              │              │          │
+│              │◄─────────────│              │              │              │          │
+│              │              │              │              │              │          │
+│              │              │              │              │ GPS tracking │          │
+│              │              │              │              │ ◄─────────────│          │
+│              │              │              │              │              │          │
+│              │              │              │              │ Attempt delivery        │
+│              │              │              │              │ ────────────►│          │
+│              │              │              │              │              │          │
+│         ┌────┴────┐         │              │              │              │          │
+│         │ SUCCESS │         │              │              │              │          │
+│         └────┬────┘         │              │              │              │          │
+│              │              │              │              │              │          │
+│              │              │              │ Collect POD (signature + photo)│     │
+│              │              │              │ ◄─────────────│              │          │
+│              │              │              │              │              │          │
+│              │              │              │ Confirm delivery complete     │
+│              │◄─────────────│              │              │              │          │
+│              │              │              │              │              │          │
+│              │ Status: HOAN_THANH│         │              │              │          │
+│              │◄─────────────│              │              │              │          │
+│              │              │              │              │              │          │
+│              │              │              │              │ Send notification        │
+│              │◄─────────────│              │              │              │          │
+│              │              │              │              │              │          │
+│              │ Sync: Đơn hoàn thành         │              │              │          │
+│              │              │              │              │ ────────────►│          │
+│              │              │              │              │              │          │
+│         ┌────┴────┐         │              │              │              │          │
+│         │  FAIL   │         │              │              │              │          │
+│         └────┬────┘         │              │              │              │          │
+│              │              │              │              │              │          │
+│              │              │              │ Record failure reason        │
+│              │              │              │ ◄─────────────│              │          │
+│              │              │              │              │              │          │
+│              │ Status: GIAO_THAT_BAI       │              │              │          │
+│              │              │              │              │              │          │
+│              │ Return goods to warehouse   │              │              │          │
+│              │ ◄─────────────│              │              │              │          │
+│              │              │              │              │              │          │
+│              │              │              │              │ Notify Sale │          │
+│              │◄─────────────│              │              │              │          │
+│              │              │              │              │              │          │
+└──────────────┴──────────────┴──────────────┴──────────────┴──────────────┴──────────┘
+
+Status Flow:
+CHỜ_GIAO → ĐANG_GIAO → HOAN_THANH / GIAO_THAT_BAI
+```
+
+#### StockTake Process (Kiểm kê)
+```
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│ STOCKTAKE PROCESS SWIMLANES                                                        │
+├──────────────┬──────────────┬──────────────┬──────────────┬──────────────┬──────────┤
+│  WH MANAGER  │    SYSTEM    │   STAFF      │   ACCOUNTING │    QC TEAM   │  AUDIT  │
+├──────────────┼──────────────┼──────────────┼──────────────┼──────────────┼──────────┤
+│              │              │              │              │              │          │
+│ Create stocktake          │              │              │              │          │
+│ ────────────►│              │              │              │              │          │
+│              │              │              │              │              │          │
+│              │ Generate product list      │              │              │          │
+│              │ ◄─────────────│              │              │              │          │
+│              │              │              │              │              │          │
+│              │              │ Count physical              │              │          │
+│              │◄─────────────│              │              │              │          │
+│              │              │              │              │              │          │
+│              │ Compare: System vs Physical │              │              │          │
+│              │ ◄─────────────│              │              │              │          │
+│              │              │              │              │              │          │
+│              │ Generate variance report    │              │              │          │
+│              │ ────────────►│              │              │              │          │
+│              │              │              │              │              │          │
+│              │              │ Review & confirm variance   │              │          │
+│              │◄─────────────│              │              │              │          │
+│              │              │              │              │              │          │
+│         ┌────┴────┐         │              │              │              │          │
+│         │  NORMAL │         │              │              │              │          │
+│         │ VARIANCE│         │              │              │              │          │
+│         └────┬────┘         │              │              │              │          │
+│              │              │              │              │              │          │
+│              │              │              │ Review variance report     │
+│              │              │              │ ◄─────────────│              │          │
+│              │              │              │              │              │          │
+│ Approve adjustment       │              │              │              │          │
+│ ────────────►│              │              │              │              │          │
+│              │              │              │              │              │          │
+│              │ Update inventory           │              │              │          │
+│              │ ────────────►│              │              │              │          │
+│              │              │              │              │              │          │
+│              │              │              │              │              │ Log adjustment
+│              │              │              │              │ ─────────────►│
+│              │              │              │              │              │          │
+│              │              │              │ Sync to Accounting         │
+│              │              │              │ ◄─────────────│              │
+│              │              │              │              │              │          │
+│              │              │              │              │              │          │
+│         ┌────┴────┐         │              │              │              │          │
+│         │ DAMAGE/ │         │              │              │              │          │
+│         │ LOSS    │         │              │              │              │          │
+│         └────┬────┘         │              │              │              │          │
+│              │              │              │              │              │          │
+│              │              │              │              │ Create damage report      │
+│              │              │              │              │ ◄─────────────│          │
+│              │              │              │              │              │          │
+│              │              │ Move to QUARANTINE          │              │          │
+│              │◄─────────────│              │              │              │          │
+│              │              │              │              │              │          │
+│              │              │              │              │ Notify WH Manager        │
+│              │◄─────────────│              │              │              │          │
+│              │              │              │              │              │          │
+└──────────────┴──────────────┴──────────────┴──────────────┴──────────────┴──────────┘
+
+Status Flow:
+PENDING → IN_PROGRESS → PENDING_APPROVAL → APPROVED → COMPLETED
+```
+
+#### Return Process (Hoàn hàng từ Đại lý)
+```
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│ RETURN PROCESS SWIMLANES                                                            │
+├──────────────┬──────────────┬──────────────┬──────────────┬──────────────┬──────────┤
+│    DEALER    │    SALE      │    SYSTEM    │   ACCOUNTING │      QC      │  STORE  │
+├──────────────┼──────────────┼──────────────┼──────────────┼──────────────┼──────────┤
+│              │              │              │              │              │          │
+│ Request return              │              │              │              │          │
+│ ────────────►│              │              │              │              │          │
+│              │              │              │              │              │          │
+│              │ Confirm return request     │              │              │          │
+│              │ ────────────►│              │              │              │          │
+│              │              │              │              │              │          │
+│              │              │ Create Return Receipt     │              │          │
+│              │              │ ─────────────►│              │              │          │
+│              │              │              │              │              │          │
+│              │              │              │              │ Receive goods            │
+│              │              │              │              │ ◄─────────────│          │
+│              │              │              │              │              │          │
+│              │              │              │              │ QC inspection            │
+│              │              │              │              │ ─────────────►│          │
+│              │              │              │              │              │          │
+│              │              │         ┌────┴────┐         │              │          │
+│              │              │         │  PASS   │         │              │          │
+│              │              │         └────┬────┘         │              │          │
+│              │              │              │              │              │          │
+│              │              │              │              │ Update stock (normal)    │
+│              │              │              │              │ ◄─────────────│          │
+│              │              │              │              │              │          │
+│              │              │ Send credit note request   │              │          │
+│              │              │ ─────────────►│              │              │          │
+│              │              │              │              │              │          │
+│              │              │              │ Create credit note│          │          │
+│              │              │              │ ◄─────────────│              │          │
+│              │              │              │              │              │          │
+│              │ Notify dealer (credit processed)         │              │          │
+│              │ ◄─────────────│              │              │              │          │
+│              │              │              │              │              │          │
+│              │              │         ┌────┴────┐         │              │          │
+│              │              │         │  FAIL   │         │              │          │
+│              │              │         └────┬────┘         │              │          │
+│              │              │              │              │              │          │
+│              │              │              │              │ Move to QUARANTINE        │
+│              │              │              │              │ ◄─────────────│          │
+│              │              │              │              │              │          │
+│              │              │              │              │ Create damage report     │
+│              │              │              │              │ ─────────────►│          │
+│              │              │              │              │              │          │
+│              │              │              │              │ Notify WH Manager        │
+│              │              │◄─────────────│              │              │          │
+│              │              │              │              │              │          │
+│              │              │              │              │              │ Mark for disposal
+│              │              │              │              │ ◄─────────────│          │
+│              │              │              │              │              │          │
+└──────────────┴──────────────┴──────────────┴──────────────┴──────────────┴──────────┘
+
+Status Flow:
+PENDING → RECEIVED → QC_PASS / QC_FAIL → PROCESSED
+```
+
+#### Inventory Adjustment Process (Điều chỉnh tồn kho)
+```
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│ INVENTORY ADJUSTMENT PROCESS SWIMLANES                                              │
+├──────────────┬──────────────┬──────────────┬──────────────┬──────────────────────────┤
+│   STOREKEEPER│    SYSTEM    │  WH MANAGER │   ACCOUNTING │        AUDIT            │
+├──────────────┼──────────────┼──────────────┼──────────────┼──────────────────────────┤
+│              │              │              │              │                         │
+│ Detect discrepancy          │              │              │                         │
+│ ────────────►│              │              │              │                         │
+│              │              │              │              │                         │
+│              │ Create adjustment request │              │                         │
+│              │ ────────────►│              │              │                         │
+│              │              │              │              │                         │
+│              │              │ Review request│              │                         │
+│              │              │ ◄─────────────│              │                         │
+│              │              │              │              │                         │
+│         ┌────┴────┐         │              │              │                         │
+│         │ MINOR   │         │              │              │                         │
+│         │ (< 5%) │         │              │              │                         │
+│         └────┬────┘         │              │              │                         │
+│              │              │              │              │                         │
+│              │              │ Approve & update stock     │
+│              │              │ ◄─────────────│              │                         │
+│              │              │              │              │                         │
+│              │ Update inventory           │              │                         │
+│              │ ◄─────────────│              │              │                         │
+│              │              │              │              │                         │
+│              │              │              │              │ Log adjustment           │
+│              │              │              │              │ ◄─────────────│          │
+│              │              │              │              │                         │
+│              │              │              │ Sync to Accounting│                     │
+│              │              │              │ ◄─────────────│          │          │
+│              │              │              │              │                         │
+│              │              │              │              │                         │
+│         ┌────┴────┐         │              │              │                         │
+│         │ MAJOR   │         │              │              │                         │
+│         │ (> 5%) │         │              │              │                         │
+│         └────┬────┘         │              │              │                         │
+│              │              │              │              │                         │
+│              │              │ Require investigation       │
+│              │              │ ─────────────►│              │                         │
+│              │              │              │              │                         │
+│              │              │ Submit investigation report│              │                         │
+│              │◄─────────────│              │              │                         │
+│              │              │              │              │                         │
+│              │              │ Final approval│              │                         │
+│              │              │ ◄─────────────│              │                         │
+│              │              │              │              │                         │
+│              │ Update inventory           │              │                         │
+│              │ ◄─────────────│              │              │                         │
+│              │              │              │              │                         │
+│              │              │              │              │ Log with investigation  │
+│              │              │              │              │ ◄─────────────│          │
+│              │              │              │              │                         │
+└──────────────┴──────────────┴──────────────┴──────────────┴──────────────────────────┘
+
+Status Flow:
+PENDING → REVIEWING → APPROVED → COMPLETED
+```
+
 ---
 
 ## ANTI-PATTERNS (Tránh xa)
@@ -611,6 +924,10 @@ User Input → AI Model → MCP Client → MCP Server → External Service
 | **Magic Numbers** | Hard-coded numbers không có constant | Use named constants (e.g., `MAX_RETRY = 3`) |
 | **Dead Code** | Code không bao giờ được gọi | Remove unused code, keep clean |
 | **Shotgun Surgery** | Một thay đổi cần sửa nhiều file không liên quan | Keep related code together |
+| **Commented-out Code** | Code cũ để comment thay vì xóa | Use git history instead, delete dead code |
+| **Long Parameter List** | Method có >4 parameters | Use DTO or parameter object |
+| **Feature Envy** | Method dùng nhiều data của class khác | Move method to that class |
+| **Speculative Generality** | Code cho "sau này có thể cần" | Build when needed, not before |
 
 ### Database Anti-Patterns
 
@@ -621,6 +938,11 @@ User Input → AI Model → MCP Client → MCP Server → External Service
 | **Denormalization Abuse** | Quá nhiều denormalized tables | Balance read vs write performance |
 | **Soft Deletes Everywhere** | Xóa mềm mọi thứ | Only soft delete audit-critical data |
 | **EAV (Entity-Attribute-Value)** | Dynamic attributes = performance nightmare | Use proper columns, JSON for true dynamic |
+| **One Big Table** | Tất cả columns vào 1 table | Split into related entities |
+| **Missing Foreign Keys** | Không có FK constraint | Always define FK relationships |
+| **Nullable Everything** | Tất cả columns nullable | Use proper constraints, NOT NULL where needed |
+| **Storing JSON in TEXT** | Unstructured data làm khó query | Use proper schema, JSONB only for true flexibility |
+| **Using ENUM as VARCHAR** | Store enum values as string không check | Use DB enum type or FK to lookup table |
 
 ### Spring Boot Anti-Patterns
 
@@ -631,6 +953,12 @@ User Input → AI Model → MCP Client → MCP Server → External Service
 | **Transaction Failures** | @Transactional không used đúng | Understand propagation, isolation levels |
 | **N+1 in JPA** | Lazy loading gây N+1 | Use @Fetch(FetchMode.JOIN) or JOIN FETCH |
 | **Oversized @Entity** | Entity có 50+ columns | Split into smaller entities/Value Objects |
+| **Missing @Version** | Không có optimistic locking | Add @Version for concurrent updates |
+| **Not Using DTO** | Return entity trực tiếp từ controller | Always map to DTO, hide internal structure |
+| **Catching Exception Silently** | try-catch không xử lý gì | Either handle properly or let it propagate |
+| **Missing @Transactional Rollback** | Không rollback khi exception xảy ra | Use proper rollbackFor, no checked exceptions |
+| **Using @Autowired Field** | Field injection không test được | Use constructor injection with @RequiredArgsConstructor |
+| **Not Using Validation** | Skip input validation at API | Use @Valid + Jakarta Validation annotations |
 
 ### React Anti-Patterns
 
@@ -641,27 +969,114 @@ User Input → AI Model → MCP Client → MCP Server → External Service
 | **Inline Functions in JSX** | `<button onClick={() => handleClick()}>` | Define outside render or use useCallback |
 | **Overfetching** | Fetch entire data when only need summary | Use GraphQL fields or API filters |
 | **God Components** | One component 1000+ lines | Split into smaller, focused components |
+| **Mutating State Directly** | state.push() thay vì setState | Always use functional setState, immer for complex |
+| **Not Handling Loading State** | UI freeze khi fetch data | Always show loading skeleton/spinner |
+| **Not Handling Error State** | Crash khi API fail | Always wrap in try-catch, show error message |
+| **Using any Type** | :any everywhere mất type safety | Define proper interfaces, use unknown for external |
+| **Not Memoizing Expensive Computations** | Recalculate heavy data every render | useMemo for expensive computations |
+| **Not Using Key in List** | Missing key prop gây re-render issues | Always provide unique key in .map() |
+
+### WMS-Specific Anti-Patterns (QUAN TRỌNG)
+
+| Anti-Pattern | Description | How to Avoid |
+|--------------|-------------|--------------|
+| **Allow Negative Inventory** | Tồn kho âm được phép | DB constraint + validation trước khi UPDATE |
+| **Mixed Grade in Batch** | Một batch có nhiều grade A, B, C | Mỗi batch chỉ 1 grade duy nhất |
+| **Skip QC Check** | Nhập kho không qua QC | Bắt buộc QC trước khi nhập kho thường |
+| **Skip Audit Logging** | Không ghi log warehouse operations | Luôn log: ai, khi nào, làm gì |
+| **FEFO Not Applied** | Xuất kho không theo FEFO | Always select batch by expiry date ASC |
+| **Skip Capacity Check** | Putaway không kiểm tra bin capacity | Check zone/rack/shelf capacity trước putaway |
+| **Skip Reservation Check** | Xuất kho không check reserved quantity | Ensure (available = total - reserved) >= 0 |
+| **Skip Version Check** | Update inventory không check version | Use optimistic locking with @Version |
+| **Hardcode Warehouse IDs** | Magic number warehouse ID | Use configuration, enum, or DB lookup |
+| **Skip Status Validation** | Transition trạng thái không validate | Validate status flow: PENDING → APPROVED → etc |
+| **Not Handling Partial Transfer** | Điều chuyển quantity_sent ≠ quantity_received | Always create adjustment khi chênh lệch |
+| **Skip Approval Workflow** | Bypass duyệt đơn hàng | Strictly follow: Sale → Kế toán → Kho |
+| **Not Validating Delivery POD** | Giao hàng không có bằng chứng | Bắt buộc chữ ký/ảnh trước khi complete delivery |
+| **Skip Credit Limit Check** | Tạo đơn không kiểm tra công nợ | Check dealer.currentDebt < creditLimit |
+
+### Security Anti-Patterns
+
+| Anti-Pattern | Description | How to Avoid |
+|--------------|-------------|--------------|
+| **Plain Text Secrets** | Password/API key trong code | Use environment variables, secrets manager |
+| **Hardcoded Credentials** | Username/password trong config | Use Vault or environment-specific configs |
+| **No Input Validation** | User input không được validate | Validate all inputs at API boundary |
+| **SQL Injection Risk** | Raw SQL với string concatenation | Always use parameterized queries via JPA |
+| **Missing Authorization** | Chỉ check authentication, không check authorization | Check BOTH user AND warehouse assignment |
+| **Logging Sensitive Data** | Log password, token, card info | Never log sensitive data, mask in logs |
+| **Not Using HTTPS** | Production API không dùng TLS | Enforce HTTPS in all environments |
+| **Missing Rate Limiting** | API không giới hạn request | Implement rate limiting, especially auth endpoints |
+| **Storing Passwords in Plain** | Không hash passwords | Always use bcrypt with cost factor >= 12 |
+
+### API Design Anti-Patterns
+
+| Anti-Pattern | Description | How to Avoid |
+|--------------|-------------|--------------|
+| **Not Using HTTP Methods Correctly** | GET cho mutation, POST cho read | Use GET=read, POST=create, PUT=replace, PATCH=update, DELETE=remove |
+| **Returning Different Status Codes** | Same error → different codes | Standardize: 400=bad request, 404=not found, 500=server error |
+| **Naked Primitives** | Return raw String/Integer | Always wrap in JSON object with proper structure |
+| **Not Versioning API** | Breaking changes without version | Use /api/v1/, /api/v2/ for major changes |
+| **Chatty APIs** | Nhiều round-trips cho 1 operation | Return related data in single response |
+| **Not Documenting Errors** | Consumer không biết error codes | Document in OpenAPI/Swagger, provide error response schema |
+| **Missing Pagination** | Return all records without limit | Always paginate large datasets |
+| **Not Using HATEOAS** | No links to related resources | Include _links for discoverability |
+| **Inconsistent Naming** | /getUsers vs /user/list | Follow kebab-case, consistent naming |
 
 ### Integration Anti-Patterns
 
 | Anti-Pattern | Description | How to Avoid |
 |--------------|-------------|--------------|
-| **Chatty APIs** | Nhiều API calls nhỏ thay vì batch | Batch operations, composite APIs |
+| **Chatty Integration** | Nhiều API calls nhỏ thay vì batch | Batch operations, composite APIs |
 | **Synchronous Everything** | Blocking calls for async operations | Use events, queues for long-running ops |
 | **Ignoring Failures** | Catch exception, do nothing | Always handle exceptions properly |
 | **Hard-coded Timeouts** | Magic numbers for timeouts | Use configuration with sensible defaults |
+| **Not Handling Retry** | Failed call không retry | Implement exponential backoff retry |
+| **Fire and Forget** | Gửi message không confirm | Wait for acknowledgment, handle failures |
+| **Not Using Circuit Breaker** | Cascade failures khi downstream down | Use circuit breaker pattern |
+| **Tight Coupling** | Direct dependency với external service | Use message queue, adapter pattern |
+| **Not Handling Idempotency** | Retry gửi duplicate message | Use idempotency key for critical operations |
+
+### Performance Anti-Patterns
+
+| Anti-Pattern | Description | How to Avoid |
+|--------------|-------------|--------------|
+| **Query in Loop** | N+1 queries trong for-loop | Use batch query, JOIN FETCH |
+| **Not Using Connection Pool** | Mỗi request tạo connection mới | Configure HikariCP pool size properly |
+| **Missing Caching** | Query lặp lại không cache | Use @Cacheable for read-heavy data |
+| **Large Payload** | Return quá nhiều data không cần | Paginate, filter fields, use GraphQL |
+| **Not Using Index** | Full table scan cho common queries | Analyze queries, add composite indexes |
+| **Synchronous File I/O** | Blocking I/O trong request thread | Use async, non-blocking I/O |
+| **Memory Leak** | Cache không eviction | Set TTL, max size for caches |
+| **Not Using Compression** | Large JSON responses not compressed | Enable gzip, use binary formats for large data |
+
+### Naming Anti-Patterns
+
+| Anti-Pattern | Description | How to Avoid |
+|--------------|-------------|--------------|
+| **Inconsistent Naming** | warehouseId vs warehouse_id vs wh_id | Follow conventions: camelCase=Java, snake_case=DB |
+| **Single Letter Names** | i, x, y không mô tả gì | Use meaningful names: index, quantity, total |
+| **Hungarian Notation** | strName, iCount trong Java | Let type system handle types |
+| **Abbreviations Confusion** | cnt vs count vs number | Use full words or consistent abbreviations |
+| **Boolean Naming** | isActive vs active vs enabled | Use positive, clear names: isActive, hasPermission |
+| **Plural Confusion** | user vs users cho single entity | Use singular for single entity: /user/{id} |
+| **Inconsistent Date Naming** | createdAt vs createDate vs timestamp | Standardize: createdAt, updatedAt for audit |
+
+### Testing Anti-Patterns
+
+| Anti-Pattern | Description | How to Avoid |
+|--------------|-------------|--------------|
+| **Test for Coverage** | Viết test chỉ để pass coverage metric | Write meaningful tests that verify behavior |
+| **Brittle Selectors** | Test break when refactor UI | Use data-testid attributes, semantic selectors |
+| **No Assertion** | Tests that only execute code | Always assert expected outcomes |
+| **Shared Mutable State** | Tests affect each other | Each test = independent, clean up state |
+| **Slow Tests** | Unit tests hitting real DB | Mock dependencies, use testcontainers |
+| **Not Testing Error Cases** | Chỉ test happy path | Test invalid inputs, edge cases, exceptions |
+| **Hardcoded Test Data** | Test phụ thuộc specific DB state | Use factories, builders, clean state |
+| **Not Testing Business Rules** | Test mock data, không test FEFO/approval | Test actual business logic, not just service calls |
+| **Skipping Integration Tests** | Chỉ có unit tests | Cover critical paths with integration tests |
+| **Not Using Given-When-Then** | Tests không rõ structure | Follow arrange-act-assert pattern |
 
 ---
 
-## TESTING ANTI-PATTERNS TO AVOID
-
-| Anti-Pattern | Description | Fix |
-|--------------|-------------|-----|
-| **Test for coverage** | Viết test chỉ để pass coverage metric | Write meaningful tests |
-| **Brittle selectors** | Test break when refactor UI | Use data-testid attributes |
-| **No assertion** | Tests that only execute code | Always assert expected outcomes |
-| **Shared mutable state** | Tests affect each other | Each test = independent |
-| **Slow tests** | Unit tests hitting real DB | Mock dependencies, use testcontainers |
-
----
 
