@@ -33,7 +33,7 @@ Xuất kho → Đồng bộ công nợ sang Kế toán
 |----|----|
 | Nhập kho, xuất kho, điều chuyển | Module Sản xuất |
 | Tồn kho theo thời gian thực | Module CRM |
-| Quản lý lô hàng (FEFO/FIFO) | Máy quét Barcode/QR |
+| Quản lý lô hàng (FEFO/FIFO) | Nhập liệu thủ công, không dùng quét Barcode/QR |
 | QC kiểm tra chất lượng | Module Kế toán, HRM (chỉ tích hợp) |
 | Báo cáo đầy đủ | Giá do Kho tự quyết định |
 | Phân quyền theo kho & chức danh | |
@@ -500,7 +500,7 @@ Xuất kho → Đồng bộ công nợ sang Kế toán
 - Chỉ tích hợp Kế toán, HRM, Sale, Sản xuất qua API, không phát triển module riêng.
 - KHÔNG có CRM - Sale nhập đơn thủ công.
 - KHÔNG có Sản xuất - không có Work Order, nhập thành phẩm.
-- KHÔNG có máy quét Barcode/QR - nhập thủ công.
+- KHÔNG có máy quét Barcode/QR - tất cả dữ liệu nhập thủ công.
 - Giá do Sản xuất cung cấp, Kho chỉ lưu trữ.
 - Chỉ bán buôn, không bán lẻ.
 

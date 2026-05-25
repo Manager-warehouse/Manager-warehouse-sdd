@@ -98,29 +98,17 @@
 └─────────────────────────────────────────┘
 ```
 
-### Multi-Repo Structure
+### Repository Structure
 ```
-/Users/haison/Documents/GitHub/
-├── document/                    # ← Documentation repo (YOU ARE HERE)
-│   ├── CLAUDE.md       # ← Root: project overview, cross-repo patterns
-│   ├── AGENTS.md       # ← Rules cho mọi agent
-│   ├── CONSTITUTION.md # ← Team agreements
-│   ├── specs/          # ← Feature specifications
-│   └── .agents/        # ← Agent & skill definitions
-│
-├── backend/                     # ← Spring Boot backend
-│   └── CLAUDE.md       # ← Backend-specific patterns, Java conventions
-│
-└── frontend/                    # ← React frontend
-    └── CLAUDE.md       # ← Frontend-specific patterns, React conventions
-
-# Khi làm việc trong backend/:
-# Claude đọc: document/CLAUDE.md + backend/CLAUDE.md
-# → Biết cả project context VÀ backend-specific patterns
-
-# Khi làm việc trong frontend/:
-# Claude đọc: document/CLAUDE.md + frontend/CLAUDE.md
-# → Biết cả project context VÀ frontend-specific patterns
+/Users/haison/Documents/GitHub/Manager-warehouse-sdd
+├── .agents/             # Agent and skill definitions
+├── .git/                # Git metadata
+├── .specify/            # Spec generation workspace
+├── AGENTS.md            # Agent policy and rules
+├── CLAUDE.md            # Project overview, workflow, and conventions
+├── CONSTITUTION.md      # Development principles and agreements
+├── README.md            # Project summary and user stories
+└── test/                # Test plans and guidance
 ```
 
 ---
@@ -182,9 +170,9 @@
 **Giải pháp**: Authorization = role permission + warehouse assignment
 **Áp dụng**: All warehouse operations
 
-### LESSON-004: Barcode scan phải có fallback
-**Biến cố**: [TBD] Scan fail → stuck operation
-**Giải pháp**: Luôn có manual input fallback
+### LESSON-004: Manual entry workflow
+**Biến cố**: [TBD] Thiết bị quét không hiện tại, nên nhập liệu thủ công là chính
+**Giải pháp**: Thiết kế giao diện nhập nhanh, kiểm tra dữ liệu tại chỗ và cho phép tìm kiếm sản phẩm bằng mã/SKU
 **Áp dụng**: Receipt, Issue, Transfer screens
 
 ---
@@ -386,24 +374,24 @@ docs(api): update warehouse-stock endpoint docs
 ## GITNEXUS INTEGRATION
 
 ### Current Setup
-- ✅ Group: `wms-monorepo` (document, backend, frontend)
+- ✅ Repository: `Manager-warehouse-sdd`
 - ✅ Indexed: 115 symbols, 111 relationships
-- ✅ Cross-repo query enabled
+- ✅ Repository-scoped query enabled
 
 ### Available Commands
 
 ```bash
-# Query across all repos
-gitnexus group query wms-monorepo "warehouse inventory" --limit 10
+# Query the current repo
+gitnexus query "warehouse inventory" --limit 10
 
 # Impact analysis (what breaks if I change X)
-gitnexus group impact wms-monorepo --target WarehouseService --repo wms/backend
+gitnexus impact --target WarehouseService --repo Manager-warehouse-sdd
 
 # Sync index after code changes
-gitnexus group sync wms-monorepo
+gitnexus sync --repo Manager-warehouse-sdd
 
 # Check status
-gitnexus group status wms-monorepo
+gitnexus status --repo Manager-warehouse-sdd
 ```
 
 ### MCP Tools (when GitNexus MCP server is running)
@@ -533,7 +521,7 @@ User Input → AI Model → MCP Client → MCP Server → External Service
 │ Create receipt│               │               │               │            │
 │ ─────────────►│               │               │               │            │
 │               │               │               │               │            │
-│ Scan barcode  │               │               │               │            │
+│ Enter SKU/code│               │               │               │            │
 │ ─────────────►│               │               │               │            │
 │               │               │               │               │            │
 │ Submit for QC │               │               │               │            │
