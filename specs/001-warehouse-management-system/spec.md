@@ -20,29 +20,28 @@ Quy trình đặt hàng: Khi bên khác (đại lý, khách hàng) có nhu cầu
 
 ### Tổng Quan User Stories
 
-| ID | Tên User Story | Priority | Mô Tả Ngắn |
-|----|----------------|----------|-------------|
-| FR-WH-01 | Quản lý Danh mục Hàng hóa & Tồn kho | P1 | Quản lý sản phẩm, đơn vị tính, tồn kho theo thời gian thực |
-| FR-WH-02 | Nhập kho từ Nhà cung cấp & QC | P1 | Nhập hàng từ NCC, kiểm tra QC, phân loại lưu kho |
-| FR-WH-03 | Điều chuyển Nội bộ Giữa Các Kho | P1 | Chuyển hàng giữa 3 kho |
-| FR-WH-04 | Xuất kho cho Đại lý & Quản lý Đơn hàng Sale | P1 | Xuất cho đại lý từ đơn hàng Sale, theo dõi công nợ |
-| FR-WH-05 | Báo cáo & Kiểm soát Hệ thống | P1 | Dashboard, báo cáo tổng hợp |
-| FR-WH-06 | Kiểm kê & Điều chỉnh Tồn kho | P1 | Kiểm kê định kỳ, điều chỉnh |
-| FR-WH-07 | Quản lý Trạng thái Vận chuyển | P1 | Theo dõi vận đơn, trạng thái giao hàng |
-| US-WH-09 | Quét Barcode/QR Code | P2 | Barcode scanning trong mọi thao tác kho |
-| US-WH-10 | Hoàn hàng từ Đại lý (Return Management) | P2 | Xử lý hàng hoàn lại, credit note |
-| US-WH-12 | Quản lý Giá vốn & Giá bán | P2 | Cấu hình giá cost/retail/dealer, khuyến mãi |
-| US-WH-13 | Quản lý Lô Sản phẩm (Batch Management) | P2 | Batch number, expiry date, Grade, FIFO |
-| US-WH-14 | Quản lý Vị trí Kho (Bin Location) | P2 | Zone/Rack/Shelf, mapping sản phẩm |
-| US-WH-15 | Liên thông Kho ↔ Kế toán | P2 | Tính giá vốn, COGS, inventory value |
-| US-WH-16 | Liên thông Kho ↔ HRM | P3 | Theo dõi công nhân kho, sản lượng |
-| US-WH-17 | Liên thông Kho ↔ Sale | P2 | Đơn đặt hàng từ Sale, cập nhật xuất kho |
-| US-WH-18 | Kiểm soát Thất thoát & Hư hỏng | P3 | Lost items, damage report |
-| US-WH-19 | Quản lý Bằng chứng Giao hàng | P3 | Chữ ký, hình ảnh, video giao hàng |
-| US-WH-20 | Quản lý Xe vận chuyển & Tài xế | P3 | Fleet management, driver assignment |
-| US-WH-21 | Kiểm kê tháng & Báo cáo Tồn kho | P2 | Monthly stock taking, variance report |
-| US-WH-22 | Phân quyền theo Kho & Chức danh | P2 | Role-based access control |
-| US-WH-23 | Báo cáo chi tiết Kho | P1 | Report templates đầy đủ |
+| ID       | Tên User Story                              | Priority | Mô Tả Ngắn                                                 |
+| -------- | ------------------------------------------- | -------- | ---------------------------------------------------------- |
+| FR-WH-01 | Quản lý Danh mục Hàng hóa & Tồn kho         | P1       | Quản lý sản phẩm, đơn vị tính, tồn kho theo thời gian thực |
+| FR-WH-02 | Nhập kho từ Nhà cung cấp & QC               | P1       | Nhập hàng từ NCC, kiểm tra QC, phân loại lưu kho           |
+| FR-WH-03 | Điều chuyển Nội bộ Giữa Các Kho             | P1       | Chuyển hàng giữa 3 kho                                     |
+| FR-WH-04 | Xuất kho cho Đại lý & Quản lý Đơn hàng Sale | P1       | Xuất cho đại lý từ đơn hàng Sale, theo dõi công nợ         |
+| FR-WH-05 | Báo cáo & Kiểm soát Hệ thống                | P1       | Dashboard, báo cáo tổng hợp                                |
+| FR-WH-06 | Kiểm kê & Điều chỉnh Tồn kho                | P1       | Kiểm kê định kỳ, điều chỉnh                                |
+| FR-WH-07 | Quản lý Trạng thái Vận chuyển               | P1       | Theo dõi vận đơn, trạng thái giao hàng                     |
+| US-WH-08 | Hoàn hàng từ Đại lý (Return Management)     | P2       | Xử lý hàng hoàn lại, credit note                           |
+| US-WH-09 | Quản lý Giá vốn & Giá bán                   | P2       | Cấu hình giá cost/retail/dealer, khuyến mãi                |
+| US-WH-10 | Quản lý Lô Sản phẩm (Batch Management)      | P2       | Batch number, expiry date, Grade, FIFO                     |
+| US-WH-11 | Quản lý Vị trí Kho (Bin Location)           | P2       | Zone/Rack/Shelf, mapping sản phẩm                          |
+| US-WH-12 | Liên thông Kho ↔ Kế toán                    | P2       | Tính giá vốn, COGS, inventory value                        |
+| US-WH-13 | Liên thông Kho ↔ HRM                        | P3       | Theo dõi công nhân kho, sản lượng                          |
+| US-WH-14 | Liên thông Kho ↔ Sale                       | P2       | Đơn đặt hàng từ Sale, cập nhật xuất kho                    |
+| US-WH-15 | Kiểm soát Thất thoát & Hư hỏng              | P3       | Lost items, damage report                                  |
+| US-WH-16 | Quản lý Bằng chứng Giao hàng                | P3       | Chữ ký, hình ảnh, video giao hàng                          |
+| US-WH-17 | Quản lý Xe vận chuyển & Tài xế              | P3       | Fleet management, driver assignment                        |
+| US-WH-18 | Kiểm kê tháng & Báo cáo Tồn kho             | P2       | Monthly stock taking, variance report                      |
+| US-WH-19 | Phân quyền theo Kho & Chức danh             | P2       | Role-based access control                                  |
+| US-WH-20 | Báo cáo chi tiết Kho                        | P1       | Report templates đầy đủ                                    |
 
 ---
 
@@ -97,6 +96,7 @@ Quy trình đặt hàng: Khi bên khác (đại lý, khách hàng) có nhu cầu
 **Mô tả**: Khi đại lý hoặc khách hàng có nhu cầu đặt hàng, họ liên hệ trực tiếp với bộ phận Sale. Sale điền thông tin đơn hàng vào hệ thống (không qua CRM). Hệ thống Kho tự động nhận đơn hàng từ Sale, chuẩn bị hàng và xuất kho. Sau khi xuất kho, hệ thống tự động gửi dữ liệu sang Kế toán để xử lý công nợ.
 
 **Quy trình đặt hàng**:
+
 1. Đại lý/Khách hàng liên hệ Sale qua điện thoại, email, Zalo, hoặc gặp trực tiếp.
 2. Sale điền thông tin đơn hàng vào hệ thống: thông tin khách hàng, sản phẩm, số lượng, giá, thời gian giao hàng mong muốn.
 3. Sale xác nhận đơn hàng (trạng thái: Đã xác nhận).
