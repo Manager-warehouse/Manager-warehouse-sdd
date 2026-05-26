@@ -227,7 +227,7 @@ Pending: Integration specs for Accounting/HRM/Sale APIs
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **document** (115 symbols, 111 relationships, 0 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **Manager-warehouse-sdd** (273 symbols, 264 relationships, 0 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
@@ -250,10 +250,10 @@ This project is indexed by GitNexus as **document** (115 symbols, 111 relationsh
 
 | Resource | Use for |
 |----------|---------|
-| `gitnexus://repo/document/context` | Codebase overview, check index freshness |
-| `gitnexus://repo/document/clusters` | All functional areas |
-| `gitnexus://repo/document/processes` | All execution flows |
-| `gitnexus://repo/document/process/{name}` | Step-by-step execution trace |
+| `gitnexus://repo/Manager-warehouse-sdd/context` | Codebase overview, check index freshness |
+| `gitnexus://repo/Manager-warehouse-sdd/clusters` | All functional areas |
+| `gitnexus://repo/Manager-warehouse-sdd/processes` | All execution flows |
+| `gitnexus://repo/Manager-warehouse-sdd/process/{name}` | Step-by-step execution trace |
 
 ## CLI
 

@@ -419,6 +419,311 @@ gitnexus status --repo Manager-warehouse-sdd
 
 ---
 
+
+## SEMBLE INTEGRATION
+
+### What is Semble?
+Semble is a semantic code search tool that finds code by **meaning**, not just text matching. It complements GitNexus by providing cross-repo search and similarity detection.
+
+### Semble vs GitNexus - When to Use What?
+
+| Task | Tool | Why |
+|------|------|-----|
+| "Find all FEFO implementations" | **Semble** | Semantic search across codebase |
+| "What breaks if I change X?" | **GitNexus** | Call graph + impact analysis |
+| "Show me code similar to BatchService" | **Semble** | Similarity detection |
+| "Who calls this method?" | **GitNexus** | Relationship graph |
+| "Trace receipt flow end-to-end" | **GitNexus** | Execution flow analysis |
+| "Find validation patterns" | **Semble** | Pattern search across files |
+
+### MCP Tools Available
+
+| Tool | Purpose | Example |
+|------|---------|---------|
+| `semble.search()` | Semantic code search | `semble.search("inventory quantity validation")` |
+| `semble.find_related()` | Find similar code | `semble.find_related("BatchService.selectFEFO")` |
+
+### Optimal Workflow: Semble + GitNexus
+
+#### Scenario 1: Adding New Feature
+```
+1. Semble search: Find existing similar implementations
+   → semble.search("warehouse receipt validation")
+   
+2. GitNexus context: Understand how existing code is used
+   → gitnexus_context("ReceiptService.validate")
+   
+3. GitNexus impact: Check blast radius before modifying
+   → gitnexus_impact("ReceiptService")
+   
+4. Implement changes
+
+5. GitNexus detect: Verify scope before commit
+   → gitnexus_detect_changes()
+```
+
+#### Scenario 2: Bug Fixing
+```
+1. Semble search: Find all places with similar logic
+   → semble.search("batch expiry date calculation")
+   
+2. GitNexus query: Trace execution flow
+   → gitnexus_query("batch expiry validation")
+   
+3. GitNexus impact: Check what depends on the buggy code
+   → gitnexus_impact("BatchService.calculateExpiry")
+   
+4. Fix bug
+
+5. Semble find_related: Check if similar bugs exist elsewhere
+   → semble.find_related("BatchService.calculateExpiry")
+```
+
+#### Scenario 3: Refactoring
+```
+1. Semble search: Find all code that needs refactoring
+   → semble.search("manual inventory adjustment")
+   
+2. GitNexus impact: Assess blast radius
+   → gitnexus_impact("InventoryService.adjust")
+   
+3. Refactor safely
+
+4. GitNexus detect: Verify only expected changes
+   → gitnexus_detect_changes()
+```
+
+### Best Practices
+
+- **Start with Semble** when exploring unfamiliar domain concepts
+- **Use GitNexus** before any code modification to check impact
+- **Combine both** for comprehensive understanding:
+  - Semble finds WHAT exists
+  - GitNexus shows HOW it's connected
+
+### Combined CLI Reference
+
+#### Exploration Phase
+```bash
+# Find code by concept (Semble)
+semble search "FEFO batch selection" --limit 10
+
+# Understand execution flow (GitNexus)
+gitnexus query "warehouse receipt process"
+
+# Get full context of a symbol (GitNexus)
+gitnexus context --name "InventoryService.reserve"
+```
+
+#### Before Editing
+```bash
+# Check impact (GitNexus)
+gitnexus impact --target "BatchService.selectFEFO" --direction upstream
+
+# Find similar code that might need same change (Semble)
+semble find-related "BatchService.selectFEFO"
+```
+
+#### After Editing
+```bash
+# Verify changes (GitNexus)
+gitnexus detect-changes --scope staged
+
+# Check if similar patterns exist elsewhere (Semble)
+semble search "batch selection logic"
+```
+
+#### Refactoring
+```bash
+# Find all instances of a pattern (Semble)
+semble search "inventory validation pattern"
+
+# Safe rename across call graph (GitNexus)
+gitnexus rename --from "oldMethodName" --to "newMethodName"
+```
+
+
+
+---
+
+## SPECKIT INTEGRATION
+
+### What is Speckit?
+Speckit is an AI-driven Spec-Driven Development (SDD) tool that automates the workflow from specification to implementation. It follows a structured process: Define → Plan → Build → Test → Review.
+
+### Speckit MCP Server Setup
+
+Speckit works as an MCP (Model Context Protocol) server that needs to be configured in your IDE.
+
+#### Installation via NPX (Recommended)
+
+1. **Configure Cursor IDE** - Edit MCP config file:
+   - macOS: `~/.cursor/mcp.json`
+   - Linux: `~/.config/cursor/mcp.json`
+   - Windows: `%APPDATA%\Cursor\mcp.json`
+
+2. **Add Speckit server**:
+```json
+{
+  "mcpServers": {
+    "speckit": {
+      "command": "npx",
+      "args": ["-y", "speckit-mcp-x@latest"]
+    }
+  }
+}
+```
+
+3. **Restart Cursor** - Speckit will auto-download on first use
+
+#### Requirements
+- Python 3.10+ (installed: Python 3.11.15 ✅)
+- Node.js with npx
+
+### Available Speckit Tools (via MCP)
+
+| Tool | Purpose | Example |
+|------|---------|---------|
+| `speckit_specify` | Create/update feature specification | Define new feature requirements |
+| `speckit_plan` | Decompose spec into tasks | Break down feature into actionable steps |
+| `speckit_implement` | Execute tasks incrementally | Build feature step-by-step |
+| `speckit_analyze` | Check spec consistency | Validate specification completeness |
+| `speckit_git_validate` | Validate branch naming | Ensure git conventions |
+
+### Speckit Workflow Integration
+
+#### Standard SDD Flow
+```
+1. /spec (speckit_specify)
+   → Define feature specification in /specs directory
+   → Document requirements, acceptance criteria, constraints
+
+2. /plan (speckit_plan)
+   → Decompose spec into tasks with clear steps
+   → Assign priorities and dependencies
+
+3. /build (speckit_implement)
+   → Execute tasks incrementally
+   → Follow TDD: RED → GREEN → REFACTOR
+
+4. /test
+   → Run unit tests (min 80% coverage)
+   → Run integration tests
+
+5. /review
+   → Five-axis code review
+   → Check against spec requirements
+
+6. /deploy
+   → Build, test, deploy
+```
+
+### Combining Speckit + GitNexus + Semble
+
+#### Scenario: Adding New Feature with Full Workflow
+
+```
+1. SPEC PHASE (Speckit)
+   → speckit_specify: Create spec for "FEFO batch selection"
+   → Document business rules, edge cases
+
+2. EXPLORATION PHASE (Semble + GitNexus)
+   → semble.search("batch selection logic"): Find similar implementations
+   → gitnexus_query("inventory management"): Understand existing flows
+
+3. PLANNING PHASE (Speckit)
+   → speckit_plan: Break down into tasks
+   → Task 1: Add FEFO selector utility
+   → Task 2: Update IssueService to use FEFO
+   → Task 3: Add unit tests
+
+4. IMPACT ANALYSIS (GitNexus)
+   → gitnexus_impact("IssueService"): Check blast radius
+   → Verify who calls IssueService methods
+
+5. IMPLEMENTATION (Speckit)
+   → speckit_implement: Execute tasks one by one
+   → TDD cycle for each task
+
+6. VERIFICATION (GitNexus)
+   → gitnexus_detect_changes(): Verify scope
+   → Ensure only expected symbols affected
+
+7. VALIDATION (Speckit)
+   → speckit_analyze: Check spec compliance
+   → All acceptance criteria met?
+```
+
+### Best Practices
+
+**When to use Speckit:**
+- Starting new features (always begin with /spec)
+- Complex features requiring structured planning
+- Team collaboration (specs as documentation)
+- Ensuring requirements traceability
+
+**When to combine with GitNexus:**
+- Before modifying existing code (impact analysis)
+- Understanding how new feature fits into existing architecture
+- Refactoring (safe rename, detect changes)
+
+**When to combine with Semble:**
+- Finding existing patterns to follow
+- Discovering similar code that might need updates
+- Learning from existing implementations
+
+### Project Structure for Speckit
+
+```
+/specs/
+├── 001-warehouse-management-system/
+│   ├── spec.md                    # Main specification
+│   ├── plan.md                    # Task breakdown
+│   └── implementation-log.md      # Progress tracking
+├── 002-fefo-batch-selection/
+│   ├── spec.md
+│   └── plan.md
+└── README.md                      # Specs index
+```
+
+### Speckit Commands Reference
+
+```bash
+# Note: These are MCP tools, not CLI commands
+# They are invoked by AI through the MCP protocol
+
+# Create specification
+speckit_specify({
+  feature: "FEFO batch selection",
+  requirements: "...",
+  acceptance_criteria: "..."
+})
+
+# Generate plan
+speckit_plan({
+  spec_path: "/specs/002-fefo-batch-selection/spec.md"
+})
+
+# Implement tasks
+speckit_implement({
+  plan_path: "/specs/002-fefo-batch-selection/plan.md",
+  task_id: "task-1"
+})
+
+# Validate spec
+speckit_analyze({
+  spec_path: "/specs/002-fefo-batch-selection/spec.md"
+})
+```
+
+### Integration with AGENTS.md
+
+The project follows Speckit conventions as defined in AGENTS.md:
+- Specs stored in `/specs` directory
+- Standard workflow: spec → plan → build → test → review
+- Git branch naming: `spec/[feature-name]`
+- Commit format includes spec reference
+
 ## QUICK REFERENCE
 
 ### Core Entities

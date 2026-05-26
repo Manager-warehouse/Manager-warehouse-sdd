@@ -1,0 +1,6 @@
+{
+  "devDependencies": {
+    "gitnexus": "^1.6.5",
+    "speckit-mcp-x": "^3.2.5"
+  }
+}
