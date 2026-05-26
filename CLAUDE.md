@@ -493,6 +493,74 @@ Semble is a semantic code search tool that finds code by **meaning**, not just t
    → gitnexus_detect_changes()
 ```
 
+
+### Semble CLI Commands
+
+Semble CLI is installed at `/Users/haison/.local/bin/semble` and provides direct command-line access.
+
+#### Available Commands
+
+```bash
+# Search codebase with natural language
+semble search "authentication flow" .
+semble search "FEFO batch selection logic" .
+
+# Search for specific symbol or identifier
+semble search "InventoryService" .
+
+# Search remote repository (auto-clones)
+semble search "warehouse management" https://github.com/example/repo
+
+# Limit number of results
+semble search "validation logic" . --top-k 10
+
+# Include non-code files (markdown, yaml, json, etc.)
+semble search "configuration" . --include-text-files
+
+# Find code similar to a specific location
+semble find-related src/service/InventoryService.java 42 .
+
+# Show token savings statistics
+semble savings
+
+# Initialize semble sub-agent file
+semble init
+```
+
+#### Practical Examples for WMS Project
+
+```bash
+# Find all FEFO implementations
+semble search "FEFO batch selection" . --top-k 10
+
+# Find inventory validation patterns
+semble search "inventory quantity validation" .
+
+# Find similar code to BatchService
+semble find-related src/service/BatchService.java 1 .
+
+# Search warehouse receipt flow
+semble search "warehouse receipt process" .
+
+# Find QC validation logic
+semble search "quality control validation" .
+
+# Include config files in search
+semble search "database configuration" . --include-text-files
+```
+
+#### When to Use CLI vs MCP
+
+| Scenario | Use CLI | Use MCP (via AI) |
+|----------|---------|------------------|
+| Quick manual search | ✅ `semble search "query" .` | ❌ |
+| Exploring codebase manually | ✅ Direct terminal | ❌ |
+| AI-driven workflow | ❌ | ✅ AI calls MCP tools |
+| Integrated with GitNexus | ❌ | ✅ AI orchestrates both |
+| Part of automated task | ❌ | ✅ AI decides when to use |
+
+**Recommendation**: Let AI use Semble MCP tools automatically. Use CLI only for manual exploration.
+
 ### Best Practices
 
 - **Start with Semble** when exploring unfamiliar domain concepts
