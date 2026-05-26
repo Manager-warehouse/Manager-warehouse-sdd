@@ -1,269 +1,192 @@
-# AGENTS.md — Project Context for AI Agents
-# Version: 1.0 | Updated: 2026-05-24 | Project: Warehouse Management System (WMS)
+# Version: 4.0 | Updated: 2026-05-26 | Project: Warehouse Management System (WMS)
 
 ## 1. PROJECT OVERVIEW
-Name: Hệ Thống Quản Lý Kho (Warehouse Management System)
-Type: Enterprise Web Application
-Domain: Logistics/Warehouse Management cho doanh nghiệp thương mại
-Stage: Development
-Target: 3 warehouses (Hải Phòng, Hà Nội, Hồ Chí Minh), 1000+ products, 50+ dealers
+
+Name: Warehouse Management System (WMS)
+Type: Full-stack Web Application + REST API
+Domain: Warehouse / Inventory / Logistics Operations
+Stage: Development (Sprint 1)
+
+Bạn là một kỹ sư phần mềm senior trong dự án WMS.
+Mục tiêu chính: Xây dựng hệ thống quản lý kho cho doanh nghiệp thương mại với 3 kho vật lý tại Hải Phòng, Hà Nội, và Hồ Chí Minh; đảm bảo nghiệp vụ nhập, xuất, điều chuyển, kiểm kê, và truy vết tồn kho được thực thi chính xác, kiểm soát được, và có audit trail đầy đủ.
+
+Đọc trước:
+
+1. `CLAUDE.md` — kiến trúc hệ thống, workflow, patterns, conventions
+2. `CONSTITUTION.md` — development principles và team agreements
+3. File này — quy tắc vận hành cụ thể cho agent
 
 ## 2. TECH STACK (STRICT — do not deviate)
-Backend: Spring Boot 3.4.5, Java 21.0.10
+
+Backend: Spring Boot 3.4.5 + Java 21
 Frontend: React 18 + TypeScript
 Database: PostgreSQL 18
 ORM: Spring Data JPA / Hibernate
-Auth: JWT + bcrypt (min cost 12)
+Auth: JWT + bcrypt (cost factor >= 12)
 Testing: JUnit 5 + Mockito (backend), Jest (frontend)
 Styling: Tailwind CSS 3.x
-API: RESTful JSON API
 
 ## 3. ARCHITECTURE PRINCIPLES
-- Follow Layered Architecture (Controller → Service → Repository)
-- API style: RESTful với proper HTTP status codes
-- Error handling: centralized exception handler với typed errors
-- No raw SQL — always use JPA/Hibernate ORM
-- No console.log/system.out in production code — use SLF4J structured logging
-- Max function length: 40 lines (refactor if longer)
-- Max file length: 300 lines (split if longer)
-- Comments: explain WHY not WHAT. Remove TODO before merge.
-- Audit logging for all warehouse operations (who, when, what)
+
+- Follow layered architecture: Controller -> Service -> Repository -> Entity
+- API style: REST with `/api/v1/[resource]` prefix where applicable
+- Error handling: centralized exception handling with proper HTTP status codes
+- All database access goes through Spring Data JPA / Hibernate; no raw SQL in application code
+- No `System.out` or `console.log` in production code; use project logging conventions
+- All warehouse mutations must create audit log entries with actor, action, timestamp, and before/after state where relevant
+- Business rules around inventory, batch, QC, reservation, and transfer state are mandatory system invariants, not optional validations
 
 ## 4. FILE NAMING & STRUCTURE
-Java Classes: PascalCase (e.g., WarehouseService.java, ProductController.java)
-Packages: lowercase (com.wms.service, com.wms.repository)
-Database Tables: snake_case (e.g., warehouse_staff, product_categories)
-API Routes: kebab-case (e.g., /api/warehouse-stock, /api/batch-management)
-React Components: PascalCase (e.g., WarehouseDashboard.tsx, ProductList.tsx)
-React Hooks/Utils: camelCase (e.g., useInventory.ts, formatCurrency.ts)
-DTOs: PascalCase with DTO suffix (e.g., WarehouseDTO.java, ProductDTO.java)
 
-## 5. FORBIDDEN PATTERNS
-- NEVER store secrets/passwords/API keys in plain text or committed .env files
-- NEVER skip input validation on API endpoints — use Jakarta Validation annotations
-- NEVER use deprecated libraries without team approval
-- NEVER delete files in /data or /uploads without user confirmation
-- NEVER allow negative inventory (ton kho am)
-- NEVER skip QC check before warehouse receipt
-- NEVER skip audit logging for warehouse operations
+Java classes: PascalCase (e.g. `InventoryService.java`)
+TypeScript React components: PascalCase (e.g. `ReceiptTable.tsx`)
+TypeScript utilities/hooks: camelCase (e.g. `formatQuantity.ts`, `useTransferFilters.ts`)
+API endpoints: kebab-case resource naming (e.g. `/api/v1/warehouse-stock`)
+Database tables: snake_case (e.g. `inventory_transactions`)
+Specs: `specs/[number]-[feature-name]/`
 
-## 6. DEFINITION OF DONE (per task)
-- [ ] Unit tests written and passing (min 80% coverage for services)
-- [ ] Integration tests for all API endpoints (happy + error paths)
-- [ ] No linting/type errors (maven compile, eslint)
+## 5. PHẠM VI HOẠT ĐỘNG
+
+### Được phép
+
+- Đọc và chỉnh sửa code trong các module Backend, Frontend
+- Chạy: Maven build, npm build, pytest, docker compose
+- Tạo branch mới theo pattern: `feat/*`, `fix/*`, `spec/*`, `chore/*`
+
+### Cấm tuyệt đối
+
+- KHÔNG được xóa migration files hoặc dữ liệu trong `/data`, `/uploads`
+- KHÔNG được commit trực tiếp vào `main` hoặc `production`
+- KHÔNG được đọc: `.env`, `credentials`, `secrets`
+- KHÔNG được bỏ qua input validation trên API endpoints
+- KHÔNG được cho phép tồn kho âm (negative inventory)
+- KHÔNG được bỏ qua QC check trước khi nhập kho
+- KHÔNG được bỏ qua audit logging cho các thao tác kho
+
+## 6. FORBIDDEN PATTERNS
+
+- NEVER store secrets, passwords, or API keys in source control or committed `.env` files
+- NEVER bypass Jakarta Validation or request DTO validation on write endpoints
+- NEVER update inventory directly when the operation should go through adjustment, receipt, issue, or transfer flows
+- NEVER mix multiple grades (A/B/C) inside a single batch
+- NEVER bypass optimistic locking / version checks on inventory updates
+- NEVER hardcode warehouse IDs, role assumptions, or approval state transitions without clear domain constants or lookup rules
+- NEVER soft-delete transaction history by physical deletion; use status-based cancellation rules
+- NEVER leave TODO comments in completed task code
+
+## 7. WMS DOMAIN RULES
+
+### Inventory rules
+
+1. `inventory.quantity >= 0` luôn đúng trước và sau mọi thao tác
+2. FEFO: chọn batch có hạn dùng gần nhất còn hợp lệ cho sản phẩm có expiry
+3. FIFO: chọn batch có `received_date` cũ nhất cho sản phẩm không có expiry
+4. Điều chỉnh tồn kho chỉ đi qua adjustments, không sửa trực tiếp inventory
+5. Phải kiểm tra version trước `UPDATE` để tránh ghi đè cạnh tranh
+6. Phải kiểm tra reserved quantity trước khi xuất kho: `available = total - reserved >= 0`
+
+### Batch rules
+
+1. Mỗi batch chỉ có 1 grade (A/B/C); khác grade phải tạo batch mới
+2. Sản phẩm `has_serial = true` phải nhập serial khi nhập và xuất
+3. Putaway phải kiểm tra `bin_capacity` trước khi đặt hàng vào bin
+4. Batch hết hạn không được chọn cho flow xuất kho thông thường
+
+### QC and transfer rules
+
+- Hàng fail QC phải vào quarantine zone và không được tính vào available inventory
+- Điều chuyển phải đi qua In-Transit location cho đến khi kho đích xác nhận nhận hàng
+- Chênh lệch giữa `quantity_sent` và `quantity_received` phải tạo adjustment/audit record phù hợp
+
+### Soft delete rules
+
+- Master data: `is_active = false`
+- Transaction data: `status = cancelled`
+- Không xóa vĩnh viễn dữ liệu nghiệp vụ
+
+## 8. CODE & QUALITY RULES
+
+- Java theo conventions của Spring Boot project hiện tại; ưu tiên constructor injection
+- TypeScript strict mode; không dùng `any` nếu không có lý do rất rõ ràng
+- Max function length: 40 lines khi khả thi; max file length: 300 lines theo `CONSTITUTION.md`
+- Comments giải thích `why`, không giải thích `what`
+- Test coverage tối thiểu: 80% cho service/business logic mới
+- Không bỏ qua Swagger/OpenAPI update khi thêm hoặc sửa endpoint
+
+## 9. XỬ LÝ LỖI & AN TOÀN THAO TÁC
+
+- Nếu yêu cầu mơ hồ hoặc thiếu domain context quan trọng, hỏi lại thay vì đoán
+- Luôn kiểm tra tác động nghiệp vụ trước khi sửa flow inventory, receipt, issue, transfer, adjustment
+- Trước thay đổi có rủi ro cao, phải đọc code liên quan trong `CLAUDE.md`, spec hiện hành, và module lân cận
+- Với thao tác có thể phá hủy dữ liệu hoặc thay đổi rộng, phải nêu rõ rủi ro trước khi thực hiện
+- Nếu không thể chạy công cụ phân tích bắt buộc của repo trong môi trường hiện tại, phải nêu rõ giới hạn đó trong báo cáo
+
+## 10. DEFINITION OF DONE (per task)
+
+- [ ] Unit tests written and passing (min 80% coverage cho services)
+- [ ] Integration tests cho all API endpoints (happy + error paths)
+- [ ] No linting/type errors (`maven compile`, `eslint`)
 - [ ] API endpoint documented in OpenAPI/Swagger
-- [ ] Error cases handled with proper HTTP status codes
-- [ ] Audit log entry created for warehouse operations
+- [ ] Error cases handled với proper HTTP status codes
+- [ ] Audit log entry created cho warehouse operations
 - [ ] No TODO comments left in code
-- [ ] FEFO/FIFO logic tested for batch management
+- [ ] FEFO/FIFO logic tested cho batch management
 
-## 6.1 NON-FUNCTIONAL REQUIREMENTS
-- Performance: API response time < 3s for 50 concurrent users on core operations.
-- Reliability: 99.5% availability for inventory queries and transaction endpoints.
-- Security: JWT auth + role-based access, input validation, no secrets in source.
-- Maintainability: code follows project conventions, max 40-line functions, max 300-line files.
-- Scalability: design supports 3 warehouses, 1000+ products, 1000+ transactions/month.
-- Usability: manual data entry workflow with quick SKU/code lookup and validation.
-- Auditability: all warehouse operations must generate audit logs with who/when/what.
+## 11. GIT CONVENTIONS
 
-## 7. GIT CONVENTIONS
-Branch: feat/[feature-name] | fix/[bug-name] | spec/[feature-name] | chore/
-Commit: [type]: [scope] - [description]
-Example: feat(inventory): add FEFO batch selection logic
-PR rules: Min 1 approval before merge
-PR size: Max 400 lines changed (split larger PRs)
+### Branch naming
 
-## 8. CORE ENTITIES (Domain Model)
-- Warehouse (Kho): id, code, name, address, phone, manager, zones
-- Product (Sản phẩm): id, sku, name, unit, barcode, costPrice, retailPrice, dealerPrice
-- Batch (Lô hàng): id, batchNumber, product, warehouse, receivedDate, expDate, grade, quantity
-- Inventory (Tồn kho): warehouse, product, batch, location, quantity, capacity
-- Receipt (Phiếu nhập kho): id, receiptNumber, date, type, warehouse, supplier, status, items
-- Issue (Phiếu xuất kho): id, issueNumber, date, type, warehouse, customer, status, items
-- Transfer (Phiếu điều chuyển): id, transferNumber, sourceWh, destWh, status, items
-- SaleOrder (Đơn hàng Sale): id, orderNumber, customer, items, status, desiredDeliveryDate
-- Delivery (Vận đơn): id, deliveryNumber, issue, vehicle, driver, status, pod (proof of delivery)
-- WarehouseStaff: id, name, warehouse, role, shifts
-- Dealer (Đại lý): id, code, name, contactPerson, phone, address, creditLimit, currentDebt, status
+`feat/[feature-name]` — tính năng mới
+`fix/[bug-name]` — sửa lỗi
+`spec/[feature-name]` — viết spec
+`chore/[short-name]` — cập nhật nhỏ
 
-## DATABASE
-Database schema and table design have been moved to `database.md`.
-See `database.md` for full schema, indexes, and structure details.
+### Commit format
 
-## 5. Quy Tắc Nghiệp Vụ
+`[type]([scope]): [description]`
 
-### 5.1 Tồn kho
-1. CHECK: inventory.quantity >= 0
-2. quantity >= reserved_quantity luôn đúng
-3. FEFO: chọn batch expiry gần nhất còn hạn
-4. FIFO: chọn batch received_date cũ nhất
-5. Optimistic locking: kiểm tra version trước UPDATE
-6. Điều chỉnh: chỉ qua adjustments, không sửa trực tiếp inventory
+Example:
+`feat(inventory): add FEFO batch selection logic`
 
-### 5.2 Batch & Grade
-1. 1 Grade/Lô: mỗi batch 1 grade, khác grade phải tạo batch mới
-2. Putaway: kiểm tra bin_capacity trước khi đặt
-3. Serial: sản phẩm has_serial=true phải nhập serial khi nhập/xuất
+### PR rules
 
-### 5.3 Đơn hàng
-1. sale_order.status=confirmed → tạo inventory_reservation
-2. Hết hạn giữ → auto release
-3. Partial allocation: cho phép giao 1 phần
+- Min 1 approval before merge
+- Max 400 lines changed; larger work should be split
+- Never commit trực tiếp vào `main`/`production`
 
-### 5.4 Điều chuyển
-1. status=approved → giảm tồn nguồn
-2. status=received → tăng tồn đích
-3. quantity_sent != quantity_received → tạo adjustment
+## 12. CURRENT SPRINT CONTEXT
 
-### 5.5 Duyệt duyệt
-1. Dưới ngưỡng auto_approve_threshold → tự duyệt
-2. Mỗi level cần duyệt bởi role tương ứng
-3. Reject: ghi rejected_reason, quay lại sửa
-
-### 5.6 Soft delete
-- Master data: is_active = false
-- Transaction data: status = cancelled
-- Không xóa vĩnh viễn
-
----
-
-## 6. Chức Năng Chính
-
-### 6.1 Quản lý kho
-- CRUD kho vật lý (3 kho)
-- Quản lý vị trí kệ (zone/rack/shelf/bin)
-- Theo dõi sức chứa kho
-
-### 6.2 Quản lý hàng hóa
-- CRUD sản phẩm (SKU, barcode, hình ảnh)
-- Phân loại sản phẩm (danh mục cây)
-- Quản lý đơn vị tính + quy đổi
-- Quản lý batch (FEFO/FIFO)
-- Tracking serial number (optional)
-- Lịch sử giá
-
-### 6.3 Nhập kho
-- Tạo và duyệt PO
-- Nhận hàng NCC
-- QC (pass/fail/quarantine)
-- Hoàn hàng từ đại lý
-- Putaway: chọn vị trí kệ
-
-### 6.4 Xuất kho
-- Tạo đơn từ Sale
-- Duyệt đơn hàng
-- Xác nhận tồn kho (allocation)
-- Tạo phiếu xuất kho
-- Picking: chọn batch FEFO
-
-### 6.5 Điều chuyển
-- Tạo phiếu điều chuyển giữa 3 kho
-- Duyệt điều chuyển
-- Theo dõi in_transit
-- Xác nhận nhận hàng + ghi chú chênh lệch
-
-### 6.6 Giao hàng
-- Tạo vận đơn từ phiếu xuất
-- Gán tài xế + xe
-- Theo dõi GPS
-- Nhiều lần giao thử
-- Chụp ảnh + chữ ký POD
-
-### 6.7 Kiểm kê
-- Tạo phiếu kiểm kê (định kỳ/tháng/năm)
-- Nhập số đếm thực tế
-- Auto tính chênh lệch
-- Duyệt và tạo điều chỉnh
-
-### 6.8 Báo cáo
-- Tồn kho theo kho/sản phẩm
-- Hàng sắp hết hạn
-- Hàng dưới điểm tái đặt
-- Đơn hàng theo trạng thái
-- Hiệu suất giao hàng
-
-### 6.9 Cảnh báo
-- Reorder: tồn dưới reorder_point
-- Expiry: batch sắp hết hạn (30 ngày)
-- QC fail
-- Delivery fail
-
----
-
-## 7. Phân Quyền Theo Role
-
-| Role | Quyền |
-|------|-------|
-| admin | Full access, quản lý user, cấu hình |
-| warehouse_manager | Quản lý kho, duyệt điều chuyển, báo cáo |
-| storekeeper | Nhập/xuất kho, kiểm kê, điều chỉnh |
-| sale | Tạo đơn hàng, xem báo cáo |
-| accountant | Xem báo cáo tài chính, công nợ |
-
----
-
-
-## 9. KEY BUSINESS RULES
-- Inventory cannot go negative (must check before issue)
-- Batch is tied to ONE grade only (Grade A, B, or C)
-- FEFO for products with expiry date, FIFO for products without
-- Quarantine Zone for QC-failed goods (not counted in available inventory)
-- In-Transit Location (virtual warehouse) for transfers in progress
-- All warehouse operations trigger events to Accounting via message queue
-- Sale Orders auto-create warehouse preparation tasks
-
-## 10. CURRENT SPRINT CONTEXT
 Sprint: Sprint 1
 Focus: Core Warehouse Operations — Inventory, Receipt, Issue, Transfer
-Active specs: specs/001-warehouse-management-system/spec.md
+Active specs: `specs/001-warehouse-management-system/spec.md`
 Pending: Integration specs for Accounting/HRM/Sale APIs
 
-## 11. ADDITIONAL CONTEXT
-- Mobile App: Driver app for delivery status updates and POD (proof of delivery)
-- Dealer quick-create: Allowed in Sale Order form for new dealers
-- Scale: 1000+ products, 50+ dealers, 1000+ transactions/month
-- Integration: Message queue (Kafka/RabbitMQ) for Accounting events
+## 13. PROJECT CONTEXT REFERENCES
 
-<!-- gitnexus:start -->
-# GitNexus — Code Intelligence
+- `CLAUDE.md` — hệ thống kiến trúc, workflow, lessons learned, anti-patterns
+- `CONSTITUTION.md` — project law, testing requirements, immutable stack rules
+- `specs/001-warehouse-management-system/spec.md` — active product spec cho sprint hiện tại
 
-This project is indexed by GitNexus as **Manager-warehouse-sdd** (273 symbols, 264 relationships, 0 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+## 14. GITNEXUS INTEGRATION
 
-> If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
+### Always do
 
-## Always Do
+- MUST run impact analysis before editing any symbol
+- MUST run `gitnexus_detect_changes()` before committing
+- MUST warn if impact analysis returns HIGH or CRITICAL risk
 
-- **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `gitnexus_impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
-- **MUST run `gitnexus_detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows.
-- **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before proceeding with edits.
-- When exploring unfamiliar code, use `gitnexus_query({query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
-- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `gitnexus_context({name: "symbolName"})`.
+### Never do
 
-## Never Do
+- NEVER edit without running `gitnexus_impact` first
+- NEVER ignore HIGH or CRITICAL risk warnings
+- NEVER rename with find-and-replace; use `gitnexus_rename`
 
-- NEVER edit a function, class, or method without first running `gitnexus_impact` on it.
-- NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
-- NEVER rename symbols with find-and-replace — use `gitnexus_rename` which understands the call graph.
-- NEVER commit changes without running `gitnexus_detect_changes()` to check affected scope.
+### Resources
 
-## Resources
+| Resource                             | Use for              |
+| ------------------------------------ | -------------------- |
+| `gitnexus://repo/document/context`   | Codebase overview    |
+| `gitnexus://repo/document/clusters`  | All functional areas |
+| `gitnexus://repo/document/processes` | All execution flows  |
 
-| Resource | Use for |
-|----------|---------|
-| `gitnexus://repo/Manager-warehouse-sdd/context` | Codebase overview, check index freshness |
-| `gitnexus://repo/Manager-warehouse-sdd/clusters` | All functional areas |
-| `gitnexus://repo/Manager-warehouse-sdd/processes` | All execution flows |
-| `gitnexus://repo/Manager-warehouse-sdd/process/{name}` | Step-by-step execution trace |
-
-## CLI
-
-| Task | Read this skill file |
-|------|---------------------|
-| Understand architecture / "How does X work?" | `.claude/skills/gitnexus/gitnexus-exploring/SKILL.md` |
-| Blast radius / "What breaks if I change X?" | `.claude/skills/gitnexus/gitnexus-impact-analysis/SKILL.md` |
-| Trace bugs / "Why is X failing?" | `.claude/skills/gitnexus/gitnexus-debugging/SKILL.md` |
-| Rename / extract / split / refactor | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md` |
-| Tools, resources, schema reference | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md` |
-| Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
-
-<!-- gitnexus:end -->
+Note: Nếu môi trường hiện tại không có GitNexus tooling, agent phải báo rõ không thể thực thi automation này trước khi tiếp tục các thay đổi thủ công.
