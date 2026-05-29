@@ -15,9 +15,8 @@
 1. Admin cấu hình được các tham số hệ thống: Hạn mức công nợ mặc định cho Đại lý, Tồn kho tối thiểu theo SKU/Kho, Kỳ hạn thanh toán mặc định (Net 30 / Net 60).
 
 2. Admin cấu hình Bảng định mức phê duyệt điều chỉnh tồn kho (kiểm kê/hủy hàng):
-   - Giá trị lệch < 1 triệu VNĐ → Tự động duyệt (Auto-approved), ghi vào Báo cáo hàng ngày gửi Trưởng kho.
-   - Giá trị lệch 1 triệu – 50 triệu VNĐ → Trưởng kho duyệt.
-   - Giá trị lệch > 50 triệu VNĐ hoặc nguyên nhân do nhân viên → CEO duyệt.
+   - Giá trị lệch 5 triệu – 100 triệu VNĐ → Trưởng kho duyệt.
+   - Giá trị lệch > 100 triệu VNĐ hoặc nguyên nhân do nhân viên → CEO duyệt.
 
 3. Mọi thao tác thay đổi tham số phải ghi Audit Log đầy đủ: ai sửa, giá trị cũ, giá trị mới, thời điểm.
 
@@ -206,9 +205,8 @@
 1. Thủ kho tạo Phiếu kiểm kê, khóa sổ kiểm kê tạm thời → Thực hiện đếm thực tế và nhập số lượng.
 2. Hệ thống tự động tính toán chênh lệch: `Variance = Thực tế - Hệ thống`.
 3. Áp dụng bảng định mức phê duyệt điều chỉnh (theo cấu hình US-WMS-01):
-   - Giá trị lệch < 1 triệu → Tự động duyệt, cập nhật tồn kho ngay, đẩy vào Daily Report gửi Trưởng kho.
-   - Giá trị lệch 1 – 50 triệu → Trưởng kho duyệt.
-   - Giá trị lệch > 50 triệu → CEO duyệt.
+   - Giá trị lệch 5 – 100 triệu → Trưởng kho duyệt.
+   - Giá trị lệch > 100 triệu → CEO duyệt.
 4. Sau khi được duyệt → Hệ thống cập nhật tồn kho và ghi Audit Log đầy đủ.
 
 ---

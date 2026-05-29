@@ -42,7 +42,7 @@
 
 **Nghiệp vụ:**
 
-- Phê duyệt các khoản chi/điều chỉnh tồn kho vượt định mức thẩm quyền Trưởng kho/Kế toán trưởng (> 50 triệu VNĐ).
+- Phê duyệt các khoản chi/điều chỉnh tồn kho vượt định mức thẩm quyền Trưởng kho/Kế toán trưởng (> 100 triệu VNĐ).
 - Xem Dashboard quản trị cấp cao:
   - _"Tồn kho tổng hiện tại là bao nhiêu tiền?"_
   - _"Đại lý nào đang nợ quá hạn và nợ nhiều nhất?"_
@@ -77,10 +77,9 @@
 - Phê duyệt Phiếu nhập kho sau khi đối chiếu kết quả QC từ Nhân viên kho → Hệ thống tự động cộng tồn kho.
 - Phê duyệt Phiếu điều chuyển kho (kho nguồn): Kiểm tra tồn khả dụng trước khi duyệt.
 - Xác nhận nhận hàng điều chuyển (kho đích): Kiểm tra số lượng thực tế, ghi nhận chênh lệch nếu có.
-- Duyệt chênh lệch kiểm kê giá trị 1 – 50 triệu VNĐ.
-- Xem Daily Report: Các giao dịch tự duyệt (< 1 triệu) trong ngày để phát hiện lạm dụng.
+- Duyệt chênh lệch kiểm kê giá trị 5 – 100 triệu VNĐ.
 - Phê duyệt biên bản hàng lỗi tại Quarantine Zone, quyết định phương án xử lý (tiêu hủy hoặc trả hàng cho nhà cung cấp - NCC).
-- Phê duyệt phiếu xuất hủy hàng lỗi 1 – 50 triệu VNĐ.
+- Phê duyệt phiếu xuất hủy hàng lỗi 5 – 100 triệu VNĐ.
 
 **User Stories liên quan:** US-WMS-04, US-WMS-05, US-WMS-12, US-WMS-13, US-WMS-24, US-WMS-25, US-WMS-26
 

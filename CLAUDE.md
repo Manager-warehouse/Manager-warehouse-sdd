@@ -19,8 +19,9 @@
 ### Đọc trước
 
 1. `AGENTS.md` → Project context đầy đủ (Tech stack, forbidden patterns, domain model)
-2. `CONSTITUTION.md` → Development principles và team agreements
+2. `README.md` → User Stories, requirements, key entities
 3. File này → Workflow, patterns, và conventions
+4. 'CONSTITUTION.md'
 
 ---
 
@@ -43,8 +44,8 @@
 │                                                                         │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
 │  │                    REST API Layer (@RestController)              │   │
-│  │  /api/warehouse-stock  /api/batch-management  /api/receipt     │   │
-│  │  /api/issue  /api/transfer  /api/delivery  /api/sale-order      │   │
+│  │  /api/v1/warehouse-stock  /api/v1/batch-management  /api/v1/receipt  │   │
+│  │  /api/v1/issue  /api/v1/transfer  /api/v1/delivery  /api/v1/sale-order│   │
 │  └─────────────────────────────────────────────────────────────────┘   │
 │                              │                                          │
 │                              ▼                                          │
@@ -104,15 +105,20 @@
 ### Repository Structure
 
 ```
-/Users/haison/Documents/GitHub/Manager-warehouse-sdd
-├── .agents/             # Agent and skill definitions
-├── .git/                # Git metadata
-├── .specify/            # Spec generation workspace
-├── AGENTS.md            # Agent policy and rules
-├── CLAUDE.md            # Project overview, workflow, and conventions
-├── CONSTITUTION.md      # Development principles and agreements
-├── README.md            # Project summary and user stories
-└── test/                # Test plans and guidance
+Manager-warehouse-sdd/
+├── .git/                        # Git metadata
+├── AGENTS.md                    # Agent policy, tech stack, forbidden patterns
+├── CLAUDE.md                    # Kiến trúc, workflow, conventions (file này)
+├── Kiến trúc phân tầng các Actors.md  # 10 Actors, nghiệp vụ, quy trình
+├── README.md                    # User Stories, requirements, key entities
+├── DESIGN.md                    # UI design tokens (Apple design system)
+├── Userstory.md                 # User Stories bổ sung
+├── backend/                     # Spring Boot 3.4.5 + Java 21
+├── frontend/                    # React 18 + Tailwind CSS
+├── specs/                       # Feature specifications (SDD)
+│   └── 001-featurename-us-wh/
+│       └── spec.md
+└── test/                        # Test plans and guidance
 ```
 
 ---
@@ -347,10 +353,10 @@ frontend/
 
 ### API Routes
 
-| Type         | Convention | Example                     |
-| ------------ | ---------- | --------------------------- |
-| Endpoints    | kebab-case | `/api/warehouse-stock`      |
-| HTTP methods | lowercase  | `GET /api/batch-management` |
+| Type         | Convention | Example                        |
+| ------------ | ---------- | ------------------------------ |
+| Endpoints    | kebab-case | `/api/v1/warehouse-stock`      |
+| HTTP methods | lowercase  | `GET /api/v1/batch-management` |
 
 ---
 
@@ -772,12 +778,12 @@ Speckit works as an MCP (Model Context Protocol) server that needs to be configu
 ### Project Structure for Speckit
 
 ```
-/specs/
-├── 001-warehouse-management-system/
+specs/
+├── 001-featurename-us-wh/
 │   ├── spec.md                    # Main specification
 │   ├── plan.md                    # Task breakdown
 │   └── implementation-log.md      # Progress tracking
-├── 002-fefo-batch-selection/
+├── 002-fefo-batch-selection/      # (example next spec)
 │   ├── spec.md
 │   └── plan.md
 └── README.md                      # Specs index
@@ -846,7 +852,7 @@ Inventory (tồn kho)
 
 Receipt (Lệnh nhập kho / Phiếu nhập kho)
 ├── receiptNumber, sourceOrderCode, type (purchase/return)
-├── warehouse, supplier, status (pending_receipt/approved)
+├── warehouse, supplier, status (pending_receipt/draft/qc_completed/approved/rejected)
 └── items (product + quantity + QC grade)
 
 Issue (Đơn xuất hàng / Phiếu xuất kho)
@@ -856,7 +862,7 @@ Issue (Đơn xuất hàng / Phiếu xuất kho)
 
 Transfer (Phiếu điều chuyển kho)
 ├── source → destination warehouses
-├── status (new/approved/in_transit/completed)
+├── status (new/approved/in_transit/completed/completed_with_discrepancy/cancelled)
 └── In-Transit virtual location
 
 Invoice (Hóa đơn bán hàng)
@@ -888,11 +894,28 @@ DebitNote (Phiếu đòi bồi hoàn)
 | Monthly Closing            | Lock previous monthly periods (CLOSED), only Adjustment Vouchers allowed in open period |
 | Phúc Anh Internal Fleet    | All deliveries use internal fleet & drivers. No 3PL or delivery cost approvals |
 
+### Actor Reference (10 Actors — xem chi tiết tại `Kiến trúc phân tầng các Actors.md`)
+
+| Tầng | Actor | Loại | Trách nhiệm chính |
+|---|---|---|---|
+| Quản trị | CEO | Checker | Duyệt chi/điều chỉnh > 100M VNĐ, Dashboard chiến lược |
+| Quản trị | System Admin | Admin | Quản lý tài khoản, RBAC, cấu hình tham số hệ thống |
+| Quản lý | Trưởng kho kiêm Trưởng QC | Checker | Duyệt nhập/xuất/điều chuyển, xử lý chênh lệch 5M–100M, duyệt biên bản hàng lỗi |
+| Quản lý | Kế toán trưởng | Checker | Duyệt bảng giá, thiết lập Credit Limit, chốt sổ tháng, P&L/Aging Report |
+| Nghiệp vụ | Planner | Maker | Lập lệnh nhập / đơn xuất từ Công ty mẹ, kiểm tra Credit Check + tồn kho |
+| Nghiệp vụ | Dispatcher | Maker | Lập chuyến xe nội bộ Phúc Anh, gán tài xế, tối ưu lộ trình giao hàng |
+| Nghiệp vụ | Thủ kho | Maker | Tiếp nhận hàng, soạn hàng, kiểm kê, cất Bin, xác nhận điều chuyển |
+| Nghiệp vụ | Nhân viên kho (Bốc xếp & QC) | Maker | Bốc xếp hàng hóa, QC inbound/outbound, di chuyển hàng lỗi vào Quarantine |
+| Nghiệp vụ | Kế toán viên | Maker | Lập hóa đơn, ghi nhận thanh toán, cấn trừ công nợ, quản lý bảng giá |
+| Nghiệp vụ | Tài xế | Maker | Nhận chuyến (smartphone), giao hàng, xác nhận POD, báo giao thất bại |
+
+> **Lưu ý phân biệt Dispatcher vs Planner**: Planner = nhận đơn từ Công ty mẹ & lập DO; Dispatcher = điều phối xe & tài xế giao hàng. Hai vai trò khác nhau hoàn toàn.
+
 ### Current Sprint
 
 - **Sprint 1**: Core Warehouse Operations & Internal Accounting
 - **Focus**: Inventory, Receipt, Issue, Transfer, Credit Control, Internal Price Lists
-- **Active specs**: `specs/001-warehouse-management-system/spec.md`
+- **Active specs**: `specs/001-featurename-us-wh/spec.md`
 
 ---
 
@@ -1052,7 +1075,7 @@ Quy trình điều phối chuyến xe, vận chuyển bằng xe nội bộ của
 │               │ xác nhận bốc xếp hàng, rời kho ──────────────►│ Trừ tồn kho│
 │               │                                               │ set trạng  │
 │               │                                               │ thái đơn   │
-│               │                                               │ [Transit]  │
+│               │                                               │ [IN_TRANSIT]│
 │               │                                               │            │
 │               │ Đến điểm giao, bàn giao hàng cho Đại lý       │            │
 │               │        │                                      │            │
@@ -1128,11 +1151,11 @@ Quy trình đối chiếu số liệu tồn kho thực tế, tính toán chênh 
 │ nhập KQ ───►│ Tự động tính chênh lệch         │              │             │
 │             │ (số lượng, giá trị tiền)        │              │             │
 │             │        │                        │              │             │
-│             │  [LỆCH 1M - 50M]                │              │             │
+│             │  [LỆCH 5M - 100M]               │              │             │
 │             │        ├───────────────────────►│ Xem xét, duyệt│            │
 │             │        │                        │ điều chỉnh   │             │
 │             │        │◄───────────────────────┤              │             │
-│             │  [LỆCH > 50M HOẶC LỖI NHÂN VIÊN]│              │             │
+│             │  [LỆCH > 100M HOẶC LỖI NHÂN VIÊN]│              │             │
 │             │        ├────────────────────────┼─────────────►│ Xem xét,    │
 │             │        │                        │              │ duyệt điều  │
 │             │        │◄───────────────────────┼──────────────┤ chỉnh       │
@@ -1144,9 +1167,8 @@ Quy trình đối chiếu số liệu tồn kho thực tế, tính toán chênh 
 ```
 
 **Thẩm quyền duyệt chênh lệch kiểm kê & xuất hủy hàng lỗi:**
-- **Dưới 1 triệu VNĐ**: Hệ thống tự động ghi nhận (lưu vết báo cáo cho Trưởng kho theo dõi định kỳ để phòng ngừa gian lận).
-- **Từ 1 triệu đến 50 triệu VNĐ**: Trưởng kho kiêm Trưởng QC xem xét và phê duyệt trên hệ thống.
-- **Trên 50 triệu VNĐ hoặc lỗi xác định do nhân viên**: Phải trình trực tiếp CEO phê duyệt trên hệ thống.
+- **Từ 5 triệu đến 100 triệu VNĐ**: Trưởng kho kiêm Trưởng QC xem xét và phê duyệt trên hệ thống.
+- **Trên 100 triệu VNĐ hoặc lỗi xác định do nhân viên**: Phải trình trực tiếp CEO phê duyệt trên hệ thống.
 
 ---
 
