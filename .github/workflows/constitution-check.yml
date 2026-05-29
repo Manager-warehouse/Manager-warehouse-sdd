@@ -1,0 +1,42 @@
+name: Constitution Check
+
+on:
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  validate-constitution:
+    name: Validate Commit v Constitution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check forbidden patterns
+        run: |
+          FORBIDDEN=("System\.out\.print" "console\.log" "\.env" "TODO")
+          for pattern in "${FORBIDDEN[@]}"; do
+            if git diff origin/main..HEAD -- . | grep -E "\+.*$pattern" | grep -v "constitution-check.yml"; then
+              echo "❌ Forbidden pattern found: $pattern"
+              exit 1
+            fi
+          done
+          echo "✅ No forbidden patterns found"
+
+      - name: Check hardcoded secrets
+        run: |
+          if git diff origin/main..HEAD -- . | grep -E '\+.*(password|secret|api.?key|jwt.?secret).*=' | grep -iv 'test\|example\|dummy'; then
+            echo "❌ Possible hardcoded secret detected"
+            exit 1
+          fi
+          echo "✅ No secrets leaked"
+
+      - name: Check branch naming convention
+        run: |
+          BRANCH="${{ github.head_ref }}"
+          if [[ ! "$BRANCH" =~ ^(feat|fix|spec|chore)/ ]]; then
+            echo "❌ Branch '$BRANCH' violates naming: feat/*, fix/*, spec/*, chore/*"
+            exit 1
+          fi
+          echo "✅ Branch naming OK"

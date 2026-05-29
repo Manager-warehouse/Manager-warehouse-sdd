@@ -1,0 +1,59 @@
+name: Consistency Gate
+
+on:
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  validate-consistency:
+    name: Spec-Code Consistency Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check spec exists for feature branches
+        run: |
+          BRANCH="${{ github.head_ref }}"
+          if [[ "$BRANCH" == feat/* ]]; then
+            FEATURE_NAME="${BRANCH#feat/}"
+            SPEC_DIR="specs/"
+            FOUND=false
+            found_spec=$(find specs/ .sdd/specs/ -maxdepth 2 -name "spec.md" 2>/dev/null | head -5)
+            if [ -n "$found_spec" ]; then
+              FOUND=true
+            fi
+            if [ "$FOUND" = false ]; then
+              # Check if any spec file changed in this PR
+              if git diff --name-only origin/main..HEAD -- specs/ .sdd/specs/ | grep -q "spec.md"; then
+                echo "✅ Spec changes found"
+              else
+                echo "⚠️  Feature branch '$BRANCH' without spec changes — is this intentional?"
+                echo "   Specs should live under specs/ or .sdd/specs/"
+              fi
+            fi
+          else
+            echo "Branch '$BRANCH' is not a feat/* branch — skipping spec check"
+          fi
+
+      - name: Verify tests not skipped
+        run: |
+          if git diff --name-only origin/main..HEAD -- backend/src/ | grep -q "\.java$"; then
+            changed_tests=$(git diff --name-only origin/main..HEAD -- backend/src/test/ | wc -l)
+            changed_main=$(git diff --name-only origin/main..HEAD -- backend/src/main/ | wc -l)
+            if [ "$changed_main" -gt 0 ] && [ "$changed_tests" -eq 0 ]; then
+              echo "⚠️  Backend code changed but no test changes — ensure coverage >= 80%"
+            else
+              echo "✅ Tests updated with code changes"
+            fi
+          fi
+
+      - name: Validate no TODO left
+        run: |
+          TODOS=$(git diff origin/main..HEAD -- . | grep -E "\+.*TODO" | grep -v "consistency-gate.yml" | wc -l)
+          if [ "$TODOS" -gt 0 ]; then
+            echo "❌ Found $TODOS TODO(s) in new code — remove before merge"
+            exit 1
+          fi
+          echo "✅ No TODOs in new code"
