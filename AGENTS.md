@@ -39,8 +39,8 @@ Styling: Tailwind CSS 3.x
 ## 4. FILE NAMING & STRUCTURE
 
 Java classes: PascalCase (e.g. `InventoryService.java`)
-TypeScript React components: PascalCase (e.g. `ReceiptTable.tsx`)
-TypeScript utilities/hooks: camelCase (e.g. `formatQuantity.ts`, `useTransferFilters.ts`)
+React components (JavaScript): PascalCase (e.g. `ReceiptTable.jsx`)
+React utilities/hooks (JavaScript): camelCase (e.g. `formatQuantity.js`, `useTransferFilters.js`)
 API endpoints: kebab-case resource naming (e.g. `/api/v1/warehouse-stock`)
 Database tables: snake_case (e.g. `inventory_transactions`)
 Specs: `specs/[number]-[feature-name]/`
@@ -107,7 +107,7 @@ Specs: `specs/[number]-[feature-name]/`
 ## 8. CODE & QUALITY RULES
 
 - Java theo conventions của Spring Boot project hiện tại; ưu tiên constructor injection
-- TypeScript strict mode; không dùng `any` nếu không có lý do rất rõ ràng
+- JavaScript clean code; tránh lạm dụng các biến không khai báo hoặc cấu trúc lỏng lẻo
 - Max function length: 40 lines khi khả thi; max file length: 300 lines theo `CONSTITUTION.md`
 - Comments giải thích `why`, không giải thích `what`
 - Test coverage tối thiểu: 80% cho service/business logic mới

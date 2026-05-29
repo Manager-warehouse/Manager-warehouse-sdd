@@ -9,11 +9,11 @@
 > **Đây là hệ thống quản lý kho hàng (Warehouse Management System)**
 >
 > **Backend**: Spring Boot 3.4.5 + Java 21 + PostgreSQL 18 + JPA/Hibernate
-> **Frontend**: React 18 + TypeScript + Tailwind CSS 3.x
+> **Frontend**: React 18 + JavaScript + Tailwind CSS 3.x
 > **Auth**: JWT + bcrypt (cost factor 12)
-> **Integration**: Message queue cho Accounting events (Kafka/RabbitMQ)
+> **Scope**: WMS, Kế toán nội bộ kho, Điều phối vận tải nội bộ, Công nợ Đại lý (chạy chung DB & hệ thống, không dùng Message Queue)
 >
-> **3 warehouses**: Hải Phòng, Hà Nội, Hồ Chí Minh
+> **3 warehouses**: Hải Phòng, Hà Nội, Hồ Chí Minh (chỉ dùng xe nội bộ Phúc Anh)
 > **Scale**: 1000+ products, 50+ dealers, 1000+ transactions/month
 
 ### Đọc trước
@@ -60,13 +60,12 @@
 │  └─────────────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────────────┘
                               │
-        ┌─────────────────────┼─────────────────────┐
-        ▼                     ▼                     ▼
-┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
-│   PostgreSQL    │  │  Message Queue   │  │   File Storage  │
-│   (Primary DB)  │  │ (Kafka/RabbitMQ) │  │   (/uploads)    │
-└─────────────────┘  │   → Accounting   │  └─────────────────┘
-                     └─────────────────┘
+        ┌──────────────────────┴──────────────────────┐
+        ▼                                             ▼
+┌─────────────────┐                          ┌─────────────────┐
+│   PostgreSQL    │                          │   File Storage  │
+│   (Primary DB)  │                          │   (/uploads)    │
+└─────────────────┘                          └─────────────────┘
 ```
 
 ### Layer Architecture (Backend)
@@ -155,12 +154,12 @@
 **Trade-off**: Thêm complexity trong inventory calculations
 **Status**: ✅ Approved
 
-### ADR-006: Message Queue cho Accounting Events
+### ADR-006: Đồng bộ dữ liệu Kế toán nội bộ trực tiếp
 
-**Quyết định**: Gửi events tới Accounting qua Kafka/RabbitMQ
-**Lý do**: Async processing, decouple systems, không block warehouse ops
-**Trade-off**: Complexity cao hơn sync HTTP calls
-**Status**: ✅ Approved (Pending integration specs)
+**Quyết định**: Xây dựng phân hệ Kế toán nội bộ kho và Công nợ Đại lý chạy chung trên cùng một Backend/Database, không dùng Message Queue (Kafka/RabbitMQ).
+**Lý do**: Hệ thống Phúc Anh quản lý tập trung, đơn giản hóa kiến trúc, đảm bảo tính nhất quán dữ liệu (ACID transactions) trực tiếp khi thực hiện các giao dịch nhập/xuất kho mà không cần cơ chế sync phức tạp và giảm thiểu overhead vận hành.
+**Trade-off**: Tải trọng DB tăng nhẹ khi xử lý giao dịch đồng thời lớn.
+**Status**: ✅ Approved
 
 ---
 
@@ -235,21 +234,19 @@ frontend/
 ├── src/
 │   ├── components/        # React components (PascalCase)
 │   │   ├── warehouse/
-│   │   │   ├── WarehouseList.tsx
-│   │   │   └── WarehouseCard.tsx
+│   │   │   ├── WarehouseList.jsx
+│   │   │   └── WarehouseCard.jsx
 │   │   └── common/
-│   │       └── Button.tsx
+│   │       └── Button.jsx
 │   ├── pages/             # Page components
-│   │   └── WarehousePage.tsx
+│   │   └── WarehousePage.jsx
 │   ├── hooks/             # Custom hooks (camelCase)
-│   │   └── useWarehouse.ts
+│   │   └── useWarehouse.js
 │   ├── services/          # API calls
-│   │   └── warehouseApi.ts
+│   │   └── warehouseApi.js
 │   ├── stores/            # State management (Zustand/Redux)
-│   ├── utils/             # Utility functions
-│   │   └── formatCurrency.ts
-│   └── types/             # TypeScript types
-│       └── warehouse.types.ts
+│   └── utils/             # Utility functions
+│       └── formatCurrency.js
 ├── public/
 └── CLAUDE.md              # Frontend-specific patterns
 ```
@@ -344,10 +341,9 @@ frontend/
 
 | Type       | Convention | Example                  |
 | ---------- | ---------- | ------------------------ |
-| Components | PascalCase | `WarehouseDashboard.tsx` |
-| Hooks      | camelCase  | `useInventory.ts`        |
-| Utils      | camelCase  | `formatCurrency.ts`      |
-| Types      | PascalCase | `WarehouseType.ts`       |
+| Components | PascalCase | `WarehouseDashboard.jsx` |
+| Hooks      | camelCase  | `useInventory.js`        |
+| Utils      | camelCase  | `formatCurrency.js`      |
 
 ### API Routes
 
@@ -833,11 +829,11 @@ The project follows Speckit conventions as defined in AGENTS.md:
 ```
 Warehouse (3 locations: Hải Phòng, Hà Nội, Hồ Chí Minh)
 ├── Zones (receiving, storage, picking, shipping, quarantine)
-└── Locations (aisle-rack-shelf)
+└── Locations (aisle-rack-shelf, bin-capacity)
 
 Product (1000+ items)
-├── SKU, barcode, name, unit
-└── Prices (cost, retail, dealer)
+├── SKU, name, unit, dimension, weight
+└── PriceHistory (cost_price, selling_price, effective_date, end_date)
 
 Batch (Lô hàng - tied to ONE grade)
 ├── batchNumber, receivedDate, expDate
@@ -848,24 +844,34 @@ Inventory (tồn kho)
 ├── warehouse + product + batch + location
 └── quantity (NEVER negative)
 
-Receipt (Phiếu nhập kho)
-├── receiptNumber, type (purchase/return)
-├── warehouse, supplier
+Receipt (Lệnh nhập kho / Phiếu nhập kho)
+├── receiptNumber, sourceOrderCode, type (purchase/return)
+├── warehouse, supplier, status (pending_receipt/approved)
+└── items (product + quantity + QC grade)
+
+Issue (Đơn xuất hàng / Phiếu xuất kho)
+├── issueNumber, customer/dealer, type (sale/delivery/adjustment)
+├── warehouse, status (new/picking/ready_to_ship/in_transit/delivered/completed/closed)
 └── items (product + quantity)
 
-Issue (Phiếu xuất kho)
-├── issueNumber, type (sale/delivery/adjustment)
-├── warehouse, customer/dealer
-└── items
-
-Transfer (Điều chuyển)
+Transfer (Phiếu điều chuyển kho)
 ├── source → destination warehouses
-├── status (pending/in_transit/completed)
+├── status (new/approved/in_transit/completed)
 └── In-Transit virtual location
 
-SaleOrder → Issue → Delivery
-Dealer (50+ accounts)
-WarehouseStaff
+Invoice (Hóa đơn bán hàng)
+├── invoiceNumber, dealer, total_amount, issue_date, due_date
+└── status (unpaid/paid)
+
+PaymentReceipt (Phiếu thu tiền)
+├── paymentNumber, dealer, amount, payment_date, payment_method
+└── applied_invoices
+
+CreditNote (Phiếu ghi giảm công nợ)
+└── dealer, amount, reason (returns)
+
+DebitNote (Phiếu đòi bồi hoàn)
+└── supplier, amount, reason (QC rejected goods)
 ```
 
 ### Key Business Rules
@@ -878,13 +884,15 @@ WarehouseStaff
 | FIFO for non-expiring      | `FIFOSelector` picks by receivedDate ASC        |
 | Quarantine excluded        | WHERE clause filters `zone != 'QUARANTINE'`     |
 | In-Transit tracking        | Virtual warehouse `IN_TRANSIT` for transfers    |
+| Credit Check Control       | Auto-block if balance + new >= limit OR >30 days overdue. Buffer 20% to unlock |
+| Monthly Closing            | Lock previous monthly periods (CLOSED), only Adjustment Vouchers allowed in open period |
+| Phúc Anh Internal Fleet    | All deliveries use internal fleet & drivers. No 3PL or delivery cost approvals |
 
 ### Current Sprint
 
-- **Sprint 1**: Core Warehouse Operations
-- **Focus**: Inventory, Receipt, Issue, Transfer
+- **Sprint 1**: Core Warehouse Operations & Internal Accounting
+- **Focus**: Inventory, Receipt, Issue, Transfer, Credit Control, Internal Price Lists
 - **Active specs**: `specs/001-warehouse-management-system/spec.md`
-- **Pending**: Accounting/HRM/Sale API integration specs
 
 ---
 
@@ -916,414 +924,229 @@ User Input → AI Model → MCP Client → MCP Server → External Service
 
 ## SWIMLANE DIAGRAMS
 
-### Business Process Swimlanes
+Các sơ đồ swimlane dưới đây mô tả chính xác quy trình nghiệp vụ thực tế của WMS Phúc Anh theo phân vai 10 Actors. Các quy trình sử dụng đội xe nội bộ Phúc Anh, cơ chế Credit Check tự động và phân quyền phê duyệt chặt chẽ.
 
-#### Receipt Process (Phiếu nhập kho)
+### 1. Quy trình Nhập hàng (Receipt Process)
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ RECEIPT PROCESS SWIMLANES                                                   │
-├───────────────┬───────────────┬───────────────┬───────────────┬────────────┤
-│    STAFF      │    SYSTEM     │    QC TEAM    │   ACCOUNTING   │  SUPPLIER  │
-├───────────────┼───────────────┼───────────────┼───────────────┼────────────┤
-│               │               │               │               │            │
-│ Create receipt│               │               │               │            │
-│ ─────────────►│               │               │               │            │
-│               │               │               │               │            │
-│ Enter SKU/code│               │               │               │            │
-│ ─────────────►│               │               │               │            │
-│               │               │               │               │            │
-│ Submit for QC │               │               │               │            │
-│ ─────────────►│───────────────│───────────────│               │            │
-│               │               │               │               │            │
-│               │               │ QC Check      │               │            │
-│               │               │ ─────────────►│               │            │
-│               │               │               │               │            │
-│ Pass: Stock   │ Update inventory               │               │            │
-│ Fail: Quarantine              │               │               │            │
-│               │               │               │               │            │
-│               │               │               │ Send invoice  │            │
-│               │               │               │ ─────────────►│            │
-│               │               │               │               │            │
-└───────────────┴───────────────┴───────────────┴───────────────┴────────────┘
-```
-
-#### Issue Process (Phiếu xuất kho)
+Quy trình nhập hàng từ khi Công ty mẹ gửi thông tin qua Zalo/Email cho tới khi hàng được cất vào Bin hoặc khu Quarantine và được Trưởng kho phê duyệt để hệ thống cập nhật số tồn khả dụng.
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ ISSUE PROCESS SWIMLANES                                                     │
-├───────────────┬───────────────┬───────────────┬───────────────┬────────────┤
-│    STAFF      │    SYSTEM     │   PICKING     │   DELIVERY     │  CUSTOMER  │
-├───────────────┼───────────────┼───────────────┼───────────────┼────────────┤
-│               │               │               │               │            │
-│ Create issue  │               │               │               │            │
-│ ─────────────►│               │               │               │            │
-│               │               │               │               │            │
-│               │ FEFO Selection│               │               │            │
-│               │ ─────────────►│               │               │            │
-│               │               │               │               │            │
-│               │               │ Pick items    │               │            │
-│               │               │ ─────────────►│               │            │
-│               │               │               │               │            │
-│               │               │ Confirm pick  │               │            │
-│               │◄──────────────│               │               │            │
-│               │               │               │               │            │
-│               │ Update stock  │               │               │            │
-│               │ ◄─────────────│               │               │            │
-│               │               │               │               │            │
-│               │               │               │ Dispatch      │            │
-│               │               │               │ ─────────────►│            │
-│               │               │               │               │            │
-└───────────────┴───────────────┴───────────────┴───────────────┴────────────┘
+┌─────────────┬─────────────┬─────────────────┬─────────────┬────────────────┐
+│   PLANNER   │   THỦ KHO   │  NHÂN VIÊN KHO  │ TRƯỞNG KHO  │     SYSTEM     │
+├─────────────┼─────────────┼─────────────────┼─────────────┼────────────────┤
+│             │             │                 │             │                │
+│ Lập lệnh    │             │                 │             │                │
+│ [Pending]───►             │                 │             │                │
+│             │ Nhận lệnh,  │                 │             │                │
+│             │ đếm hàng,   │                 │             │                │
+│             │ nhập nháp───►                 │             │                │
+│             │             │ Kiểm ngoại quan,│             │                │
+│             │             │ nhập KQ Đạt/Lỗi │             │                │
+│             │             │        │        │             │                │
+│             │             │  [HÀNG LỖI]     │             │                │
+│             │             │        ├────────► Biên bản lỗi │                │
+│             │             │        │        │ Quyết định  │                │
+│             │             │        │        │ xử lý ──────►                │
+│             │             │  [HÀNG ĐẠT]     │             │                │
+│             │             │        ├────────► Phê duyệt   │                │
+│             │             │        │        │ Phiếu nhập──►                │
+│             │             │        │        │             │ Cộng tồn kho   │
+│             │             │        │        │             │ khả dụng &     │
+│             │             │        │        │             │ Quarantine zone│
+│             │             │                 │             │                │
+└─────────────┴─────────────┴─────────────────┴─────────────┴────────────────┘
 ```
 
-#### Transfer Process (Điều chuyển kho)
+**Luồng trạng thái đơn nhập:**
+`PENDING_RECEIPT` (Planner tạo) → `DRAFT` (Thủ kho kiểm đếm) → `QC_COMPLETED` (Nhân viên kho hoàn tất QC) → `APPROVED` (Trưởng kho duyệt, Hệ thống cộng tồn kho) / `REJECTED` (Trưởng kho từ chối, xuất hủy hoặc trả NCC)
+
+---
+
+### 2. Quy trình Xuất hàng (Issue Process)
+
+Quy trình xử lý đơn xuất hàng bán cho Đại lý, tích hợp kiểm tra công nợ (Credit Check) tự động trước khi cho phép soạn hàng.
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ TRANSFER PROCESS SWIMLANES                                                  │
-├───────────────┬───────────────┬───────────────┬───────────────┬────────────┤
-│   SOURCE WH    │    SYSTEM     │    TRANSIT    │  DEST WH      │   DRIVER  │
-├───────────────┼───────────────┼───────────────┼───────────────┼────────────┤
-│               │               │               │               │            │
-│ Create transfer              │               │               │            │
-│ ─────────────►│               │               │               │            │
-│               │               │               │               │            │
-│ Pick & pack   │               │               │               │            │
-│ ─────────────►│               │               │               │            │
-│               │               │               │               │            │
-│               │ Move to IN_TRANSIT             │               │            │
-│               │ ◄─────────────│               │               │            │
-│               │               │               │               │            │
-│               │               │ In Transit     │               │            │
-│               │               │ ◄──────────────│               │            │
-│               │               │               │               │            │
-│               │               │               │ Confirm receipt              │
-│               │◄──────────────│               │               │            │
-│               │               │               │               │            │
-│               │ Update dest stock             │               │            │
-│               │               │               │               │            │
-└───────────────┴───────────────┴───────────────┴───────────────┴────────────┘
+┌─────────────┬────────────────────────────────┬─────────────┬───────────────┐
+│   PLANNER   │             SYSTEM             │   THỦ KHO   │ NHÂN VIÊN KHO │
+├─────────────┼────────────────────────────────┼─────────────┼───────────────┤
+│             │                                │             │               │
+│ Lập Đơn xuất│                                │             │               │
+│ (DO) ──────►│ Tự động check công nợ Đại lý   │             │               │
+│             │ ├── VI PHẠM: Chặn cứng, báo lỗi│             │               │
+│             │ └── HỢP LỆ: Tạo DO [New],      │             │               │
+│             │             giữ hàng (Reserve) │             │               │
+│             │             └─────────────────►│             │               │
+│             │                                │ Soạn hàng   │               │
+│             │                                │ từ Bin, set │               │
+│             │                                │ [Picking]───►               │
+│             │                                │             │ Kiểm QC sản   │
+│             │                                │             │ phẩm đã soạn, │
+│             │                                │             │ xác nhận đạt  │
+│             │                                │ ◄───────────┤               │
+│             │                                │ Xác nhận    │               │
+│             │                                │ soạn xong,  │               │
+│             │                                │ set [Ready] │               │
+│             │                                │             │               │
+└─────────────┴────────────────────────────────┴─────────────┴───────────────┘
 ```
 
-#### Sale Order Process (Đơn hàng Sale)
+**Luồng trạng thái đơn xuất:**
+`NEW` (Planner lập đơn & System check công nợ đạt) → `PICKING` (Thủ kho bắt đầu soạn hàng từ Bin) → `READY_TO_SHIP` (Nhân viên kho xác nhận QC & đóng gói đạt, Thủ kho xác nhận hoàn thành soạn hàng)
+
+---
+
+### 3. Quy trình Điều chuyển Kho Nội bộ (Internal Transfer)
+
+Quy trình điều phối hàng hóa giữa 3 kho vật lý Hải Phòng, Hà Nội, TP.HCM thông qua kho ảo trung chuyển `IN-TRANSIT` bằng xe nội bộ của Phúc Anh.
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────────────┐
-│ SALE ORDER PROCESS SWIMLANES                                                        │
-├──────────────┬──────────────┬──────────────┬──────────────┬──────────────┬──────────┤
-│   DEALER     │    SALE      │    SYSTEM    │  ACCOUNTING  │  WAREHOUSE   │  DELIVERY│
-├──────────────┼──────────────┼──────────────┼──────────────┼──────────────┼──────────┤
-│              │              │              │              │              │              │
-│ Contact Sale │              │              │              │              │              │
-│ ────────────►│              │              │              │              │              │
-│              │              │              │              │              │              │
-│              │ Create order │              │              │              │              │
-│              │ ─────────────►│              │              │              │              │
-│              │              │              │              │              │              │
-│              │              │ Status: CHỜ_KETOAN_DUYET │              │          │
-│              │◄─────────────│              │              │              │              │
-│              │              │              │              │              │              │
-│              │              │              │ Review order│              │          │
-│              │              │              │ ────────────►│              │              │
-│              │              │              │              │              │              │
-│              │              │              │ Upload contract photo      │          │
-│              │              │              │ ◄────────────│              │              │
-│              │              │              │              │              │              │
-│              │              │ Approve: Status=CHỜ_KHO_DUYET          │          │
-│              │              │ ◄────────────│              │              │              │
-│              │              │              │              │              │          │
-│              │              │              │              │ Review order│          │
-│              │              │              │              │ ────────────►│          │
-│              │              │              │              │              │          │
-│              │              │              │              │ Approve: DANG_CHUAN_BI     │
-│              │              │              │              │ ◄────────────│          │
-│              │              │              │              │              │          │
-│              │              │              │              │ Prepare goods             │
-│              │              │              │              │ ────────────►│          │
-│              │              │              │              │              │          │
-│              │              │              │              │ Confirm shipped           │
-│              │              │              │◄─────────────│              │          │
-│              │              │              │              │              │          │
-│              │              │ Sync to Accounting (công nợ)│              │          │
-│              │              │ ────────────►│              │              │          │
-│              │              │              │              │              │          │
-│              │ Notify dealer│              │              │              │          │
-│              │ ◄────────────│              │              │              │          │
-│              │              │              │              │              │          │
-└──────────────┴──────────────┴──────────────┴──────────────┴──────────────┴──────────┘
-
-Status Flow:
-CHỜ_KETOAN_DUYET → CHỜ_KHO_DUYET → DA_DUYET → DANG_CHUAN_BI → DA_XUAT_KHO → HOAN_THANH/DA_HUY
+┌─────────────┬───────────────┬────────────────┬────────────────┬────────────┐
+│   PLANNER   │ TRƯỞNG KHO N  │ THỦ KHO NGUỒN  │     SYSTEM     │TRƯỞNG KHO Đ│
+├─────────────┼───────────────┼────────────────┼────────────────┼────────────┤
+│             │               │                │                │            │
+│ Tạo Phiếu   │               │                │                │            │
+│ điều chuyển │               │                │                │            │
+│ [Mới] ─────►│ Duyệt điều    │                │                │            │
+│             │ chuyển ──────►│                │                │            │
+│             │               │ Xuất hàng lên  │                │            │
+│             │               │ xe Phúc Anh ──►│ Trừ tồn kho N, │            │
+│             │               │                │ cộng In-Transit│            │
+│             │               │                │ set [Shipping] │            │
+│             │               │                │ └──────────────► Đếm hàng   │
+│             │               │                │                │ thực tế    │
+│             │               │                │                │ nhận được, │
+│             │               │                │                │ đối chiếu  │
+│             │               │                │                │     │      │
+│             │               │                │                │   [KHỚP]   │
+│             │               │                │                │     ├─────►│
+│             │               │                │ Trừ In-Transit,│            │
+│             │               │                │ cộng kho Đích  │            │
+│             │               │                │ ◄──────────────┤            │
+│             │               │                │                │   [LỆCH]   │
+│             │               │                │                │     ├─────►│
+│             │               │                │ Ghi lý do lệch │            │
+│             │               │                │ tạo Adjustment │            │
+│             │               │                │ ◄──────────────┤            │
+│             │               │                │                │            │
+└─────────────┴───────────────┴────────────────┴────────────────┴────────────┘
 ```
 
-#### Delivery Process (Vận chuyển & Giao hàng)
+**Luồng trạng thái phiếu điều chuyển:**
+`NEW` (Planner tạo) → `APPROVED` (Trưởng kho nguồn duyệt) → `IN_TRANSIT` (Thủ kho nguồn xuất hàng lên xe, hệ thống dịch chuyển tồn kho vào kho trung chuyển `IN_TRANSIT` và trừ tồn kho nguồn) → `COMPLETED` (Trưởng kho đích xác nhận nhận hàng, khớp số lượng) / `COMPLETED_WITH_DISCREPANCY` (Nhận lệch, tạo phiếu điều chỉnh bù trừ và log audit)
+
+---
+
+### 4. Quy trình Giao hàng (Delivery Process)
+
+Quy trình điều phối chuyến xe, vận chuyển bằng xe nội bộ của công ty và cập nhật trạng thái đơn hàng kèm chữ ký điện tử / ảnh chụp POD của Đại lý trên thiết bị di động của Tài xế.
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────────────┐
-│ DELIVERY PROCESS SWIMLANES                                                         │
-├──────────────┬──────────────┬──────────────┬──────────────┬──────────────┬──────────┤
-│   WAREHOUSE  │    SYSTEM    │   FLEET MGMT │    DRIVER    │   CUSTOMER   │ ACCTNG   │
-├──────────────┼──────────────┼──────────────┼──────────────┼──────────────┼──────────┤
-│              │              │              │              │              │          │
-│ Create delivery              │              │              │              │          │
-│ ────────────►│              │              │              │              │          │
-│              │              │              │              │              │          │
-│              │ Assign vehicle & driver      │              │              │          │
-│              │ ────────────►│              │              │              │          │
-│              │              │              │              │              │          │
-│              │              │ Assign driver│              │              │          │
-│              │◄─────────────│              │              │              │          │
-│              │              │              │              │              │          │
-│              │ Status: CHỜ_GIAO            │              │              │          │
-│              │              │              │              │              │          │
-│              │              │              │ Receive delivery          │          │
-│              │              │              │ ◄─────────────│          │          │
-│              │              │              │              │              │          │
-│              │              │              │ Start delivery│          │          │
-│              │              │              │ ─────────────►│          │          │
-│              │              │              │              │              │          │
-│              │ Update: ĐANG_GIAO            │              │              │          │
-│              │◄─────────────│              │              │              │          │
-│              │              │              │              │              │          │
-│              │              │              │              │ GPS tracking │          │
-│              │              │              │              │ ◄─────────────│          │
-│              │              │              │              │              │          │
-│              │              │              │              │ Attempt delivery        │
-│              │              │              │              │ ────────────►│          │
-│              │              │              │              │              │          │
-│         ┌────┴────┐         │              │              │              │          │
-│         │ SUCCESS │         │              │              │              │          │
-│         └────┬────┘         │              │              │              │          │
-│              │              │              │              │              │          │
-│              │              │              │ Collect POD (signature + photo)│     │
-│              │              │              │ ◄─────────────│              │          │
-│              │              │              │              │              │          │
-│              │              │              │ Confirm delivery complete     │
-│              │◄─────────────│              │              │              │          │
-│              │              │              │              │              │          │
-│              │ Status: HOAN_THANH│         │              │              │          │
-│              │◄─────────────│              │              │              │          │
-│              │              │              │              │              │          │
-│              │              │              │              │ Send notification        │
-│              │◄─────────────│              │              │              │          │
-│              │              │              │              │              │          │
-│              │ Sync: Đơn hoàn thành         │              │              │          │
-│              │              │              │              │ ────────────►│          │
-│              │              │              │              │              │          │
-│         ┌────┴────┐         │              │              │              │          │
-│         │  FAIL   │         │              │              │              │          │
-│         └────┬────┘         │              │              │              │          │
-│              │              │              │              │              │          │
-│              │              │              │ Record failure reason        │
-│              │              │              │ ◄─────────────│              │          │
-│              │              │              │              │              │          │
-│              │ Status: GIAO_THAT_BAI       │              │              │          │
-│              │              │              │              │              │          │
-│              │ Return goods to warehouse   │              │              │          │
-│              │ ◄─────────────│              │              │              │          │
-│              │              │              │              │              │          │
-│              │              │              │              │ Notify Sale │          │
-│              │◄─────────────│              │              │              │          │
-│              │              │              │              │              │          │
-└──────────────┴──────────────┴──────────────┴──────────────┴──────────────┴──────────┘
-
-Status Flow:
-CHỜ_GIAO → ĐANG_GIAO → HOAN_THANH / GIAO_THAT_BAI
+┌───────────────┬───────────────────────────────────────────────┬────────────┐
+│  DISPATCHER   │                    TÀI XẾ                     │   SYSTEM   │
+├───────────────┼───────────────────────────────────────────────┼────────────┤
+│               │                                               │            │
+│ Gom đơn [Ready│                                               │            │
+│ to Ship], gán │                                               │            │
+│ xe nội bộ ───►│ Nhận chuyến qua Smartphone,                   │            │
+│               │ xác nhận bốc xếp hàng, rời kho ──────────────►│ Trừ tồn kho│
+│               │                                               │ set trạng  │
+│               │                                               │ thái đơn   │
+│               │                                               │ [Transit]  │
+│               │                                               │            │
+│               │ Đến điểm giao, bàn giao hàng cho Đại lý       │            │
+│               │        │                                      │            │
+│               │  [GIAO THÀNH CÔNG]                            │            │
+│               │        ├─────────────────────────────────────►│ Lưu POD &  │
+│               │        │ Ký tên trên màn hình, chụp ảnh       │ set đơn    │
+│               │        │                                      │ [Delivered]│
+│               │  [GIAO THẤT BẠI]                              │            │
+│               │        ├─────────────────────────────────────►│ Nhập hoàn  │
+│               │        │ Ghi lý do (vắng, từ chối, sai...)     │ Quarantine,│
+│               │        │                                      │ set trạng  │
+│               │        │                                      │ thái đơn   │
+│               │        │                                      │ [Returned] │
+│               │                                               │            │
+└───────────────┴───────────────────────────────────────────────┴────────────┘
 ```
 
-#### StockTake Process (Kiểm kê)
+**Luồng trạng thái đơn giao:**
+`READY_TO_SHIP` → `IN_TRANSIT` (Tài xế nhận hàng lên xe) → `OUT_FOR_DELIVERY` (Tài xế đang đi giao) → `DELIVERED` (Đại lý ký nhận POD thành công) / `RETURNED` (Giao thất bại, chuyển hàng về Quarantine zone của kho gốc)
+
+---
+
+### 5. Chu kỳ Tài chính & Kiểm soát Công nợ (Finance & Credit Cycle)
+
+Chu kỳ lập Hóa đơn bán hàng, theo dõi hạn mức công nợ (Credit Limit), chặn nợ quá hạn và thực hiện chốt sổ kế toán tháng (Monthly Closing).
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────────────┐
-│ STOCKTAKE PROCESS SWIMLANES                                                        │
-├──────────────┬──────────────┬──────────────┬──────────────┬──────────────┬──────────┤
-│  WH MANAGER  │    SYSTEM    │   STAFF      │   ACCOUNTING │    QC TEAM   │  AUDIT  │
-├──────────────┼──────────────┼──────────────┼──────────────┼──────────────┼──────────┤
-│              │              │              │              │              │          │
-│ Create stocktake          │              │              │              │          │
-│ ────────────►│              │              │              │              │          │
-│              │              │              │              │              │          │
-│              │ Generate product list      │              │              │          │
-│              │ ◄─────────────│              │              │              │          │
-│              │              │              │              │              │          │
-│              │              │ Count physical              │              │          │
-│              │◄─────────────│              │              │              │          │
-│              │              │              │              │              │          │
-│              │ Compare: System vs Physical │              │              │          │
-│              │ ◄─────────────│              │              │              │          │
-│              │              │              │              │              │          │
-│              │ Generate variance report    │              │              │          │
-│              │ ────────────►│              │              │              │          │
-│              │              │              │              │              │          │
-│              │              │ Review & confirm variance   │              │          │
-│              │◄─────────────│              │              │              │          │
-│              │              │              │              │              │          │
-│         ┌────┴────┐         │              │              │              │          │
-│         │  NORMAL │         │              │              │              │          │
-│         │ VARIANCE│         │              │              │              │          │
-│         └────┬────┘         │              │              │              │          │
-│              │              │              │              │              │          │
-│              │              │              │ Review variance report     │
-│              │              │              │ ◄─────────────│              │          │
-│              │              │              │              │              │          │
-│ Approve adjustment       │              │              │              │          │
-│ ────────────►│              │              │              │              │          │
-│              │              │              │              │              │          │
-│              │ Update inventory           │              │              │          │
-│              │ ────────────►│              │              │              │          │
-│              │              │              │              │              │          │
-│              │              │              │              │              │ Log adjustment
-│              │              │              │              │ ─────────────►│
-│              │              │              │              │              │          │
-│              │              │              │ Sync to Accounting         │
-│              │              │              │ ◄─────────────│              │
-│              │              │              │              │              │          │
-│              │              │              │              │              │          │
-│         ┌────┴────┐         │              │              │              │          │
-│         │ DAMAGE/ │         │              │              │              │          │
-│         │ LOSS    │         │              │              │              │          │
-│         └────┬────┘         │              │              │              │          │
-│              │              │              │              │              │          │
-│              │              │              │              │ Create damage report      │
-│              │              │              │              │ ◄─────────────│          │
-│              │              │              │              │              │          │
-│              │              │ Move to QUARANTINE          │              │          │
-│              │◄─────────────│              │              │              │          │
-│              │              │              │              │              │          │
-│              │              │              │              │ Notify WH Manager        │
-│              │◄─────────────│              │              │              │          │
-│              │              │              │              │              │          │
-└──────────────┴──────────────┴──────────────┴──────────────┴──────────────┴──────────┘
-
-Status Flow:
-PENDING → IN_PROGRESS → PENDING_APPROVAL → APPROVED → COMPLETED
+┌─────────────────────────────────┬────────────────────────────────┬─────────┐
+│          KẾ TOÁN VIÊN           │             SYSTEM             │ KTT/CEO │
+├─────────────────────────────────┼────────────────────────────────┼─────────┤
+│                                 │                                │         │
+│ Nhận đơn Delivered, lập Invoice │                                │         │
+│ (Net 30/60) ───────────────────►│ Cộng dồn current_balance,      │         │
+│                                 │ set trạng thái [Completed]     │         │
+│                                 │                                │         │
+│                                 │ [Credit Check khi tạo đơn mới] │         │
+│                                 │ IF balance + DO >= limit OR    │         │
+│                                 │ overdue > 30 ngày -> HOLD ─────► Kính báo│
+│                                 │                                │ KTT/CEO │
+│ Đại lý thanh toán, lập Phiếu thu│                                │         │
+│ cấn trừ hóa đơn ───────────────►│ Trừ current_balance.           │         │
+│                                 │ IF balance < limit * 0.8       │         │
+│                                 │ -> Mở khóa tín dụng (ACTIVE)   │         │
+│                                 │                                │         │
+│                                 │                                │ Chốt sổ │
+│                                 │                                │ tháng   │
+│                                 │◄───────────────────────────────┤ (Close) │
+│                                 │ Khóa cứng mọi chứng từ kỳ T,   │         │
+│                                 │ chỉ cho phép Adjustment ở kỳ T1│         │
+│                                 │                                │         │
+└─────────────────────────────────┴────────────────────────────────┴─────────┘
 ```
 
-#### Return Process (Hoàn hàng từ Đại lý)
+**Các trạng thái kiểm soát công nợ Đại lý:**
+- `ACTIVE`: Hạn mức công nợ hợp lệ, không có hóa đơn quá hạn quá 30 ngày. Cho phép đặt đơn hàng mới bình thường.
+- `CREDIT_HOLD`: Khóa tín dụng khi vi phạm bất kỳ điều kiện nào (vượt hạn mức hoặc quá hạn nợ > 30 ngày). Hệ thống tự động chặn lập đơn mới.
+- **Mở khóa**: Khi Đại lý thanh toán đưa `current_balance` về mức an toàn dưới `credit_limit * 0.8` (đệm an toàn 20%) và xử lý toàn bộ hóa đơn nợ quá hạn.
+
+---
+
+### 6. Quy trình Kiểm kê kho (StockTake Process)
+
+Quy trình đối chiếu số liệu tồn kho thực tế, tính toán chênh lệch và phân cấp thẩm quyền phê duyệt điều chỉnh giá trị chênh lệch.
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────────────┐
-│ RETURN PROCESS SWIMLANES                                                            │
-├──────────────┬──────────────┬──────────────┬──────────────┬──────────────┬──────────┤
-│    DEALER    │    SALE      │    SYSTEM    │   ACCOUNTING │      QC      │  STORE  │
-├──────────────┼──────────────┼──────────────┼──────────────┼──────────────┼──────────┤
-│              │              │              │              │              │          │
-│ Request return              │              │              │              │          │
-│ ────────────►│              │              │              │              │          │
-│              │              │              │              │              │          │
-│              │ Confirm return request     │              │              │          │
-│              │ ────────────►│              │              │              │          │
-│              │              │              │              │              │          │
-│              │              │ Create Return Receipt     │              │          │
-│              │              │ ─────────────►│              │              │          │
-│              │              │              │              │              │          │
-│              │              │              │              │ Receive goods            │
-│              │              │              │              │ ◄─────────────│          │
-│              │              │              │              │              │          │
-│              │              │              │              │ QC inspection            │
-│              │              │              │              │ ─────────────►│          │
-│              │              │              │              │              │          │
-│              │              │         ┌────┴────┐         │              │          │
-│              │              │         │  PASS   │         │              │          │
-│              │              │         └────┬────┘         │              │          │
-│              │              │              │              │              │          │
-│              │              │              │              │ Update stock (normal)    │
-│              │              │              │              │ ◄─────────────│          │
-│              │              │              │              │              │          │
-│              │              │ Send credit note request   │              │          │
-│              │              │ ─────────────►│              │              │          │
-│              │              │              │              │              │          │
-│              │              │              │ Create credit note│          │          │
-│              │              │              │ ◄─────────────│              │          │
-│              │              │              │              │              │          │
-│              │ Notify dealer (credit processed)         │              │          │
-│              │ ◄─────────────│              │              │              │          │
-│              │              │              │              │              │          │
-│              │              │         ┌────┴────┐         │              │          │
-│              │              │         │  FAIL   │         │              │          │
-│              │              │         └────┬────┘         │              │          │
-│              │              │              │              │              │          │
-│              │              │              │              │ Move to QUARANTINE        │
-│              │              │              │              │ ◄─────────────│          │
-│              │              │              │              │              │          │
-│              │              │              │              │ Create damage report     │
-│              │              │              │              │ ─────────────►│          │
-│              │              │              │              │              │          │
-│              │              │              │              │ Notify WH Manager        │
-│              │              │◄─────────────│              │              │          │
-│              │              │              │              │              │          │
-│              │              │              │              │              │ Mark for disposal
-│              │              │              │              │ ◄─────────────│          │
-│              │              │              │              │              │          │
-└──────────────┴──────────────┴──────────────┴──────────────┴──────────────┴──────────┘
-
-Status Flow:
-PENDING → RECEIVED → QC_PASS / QC_FAIL → PROCESSED
+┌─────────────┬─────────────────────────────────┬──────────────┬─────────────┐
+│   THỦ KHO   │             SYSTEM              │  TRƯỞNG KHO  │     CEO     │
+├─────────────┼─────────────────────────────────┼──────────────┼─────────────┤
+│             │                                 │              │             │
+│ Tạo phiếu   │                                 │              │             │
+│ kiểm kê,    │                                 │              │             │
+│ đếm hàng,   │                                 │              │             │
+│ nhập KQ ───►│ Tự động tính chênh lệch         │              │             │
+│             │ (số lượng, giá trị tiền)        │              │             │
+│             │        │                        │              │             │
+│             │  [LỆCH 1M - 50M]                │              │             │
+│             │        ├───────────────────────►│ Xem xét, duyệt│            │
+│             │        │                        │ điều chỉnh   │             │
+│             │        │◄───────────────────────┤              │             │
+│             │  [LỆCH > 50M HOẶC LỖI NHÂN VIÊN]│              │             │
+│             │        ├────────────────────────┼─────────────►│ Xem xét,    │
+│             │        │                        │              │ duyệt điều  │
+│             │        │◄───────────────────────┼──────────────┤ chỉnh       │
+│             │                                 │              │             │
+│             │ Cập nhật tồn kho theo thực tế,  │              │             │
+│             │ ghi log và audit trail chi tiết │              │             │
+│             │                                 │              │             │
+└─────────────┴─────────────────────────────────┴──────────────┴─────────────┘
 ```
 
-#### Inventory Adjustment Process (Điều chỉnh tồn kho)
-
-```
-┌─────────────────────────────────────────────────────────────────────────────────────┐
-│ INVENTORY ADJUSTMENT PROCESS SWIMLANES                                              │
-├──────────────┬──────────────┬──────────────┬──────────────┬──────────────────────────┤
-│   STOREKEEPER│    SYSTEM    │  WH MANAGER │   ACCOUNTING │        AUDIT            │
-├──────────────┼──────────────┼──────────────┼──────────────┼──────────────────────────┤
-│              │              │              │              │                         │
-│ Detect discrepancy          │              │              │                         │
-│ ────────────►│              │              │              │                         │
-│              │              │              │              │                         │
-│              │ Create adjustment request │              │                         │
-│              │ ────────────►│              │              │                         │
-│              │              │              │              │                         │
-│              │              │ Review request│              │                         │
-│              │              │ ◄─────────────│              │                         │
-│              │              │              │              │                         │
-│         ┌────┴────┐         │              │              │                         │
-│         │ MINOR   │         │              │              │                         │
-│         │ (< 5%) │         │              │              │                         │
-│         └────┬────┘         │              │              │                         │
-│              │              │              │              │                         │
-│              │              │ Approve & update stock     │
-│              │              │ ◄─────────────│              │                         │
-│              │              │              │              │                         │
-│              │ Update inventory           │              │                         │
-│              │ ◄─────────────│              │              │                         │
-│              │              │              │              │                         │
-│              │              │              │              │ Log adjustment           │
-│              │              │              │              │ ◄─────────────│          │
-│              │              │              │              │                         │
-│              │              │              │ Sync to Accounting│                     │
-│              │              │              │ ◄─────────────│          │          │
-│              │              │              │              │                         │
-│              │              │              │              │                         │
-│         ┌────┴────┐         │              │              │                         │
-│         │ MAJOR   │         │              │              │                         │
-│         │ (> 5%) │         │              │              │                         │
-│         └────┬────┘         │              │              │                         │
-│              │              │              │              │                         │
-│              │              │ Require investigation       │
-│              │              │ ─────────────►│              │                         │
-│              │              │              │              │                         │
-│              │              │ Submit investigation report│              │                         │
-│              │◄─────────────│              │              │                         │
-│              │              │              │              │                         │
-│              │              │ Final approval│              │                         │
-│              │              │ ◄─────────────│              │                         │
-│              │              │              │              │                         │
-│              │ Update inventory           │              │                         │
-│              │ ◄─────────────│              │              │                         │
-│              │              │              │              │                         │
-│              │              │              │              │ Log with investigation  │
-│              │              │              │              │ ◄─────────────│          │
-│              │              │              │              │                         │
-└──────────────┴──────────────┴──────────────┴──────────────┴──────────────────────────┘
-
-Status Flow:
-PENDING → REVIEWING → APPROVED → COMPLETED
-```
+**Thẩm quyền duyệt chênh lệch kiểm kê & xuất hủy hàng lỗi:**
+- **Dưới 1 triệu VNĐ**: Hệ thống tự động ghi nhận (lưu vết báo cáo cho Trưởng kho theo dõi định kỳ để phòng ngừa gian lận).
+- **Từ 1 triệu đến 50 triệu VNĐ**: Trưởng kho kiêm Trưởng QC xem xét và phê duyệt trên hệ thống.
+- **Trên 50 triệu VNĐ hoặc lỗi xác định do nhân viên**: Phải trình trực tiếp CEO phê duyệt trên hệ thống.
 
 ---
 
