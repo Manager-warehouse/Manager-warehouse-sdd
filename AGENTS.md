@@ -1,4 +1,4 @@
-# Version: 4.0 | Updated: 2026-05-26 | Project: Warehouse Management System (WMS)
+# Version: 5.0 | Updated: 2026-05-30 | Project: Warehouse Management System (WMS)
 
 ## 1. PROJECT OVERVIEW
 
@@ -44,6 +44,7 @@ React utilities/hooks (JavaScript): camelCase (e.g. `formatQuantity.js`, `useTra
 API endpoints: kebab-case resource naming (e.g. `/api/v1/warehouse-stock`)
 Database tables: snake_case (e.g. `inventory_transactions`)
 Specs: `specs/[number]-[feature-name]/`
+Specs (SDD): `.sdd/specs/[number]-[feature-name]/`
 
 ## 5. PHẠM VI HOẠT ĐỘNG
 
@@ -158,14 +159,29 @@ Example:
 
 Sprint: Sprint 1
 Focus: Core Warehouse Operations — Inventory, Receipt, Issue, Transfer
-Active specs: `specs/001-warehouse-management-system/spec.md`
-Pending: Integration specs for Accounting/HRM/Sale APIs
+Active specs:
+
+### .sdd/specs/ (10 feature specs)
+| # | Spec | Features | Priority |
+|---|------|----------|----------|
+| 001 | 001-system-admin | Auth, RBAC, Audit Log, System Config | P1 |
+| 002 | 002-master-data | Products, Warehouses, Bins, Dealers, Suppliers, Vehicles, Drivers | P1/P2 |
+| 003 | 003-inbound | Receiving, QC Inbound, Putaway, Quarantine | P1 |
+| 004 | 004-outbound-delivery | DO, Picking, QC Outbound, Trip, POD | P1 |
+| 005 | 005-internal-transfer | Transfer, In-Transit, Planning | P1 |
+| 006 | 006-stocktake-adjustment | StockTake, Variance, Approval | P1 |
+| 007 | 007-pricing-cogs | Price List, COGS, Price History | P1 |
+| 008 | 008-finance-credit | Invoice, Payment, Credit, Closing | P1 |
+| 009 | 009-returns-disposal | Returns, Credit Note, Disposal | P2 |
+| 010 | 010-reporting-alerts | Dashboard, Low Stock Alerts | P1 |
+
 
 ## 13. PROJECT CONTEXT REFERENCES
 
 - `CLAUDE.md` — hệ thống kiến trúc, workflow, lessons learned, anti-patterns
 - `CONSTITUTION.md` — project law, testing requirements, immutable stack rules
-- `specs/001-warehouse-management-system/spec.md` — active product spec cho sprint hiện tại
+- .sdd/specs/ (10 specs, 80 features, 71 P1) — feature specs chi tiết theo tu1eebng domain
+- `Userstory.md` — 26 user stories gu1ed1c
 
 ## 14. GITNEXUS INTEGRATION
 

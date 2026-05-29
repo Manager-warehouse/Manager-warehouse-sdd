@@ -346,3 +346,26 @@ Một task chỉ được coi là **hoàn thành** khi tất cả các điều k
 
 *Hiến pháp này có hiệu lực kể từ ngày phê chuẩn. Mọi code và artifact trong
 dự án MUST tuân thủ.*
+
+---
+
+## Phụ Lục A: Danh sách Feature Specs
+
+Toàn bộ hệ thống WMS Phúc Anh được phân rã thành **80 features** trong **10 domain specs**:
+
+| # | Spec | Đường dẫn | Features | P1 |
+|---|------|-----------|:--------:|:--:|
+| 001 | Quản trị & Phân quyền | `.sdd/specs/001-system-admin/spec.md` | 7 | 5 |
+| 002 | Danh mục nền tảng | `.sdd/specs/002-master-data/spec.md` | 9 | 5 |
+| 003 | Nhập hàng & QC Inbound | `.sdd/specs/003-inbound/spec.md` | 9 | 9 |
+| 004 | Xuất hàng & Giao hàng | `.sdd/specs/004-outbound-delivery/spec.md` | 16 | 16 |
+| 005 | Điều chuyển nội bộ | `.sdd/specs/005-internal-transfer/spec.md` | 6 | 5 |
+| 006 | Kiểm kê & Điều chỉnh | `.sdd/specs/006-stocktake-adjustment/spec.md` | 4 | 4 |
+| 007 | Bảng giá & Giá vốn | `.sdd/specs/007-pricing-cogs/spec.md` | 5 | 5 |
+| 008 | Tài chính & Công nợ | `.sdd/specs/008-finance-credit/spec.md` | 10 | 10 |
+| 009 | Hàng hoàn trả & Tiêu hủy | `.sdd/specs/009-returns-disposal/spec.md` | 3 | 2 |
+| 010 | Báo cáo & Cảnh báo | `.sdd/specs/010-reporting-alerts/spec.md` | 3 | 2 |
+| | **Tổng cộng** | | **80** | **71** |
+
+Mỗi spec sử dụng cấu trúc 9 thành phần: Context & Goal, Actor, Functional Requirements (EARS),
+Non-functional Requirements, Data Model, API Spec, Error Handling, Acceptance Criteria, Out of Scope.
