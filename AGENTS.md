@@ -190,3 +190,7 @@ Pending: Integration specs for Accounting/HRM/Sale APIs
 | `gitnexus://repo/document/processes` | All execution flows  |
 
 Note: Nếu môi trường hiện tại không có GitNexus tooling, agent phải báo rõ không thể thực thi automation này trước khi tiếp tục các thay đổi thủ công.
+
+<!-- SPECKIT START -->
+<!-- Active Plan: specs/002-3-week-sprint-plan/plan.md -->
+<!-- SPECKIT END -->

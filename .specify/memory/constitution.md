@@ -1,50 +1,73 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+﻿# WMS Phuc Anh Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. Layered Architecture (NON-NEGOTIABLE)
+Backend phan tang bat buoc: Controller (@RestController) -> Service (@Service) -> Repository (@Repository) -> Entity (@Entity). Controller chi xu ly HTTP request/response. Service chua business logic. Repository chi lam viec voi JPA. Entity map truc tiep voi DB table.
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+### II. Inventory Integrity (NON-NEGOTIABLE)
+`inventory.quantity >= 0` luon dung truoc va sau moi thao tac. Khong cho phep negative inventory. Moi thao tac UPDATE inventory phai co @Version optimistic locking. Moi thao tac phai tao audit log (actor, action, timestamp, before/after).
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### III. FEFO/FIFO Batch Selection
+San pham co expiry: chon batch co han dung gan nhat (FEFO). San pham khong co expiry: chon batch co received_date cu nhat (FIFO). Batch het han khong duoc chon cho xuat kho thong thuong.
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+### IV. QC Gate & Quarantine
+Hang fail QC bat buoc vao Quarantine Zone. Quarantine inventory KHONG duoc tinh vao available inventory. Hang trong Quarantine can quyet dinh xu ly (tieu huy/tra NCC) truoc khi xoa khoi quarantine.
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### V. In-Transit Tracking
+Dieu chuyen kho bat buoc di qua In-Transit location. Chi khi kho dich xac nhan nhan hang thi inventory moi duoc cap nhat. Chenh lech quantity_sent vs quantity_received phai tao adjustment record.
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+### VI. Auth & RBAC
+JWT + bcrypt (cost factor >= 12). Phan quyen phai check BOTH role AND warehouse (RBAC theo chi nhanh). Nhan vien kho Hai Phong khong duoc xem du lieu kho Ha Noi.
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+### VII. Test Coverage (NON-NEGOTIABLE)
+Service logic moi: coverage toi thieu 80%. Unit test bat buoc cho FEFO/FIFO selection, credit check, inventory validation. Integration tests cho moi API endpoint.
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+## Additional Constraints
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+### Tech Stack (STRICT - do not deviate)
+- Backend: Spring Boot 3.4.5 + Java 21 (Maven)
+- Frontend: React 18 + JavaScript
+- Database: PostgreSQL 18
+- ORM: Spring Data JPA / Hibernate (KHONG raw SQL)
+- Auth: JWT + bcrypt (cost >= 12)
+- Styling: Tailwind CSS 3.x
+- DB Migration: Flyway
+- API Docs: OpenAPI / Swagger
+
+### Code Quality
+- Max function length: 40 lines
+- Max file length: 300 lines
+- Comments giai thich WHY, khong giai thich WHAT
+- KHONG co System.out / console.log trong production code
+- KHONG co TODO comments trong completed code
+- Constructor injection (preferred)
+
+### Domain Rules
+- Master data: soft delete (is_active = false)
+- Transaction data: status = cancelled (khong xoa vinh vien)
+- Moi transaction chi co 1 grade (A/B/C). Khac grade = tao batch moi
+- San pham has_serial = true bat buoc nhap/xuat serial
+
+## Development Workflow
+
+### Branching
+- feat/*, fix/*, spec/*, chore/*
+- KHONG commit truc tiep vao main/production
+- Moi feature la mot nhanh nho, merge bang PR
+
+### Definition of Done
+1. Unit tests written and passing (>= 80% coverage)
+2. Integration tests cho API endpoints (happy + error paths)
+3. No linting/type errors
+4. API endpoint documented in OpenAPI/Swagger
+5. Error cases handled voi proper HTTP status codes
+6. Audit log entry created cho warehouse operations
+7. No TODO comments in code
+8. FEFO/FIFO logic tested
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+Constitution nay ap dung cho toan bo du an WMS Phuc Anh. Moi thay doi can duoc approve boi technical lead va update vao file nay.
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+**Version**: 1.0 | **Ratified**: 2026-05-29 | **Last Amended**: 2026-05-29
