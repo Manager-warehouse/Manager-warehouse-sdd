@@ -18,10 +18,10 @@ Mục tiêu chính: Xây dựng hệ thống quản lý kho cho doanh nghiệp t
 
 ## 2. TECH STACK (STRICT — do not deviate)
 
-Backend: Spring Boot 3.4.5 + Java 21
-Frontend: React 18 + TypeScript
+Backend: Spring Boot 3.4.5 + Java 21 maven
+Frontend: React 18
 Database: PostgreSQL 18
-ORM: Spring Data JPA / Hibernate
+ORM: Spring Data JPA
 Auth: JWT + bcrypt (cost factor >= 12)
 Testing: JUnit 5 + Mockito (backend), Jest (frontend)
 Styling: Tailwind CSS 3.x

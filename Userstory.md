@@ -39,34 +39,34 @@
 
 ### US-WMS-03: Kiểm hàng thực tế & Kiểm QC Inbound (Priority: P1)
 
-**Mô tả:** Là Thủ kho và Nhân viên QC, chúng tôi muốn đếm số lượng thực tế và kiểm tra chất lượng hàng nhập để phân loại Đạt/Lỗi vào hệ thống.
+**Mô tả:** Là Thủ kho và Nhân viên kho (Bốc xếp & QC), chúng tôi muốn đếm số lượng thực tế và kiểm tra chất lượng hàng nhập để phân loại Đạt/Lỗi vào hệ thống.
 
 **Tiêu chí nghiệm thu:**
 
 1. Thủ kho đếm hàng thực tế và nhập số lượng vào phiếu nhập nháp trên hệ thống.
-2. Nhân viên QC kiểm tra ngoại quan từng lô hàng và nhập kết quả: **Đạt** hoặc **Lỗi** kèm lý do chi tiết.
-3. Hàng **Đạt** → Thủ kho chỉ định vị trí kệ (Bin Location) cất hàng. Hệ thống kiểm tra sức chứa Bin trước khi cho phép.
+2. Nhân viên kho kiểm tra ngoại quan từng lô hàng (kiểm QC) và nhập kết quả: **Đạt** hoặc **Lỗi** kèm lý do chi tiết.
+3. Hàng **Đạt** → Nhân viên kho hỗ trợ Thủ kho cất hàng vào vị trí kệ (Bin Location) được chỉ định. Hệ thống kiểm tra sức chứa Bin trước khi cho phép.
 4. Hàng **Lỗi** → Hệ thống **bắt buộc** tự động chuyển sang **Kho cách ly (Quarantine Zone)**, không tính vào tồn kho khả dụng, không được phép xuất bán.
 
 ---
 
 ### US-WMS-04: Phê duyệt hàng lỗi & Ra quyết định xử lý (Priority: P1)
 
-**Mô tả:** Là Trưởng bộ phận QC (Checker), tôi muốn phê duyệt biên bản hàng lỗi trong Quarantine Zone và ra quyết định Tiêu hủy hoặc Trả về Nhà cung cấp.
+**Mô tả:** Là Trưởng kho kiêm Trưởng QC (Checker), tôi muốn phê duyệt biên bản hàng lỗi trong Quarantine Zone và ra quyết định Tiêu hủy hoặc Trả về Nhà cung cấp.
 
 **Tiêu chí nghiệm thu:**
 
-1. Trưởng bộ phận QC xem danh sách hàng lỗi đang chờ xử lý trong Quarantine Zone và phê duyệt biên bản.
+1. Trưởng kho kiêm Trưởng QC xem danh sách hàng lỗi đang chờ xử lý trong Quarantine Zone và phê duyệt biên bản.
 2. **Nếu chọn Trả về NCC (Return to Vendor — RTV):**
    - Hệ thống tạo **Phiếu trả hàng NCC** kèm lý do lỗi chi tiết → Số lượng hàng trong Quarantine Zone bị trừ.
    - Thủ kho đóng gói hàng lỗi và xác nhận đã giao trả về NCC trên hệ thống.
    - **Kế toán viên** nhận thông báo → Tạo **Debit Note** (Phiếu đòi bồi hoàn NCC): ghi rõ số lượng, giá trị hàng lỗi, yêu cầu NCC hoàn tiền hoặc giao hàng thay thế.
    - Debit Note được lưu vào hồ sơ giao dịch với NCC, làm căn cứ theo dõi và đối chiếu khi NCC phản hồi.
 3. **Nếu chọn Tiêu hủy:** Hệ thống tự động tạo Phiếu xuất hủy và áp dụng bảng định mức phê duyệt:
-   - Giá trị < 1 triệu → Tự động duyệt, ghi vào Daily Report.
-   - Giá trị 1 – 50 triệu → Trưởng kho duyệt.
-   - Giá trị > 50 triệu → CEO duyệt.
-
+   - Giá trị < 5 triệu → Không bán.
+   - Giá trị 5 – 100 triệu → Trưởng kho duyệt.
+   - Giá trị > 100 triệu → CEO duyệt.
+   
 ---
 
 ### US-WMS-05: Ký duyệt Nhập kho chính thức (Priority: P1)
@@ -110,13 +110,13 @@
 
 ### US-WMS-07: Soạn hàng & Kiểm QC đóng gói (Priority: P1)
 
-**Mô tả:** Là Thủ kho và Nhân viên QC, chúng tôi muốn soạn hàng từ vị trí kệ và kiểm tra chất lượng đóng gói trước khi xuất kho.
+**Mô tả:** Là Thủ kho và Nhân viên kho (Bốc xếp & QC), chúng tôi muốn soạn hàng từ vị trí kệ và kiểm tra chất lượng đóng gói QC trước khi xuất kho.
 
 **Tiêu chí nghiệm thu:**
 
 1. Thủ kho nhận lệnh xuất → Đi lấy hàng từ các Bin Location → Cập nhật trạng thái đơn: **Đang soạn hàng (Picking)**.
-2. Nhân viên QC kiểm tra: đúng SKU, đúng số lượng, đóng thùng chống sốc → Xác nhận đạt.
-3. Thủ kho xác nhận hoàn tất soạn hàng → Trạng thái đơn: **Sẵn sàng xuất (Ready to Ship)**.
+2. Nhân viên kho kiểm tra QC: đúng SKU, đúng số lượng, đóng thùng chống sốc → Xác nhận đạt trên hệ thống.
+3. Thủ kho xác nhận hoàn tất soạn hàng sau khi Nhân viên kho xác nhận QC đạt → Trạng thái đơn: **Sẵn sàng xuất (Ready to Ship)**.
 
 ---
 
@@ -371,7 +371,7 @@
 **Tiêu chí nghiệm thu:**
 
 1. Thủ kho lập Phiếu nhập hàng hoàn từ Đại lý, ghi rõ lý do hoàn trả.
-2. Nhân viên QC kiểm tra: Hàng còn tốt → Nhập lại kho thường; Hàng lỗi/hư hỏng → Vào Quarantine Zone chờ Trưởng bộ phận QC quyết định.
+2. Nhân viên kho kiểm tra QC: Hàng còn tốt → Nhập lại kho thường; Hàng lỗi/hư hỏng → Vào Quarantine Zone chờ Trưởng kho kiêm Trưởng QC quyết định.
 3. Kế toán viên ghi nhận giá trị hàng hoàn → Tạo **Credit Note** → Hệ thống tự động trừ `current_balance` của Đại lý tương ứng.
 
 ---
@@ -382,7 +382,7 @@
 
 **Tiêu chí nghiệm thu:**
 
-1. Hệ thống ghi nhận sản lượng thực hiện của từng cá nhân: Số đơn bốc xếp (Công nhân kho), Số đơn soạn hàng/đóng gói hoàn thành (Thủ kho), Số chuyến giao (Tài xế).
+1. Hệ thống ghi nhận sản lượng thực hiện của từng cá nhân: Số đơn bốc xếp & QC (Nhân viên kho), Số đơn soạn hàng hoàn thành (Thủ kho), Số chuyến giao (Tài xế).
 2. Trưởng kho xuất file Excel báo cáo sản lượng theo khoảng thời gian tùy chọn.
 
 ---
