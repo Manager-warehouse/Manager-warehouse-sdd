@@ -1,6 +1,6 @@
 package com.wms.entity;
 
-import com.wms.entity.enums.ApprovalResult;
+import com.wms.enums.ApprovalResult;
 import jakarta.persistence.*;
 import java.time.OffsetDateTime;
 

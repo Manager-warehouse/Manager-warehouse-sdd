@@ -1,6 +1,6 @@
 package com.wms.entity;
 
-import com.wms.entity.enums.CreditStatus;
+import com.wms.enums.CreditStatus;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;

@@ -1,6 +1,6 @@
 package com.wms.entity;
 
-import com.wms.entity.enums.AlertType;
+import com.wms.enums.AlertType;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;

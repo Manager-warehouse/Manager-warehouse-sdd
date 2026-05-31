@@ -1,6 +1,6 @@
 package com.wms.entity;
 
-import com.wms.entity.enums.DriverStatus;
+import com.wms.enums.DriverStatus;
 import jakarta.persistence.*;
 import java.time.LocalDate;
 

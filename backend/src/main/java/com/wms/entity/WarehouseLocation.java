@@ -1,6 +1,6 @@
 package com.wms.entity;
 
-import com.wms.entity.enums.LocationType;
+import com.wms.enums.LocationType;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 

@@ -1,6 +1,6 @@
 package com.wms.entity;
 
-import com.wms.entity.enums.VehicleStatus;
+import com.wms.enums.VehicleStatus;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 

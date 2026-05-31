@@ -1,6 +1,6 @@
 package com.wms.entity;
 
-import com.wms.entity.enums.DeliveryStatus;
+import com.wms.enums.DeliveryStatus;
 import jakarta.persistence.*;
 import java.time.OffsetDateTime;
 

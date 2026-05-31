@@ -1,6 +1,6 @@
 package com.wms.entity;
 
-import com.wms.entity.enums.TripStatus;
+import com.wms.enums.TripStatus;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;

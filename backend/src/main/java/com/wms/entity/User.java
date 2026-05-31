@@ -1,6 +1,6 @@
 package com.wms.entity;
 
-import com.wms.entity.enums.UserRole;
+import com.wms.enums.UserRole;
 import jakarta.persistence.*;
 import java.time.OffsetDateTime;
 

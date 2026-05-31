@@ -1,6 +1,6 @@
 package com.wms.entity;
 
-import com.wms.entity.enums.BatchGrade;
+import com.wms.enums.BatchGrade;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;

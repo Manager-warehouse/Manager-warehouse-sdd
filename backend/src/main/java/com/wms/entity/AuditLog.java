@@ -1,6 +1,6 @@
 package com.wms.entity;
 
-import com.wms.entity.enums.AuditAction;
+import com.wms.enums.AuditAction;
 import jakarta.persistence.*;
 import java.time.OffsetDateTime;
 

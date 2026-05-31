@@ -1,4 +1,4 @@
-package com.wms.entity.enums;
+package com.wms.enums;
 
 public enum DeliveryStatus {
     PENDING,

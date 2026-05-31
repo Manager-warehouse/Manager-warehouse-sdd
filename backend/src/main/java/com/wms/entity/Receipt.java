@@ -1,7 +1,7 @@
 package com.wms.entity;
 
-import com.wms.entity.enums.ReceiptStatus;
-import com.wms.entity.enums.ReceiptType;
+import com.wms.enums.ReceiptStatus;
+import com.wms.enums.ReceiptType;
 import jakarta.persistence.*;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;

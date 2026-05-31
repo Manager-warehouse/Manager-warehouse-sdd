@@ -1,6 +1,6 @@
 package com.wms.entity;
 
-import com.wms.entity.enums.QcResult;
+import com.wms.enums.QcResult;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 

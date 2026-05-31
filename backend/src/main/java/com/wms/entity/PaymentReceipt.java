@@ -1,6 +1,6 @@
 package com.wms.entity;
 
-import com.wms.entity.enums.PaymentMethod;
+import com.wms.enums.PaymentMethod;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;

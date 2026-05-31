@@ -1,6 +1,6 @@
 package com.wms.entity;
 
-import com.wms.entity.enums.StockTakeStatus;
+import com.wms.enums.StockTakeStatus;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;

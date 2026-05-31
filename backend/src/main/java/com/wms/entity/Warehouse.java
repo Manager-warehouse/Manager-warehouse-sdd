@@ -1,6 +1,6 @@
 package com.wms.entity;
 
-import com.wms.entity.enums.WarehouseType;
+import com.wms.enums.WarehouseType;
 import jakarta.persistence.*;
 import java.time.OffsetDateTime;
 
