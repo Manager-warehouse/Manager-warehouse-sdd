@@ -41,8 +41,7 @@ CREATE TABLE users (
                       'ACCOUNTANT_MANAGER',-- Duyệt giá, Credit Limit, chốt sổ
                       'PLANNER',           -- Lập lệnh nhập / đơn xuất
                       'DISPATCHER',        -- Điều phối xe nội bộ Phúc Anh
-                      'DRIVER',            -- Nhận chuyến, POD smartphone
-                      'REPORT_VIEWER'      -- Chỉ xem báo cáo
+                      'DRIVER'             -- Nhận chuyến, POD smartphone
                   )),
     job_title     VARCHAR(100),            -- Cho Storekeeper / WarehouseStaff
     shift         VARCHAR(50),             -- Ca làm việc (cho nhân viên kho)
@@ -111,6 +110,7 @@ CREATE TABLE products (
     image_url     VARCHAR(500),
     weight_kg     DECIMAL(10,3),
     volume_m3     DECIMAL(10,5),
+    has_expiry    BOOLEAN       NOT NULL DEFAULT FALSE,
     has_serial    BOOLEAN       NOT NULL DEFAULT FALSE,
     reorder_point DECIMAL(10,2),                 -- Ngưỡng cảnh báo tồn kho thấp
     is_active     BOOLEAN       NOT NULL DEFAULT TRUE,
@@ -341,7 +341,7 @@ CREATE TABLE delivery_orders (
     status               VARCHAR(30) NOT NULL DEFAULT 'NEW'
                          CHECK (status IN (
                              'NEW','PICKING','READY_TO_SHIP','IN_TRANSIT',
-                             'OUT_FOR_DELIVERY','DELIVERED','COMPLETED','CLOSED','CANCELLED'
+                             'OUT_FOR_DELIVERY','DELIVERED','RETURNED','COMPLETED','CLOSED','CANCELLED'
                          )),
     created_by           BIGINT      NOT NULL REFERENCES users(id),
     cancel_reason        TEXT,
