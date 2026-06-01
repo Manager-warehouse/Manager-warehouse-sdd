@@ -10,6 +10,5 @@ public enum UserRole {
     ACCOUNTANT_MANAGER,
     PLANNER,
     DISPATCHER,
-    DRIVER,
-    REPORT_VIEWER
+    DRIVER
 }
