@@ -7,6 +7,7 @@ public enum DeliveryOrderStatus {
     IN_TRANSIT,
     OUT_FOR_DELIVERY,
     DELIVERED,
+    RETURNED,
     COMPLETED,
     CLOSED,
     CANCELLED

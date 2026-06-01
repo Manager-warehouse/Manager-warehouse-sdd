@@ -36,6 +36,9 @@ public class Product {
     @Column(name = "volume_m3", precision = 10, scale = 5)
     private BigDecimal volumeM3;
 
+    @Column(name = "has_expiry", nullable = false)
+    private Boolean hasExpiry;
+
     @Column(name = "has_serial", nullable = false)
     private Boolean hasSerial;
 
