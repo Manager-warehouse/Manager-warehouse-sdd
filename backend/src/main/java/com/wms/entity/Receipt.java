@@ -36,6 +36,10 @@ public class Receipt {
     @JoinColumn(name = "dealer_id")
     private Dealer dealer;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "delivery_order_id")
+    private DeliveryOrder deliveryOrder;
+
     @Column(name = "contact_person", length = 255)
     private String contactPerson;
 

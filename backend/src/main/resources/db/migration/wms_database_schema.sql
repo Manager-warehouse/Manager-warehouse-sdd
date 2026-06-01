@@ -118,6 +118,16 @@ CREATE TABLE products (
     updated_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
+-- §2.3a product_units  (UOM conversion per product)
+CREATE TABLE product_units (
+    id                BIGINT        PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    product_id        BIGINT        NOT NULL REFERENCES products(id),
+    unit_name         VARCHAR(50)   NOT NULL,
+    conversion_factor DECIMAL(10,4) NOT NULL,
+    is_base_unit      BOOLEAN       NOT NULL DEFAULT FALSE,
+    created_at        TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+);
+
 -- §2.4 dealers  (Critical 2: thêm 4 cột công nợ)
 CREATE TABLE dealers (
     id                       BIGSERIAL     PRIMARY KEY,
@@ -322,7 +332,8 @@ CREATE TABLE receipt_items (
     qc_failure_reason TEXT,
     grade             VARCHAR(1),                -- A / B / C (grade của lô hàng này)
     unit_cost         DECIMAL(18,2),
-    serial_number     VARCHAR(100)               -- Nếu product.has_serial = true
+    serial_number     VARCHAR(100),              -- Nếu product.has_serial = true
+    qc_by             BIGINT        REFERENCES users(id) ON DELETE SET NULL
 );
 
 -- =============================================================================
@@ -348,9 +359,15 @@ CREATE TABLE delivery_orders (
     document_date        DATE        NOT NULL,
     accounting_period_id BIGINT      REFERENCES accounting_periods(id),
     notes                TEXT,
+    packed_by            BIGINT      REFERENCES users(id) ON DELETE SET NULL,
+    qc_by                BIGINT      REFERENCES users(id) ON DELETE SET NULL,
     created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- FK thêm sau khi delivery_orders đã tạo (tránh forward reference từ receipts)
+ALTER TABLE receipts
+    ADD COLUMN delivery_order_id BIGINT REFERENCES delivery_orders(id) ON DELETE SET NULL;
 
 -- §6.2 delivery_order_items
 CREATE TABLE delivery_order_items (
@@ -364,7 +381,8 @@ CREATE TABLE delivery_order_items (
                   CHECK (reserved_qty >= 0),   -- Đang giữ chỗ trong inventories
     issued_qty    DECIMAL(10,2) NOT NULL DEFAULT 0,
     unit_price    DECIMAL(18,2),               -- Từ price_history tại ngày giao
-    serial_number VARCHAR(100)
+    serial_number VARCHAR(100),
+    picked_by     BIGINT        REFERENCES users(id) ON DELETE SET NULL
 );
 
 -- §6.3 delivery_order_approvals  (Kế toán duyệt)

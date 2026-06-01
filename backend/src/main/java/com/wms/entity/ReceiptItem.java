@@ -55,4 +55,8 @@ public class ReceiptItem {
 
     @Column(name = "serial_number", length = 100)
     private String serialNumber;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "qc_by")
+    private User qcBy;
 }

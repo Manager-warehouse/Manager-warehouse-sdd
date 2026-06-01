@@ -58,4 +58,12 @@ public class DeliveryOrder {
 
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "packed_by")
+    private User packedBy;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "qc_by")
+    private User qcBy;
 }
