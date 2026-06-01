@@ -91,7 +91,6 @@ manager-warehouse-sdd/
 │       │   ├── dto/               # Request/Response DTOs [21]
 │       │   ├── entity/            # JPA entities [21]
 │       │   ├── enums/             # Domain enums (WarehouseStatus, ReceiptStatus, BatchGrade...) [21]
-│       │   ├── event/             # Domain events, audit events [21]
 │       │   ├── exception/         # Custom exceptions, global error handler [21]
 │       │   ├── repository/        # Spring Data JPA repositories [21]
 │       │   ├── service/           # Business logic services [21]
