@@ -73,6 +73,27 @@ const addMockAuditLog = (action, entityType, entityId, details) => {
   localStorage.setItem('wms_audit_logs', JSON.stringify([newLog, ...logs]));
 };
 
+// Simulated System Configurations
+const getMockSystemConfig = () => {
+  const config = localStorage.getItem('wms_system_config');
+  if (!config) {
+    const initialConfig = {
+      defaultCreditLimit: 500000000,
+      minWarningStock: 10,
+      shiftDurationHours: 8,
+      monthlyClosingDay: 5,
+      managerApprovalLimit: 50000000
+    };
+    localStorage.setItem('wms_system_config', JSON.stringify(initialConfig));
+    return initialConfig;
+  }
+  return JSON.parse(config);
+};
+
+const saveMockSystemConfig = (config) => {
+  localStorage.setItem('wms_system_config', JSON.stringify(config));
+};
+
 export const adminService = {
   getUsers: async () => {
     if (useMock) {
@@ -192,6 +213,37 @@ export const adminService = {
       return users[idx];
     } else {
       const response = await apiClient.put(`/admin/users/${id}/status`, { isActive });
+      return response.data;
+    }
+  },
+
+  getSystemConfig: async () => {
+    if (useMock) {
+      await new Promise(resolve => setTimeout(resolve, 400));
+      return getMockSystemConfig();
+    } else {
+      const response = await apiClient.get('/admin/config');
+      return response.data;
+    }
+  },
+
+  updateSystemConfig: async (configData) => {
+    if (useMock) {
+      await new Promise(resolve => setTimeout(resolve, 600));
+      const current = getMockSystemConfig();
+      const updated = { ...current, ...configData };
+      saveMockSystemConfig(updated);
+      
+      addMockAuditLog(
+        'SYSTEM_CONFIG_UPDATED',
+        'SystemConfig',
+        1,
+        `Cập nhật cấu hình hệ thống: Hạn mức phê duyệt ${updated.managerApprovalLimit.toLocaleString()} VND, Ngày khóa sổ ${updated.monthlyClosingDay}`
+      );
+      
+      return updated;
+    } else {
+      const response = await apiClient.put('/admin/config', configData);
       return response.data;
     }
   },

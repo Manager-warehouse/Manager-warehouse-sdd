@@ -5,6 +5,8 @@ import Login from '../pages/Auth/Login';
 import Dashboard from '../pages/Dashboard';
 import Profile from '../pages/Profile/Profile';
 import UserManagement from '../pages/Admin/UserManagement';
+import SystemConfig from '../pages/Admin/SystemConfig';
+import AuditLogs from '../pages/Admin/AuditLogs';
 import { ROLES } from '../utils/constants';
 
 const AppRoutes = () => {
@@ -22,6 +24,8 @@ const AppRoutes = () => {
       {/* Admin specific protected routes */}
       <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]} />}>
         <Route path="/admin/users" element={<UserManagement />} />
+        <Route path="/admin/config" element={<SystemConfig />} />
+        <Route path="/admin/audit-logs" element={<AuditLogs />} />
       </Route>
 
       {/* Default Redirects */}

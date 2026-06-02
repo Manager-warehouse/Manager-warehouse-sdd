@@ -69,9 +69,9 @@ export const useAuthStore = create((set, get) => {
       if (!user) return false;
       // ADMIN or CEO has access to all warehouses
       if (user.role === 'ADMIN' || user.role === 'CEO') return true;
-      // Empty/null list in database means access to all
-      if (!user.warehouses || user.warehouses.length === 0) return true;
-      return user.warehouses?.includes(Number(warehouseId)) || false;
+      // Empty array implies no warehouse gán - block access by default
+      if (!user.warehouses || user.warehouses.length === 0) return false;
+      return user.warehouses.includes(Number(warehouseId));
     }
   };
 });

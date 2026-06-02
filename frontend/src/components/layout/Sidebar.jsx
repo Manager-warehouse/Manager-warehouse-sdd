@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Users, UserSquare, ShieldAlert, BarChart3, Package2 } from 'lucide-react';
+import { LayoutDashboard, Users, UserSquare, ShieldAlert, BarChart3, Package2, Settings, History } from 'lucide-react';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
 import { ROLES } from '../../utils/constants';
@@ -20,6 +20,18 @@ const Sidebar = () => {
       title: 'Quản lý tài khoản',
       path: '/admin/users',
       icon: Users,
+      roles: [ROLES.ADMIN]
+    },
+    {
+      title: 'Cấu hình hệ thống',
+      path: '/admin/config',
+      icon: Settings,
+      roles: [ROLES.ADMIN]
+    },
+    {
+      title: 'Nhật ký hoạt động',
+      path: '/admin/audit-logs',
+      icon: History,
       roles: [ROLES.ADMIN]
     },
     {
