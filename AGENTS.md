@@ -164,16 +164,16 @@ Active specs:
 ### .sdd/specs/ (10 feature specs)
 | # | Spec | Features | Priority |
 |---|------|----------|----------|
-| 001 | 001-system-admin | Auth, RBAC, Audit Log, System Config | P1 |
-| 002 | 002-master-data | Products, Warehouses, Bins, Dealers, Suppliers, Vehicles, Drivers | P1/P2 |
-| 003 | 003-inbound | Receiving, QC Inbound, Putaway, Quarantine | P1 |
-| 004 | 004-outbound-delivery | DO, Picking, QC Outbound, Trip, POD | P1 |
-| 005 | 005-internal-transfer | Transfer, In-Transit, Planning | P1 |
+| 001 | 001-security-auth-rbac-audit | Auth, RBAC, Audit Log, System Config | P1 |
+| 002 | 002-master-data-management | Products, Warehouses, Bins, Dealers, Suppliers, Vehicles, Drivers | P1/P2 |
+| 003 | 003-inbound-receipt-qc | Receiving, QC Inbound, Putaway, Quarantine | P1 |
+| 004 | 004-outbound-delivery-pod | DO, Picking, QC Outbound, Trip, POD | P1 |
+| 005 | 005-inter-warehouse-transfer | Transfer, In-Transit, Planning | P1 |
 | 006 | 006-stocktake-adjustment | StockTake, Variance, Approval | P1 |
-| 007 | 007-pricing-cogs | Price List, COGS, Price History | P1 |
-| 008 | 008-finance-credit | Invoice, Payment, Credit, Closing | P1 |
-| 009 | 009-returns-disposal | Returns, Credit Note, Disposal | P2 |
-| 010 | 010-reporting-alerts | Dashboard, Low Stock Alerts | P1 |
+| 007 | 007-pricing-cogs-management | Price List, COGS, Price History | P1 |
+| 008 | 008-finance-billing-closing | Invoice, Payment, Credit, Closing | P1 |
+| 009 | 009-returns-scrap-disposal | Returns, Credit Note, Disposal | P2 |
+| 010 | 010-reports-dashboards-alerts | Dashboard, Low Stock Alerts | P1 |
 
 
 ## 13. PROJECT CONTEXT REFERENCES

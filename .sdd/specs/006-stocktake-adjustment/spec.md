@@ -9,105 +9,103 @@
 
 ## 1. Context and Goal
 
-Kiểm kê kho là quy trình đối chiếu số liệu tồn kho trên hệ thống với số lượng thực tế
-trong kho. Chênh lệch cần được xử lý qua quy trình phê duyệt theo thẩm quyền (bảng định
-mức: Trưởng kho 5-100M, CEO >100M) trước khi điều chỉnh inventory.
+Quy trình đối chiếu và điều chỉnh số liệu hệ thống khớp với số đếm thực tế của thủ kho định kỳ. Hệ thống áp dụng khóa vị trí tạm thời và phân cấp duyệt Maker-Checker dựa trên tổng giá trị chênh lệch.
 
-**Goal:** Xây dựng luồng kiểm kê từ tạo phiếu → khóa sổ → đếm thực tế → nhập kết quả →
-tính chênh lệch → phê duyệt → điều chỉnh inventory, đảm bảo audit trail đầy đủ.
+### Features List
+* [Thủ kho Kiểm kê kho & Đếm hàng Thực tế](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/006-stocktake-adjustment/features/feature-storekeeper-stocktake-count.md)
+* [US-WMS-13: Quản lý & CEO Phê duyệt Điều chỉnh Chênh lệch Kiểm kê](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/006-stocktake-adjustment/features/feature-manager-stocktake-approval.md)
 
 ## 2. Actors
 
-| Actor | Vai trò |
-|-------|---------|
-| Thủ kho | Tạo phiếu kiểm kê, đếm thực tế, nhập kết quả |
-| Trưởng kho | Duyệt chênh lệch 5-100M |
-| CEO | Duyệt chênh lệch >100M hoặc lỗi nhân viên |
+| Actor | Vai trò | Nghiệp vụ liên quan |
+|-------|---------|---------------------|
+| Thủ kho | Maker | Lập phiếu kiểm kê, đếm thực tế và nhập số đếm. |
+| Trưởng kho kiêm Trưởng QC | Checker | Duyệt chênh lệch kiểm kê trị giá 5M - 100M. |
+| CEO | Checker cấp cao | Duyệt chênh lệch kiểm kê trị giá > 100M hoặc do lỗi nhân viên. |
 
 ## 3. Functional Requirements (EARS)
-
-**Ubiquitous:**
-- The system SHALL always calculate variance as `actual_qty - system_qty`.
-- The system SHALL always require approval before applying inventory adjustments.
-
-**Event-driven:**
-- WHEN a Thủ kho creates a StockTake for specific bin locations, the system SHALL
-  pre-fill system quantities from current inventory records.
-- WHEN a Thủ kho starts a StockTake (status → IN_PROGRESS), the system SHALL
-  lock the affected bin locations to prevent concurrent receipt/issue operations.
-- WHEN a Thủ kho enters actual counts, the system SHALL auto-calculate variance
-  for each StockTakeItem.
-- WHEN a StockTake is completed (status → COMPLETED), the system SHALL calculate
-  total variance amount.
-- WHEN a user requests approval:
-  - IF variance < 5M VND: auto-approve (if QC/stocktake confirmed)
-  - IF 5M ≤ variance ≤ 100M VND: route to Trưởng kho for approval
-  - IF variance > 100M VND OR cause = employee error: route to CEO
-- WHEN an approval is granted, the system SHALL:
-  - Update inventory.quantity to actual_qty for each item
-  - Create audit log with before/after quantities
-  - Set StockTake status to ADJUSTED
+*Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đặc tả tính năng:*
+* [EARS - Stocktake Count](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/006-stocktake-adjustment/features/feature-storekeeper-stocktake-count.md#3-functional-requirements-ears)
+* [EARS - Stocktake Approval](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/006-stocktake-adjustment/features/feature-manager-stocktake-approval.md#3-functional-requirements-ears)
 
 ## 4. Non-functional Requirements
 
 | ID | Requirement | Target |
 |----|------------|--------|
-| NFR-001 | StockTake creation with 100+ items | ≤ 3s |
-| NFR-002 | Variance calculation | Real-time (≤ 1s on item entry) |
-| NFR-003 | Bin lock operations | ≤ 100ms overhead per transaction |
+| NFR-001 | Stocktake count record save response | ≤ 200ms |
+| NFR-002 | Inventory balance update upon approval | ≤ 1s |
+| NFR-003 | Adjustment log write latency | ≤ 500ms |
 
 ## 5. Data Model
 
-### StockTake
-- `id`, `stocktake_code` (UNIQUE), `warehouse_id` (FK), `created_by` (FK),
-  `approved_by` (FK), `status` (DRAFT → IN_PROGRESS → COMPLETED → APPROVED →
-  ADJUSTED / REJECTED), `total_variance_amount`, `notes`, `version`
+### stock_takes
+- `id` (BIGSERIAL, PK)
+- `stock_take_number` (VARCHAR(50), UNIQUE, NOT NULL)
+- `warehouse_id` (BIGINT, FK→warehouses, NOT NULL)
+- `conducted_by` (BIGINT, FK→users, NOT NULL)
+- `approved_by` (BIGINT, FK→users)
+- `approved_at` (TIMESTAMPTZ)
+- `status` (VARCHAR(30), DEFAULT 'DRAFT', CHECK IN ('DRAFT','IN_PROGRESS','PENDING_APPROVAL','APPROVED','CANCELLED'), NOT NULL)
+- `total_variance_value` (DECIMAL(18,2), DEFAULT 0)
+- `stock_take_date` (DATE, NOT NULL)
+- `document_date` (DATE, NOT NULL)
+- `accounting_period_id` (BIGINT, FK→accounting_periods)
+- `created_at` (TIMESTAMPTZ)
+- `updated_at` (TIMESTAMPTZ)
 
-### StockTakeItem
-- `id`, `stocktake_id` (FK), `product_id` (FK), `bin_location_id` (FK),
-  `system_qty`, `actual_qty`, `variance_qty`, `variance_amount`, `notes`
+### stock_take_items
+- `id` (BIGSERIAL, PK)
+- `stock_take_id` (BIGINT, FK→stock_takes, NOT NULL)
+- `product_id` (BIGINT, FK→products, NOT NULL)
+- `batch_id` (BIGINT, FK→batches, NOT NULL)
+- `location_id` (BIGINT, FK→warehouse_locations, NOT NULL)
+- `system_qty` (DECIMAL(10,2), NOT NULL)
+- `actual_qty` (DECIMAL(10,2), NOT NULL)
+- `variance_qty` (DECIMAL(10,2), NOT NULL) -- actual_qty - system_qty
+- `variance_value` (DECIMAL(18,2), NOT NULL) -- variance_qty × cost_price
+- `notes` (TEXT)
+
+### adjustments
+- `id` (BIGSERIAL, PK)
+- `adjustment_number` (VARCHAR(50), UNIQUE, NOT NULL)
+- `warehouse_id` (BIGINT, FK→warehouses, NOT NULL)
+- `product_id` (BIGINT, FK→products, NOT NULL)
+- `batch_id` (BIGINT, FK→batches)
+- `location_id` (BIGINT, FK→warehouse_locations)
+- `quantity_adjustment` (DECIMAL(10,2), NOT NULL)
+- `type` (VARCHAR(30), CHECK IN ('STOCK_TAKE','TRANSFER_DISCREPANCY','DISPOSAL','RETURN_TO_VENDOR','CORRECTION_VOUCHER'), NOT NULL)
+- `reference_id` (BIGINT)
+- `reference_type` (VARCHAR(50))
+- `reason` (TEXT, NOT NULL)
+- `approved_by` (BIGINT, FK→users)
+- `approved_at` (TIMESTAMPTZ)
+- `document_date` (DATE, NOT NULL)
+- `accounting_period_id` (BIGINT, FK→accounting_periods)
+- `created_by` (BIGINT, FK→users, NOT NULL)
+- `created_at` (TIMESTAMPTZ)
 
 ## 6. API Spec
-
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| GET | /api/v1/stocktakes | Bearer | List stocktakes (filterable) |
-| POST | /api/v1/stocktakes | STORE_KEEPER | Create stocktake (pre-filled) |
-| GET | /api/v1/stocktakes/{id} | Bearer | Get detail with items + variance |
-| PUT | /api/v1/stocktakes/{id}/start | STORE_KEEPER | Start stocktake → lock bins |
-| PUT | /api/v1/stocktakes/{id}/count | STORE_KEEPER | Enter actual counts |
-| PUT | /api/v1/stocktakes/{id}/complete | STORE_KEEPER | Mark completed |
-| PUT | /api/v1/stocktakes/{id}/approve | WAREHOUSE_MANAGER / CEO | Approve variance |
-| PUT | /api/v1/stocktakes/{id}/adjust | SYSTEM | Apply adjustment to inventory |
+*Vui lòng xem chi tiết API endpoints tại các tài liệu đặc tả tính năng:*
+* [APIs - Stocktake Count](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/006-stocktake-adjustment/features/feature-storekeeper-stocktake-count.md#4-api-endpoints)
+* [APIs - Stocktake Approval](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/006-stocktake-adjustment/features/feature-manager-stocktake-approval.md#4-api-endpoints)
 
 ## 7. Error Handling
 
 | Error | HTTP | Condition |
 |-------|------|-----------|
-| BIN_ALREADY_LOCKED | 409 | Bin in another active stocktake |
-| STOCKTAKE_NOT_COMPLETED | 400 | Trying to approve incomplete stocktake |
-| APPROVAL_AUTHORITY_EXCEEDED | 403 | User lacks authority for variance amount |
-| INVENTORY_VERSION_CONFLICT | 409 | Inventory changed during stocktake |
-| NO_VARIANCE | 400 | No difference to adjust |
+| STOCK_TAKE_ALREADY_APPROVED | 409 | Duplicate approval attempt |
+| LOCATION_LOCKED | 422 | Attempt to transact on a locked location |
+| INVALID_COUNT_QTY | 400 | Counted quantity is negative |
+| APPROVAL_THRESHOLD_EXCEEDED | 403 | Variance value exceeds user's authority |
+| INVENTORY_VERSION_CONFLICT | 409 | Concurrent inventory update |
 
 ## 8. Acceptance Criteria
-
-1. Given a product with system_qty = 50,
-   when Thủ kho enters actual_qty = 48,
-   then variance SHALL = -2.
-2. Given a stocktake with variance = 80M VND,
-   when a user with WAREHOUSE_MANAGER role approves,
-   then system SHALL accept (within 5-100M range).
-3. Given a stocktake with variance = 150M VND,
-   when a user with WAREHOUSE_MANAGER role approves,
-   then system SHALL reject and route to CEO.
-4. Given an approved stocktake,
-   when adjustment executes,
-   then inventory.quantity SHALL equal actual_qty exactly.
+*Vui lòng xem chi tiết kịch bản kiểm thử tại các tài liệu đặc tả tính năng:*
+* [Acceptance - Stocktake Count](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/006-stocktake-adjustment/features/feature-storekeeper-stocktake-count.md#5-acceptance-criteria)
+* [Acceptance - Stocktake Approval](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/006-stocktake-adjustment/features/feature-manager-stocktake-approval.md#5-acceptance-criteria)
 
 ## 9. Out of Scope
 
-- Cycle counting (perpetual inventory)
-- ABC classification-based counting frequency
-- Barcode scanner for counting
-- Historical stocktake comparison reports
+- Automated cycle counting scheduling
+- Integration with external finance ERP ledger (local adjustment only)
+- Physical tag tracking
