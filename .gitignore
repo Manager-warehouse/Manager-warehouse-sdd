@@ -135,6 +135,8 @@ credentials.json
 *.key
 id_rsa*
 id_ed25519*
+backend/src/main/resources/application.yml
+
 
 # ===== OS =====
 # macOS
