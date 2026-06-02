@@ -38,7 +38,7 @@ export const MOCK_USERS = [
   {
     id: 1,
     code: 'NV-001',
-    fullName: 'Nguyễn Văn Admin',
+    fullName: 'Anh Phương Đẹp Trai',
     email: 'admin@phucanh.vn',
     phone: '0912345678',
     role: ROLES.ADMIN,
