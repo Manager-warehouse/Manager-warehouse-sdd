@@ -667,18 +667,25 @@ CREATE TABLE system_configs (
 
 -- §12.2 audit_logs
 CREATE TABLE audit_logs (
-    id          BIGSERIAL    PRIMARY KEY,
-    actor_id    BIGINT       REFERENCES users(id),   -- NULL = system job
-    actor_role  VARCHAR(50),                         -- Snapshot role tại thời điểm thực hiện
-    action      VARCHAR(50)  NOT NULL
-                CHECK (action IN ('CREATE','UPDATE','APPROVE','REJECT','CANCEL','DELETE')),
-    entity_type VARCHAR(100) NOT NULL,
-    entity_id   BIGINT       NOT NULL,
-    old_value   JSONB,
-    new_value   JSONB,
-    timestamp   TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    ip_address  VARCHAR(45)
+    id            BIGSERIAL    PRIMARY KEY,
+    actor_id      BIGINT       NOT NULL REFERENCES users(id),
+    actor_role    VARCHAR(50)  NOT NULL,              -- Snapshot role tại thời điểm thực hiện
+    action        VARCHAR(50)  NOT NULL
+                  CHECK (action IN ('CREATE','UPDATE','APPROVE','REJECT','CANCEL','DELETE')),
+    entity_type   VARCHAR(100) NOT NULL,
+    entity_id     BIGINT       NOT NULL,
+    description   TEXT         NOT NULL,              -- Auto-generated: "{ACTION} {ENTITY_TYPE} {ENTITY_CODE}"
+    warehouse_id  BIGINT       REFERENCES warehouses(id),
+    old_value     JSONB,                              -- Diff-only: chỉ chứa field đã thay đổi, loại bỏ sensitive fields
+    new_value     JSONB,                              -- Diff-only: chỉ chứa field đã thay đổi, loại bỏ sensitive fields
+    timestamp     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    ip_address    VARCHAR(45)
 );
+
+CREATE INDEX idx_audit_logs_timestamp    ON audit_logs (timestamp DESC);
+CREATE INDEX idx_audit_logs_actor_id     ON audit_logs (actor_id);
+CREATE INDEX idx_audit_logs_entity       ON audit_logs (entity_type, entity_id);
+CREATE INDEX idx_audit_logs_warehouse_id ON audit_logs (warehouse_id);
 
 -- =============================================================================
 -- SECTION 14: BẢNG HỖ TRỢ NGHIỆP VỤ

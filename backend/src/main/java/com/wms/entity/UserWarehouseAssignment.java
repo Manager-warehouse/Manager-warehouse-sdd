@@ -1,11 +1,15 @@
 package com.wms.entity;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
 import java.time.OffsetDateTime;
 
 @Entity
 @Table(name = "user_warehouse_assignments",
         uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "warehouse_id"}))
+@Getter
+@Setter
 public class UserWarehouseAssignment {
 
     @Id
