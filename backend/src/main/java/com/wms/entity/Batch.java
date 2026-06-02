@@ -32,7 +32,7 @@ public class Batch {
     private LocalDate expiryDate;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "grade", nullable = false, length = 1)
+    @Column(name = "grade", nullable = false, columnDefinition = "varchar(1)")
     private BatchGrade grade;
 
     @Column(name = "quantity", nullable = false, precision = 10, scale = 2)

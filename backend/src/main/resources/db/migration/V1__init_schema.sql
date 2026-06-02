@@ -901,20 +901,20 @@ ORDER BY w.code, p.sku,
 -- Đơn xuất kho đang chờ xử lý tại kho
 CREATE VIEW v_pending_delivery_orders AS
 SELECT
-    do.do_number,
-    do.status,
-    do.type,
+    dord.do_number,
+    dord.status,
+    dord.type,
     d.name            AS dealer_name,
     d.phone           AS dealer_phone,
-    do.expected_delivery_date,
+    dord.expected_delivery_date,
     u.full_name       AS created_by_name,
-    do.document_date,
-    do.created_at
-FROM delivery_orders do
-JOIN dealers d ON d.id = do.dealer_id
-JOIN users   u ON u.id = do.created_by
-WHERE do.status IN ('NEW','PICKING','READY_TO_SHIP')
-ORDER BY do.expected_delivery_date ASC NULLS LAST, do.created_at ASC;
+    dord.document_date,
+    dord.created_at
+FROM delivery_orders dord
+JOIN dealers d ON d.id = dord.dealer_id
+JOIN users   u ON u.id = dord.created_by
+WHERE dord.status IN ('NEW','PICKING','READY_TO_SHIP')
+ORDER BY dord.expected_delivery_date ASC NULLS LAST, dord.created_at ASC;
 
 -- Cảnh báo tồn kho thấp chưa giải quyết
 CREATE VIEW v_low_stock_alerts AS
