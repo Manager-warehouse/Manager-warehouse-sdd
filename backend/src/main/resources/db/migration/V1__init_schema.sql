@@ -667,18 +667,26 @@ CREATE TABLE system_configs (
 
 -- §12.2 audit_logs
 CREATE TABLE audit_logs (
-    id          BIGSERIAL    PRIMARY KEY,
-    actor_id    BIGINT       REFERENCES users(id),   -- NULL = system job
-    actor_role  VARCHAR(50),                         -- Snapshot role tại thời điểm thực hiện
-    action      VARCHAR(50)  NOT NULL
-                CHECK (action IN ('CREATE','UPDATE','APPROVE','REJECT','CANCEL','DELETE')),
-    entity_type VARCHAR(100) NOT NULL,
-    entity_id   BIGINT       NOT NULL,
-    old_value   JSONB,
-    new_value   JSONB,
-    timestamp   TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    ip_address  VARCHAR(45)
+    id            BIGSERIAL    PRIMARY KEY,
+    actor_id      BIGINT       NOT NULL REFERENCES users(id),
+    actor_role    VARCHAR(50)  NOT NULL,              -- Snapshot role tại thời điểm thực hiện
+    action        VARCHAR(50)  NOT NULL
+                  CHECK (action IN ('LOGIN','LOGOUT','CREATE','UPDATE','STATUS_CHANGE','APPROVE','REJECT','CANCEL','SOFT_DELETE','ASSIGN','UNASSIGN')),
+    entity_type   VARCHAR(100) NOT NULL,
+    entity_id     BIGINT       NOT NULL,
+    description   TEXT         NOT NULL,              -- Auto-generated: "{ACTION} {ENTITY_TYPE} {ENTITY_CODE}"
+    warehouse_id  BIGINT       REFERENCES warehouses(id),
+    old_value     JSONB,                              -- Diff-only: chỉ chứa field đã thay đổi, loại bỏ sensitive fields
+    new_value     JSONB,                              -- Diff-only: chỉ chứa field đã thay đổi, loại bỏ sensitive fields
+    timestamp     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    ip_address    VARCHAR(45)
 );
+
+CREATE INDEX idx_audit_logs_timestamp    ON audit_logs (timestamp DESC);
+CREATE INDEX idx_audit_logs_actor_id     ON audit_logs (actor_id);
+CREATE INDEX idx_audit_logs_entity       ON audit_logs (entity_type, entity_id);
+CREATE INDEX idx_audit_logs_warehouse_id ON audit_logs (warehouse_id);
+CREATE INDEX idx_audit_logs_warehouse_timestamp ON audit_logs (warehouse_id, timestamp DESC);
 
 -- =============================================================================
 -- SECTION 14: BẢNG HỖ TRỢ NGHIỆP VỤ
@@ -745,10 +753,7 @@ CREATE INDEX idx_transfers_src_status ON transfers(source_warehouse_id, status);
 CREATE INDEX idx_stock_takes_warehouse ON stock_takes(warehouse_id, status);
 
 -- audit_logs
-CREATE INDEX idx_audit_entity     ON audit_logs(entity_type, entity_id);
-CREATE INDEX idx_audit_actor      ON audit_logs(actor_id);
-CREATE INDEX idx_audit_actor_role ON audit_logs(actor_role) WHERE actor_role IS NOT NULL;
-CREATE INDEX idx_audit_timestamp  ON audit_logs(timestamp DESC);
+CREATE INDEX idx_audit_actor_role ON audit_logs(actor_role);
 
 -- =============================================================================
 -- SECTION 16: TRIGGERS & FUNCTIONS
@@ -780,6 +785,18 @@ BEGIN
     END LOOP;
 END;
 $$;
+
+-- ── Trigger: chặn sửa/xóa audit log sau khi đã ghi ─────────────────────────
+CREATE OR REPLACE FUNCTION fn_prevent_audit_log_mutation()
+RETURNS TRIGGER AS $$
+BEGIN
+    RAISE EXCEPTION 'audit_logs are immutable and cannot be updated or deleted';
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_audit_logs_immutable
+    BEFORE UPDATE OR DELETE ON audit_logs
+    FOR EACH ROW EXECUTE FUNCTION fn_prevent_audit_log_mutation();
 
 -- ── Trigger: cập nhật sức chứa location khi inventories thay đổi ────────────
 CREATE OR REPLACE FUNCTION fn_update_bin_capacity()
