@@ -4,7 +4,12 @@
 Hàng hóa hư hỏng hoặc hết hạn sử dụng tích tụ trong khu cách ly (Quarantine Zone) được Trưởng kho đề xuất xuất tiêu hủy, lập Biên bản hư hỏng (Damage Report) và duyệt xuất theo hạn mức thẩm quyền.
 
 ## 2. Actors
+<<<<<<< HEAD
 * **Trưởng kho kiêm Trưởng QC**: Đề xuất và phê duyệt tiêu hủy.
+=======
+* **Trưởng kho**: Đề xuất và duyệt tiêu hủy dưới 100M VND.
+* **CEO**: Duyệt tiêu hủy trên 100M VND.
+>>>>>>> 78bb76f (update spec master data and database, entity)
 
 ## 3. Functional Requirements (EARS)
 * **Event-driven:**
