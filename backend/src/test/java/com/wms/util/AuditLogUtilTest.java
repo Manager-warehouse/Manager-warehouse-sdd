@@ -1,152 +1,199 @@
 package com.wms.util;
 
 import com.wms.enums.AuditAction;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.*;
 
 class AuditLogUtilTest {
 
+    // ─── filterSensitiveFields ────────────────────────────────────────────────
+
     @Test
-    void testFilterSensitiveFields_removesPasswordHash() {
-        Map<String, Object> values = new HashMap<>();
-        values.put("status", "ACTIVE");
-        values.put("passwordHash", "bcrypt_hash_value");
-        values.put("password_hash", "another_hash");
-        values.put("password", "plaintext");
+    @DisplayName("Xóa passwordHash khỏi map")
+    void filterSensitiveFields_removesPasswordHash() {
+        Map<String, Object> input = new HashMap<>();
+        input.put("passwordHash", "secret");
+        input.put("email", "user@wms.com");
 
-        Map<String, Object> filtered =
-                AuditLogUtil.filterSensitiveFields(values);
+        Map<String, Object> result = AuditLogUtil.filterSensitiveFields(input);
 
-        assertFalse(filtered.containsKey("passwordHash"));
-        assertFalse(filtered.containsKey("password_hash"));
-        assertFalse(filtered.containsKey("password"));
-        assertTrue(filtered.containsKey("status"));
+        assertThat(result).doesNotContainKey("passwordHash");
+        assertThat(result).containsEntry("email", "user@wms.com");
     }
 
     @Test
-    void testFilterSensitiveFields_keepsNonSensitiveFields() {
-        Map<String, Object> values = new HashMap<>();
-        values.put("fullName", "Nguyen Van A");
-        values.put("role", "STOREKEEPER");
-        values.put("email", "a@wms.com");
+    @DisplayName("Xóa tất cả sensitive fields: password, accessToken, refreshToken, token")
+    void filterSensitiveFields_removesAllSensitiveKeys() {
+        Map<String, Object> input = new HashMap<>();
+        input.put("password", "pass");
+        input.put("password_hash", "hash");
+        input.put("accessToken", "jwt");
+        input.put("refreshToken", "rf");
+        input.put("token", "tk");
+        input.put("fullName", "Nguyen Van A");
 
-        Map<String, Object> filtered =
-                AuditLogUtil.filterSensitiveFields(values);
+        Map<String, Object> result = AuditLogUtil.filterSensitiveFields(input);
 
-        assertEquals(3, filtered.size());
-        assertEquals("Nguyen Van A", filtered.get("fullName"));
+        assertThat(result).doesNotContainKeys("password", "password_hash", "accessToken", "refreshToken", "token");
+        assertThat(result).containsEntry("fullName", "Nguyen Van A");
     }
 
     @Test
-    void testFilterSensitiveFields_handlesNullAndEmpty() {
-        assertNull(AuditLogUtil.filterSensitiveFields(null));
-        Map<String, Object> empty = Map.of();
-        assertEquals(empty, AuditLogUtil.filterSensitiveFields(empty));
+    @DisplayName("Map null → trả về null")
+    void filterSensitiveFields_nullInput_returnsNull() {
+        assertThat(AuditLogUtil.filterSensitiveFields(null)).isNull();
     }
 
     @Test
-    void testBuildDiff_returnsOnlyChangedFields() {
-        Map<String, Object> oldValues = new HashMap<>();
-        oldValues.put("status", "DRAFT");
-        oldValues.put("quantity", 100);
-        oldValues.put("note", "test");
+    @DisplayName("Map rỗng → trả về map rỗng")
+    void filterSensitiveFields_emptyMap_returnsEmpty() {
+        Map<String, Object> result = AuditLogUtil.filterSensitiveFields(new HashMap<>());
+        assertThat(result).isEmpty();
+    }
 
+    @Test
+    @DisplayName("Map không có sensitive field → trả về nguyên vẹn")
+    void filterSensitiveFields_noSensitiveFields_returnsUnchanged() {
+        Map<String, Object> input = new HashMap<>();
+        input.put("role", "ADMIN");
+        input.put("isActive", true);
+
+        Map<String, Object> result = AuditLogUtil.filterSensitiveFields(input);
+
+        assertThat(result).containsEntry("role", "ADMIN").containsEntry("isActive", true);
+    }
+
+    // ─── buildDiff ────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("buildDiff khi oldValues null → old = null, new = newValues (CREATE action)")
+    void buildDiff_oldNull_returnsFullNewValues() {
         Map<String, Object> newValues = new HashMap<>();
-        newValues.put("status", "APPROVED");
-        newValues.put("quantity", 100);
-        newValues.put("note", "updated");
+        newValues.put("name", "Product A");
+        newValues.put("price", 100);
 
-        Map<String, Object>[] diff =
-                AuditLogUtil.buildDiff(oldValues, newValues);
+        Map<String, Object>[] result = AuditLogUtil.buildDiff(null, newValues);
 
-        assertEquals("DRAFT", diff[0].get("status"));
-        assertEquals("APPROVED", diff[1].get("status"));
-        assertEquals("test", diff[0].get("note"));
-        assertEquals("updated", diff[1].get("note"));
-        assertFalse(diff[0].containsKey("quantity"),
-                "Unchanged field should not appear in diff");
+        assertThat(result[0]).isNull();
+        assertThat(result[1]).containsEntry("name", "Product A");
     }
 
     @Test
-    void testBuildDiff_returnsNullOldValueForCreate() {
-        Map<String, Object> newValues = new HashMap<>();
-        newValues.put("status", "DRAFT");
-        newValues.put("quantity", 50);
+    @DisplayName("buildDiff chỉ trả về các field đã thay đổi")
+    void buildDiff_returnsOnlyChangedFields() {
+        Map<String, Object> old = new HashMap<>();
+        old.put("name", "Old Name");
+        old.put("isActive", true);
+        old.put("email", "a@wms.com");
 
-        Map<String, Object>[] diff =
-                AuditLogUtil.buildDiff(null, newValues);
+        Map<String, Object> updated = new HashMap<>();
+        updated.put("name", "New Name");
+        updated.put("isActive", true);
+        updated.put("email", "a@wms.com");
 
-        assertNull(diff[0]);
-        assertNotNull(diff[1]);
-        assertEquals("DRAFT", diff[1].get("status"));
+        Map<String, Object>[] result = AuditLogUtil.buildDiff(old, updated);
+
+        assertThat(result[0]).containsOnlyKeys("name").containsEntry("name", "Old Name");
+        assertThat(result[1]).containsOnlyKeys("name").containsEntry("name", "New Name");
     }
 
     @Test
-    void testBuildDiff_filtersSensitiveFieldsFromDiff() {
-        Map<String, Object> oldValues = new HashMap<>();
-        oldValues.put("passwordHash", "old_hash");
-        oldValues.put("status", "ACTIVE");
+    @DisplayName("buildDiff loại bỏ sensitive fields khỏi kết quả diff")
+    void buildDiff_removesSensitiveFieldsFromDiff() {
+        Map<String, Object> old = new HashMap<>();
+        old.put("passwordHash", "old-hash");
+        old.put("email", "a@wms.com");
 
-        Map<String, Object> newValues = new HashMap<>();
-        newValues.put("passwordHash", "new_hash");
-        newValues.put("status", "INACTIVE");
+        Map<String, Object> updated = new HashMap<>();
+        updated.put("passwordHash", "new-hash");
+        updated.put("email", "b@wms.com");
 
-        Map<String, Object>[] diff =
-                AuditLogUtil.buildDiff(oldValues, newValues);
+        Map<String, Object>[] result = AuditLogUtil.buildDiff(old, updated);
 
-        assertFalse(diff[0].containsKey("passwordHash"));
-        assertFalse(diff[1].containsKey("passwordHash"));
-        assertTrue(diff[0].containsKey("status"));
+        assertThat(result[0]).doesNotContainKey("passwordHash").containsEntry("email", "a@wms.com");
+        assertThat(result[1]).doesNotContainKey("passwordHash").containsEntry("email", "b@wms.com");
     }
 
     @Test
-    void testGenerateDescription_formatsCorrectly() {
-        String desc = AuditLogUtil.generateDescription(
-                AuditAction.APPROVE, "RECEIPT", "PN-2026-001");
+    @DisplayName("buildDiff khi không có thay đổi → trả về map rỗng cho cả 2")
+    void buildDiff_noChanges_returnsEmptyDiff() {
+        Map<String, Object> same = new HashMap<>();
+        same.put("name", "Same");
+        same.put("status", "ACTIVE");
 
-        assertEquals("APPROVE RECEIPT PN-2026-001", desc);
+        Map<String, Object>[] result = AuditLogUtil.buildDiff(same, new HashMap<>(same));
+
+        assertThat(result[0]).isEmpty();
+        assertThat(result[1]).isEmpty();
+    }
+
+    // ─── toJson / fromJson ────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("toJson serialize Map thành JSON string đúng")
+    void toJson_serializesMapCorrectly() {
+        Map<String, Object> input = new HashMap<>();
+        input.put("status", "ACTIVE");
+
+        String json = AuditLogUtil.toJson(input);
+
+        assertThat(json).contains("\"status\"").contains("ACTIVE");
     }
 
     @Test
-    void testGenerateDescription_createAction() {
-        String desc = AuditLogUtil.generateDescription(
-                AuditAction.CREATE, "TRANSFER", "TC-2026-003");
-
-        assertEquals("CREATE TRANSFER TC-2026-003", desc);
+    @DisplayName("toJson với null → trả về null")
+    void toJson_nullInput_returnsNull() {
+        assertThat(AuditLogUtil.toJson(null)).isNull();
     }
 
     @Test
-    void testToJson_serializesMapCorrectly() {
-        Map<String, Object> values = Map.of("status", "APPROVED");
-        String json = AuditLogUtil.toJson(values);
+    @DisplayName("fromJson deserialize JSON string về Map đúng")
+    void fromJson_deserializesCorrectly() {
+        String json = "{\"status\":\"APPROVED\",\"entityId\":5}";
 
-        assertNotNull(json);
-        assertTrue(json.contains("APPROVED"));
-    }
-
-    @Test
-    void testToJson_returnsNullForNullInput() {
-        assertNull(AuditLogUtil.toJson(null));
-    }
-
-    @Test
-    void testFromJson_deserializesCorrectly() {
-        String json = "{\"status\":\"APPROVED\",\"quantity\":100}";
         Map<String, Object> result = AuditLogUtil.fromJson(json);
 
-        assertNotNull(result);
-        assertEquals("APPROVED", result.get("status"));
-        assertEquals(100, result.get("quantity"));
+        assertThat(result).containsEntry("status", "APPROVED");
+        assertThat(result).containsKey("entityId");
     }
 
     @Test
-    void testFromJson_returnsNullForNullInput() {
-        assertNull(AuditLogUtil.fromJson(null));
-        assertNull(AuditLogUtil.fromJson(""));
-        assertNull(AuditLogUtil.fromJson("   "));
+    @DisplayName("fromJson với null → trả về null")
+    void fromJson_nullInput_returnsNull() {
+        assertThat(AuditLogUtil.fromJson(null)).isNull();
+    }
+
+    @Test
+    @DisplayName("fromJson với blank string → trả về null")
+    void fromJson_blankInput_returnsNull() {
+        assertThat(AuditLogUtil.fromJson("   ")).isNull();
+    }
+
+    // ─── generateDescription ─────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("generateDescription tạo đúng format ACTION ENTITY_TYPE ENTITY_CODE")
+    void generateDescription_correctFormat() {
+        String desc = AuditLogUtil.generateDescription(AuditAction.STATUS_CHANGE, "Receipt", "R001");
+        assertThat(desc).isEqualTo("STATUS_CHANGE Receipt R001");
+    }
+
+    @Test
+    @DisplayName("generateDescription cho LOGIN action")
+    void generateDescription_loginAction() {
+        String desc = AuditLogUtil.generateDescription(AuditAction.LOGIN, "User", "admin@wms.com");
+        assertThat(desc).isEqualTo("LOGIN User admin@wms.com");
+    }
+
+    @Test
+    @DisplayName("generateDescription cho CREATE action")
+    void generateDescription_createAction() {
+        String desc = AuditLogUtil.generateDescription(AuditAction.CREATE, "Product", "P001");
+        assertThat(desc).isEqualTo("CREATE Product P001");
     }
 }
