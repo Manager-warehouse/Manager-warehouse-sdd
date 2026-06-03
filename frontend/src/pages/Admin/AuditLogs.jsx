@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { adminService } from '../../services/admin.service';
 import { useUiStore } from '../../stores/ui.store';
 import Table from '../../components/common/Table';
+import Pagination from '../../components/common/Pagination';
 import Badge from '../../components/common/Badge';
 import { formatDate } from '../../utils/format';
 import { Search, RotateCcw, Filter } from 'lucide-react';
@@ -10,6 +11,10 @@ const AuditLogs = () => {
   const { addToast } = useUiStore();
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  // Pagination States
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   // Filters State
   const [search, setSearch] = useState('');
@@ -56,6 +61,16 @@ const AuditLogs = () => {
 
     return matchesSearch && matchesAction && matchesEntity;
   });
+
+  // Reset page to 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, selectedAction, selectedEntity]);
+
+  // Paginated Logs
+  const totalItems = filteredLogs.length;
+  const totalPages = Math.ceil(totalItems / pageSize) || 1;
+  const paginatedLogs = filteredLogs.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   // Extract unique actions and entities for filter options
   const uniqueActions = ['ALL', ...new Set(logs.map((log) => log.action))];
@@ -142,33 +157,44 @@ const AuditLogs = () => {
       </div>
 
       {/* Logs Table */}
-      <Table
-        headers={['Thời gian', 'Người thực hiện', 'Thao tác', 'Đối tượng', 'Nội dung']}
-        data={filteredLogs}
-        loading={loading}
-        emptyMessage="Không tìm thấy nhật ký hoạt động phù hợp"
-        renderRow={(log) => (
-          <tr key={log.id} className="hover:bg-canvas-cream/50 transition-colors">
-            <td className="px-6 py-4 text-xs font-mono text-shade-50">
-              {formatDate(log.createdAt)}
-            </td>
-            <td className="px-6 py-4 text-xs font-semibold text-ink">
-              {log.actorName}
-            </td>
-            <td className="px-6 py-4">
-              <Badge type={getBadgeType(log.action)}>
-                {log.action}
-              </Badge>
-            </td>
-            <td className="px-6 py-4 text-xs text-shade-60 font-medium">
-              {log.entityType} (ID: {log.entityId})
-            </td>
-            <td className="px-6 py-4 text-xs font-medium text-shade-70">
-              {log.details}
-            </td>
-          </tr>
-        )}
-      />
+      <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 overflow-hidden flex flex-col">
+        <Table
+          headers={['Thời gian', 'Người thực hiện', 'Thao tác', 'Đối tượng', 'Nội dung']}
+          data={paginatedLogs}
+          loading={loading}
+          emptyMessage="Không tìm thấy nhật ký hoạt động phù hợp"
+          renderRow={(log) => (
+            <tr key={log.id} className="hover:bg-canvas-cream/50 transition-colors">
+              <td className="px-6 py-4 text-xs font-mono text-shade-50">
+                {formatDate(log.createdAt)}
+              </td>
+              <td className="px-6 py-4 text-xs font-semibold text-ink">
+                {log.actorName}
+              </td>
+              <td className="px-6 py-4">
+                <Badge type={getBadgeType(log.action)}>
+                  {log.action}
+                </Badge>
+              </td>
+              <td className="px-6 py-4 text-xs text-shade-60 font-medium">
+                {log.entityType} (ID: {log.entityId})
+              </td>
+              <td className="px-6 py-4 text-xs font-medium text-shade-70">
+                {log.details}
+              </td>
+            </tr>
+          )}
+        />
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={setPageSize}
+          pageSizeOptions={[25, 50, 100]}
+        />
+      </div>
     </div>
   );
 };

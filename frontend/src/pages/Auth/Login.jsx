@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
 import { authService } from '../../services/auth.service';
@@ -128,6 +128,12 @@ const Login = () => {
                 required
               />
               <KeyRound className="absolute right-3 top-[38px] w-4 h-4 text-shade-50" />
+            </div>
+
+            <div className="flex justify-end -mt-3 mb-1">
+              <Link to="/forgot-password" className="text-[11px] font-semibold text-shade-50 hover:text-onPrimary transition-colors">
+                Quên mật khẩu?
+              </Link>
             </div>
 
             <Button

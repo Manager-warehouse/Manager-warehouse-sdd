@@ -54,7 +54,7 @@ const Sidebar = () => {
   if (!sidebarOpen) return null;
 
   return (
-    <aside className="w-64 bg-canvas-night text-onPrimary border-r border-hairline-dark flex flex-col h-[calc(100vh-4rem)]">
+    <aside className="w-64 bg-canvas-night text-onPrimary border-r border-hairline-dark flex flex-col h-full">
       {/* Scrollable menu area */}
       <div className="flex-1 overflow-y-auto py-6 px-4 flex flex-col gap-6">
         <div>

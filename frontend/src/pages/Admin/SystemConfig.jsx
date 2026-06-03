@@ -5,7 +5,6 @@ import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import { Save, Settings, CreditCard, CalendarDays, BarChart3 } from 'lucide-react';
 
-// ─── Validation ─────────────────────────────────────────────────────────────
 
 const validate = (form) => {
   const errs = {};
@@ -43,7 +42,6 @@ const validate = (form) => {
   return errs;
 };
 
-// ─── Section wrapper ─────────────────────────────────────────────────────────
 
 const Section = ({ icon: Icon, title, children }) => (
   <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 p-6 md:p-8 flex flex-col gap-5">
@@ -55,13 +53,9 @@ const Section = ({ icon: Icon, title, children }) => (
   </div>
 );
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
 const Hint = ({ children }) => (
   <span className="text-[11px] text-shade-40 italic mt-1">{children}</span>
 );
-
-// ─── Component ───────────────────────────────────────────────────────────────
 
 const DEFAULTS = {
   defaultCreditLimit: 500000000,
@@ -92,7 +86,8 @@ const SystemConfig = () => {
         minInventoryWarningThreshold: config.minInventoryWarningThreshold ?? DEFAULTS.minInventoryWarningThreshold
       });
       setErrors({});
-    } catch {
+    } catch (err) {
+      console.error('Failed to load system config:', err);
       addToast('Không thể tải cấu hình hệ thống', 'error');
     } finally {
       setLoading(false);
@@ -127,7 +122,8 @@ const SystemConfig = () => {
       });
       addToast('Cập nhật cấu hình hệ thống thành công', 'success');
       setErrors({});
-    } catch {
+    } catch (err) {
+      console.error('Failed to save system config:', err);
       addToast('Không thể lưu cấu hình hệ thống', 'error');
     } finally {
       setSaveLoading(false);
@@ -148,7 +144,6 @@ const SystemConfig = () => {
 
   return (
     <div className="flex-1 flex flex-col gap-6 pb-12 max-w-4xl">
-      {/* Page header */}
       <div>
         <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
           Hệ thống / Admin
@@ -162,7 +157,6 @@ const SystemConfig = () => {
       </div>
 
       <form onSubmit={handleSave} className="flex flex-col gap-6">
-        {/* Section 1: Credit control */}
         <Section icon={CreditCard} title="Kiểm soát tín dụng & Công nợ">
           <div className="flex flex-col gap-1">
             <Input
@@ -222,7 +216,6 @@ const SystemConfig = () => {
           </div>
         </Section>
 
-        {/* Section 2: Accounting cycle */}
         <Section icon={CalendarDays} title="Chu kỳ khóa sổ kế toán">
           <div className="flex flex-col gap-1">
             <Input
@@ -239,7 +232,6 @@ const SystemConfig = () => {
           </div>
         </Section>
 
-        {/* Section 3: Inventory */}
         <Section icon={BarChart3} title="Cảnh báo tồn kho">
           <div className="flex flex-col gap-1">
             <Input
@@ -256,7 +248,6 @@ const SystemConfig = () => {
           </div>
         </Section>
 
-        {/* Actions */}
         <div className="flex justify-end gap-3 pt-2">
           <Button
             type="button"

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { adminService } from '../../services/admin.service';
 import { useUiStore } from '../../stores/ui.store';
 import Button from '../../components/common/Button';
+import Pagination from '../../components/common/Pagination';
 import UserTable from './UserTable';
 import UserFormModal from './UserFormModal';
 import { Plus, Search } from 'lucide-react';
@@ -13,6 +14,10 @@ const UserManagement = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
+  
+  // Pagination States
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   // Form Modal States
   const [modalOpen, setModalOpen] = useState(false);
@@ -36,7 +41,6 @@ const UserManagement = () => {
     loadData();
   }, []);
 
-  // Filtered Users
   const filteredUsers = users.filter((u) => {
     const searchLower = search.toLowerCase();
     return (
@@ -45,6 +49,16 @@ const UserManagement = () => {
       (u.code && u.code.toLowerCase().includes(searchLower))
     );
   });
+
+  // Reset page to 1 when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search]);
+
+  // Paginated Users
+  const totalItems = filteredUsers.length;
+  const totalPages = Math.ceil(totalItems / pageSize) || 1;
+  const paginatedUsers = filteredUsers.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const handleOpenCreateModal = () => {
     setEditingUser(null);
@@ -142,12 +156,22 @@ const UserManagement = () => {
         </div>
 
         {/* User Table Component */}
-        <UserTable
-          users={filteredUsers}
-          loading={loading}
-          onEdit={handleOpenEditModal}
-          onToggleStatus={handleToggleUserStatus}
-        />
+        <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 overflow-hidden flex flex-col">
+          <UserTable
+            users={paginatedUsers}
+            loading={loading}
+            onEdit={handleOpenEditModal}
+            onToggleStatus={handleToggleUserStatus}
+          />
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+          />
+        </div>
       </div>
 
       {/* User Form Modal Component */}

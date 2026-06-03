@@ -8,7 +8,7 @@ const Table = ({
   emptyMessage = 'Không có dữ liệu hiển thị'
 }) => {
   return (
-    <div className="w-full overflow-hidden border border-hairline-light rounded-lg bg-canvas-light shadow-level-3">
+    <div className="w-full overflow-hidden bg-canvas-light">
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>

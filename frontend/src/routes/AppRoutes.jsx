@@ -2,6 +2,7 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from './ProtectedRoute';
 import Login from '../pages/Auth/Login';
+import ForgotPassword from '../pages/Auth/ForgotPassword';
 import Dashboard from '../pages/Dashboard';
 import Profile from '../pages/Profile/Profile';
 import Forbidden from '../pages/Forbidden/Forbidden';
@@ -15,6 +16,7 @@ const AppRoutes = () => {
     <Routes>
       {/* Publicly accessible views that do not require any user authentication session */}
       <Route path="/login" element={<Login />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/forbidden" element={<Forbidden />} />
 
       {/* Authenticated views accessible to any user with a valid JWT token */}
