@@ -39,6 +39,9 @@ public class Product {
     @Column(name = "has_expiry", nullable = false)
     private Boolean hasExpiry;
 
+    @Column(name = "shelf_life_days")
+    private Integer shelfLifeDays;
+
     @Column(name = "has_serial", nullable = false)
     private Boolean hasSerial;
 
@@ -47,6 +50,14 @@ public class Product {
 
     @Column(name = "is_active", nullable = false)
     private Boolean isActive;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by")
+    private User createdBy;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "updated_by")
+    private User updatedBy;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;

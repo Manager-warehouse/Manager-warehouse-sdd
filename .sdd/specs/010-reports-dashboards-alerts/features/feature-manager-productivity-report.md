@@ -1,7 +1,7 @@
 # Feature: Trưởng kho Xem Báo cáo Năng suất & Sản lượng Nhân viên Kho (US-WMS-25)
 
 ## 1. Context and Goal
-Trưởng kho cần xem sản lượng bốc xếp, soạn hàng, kiểm QC, và giao hàng của từng nhân viên kho/tài xế để làm căn cứ gửi bộ phận nhân sự (HRM) bên ngoài tính lương theo sản phẩm.
+Trưởng kho cần xem sản lượng bốc xếp/di chuyển hàng của Nhân viên kho, sản lượng soạn hàng và kiểm QC của Thủ kho, và giao hàng của Tài xế để làm căn cứ gửi bộ phận nhân sự (HRM) bên ngoài tính lương theo sản phẩm.
 
 ## 2. Actors
 * **Trưởng kho**: Trích xuất báo cáo năng suất và xem chi tiết sản lượng của nhân viên kho.
@@ -9,8 +9,8 @@ Trưởng kho cần xem sản lượng bốc xếp, soạn hàng, kiểm QC, và
 ## 3. Functional Requirements (EARS)
 * **Event-driven:**
   * WHEN a Trưởng kho requests a productivity report, the system SHALL export an Excel file with:
-    * Number of orders processed per warehouse employee (bốc xếp).
-    * QC throughput (units checked passed/failed) per QC staff.
+    * Number of orders processed per warehouse employee (bốc xếp/di chuyển hàng).
+    * QC throughput (units checked passed/failed) per Thủ kho.
     * Trips completed and deliveries made per driver.
 
 ## 4. API Endpoints

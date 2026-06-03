@@ -1,6 +1,7 @@
 package com.wms.entity;
 
 import com.wms.enums.TripStatus;
+import com.wms.enums.TripType;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -31,6 +32,10 @@ public class Trip {
 
     @Column(name = "planned_date", nullable = false)
     private LocalDate plannedDate;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "trip_type", nullable = false, length = 20)
+    private TripType tripType;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)

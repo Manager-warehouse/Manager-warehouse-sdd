@@ -22,7 +22,7 @@ Lãnh đạo cần dashboard trực quan để đưa ra quyết định kinh doa
 |-------|---------|---------------------|
 | CEO | Checker cấp cao | Xem Dashboard quản trị chiến lược (tồn kho, công nợ đại lý, P&L, tỷ lệ QC lỗi, OTD) |
 | Kế toán trưởng | Checker | Xem báo cáo tài chính P&L, Aging Report, báo cáo giá trị tồn kho cuối kỳ (Inventory Valuation) |
-| Trưởng kho kiêm Trưởng QC | Checker | Nhận cảnh báo tồn kho khả dụng dưới định mức tối thiểu để kịp thời điều tiết |
+| Trưởng kho | Checker | Nhận cảnh báo tồn kho khả dụng dưới định mức tối thiểu để kịp thời điều tiết |
 | Planner | Maker | Nhận cảnh báo tồn kho thấp trên Planning Dashboard để lập lệnh điều chuyển/nhập kho |
 
 ## 3. Functional Requirements (EARS)

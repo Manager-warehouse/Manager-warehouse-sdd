@@ -4,7 +4,12 @@
 Hệ thống gửi yêu cầu phê duyệt chênh lệch kiểm kê (Maker-Checker) cho Trưởng kho. Khi được phê duyệt, hệ thống tự động cập nhật tồn kho về số đếm thực tế, ghi log audit trail và giải phóng vị trí ô kệ.
 
 ## 2. Actors
+<<<<<<< HEAD
 * **Trưởng kho kiêm Trưởng QC**: Duyệt chênh lệch kiểm kê và phê duyệt điều chỉnh tồn kho.
+=======
+* **Trưởng kho**: Duyệt chênh lệch kiểm kê trị giá 5M - 100M VND.
+* **CEO**: Duyệt chênh lệch kiểm kê trị giá > 100M VND hoặc do lỗi nhân viên.
+>>>>>>> 78bb76f (update spec master data and database, entity)
 
 ## 3. Functional Requirements (EARS)
 * **Event-driven:**

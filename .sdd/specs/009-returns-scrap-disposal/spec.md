@@ -19,9 +19,9 @@
 
 | Actor | Vai trò | Nghiệp vụ liên quan |
 |-------|---------|---------------------|
-| Thủ kho | Maker | Lập phiếu nhận hàng hoàn (sử dụng receipts với type = 'RETURN') |
-| Nhân viên kho | Maker | Kiểm QC hàng hoàn trả, phân loại hàng Đạt (nhập lại kho thường) / Lỗi (chuyển sang Quarantine) |
-| Trưởng kho kiêm Trưởng QC | Checker | Phê duyệt biên bản hàng lỗi tại Quarantine Zone, quyết định trả NCC (RETURN_TO_VENDOR) hoặc Tiêu hủy (DISPOSAL) |
+| Thủ kho kiêm QC | Maker | Lập phiếu nhận hàng hoàn, kiểm QC hàng hoàn trả, phân loại hàng Đạt (nhập lại kho thường) / Lỗi (chuyển sang Quarantine) |
+| Nhân viên kho | Maker | Hỗ trợ bốc xếp, di chuyển hàng hoàn và hàng lỗi theo chỉ dẫn của Thủ kho |
+| Trưởng kho | Checker | Phê duyệt biên bản hàng lỗi tại Quarantine Zone, quyết định trả NCC (RETURN_TO_VENDOR) hoặc Tiêu hủy (DISPOSAL) |
 | Kế toán viên | Maker | Tạo Credit Note ghi nhận giảm công nợ cho Đại lý tương ứng với hàng hoàn |
 
 ## 3. Functional Requirements (EARS)
