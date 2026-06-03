@@ -21,9 +21,9 @@ Phúc Anh vận hành 3 kho vật lý (Hải Phòng, Hà Nội, Hồ Chí Minh).
 | Actor | Vai trò | Nghiệp vụ liên quan |
 |-------|---------|---------------------|
 | Planner | Maker | Xem Planning Dashboard, lập phiếu điều chuyển kho nội bộ |
-| Trưởng kho kiêm Trưởng QC (Kho nguồn) | Checker | Kiểm tra tồn kho khả dụng tại kho nguồn và phê duyệt phiếu điều chuyển |
+| Trưởng kho (Kho nguồn) | Checker | Kiểm tra tồn kho khả dụng tại kho nguồn và phê duyệt phiếu điều chuyển |
 | Thủ kho (Kho nguồn) | Maker | Nhận lệnh xuất điều chuyển, soạn hàng và xác nhận xuất hàng lên xe |
-| Trưởng kho kiêm Trưởng QC (Kho đích) | Checker | Tiếp nhận hàng điều chuyển đến, kiểm đếm số lượng thực tế, ghi nhận chênh lệch và xác nhận hoàn tất nhận hàng |
+| Trưởng kho (Kho đích) | Checker | Tiếp nhận hàng điều chuyển đến, kiểm đếm số lượng thực tế, ghi nhận chênh lệch và xác nhận hoàn tất nhận hàng |
 | Nhân viên kho | Maker | Bốc xếp hàng hóa lên xuống xe nội bộ tại cả hai đầu kho |
 | Tài xế | Maker | Vận chuyển hàng hóa giữa các kho bằng xe nội bộ của Phúc Anh |
 

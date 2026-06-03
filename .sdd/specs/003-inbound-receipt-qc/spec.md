@@ -9,7 +9,7 @@
 
 ## 1. Context and Goal
 
-Quy trình nhập hàng là đầu vào của toàn bộ hệ thống tồn kho. Hàng hóa từ Công ty mẹ được thông báo qua Zalo/Email → Planner lập lệnh → Thủ kho đếm thực tế → QC kiểm tra chất lượng → Hàng đạt nhập kho, hàng lỗi vào Quarantine → Trưởng kho duyệt chính thức.
+Quy trình nhập hàng là đầu vào của toàn bộ hệ thống tồn kho. Hàng hóa từ Công ty mẹ được thông báo qua Zalo/Email → Planner lập lệnh → Thủ kho đếm thực tế và kiểm QC chất lượng → Hàng đạt nhập kho, hàng lỗi vào Quarantine → Trưởng kho duyệt chính thức.
 
 ### Features List
 * [US-WMS-02: Tiếp nhận & Lập Lệnh Nhập kho](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/003-inbound-receipt-qc/features/feature-planner-receipt-drafting.md)
@@ -23,9 +23,9 @@ Quy trình nhập hàng là đầu vào của toàn bộ hệ thống tồn kho.
 | Actor | Vai trò | Nghiệp vụ liên quan |
 |-------|---------|---------------------|
 | Planner | Maker | Tiếp nhận thông tin hàng về từ Công ty mẹ, tạo Lệnh nhập kho |
-| Thủ kho | Maker | Tiếp nhận và đếm hàng thực tế, cất hàng vào vị trí kệ chỉ định (Putaway) |
-| Nhân viên kho | Maker | Bốc xếp hàng hóa, di chuyển hàng lỗi vào Quarantine, kiểm tra ngoại quan và nhập kết quả QC |
-| Trưởng kho kiêm Trưởng QC | Checker | Đối chiếu kết quả QC và phê duyệt Phiếu nhập kho chính thức, quyết định xử lý hàng lỗi tại Quarantine |
+| Thủ kho kiêm QC | Maker | Tiếp nhận, đếm hàng thực tế, kiểm tra ngoại quan, nhập kết quả QC và chỉ định putaway |
+| Nhân viên kho | Maker | Bốc xếp hàng hóa, hỗ trợ cất hàng đạt và di chuyển hàng lỗi vào Quarantine theo chỉ dẫn |
+| Trưởng kho | Checker | Đối chiếu kết quả QC và phê duyệt Phiếu nhập kho chính thức, quyết định xử lý hàng lỗi tại Quarantine |
 | Kế toán viên | Maker | Tạo Debit Note yêu cầu bồi hoàn nếu hàng lỗi được trả về NCC |
 
 ## 3. Functional Requirements (EARS)

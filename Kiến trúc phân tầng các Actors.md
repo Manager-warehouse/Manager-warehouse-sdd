@@ -23,13 +23,13 @@
 | :---------------------------- | :--------------------------- | :-------------------------------------------------------------- | :------------------------------------------------------------------------------- |
 | **Tầng 1: Quản trị**          | CEO                          | Checker cấp cao                                                 | Duyệt chi vượt định mức, xem Dashboard chiến lược, phê duyệt cấu hình hệ thống   |
 |                               | System Admin                 | Admin                                                           | Quản trị tài khoản, phân quyền RBAC, cấu hình tham số hệ thống                   |
-| **Tầng 2: Quản lý **          | Trưởng kho kiêm Trưởng QC    | Checker                                                         | Phê duyệt phiếu nhập/xuất/điều chuyển, xử lý chênh lệch kiểm kê; Phê duyệt biên bản hàng lỗi, quyết định tiêu hủy/trả NCC |
+| **Tầng 2: Quản lý **          | Trưởng kho                   | Checker                                                         | Phê duyệt phiếu nhập/xuất/điều chuyển, xử lý chênh lệch kiểm kê; Phê duyệt biên bản xử lý hàng lỗi, quyết định tiêu hủy/trả NCC |
 |                               | Kế toán trưởng               | Checker                                                         | Duyệt bảng giá, chốt sổ kế toán, xem P&L và Aging Report, thiết lập Credit Limit |
-| **Tầng 3: Nghiệp vụ (Maker)** | Planner (Người nhận đơn)     | Maker                                                           | Tiếp nhận đơn từ Công ty mẹ, lập lệnh nhập/đơn xuất, quản lý Planning Dashboard  |
+| **Tầng 3: Nghiệp vụ (Maker)** | Planner (Người nhận đơn)     | Maker                                                           | Tiếp nhận yêu cầu xuất/nhập kho từ Công ty mẹ hoặc bên thứ ba, nhập yêu cầu lên hệ thống, quản lý Planning Dashboard |
 |                               | Dispatcher (Người điều phối) | Maker                                                           | Lập chuyến xe nội bộ, gán tài xế, tối ưu lộ trình giao hàng                      |
-|                               | Thủ kho                      | Maker                                                           | Tiếp nhận hàng thực tế, soạn hàng, kiểm kê, cất hàng vào Bin Location            |
-|                               | Nhân viên kho (Bốc xếp & QC) | Maker                                                           | Bốc xếp, di chuyển hàng hóa, hỗ trợ thủ kho; kiểm tra chất lượng hàng nhập/xuất, nhập kết quả QC Đạt/Lỗi |
-|                               | Kế toán viên                 | Maker                                                           | Lập hóa đơn, ghi nhận thanh toán, cấn trừ công nợ, nhập bảng giá                 |
+|                               | Thủ kho kiêm QC              | Maker                                                           | Quản lý SKU/danh mục sản phẩm, tiếp nhận hàng thực tế, kiểm QC inbound/outbound, soạn hàng, kiểm kê, cất hàng vào Bin Location |
+|                               | Nhân viên kho (Bốc xếp)      | Maker                                                           | Bốc xếp, di chuyển hàng hóa, hỗ trợ Thủ kho cất hàng và chuyển hàng lỗi vào Quarantine theo chỉ dẫn |
+|                               | Kế toán viên                 | Maker                                                           | Quản lý hồ sơ Nhà cung cấp, lập hóa đơn, ghi nhận thanh toán, cấn trừ công nợ, nhập bảng giá |
 |                               | Tài xế                       | Maker                                                           | Nhận lệnh giao hàng, cập nhật trạng thái, xác nhận POD                           |
 
 ---
@@ -63,17 +63,17 @@
 - Phân quyền theo Vai trò (Role) và Chi nhánh Kho (RBAC): Đảm bảo nhân viên Kho Hải Phòng không xem được dữ liệu Kho Hà Nội; nhân viên kho không xem được báo cáo tài chính của Kế toán.
 - Cấu hình tham số hệ thống: Hạn mức công nợ mặc định, Tồn kho tối thiểu mặc định, Kỳ hạn thanh toán mặc định, Ngày khóa kỳ kế toán hàng tháng.
 
-**User Stories liên quan:** US-WMS-01, US-WMS-21, US-WMS-22
+**User Stories liên quan:** US-WMS-01, US-WMS-21
 
 ---
 
-### 3. Trưởng kho kiêm Trưởng QC
+### 3. Trưởng kho
 
 **Tầng:** Quản lý — Checker
 
 **Nghiệp vụ:**
 
-- Phê duyệt Phiếu nhập kho sau khi đối chiếu kết quả QC từ Nhân viên kho → Hệ thống tự động cộng tồn kho.
+- Phê duyệt Phiếu nhập kho sau khi đối chiếu kết quả QC từ Thủ kho → Hệ thống tự động cộng tồn kho.
 - Phê duyệt Phiếu điều chuyển kho (kho nguồn): Kiểm tra tồn khả dụng trước khi duyệt.
 - Xác nhận nhận hàng điều chuyển (kho đích): Kiểm tra số lượng thực tế, ghi nhận chênh lệch nếu có.
 - Duyệt chênh lệch kiểm kê và phê duyệt điều chỉnh tồn kho thực tế.
@@ -122,7 +122,7 @@
 
 - Truy cập Planning Dashboard → Xem gợi ý điều chuyển → Tạo Phiếu điều chuyển kho nội bộ.
 
-**User Stories liên quan:** US-WMS-02, US-WMS-06, US-WMS-11, US-WMS-12, US-WMS-19, US-WMS-26
+**User Stories liên quan:** US-WMS-02, US-WMS-06, US-WMS-11, US-WMS-12, US-WMS-26
 
 ---
 
@@ -142,21 +142,27 @@
 
 ---
 
-### 8. Thủ kho
+### 8. Thủ kho kiêm QC
 
 **Tầng:** Nghiệp vụ — Maker
 
 **Nghiệp vụ:**
 
+**Danh mục sản phẩm:**
+
+- Tạo mới, cập nhật và quản lý SKU/danh mục sản phẩm để đồng bộ thông tin hàng hóa phục vụ nhập, xuất, kiểm kê.
+- Quản lý thông tin quy cách đóng gói, đơn vị tính, khối lượng, thể tích và thuộc tính serial/expiry của SKU.
+
 **Nhập hàng:**
 
 - Nhận lệnh nhập từ Planner → Đếm hàng thực tế → Nhập số lượng vào phiếu nhập nháp.
-- Hướng dẫn Nhân viên kho cất hàng Đạt vào Bin Location (hệ thống kiểm tra sức chứa trước khi cho phép).
+- Kiểm tra QC inbound, nhập kết quả Đạt/Lỗi kèm lý do chi tiết.
+- Hướng dẫn Nhân viên kho cất hàng Đạt vào Bin Location hoặc chuyển hàng lỗi vào Quarantine (hệ thống kiểm tra sức chứa trước khi cho phép).
 
 **Xuất hàng:**
 
 - Nhận Đơn xuất → Soạn hàng từ Bin Location → Cập nhật trạng thái Picking.
-- Xác nhận hoàn tất soạn hàng sau khi Nhân viên kho kiểm tra QC xong → Trạng thái Ready to Ship.
+- Kiểm tra QC outbound, xác nhận đóng gói đạt và hoàn tất soạn hàng → Trạng thái Ready to Ship.
 
 **Điều chuyển:**
 
@@ -167,11 +173,11 @@
 
 - Tạo Phiếu kiểm kê định kỳ → Đếm thực tế → Nhập số lượng vào hệ thống.
 
-**User Stories liên quan:** US-WMS-03, US-WMS-04, US-WMS-07, US-WMS-12, US-WMS-13, US-WMS-20, US-WMS-24, US-WMS-25
+**User Stories liên quan:** US-WMS-03, US-WMS-04, US-WMS-07, US-WMS-12, US-WMS-13, US-WMS-19, US-WMS-20, US-WMS-24, US-WMS-25
 
 ---
 
-### 9. Nhân viên kho (Bốc xếp & QC)
+### 9. Nhân viên kho (Bốc xếp)
 
 **Tầng:** Nghiệp vụ — Maker
 
@@ -181,18 +187,7 @@
 
 - Bốc xếp hàng hóa lên/xuống xe tải vận chuyển nội bộ của Phúc Anh.
 - Di chuyển hàng đạt QC vào đúng Bin Location theo chỉ dẫn của Thủ kho.
-- Di chuyển hàng lỗi vào Quarantine Zone (Khu cách ly).
-
-**QC Inbound (Nhập hàng):**
-
-- Kiểm tra ngoại quan từng sản phẩm nhập về.
-- Nhập kết quả QC lên hệ thống: **Đạt** hoặc **Lỗi** kèm lý do chi tiết (vỡ, móp, sai quy cách, hỏng bao bì,...).
-- Di chuyển hàng Lỗi vào Quarantine Zone.
-
-**QC Outbound (Xuất hàng):**
-
-- Kiểm tra hàng đã soạn bởi Thủ kho: Đúng SKU, đúng số lượng, đóng thùng chống sốc.
-- Xác nhận QC đạt trên hệ thống để Thủ kho cập nhật trạng thái Ready to Ship.
+- Di chuyển hàng lỗi vào Quarantine Zone (Khu cách ly) theo chỉ dẫn của Thủ kho.
 
 **User Stories liên quan:** US-WMS-03, US-WMS-07, US-WMS-24, US-WMS-25
 
@@ -203,6 +198,10 @@
 **Tầng:** Nghiệp vụ — Maker
 
 **Nghiệp vụ:**
+
+**Danh mục Nhà cung cấp:**
+
+- Tạo mới, cập nhật và vô hiệu hóa hồ sơ Nhà cung cấp (NCC) để phục vụ nghiệp vụ nhập hàng, trả hàng NCC và Debit Note.
 
 **Lập Hóa đơn:**
 
@@ -223,7 +222,7 @@
 
 - Lập Credit Note khi Đại lý hoàn trả hàng → Hệ thống trừ `current_balance` tương ứng.
 
-**User Stories liên quan:** US-WMS-04, US-WMS-10, US-WMS-14, US-WMS-15, US-WMS-19, US-WMS-24
+**User Stories liên quan:** US-WMS-04, US-WMS-10, US-WMS-14, US-WMS-15, US-WMS-22, US-WMS-24
 
 ---
 
@@ -253,10 +252,9 @@
 ```
 Công ty mẹ gửi thông tin (Zalo/Email)
     → Planner lập Lệnh nhập [Pending Receipt]
-    → Thủ kho đếm hàng thực tế
-    → Nhân viên kho kiểm tra QC → Đạt/Lỗi
-        ├── Hàng Lỗi → Quarantine Zone → Trưởng kho kiêm Trưởng QC quyết định (Trả NCC / Tiêu hủy)
-        └── Hàng Đạt → Nhân viên kho di chuyển & cất vào Bin Location
+    → Thủ kho đếm hàng thực tế và kiểm tra QC → Đạt/Lỗi
+        ├── Hàng Lỗi → Quarantine Zone → Trưởng kho quyết định xử lý (Trả NCC / Tiêu hủy)
+        └── Hàng Đạt → Nhân viên kho di chuyển & cất vào Bin Location theo chỉ dẫn của Thủ kho
     → Trưởng kho Duyệt nhập [Approved]
     → Hệ thống cộng tồn kho khả dụng
 ```
@@ -269,7 +267,7 @@ Công ty mẹ gửi yêu cầu xuất hàng
         ├── Vi phạm Credit → Chặn cứng, hiển thị lý do
         └── Hợp lệ → Lập Đơn xuất [New]
     → Thủ kho soạn hàng [Picking]
-    → Nhân viên kho kiểm tra QC & đóng gói
+    → Thủ kho kiểm tra QC & đóng gói đạt
     → Thủ kho xác nhận xong [Ready to Ship]
     → Dispatcher lập Chuyến xe nội bộ, gán Tài xế
     → Tài xế xác nhận nhận hàng → Xe rời kho [In-Transit] → Hệ thống trừ tồn kho
@@ -319,7 +317,7 @@ Kế toán trưởng kiểm tra điều kiện → Chốt sổ kỳ T → CLOSED
 | :------------------------------------ | :----------------------------------------------------------- | :-------------------------- |
 | **Mới (New)**                         | Planner vừa tạo, chưa xử lý                                  | Planner                     |
 | **Đang soạn hàng (Picking)**          | Thủ kho đang lấy hàng từ Bin                                 | Thủ kho                     |
-| **Sẵn sàng xuất (Ready to Ship)**     | Soạn xong, Nhân viên kho đã xác nhận đóng gói QC              | Thủ kho (sau khi Nhân viên kho xác nhận QC) |
+| **Sẵn sàng xuất (Ready to Ship)**     | Soạn xong, Thủ kho đã xác nhận đóng gói QC đạt                | Thủ kho |
 | **Đang vận chuyển (In-Transit)**      | Tài xế đã nhận hàng, xe rời kho — **Tồn kho bị trừ tại đây** | Tài xế (xác nhận nhận hàng) |
 | **Đang giao hàng (Out for Delivery)** | Tài xế đang trên đường đến địa chỉ Đại lý                    | Tài xế                      |
 | **Đã giao thành công (Delivered)**    | Đại lý đã ký POD — Kế toán nhận thông báo lập hóa đơn        | Tài xế (xác nhận POD)       |

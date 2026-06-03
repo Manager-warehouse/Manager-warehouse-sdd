@@ -9,7 +9,7 @@
 
 ## 1. Context and Goal
 
-Xuất hàng là quy trình tạo doanh thu cho Phúc Anh. Planner nhận yêu cầu từ Công ty mẹ, kiểm tra credit + tồn kho, lập Đơn xuất. Thủ kho soạn hàng, QC Outbound kiểm tra đóng gói, Dispatcher lập chuyến xe nội bộ, Tài xế giao hàng và ký POD. Kế toán lập hóa đơn.
+Xuất hàng là quy trình tạo doanh thu cho Phúc Anh. Planner nhận yêu cầu từ Công ty mẹ, kiểm tra credit + tồn kho, lập Đơn xuất. Thủ kho soạn hàng và kiểm QC Outbound, Dispatcher lập chuyến xe nội bộ, Tài xế giao hàng và ký POD. Kế toán lập hóa đơn.
 
 ### Features List
 * [US-WMS-06: Lập Đơn xuất hàng & Tự động Kiểm tra Công nợ](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/004-outbound-delivery-pod/features/feature-planner-delivery-order.md)
@@ -24,13 +24,13 @@ Xuất hàng là quy trình tạo doanh thu cho Phúc Anh. Planner nhận yêu c
 | Actor | Vai trò | Nghiệp vụ liên quan |
 |-------|---------|---------------------|
 | Planner | Maker | Lập Đơn xuất hàng (Delivery Order), kiểm tra tồn kho khả dụng và trạng thái công nợ Đại lý |
-| Thủ kho | Maker | Nhận đơn xuất, soạn hàng từ các vị trí kệ (Picking), cập nhật trạng thái đơn |
-| Nhân viên kho | Maker | QC Outbound, kiểm tra đóng gói (đúng SKU, số lượng, đóng thùng chống sốc), hỗ trợ bốc xếp |
+| Thủ kho kiêm QC | Maker | Nhận đơn xuất, soạn hàng từ các vị trí kệ (Picking), kiểm QC Outbound và cập nhật trạng thái đơn |
+| Nhân viên kho | Maker | Hỗ trợ bốc xếp, di chuyển hàng hóa theo chỉ dẫn của Thủ kho |
 | Dispatcher | Maker | Lập Chuyến xe nội bộ, gán xe và tài xế rảnh, sắp xếp thứ tự giao hàng |
 | Tài xế | Maker | Sử dụng smartphone xem chuyến xe, xác nhận nhận hàng (xe rời kho), giao hàng và ký nhận POD, báo cáo giao thất bại |
 | Kế toán viên | Maker | Nhận thông báo đơn hàng Delivered, lập Hóa đơn bán hàng |
 | Kế toán trưởng | Checker | Phê duyệt Credit Limit cho Đại lý |
-| Trưởng kho kiêm Trưởng QC | Checker | Ký duyệt xuất kho (giai đoạn Warehouse Approval) |
+| Trưởng kho | Checker | Ký duyệt xuất kho (giai đoạn Warehouse Approval) |
 
 ## 3. Functional Requirements (EARS)
 *Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đặc tả tính năng:*

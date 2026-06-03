@@ -4,7 +4,7 @@
 Trưởng kho ký duyệt phiếu nhập kho chính thức dựa trên số lượng đếm thực tế và kết quả QC Đạt để ghi nhận tăng tồn kho khả dụng bán hàng trên hệ thống.
 
 ## 2. Actors
-* **Trưởng kho kiêm Trưởng QC**: Đối chiếu biên bản QC và ký duyệt.
+* **Trưởng kho**: Đối chiếu biên bản QC và ký duyệt.
 
 ## 3. Functional Requirements (EARS)
 * **Event-driven:**

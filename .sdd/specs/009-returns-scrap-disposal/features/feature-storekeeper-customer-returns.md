@@ -1,11 +1,11 @@
 # Feature: Thủ kho & Kế toán Xử lý Hàng hoàn trả từ Đại lý (US-WMS-24)
 
 ## 1. Context and Goal
-Đại lý thực hiện trả hàng (lỗi hoặc thừa). Thủ kho lập phiếu nhận hàng hoàn (receipt type = 'RETURN'), Nhân viên kho kiểm QC để phân loại hàng Đạt (vào kho thường) / Lỗi (vào Quarantine). Kế toán lập Credit Note cấn trừ công nợ Đại lý.
+Đại lý thực hiện trả hàng (lỗi hoặc thừa). Thủ kho lập phiếu nhận hàng hoàn (receipt type = 'RETURN') và kiểm QC để phân loại hàng Đạt (vào kho thường) / Lỗi (vào Quarantine). Kế toán lập Credit Note cấn trừ công nợ Đại lý.
 
 ## 2. Actors
-* **Thủ kho**: Nhập phiếu trả hàng.
-* **Nhân viên kho (QC)**: Kiểm QC và di chuyển hàng Đạt / Lỗi.
+* **Thủ kho kiêm QC**: Nhập phiếu trả hàng, kiểm QC và chỉ định xử lý hàng Đạt / Lỗi.
+* **Nhân viên kho**: Hỗ trợ bốc xếp, di chuyển hàng hoàn theo chỉ dẫn của Thủ kho.
 * **Kế toán viên**: Tạo Credit Note cấn trừ tiền.
 
 ## 3. Functional Requirements (EARS)
@@ -22,7 +22,7 @@
 
 ## 4. API Endpoints
 * `POST /api/v1/returns` - Lập phiếu nhận hàng hoàn (Thủ kho).
-* `PUT /api/v1/returns/{id}/qc` - Nhập kết quả QC hàng hoàn (Nhân viên kho).
+* `PUT /api/v1/returns/{id}/qc` - Nhập kết quả QC hàng hoàn (Thủ kho).
 * `POST /api/v1/returns/{id}/credit-note` - Tạo Credit Note cấn trừ công nợ (Kế toán).
 
 ## 5. Acceptance Criteria

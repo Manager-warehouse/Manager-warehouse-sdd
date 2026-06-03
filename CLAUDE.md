@@ -776,7 +776,7 @@ The project follows Speckit conventions as defined in AGENTS.md:
 ```
 Warehouse (3 locations: Hải Phòng, Hà Nội, Hồ Chí Minh)
 ├── Zones (receiving, storage, picking, shipping, quarantine)
-└── Locations (aisle-rack-shelf, bin-capacity)
+└── Locations (zone-bin, bin-capacity)
 
 Product (1000+ items)
 ├── SKU, name, unit, dimension, weight
@@ -841,12 +841,16 @@ DebitNote (Phiếu đòi bồi hoàn)
 |---|---|---|---|
 | Quản trị | CEO | Checker | Dashboard chiến lược |
 | Quản trị | System Admin | Admin | Quản lý tài khoản, RBAC, cấu hình tham số hệ thống |
+<<<<<<< HEAD
 | Quản lý | Trưởng kho kiêm Trưởng QC | Checker | Duyệt nhập/xuất/điều chuyển, xử lý chênh lệch thực tế, duyệt biên bản hàng lỗi |
+=======
+| Quản lý | Trưởng kho | Checker | Duyệt nhập/xuất/điều chuyển, xử lý chênh lệch 5M–100M, duyệt biên bản xử lý hàng lỗi |
+>>>>>>> 78bb76f (update spec master data and database, entity)
 | Quản lý | Kế toán trưởng | Checker | Duyệt bảng giá, thiết lập Credit Limit, chốt sổ tháng, P&L/Aging Report |
 | Nghiệp vụ | Planner | Maker | Lập lệnh nhập / đơn xuất từ Công ty mẹ, kiểm tra Credit Check + tồn kho |
 | Nghiệp vụ | Dispatcher | Maker | Lập chuyến xe nội bộ Phúc Anh, gán tài xế, tối ưu lộ trình giao hàng |
-| Nghiệp vụ | Thủ kho | Maker | Tiếp nhận hàng, soạn hàng, kiểm kê, cất Bin, xác nhận điều chuyển |
-| Nghiệp vụ | Nhân viên kho (Bốc xếp & QC) | Maker | Bốc xếp hàng hóa, QC inbound/outbound, di chuyển hàng lỗi vào Quarantine |
+| Nghiệp vụ | Thủ kho kiêm QC | Maker | Tiếp nhận hàng, kiểm QC inbound/outbound, soạn hàng, kiểm kê, cất Bin, xác nhận điều chuyển |
+| Nghiệp vụ | Nhân viên kho (Bốc xếp) | Maker | Bốc xếp hàng hóa, hỗ trợ di chuyển hàng hóa, di chuyển hàng lỗi vào Quarantine theo chỉ dẫn |
 | Nghiệp vụ | Kế toán viên | Maker | Lập hóa đơn, ghi nhận thanh toán, cấn trừ công nợ, quản lý bảng giá |
 | Nghiệp vụ | Tài xế | Maker | Nhận chuyến (smartphone), giao hàng, xác nhận POD, báo giao thất bại |
 
@@ -922,7 +926,7 @@ Quy trình nhập hàng từ khi Công ty mẹ gửi thông tin qua Zalo/Email c
 ```
 
 **Luồng trạng thái đơn nhập:**
-`PENDING_RECEIPT` (Planner tạo) → `DRAFT` (Thủ kho kiểm đếm) → `QC_COMPLETED` (Nhân viên kho hoàn tất QC) → `APPROVED` (Trưởng kho duyệt, Hệ thống cộng tồn kho) / `REJECTED` (Trưởng kho từ chối, xuất hủy hoặc trả NCC)
+`PENDING_RECEIPT` (Planner tạo) → `DRAFT` (Thủ kho kiểm đếm) → `QC_COMPLETED` (Thủ kho hoàn tất QC) → `APPROVED` (Trưởng kho duyệt, Hệ thống cộng tồn kho) / `REJECTED` (Trưởng kho từ chối, xuất hủy hoặc trả NCC)
 
 ---
 
@@ -944,10 +948,9 @@ Quy trình xử lý đơn xuất hàng bán cho Đại lý, tích hợp kiểm t
 │             │                                │ Soạn hàng   │               │
 │             │                                │ từ Bin, set │               │
 │             │                                │ [Picking]───►               │
-│             │                                │             │ Kiểm QC sản   │
-│             │                                │             │ phẩm đã soạn, │
-│             │                                │             │ xác nhận đạt  │
-│             │                                │ ◄───────────┤               │
+│             │                                │ Kiểm QC sản │               │
+│             │                                │ phẩm đã soạn│               │
+│             │                                │ xác nhận đạt│               │
 │             │                                │ Xác nhận    │               │
 │             │                                │ soạn xong,  │               │
 │             │                                │ set [Ready] │               │
@@ -956,7 +959,7 @@ Quy trình xử lý đơn xuất hàng bán cho Đại lý, tích hợp kiểm t
 ```
 
 **Luồng trạng thái đơn xuất:**
-`NEW` (Planner lập đơn & System check công nợ đạt) → `PICKING` (Thủ kho bắt đầu soạn hàng từ Bin) → `READY_TO_SHIP` (Nhân viên kho xác nhận QC & đóng gói đạt, Thủ kho xác nhận hoàn thành soạn hàng)
+`NEW` (Planner lập đơn & System check công nợ đạt) → `PICKING` (Thủ kho bắt đầu soạn hàng từ Bin) → `READY_TO_SHIP` (Thủ kho xác nhận QC & đóng gói đạt, hoàn thành soạn hàng)
 
 ---
 
@@ -1103,7 +1106,12 @@ Quy trình đối chiếu số liệu tồn kho thực tế, tính toán chênh 
 ```
 
 **Thẩm quyền duyệt chênh lệch kiểm kê & xuất hủy hàng lỗi:**
+<<<<<<< HEAD
 - Tất cả chênh lệch kiểm kê và phiếu xuất hủy hàng lỗi đều do Trưởng kho phê duyệt trực tiếp trên hệ thống.
+=======
+- **Từ 5 triệu đến 100 triệu VNĐ**: Trưởng kho xem xét và phê duyệt trên hệ thống.
+- **Trên 100 triệu VNĐ hoặc lỗi xác định do nhân viên**: Phải trình trực tiếp CEO phê duyệt trên hệ thống.
+>>>>>>> 78bb76f (update spec master data and database, entity)
 
 ---
 

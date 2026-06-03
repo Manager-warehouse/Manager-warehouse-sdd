@@ -35,8 +35,8 @@ CREATE TABLE users (
                       'ADMIN',             -- Toàn quyền hệ thống
                       'CEO',               -- Duyệt dashboard chiến lược
                       'WAREHOUSE_MANAGER', -- Quản lý kho, duyệt nhập/xuất
-                      'STOREKEEPER',       -- Thủ kho: tiếp nhận, soạn, cất Bin
-                      'WAREHOUSE_STAFF',   -- Nhân viên kho: bốc xếp, QC
+                      'STOREKEEPER',       -- Thủ kho kiêm QC: tiếp nhận, soạn, cất Bin, kiểm QC
+                      'WAREHOUSE_STAFF',   -- Nhân viên kho: bốc xếp, di chuyển hàng
                       'ACCOUNTANT',        -- Lập HĐ, ghi nhận thanh toán
                       'ACCOUNTANT_MANAGER',-- Duyệt giá, Credit Limit, chốt sổ
                       'PLANNER',           -- Lập lệnh nhập / đơn xuất
@@ -66,7 +66,10 @@ CREATE TABLE warehouses (
     type       VARCHAR(20)  NOT NULL
                CHECK (type IN ('PHYSICAL','IN_TRANSIT')),
     is_active  BOOLEAN      NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    created_by BIGINT       REFERENCES users(id),
+    updated_by BIGINT       REFERENCES users(id),
+    created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
 -- §1.2 user_warehouse_assignments  (phụ thuộc users + warehouses)
@@ -79,20 +82,24 @@ CREATE TABLE user_warehouse_assignments (
     UNIQUE (user_id, warehouse_id)
 );
 
--- §2.2 warehouse_locations  (phân cấp: Zone → Rack → Shelf → Bin)
+-- §2.2 warehouse_locations  (phân cấp: Zone → Bin)
 CREATE TABLE warehouse_locations (
     id                BIGSERIAL     PRIMARY KEY,
     warehouse_id      BIGINT        NOT NULL REFERENCES warehouses(id),
-    code              VARCHAR(50)   UNIQUE NOT NULL,  -- e.g. WH-HP.A.01.1.01
+    code              VARCHAR(50)   UNIQUE NOT NULL,  -- e.g. WH-HP.A.01
     type              VARCHAR(10)   NOT NULL
-                      CHECK (type IN ('ZONE','RACK','SHELF','BIN')),
+                      CHECK (type IN ('ZONE','BIN')),
     parent_id         BIGINT        REFERENCES warehouse_locations(id),
     capacity_m3       DECIMAL(10,3),
     capacity_kg       DECIMAL(10,2),
     current_volume_m3 DECIMAL(10,3) NOT NULL DEFAULT 0,
     current_weight_kg DECIMAL(10,2) NOT NULL DEFAULT 0,
     is_quarantine     BOOLEAN       NOT NULL DEFAULT FALSE,
-    is_active         BOOLEAN       NOT NULL DEFAULT TRUE
+    is_active         BOOLEAN       NOT NULL DEFAULT TRUE,
+    created_by        BIGINT        REFERENCES users(id),
+    updated_by        BIGINT        REFERENCES users(id),
+    created_at        TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+    updated_at        TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
 -- =============================================================================
@@ -104,28 +111,21 @@ CREATE TABLE products (
     id            BIGSERIAL     PRIMARY KEY,
     sku           VARCHAR(50)   UNIQUE NOT NULL,
     name          VARCHAR(255)  NOT NULL,
-    unit          VARCHAR(30)   NOT NULL,         -- cái / thùng / kg ...
-    unit_per_pack INTEGER,                        -- Quy đổi đơn vị đóng gói
+    unit          VARCHAR(30)   NOT NULL,         -- base unit: cái
+    unit_per_pack INTEGER,                        -- Quy đổi cố định thùng -> cái
     description   TEXT,
     image_url     VARCHAR(500),
     weight_kg     DECIMAL(10,3),
     volume_m3     DECIMAL(10,5),
     has_expiry    BOOLEAN       NOT NULL DEFAULT FALSE,
+    shelf_life_days INTEGER,
     has_serial    BOOLEAN       NOT NULL DEFAULT FALSE,
     reorder_point DECIMAL(10,2),                 -- Ngưỡng cảnh báo tồn kho thấp
     is_active     BOOLEAN       NOT NULL DEFAULT TRUE,
+    created_by    BIGINT        REFERENCES users(id),
+    updated_by    BIGINT        REFERENCES users(id),
     created_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
     updated_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW()
-);
-
--- §2.3a product_units  (UOM conversion per product)
-CREATE TABLE product_units (
-    id                BIGINT        PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-    product_id        BIGINT        NOT NULL REFERENCES products(id),
-    unit_name         VARCHAR(50)   NOT NULL,
-    conversion_factor DECIMAL(10,4) NOT NULL,
-    is_base_unit      BOOLEAN       NOT NULL DEFAULT FALSE,
-    created_at        TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
 -- §2.4 dealers  (Critical 2: thêm 4 cột công nợ)
@@ -142,6 +142,8 @@ CREATE TABLE dealers (
     credit_status            VARCHAR(20)   NOT NULL DEFAULT 'ACTIVE'
                              CHECK (credit_status IN ('ACTIVE','CREDIT_HOLD')),
     is_active                BOOLEAN       NOT NULL DEFAULT TRUE,
+    created_by               BIGINT        REFERENCES users(id),
+    updated_by               BIGINT        REFERENCES users(id),
     created_at               TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
     updated_at               TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
@@ -156,7 +158,10 @@ CREATE TABLE suppliers (
     contact_person VARCHAR(255),
     address        TEXT,
     is_active      BOOLEAN      NOT NULL DEFAULT TRUE,
-    created_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    created_by     BIGINT       REFERENCES users(id),
+    updated_by     BIGINT       REFERENCES users(id),
+    created_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
 -- §2.6 vehicles  (Medium 4: thêm max_volume_m3)
@@ -168,7 +173,11 @@ CREATE TABLE vehicles (
     max_volume_m3 DECIMAL(10,3),
     status        VARCHAR(20)   NOT NULL DEFAULT 'AVAILABLE'
                   CHECK (status IN ('AVAILABLE','ON_TRIP','MAINTENANCE')),
-    is_active     BOOLEAN       NOT NULL DEFAULT TRUE
+    is_active     BOOLEAN       NOT NULL DEFAULT TRUE,
+    created_by    BIGINT        REFERENCES users(id),
+    updated_by    BIGINT        REFERENCES users(id),
+    created_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+    updated_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
 -- §2.7 drivers  (Medium 7: license_expiry NOT NULL per database.md)
@@ -180,8 +189,12 @@ CREATE TABLE drivers (
     license_number VARCHAR(50)  UNIQUE NOT NULL,
     license_expiry DATE         NOT NULL,
     status         VARCHAR(20)  NOT NULL DEFAULT 'AVAILABLE'
-                   CHECK (status IN ('AVAILABLE','ON_DELIVERY','MAINTENANCE')),
-    is_active      BOOLEAN      NOT NULL DEFAULT TRUE
+                   CHECK (status IN ('AVAILABLE','ON_TRIP','UNAVAILABLE')),
+    is_active      BOOLEAN      NOT NULL DEFAULT TRUE,
+    created_by     BIGINT       REFERENCES users(id),
+    updated_by     BIGINT       REFERENCES users(id),
+    created_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
 -- =============================================================================
@@ -420,6 +433,8 @@ CREATE TABLE trips (
     driver_id       BIGINT        NOT NULL REFERENCES drivers(id),
     dispatcher_id   BIGINT        NOT NULL REFERENCES users(id),
     planned_date    DATE          NOT NULL,
+    trip_type       VARCHAR(20)   NOT NULL DEFAULT 'DELIVERY'
+                    CHECK (trip_type IN ('DELIVERY','TRANSFER')),
     status          VARCHAR(20)   NOT NULL DEFAULT 'PLANNED'
                     CHECK (status IN ('PLANNED','IN_TRANSIT','COMPLETED')),
     total_weight_kg DECIMAL(10,2) DEFAULT 0,   -- Tổng khối lượng (kiểm tra tải trọng)

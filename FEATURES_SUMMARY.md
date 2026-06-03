@@ -72,7 +72,7 @@ Mọi spec và mã nguồn trong dự án phải tuân thủ tuyệt đối các
 ### 3.5 Quy Tắc Phê Duyệt Phân Hạn Mức (Approval Threshold Rules)
 Đối với các thao tác điều chỉnh tồn kho (do kiểm kê lệch hoặc tiêu hủy hàng lỗi từ khu cách ly), hệ thống áp dụng bảng định mức phê duyệt động Maker-Checker:
 * **Giá trị lệch < 5,000,000 VND:** Hệ thống tự động duyệt nếu có xác nhận từ QC hoặc biên bản kiểm kê.
-* **Giá trị lệch từ 5,000,000 VND đến 100,000,000 VND:** Yêu cầu **Trưởng kho kiêm Trưởng QC** phê duyệt.
+* **Giá trị lệch từ 5,000,000 VND đến 100,000,000 VND:** Yêu cầu **Trưởng kho** phê duyệt.
 * **Giá trị lệch > 100,000,000 VND** hoặc nguyên nhân do lỗi cá nhân nhân viên: Yêu cầu **CEO** phê duyệt.
 
 ### 3.6 Quy Tắc Xóa Mềm (Soft Delete Rules)
@@ -100,10 +100,10 @@ Dưới đây là tổng hợp 10 Domain Specifications chứa 26 User Stories g
 * **Mục tiêu:** Quản lý tập trung các thực thể nền tảng làm xương sống cho toàn bộ quy trình kho bãi và logistics.
 * **Các User Stories:**
   * **US-WMS-19 (P1):** [Quản lý SKU và danh mục sản phẩm](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/002-master-data-management/features/feature-admin-products.md) (hỗ trợ quy đổi đơn vị Thùng → Cái, quản lý thuộc tính `has_serial`, `has_expiry`).
-  * **US-WMS-20 (P2):** [Cấu hình Vị trí kho](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/002-master-data-management/features/feature-admin-warehouses.md) (Zone → Rack → Shelf → Bin) và kiểm tra sức chứa kệ (m3/kg) khi Putaway (`warehouse_locations`).
+  * **US-WMS-20 (P2):** [Cấu hình Vị trí kho](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/002-master-data-management/features/feature-admin-warehouses.md) (Zone → Bin) và kiểm tra sức chứa Bin (m3/kg) khi Putaway (`warehouse_locations`).
   * **US-WMS-22 (P1):** [Quản lý Danh mục Đối tác](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/002-master-data-management/features/feature-accountant-partners.md) (Đại lý & Nhà cung cấp). Kế toán trưởng thiết lập Credit Limit cho từng Đại lý.
-  * **US-WMS-23 (P2):** [Quản lý Danh mục Xe tải & Tài xế Nội bộ](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/002-master-data-management/features/feature-dispatcher-fleet-drivers.md) (theo dõi trạng thái Rảnh/Bận/Bảo trì).
-* **Actors:** Planner, Kế toán viên, Kế toán trưởng, System Admin, Dispatcher, Thủ kho, Trưởng kho kiêm Trưởng QC.
+  * **US-WMS-23 (P2):** [Quản lý Danh mục Xe tải & Tài xế Nội bộ](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/002-master-data-management/features/feature-dispatcher-fleet-drivers.md) (xe: Rảnh/Đang đi chuyến/Bảo trì; tài xế: Rảnh/Đang đi chuyến/Không khả dụng).
+* **Actors:** Planner, Kế toán viên, Kế toán trưởng, System Admin, Dispatcher, Thủ kho kiêm QC, Trưởng kho.
 * **Endpoints chính:** `/api/v1/products`, `/api/v1/warehouses`, `/api/v1/bin-locations`, `/api/v1/dealers`, `/api/v1/suppliers`, `/api/v1/vehicles`, `/api/v1/drivers`.
 
 ### Spec 003: Nhập Hàng & QC Inbound
@@ -114,7 +114,7 @@ Dưới đây là tổng hợp 10 Domain Specifications chứa 26 User Stories g
   * **US-WMS-03 (P1):** [Đếm hàng thực tế](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/003-inbound-receipt-qc/features/feature-storekeeper-receipt-receive.md) và [Kiểm QC Inbound](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/003-inbound-receipt-qc/features/feature-qc-inbound-inspection.md) (Phân loại Đạt → cất vào warehouse_locations đạt chuẩn; Lỗi → bắt buộc chuyển sang Quarantine Zone).
   * **US-WMS-04 (P1 - Sub-flow):** [Phê duyệt hàng lỗi trong Quarantine Zone](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/003-inbound-receipt-qc/features/feature-manager-quarantine-handling.md) (Nếu chọn Trả NCC → trừ quarantine, thông báo Kế toán lập Debit Note; Nếu chọn Tiêu hủy → áp dụng định mức phê duyệt).
   * **US-WMS-05 (P1):** [Duyệt nhập kho](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/003-inbound-receipt-qc/features/feature-manager-receipt-approval.md) (Trưởng kho đối chiếu kết quả QC và ký duyệt Phiếu nhập kho để tăng tồn kho khả dụng thực tế).
-* **Actors:** Planner, Thủ kho, Nhân viên kho, Trưởng kho kiêm Trưởng QC, Kế toán viên.
+* **Actors:** Planner, Thủ kho kiêm QC, Nhân viên kho, Trưởng kho, Kế toán viên.
 * **Endpoints chính:** `/api/v1/receipts`, `/api/v1/receipts/{id}/qc`, `/api/v1/receipts/{id}/approve`, `/api/v1/receipts/{id}/rtv`, `/api/v1/receipts/{id}/dispose`.
 
 ### Spec 004: Xuất Hàng & Giao Hàng (Outbound)
@@ -126,7 +126,7 @@ Dưới đây là tổng hợp 10 Domain Specifications chứa 26 User Stories g
   * **US-WMS-08 (P1):** [Lập Chuyến xe (Trip Log)](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/004-outbound-delivery-pod/features/feature-dispatcher-trip-dispatch.md) nội bộ, gán tài xế, sắp xếp Stop Order. Trừ tồn kho vật lý tại thời điểm xe xuất phát rời kho (status đổi sang In-Transit).
   * **US-WMS-09 (P1):** [Giao diện Web di động cho Tài xế](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/004-outbound-delivery-pod/features/feature-driver-mobile-pod.md) để xem chuyến xe và xác nhận giao hàng bằng POD (ký nhận trực tiếp + chụp ảnh hàng hóa bàn giao + ghi timestamp). Nếu giao thất bại, tự động chuyển hàng hoàn vào Quarantine Zone.
   * **US-WMS-10 (P1):** [Thông báo Kế toán](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/004-outbound-delivery-pod/features/feature-accountant-billing-notification.md) để lập hóa đơn bán hàng ngay khi đơn chuyển trạng thái sang `Delivered`.
-* **Actors:** Planner, Thủ kho, Nhân viên kho, Dispatcher, Tài xế, Kế toán viên, Kế toán trưởng, Trưởng kho kiêm Trưởng QC.
+* **Actors:** Planner, Thủ kho kiêm QC, Nhân viên kho, Dispatcher, Tài xế, Kế toán viên, Kế toán trưởng, Trưởng kho.
 * **Endpoints chính:** `/api/v1/delivery-orders`, `/api/v1/delivery-orders/{id}/pick`, `/api/v1/delivery-orders/{id}/qc-outbound`, `/api/v1/trips`, `/api/v1/trips/{id}/depart`, `/api/v1/trips/{id}/confirm-delivery`.
 
 ### Spec 005: Điều Chuyển Kho Nội Bộ
@@ -135,7 +135,7 @@ Dưới đây là tổng hợp 10 Domain Specifications chứa 26 User Stories g
 * **Các User Stories:**
   * **US-WMS-11 (P2):** [Planning Dashboard](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/005-inter-warehouse-transfer/features/feature-planner-transfer-planning.md) gợi ý tự động các lệnh điều chuyển tối ưu dựa trên định mức tồn kho tối thiểu.
   * **US-WMS-12 (P1):** [Lập, Duyệt và Xác nhận Phiếu Điều chuyển Kho](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/005-inter-warehouse-transfer/features/feature-storekeeper-transfer-ship.md). Hàng xuất phát → giảm kho nguồn, tăng kho ảo In-Transit. Kho đích nhận hàng → giảm In-Transit, tăng kho đích. Nếu có chênh lệch, bắt buộc ghi lý do và tự động tạo phiếu điều chỉnh. (Xem thêm: [Thủ kho Đích Nhận hàng](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/005-inter-warehouse-transfer/features/feature-storekeeper-transfer-receive.md))
-* **Actors:** Planner, Trưởng kho kiêm Trưởng QC (Kho nguồn), Thủ kho (Kho nguồn), Trưởng kho kiêm Trưởng QC (Kho đích), Nhân viên kho, Tài xế.
+* **Actors:** Planner, Trưởng kho (Kho nguồn), Thủ kho (Kho nguồn), Trưởng kho (Kho đích), Nhân viên kho, Tài xế.
 * **Endpoints chính:** `/api/v1/transfers`, `/api/v1/transfers/{id}/approve`, `/api/v1/transfers/{id}/ship`, `/api/v1/transfers/{id}/receive`, `/api/v1/planning/suggestions`.
 
 ### Spec 006: Kiểm Kê & Điều Chỉnh Tồn Kho
@@ -143,7 +143,7 @@ Dưới đây là tổng hợp 10 Domain Specifications chứa 26 User Stories g
 * **Mục tiêu:** Quy trình đối chiếu và điều chỉnh số liệu hệ thống khớp với số đếm thực tế của thủ kho định kỳ.
 * **Các User Stories:**
   * **US-WMS-13 (P1):** [Kiểm kê định kỳ](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/006-stocktake-adjustment/features/feature-storekeeper-stocktake-count.md): Lập phiếu kiểm kê, khóa sổ kệ tạm thời, nhập số lượng đếm thực tế, tự động tính chênh lệch (Variance). Khi được duyệt, cập nhật tồn kho hệ thống và ghi Audit Log. (Xem thêm: [Duyệt chênh lệch kiểm kê](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/006-stocktake-adjustment/features/feature-manager-stocktake-approval.md))
-* **Actors:** Thủ kho, Trưởng kho kiêm Trưởng QC, CEO.
+* **Actors:** Thủ kho, Trưởng kho, CEO.
 * **Endpoints chính:** `/api/v1/stocktakes`, `/api/v1/stocktakes/{id}/start`, `/api/v1/stocktakes/{id}/count`, `/api/v1/stocktakes/{id}/complete`, `/api/v1/stocktakes/{id}/approve`.
 
 ### Spec 007: Bảng Giá & Giá Vốn (Pricing & COGS)
@@ -169,9 +169,9 @@ Dưới đây là tổng hợp 10 Domain Specifications chứa 26 User Stories g
 * **Mã Spec:** [009-returns-scrap-disposal](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/009-returns-scrap-disposal/spec.md)
 * **Mục tiêu:** Quy trình tiếp nhận hàng trả về từ đại lý và thanh lý, tiêu hủy hàng hỏng trong khu cách ly.
 * **Các User Stories:**
-  * **US-WMS-24 (P2):** Xử lý hàng hoàn trả từ Đại lý (Inbound Returns). Thủ kho lập phiếu nhận hàng hoàn (`receipts` type = 'RETURN') → QC kiểm tra chất lượng (Hàng tốt → nhập lại kho thường; Hàng lỗi → chuyển Quarantine Zone). Kế toán tạo Credit Note tương ứng để trừ công nợ cho Đại lý. [Chi tiết](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/009-returns-scrap-disposal/features/feature-storekeeper-customer-returns.md)
+  * **US-WMS-24 (P2):** Xử lý hàng hoàn trả từ Đại lý (Inbound Returns). Thủ kho lập phiếu nhận hàng hoàn (`receipts` type = 'RETURN') → Thủ kho kiểm QC chất lượng (Hàng tốt → nhập lại kho thường; Hàng lỗi → chuyển Quarantine Zone). Kế toán tạo Credit Note tương ứng để trừ công nợ cho Đại lý. [Chi tiết](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/009-returns-scrap-disposal/features/feature-storekeeper-customer-returns.md)
   * **US-WMS-04 (P1 - Disposal sub-flow):** Tiêu hủy hàng lỗi từ Quarantine Zone. Áp dụng bảng định mức phê duyệt: <5tr tự động, 5-100tr Trưởng kho duyệt, >100tr CEO duyệt (tạo `adjustments` type = 'DISPOSAL' và `damage_reports`). Được duyệt thì giảm tồn quarantine, ghi biên bản hủy. [Chi tiết](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/009-returns-scrap-disposal/features/feature-manager-scrap-disposal.md)
-* **Actors:** Thủ kho, Nhân viên kho, Trưởng kho kiêm Trưởng QC, Kế toán viên, CEO.
+* **Actors:** Thủ kho kiêm QC, Nhân viên kho, Trưởng kho, Kế toán viên, CEO.
 * **Endpoints chính:** `/api/v1/returns`, `/api/v1/returns/{id}/qc`, `/api/v1/returns/{id}/credit-note`, `/api/v1/disposal`, `/api/v1/disposal/{id}/approve`.
 
 ### Spec 010: Báo Cáo & Cảnh Báo (Reporting & Alerts)
@@ -180,8 +180,8 @@ Dưới đây là tổng hợp 10 Domain Specifications chứa 26 User Stories g
 * **Các User Stories:**
   * **US-WMS-18 (P1):** Dashboard báo cáo quản trị cấp cao cho CEO & Kế toán trưởng: tổng giá trị tồn kho 3 miền theo giá vốn, Top đại lý nợ nhiều nhất, báo cáo Lãi/Lỗ (P&L = Doanh thu - COGS - Chi phí vận hành), tỷ lệ QC lỗi, tỷ lệ giao hàng đúng hạn (OTD). Bắt buộc ghi log mỗi lượt xem báo cáo vào `audit_logs`. [Chi tiết](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/010-reports-dashboards-alerts/features/feature-ceo-management-dashboard.md)
   * **US-WMS-26 (P1):** Cảnh báo tự động tồn kho dưới định mức tối thiểu. Hệ thống bắn thông báo High Priority in-app cho Trưởng kho và Planner; đánh dấu đỏ sản phẩm thiếu hụt trên dashboard (lưu tại bảng `stock_alerts`). [Chi tiết](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/010-reports-dashboards-alerts/features/feature-manager-low-stock-alerts.md)
-  * **US-WMS-25 (P3):** Báo cáo năng suất & sản lượng nhân viên kho (số đơn bốc xếp/QC của nhân viên, số đơn soạn của thủ kho, số chuyến của tài xế) để làm căn cứ HRM tính lương sản phẩm. [Chi tiết](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/010-reports-dashboards-alerts/features/feature-manager-productivity-report.md)
-* **Actors:** CEO, Kế toán trưởng, Trưởng kho kiêm Trưởng QC, Planner.
+  * **US-WMS-25 (P3):** Báo cáo năng suất & sản lượng nhân viên kho (số đơn bốc xếp/di chuyển của nhân viên, số đơn soạn và QC của thủ kho, số chuyến của tài xế) để làm căn cứ HRM tính lương sản phẩm. [Chi tiết](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/010-reports-dashboards-alerts/features/feature-manager-productivity-report.md)
+* **Actors:** CEO, Kế toán trưởng, Trưởng kho, Planner.
 * **Endpoints chính:** `/api/v1/dashboard/ceo`, `/api/v1/reports/inventory-valuation`, `/api/v1/reports/productivity`, `/api/v1/alerts/low-stock`.
 
 ---

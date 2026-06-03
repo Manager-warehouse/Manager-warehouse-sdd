@@ -132,18 +132,22 @@ Hệ thống có **10 Actors** chia thành 3 tầng theo mô hình **Maker-Check
 
 | Actor | Loại | Trách nhiệm chính |
 |---|---|---|
+<<<<<<< HEAD
 | **Trưởng kho kiêm Trưởng QC** | Checker | Duyệt nhập/xuất/điều chuyển, xử lý chênh lệch thực tế, duyệt biên bản hàng lỗi |
+=======
+| **Trưởng kho** | Checker | Duyệt nhập/xuất/điều chuyển, xử lý chênh lệch 5M–100M VNĐ, duyệt biên bản xử lý hàng lỗi |
+>>>>>>> 78bb76f (update spec master data and database, entity)
 | **Kế toán trưởng** | Checker | Duyệt bảng giá, thiết lập Credit Limit, chốt sổ tháng, P&L / Aging Report |
 
 ### Tầng 3: Nghiệp vụ (Maker)
 
 | Actor | Trách nhiệm chính |
 |---|---|
-| **Planner** | Tiếp nhận đơn từ Công ty mẹ, lập lệnh nhập / đơn xuất, kiểm tra Credit Check + tồn kho |
+| **Planner** | Tiếp nhận yêu cầu xuất/nhập kho từ Công ty mẹ hoặc bên thứ ba, nhập yêu cầu lên hệ thống, kiểm tra Credit Check + tồn kho |
 | **Dispatcher** | Lập chuyến xe nội bộ Phúc Anh, gán tài xế, tối ưu lộ trình giao hàng |
-| **Thủ kho** | Tiếp nhận hàng, soạn hàng, kiểm kê, cất Bin, xác nhận điều chuyển |
-| **Nhân viên kho (Bốc xếp & QC)** | Bốc xếp hàng hóa, QC inbound/outbound, di chuyển hàng lỗi vào Quarantine |
-| **Kế toán viên** | Lập hóa đơn, ghi nhận thanh toán, cấn trừ công nợ, quản lý bảng giá |
+| **Thủ kho kiêm QC** | Quản lý SKU/danh mục sản phẩm, tiếp nhận hàng, kiểm QC inbound/outbound, soạn hàng, kiểm kê, cất Bin, xác nhận điều chuyển |
+| **Nhân viên kho (Bốc xếp)** | Bốc xếp hàng hóa, hỗ trợ di chuyển hàng hóa, di chuyển hàng lỗi vào Quarantine theo chỉ dẫn của Thủ kho |
+| **Kế toán viên** | Quản lý hồ sơ Nhà cung cấp, lập hóa đơn, ghi nhận thanh toán, cấn trừ công nợ, quản lý bảng giá |
 | **Tài xế** | Nhận chuyến (smartphone), giao hàng, xác nhận POD, báo giao thất bại |
 
 > **Phân biệt Dispatcher vs Planner:** Planner = nhận đơn từ Công ty mẹ & lập Delivery Order; Dispatcher = điều phối xe & tài xế giao hàng — **hai vai trò hoàn toàn khác nhau**.
@@ -234,10 +238,9 @@ Hệ thống có **26 User Stories** chia thành 9 nhóm nghiệp vụ:
 ```
 Công ty mẹ (Zalo/Email)
     → Planner lập Lệnh nhập [PENDING_RECEIPT]
-    → Thủ kho đếm hàng thực tế → [DRAFT]
-    → Nhân viên kho kiểm QC → [QC_COMPLETED]
-        ├── Hàng Lỗi → Quarantine Zone → Trưởng kho quyết định (Trả NCC / Tiêu hủy)
-        └── Hàng Đạt → Cất vào Bin Location
+    → Thủ kho đếm hàng thực tế và kiểm QC → [QC_COMPLETED]
+        ├── Hàng Lỗi → Quarantine Zone → Trưởng kho quyết định xử lý (Trả NCC / Tiêu hủy)
+        └── Hàng Đạt → Thủ kho chỉ định cất vào Bin Location
     → Trưởng kho Duyệt nhập [APPROVED]
     → Hệ thống cộng tồn kho khả dụng
 ```
@@ -250,8 +253,7 @@ Công ty mẹ gửi yêu cầu xuất hàng
         ├── Vi phạm Credit → Chặn cứng, hiển thị lý do
         └── Hợp lệ → Lập Đơn xuất [NEW] + Reserve tồn kho
     → Thủ kho soạn hàng [PICKING]
-    → Nhân viên kho QC & đóng gói
-    → Thủ kho xác nhận [READY_TO_SHIP]
+    → Thủ kho kiểm QC & xác nhận [READY_TO_SHIP]
     → Dispatcher lập Chuyến xe nội bộ, gán Tài xế
     → Tài xế xác nhận nhận hàng → [IN_TRANSIT] → Hệ thống trừ tồn kho
     → Tài xế giao hàng → Đại lý ký POD [DELIVERED]
@@ -297,7 +299,7 @@ Kế toán trưởng kiểm tra điều kiện → Chốt sổ kỳ T → CLOSED
 |---|---|
 | **New** | Planner |
 | **Picking** | Thủ kho |
-| **Ready to Ship** | Thủ kho (sau khi NV kho xác nhận QC) |
+| **Ready to Ship** | Thủ kho (sau khi kiểm QC đạt) |
 | **In-Transit** ⚠️ *Tồn kho bị trừ tại đây* | Tài xế (xác nhận nhận hàng) |
 | **Out for Delivery** | Tài xế |
 | **Delivered** | Tài xế (xác nhận POD) |
@@ -317,7 +319,14 @@ Kế toán trưởng kiểm tra điều kiện → Chốt sổ kỳ T → CLOSED
 
 ### Phê duyệt điều chỉnh tồn kho & hủy hàng
 
+<<<<<<< HEAD
 Tất cả các phiếu điều chỉnh chênh lệch kiểm kê và phiếu xuất hủy hàng lỗi đều được gửi trực tiếp đến Trưởng kho để phê duyệt.
+=======
+| Giá trị lệch / Giá trị hủy | Người duyệt |
+|---|---|
+| 5 – 100 triệu VNĐ | Trưởng kho |
+| > 100 triệu VNĐ **hoặc** lỗi do nhân viên | CEO |
+>>>>>>> 78bb76f (update spec master data and database, entity)
 
 ---
 
