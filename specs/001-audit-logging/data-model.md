@@ -1,4 +1,4 @@
-# Data Model: Audit Logging
+# Data Model: System Audit Logging
 
 **Feature**: System Audit Logging
 **Date**: 2026-06-03
@@ -8,105 +8,124 @@
 ## Entity: AuditLog
 
 **Table**: `audit_logs`
-**Immutability**: No UPDATE or DELETE allowed after creation.
+
+**Immutability**: Append-only. No UPDATE or DELETE is allowed after creation.
 
 ### Fields
 
 | Field | Java Type | DB Type | Nullable | Notes |
 |-------|-----------|---------|----------|-------|
-| id | Long | BIGSERIAL (PK) | No | Auto-increment |
-| actor | User (FK) | BIGINT | No | `@ManyToOne(LAZY)` → users(id) |
-| actorRole | String | VARCHAR(50) | No | Snapshot of user's role at time of action |
-| action | AuditAction | VARCHAR(50) | No | Enum: CREATE, UPDATE, APPROVE, REJECT, CANCEL, DELETE |
-| entityType | String | VARCHAR(100) | No | e.g., RECEIPT, TRANSFER, INVENTORY |
-| entityId | Long | BIGINT | No | PK of the affected entity |
-| description | String | TEXT | No | Auto-generated: "{ACTION} {ENTITY_TYPE} {ENTITY_CODE}" |
-| warehouse | Warehouse (FK) | BIGINT | Yes | `@ManyToOne(LAZY)` → warehouses(id). Null for global entities |
-| oldValue | String | JSONB | Yes | Diff-only: only changed fields. Null for CREATE. Sensitive fields excluded |
-| newValue | String | JSONB | Yes | Diff-only: only changed fields. Sensitive fields excluded |
-| timestamp | OffsetDateTime | TIMESTAMPTZ | No | DEFAULT NOW() |
-| ipAddress | String | VARCHAR(45) | Yes | Client IP from HttpServletRequest |
+| id | Long | BIGSERIAL | No | Primary key |
+| actor | User | BIGINT FK | No | Authenticated user who performed the action |
+| actorRole | String | VARCHAR(50) | No | Snapshot role at action time |
+| action | AuditAction | VARCHAR(50) | No | LOGIN, LOGOUT, CREATE, UPDATE, STATUS_CHANGE, APPROVE, REJECT, CANCEL, SOFT_DELETE, ASSIGN, UNASSIGN |
+| entityType | String | VARCHAR(100) | No | Affected entity group/type |
+| entityId | Long | BIGINT | No | Affected entity ID |
+| description | String | TEXT | No | Auto-generated summary for table display |
+| warehouse | Warehouse | BIGINT FK | Yes | Optional warehouse filter context |
+| oldValue | Map/String JSON | JSONB | Yes | Changed fields before value |
+| newValue | Map/String JSON | JSONB | Yes | Changed fields after value |
+| timestamp | OffsetDateTime | TIMESTAMPTZ | No | Defaults to creation time |
+| ipAddress | String | VARCHAR(45) | Yes | Client IP |
 
 ### Relationships
 
-```
-AuditLog *──1 User (actor)
-AuditLog *──0..1 Warehouse
+```text
+AuditLog * -> 1 User
+AuditLog * -> 0..1 Warehouse
 ```
 
 ### Indexes
 
 | Index Name | Columns | Purpose |
 |------------|---------|---------|
-| idx_audit_logs_timestamp | timestamp DESC | Default sort + date range filter |
-| idx_audit_logs_actor_id | actor_id | Filter by actor |
-| idx_audit_logs_entity | entity_type, entity_id | Filter by entity |
-| idx_audit_logs_warehouse_id | warehouse_id | Filter by warehouse (RBAC) |
+| idx_audit_logs_timestamp | timestamp DESC | Default newest-first list |
+| idx_audit_logs_actor_id | actor_id | Actor lookups |
+| idx_audit_logs_entity | entity_type, entity_id | Entity detail/history lookup |
+| idx_audit_logs_warehouse_id | warehouse_id | Warehouse filter |
+| idx_audit_logs_warehouse_timestamp | warehouse_id, timestamp DESC | Warehouse + time filter |
+| idx_audit_actor_role | actor_role | Role filter/debugging |
 
 ### Validation Rules
 
-- `actor` must reference a valid, existing user — NOT NULL
-- `actorRole` must be a valid role string from UserRole enum
-- `action` must be one of the AuditAction enum values
-- `entityType` must be one of the defined business entity types (see enum below)
-- `description` is auto-generated, never user-supplied
-- `oldValue` / `newValue` must never contain `password_hash` or credential fields
-
-### Entity Types (Enum: AuditEntityType)
-
-| Value | Mô tả |
-|-------|--------|
-| RECEIPT | Phiếu nhập kho |
-| ISSUE | Phiếu xuất kho |
-| TRANSFER | Phiếu điều chuyển liên kho |
-| ADJUSTMENT | Phiếu điều chỉnh tồn kho |
-| STOCKTAKE | Phiếu kiểm kê |
-| DELIVERY_ORDER | Đơn giao hàng |
-| BATCH | Lô hàng |
-| INVENTORY | Tồn kho (quantity changes) |
-| RETURN | Phiếu trả hàng |
-| SCRAP_DISPOSAL | Phiếu hủy/thanh lý |
-| TRIP | Chuyến xe giao hàng |
+- `actor_id` must reference an authenticated user.
+- `action` must match the audit action enum.
+- `old_value` and `new_value` must contain only changed fields.
+- Sensitive fields must be omitted from `old_value` and `new_value`.
+- AuditLog cannot be updated or deleted.
 
 ---
 
-## DTO: AuditLogResponse
+## DTO: AuditLogListItemResponse
 
-Response DTO for `GET /api/v1/audit-logs`:
+Used by the existing Audit Trail table in `UserManagement`.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| id | Long | Row key |
+| timestamp | String | ISO 8601 |
+| actorId | Long | |
+| actorName | String | From actor full name |
+| actorRole | String | Snapshot role |
+| action | String | Enum value from DB |
+| entityType | String | |
+| entityId | Long | |
+| description | String | Table summary text |
+| warehouseId | Long | Nullable |
+| warehouseCode | String | Nullable display value |
+
+## DTO: AuditLogDetailResponse
+
+Returned when the user opens detail for a row.
 
 | Field | Type | Notes |
 |-------|------|-------|
 | id | Long | |
+| timestamp | String | ISO 8601 |
 | actorId | Long | |
-| actorName | String | Resolved from actor.fullName |
+| actorName | String | |
 | actorRole | String | |
 | action | String | |
 | entityType | String | |
 | entityId | Long | |
 | description | String | |
 | warehouseId | Long | Nullable |
-| oldValue | Map<String, Object> | Parsed from JSONB |
-| newValue | Map<String, Object> | Parsed from JSONB |
-| timestamp | OffsetDateTime | ISO 8601 format |
-| ipAddress | String | |
+| warehouseCode | String | Nullable |
+| oldValue | Map<String, Object> | Changed fields before values |
+| newValue | Map<String, Object> | Changed fields after values |
+| ipAddress | String | Nullable |
 
 ## DTO: AuditLogPageResponse
 
-Cursor-based page wrapper:
-
 | Field | Type | Notes |
 |-------|------|-------|
-| data | List<AuditLogResponse> | |
-| nextCursor | Long | ID of last entry, null if no more pages |
-| hasNext | Boolean | |
+| data | List<AuditLogListItemResponse> | Current page rows |
+| page | Integer | 1-based page number |
+| pageSize | Integer | Defaults to 30 |
+| hasNext | Boolean | True if another page is available |
+| hasPrevious | Boolean | True if page > 1 |
+| requiresFilterForOlder | Boolean | True when user reaches page 50 without filters |
 
 ---
 
-## Special Business Rule: Transfer → 2 Entries
+## Frontend View Model
 
-When a Transfer is created/shipped/received, the system creates **2 audit log entries**:
+### Existing Table Columns
 
-1. **Source warehouse entry**: `warehouse_id = source`, action reflects outbound context
-2. **Destination warehouse entry**: `warehouse_id = destination`, action reflects inbound context
+The existing frontend table can be retained with these columns:
 
-This ensures warehouse managers only see audit entries relevant to their assigned warehouses.
+| Column | Source Field |
+|--------|--------------|
+| Thời gian | `timestamp` |
+| Người thực hiện | `actorName` |
+| Thao tác | `action` |
+| Chi tiết đối tượng | `entityType`, `entityId` |
+| Nội dung | `description` |
+
+### Detail View
+
+Opening a row loads `GET /api/v1/audit-logs/{id}` and renders:
+
+- Header metadata: timestamp, actor, role, action, entity, warehouse, IP address.
+- Changed fields table: field name, before value, after value.
+- Empty changed fields state for actions where old/new values are not applicable, such as `LOGIN` and `LOGOUT`.

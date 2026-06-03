@@ -1,83 +1,93 @@
-# Quickstart: Audit Logging Backend
+# Quickstart: System Audit Logging
 
 **Feature**: System Audit Logging
 **Date**: 2026-06-03
 
 ---
 
-## What Does This Feature Do?
+## What This Feature Does
 
-Automatically records all warehouse business operations (create receipt, approve transfer, adjust inventory, etc.) into an immutable audit log table. Provides a paginated API for Admin, CEO, Warehouse Manager, and Accountant to search and review activity history.
+Records user-driven changes in an immutable audit log and exposes the logs to System Admin through the existing Audit Trail tab in `UserManagement`.
 
-## Architecture Overview
+CEO and all non-admin roles cannot view audit logs.
 
-```
-┌─────────────────────────────────────────────────────────┐
-│  Service Layer (e.g., ReceiptService, TransferService)  │
-│  Calls AuditLogService.log() after business operations  │
-└────────────────────────┬────────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────┐
-│              AuditLogService (@Service)                  │
-│  - Resolves actor from SecurityContext                  │
-│  - Auto-generates description                           │
-│  - Filters sensitive fields from diff                   │
-│  - Persists AuditLog entity                             │
-└────────────────────────┬────────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────┐
-│          AuditLogRepository (@Repository)                │
-│  - Cursor-based pagination queries                      │
-│  - Date range + filter queries                          │
-└────────────────────────┬────────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────┐
-│              AuditLogController (@RestController)        │
-│  GET /api/v1/audit-logs                                 │
-│  - Query params: cursor, size, filters, date range      │
-│  - RBAC: ADMIN, CEO, WAREHOUSE_MANAGER, ACCOUNTANT      │
-└─────────────────────────────────────────────────────────┘
+## Backend Flow
+
+```text
+Business Service
+  -> AuditLogService (@Service singleton)
+      -> filters sensitive fields
+      -> stores field-level old/new diffs
+      -> AuditLogRepository
+          -> audit_logs table
 ```
 
-## Files to Create/Modify
+`AuditLogService` is a normal Spring singleton bean. Do not implement it as a static global object.
 
-### New Files
+## Frontend Flow
 
-| File | Purpose |
-|------|---------|
-| `enums/AuditEntityType.java` | Enum for loggable entity types |
-| `dto/AuditLogResponse.java` | Response DTO with actorName |
-| `dto/AuditLogPageResponse.java` | Cursor-based page wrapper |
-| `repository/AuditLogRepository.java` | JPA repository + custom cursor queries |
-| `service/AuditLogService.java` | Log creation + query service |
-| `controller/AuditLogController.java` | REST endpoint |
+```text
+UserManagement.jsx
+  -> Audit Trail tab
+      -> adminService.getAuditLogs({ page, pageSize, from, to, warehouseId })
+      -> Table rows sorted newest first
+      -> row click / detail button
+          -> adminService.getAuditLogById(id)
+          -> Modal/Drawer with before/after changed fields
+```
 
-### Modified Files
+Do not create a standalone audit route for this feature. Keep the UI inside the existing user management screen.
+
+## Files to Create or Modify
+
+### Backend
 
 | File | Change |
 |------|--------|
-| `entity/AuditLog.java` | Add `description`, `warehouse` FK, make `actor` NOT NULL, add `actorRole` NOT NULL |
+| `entity/AuditLog.java` | Map current `audit_logs` schema and immutable behavior assumptions |
+| `enums/AuditAction.java` | Ensure enum matches DB action values |
+| `dto/AuditLogListItemResponse.java` | List row DTO |
+| `dto/AuditLogDetailResponse.java` | Detail DTO with old/new values |
+| `dto/AuditLogPageResponse.java` | Page wrapper |
+| `repository/AuditLogRepository.java` | Read queries and insert support |
+| `service/AuditLogService.java` | Singleton logging entry point and query logic |
+| `controller/AuditLogController.java` | `GET /api/v1/audit-logs`, `GET /api/v1/audit-logs/{id}` |
 
-## How to Test
+### Frontend
+
+| File | Change |
+|------|--------|
+| `frontend/src/pages/Admin/UserManagement.jsx` | Keep audit tab; add pagination controls, optional filters, and detail modal/drawer |
+| `frontend/src/services/admin.service.js` | Add query params to `getAuditLogs`; add `getAuditLogById` |
+| `frontend/src/components/common/Table.jsx` | Reuse as-is unless pagination controls are intentionally generalized |
+
+## Manual API Checks
 
 ```bash
-# 1. Start backend
-cd backend && mvn spring-boot:run
-
-# 2. Call audit log API (requires JWT)
-curl -H "Authorization: Bearer <token>" \
-  "http://localhost:8080/api/v1/audit-logs?size=30&startDate=2026-05-27&endDate=2026-06-03"
-
-# 3. Run tests
-mvn test -pl backend -Dtest="AuditLog*"
+cd backend
+mvn test
 ```
 
-## Key Design Decisions
+```bash
+curl -H "Authorization: Bearer <admin-token>" \
+  "http://localhost:8080/api/v1/audit-logs?page=1&pageSize=30"
+```
 
-1. **AOP not used initially**: AuditLogService.log() is called explicitly from service methods. This gives more control over what data to diff and when to create entries (e.g., Transfer → 2 entries).
-2. **Cursor-based pagination**: Uses `id` (BIGSERIAL) as cursor for O(1) pagination performance.
-3. **Diff-only JSONB**: Only changed fields are stored, reducing storage and improving readability.
-4. **Immutable entries**: No UPDATE/DELETE API or repository methods exist for audit logs.
+```bash
+curl -H "Authorization: Bearer <admin-token>" \
+  "http://localhost:8080/api/v1/audit-logs?from=2026-06-01&to=2026-06-03&warehouseId=1&page=1&pageSize=30"
+```
+
+```bash
+curl -H "Authorization: Bearer <admin-token>" \
+  "http://localhost:8080/api/v1/audit-logs/1234"
+```
+
+## Expected Behavior
+
+- Page 1 returns 30 newest logs.
+- Unfiltered page 51 returns `QUERY_RANGE_TOO_LARGE`.
+- Filtered older queries are allowed.
+- Non-admin users, including CEO, receive `FORBIDDEN_AUDIT_ACCESS`.
+- Detail view shows before/after changed fields and omits sensitive fields.
+- Audit log rows cannot be updated or deleted after creation.

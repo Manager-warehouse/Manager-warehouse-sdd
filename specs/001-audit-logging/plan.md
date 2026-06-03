@@ -1,6 +1,6 @@
-# Implementation Plan: System Audit Logging (Backend)
+# Implementation Plan: System Audit Logging
 
-**Branch**: `001-audit-logging` | **Date**: 2026-06-03 | **Spec**: [feature-system-audit-logging.md](file:///d:/Git/Manager-warehouse-sdd/.sdd/specs/001-security-auth-rbac-audit/features/feature-system-audit-logging.md)
+**Branch**: `001-audit-logging` | **Date**: 2026-06-03 | **Spec**: [.sdd/specs/001-security-auth-rbac-audit/features/feature-system-audit-logging.md](../../.sdd/specs/001-security-auth-rbac-audit/features/feature-system-audit-logging.md)
 
 **Input**: Feature specification from `.sdd/specs/001-security-auth-rbac-audit/features/feature-system-audit-logging.md`
 
@@ -8,97 +8,112 @@
 
 ## Summary
 
-Implement the backend audit logging infrastructure for WMS Phúc Anh. The system will record all warehouse business operations (receipt, issue, transfer, adjustment, stocktake, delivery, batch, inventory, return, scrap/disposal, trip) into an immutable `audit_logs` table. A cursor-based paginated REST API (`GET /api/v1/audit-logs`) will enable Admin, CEO, Warehouse Manager, and Accountant to search and review audit history with date range, entity, action, actor, and warehouse filters.
+Implement immutable system audit logging for user-driven changes across WMS. The backend records field-level diffs through a Spring singleton `AuditLogService` and exposes read-only audit APIs. The frontend keeps the existing Audit Trail tab inside `UserManagement`, adds backend pagination design, optional time/warehouse filters, and a detail view for before/after field changes.
+
+Only `System Admin` (`ADMIN`) can view audit logs. `CEO` and all other roles are forbidden.
 
 ## Technical Context
 
-**Language/Version**: Java 21 + Spring Boot 3.4.5 (Maven)
+**Language/Version**: Java 21 + Spring Boot 3.4.5 (Maven), React 18 + JavaScript
 
-**Primary Dependencies**: Spring Data JPA, Spring Web, Spring Security (JWT), Jackson (JSON), Jakarta Validation
+**Primary Dependencies**: Spring Data JPA, Spring Web, Spring Security JWT, Jackson JSON, Jakarta Validation, Tailwind CSS 3.x
 
-**Storage**: PostgreSQL 18 — table `audit_logs` already defined in `V1__init_schema.sql`
+**Storage**: PostgreSQL 18, Flyway table `audit_logs`
 
-**Testing**: JUnit 5 + Mockito (unit tests), Spring Boot Test (integration tests)
+**Testing**: JUnit 5 + Mockito, Spring Boot Test, Jest for frontend behavior where added
 
-**Target Platform**: Web service (REST API)
+**Target Platform**: Full-stack web application
 
-**Project Type**: Full-stack web application (backend focus for this plan)
+**Project Type**: Backend REST API + existing React admin UI tab
 
-**Performance Goals**: Audit log query p95 ≤ 2s for last 90 days (NFR-002)
+**Performance Goals**: Audit log query p95 <= 2s for last 90 days; default page size 30 logs
 
-**Constraints**: Immutable entries (no UPDATE/DELETE), permanent retention, max 300 lines/file, max 40 lines/function
+**Constraints**: Append-only audit log, no UPDATE/DELETE after creation, no sensitive fields in log, no production `console.log`/`System.out`, max 300 lines/file and 40 lines/function where feasible
 
-**Scale/Scope**: ~1000 transactions/month across 3 warehouses
+**Scale/Scope**: WMS operations across 3 warehouses; default unfiltered browsing window is 50 pages (1,500 newest logs)
 
 ## Constitution Check
 
-*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
-
 | Principle | Status | Notes |
 |-----------|--------|-------|
-| I. Layered Architecture | ✅ PASS | Controller → Service → Repository → Entity |
-| II. Inventory Integrity | ✅ N/A | Audit logging does not modify inventory |
-| III. FEFO/FIFO | ✅ N/A | Not applicable to audit feature |
-| IV. QC Gate | ✅ N/A | Not applicable to audit feature |
-| V. In-Transit Tracking | ✅ N/A | Not applicable to audit feature |
-| VI. Auth & RBAC | ✅ PASS | JWT auth required. RBAC enforced: Admin/CEO = all, Manager = own warehouse, Accountant = all |
-| VII. Test Coverage | ✅ PLANNED | Min 80% for AuditLogService. Unit + integration tests planned |
-| Tech Stack | ✅ PASS | Spring Boot 3.4.5 + Java 21 + PostgreSQL + JPA |
-| Code Quality | ✅ PLANNED | 40 lines/function, 300 lines/file, no TODO, no System.out |
+| I. Layered Architecture | PASS | Controller -> Service -> Repository -> Entity |
+| II. Inventory Integrity | PASS | Audit logging records inventory operations but does not mutate inventory directly |
+| III. FEFO/FIFO | N/A | No batch selection logic in audit query feature |
+| IV. QC Gate | PASS | QC state changes are logged; QC gate is not bypassed |
+| V. In-Transit Tracking | PASS | Transfer state changes are logged; transfer flow remains unchanged |
+| VI. Auth & RBAC | PASS | Only ADMIN may view audit logs; warehouse filter is optional for search |
+| VII. Test Coverage | PLANNED | Service and controller tests required for log creation, immutability assumptions, RBAC, pagination, and filters |
+| Tech Stack | PASS | Uses required Spring Boot, JPA, PostgreSQL, React, Tailwind stack |
+| Code Quality | PLANNED | Singleton is Spring `@Service`, not static/global mutable state |
 
-**Gate Result**: ✅ ALL PASSED — No violations.
+**Gate Result**: PASS. No constitution violation.
 
 ## Project Structure
 
-### Documentation (this feature)
+### Documentation
 
 ```text
 specs/001-audit-logging/
-├── plan.md              # This file
-├── research.md          # Phase 0 output — all decisions documented
-├── data-model.md        # Phase 1 output — entity, DTOs, indexes
-├── quickstart.md        # Phase 1 output — architecture + how to run
+├── plan.md
+├── research.md
+├── data-model.md
+├── quickstart.md
 ├── contracts/
-│   └── audit-log-api.md # Phase 1 output — REST API contract
-└── tasks.md             # Phase 2 output (created by /speckit-tasks)
+│   └── audit-log-api.md
+└── tasks.md
 ```
 
-### Source Code (backend)
+### Backend Design
 
 ```text
 backend/src/main/java/com/wms/
 ├── entity/
-│   └── AuditLog.java              # MODIFY — add description, warehouse FK, NOT NULL constraints
+│   └── AuditLog.java
 ├── enums/
-│   ├── AuditAction.java           # EXISTS — no changes needed
-│   └── AuditEntityType.java       # NEW — enum for loggable entity types
+│   └── AuditAction.java
 ├── dto/
-│   ├── AuditLogResponse.java      # NEW — response DTO with actorName
-│   └── AuditLogPageResponse.java  # NEW — cursor-based page wrapper
+│   ├── AuditLogResponse.java
+│   ├── AuditLogDetailResponse.java
+│   └── AuditLogPageResponse.java
 ├── repository/
-│   └── AuditLogRepository.java    # NEW — JPA repo + custom cursor-based queries
+│   └── AuditLogRepository.java
 ├── service/
-│   └── AuditLogService.java       # NEW — log creation + paginated query logic
-├── controller/
-│   └── AuditLogController.java    # NEW — GET /api/v1/audit-logs endpoint
-└── util/
-    └── AuditLogUtil.java          # NEW — sensitive field filter + diff builder
-
-backend/src/test/java/com/wms/
-├── service/
-│   └── AuditLogServiceTest.java   # NEW — unit tests (>= 80% coverage)
-├── controller/
-│   └── AuditLogControllerTest.java # NEW — integration tests (happy + error paths)
-└── repository/
-    └── AuditLogRepositoryTest.java # NEW — query tests with cursor pagination
+│   └── AuditLogService.java
+└── controller/
+    └── AuditLogController.java
 ```
 
-**Structure Decision**: Follows existing Spring Boot layered architecture. No new packages needed — all files go into existing package structure.
+**Backend Decision**: `AuditLogService` is a Spring singleton `@Service`. Business services call it after successful user-driven changes. It is not a static singleton and it does not bypass layered architecture.
+
+### Frontend Design
+
+```text
+frontend/src/pages/Admin/UserManagement.jsx
+├── existing users tab
+└── existing auditLogs tab
+    ├── audit log table
+    ├── page controls
+    ├── optional time/warehouse filters
+    └── detail modal/drawer for changed fields
+
+frontend/src/services/admin.service.js
+└── getAuditLogs(params), getAuditLogById(id)
+```
+
+**Frontend Decision**: Keep Audit Trail as a tab inside `UserManagement`. Do not create a standalone route. Reuse the existing `Table`, `Badge`, `Input`, `Button`, and `Modal` components.
 
 ## Complexity Tracking
 
-> No constitution violations — this section is empty.
+No constitution violations.
 
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 |-----------|------------|--------------------------------------|
-| — | — | — |
+| - | - | - |
+
+## Phase 0 Output
+
+See [research.md](research.md).
+
+## Phase 1 Output
+
+See [data-model.md](data-model.md), [contracts/audit-log-api.md](contracts/audit-log-api.md), and [quickstart.md](quickstart.md).

@@ -1,72 +1,101 @@
-# Research: Audit Logging Backend
+# Research: System Audit Logging
 
 **Feature**: System Audit Logging
 **Date**: 2026-06-03
-**Status**: Complete — All unknowns resolved via user clarification
+**Status**: Complete
 
 ---
 
-## R1: Audit Log Scope (Which entities to log?)
+## R1: Audit Log Scope
 
-**Decision**: Log only warehouse business entities — documents/orders and inventory changes.
-**Rationale**: User confirmed they only need traceability for warehouse operations, not master data or auth events.
-**Alternatives considered**: Log all entities (rejected — too much noise), log only documents (rejected — need inventory quantity changes too).
+**Decision**: Audit every user-driven action that changes data or state in the system.
 
-**Entity types**: RECEIPT, ISSUE, TRANSFER, ADJUSTMENT, STOCKTAKE, DELIVERY_ORDER, BATCH, INVENTORY, RETURN, SCRAP_DISPOSAL, TRIP.
+**Rationale**: The audit log is a system-wide trail for operational accountability. It includes authentication state changes such as login/logout and domain changes across RBAC, configuration, master data, warehouse operations, finance, returns, scrap, and disposal.
 
-## R2: Diff-only JSONB vs Full Snapshot
+**Alternatives considered**:
+- Warehouse-only audit: rejected because user requested audit for all changes in the system.
+- Include read/export events: rejected because user explicitly said view and export actions do not need audit entries.
 
-**Decision**: Store only changed fields in `old_value` / `new_value` (diff-only approach).
-**Rationale**: Reduces storage, clearer audit trail showing exactly what changed.
-**Alternatives considered**: Full object snapshot before/after (rejected — bloats JSONB, harder to read), single `changes` column with `{field: {from, to}}` format (rejected — user prefers keeping 2 separate columns).
+## R2: Changed Field Storage
 
-**Sensitive field exclusion**: `password_hash` and credential fields must be stripped before serialization.
+**Decision**: Store field-level diffs only in `old_value` and `new_value`.
 
-## R3: Pagination Strategy
+**Rationale**: Diff-only JSONB is smaller and easier for the frontend detail view to render as a before/after table.
 
-**Decision**: Cursor-based pagination using `id` as cursor, sorted by `timestamp DESC`.
-**Rationale**: Better performance than offset-based for large datasets. ID-based cursor is monotonically increasing and correlates with timestamp order.
-**Alternatives considered**: Offset-based (rejected — performance degrades with large offsets), timestamp-based cursor (rejected — potential duplicates at same millisecond).
+**Alternatives considered**:
+- Full object snapshots: rejected because unchanged fields add noise and storage cost.
+- Single `changes` object: rejected because the existing schema already has `old_value` and `new_value`.
 
-**Default page size**: 30 records.
+## R3: Sensitive Data Handling
 
-## R4: Date Range Filtering
+**Decision**: Sensitive fields are omitted from audit logs.
 
-**Decision**: Accept `startDate` and `endDate` as `LocalDate` from frontend. Backend converts `endDate` to `endDate.atTime(23, 59, 59)`. Default: last 7 days.
-**Rationale**: Frontend typically works with dates, not timestamps. Backend handles time boundary.
-**Alternatives considered**: Accept full ISO timestamp (rejected — adds frontend complexity for common use case).
+**Rationale**: Audit logs are widely useful for investigation and must never become a secondary store for credentials or secrets.
 
-## R5: actor_id Nullability
+**Sensitive examples**: `password`, `passwordHash`, `password_hash`, `accessToken`, `refreshToken`, `jwt`, `secret`, `apiKey`, `credentials`.
 
-**Decision**: `actor_id` is NOT NULL. No system jobs exist.
-**Rationale**: All actions in WMS Phúc Anh are user-initiated. No background/scheduled jobs modify business data.
-**Alternatives considered**: Keep nullable for future system jobs (rejected by user — YAGNI).
+## R4: Actor Model
 
-## R6: Transfer Creates 2 Entries
+**Decision**: Every audit log entry references the authenticated user as `actor_id`.
 
-**Decision**: A transfer operation creates 2 audit log entries — one for source warehouse (outbound) and one for destination warehouse (inbound).
-**Rationale**: Enables warehouse-scoped filtering. Each warehouse manager sees relevant activity for their warehouse.
-**Alternatives considered**: Single entry with both warehouse IDs (rejected — breaks single warehouse_id FK model), single entry with source warehouse only (rejected — destination warehouse manager loses visibility).
+**Rationale**: The user confirmed the system does not perform autonomous business actions. No background/system actor is needed for this feature.
 
-## R7: Description Auto-Generation
+**Alternatives considered**:
+- Nullable actor for system jobs: rejected as unnecessary for current WMS behavior.
 
-**Decision**: System auto-generates `description` field using format: `{ACTION} {ENTITY_TYPE} {ENTITY_CODE}`.
-**Rationale**: Consistent, predictable format. No human input needed.
-**Examples**: "CREATE RECEIPT PN-2026-001", "APPROVE TRANSFER TC-2026-003".
+## R5: View Access
 
-## R8: Access Control for Audit Log API
+**Decision**: Only System Admin (`ADMIN`) can view audit logs. CEO cannot view audit logs.
 
-**Decision**: ADMIN and CEO see all logs. WAREHOUSE_MANAGER sees only logs for assigned warehouses. ACCOUNTANT sees all logs.
-**Rationale**: Matches RBAC isolation principle. Warehouse managers are scoped to their warehouses. Accountants need cross-warehouse visibility for reconciliation.
+**Rationale**: User explicitly clarified that CEO should not see logs. This also matches the current frontend protected route for `UserManagement`, which allows only `ROLES.ADMIN`.
 
-## R9: Immutability & Retention
+**Alternatives considered**:
+- CEO and Admin full access: rejected by user clarification.
+- Warehouse Manager scoped access: rejected because audit log viewing is Admin-only.
 
-**Decision**: Audit logs are immutable (no UPDATE, no DELETE). Retained permanently — no archival, no purging.
-**Rationale**: Regulatory and business requirement. Minimum 5-year retention but no mechanism to delete after that.
-**Implementation**: No DELETE/UPDATE endpoints. Database-level could use REVOKE UPDATE, DELETE on audit_logs table in production.
+## R6: Frontend Placement
 
-## R10: AOP vs Manual Logging
+**Decision**: Keep audit log UI as the existing Audit Trail tab inside `UserManagement`.
 
-**Decision**: Use Spring AOP (`@Aspect`) for cross-cutting audit log creation with an `@Auditable` annotation.
-**Rationale**: Avoids scattering audit log calls throughout service methods. Clean separation of concerns. AOP directory already exists in project structure.
-**Alternatives considered**: Manual service calls in each method (rejected — violates DRY, easy to forget), Hibernate Envers (rejected — overkill, limited flexibility for diff-only and description format), JPA Entity Listeners (rejected — limited access to HTTP context like IP address and actor).
+**Rationale**: The frontend already has a table-based audit tab in `frontend/src/pages/Admin/UserManagement.jsx`; user requested not to redesign it as a separate page.
+
+**Alternatives considered**:
+- New `/admin/audit-logs` route: rejected because user wants to follow existing frontend structure.
+
+## R7: Pagination Strategy
+
+**Decision**: Use page-based pagination: 30 logs per page, newest first, up to 50 unfiltered pages.
+
+**Rationale**: User specified 30 logs per page, newest first, and a default 50-page browsing window. Page-based controls fit the existing table UI better than cursor-only infinite loading.
+
+**Rule**: Requests beyond page 50 require at least one narrowing filter, such as time range or warehouse.
+
+**Alternatives considered**:
+- Cursor pagination: rejected for this feature because the frontend requirement is page navigation with a default page window.
+
+## R8: Audit Detail View
+
+**Decision**: Add a detail modal/drawer from the audit table row.
+
+**Rationale**: The table should stay scan-friendly while the detail view shows field-level before/after values without overcrowding columns.
+
+**UI content**: timestamp, actor, role, action, entity, warehouse, description, IP address, and changed fields rendered as before/after rows.
+
+## R9: Singleton Logging Object
+
+**Decision**: Implement logging through a Spring singleton `AuditLogService`.
+
+**Rationale**: Spring `@Service` beans are singleton by default and comply with the required Controller -> Service -> Repository -> Entity architecture. This avoids static global state while giving all business services one consistent logging entry point.
+
+**Alternatives considered**:
+- Static singleton/global logger: rejected because it is harder to test and bypasses dependency injection.
+- Hibernate Envers: rejected because the system needs custom action categories, sensitive-field omission, and frontend-friendly diff-only data.
+- AOP-only logging: deferred because service-level calls provide clearer control over domain timing and before/after values in Sprint 1.
+
+## R10: Immutability
+
+**Decision**: Audit logs are append-only and immutable at database and application levels.
+
+**Rationale**: The feature requires that no one, including System Admin, can edit or delete existing log entries.
+
+**Implementation direction**: No update/delete endpoints, repository methods only for insert/read, and DB trigger preventing `UPDATE`/`DELETE` on `audit_logs`.

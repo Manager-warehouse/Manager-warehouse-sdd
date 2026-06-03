@@ -1,26 +1,34 @@
 package com.wms.service;
 
+import com.wms.dto.AuditLogDetailResponse;
+import com.wms.dto.AuditLogListItemResponse;
 import com.wms.dto.AuditLogPageResponse;
-import com.wms.dto.AuditLogResponse;
 import com.wms.entity.AuditLog;
 import com.wms.entity.User;
 import com.wms.entity.Warehouse;
 import com.wms.enums.AuditAction;
-import com.wms.enums.UserRole;
 import com.wms.repository.AuditLogRepository;
 import com.wms.util.AuditLogUtil;
+import jakarta.persistence.criteria.Predicate;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
-import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -30,9 +38,10 @@ public class AuditLogService {
     private static final Logger log =
             LoggerFactory.getLogger(AuditLogService.class);
 
+    private static final int DEFAULT_PAGE = 1;
     private static final int DEFAULT_PAGE_SIZE = 30;
-    private static final int MAX_PAGE_SIZE = 100;
-    private static final int DEFAULT_DATE_RANGE_DAYS = 7;
+    private static final int MAX_PAGE_SIZE = 30;
+    private static final int MAX_UNFILTERED_PAGE = 50;
 
     private final AuditLogRepository auditLogRepository;
     private final HttpServletRequest httpServletRequest;
@@ -43,10 +52,18 @@ public class AuditLogService {
         this.httpServletRequest = httpServletRequest;
     }
 
-    /**
-     * Creates an immutable audit log entry for a warehouse operation.
-     * Called by other services after business operations complete.
-     */
+    @Transactional
+    public void log(AuditAction action,
+                    String entityType,
+                    Long entityId,
+                    String description,
+                    Long warehouseId,
+                    Map<String, Object> oldValue,
+                    Map<String, Object> newValue) {
+        log(resolveCurrentActor(), action, entityType, entityId, description,
+                warehouseId, oldValue, newValue);
+    }
+
     @Transactional
     public void log(User actor,
                     AuditAction action,
@@ -56,11 +73,59 @@ public class AuditLogService {
                     Long warehouseId,
                     Map<String, Object> oldValue,
                     Map<String, Object> newValue) {
+        String description = AuditLogUtil.generateDescription(
+                action, entityType, entityCode);
+        log(actor, action, entityType, entityId, description,
+                warehouseId, oldValue, newValue);
+    }
 
-        Map<String, Object> filteredOld =
-                AuditLogUtil.filterSensitiveFields(oldValue);
-        Map<String, Object> filteredNew =
-                AuditLogUtil.filterSensitiveFields(newValue);
+    @Transactional(readOnly = true)
+    public AuditLogPageResponse getAuditLogs(
+            Integer page,
+            Integer pageSize,
+            String from,
+            String to,
+            Long warehouseId) {
+
+        int resolvedPage = resolvePage(page);
+        int resolvedPageSize = resolvePageSize(pageSize);
+        OffsetDateTime fromTime = parseBoundary(from, true);
+        OffsetDateTime toTime = parseBoundary(to, false);
+        validateDateRange(fromTime, toTime);
+
+        boolean hasFilter = fromTime != null || toTime != null || warehouseId != null;
+        if (!hasFilter && resolvedPage > MAX_UNFILTERED_PAGE) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "QUERY_RANGE_TOO_LARGE");
+        }
+
+        Page<AuditLog> result = auditLogRepository.findAll(
+                buildSpecification(fromTime, toTime, warehouseId),
+                PageRequest.of(resolvedPage - 1, resolvedPageSize,
+                        Sort.by(Sort.Direction.DESC, "timestamp")));
+
+        return buildPageResponse(result, resolvedPage, resolvedPageSize, !hasFilter);
+    }
+
+    @Transactional(readOnly = true)
+    public AuditLogDetailResponse getAuditLogById(Long id) {
+        AuditLog auditLog = auditLogRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "AUDIT_LOG_NOT_FOUND"));
+        return AuditLogDetailResponse.from(auditLog);
+    }
+
+    private void log(User actor,
+                     AuditAction action,
+                     String entityType,
+                     Long entityId,
+                     String description,
+                     Long warehouseId,
+                     Map<String, Object> oldValue,
+                     Map<String, Object> newValue) {
+        if (actor == null) {
+            throw new IllegalStateException("Audit actor is required");
+        }
 
         AuditLog entry = new AuditLog();
         entry.setActor(actor);
@@ -68,155 +133,120 @@ public class AuditLogService {
         entry.setAction(action);
         entry.setEntityType(entityType);
         entry.setEntityId(entityId);
-        entry.setDescription(AuditLogUtil.generateDescription(
-                action, entityType, entityCode));
-
-        if (warehouseId != null) {
-            Warehouse wh = new Warehouse();
-            wh.setId(warehouseId);
-            entry.setWarehouse(wh);
-        }
-
-        entry.setOldValue(AuditLogUtil.toJson(filteredOld));
-        entry.setNewValue(AuditLogUtil.toJson(filteredNew));
+        entry.setDescription(description);
+        entry.setWarehouse(toWarehouseReference(warehouseId));
+        entry.setOldValue(AuditLogUtil.toJson(
+                AuditLogUtil.filterSensitiveFields(oldValue)));
+        entry.setNewValue(AuditLogUtil.toJson(
+                AuditLogUtil.filterSensitiveFields(newValue)));
         entry.setIpAddress(resolveClientIp());
 
         auditLogRepository.save(entry);
-
         log.debug("Audit log created: {} {} {} (actor={})",
-                action, entityType, entityCode, actor.getId());
+                action, entityType, entityId, actor.getId());
     }
 
-    /**
-     * Queries audit logs with cursor-based pagination and filters.
-     * RBAC is enforced: WAREHOUSE_MANAGER sees only assigned warehouses.
-     */
-    @Transactional(readOnly = true)
-    public AuditLogPageResponse getAuditLogs(
-            Long cursor,
-            Integer size,
-            Long actorId,
-            String entityType,
-            String action,
-            Long warehouseId,
-            LocalDate startDate,
-            LocalDate endDate,
-            User currentUser,
-            List<Long> assignedWarehouseIds) {
-
-        int pageSize = resolvePageSize(size);
-        OffsetDateTime start = resolveStartTimestamp(startDate);
-        OffsetDateTime end = resolveEndTimestamp(endDate);
-
-        boolean isWarehouseScoped = isWarehouseScoped(currentUser);
-
-        List<AuditLog> results = fetchAuditLogs(
-                cursor, pageSize, actorId, entityType, action,
-                warehouseId, start, end,
-                isWarehouseScoped, assignedWarehouseIds);
-
-        return buildPageResponse(results, pageSize);
-    }
-
-    private List<AuditLog> fetchAuditLogs(
-            Long cursor, int pageSize,
-            Long actorId, String entityType, String action,
-            Long warehouseId,
-            OffsetDateTime start, OffsetDateTime end,
-            boolean isWarehouseScoped,
-            List<Long> assignedWarehouseIds) {
-
-        Pageable pageable = PageRequest.of(0, pageSize + 1);
-
-        if (isWarehouseScoped) {
-            return fetchWarehouseScopedLogs(
-                    cursor, actorId, entityType, action,
-                    start, end, assignedWarehouseIds, pageable);
-        }
-
-        return fetchAllLogs(
-                cursor, actorId, entityType, action,
-                warehouseId, start, end, pageable);
-    }
-
-    private List<AuditLog> fetchAllLogs(
-            Long cursor, Long actorId, String entityType,
-            String action, Long warehouseId,
-            OffsetDateTime start, OffsetDateTime end,
-            Pageable pageable) {
-
-        if (cursor == null) {
-            return auditLogRepository.findByFilters(
-                    start, end, actorId, entityType,
-                    action, warehouseId, pageable);
-        }
-        return auditLogRepository.findByCursorAndFilters(
-                cursor, start, end, actorId, entityType,
-                action, warehouseId, pageable);
-    }
-
-    private List<AuditLog> fetchWarehouseScopedLogs(
-            Long cursor, Long actorId, String entityType,
-            String action, OffsetDateTime start, OffsetDateTime end,
-            List<Long> assignedWarehouseIds, Pageable pageable) {
-
-        if (cursor == null) {
-            return auditLogRepository.findByFiltersAndWarehouseIds(
-                    start, end, actorId, entityType,
-                    action, assignedWarehouseIds, pageable);
-        }
-        return auditLogRepository
-                .findByCursorAndFiltersAndWarehouseIds(
-                        cursor, start, end, actorId, entityType,
-                        action, assignedWarehouseIds, pageable);
+    private Specification<AuditLog> buildSpecification(
+            OffsetDateTime from,
+            OffsetDateTime to,
+            Long warehouseId) {
+        return (root, query, builder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            if (from != null) {
+                predicates.add(builder.greaterThanOrEqualTo(
+                        root.get("timestamp"), from));
+            }
+            if (to != null) {
+                predicates.add(builder.lessThanOrEqualTo(
+                        root.get("timestamp"), to));
+            }
+            if (warehouseId != null) {
+                predicates.add(builder.equal(
+                        root.get("warehouse").get("id"), warehouseId));
+            }
+            return builder.and(predicates.toArray(new Predicate[0]));
+        };
     }
 
     private AuditLogPageResponse buildPageResponse(
-            List<AuditLog> results, int pageSize) {
-
-        boolean hasNext = results.size() > pageSize;
-
-        List<AuditLog> pageData = hasNext
-                ? results.subList(0, pageSize)
-                : results;
-
-        Long nextCursor = hasNext
-                ? pageData.get(pageData.size() - 1).getId()
-                : null;
-
-        List<AuditLogResponse> data = pageData.stream()
-                .map(AuditLogResponse::from)
+            Page<AuditLog> result,
+            int page,
+            int pageSize,
+            boolean unfiltered) {
+        List<AuditLogListItemResponse> data = result.getContent().stream()
+                .map(AuditLogListItemResponse::from)
                 .toList();
-
-        return new AuditLogPageResponse(data, nextCursor, hasNext);
+        boolean requiresFilter = unfiltered && page >= MAX_UNFILTERED_PAGE;
+        return new AuditLogPageResponse(
+                data, page, pageSize, result.hasNext(),
+                result.hasPrevious(), requiresFilter);
     }
 
-    private boolean isWarehouseScoped(User user) {
-        return user.getRole() == UserRole.WAREHOUSE_MANAGER;
+    private User resolveCurrentActor() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            throw new IllegalStateException("Authenticated actor is required");
+        }
+        Object principal = auth.getPrincipal();
+        if (principal instanceof User user) {
+            return user;
+        }
+        throw new IllegalStateException("Authenticated principal is not a User");
     }
 
-    private int resolvePageSize(Integer size) {
-        if (size == null || size <= 0) {
+    private Warehouse toWarehouseReference(Long warehouseId) {
+        if (warehouseId == null) {
+            return null;
+        }
+        Warehouse warehouse = new Warehouse();
+        warehouse.setId(warehouseId);
+        return warehouse;
+    }
+
+    private int resolvePage(Integer page) {
+        if (page == null || page < DEFAULT_PAGE) {
+            return DEFAULT_PAGE;
+        }
+        return page;
+    }
+
+    private int resolvePageSize(Integer pageSize) {
+        if (pageSize == null || pageSize <= 0) {
             return DEFAULT_PAGE_SIZE;
         }
-        return Math.min(size, MAX_PAGE_SIZE);
+        return Math.min(pageSize, MAX_PAGE_SIZE);
     }
 
-    private OffsetDateTime resolveStartTimestamp(LocalDate startDate) {
-        LocalDate date = (startDate != null)
-                ? startDate
-                : LocalDate.now().minusDays(DEFAULT_DATE_RANGE_DAYS);
-        return date.atStartOfDay(ZoneId.systemDefault())
-                .toOffsetDateTime();
+    private OffsetDateTime parseBoundary(String value, boolean startOfDay) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return OffsetDateTime.parse(value);
+        } catch (DateTimeParseException ignored) {
+            return parseDateBoundary(value, startOfDay);
+        }
     }
 
-    private OffsetDateTime resolveEndTimestamp(LocalDate endDate) {
-        LocalDate date = (endDate != null)
-                ? endDate
-                : LocalDate.now();
-        return date.atTime(LocalTime.of(23, 59, 59))
-                .atZone(ZoneId.systemDefault())
-                .toOffsetDateTime();
+    private OffsetDateTime parseDateBoundary(String value, boolean startOfDay) {
+        try {
+            LocalDate date = LocalDate.parse(value);
+            if (startOfDay) {
+                return date.atStartOfDay(ZoneId.systemDefault()).toOffsetDateTime();
+            }
+            return date.plusDays(1).atStartOfDay(ZoneId.systemDefault())
+                    .toOffsetDateTime().minusNanos(1);
+        } catch (DateTimeParseException e) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "INVALID_DATE_RANGE");
+        }
+    }
+
+    private void validateDateRange(OffsetDateTime from, OffsetDateTime to) {
+        if (from != null && to != null && from.isAfter(to)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "INVALID_DATE_RANGE");
+        }
     }
 
     private String resolveClientIp() {

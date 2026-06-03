@@ -12,7 +12,10 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class AuditLogPageResponse {
-    private List<AuditLogResponse> data;
-    private Long nextCursor;
+    private List<AuditLogListItemResponse> data;
+    private int page;
+    private int pageSize;
     private boolean hasNext;
+    private boolean hasPrevious;
+    private boolean requiresFilterForOlder;
 }

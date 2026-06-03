@@ -1,4 +1,4 @@
-# API Contract: Audit Logging
+# API Contract: System Audit Logging
 
 **Base URL**: `/api/v1`
 **Date**: 2026-06-03
@@ -7,29 +7,31 @@
 
 ## GET /api/v1/audit-logs
 
-Tra cứu nhật ký hoạt động hệ thống với cursor-based pagination.
+Returns audit logs for the Audit Trail tab in `UserManagement`.
 
 ### Authorization
 
-Roles: `ADMIN`, `CEO`, `WAREHOUSE_MANAGER`, `ACCOUNTANT`
+Allowed role: `ADMIN`
 
-**RBAC Rules:**
-- `ADMIN`, `CEO`: Full access — xem toàn bộ log.
-- `WAREHOUSE_MANAGER`: Auto-filter `warehouse_id` theo kho được phân công.
-- `ACCOUNTANT`: Full access — xem toàn bộ log.
+Forbidden roles: `CEO`, `WAREHOUSE_MANAGER`, `STOREKEEPER`, `WAREHOUSE_STAFF`, `ACCOUNTANT`, `ACCOUNTANT_MANAGER`, `PLANNER`, `DISPATCHER`, `DRIVER`, `REPORT_VIEWER`
 
 ### Query Parameters
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| cursor | Long | No | null | ID of last record from previous page. Null = first page |
-| size | Integer | No | 30 | Number of records per page. Min: 1, Max: 100 |
-| actorId | Long | No | null | Filter by actor user ID |
-| entityType | String | No | null | Filter by entity type (e.g., RECEIPT, TRANSFER) |
-| action | String | No | null | Filter by action (e.g., CREATE, APPROVE) |
-| warehouseId | Long | No | null | Filter by warehouse ID |
-| startDate | LocalDate (yyyy-MM-dd) | No | today - 7 days | Start date inclusive (00:00:00) |
-| endDate | LocalDate (yyyy-MM-dd) | No | today | End date inclusive (23:59:59.999999) |
+| page | Integer | No | 1 | 1-based page number |
+| pageSize | Integer | No | 30 | Fixed default page size. Max 30 for this UI |
+| from | ISO date/datetime | No | null | Start timestamp/date inclusive |
+| to | ISO date/datetime | No | null | End timestamp/date inclusive |
+| warehouseId | Long | No | null | Optional warehouse filter |
+
+### Rules
+
+- Results are always sorted by `timestamp DESC`.
+- Without `from`, `to`, or `warehouseId`, the API allows page 1 through page 50.
+- If `page > 50` and no filter is provided, return `QUERY_RANGE_TOO_LARGE`.
+- If `from` is after `to`, return `INVALID_DATE_RANGE`.
+- Read/list/export actions are not audit events and do not create audit rows.
 
 ### Response: 200 OK
 
@@ -38,68 +40,120 @@ Roles: `ADMIN`, `CEO`, `WAREHOUSE_MANAGER`, `ACCOUNTANT`
   "data": [
     {
       "id": 1234,
+      "timestamp": "2026-06-03T10:30:00+07:00",
       "actorId": 5,
-      "actorName": "Nguyễn Văn A",
-      "actorRole": "STOREKEEPER",
-      "action": "APPROVE",
-      "entityType": "RECEIPT",
+      "actorName": "Nguyễn Văn Admin",
+      "actorRole": "ADMIN",
+      "action": "UPDATE",
+      "entityType": "User",
       "entityId": 101,
-      "description": "APPROVE RECEIPT PN-2026-001",
+      "description": "UPDATE User 101",
       "warehouseId": 2,
-      "oldValue": {"status": "PENDING_APPROVAL"},
-      "newValue": {"status": "APPROVED"},
-      "timestamp": "2026-06-02T14:30:00+07:00",
-      "ipAddress": "192.168.1.100"
+      "warehouseCode": "HP-01"
     }
   ],
-  "nextCursor": 1233,
-  "hasNext": true
+  "page": 1,
+  "pageSize": 30,
+  "hasNext": true,
+  "hasPrevious": false,
+  "requiresFilterForOlder": false
 }
 ```
 
-### Response: 403 Forbidden
+### Response: 400 INVALID_DATE_RANGE
 
 ```json
 {
-  "error": "FORBIDDEN_ROLE",
-  "message": "You do not have permission to access audit logs",
+  "error": "INVALID_DATE_RANGE",
+  "message": "from must be before or equal to to",
+  "status": 400
+}
+```
+
+### Response: 400 QUERY_RANGE_TOO_LARGE
+
+```json
+{
+  "error": "QUERY_RANGE_TOO_LARGE",
+  "message": "Use time or warehouse filters to search older audit logs",
+  "status": 400
+}
+```
+
+### Response: 403 FORBIDDEN_AUDIT_ACCESS
+
+```json
+{
+  "error": "FORBIDDEN_AUDIT_ACCESS",
+  "message": "Only System Admin can access audit logs",
   "status": 403
 }
 ```
 
-### Cursor-based Pagination Logic
+---
 
-1. Client sends first request without `cursor`.
-2. Backend returns `data` sorted by `timestamp DESC` (effectively `id DESC`), `nextCursor` = last entry's `id`, `hasNext` = true/false.
-3. Client sends next request with `cursor = nextCursor`.
-4. Backend queries: `WHERE id < :cursor ORDER BY id DESC LIMIT :size`.
-5. Repeat until `hasNext = false`.
+## GET /api/v1/audit-logs/{id}
 
-### Date Range Backend Processing
+Returns detail for a single audit log row.
 
-```java
-// Default: last 7 days if no dates provided
-LocalDate start = (startDate != null) ? startDate : LocalDate.now().minusDays(7);
-LocalDate end = (endDate != null) ? endDate : LocalDate.now();
+### Authorization
 
-// Convert to timestamps for query
-OffsetDateTime startTimestamp = start.atStartOfDay(ZoneId.systemDefault()).toOffsetDateTime();
-OffsetDateTime endTimestamp = end.atTime(23, 59, 59).atZone(ZoneId.systemDefault()).toOffsetDateTime();
+Allowed role: `ADMIN`
+
+### Path Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| id | Long | Yes | Audit log ID |
+
+### Response: 200 OK
+
+```json
+{
+  "id": 1234,
+  "timestamp": "2026-06-03T10:30:00+07:00",
+  "actorId": 5,
+  "actorName": "Nguyễn Văn Admin",
+  "actorRole": "ADMIN",
+  "action": "UPDATE",
+  "entityType": "User",
+  "entityId": 101,
+  "description": "UPDATE User 101",
+  "warehouseId": 2,
+  "warehouseCode": "HP-01",
+  "oldValue": {
+    "fullName": "Nguyễn Văn A"
+  },
+  "newValue": {
+    "fullName": "Nguyễn Văn B"
+  },
+  "ipAddress": "192.168.1.100"
+}
+```
+
+### Response: 404 AUDIT_LOG_NOT_FOUND
+
+```json
+{
+  "error": "AUDIT_LOG_NOT_FOUND",
+  "message": "Audit log entry does not exist",
+  "status": 404
+}
 ```
 
 ---
 
-## Internal Contract: AuditLogService.log()
+## Internal Contract: AuditLogService
 
-This is the internal service method called by AOP or service layer to create audit entries.
+`AuditLogService` is a Spring singleton `@Service`. Domain services call it after successful user-driven state changes.
 
-### Method Signature
+### Method Shape
 
 ```java
 void log(AuditAction action,
          String entityType,
          Long entityId,
-         String entityCode,
+         String description,
          Long warehouseId,
          Map<String, Object> oldValue,
          Map<String, Object> newValue);
@@ -107,16 +161,8 @@ void log(AuditAction action,
 
 ### Behavior
 
-- Resolves `actor` and `actorRole` from SecurityContext (current authenticated user).
-- Auto-generates `description`: `"{action} {entityType} {entityCode}"`.
-- Resolves `ipAddress` from `HttpServletRequest`.
-- Filters out sensitive fields from `oldValue` / `newValue` before persisting.
-- Persists `AuditLog` entity.
-
-### Sensitive Fields Blacklist
-
-```java
-private static final Set<String> SENSITIVE_FIELDS = Set.of(
-    "passwordHash", "password_hash", "password", "refreshToken", "accessToken"
-);
-```
+- Resolve actor and role from `SecurityContext`.
+- Store only changed fields in `oldValue` and `newValue`.
+- Omit sensitive fields from both maps.
+- Save exactly one append-only `AuditLog` row per logged action.
+- Do not expose update/delete operations.
