@@ -3,8 +3,15 @@ package com.wms.entity;
 import jakarta.persistence.*;
 import java.time.OffsetDateTime;
 
+import lombok.*;
+
 @Entity
 @Table(name = "system_configs")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class SystemConfig {
 
     @Id

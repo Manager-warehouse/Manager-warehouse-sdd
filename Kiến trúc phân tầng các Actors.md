@@ -42,7 +42,6 @@
 
 **Nghiệp vụ:**
 
-- Phê duyệt các khoản chi/điều chỉnh tồn kho vượt định mức thẩm quyền Trưởng kho/Kế toán trưởng (> 100 triệu VNĐ).
 - Xem Dashboard quản trị cấp cao:
   - _"Tồn kho tổng hiện tại là bao nhiêu tiền?"_
   - _"Đại lý nào đang nợ quá hạn và nợ nhiều nhất?"_
@@ -50,7 +49,7 @@
   - _"Hiệu suất giao hàng đúng hạn (On-Time Delivery) có đảm bảo SLA không?"_
 - Phê duyệt các thay đổi cấu hình hệ thống quan trọng (thêm kho mới, thay đổi hạn mức công nợ Đại lý VIP).
 
-**User Stories liên quan:** US-WMS-01, US-WMS-04, US-WMS-13, US-WMS-18
+**User Stories liên quan:** US-WMS-01, US-WMS-18
 
 ---
 
@@ -62,7 +61,7 @@
 
 - Tạo, vô hiệu hóa tài khoản người dùng.
 - Phân quyền theo Vai trò (Role) và Chi nhánh Kho (RBAC): Đảm bảo nhân viên Kho Hải Phòng không xem được dữ liệu Kho Hà Nội; nhân viên kho không xem được báo cáo tài chính của Kế toán.
-- Cấu hình tham số hệ thống: Bảng định mức phê duyệt, Tồn kho tối thiểu, Kỳ hạn thanh toán mặc định.
+- Cấu hình tham số hệ thống: Hạn mức công nợ mặc định, Tồn kho tối thiểu mặc định, Kỳ hạn thanh toán mặc định, Ngày khóa kỳ kế toán hàng tháng.
 
 **User Stories liên quan:** US-WMS-01, US-WMS-21, US-WMS-22
 
@@ -77,9 +76,9 @@
 - Phê duyệt Phiếu nhập kho sau khi đối chiếu kết quả QC từ Nhân viên kho → Hệ thống tự động cộng tồn kho.
 - Phê duyệt Phiếu điều chuyển kho (kho nguồn): Kiểm tra tồn khả dụng trước khi duyệt.
 - Xác nhận nhận hàng điều chuyển (kho đích): Kiểm tra số lượng thực tế, ghi nhận chênh lệch nếu có.
-- Duyệt chênh lệch kiểm kê giá trị 5 – 100 triệu VNĐ.
+- Duyệt chênh lệch kiểm kê và phê duyệt điều chỉnh tồn kho thực tế.
 - Phê duyệt biên bản hàng lỗi tại Quarantine Zone, quyết định phương án xử lý (tiêu hủy hoặc trả hàng cho nhà cung cấp - NCC).
-- Phê duyệt phiếu xuất hủy hàng lỗi 5 – 100 triệu VNĐ.
+- Phê duyệt phiếu xuất hủy hàng lỗi.
 
 **User Stories liên quan:** US-WMS-04, US-WMS-05, US-WMS-12, US-WMS-13, US-WMS-24, US-WMS-25, US-WMS-26
 
@@ -346,14 +345,9 @@ Kế toán trưởng kiểm tra điều kiện → Chốt sổ kỳ T → CLOSED
 
 ---
 
-## BẢNG ĐỊNH MỨC PHÊ DUYỆT (ĐIỀU CHỈNH TỒN KHO & HỦY HÀNG)
+## PHÊ DUYỆT ĐIỀU CHỈNH TỒN KHO & HỦY HÀNG
 
-| Giá trị lệch / Giá trị hủy           | Người duyệt             | Xử lý                                              |
-| :----------------------------------- | :---------------------- | :------------------------------------------------- |
-| 5 – 100 triệu VNĐ                     | Trưởng kho              | Trưởng kho nhận thông báo, duyệt trên hệ thống     |
-| >100 triệu VNĐ hoặc lỗi do nhân viên | CEO                     | CEO nhận thông báo, duyệt/từ chối trên hệ thống    |
-
-_Lưu ý: Bảng định mức này áp dụng cho Điều chỉnh kiểm kê và Phiếu xuất hủy hàng lỗi. KHÔNG áp dụng cho vận chuyển (hệ thống dùng xe nội bộ)._
+Tất cả các phiếu điều chỉnh chênh lệch kiểm kê và phiếu xuất hủy hàng lỗi đều được gửi trực tiếp đến Trưởng kho để phê duyệt mà không phân cấp theo giá trị.
 
 ---
 

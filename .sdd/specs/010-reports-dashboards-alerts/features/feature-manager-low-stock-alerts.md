@@ -9,11 +9,11 @@ Trưởng kho và Planner cần được cảnh báo kịp thời khi tồn kho 
 
 ## 3. Functional Requirements (EARS)
 * **Event-driven:**
-  * WHEN available inventory of a product at a warehouse drops below its `reorder_point`, the system SHALL:
+  * WHEN available inventory of a product at a warehouse drops below its `reorder_point` (or falls below the default system configuration `MIN_INVENTORY_WARNING_THRESHOLD` if the product's `reorder_point` is null), the system SHALL:
     * Create or update an active record in `stock_alerts` table.
     * Send an in-app notification (High Priority) to the assigned Trưởng kho and Planner.
     * Highlight the product in red on the Dashboard.
-  * WHEN a low stock situation is resolved (`available stock >= reorder_point`), the system SHALL set `is_resolved = true` and update `resolved_at` in the `stock_alerts` record.
+  * WHEN a low stock situation is resolved (`available stock >= reorder_point` or `>= MIN_INVENTORY_WARNING_THRESHOLD` fallback), the system SHALL set `is_resolved = true` and update `resolved_at` in the `stock_alerts` record.
 
 ## 4. API Endpoints
 * `GET /api/v1/alerts/low-stock` - Xem danh sách cảnh báo tồn kho thấp.
