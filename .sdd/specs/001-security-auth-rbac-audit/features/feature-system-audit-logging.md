@@ -1,186 +1,164 @@
 # Feature: Nhật ký Hoạt động Hệ thống (Audit Log)
 
 ## 1. Context and Goal
-Để đảm bảo tính minh bạch, kiểm soát rủi ro, và ghi nhận dấu vết giao dịch, hệ thống tự động ghi nhật ký (Audit Log) cho mọi hành động tạo, sửa, phê duyệt, hủy hoặc xóa trên các thực thể nghiệp vụ kho.
+
+Để đảm bảo tính minh bạch, kiểm soát rủi ro, và ghi nhận dấu vết giao dịch, hệ thống tự động ghi nhật ký (Audit Log) cho mọi hành động người dùng thực hiện làm thay đổi dữ liệu hoặc trạng thái trong hệ thống.
+
+Audit Log là bằng chứng nghiệp vụ bất biến: sau khi được ghi, không người dùng nào, kể cả System Admin hoặc CEO, được sửa hoặc xóa bản ghi log.
 
 ## 2. Actors
-* **System**: Hệ thống tự động ghi log khi người dùng thực hiện các giao dịch nghiệp vụ kho.
-* **System Admin / CEO**: Xem và tra cứu toàn bộ lịch sử nhật ký.
-* **Warehouse Manager**: Xem nhật ký thuộc kho mình được phân công quản lý.
-* **Accountant**: Xem nhật ký liên quan đến các phiếu/đơn nghiệp vụ kho.
+
+- **Người dùng hệ thống**: Thực hiện thao tác trong hệ thống; các thao tác thay đổi dữ liệu hoặc trạng thái sẽ được ghi audit log.
+- **System Admin**: Được xem và tra cứu toàn bộ audit log.
+- **CEO**: Được xem và tra cứu toàn bộ audit log.
 
 ## 3. Functional Requirements (EARS)
 
-### 3.1 Ghi log tự động
-* **Ubiquitous:**
-  * The system SHALL always record an audit log entry for every CREATE, UPDATE, DELETE, APPROVE, REJECT, or CANCEL operation on warehouse business entities.
-* **Event-driven:**
-  * WHEN a warehouse business entity is created or modified, the system SHALL capture only the changed fields in `old_value` and `new_value` (diff-only), excluding sensitive fields (`password_hash`, etc.).
-  * WHEN a Transfer operation occurs, the system SHALL create 2 audit log entries — one for the source warehouse (outbound) and one for the destination warehouse (inbound).
+- **Ubiquitous:**
+  - The system SHALL always record an audit log entry for every user action that creates, updates, approves, rejects, cancels, soft-deletes, assigns, unassigns, or changes the status of data in the system.
+  - The system SHALL record authentication state-changing actions, including login and logout.
+  - The system SHALL NOT record read-only view actions or export actions in audit log.
+  - The system SHALL store only fields that changed between the before state and after state.
+  - The system SHALL NOT store sensitive information in audit log, including passwords, password hashes, JWT tokens, refresh tokens, credentials, secrets, or API keys.
+  - The system SHALL NOT allow any user, including System Admin and CEO, to update or delete an audit log entry after it has been created.
+- **Event-driven:**
+  - WHEN a user's profile, role, active status, or warehouse assignment changes, the system SHALL log the changed fields with before/after values.
+  - WHEN warehouse, inventory, receipt, QC, putaway, issue, transfer, stocktake, adjustment, master data, system configuration, finance, return, scrap, or disposal data changes, the system SHALL create an audit log entry for the changed fields.
+- **Role-based access:**
+  - WHEN a user requests audit log data, the system SHALL allow access only if the user role is System Admin or CEO.
+  - WHEN a user without System Admin or CEO role requests audit log data, the system SHALL reject the request with `FORBIDDEN_AUDIT_ACCESS`.
+- **Query and pagination:**
+  - WHEN System Admin or CEO opens audit log without filters, the system SHALL return page 1 with 30 newest log entries ordered by timestamp descending.
+  - WHEN System Admin or CEO navigates audit log without filters, the system SHALL allow browsing up to 50 pages of newest logs.
+  - WHEN System Admin or CEO needs logs older than the default 50-page window, the system SHALL require filters to narrow the query.
+  - WHEN System Admin or CEO filters audit log, the system SHALL support optional filters by time range and warehouse.
 
-### 3.2 Phạm vi log (entity_type)
-Chỉ log các entity liên quan trực tiếp đến nghiệp vụ kho (hàng hóa, phiếu, đơn):
+## 4. Audited Scope
 
-| entity_type | Mô tả |
-|---|---|
-| `RECEIPT` | Phiếu nhập kho |
-| `ISSUE` | Phiếu xuất kho |
-| `TRANSFER` | Phiếu điều chuyển liên kho |
-| `ADJUSTMENT` | Phiếu điều chỉnh tồn kho |
-| `STOCKTAKE` | Phiếu kiểm kê |
-| `DELIVERY_ORDER` | Đơn giao hàng |
-| `BATCH` | Lô hàng |
-| `INVENTORY` | Tồn kho (số lượng thay đổi) |
-| `RETURN` | Phiếu trả hàng |
-| `SCRAP_DISPOSAL` | Phiếu hủy/thanh lý |
-| `TRIP` | Chuyến xe giao hàng |
+### Audited actions
 
-**Không log**: Login/logout, user management, system config, master data (product, warehouse, bin, supplier, dealer), finance (invoice, payment, price list).
+The system SHALL audit the following action categories:
 
-### 3.3 Mô tả hành động (description)
-* **Ubiquitous:**
-  * The system SHALL auto-generate the `description` field using the format: `{ACTION} {ENTITY_TYPE} {ENTITY_CODE}`.
-  * Examples: `"CREATE RECEIPT PN-2026-001"`, `"APPROVE TRANSFER TC-2026-003"`.
+- `LOGIN`
+- `LOGOUT`
+- `CREATE`
+- `UPDATE`
+- `STATUS_CHANGE`
+- `APPROVE`
+- `REJECT`
+- `CANCEL`
+- `SOFT_DELETE`
+- `ASSIGN`
+- `UNASSIGN`
 
-### 3.4 Dữ liệu diff (old_value / new_value)
-* Chỉ lưu **các field đã thay đổi** (diff-only), không lưu toàn bộ object.
-* Với action `CREATE`: `old_value = null`, `new_value = {các field khởi tạo}`.
-* Với action `DELETE` (soft-delete): `old_value = {"status": "ACTIVE"}`, `new_value = {"status": "CANCELLED"}`.
-* **Sensitive fields** (`password_hash`, v.v.) phải được **loại bỏ** khỏi JSONB trước khi ghi.
+### Non-audited actions
 
-### 3.5 actor_id — bắt buộc NOT NULL
-* Mọi hành động trong hệ thống đều do người dùng thao tác, không có system job tự động.
-* `actor_id` luôn NOT NULL — mỗi log entry phải gắn với một người dùng cụ thể.
+The system SHALL NOT create audit log entries for:
 
-### 3.6 Tính bất biến (Immutability)
-* Audit log entries KHÔNG được UPDATE hoặc DELETE sau khi tạo.
-* Dữ liệu log được lưu trữ vĩnh viễn, không archive, không xóa, không nén.
+- Viewing list or detail screens.
+- Searching or filtering data.
+- Exporting data or reports.
 
-## 4. API Endpoints
+### Audited entity groups
 
-### `GET /api/v1/audit-logs` — Tra cứu nhật ký hệ thống
+The system SHALL audit changes to these entity groups:
 
-**Authorization**: ADMIN, CEO, WAREHOUSE_MANAGER, ACCOUNTANT
+- Authentication and user profile data.
+- User role and warehouse assignment data.
+- System configuration and approval threshold data.
+- Master data, including product, warehouse, bin, supplier, dealer, vehicle, and driver data.
+- Warehouse operations, including receipt, QC, putaway, issue, transfer, stocktake, and adjustment data.
+- Finance and pricing data.
+- Return, scrap, and disposal data.
 
-**Query Parameters:**
+## 5. Audit Log Data Rules
 
-| Parameter | Type | Required | Default | Mô tả |
-|---|---|---|---|---|
-| `cursor` | Long | No | null | ID của record cuối cùng từ page trước (cursor-based pagination) |
-| `size` | Integer | No | 30 | Số records mỗi trang |
-| `actorId` | Long | No | null | Lọc theo người thực hiện |
-| `entityType` | String | No | null | Lọc theo loại entity |
-| `action` | String | No | null | Lọc theo loại hành động |
-| `warehouseId` | Long | No | null | Lọc theo kho |
-| `startDate` | LocalDate | No | 7 ngày trước | Ngày bắt đầu (inclusive, 00:00:00) |
-| `endDate` | LocalDate | No | hôm nay | Ngày kết thúc (inclusive, 23:59:59.999999) |
+- Each audit log entry SHALL include `actor_id`, `actor_role`, `action`, `entity_type`, `entity_id`, `timestamp`, and changed fields.
+- `actor_id` SHALL reference the authenticated user who performed the action.
+- The system SHALL NOT create audit log entries for background jobs because the system does not perform autonomous business actions.
+- Changed fields SHALL be stored as field-level before/after values.
+- If a changed field is sensitive, the system SHALL omit that field from audit log instead of masking or storing it.
+- Audit log entries SHALL be append-only and immutable.
 
-**Sorting:** Mặc định `timestamp DESC` (mới nhất lên trên cùng).
+## 6. API Endpoints
 
-**Date range xử lý tại Backend:**
-* Nếu frontend không truyền `startDate` / `endDate` → mặc định lấy **7 ngày gần nhất**.
-* `endDate` phải được chuyển thành cuối ngày: `endDate.atTime(23, 59, 59)` trước khi query.
+- `GET /api/v1/audit-logs` - Tra cứu nhật ký hệ thống.
+  - Access: System Admin, CEO only.
+  - Default sort: `timestamp DESC`.
+  - Default page size: 30 entries.
+  - Default browsing limit without filters: 50 pages.
+  - Optional filters: `from`, `to`, `warehouse_id`.
+- `GET /api/v1/audit-logs/{id}` - Xem chi tiết một bản ghi audit log.
+  - Access: System Admin, CEO only.
 
-**Access Control (RBAC):**
-* `ADMIN` / `CEO`: Xem toàn bộ log.
-* `WAREHOUSE_MANAGER`: Chỉ xem log có `warehouse_id` thuộc kho được phân công.
-* `ACCOUNTANT`: Xem toàn bộ log (cần dữ liệu nghiệp vụ cho đối soát).
+## 7. Error Handling
 
-**Response DTO:**
+| Error                  | HTTP | Condition                                                                   |
+| ---------------------- | ---- | --------------------------------------------------------------------------- |
+| FORBIDDEN_AUDIT_ACCESS | 403  | User is not System Admin or CEO                                             |
+| AUDIT_LOG_NOT_FOUND    | 404  | Audit log entry does not exist                                              |
+| INVALID_DATE_RANGE     | 400  | `from` is after `to` or date format is invalid                              |
+| QUERY_RANGE_TOO_LARGE  | 400  | User requests logs outside the default 50-page window without a time filter |
+| VALIDATION_ERROR       | 400  | Pagination or filter parameter is invalid                                   |
 
-```json
-{
-  "data": [
-    {
-      "id": 1234,
-      "actorId": 5,
-      "actorName": "Nguyễn Văn A",
-      "actorRole": "STOREKEEPER",
-      "action": "APPROVE",
-      "entityType": "RECEIPT",
-      "entityId": 101,
-      "description": "APPROVE RECEIPT PN-2026-001",
-      "warehouseId": 2,
-      "oldValue": {"status": "PENDING_APPROVAL"},
-      "newValue": {"status": "APPROVED"},
-      "timestamp": "2026-06-02T14:30:00+07:00",
-    }
-  ],
-  "nextCursor": 1233,
-  "hasNext": true
-}
-```
+## 8. Acceptance Criteria
 
-## 5. Data Model — audit_logs
+**Scenario: Audit Log Creation for Data Change**
 
-| Field | Type | Notes |
-|-------|------|-------|
-| id | BIGSERIAL (PK) | Auto-increment |
-| actor_id | BIGINT (FK) | REFERENCES users(id), **NOT NULL** |
-| actor_role | VARCHAR(50) | NOT NULL, snapshot role tại thời điểm thực hiện |
-| action | VARCHAR(50) | NOT NULL, CHECK (action IN ('CREATE','UPDATE','APPROVE','REJECT','CANCEL','DELETE')) |
-| entity_type | VARCHAR(100) | NOT NULL |
-| entity_id | BIGINT | NOT NULL |
-| description | TEXT | NOT NULL, auto-generated: "{ACTION} {ENTITY_TYPE} {ENTITY_CODE}" |
-| warehouse_id | BIGINT (FK) | REFERENCES warehouses(id), nullable cho entity không thuộc kho cụ thể |
-| old_value | JSONB | Chỉ chứa các field đã thay đổi (diff-only), null khi CREATE |
-| new_value | JSONB | Chỉ chứa các field đã thay đổi (diff-only) |
-| timestamp | TIMESTAMPTZ | NOT NULL, DEFAULT NOW() |
+- Given a valid authenticated session
+- When the user creates or modifies any audited entity
+- Then the system SHALL create an audit log entry with actor_id, actor_role, action, entity_type, entity_id, timestamp, and changed fields.
 
-**Indexes:**
-* `idx_audit_logs_timestamp` ON (timestamp DESC) — sort + date range filter
-* `idx_audit_logs_actor_id` ON (actor_id) — filter by actor
-* `idx_audit_logs_entity` ON (entity_type, entity_id) — filter by entity
-* `idx_audit_logs_warehouse_id` ON (warehouse_id) — filter by warehouse
+**Scenario: Field-Level Before/After Values**
 
-**Constraints:**
-* Không có UPDATE hoặc DELETE permission trên bảng này (immutable).
-* Sensitive fields (password_hash, v.v.) KHÔNG được xuất hiện trong old_value/new_value.
+- Given an existing audited entity
+- When the user changes one or more fields
+- Then the audit log SHALL store only the changed fields with before and after values.
 
-## 6. Acceptance Criteria
+**Scenario: Sensitive Data Exclusion**
 
-**Scenario 1: Audit Log Creation on Receipt Approval**
-* Given a WAREHOUSE_MANAGER approves receipt PN-2026-001
-* When the system processes the approval
-* Then an audit log entry SHALL be created with:
-  - actor_id = user who approved
-  - actor_role = "WAREHOUSE_MANAGER"
-  - action = "APPROVE"
-  - entity_type = "RECEIPT"
-  - entity_id = receipt ID
-  - description = "APPROVE RECEIPT PN-2026-001"
-  - warehouse_id = warehouse of the receipt
-  - old_value = `{"status": "PENDING_APPROVAL"}`
-  - new_value = `{"status": "APPROVED"}`
+- Given a user changes a password, token, credential, secret, or API key value
+- When the system records the audit log
+- Then the audit log SHALL omit the sensitive field value.
 
-**Scenario 2: Transfer Creates 2 Log Entries**
-* Given a STOREKEEPER ships a transfer from Hà Nội to Hồ Chí Minh
-* When the transfer is confirmed
-* Then the system SHALL create 2 audit log entries:
-  - Entry 1: warehouse_id = Hà Nội, action = "CREATE", description includes outbound context
-  - Entry 2: warehouse_id = Hồ Chí Minh, action = "CREATE", description includes inbound context
+**Scenario: Immutable Audit Log**
 
-**Scenario 3: Cursor-based Pagination**
-* Given 100 audit log entries exist
-* When a user calls `GET /api/v1/audit-logs?size=30`
-* Then the system SHALL return 30 entries sorted by timestamp DESC, with `nextCursor` and `hasNext = true`.
+- Given an audit log entry already exists
+- When any user, including System Admin or CEO, attempts to update or delete the audit log entry
+- Then the system SHALL reject the operation and preserve the original audit log entry unchanged.
 
-**Scenario 4: Default Date Range**
-* Given no startDate/endDate parameters are provided
-* When a user calls `GET /api/v1/audit-logs`
-* Then the system SHALL return logs from the last 7 days only.
+**Scenario: Audit Log Access Allowed**
 
-**Scenario 5: RBAC Access Control**
-* Given a WAREHOUSE_MANAGER assigned only to warehouse "Ha Noi"
-* When they call `GET /api/v1/audit-logs`
-* Then the system SHALL return only log entries where warehouse_id matches "Ha Noi".
+- Given the authenticated user is System Admin or CEO
+- When the user requests `GET /api/v1/audit-logs`
+- Then the system SHALL return audit logs ordered by newest timestamp first.
 
-**Scenario 6: Sensitive Field Exclusion**
-* Given a user updates another user's profile (if logged)
-* When the audit log is created
-* Then the old_value and new_value SHALL NOT contain `password_hash` or any sensitive credential field.
+**Scenario: Audit Log Access Forbidden**
 
-**Scenario 7: Immutability**
-* Given an existing audit log entry
-* When any attempt to UPDATE or DELETE the entry is made
-* Then the system SHALL reject the operation (no API or database path allows mutation).
+- Given the authenticated user is not System Admin or CEO
+- When the user requests audit log data
+- Then the system SHALL reject the request with `FORBIDDEN_AUDIT_ACCESS`.
+
+**Scenario: Default Pagination**
+
+- Given the authenticated user is System Admin or CEO
+- When the user opens audit log without filters
+- Then the system SHALL return 30 newest log entries on page 1.
+
+**Scenario: Browse Limit Without Filters**
+
+- Given the authenticated user is System Admin or CEO
+- When the user requests logs beyond page 50 without filters
+- Then the system SHALL reject the request with `QUERY_RANGE_TOO_LARGE`.
+
+**Scenario: Time or Warehouse Filter**
+
+- Given the authenticated user is System Admin or CEO
+- When the user filters audit log by time range or warehouse
+- Then the system SHALL return matching audit log entries ordered by newest timestamp first.
+
+**Scenario: Read and Export Actions Are Not Audited**
+
+- Given a valid authenticated session
+- When the user only views, searches, filters, or exports data
+- Then the system SHALL NOT create an audit log entry for that action.
