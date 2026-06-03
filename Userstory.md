@@ -6,19 +6,15 @@
 
 ## NHÓM 1: QUẢN TRỊ HỆ THỐNG & CẤU HÌNH (ADMIN & CEO)
 
-### US-WMS-01: Cấu hình Tham số Hệ thống & Định mức Phê duyệt động (Priority: P1)
+### US-WMS-01: Cấu hình Tham số Hệ thống (Priority: P1)
 
-**Mô tả:** Là System Admin / CEO, tôi muốn thiết lập các tham số vận hành và bảng định mức phê duyệt để hệ thống tự động phân luồng Maker-Checker đúng người, đúng quyền.
+**Mô tả:** Là System Admin / CEO, tôi muốn thiết lập các tham số vận hành để hệ thống áp dụng các quy tắc kinh doanh thống nhất.
 
 **Tiêu chí nghiệm thu:**
 
-1. Admin cấu hình được các tham số hệ thống: Hạn mức công nợ mặc định cho Đại lý, Tồn kho tối thiểu theo SKU/Kho, Kỳ hạn thanh toán mặc định (Net 30 / Net 60).
+1. Admin cấu hình được các tham số hệ thống: Hạn mức công nợ mặc định cho Đại lý, Tồn kho tối thiểu theo SKU/Kho, Kỳ hạn thanh toán mặc định (Net 30 / Net 60), Ngày khóa kỳ kế toán hàng tháng, và Ngưỡng cảnh báo tồn kho tối thiểu mặc định.
 
-2. Admin cấu hình Bảng định mức phê duyệt điều chỉnh tồn kho (kiểm kê/hủy hàng):
-   - Giá trị lệch 5 triệu – 100 triệu VNĐ → Trưởng kho duyệt.
-   - Giá trị lệch > 100 triệu VNĐ hoặc nguyên nhân do nhân viên → CEO duyệt.
-
-3. Mọi thao tác thay đổi tham số phải ghi Audit Log đầy đủ: ai sửa, giá trị cũ, giá trị mới, thời điểm.
+2. Mọi thao tác thay đổi tham số phải ghi Audit Log đầy đủ: ai sửa, giá trị cũ, giá trị mới, thời điểm.
 
 ---
 
@@ -61,10 +57,7 @@
    - Thủ kho đóng gói hàng lỗi và xác nhận đã giao trả về NCC trên hệ thống.
    - **Kế toán viên** nhận thông báo → Tạo **Debit Note** (Phiếu đòi bồi hoàn NCC): ghi rõ số lượng, giá trị hàng lỗi, yêu cầu NCC hoàn tiền hoặc giao hàng thay thế.
    - Debit Note được lưu vào hồ sơ giao dịch với NCC, làm căn cứ theo dõi và đối chiếu khi NCC phản hồi.
-3. **Nếu chọn Tiêu hủy:** Hệ thống tự động tạo Phiếu xuất hủy và áp dụng bảng định mức phê duyệt:
-   - Giá trị < 5 triệu → Không bán.
-   - Giá trị 5 – 100 triệu → Trưởng kho duyệt.
-   - Giá trị > 100 triệu → CEO duyệt.
+3. **Nếu chọn Tiêu hủy:** Hệ thống tự động tạo Phiếu xuất hủy và được phê duyệt bởi Trưởng kho.
    
 ---
 
@@ -204,9 +197,7 @@
 
 1. Thủ kho tạo Phiếu kiểm kê, khóa sổ kiểm kê tạm thời → Thực hiện đếm thực tế và nhập số lượng.
 2. Hệ thống tự động tính toán chênh lệch: `Variance = Thực tế - Hệ thống`.
-3. Áp dụng bảng định mức phê duyệt điều chỉnh (theo cấu hình US-WMS-01):
-   - Giá trị lệch 5 – 100 triệu → Trưởng kho duyệt.
-   - Giá trị lệch > 100 triệu → CEO duyệt.
+3. Mọi chênh lệch kiểm kê sau khi xác nhận sẽ được Trưởng kho phê duyệt để điều chỉnh tồn kho chính thức.
 4. Sau khi được duyệt → Hệ thống cập nhật tồn kho và ghi Audit Log đầy đủ.
 
 ---

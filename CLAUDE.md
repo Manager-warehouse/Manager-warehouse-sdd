@@ -839,9 +839,9 @@ DebitNote (Phiếu đòi bồi hoàn)
 
 | Tầng | Actor | Loại | Trách nhiệm chính |
 |---|---|---|---|
-| Quản trị | CEO | Checker | Duyệt chi/điều chỉnh > 100M VNĐ, Dashboard chiến lược |
+| Quản trị | CEO | Checker | Dashboard chiến lược |
 | Quản trị | System Admin | Admin | Quản lý tài khoản, RBAC, cấu hình tham số hệ thống |
-| Quản lý | Trưởng kho kiêm Trưởng QC | Checker | Duyệt nhập/xuất/điều chuyển, xử lý chênh lệch 5M–100M, duyệt biên bản hàng lỗi |
+| Quản lý | Trưởng kho kiêm Trưởng QC | Checker | Duyệt nhập/xuất/điều chuyển, xử lý chênh lệch thực tế, duyệt biên bản hàng lỗi |
 | Quản lý | Kế toán trưởng | Checker | Duyệt bảng giá, thiết lập Credit Limit, chốt sổ tháng, P&L/Aging Report |
 | Nghiệp vụ | Planner | Maker | Lập lệnh nhập / đơn xuất từ Công ty mẹ, kiểm tra Credit Check + tồn kho |
 | Nghiệp vụ | Dispatcher | Maker | Lập chuyến xe nội bộ Phúc Anh, gán tài xế, tối ưu lộ trình giao hàng |
@@ -1082,34 +1082,28 @@ Chu kỳ lập Hóa đơn bán hàng, theo dõi hạn mức công nợ (Credit L
 Quy trình đối chiếu số liệu tồn kho thực tế, tính toán chênh lệch và phân cấp thẩm quyền phê duyệt điều chỉnh giá trị chênh lệch.
 
 ```
-┌─────────────┬─────────────────────────────────┬──────────────┬─────────────┐
-│   THỦ KHO   │             SYSTEM              │  TRƯỞNG KHO  │     CEO     │
-├─────────────┼─────────────────────────────────┼──────────────┼─────────────┤
-│             │                                 │              │             │
-│ Tạo phiếu   │                                 │              │             │
-│ kiểm kê,    │                                 │              │             │
-│ đếm hàng,   │                                 │              │             │
-│ nhập KQ ───►│ Tự động tính chênh lệch         │              │             │
-│             │ (số lượng, giá trị tiền)        │              │             │
-│             │        │                        │              │             │
-│             │  [LỆCH 5M - 100M]               │              │             │
-│             │        ├───────────────────────►│ Xem xét, duyệt│            │
-│             │        │                        │ điều chỉnh   │             │
-│             │        │◄───────────────────────┤              │             │
-│             │  [LỆCH > 100M HOẶC LỖI NHÂN VIÊN]│              │             │
-│             │        ├────────────────────────┼─────────────►│ Xem xét,    │
-│             │        │                        │              │ duyệt điều  │
-│             │        │◄───────────────────────┼──────────────┤ chỉnh       │
-│             │                                 │              │             │
-│             │ Cập nhật tồn kho theo thực tế,  │              │             │
-│             │ ghi log và audit trail chi tiết │              │             │
-│             │                                 │              │             │
-└─────────────┴─────────────────────────────────┴──────────────┴─────────────┘
+┌─────────────┬─────────────────────────────────┬──────────────┐
+│   THỦ KHO   │             SYSTEM              │  TRƯỞNG KHO  │
+├─────────────┼─────────────────────────────────┼──────────────┤
+│             │                                 │              │
+│ Tạo phiếu   │                                 │              │
+│ kiểm kê,    │                                 │              │
+│ đếm hàng,   │                                 │              │
+│ nhập KQ ───►│ Tự động tính chênh lệch         │              │
+│             │ (số lượng)                      │              │
+│             │        │                        │              │
+│             │        ├───────────────────────►│ Xem xét,     │
+│             │        │                        │ duyệt        │
+│             │        │◄───────────────────────┤ điều chỉnh   │
+│             │                                 │              │
+│             │ Cập nhật tồn kho theo thực tế,  │              │
+│             │ ghi log và audit trail chi tiết │              │
+│             │                                 │              │
+└─────────────┴─────────────────────────────────┴──────────────┘
 ```
 
 **Thẩm quyền duyệt chênh lệch kiểm kê & xuất hủy hàng lỗi:**
-- **Từ 5 triệu đến 100 triệu VNĐ**: Trưởng kho kiêm Trưởng QC xem xét và phê duyệt trên hệ thống.
-- **Trên 100 triệu VNĐ hoặc lỗi xác định do nhân viên**: Phải trình trực tiếp CEO phê duyệt trên hệ thống.
+- Tất cả chênh lệch kiểm kê và phiếu xuất hủy hàng lỗi đều do Trưởng kho phê duyệt trực tiếp trên hệ thống.
 
 ---
 

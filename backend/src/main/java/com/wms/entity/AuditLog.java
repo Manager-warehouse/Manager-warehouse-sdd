@@ -4,8 +4,15 @@ import com.wms.enums.AuditAction;
 import jakarta.persistence.*;
 import java.time.OffsetDateTime;
 
+import lombok.*;
+
 @Entity
 @Table(name = "audit_logs")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class AuditLog {
 
     @Id

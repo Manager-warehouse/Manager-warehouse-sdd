@@ -6,10 +6,15 @@ import lombok.Getter;
 import lombok.Setter;
 import java.time.OffsetDateTime;
 
+import lombok.*;
+
 @Entity
 @Table(name = "users")
 @Getter
 @Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class User {
 
     @Id

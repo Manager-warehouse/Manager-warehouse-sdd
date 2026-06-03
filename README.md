@@ -125,14 +125,14 @@ Hệ thống có **10 Actors** chia thành 3 tầng theo mô hình **Maker-Check
 
 | Actor | Loại | Trách nhiệm chính |
 |---|---|---|
-| **CEO** | Checker cấp cao | Duyệt chi/điều chỉnh > 100M VNĐ, Dashboard chiến lược, cấu hình hệ thống |
+| **CEO** | Checker cấp cao | Dashboard chiến lược, cấu hình hệ thống |
 | **System Admin** | Admin | Quản lý tài khoản, phân quyền RBAC, cấu hình tham số hệ thống |
 
 ### Tầng 2: Quản lý
 
 | Actor | Loại | Trách nhiệm chính |
 |---|---|---|
-| **Trưởng kho kiêm Trưởng QC** | Checker | Duyệt nhập/xuất/điều chuyển, xử lý chênh lệch 5M–100M VNĐ, duyệt biên bản hàng lỗi |
+| **Trưởng kho kiêm Trưởng QC** | Checker | Duyệt nhập/xuất/điều chuyển, xử lý chênh lệch thực tế, duyệt biên bản hàng lỗi |
 | **Kế toán trưởng** | Checker | Duyệt bảng giá, thiết lập Credit Limit, chốt sổ tháng, P&L / Aging Report |
 
 ### Tầng 3: Nghiệp vụ (Maker)
@@ -315,12 +315,9 @@ Kế toán trưởng kiểm tra điều kiện → Chốt sổ kỳ T → CLOSED
 
 **Điều kiện mở khóa (ACTIVE):** `current_balance < credit_limit × 0.8` _(buffer 20%)_
 
-### Bảng định mức phê duyệt
+### Phê duyệt điều chỉnh tồn kho & hủy hàng
 
-| Giá trị lệch / Giá trị hủy | Người duyệt |
-|---|---|
-| 5 – 100 triệu VNĐ | Trưởng kho kiêm Trưởng QC |
-| > 100 triệu VNĐ **hoặc** lỗi do nhân viên | CEO |
+Tất cả các phiếu điều chỉnh chênh lệch kiểm kê và phiếu xuất hủy hàng lỗi đều được gửi trực tiếp đến Trưởng kho để phê duyệt.
 
 ---
 

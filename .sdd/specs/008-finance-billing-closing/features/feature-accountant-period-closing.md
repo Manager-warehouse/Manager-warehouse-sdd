@@ -9,6 +9,7 @@ Kế toán trưởng thực hiện chốt sổ định kỳ hàng tháng để k
 ## 3. Functional Requirements (EARS)
 * **Event-driven:**
   * WHEN Kế toán trưởng requests to close a period, the system SHALL automatically verify that there are no pending/unapproved receipts, delivery orders, or invoices in that period.
+  * WHEN the current calendar day reaches or exceeds the `MONTHLY_CLOSING_DAY` system parameter, the system SHALL notify the Kế toán trưởng to review and close the accounting period.
 * **State-driven:**
   * WHILE an accounting period status is `CLOSED`, the system SHALL reject any CREATE, UPDATE, or DELETE transactions (receipts, delivery orders, transfers, adjustments, stocktakes, invoices, payments) with a `transaction_date` falling within that closed period.
 

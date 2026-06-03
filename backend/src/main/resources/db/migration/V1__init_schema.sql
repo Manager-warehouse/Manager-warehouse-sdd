@@ -33,7 +33,7 @@ CREATE TABLE users (
     role          VARCHAR(50)  NOT NULL
                   CHECK (role IN (
                       'ADMIN',             -- Toàn quyền hệ thống
-                      'CEO',               -- Duyệt chi/điều chỉnh > 100M VNĐ
+                      'CEO',               -- Duyệt dashboard chiến lược
                       'WAREHOUSE_MANAGER', -- Quản lý kho, duyệt nhập/xuất
                       'STOREKEEPER',       -- Thủ kho: tiếp nhận, soạn, cất Bin
                       'WAREHOUSE_STAFF',   -- Nhân viên kho: bốc xếp, QC
@@ -977,8 +977,8 @@ INSERT INTO system_configs (config_key, config_value, description) VALUES
     ('DEFAULT_PAYMENT_TERM_DAYS',            '30',        'Kỳ hạn thanh toán mặc định (ngày)'),
     ('CREDIT_HOLD_OVERDUE_DAYS',             '30',        'Số ngày quá hạn trước khi khóa tín dụng'),
     ('CREDIT_UNLOCK_BUFFER_PCT',             '0.8',       'Ngưỡng mở khóa tín dụng (80% credit_limit)'),
-    ('STOCKTAKE_APPROVAL_THRESHOLD_MANAGER', '5000000',   'Ngưỡng chênh lệch Trưởng kho duyệt (VNĐ)'),
-    ('STOCKTAKE_APPROVAL_THRESHOLD_CEO',     '100000000', 'Ngưỡng chênh lệch CEO duyệt (VNĐ)');
+    ('MONTHLY_CLOSING_DAY',                  '25',        'Ngày khóa sổ kỳ kế toán hàng tháng (ví dụ: ngày 25 hàng tháng)'),
+    ('MIN_INVENTORY_WARNING_THRESHOLD',      '10',        'Ngưỡng cảnh báo tồn kho tối thiểu mặc định (áp dụng khi sản phẩm chưa được thiết lập ngưỡng riêng)');
 
 -- =============================================================================
 -- Tổng cộng:
