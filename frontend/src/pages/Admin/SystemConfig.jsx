@@ -1,93 +1,116 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { adminService } from '../../services/admin.service';
 import { useUiStore } from '../../stores/ui.store';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
-import { Save, Settings } from 'lucide-react';
+import { Save, Settings, CreditCard, CalendarDays, BarChart3 } from 'lucide-react';
+
+// ─── Validation ─────────────────────────────────────────────────────────────
+
+const validate = (form) => {
+  const errs = {};
+
+  const creditLimit = Number(form.defaultCreditLimit);
+  if (!Number.isFinite(creditLimit) || !Number.isInteger(creditLimit) || creditLimit <= 0) {
+    errs.defaultCreditLimit = 'Hạn mức nợ phải là số nguyên dương (> 0)';
+  }
+
+  const paymentTerm = Number(form.defaultPaymentTermDays);
+  if (!Number.isFinite(paymentTerm) || !Number.isInteger(paymentTerm) || paymentTerm <= 0) {
+    errs.defaultPaymentTermDays = 'Thời hạn thanh toán phải là số nguyên dương (> 0)';
+  }
+
+  const overdueDays = Number(form.creditHoldOverdueDays);
+  if (!Number.isFinite(overdueDays) || !Number.isInteger(overdueDays) || overdueDays <= 0) {
+    errs.creditHoldOverdueDays = 'Số ngày trễ hạn phải là số nguyên dương (> 0)';
+  }
+
+  const bufferPct = Number(form.creditUnlockBufferPct);
+  if (!Number.isFinite(bufferPct) || bufferPct <= 0 || bufferPct > 1) {
+    errs.creditUnlockBufferPct = 'Hệ số đệm mở khóa phải là số thập phân trong khoảng (0, 1]';
+  }
+
+  const closingDay = Number(form.monthlyClosingDay);
+  if (!Number.isFinite(closingDay) || !Number.isInteger(closingDay) || closingDay < 1 || closingDay > 31) {
+    errs.monthlyClosingDay = 'Ngày khóa sổ phải là số nguyên từ 1 đến 31';
+  }
+
+  const threshold = Number(form.minInventoryWarningThreshold);
+  if (!Number.isFinite(threshold) || !Number.isInteger(threshold) || threshold < 0) {
+    errs.minInventoryWarningThreshold = 'Ngưỡng cảnh báo tồn kho phải là số nguyên >= 0';
+  }
+
+  return errs;
+};
+
+// ─── Section wrapper ─────────────────────────────────────────────────────────
+
+const Section = ({ icon: Icon, title, children }) => (
+  <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 p-6 md:p-8 flex flex-col gap-5">
+    <div className="flex items-center gap-3 pb-4 border-b border-hairline-light">
+      <Icon className="w-5 h-5 text-shade-60" />
+      <h2 className="text-base font-semibold uppercase tracking-wider text-ink">{title}</h2>
+    </div>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">{children}</div>
+  </div>
+);
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+const Hint = ({ children }) => (
+  <span className="text-[11px] text-shade-40 italic mt-1">{children}</span>
+);
+
+// ─── Component ───────────────────────────────────────────────────────────────
+
+const DEFAULTS = {
+  defaultCreditLimit: 500000000,
+  defaultPaymentTermDays: 30,
+  creditHoldOverdueDays: 30,
+  creditUnlockBufferPct: 0.8,
+  monthlyClosingDay: 5,
+  minInventoryWarningThreshold: 10
+};
 
 const SystemConfig = () => {
   const { addToast } = useUiStore();
   const [loading, setLoading] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
-
-  // Form Fields
-  const [defaultCreditLimit, setDefaultCreditLimit] = useState(500000000);
-  const [minWarningStock, setMinWarningStock] = useState(10);
-  const [shiftDurationHours, setShiftDurationHours] = useState(8);
-  const [monthlyClosingDay, setMonthlyClosingDay] = useState(5);
-  const [managerApprovalLimit, setManagerApprovalLimit] = useState(50000000);
-
-  // Field Errors
+  const [form, setForm] = useState(DEFAULTS);
   const [errors, setErrors] = useState({});
 
-  // Load configuration
-  const loadConfig = async () => {
+  const loadConfig = useCallback(async () => {
     setLoading(true);
     try {
       const config = await adminService.getSystemConfig();
-      setDefaultCreditLimit(config.defaultCreditLimit);
-      setMinWarningStock(config.minWarningStock);
-      setShiftDurationHours(config.shiftDurationHours);
-      setMonthlyClosingDay(config.monthlyClosingDay);
-      setManagerApprovalLimit(config.managerApprovalLimit);
-    } catch (err) {
-      console.error(err);
+      setForm({
+        defaultCreditLimit: config.defaultCreditLimit ?? DEFAULTS.defaultCreditLimit,
+        defaultPaymentTermDays: config.defaultPaymentTermDays ?? DEFAULTS.defaultPaymentTermDays,
+        creditHoldOverdueDays: config.creditHoldOverdueDays ?? DEFAULTS.creditHoldOverdueDays,
+        creditUnlockBufferPct: config.creditUnlockBufferPct ?? DEFAULTS.creditUnlockBufferPct,
+        monthlyClosingDay: config.monthlyClosingDay ?? DEFAULTS.monthlyClosingDay,
+        minInventoryWarningThreshold: config.minInventoryWarningThreshold ?? DEFAULTS.minInventoryWarningThreshold
+      });
+      setErrors({});
+    } catch {
       addToast('Không thể tải cấu hình hệ thống', 'error');
     } finally {
       setLoading(false);
     }
-  };
+  }, [addToast]);
 
-  useEffect(() => {
-    loadConfig();
-  }, []);
+  useEffect(() => { loadConfig(); }, [loadConfig]);
 
-  const validate = () => {
-    const errs = {};
-
-    // defaultCreditLimit validation
-    const credit = Number(defaultCreditLimit);
-    if (!Number.isInteger(credit) || credit <= 0) {
-      errs.defaultCreditLimit = 'Hạn mức nợ mặc định phải là số nguyên dương';
-    } else if (credit > 10000000000) {
-      errs.defaultCreditLimit = 'Hạn mức nợ tối đa là 10 tỷ VND';
-    }
-
-    // minWarningStock validation
-    const stock = Number(minWarningStock);
-    if (!Number.isInteger(stock) || stock <= 0) {
-      errs.minWarningStock = 'Ngưỡng cảnh báo tồn kho tối thiểu phải là số nguyên dương';
-    } else if (stock > 1000) {
-      errs.minWarningStock = 'Ngưỡng cảnh báo tồn kho tối đa là 1,000 sản phẩm';
-    }
-
-    // shiftDurationHours validation
-    const hours = Number(shiftDurationHours);
-    if (isNaN(hours) || hours < 4 || hours > 24) {
-      errs.shiftDurationHours = 'Thời gian ca làm việc phải từ 4 đến 24 giờ';
-    }
-
-    // monthlyClosingDay validation
-    const day = Number(monthlyClosingDay);
-    if (!Number.isInteger(day) || day < 1 || day > 28) {
-      errs.monthlyClosingDay = 'Ngày khóa sổ kế toán phải nằm trong khoảng từ ngày 1 đến ngày 28';
-    }
-
-    // managerApprovalLimit validation
-    const approval = Number(managerApprovalLimit);
-    if (!Number.isInteger(approval) || approval <= 0) {
-      errs.managerApprovalLimit = 'Hạn mức phê duyệt tối đa của Trưởng kho phải là số nguyên dương';
-    } else if (approval > 5000000000) {
-      errs.managerApprovalLimit = 'Hạn mức phê duyệt tối đa của Trưởng kho là 5 tỷ VND';
-    }
-
-    setErrors(errs);
-    return Object.keys(errs).length === 0;
+  const handleChange = (field) => (e) => {
+    setForm((prev) => ({ ...prev, [field]: e.target.value }));
+    if (errors[field]) setErrors((prev) => ({ ...prev, [field]: undefined }));
   };
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!validate()) {
+    const errs = validate(form);
+    if (Object.keys(errs).length > 0) {
+      setErrors(errs);
       addToast('Vui lòng kiểm tra lại các giá trị cấu hình', 'error');
       return;
     }
@@ -95,16 +118,16 @@ const SystemConfig = () => {
     setSaveLoading(true);
     try {
       await adminService.updateSystemConfig({
-        defaultCreditLimit: Number(defaultCreditLimit),
-        minWarningStock: Number(minWarningStock),
-        shiftDurationHours: Number(shiftDurationHours),
-        monthlyClosingDay: Number(monthlyClosingDay),
-        managerApprovalLimit: Number(managerApprovalLimit)
+        defaultCreditLimit: Number(form.defaultCreditLimit),
+        defaultPaymentTermDays: Number(form.defaultPaymentTermDays),
+        creditHoldOverdueDays: Number(form.creditHoldOverdueDays),
+        creditUnlockBufferPct: Number(form.creditUnlockBufferPct),
+        monthlyClosingDay: Number(form.monthlyClosingDay),
+        minInventoryWarningThreshold: Number(form.minInventoryWarningThreshold)
       });
       addToast('Cập nhật cấu hình hệ thống thành công', 'success');
       setErrors({});
-    } catch (err) {
-      console.error(err);
+    } catch {
       addToast('Không thể lưu cấu hình hệ thống', 'error');
     } finally {
       setSaveLoading(false);
@@ -115,8 +138,8 @@ const SystemConfig = () => {
     return (
       <div className="flex-1 flex items-center justify-center py-20 text-shade-50">
         <svg className="animate-spin h-6 w-6 text-ink mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
         </svg>
         <span>Đang tải cấu hình hệ thống...</span>
       </div>
@@ -125,7 +148,7 @@ const SystemConfig = () => {
 
   return (
     <div className="flex-1 flex flex-col gap-6 pb-12 max-w-4xl">
-      {/* Header */}
+      {/* Page header */}
       <div>
         <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
           Hệ thống / Admin
@@ -134,91 +157,107 @@ const SystemConfig = () => {
           Cấu hình Tham số Hệ thống
         </h1>
         <p className="text-xs text-shade-50 font-light mt-1">
-          Thiết lập các định mức phê duyệt, quy chuẩn hoạt động và lịch khóa sổ kế toán tự động toàn hệ thống.
+          Thiết lập hạn mức tín dụng, thời hạn công nợ, chu kỳ khóa sổ và ngưỡng cảnh báo tồn kho toàn hệ thống.
         </p>
       </div>
 
-      {/* Main card */}
-      <form onSubmit={handleSave} className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 p-6 md:p-8 flex flex-col gap-6">
-        <div className="flex items-center gap-3 pb-4 border-b border-hairline-light">
-          <Settings className="w-5 h-5 text-shade-60" />
-          <h2 className="text-base font-semibold uppercase tracking-wider text-ink">Các tham số toàn cục</h2>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* defaultCreditLimit */}
+      <form onSubmit={handleSave} className="flex flex-col gap-6">
+        {/* Section 1: Credit control */}
+        <Section icon={CreditCard} title="Kiểm soát tín dụng & Công nợ">
           <div className="flex flex-col gap-1">
             <Input
+              id="defaultCreditLimit"
               label="Hạn mức nợ Đại lý mặc định (VND)"
               type="number"
-              value={defaultCreditLimit}
-              onChange={(e) => setDefaultCreditLimit(e.target.value)}
+              value={form.defaultCreditLimit}
+              onChange={handleChange('defaultCreditLimit')}
               error={errors.defaultCreditLimit}
               placeholder="Ví dụ: 500000000"
               required
             />
-            <span className="text-[11px] text-shade-40 italic">
-              Giá trị hiện tại: {Number(defaultCreditLimit).toLocaleString()} VND (Tối đa 10 tỷ)
-            </span>
+            <Hint>Giá trị hiện tại: {Number(form.defaultCreditLimit).toLocaleString()} VND</Hint>
           </div>
 
-          {/* managerApprovalLimit */}
           <div className="flex flex-col gap-1">
             <Input
-              label="Hạn mức phê duyệt tối đa của Trưởng kho (VND)"
+              id="defaultPaymentTermDays"
+              label="Thời hạn thanh toán mặc định (Ngày)"
               type="number"
-              value={managerApprovalLimit}
-              onChange={(e) => setManagerApprovalLimit(e.target.value)}
-              error={errors.managerApprovalLimit}
-              placeholder="Ví dụ: 50000000"
+              value={form.defaultPaymentTermDays}
+              onChange={handleChange('defaultPaymentTermDays')}
+              error={errors.defaultPaymentTermDays}
+              placeholder="Ví dụ: 30"
               required
             />
-            <span className="text-[11px] text-shade-40 italic">
-              Giá trị hiện tại: {Number(managerApprovalLimit).toLocaleString()} VND (Tối đa 5 tỷ)
-            </span>
+            <Hint>Số ngày tối đa Đại lý được phép thanh toán sau khi xuất hàng.</Hint>
           </div>
 
-          {/* minWarningStock */}
-          <Input
-            label="Ngưỡng cảnh báo tồn kho tối thiểu (Sản phẩm)"
-            type="number"
-            value={minWarningStock}
-            onChange={(e) => setMinWarningStock(e.target.value)}
-            error={errors.minWarningStock}
-            placeholder="Ví dụ: 10"
-            required
-          />
-
-          {/* shiftDurationHours */}
-          <Input
-            label="Thời gian ca làm việc tiêu chuẩn (Giờ)"
-            type="number"
-            value={shiftDurationHours}
-            onChange={(e) => setShiftDurationHours(e.target.value)}
-            error={errors.shiftDurationHours}
-            placeholder="Ví dụ: 8"
-            required
-          />
-
-          {/* monthlyClosingDay */}
           <div className="flex flex-col gap-1">
             <Input
+              id="creditHoldOverdueDays"
+              label="Số ngày quá hạn trước khi khóa tín dụng (Ngày)"
+              type="number"
+              value={form.creditHoldOverdueDays}
+              onChange={handleChange('creditHoldOverdueDays')}
+              error={errors.creditHoldOverdueDays}
+              placeholder="Ví dụ: 30"
+              required
+            />
+            <Hint>Sau số ngày này kể từ deadline thanh toán, tài khoản Đại lý sẽ bị tạm khóa.</Hint>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <Input
+              id="creditUnlockBufferPct"
+              label="Hệ số đệm mở khóa tín dụng (0 – 1)"
+              type="number"
+              step="0.01"
+              value={form.creditUnlockBufferPct}
+              onChange={handleChange('creditUnlockBufferPct')}
+              error={errors.creditUnlockBufferPct}
+              placeholder="Ví dụ: 0.8"
+              required
+            />
+            <Hint>Đại lý phải thanh toán ít nhất {Math.round(Number(form.creditUnlockBufferPct) * 100)}% dư nợ để mở khóa. Giá trị từ 0 đến 1.</Hint>
+          </div>
+        </Section>
+
+        {/* Section 2: Accounting cycle */}
+        <Section icon={CalendarDays} title="Chu kỳ khóa sổ kế toán">
+          <div className="flex flex-col gap-1">
+            <Input
+              id="monthlyClosingDay"
               label="Ngày khóa sổ kế toán hàng tháng"
               type="number"
-              value={monthlyClosingDay}
-              onChange={(e) => setMonthlyClosingDay(e.target.value)}
+              value={form.monthlyClosingDay}
+              onChange={handleChange('monthlyClosingDay')}
               error={errors.monthlyClosingDay}
               placeholder="Ví dụ: 5"
               required
             />
-            <span className="text-[11px] text-shade-40">
-              Giới hạn từ ngày 1 đến ngày 28 hàng tháng để tránh sai sót năm nhuận.
-            </span>
+            <Hint>Ngày trong tháng (1–31) để hệ thống tự động chốt sổ kế toán.</Hint>
           </div>
-        </div>
+        </Section>
 
-        {/* Submit Actions */}
-        <div className="flex justify-end gap-3 mt-4 pt-6 border-t border-hairline-light">
+        {/* Section 3: Inventory */}
+        <Section icon={BarChart3} title="Cảnh báo tồn kho">
+          <div className="flex flex-col gap-1">
+            <Input
+              id="minInventoryWarningThreshold"
+              label="Ngưỡng cảnh báo tồn kho tối thiểu (Sản phẩm)"
+              type="number"
+              value={form.minInventoryWarningThreshold}
+              onChange={handleChange('minInventoryWarningThreshold')}
+              error={errors.minInventoryWarningThreshold}
+              placeholder="Ví dụ: 10"
+              required
+            />
+            <Hint>Khi số lượng tồn kho xuống dưới mức này, hệ thống sẽ phát cảnh báo. Cho phép = 0 (không cảnh báo).</Hint>
+          </div>
+        </Section>
+
+        {/* Actions */}
+        <div className="flex justify-end gap-3 pt-2">
           <Button
             type="button"
             variant="outline-light"

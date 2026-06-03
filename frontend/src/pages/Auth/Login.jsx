@@ -53,7 +53,7 @@ const Login = () => {
       {/* Left panel: Branding / Cinematic */}
       <div className="flex-1 flex flex-col justify-between p-8 md:p-16 bg-gradient-to-br from-canvas-nightElevated via-canvas-night to-shade-70 relative overflow-hidden border-b md:border-b-0 md:border-r border-hairline-dark">
         <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#c1fbd4_1px,transparent_1px)] [background-size:16px_16px]" />
-        
+
         {/* Eyebrow / Logo */}
         <div className="relative flex items-center gap-3 z-10">
           <div className="p-2 bg-onPrimary rounded-lg text-canvas-night">

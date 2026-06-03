@@ -1,7 +1,7 @@
 import apiClient, { useMock } from './api.client';
 import { MOCK_USERS } from '../utils/constants';
 
-// Helper to initialize and retrieve local storage users for a persistent mock DB
+// Seed and retrieve user accounts from localStorage to act as a persistent mock database during development
 const getMockDbUsers = () => {
   const users = localStorage.getItem('wms_db_users');
   if (!users) {
@@ -19,6 +19,7 @@ const getMockDbUsers = () => {
     }
     return parsed;
   } catch (e) {
+    console.error('Failed to parse mock DB users, resetting to default seed data:', e);
     localStorage.setItem('wms_db_users', JSON.stringify(MOCK_USERS));
     return MOCK_USERS;
   }
@@ -28,7 +29,7 @@ const saveMockDbUsers = (users) => {
   localStorage.setItem('wms_db_users', JSON.stringify(users));
 };
 
-// Simulated audit logs
+// Store mock audit records locally to simulate tracking of system alterations
 const getMockAuditLogs = () => {
   const logs = localStorage.getItem('wms_audit_logs');
   if (!logs) {
@@ -73,21 +74,36 @@ const addMockAuditLog = (action, entityType, entityId, details) => {
   localStorage.setItem('wms_audit_logs', JSON.stringify([newLog, ...logs]));
 };
 
-// Simulated System Configurations
+// Store system parameter thresholds locally to persist across browser updates
 const getMockSystemConfig = () => {
   const config = localStorage.getItem('wms_system_config');
   if (!config) {
     const initialConfig = {
       defaultCreditLimit: 500000000,
-      minWarningStock: 10,
-      shiftDurationHours: 8,
+      defaultPaymentTermDays: 30,
+      creditHoldOverdueDays: 30,
+      creditUnlockBufferPct: 0.8,
       monthlyClosingDay: 5,
-      managerApprovalLimit: 50000000
+      minInventoryWarningThreshold: 10
     };
     localStorage.setItem('wms_system_config', JSON.stringify(initialConfig));
     return initialConfig;
   }
-  return JSON.parse(config);
+  const parsed = JSON.parse(config);
+  // Migrate legacy data schemas to prevent page crashes for users with old state cached
+  if ('managerApprovalLimit' in parsed || 'shiftDurationHours' in parsed) {
+    const migrated = {
+      defaultCreditLimit: parsed.defaultCreditLimit ?? 500000000,
+      defaultPaymentTermDays: parsed.defaultPaymentTermDays ?? 30,
+      creditHoldOverdueDays: parsed.creditHoldOverdueDays ?? 30,
+      creditUnlockBufferPct: parsed.creditUnlockBufferPct ?? 0.8,
+      monthlyClosingDay: parsed.monthlyClosingDay ?? 5,
+      minInventoryWarningThreshold: parsed.minWarningStock ?? parsed.minInventoryWarningThreshold ?? 10
+    };
+    localStorage.setItem('wms_system_config', JSON.stringify(migrated));
+    return migrated;
+  }
+  return parsed;
 };
 
 const saveMockSystemConfig = (config) => {
@@ -233,14 +249,14 @@ export const adminService = {
       const current = getMockSystemConfig();
       const updated = { ...current, ...configData };
       saveMockSystemConfig(updated);
-      
+
       addMockAuditLog(
         'SYSTEM_CONFIG_UPDATED',
         'SystemConfig',
         1,
-        `Cập nhật cấu hình hệ thống: Hạn mức phê duyệt ${updated.managerApprovalLimit.toLocaleString()} VND, Ngày khóa sổ ${updated.monthlyClosingDay}`
+        `Cập nhật cấu hình hệ thống: Ngày khóa sổ ${updated.monthlyClosingDay}, Hạn mức nợ ${updated.defaultCreditLimit?.toLocaleString()} VND, Thời hạn thanh toán ${updated.defaultPaymentTermDays} ngày`
       );
-      
+
       return updated;
     } else {
       const response = await apiClient.put('/admin/config', configData);

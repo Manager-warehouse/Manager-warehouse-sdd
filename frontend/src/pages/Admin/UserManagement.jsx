@@ -25,8 +25,7 @@ const UserManagement = () => {
     try {
       const uList = await adminService.getUsers();
       setUsers(uList);
-    } catch (err) {
-      console.error(err);
+    } catch {
       addToast('Không thể tải danh sách tài khoản', 'error');
     } finally {
       setLoading(false);
@@ -81,8 +80,7 @@ const UserManagement = () => {
       setModalOpen(false);
       loadData();
     } catch (err) {
-      console.error(err);
-      // Let modal handle specific error messages by throwing it
+      // Re-throw so UserFormModal can display field-specific error messages
       throw err;
     } finally {
       setFormLoading(false);
@@ -98,8 +96,7 @@ const UserManagement = () => {
         'success'
       );
       loadData();
-    } catch (err) {
-      console.error(err);
+    } catch {
       addToast('Không thể cập nhật trạng thái tài khoản', 'error');
     }
   };
