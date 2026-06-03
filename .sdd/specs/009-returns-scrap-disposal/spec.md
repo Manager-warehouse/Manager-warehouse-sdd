@@ -23,7 +23,6 @@
 | Nhân viên kho | Maker | Kiểm QC hàng hoàn trả, phân loại hàng Đạt (nhập lại kho thường) / Lỗi (chuyển sang Quarantine) |
 | Trưởng kho kiêm Trưởng QC | Checker | Phê duyệt biên bản hàng lỗi tại Quarantine Zone, quyết định trả NCC (RETURN_TO_VENDOR) hoặc Tiêu hủy (DISPOSAL) |
 | Kế toán viên | Maker | Tạo Credit Note ghi nhận giảm công nợ cho Đại lý tương ứng với hàng hoàn |
-| CEO | Checker cấp cao | Duyệt phiếu xuất hủy hàng lỗi có giá trị > 100 triệu VNĐ |
 
 ## 3. Functional Requirements (EARS)
 *Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đặc tả tính năng:*
@@ -107,7 +106,6 @@
 |-------|------|-----------|
 | RETURN_EXCEEDS_ORIGINAL_SALE | 422 | Return qty > original DO qty |
 | MISSING_CREDIT_NOTE_REASON | 400 | No reason for credit |
-| DISPOSAL_EXCEEDS_THRESHOLD | 403 | Exceeds user's approval authority |
 
 ## 8. Acceptance Criteria
 *Vui lòng xem chi tiết kịch bản kiểm thử tại các tài liệu đặc tả tính năng:*

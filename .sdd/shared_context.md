@@ -21,13 +21,13 @@
 ### Tầng Quản trị
 | Actor | Vai trò |
 |---|---|
-| CEO | Duyệt > 100M, dashboard chiến lược |
+| CEO | Dashboard chiến lược |
 | System Admin | Quản lý tài khoản, phân quyền, cấu hình hệ thống |
 
 ### Tầng Quản lý (Checker)
 | Actor | Vai trò |
 |---|---|
-| Trưởng kho kiêm Trưởng QC | Duyệt nhập/xuất/điều chuyển, xử lý chênh lệch 5-100M |
+| Trưởng kho kiêm Trưởng QC | Duyệt nhập/xuất/điều chuyển, xử lý chênh lệch thực tế |
 | Kế toán trưởng | Duyệt bảng giá, thiết lập Credit Limit, chốt sổ |
 
 ### Tầng Nghiệp vụ (Maker)
@@ -145,9 +145,8 @@ ACTIVE ↔ CREDIT_HOLD
 
 | Constant | Value | Ghi chú |
 |---|---|---|
-| Credit Limit buffer | 80% | Mở khóa khi `current_balance < limit * 0.8` |
-| Approval threshold 1 | 5,000,000 VND | Dưới mức này auto-approve |
-| Approval threshold 2 | 100,000,000 VND | Trên mức này CEO duyệt |
+| Monthly closing day | 25 | Ngày chốt sổ kỳ kế toán hàng tháng |
+| Min stock warning threshold | 10 | Ngưỡng cảnh báo tồn kho tối thiểu mặc định |
 | Overdue days | 30 | Quá hạn > 30 → auto CREDIT_HOLD |
 | bcrypt cost factor | 12 | Mức tối thiểu |
 | Net terms | 30 hoặc 60 ngày | Theo hồ sơ Đại lý |
