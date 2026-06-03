@@ -104,7 +104,6 @@ Chỉ log các entity liên quan trực tiếp đến nghiệp vụ kho (hàng h
       "oldValue": {"status": "PENDING_APPROVAL"},
       "newValue": {"status": "APPROVED"},
       "timestamp": "2026-06-02T14:30:00+07:00",
-      "ipAddress": "192.168.1.100"
     }
   ],
   "nextCursor": 1233,
@@ -127,7 +126,6 @@ Chỉ log các entity liên quan trực tiếp đến nghiệp vụ kho (hàng h
 | old_value | JSONB | Chỉ chứa các field đã thay đổi (diff-only), null khi CREATE |
 | new_value | JSONB | Chỉ chứa các field đã thay đổi (diff-only) |
 | timestamp | TIMESTAMPTZ | NOT NULL, DEFAULT NOW() |
-| ip_address | VARCHAR(45) | Client IP address |
 
 **Indexes:**
 * `idx_audit_logs_timestamp` ON (timestamp DESC) — sort + date range filter
