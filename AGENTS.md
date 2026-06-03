@@ -208,5 +208,5 @@ Active specs:
 Note: Nếu môi trường hiện tại không có GitNexus tooling, agent phải báo rõ không thể thực thi automation này trước khi tiếp tục các thay đổi thủ công.
 
 <!-- SPECKIT START -->
-<!-- Active Plan: specs/001-audit-logging/plan.md -->
+<!-- Active Plan: .sdd/specs/002-master-data-management/plan.md -->
 <!-- SPECKIT END -->
