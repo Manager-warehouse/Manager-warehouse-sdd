@@ -4,8 +4,15 @@ import com.wms.enums.UserRole;
 import jakarta.persistence.*;
 import java.time.OffsetDateTime;
 
+import lombok.*;
+
 @Entity
 @Table(name = "users")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class User {
 
     @Id
