@@ -85,6 +85,8 @@ class AuditLogControllerTest {
     @Test
     @WithMockUser(username = "ceo@wms.com", roles = "CEO")
     void testGetAuditLogs_ceoForbidden() throws Exception {
+        when(userRepository.findByEmail("ceo@wms.com")).thenReturn(Optional.of(ceoUser));
+
         mockMvc.perform(get("/api/v1/audit-logs")
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isForbidden());
