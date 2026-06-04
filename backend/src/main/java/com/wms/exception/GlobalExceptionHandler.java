@@ -11,12 +11,18 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleNotFound(ResourceNotFoundException e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", e.getMessage()));
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, String>> handleIllegalArgument(IllegalArgumentException e) {
         String code = e.getMessage();
         HttpStatus status = switch (code) {
             case "INVALID_CREDENTIALS", "ACCOUNT_INACTIVE", "TOKEN_EXPIRED", "TOKEN_INVALID" -> HttpStatus.UNAUTHORIZED;
             case "OTP_INVALID", "OTP_EXPIRED", "VALIDATION_ERROR" -> HttpStatus.BAD_REQUEST;
+            case "DUPLICATE_SKU" -> HttpStatus.CONFLICT;
             default -> HttpStatus.BAD_REQUEST;
         };
         return ResponseEntity.status(status).body(Map.of("error", code));
