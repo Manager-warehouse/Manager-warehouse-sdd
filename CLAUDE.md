@@ -831,7 +831,7 @@ DebitNote (Phiếu đòi bồi hoàn)
 | FIFO for non-expiring      | `FIFOSelector` picks by receivedDate ASC        |
 | Quarantine excluded        | WHERE clause filters `zone != 'QUARANTINE'`     |
 | In-Transit tracking        | Virtual warehouse `IN_TRANSIT` for transfers    |
-| Credit Check Control       | Auto-block if balance + new >= limit OR >30 days overdue. Buffer 20% to unlock |
+| Credit Check Control       | Auto-block if balance + new > limit OR >30 days overdue; balance equal to limit is allowed. Buffer 20% to unlock |
 | Monthly Closing            | Lock previous monthly periods (CLOSED), only Adjustment Vouchers allowed in open period |
 | Phúc Anh Internal Fleet    | All deliveries use internal fleet & drivers. No 3PL or delivery cost approvals |
 
@@ -1056,7 +1056,7 @@ Chu kỳ lập Hóa đơn bán hàng, theo dõi hạn mức công nợ (Credit L
 │                                 │ set trạng thái [Completed]     │         │
 │                                 │                                │         │
 │                                 │ [Credit Check khi tạo đơn mới] │         │
-│                                 │ IF balance + DO >= limit OR    │         │
+│                                 │ IF balance + DO > limit OR     │         │
 │                                 │ overdue > 30 ngày -> HOLD ─────► Kính báo│
 │                                 │                                │ KTT/CEO │
 │ Đại lý thanh toán, lập Phiếu thu│                                │         │
