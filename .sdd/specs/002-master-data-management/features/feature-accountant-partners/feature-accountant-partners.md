@@ -20,7 +20,7 @@ Quản lý danh mục Đại lý và Nhà cung cấp, bao gồm hạn mức tín
   - The system SHALL allow new Dealer transactions when `current_balance + transaction_amount <= credit_limit`.
   - The system SHALL automatically reject creation of new Dealer transactions when the new transaction would cause `current_balance + transaction_amount > credit_limit`, set the dealer's `credit_status` to `CREDIT_HOLD`, and notify the transaction creator with the credit-limit reason.
   - The system SHALL soft-delete Dealers and Suppliers by setting `is_active = false`; the system SHALL NOT physically delete Dealer or Supplier business records.
-  - WHILE a Dealer or Supplier has `is_active = false`, the system SHALL block all new operational activity for that partner account, including buying, selling, inbound, outbound, finance, and transaction creation flows.
+  - WHILE a Dealer has `is_active = false`, the system SHALL block all new outbound delivery-order and dealer transaction creation flows.
   - WHILE a Dealer has `is_active = false`, the system SHALL prevent all new activity for that dealer regardless of `credit_status`.
   - The system SHALL record an audit log entry for every successful create, update, credit-limit change, credit-status change, and soft-delete action on Dealer or Supplier master data.
   - Audit log entries SHALL follow the system audit-log rules and include `actor_id`, `actor_role`, `action`, `entity_type`, `entity_id`, `timestamp`, and field-level before/after changed values.
@@ -29,19 +29,23 @@ Quản lý danh mục Đại lý và Nhà cung cấp, bao gồm hạn mức tín
   - WHEN Kế toán trưởng updates a dealer's `payment_term_days`, the system SHALL record this action with values before and after in audit logs.
   - WHEN a new Dealer transaction would exceed the dealer's `credit_limit`, the system SHALL reject only that transaction before creation, set the dealer's `credit_status` to `CREDIT_HOLD`, and notify the creator.
   - WHEN Kế toán trưởng manually sets a dealer's `credit_status` to `CREDIT_HOLD`, the system SHALL block creation of new Dealer transactions without blocking non-transaction profile management.
-  - WHEN Kế toán viên soft-deletes a Supplier, the system SHALL prevent new inbound receipt or purchasing flows referencing that supplier.
+  - WHEN Kế toán viên soft-deletes a Supplier, the system SHALL keep historical supplier orders and receipts available for viewing.
 - **State-driven:**
   - WHILE a dealer is `is_active = false`, the system SHALL prevent creating new delivery orders referencing that dealer.
-  - WHILE a supplier is `is_active = false`, the system SHALL prevent creating new inbound receipts or purchase-related transactions referencing that supplier.
+  - WHILE a supplier is `is_active = false`, the system SHALL prevent profile use as an active supplier in internal supplier-management screens while keeping historical orders readable.
 
 ## 4. Supplier Business Rules
 
+- Dealer profile management SHALL follow the current database schema and support dealer identity/contact fields used by delivery and finance operations: `code`, `name`, `phone`, `default_delivery_address`, `region`, and `is_active`.
+- Dealer `code` SHALL be unique.
+- Dealer creation by `ACCOUNTANT` SHALL initialize credit fields from system defaults and entity defaults: `payment_term_days` from `DEFAULT_PAYMENT_TERM_DAYS`, `credit_limit` from `DEFAULT_CREDIT_LIMIT`, `current_balance = 0`, and `credit_status = ACTIVE`.
+- Normal Dealer profile create/update requests SHALL NOT expose `credit_limit`, `payment_term_days`, `current_balance`, or `credit_status` as accountant-editable profile fields; those credit-control fields are managed by `ACCOUNTANT_MANAGER` endpoints or system finance flows.
 - Supplier profile management SHALL follow the current database schema and support supplier identity fields needed for procurement and inbound operations: `code`, `company_name`, `tax_code`, `phone`, `address`, `contact_person`, and `is_active`.
 - Supplier `code` SHALL be unique.
 - Supplier `tax_code` SHALL be optional and SHALL NOT require uniqueness because the current database schema does not define a unique constraint for it.
-- The system SHALL block creation of inbound receipts for inactive suppliers.
-- Supplier deactivation SHALL be rejected if the supplier has open inbound receipts, pending QC, or unresolved debit notes.
-- Supplier reactivation SHALL restore eligibility for new purchasing/inbound flows but SHALL NOT alter historical receipt, QC, debit-note, or audit records.
+- Supplier management SHALL expose read-only access to orders/receipts already received from that supplier and their detail records.
+- Supplier deactivation SHALL NOT alter historical purchase order, receipt, QC, debit-note, or audit records.
+- Supplier reactivation SHALL restore the supplier profile to active status and SHALL NOT alter historical purchase order, receipt, QC, debit-note, or audit records.
 - Changes to supplier identity, tax, contact, active status, or payment-related profile fields SHALL create audit logs with before/after values.
 
 ## 5. API Endpoints
@@ -61,6 +65,13 @@ Quản lý danh mục Đại lý và Nhà cung cấp, bao gồm hạn mức tín
 - `PUT /api/v1/suppliers/{id}` - Cập nhật hồ sơ Nhà cung cấp.
 - `DELETE /api/v1/suppliers/{id}` - Soft-delete Nhà cung cấp bằng `is_active = false`; không xóa vật lý dữ liệu nghiệp vụ.
 - `PUT /api/v1/suppliers/{id}/reactivate` - Kích hoạt lại Nhà cung cấp bằng `is_active = true`.
+- `GET /api/v1/suppliers/{id}/received-orders` - Xem danh sách đơn/phiếu đã nhận từ Nhà cung cấp.
+- `GET /api/v1/suppliers/{id}/received-orders/{orderId}` - Xem chi tiết một đơn/phiếu đã nhận từ Nhà cung cấp.
+- `GET /api/v1/delivery-orders` - Danh sách Delivery Order.
+- `POST /api/v1/delivery-orders` - Tạo mới Delivery Order theo bảng `delivery_orders`.
+- `GET /api/v1/delivery-orders/{id}` - Xem chi tiết Delivery Order.
+- `PUT /api/v1/delivery-orders/{id}` - Cập nhật Delivery Order.
+- `DELETE /api/v1/delivery-orders/{id}` - Hủy/soft-cancel Delivery Order bằng trạng thái `CANCELLED`.
 
 ## 6. Acceptance Criteria
 
@@ -114,20 +125,20 @@ Quản lý danh mục Đại lý và Nhà cung cấp, bao gồm hạn mức tín
   - When a Planner attempts to create a delivery order for that dealer
   - Then the system SHALL reject the delivery order creation because the dealer is inactive.
 
-- **Scenario: Block inbound receipt for inactive supplier**
-  - Given a supplier has `is_active = false`
-  - When a user attempts to create an inbound receipt referencing that supplier
-  - Then the system SHALL reject the inbound receipt creation because the supplier is inactive.
+- **Scenario: View supplier received orders**
+  - Given a supplier has historical received orders or receipts
+  - When `ACCOUNTANT` views received orders for that supplier
+  - Then the system SHALL return read-only order/receipt summaries and allow viewing details without creating new inbound documents.
 
 - **Scenario: Soft-delete dealer**
   - Given an active dealer exists
   - When `ACCOUNTANT` deactivates the dealer
   - Then the system SHALL set `is_active = false`, keep historical records unchanged, block all new operational activity for that dealer account, and create an audit log entry.
 
-- **Scenario: Soft-delete supplier with open operations**
-  - Given a supplier has open inbound receipts, pending QC, or unresolved debit notes
-  - When `ACCOUNTANT` attempts to deactivate the supplier
-  - Then the system SHALL reject the deactivation and explain which open operation prevents it.
+- **Scenario: Delivery order for inactive dealer**
+  - Given a dealer has `is_active = false`
+  - When a user attempts to create a Delivery Order for that dealer
+  - Then the system SHALL reject the Delivery Order creation because the dealer is inactive.
 
 - **Scenario: Unauthorized credit-limit update**
   - Given an authenticated user without `ACCOUNTANT_MANAGER` role
