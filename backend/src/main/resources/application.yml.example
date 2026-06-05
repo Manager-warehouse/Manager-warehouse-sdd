@@ -39,3 +39,24 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+    out-of-order: true
+
+  # Mail Configuration
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${MAIL_USERNAME:wms.phucanh@gmail.com}
+    password: ${MAIL_PASSWORD:your-app-password}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+# JWT Configuration
+jwt:
+  secret: ${JWT_SECRET:9a4f2c8d3b7a1e5f8c2d6e0b4a8f9c1d3e7b2a6f0c4d8e2f6a0b4c8d2e6f0a4b}
+  access-token-expiry: ${JWT_ACCESS_TOKEN_EXPIRY:900} # 15 minutes (in seconds)
+  refresh-token-expiry: ${JWT_REFRESH_TOKEN_EXPIRY:604800} # 7 days (in seconds)
+
