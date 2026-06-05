@@ -279,7 +279,7 @@ Planner xem Planning Dashboard → Nhận gợi ý điều chuyển
 ```
 [Phát sinh nợ]
 Giao hàng Delivered → Kế toán lập Invoice (Net 30/60) → current_balance += giá trị đơn
-    → IF current_balance >= credit_limit → CREDIT_HOLD (chặn đơn mới)
+    → IF current_balance > credit_limit → CREDIT_HOLD (chặn đơn mới; bằng hạn mức vẫn cho phép)
     → Daily Job: IF invoice quá hạn > 30 ngày → CREDIT_HOLD + cảnh báo Kế toán trưởng
 
 [Thu nợ]
@@ -311,8 +311,8 @@ Kế toán trưởng kiểm tra điều kiện → Chốt sổ kỳ T → CLOSED
 ### Cơ chế Credit Check (Kiểm soát công nợ)
 
 **Điều kiện CREDIT_HOLD** — kích hoạt khi vi phạm **BẤT KỲ** điều kiện nào:
-1. `current_balance + giá_trị_đơn_mới >= credit_limit` _(khi Planner tạo đơn)_
-2. `current_balance >= credit_limit` _(sau khi lập hóa đơn)_
+1. `current_balance + giá_trị_đơn_mới > credit_limit` _(khi Planner tạo đơn; bằng hạn mức vẫn cho phép)_
+2. `current_balance > credit_limit` _(sau khi lập hóa đơn; bằng hạn mức vẫn cho phép)_
 3. Đại lý có ≥ 1 hóa đơn quá hạn **> 30 ngày** _(Daily Job)_
 
 **Điều kiện mở khóa (ACTIVE):** `current_balance < credit_limit × 0.8` _(buffer 20%)_

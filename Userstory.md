@@ -84,7 +84,7 @@
 1. Planner nhập: Đại lý nhận hàng, mã sản phẩm, số lượng xuất, kho xuất.
 2. **Kiểm tra công nợ (Credit Check — bắt buộc, tự động):** Hệ thống kiểm tra TRƯỚC KHI cho phép tạo đơn:
    - **Điều kiện khóa (HOẶC):**
-     - `Công nợ hiện tại + Giá trị đơn mới >= Hạn mức tín dụng`
+     - `Công nợ hiện tại + Giá trị đơn mới > Hạn mức tín dụng` (bằng hạn mức vẫn cho phép tạo đơn)
      - `Đại lý có ít nhất 1 hóa đơn quá hạn > 30 ngày`
    - Nếu vi phạm → Hệ thống **chặn cứng**, hiển thị popup cảnh báo rõ lý do (công nợ hiện tại, hạn mức, số tiền vượt), không cho tạo đơn.
 3. **Kiểm tra tồn kho khả dụng (Available Quantity):** Hệ thống tính:
@@ -149,7 +149,7 @@
    - Trạng thái hóa đơn ban đầu: **Chưa thanh toán (Unpaid)**.
 2. **Hệ thống tự động** sau khi hóa đơn được tạo:
    - Cộng dồn giá trị hóa đơn vào `current_balance` của Đại lý.
-   - Kiểm tra: `IF current_balance >= credit_limit THEN customer.status = 'CREDIT_HOLD'`.
+   - Kiểm tra: `IF current_balance > credit_limit THEN customer.status = 'CREDIT_HOLD'`; nếu `current_balance = credit_limit` thì vẫn cho phép theo hạn mức.
 3. **Cảnh báo tự động quá hạn (Daily Job):** Hệ thống quét hàng ngày — nếu Hóa đơn đã quá ngày **Hạn thanh toán** mà chưa được thanh toán → Tự động gán `CREDIT_HOLD` cho Đại lý và bắn thông báo đến Kế toán trưởng.
 4. Đơn hàng chuyển trạng thái: **Đã hoàn thành (Completed)** — chờ thu tiền.
 

@@ -59,8 +59,8 @@
 
 | ID | Rule | Mức độ |
 |---|---|---|
-| CRD-01 | CREDIT_HOLD khi: `current_balance + giá_trị_đơn >= credit_limit` HOẶC có hóa đơn quá hạn > 30 ngày | MUST |
-| CRD-02 | CREDIT_HOLD → chặn cứng, hiển thị lý do | MUST |
+| CRD-01 | CREDIT_HOLD khi: `current_balance + giá_trị_đơn > credit_limit` HOẶC có hóa đơn quá hạn > 30 ngày; nếu bằng hạn mức thì vẫn cho tạo giao dịch | MUST |
+| CRD-02 | CREDIT_HOLD → chặn tạo giao dịch mới, hiển thị lý do | MUST |
 | CRD-03 | Mở khóa ACTIVE khi: `current_balance < credit_limit * 0.8` | MUST |
 | CRD-04 | Top-up payment cần thiết: thông báo số tiền cần trả thêm | MUST |
 | CRD-05 | Credit Limit chỉ Kế toán trưởng được thiết lập | MUST |
