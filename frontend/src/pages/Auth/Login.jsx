@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
 import { authService } from '../../services/auth.service';
@@ -53,7 +53,7 @@ const Login = () => {
       {/* Left panel: Branding / Cinematic */}
       <div className="flex-1 flex flex-col justify-between p-8 md:p-16 bg-gradient-to-br from-canvas-nightElevated via-canvas-night to-shade-70 relative overflow-hidden border-b md:border-b-0 md:border-r border-hairline-dark">
         <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#c1fbd4_1px,transparent_1px)] [background-size:16px_16px]" />
-        
+
         {/* Eyebrow / Logo */}
         <div className="relative flex items-center gap-3 z-10">
           <div className="p-2 bg-onPrimary rounded-lg text-canvas-night">
@@ -128,6 +128,12 @@ const Login = () => {
                 required
               />
               <KeyRound className="absolute right-3 top-[38px] w-4 h-4 text-shade-50" />
+            </div>
+
+            <div className="flex justify-end -mt-3 mb-1">
+              <Link to="/forgot-password" className="text-[11px] font-semibold text-shade-50 hover:text-onPrimary transition-colors">
+                Quên mật khẩu?
+              </Link>
             </div>
 
             <Button

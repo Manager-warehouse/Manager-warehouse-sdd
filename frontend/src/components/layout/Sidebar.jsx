@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Users, UserSquare, ShieldAlert, BarChart3, Package2, Box, Warehouse, Handshake, Truck } from 'lucide-react';
+import { LayoutDashboard, Users, UserSquare, ShieldAlert, BarChart3, Package2, Settings, History, Box, Warehouse, Handshake, Truck  } from 'lucide-react';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
 import { ROLES } from '../../utils/constants';
@@ -20,6 +20,18 @@ const Sidebar = () => {
       title: 'Quản lý tài khoản',
       path: '/admin/users',
       icon: Users,
+      roles: [ROLES.ADMIN]
+    },
+    {
+      title: 'Cấu hình hệ thống',
+      path: '/admin/config',
+      icon: Settings,
+      roles: [ROLES.ADMIN]
+    },
+    {
+      title: 'Nhật ký hoạt động',
+      path: '/admin/audit-logs',
+      icon: History,
       roles: [ROLES.ADMIN]
     },
     {
@@ -83,7 +95,7 @@ const Sidebar = () => {
   if (!sidebarOpen) return null;
 
   return (
-    <aside className="w-64 bg-canvas-night text-onPrimary border-r border-hairline-dark flex flex-col h-[calc(100vh-4rem)]">
+    <aside className="w-64 bg-canvas-night text-onPrimary border-r border-hairline-dark flex flex-col h-full">
       {/* Scrollable menu area */}
       <div className="flex-1 overflow-y-auto py-6 px-4 flex flex-col gap-6">
         <div>

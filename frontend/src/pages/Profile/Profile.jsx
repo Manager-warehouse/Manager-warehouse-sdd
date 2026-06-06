@@ -89,7 +89,6 @@ const Profile = () => {
       setNewPassword('');
       setConfirmPassword('');
     } catch (err) {
-      console.error(err);
       if (err.message === 'WEAK_PASSWORD') {
         setPassError('Mật khẩu không đủ mạnh (tối thiểu 8 ký tự, gồm cả chữ và số)');
       } else {
@@ -177,7 +176,7 @@ const Profile = () => {
                 Phạm vi Kho được phân công
               </h4>
             </div>
-            
+
             {user?.role === 'ADMIN' ? (
               <p className="text-xs text-shade-60 leading-relaxed font-light">
                 Tài khoản <strong>ADMIN</strong> có toàn quyền thao tác trên tất cả các kho vật lý trong hệ thống.
@@ -215,7 +214,7 @@ const Profile = () => {
               </h4>
             </div>
 
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input
                 label="Mã nhân viên"
                 type="text"

@@ -208,5 +208,5 @@ Active specs:
 Note: Nếu môi trường hiện tại không có GitNexus tooling, agent phải báo rõ không thể thực thi automation này trước khi tiếp tục các thay đổi thủ công.
 
 <!-- SPECKIT START -->
-<!-- Active Plan: specs/002-3-week-sprint-plan/plan.md -->
+<!-- Active Plan: .sdd/specs/001-security-auth-rbac-audit/plan.md -->
 <!-- SPECKIT END -->
