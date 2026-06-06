@@ -94,5 +94,26 @@ export const authService = {
       const response = await apiClient.put('/auth/change-password', { currentPassword, newPassword });
       return response.data;
     }
+  },
+
+  forgotPassword: async (email) => {
+    if (useMock) {
+      await new Promise(resolve => setTimeout(resolve, 800));
+      return { success: true };
+    } else {
+      const response = await apiClient.post('/auth/forgot-password', { email });
+      return response.data;
+    }
+  },
+
+  verifyOtp: async (email, otp, newPassword) => {
+    if (useMock) {
+      await new Promise(resolve => setTimeout(resolve, 800));
+      if (otp !== '123456') throw new Error('INVALID_OTP');
+      return { success: true };
+    } else {
+      const response = await apiClient.post('/auth/verify-otp', { email, otp, newPassword });
+      return response.data;
+    }
   }
 };

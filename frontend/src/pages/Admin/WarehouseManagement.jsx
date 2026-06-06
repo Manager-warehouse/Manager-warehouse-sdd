@@ -297,15 +297,20 @@ const WarehouseManagement = () => {
   };
 
   return (
-    <div className="p-6 bg-canvas-cream min-h-screen text-ink font-sans">
+    <div className="flex flex-col gap-6">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-4xl font-display font-light leading-tight tracking-tight mb-2">
-          Quản Lý Kho & Vị Trí Ô Kệ
-        </h1>
-        <p className="text-sm text-shade-50">
-          Cấu hình kho vật lý, phân khu vực (Zones), các hàng kệ (Racks), tầng kệ (Shelves) và quản lý chi tiết sức chứa tối đa của từng Bin.
-        </p>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
+            Hệ thống / Admin
+          </span>
+          <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">
+            Quản lý kho & Vị trí ô kệ
+          </h1>
+          <p className="text-xs text-shade-50 font-light mt-1">
+            Cấu hình kho vật lý, phân khu vực (Zones), các hàng kệ (Racks), tầng kệ (Shelves) và quản lý chi tiết sức chứa tối đa của từng Bin.
+          </p>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">

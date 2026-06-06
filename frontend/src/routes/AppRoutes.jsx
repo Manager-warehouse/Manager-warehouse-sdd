@@ -19,16 +19,6 @@ import PutawayPlan from '../pages/Inbound/PutawayPlan';
 import QuarantineWorkspace from '../pages/Inbound/QuarantineWorkspace';
 import SystemConfig from '../pages/Admin/SystemConfig';
 import AuditLogs from '../pages/Admin/AuditLogs';
-import ProductManagement from '../pages/Admin/ProductManagement';
-import WarehouseManagement from '../pages/Admin/WarehouseManagement';
-import PartnerManagement from '../pages/Admin/PartnerManagement';
-import FleetManagement from '../pages/Admin/FleetManagement';
-import ReceiptList from '../pages/Inbound/ReceiptList';
-import ReceiptForm from '../pages/Inbound/ReceiptForm';
-import ReceiptReceive from '../pages/Inbound/ReceiptReceive';
-import QCInbound from '../pages/Inbound/QCInbound';
-import PutawayPlan from '../pages/Inbound/PutawayPlan';
-import QuarantineWorkspace from '../pages/Inbound/QuarantineWorkspace';
 import { ROLES } from '../utils/constants';
 const AppRoutes = () => {
   return (

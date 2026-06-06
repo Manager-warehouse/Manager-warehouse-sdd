@@ -56,14 +56,7 @@ const ForgotPassword = () => {
     setError('');
 
     try {
-      // Giả lập gọi API đặt lại mật khẩu
-      // Trong thực tế, gọi authService.resetPassword(email, otp, newPassword)
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      if (otp !== '123456') {
-        throw new Error('INVALID_OTP');
-      }
-
+      await authService.verifyOtp(email, otp, newPassword);
       addToast('Đặt lại mật khẩu thành công', 'success');
       setStep(3);
     } catch (err) {

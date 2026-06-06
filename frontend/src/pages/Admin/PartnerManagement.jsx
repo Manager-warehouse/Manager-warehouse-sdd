@@ -289,14 +289,17 @@ const PartnerManagement = () => {
   );
 
   return (
-    <div className="p-6 bg-canvas-cream min-h-screen text-ink font-sans">
+    <div className="flex flex-col gap-6">
       {/* Header */}
-      <div className="flex justify-between items-start mb-8">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-4xl font-display font-light leading-tight tracking-tight mb-2">
-            Quản Lý Đối Tác Thương Mại
+          <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
+            Hệ thống / Admin
+          </span>
+          <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">
+            Quản lý đối tác thương mại
           </h1>
-          <p className="text-sm text-shade-50">
+          <p className="text-xs text-shade-50 font-light mt-1">
             Quản trị danh mục khách hàng Đại lý (kèm phê duyệt hạn mức nợ credit limit) và Nhà cung cấp Inbound của hệ thống.
           </p>
         </div>

@@ -95,6 +95,36 @@ const addMockAuditLog = (action, entityType, entityId, description, newValue = {
   localStorage.setItem('wms_audit_logs', JSON.stringify([newLog, ...logs]));
 };
 
+const getFilteredMockAuditLogs = ({
+  page = 1,
+  pageSize = 30,
+  from,
+  to,
+  warehouseId
+} = {}) => {
+  const fromTime = from ? new Date(from).getTime() : null;
+  const toTime = to ? new Date(to).getTime() : null;
+  const filtered = getMockAuditLogs()
+    .filter((log) => {
+      const logTime = new Date(log.timestamp).getTime();
+      const matchesFrom = !fromTime || logTime >= fromTime;
+      const matchesTo = !toTime || logTime <= toTime;
+      const matchesWarehouse = !warehouseId || String(log.warehouseId) === String(warehouseId);
+      return matchesFrom && matchesTo && matchesWarehouse;
+    })
+    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+  const start = (page - 1) * pageSize;
+  return {
+    data: filtered.slice(start, start + pageSize),
+    page,
+    pageSize,
+    hasNext: start + pageSize < filtered.length,
+    hasPrevious: page > 1,
+    requiresFilterForOlder: !from && !to && !warehouseId && page >= 50
+  };
+};
+
 // Store system parameter thresholds locally to persist across browser updates
 const getMockSystemConfig = () => {
   const config = localStorage.getItem('wms_system_config');
@@ -249,8 +279,13 @@ export const adminService = {
       await new Promise(resolve => setTimeout(resolve, 400));
       return getMockSystemConfig();
     } else {
-      const response = await apiClient.get('/admin/config');
-      return response.data;
+      const response = await apiClient.get('/admin/system-config');
+      const configObj = {};
+      response.data.forEach(item => {
+        const key = item.configKey.toLowerCase().replace(/_([a-z])/g, (m, c) => c.toUpperCase());
+        configObj[key] = item.configValue;
+      });
+      return configObj;
     }
   },
 
@@ -270,17 +305,33 @@ export const adminService = {
 
       return updated;
     } else {
-      const response = await apiClient.put('/admin/config', configData);
+      const promises = Object.entries(configData).map(([key, value]) => {
+        const configKey = key.replace(/([A-Z])/g, '_$1').toUpperCase();
+        return apiClient.put(`/admin/system-config/${configKey}`, { configValue: String(value) });
+      });
+      await Promise.all(promises);
+      return configData;
+    }
+  },
+
+  getAuditLogs: async (params = {}) => {
+    if (useMock) {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      return getFilteredMockAuditLogs(params);
+    } else {
+      const response = await apiClient.get('/audit-logs', { params });
       return response.data;
     }
   },
 
-  getAuditLogs: async () => {
+  getAuditLogById: async (id) => {
     if (useMock) {
-      await new Promise(resolve => setTimeout(resolve, 400));
-      return getMockAuditLogs();
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      const log = getMockAuditLogs().find((item) => item.id === Number(id));
+      if (!log) throw new Error('AUDIT_LOG_NOT_FOUND');
+      return log;
     } else {
-      const response = await apiClient.get('/audit-logs');
+      const response = await apiClient.get(`/audit-logs/${id}`);
       return response.data;
     }
   }

@@ -325,8 +325,12 @@ export const masterDataService = {
       addMockAuditLog(actionName, 'Product', id, `${isActive ? 'Kích hoạt' : 'Vô hiệu hóa'} sản phẩm SKU: ${products[idx].sku}`);
       return products[idx];
     }
-    const response = await apiClient.put(`/products/${id}/status`, { is_active: isActive });
-    return response.data;
+    if (!isActive) {
+      const response = await apiClient.delete(`/products/${id}`);
+      return { id, is_active: false };
+    } else {
+      throw new Error('ACTIVATION_NOT_SUPPORTED_ON_BACKEND');
+    }
   },
 
   // --- WAREHOUSES ---

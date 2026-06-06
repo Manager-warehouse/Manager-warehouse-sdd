@@ -51,6 +51,11 @@ apiClient.interceptors.response.use(
       }
     }
     
+    // Normalize error message from backend
+    if (error.response && error.response.data && error.response.data.error) {
+      error.message = error.response.data.error;
+    }
+    
     return Promise.reject(error);
   }
 );

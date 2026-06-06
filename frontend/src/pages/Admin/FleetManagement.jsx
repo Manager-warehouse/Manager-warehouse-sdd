@@ -311,14 +311,17 @@ const FleetManagement = () => {
   );
 
   return (
-    <div className="p-6 bg-canvas-cream min-h-screen text-ink font-sans">
+    <div className="flex flex-col gap-6">
       {/* Header */}
-      <div className="flex justify-between items-start mb-8">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-4xl font-display font-light leading-tight tracking-tight mb-2">
-            Đội Xe & Tài Xế Nội Bộ
+          <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
+            Hệ thống / Admin
+          </span>
+          <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">
+            Đội xe & Tài xế nội bộ
           </h1>
-          <p className="text-sm text-shade-50">
+          <p className="text-xs text-shade-50 font-light mt-1">
             Quản lý đội ngũ phương tiện vận tải nội bộ Phúc Anh và thông tin giấy phép lái xe, trạng thái làm việc của tài xế.
           </p>
         </div>
