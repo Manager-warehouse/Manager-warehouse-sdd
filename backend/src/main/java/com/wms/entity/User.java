@@ -2,8 +2,14 @@ package com.wms.entity;
 
 import com.wms.enums.UserRole;
 import jakarta.persistence.*;
+import lombok.*;
 import java.time.OffsetDateTime;
 
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 @Entity
 @Table(name = "users")
 public class User {
@@ -48,4 +54,18 @@ public class User {
 
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
+
+    // Auth: refresh token (stored as SHA-256 hash)
+    @Column(name = "refresh_token_hash", length = 255)
+    private String refreshTokenHash;
+
+    @Column(name = "refresh_token_expires_at")
+    private OffsetDateTime refreshTokenExpiresAt;
+
+    // Auth: OTP for password reset (stored as SHA-256 hash)
+    @Column(name = "otp_hash", length = 255)
+    private String otpHash;
+
+    @Column(name = "otp_expires_at")
+    private OffsetDateTime otpExpiresAt;
 }

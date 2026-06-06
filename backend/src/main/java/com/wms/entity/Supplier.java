@@ -1,10 +1,14 @@
 package com.wms.entity;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
 import java.time.OffsetDateTime;
 
 @Entity
 @Table(name = "suppliers")
+@Getter
+@Setter
 public class Supplier {
 
     @Id
@@ -32,6 +36,17 @@ public class Supplier {
     @Column(name = "is_active", nullable = false)
     private Boolean isActive;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by")
+    private User createdBy;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "updated_by")
+    private User updatedBy;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
+
+    @Column(name = "updated_at", nullable = false)
+    private OffsetDateTime updatedAt;
 }

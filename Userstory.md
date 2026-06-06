@@ -6,19 +6,15 @@
 
 ## NHÓM 1: QUẢN TRỊ HỆ THỐNG & CẤU HÌNH (ADMIN & CEO)
 
-### US-WMS-01: Cấu hình Tham số Hệ thống & Định mức Phê duyệt động (Priority: P1)
+### US-WMS-01: Cấu hình Tham số Hệ thống (Priority: P1)
 
-**Mô tả:** Là System Admin / CEO, tôi muốn thiết lập các tham số vận hành và bảng định mức phê duyệt để hệ thống tự động phân luồng Maker-Checker đúng người, đúng quyền.
+**Mô tả:** Là System Admin / CEO, tôi muốn thiết lập các tham số vận hành để hệ thống áp dụng các quy tắc kinh doanh thống nhất.
 
 **Tiêu chí nghiệm thu:**
 
-1. Admin cấu hình được các tham số hệ thống: Hạn mức công nợ mặc định cho Đại lý, Tồn kho tối thiểu theo SKU/Kho, Kỳ hạn thanh toán mặc định (Net 30 / Net 60).
+1. Admin cấu hình được các tham số hệ thống: Hạn mức công nợ mặc định cho Đại lý, Tồn kho tối thiểu theo SKU/Kho, Kỳ hạn thanh toán mặc định (Net 30 / Net 60), Ngày khóa kỳ kế toán hàng tháng, và Ngưỡng cảnh báo tồn kho tối thiểu mặc định.
 
-2. Admin cấu hình Bảng định mức phê duyệt điều chỉnh tồn kho (kiểm kê/hủy hàng):
-   - Giá trị lệch 5 triệu – 100 triệu VNĐ → Trưởng kho duyệt.
-   - Giá trị lệch > 100 triệu VNĐ hoặc nguyên nhân do nhân viên → CEO duyệt.
-
-3. Mọi thao tác thay đổi tham số phải ghi Audit Log đầy đủ: ai sửa, giá trị cũ, giá trị mới, thời điểm.
+2. Mọi thao tác thay đổi tham số phải ghi Audit Log đầy đủ: ai sửa, giá trị cũ, giá trị mới, thời điểm.
 
 ---
 
@@ -38,33 +34,30 @@
 
 ### US-WMS-03: Kiểm hàng thực tế & Kiểm QC Inbound (Priority: P1)
 
-**Mô tả:** Là Thủ kho và Nhân viên kho (Bốc xếp & QC), chúng tôi muốn đếm số lượng thực tế và kiểm tra chất lượng hàng nhập để phân loại Đạt/Lỗi vào hệ thống.
+**Mô tả:** Là Thủ kho kiêm QC, tôi muốn đếm số lượng thực tế và kiểm tra chất lượng hàng nhập để phân loại Đạt/Lỗi vào hệ thống.
 
 **Tiêu chí nghiệm thu:**
 
 1. Thủ kho đếm hàng thực tế và nhập số lượng vào phiếu nhập nháp trên hệ thống.
-2. Nhân viên kho kiểm tra ngoại quan từng lô hàng (kiểm QC) và nhập kết quả: **Đạt** hoặc **Lỗi** kèm lý do chi tiết.
-3. Hàng **Đạt** → Nhân viên kho hỗ trợ Thủ kho cất hàng vào vị trí kệ (Bin Location) được chỉ định. Hệ thống kiểm tra sức chứa Bin trước khi cho phép.
+2. Thủ kho kiểm tra ngoại quan từng lô hàng (kiểm QC) và nhập kết quả: **Đạt** hoặc **Lỗi** kèm lý do chi tiết.
+3. Hàng **Đạt** → Thủ kho chỉ định vị trí kệ (Bin Location); Nhân viên kho hỗ trợ cất hàng theo chỉ dẫn. Hệ thống kiểm tra sức chứa Bin trước khi cho phép.
 4. Hàng **Lỗi** → Hệ thống **bắt buộc** tự động chuyển sang **Kho cách ly (Quarantine Zone)**, không tính vào tồn kho khả dụng, không được phép xuất bán.
 
 ---
 
 ### US-WMS-04: Phê duyệt hàng lỗi & Ra quyết định xử lý (Priority: P1)
 
-**Mô tả:** Là Trưởng kho kiêm Trưởng QC (Checker), tôi muốn phê duyệt biên bản hàng lỗi trong Quarantine Zone và ra quyết định Tiêu hủy hoặc Trả về Nhà cung cấp.
+**Mô tả:** Là Trưởng kho (Checker), tôi muốn phê duyệt biên bản xử lý hàng lỗi trong Quarantine Zone và ra quyết định Tiêu hủy hoặc Trả về Nhà cung cấp.
 
 **Tiêu chí nghiệm thu:**
 
-1. Trưởng kho kiêm Trưởng QC xem danh sách hàng lỗi đang chờ xử lý trong Quarantine Zone và phê duyệt biên bản.
+1. Trưởng kho xem danh sách hàng lỗi đang chờ xử lý trong Quarantine Zone và phê duyệt biên bản xử lý.
 2. **Nếu chọn Trả về NCC (Return to Vendor — RTV):**
    - Hệ thống tạo **Phiếu trả hàng NCC** kèm lý do lỗi chi tiết → Số lượng hàng trong Quarantine Zone bị trừ.
    - Thủ kho đóng gói hàng lỗi và xác nhận đã giao trả về NCC trên hệ thống.
    - **Kế toán viên** nhận thông báo → Tạo **Debit Note** (Phiếu đòi bồi hoàn NCC): ghi rõ số lượng, giá trị hàng lỗi, yêu cầu NCC hoàn tiền hoặc giao hàng thay thế.
    - Debit Note được lưu vào hồ sơ giao dịch với NCC, làm căn cứ theo dõi và đối chiếu khi NCC phản hồi.
-3. **Nếu chọn Tiêu hủy:** Hệ thống tự động tạo Phiếu xuất hủy và áp dụng bảng định mức phê duyệt:
-   - Giá trị < 5 triệu → Không bán.
-   - Giá trị 5 – 100 triệu → Trưởng kho duyệt.
-   - Giá trị > 100 triệu → CEO duyệt.
+3. **Nếu chọn Tiêu hủy:** Hệ thống tự động tạo Phiếu xuất hủy và được phê duyệt bởi Trưởng kho.
    
 ---
 
@@ -91,7 +84,7 @@
 1. Planner nhập: Đại lý nhận hàng, mã sản phẩm, số lượng xuất, kho xuất.
 2. **Kiểm tra công nợ (Credit Check — bắt buộc, tự động):** Hệ thống kiểm tra TRƯỚC KHI cho phép tạo đơn:
    - **Điều kiện khóa (HOẶC):**
-     - `Công nợ hiện tại + Giá trị đơn mới >= Hạn mức tín dụng`
+     - `Công nợ hiện tại + Giá trị đơn mới > Hạn mức tín dụng` (bằng hạn mức vẫn cho phép tạo đơn)
      - `Đại lý có ít nhất 1 hóa đơn quá hạn > 30 ngày`
    - Nếu vi phạm → Hệ thống **chặn cứng**, hiển thị popup cảnh báo rõ lý do (công nợ hiện tại, hạn mức, số tiền vượt), không cho tạo đơn.
 3. **Kiểm tra tồn kho khả dụng (Available Quantity):** Hệ thống tính:
@@ -109,13 +102,13 @@
 
 ### US-WMS-07: Soạn hàng & Kiểm QC đóng gói (Priority: P1)
 
-**Mô tả:** Là Thủ kho và Nhân viên kho (Bốc xếp & QC), chúng tôi muốn soạn hàng từ vị trí kệ và kiểm tra chất lượng đóng gói QC trước khi xuất kho.
+**Mô tả:** Là Thủ kho kiêm QC, tôi muốn soạn hàng từ vị trí kệ và kiểm tra chất lượng đóng gói QC trước khi xuất kho.
 
 **Tiêu chí nghiệm thu:**
 
 1. Thủ kho nhận lệnh xuất → Đi lấy hàng từ các Bin Location → Cập nhật trạng thái đơn: **Đang soạn hàng (Picking)**.
-2. Nhân viên kho kiểm tra QC: đúng SKU, đúng số lượng, đóng thùng chống sốc → Xác nhận đạt trên hệ thống.
-3. Thủ kho xác nhận hoàn tất soạn hàng sau khi Nhân viên kho xác nhận QC đạt → Trạng thái đơn: **Sẵn sàng xuất (Ready to Ship)**.
+2. Thủ kho kiểm tra QC: đúng SKU, đúng số lượng, đóng thùng chống sốc → Xác nhận đạt trên hệ thống.
+3. Thủ kho xác nhận hoàn tất soạn hàng sau khi QC đạt → Trạng thái đơn: **Sẵn sàng xuất (Ready to Ship)**.
 
 ---
 
@@ -156,7 +149,7 @@
    - Trạng thái hóa đơn ban đầu: **Chưa thanh toán (Unpaid)**.
 2. **Hệ thống tự động** sau khi hóa đơn được tạo:
    - Cộng dồn giá trị hóa đơn vào `current_balance` của Đại lý.
-   - Kiểm tra: `IF current_balance >= credit_limit THEN customer.status = 'CREDIT_HOLD'`.
+   - Kiểm tra: `IF current_balance > credit_limit THEN customer.status = 'CREDIT_HOLD'`; nếu `current_balance = credit_limit` thì vẫn cho phép theo hạn mức.
 3. **Cảnh báo tự động quá hạn (Daily Job):** Hệ thống quét hàng ngày — nếu Hóa đơn đã quá ngày **Hạn thanh toán** mà chưa được thanh toán → Tự động gán `CREDIT_HOLD` cho Đại lý và bắn thông báo đến Kế toán trưởng.
 4. Đơn hàng chuyển trạng thái: **Đã hoàn thành (Completed)** — chờ thu tiền.
 
@@ -204,9 +197,7 @@
 
 1. Thủ kho tạo Phiếu kiểm kê, khóa sổ kiểm kê tạm thời → Thực hiện đếm thực tế và nhập số lượng.
 2. Hệ thống tự động tính toán chênh lệch: `Variance = Thực tế - Hệ thống`.
-3. Áp dụng bảng định mức phê duyệt điều chỉnh (theo cấu hình US-WMS-01):
-   - Giá trị lệch 5 – 100 triệu → Trưởng kho duyệt.
-   - Giá trị lệch > 100 triệu → CEO duyệt.
+3. Mọi chênh lệch kiểm kê sau khi xác nhận sẽ được Trưởng kho phê duyệt để điều chỉnh tồn kho chính thức.
 4. Sau khi được duyệt → Hệ thống cập nhật tồn kho và ghi Audit Log đầy đủ.
 
 ---
@@ -301,7 +292,7 @@
 
 ### US-WMS-19: Quản lý Danh mục Sản phẩm & SKU tập trung (Priority: P1)
 
-**Mô tả:** Là Planner / Kế toán viên, tôi muốn quản lý danh mục sản phẩm để đồng bộ thông tin hàng hóa trên toàn hệ thống 3 kho.
+**Mô tả:** Là Thủ kho, tôi muốn quản lý danh mục sản phẩm để đồng bộ thông tin hàng hóa trên toàn hệ thống 3 kho.
 
 **Tiêu chí nghiệm thu:**
 
@@ -313,7 +304,7 @@
 
 ### US-WMS-20: Cấu hình Vị trí kho & Kiểm tra Sức chứa Kệ (Bin Location) (Priority: P2)
 
-**Mô tả:** Là Thủ kho / Trưởng kho, tôi muốn cấu hình sơ đồ kho theo cấu trúc Zone → Rack → Shelf → Bin và thiết lập sức chứa tối đa để tối ưu hóa không gian lưu trữ.
+**Mô tả:** Là Thủ kho / Trưởng kho, tôi muốn cấu hình sơ đồ kho theo cấu trúc Zone → Bin và thiết lập sức chứa tối đa ở cấp Bin để tối ưu hóa không gian lưu trữ.
 
 **Tiêu chí nghiệm thu:**
 
@@ -337,13 +328,13 @@
 
 ### US-WMS-22: Quản lý Danh mục Đối tác (Đại lý & Nhà cung cấp) (Priority: P1)
 
-**Mô tả:** Là System Admin / Kế toán trưởng, tôi muốn quản lý danh mục Đại lý và Nhà cung cấp làm nền tảng cho toàn bộ các nghiệp vụ xuất/nhập kho.
+**Mô tả:** Là Kế toán viên / Kế toán trưởng, tôi muốn quản lý danh mục Đại lý và Nhà cung cấp làm nền tảng cho toàn bộ các nghiệp vụ xuất/nhập kho.
 
 **Tiêu chí nghiệm thu:**
 
 1. **Đại lý:** Tạo mới, cập nhật hồ sơ: Tên, SĐT, Địa chỉ giao hàng mặc định, Khu vực phụ trách, Kỳ hạn thanh toán mặc định (Net 30 / Net 60).
    - **Kế toán trưởng** là người duy nhất có quyền thiết lập và điều chỉnh **Hạn mức tín dụng tối đa (Credit Limit)** cho từng Đại lý.
-2. **Nhà cung cấp (NCC):** Tạo mới, cập nhật hồ sơ: Tên công ty, Mã số thuế, SĐT, Người liên hệ, Địa chỉ.
+2. **Nhà cung cấp (NCC):** Kế toán viên tạo mới, cập nhật hồ sơ: Tên công ty, Mã số thuế, SĐT, Người liên hệ, Địa chỉ.
 3. Soft-delete: Vô hiệu hóa Đại lý/NCC (`is_active = false`) → Không cho tạo đơn mới nhưng giữ toàn bộ lịch sử giao dịch cũ.
 
 ---
@@ -356,7 +347,7 @@
 
 1. Lưu trữ thông tin xe: Biển số xe, Loại xe, Tải trọng tối đa (kg), Thể tích thùng xe (m³).
 2. Lưu trữ thông tin Tài xế: Họ tên, SĐT, Số giấy phép lái xe, ngày hết hạn GPLX.
-3. Cập nhật và hiển thị trạng thái phương tiện/tài xế (Rảnh / Đang giao hàng / Đang bảo trì) để tránh gán trùng lịch khi Dispatcher lập Chuyến xe.
+3. Cập nhật và hiển thị trạng thái phương tiện (Rảnh / Đang đi chuyến / Bảo trì) và tài xế (Rảnh / Đang đi chuyến / Không khả dụng) để tránh gán trùng lịch khi Dispatcher lập Chuyến xe.
 
 ---
 
@@ -369,7 +360,7 @@
 **Tiêu chí nghiệm thu:**
 
 1. Thủ kho lập Phiếu nhập hàng hoàn từ Đại lý, ghi rõ lý do hoàn trả.
-2. Nhân viên kho kiểm tra QC: Hàng còn tốt → Nhập lại kho thường; Hàng lỗi/hư hỏng → Vào Quarantine Zone chờ Trưởng kho kiêm Trưởng QC quyết định.
+2. Thủ kho kiểm tra QC: Hàng còn tốt → Nhập lại kho thường; Hàng lỗi/hư hỏng → Vào Quarantine Zone chờ Trưởng kho quyết định.
 3. Kế toán viên ghi nhận giá trị hàng hoàn → Tạo **Credit Note** → Hệ thống tự động trừ `current_balance` của Đại lý tương ứng.
 
 ---
@@ -380,7 +371,7 @@
 
 **Tiêu chí nghiệm thu:**
 
-1. Hệ thống ghi nhận sản lượng thực hiện của từng cá nhân: Số đơn bốc xếp & QC (Nhân viên kho), Số đơn soạn hàng hoàn thành (Thủ kho), Số chuyến giao (Tài xế).
+1. Hệ thống ghi nhận sản lượng thực hiện của từng cá nhân: Số đơn bốc xếp/di chuyển hàng (Nhân viên kho), Số đơn soạn hàng và QC hoàn thành (Thủ kho), Số chuyến giao (Tài xế).
 2. Trưởng kho xuất file Excel báo cáo sản lượng theo khoảng thời gian tùy chọn.
 
 ---

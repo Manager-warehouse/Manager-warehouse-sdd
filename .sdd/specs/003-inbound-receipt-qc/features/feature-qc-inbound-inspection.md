@@ -1,10 +1,10 @@
-# Feature: Nhân viên QC Kiểm tra Chất lượng Inbound (US-WMS-03)
+# Feature: Thủ kho Kiểm tra Chất lượng Inbound (US-WMS-03)
 
 ## 1. Context and Goal
-Nhân viên kho (phụ trách QC) kiểm tra ngoại quan và chất lượng từng sản phẩm nhập về. Hàng hóa đạt chuẩn được giữ để Trưởng kho phê duyệt nhập kho, hàng hóa lỗi QC bắt buộc phải tách riêng và chuyển vào khu cách ly (Quarantine Zone).
+Thủ kho kiêm QC kiểm tra ngoại quan và chất lượng từng sản phẩm nhập về. Hàng hóa đạt chuẩn được giữ để Trưởng kho phê duyệt nhập kho, hàng hóa lỗi QC bắt buộc phải tách riêng và chuyển vào khu cách ly (Quarantine Zone).
 
 ## 2. Actors
-* **Nhân viên kho (QC)**: Thực hiện kiểm QC và ghi nhận số lượng đạt/lỗi cùng lý do.
+* **Thủ kho kiêm QC**: Thực hiện kiểm QC và ghi nhận số lượng đạt/lỗi cùng lý do.
 
 ## 3. Functional Requirements (EARS)
 * **Event-driven:**

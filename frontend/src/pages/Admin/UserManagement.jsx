@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { Edit2, Eye, History, Plus, Search, ToggleLeft, ToggleRight, Users } from 'lucide-react';
 import { adminService } from '../../services/admin.service';
 import { useUiStore } from '../../stores/ui.store';
+import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
 import Pagination from '../../components/common/Pagination';
 import UserTable from './UserTable';
@@ -92,7 +94,7 @@ const UserManagement = () => {
         addToast('Tạo tài khoản mới thành công', 'success');
       }
       setModalOpen(false);
-      loadData();
+      await loadData();
     } catch (err) {
       // Re-throw so UserFormModal can display field-specific error messages
       throw err;
@@ -101,8 +103,7 @@ const UserManagement = () => {
     }
   };
 
-  const handleToggleUserStatus = async (user) => {
-    const nextStatus = !user.isActive;
+  const toggleUserStatus = async (user) => {
     try {
       await adminService.toggleUserStatus(user.id, nextStatus);
       addToast(
@@ -117,29 +118,13 @@ const UserManagement = () => {
 
   return (
     <div className="flex-1 flex flex-col gap-6 pb-12">
-      {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
-            Hệ thống / Admin
-          </span>
-          <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">
-            Quản trị tài khoản & Phân quyền
-          </h1>
-          <p className="text-xs text-shade-50 font-light mt-1">
-            Quản lý tài khoản nhân viên, gán vai trò RBAC và gán kho làm việc được phép truy cập.
-          </p>
+          <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">He thong / Admin</span>
+          <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">Quan tri tai khoan & Phan quyen</h1>
+          <p className="text-xs text-shade-50 font-light mt-1">Quan ly tai khoan nhan vien, vai tro RBAC va kho duoc phep truy cap.</p>
         </div>
-
-        <div className="flex gap-2">
-          <Button
-            onClick={handleOpenCreateModal}
-            variant="primary"
-            icon={Plus}
-          >
-            Tạo tài khoản
-          </Button>
-        </div>
+        <Button onClick={openCreateModal} variant="primary" icon={Plus}>Tao tai khoan</Button>
       </div>
 
       <div className="flex flex-col gap-4">
@@ -171,6 +156,13 @@ const UserManagement = () => {
             onPageChange={setCurrentPage}
             onPageSizeChange={setPageSize}
           />
+          <div className="flex items-center justify-between text-xs text-shade-60">
+            <span>Trang {auditPage} / 50{auditPageMeta.requiresFilterForOlder ? ' - dung filter de tim log cu hon' : ''}</span>
+            <div className="flex gap-2">
+              <Button variant="outline-light" disabled={!auditPageMeta.hasPrevious || loading} onClick={() => changeAuditPage(Math.max(1, auditPage - 1))}>Truoc</Button>
+              <Button variant="outline-light" disabled={loading || (!auditPageMeta.hasNext && auditPage >= 50)} onClick={() => changeAuditPage(auditPage + 1)}>Sau</Button>
+            </div>
+          </div>
         </div>
       </div>
 

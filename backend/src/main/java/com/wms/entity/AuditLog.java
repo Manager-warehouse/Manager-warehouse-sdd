@@ -4,8 +4,15 @@ import com.wms.enums.AuditAction;
 import jakarta.persistence.*;
 import java.time.OffsetDateTime;
 
+import lombok.*;
+
 @Entity
 @Table(name = "audit_logs")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class AuditLog {
 
     @Id
@@ -13,10 +20,10 @@ public class AuditLog {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "actor_id")
+    @JoinColumn(name = "actor_id", nullable = false)
     private User actor;
 
-    @Column(name = "actor_role", length = 50)
+    @Column(name = "actor_role", nullable = false, length = 50)
     private String actorRole;
 
     @Enumerated(EnumType.STRING)
@@ -29,6 +36,13 @@ public class AuditLog {
     @Column(name = "entity_id", nullable = false)
     private Long entityId;
 
+    @Column(name = "description", nullable = false, columnDefinition = "TEXT")
+    private String description;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "warehouse_id")
+    private Warehouse warehouse;
+
     @Column(name = "old_value", columnDefinition = "jsonb")
     private String oldValue;
 
@@ -40,4 +54,11 @@ public class AuditLog {
 
     @Column(name = "ip_address", length = 45)
     private String ipAddress;
+
+    @PrePersist
+    protected void onCreate() {
+        if (this.timestamp == null) {
+            this.timestamp = OffsetDateTime.now();
+        }
+    }
 }

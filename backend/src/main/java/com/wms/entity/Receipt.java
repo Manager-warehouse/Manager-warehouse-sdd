@@ -3,11 +3,15 @@ package com.wms.entity;
 import com.wms.enums.ReceiptStatus;
 import com.wms.enums.ReceiptType;
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
 @Entity
 @Table(name = "receipts")
+@Getter
+@Setter
 public class Receipt {
 
     @Id
