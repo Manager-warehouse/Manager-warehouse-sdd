@@ -68,3 +68,10 @@
 .active-scale-98:active {
   transform: scale(0.98);
 }
+
+/* Hide browsers' native reveal password button (like MS Edge native eye icon) */
+input::-ms-reveal,
+input::-ms-clear {
+  display: none;
+}
+

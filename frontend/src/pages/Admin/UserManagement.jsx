@@ -128,6 +128,7 @@ const UserManagement = () => {
       if (editingUser) {
         // Edit flow
         await adminService.updateUser(editingUser.id, {
+          code: payload.code,
           fullName: payload.fullName,
           email: payload.email,
           phone: payload.phone,

@@ -22,6 +22,7 @@ public class LoginResponse {
         private String fullName;
         private String email;
         private String role;
+        private List<Long> warehouses;
         private List<WarehouseInfo> assignedWarehouses;
     }
 

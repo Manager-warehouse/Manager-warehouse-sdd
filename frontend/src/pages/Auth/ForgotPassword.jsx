@@ -179,7 +179,7 @@ const ForgotPassword = () => {
                 />
               </div>
 
-              <div className="relative">
+              <div>
                 <Input
                   label="Mật khẩu mới"
                   type="password"
@@ -189,7 +189,6 @@ const ForgotPassword = () => {
                   className="!bg-canvas-nightElevated !text-onPrimary !border-hairline-dark focus:!ring-onPrimary focus:!border-onPrimary placeholder-shade-60"
                   required
                 />
-                <KeyRound className="absolute right-3 top-[38px] w-4 h-4 text-shade-50" />
               </div>
 
               <Button

@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 
 const Input = React.forwardRef(({
   label,
@@ -9,15 +10,20 @@ const Input = React.forwardRef(({
   options = [], // for type="select" or multiselect
   ...props
 }, ref) => {
+  const [showPassword, setShowPassword] = useState(false);
   const inputId = id || `input-${Math.random().toString(36).substring(2, 9)}`;
   
-  const baseInputStyle = 'w-full bg-canvas-light text-ink text-sm px-3 py-2.5 rounded-md border border-hairline-light focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink transition-all min-h-[44px]';
+  const baseInputStyle = 'w-full bg-canvas-light text-ink text-sm px-3 py-2.5 rounded-md border border-hairline-light focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink transition-all min-h-[44px] disabled:bg-canvas-cream/60 disabled:text-shade-50 disabled:cursor-not-allowed disabled:opacity-70';
   const errorInputStyle = 'border-red-500 focus:ring-red-500 focus:border-red-500';
   
   return (
     <div className={`flex flex-col gap-1.5 w-full ${className}`}>
       {label && (
-        <label htmlFor={inputId} className="text-xs font-semibold uppercase tracking-wider text-shade-60">
+        <label
+          htmlFor={inputId}
+          className="text-xs font-semibold uppercase tracking-wider text-shade-60 whitespace-nowrap overflow-hidden text-ellipsis"
+          title={label}
+        >
           {label}
         </label>
       )}
@@ -59,13 +65,29 @@ const Input = React.forwardRef(({
           ))}
         </div>
       ) : (
-        <input
-          id={inputId}
-          type={type}
-          ref={ref}
-          className={`${baseInputStyle} ${error ? errorInputStyle : ''}`}
-          {...props}
-        />
+        <div className="relative w-full">
+          <input
+            id={inputId}
+            type={type === 'password' ? (showPassword ? 'text' : 'password') : type}
+            ref={ref}
+            className={`${baseInputStyle} ${error ? errorInputStyle : ''} ${type === 'password' ? 'pr-10' : ''}`}
+            {...props}
+          />
+          {type === 'password' && (
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-shade-50 hover:text-ink focus:outline-none transition-colors"
+              title={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+            >
+              {showPassword ? (
+                <EyeOff className="w-4 h-4" />
+              ) : (
+                <Eye className="w-4 h-4" />
+              )}
+            </button>
+          )}
+        </div>
       )}
 
       {error && (

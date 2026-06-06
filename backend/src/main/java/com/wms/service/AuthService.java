@@ -3,8 +3,13 @@ package com.wms.service;
 import com.wms.dto.auth.*;
 import com.wms.entity.User;
 import com.wms.entity.UserWarehouseAssignment;
+import com.wms.entity.AuditLog;
+import com.wms.enums.AuditAction;
 import com.wms.repository.UserRepository;
+import com.wms.repository.UserWarehouseAssignmentRepository;
+import com.wms.repository.AuditLogRepository;
 import com.wms.util.JwtUtil;
+import com.wms.util.AuditLogUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
@@ -34,6 +39,8 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JavaMailSender mailSender;
+    private final UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
+    private final AuditLogRepository auditLogRepository;
 
     @Value("${jwt.refresh-token-expiry}")
     private long refreshTokenExpiry;
@@ -62,6 +69,7 @@ public class AuthService {
         userRepository.save(user);
 
         List<LoginResponse.WarehouseInfo> warehouses = buildWarehouseInfoList(user);
+        List<Long> warehouseIds = userWarehouseAssignmentRepository.findWarehouseIdsByUserId(user.getId());
 
         return LoginResponse.builder()
                 .accessToken(accessToken)
@@ -73,6 +81,7 @@ public class AuthService {
                         .fullName(user.getFullName())
                         .email(user.getEmail())
                         .role(user.getRole().name())
+                        .warehouses(warehouseIds)
                         .assignedWarehouses(warehouses)
                         .build())
                 .build();
@@ -115,6 +124,7 @@ public class AuthService {
                 .orElseThrow(() -> new IllegalArgumentException("USER_NOT_FOUND"));
 
         List<MeResponse.WarehouseInfo> warehouses = buildMeWarehouseInfoList(user);
+        List<Long> warehouseIds = userWarehouseAssignmentRepository.findWarehouseIdsByUserId(user.getId());
 
         return MeResponse.builder()
                 .id(user.getId())
@@ -124,8 +134,63 @@ public class AuthService {
                 .phone(user.getPhone())
                 .role(user.getRole().name())
                 .jobTitle(user.getJobTitle())
+                .shift(user.getShift())
+                .region(user.getRegion())
+                .isActive(user.getIsActive())
+                .warehouses(warehouseIds)
                 .assignedWarehouses(warehouses)
                 .build();
+    }
+
+    @Transactional
+    public MeResponse updateProfile(String currentEmail, ProfileUpdateRequest request) {
+        User user = userRepository.findByEmail(currentEmail)
+                .orElseThrow(() -> new IllegalArgumentException("USER_NOT_FOUND"));
+
+        // Check email uniqueness if email is changing
+        if (!user.getEmail().equalsIgnoreCase(request.getEmail())) {
+            if (userRepository.findByEmail(request.getEmail()).isPresent()) {
+                throw new IllegalArgumentException("EMAIL_TAKEN");
+            }
+        }
+
+        // Capture old values for audit logging
+        java.util.Map<String, Object> oldValue = java.util.Map.of(
+                "fullName", user.getFullName(),
+                "email", user.getEmail(),
+                "phone", user.getPhone() != null ? user.getPhone() : ""
+        );
+
+        // Perform update
+        user.setFullName(request.getFullName());
+        user.setEmail(request.getEmail());
+        user.setPhone(request.getPhone());
+        user.setUpdatedAt(OffsetDateTime.now());
+
+        User savedUser = userRepository.save(user);
+
+        // Capture new values
+        java.util.Map<String, Object> newValue = java.util.Map.of(
+                "fullName", savedUser.getFullName(),
+                "email", savedUser.getEmail(),
+                "phone", savedUser.getPhone() != null ? savedUser.getPhone() : ""
+        );
+
+        // Save audit log
+        AuditLog auditLog = AuditLog.builder()
+                .actor(savedUser)
+                .actorRole(savedUser.getRole().name())
+                .action(AuditAction.UPDATE)
+                .entityType("User")
+                .entityId(savedUser.getId())
+                .description("UPDATE User Profile: " + savedUser.getEmail())
+                .oldValue(AuditLogUtil.toJson(oldValue))
+                .newValue(AuditLogUtil.toJson(newValue))
+                .timestamp(OffsetDateTime.now())
+                .build();
+        auditLogRepository.save(auditLog);
+
+        return me(savedUser.getEmail());
     }
 
     @Transactional

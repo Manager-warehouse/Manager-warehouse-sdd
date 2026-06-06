@@ -4,6 +4,8 @@ import com.wms.dto.auth.*;
 import com.wms.entity.User;
 import com.wms.enums.UserRole;
 import com.wms.repository.UserRepository;
+import com.wms.repository.UserWarehouseAssignmentRepository;
+import com.wms.repository.AuditLogRepository;
 import com.wms.util.JwtUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -36,6 +38,8 @@ class AuthServiceTest {
     @Mock private PasswordEncoder passwordEncoder;
     @Mock private AuthenticationManager authenticationManager;
     @Mock private JavaMailSender mailSender;
+    @Mock private UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
+    @Mock private AuditLogRepository auditLogRepository;
 
     @InjectMocks
     private AuthService authService;
@@ -322,6 +326,51 @@ class AuthServiceTest {
         assertThatThrownBy(() -> authService.changePassword("test@wms.com", req))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("INVALID_CREDENTIALS");
+    }
+
+    // ─── UPDATE PROFILE ──────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("Cập nhật profile thành công khi email không trùng")
+    void updateProfile_success() {
+        when(userRepository.findByEmail("test@wms.com")).thenReturn(Optional.of(activeUser));
+        when(userRepository.save(any(User.class))).thenReturn(activeUser);
+
+        ProfileUpdateRequest req = new ProfileUpdateRequest();
+        req.setFullName("Nguyen Van B");
+        req.setEmail("newemail@wms.com");
+        req.setPhone("0987654321");
+
+        when(userRepository.findByEmail("newemail@wms.com"))
+                .thenReturn(Optional.empty())
+                .thenReturn(Optional.of(activeUser));
+
+        MeResponse response = authService.updateProfile("test@wms.com", req);
+
+        assertThat(response.getFullName()).isEqualTo("Nguyen Van B");
+        assertThat(response.getEmail()).isEqualTo("newemail@wms.com");
+        assertThat(response.getPhone()).isEqualTo("0987654321");
+        verify(userRepository).save(activeUser);
+        verify(auditLogRepository).save(any());
+    }
+
+    @Test
+    @DisplayName("Cập nhật profile thất bại khi email mới đã bị người khác dùng")
+    void updateProfile_emailTaken_throwsException() {
+        when(userRepository.findByEmail("test@wms.com")).thenReturn(Optional.of(activeUser));
+
+        ProfileUpdateRequest req = new ProfileUpdateRequest();
+        req.setFullName("Nguyen Van B");
+        req.setEmail("other@wms.com");
+        req.setPhone("0987654321");
+
+        User otherUser = User.builder().id(2L).email("other@wms.com").build();
+        when(userRepository.findByEmail("other@wms.com")).thenReturn(Optional.of(otherUser));
+
+        assertThatThrownBy(() -> authService.updateProfile("test@wms.com", req))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("EMAIL_TAKEN");
+        verify(userRepository, never()).save(any());
     }
 
     // ─── Helper ──────────────────────────────────────────────────────────────

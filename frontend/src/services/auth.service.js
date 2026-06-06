@@ -44,7 +44,7 @@ export const authService = {
   getMe: async () => {
     if (useMock) {
       await new Promise(resolve => setTimeout(resolve, 200));
-      const storedUser = localStorage.getItem('wms_user');
+      const storedUser = sessionStorage.getItem('wms_user');
       return storedUser ? JSON.parse(storedUser) : null;
     } else {
       const response = await apiClient.get('/auth/me');
@@ -55,11 +55,11 @@ export const authService = {
   updateProfile: async (fullName, email, phone) => {
     if (useMock) {
       await new Promise(resolve => setTimeout(resolve, 600));
-      const storedUser = JSON.parse(localStorage.getItem('wms_user'));
+      const storedUser = JSON.parse(sessionStorage.getItem('wms_user'));
       if (!storedUser) throw new Error('UNAUTHORIZED');
       
       const updatedUser = { ...storedUser, fullName, email, phone };
-      localStorage.setItem('wms_user', JSON.stringify(updatedUser));
+      sessionStorage.setItem('wms_user', JSON.stringify(updatedUser));
       
       // Update in our mock DB too
       const dbUsersStr = localStorage.getItem('wms_db_users');

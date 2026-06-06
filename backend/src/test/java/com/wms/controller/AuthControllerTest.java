@@ -339,4 +339,57 @@ class AuthControllerTest {
                                 """))
                 .andExpect(status().isForbidden());
     }
+
+    // ─── PUT /api/v1/auth/profile ─────────────────────────────────────────────
+
+    @Test
+    @DisplayName("PUT /profile — 200 OK khi cập nhật thành công")
+    @WithMockUser(username = "test@wms.com")
+    void updateProfile_validRequest_returns200() throws Exception {
+        MeResponse response = MeResponse.builder()
+                .id(1L)
+                .code("U001")
+                .fullName("Nguyen Van B")
+                .email("newemail@wms.com")
+                .phone("0987654321")
+                .role("STOREKEEPER")
+                .assignedWarehouses(List.of())
+                .build();
+
+        when(authService.updateProfile(eq("test@wms.com"), any(ProfileUpdateRequest.class)))
+                .thenReturn(response);
+
+        mockMvc.perform(put("/api/v1/auth/profile")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"fullName":"Nguyen Van B","email":"newemail@wms.com","phone":"0987654321"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fullName").value("Nguyen Van B"))
+                .andExpect(jsonPath("$.email").value("newemail@wms.com"))
+                .andExpect(jsonPath("$.phone").value("0987654321"));
+    }
+
+    @Test
+    @DisplayName("PUT /profile — 400 Bad Request khi thiếu fullName")
+    @WithMockUser(username = "test@wms.com")
+    void updateProfile_missingFullName_returns400() throws Exception {
+        mockMvc.perform(put("/api/v1/auth/profile")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"fullName":"","email":"newemail@wms.com","phone":"0987654321"}
+                                """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("PUT /profile — 403 khi không có token")
+    void updateProfile_unauthenticated_returns403() throws Exception {
+        mockMvc.perform(put("/api/v1/auth/profile")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"fullName":"Nguyen Van B","email":"newemail@wms.com","phone":"0987654321"}
+                                """))
+                .andExpect(status().isForbidden());
+    }
 }

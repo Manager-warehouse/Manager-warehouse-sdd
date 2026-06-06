@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
 import { authService } from '../../services/auth.service';
@@ -22,6 +22,31 @@ const Profile = () => {
   const [region, setRegion] = useState(user?.region || '');
   const [profileLoading, setProfileLoading] = useState(false);
 
+  useEffect(() => {
+    if (user) {
+      setFullName(user.fullName || '');
+      setEmail(user.email || '');
+      setPhone(user.phone || '');
+      setJobTitle(user.jobTitle || '');
+      setShift(user.shift || '');
+      setRegion(user.region || '');
+    }
+  }, [user]);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const fullUser = await authService.getMe();
+        if (fullUser) {
+          login(fullUser, sessionStorage.getItem('wms_token'));
+        }
+      } catch (err) {
+        console.error('Failed to fetch full profile:', err);
+      }
+    };
+    fetchProfile();
+  }, []);
+
   // Password Change States
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -43,7 +68,7 @@ const Profile = () => {
     try {
       const updatedUser = await authService.updateProfile(fullName, email, phone);
       // Refresh user details in store
-      login(updatedUser, localStorage.getItem('wms_token'));
+      login(updatedUser, sessionStorage.getItem('wms_token'));
       addToast('Cập nhật thông tin cá nhân thành công', 'success');
     } catch (err) {
       console.error(err);

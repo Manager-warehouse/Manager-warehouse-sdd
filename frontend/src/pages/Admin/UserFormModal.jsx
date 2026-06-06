@@ -15,7 +15,7 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
   const [password, setPassword] = useState('');
   const [selectedRole, setSelectedRole] = useState(ROLES.WAREHOUSE_STAFF);
   const [jobTitle, setJobTitle] = useState('');
-  const [shift, setShift] = useState('');
+  const [shift, setShift] = useState('Ca sáng');
   const [region, setRegion] = useState('');
   const [selectedWarehouses, setSelectedWarehouses] = useState([]);
   const [error, setError] = useState('');
@@ -32,7 +32,7 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
         setPassword('');
         setSelectedRole(user.role || ROLES.WAREHOUSE_STAFF);
         setJobTitle(user.jobTitle || '');
-        setShift(user.shift || '');
+        setShift(user.shift || 'Ca sáng');
         setRegion(user.region || '');
         setSelectedWarehouses(user.warehouses || []);
       } else {
@@ -43,7 +43,7 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
         setPassword('');
         setSelectedRole(ROLES.WAREHOUSE_STAFF);
         setJobTitle('');
-        setShift('');
+        setShift('Ca sáng');
         setRegion('');
         setSelectedWarehouses([]);
       }
@@ -71,6 +71,20 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
       return;
     }
 
+    const getRegionFromWarehouses = (warehouseIds) => {
+      if (!warehouseIds || warehouseIds.length === 0) return 'Toàn quốc';
+      if (warehouseIds.length > 1) return 'Toàn quốc';
+      const id = Number(warehouseIds[0]);
+      if (id === 1) return 'Hải Phòng';
+      if (id === 2) return 'Hà Nội';
+      if (id === 3) return 'Hồ Chí Minh';
+      return 'Toàn quốc';
+    };
+
+    const finalRegion = selectedRole === ROLES.DISPATCHER
+      ? region
+      : (needsWarehouse ? getRegionFromWarehouses(selectedWarehouses) : 'Toàn quốc');
+
     const payload = {
       code,
       fullName,
@@ -79,7 +93,7 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
       role: selectedRole,
       jobTitle,
       shift,
-      region,
+      region: finalRegion,
       warehouses: needsWarehouse ? selectedWarehouses : []
     };
 
@@ -133,6 +147,7 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
     <Modal
       isOpen={isOpen}
       onClose={onClose}
+      maxWidth="max-w-lg"
       title={modalType === 'create' ? 'Tạo tài khoản mới' : 'Chỉnh sửa tài khoản'}
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -200,7 +215,7 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
           onChange={(e) => setSelectedRole(e.target.value)}
         />
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className={`grid grid-cols-1 ${selectedRole === ROLES.DISPATCHER ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-4`}>
           <Input
             label="Chức danh"
             type="text"
@@ -210,18 +225,24 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
           />
           <Input
             label="Ca làm việc"
-            type="text"
+            type="select"
+            options={[
+              { value: 'Ca sáng', label: 'Ca sáng' },
+              { value: 'Ca chiều', label: 'Ca chiều' },
+              { value: 'Cả ngày', label: 'Cả ngày' }
+            ]}
             value={shift}
             onChange={(e) => setShift(e.target.value)}
-            placeholder="Ca sáng / Ca chiều..."
           />
-          <Input
-            label="Khu vực phụ trách"
-            type="text"
-            value={region}
-            onChange={(e) => setRegion(e.target.value)}
-            placeholder="Hải Phòng / Hà Nội..."
-          />
+          {selectedRole === ROLES.DISPATCHER && (
+            <Input
+              label="Khu vực phụ trách"
+              type="text"
+              value={region}
+              onChange={(e) => setRegion(e.target.value)}
+              placeholder="Hải Phòng / Hà Nội..."
+            />
+          )}
         </div>
 
         {/* Warehouses Checkbox group (only relevant if not Admin/CEO) */}

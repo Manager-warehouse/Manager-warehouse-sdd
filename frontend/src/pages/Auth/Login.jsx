@@ -5,7 +5,7 @@ import { useUiStore } from '../../stores/ui.store';
 import { authService } from '../../services/auth.service';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
-import { Shield, KeyRound, User } from 'lucide-react';
+import { Shield, User } from 'lucide-react';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -117,7 +117,7 @@ const Login = () => {
               <User className="absolute right-3 top-[38px] w-4 h-4 text-shade-50" />
             </div>
 
-            <div className="relative">
+             <div>
               <Input
                 label="Mật khẩu"
                 type="password"
@@ -127,7 +127,6 @@ const Login = () => {
                 className="!bg-canvas-nightElevated !text-onPrimary !border-hairline-dark focus:!ring-onPrimary focus:!border-onPrimary placeholder-shade-60"
                 required
               />
-              <KeyRound className="absolute right-3 top-[38px] w-4 h-4 text-shade-50" />
             </div>
 
             <div className="flex justify-end -mt-3 mb-1">
