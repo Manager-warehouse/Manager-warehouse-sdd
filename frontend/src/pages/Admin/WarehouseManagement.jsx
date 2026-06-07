@@ -321,7 +321,7 @@ const WarehouseManagement = () => {
               <Home className="w-4 h-4 text-shade-60" />
               Danh sách Kho
             </h3>
-            {hasRole(ROLES.ADMIN) ? (
+            {hasRole(ROLES.ADMIN) || hasRole(ROLES.CEO) ? (
               <button 
                 onClick={handleOpenAddWh}
                 className="text-xs font-bold text-ink hover:underline flex items-center gap-0.5"
@@ -361,7 +361,7 @@ const WarehouseManagement = () => {
                   </p>
                   <div className="flex justify-between items-center text-[10px] text-shade-60 border-t border-zinc-100 pt-2">
                     <span>Quản lý: <strong>{getManagerName(wh.manager_id)}</strong></span>
-                    {hasRole(ROLES.ADMIN) ? (
+                    {(hasRole(ROLES.ADMIN) || hasRole(ROLES.CEO)) ? (
                       <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                         <button 
                           onClick={() => handleOpenEditWh(wh)} 

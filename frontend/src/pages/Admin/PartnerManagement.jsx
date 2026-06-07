@@ -21,7 +21,7 @@ const PartnerManagement = () => {
 
   // Modals
   const [isDealerModalOpen, setIsDealerModalOpen] = useState(false);
-  const [dealerModalType, setDealerModalType] = useState('ADD'); // ADD, EDIT, CREDIT
+  const [dealerModalType, setDealerModalType] = useState('ADD'); // ADD or EDIT
   const [selectedDealer, setSelectedDealer] = useState(null);
   const [dlSubmitting, setDlSubmitting] = useState(false);
   const [dlFormErrors, setDlFormErrors] = useState({});
@@ -34,6 +34,8 @@ const PartnerManagement = () => {
   const [dlRegion, setDlRegion] = useState('');
   const [dlPaymentTerms, setDlPaymentTerms] = useState('30');
   const [dlCreditLimit, setDlCreditLimit] = useState('0');
+  const [dlOriginalCreditLimit, setDlOriginalCreditLimit] = useState('0');
+  const [dlOriginalPaymentTerms, setDlOriginalPaymentTerms] = useState('30');
 
   // Supplier Modal States
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
@@ -101,8 +103,8 @@ const PartnerManagement = () => {
   };
 
   const handleOpenCreditLimit = (dealer) => {
-    if (!hasRole(ROLES.ACCOUNTANT_MANAGER) && !hasRole(ROLES.ADMIN) && !hasRole(ROLES.CEO)) {
-      addToast('Chỉ Kế toán trưởng, CEO hoặc Admin mới được phép phê duyệt hạn mức tín dụng', 'warning');
+    if (!hasRole(ROLES.ACCOUNTANT_MANAGER)) {
+      addToast('Chỉ Kế toán trưởng được phép phê duyệt hạn mức tín dụng', 'warning');
       return;
     }
     setDealerModalType('CREDIT');
@@ -115,14 +117,15 @@ const PartnerManagement = () => {
 
   const validateDlForm = () => {
     const errors = {};
+    const canEditCredit = hasRole(ROLES.ACCOUNTANT_MANAGER);
     if (dealerModalType === 'ADD') {
       if (!dlCode.trim()) errors.code = 'Mã đại lý bắt buộc';
     }
-    if (dealerModalType !== 'CREDIT') {
-      if (!dlName.trim()) errors.name = 'Tên đại lý bắt buộc';
+    if (!dlName.trim()) errors.name = 'Tên đại lý bắt buộc';
+    if (dealerModalType === 'ADD' || canEditCredit) {
+      if (Number(dlPaymentTerms) < 0) errors.payment_terms = 'Kỳ hạn thanh toán không hợp lệ';
+      if (Number(dlCreditLimit) < 0) errors.credit_limit = 'Hạn mức tín dụng không được âm';
     }
-    if (Number(dlPaymentTerms) < 0) errors.payment_terms = 'Kỳ hạn thanh toán không hợp lệ';
-    if (Number(dlCreditLimit) < 0) errors.credit_limit = 'Hạn mức tín dụng không được âm';
 
     setDlFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -131,6 +134,11 @@ const PartnerManagement = () => {
   const handleDlSubmit = async (e) => {
     e.preventDefault();
     if (!validateDlForm()) return;
+
+    const canEditCredit = hasRole(ROLES.ACCOUNTANT_MANAGER);
+    const creditChanged =
+      dlCreditLimit !== dlOriginalCreditLimit ||
+      dlPaymentTerms !== dlOriginalPaymentTerms;
 
     setDlSubmitting(true);
     try {
@@ -146,23 +154,25 @@ const PartnerManagement = () => {
         };
         await masterDataService.createDealer(dlData);
         addToast(`Tạo mới đại lý ${dlName} thành công`, 'success');
-      } else if (dealerModalType === 'EDIT') {
+      } else {
+        // Profile update (all roles)
         const dlData = {
           name: dlName.trim(),
           phone: dlPhone.trim(),
           default_delivery_address: dlAddress.trim(),
           region: dlRegion.trim(),
-          payment_term_days: Number(dlPaymentTerms),
         };
         await masterDataService.updateDealer(selectedDealer.id, dlData);
+
+        // Credit limit update (ACCOUNTANT_MANAGER only, if changed)
+        if (canEditCredit && creditChanged) {
+          const limitData = {
+            credit_limit: parseFloat(dlCreditLimit),
+            payment_term_days: Number(dlPaymentTerms),
+          };
+          await masterDataService.updateDealerCreditLimit(selectedDealer.id, limitData);
+        }
         addToast(`Cập nhật thông tin đại lý ${dlName} thành công`, 'success');
-      } else {
-        const limitData = {
-          credit_limit: parseFloat(dlCreditLimit),
-          payment_term_days: Number(dlPaymentTerms),
-        };
-        await masterDataService.updateDealerCreditLimit(selectedDealer.id, limitData);
-        addToast(`Điều chỉnh hạn mức nợ Đại lý ${selectedDealer.code} thành công`, 'success');
       }
       setIsDealerModalOpen(false);
       fetchData();
@@ -178,8 +188,8 @@ const PartnerManagement = () => {
   };
 
   const handleToggleDlStatus = async (dealer) => {
-    if (dealer.is_active && !hasRole(ROLES.ADMIN) && !hasRole(ROLES.CEO)) {
-      addToast('Chỉ Quản trị viên hoặc CEO mới có quyền khóa đối tác', 'warning');
+    if (!hasRole(ROLES.ACCOUNTANT) && !hasRole(ROLES.ACCOUNTANT_MANAGER)) {
+      addToast('Chỉ Kế toán viên hoặc Kế toán trưởng mới có quyền khóa/kích hoạt đối tác', 'warning');
       return;
     }
     try {
@@ -264,8 +274,8 @@ const PartnerManagement = () => {
   };
 
   const handleToggleSplStatus = async (supplier) => {
-    if (supplier.is_active && !hasRole(ROLES.ADMIN) && !hasRole(ROLES.CEO)) {
-      addToast('Chỉ Quản trị viên hoặc CEO mới có quyền khóa đối tác', 'warning');
+    if (!hasRole(ROLES.ACCOUNTANT) && !hasRole(ROLES.ACCOUNTANT_MANAGER)) {
+      addToast('Chỉ Kế toán viên hoặc Kế toán trưởng mới có quyền khóa/kích hoạt nhà cung cấp', 'warning');
       return;
     }
     try {
@@ -305,13 +315,13 @@ const PartnerManagement = () => {
         </div>
         <div>
           {activeTab === 'DEALERS' ? (
-            hasRole(ROLES.ACCOUNTANT) || hasRole(ROLES.ACCOUNTANT_MANAGER) || hasRole(ROLES.ADMIN) ? (
+            (hasRole(ROLES.ACCOUNTANT) || hasRole(ROLES.ACCOUNTANT_MANAGER)) ? (
               <Button variant="primary" icon={Plus} onClick={handleOpenAddDealer}>
                 Thêm Đại lý mới
               </Button>
             ) : null
           ) : (
-            hasRole(ROLES.ADMIN) || hasRole(ROLES.PLANNER) ? (
+            (hasRole(ROLES.ACCOUNTANT) || hasRole(ROLES.ACCOUNTANT_MANAGER)) ? (
               <Button variant="primary" icon={Plus} onClick={handleOpenAddSupplier}>
                 Thêm Nhà cung cấp mới
               </Button>
@@ -423,32 +433,27 @@ const PartnerManagement = () => {
                           </Badge>
                         </td>
                         <td className="px-6 py-4 text-right flex gap-3.5 justify-end items-center">
-                          <button
-                            onClick={() => handleOpenEditDealer(dl)}
-                            className="text-[11px] font-bold text-ink hover:underline"
-                            title="Sửa thông tin"
-                          >
-                            Sửa
-                          </button>
-                          {(hasRole(ROLES.ACCOUNTANT_MANAGER) || hasRole(ROLES.ADMIN) || hasRole(ROLES.CEO)) && (
+                          {(hasRole(ROLES.ACCOUNTANT) || hasRole(ROLES.ACCOUNTANT_MANAGER)) && (
                             <button
-                              onClick={() => handleOpenCreditLimit(dl)}
+                              onClick={() => handleOpenEditDealer(dl)}
                               className="text-[11px] font-bold text-indigo-600 hover:underline"
-                              title="Duyệt Credit Limit"
+                              title="Sửa thông tin & Hạn mức"
                             >
-                              Hạn mức
+                              Sửa
                             </button>
                           )}
-                          <button
-                            onClick={() => handleToggleDlStatus(dl)}
-                            className="p-1 hover:bg-zinc-100 rounded-full transition-colors"
-                          >
-                            {dl.is_active ? (
-                              <ToggleRight className="w-5 h-5 text-emerald-600" />
-                            ) : (
-                              <ToggleLeft className="w-5 h-5 text-shade-40" />
-                            )}
-                          </button>
+                          {(hasRole(ROLES.ACCOUNTANT) || hasRole(ROLES.ACCOUNTANT_MANAGER)) && (
+                            <button
+                              onClick={() => handleToggleDlStatus(dl)}
+                              className="p-1 hover:bg-zinc-100 rounded-full transition-colors"
+                            >
+                              {dl.is_active ? (
+                                <ToggleRight className="w-5 h-5 text-emerald-600" />
+                              ) : (
+                                <ToggleLeft className="w-5 h-5 text-shade-40" />
+                              )}
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );
@@ -497,7 +502,7 @@ const PartnerManagement = () => {
                         </Badge>
                       </td>
                       <td className="px-6 py-4 text-right flex gap-3 justify-end items-center">
-                        {hasRole(ROLES.ADMIN) || hasRole(ROLES.PLANNER) ? (
+                        {(hasRole(ROLES.ACCOUNTANT) || hasRole(ROLES.ACCOUNTANT_MANAGER)) ? (
                           <button
                             onClick={() => handleOpenEditSupplier(spl)}
                             className="text-[11px] font-bold text-ink hover:underline"
@@ -505,16 +510,18 @@ const PartnerManagement = () => {
                             Sửa
                           </button>
                         ) : null}
-                        <button
-                          onClick={() => handleToggleSplStatus(spl)}
-                          className="p-1 hover:bg-zinc-100 rounded-full transition-colors"
-                        >
-                          {spl.is_active ? (
-                            <ToggleRight className="w-5 h-5 text-emerald-600" />
-                          ) : (
-                            <ToggleLeft className="w-5 h-5 text-shade-40" />
-                          )}
-                        </button>
+                        {(hasRole(ROLES.ACCOUNTANT) || hasRole(ROLES.ACCOUNTANT_MANAGER)) && (
+                          <button
+                            onClick={() => handleToggleSplStatus(spl)}
+                            className="p-1 hover:bg-zinc-100 rounded-full transition-colors"
+                          >
+                            {spl.is_active ? (
+                              <ToggleRight className="w-5 h-5 text-emerald-600" />
+                            ) : (
+                              <ToggleLeft className="w-5 h-5 text-shade-40" />
+                            )}
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -529,117 +536,111 @@ const PartnerManagement = () => {
       <Modal
         isOpen={isDealerModalOpen}
         onClose={() => setIsDealerModalOpen(false)}
-        title={
-          dealerModalType === 'ADD' 
-            ? 'Đăng ký Đại lý mới' 
-            : dealerModalType === 'EDIT' 
-              ? 'Sửa thông tin Đại lý' 
-              : `Phê duyệt hạn mức nợ: ${selectedDealer?.code}`
-        }
-        maxWidth="max-w-md"
+        title={dealerModalType === 'ADD' ? 'Đăng ký Đại lý mới' : `Chỉnh sửa Đại lý: ${selectedDealer?.code}`}
+        maxWidth="max-w-lg"
       >
         <form onSubmit={handleDlSubmit} className="flex flex-col gap-4">
-          {dealerModalType === 'CREDIT' ? (
-            <div className="flex flex-col gap-4">
-              <div className="bg-amber-50 border border-amber-200 p-4 rounded text-xs flex flex-col gap-2">
-                <div className="font-bold text-amber-900 flex items-center gap-1.5">
-                  <ShieldAlert className="w-4 h-4 text-amber-700" /> CẢNH BÁO TÍN DỤNG
-                </div>
-                <div className="text-amber-800">
-                  Phê duyệt hạn mức nợ mới sẽ ảnh hưởng trực tiếp đến khả năng đặt hàng và xuất kho của Đại lý. Khi dư nợ hiện tại vượt quá hạn mức, Đại lý sẽ bị chuyển sang trạng thái <strong>CREDIT_HOLD</strong>.
-                </div>
-                <div className="mt-2 text-ink">
-                  Dư nợ hiện tại của đại lý: <strong>{selectedDealer?.current_balance?.toLocaleString('vi-VN')} VND</strong>
-                </div>
-              </div>
-
+          {/* Basic Info Section */}
+          <div className="flex flex-col gap-3">
+            <div className="grid grid-cols-2 gap-4">
               <Input
-                label="Hạn mức tín dụng mới (VND)"
-                type="number"
-                value={dlCreditLimit}
-                onChange={(e) => setDlCreditLimit(e.target.value)}
-                error={dlFormErrors.credit_limit}
-                min="0"
-                step="1000000"
+                label="Mã Đại lý (Duy nhất)"
+                value={dlCode}
+                onChange={(e) => setDlCode(e.target.value.toUpperCase())}
+                disabled={dealerModalType === 'EDIT'}
+                error={dlFormErrors.code}
+                placeholder="VD: DL-HAIPHONG-01"
                 required
               />
-
               <Input
-                label="Kỳ hạn thanh toán (ngày nợ)"
-                type="number"
-                value={dlPaymentTerms}
-                onChange={(e) => setDlPaymentTerms(e.target.value)}
-                error={dlFormErrors.payment_terms}
-                min="0"
-                step="1"
-                required
+                label="Khu vực vùng miền"
+                value={dlRegion}
+                onChange={(e) => setDlRegion(e.target.value)}
+                placeholder="VD: Hải Phòng"
               />
             </div>
-          ) : (
-            <div className="flex flex-col gap-4">
-              <div className="grid grid-cols-2 gap-4">
-                <Input
-                  label="Mã Đại lý (Duy nhất)"
-                  value={dlCode}
-                  onChange={(e) => setDlCode(e.target.value.toUpperCase())}
-                  disabled={dealerModalType === 'EDIT'}
-                  error={dlFormErrors.code}
-                  placeholder="VD: DL-HAIPHONG-01"
-                  required
-                />
-                <Input
-                  label="Khu vực vùng miền"
-                  value={dlRegion}
-                  onChange={(e) => setDlRegion(e.target.value)}
-                  placeholder="VD: Hải Phòng"
-                />
-              </div>
 
-              <Input
-                label="Tên Đại lý"
-                value={dlName}
-                onChange={(e) => setDlName(e.target.value)}
-                error={dlFormErrors.name}
-                placeholder="Nhập tên đại lý..."
-                required
-              />
+            <Input
+              label="Tên Đại lý"
+              value={dlName}
+              onChange={(e) => setDlName(e.target.value)}
+              error={dlFormErrors.name}
+              placeholder="Nhập tên đại lý..."
+              required
+            />
 
+            <div className="grid grid-cols-2 gap-4">
               <Input
                 label="Số điện thoại liên lạc"
                 value={dlPhone}
                 onChange={(e) => setDlPhone(e.target.value)}
                 placeholder="VD: 0912 345 678"
               />
-
               <Input
                 label="Địa chỉ giao hàng mặc định"
                 value={dlAddress}
                 onChange={(e) => setDlAddress(e.target.value)}
                 placeholder="Nhập địa chỉ giao hàng..."
               />
+            </div>
+          </div>
+
+          {/* Credit Section — visible to ACCOUNTANT_MANAGER or in ADD mode */}
+          {(dealerModalType === 'ADD' || hasRole(ROLES.ACCOUNTANT_MANAGER)) && (
+            <div className="border-t border-hairline-light pt-4">
+              <div className="flex items-center gap-2 mb-3">
+                <ShieldAlert className="w-4 h-4 text-amber-600" />
+                <span className="text-xs font-bold text-shade-70 uppercase tracking-wide">
+                  {dealerModalType === 'ADD' ? 'Hạn mức tín dụng ban đầu' : 'Phê duyệt hạn mức nợ (ACCOUNTANT_MANAGER)'}
+                </span>
+              </div>
+
+              {dealerModalType === 'EDIT' && selectedDealer?.current_balance !== undefined && (
+                <div className="bg-amber-50 border border-amber-200 rounded px-3 py-2 text-xs text-amber-800 mb-3 flex items-center gap-1.5">
+                  <ShieldAlert className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  Dư nợ hiện tại: <strong>{selectedDealer?.current_balance?.toLocaleString('vi-VN')} VND</strong>. Thay đổi hạn mức có thể kích hoạt CREDIT_HOLD.
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <Input
-                  label="Hạn thanh toán (ngày)"
-                  type="number"
-                  value={dlPaymentTerms}
-                  onChange={(e) => setDlPaymentTerms(e.target.value)}
-                  error={dlFormErrors.payment_terms}
-                  disabled={dealerModalType === 'EDIT' && !hasRole(ROLES.ACCOUNTANT_MANAGER) && !hasRole(ROLES.ADMIN)}
-                  min="0"
-                  required
-                />
-                <Input
-                  label="Hạn mức nợ (VND)"
+                  label="Hạn mức tín dụng (VND)"
                   type="number"
                   value={dlCreditLimit}
                   onChange={(e) => setDlCreditLimit(e.target.value)}
                   error={dlFormErrors.credit_limit}
-                  disabled={dealerModalType === 'EDIT' || (!hasRole(ROLES.ACCOUNTANT_MANAGER) && !hasRole(ROLES.ADMIN) && !hasRole(ROLES.CEO))}
                   min="0"
+                  step="1000000"
+                  required
+                />
+                <Input
+                  label="Kỳ hạn thanh toán (ngày)"
+                  type="number"
+                  value={dlPaymentTerms}
+                  onChange={(e) => setDlPaymentTerms(e.target.value)}
+                  error={dlFormErrors.payment_terms}
+                  min="0"
+                  step="1"
                   required
                 />
               </div>
+            </div>
+          )}
+
+          {/* If ACCOUNTANT (no credit rights) in EDIT mode — show readonly credit info */}
+          {dealerModalType === 'EDIT' && !hasRole(ROLES.ACCOUNTANT_MANAGER) && (
+            <div className="border-t border-hairline-light pt-4">
+              <div className="flex gap-4 text-xs">
+                <div className="flex-1 bg-zinc-50 rounded px-3 py-2">
+                  <div className="text-shade-50 mb-0.5">Hạn mức tín dụng</div>
+                  <div className="font-bold text-ink">{selectedDealer?.credit_limit?.toLocaleString('vi-VN')} VND</div>
+                </div>
+                <div className="flex-1 bg-zinc-50 rounded px-3 py-2">
+                  <div className="text-shade-50 mb-0.5">Kỳ hạn thanh toán</div>
+                  <div className="font-bold text-ink">{selectedDealer?.payment_term_days} ngày</div>
+                </div>
+              </div>
+              <p className="text-[10px] text-shade-40 mt-1.5">Chỉ Kế toán trưởng mới có quyền thay đổi hạn mức nợ.</p>
             </div>
           )}
 

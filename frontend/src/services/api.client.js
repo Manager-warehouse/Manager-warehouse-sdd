@@ -54,14 +54,16 @@ apiClient.interceptors.response.use(
         // Clear session and redirect to login
         sessionStorage.removeItem('wms_user');
         sessionStorage.removeItem('wms_token');
+        sessionStorage.removeItem('wms_refresh_token');
         window.location.href = '/login';
         return Promise.reject(refreshError);
       }
     }
     
     // Normalize error message from backend
-    if (error.response && error.response.data && error.response.data.error) {
-      error.message = error.response.data.error;
+    if (error.response && error.response.data) {
+      const data = error.response.data;
+      error.message = data.message || data.error || data.code || error.message;
     }
     
     return Promise.reject(error);

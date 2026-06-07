@@ -22,9 +22,12 @@ export const useAuthStore = create((set, get) => {
     token: storedToken,
     activeWarehouse: parsedWarehouse,
 
-    login: (user, token) => {
+    login: (user, token, refreshToken) => {
       sessionStorage.setItem('wms_user', JSON.stringify(user));
       sessionStorage.setItem('wms_token', token);
+      if (refreshToken) {
+        sessionStorage.setItem('wms_refresh_token', refreshToken);
+      }
 
       // Default active warehouse to first assigned warehouse or first warehouse
       let activeWarehouse = null;
@@ -49,6 +52,7 @@ export const useAuthStore = create((set, get) => {
     logout: () => {
       sessionStorage.removeItem('wms_user');
       sessionStorage.removeItem('wms_token');
+      sessionStorage.removeItem('wms_refresh_token');
       sessionStorage.removeItem('wms_active_warehouse');
       set({ user: null, token: null, activeWarehouse: null });
     },

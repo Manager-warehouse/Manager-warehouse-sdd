@@ -81,7 +81,8 @@ const UserManagement = () => {
       const uList = await adminService.getUsers();
       setUsers(uList || []);
       await loadAuditLogs(1, auditFilters);
-    } catch {
+    } catch (err) {
+      console.error('Error loading admin user data:', err);
       addToast('Không thể tải dữ liệu quản trị', 'error');
     } finally {
       setLoading(false);

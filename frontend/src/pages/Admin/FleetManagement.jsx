@@ -327,13 +327,13 @@ const FleetManagement = () => {
         </div>
         <div>
           {activeTab === 'VEHICLES' ? (
-            hasRole(ROLES.DISPATCHER) || hasRole(ROLES.ADMIN) ? (
+            hasRole(ROLES.DISPATCHER) || hasRole(ROLES.ADMIN) || hasRole(ROLES.CEO) ? (
               <Button variant="primary" icon={Plus} onClick={handleOpenAddVehicle}>
                 Đăng ký xe tải
               </Button>
             ) : null
           ) : (
-            hasRole(ROLES.DISPATCHER) || hasRole(ROLES.ADMIN) ? (
+            hasRole(ROLES.DISPATCHER) || hasRole(ROLES.ADMIN) || hasRole(ROLES.CEO) ? (
               <Button variant="primary" icon={Plus} onClick={handleOpenAddDriver}>
                 Thêm tài xế mới
               </Button>
@@ -433,7 +433,7 @@ const FleetManagement = () => {
                         </Badge>
                       </td>
                       <td className="px-6 py-4 text-right flex gap-3.5 justify-end items-center font-bold">
-                        {hasRole(ROLES.DISPATCHER) || hasRole(ROLES.ADMIN) ? (
+                        {hasRole(ROLES.DISPATCHER) || hasRole(ROLES.ADMIN) || hasRole(ROLES.CEO) ? (
                           <button
                             onClick={() => handleOpenEditVehicle(vh)}
                             className="text-[11px] text-ink hover:underline"
@@ -502,7 +502,7 @@ const FleetManagement = () => {
                         </Badge>
                       </td>
                       <td className="px-6 py-4 text-right flex gap-3.5 justify-end items-center font-bold">
-                        {hasRole(ROLES.DISPATCHER) || hasRole(ROLES.ADMIN) ? (
+                        {hasRole(ROLES.DISPATCHER) || hasRole(ROLES.ADMIN) || hasRole(ROLES.CEO) ? (
                           <button
                             onClick={() => handleOpenEditDriver(dr)}
                             className="text-[11px] text-ink hover:underline"

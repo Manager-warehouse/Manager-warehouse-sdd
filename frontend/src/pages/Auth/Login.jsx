@@ -29,7 +29,7 @@ const Login = () => {
 
     try {
       const data = await authService.login(email, password);
-      loginStore(data.user, data.accessToken);
+      loginStore(data.user, data.accessToken, data.refreshToken);
       addToast('Đăng nhập thành công', 'success');
       navigate('/dashboard');
     } catch (err) {
