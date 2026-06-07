@@ -1,8 +1,8 @@
 package com.wms.entity;
 
 import jakarta.persistence.*;
-import lombok.*;
-
+import lombok.Getter;
+import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
@@ -13,6 +13,8 @@ import java.time.OffsetDateTime;
 @Builder
 @Entity
 @Table(name = "products")
+@Getter
+@Setter
 public class Product {
 
     @Id

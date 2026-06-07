@@ -7,6 +7,8 @@ public enum AuditEntityType {
     ADJUSTMENT,
     STOCKTAKE,
     DELIVERY_ORDER,
+    DEALER,
+    SUPPLIER,
     BATCH,
     INVENTORY,
     RETURN,

@@ -2,12 +2,16 @@ package com.wms.entity;
 
 import com.wms.enums.BatchGrade;
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
 @Entity
 @Table(name = "batches")
+@Getter
+@Setter
 public class Batch {
 
     @Id
