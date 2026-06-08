@@ -13,12 +13,14 @@ import com.wms.repository.AuditLogRepository;
 import com.wms.repository.SystemConfigRepository;
 import com.wms.repository.UserRepository;
 import com.wms.service.SystemConfigService;
+import com.wms.util.AuditLogUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -67,8 +69,8 @@ public class SystemConfigServiceImpl implements SystemConfigService {
                 .action(AuditAction.UPDATE)
                 .entityType("SystemConfig")
                 .entityId(savedConfig.getId())
-                .oldValue("{\"config_value\": \"" + oldValue + "\"}")
-                .newValue("{\"config_value\": \"" + newValue + "\"}")
+                .oldValue(AuditLogUtil.toJson(Map.of("config_value", oldValue != null ? oldValue : "")))
+                .newValue(AuditLogUtil.toJson(Map.of("config_value", newValue)))
                 .timestamp(OffsetDateTime.now())
                 .build();
         auditLogRepository.save(auditLog);

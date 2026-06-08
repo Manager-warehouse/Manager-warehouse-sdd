@@ -30,7 +30,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<Map<String, String>> handleIllegalState(IllegalStateException e) {
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", e.getMessage()));
+        String code = e.getMessage();
+        HttpStatus status = "MAIL_SEND_FAILED".equals(code)
+                ? HttpStatus.INTERNAL_SERVER_ERROR
+                : HttpStatus.UNAUTHORIZED;
+        return ResponseEntity.status(status).body(Map.of("error", code));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

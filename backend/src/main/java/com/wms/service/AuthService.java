@@ -19,10 +19,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.time.OffsetDateTime;
 import java.util.HexFormat;
 import java.util.List;
-import java.util.Random;
 import java.util.UUID;
 
 @Service
@@ -82,9 +82,7 @@ public class AuthService {
     public RefreshTokenResponse refresh(RefreshTokenRequest request) {
         String tokenHash = sha256(request.getRefreshToken());
 
-        User user = userRepository.findAll().stream()
-                .filter(u -> tokenHash.equals(u.getRefreshTokenHash()))
-                .findFirst()
+        User user = userRepository.findByRefreshTokenHash(tokenHash)
                 .orElseThrow(() -> new IllegalArgumentException("TOKEN_INVALID"));
 
         if (user.getRefreshTokenExpiresAt() == null ||
@@ -131,10 +129,10 @@ public class AuthService {
     @Transactional
     public void forgotPassword(ForgotPasswordRequest request) {
         userRepository.findByEmail(request.getEmail()).ifPresent(user -> {
-            String otp = String.format("%06d", new Random().nextInt(1_000_000));
+            String otp = String.format("%06d", new SecureRandom().nextInt(1_000_000));
             user.setOtpHash(sha256(otp));
             user.setOtpExpiresAt(OffsetDateTime.now().plusMinutes(10));
-            userRepository.save(user);
+            userRepository.saveAndFlush(user);
             sendOtpEmail(user.getEmail(), otp);
         });
         // Always return silently — no email enumeration
@@ -178,11 +176,15 @@ public class AuthService {
     // --- helpers ---
 
     private void sendOtpEmail(String to, String otp) {
-        SimpleMailMessage message = new SimpleMailMessage();
-        message.setTo(to);
-        message.setSubject("Mã OTP đặt lại mật khẩu — WMS Phúc Anh");
-        message.setText("Mã OTP của bạn là: " + otp + "\nMã có hiệu lực trong 10 phút. Không chia sẻ mã này với bất kỳ ai.");
-        mailSender.send(message);
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setTo(to);
+            message.setSubject("Mã OTP đặt lại mật khẩu — WMS Phúc Anh");
+            message.setText("Mã OTP của bạn là: " + otp + "\nMã có hiệu lực trong 10 phút. Không chia sẻ mã này với bất kỳ ai.");
+            mailSender.send(message);
+        } catch (Exception e) {
+            throw new IllegalStateException("MAIL_SEND_FAILED");
+        }
     }
 
     private String sha256(String input) {

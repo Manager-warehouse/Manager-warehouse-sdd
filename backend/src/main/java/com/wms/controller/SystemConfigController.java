@@ -7,9 +7,11 @@ import com.wms.repository.UserRepository;
 import com.wms.service.SystemConfigService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.security.Principal;
 import java.util.List;
@@ -35,10 +37,11 @@ public class SystemConfigController {
             @Valid @RequestBody SystemConfigUpdateRequest request,
             Principal principal) {
         
-        // Find admin user id from principal (assuming email is used as principal name)
-        String email = principal != null ? principal.getName() : "admin@wms.com";
-        User adminUser = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("Admin user not found"));
+        if (principal == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "INVALID_CREDENTIALS");
+        }
+        User adminUser = userRepository.findByEmail(principal.getName())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "INVALID_CREDENTIALS"));
 
         SystemConfigResponse response = systemConfigService.updateConfig(configKey, request, adminUser.getId());
         return ResponseEntity.ok(response);
