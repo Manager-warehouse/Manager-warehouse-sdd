@@ -8,7 +8,7 @@ import org.springframework.mail.javamail.JavaMailSenderImpl;
 
 import java.util.Properties;
 
-@Configuration
+// @Configuration // Commented out to allow Spring Boot Auto-configuration to use Gmail SMTP settings from application.yml
 public class MailConfig {
 
     @Bean

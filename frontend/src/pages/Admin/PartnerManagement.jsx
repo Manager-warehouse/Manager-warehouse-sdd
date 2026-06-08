@@ -84,6 +84,8 @@ const PartnerManagement = () => {
     setDlRegion('');
     setDlPaymentTerms('30');
     setDlCreditLimit('50000000');
+    setDlOriginalPaymentTerms('30');
+    setDlOriginalCreditLimit('50000000');
     setDlFormErrors({});
     setIsDealerModalOpen(true);
   };
@@ -98,6 +100,8 @@ const PartnerManagement = () => {
     setDlRegion(dealer.region || '');
     setDlPaymentTerms(String(dealer.payment_term_days || 30));
     setDlCreditLimit(String(dealer.credit_limit || 0));
+    setDlOriginalPaymentTerms(String(dealer.payment_term_days || 30));
+    setDlOriginalCreditLimit(String(dealer.credit_limit || 0));
     setDlFormErrors({});
     setIsDealerModalOpen(true);
   };
@@ -111,6 +115,8 @@ const PartnerManagement = () => {
     setSelectedDealer(dealer);
     setDlCreditLimit(String(dealer.credit_limit || 0));
     setDlPaymentTerms(String(dealer.payment_term_days || 30));
+    setDlOriginalPaymentTerms(String(dealer.payment_term_days || 30));
+    setDlOriginalCreditLimit(String(dealer.credit_limit || 0));
     setDlFormErrors({});
     setIsDealerModalOpen(true);
   };
@@ -193,7 +199,7 @@ const PartnerManagement = () => {
       return;
     }
     try {
-      const updated = await masterDataService.toggleDealerStatus(dealer.id, !dealer.is_active);
+      const updated = await masterDataService.toggleDealerStatus(dealer.id, !dealer.is_active, dealer.name);
       addToast(`${updated.is_active ? 'Kích hoạt' : 'Khóa'} đại lý ${updated.name} thành công`, 'success');
       fetchData();
     } catch (e) {
@@ -279,7 +285,7 @@ const PartnerManagement = () => {
       return;
     }
     try {
-      const updated = await masterDataService.toggleSupplierStatus(supplier.id, !supplier.is_active);
+      const updated = await masterDataService.toggleSupplierStatus(supplier.id, !supplier.is_active, supplier.company_name);
       addToast(`${updated.is_active ? 'Kích hoạt' : 'Khóa'} nhà cung cấp ${updated.company_name} thành công`, 'success');
       fetchData();
     } catch (e) {
