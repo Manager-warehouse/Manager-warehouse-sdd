@@ -169,6 +169,9 @@ const Login = () => {
               <div>
                 <strong>HP QC Staff:</strong> qc.hp@phucanh.vn
               </div>
+              <div>
+                <strong>Account Manager:</strong> accountmanager@gmail.com
+              </div>
             </div>
           </div>
         </div>

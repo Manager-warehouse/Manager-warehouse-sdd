@@ -196,6 +196,33 @@ public class DriverServiceImpl implements DriverService {
         auditLogService.log(actor, AuditAction.SOFT_DELETE, "Driver", saved.getId(), saved.getLicenseNumber(), null, oldMap, toMap(saved));
     }
 
+    @Override
+    @Transactional
+    public DriverResponse reactivateDriver(Long id, Long userId) {
+        Driver driver = driverRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Driver not found with id: " + id));
+
+        if (driver.getIsActive()) {
+            return mapper.toResponse(driver);
+        }
+
+        User actor = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+
+        Map<String, Object> oldMap = toMap(driver);
+
+        driver.setIsActive(true);
+        driver.setUpdatedBy(actor);
+        driver.setUpdatedAt(OffsetDateTime.now());
+
+        Driver saved = driverRepository.save(driver);
+
+        // Audit Log
+        auditLogService.log(actor, AuditAction.UPDATE, "Driver", saved.getId(), saved.getLicenseNumber(), null, oldMap, toMap(saved));
+
+        return mapper.toResponse(saved);
+    }
+
     private Map<String, Object> toMap(Driver d) {
         if (d == null) return null;
         Map<String, Object> map = new HashMap<>();

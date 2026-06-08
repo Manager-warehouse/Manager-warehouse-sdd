@@ -12,5 +12,6 @@ public interface WarehouseLocationService {
     WarehouseLocationResponse createLocation(WarehouseLocationRequest request, Long userId);
     WarehouseLocationResponse updateLocation(Long id, WarehouseLocationRequest request, Long userId);
     void deactivateLocation(Long id, Long userId);
+    WarehouseLocationResponse reactivateLocation(Long id, Long userId);
     CapacityResponse getCapacity(Long id);
 }

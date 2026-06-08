@@ -80,6 +80,16 @@ public class DriverController {
         return ResponseEntity.noContent().build();
     }
 
+    @PutMapping("/{id}/reactivate")
+    @PreAuthorize("hasAnyRole('CEO', 'ADMIN', 'DISPATCHER')")
+    public ResponseEntity<DriverResponse> reactivateDriver(
+            @PathVariable Long id,
+            Principal principal) {
+        Long actorId = getActorId(principal);
+        DriverResponse response = driverService.reactivateDriver(id, actorId);
+        return ResponseEntity.ok(response);
+    }
+
     private Long getActorId(Principal principal) {
         String email = principal != null ? principal.getName() : "admin@wms.com";
         User actor = userRepository.findByEmail(email)

@@ -173,6 +173,33 @@ public class WarehouseServiceImpl implements WarehouseService {
         auditLogService.log(actor, AuditAction.SOFT_DELETE, "Warehouse", saved.getId(), saved.getCode(), saved.getId(), oldMap, toMap(saved));
     }
 
+    @Override
+    @Transactional
+    public WarehouseResponse reactivateWarehouse(Long id, Long userId) {
+        Warehouse warehouse = warehouseRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Warehouse not found with id: " + id));
+
+        if (warehouse.getIsActive()) {
+            return mapper.toResponse(warehouse);
+        }
+
+        User actor = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+
+        Map<String, Object> oldMap = toMap(warehouse);
+
+        warehouse.setIsActive(true);
+        warehouse.setUpdatedBy(actor);
+        warehouse.setUpdatedAt(OffsetDateTime.now());
+
+        Warehouse saved = warehouseRepository.save(warehouse);
+
+        // Audit Log
+        auditLogService.log(actor, AuditAction.UPDATE, "Warehouse", saved.getId(), saved.getCode(), saved.getId(), oldMap, toMap(saved));
+
+        return mapper.toResponse(saved);
+    }
+
     private void createDefaultLocationsForInTransit(Warehouse warehouse, User actor) {
         // 1. Create Zone Location
         WarehouseLocation zone = new WarehouseLocation();

@@ -12,4 +12,5 @@ public interface DriverService {
     DriverResponse updateDriver(Long id, DriverRequest request, Long userId);
     DriverResponse updateStatus(Long id, String status, Long userId);
     void deactivateDriver(Long id, Long userId);
+    DriverResponse reactivateDriver(Long id, Long userId);
 }

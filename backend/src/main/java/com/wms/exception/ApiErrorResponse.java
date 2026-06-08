@@ -10,6 +10,7 @@ import lombok.Getter;
 public class ApiErrorResponse {
     private String code;
     private String message;
+    private String error;
     private Map<String, Object> details;
     private OffsetDateTime timestamp;
 }

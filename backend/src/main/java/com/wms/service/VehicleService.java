@@ -12,4 +12,5 @@ public interface VehicleService {
     VehicleResponse updateVehicle(Long id, VehicleRequest request, Long userId);
     VehicleResponse updateStatus(Long id, String status, Long userId);
     void deactivateVehicle(Long id, Long userId);
+    VehicleResponse reactivateVehicle(Long id, Long userId);
 }

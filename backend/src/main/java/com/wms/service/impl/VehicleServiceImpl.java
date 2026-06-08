@@ -161,6 +161,33 @@ public class VehicleServiceImpl implements VehicleService {
         auditLogService.log(actor, AuditAction.SOFT_DELETE, "Vehicle", saved.getId(), saved.getPlateNumber(), null, oldMap, toMap(saved));
     }
 
+    @Override
+    @Transactional
+    public VehicleResponse reactivateVehicle(Long id, Long userId) {
+        Vehicle vehicle = vehicleRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Vehicle not found with id: " + id));
+
+        if (vehicle.getIsActive()) {
+            return mapper.toResponse(vehicle);
+        }
+
+        User actor = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+
+        Map<String, Object> oldMap = toMap(vehicle);
+
+        vehicle.setIsActive(true);
+        vehicle.setUpdatedBy(actor);
+        vehicle.setUpdatedAt(OffsetDateTime.now());
+
+        Vehicle saved = vehicleRepository.save(vehicle);
+
+        // Audit Log
+        auditLogService.log(actor, AuditAction.UPDATE, "Vehicle", saved.getId(), saved.getPlateNumber(), null, oldMap, toMap(saved));
+
+        return mapper.toResponse(saved);
+    }
+
     private Map<String, Object> toMap(Vehicle v) {
         if (v == null) return null;
         Map<String, Object> map = new HashMap<>();

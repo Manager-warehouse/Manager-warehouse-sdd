@@ -18,22 +18,22 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleNotFound(ResourceNotFoundException ex) {
-        return error(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND", ex.getMessage(), null);
+        return error(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND", ex.getMessage(), ex.getMessage(), null);
     }
 
     @ExceptionHandler(DuplicateResourceException.class)
     public ResponseEntity<ApiErrorResponse> handleDuplicate(DuplicateResourceException ex) {
-        return error(HttpStatus.CONFLICT, "DUPLICATE_RESOURCE", ex.getMessage(), null);
+        return error(HttpStatus.CONFLICT, "DUPLICATE_RESOURCE", ex.getMessage(), ex.getMessage(), null);
     }
 
     @ExceptionHandler(BusinessRuleViolationException.class)
     public ResponseEntity<ApiErrorResponse> handleBusinessRule(BusinessRuleViolationException ex) {
-        return error(HttpStatus.CONFLICT, "BUSINESS_RULE_VIOLATION", ex.getMessage(), null);
+        return error(HttpStatus.CONFLICT, "BUSINESS_RULE_VIOLATION", ex.getMessage(), ex.getMessage(), null);
     }
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiErrorResponse> handleAccessDenied(AccessDeniedException ex) {
-        return error(HttpStatus.FORBIDDEN, "ACCESS_DENIED", "Access denied", null);
+        return error(HttpStatus.FORBIDDEN, "ACCESS_DENIED", "Access denied", "Access denied", null);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -42,32 +42,73 @@ public class GlobalExceptionHandler {
         for (FieldError fieldError : ex.getBindingResult().getFieldErrors()) {
             details.put(fieldError.getField(), fieldError.getDefaultMessage());
         }
-        return error(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Validation failed", details);
+        String errorMsg = ex.getBindingResult().getFieldErrors().stream()
+                .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
+                .collect(java.util.stream.Collectors.joining(", "));
+        return error(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", errorMsg, errorMsg, details);
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ApiErrorResponse> handleConstraintViolation(ConstraintViolationException ex) {
-        return error(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", ex.getMessage(), null);
+        return error(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", ex.getMessage(), ex.getMessage(), null);
     }
 
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<ApiErrorResponse> handleResponseStatus(ResponseStatusException ex) {
         return error(HttpStatus.valueOf(ex.getStatusCode().value()),
-                "REQUEST_ERROR", ex.getReason(), null);
+                "REQUEST_ERROR", ex.getReason(), ex.getReason(), null);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiErrorResponse> handleIllegalArgument(IllegalArgumentException ex) {
-        return error(HttpStatus.BAD_REQUEST, "INVALID_ARGUMENT", ex.getMessage(), null);
+        String msg = ex.getMessage();
+        HttpStatus status = HttpStatus.BAD_REQUEST;
+        String code = "INVALID_ARGUMENT";
+
+        if (msg != null) {
+            if (msg.contains("INVALID_CREDENTIALS") || msg.contains("TOKEN_INVALID") || msg.contains("TOKEN_EXPIRED")) {
+                status = HttpStatus.UNAUTHORIZED;
+                code = "UNAUTHORIZED";
+            } else if (msg.contains("DUPLICATE") || msg.contains("ALREADY_EXISTS")) {
+                status = HttpStatus.CONFLICT;
+                code = "DUPLICATE_RESOURCE";
+            } else if (msg.contains("NOT_FOUND")) {
+                status = HttpStatus.NOT_FOUND;
+                code = "RESOURCE_NOT_FOUND";
+            } else if (msg.contains("CAPACITY") || msg.contains("STOCK") || msg.contains("ACTIVE") || msg.contains("TRIP")) {
+                status = HttpStatus.UNPROCESSABLE_ENTITY;
+                code = "BUSINESS_RULE_VIOLATION";
+            }
+        }
+
+        return error(status, code, msg, msg, null);
+    }
+
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ApiErrorResponse> handleIllegalState(IllegalStateException ex) {
+        String msg = ex.getMessage();
+        HttpStatus status = HttpStatus.BAD_REQUEST;
+        String code = "ILLEGAL_STATE";
+
+        if (msg != null) {
+            if (msg.contains("ACCOUNT_INACTIVE")) {
+                status = HttpStatus.UNAUTHORIZED;
+                code = "UNAUTHORIZED";
+            }
+        }
+
+        return error(status, code, msg, msg, null);
     }
 
     private ResponseEntity<ApiErrorResponse> error(HttpStatus status,
                                                    String code,
                                                    String message,
+                                                   String errorVal,
                                                    Map<String, Object> details) {
         return ResponseEntity.status(status).body(ApiErrorResponse.builder()
                 .code(code)
                 .message(message)
+                .error(errorVal)
                 .details(details)
                 .timestamp(OffsetDateTime.now())
                 .build());

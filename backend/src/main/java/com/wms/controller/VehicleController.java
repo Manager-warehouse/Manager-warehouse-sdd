@@ -17,7 +17,7 @@ import java.security.Principal;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/v1/dispatcher/vehicles")
+@RequestMapping("/api/v1/dispatcher/vehicles")//sfatydfa
 @RequiredArgsConstructor
 public class VehicleController {
 
@@ -78,6 +78,16 @@ public class VehicleController {
         Long actorId = getActorId(principal);
         vehicleService.deactivateVehicle(id, actorId);
         return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{id}/reactivate")
+    @PreAuthorize("hasAnyRole('CEO', 'ADMIN', 'DISPATCHER')")
+    public ResponseEntity<VehicleResponse> reactivateVehicle(
+            @PathVariable Long id,
+            Principal principal) {
+        Long actorId = getActorId(principal);
+        VehicleResponse response = vehicleService.reactivateVehicle(id, actorId);
+        return ResponseEntity.ok(response);
     }
 
     private Long getActorId(Principal principal) {

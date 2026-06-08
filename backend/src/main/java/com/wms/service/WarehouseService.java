@@ -11,4 +11,5 @@ public interface WarehouseService {
     WarehouseResponse createWarehouse(WarehouseRequest request, Long userId);
     WarehouseResponse updateWarehouse(Long id, WarehouseRequest request, Long userId);
     void deactivateWarehouse(Long id, Long userId);
+    WarehouseResponse reactivateWarehouse(Long id, Long userId);
 }

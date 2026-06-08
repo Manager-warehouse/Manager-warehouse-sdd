@@ -67,6 +67,16 @@ public class WarehouseController {
         return ResponseEntity.noContent().build();
     }
 
+    @PutMapping("/{id}/reactivate")
+    @PreAuthorize("hasAnyRole('CEO', 'ADMIN')")
+    public ResponseEntity<WarehouseResponse> reactivateWarehouse(
+            @PathVariable Long id,
+            Principal principal) {
+        Long actorId = getActorId(principal);
+        WarehouseResponse response = warehouseService.reactivateWarehouse(id, actorId);
+        return ResponseEntity.ok(response);
+    }
+
     private Long getActorId(Principal principal) {
         String email = principal != null ? principal.getName() : "admin@wms.com";
         User actor = userRepository.findByEmail(email)

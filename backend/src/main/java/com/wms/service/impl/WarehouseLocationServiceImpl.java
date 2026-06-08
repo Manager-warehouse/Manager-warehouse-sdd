@@ -238,6 +238,38 @@ public class WarehouseLocationServiceImpl implements WarehouseLocationService {
     }
 
     @Override
+    @Transactional
+    public WarehouseLocationResponse reactivateLocation(Long id, Long userId) {
+        WarehouseLocation location = locationRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Warehouse location not found with id: " + id));
+
+        if (location.getIsActive()) {
+            return mapper.toResponse(location);
+        }
+
+        // If bin, verify parent zone is active
+        if (location.getType() == LocationType.BIN && location.getParent() != null && !location.getParent().getIsActive()) {
+            throw new IllegalArgumentException("PARENT_ZONE_INACTIVE");
+        }
+
+        User actor = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+
+        Map<String, Object> oldMap = toMap(location);
+
+        location.setIsActive(true);
+        location.setUpdatedBy(actor);
+        location.setUpdatedAt(OffsetDateTime.now());
+
+        WarehouseLocation saved = locationRepository.save(location);
+
+        // Audit Log
+        auditLogService.log(actor, AuditAction.UPDATE, "WarehouseLocation", saved.getId(), saved.getCode(), location.getWarehouse().getId(), oldMap, toMap(saved));
+
+        return mapper.toResponse(saved);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public CapacityResponse getCapacity(Long id) {
         WarehouseLocation location = locationRepository.findById(id)
