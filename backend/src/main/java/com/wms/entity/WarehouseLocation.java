@@ -2,11 +2,15 @@ package com.wms.entity;
 
 import com.wms.enums.LocationType;
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
 @Entity
 @Table(name = "warehouse_locations")
+@Getter
+@Setter
 public class WarehouseLocation {
 
     @Id

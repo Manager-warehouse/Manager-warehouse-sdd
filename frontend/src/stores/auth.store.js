@@ -2,10 +2,10 @@ import { create } from 'zustand';
 import { WAREHOUSES } from '../utils/constants';
 
 export const useAuthStore = create((set, get) => {
-  // Try to load initial session from localStorage
-  const storedUser = localStorage.getItem('wms_user');
-  const storedToken = localStorage.getItem('wms_token');
-  const storedWarehouse = localStorage.getItem('wms_active_warehouse');
+  // Try to load initial session from sessionStorage
+  const storedUser = sessionStorage.getItem('wms_user');
+  const storedToken = sessionStorage.getItem('wms_token');
+  const storedWarehouse = sessionStorage.getItem('wms_active_warehouse');
 
   let parsedUser = null;
   let parsedWarehouse = null;
@@ -22,9 +22,12 @@ export const useAuthStore = create((set, get) => {
     token: storedToken,
     activeWarehouse: parsedWarehouse,
 
-    login: (user, token) => {
-      localStorage.setItem('wms_user', JSON.stringify(user));
-      localStorage.setItem('wms_token', token);
+    login: (user, token, refreshToken) => {
+      sessionStorage.setItem('wms_user', JSON.stringify(user));
+      sessionStorage.setItem('wms_token', token);
+      if (refreshToken) {
+        sessionStorage.setItem('wms_refresh_token', refreshToken);
+      }
 
       // Default active warehouse to first assigned warehouse or first warehouse
       let activeWarehouse = null;
@@ -38,23 +41,24 @@ export const useAuthStore = create((set, get) => {
       }
 
       if (activeWarehouse) {
-        localStorage.setItem('wms_active_warehouse', JSON.stringify(activeWarehouse));
+        sessionStorage.setItem('wms_active_warehouse', JSON.stringify(activeWarehouse));
       } else {
-        localStorage.removeItem('wms_active_warehouse');
+        sessionStorage.removeItem('wms_active_warehouse');
       }
 
       set({ user, token, activeWarehouse });
     },
 
     logout: () => {
-      localStorage.removeItem('wms_user');
-      localStorage.removeItem('wms_token');
-      localStorage.removeItem('wms_active_warehouse');
+      sessionStorage.removeItem('wms_user');
+      sessionStorage.removeItem('wms_token');
+      sessionStorage.removeItem('wms_refresh_token');
+      sessionStorage.removeItem('wms_active_warehouse');
       set({ user: null, token: null, activeWarehouse: null });
     },
 
     setActiveWarehouse: (warehouse) => {
-      localStorage.setItem('wms_active_warehouse', JSON.stringify(warehouse));
+      sessionStorage.setItem('wms_active_warehouse', JSON.stringify(warehouse));
       set({ activeWarehouse: warehouse });
     },
 
@@ -69,9 +73,9 @@ export const useAuthStore = create((set, get) => {
       if (!user) return false;
       // ADMIN or CEO has access to all warehouses
       if (user.role === 'ADMIN' || user.role === 'CEO') return true;
-      // Empty/null list in database means access to all
-      if (!user.warehouses || user.warehouses.length === 0) return true;
-      return user.warehouses?.includes(Number(warehouseId)) || false;
+      // Empty array implies no warehouse gán - block access by default
+      if (!user.warehouses || user.warehouses.length === 0) return false;
+      return user.warehouses.includes(Number(warehouseId));
     }
   };
 });

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
 import { authService } from '../../services/auth.service';
@@ -22,6 +22,31 @@ const Profile = () => {
   const [region, setRegion] = useState(user?.region || '');
   const [profileLoading, setProfileLoading] = useState(false);
 
+  useEffect(() => {
+    if (user) {
+      setFullName(user.fullName || '');
+      setEmail(user.email || '');
+      setPhone(user.phone || '');
+      setJobTitle(user.jobTitle || '');
+      setShift(user.shift || '');
+      setRegion(user.region || '');
+    }
+  }, [user]);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const fullUser = await authService.getMe();
+        if (fullUser) {
+          login(fullUser, sessionStorage.getItem('wms_token'));
+        }
+      } catch (err) {
+        console.error('Failed to fetch full profile:', err);
+      }
+    };
+    fetchProfile();
+  }, []);
+
   // Password Change States
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -43,7 +68,7 @@ const Profile = () => {
     try {
       const updatedUser = await authService.updateProfile(fullName, email, phone);
       // Refresh user details in store
-      login(updatedUser, localStorage.getItem('wms_token'));
+      login(updatedUser, sessionStorage.getItem('wms_token'));
       addToast('Cập nhật thông tin cá nhân thành công', 'success');
     } catch (err) {
       console.error(err);
@@ -89,7 +114,6 @@ const Profile = () => {
       setNewPassword('');
       setConfirmPassword('');
     } catch (err) {
-      console.error(err);
       if (err.message === 'WEAK_PASSWORD') {
         setPassError('Mật khẩu không đủ mạnh (tối thiểu 8 ký tự, gồm cả chữ và số)');
       } else {
@@ -101,7 +125,7 @@ const Profile = () => {
   };
 
   return (
-    <div className="flex-1 flex flex-col gap-8 pb-12">
+    <div className="flex flex-col gap-6">
       {/* Page Header */}
       <div>
         <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
@@ -177,7 +201,7 @@ const Profile = () => {
                 Phạm vi Kho được phân công
               </h4>
             </div>
-            
+
             {user?.role === 'ADMIN' ? (
               <p className="text-xs text-shade-60 leading-relaxed font-light">
                 Tài khoản <strong>ADMIN</strong> có toàn quyền thao tác trên tất cả các kho vật lý trong hệ thống.
@@ -215,7 +239,7 @@ const Profile = () => {
               </h4>
             </div>
 
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input
                 label="Mã nhân viên"
                 type="text"

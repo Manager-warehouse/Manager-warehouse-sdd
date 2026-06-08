@@ -2,11 +2,15 @@ package com.wms.entity;
 
 import com.wms.enums.CreditStatus;
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
 @Entity
 @Table(name = "dealers")
+@Getter
+@Setter
 public class Dealer {
 
     @Id

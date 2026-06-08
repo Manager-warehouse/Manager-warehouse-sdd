@@ -16,6 +16,10 @@ public class MeResponse {
     private String phone;
     private String role;
     private String jobTitle;
+    private String shift;
+    private String region;
+    private Boolean isActive;
+    private List<Long> warehouses;
     private List<WarehouseInfo> assignedWarehouses;
 
     @Getter

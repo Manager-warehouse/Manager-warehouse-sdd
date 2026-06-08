@@ -5,6 +5,8 @@ import jakarta.persistence.*;
 import java.time.OffsetDateTime;
 
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "audit_logs")
@@ -43,10 +45,12 @@ public class AuditLog {
     @JoinColumn(name = "warehouse_id")
     private Warehouse warehouse;
 
-    @Column(name = "old_value", columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "old_value")
     private String oldValue;
 
-    @Column(name = "new_value", columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "new_value")
     private String newValue;
 
     @Column(name = "timestamp", nullable = false)

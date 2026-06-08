@@ -68,4 +68,12 @@ public class AuthController {
         authService.changePassword(userDetails.getUsername(), request);
         return ResponseEntity.noContent().build();
     }
+
+    @Operation(summary = "Cập nhật hồ sơ cá nhân")
+    @PutMapping("/profile")
+    public ResponseEntity<MeResponse> updateProfile(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Valid @RequestBody ProfileUpdateRequest request) {
+        return ResponseEntity.ok(authService.updateProfile(userDetails.getUsername(), request));
+    }
 }
