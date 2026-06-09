@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuthStore } from '../stores/auth.store';
 import Header from '../components/layout/Header';
@@ -7,6 +7,13 @@ import Footer from '../components/layout/Footer';
 
 const ProtectedRoute = ({ allowedRoles = [] }) => {
   const { token, user } = useAuthStore();
+
+  useEffect(() => {
+    document.body.classList.add('layout-locked');
+    return () => {
+      document.body.classList.remove('layout-locked');
+    };
+  }, []);
 
 // Send unauthenticated users back to login page to acquire a session token
   if (!token || !user) {
@@ -25,10 +32,14 @@ const ProtectedRoute = ({ allowedRoles = [] }) => {
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
         
-        <main className="flex-1 p-6 md:p-8 flex flex-col overflow-y-auto">
-          <Outlet />
-          
-          <Footer />
+        <main className="flex-1 p-6 md:p-8 overflow-y-auto">
+          <div className="min-h-full flex flex-col">
+            <div className="flex-1 flex flex-col">
+              <Outlet />
+            </div>
+            
+            <Footer />
+          </div>
         </main>
       </div>
     </div>

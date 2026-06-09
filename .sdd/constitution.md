@@ -351,21 +351,21 @@ dự án MUST tuân thủ.*
 
 ## Phụ Lục A: Danh sách Feature Specs
  
- Toàn bộ hệ thống WMS Phúc Anh được phân rã thành **80 features** trong **10 domain specs**:
+ Toàn bộ hệ thống WMS Phúc Anh được phân rã thành **35 features** trong **10 domain specs**:
  
  | # | Spec | Đường dẫn | Features | P1 |
  |---|------|-----------|:--------:|:--:|
-| 001 | Quản trị & Phân quyền | `.sdd/specs/001-security-auth-rbac-audit/spec.md` | 7 | 5 |
-| 002 | Danh mục nền tảng | `.sdd/specs/002-master-data-management/spec.md` | 9 | 5 |
-| 003 | Nhập hàng & QC Inbound | `.sdd/specs/003-inbound-receipt-qc/spec.md` | 9 | 9 |
-| 004 | Xuất hàng & Giao hàng | `.sdd/specs/004-outbound-delivery-pod/spec.md` | 16 | 16 |
-| 005 | Điều chuyển nội bộ | `.sdd/specs/005-inter-warehouse-transfer/spec.md` | 6 | 5 |
-| 006 | Kiểm kê & Điều chỉnh | `.sdd/specs/006-stocktake-adjustment/spec.md` | 4 | 4 |
-| 007 | Bảng giá & Giá vốn | `.sdd/specs/007-pricing-cogs-management/spec.md` | 5 | 5 |
-| 008 | Tài chính & Công nợ | `.sdd/specs/008-finance-billing-closing/spec.md` | 10 | 10 |
-| 009 | Hàng hoàn trả & Tiêu hủy | `.sdd/specs/009-returns-scrap-disposal/spec.md` | 3 | 2 |
+| 001 | Quản trị & Phân quyền | `.sdd/specs/001-security-auth-rbac-audit/spec.md` | 4 | 4 |
+| 002 | Danh mục nền tảng | `.sdd/specs/002-master-data-management/spec.md` | 4 | 2 |
+| 003 | Nhập hàng & QC Inbound | `.sdd/specs/003-inbound-receipt-qc/spec.md` | 5 | 5 |
+| 004 | Xuất hàng & Giao hàng | `.sdd/specs/004-outbound-delivery-pod/spec.md` | 6 | 6 |
+| 005 | Điều chuyển nội bộ | `.sdd/specs/005-inter-warehouse-transfer/spec.md` | 3 | 2 |
+| 006 | Kiểm kê & Điều chỉnh | `.sdd/specs/006-stocktake-adjustment/spec.md` | 2 | 2 |
+| 007 | Bảng giá & Giá vốn | `.sdd/specs/007-pricing-cogs-management/spec.md` | 2 | 2 |
+| 008 | Tài chính & Công nợ | `.sdd/specs/008-finance-billing-closing/spec.md` | 4 | 4 |
+| 009 | Hàng hoàn trả & Tiêu hủy | `.sdd/specs/009-returns-scrap-disposal/spec.md` | 2 | 1 |
 | 010 | Báo cáo & Cảnh báo | `.sdd/specs/010-reports-dashboards-alerts/spec.md` | 3 | 2 |
- | | **Tổng cộng** | | **80** | **71** |
+ | | **Tổng cộng** | | **35** | **30** |
 
 Mỗi spec sử dụng cấu trúc 9 thành phần: Context & Goal, Actor, Functional Requirements (EARS),
 Non-functional Requirements, Data Model, API Spec, Error Handling, Acceptance Criteria, Out of Scope.

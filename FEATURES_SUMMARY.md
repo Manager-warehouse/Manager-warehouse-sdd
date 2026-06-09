@@ -81,7 +81,7 @@ Mọi spec và mã nguồn trong dự án phải tuân thủ tuyệt đối các
 
 ---
 
-## 4. Danh Sách 10 Domain Specs & 80 Features Chi Tiết
+## 4. Danh Sách 10 Domain Specs & 35 Features Chi Tiết
 
 Dưới đây là tổng hợp 10 Domain Specifications chứa 26 User Stories gốc được phân rã chi tiết:
 
