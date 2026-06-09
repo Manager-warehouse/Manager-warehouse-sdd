@@ -94,6 +94,9 @@ public class GlobalExceptionHandler {
             if (msg.contains("ACCOUNT_INACTIVE")) {
                 status = HttpStatus.UNAUTHORIZED;
                 code = "UNAUTHORIZED";
+            } else if (msg.contains("MAIL_SEND_FAILED")) {
+                status = HttpStatus.INTERNAL_SERVER_ERROR;
+                code = "MAIL_SEND_FAILED";
             }
         }
 
