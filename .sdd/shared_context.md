@@ -91,6 +91,7 @@ Inventory (N) ──→ WarehouseLocation (1)
 Receipt (1) ──→ ReceiptItem (N) ──→ Product (1)
 DeliveryOrder (1) ──→ DeliveryOrderItem (N) ──→ Inventory (1)
 Transfer (1) ──→ TransferItem (N)
+Transfer (1) ──→ Trip (1, trip_type = TRANSFER)
 Trip (1) ──→ TripDeliveryOrder (N) ──→ DeliveryOrder (1)
 Invoice (N) ──→ DeliveryOrder (1)
 PaymentReceipt (N) ──→ Invoice (1)
@@ -108,11 +109,9 @@ PENDING_RECEIPT → DRAFT → QC_COMPLETED → APPROVED
 
 ### Delivery Order (Đơn xuất)
 ```
-NEW → PICKING → READY_TO_SHIP → IN_TRANSIT → OUT_FOR_DELIVERY → DELIVERED → COMPLETED → CLOSED
-                                                                    ↓
-                                                               RETURNED
-                                                                    ↓
-                                                               CANCELLED
+NEW → PICKING → READY_TO_SHIP → IN_TRANSIT → DELIVERED
+                                   ↓                ↓
+                               RETURNED         CANCELLED
 ```
 
 ### Transfer (Điều chuyển)
@@ -121,6 +120,15 @@ NEW → APPROVED → IN_TRANSIT → COMPLETED
                                 ↓
                          COMPLETED_WITH_DISCREPANCY
 ```
+
+Transfer-specific invariants:
+- Trưởng kho nguồn approval reserves planned quantity immediately.
+- Each transfer has exactly one dedicated internal trip; multi-transfer trips are out of scope.
+- Driver departure confirmation moves stock from source warehouse to In-Transit.
+- Thủ kho đích records received counts and QC; Trưởng kho đích confirms final receipt.
+- received_qty > sent_qty is blocked.
+- QC-failed received quantity goes to Quarantine and is excluded from available inventory.
+- Cancellation is allowed only before IN_TRANSIT.
 
 ### Dealer Status
 ```

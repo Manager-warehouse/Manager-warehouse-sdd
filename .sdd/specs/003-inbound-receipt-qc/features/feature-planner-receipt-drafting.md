@@ -11,6 +11,7 @@ Planner tiếp nhận thông tin hàng mua từ supplier qua các kênh thủ c�
   * The system SHALL always generate a unique receipt code for every receipt document.
   * The system SHALL only allow this feature to create purchase receipts for supplier inbound orders, not return receipts.
   * The system SHALL treat `source_channel` as an enum field with only two allowed values: `ZALO` and `EMAIL`.
+  * The system SHALL create a `RECEIPT_CREATE` audit log entry for every successful receipt creation, including actor, source reference, warehouse, source channel, and before/after status.
 * **Event-driven:**
   * WHEN a Planner creates a receipt, the system SHALL require: supplier_id, contact_person, warehouse_id, expected items, source reference (PO number), and source channel.
   * WHEN a Planner creates a receipt, the system SHALL require each expected item to contain exactly one product_id and one expected_qty.

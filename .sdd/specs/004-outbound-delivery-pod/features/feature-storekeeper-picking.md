@@ -7,6 +7,8 @@ Thủ kho lấy hàng từ kệ theo chỉ định (Picking) được sinh bởi
 * **Thủ kho**: Soạn hàng tại kệ, lấy đúng SKU và số lượng, cập nhật trạng thái soạn hàng.
 
 ## 3. Functional Requirements (EARS)
+* **Ubiquitous:**
+  * The system SHALL create `DELIVERY_ORDER_PICK_START` and `DELIVERY_ORDER_PICK_COMPLETE` audit log entries for picking state changes and picked quantities.
 * **Event-driven:**
   * WHEN a Thủ kho starts picking, the system SHALL update the DO status to `PICKING`.
   * WHEN a Thủ kho finishes picking all items, the system SHALL mark the items as picked and wait for QC inspection.

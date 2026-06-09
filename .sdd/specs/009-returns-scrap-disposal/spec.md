@@ -12,8 +12,8 @@
 Đại lý có thể hoàn trả hàng (hàng lỗi, sai quy cách, tồn kho) và hàng trong Quarantine Zone cần được xử lý (trả NCC hoặc tiêu hủy). Các quy trình này ảnh hưởng đến inventory và công nợ, cần kiểm soát chặt chẽ.
 
 ### Features List
-* [US-WMS-24: Xử lý Hàng hoàn trả từ Đại lý](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/009-returns-scrap-disposal/features/feature-storekeeper-customer-returns.md)
-* [US-WMS-04 (Disposal Sub-flow): Tiêu hủy Hàng lỗi từ Quarantine](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/009-returns-scrap-disposal/features/feature-manager-scrap-disposal.md)
+* [US-WMS-24: Xử lý Hàng hoàn trả từ Đại lý](./features/feature-storekeeper-customer-returns.md)
+* [US-WMS-04 (Disposal Sub-flow): Tiêu hủy Hàng lỗi từ Quarantine](./features/feature-manager-scrap-disposal.md)
 
 ## 2. Actors
 
@@ -26,8 +26,8 @@
 
 ## 3. Functional Requirements (EARS)
 *Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đặc tả tính năng:*
-* [EARS - Customer Returns](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/009-returns-scrap-disposal/features/feature-storekeeper-customer-returns.md#3-functional-requirements-ears)
-* [EARS - Scrap Disposal](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/009-returns-scrap-disposal/features/feature-manager-scrap-disposal.md#3-functional-requirements-ears)
+* [EARS - Customer Returns](./features/feature-storekeeper-customer-returns.md#3-functional-requirements-ears)
+* [EARS - Scrap Disposal](./features/feature-manager-scrap-disposal.md#3-functional-requirements-ears)
 
 ## 4. Non-functional Requirements
 
@@ -97,8 +97,8 @@
 
 ## 6. API Spec
 *Vui lòng xem chi tiết API endpoints tại các tài liệu đặc tả tính năng:*
-* [APIs - Customer Returns](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/009-returns-scrap-disposal/features/feature-storekeeper-customer-returns.md#4-api-endpoints)
-* [APIs - Scrap Disposal](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/009-returns-scrap-disposal/features/feature-manager-scrap-disposal.md#4-api-endpoints)
+* [APIs - Customer Returns](./features/feature-storekeeper-customer-returns.md#4-api-endpoints)
+* [APIs - Scrap Disposal](./features/feature-manager-scrap-disposal.md#4-api-endpoints)
 
 ## 7. Error Handling
 
@@ -109,8 +109,8 @@
 
 ## 8. Acceptance Criteria
 *Vui lòng xem chi tiết kịch bản kiểm thử tại các tài liệu đặc tả tính năng:*
-* [Acceptance - Customer Returns](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/009-returns-scrap-disposal/features/feature-storekeeper-customer-returns.md#5-acceptance-criteria)
-* [Acceptance - Scrap Disposal](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/009-returns-scrap-disposal/features/feature-manager-scrap-disposal.md#5-acceptance-criteria)
+* [Acceptance - Customer Returns](./features/feature-storekeeper-customer-returns.md#5-acceptance-criteria)
+* [Acceptance - Scrap Disposal](./features/feature-manager-scrap-disposal.md#5-acceptance-criteria)
 
 ## 9. Out of Scope
 

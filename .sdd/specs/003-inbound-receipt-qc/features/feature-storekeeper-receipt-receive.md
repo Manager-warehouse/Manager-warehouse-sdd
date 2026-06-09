@@ -8,6 +8,9 @@ Nhân viên kho (WAREHOUSE_STAFF) chịu trách nhiệm tiếp nhận hàng hóa
 * **Storekeeper (STOREKEEPER)**: Rà soát và kết luận kết quả QC, xác nhận phiếu sang `QC_COMPLETED`; không duyệt phiếu nhập kho chính thức.
 
 ## 3. Functional Requirements (EARS)
+* **Ubiquitous:**
+  * The system SHALL create a `RECEIPT_RECEIVE` audit log entry whenever actual received quantities are recorded.
+  * The system SHALL create a `RECEIPT_PUTAWAY_COMPLETE` audit log entry whenever putaway location assignment is completed.
 * **Event-driven:**
   * WHEN a Warehouse Staff enters the actual received quantity, the system SHALL update the receipt status to `DRAFT` (indicating actual counts are updated and ready for QC inspection).
   * WHEN a Storekeeper completes the putaway process after final approval, the system SHALL verify: `current_volume_m3 + incoming_volume_m3 <= capacity_m3` AND `current_weight_kg + incoming_weight_kg <= capacity_kg` before updating locations.

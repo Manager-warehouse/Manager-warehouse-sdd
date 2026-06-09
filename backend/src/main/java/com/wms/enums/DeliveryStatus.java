@@ -3,7 +3,7 @@ package com.wms.enums;
 public enum DeliveryStatus {
     PENDING,
     IN_TRANSIT,
-    OUT_FOR_DELIVERY,
+    // OTP verified or delivery otherwise confirmed.
     DELIVERED,
     RETURNED
 }
