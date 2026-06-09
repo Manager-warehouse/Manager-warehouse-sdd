@@ -125,10 +125,12 @@ Mọi thao tác ghi dữ liệu trên kho MUST tạo audit log với:
 1. **INV-01 (Non-negative inventory):** `inventory.quantity >= 0` MUST luôn
    đúng trước và sau mọi thao tác. Áp dụng DB constraint (`CHECK (quantity >= 0)`)
    VÀ application-level validation.
-2. **INV-02 (FEFO selection):** Cho sản phẩm có expiry date, batch được chọn
-   ưu tiên theo hạn dùng gần nhất (First Expiry First Out).
-3. **INV-03 (FIFO selection):** Cho sản phẩm không có expiry date, batch được
-   chọn ưu tiên theo ngày nhập cũ nhất (First In First Out).
+2. **INV-02 (FIFO default):** Domain hiện tại là hàng gia dụng như nồi, chảo,
+   đồ nhựa và mặc định không quản lý hạn sử dụng. Batch được chọn ưu tiên theo
+   ngày nhập cũ nhất (First In First Out).
+3. **INV-03 (FEFO exception):** FEFO chỉ áp dụng cho sản phẩm ngoại lệ được cấu
+   hình có expiry date; khi đó batch được chọn ưu tiên theo hạn dùng gần nhất
+   (First Expiry First Out).
 4. **INV-04 (No direct inventory update):** Mọi thay đổi tồn kho MUST đi qua
    receipt, issue, transfer, adjustment, hoặc stocktake flows. KHÔNG được
    UPDATE/SET trực tiếp quantity trên entity Inventory.
@@ -149,8 +151,11 @@ Mọi thao tác ghi dữ liệu trên kho MUST tạo audit log với:
    serial khi nhập kho và xuất kho.
 3. **BAT-03 (Bin capacity):** Putaway MUST kiểm tra `bin_capacity` trước khi
    đặt hàng vào bin. Không cho phép vượt quá sức chứa.
-4. **BAT-04 (Expired batch):** Batch hết hạn MUST NOT được chọn cho flow
-   xuất kho thông thường. Chỉ xuất được qua flow đặc biệt có approval.
+4. **BAT-04 (Expired batch exception):** Batch hết hạn chỉ áp dụng cho sản phẩm
+   ngoại lệ có expiry date. Với domain hàng gia dụng mặc định, hệ thống không
+   yêu cầu hạn sử dụng; nếu sản phẩm có expiry thì batch hết hạn MUST NOT được
+   chọn cho flow xuất kho thông thường và chỉ xuất được qua flow đặc biệt có
+   approval.
 
 ### 4.3 QC & Quarantine Rules
 

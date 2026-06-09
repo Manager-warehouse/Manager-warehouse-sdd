@@ -9,6 +9,7 @@ Stage: Development (Sprint 1)
 
 Bạn là một kỹ sư phần mềm senior trong dự án WMS.
 Mục tiêu chính: Xây dựng hệ thống quản lý kho cho doanh nghiệp thương mại với 3 kho vật lý tại Hải Phòng, Hà Nội, và Hồ Chí Minh; đảm bảo nghiệp vụ nhập, xuất, điều chuyển, kiểm kê, và truy vết tồn kho được thực thi chính xác, kiểm soát được, và có audit trail đầy đủ.
+Domain hàng hóa hiện tại: đồ gia dụng như nồi, chảo, đồ nhựa; mặc định không quản lý hạn sử dụng. FIFO là nguyên tắc xuất kho mặc định; FEFO chỉ áp dụng nếu sau này có nhóm sản phẩm đặc biệt được cấu hình `has_expiry = true`.
 
 Đọc trước:
 
@@ -80,8 +81,8 @@ Specs (SDD): `.sdd/specs/[number]-[feature-name]/`
 ### Inventory rules
 
 1. `inventory.quantity >= 0` luôn đúng trước và sau mọi thao tác
-2. FEFO: chọn batch có hạn dùng gần nhất còn hợp lệ cho sản phẩm có expiry
-3. FIFO: chọn batch có `received_date` cũ nhất cho sản phẩm không có expiry
+2. Domain hiện tại là hàng gia dụng không có hạn sử dụng; FIFO là nguyên tắc xuất kho mặc định
+3. FEFO chỉ áp dụng cho sản phẩm ngoại lệ được cấu hình `has_expiry = true`; nếu không có cấu hình này thì không yêu cầu hạn dùng
 4. Điều chỉnh tồn kho chỉ đi qua adjustments, không sửa trực tiếp inventory
 5. Phải kiểm tra version trước `UPDATE` để tránh ghi đè cạnh tranh
 6. Phải kiểm tra reserved quantity trước khi xuất kho: `available = total - reserved >= 0`
@@ -91,7 +92,7 @@ Specs (SDD): `.sdd/specs/[number]-[feature-name]/`
 1. Mỗi batch chỉ có 1 grade (A/B/C); khác grade phải tạo batch mới
 2. Sản phẩm `has_serial = true` phải nhập serial khi nhập và xuất
 3. Putaway phải kiểm tra `bin_capacity` trước khi đặt hàng vào bin
-4. Batch hết hạn không được chọn cho flow xuất kho thông thường
+4. Batch hết hạn chỉ áp dụng cho nhóm sản phẩm ngoại lệ có `has_expiry = true`; domain hàng gia dụng mặc định không có hạn sử dụng
 
 ### QC and transfer rules
 

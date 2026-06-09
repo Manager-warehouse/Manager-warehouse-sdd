@@ -783,7 +783,7 @@ Product (1000+ items)
 └── PriceHistory (cost_price, selling_price, effective_date, end_date)
 
 Batch (Lô hàng - tied to ONE grade)
-├── batchNumber, receivedDate, expDate
+├── batchNumber, receivedDate, expDate (optional; only for exceptional expiry-tracked products)
 ├── grade (A/B/C)
 └── quantity
 
@@ -827,8 +827,9 @@ DebitNote (Phiếu đòi bồi hoàn)
 | -------------------------- | ----------------------------------------------- |
 | No negative inventory      | `@Column(check = "quantity >= 0")` + validation |
 | Single grade per batch     | `grade` is immutable after creation             |
-| FEFO for expiring products | `FEFOSelector` picks batch by expDate ASC       |
-| FIFO for non-expiring      | `FIFOSelector` picks by receivedDate ASC        |
+| Household goods default    | Products such as pots, pans, and plastic goods do not track expiry by default |
+| FIFO default               | `FIFOSelector` picks batch by receivedDate ASC for the current household-goods domain |
+| FEFO exception             | `FEFOSelector` is used only for exceptional products configured with expiry tracking |
 | Quarantine excluded        | WHERE clause filters `zone != 'QUARANTINE'`     |
 | In-Transit tracking        | Virtual warehouse `IN_TRANSIT` for transfers    |
 | Credit Check Control       | Auto-block if balance + new > limit OR >30 days overdue; balance equal to limit is allowed. Buffer 20% to unlock |
