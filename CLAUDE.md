@@ -1038,7 +1038,7 @@ Quy trình điều phối chuyến xe, vận chuyển bằng xe nội bộ của
 ```
 
 **Luồng trạng thái đơn giao:**
-`READY_TO_SHIP` → `IN_TRANSIT` (Tài xế nhận hàng lên xe) → `OUT_FOR_DELIVERY` (Tài xế đang đi giao) → `DELIVERED` (Đại lý ký nhận POD thành công) / `RETURNED` (Giao thất bại, chuyển hàng về Quarantine zone của kho gốc)
+`READY_TO_SHIP` → `IN_TRANSIT` (Tài xế nhận hàng lên xe và đang đi giao) → `DELIVERED` (Đại lý ký nhận POD thành công) / `RETURNED` (Giao thất bại, chuyển hàng về Quarantine zone của kho gốc)
 
 ---
 
