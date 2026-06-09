@@ -7,6 +7,8 @@ import com.wms.entity.User;
 import com.wms.exception.ResourceNotFoundException;
 import com.wms.repository.ProductRepository;
 import com.wms.repository.UserRepository;
+import com.wms.enums.AuditAction;
+import com.wms.service.AuditLogService;
 import com.wms.service.ProductService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -14,17 +16,25 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
+import java.util.Map;
+
 @Service
 @RequiredArgsConstructor
 public class ProductServiceImpl implements ProductService {
 
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
+    private final AuditLogService auditLogService;
 
     @Override
     @Transactional(readOnly = true)
     public Page<ProductResponse> getProducts(String search, Pageable pageable) {
-        return productRepository.findAllBySearch(search, pageable)
+        if (search == null || search.isBlank()) {
+            return productRepository.findAllProducts(pageable)
+                    .map(this::toResponse);
+        }
+        return productRepository.findAllBySearch(search.trim(), pageable)
                 .map(this::toResponse);
     }
 
@@ -62,7 +72,12 @@ public class ProductServiceImpl implements ProductService {
                 .updatedBy(actor)
                 .build();
 
-        return toResponse(productRepository.save(product));
+        Product saved = productRepository.save(product);
+
+        // Record Audit Log
+        auditLogService.log(actor, AuditAction.CREATE, "Product", saved.getId(), saved.getSku(), null, null, toMap(saved));
+
+        return toResponse(saved);
     }
 
     @Override
@@ -76,6 +91,7 @@ public class ProductServiceImpl implements ProductService {
         }
 
         User actor = resolveUser(updatedByUserId);
+        Map<String, Object> oldMap = toMap(product);
 
         product.setSku(request.getSku());
         product.setName(request.getName());
@@ -90,7 +106,12 @@ public class ProductServiceImpl implements ProductService {
         product.setReorderPoint(request.getReorderPoint());
         product.setUpdatedBy(actor);
 
-        return toResponse(productRepository.save(product));
+        Product saved = productRepository.save(product);
+
+        // Record Audit Log
+        auditLogService.log(actor, AuditAction.UPDATE, "Product", saved.getId(), saved.getSku(), null, oldMap, toMap(saved));
+
+        return toResponse(saved);
     }
 
     @Override
@@ -100,14 +121,38 @@ public class ProductServiceImpl implements ProductService {
                 .orElseThrow(() -> new ResourceNotFoundException("PRODUCT_NOT_FOUND"));
 
         User actor = resolveUser(updatedByUserId);
+        Map<String, Object> oldMap = toMap(product);
+
         product.setIsActive(false);
         product.setUpdatedBy(actor);
-        productRepository.save(product);
+        Product saved = productRepository.save(product);
+
+        // Record Audit Log
+        auditLogService.log(actor, AuditAction.SOFT_DELETE, "Product", saved.getId(), saved.getSku(), null, oldMap, toMap(saved));
     }
 
     private User resolveUser(Long userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("USER_NOT_FOUND"));
+    }
+
+    private Map<String, Object> toMap(Product p) {
+        if (p == null) return null;
+        Map<String, Object> map = new HashMap<>();
+        map.put("id", p.getId());
+        map.put("sku", p.getSku());
+        map.put("name", p.getName());
+        map.put("unit", p.getUnit());
+        map.put("unitPerPack", p.getUnitPerPack());
+        map.put("description", p.getDescription());
+        map.put("weightKg", p.getWeightKg());
+        map.put("volumeM3", p.getVolumeM3());
+        map.put("hasSerial", p.getHasSerial());
+        map.put("hasExpiry", p.getHasExpiry());
+        map.put("shelfLifeDays", p.getShelfLifeDays());
+        map.put("reorderPoint", p.getReorderPoint());
+        map.put("isActive", p.getIsActive());
+        return map;
     }
 
     private ProductResponse toResponse(Product p) {

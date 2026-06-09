@@ -33,6 +33,8 @@ const ProductManagement = () => {
   const [formWeight, setFormWeight] = useState('0');
   const [formVolume, setFormVolume] = useState('0');
   const [formHasSerial, setFormHasSerial] = useState(false);
+  const [formHasExpiry, setFormHasExpiry] = useState(false);
+  const [formShelfLifeDays, setFormShelfLifeDays] = useState('0');
   const [formReorderPoint, setFormReorderPoint] = useState('10');
   const [formDescription, setFormDescription] = useState('');
   const [formErrors, setFormErrors] = useState({});
@@ -63,6 +65,8 @@ const ProductManagement = () => {
     setFormWeight('0');
     setFormVolume('0');
     setFormHasSerial(false);
+    setFormHasExpiry(false);
+    setFormShelfLifeDays('0');
     setFormReorderPoint('10');
     setFormDescription('');
     setFormErrors({});
@@ -79,6 +83,8 @@ const ProductManagement = () => {
     setFormWeight(String(product.weight_kg || 0));
     setFormVolume(String(product.volume_m3 || 0));
     setFormHasSerial(!!product.has_serial);
+    setFormHasExpiry(!!product.has_expiry);
+    setFormShelfLifeDays(String(product.shelf_life_days || 0));
     setFormReorderPoint(String(product.reorder_point || 0));
     setFormDescription(product.description || '');
     setFormErrors({});
@@ -93,6 +99,9 @@ const ProductManagement = () => {
     if (Number(formWeight) < 0) errors.weight = 'Trọng lượng không được âm';
     if (Number(formVolume) < 0) errors.volume = 'Thể tích không được âm';
     if (Number(formReorderPoint) < 0) errors.reorder_point = 'Định mức tồn kho không được âm';
+    if (formHasExpiry && (!formShelfLifeDays.trim() || Number(formShelfLifeDays) <= 0)) {
+      errors.shelf_life_days = 'Số ngày sử dụng phải lớn hơn 0';
+    }
 
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -111,6 +120,8 @@ const ProductManagement = () => {
       weight_kg: parseFloat(formWeight),
       volume_m3: parseFloat(formVolume),
       has_serial: formHasSerial,
+      has_expiry: formHasExpiry,
+      shelf_life_days: formHasExpiry ? Number(formShelfLifeDays) : null,
       reorder_point: parseFloat(formReorderPoint),
       description: formDescription,
     };
@@ -186,7 +197,7 @@ const ProductManagement = () => {
             Quản lý tập trung thông tin SKU sản phẩm, định mức tồn kho, trọng lượng, thể tích và các thuộc tính quản lý (Serial/QC).
           </p>
         </div>
-        {hasRole(ROLES.PLANNER) || hasRole(ROLES.ADMIN) ? (
+        {hasRole(ROLES.STOREKEEPER) || hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.ADMIN) ? (
           <Button
             variant="primary"
             icon={Plus}
@@ -299,7 +310,7 @@ const ProductManagement = () => {
                       </Badge>
                     </td>
                     <td className="px-6 py-4 text-right flex gap-3 justify-end items-center">
-                      {hasRole(ROLES.PLANNER) || hasRole(ROLES.ADMIN) ? (
+                      {hasRole(ROLES.STOREKEEPER) || hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.ADMIN) ? (
                         <button
                           onClick={() => handleOpenEditModal(prod)}
                           className="p-1 hover:bg-zinc-100 rounded-full transition-colors"
@@ -403,30 +414,62 @@ const ProductManagement = () => {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4 items-center bg-zinc-50 p-3.5 rounded border border-hairline-light">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={formHasSerial}
-                onChange={(e) => setFormHasSerial(e.target.checked)}
-                className="w-4 h-4 rounded border-hairline-light text-ink focus:ring-ink"
-              />
-              <div className="flex flex-col">
-                <span className="text-xs font-bold text-ink">Bắt buộc nhập Serial</span>
-                <span className="text-[10px] text-shade-50 leading-none">Khi nhập/xuất kho</span>
-              </div>
-            </label>
+          <div className="flex flex-col gap-4 bg-zinc-50 p-3.5 rounded border border-hairline-light">
+            <div className="grid grid-cols-2 gap-4 items-center">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formHasSerial}
+                  onChange={(e) => setFormHasSerial(e.target.checked)}
+                  className="w-4 h-4 rounded border-hairline-light text-ink focus:ring-ink"
+                />
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-ink">Bắt buộc nhập Serial</span>
+                  <span className="text-[10px] text-shade-50 leading-none">Khi nhập/xuất kho</span>
+                </div>
+              </label>
 
-            <Input
-              label="Mức Stock cảnh báo"
-              type="number"
-              value={formReorderPoint}
-              onChange={(e) => setFormReorderPoint(e.target.value)}
-              error={formErrors.reorder_point}
-              min="0"
-              step="1"
-              required
-            />
+              <Input
+                label="Mức Stock cảnh báo"
+                type="number"
+                value={formReorderPoint}
+                onChange={(e) => setFormReorderPoint(e.target.value)}
+                error={formErrors.reorder_point}
+                min="0"
+                step="1"
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 items-center border-t border-zinc-200 pt-3">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formHasExpiry}
+                  onChange={(e) => setFormHasExpiry(e.target.checked)}
+                  className="w-4 h-4 rounded border-hairline-light text-ink focus:ring-ink"
+                />
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-ink">Theo dõi Hạn sử dụng</span>
+                  <span className="text-[10px] text-shade-50 leading-none">Quản lý lô & hạn dùng</span>
+                </div>
+              </label>
+
+              {formHasExpiry ? (
+                <Input
+                  label="Số ngày sử dụng (Shelf Life)"
+                  type="number"
+                  value={formShelfLifeDays}
+                  onChange={(e) => setFormShelfLifeDays(e.target.value)}
+                  error={formErrors.shelf_life_days}
+                  min="1"
+                  step="1"
+                  required
+                />
+              ) : (
+                <div className="text-xs text-shade-40 italic pt-4">Không theo dõi hạn dùng.</div>
+              )}
+            </div>
           </div>
 
           <div className="flex flex-col gap-1.5">

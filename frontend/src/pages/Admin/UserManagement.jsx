@@ -86,7 +86,8 @@ const UserManagement = () => {
           jobTitle: payload.jobTitle,
           shift: payload.shift,
           region: payload.region,
-          warehouses: payload.warehouses
+          warehouses: payload.warehouses,
+          password: payload.password
         });
         addToast('Cập nhật tài khoản thành công', 'success');
       } else {

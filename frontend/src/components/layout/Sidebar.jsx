@@ -20,7 +20,7 @@ const Sidebar = () => {
       title: 'Quản lý tài khoản',
       path: '/admin/users',
       icon: Users,
-      roles: [ROLES.ADMIN]
+      roles: [ROLES.ADMIN, ROLES.WAREHOUSE_MANAGER]
     },
     {
       title: 'Cấu hình hệ thống',
@@ -47,7 +47,7 @@ const Sidebar = () => {
       title: 'SKU & Sản phẩm',
       path: '/admin/products',
       icon: Box,
-      roles: [ROLES.PLANNER, ROLES.ADMIN, ROLES.CEO]
+      roles: [ROLES.STOREKEEPER, ROLES.WAREHOUSE_MANAGER, ROLES.PLANNER, ROLES.ADMIN, ROLES.CEO]
     },
     {
       title: 'Kho & Vị trí',

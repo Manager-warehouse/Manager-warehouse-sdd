@@ -81,11 +81,15 @@ class UserControllerTest {
     }
 
     @Test
-    @DisplayName("GET /api/v1/admin/users — 403 FORBIDDEN khi WAREHOUSE_MANAGER truy cập")
+    @DisplayName("GET /api/v1/admin/users — 200 OK khi WAREHOUSE_MANAGER truy cập")
     @WithMockUser(username = "manager@phucanh.vn", roles = "WAREHOUSE_MANAGER")
-    void getAllUsers_manager_returns403() throws Exception {
+    void getAllUsers_manager_returns200() throws Exception {
+        when(userService.getAllUsers()).thenReturn(List.of(userResponse));
+
         mockMvc.perform(get("/api/v1/admin/users").contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].email").value("john@phucanh.vn"));
     }
 
     @Test

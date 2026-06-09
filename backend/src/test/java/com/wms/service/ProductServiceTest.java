@@ -33,6 +33,7 @@ class ProductServiceTest {
 
     @Mock ProductRepository productRepository;
     @Mock UserRepository userRepository;
+    @Mock AuditLogService auditLogService;
 
     @InjectMocks ProductServiceImpl productService;
 

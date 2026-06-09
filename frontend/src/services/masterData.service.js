@@ -294,7 +294,9 @@ export const masterDataService = {
       return getDb(KEYS.PRODUCTS, INITIAL_PRODUCTS);
     }
     const response = await apiClient.get("/products");
-    return response.data;
+    const data = response.data;
+    const arrayData = Array.isArray(data) ? data : (data && Array.isArray(data.content) ? data.content : []);
+    return mapToSnakeCase(arrayData);
   },
 
   getProductById: async (id) => {
@@ -306,7 +308,7 @@ export const masterDataService = {
       return product;
     }
     const response = await apiClient.get(`/products/${id}`);
-    return response.data;
+    return mapToSnakeCase(response.data);
   },
 
   createProduct: async (productData) => {
@@ -348,8 +350,8 @@ export const masterDataService = {
       );
       return newProduct;
     }
-    const response = await apiClient.post("/products", productData);
-    return response.data;
+    const response = await apiClient.post("/products", mapToCamelCase(productData));
+    return mapToSnakeCase(response.data);
   },
 
   updateProduct: async (id, productData) => {
@@ -391,8 +393,8 @@ export const masterDataService = {
       );
       return updated;
     }
-    const response = await apiClient.put(`/products/${id}`, productData);
-    return response.data;
+    const response = await apiClient.put(`/products/${id}`, mapToCamelCase(productData));
+    return mapToSnakeCase(response.data);
   },
 
   toggleProductStatus: async (id, isActive) => {

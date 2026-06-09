@@ -36,13 +36,16 @@ const AppRoutes = () => {
 
       {/* Restricted administrative console views that require full administrator privileges */}
       <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]} />}>
-        <Route path="/admin/users" element={<UserManagement />} />
         <Route path="/admin/config" element={<SystemConfig />} />
         <Route path="/admin/audit-logs" element={<AuditLogs />} />
       </Route>
 
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.WAREHOUSE_MANAGER]} />}>
+        <Route path="/admin/users" element={<UserManagement />} />
+      </Route>
+
       {/* Master Data Management protected routes */}
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.PLANNER, ROLES.ADMIN, ROLES.CEO]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.STOREKEEPER, ROLES.WAREHOUSE_MANAGER, ROLES.PLANNER, ROLES.ADMIN, ROLES.CEO]} />}>
         <Route path="/admin/products" element={<ProductManagement />} />
       </Route>
       

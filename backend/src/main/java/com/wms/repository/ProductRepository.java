@@ -17,8 +17,11 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
     Optional<Product> findByIdAndIsActiveTrue(Long id);
 
+    @Query("SELECT p FROM Product p ORDER BY p.name ASC")
+    Page<Product> findAllProducts(Pageable pageable);
+
     @Query("SELECT p FROM Product p WHERE " +
-           "(:search IS NULL OR LOWER(p.sku) LIKE LOWER(CONCAT('%', :search, '%')) " +
-           "OR LOWER(p.name) LIKE LOWER(CONCAT('%', :search, '%')))")
+           "LOWER(p.sku) LIKE LOWER(CONCAT('%', :search, '%')) " +
+           "OR LOWER(p.name) LIKE LOWER(CONCAT('%', :search, '%'))")
     Page<Product> findAllBySearch(@Param("search") String search, Pageable pageable);
 }
