@@ -145,7 +145,7 @@ const Login = () => {
             <span className="text-[10px] font-bold text-aloe-10 uppercase tracking-wider block mb-2">
               Tài khoản dùng thử (Mock Mode)
             </span>
-            <div className="grid grid-cols-2 gap-2 text-[11px] text-shade-40 font-mono">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px] text-shade-40 font-mono">
               <div>
                 <strong>Admin:</strong> admin@phucanh.vn
               </div>
@@ -153,14 +153,17 @@ const Login = () => {
                 <strong>CEO:</strong> ceo@phucanh.vn
               </div>
               <div>
+                <strong>Planner:</strong> planner@phucanh.vn
+              </div>
+              <div>
                 <strong>HP Manager:</strong> manager.hp@phucanh.vn
               </div>
               <div>
-                <strong>HN Storekeeper:</strong> keeper.hn@phucanh.vn
+                <strong>HN Keeper:</strong> keeper.hn@phucanh.vn
               </div>
-            </div>
-            <div className="text-[10px] text-shade-50 mt-2 italic">
-              * Mật khẩu có thể nhập bất kỳ (tối thiểu 8 ký tự cho password mới).
+              <div>
+                <strong>HP QC Staff:</strong> qc.hp@phucanh.vn
+              </div>
             </div>
           </div>
         </div>

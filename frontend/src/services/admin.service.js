@@ -16,6 +16,10 @@ const getMockDbUsers = () => {
       localStorage.removeItem('wms_active_warehouse');
       return MOCK_USERS;
     }
+    if (parsed && parsed.length < MOCK_USERS.length) {
+      localStorage.setItem('wms_db_users', JSON.stringify(MOCK_USERS));
+      return MOCK_USERS;
+    }
     return parsed;
   } catch {
     localStorage.setItem('wms_db_users', JSON.stringify(MOCK_USERS));
