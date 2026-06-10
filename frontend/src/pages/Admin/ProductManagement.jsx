@@ -298,7 +298,7 @@ const ProductManagement = () => {
                     <td className="px-6 py-4 text-right font-mono text-shade-60">{prod.volume_m3?.toFixed(5)}</td>
                     <td className="px-6 py-4 text-center">
                       {prod.has_serial ? (
-                        <span className="text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-pill">Có (Unique)</span>
+                        <span className="text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-pill whitespace-nowrap">Có (Unique)</span>
                       ) : (
                         <span className="text-[10px] text-shade-40">Không</span>
                       )}
@@ -306,30 +306,32 @@ const ProductManagement = () => {
                     <td className="px-6 py-4 text-right font-mono font-medium">{prod.reorder_point}</td>
                     <td className="px-6 py-4 text-center">
                       <Badge type={prod.is_active ? 'success' : 'neutral'}>
-                        {prod.is_active ? 'Hoạt động' : 'Đang khóa'}
+                        {prod.is_active ? 'Hoạt động' : 'Khóa'}
                       </Badge>
                     </td>
-                    <td className="px-6 py-4 text-right flex gap-3 justify-end items-center">
-                      {hasRole(ROLES.STOREKEEPER) || hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.ADMIN) ? (
+                    <td className="px-6 py-4">
+                      <div className="flex gap-3 justify-end items-center">
+                        {hasRole(ROLES.STOREKEEPER) || hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.ADMIN) ? (
+                          <button
+                            onClick={() => handleOpenEditModal(prod)}
+                            className="p-1 hover:bg-zinc-100 rounded-full transition-colors shrink-0"
+                            title="Sửa thông tin"
+                          >
+                            <Edit className="w-4 h-4 text-shade-60 hover:text-ink" />
+                          </button>
+                        ) : null}
                         <button
-                          onClick={() => handleOpenEditModal(prod)}
-                          className="p-1 hover:bg-zinc-100 rounded-full transition-colors"
-                          title="Sửa thông tin"
+                          onClick={() => handleToggleStatus(prod.id, prod.is_active)}
+                          className="p-1 hover:bg-zinc-100 rounded-full transition-colors shrink-0"
+                          title={prod.is_active ? 'Khóa sản phẩm' : 'Kích hoạt sản phẩm'}
                         >
-                          <Edit className="w-4 h-4 text-shade-60 hover:text-ink" />
+                          {prod.is_active ? (
+                            <ToggleRight className="w-5 h-5 text-emerald-600" />
+                          ) : (
+                            <ToggleLeft className="w-5 h-5 text-shade-40" />
+                          )}
                         </button>
-                      ) : null}
-                      <button
-                        onClick={() => handleToggleStatus(prod.id, prod.is_active)}
-                        className="p-1 hover:bg-zinc-100 rounded-full transition-colors"
-                        title={prod.is_active ? 'Khóa sản phẩm' : 'Kích hoạt sản phẩm'}
-                      >
-                        {prod.is_active ? (
-                          <ToggleRight className="w-5 h-5 text-emerald-600" />
-                        ) : (
-                          <ToggleLeft className="w-5 h-5 text-shade-40" />
-                        )}
-                      </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

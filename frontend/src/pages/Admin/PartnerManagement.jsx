@@ -424,42 +424,45 @@ const PartnerManagement = () => {
                         </td>
                         <td className="px-6 py-4 text-center">
                           {isCreditHold ? (
-                            <span className="text-[10px] font-bold bg-red-50 text-red-700 border border-red-200 px-2 py-0.5 rounded-pill inline-flex items-center gap-1">
-                              <ShieldAlert className="w-3 h-3" /> HOLD (Vượt nợ)
+                            <span className="text-[10px] font-bold bg-red-50 text-red-700 border border-red-200 px-2 py-0.5 rounded-pill inline-flex items-center gap-1 whitespace-nowrap">
+                              <ShieldAlert className="w-3 h-3 shrink-0" /> HOLD (Vượt nợ)
                             </span>
                           ) : (
-                            <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-pill">
+                            <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-pill inline-flex items-center whitespace-nowrap">
                               ACTIVE (Tốt)
                             </span>
                           )}
                         </td>
                         <td className="px-6 py-4 text-center">
                           <Badge type={dl.is_active ? 'success' : 'neutral'} className="text-[9px]">
-                            {dl.is_active ? 'Active' : 'Locked'}
+                            {dl.is_active ? 'Hoạt động' : 'Khóa'}
                           </Badge>
                         </td>
-                        <td className="px-6 py-4 text-right flex gap-3.5 justify-end items-center">
-                          {(hasRole(ROLES.ACCOUNTANT) || hasRole(ROLES.ACCOUNTANT_MANAGER)) && (
-                            <button
-                              onClick={() => handleOpenEditDealer(dl)}
-                              className="text-[11px] font-bold text-indigo-600 hover:underline"
-                              title="Sửa thông tin & Hạn mức"
-                            >
-                              Sửa
-                            </button>
-                          )}
-                          {(hasRole(ROLES.ACCOUNTANT) || hasRole(ROLES.ACCOUNTANT_MANAGER)) && (
-                            <button
-                              onClick={() => handleToggleDlStatus(dl)}
-                              className="p-1 hover:bg-zinc-100 rounded-full transition-colors"
-                            >
-                              {dl.is_active ? (
-                                <ToggleRight className="w-5 h-5 text-emerald-600" />
-                              ) : (
-                                <ToggleLeft className="w-5 h-5 text-shade-40" />
-                              )}
-                            </button>
-                          )}
+                        <td className="px-6 py-4">
+                          <div className="flex gap-3.5 justify-end items-center">
+                            {(hasRole(ROLES.ACCOUNTANT) || hasRole(ROLES.ACCOUNTANT_MANAGER)) && (
+                              <button
+                                onClick={() => handleOpenEditDealer(dl)}
+                                className="p-1 hover:bg-zinc-100 rounded-full transition-colors shrink-0 text-shade-60 hover:text-ink"
+                                title="Sửa thông tin & Hạn mức"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                            )}
+                            {(hasRole(ROLES.ACCOUNTANT) || hasRole(ROLES.ACCOUNTANT_MANAGER)) && (
+                              <button
+                                onClick={() => handleToggleDlStatus(dl)}
+                                className="p-1 hover:bg-zinc-100 rounded-full transition-colors shrink-0"
+                                title={dl.is_active ? 'Khóa đại lý' : 'Kích hoạt đại lý'}
+                              >
+                                {dl.is_active ? (
+                                  <ToggleRight className="w-5 h-5 text-emerald-600" />
+                                ) : (
+                                  <ToggleLeft className="w-5 h-5 text-shade-40" />
+                                )}
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -504,30 +507,34 @@ const PartnerManagement = () => {
                       <td className="px-6 py-4 text-shade-50 max-w-xs truncate" title={spl.address}>{spl.address || 'N/A'}</td>
                       <td className="px-6 py-4 text-center">
                         <Badge type={spl.is_active ? 'success' : 'neutral'} className="text-[9px]">
-                          {spl.is_active ? 'Active' : 'Locked'}
+                          {spl.is_active ? 'Hoạt động' : 'Khóa'}
                         </Badge>
                       </td>
-                      <td className="px-6 py-4 text-right flex gap-3 justify-end items-center">
-                        {(hasRole(ROLES.ACCOUNTANT) || hasRole(ROLES.ACCOUNTANT_MANAGER)) ? (
-                          <button
-                            onClick={() => handleOpenEditSupplier(spl)}
-                            className="text-[11px] font-bold text-ink hover:underline"
-                          >
-                            Sửa
-                          </button>
-                        ) : null}
-                        {(hasRole(ROLES.ACCOUNTANT) || hasRole(ROLES.ACCOUNTANT_MANAGER)) && (
-                          <button
-                            onClick={() => handleToggleSplStatus(spl)}
-                            className="p-1 hover:bg-zinc-100 rounded-full transition-colors"
-                          >
-                            {spl.is_active ? (
-                              <ToggleRight className="w-5 h-5 text-emerald-600" />
-                            ) : (
-                              <ToggleLeft className="w-5 h-5 text-shade-40" />
-                            )}
-                          </button>
-                        )}
+                      <td className="px-6 py-4">
+                        <div className="flex gap-3 justify-end items-center">
+                          {(hasRole(ROLES.ACCOUNTANT) || hasRole(ROLES.ACCOUNTANT_MANAGER)) ? (
+                            <button
+                              onClick={() => handleOpenEditSupplier(spl)}
+                              className="p-1 hover:bg-zinc-100 rounded-full transition-colors shrink-0 text-shade-60 hover:text-ink"
+                              title="Sửa nhà cung cấp"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                          ) : null}
+                          {(hasRole(ROLES.ACCOUNTANT) || hasRole(ROLES.ACCOUNTANT_MANAGER)) && (
+                            <button
+                              onClick={() => handleToggleSplStatus(spl)}
+                              className="p-1 hover:bg-zinc-100 rounded-full transition-colors shrink-0"
+                              title={spl.is_active ? 'Khóa nhà cung cấp' : 'Kích hoạt nhà cung cấp'}
+                            >
+                              {spl.is_active ? (
+                                <ToggleRight className="w-5 h-5 text-emerald-600" />
+                              ) : (
+                                <ToggleLeft className="w-5 h-5 text-shade-40" />
+                              )}
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
