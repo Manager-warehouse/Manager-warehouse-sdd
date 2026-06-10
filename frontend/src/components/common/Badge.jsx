@@ -5,7 +5,7 @@ const Badge = ({
   type = 'neutral', // success, danger, warning, info, neutral, premium, highlight
   className = ''
 }) => {
-  const baseStyle = 'inline-flex items-center px-2.5 py-0.5 rounded-pill text-xs font-semibold uppercase tracking-wider border';
+  const baseStyle = 'inline-flex items-center px-2.5 py-0.5 rounded-pill text-xs font-semibold uppercase tracking-wider border whitespace-nowrap';
   
   const types = {
     success: 'bg-[#e2fbeb] text-[#127a3c] border-[#a2f7c0]',

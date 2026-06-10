@@ -248,14 +248,14 @@ const FleetManagement = () => {
 
     if (diffDays < 0) {
       return (
-        <span className="text-[10px] font-bold bg-red-50 text-red-700 border border-red-200 px-2 py-0.5 rounded-pill inline-flex items-center gap-1">
+        <span className="text-[10px] font-bold bg-red-50 text-red-700 border border-red-200 px-2 py-0.5 rounded-pill whitespace-nowrap inline-flex items-center gap-1">
           <ShieldAlert className="w-3 h-3" /> ĐÃ HẾT HẠN
         </span>
       );
     }
     if (diffDays <= 30) {
       return (
-        <span className="text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-pill inline-flex items-center gap-1" title={`Bằng lái sẽ hết hạn vào ngày ${dateStr}`}>
+        <span className="text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-pill whitespace-nowrap inline-flex items-center gap-1" title={`Bằng lái sẽ hết hạn vào ngày ${dateStr}`}>
           <Calendar className="w-3 h-3" /> Hạn còn {diffDays} ngày
         </span>
       );
@@ -275,7 +275,7 @@ const FleetManagement = () => {
       MAINTENANCE: 'Bảo dưỡng',
     };
     return (
-      <span className={`text-[10px] font-bold border px-2 py-0.5 rounded-pill ${styles[status] || styles.AVAILABLE}`}>
+      <span className={`text-[10px] font-bold border px-2 py-0.5 rounded-pill whitespace-nowrap ${styles[status] || styles.AVAILABLE}`}>
         {labels[status] || status}
       </span>
     );
@@ -293,7 +293,7 @@ const FleetManagement = () => {
       MAINTENANCE: 'Nghỉ / Bảo dưỡng',
     };
     return (
-      <span className={`text-[10px] font-bold border px-2 py-0.5 rounded-pill ${styles[status] || styles.AVAILABLE}`}>
+      <span className={`text-[10px] font-bold border px-2 py-0.5 rounded-pill whitespace-nowrap ${styles[status] || styles.AVAILABLE}`}>
         {labels[status] || status}
       </span>
     );
@@ -403,7 +403,7 @@ const FleetManagement = () => {
                     <th className="px-6 py-4 font-bold text-shade-60">Biển kiểm soát</th>
                     <th className="px-6 py-4 font-bold text-shade-60">Dòng xe / Model</th>
                     <th className="px-6 py-4 font-bold text-shade-60 text-right">Tải trọng tối đa (kg)</th>
-                    <th className="px-6 py-4 font-bold text-shade-60 text-right">Thể tích tối đa ($m^3$)</th>
+                    <th className="px-6 py-4 font-bold text-shade-60 text-right">Thể tích tối đa (m³)</th>
                     <th className="px-6 py-4 font-bold text-shade-60 text-center">Trạng thái vận chuyển</th>
                     <th className="px-6 py-4 font-bold text-shade-60 text-center">Hoạt động</th>
                     <th className="px-6 py-4 font-bold text-shade-60 text-right">Hành động</th>
@@ -429,28 +429,32 @@ const FleetManagement = () => {
                       </td>
                       <td className="px-6 py-4 text-center">
                         <Badge type={vh.is_active ? 'success' : 'neutral'} className="text-[9px]">
-                          {vh.is_active ? 'Active' : 'Locked'}
+                          {vh.is_active ? 'Hoạt động' : 'Khóa'}
                         </Badge>
                       </td>
-                      <td className="px-6 py-4 text-right flex gap-3.5 justify-end items-center font-bold">
-                        {hasRole(ROLES.DISPATCHER) || hasRole(ROLES.ADMIN) || hasRole(ROLES.CEO) ? (
+                      <td className="px-6 py-4">
+                        <div className="flex gap-3.5 justify-end items-center font-bold">
+                          {hasRole(ROLES.DISPATCHER) || hasRole(ROLES.ADMIN) || hasRole(ROLES.CEO) ? (
+                            <button
+                              onClick={() => handleOpenEditVehicle(vh)}
+                              className="p-1 hover:bg-zinc-100 rounded-full transition-colors shrink-0 text-shade-60 hover:text-ink"
+                              title="Sửa xe tải"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                          ) : null}
                           <button
-                            onClick={() => handleOpenEditVehicle(vh)}
-                            className="text-[11px] text-ink hover:underline"
+                            onClick={() => handleToggleVhStatus(vh)}
+                            className="p-1 hover:bg-zinc-100 rounded-full transition-colors shrink-0"
+                            title={vh.is_active ? 'Khóa xe tải' : 'Kích hoạt xe tải'}
                           >
-                            Sửa
+                            {vh.is_active ? (
+                              <ToggleRight className="w-5 h-5 text-emerald-600" />
+                            ) : (
+                              <ToggleLeft className="w-5 h-5 text-shade-40" />
+                            )}
                           </button>
-                        ) : null}
-                        <button
-                          onClick={() => handleToggleVhStatus(vh)}
-                          className="p-1 hover:bg-zinc-100 rounded-full transition-colors"
-                        >
-                          {vh.is_active ? (
-                            <ToggleRight className="w-5 h-5 text-emerald-600" />
-                          ) : (
-                            <ToggleLeft className="w-5 h-5 text-shade-40" />
-                          )}
-                        </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -498,28 +502,32 @@ const FleetManagement = () => {
                       </td>
                       <td className="px-6 py-4 text-center">
                         <Badge type={dr.is_active ? 'success' : 'neutral'} className="text-[9px]">
-                          {dr.is_active ? 'Active' : 'Locked'}
+                          {dr.is_active ? 'Hoạt động' : 'Khóa'}
                         </Badge>
                       </td>
-                      <td className="px-6 py-4 text-right flex gap-3.5 justify-end items-center font-bold">
-                        {hasRole(ROLES.DISPATCHER) || hasRole(ROLES.ADMIN) || hasRole(ROLES.CEO) ? (
+                      <td className="px-6 py-4">
+                        <div className="flex gap-3.5 justify-end items-center font-bold">
+                          {hasRole(ROLES.DISPATCHER) || hasRole(ROLES.ADMIN) || hasRole(ROLES.CEO) ? (
+                            <button
+                              onClick={() => handleOpenEditDriver(dr)}
+                              className="p-1 hover:bg-zinc-100 rounded-full transition-colors shrink-0 text-shade-60 hover:text-ink"
+                              title="Sửa hồ sơ tài xế"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                          ) : null}
                           <button
-                            onClick={() => handleOpenEditDriver(dr)}
-                            className="text-[11px] text-ink hover:underline"
+                            onClick={() => handleToggleDrStatus(dr)}
+                            className="p-1 hover:bg-zinc-100 rounded-full transition-colors shrink-0"
+                            title={dr.is_active ? 'Khóa tài xế' : 'Kích hoạt tài xế'}
                           >
-                            Sửa
+                            {dr.is_active ? (
+                              <ToggleRight className="w-5 h-5 text-emerald-600" />
+                            ) : (
+                              <ToggleLeft className="w-5 h-5 text-shade-40" />
+                            )}
                           </button>
-                        ) : null}
-                        <button
-                          onClick={() => handleToggleDrStatus(dr)}
-                          className="p-1 hover:bg-zinc-100 rounded-full transition-colors"
-                        >
-                          {dr.is_active ? (
-                            <ToggleRight className="w-5 h-5 text-emerald-600" />
-                          ) : (
-                            <ToggleLeft className="w-5 h-5 text-shade-40" />
-                          )}
-                        </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
