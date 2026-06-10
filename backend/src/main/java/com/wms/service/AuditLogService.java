@@ -64,7 +64,7 @@ public class AuditLogService {
                     Long warehouseId,
                     Map<String, Object> oldValue,
                     Map<String, Object> newValue) {
-        saveAuditLog(resolveCurrentActor(), action, entityType, entityId, description,
+        doLog(resolveCurrentActor(), action, entityType, entityId, description,
                 warehouseId, oldValue, newValue);
     }
 
@@ -79,7 +79,7 @@ public class AuditLogService {
                     Map<String, Object> newValue) {
         String description = AuditLogUtil.generateDescription(
                 action, entityType, entityCode);
-        saveAuditLog(actor, action, entityType, entityId, description,
+        doLog(actor, action, entityType, entityId, description,
                 warehouseId, oldValue, newValue);
     }
 
@@ -119,14 +119,14 @@ public class AuditLogService {
         return AuditLogDetailResponse.from(auditLog);
     }
 
-    private void saveAuditLog(User actor,
-                              AuditAction action,
-                              String entityType,
-                              Long entityId,
-                              String description,
-                              Long warehouseId,
-                              Map<String, Object> oldValue,
-                              Map<String, Object> newValue) {
+    private void doLog(User actor,
+                        AuditAction action,
+                        String entityType,
+                        Long entityId,
+                        String description,
+                        Long warehouseId,
+                        Map<String, Object> oldValue,
+                        Map<String, Object> newValue) {
         if (actor == null) {
             throw new IllegalStateException("Audit actor is required");
         }

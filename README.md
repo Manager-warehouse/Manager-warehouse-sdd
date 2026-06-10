@@ -301,7 +301,6 @@ Kế toán trưởng kiểm tra điều kiện → Chốt sổ kỳ T → CLOSED
 | **Picking** | Thủ kho |
 | **Ready to Ship** | Thủ kho (sau khi kiểm QC đạt) |
 | **In-Transit** ⚠️ *Tồn kho bị trừ tại đây* | Tài xế (xác nhận nhận hàng) |
-| **Out for Delivery** | Tài xế |
 | **Delivered** | Tài xế (xác nhận POD) |
 | **Returned** | Tài xế (giao thất bại) |
 | **Completed** | Kế toán viên |
@@ -495,12 +494,14 @@ spring:
 
 ## Domain Rules
 
+Domain hàng hóa hiện tại của Phúc Anh là đồ gia dụng như nồi, chảo, đồ nhựa. Các mặt hàng này mặc định không quản lý hạn sử dụng; FIFO theo ngày nhận hàng là nguyên tắc xuất kho mặc định. FEFO chỉ giữ như khả năng mở rộng cho nhóm sản phẩm ngoại lệ được cấu hình có hạn sử dụng.
+
 ### Inventory Rules
 
 ```
 1. inventory.quantity >= 0  — luôn đúng trước và sau mọi thao tác
-2. FEFO: chọn batch có hạn dùng gần nhất (sản phẩm có expiry)
-3. FIFO: chọn batch có received_date cũ nhất (sản phẩm không có expiry)
+2. FIFO: chọn batch có received_date cũ nhất cho domain hàng gia dụng mặc định không có hạn sử dụng
+3. FEFO: chỉ áp dụng cho sản phẩm ngoại lệ có cấu hình expiry
 4. Điều chỉnh tồn kho chỉ đi qua adjustments — không sửa trực tiếp
 5. Kiểm tra version trước UPDATE để tránh ghi đè cạnh tranh
 6. available = total - reserved >= 0 (kiểm tra trước khi xuất kho)
@@ -512,7 +513,7 @@ spring:
 1. Mỗi batch chỉ có 1 grade (A/B/C) — khác grade phải tạo batch mới
 2. Sản phẩm has_serial = true phải nhập serial khi nhập và xuất
 3. Putaway phải kiểm tra bin_capacity trước khi đặt hàng vào bin
-4. Batch hết hạn KHÔNG được chọn cho flow xuất kho thông thường
+4. Batch hết hạn chỉ áp dụng cho sản phẩm ngoại lệ có expiry; domain hàng gia dụng mặc định không yêu cầu hạn sử dụng
 ```
 
 ### QC & Transfer Rules
@@ -528,7 +529,7 @@ spring:
 ```
 Warehouse         → Zone → Bin Location (sức chứa m³, kg)
 Product           → SKU, PriceHistory (effective_date, end_date)
-Batch             → grade (A/B/C), receivedDate, expDate, quantity
+Batch             → grade (A/B/C), receivedDate, quantity; expDate chỉ dùng cho sản phẩm ngoại lệ có expiry
 Inventory         → warehouse + product + batch + location (NEVER negative)
 Receipt           → Lệnh nhập kho / Phiếu nhập kho
 Issue             → Đơn xuất hàng / Phiếu xuất kho

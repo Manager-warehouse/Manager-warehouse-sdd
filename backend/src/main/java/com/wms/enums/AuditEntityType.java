@@ -13,5 +13,6 @@ public enum AuditEntityType {
     INVENTORY,
     RETURN,
     SCRAP_DISPOSAL,
-    TRIP
+    TRIP,
+    RECEIPT_ITEM
 }

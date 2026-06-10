@@ -12,8 +12,8 @@
 Giá bán và giá vốn hàng hóa thay đổi theo thời gian. Mỗi kỳ kinh doanh có bảng giá riêng với ngày hiệu lực và hết hạn. Hệ thống cần lưu lịch sử giá (`price_history`) để tính COGS chính xác tại ngày xuất hàng và phục vụ báo cáo P&L.
 
 ### Features List
-* [US-WMS-14: Thiết lập Bảng giá & Lịch sử Biến động giá](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/007-pricing-cogs-management/features/feature-accountant-pricing-management.md)
-* [Hệ thống Tự động Tính Giá vốn COGS & Áp giá Giao dịch](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/007-pricing-cogs-management/features/feature-system-cogs-calculation.md)
+* [US-WMS-14: Thiết lập Bảng giá & Lịch sử Biến động giá](./features/feature-accountant-pricing-management.md)
+* [Hệ thống Tự động Tính Giá vốn COGS & Áp giá Giao dịch](./features/feature-system-cogs-calculation.md)
 
 ## 2. Actors
 
@@ -24,8 +24,8 @@ Giá bán và giá vốn hàng hóa thay đổi theo thời gian. Mỗi kỳ kin
 
 ## 3. Functional Requirements (EARS)
 *Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đặc tả tính năng:*
-* [EARS - Pricing Management](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/007-pricing-cogs-management/features/feature-accountant-pricing-management.md#3-functional-requirements-ears)
-* [EARS - COGS Calculation](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/007-pricing-cogs-management/features/feature-system-cogs-calculation.md#3-functional-requirements-ears)
+* [EARS - Pricing Management](./features/feature-accountant-pricing-management.md#3-functional-requirements-ears)
+* [EARS - COGS Calculation](./features/feature-system-cogs-calculation.md#3-functional-requirements-ears)
 
 ## 4. Non-functional Requirements
 
@@ -52,8 +52,8 @@ Giá bán và giá vốn hàng hóa thay đổi theo thời gian. Mỗi kỳ kin
 
 ## 6. API Spec
 *Vui lòng xem chi tiết API endpoints tại các tài liệu đặc tả tính năng:*
-* [APIs - Pricing Management](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/007-pricing-cogs-management/features/feature-accountant-pricing-management.md#4-api-endpoints)
-* [APIs - COGS Calculation](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/007-pricing-cogs-management/features/feature-system-cogs-calculation.md#4-api-endpoints)
+* [APIs - Pricing Management](./features/feature-accountant-pricing-management.md#4-api-endpoints)
+* [APIs - COGS Calculation](./features/feature-system-cogs-calculation.md#4-api-endpoints)
 
 ## 7. Error Handling
 
@@ -66,8 +66,8 @@ Giá bán và giá vốn hàng hóa thay đổi theo thời gian. Mỗi kỳ kin
 
 ## 8. Acceptance Criteria
 *Vui lòng xem chi tiết kịch bản kiểm thử tại các tài liệu đặc tả tính năng:*
-* [Acceptance - Pricing Management](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/007-pricing-cogs-management/features/feature-accountant-pricing-management.md#5-acceptance-criteria)
-* [Acceptance - COGS Calculation](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/007-pricing-cogs-management/features/feature-system-cogs-calculation.md#5-acceptance-criteria)
+* [Acceptance - Pricing Management](./features/feature-accountant-pricing-management.md#5-acceptance-criteria)
+* [Acceptance - COGS Calculation](./features/feature-system-cogs-calculation.md#5-acceptance-criteria)
 
 ## 9. Out of Scope
 

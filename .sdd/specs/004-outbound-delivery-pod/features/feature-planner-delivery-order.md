@@ -9,8 +9,10 @@ Planner tiếp nhận yêu cầu xuất hàng từ Công ty mẹ, hệ thống b
 ## 3. Functional Requirements (EARS)
 * **Ubiquitous:**
   * The system SHALL always perform an automatic credit check BEFORE creating a delivery order. IF the dealer's status is CREDIT_HOLD, the system SHALL block order creation with a clear reason.
+  * The system SHALL also block order creation when `current_balance + order_value > credit_limit` or when the dealer has any overdue invoice older than 30 days.
   * The system SHALL always reserve inventory (`inventories.reserved_qty += quantity`) upon successful delivery order creation.
   * The system SHALL always release reserved inventory when a delivery order is CANCELLED.
+  * The system SHALL create `DELIVERY_ORDER_CREATE` and `DELIVERY_ORDER_CANCEL` audit log entries for successful DO creation and cancellation, including credit-check outcome and reserved inventory delta.
 * **Event-driven:**
   * WHEN a Planner creates a delivery order, the system SHALL:
     * Validate: `available_qty = total_qty - reserved_qty ≥ requested_qty`.
@@ -30,6 +32,11 @@ Planner tiếp nhận yêu cầu xuất hàng từ Công ty mẹ, hệ thống b
 * Given a dealer with `current_balance = 480M` and `credit_limit = 500M`
 * When Planner attempts to create a DO worth `30M`
 * Then the system SHALL block DO creation and display a Credit Check error.
+
+**Scenario 1b: Block order due to overdue debt**
+* Given a dealer has an invoice overdue by more than 30 days
+* When Planner attempts to create a DO
+* Then the system SHALL block DO creation and show the overdue reason.
 
 **Scenario 2: Suggest alternative warehouse on stock shortage**
 * Given product X has `total_qty = 100` and `reserved_qty = 30` in warehouse HP (available = 70)
