@@ -18,6 +18,9 @@ Quy trình nhập hàng là đầu vào của toàn bộ hệ thống tồn kho.
 * [US-WMS-04: Xử lý Hàng lỗi trong Quarantine Zone](./features/feature-manager-quarantine-handling.md)
 * [US-WMS-05: Duyệt Nhập kho Chính thức](./features/feature-manager-receipt-approval.md)
 
+### Cross-Spec Mapping Notes
+- US-WMS-04 trong spec này chỉ bao phủ xử lý hàng lỗi inbound theo hướng Return to Vendor (RTV) và Debit Note. Luồng tiêu hủy hàng lỗi từ Quarantine Zone được đặc tả tại [009-returns-scrap-disposal](../009-returns-scrap-disposal/spec.md) để giữ một nguồn sự thật cho disposal approval thresholds.
+
 ## 2. Actors
 
 | Actor | Vai trò | Nghiệp vụ liên quan |

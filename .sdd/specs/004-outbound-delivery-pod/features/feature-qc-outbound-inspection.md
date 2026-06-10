@@ -7,6 +7,8 @@ Thủ kho kiêm QC kiểm QC đóng gói (kiểm tra SKU, số lượng, quy cá
 * **Thủ kho kiêm QC**: Kiểm QC Outbound, xác nhận chất lượng đóng gói và chuyển trạng thái sẵn sàng xuất.
 
 ## 3. Functional Requirements (EARS)
+* **Ubiquitous:**
+  * The system SHALL create `DELIVERY_ORDER_QC_CONFIRM`, `DELIVERY_ORDER_WAREHOUSE_APPROVE`, and `DELIVERY_ORDER_WAREHOUSE_REJECT` audit log entries for outbound QC and warehouse approval decisions.
 * **Event-driven:**
   * WHEN a Thủ kho confirms QC Outbound passed, the system SHALL allow setting status to `READY_TO_SHIP`.
   * WHEN QC passes, the system SHALL require Trưởng kho approval before the delivery order can move to `READY_TO_SHIP`.
