@@ -1,11 +1,17 @@
 package com.wms.entity;
 
+import lombok.*;
 import com.wms.enums.ApprovalResult;
 import jakarta.persistence.*;
 import java.time.OffsetDateTime;
 
 @Entity
 @Table(name = "delivery_order_warehouse_approvals")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class DeliveryOrderWarehouseApproval {
 
     @Id

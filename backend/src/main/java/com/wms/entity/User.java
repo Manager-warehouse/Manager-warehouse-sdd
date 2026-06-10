@@ -5,13 +5,13 @@ import jakarta.persistence.*;
 import lombok.*;
 import java.time.OffsetDateTime;
 
+@Entity
+@Table(name = "users")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@Entity
-@Table(name = "users")
 public class User {
 
     @Id

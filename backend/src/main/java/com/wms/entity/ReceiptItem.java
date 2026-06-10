@@ -1,5 +1,6 @@
 package com.wms.entity;
 
+import lombok.*;
 import com.wms.enums.QcResult;
 import com.wms.enums.QcSamplingMethod;
 import jakarta.persistence.*;
@@ -7,6 +8,11 @@ import java.math.BigDecimal;
 
 @Entity
 @Table(name = "receipt_items")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class ReceiptItem {
 
     @Id

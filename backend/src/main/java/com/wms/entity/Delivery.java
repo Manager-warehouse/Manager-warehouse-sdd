@@ -1,11 +1,17 @@
 package com.wms.entity;
 
+import lombok.*;
 import com.wms.enums.DeliveryStatus;
 import jakarta.persistence.*;
 import java.time.OffsetDateTime;
 
 @Entity
 @Table(name = "deliveries")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Delivery {
 
     @Id

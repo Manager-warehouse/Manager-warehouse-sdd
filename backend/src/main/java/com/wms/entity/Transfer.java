@@ -1,5 +1,6 @@
 package com.wms.entity;
 
+import lombok.*;
 import com.wms.enums.TransferStatus;
 import jakarta.persistence.*;
 import java.time.LocalDate;
@@ -7,6 +8,11 @@ import java.time.OffsetDateTime;
 
 @Entity
 @Table(name = "transfers")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Transfer {
 
     @Id

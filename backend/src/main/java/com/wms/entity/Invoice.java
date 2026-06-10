@@ -1,5 +1,6 @@
 package com.wms.entity;
 
+import lombok.*;
 import com.wms.enums.InvoiceStatus;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
@@ -8,6 +9,11 @@ import java.time.OffsetDateTime;
 
 @Entity
 @Table(name = "invoices")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Invoice {
 
     @Id
