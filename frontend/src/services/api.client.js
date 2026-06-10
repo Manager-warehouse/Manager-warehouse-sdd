@@ -11,7 +11,7 @@ const apiClient = axios.create({
 // Interceptor to add JWT authorization header
 apiClient.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('wms_token');
+    const token = sessionStorage.getItem('wms_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -28,27 +28,42 @@ apiClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
     
-    // Handle Token Expired (401)
-    if (error.response && error.response.status === 401 && !originalRequest._retry) {
+    // Check if the request is an authentication endpoint
+    const isAuthRequest = originalRequest.url && (
+      originalRequest.url.includes('/auth/login') ||
+      originalRequest.url.includes('/auth/refresh') ||
+      originalRequest.url.includes('/auth/forgot-password') ||
+      originalRequest.url.includes('/auth/verify-otp')
+    );
+
+    // Handle Token Expired (401) for non-auth requests
+    if (error.response && error.response.status === 401 && !originalRequest._retry && !isAuthRequest) {
       originalRequest._retry = true;
       try {
         // Attempt to refresh token (mock or actual)
         // If we are using mock, this won't happen since mock won't throw 401.
         // For real API:
         const response = await axios.post('/api/v1/auth/refresh', {
-          refreshToken: localStorage.getItem('wms_refresh_token')
+          refreshToken: sessionStorage.getItem('wms_refresh_token')
         });
         const { accessToken } = response.data;
-        localStorage.setItem('wms_token', accessToken);
+        sessionStorage.setItem('wms_token', accessToken);
         apiClient.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
         return apiClient(originalRequest);
       } catch (refreshError) {
         // Clear session and redirect to login
-        localStorage.removeItem('wms_user');
-        localStorage.removeItem('wms_token');
+        sessionStorage.removeItem('wms_user');
+        sessionStorage.removeItem('wms_token');
+        sessionStorage.removeItem('wms_refresh_token');
         window.location.href = '/login';
         return Promise.reject(refreshError);
       }
+    }
+    
+    // Normalize error message from backend
+    if (error.response && error.response.data) {
+      const data = error.response.data;
+      error.message = data.message || data.error || data.code || error.message;
     }
     
     return Promise.reject(error);

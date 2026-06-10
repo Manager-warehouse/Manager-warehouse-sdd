@@ -53,14 +53,14 @@ public class DealerController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasRole('ACCOUNTANT')")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT', 'ACCOUNTANT_MANAGER')")
     @Operation(summary = "Create dealer")
     public DealerResponse createDealer(@Valid @RequestBody DealerCreateRequest request) {
         return dealerService.createDealer(request, currentUser());
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ACCOUNTANT')")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT', 'ACCOUNTANT_MANAGER')")
     @Operation(summary = "Update dealer profile")
     public DealerResponse updateDealer(@PathVariable Long id,
                                        @Valid @RequestBody DealerUpdateRequest request) {
@@ -69,14 +69,14 @@ public class DealerController {
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("hasRole('ACCOUNTANT')")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT', 'ACCOUNTANT_MANAGER')")
     @Operation(summary = "Deactivate dealer")
     public void deactivateDealer(@PathVariable Long id) {
         dealerService.deactivateDealer(id, currentUser());
     }
 
     @PutMapping("/{id}/reactivate")
-    @PreAuthorize("hasRole('ACCOUNTANT')")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT', 'ACCOUNTANT_MANAGER')")
     @Operation(summary = "Reactivate dealer")
     public DealerResponse reactivateDealer(@PathVariable Long id) {
         return dealerService.reactivateDealer(id, currentUser());

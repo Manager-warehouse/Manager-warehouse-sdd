@@ -248,14 +248,14 @@ const FleetManagement = () => {
 
     if (diffDays < 0) {
       return (
-        <span className="text-[10px] font-bold bg-red-50 text-red-700 border border-red-200 px-2 py-0.5 rounded-pill inline-flex items-center gap-1">
+        <span className="text-[10px] font-bold bg-red-50 text-red-700 border border-red-200 px-2 py-0.5 rounded-pill whitespace-nowrap inline-flex items-center gap-1">
           <ShieldAlert className="w-3 h-3" /> ĐÃ HẾT HẠN
         </span>
       );
     }
     if (diffDays <= 30) {
       return (
-        <span className="text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-pill inline-flex items-center gap-1" title={`Bằng lái sẽ hết hạn vào ngày ${dateStr}`}>
+        <span className="text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-pill whitespace-nowrap inline-flex items-center gap-1" title={`Bằng lái sẽ hết hạn vào ngày ${dateStr}`}>
           <Calendar className="w-3 h-3" /> Hạn còn {diffDays} ngày
         </span>
       );
@@ -275,7 +275,7 @@ const FleetManagement = () => {
       MAINTENANCE: 'Bảo dưỡng',
     };
     return (
-      <span className={`text-[10px] font-bold border px-2 py-0.5 rounded-pill ${styles[status] || styles.AVAILABLE}`}>
+      <span className={`text-[10px] font-bold border px-2 py-0.5 rounded-pill whitespace-nowrap ${styles[status] || styles.AVAILABLE}`}>
         {labels[status] || status}
       </span>
     );
@@ -293,7 +293,7 @@ const FleetManagement = () => {
       MAINTENANCE: 'Nghỉ / Bảo dưỡng',
     };
     return (
-      <span className={`text-[10px] font-bold border px-2 py-0.5 rounded-pill ${styles[status] || styles.AVAILABLE}`}>
+      <span className={`text-[10px] font-bold border px-2 py-0.5 rounded-pill whitespace-nowrap ${styles[status] || styles.AVAILABLE}`}>
         {labels[status] || status}
       </span>
     );
@@ -311,26 +311,29 @@ const FleetManagement = () => {
   );
 
   return (
-    <div className="p-6 bg-canvas-cream min-h-screen text-ink font-sans">
+    <div className="flex flex-col gap-6">
       {/* Header */}
-      <div className="flex justify-between items-start mb-8">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-4xl font-display font-light leading-tight tracking-tight mb-2">
-            Đội Xe & Tài Xế Nội Bộ
+          <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
+            Hệ thống / Admin
+          </span>
+          <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">
+            Đội xe & Tài xế nội bộ
           </h1>
-          <p className="text-sm text-shade-50">
+          <p className="text-xs text-shade-50 font-light mt-1">
             Quản lý đội ngũ phương tiện vận tải nội bộ Phúc Anh và thông tin giấy phép lái xe, trạng thái làm việc của tài xế.
           </p>
         </div>
         <div>
           {activeTab === 'VEHICLES' ? (
-            hasRole(ROLES.DISPATCHER) || hasRole(ROLES.ADMIN) ? (
+            hasRole(ROLES.DISPATCHER) || hasRole(ROLES.ADMIN) || hasRole(ROLES.CEO) ? (
               <Button variant="primary" icon={Plus} onClick={handleOpenAddVehicle}>
                 Đăng ký xe tải
               </Button>
             ) : null
           ) : (
-            hasRole(ROLES.DISPATCHER) || hasRole(ROLES.ADMIN) ? (
+            hasRole(ROLES.DISPATCHER) || hasRole(ROLES.ADMIN) || hasRole(ROLES.CEO) ? (
               <Button variant="primary" icon={Plus} onClick={handleOpenAddDriver}>
                 Thêm tài xế mới
               </Button>
@@ -400,7 +403,7 @@ const FleetManagement = () => {
                     <th className="px-6 py-4 font-bold text-shade-60">Biển kiểm soát</th>
                     <th className="px-6 py-4 font-bold text-shade-60">Dòng xe / Model</th>
                     <th className="px-6 py-4 font-bold text-shade-60 text-right">Tải trọng tối đa (kg)</th>
-                    <th className="px-6 py-4 font-bold text-shade-60 text-right">Thể tích tối đa ($m^3$)</th>
+                    <th className="px-6 py-4 font-bold text-shade-60 text-right">Thể tích tối đa (m³)</th>
                     <th className="px-6 py-4 font-bold text-shade-60 text-center">Trạng thái vận chuyển</th>
                     <th className="px-6 py-4 font-bold text-shade-60 text-center">Hoạt động</th>
                     <th className="px-6 py-4 font-bold text-shade-60 text-right">Hành động</th>
@@ -426,28 +429,32 @@ const FleetManagement = () => {
                       </td>
                       <td className="px-6 py-4 text-center">
                         <Badge type={vh.is_active ? 'success' : 'neutral'} className="text-[9px]">
-                          {vh.is_active ? 'Active' : 'Locked'}
+                          {vh.is_active ? 'Hoạt động' : 'Khóa'}
                         </Badge>
                       </td>
-                      <td className="px-6 py-4 text-right flex gap-3.5 justify-end items-center font-bold">
-                        {hasRole(ROLES.DISPATCHER) || hasRole(ROLES.ADMIN) ? (
+                      <td className="px-6 py-4">
+                        <div className="flex gap-3.5 justify-end items-center font-bold">
+                          {hasRole(ROLES.DISPATCHER) || hasRole(ROLES.ADMIN) || hasRole(ROLES.CEO) ? (
+                            <button
+                              onClick={() => handleOpenEditVehicle(vh)}
+                              className="p-1 hover:bg-zinc-100 rounded-full transition-colors shrink-0 text-shade-60 hover:text-ink"
+                              title="Sửa xe tải"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                          ) : null}
                           <button
-                            onClick={() => handleOpenEditVehicle(vh)}
-                            className="text-[11px] text-ink hover:underline"
+                            onClick={() => handleToggleVhStatus(vh)}
+                            className="p-1 hover:bg-zinc-100 rounded-full transition-colors shrink-0"
+                            title={vh.is_active ? 'Khóa xe tải' : 'Kích hoạt xe tải'}
                           >
-                            Sửa
+                            {vh.is_active ? (
+                              <ToggleRight className="w-5 h-5 text-emerald-600" />
+                            ) : (
+                              <ToggleLeft className="w-5 h-5 text-shade-40" />
+                            )}
                           </button>
-                        ) : null}
-                        <button
-                          onClick={() => handleToggleVhStatus(vh)}
-                          className="p-1 hover:bg-zinc-100 rounded-full transition-colors"
-                        >
-                          {vh.is_active ? (
-                            <ToggleRight className="w-5 h-5 text-emerald-600" />
-                          ) : (
-                            <ToggleLeft className="w-5 h-5 text-shade-40" />
-                          )}
-                        </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -495,28 +502,32 @@ const FleetManagement = () => {
                       </td>
                       <td className="px-6 py-4 text-center">
                         <Badge type={dr.is_active ? 'success' : 'neutral'} className="text-[9px]">
-                          {dr.is_active ? 'Active' : 'Locked'}
+                          {dr.is_active ? 'Hoạt động' : 'Khóa'}
                         </Badge>
                       </td>
-                      <td className="px-6 py-4 text-right flex gap-3.5 justify-end items-center font-bold">
-                        {hasRole(ROLES.DISPATCHER) || hasRole(ROLES.ADMIN) ? (
+                      <td className="px-6 py-4">
+                        <div className="flex gap-3.5 justify-end items-center font-bold">
+                          {hasRole(ROLES.DISPATCHER) || hasRole(ROLES.ADMIN) || hasRole(ROLES.CEO) ? (
+                            <button
+                              onClick={() => handleOpenEditDriver(dr)}
+                              className="p-1 hover:bg-zinc-100 rounded-full transition-colors shrink-0 text-shade-60 hover:text-ink"
+                              title="Sửa hồ sơ tài xế"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                          ) : null}
                           <button
-                            onClick={() => handleOpenEditDriver(dr)}
-                            className="text-[11px] text-ink hover:underline"
+                            onClick={() => handleToggleDrStatus(dr)}
+                            className="p-1 hover:bg-zinc-100 rounded-full transition-colors shrink-0"
+                            title={dr.is_active ? 'Khóa tài xế' : 'Kích hoạt tài xế'}
                           >
-                            Sửa
+                            {dr.is_active ? (
+                              <ToggleRight className="w-5 h-5 text-emerald-600" />
+                            ) : (
+                              <ToggleLeft className="w-5 h-5 text-shade-40" />
+                            )}
                           </button>
-                        ) : null}
-                        <button
-                          onClick={() => handleToggleDrStatus(dr)}
-                          className="p-1 hover:bg-zinc-100 rounded-full transition-colors"
-                        >
-                          {dr.is_active ? (
-                            <ToggleRight className="w-5 h-5 text-emerald-600" />
-                          ) : (
-                            <ToggleLeft className="w-5 h-5 text-shade-40" />
-                          )}
-                        </button>
+                        </div>
                       </td>
                     </tr>
                   ))}

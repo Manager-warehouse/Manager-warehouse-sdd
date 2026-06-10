@@ -127,12 +127,12 @@ const QuarantineWorkspace = () => {
   // Finance Threshold Badge Renderer
   const getDisposalThresholdBadge = (value) => {
     if (value < 5000000) {
-      return <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-pill">Tự động duyệt (&lt; 5M)</span>;
+      return <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-pill whitespace-nowrap">Tự động duyệt (&lt; 5M)</span>;
     }
     if (value <= 100000000) {
-      return <span className="text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-pill">Trưởng kho duyệt (5M - 100M)</span>;
+      return <span className="text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-pill whitespace-nowrap">Trưởng kho duyệt (5M - 100M)</span>;
     }
-    return <span className="text-[10px] font-bold bg-red-50 text-red-700 border border-red-200 px-2 py-0.5 rounded-pill font-mono">Bắt buộc CEO duyệt (&gt; 100M)</span>;
+    return <span className="text-[10px] font-bold bg-red-50 text-red-700 border border-red-200 px-2 py-0.5 rounded-pill whitespace-nowrap font-mono">Bắt buộc CEO duyệt (&gt; 100M)</span>;
   };
 
   const getDisposalApprovalAuthority = (value) => {
@@ -143,15 +143,20 @@ const QuarantineWorkspace = () => {
   };
 
   return (
-    <div className="p-6 bg-canvas-cream min-h-screen text-ink font-sans">
+    <div className="flex flex-col gap-6">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-4xl font-display font-light leading-tight tracking-tight mb-2">
-          Quản Lý Hàng Lỗi Cách Ly
-        </h1>
-        <p className="text-sm text-shade-50">
-          Xem xét, kiểm soát và ra quyết định xử lý hàng hóa lỗi QC trong Quarantine Zone tại kho <span className="font-semibold text-ink">{activeWarehouse?.name}</span>.
-        </p>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
+            Vận hành / Inbound
+          </span>
+          <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">
+            Quản lý hàng lỗi cách ly
+          </h1>
+          <p className="text-xs text-shade-50 font-light mt-1">
+            Xem xét, kiểm soát và ra quyết định xử lý hàng hóa lỗi QC trong Quarantine Zone tại kho <span className="font-semibold text-ink">{activeWarehouse?.name}</span>.
+          </p>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -206,7 +211,7 @@ const QuarantineWorkspace = () => {
                       <span className="text-[10px] font-bold text-shade-40 uppercase font-mono block">{item.product_sku}</span>
                       <h4 className="font-bold text-sm text-ink">{item.product_name}</h4>
                     </div>
-                    <span className="text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-pill font-bold text-xs">
+                    <span className="text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-pill whitespace-nowrap font-bold text-xs">
                       Lỗi: {item.qc_failed_qty} {item.unit}
                     </span>
                   </div>

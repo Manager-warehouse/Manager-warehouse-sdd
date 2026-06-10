@@ -146,14 +146,17 @@ const ReceiptList = () => {
   };
 
   return (
-    <div className="p-6 bg-canvas-cream min-h-screen text-ink font-sans">
+    <div className="flex flex-col gap-6">
       {/* Header section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-4xl font-display font-light leading-tight tracking-tight mb-2">
+          <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
+            Vận hành / Inbound
+          </span>
+          <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">
             Nhập hàng & QC Inbound
           </h1>
-          <p className="text-sm text-shade-50">
+          <p className="text-xs text-shade-50 font-light mt-1">
             Quản lý tiếp nhận hàng, kiểm đếm thực tế, QC và cất kệ tại kho <span className="font-semibold text-ink">{activeWarehouse?.name} ({activeWarehouse?.code})</span>.
           </p>
         </div>

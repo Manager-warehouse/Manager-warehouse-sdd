@@ -161,27 +161,31 @@ const ReceiptReceive = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center p-20 min-h-screen bg-canvas-cream">
+      <div className="flex items-center justify-center p-20">
         <Loader2 className="w-8 h-8 animate-spin text-shade-50" />
       </div>
     );
   }
 
   return (
-    <div className="p-6 bg-canvas-cream min-h-screen text-ink font-sans">
-      {/* Back navigation */}
-      <button
-        onClick={() => navigate('/inbound/receipts')}
-        className="flex items-center gap-2 text-xs font-semibold text-shade-50 hover:text-ink transition-colors mb-6"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        <span>Quay lại danh sách</span>
-      </button>
+    <div className="flex flex-col gap-6">
+      {/* Header section */}
+      <div>
+        <button
+          onClick={() => navigate('/inbound/receipts')}
+          className="flex items-center gap-2 text-xs font-semibold text-shade-50 hover:text-ink transition-colors mb-4"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Quay lại danh sách</span>
+        </button>
 
-      {/* Title */}
-      <h1 className="text-4xl font-display font-light leading-tight tracking-tight mb-8">
-        Kiểm Đếm Thực Tế Nhận Hàng
-      </h1>
+        <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
+          Vận hành / Inbound
+        </span>
+        <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">
+          Kiểm đếm thực tế nhận hàng
+        </h1>
+      </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
         {/* Receipt details header card */}

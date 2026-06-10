@@ -44,7 +44,7 @@ export const authService = {
   getMe: async () => {
     if (useMock) {
       await new Promise(resolve => setTimeout(resolve, 200));
-      const storedUser = localStorage.getItem('wms_user');
+      const storedUser = sessionStorage.getItem('wms_user');
       return storedUser ? JSON.parse(storedUser) : null;
     } else {
       const response = await apiClient.get('/auth/me');
@@ -55,11 +55,11 @@ export const authService = {
   updateProfile: async (fullName, email, phone) => {
     if (useMock) {
       await new Promise(resolve => setTimeout(resolve, 600));
-      const storedUser = JSON.parse(localStorage.getItem('wms_user'));
+      const storedUser = JSON.parse(sessionStorage.getItem('wms_user'));
       if (!storedUser) throw new Error('UNAUTHORIZED');
       
       const updatedUser = { ...storedUser, fullName, email, phone };
-      localStorage.setItem('wms_user', JSON.stringify(updatedUser));
+      sessionStorage.setItem('wms_user', JSON.stringify(updatedUser));
       
       // Update in our mock DB too
       const dbUsersStr = localStorage.getItem('wms_db_users');
@@ -92,6 +92,27 @@ export const authService = {
       return { success: true };
     } else {
       const response = await apiClient.put('/auth/change-password', { currentPassword, newPassword });
+      return response.data;
+    }
+  },
+
+  forgotPassword: async (email) => {
+    if (useMock) {
+      await new Promise(resolve => setTimeout(resolve, 800));
+      return { success: true };
+    } else {
+      const response = await apiClient.post('/auth/forgot-password', { email });
+      return response.data;
+    }
+  },
+
+  verifyOtp: async (email, otp, newPassword) => {
+    if (useMock) {
+      await new Promise(resolve => setTimeout(resolve, 800));
+      if (otp !== '123456') throw new Error('INVALID_OTP');
+      return { success: true };
+    } else {
+      const response = await apiClient.post('/auth/verify-otp', { email, otp, newPassword });
       return response.data;
     }
   }

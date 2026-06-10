@@ -1,6 +1,7 @@
 import apiClient, { useMock } from './api.client';
 import { MOCK_USERS } from '../utils/constants';
 
+// Seed and retrieve user accounts from localStorage to act as a persistent mock database during development
 const getMockDbUsers = () => {
   const users = localStorage.getItem('wms_db_users');
   if (!users) {
@@ -21,7 +22,8 @@ const getMockDbUsers = () => {
       return MOCK_USERS;
     }
     return parsed;
-  } catch {
+  } catch (e) {
+    console.error('Failed to parse mock DB users, resetting to default seed data:', e);
     localStorage.setItem('wms_db_users', JSON.stringify(MOCK_USERS));
     return MOCK_USERS;
   }
@@ -31,6 +33,7 @@ const saveMockDbUsers = (users) => {
   localStorage.setItem('wms_db_users', JSON.stringify(users));
 };
 
+// Store mock audit records locally to simulate tracking of system alterations
 const getMockAuditLogs = () => {
   const logs = localStorage.getItem('wms_audit_logs');
   if (logs) return JSON.parse(logs);
@@ -120,6 +123,42 @@ const getFilteredMockAuditLogs = ({
     hasPrevious: page > 1,
     requiresFilterForOlder: !from && !to && !warehouseId && page >= 50
   };
+};
+
+// Store system parameter thresholds locally to persist across browser updates
+const getMockSystemConfig = () => {
+  const config = localStorage.getItem('wms_system_config');
+  if (!config) {
+    const initialConfig = {
+      defaultCreditLimit: 500000000,
+      defaultPaymentTermDays: 30,
+      creditHoldOverdueDays: 30,
+      creditUnlockBufferPct: 0.8,
+      monthlyClosingDay: 5,
+      minInventoryWarningThreshold: 10
+    };
+    localStorage.setItem('wms_system_config', JSON.stringify(initialConfig));
+    return initialConfig;
+  }
+  const parsed = JSON.parse(config);
+  // Migrate legacy data schemas to prevent page crashes for users with old state cached
+  if ('managerApprovalLimit' in parsed || 'shiftDurationHours' in parsed) {
+    const migrated = {
+      defaultCreditLimit: parsed.defaultCreditLimit ?? 500000000,
+      defaultPaymentTermDays: parsed.defaultPaymentTermDays ?? 30,
+      creditHoldOverdueDays: parsed.creditHoldOverdueDays ?? 30,
+      creditUnlockBufferPct: parsed.creditUnlockBufferPct ?? 0.8,
+      monthlyClosingDay: parsed.monthlyClosingDay ?? 5,
+      minInventoryWarningThreshold: parsed.minWarningStock ?? parsed.minInventoryWarningThreshold ?? 10
+    };
+    localStorage.setItem('wms_system_config', JSON.stringify(migrated));
+    return migrated;
+  }
+  return parsed;
+};
+
+const saveMockSystemConfig = (config) => {
+  localStorage.setItem('wms_system_config', JSON.stringify(config));
 };
 
 export const adminService = {
@@ -229,18 +268,60 @@ export const adminService = {
         isActive
       });
       return users[idx];
+    } else {
+      const response = await apiClient.put(`/admin/users/${id}/status`, { isActive });
+      return response.data;
     }
-    const response = await apiClient.put(`/admin/users/${id}/status`, { isActive });
-    return response.data;
+  },
+
+  getSystemConfig: async () => {
+    if (useMock) {
+      await new Promise(resolve => setTimeout(resolve, 400));
+      return getMockSystemConfig();
+    } else {
+      const response = await apiClient.get('/admin/system-config');
+      const configObj = {};
+      response.data.forEach(item => {
+        const key = item.configKey.toLowerCase().replace(/_([a-z])/g, (m, c) => c.toUpperCase());
+        configObj[key] = item.configValue;
+      });
+      return configObj;
+    }
+  },
+
+  updateSystemConfig: async (configData) => {
+    if (useMock) {
+      await new Promise(resolve => setTimeout(resolve, 600));
+      const current = getMockSystemConfig();
+      const updated = { ...current, ...configData };
+      saveMockSystemConfig(updated);
+
+      addMockAuditLog(
+        'SYSTEM_CONFIG_UPDATED',
+        'SystemConfig',
+        1,
+        `Cập nhật cấu hình hệ thống: Ngày khóa sổ ${updated.monthlyClosingDay}, Hạn mức nợ ${updated.defaultCreditLimit?.toLocaleString()} VND, Thời hạn thanh toán ${updated.defaultPaymentTermDays} ngày`
+      );
+
+      return updated;
+    } else {
+      const promises = Object.entries(configData).map(([key, value]) => {
+        const configKey = key.replace(/([A-Z])/g, '_$1').toUpperCase();
+        return apiClient.put(`/admin/system-config/${configKey}`, { configValue: String(value) });
+      });
+      await Promise.all(promises);
+      return configData;
+    }
   },
 
   getAuditLogs: async (params = {}) => {
     if (useMock) {
       await new Promise((resolve) => setTimeout(resolve, 400));
       return getFilteredMockAuditLogs(params);
+    } else {
+      const response = await apiClient.get('/audit-logs', { params });
+      return response.data;
     }
-    const response = await apiClient.get('/audit-logs', { params });
-    return response.data;
   },
 
   getAuditLogById: async (id) => {
@@ -249,8 +330,9 @@ export const adminService = {
       const log = getMockAuditLogs().find((item) => item.id === Number(id));
       if (!log) throw new Error('AUDIT_LOG_NOT_FOUND');
       return log;
+    } else {
+      const response = await apiClient.get(`/audit-logs/${id}`);
+      return response.data;
     }
-    const response = await apiClient.get(`/audit-logs/${id}`);
-    return response.data;
   }
 };

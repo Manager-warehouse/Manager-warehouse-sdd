@@ -52,14 +52,14 @@ public class SupplierController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasRole('ACCOUNTANT')")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT', 'ACCOUNTANT_MANAGER')")
     @Operation(summary = "Create supplier")
     public SupplierResponse createSupplier(@Valid @RequestBody SupplierCreateRequest request) {
         return supplierService.createSupplier(request, currentUser());
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ACCOUNTANT')")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT', 'ACCOUNTANT_MANAGER')")
     @Operation(summary = "Update supplier")
     public SupplierResponse updateSupplier(@PathVariable Long id,
                                            @Valid @RequestBody SupplierUpdateRequest request) {
@@ -68,28 +68,28 @@ public class SupplierController {
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("hasRole('ACCOUNTANT')")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT', 'ACCOUNTANT_MANAGER')")
     @Operation(summary = "Deactivate supplier")
     public void deactivateSupplier(@PathVariable Long id) {
         supplierService.deactivateSupplier(id, currentUser());
     }
 
     @PutMapping("/{id}/reactivate")
-    @PreAuthorize("hasRole('ACCOUNTANT')")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT', 'ACCOUNTANT_MANAGER')")
     @Operation(summary = "Reactivate supplier")
     public SupplierResponse reactivateSupplier(@PathVariable Long id) {
         return supplierService.reactivateSupplier(id, currentUser());
     }
 
     @GetMapping("/{id}/received-orders")
-    @PreAuthorize("hasRole('ACCOUNTANT')")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT', 'ACCOUNTANT_MANAGER', 'ADMIN', 'CEO', 'WAREHOUSE_MANAGER')")
     @Operation(summary = "List supplier received orders")
     public List<SupplierReceivedOrderResponse> getReceivedOrders(@PathVariable Long id) {
         return supplierService.getReceivedOrders(id);
     }
 
     @GetMapping("/{id}/received-orders/{orderId}")
-    @PreAuthorize("hasRole('ACCOUNTANT')")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT', 'ACCOUNTANT_MANAGER', 'ADMIN', 'CEO', 'WAREHOUSE_MANAGER')")
     @Operation(summary = "Get supplier received order detail")
     public SupplierReceivedOrderDetailResponse getReceivedOrderDetail(@PathVariable Long id,
                                                                       @PathVariable Long orderId) {

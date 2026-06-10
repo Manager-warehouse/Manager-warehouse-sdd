@@ -8,6 +8,7 @@ import com.wms.entity.User;
 import com.wms.entity.Warehouse;
 import com.wms.enums.AuditAction;
 import com.wms.repository.AuditLogRepository;
+import com.wms.repository.UserRepository;
 import com.wms.util.AuditLogUtil;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.servlet.http.HttpServletRequest;
@@ -44,11 +45,14 @@ public class AuditLogService {
     private static final int MAX_UNFILTERED_PAGE = 50;
 
     private final AuditLogRepository auditLogRepository;
+    private final UserRepository userRepository;
     private final HttpServletRequest httpServletRequest;
 
     public AuditLogService(AuditLogRepository auditLogRepository,
+                           UserRepository userRepository,
                            HttpServletRequest httpServletRequest) {
         this.auditLogRepository = auditLogRepository;
+        this.userRepository = userRepository;
         this.httpServletRequest = httpServletRequest;
     }
 
@@ -60,7 +64,7 @@ public class AuditLogService {
                     Long warehouseId,
                     Map<String, Object> oldValue,
                     Map<String, Object> newValue) {
-        doLog(resolveCurrentActor(), action, entityType, entityId, description,
+        saveAuditLog(resolveCurrentActor(), action, entityType, entityId, description,
                 warehouseId, oldValue, newValue);
     }
 
@@ -75,7 +79,7 @@ public class AuditLogService {
                     Map<String, Object> newValue) {
         String description = AuditLogUtil.generateDescription(
                 action, entityType, entityCode);
-        doLog(actor, action, entityType, entityId, description,
+        saveAuditLog(actor, action, entityType, entityId, description,
                 warehouseId, oldValue, newValue);
     }
 
@@ -115,14 +119,14 @@ public class AuditLogService {
         return AuditLogDetailResponse.from(auditLog);
     }
 
-    private void doLog(User actor,
-                        AuditAction action,
-                        String entityType,
-                        Long entityId,
-                        String description,
-                        Long warehouseId,
-                        Map<String, Object> oldValue,
-                        Map<String, Object> newValue) {
+    private void saveAuditLog(User actor,
+                              AuditAction action,
+                              String entityType,
+                              Long entityId,
+                              String description,
+                              Long warehouseId,
+                              Map<String, Object> oldValue,
+                              Map<String, Object> newValue) {
         if (actor == null) {
             throw new IllegalStateException("Audit actor is required");
         }
@@ -187,11 +191,11 @@ public class AuditLogService {
         if (auth == null || !auth.isAuthenticated()) {
             throw new IllegalStateException("Authenticated actor is required");
         }
-        Object principal = auth.getPrincipal();
-        if (principal instanceof User user) {
-            return user;
-        }
-        throw new IllegalStateException("Authenticated principal is not a User");
+        // JwtAuthFilter stores a Spring UserDetails (not the WMS User entity) as principal.
+        // Resolve the actual User entity by email (principal name).
+        String email = auth.getName();
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalStateException("Audit actor not found: " + email));
     }
 
     private Warehouse toWarehouseReference(Long warehouseId) {

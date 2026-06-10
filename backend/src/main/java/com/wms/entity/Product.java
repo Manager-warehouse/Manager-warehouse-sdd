@@ -1,15 +1,17 @@
 package com.wms.entity;
 
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
-@Entity
-@Table(name = "products")
 @Getter
 @Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+@Entity
+@Table(name = "products")
 public class Product {
 
     @Id
@@ -40,14 +42,14 @@ public class Product {
     @Column(name = "volume_m3", precision = 10, scale = 5)
     private BigDecimal volumeM3;
 
+    @Column(name = "has_serial", nullable = false)
+    private Boolean hasSerial;
+
     @Column(name = "has_expiry", nullable = false)
     private Boolean hasExpiry;
 
     @Column(name = "shelf_life_days")
     private Integer shelfLifeDays;
-
-    @Column(name = "has_serial", nullable = false)
-    private Boolean hasSerial;
 
     @Column(name = "reorder_point", precision = 10, scale = 2)
     private BigDecimal reorderPoint;
@@ -68,4 +70,19 @@ public class Product {
 
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
+
+    @PrePersist
+    public void prePersist() {
+        OffsetDateTime now = OffsetDateTime.now();
+        this.createdAt = now;
+        this.updatedAt = now;
+        if (this.isActive == null) this.isActive = true;
+        if (this.hasSerial == null) this.hasSerial = false;
+        if (this.hasExpiry == null) this.hasExpiry = false;
+    }
+
+    @PreUpdate
+    public void preUpdate() {
+        this.updatedAt = OffsetDateTime.now();
+    }
 }
