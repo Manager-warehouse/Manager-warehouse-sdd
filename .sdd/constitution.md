@@ -156,10 +156,13 @@ Mọi thao tác ghi dữ liệu trên kho MUST tạo audit log với:
 
 1. **QC-01 (QC gate):** Hàng nhập kho MUST qua QC Inbound trước khi nhập
    chính thức. Hàng xuất kho MUST qua QC Outbound trước khi giao.
-2. **QC-02 (Quarantine):** Hàng fail QC MUST được đưa vào quarantine zone.
-   Hàng trong quarantine MUST NOT được tính vào available inventory.
-3. **QC-03 (QC result):** Hàng đạt QC → nhập available inventory. Hàng lỗi →
-   quarantine. Hàng hỏng hoàn toàn → hủy.
+2. **QC-02 (Quarantine):** Hàng fail QC MUST được đánh dấu chờ xử lý
+   quarantine/RTV và chỉ được ghi vào quarantine inventory sau xác nhận của
+   người có thẩm quyền. Hàng trong quarantine MUST NOT được tính vào available
+   inventory.
+3. **QC-03 (QC result):** Hàng đạt QC → chờ phê duyệt nhập available inventory.
+   Hàng lỗi → chờ xử lý quarantine/RTV. Hàng hỏng hoàn toàn → hủy theo quy
+   trình được phê duyệt.
 
 ### 4.4 Transfer Rules
 

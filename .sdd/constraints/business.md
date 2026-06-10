@@ -30,7 +30,7 @@
 |---|---|---|
 | QC-01 | Hàng nhập MUST qua QC Inbound trước khi nhập chính thức | MUST |
 | QC-02 | Hàng xuất MUST qua QC Outbound trước khi giao | MUST |
-| QC-03 | Hàng fail QC → Quarantine Zone — không tính available inventory | MUST |
+| QC-03 | Hàng fail QC → chờ xử lý quarantine/RTV; chỉ ghi quarantine inventory sau xác nhận có thẩm quyền và không tính available inventory | MUST |
 | QC-04 | Hàng Quarantine chỉ được xử lý: Trả NCC (RTV) hoặc Tiêu hủy | MUST |
 | QC-05 | RTV → tạo Debit Note đòi bồi hoàn NCC | MUST |
 | QC-06 | Tiêu hủy → áp dụng bảng định mức phê duyệt (5M/100M) | MUST |

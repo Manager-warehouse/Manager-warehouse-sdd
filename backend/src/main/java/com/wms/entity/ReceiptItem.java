@@ -35,6 +35,9 @@ public class ReceiptItem {
     @Column(name = "actual_qty", precision = 10, scale = 2)
     private BigDecimal actualQty;
 
+    @Column(name = "over_received_qty", nullable = false, precision = 10, scale = 2)
+    private BigDecimal overReceivedQty = BigDecimal.ZERO;
+
     @Column(name = "sample_qty", precision = 10, scale = 2)
     private BigDecimal sampleQty;
 
