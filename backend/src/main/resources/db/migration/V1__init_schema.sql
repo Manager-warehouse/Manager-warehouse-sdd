@@ -334,7 +334,7 @@ CREATE TABLE receipt_items (
     id                BIGSERIAL     PRIMARY KEY,
     receipt_id        BIGINT        NOT NULL REFERENCES receipts(id),
     product_id        BIGINT        NOT NULL REFERENCES products(id),
-    batch_id          BIGINT        REFERENCES batches(id),        -- NULL trước QC
+    batch_id          BIGINT        REFERENCES batches(id),        -- NULL trước APPROVED
     location_id       BIGINT        REFERENCES warehouse_locations(id),
     expected_qty      DECIMAL(10,2) NOT NULL,
     actual_qty        DECIMAL(10,2),

@@ -1,6 +1,7 @@
 package com.wms.entity;
 
 import com.wms.enums.QcResult;
+import com.wms.enums.QcSamplingMethod;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 
@@ -34,11 +35,18 @@ public class ReceiptItem {
     @Column(name = "actual_qty", precision = 10, scale = 2)
     private BigDecimal actualQty;
 
-    @Column(name = "qc_passed_qty", precision = 10, scale = 2)
-    private BigDecimal qcPassedQty;
+    @Column(name = "sample_qty", precision = 10, scale = 2)
+    private BigDecimal sampleQty;
 
-    @Column(name = "qc_failed_qty", precision = 10, scale = 2)
-    private BigDecimal qcFailedQty;
+    @Column(name = "sample_passed_qty", precision = 10, scale = 2)
+    private BigDecimal samplePassedQty;
+
+    @Column(name = "sample_failed_qty", precision = 10, scale = 2)
+    private BigDecimal sampleFailedQty;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "qc_sampling_method", length = 30)
+    private QcSamplingMethod qcSamplingMethod;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "qc_result", length = 20)
@@ -47,14 +55,8 @@ public class ReceiptItem {
     @Column(name = "qc_failure_reason", columnDefinition = "TEXT")
     private String qcFailureReason;
 
-    @Column(name = "grade", length = 1)
-    private String grade;
-
     @Column(name = "unit_cost", precision = 18, scale = 2)
     private BigDecimal unitCost;
-
-    @Column(name = "serial_number", length = 100)
-    private String serialNumber;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "qc_by")

@@ -301,7 +301,6 @@ Kế toán trưởng kiểm tra điều kiện → Chốt sổ kỳ T → CLOSED
 | **Picking** | Thủ kho |
 | **Ready to Ship** | Thủ kho (sau khi kiểm QC đạt) |
 | **In-Transit** ⚠️ *Tồn kho bị trừ tại đây* | Tài xế (xác nhận nhận hàng) |
-| **Out for Delivery** | Tài xế |
 | **Delivered** | Tài xế (xác nhận POD) |
 | **Returned** | Tài xế (giao thất bại) |
 | **Completed** | Kế toán viên |
