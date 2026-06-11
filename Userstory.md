@@ -53,23 +53,28 @@
 
 1. Trưởng kho xem danh sách hàng lỗi đang chờ xử lý trong Quarantine Zone và phê duyệt biên bản xử lý.
 2. **Nếu chọn Trả về NCC (Return to Vendor — RTV):**
-   - Hệ thống tạo **Phiếu trả hàng NCC** kèm lý do lỗi chi tiết → Số lượng hàng trong Quarantine Zone bị trừ.
-   - Thủ kho đóng gói hàng lỗi và xác nhận đã giao trả về NCC trên hệ thống.
-   - **Kế toán viên** nhận thông báo → Tạo **Debit Note** (Phiếu đòi bồi hoàn NCC): ghi rõ số lượng, giá trị hàng lỗi, yêu cầu NCC hoàn tiền hoặc giao hàng thay thế.
+   - Hệ thống tạo **Phiếu trả hàng NCC** kèm lý do lỗi chi tiết và tự tạo **Debit Note**; số lượng hàng trong Quarantine Zone chưa bị trừ tại bước này.
+   - Thủ kho đóng gói hàng lỗi và xác nhận đã giao trả **toàn bộ** số lượng Quarantine của receipt cho NCC trên hệ thống.
+   - Khi Thủ kho xác nhận trả đủ, hệ thống mới trừ tồn Quarantine. Nếu xác nhận thiếu hoặc dư, hệ thống từ chối và không trừ tồn.
+   - **Kế toán viên** theo dõi **Debit Note** (Phiếu đòi bồi hoàn NCC): ghi rõ số lượng, giá trị hàng lỗi, yêu cầu NCC hoàn tiền hoặc giao hàng thay thế.
    - Debit Note được lưu vào hồ sơ giao dịch với NCC, làm căn cứ theo dõi và đối chiếu khi NCC phản hồi.
 3. **Nếu chọn Tiêu hủy:** Hệ thống tự động tạo Phiếu xuất hủy và được phê duyệt bởi Trưởng kho.
+
+**Ghi chú mapping Sprint 1:** Trong Spec 003 inbound receipt QC, màn hình xử lý Quarantine chỉ hiển thị nút **Trả NCC**. Hệ thống tự tạo Debit Note khi Trưởng kho tạo RTV request; Thủ kho xác nhận đã giao trả đủ toàn bộ số lượng Quarantine thì hệ thống mới trừ tồn Quarantine. Luồng **Tiêu hủy** được tách sang Spec 009 để áp dụng approval thresholds riêng.
    
 ---
 
 ### US-WMS-05: Ký duyệt Nhập kho chính thức (Priority: P1)
 
-**Mô tả:** Là Trưởng kho (Checker), tôi muốn đối chiếu biên bản QC và phê duyệt Phiếu nhập kho để tăng tồn kho thực tế.
+**Mô tả:** Là Trưởng kho (Checker), tôi muốn đối chiếu biên bản QC và phê duyệt Phiếu nhập kho để mở khóa putaway; tồn kho chỉ tăng sau khi Thủ kho cất hàng vào Bin.
 
 **Tiêu chí nghiệm thu:**
 
 1. Trưởng kho đối chiếu số lượng thực tế (do Thủ kho nhập) với kết quả QC Đạt → Nhấn "Duyệt nhập".
-2. Hệ thống tự động **cộng số lượng hàng Đạt vào tồn kho khả dụng** tại kho tương ứng.
-3. Hệ thống ghi Audit Log đầy đủ: người duyệt, thời gian, số lượng tăng, kho nhận.
+2. Hệ thống chuyển phiếu sang `APPROVED`, tạo/resolved batch và mở khóa putaway nhưng **chưa cộng tồn kho khả dụng**.
+3. Khi Thủ kho hoàn tất putaway vào Bin thường, hệ thống mới cộng số lượng đã duyệt vào tồn kho.
+4. Nếu Trưởng kho từ chối phiếu `QC_COMPLETED`, hệ thống chuyển sang `RETURN_TO_SUPPLIER_PENDING`; khi xe NCC tới lấy, Thủ kho xác nhận bàn giao và phiếu chuyển sang `RETURNED_TO_SUPPLIER`.
+5. Hệ thống ghi Audit Log đầy đủ cho duyệt/từ chối, putaway và xác nhận bàn giao trả NCC.
 
 ---
 

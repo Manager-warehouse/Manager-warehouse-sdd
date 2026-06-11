@@ -2,112 +2,133 @@
 
 **Branch**: `[###-feature-name]` | **Date**: [DATE] | **Spec**: [link]
 
-**Input**: Feature specification from `/specs/[###-feature-name]/spec.md`
-
-**Note**: This template is filled in by the `/speckit-plan` command. See `.specify/templates/plan-template.md` for the execution workflow.
+**Input**: Feature specification from `.sdd/specs/[###-feature-name]/spec.md`
 
 ## Summary
 
-[Extract from feature spec: primary requirement + technical approach from research]
+[Primary business outcome + affected WMS flow/state transition.]
 
 ## Technical Context
 
-<!--
-  ACTION REQUIRED: Replace the content in this section with the technical details
-  for the project. The structure here is presented in advisory capacity to guide
-  the iteration process.
--->
+**Language/Version**: Java 21 / Spring Boot 3.4.5; React 18 + JavaScript when UI is touched
 
-**Language/Version**: [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION]
+**Primary Dependencies**: Spring Web, Spring Data JPA, Hibernate, Spring Security, Lombok, Springdoc OpenAPI, React, Tailwind CSS
 
-**Primary Dependencies**: [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]
+**Storage**: PostgreSQL 18 via Flyway migrations and Spring Data JPA
 
-**Storage**: [if applicable, e.g., PostgreSQL, CoreData, files or N/A]
+**Testing**: JUnit 5 + Mockito for backend; Spring integration tests for APIs; Jest + React Testing Library for frontend business UI
 
-**Testing**: [e.g., pytest, XCTest, cargo test or NEEDS CLARIFICATION]
+**Target Platform**: Full-stack WMS web application and REST API
 
-**Target Platform**: [e.g., Linux server, iOS 15+, WASM or NEEDS CLARIFICATION]
+**Project Type**: Backend + frontend web application
 
-**Project Type**: [e.g., library/cli/web-service/mobile-app/compiler/desktop-app or NEEDS CLARIFICATION]
+**Performance Goals**: [Use spec NFRs, e.g. <= 500ms search, <= 2s inventory mutation]
 
-**Performance Goals**: [domain-specific, e.g., 1000 req/s, 10k lines/sec, 60 fps or NEEDS CLARIFICATION]
+**Constraints**: Must preserve WMS invariants: no negative inventory, QC gates, audit logs, role + warehouse authorization, no raw SQL in application code
 
-**Constraints**: [domain-specific, e.g., <200ms p95, <100MB memory, offline-capable or NEEDS CLARIFICATION]
-
-**Scale/Scope**: [domain-specific, e.g., 10k users, 1M LOC, 50 screens or NEEDS CLARIFICATION]
+**Scale/Scope**: 3 physical warehouses, In-Transit warehouse, 1000+ products, 50+ dealers, 1000+ transactions/month
 
 ## Constitution Check
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+- [ ] Layered architecture preserved: Controller -> Service -> Repository -> Entity.
+- [ ] Write endpoints use request DTOs with Jakarta Validation.
+- [ ] Service methods own business rules, transactions, authorization, and audit logging.
+- [ ] All DB access goes through Spring Data JPA/Hibernate; no raw SQL in application code.
+- [ ] Inventory invariants preserved if touched: `total_qty >= 0`, `reserved_qty >= 0`, `available = total_qty - reserved_qty >= 0`, `@Version`.
+- [ ] QC/quarantine/transfer/accounting state rules listed when touched.
+- [ ] Audit action, entity type, before/after payload, and warehouse scope identified.
+- [ ] OpenAPI/Swagger impact identified for every new or changed endpoint.
+- [ ] Flyway migration impact identified; no duplicate migration version in runnable history.
+- [ ] Unit and integration test strategy covers happy path and error paths.
+
+## Domain Impact
+
+**Actors/Roles**: [Roles and warehouse scope]
+
+**State Changes**: [Entity statuses before -> after]
+
+**Inventory Impact**: [None or exact total/reserved/quarantine/In-Transit mutation]
+
+**Audit Actions**: [Action names and payload]
+
+**Security/Authorization**: [JWT role + warehouse checks]
+
+**Accounting Impact**: [None or invoice/payment/period/debt effect]
+
+## Data Model / Migration Impact
+
+- Entities/tables touched: [list]
+- New/changed columns or constraints: [list]
+- Flyway plan: [new migration / no migration / pre-shared cleanup]
+- Backfill/seed data: [none or list]
+
+## API / Contract Impact
+
+- Endpoints added/changed: [list]
+- Request DTOs: [list validation rules]
+- Response DTOs: [list]
+- Error codes/statuses: [400/401/403/404/409/422/500 as applicable]
+- OpenAPI path/schema updates: [list]
+
+## Test Strategy
+
+- Service unit tests: [business rules and edge cases]
+- Repository/query tests: [if needed]
+- Controller/API integration tests: [happy + error paths]
+- Frontend tests: [if UI business logic touched]
+- Regression tests for invariants: [inventory/QC/audit/auth/accounting]
 
 ## Project Structure
 
-### Documentation (this feature)
+### Documentation
 
 ```text
-specs/[###-feature]/
-├── plan.md              # This file (/speckit-plan command output)
-├── research.md          # Phase 0 output (/speckit-plan command)
-├── data-model.md        # Phase 1 output (/speckit-plan command)
-├── quickstart.md        # Phase 1 output (/speckit-plan command)
-├── contracts/           # Phase 1 output (/speckit-plan command)
-└── tasks.md             # Phase 2 output (/speckit-tasks command - NOT created by /speckit-plan)
+.sdd/specs/[###-feature]/
+├── spec.md
+├── plan.md
+├── research.md
+├── data-model.md
+├── quickstart.md
+├── contracts/
+└── tasks.md
 ```
 
-### Source Code (repository root)
-<!--
-  ACTION REQUIRED: Replace the placeholder tree below with the concrete layout
-  for this feature. Delete unused options and expand the chosen structure with
-  real paths (e.g., apps/admin, packages/something). The delivered plan must
-  not include Option labels.
--->
+### Source Code
 
 ```text
-# [REMOVE IF UNUSED] Option 1: Single project (DEFAULT)
-src/
-├── models/
+backend/src/main/java/com/wms/
+├── controller/
+├── dto/request/
+├── dto/response/
+├── entity/
+├── enums/
+├── exception/
+├── mapper/
+├── repository/
+├── service/
+└── service/impl/
+
+backend/src/main/resources/db/migration/
+
+backend/src/test/java/com/wms/
+
+frontend/src/
+├── components/
+├── hooks/
+├── pages/
 ├── services/
-├── cli/
-└── lib/
-
-tests/
-├── contract/
-├── integration/
-└── unit/
-
-# [REMOVE IF UNUSED] Option 2: Web application (when "frontend" + "backend" detected)
-backend/
-├── src/
-│   ├── models/
-│   ├── services/
-│   └── api/
-└── tests/
-
-frontend/
-├── src/
-│   ├── components/
-│   ├── pages/
-│   └── services/
-└── tests/
-
-# [REMOVE IF UNUSED] Option 3: Mobile + API (when "iOS/Android" detected)
-api/
-└── [same as backend above]
-
-ios/ or android/
-└── [platform-specific structure: feature modules, UI flows, platform tests]
+├── stores/
+└── utils/
 ```
 
-**Structure Decision**: [Document the selected structure and reference the real
-directories captured above]
+**Structure Decision**: [Specific files for this feature]
 
 ## Complexity Tracking
 
-> **Fill ONLY if Constitution Check has violations that must be justified**
+> Fill only if a constitution gate is violated and justify why the simpler path is not viable.
 
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 |-----------|------------|-------------------------------------|
-| [e.g., 4th project] | [current need] | [why 3 projects insufficient] |
-| [e.g., Repository pattern] | [specific problem] | [why direct DB access insufficient] |
+| [None] | [N/A] | [N/A] |

@@ -76,13 +76,12 @@ Xuất hàng là quy trình tạo doanh thu cho Phúc Anh. Planner nhận yêu c
 - `id` (BIGSERIAL, PK)
 - `do_id` (BIGINT, FK→delivery_orders, NOT NULL)
 - `product_id` (BIGINT, FK→products, NOT NULL)
-- `batch_id` (BIGINT, FK→batches) -- set khi picking/FEFO/FIFO
+- `batch_id` (BIGINT, FK→batches) -- set khi picking theo FIFO
 - `location_id` (BIGINT, FK→warehouse_locations)
 - `requested_qty` (DECIMAL(10,2), NOT NULL)
 - `reserved_qty` (DECIMAL(10,2), DEFAULT 0)
 - `issued_qty` (DECIMAL(10,2), DEFAULT 0)
 - `unit_price` (DECIMAL(18,2)) -- Tra cứu từ price_history tại ngày giao
-- `serial_number` (VARCHAR(100)) -- bắt buộc nếu product.has_serial = true
 
 ### delivery_order_approvals
 - `id` (BIGSERIAL, PK)
@@ -179,7 +178,7 @@ Xuất hàng là quy trình tạo doanh thu cho Phúc Anh. Planner nhận yêu c
 
 ### Audit Trail
 - Every outbound mutation SHALL create an audit log with `actor`, `action`, `entity_type`, `entity_id`, `entity_code`, `timestamp`, `before`, and `after`.
-- `DELIVERY_ORDER_CREATE`: create DO, select FEFO/FIFO batch/location, and reserve inventory.
+- `DELIVERY_ORDER_CREATE`: create DO, select FIFO batch/location, and reserve inventory.
 - `DELIVERY_ORDER_CANCEL`: cancel DO and release reserved inventory.
 - `DELIVERY_ORDER_PICK_START`: move DO to `PICKING`.
 - `DELIVERY_ORDER_PICK_COMPLETE`: mark picked items ready for outbound QC.

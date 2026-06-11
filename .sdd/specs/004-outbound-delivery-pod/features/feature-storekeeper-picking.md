@@ -1,7 +1,7 @@
 # Feature: Thủ kho Soạn hàng tại Kệ (US-WMS-07)
 
 ## 1. Context and Goal
-Thủ kho lấy hàng từ kệ theo chỉ định (Picking) được sinh bởi hệ thống dựa trên phương pháp FEFO/FIFO, đảm bảo soạn đúng sản phẩm và số lượng từ các vị trí Bin Location chính xác.
+Thủ kho lấy hàng từ kệ theo chỉ định (Picking) được sinh bởi hệ thống dựa trên FIFO theo ngày nhận hàng, đảm bảo soạn đúng sản phẩm và số lượng từ các vị trí Bin Location chính xác.
 
 ## 2. Actors
 * **Thủ kho**: Soạn hàng tại kệ, lấy đúng SKU và số lượng, cập nhật trạng thái soạn hàng.

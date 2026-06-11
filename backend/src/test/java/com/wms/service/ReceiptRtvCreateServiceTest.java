@@ -1,0 +1,277 @@
+package com.wms.service;
+
+import com.wms.dto.request.ReceiptRtvConfirmRequest;
+import com.wms.dto.request.ReceiptRtvCreateRequest;
+import com.wms.dto.response.RtvActionResponse;
+import com.wms.entity.*;
+import com.wms.enums.*;
+import com.wms.exception.*;
+import com.wms.repository.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
+
+/**
+ * Unit tests for ReceiptService.createRtv() — US-WMS-04.
+ *
+ * <p>Covers: RTV create happy path, duplicate RTV, non-QC_FAILED status,
+ * missing quarantine inventory, forbidden warehouse.</p>
+ */
+@ExtendWith(MockitoExtension.class)
+class ReceiptRtvCreateServiceTest {
+
+    @Mock private ReceiptRepository receiptRepository;
+    @Mock private ReceiptItemRepository receiptItemRepository;
+    @Mock private BatchRepository batchRepository;
+    @Mock private AdjustmentRepository adjustmentRepository;
+    @Mock private DebitNoteRepository debitNoteRepository;
+    @Mock private InventoryRepository inventoryRepository;
+    @Mock private WarehouseLocationRepository warehouseLocationRepository;
+    @Mock private UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
+    @Mock private AuditLogService auditLogService;
+
+    @InjectMocks
+    private QuarantineRtvService receiptService;
+
+    private User manager;
+    private Warehouse warehouse;
+    private Supplier supplier;
+    private Receipt qcFailedReceipt;
+    private ReceiptItem failedItem;
+    private Product product;
+
+    @BeforeEach
+    void setUp() {
+        warehouse = new Warehouse();
+        warehouse.setId(10L);
+
+        supplier = new Supplier();
+        supplier.setId(20L);
+
+        manager = new User();
+        manager.setId(5L);
+        manager.setRole(UserRole.WAREHOUSE_MANAGER);
+
+        product = new Product();
+        product.setId(100L);
+
+        qcFailedReceipt = new Receipt();
+        qcFailedReceipt.setId(1L);
+        qcFailedReceipt.setReceiptNumber("RCV-2026-QC-FAIL");
+        qcFailedReceipt.setStatus(ReceiptStatus.QC_FAILED);
+        qcFailedReceipt.setWarehouse(warehouse);
+        qcFailedReceipt.setSupplier(supplier);
+        qcFailedReceipt.setDocumentDate(LocalDate.now());
+        qcFailedReceipt.setVersion(2);
+        qcFailedReceipt.setCreatedAt(OffsetDateTime.now());
+        qcFailedReceipt.setUpdatedAt(OffsetDateTime.now());
+
+        failedItem = new ReceiptItem();
+        failedItem.setId(10L);
+        failedItem.setProduct(product);
+        failedItem.setActualQty(BigDecimal.valueOf(20));
+        failedItem.setUnitCost(BigDecimal.valueOf(50));
+        failedItem.setQcResult(QcResult.FAILED);
+    }
+
+    // -----------------------------------------------------------------------
+    // Happy path: create RTV for QC_FAILED receipt
+    // -----------------------------------------------------------------------
+
+    @Test
+    void createRtv_happyPath_createsPendingAdjustmentAndDebitNote() {
+        ReceiptRtvCreateRequest request = new ReceiptRtvCreateRequest();
+        request.setExpectedVersion(2);
+        request.setReason("Hàng bị lỗi ngoại quan — trả lại NCC");
+
+        when(receiptRepository.findById(1L)).thenReturn(Optional.of(qcFailedReceipt));
+        when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
+        when(adjustmentRepository.existsByReferenceTypeAndReferenceIdAndType(
+                "RECEIPT", 1L, AdjustmentType.RETURN_TO_VENDOR)).thenReturn(false);
+        when(receiptItemRepository.findByReceiptId(1L)).thenReturn(List.of(failedItem));
+        when(receiptItemRepository.sumActualQtyByReceiptId(1L)).thenReturn(BigDecimal.valueOf(20));
+        when(adjustmentRepository.save(any(Adjustment.class))).thenAnswer(i -> {
+            Adjustment adj = i.getArgument(0);
+            adj.setId(100L);
+            return adj;
+        });
+        when(debitNoteRepository.save(any(DebitNote.class))).thenAnswer(i -> {
+            DebitNote dn = i.getArgument(0);
+            dn.setId(200L);
+            return dn;
+        });
+
+        RtvActionResponse response = receiptService.createRtv(1L, request, manager);
+
+        assertNotNull(response);
+        assertFalse(response.isConfirmed()); // Pending, not yet confirmed
+        assertNotNull(response.getAdjustmentNumber());
+        assertNotNull(response.getDebitNoteNumber());
+        assertEquals(BigDecimal.valueOf(20), response.getQuarantineQty());
+
+        // Verify adjustment created as pending (no approvedAt)
+        verify(adjustmentRepository).save(argThat(adj ->
+                adj.getType() == AdjustmentType.RETURN_TO_VENDOR
+                && adj.getReferenceType().equals("RECEIPT")
+                && adj.getReferenceId().equals(1L)
+                && adj.getApprovedAt() == null // Still pending
+        ));
+
+        // Verify Debit Note auto-created
+        verify(debitNoteRepository).save(argThat(dn ->
+                dn.getSupplier().getId().equals(20L)
+                && dn.getReceipt().getId().equals(1L)
+                && dn.getFailedQty().compareTo(BigDecimal.valueOf(20)) == 0
+        ));
+    }
+
+    @Test
+    void createRtv_happyPath_doesNotDeductQuarantineInventory() {
+        ReceiptRtvCreateRequest request = new ReceiptRtvCreateRequest();
+        request.setExpectedVersion(2);
+        request.setReason("Hàng lỗi");
+
+        when(receiptRepository.findById(1L)).thenReturn(Optional.of(qcFailedReceipt));
+        when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
+        when(adjustmentRepository.existsByReferenceTypeAndReferenceIdAndType(any(), any(), any())).thenReturn(false);
+        when(receiptItemRepository.findByReceiptId(1L)).thenReturn(List.of(failedItem));
+        when(receiptItemRepository.sumActualQtyByReceiptId(1L)).thenReturn(BigDecimal.valueOf(20));
+        when(adjustmentRepository.save(any())).thenAnswer(i -> { Adjustment a = i.getArgument(0); a.setId(1L); return a; });
+        when(debitNoteRepository.save(any())).thenAnswer(i -> { DebitNote d = i.getArgument(0); d.setId(1L); return d; });
+
+        receiptService.createRtv(1L, request, manager);
+
+        // Creating RTV must NOT deduct quarantine inventory
+        verify(inventoryRepository, never()).save(any());
+        verify(inventoryRepository, never()).findByWarehouseProductBatchLocationForUpdate(any(), any(), any(), any());
+    }
+
+    @Test
+    void createRtv_happyPath_auditLogContainsInventoryDeductedFalse() {
+        ReceiptRtvCreateRequest request = new ReceiptRtvCreateRequest();
+        request.setExpectedVersion(2);
+        request.setReason("Lỗi");
+
+        when(receiptRepository.findById(1L)).thenReturn(Optional.of(qcFailedReceipt));
+        when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
+        when(adjustmentRepository.existsByReferenceTypeAndReferenceIdAndType(any(), any(), any())).thenReturn(false);
+        when(receiptItemRepository.findByReceiptId(1L)).thenReturn(List.of(failedItem));
+        when(receiptItemRepository.sumActualQtyByReceiptId(1L)).thenReturn(BigDecimal.valueOf(20));
+        when(adjustmentRepository.save(any())).thenAnswer(i -> { Adjustment a = i.getArgument(0); a.setId(1L); return a; });
+        when(debitNoteRepository.save(any())).thenAnswer(i -> { DebitNote d = i.getArgument(0); d.setId(1L); return d; });
+
+        receiptService.createRtv(1L, request, manager);
+
+        verify(auditLogService).log(eq(manager), eq(AuditAction.QUARANTINE_RTV_CREATE),
+                eq("ADJUSTMENT"), any(), any(), eq(10L), isNull(),
+                argThat(newVal -> Boolean.FALSE.equals(((java.util.Map<?, ?>) newVal).get("inventoryDeducted"))));
+    }
+
+    // -----------------------------------------------------------------------
+    // Duplicate RTV
+    // -----------------------------------------------------------------------
+
+    @Test
+    void createRtv_duplicateRtv_throwsRtvAlreadyExists() {
+        ReceiptRtvCreateRequest request = new ReceiptRtvCreateRequest();
+        request.setExpectedVersion(2);
+        request.setReason("Lý do");
+
+        when(receiptRepository.findById(1L)).thenReturn(Optional.of(qcFailedReceipt));
+        when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
+        when(adjustmentRepository.existsByReferenceTypeAndReferenceIdAndType(
+                "RECEIPT", 1L, AdjustmentType.RETURN_TO_VENDOR)).thenReturn(true); // Already exists
+
+        assertThrows(RtvAlreadyExistsException.class,
+                () -> receiptService.createRtv(1L, request, manager));
+
+        verify(adjustmentRepository, never()).save(any());
+        verify(debitNoteRepository, never()).save(any());
+    }
+
+    // -----------------------------------------------------------------------
+    // Non-QC_FAILED status
+    // -----------------------------------------------------------------------
+
+    @Test
+    void createRtv_approvedStatus_throwsBusinessRuleViolation() {
+        qcFailedReceipt.setStatus(ReceiptStatus.APPROVED);
+        ReceiptRtvCreateRequest request = new ReceiptRtvCreateRequest();
+        request.setExpectedVersion(2);
+        request.setReason("Lý do");
+
+        when(receiptRepository.findById(1L)).thenReturn(Optional.of(qcFailedReceipt));
+        when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
+
+        BusinessRuleViolationException ex = assertThrows(BusinessRuleViolationException.class,
+                () -> receiptService.createRtv(1L, request, manager));
+
+        assertTrue(ex.getMessage().contains("QC_FAILED"));
+    }
+
+    @Test
+    void createRtv_qcCompletedStatus_throwsBusinessRuleViolation() {
+        qcFailedReceipt.setStatus(ReceiptStatus.QC_COMPLETED);
+        ReceiptRtvCreateRequest request = new ReceiptRtvCreateRequest();
+        request.setExpectedVersion(2);
+        request.setReason("Lý do");
+
+        when(receiptRepository.findById(1L)).thenReturn(Optional.of(qcFailedReceipt));
+        when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
+
+        assertThrows(BusinessRuleViolationException.class,
+                () -> receiptService.createRtv(1L, request, manager));
+    }
+
+    // -----------------------------------------------------------------------
+    // No items in quarantine
+    // -----------------------------------------------------------------------
+
+    @Test
+    void createRtv_noItems_throwsBusinessRuleViolation() {
+        ReceiptRtvCreateRequest request = new ReceiptRtvCreateRequest();
+        request.setExpectedVersion(2);
+        request.setReason("Lý do");
+
+        when(receiptRepository.findById(1L)).thenReturn(Optional.of(qcFailedReceipt));
+        when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
+        when(adjustmentRepository.existsByReferenceTypeAndReferenceIdAndType(any(), any(), any())).thenReturn(false);
+        when(receiptItemRepository.findByReceiptId(1L)).thenReturn(List.of()); // Empty
+
+        BusinessRuleViolationException ex = assertThrows(BusinessRuleViolationException.class,
+                () -> receiptService.createRtv(1L, request, manager));
+
+        assertTrue(ex.getMessage().contains("NO_QUARANTINE_ITEMS"));
+    }
+
+    // -----------------------------------------------------------------------
+    // Forbidden warehouse
+    // -----------------------------------------------------------------------
+
+    @Test
+    void createRtv_forbiddenWarehouse_throwsForbiddenReceiptWarehouse() {
+        ReceiptRtvCreateRequest request = new ReceiptRtvCreateRequest();
+        request.setExpectedVersion(2);
+        request.setReason("Lý do");
+
+        when(receiptRepository.findById(1L)).thenReturn(Optional.of(qcFailedReceipt));
+        when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L))
+                .thenReturn(List.of(999L)); // Different warehouse
+
+        assertThrows(ForbiddenReceiptWarehouseException.class,
+                () -> receiptService.createRtv(1L, request, manager));
+    }
+}

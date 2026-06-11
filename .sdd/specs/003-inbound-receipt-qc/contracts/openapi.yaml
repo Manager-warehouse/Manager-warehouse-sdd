@@ -1,0 +1,347 @@
+openapi: 3.0.3
+info:
+  title: WMS Inbound Receipt Approval & Quarantine API
+  version: 0.1.0
+  description: Contracts for Spec 003 manager receipt approval and quarantine RTV handling.
+servers:
+  - url: /api/v1
+paths:
+  /receipts/{id}/approve:
+    put:
+      summary: Approve QC-completed receipt and unlock putaway
+      operationId: approveReceipt
+      tags: [Inbound Receipts]
+      parameters:
+        - $ref: '#/components/parameters/ReceiptId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReceiptDecisionRequest'
+      responses:
+        '200':
+          description: Receipt approved; inventory is not increased until putaway.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReceiptActionResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenWarehouse'
+        '409':
+          $ref: '#/components/responses/VersionOrStateConflict'
+        '422':
+          $ref: '#/components/responses/InvalidState'
+  /receipts/{id}/reject:
+    put:
+      summary: Reject QC-completed receipt for supplier return
+      operationId: rejectReceipt
+      tags: [Inbound Receipts]
+      parameters:
+        - $ref: '#/components/parameters/ReceiptId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReceiptRejectRequest'
+      responses:
+        '200':
+          description: Receipt moved to RETURN_TO_SUPPLIER_PENDING; no inventory, RTV, or Debit Note created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReceiptActionResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '403':
+          $ref: '#/components/responses/ForbiddenWarehouse'
+        '409':
+          $ref: '#/components/responses/VersionOrStateConflict'
+        '422':
+          $ref: '#/components/responses/InvalidState'
+  /receipts/{id}/return-to-supplier/confirm:
+    put:
+      summary: Confirm physical handover of rejected receipt goods to supplier
+      operationId: confirmReceiptReturnToSupplier
+      tags: [Inbound Receipts]
+      parameters:
+        - $ref: '#/components/parameters/ReceiptId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReceiptReturnConfirmRequest'
+      responses:
+        '200':
+          description: Receipt moved to RETURNED_TO_SUPPLIER without inventory changes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReceiptActionResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenWarehouse'
+        '409':
+          $ref: '#/components/responses/VersionOrStateConflict'
+        '422':
+          $ref: '#/components/responses/InvalidState'
+  /receipts/{id}/complete:
+    put:
+      summary: Complete putaway for approved receipt
+      operationId: completeReceiptPutaway
+      tags: [Inbound Receipts]
+      parameters:
+        - $ref: '#/components/parameters/ReceiptId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReceiptPutawayRequest'
+      responses:
+        '200':
+          description: Putaway completed and regular inventory increased.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReceiptActionResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenWarehouse'
+        '409':
+          $ref: '#/components/responses/VersionOrStateConflict'
+        '422':
+          $ref: '#/components/responses/InvalidState'
+  /receipts/{id}/rtv:
+    post:
+      summary: Create RTV request and Debit Note for QC-failed quarantine receipt
+      operationId: createReceiptRtv
+      tags: [Inbound Quarantine]
+      parameters:
+        - $ref: '#/components/parameters/ReceiptId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReceiptRtvCreateRequest'
+      responses:
+        '201':
+          description: Pending RETURN_TO_VENDOR adjustment and Debit Note created; quarantine inventory unchanged.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RtvActionResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenWarehouse'
+        '409':
+          description: Existing pending or confirmed RTV already exists.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/InvalidState'
+  /receipts/{id}/rtv/confirm:
+    put:
+      summary: Confirm full physical RTV handover and deduct quarantine inventory
+      operationId: confirmReceiptRtv
+      tags: [Inbound Quarantine]
+      parameters:
+        - $ref: '#/components/parameters/ReceiptId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReceiptRtvConfirmRequest'
+      responses:
+        '200':
+          description: Full quarantined quantity returned; quarantine inventory deducted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RtvActionResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenWarehouse'
+        '409':
+          $ref: '#/components/responses/VersionOrStateConflict'
+        '422':
+          description: Invalid state or returned quantity mismatch.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  parameters:
+    ReceiptId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+  schemas:
+    ReceiptDecisionRequest:
+      type: object
+      required: [expectedVersion]
+      properties:
+        expectedVersion:
+          type: integer
+          minimum: 0
+        notes:
+          type: string
+          maxLength: 1000
+      additionalProperties: false
+    ReceiptRejectRequest:
+      type: object
+      required: [expectedVersion, rejectionReason]
+      properties:
+        expectedVersion:
+          type: integer
+          minimum: 0
+        rejectionReason:
+          type: string
+          minLength: 1
+          maxLength: 2000
+      additionalProperties: false
+    ReceiptReturnConfirmRequest:
+      type: object
+      required: [expectedVersion]
+      properties:
+        expectedVersion:
+          type: integer
+          minimum: 0
+        handoverNote:
+          type: string
+          maxLength: 1000
+      additionalProperties: false
+    ReceiptPutawayRequest:
+      type: object
+      required: [expectedVersion, items]
+      properties:
+        expectedVersion:
+          type: integer
+          minimum: 0
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/ReceiptPutawayItem'
+      additionalProperties: false
+    ReceiptPutawayItem:
+      type: object
+      required: [receiptItemId, locationId]
+      properties:
+        receiptItemId:
+          type: integer
+          format: int64
+        locationId:
+          type: integer
+          format: int64
+      additionalProperties: false
+    ReceiptRtvCreateRequest:
+      type: object
+      required: [expectedVersion, reason]
+      properties:
+        expectedVersion:
+          type: integer
+          minimum: 0
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        documentDate:
+          type: string
+          format: date
+      additionalProperties: false
+    ReceiptRtvConfirmRequest:
+      type: object
+      required: [expectedVersion, returnedQty]
+      properties:
+        expectedVersion:
+          type: integer
+          minimum: 0
+        returnedQty:
+          type: number
+          exclusiveMinimum: true
+          minimum: 0
+        handoverNote:
+          type: string
+          maxLength: 1000
+      additionalProperties: false
+    ReceiptActionResponse:
+      type: object
+      required: [id, receiptNumber, status, version]
+      properties:
+        id:
+          type: integer
+          format: int64
+        receiptNumber:
+          type: string
+        status:
+          type: string
+          enum: [PENDING_RECEIPT, DRAFT, QC_COMPLETED, QC_FAILED, APPROVED, RETURN_TO_SUPPLIER_PENDING, RETURNED_TO_SUPPLIER]
+        version:
+          type: integer
+        auditAction:
+          type: string
+    RtvActionResponse:
+      type: object
+      required: [receiptId, status, adjustmentId, adjustmentNumber, quarantinedQty]
+      properties:
+        receiptId:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum: [QC_FAILED]
+        adjustmentId:
+          type: integer
+          format: int64
+        adjustmentNumber:
+          type: string
+        debitNoteId:
+          type: integer
+          format: int64
+        debitNoteNumber:
+          type: string
+        quarantinedQty:
+          type: number
+        returnedQty:
+          type: number
+        confirmed:
+          type: boolean
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+  responses:
+    ValidationError:
+      description: Request validation failed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ForbiddenWarehouse:
+      description: Actor role or warehouse assignment does not allow this action.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    VersionOrStateConflict:
+      description: Stale version or duplicate action conflict.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InvalidState:
+      description: Business rule violation.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'

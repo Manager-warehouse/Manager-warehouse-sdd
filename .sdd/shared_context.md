@@ -44,10 +44,9 @@
 
 | Thuật ngữ | Định nghĩa |
 |---|---|
-| **Batch** | Lô hàng nhập cùng đợt, cùng grade, cùng hạn dùng |
+| **Batch** | Lô hàng nhập cùng đợt, cùng SKU, nguồn chứng từ và ngày nhận |
 | **Bin Location** | Vị trí kệ trong kho — mã hóa WH-Zone.Rack.Shelf.Bin |
 | **Putaway** | Quy trình cất hàng vào Bin sau khi QC đạt |
-| **FEFO** | First Expiry First Out — ưu tiên xuất batch gần hết hạn |
 | **FIFO** | First In First Out — ưu tiên xuất batch nhập trước |
 | **Quarantine** | Khu cách ly hàng lỗi QC — không available |
 | **In-Transit** | Kho ảo — hàng đang vận chuyển giữa 2 kho |

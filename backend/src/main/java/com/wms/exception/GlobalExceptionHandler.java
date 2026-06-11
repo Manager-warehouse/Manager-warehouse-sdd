@@ -1,5 +1,8 @@
 package com.wms.exception;
 
+import com.wms.exception.ForbiddenReceiptWarehouseException;
+import com.wms.exception.ReceiptAlreadyDecidedException;
+import com.wms.exception.RtvAlreadyExistsException;
 import jakarta.validation.ConstraintViolationException;
 import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
@@ -34,6 +37,27 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiErrorResponse> handleAccessDenied(AccessDeniedException ex) {
         return error(HttpStatus.FORBIDDEN, "ACCESS_DENIED", "Access denied", "Access denied", null);
+    }
+
+    @ExceptionHandler(ForbiddenReceiptWarehouseException.class)
+    public ResponseEntity<ApiErrorResponse> handleForbiddenReceiptWarehouse(
+            ForbiddenReceiptWarehouseException ex) {
+        return error(HttpStatus.FORBIDDEN, "FORBIDDEN_RECEIPT_WAREHOUSE",
+                ex.getMessage(), ex.getMessage(), null);
+    }
+
+    @ExceptionHandler(ReceiptAlreadyDecidedException.class)
+    public ResponseEntity<ApiErrorResponse> handleReceiptAlreadyDecided(
+            ReceiptAlreadyDecidedException ex) {
+        return error(HttpStatus.CONFLICT, "RECEIPT_ALREADY_DECIDED",
+                ex.getMessage(), ex.getMessage(), null);
+    }
+
+    @ExceptionHandler(RtvAlreadyExistsException.class)
+    public ResponseEntity<ApiErrorResponse> handleRtvAlreadyExists(
+            RtvAlreadyExistsException ex) {
+        return error(HttpStatus.CONFLICT, "RTV_ALREADY_EXISTS",
+                ex.getMessage(), ex.getMessage(), null);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

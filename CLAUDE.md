@@ -21,7 +21,7 @@
 1. `AGENTS.md` → Project context đầy đủ (Tech stack, forbidden patterns, domain model)
 2. `README.md` → User Stories, requirements, key entities
 3. File này → Workflow, patterns, và conventions
-4. 'CONSTITUTION.md'
+4. `.specify/memory/constitution.md`
 
 ---
 
@@ -83,7 +83,7 @@
 ┌─────────────────────────────────────────┐
 │           Service Layer                  │  @Service
 │   - Business logic                      │  - Transaction management
-│   - FEFO/FIFO selection                 │  - Audit logging
+│   - FIFO batch selection                │  - Audit logging
 │   - Authorization checks                │
 └─────────────────┬─────────────────────┘
                   │
@@ -177,11 +177,11 @@ Manager-warehouse-sdd/
 **Giải pháp**: Luôn check stock TRƯỚC khi issue, dùng database constraint
 **Áp dụng**: Tất cả issue operations phải validate quantity
 
-### LESSON-002: Batch tied to ONE grade only
+### LESSON-002: Batch does not classify household goods by grade
 
-**Biến cố**: [TBD] Mixed grade trong batch → FEFO selection confusion
-**Giải pháp**: Mỗi batch chỉ có một grade (A/B/C), không mix
-**Áp dụng**: Receipt validation, batch creation
+**Biến cố**: [TBD] Quy tắc truy vết từng cái, hạn dùng và phân cấp chất lượng làm nhập liệu quá nặng cho đơn hàng gia dụng số lượng lớn
+**Giải pháp**: Batch theo sản phẩm + nguồn nhập/ngày nhận; hàng lỗi QC đi Quarantine để RTV/disposal, không phân cấp chất lượng để bán lại
+**Áp dụng**: Receipt validation, batch creation, QC failed handling
 
 ### LESSON-003: Phân quyền phải check BOTH role AND warehouse
 
@@ -306,7 +306,7 @@ Manager-warehouse-sdd/
 ### Branch Naming
 
 ```
-feat/[feature-name]      # New features (e.g., feat/inventory-FEFO)
+feat/[feature-name]      # New features (e.g., feat/inventory-fifo)
 fix/[bug-name]           # Bug fixes (e.g., fix/negative-stock)
 spec/[feature-name]      # Specification work
 chore/                   # Maintenance tasks
@@ -321,8 +321,8 @@ Types: feat, fix, docs, style, refactor, test, chore
 Scopes: inventory, receipt, issue, transfer, batch, etc.
 
 Examples:
-feat(inventory): add FEFO batch selection logic
-fix(batch): correct expiry date calculation
+feat(inventory): add FIFO batch selection logic
+fix(batch): correct received date ordering
 docs(api): update warehouse-stock endpoint docs
 ```
 
@@ -394,7 +394,7 @@ Semble is a semantic code search tool that finds code by **meaning**, not just t
 
 | Task                                   | Tool         | Why                             |
 | -------------------------------------- | ------------ | ------------------------------- |
-| "Find all FEFO implementations"        | **Semble**   | Semantic search across codebase |
+| "Find all FIFO implementations"        | **Semble**   | Semantic search across codebase |
 | "What breaks if I change X?"           | **GitNexus** | Call graph + impact analysis    |
 | "Show me code similar to BatchService" | **Semble**   | Similarity detection            |
 | "Who calls this method?"               | **GitNexus** | Relationship graph              |
@@ -406,7 +406,7 @@ Semble is a semantic code search tool that finds code by **meaning**, not just t
 | Tool                    | Purpose              | Example                                          |
 | ----------------------- | -------------------- | ------------------------------------------------ |
 | `semble.search()`       | Semantic code search | `semble.search("inventory quantity validation")` |
-| `semble.find_related()` | Find similar code    | `semble.find_related("BatchService.selectFEFO")` |
+| `semble.find_related()` | Find similar code    | `semble.find_related("BatchService.selectFIFO")` |
 
 ### Optimal Workflow: Semble + GitNexus
 
@@ -432,10 +432,10 @@ Semble is a semantic code search tool that finds code by **meaning**, not just t
 
 ```
 1. Semble search: Find all places with similar logic
-   → semble.search("batch expiry date calculation")
+   → semble.search("batch received date ordering")
 
 2. GitNexus query: Trace execution flow
-   → gitnexus_query("batch expiry validation")
+   → gitnexus_query("batch received date validation")
 
 3. GitNexus impact: Check what depends on the buggy code
    → gitnexus_impact("BatchService.calculateExpiry")
@@ -470,7 +470,7 @@ Semble CLI is installed at `/Users/haison/.local/bin/semble` and provides direct
 ```bash
 # Search codebase with natural language
 semble search "authentication flow" .
-semble search "FEFO batch selection logic" .
+semble search "FIFO batch selection logic" .
 
 # Search for specific symbol or identifier
 semble search "InventoryService" .
@@ -497,8 +497,8 @@ semble init
 #### Practical Examples for WMS Project
 
 ```bash
-# Find all FEFO implementations
-semble search "FEFO batch selection" . --top-k 10
+# Find all FIFO implementations
+semble search "FIFO batch selection" . --top-k 10
 
 # Find inventory validation patterns
 semble search "inventory quantity validation" .
@@ -542,7 +542,7 @@ semble search "database configuration" . --include-text-files
 
 ```bash
 # Find code by concept (Semble)
-semble search "FEFO batch selection" --limit 10
+semble search "FIFO batch selection" --limit 10
 
 # Understand execution flow (GitNexus)
 gitnexus query "warehouse receipt process"
@@ -555,10 +555,10 @@ gitnexus context --name "InventoryService.reserve"
 
 ```bash
 # Check impact (GitNexus)
-gitnexus impact --target "BatchService.selectFEFO" --direction upstream
+gitnexus impact --target "BatchService.selectFIFO" --direction upstream
 
 # Find similar code that might need same change (Semble)
-semble find-related "BatchService.selectFEFO"
+semble find-related "BatchService.selectFIFO"
 ```
 
 #### After Editing
@@ -665,7 +665,7 @@ Speckit works as an MCP (Model Context Protocol) server that needs to be configu
 
 ```
 1. SPEC PHASE (Speckit)
-   → speckit_specify: Create spec for "FEFO batch selection"
+   → speckit_specify: Create spec for "FIFO batch selection"
    → Document business rules, edge cases
 
 2. EXPLORATION PHASE (Semble + GitNexus)
@@ -674,8 +674,8 @@ Speckit works as an MCP (Model Context Protocol) server that needs to be configu
 
 3. PLANNING PHASE (Speckit)
    → speckit_plan: Break down into tasks
-   → Task 1: Add FEFO selector utility
-   → Task 2: Update IssueService to use FEFO
+   → Task 1: Add FIFO selector utility
+   → Task 2: Update IssueService to use FIFO
    → Task 3: Add unit tests
 
 4. IMPACT ANALYSIS (GitNexus)
@@ -738,7 +738,7 @@ specs/
 
 # Create specification
 speckit_specify({
-  feature: "FEFO batch selection",
+  feature: "FIFO batch selection",
   requirements: "...",
   acceptance_criteria: "..."
 })
@@ -782,9 +782,8 @@ Product (1000+ items)
 ├── SKU, name, unit, dimension, weight
 └── PriceHistory (cost_price, selling_price, effective_date, end_date)
 
-Batch (Lô hàng - tied to ONE grade)
-├── batchNumber, receivedDate, expDate (optional; only for exceptional expiry-tracked products)
-├── grade (A/B/C)
+Batch (Lô hàng)
+├── batchNumber, receivedDate, sourceReceipt/sourceDocument
 └── quantity
 
 Inventory (tồn kho)
@@ -793,8 +792,8 @@ Inventory (tồn kho)
 
 Receipt (Lệnh nhập kho / Phiếu nhập kho)
 ├── receiptNumber, sourceOrderCode, type (purchase/return)
-├── warehouse, supplier, status (pending_receipt/draft/qc_completed/approved/rejected)
-└── items (product + quantity + QC grade)
+├── warehouse, supplier, status (pending_receipt/draft/qc_completed/qc_failed/approved/return_to_supplier_pending/returned_to_supplier)
+└── items (product + quantity + QC result)
 
 Issue (Đơn xuất hàng / Phiếu xuất kho)
 ├── issueNumber, customer/dealer, type (sale/delivery/adjustment)
@@ -825,11 +824,10 @@ DebitNote (Phiếu đòi bồi hoàn)
 
 | Rule                       | Implementation                                  |
 | -------------------------- | ----------------------------------------------- |
-| No negative inventory      | `@Column(check = "quantity >= 0")` + validation |
-| Single grade per batch     | `grade` is immutable after creation             |
-| Household goods default    | Products such as pots, pans, and plastic goods do not track expiry by default |
+| No negative inventory      | DB CHECK on `total_qty`, `reserved_qty`, and available quantity + service validation |
+| Household goods traceability | Track by SKU, receipt document/date, batch, quantity, and location; no per-unit tracking, expiry dates, or quality tiers |
+| Household goods default    | Products such as pots, pans, and plastic goods use receipt date traceability |
 | FIFO default               | `FIFOSelector` picks batch by receivedDate ASC for the current household-goods domain |
-| FEFO exception             | `FEFOSelector` is used only for exceptional products configured with expiry tracking |
 | Quarantine excluded        | WHERE clause filters `zone != 'QUARANTINE'`     |
 | In-Transit tracking        | Virtual warehouse `IN_TRANSIT` for transfers    |
 | Credit Check Control       | Auto-block if balance + new > limit OR >30 days overdue; balance equal to limit is allowed. Buffer 20% to unlock |
@@ -842,11 +840,7 @@ DebitNote (Phiếu đòi bồi hoàn)
 |---|---|---|---|
 | Quản trị | CEO | Checker | Dashboard chiến lược |
 | Quản trị | System Admin | Admin | Quản lý tài khoản, RBAC, cấu hình tham số hệ thống |
-<<<<<<< HEAD
-| Quản lý | Trưởng kho kiêm Trưởng QC | Checker | Duyệt nhập/xuất/điều chuyển, xử lý chênh lệch thực tế, duyệt biên bản hàng lỗi |
-=======
 | Quản lý | Trưởng kho | Checker | Duyệt nhập/xuất/điều chuyển, xử lý chênh lệch 5M–100M, duyệt biên bản xử lý hàng lỗi |
->>>>>>> 78bb76f (update spec master data and database, entity)
 | Quản lý | Kế toán trưởng | Checker | Duyệt bảng giá, thiết lập Credit Limit, chốt sổ tháng, P&L/Aging Report |
 | Nghiệp vụ | Planner | Maker | Lập lệnh nhập / đơn xuất từ Công ty mẹ, kiểm tra Credit Check + tồn kho |
 | Nghiệp vụ | Dispatcher | Maker | Lập chuyến xe nội bộ Phúc Anh, gán tài xế, tối ưu lộ trình giao hàng |
@@ -897,7 +891,7 @@ Các sơ đồ swimlane dưới đây mô tả chính xác quy trình nghiệp v
 
 ### 1. Quy trình Nhập hàng (Receipt Process)
 
-Quy trình nhập hàng từ khi Công ty mẹ gửi thông tin qua Zalo/Email cho tới khi hàng được cất vào Bin hoặc khu Quarantine và được Trưởng kho phê duyệt để hệ thống cập nhật số tồn khả dụng.
+Quy trình nhập hàng từ khi Công ty mẹ gửi thông tin qua Zalo/Email cho tới khi hàng được cất vào Bin hoặc khu Quarantine. Trưởng kho chỉ phê duyệt để mở khóa putaway; chỉ khi putaway xong hệ thống mới cập nhật số tồn khả dụng.
 
 ```
 ┌─────────────┬─────────────┬─────────────────┬─────────────┬────────────────┐
@@ -914,20 +908,21 @@ Quy trình nhập hàng từ khi Công ty mẹ gửi thông tin qua Zalo/Email c
 │             │             │        │        │             │                │
 │             │             │  [HÀNG LỖI]     │             │                │
 │             │             │        ├────────► Biên bản lỗi │                │
-│             │             │        │        │ Quyết định  │                │
-│             │             │        │        │ xử lý ──────►                │
+│             │             │        │        │ Tạo RTV     │                │
+│             │             │        │        │ Trả NCC─────►                │
 │             │             │  [HÀNG ĐẠT]     │             │                │
 │             │             │        ├────────► Phê duyệt   │                │
 │             │             │        │        │ Phiếu nhập──►                │
-│             │             │        │        │             │ Cộng tồn kho   │
-│             │             │        │        │             │ khả dụng &     │
-│             │             │        │        │             │ Quarantine zone│
+│             │             │        │        │             │ Mở khóa        │
+│             │             │        │        │             │ putaway        │
 │             │             │                 │             │                │
 └─────────────┴─────────────┴─────────────────┴─────────────┴────────────────┘
 ```
 
 **Luồng trạng thái đơn nhập:**
-`PENDING_RECEIPT` (Planner tạo) → `DRAFT` (Thủ kho kiểm đếm) → `QC_COMPLETED` (Thủ kho hoàn tất QC) → `APPROVED` (Trưởng kho duyệt, Hệ thống cộng tồn kho) / `REJECTED` (Trưởng kho từ chối, xuất hủy hoặc trả NCC)
+`PENDING_RECEIPT` (Planner tạo) → `DRAFT` (Thủ kho kiểm đếm) → `QC_COMPLETED` (Thủ kho hoàn tất QC) → `APPROVED` (Trưởng kho duyệt, mở khóa putaway) / `RETURN_TO_SUPPLIER_PENDING` (Trưởng kho từ chối, chờ xe NCC đến lấy) → `RETURNED_TO_SUPPLIER` (Storekeeper xác nhận đã bàn giao NCC)
+
+Trong Spec 003, xử lý Quarantine chỉ bao gồm RTV bằng nút "Trả NCC". Luồng tiêu hủy hàng lỗi được tách sang Spec 009.
 
 ---
 
@@ -1116,12 +1111,8 @@ Quy trình đối chiếu số liệu tồn kho thực tế, tính toán chênh 
 ```
 
 **Thẩm quyền duyệt chênh lệch kiểm kê & xuất hủy hàng lỗi:**
-<<<<<<< HEAD
-- Tất cả chênh lệch kiểm kê và phiếu xuất hủy hàng lỗi đều do Trưởng kho phê duyệt trực tiếp trên hệ thống.
-=======
 - **Từ 5 triệu đến 100 triệu VNĐ**: Trưởng kho xem xét và phê duyệt trên hệ thống.
 - **Trên 100 triệu VNĐ hoặc lỗi xác định do nhân viên**: Phải trình trực tiếp CEO phê duyệt trên hệ thống.
->>>>>>> 78bb76f (update spec master data and database, entity)
 
 ---
 
@@ -1191,3 +1182,47 @@ Quy trình đối chiếu số liệu tồn kho thực tế, tính toán chênh 
 | **Slow tests**           | Unit tests hitting real DB            | Mock dependencies, use testcontainers |
 
 ---
+
+<!-- gitnexus:start -->
+# GitNexus — Code Intelligence
+
+This project is indexed by GitNexus as **Manager-warehouse-sdd** (4228 symbols, 9903 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+
+> If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
+
+## Always Do
+
+- **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `gitnexus_impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
+- **MUST run `gitnexus_detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows.
+- **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before proceeding with edits.
+- When exploring unfamiliar code, use `gitnexus_query({query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
+- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `gitnexus_context({name: "symbolName"})`.
+
+## Never Do
+
+- NEVER edit a function, class, or method without first running `gitnexus_impact` on it.
+- NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
+- NEVER rename symbols with find-and-replace — use `gitnexus_rename` which understands the call graph.
+- NEVER commit changes without running `gitnexus_detect_changes()` to check affected scope.
+
+## Resources
+
+| Resource | Use for |
+|----------|---------|
+| `gitnexus://repo/Manager-warehouse-sdd/context` | Codebase overview, check index freshness |
+| `gitnexus://repo/Manager-warehouse-sdd/clusters` | All functional areas |
+| `gitnexus://repo/Manager-warehouse-sdd/processes` | All execution flows |
+| `gitnexus://repo/Manager-warehouse-sdd/process/{name}` | Step-by-step execution trace |
+
+## CLI
+
+| Task | Read this skill file |
+|------|---------------------|
+| Understand architecture / "How does X work?" | `.claude/skills/gitnexus/gitnexus-exploring/SKILL.md` |
+| Blast radius / "What breaks if I change X?" | `.claude/skills/gitnexus/gitnexus-impact-analysis/SKILL.md` |
+| Trace bugs / "Why is X failing?" | `.claude/skills/gitnexus/gitnexus-debugging/SKILL.md` |
+| Rename / extract / split / refactor | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md` |
+| Tools, resources, schema reference | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md` |
+| Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
+
+<!-- gitnexus:end -->
