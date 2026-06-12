@@ -10,4 +10,7 @@ import java.math.BigDecimal;
 public interface InventoryRepository extends JpaRepository<Inventory, Long> {
     boolean existsByWarehouseIdAndTotalQtyGreaterThan(Long warehouseId, BigDecimal totalQty);
     boolean existsByLocationIdAndTotalQtyGreaterThan(Long locationId, BigDecimal totalQty);
+
+    java.util.Optional<Inventory> findByWarehouseIdAndProductIdAndBatchIdAndLocationId(
+            Long warehouseId, Long productId, Long batchId, Long locationId);
 }

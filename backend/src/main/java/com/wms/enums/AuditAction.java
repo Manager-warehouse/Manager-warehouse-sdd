@@ -11,5 +11,7 @@ public enum AuditAction {
     CANCEL,
     SOFT_DELETE,
     ASSIGN,
-    UNASSIGN
+    UNASSIGN,
+    RECEIPT_QC_SUBMIT,
+    RECEIPT_QC_CONFIRM
 }
