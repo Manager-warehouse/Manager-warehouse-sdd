@@ -61,6 +61,7 @@ public class ReceiptApprovalService {
     public ReceiptActionResponse approveReceipt(Long receiptId,
                                                 ReceiptDecisionRequest request,
                                                 User actor) {
+        assertRole(actor, UserRole.WAREHOUSE_MANAGER, "RECEIPT_APPROVE");
         assertWarehouseAssignment(actor, receiptId);
         Receipt receipt = loadReceiptForUpdate(receiptId);
         assertVersionMatch(receipt, request.getExpectedVersion());
@@ -106,6 +107,7 @@ public class ReceiptApprovalService {
             throw new IllegalArgumentException("REASON_REQUIRED: Rejection reason is mandatory");
         }
 
+        assertRole(actor, UserRole.WAREHOUSE_MANAGER, "RECEIPT_REJECT");
         assertWarehouseAssignment(actor, receiptId);
         Receipt receipt = loadReceiptForUpdate(receiptId);
         assertVersionMatch(receipt, request.getExpectedVersion());
@@ -138,6 +140,7 @@ public class ReceiptApprovalService {
     public ReceiptActionResponse confirmReturnToSupplier(Long receiptId,
                                                           ReceiptReturnConfirmRequest request,
                                                           User actor) {
+        assertRole(actor, UserRole.STOREKEEPER, "RECEIPT_RETURN_CONFIRM");
         assertWarehouseAssignment(actor, receiptId);
         Receipt receipt = loadReceiptForUpdate(receiptId);
         assertVersionMatch(receipt, request.getExpectedVersion());
@@ -175,6 +178,7 @@ public class ReceiptApprovalService {
     public ReceiptActionResponse completePutaway(Long receiptId,
                                                   ReceiptPutawayRequest request,
                                                   User actor) {
+        assertRole(actor, UserRole.STOREKEEPER, "RECEIPT_PUTAWAY_COMPLETE");
         assertWarehouseAssignment(actor, receiptId);
         Receipt receipt = loadReceiptForUpdate(receiptId);
         assertVersionMatch(receipt, request.getExpectedVersion());
@@ -196,6 +200,7 @@ public class ReceiptApprovalService {
         }
 
         List<ReceiptItem> items = receiptItemRepository.findByReceiptId(receiptId);
+        assertBinCapacity(location, items);
         for (ReceiptItem item : items) {
             if (item.getBatch() == null) {
                 throw new BusinessRuleViolationException(
@@ -206,6 +211,7 @@ public class ReceiptApprovalService {
             item.setLocation(location);
             receiptItemRepository.save(item);
         }
+        applyBinOccupancy(location, items);
 
         receipt.setUpdatedAt(OffsetDateTime.now());
         receiptRepository.save(receipt);
@@ -235,6 +241,13 @@ public class ReceiptApprovalService {
                     + " has been modified since you last loaded it (expected version "
                     + expectedVersion + ", current version " + receipt.getVersion()
                     + "). Please reload and retry.");
+        }
+    }
+
+    private void assertRole(User actor, UserRole requiredRole, String action) {
+        if (actor == null || actor.getRole() != requiredRole) {
+            throw new ForbiddenReceiptWarehouseException(
+                    "FORBIDDEN_RECEIPT_ROLE: " + action + " requires role " + requiredRole);
         }
     }
 
@@ -326,6 +339,51 @@ public class ReceiptApprovalService {
                 Map.of("totalQty", inventory.getTotalQty(), "reservedQty", inventory.getReservedQty(),
                        "locationId", locationId, "delta", qty)
         );
+    }
+
+    private void assertBinCapacity(WarehouseLocation location, List<ReceiptItem> items) {
+        BigDecimal addedVolume = calculateAddedVolume(items);
+        BigDecimal addedWeight = calculateAddedWeight(items);
+        BigDecimal currentVolume = zeroIfNull(location.getCurrentVolumeM3());
+        BigDecimal currentWeight = zeroIfNull(location.getCurrentWeightKg());
+
+        if (location.getCapacityM3() != null
+                && currentVolume.add(addedVolume).compareTo(location.getCapacityM3()) > 0) {
+            throw new BusinessRuleViolationException(
+                    "BIN_CAPACITY_EXCEEDED: Putaway volume exceeds location capacity for location "
+                    + location.getId());
+        }
+        if (location.getCapacityKg() != null
+                && currentWeight.add(addedWeight).compareTo(location.getCapacityKg()) > 0) {
+            throw new BusinessRuleViolationException(
+                    "BIN_CAPACITY_EXCEEDED: Putaway weight exceeds location capacity for location "
+                    + location.getId());
+        }
+    }
+
+    private void applyBinOccupancy(WarehouseLocation location, List<ReceiptItem> items) {
+        location.setCurrentVolumeM3(zeroIfNull(location.getCurrentVolumeM3()).add(calculateAddedVolume(items)));
+        location.setCurrentWeightKg(zeroIfNull(location.getCurrentWeightKg()).add(calculateAddedWeight(items)));
+        location.setUpdatedAt(OffsetDateTime.now());
+        warehouseLocationRepository.save(location);
+    }
+
+    private BigDecimal calculateAddedVolume(List<ReceiptItem> items) {
+        return items.stream()
+                .map(item -> zeroIfNull(item.getActualQty())
+                        .multiply(zeroIfNull(item.getProduct().getVolumeM3())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private BigDecimal calculateAddedWeight(List<ReceiptItem> items) {
+        return items.stream()
+                .map(item -> zeroIfNull(item.getActualQty())
+                        .multiply(zeroIfNull(item.getProduct().getWeightKg())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private BigDecimal zeroIfNull(BigDecimal value) {
+        return value != null ? value : BigDecimal.ZERO;
     }
 
     private ReceiptActionResponse buildReceiptActionResponse(Receipt receipt, String message) {

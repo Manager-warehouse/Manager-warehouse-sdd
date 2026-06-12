@@ -10,6 +10,10 @@ import org.springframework.web.bind.annotation.ResponseStatus;
  */
 @ResponseStatus(HttpStatus.FORBIDDEN)
 public class ForbiddenReceiptWarehouseException extends RuntimeException {
+    public ForbiddenReceiptWarehouseException(String message) {
+        super(message);
+    }
+
     public ForbiddenReceiptWarehouseException(Long receiptId, Long warehouseId) {
         super("FORBIDDEN_RECEIPT_WAREHOUSE: User is not assigned to warehouse " + warehouseId
               + " for receipt " + receiptId);

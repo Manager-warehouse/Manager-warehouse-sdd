@@ -47,6 +47,8 @@ Trưởng kho xử lý hàng lỗi đang nằm trong khu vực cách ly (Quarant
 * `POST /api/v1/receipts/{id}/rtv` - Lập phiếu trả hàng NCC và sinh Debit Note.
 * `PUT /api/v1/receipts/{id}/rtv/confirm` - Storekeeper xác nhận đã giao trả NCC và trừ tồn Quarantine.
 
+All write requests in this feature SHALL include `expectedVersion` so stale concurrent RTV create/confirm actions return HTTP 409. RTV create is restricted to an assigned Trưởng kho, while RTV physical return confirmation is restricted to Storekeeper for the receipt warehouse. RTV confirmation SHALL provide `returnedQty`, and the backend SHALL reject any value different from the full quarantined quantity with HTTP 422.
+
 ## 5. Acceptance Criteria
 
 **Scenario: Trưởng kho trả hàng lỗi về nhà cung cấp**

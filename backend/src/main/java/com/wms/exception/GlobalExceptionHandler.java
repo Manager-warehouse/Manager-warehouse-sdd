@@ -31,7 +31,31 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessRuleViolationException.class)
     public ResponseEntity<ApiErrorResponse> handleBusinessRule(BusinessRuleViolationException ex) {
-        return error(HttpStatus.CONFLICT, "BUSINESS_RULE_VIOLATION", ex.getMessage(), ex.getMessage(), null);
+        String msg = ex.getMessage();
+        HttpStatus status = HttpStatus.UNPROCESSABLE_ENTITY;
+        String code = "BUSINESS_RULE_VIOLATION";
+
+        if (msg != null) {
+            if (msg.contains("INVENTORY_VERSION_CONFLICT")) {
+                status = HttpStatus.CONFLICT;
+                code = "INVENTORY_VERSION_CONFLICT";
+            } else if (msg.contains("RTV_ALREADY_CONFIRMED")) {
+                status = HttpStatus.CONFLICT;
+                code = "RTV_ALREADY_CONFIRMED";
+            } else if (msg.contains("RTV_QUANTITY_MISMATCH")) {
+                code = "RTV_QUANTITY_MISMATCH";
+            } else if (msg.contains("INVALID_STATE")) {
+                code = "INVALID_STATE";
+            } else if (msg.contains("INVALID_LOCATION")) {
+                code = "INVALID_LOCATION";
+            } else if (msg.contains("BIN_CAPACITY_EXCEEDED")) {
+                code = "BIN_CAPACITY_EXCEEDED";
+            } else if (msg.contains("INVENTORY_INVARIANT_VIOLATED")) {
+                code = "INVENTORY_INVARIANT_VIOLATED";
+            }
+        }
+
+        return error(status, code, msg, msg, null);
     }
 
     @ExceptionHandler(AccessDeniedException.class)

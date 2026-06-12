@@ -63,8 +63,10 @@ public class QuarantineRtvService {
     public RtvActionResponse createRtv(Long receiptId,
                                         ReceiptRtvCreateRequest request,
                                         User actor) {
+        assertRole(actor, UserRole.WAREHOUSE_MANAGER, "QUARANTINE_RTV_CREATE");
         assertWarehouseAssignment(actor, receiptId);
         Receipt receipt = loadReceiptForUpdate(receiptId);
+        assertVersionMatch(receipt, request.getExpectedVersion());
 
         if (receipt.getStatus() != ReceiptStatus.QC_FAILED) {
             throw new BusinessRuleViolationException(
@@ -160,9 +162,11 @@ public class QuarantineRtvService {
     public RtvActionResponse confirmRtv(Long receiptId,
                                          ReceiptRtvConfirmRequest request,
                                          User actor) {
+        assertRole(actor, UserRole.STOREKEEPER, "QUARANTINE_RTV_CONFIRM");
         assertWarehouseAssignment(actor, receiptId);
         Receipt receipt = receiptRepository.findById(receiptId)
                 .orElseThrow(() -> new ResourceNotFoundException("Receipt not found: " + receiptId));
+        assertVersionMatch(receipt, request.getExpectedVersion());
 
         if (adjustmentRepository.findConfirmedRtvByReference(
                 RTV_REFERENCE_TYPE, receiptId, AdjustmentType.RETURN_TO_VENDOR).isPresent()) {
@@ -234,6 +238,23 @@ public class QuarantineRtvService {
                 .findWarehouseIdsByUserId(actor.getId());
         if (!assignedWarehouseIds.contains(warehouseId)) {
             throw new ForbiddenReceiptWarehouseException(receiptId, warehouseId);
+        }
+    }
+
+    private void assertVersionMatch(Receipt receipt, Integer expectedVersion) {
+        if (!receipt.getVersion().equals(expectedVersion)) {
+            throw new BusinessRuleViolationException(
+                    "INVENTORY_VERSION_CONFLICT: Receipt " + receipt.getId()
+                    + " has been modified since you last loaded it (expected version "
+                    + expectedVersion + ", current version " + receipt.getVersion()
+                    + "). Please reload and retry.");
+        }
+    }
+
+    private void assertRole(User actor, UserRole requiredRole, String action) {
+        if (actor == null || actor.getRole() != requiredRole) {
+            throw new ForbiddenReceiptWarehouseException(
+                    "FORBIDDEN_RECEIPT_ROLE: " + action + " requires role " + requiredRole);
         }
     }
 

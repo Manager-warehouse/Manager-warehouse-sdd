@@ -54,6 +54,9 @@ Trưởng kho duyệt hoặc từ chối phiếu nhập kho chính thức dựa 
 * `PUT /api/v1/receipts/{id}/approve` - Phê duyệt nhập kho (Trưởng kho).
 * `PUT /api/v1/receipts/{id}/reject` - Từ chối nhập kho.
 * `PUT /api/v1/receipts/{id}/return-to-supplier/confirm` - Storekeeper xác nhận đã bàn giao hàng bị từ chối cho nhà cung cấp.
+* `PUT /api/v1/receipts/{id}/complete` - Storekeeper hoàn tất putaway cho phiếu đã duyệt vào regular Bin.
+
+All write requests in this feature SHALL include `expectedVersion` so stale concurrent actions return HTTP 409 without applying duplicate status, batch, audit, or inventory updates. Putaway requests SHALL include the target regular Bin per line item, and the backend SHALL reject non-regular/quarantine locations or bins whose remaining volume/weight capacity cannot hold the received quantity.
 
 ## 5. Acceptance Criteria
 * **Scenario: Successful receipt approval after QC completion**

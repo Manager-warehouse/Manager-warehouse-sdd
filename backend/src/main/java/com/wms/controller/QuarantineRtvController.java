@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -39,7 +40,7 @@ public class QuarantineRtvController {
             + "Chỉ cho phép 1 RTV per receipt — duplicate bị từ chối HTTP 409."
     )
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "RTV và Debit Note được tạo thành công"),
+        @ApiResponse(responseCode = "201", description = "RTV và Debit Note được tạo thành công"),
         @ApiResponse(responseCode = "400", description = "Thiếu reason hoặc expectedVersion"),
         @ApiResponse(responseCode = "403", description = "FORBIDDEN_RECEIPT_WAREHOUSE"),
         @ApiResponse(responseCode = "404", description = "Phiếu nhập không tồn tại"),
@@ -51,7 +52,8 @@ public class QuarantineRtvController {
             @Parameter(description = "ID phiếu nhập QC_FAILED") @PathVariable Long id,
             @Valid @RequestBody ReceiptRtvCreateRequest request) {
         User actor = currentUserService.getRequiredCurrentUser();
-        return ResponseEntity.ok(quarantineRtvService.createRtv(id, request, actor));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(quarantineRtvService.createRtv(id, request, actor));
     }
 
     @Operation(
