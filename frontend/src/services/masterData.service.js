@@ -294,7 +294,9 @@ export const masterDataService = {
       return getDb(KEYS.PRODUCTS, INITIAL_PRODUCTS);
     }
     const response = await apiClient.get("/products");
-    return response.data;
+    const data = response.data;
+    const arrayData = Array.isArray(data) ? data : (data && Array.isArray(data.content) ? data.content : []);
+    return mapToSnakeCase(arrayData);
   },
 
   getProductById: async (id) => {
@@ -306,7 +308,7 @@ export const masterDataService = {
       return product;
     }
     const response = await apiClient.get(`/products/${id}`);
-    return response.data;
+    return mapToSnakeCase(response.data);
   },
 
   createProduct: async (productData) => {
@@ -348,8 +350,8 @@ export const masterDataService = {
       );
       return newProduct;
     }
-    const response = await apiClient.post("/products", productData);
-    return response.data;
+    const response = await apiClient.post("/products", mapToCamelCase(productData));
+    return mapToSnakeCase(response.data);
   },
 
   updateProduct: async (id, productData) => {
@@ -391,8 +393,8 @@ export const masterDataService = {
       );
       return updated;
     }
-    const response = await apiClient.put(`/products/${id}`, productData);
-    return response.data;
+    const response = await apiClient.put(`/products/${id}`, mapToCamelCase(productData));
+    return mapToSnakeCase(response.data);
   },
 
   toggleProductStatus: async (id, isActive) => {
@@ -757,7 +759,7 @@ export const masterDataService = {
       return getDb(KEYS.DEALERS, INITIAL_DEALERS);
     }
     const response = await apiClient.get("/dealers");
-    return response.data;
+    return mapToSnakeCase(response.data);
   },
 
   createDealer: async (dlData) => {
@@ -795,8 +797,8 @@ export const masterDataService = {
       );
       return newDl;
     }
-    const response = await apiClient.post("/dealers", dlData);
-    return response.data;
+    const response = await apiClient.post("/dealers", mapToCamelCase(dlData));
+    return mapToSnakeCase(response.data);
   },
 
   updateDealer: async (id, dlData) => {
@@ -825,8 +827,8 @@ export const masterDataService = {
       );
       return updated;
     }
-    const response = await apiClient.put(`/dealers/${id}`, dlData);
-    return response.data;
+    const response = await apiClient.put(`/dealers/${id}`, mapToCamelCase(dlData));
+    return mapToSnakeCase(response.data);
   },
 
   updateDealerCreditLimit: async (id, creditLimitData) => {
@@ -861,14 +863,28 @@ export const masterDataService = {
       );
       return dealers[idx];
     }
-    const response = await apiClient.put(
-      `/dealers/${id}/credit-limit`,
-      creditLimitData,
-    );
-    return response.data;
+
+    const promises = [];
+    if (creditLimitData.credit_limit !== undefined) {
+      promises.push(
+        apiClient.put(`/dealers/${id}/credit-limit`, {
+          creditLimit: parseFloat(creditLimitData.credit_limit),
+        })
+      );
+    }
+    if (creditLimitData.payment_term_days !== undefined) {
+      promises.push(
+        apiClient.put(`/dealers/${id}/payment-term`, {
+          paymentTermDays: Number(creditLimitData.payment_term_days),
+        })
+      );
+    }
+    const results = await Promise.all(promises);
+    const updatedDealer = results[results.length - 1].data;
+    return mapToSnakeCase(updatedDealer);
   },
 
-  toggleDealerStatus: async (id, isActive) => {
+  toggleDealerStatus: async (id, isActive, name = "") => {
     if (useMock) {
       await new Promise((resolve) => setTimeout(resolve, 300));
       const dealers = getDb(KEYS.DEALERS, INITIAL_DEALERS);
@@ -887,10 +903,13 @@ export const masterDataService = {
       );
       return dealers[idx];
     }
-    const response = await apiClient.put(`/dealers/${id}/status`, {
-      is_active: isActive,
-    });
-    return response.data;
+    if (isActive) {
+      const response = await apiClient.put(`/dealers/${id}/reactivate`);
+      return mapToSnakeCase(response.data);
+    } else {
+      await apiClient.delete(`/dealers/${id}`);
+      return { id, is_active: false, name };
+    }
   },
 
   // --- SUPPLIERS ---
@@ -900,7 +919,7 @@ export const masterDataService = {
       return getDb(KEYS.SUPPLIERS, INITIAL_SUPPLIERS);
     }
     const response = await apiClient.get("/suppliers");
-    return response.data;
+    return mapToSnakeCase(response.data);
   },
 
   createSupplier: async (splData) => {
@@ -939,8 +958,8 @@ export const masterDataService = {
       );
       return newSpl;
     }
-    const response = await apiClient.post("/suppliers", splData);
-    return response.data;
+    const response = await apiClient.post("/suppliers", mapToCamelCase(splData));
+    return mapToSnakeCase(response.data);
   },
 
   updateSupplier: async (id, splData) => {
@@ -969,11 +988,11 @@ export const masterDataService = {
       );
       return updated;
     }
-    const response = await apiClient.put(`/suppliers/${id}`, splData);
-    return response.data;
+    const response = await apiClient.put(`/suppliers/${id}`, mapToCamelCase(splData));
+    return mapToSnakeCase(response.data);
   },
 
-  toggleSupplierStatus: async (id, isActive) => {
+  toggleSupplierStatus: async (id, isActive, companyName = "") => {
     if (useMock) {
       await new Promise((resolve) => setTimeout(resolve, 300));
       const suppliers = getDb(KEYS.SUPPLIERS, INITIAL_SUPPLIERS);
@@ -994,10 +1013,13 @@ export const masterDataService = {
       );
       return suppliers[idx];
     }
-    const response = await apiClient.put(`/suppliers/${id}/status`, {
-      is_active: isActive,
-    });
-    return response.data;
+    if (isActive) {
+      const response = await apiClient.put(`/suppliers/${id}/reactivate`);
+      return mapToSnakeCase(response.data);
+    } else {
+      await apiClient.delete(`/suppliers/${id}`);
+      return { id, is_active: false, company_name: companyName };
+    }
   },
 
   // --- VEHICLES ---

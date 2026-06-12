@@ -1,5 +1,6 @@
 package com.wms.entity;
 
+import lombok.*;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -7,6 +8,11 @@ import java.time.OffsetDateTime;
 
 @Entity
 @Table(name = "debit_notes")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class DebitNote {
 
     @Id

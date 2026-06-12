@@ -46,7 +46,7 @@ public class ProductController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('STOREKEEPER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('STOREKEEPER', 'WAREHOUSE_MANAGER', 'ADMIN')")
     @Operation(summary = "Tạo mới sản phẩm")
     public ResponseEntity<ProductResponse> createProduct(
             @Valid @RequestBody ProductRequest request,
@@ -57,7 +57,7 @@ public class ProductController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('STOREKEEPER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('STOREKEEPER', 'WAREHOUSE_MANAGER', 'ADMIN')")
     @Operation(summary = "Cập nhật sản phẩm")
     public ProductResponse updateProduct(
             @PathVariable Long id,
@@ -68,7 +68,7 @@ public class ProductController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('STOREKEEPER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('STOREKEEPER', 'WAREHOUSE_MANAGER', 'ADMIN')")
     @Operation(summary = "Vô hiệu hóa sản phẩm (soft-delete)")
     public ResponseEntity<Void> deactivateProduct(
             @PathVariable Long id,

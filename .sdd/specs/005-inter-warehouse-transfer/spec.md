@@ -9,12 +9,12 @@
 
 ## 1. Context and Goal
 
-Phúc Anh vận hành 3 kho vật lý (Hải Phòng, Hà Nội, Hồ Chí Minh). Hàng hóa cần được điều chuyển giữa các kho để cân bằng tồn kho, tránh đứt gãy nguồn cung. Hệ thống sử dụng kho ảo In-Transit để track hàng đang trên đường vận chuyển bằng xe nội bộ.
+Phúc Anh vận hành 3 kho vật lý (Hải Phòng, Hà Nội, Hồ Chí Minh). Hàng hóa cần được điều chuyển giữa các kho để cân bằng tồn kho, tránh đứt gãy nguồn cung. Hệ thống sử dụng kho ảo In-Transit để track hàng đang trên đường vận chuyển bằng xe nội bộ. Mỗi phiếu điều chuyển luôn gắn với đúng một chuyến xe nội bộ riêng, gồm xe, tài xế và lịch vận chuyển.
 
 ### Features List
-* [US-WMS-11: Planning Dashboard & Gợi ý Điều chuyển kho tự động](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/005-inter-warehouse-transfer/features/feature-planner-transfer-planning.md)
-* [Thủ kho Nguồn Soạn & Xuất hàng Điều chuyển](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/005-inter-warehouse-transfer/features/feature-storekeeper-transfer-ship.md)
-* [US-WMS-12: Thủ kho Đích Tiếp nhận & Xử lý Chênh lệch Điều chuyển](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/005-inter-warehouse-transfer/features/feature-storekeeper-transfer-receive.md)
+* [US-WMS-11: Planning Dashboard & Gợi ý Điều chuyển kho tự động](./features/feature-planner-transfer-planning.md)
+* [Thủ kho Nguồn Soạn & Xuất hàng Điều chuyển](./features/feature-storekeeper-transfer-ship.md)
+* [US-WMS-12: Thủ kho Đích Tiếp nhận & Xử lý Chênh lệch Điều chuyển](./features/feature-storekeeper-transfer-receive.md)
 
 ## 2. Actors
 
@@ -22,16 +22,17 @@ Phúc Anh vận hành 3 kho vật lý (Hải Phòng, Hà Nội, Hồ Chí Minh).
 |-------|---------|---------------------|
 | Planner | Maker | Xem Planning Dashboard, lập phiếu điều chuyển kho nội bộ |
 | Trưởng kho (Kho nguồn) | Checker | Kiểm tra tồn kho khả dụng tại kho nguồn và phê duyệt phiếu điều chuyển |
+| Dispatcher | Maker | Lập chuyến xe nội bộ riêng cho phiếu điều chuyển, gán xe và tài xế khả dụng |
 | Thủ kho (Kho nguồn) | Maker | Nhận lệnh xuất điều chuyển, soạn hàng và xác nhận xuất hàng lên xe |
 | Trưởng kho (Kho đích) | Checker | Tiếp nhận hàng điều chuyển đến, kiểm đếm số lượng thực tế, ghi nhận chênh lệch và xác nhận hoàn tất nhận hàng |
 | Nhân viên kho | Maker | Bốc xếp hàng hóa lên xuống xe nội bộ tại cả hai đầu kho |
-| Tài xế | Maker | Vận chuyển hàng hóa giữa các kho bằng xe nội bộ của Phúc Anh |
+| Tài xế | Maker | Xác nhận đã nhận hàng, xe rời kho nguồn và vận chuyển hàng hóa giữa các kho bằng xe nội bộ của Phúc Anh |
 
 ## 3. Functional Requirements (EARS)
 *Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đặc tả tính năng:*
-* [EARS - Transfer Suggestions](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/005-inter-warehouse-transfer/features/feature-planner-transfer-planning.md#3-functional-requirements-ears)
-* [EARS - Transfer Shipment](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/005-inter-warehouse-transfer/features/feature-storekeeper-transfer-ship.md#3-functional-requirements-ears)
-* [EARS - Transfer Receipt](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/005-inter-warehouse-transfer/features/feature-storekeeper-transfer-receive.md#3-functional-requirements-ears)
+* [EARS - Transfer Suggestions](./features/feature-planner-transfer-planning.md#3-functional-requirements-ears)
+* [EARS - Transfer Shipment](./features/feature-storekeeper-transfer-ship.md#3-functional-requirements-ears)
+* [EARS - Transfer Receipt](./features/feature-storekeeper-transfer-receive.md#3-functional-requirements-ears)
 
 ## 4. Non-functional Requirements
 
@@ -57,6 +58,7 @@ Phúc Anh vận hành 3 kho vật lý (Hải Phòng, Hà Nội, Hồ Chí Minh).
 - `planned_date` (DATE)
 - `actual_received_date` (DATE)
 - `discrepancy_reason` (TEXT)
+- `trip_id` (BIGINT, FK→trips, UNIQUE) -- mỗi phiếu điều chuyển gắn đúng một chuyến xe nội bộ
 - `document_date` (DATE, NOT NULL)
 - `accounting_period_id` (BIGINT, FK→accounting_periods)
 - `created_at` (TIMESTAMPTZ)
@@ -73,15 +75,24 @@ Phúc Anh vận hành 3 kho vật lý (Hải Phòng, Hà Nội, Hồ Chí Minh).
 - `sent_qty` (DECIMAL(10,2))
 - `received_qty` (DECIMAL(10,2))
 - `variance_qty` (DECIMAL(10,2)) -- received_qty - sent_qty (âm = thiếu)
+- `qc_passed_qty` (DECIMAL(10,2))
+- `qc_failed_qty` (DECIMAL(10,2))
+- `qc_result` (VARCHAR(20), CHECK IN ('PENDING','PASSED','FAILED','PARTIAL'))
+- `qc_failure_reason` (TEXT)
+
+### trips (transfer usage)
+- Transfer trips reuse the shared `trips` entity with `trip_type = 'TRANSFER'`.
+- Each transfer SHALL have exactly one transfer trip before shipment can move to `IN_TRANSIT`.
+- A transfer trip SHALL be linked to exactly one transfer; multi-transfer trips are out of scope for Sprint 1.
 
 ### inventories (shared)
 - Tồn kho tại kho ảo In-Transit sử dụng cùng thực thể với `warehouse_id` liên kết đến kho In-Transit (type = 'IN_TRANSIT').
 
 ## 6. API Spec
 *Vui lòng xem chi tiết API endpoints tại các tài liệu đặc tả tính năng:*
-* [APIs - Transfer Planning](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/005-inter-warehouse-transfer/features/feature-planner-transfer-planning.md#4-api-endpoints)
-* [APIs - Transfer Shipment](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/005-inter-warehouse-transfer/features/feature-storekeeper-transfer-ship.md#4-api-endpoints)
-* [APIs - Transfer Receipt](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/005-inter-warehouse-transfer/features/feature-storekeeper-transfer-receive.md#4-api-endpoints)
+* [APIs - Transfer Planning](./features/feature-planner-transfer-planning.md#4-api-endpoints)
+* [APIs - Transfer Shipment](./features/feature-storekeeper-transfer-ship.md#4-api-endpoints)
+* [APIs - Transfer Receipt](./features/feature-storekeeper-transfer-receive.md#4-api-endpoints)
 
 ## 7. Error Handling
 
@@ -90,14 +101,40 @@ Phúc Anh vận hành 3 kho vật lý (Hải Phòng, Hà Nội, Hồ Chí Minh).
 | SAME_WAREHOUSE | 422 | source = dest |
 | INSUFFICIENT_TRANSFER_STOCK | 422 | Source warehouse lacks available qty |
 | TRANSFER_ALREADY_APPROVED | 409 | Duplicate approval |
+| TRANSFER_TRIP_REQUIRED | 400 | Shipment attempted before assigning vehicle and driver |
+| RECEIVED_QTY_EXCEEDS_SENT | 422 | received_qty > sent_qty |
 | DISCREPANCY_REQUIRES_REASON | 400 | Quantity mismatch without reason |
+| TRANSFER_CANCEL_NOT_ALLOWED | 409 | Cancel attempted after status moved to IN_TRANSIT |
 | INVENTORY_VERSION_CONFLICT | 409 | Concurrent inventory update |
+
+### Transfer Business Rules
+- Planning suggestions SHALL include product, source warehouse, destination warehouse, suggested quantity, priority, and reason.
+- Trưởng kho nguồn approval SHALL reserve the planned quantity immediately to prevent competing outbound or transfer operations from consuming the same stock.
+- Each transfer SHALL use a dedicated internal-fleet trip (`trip_type = 'TRANSFER'`) with one vehicle and one driver; one transfer cannot share a trip with another transfer.
+- Shipment to `IN_TRANSIT` SHALL occur only after the assigned driver confirms received goods and vehicle departure.
+- Destination receiving SHALL be split by responsibility: Thủ kho đích records actual counts and QC results; Trưởng kho đích performs the final confirmation.
+- Destination QC SHALL check both received quantity and product quality. QC-failed quantities SHALL be moved to quarantine inventory and excluded from available inventory.
+- `received_qty > sent_qty` SHALL be blocked; the system SHALL NOT create positive transfer discrepancy adjustments for over-receipt.
+- If `received_qty < sent_qty`, the system SHALL require `discrepancy_reason`, create a `TRANSFER_DISCREPANCY` adjustment for the shortage, and set status to `COMPLETED_WITH_DISCREPANCY`.
+- Transfer cancellation SHALL be allowed only while status is `NEW` or `APPROVED`; cancellation after `IN_TRANSIT` is not supported.
+
+### Audit Trail
+- Every transfer mutation SHALL create an audit log with `actor`, `action`, `entity_type`, `entity_id`, `entity_code`, `timestamp`, `before`, and `after`.
+- `TRANSFER_CREATE`: Planner creates transfer with status `NEW`.
+- `TRANSFER_APPROVE`: Trưởng kho nguồn approves transfer, reserves source inventory, and changes status to `APPROVED`.
+- `TRANSFER_TRIP_ASSIGN`: Dispatcher assigns dedicated vehicle and driver trip for the transfer.
+- `TRANSFER_SHIP`: Thủ kho nguồn records sent quantities and loading details.
+- `TRANSFER_DEPART`: Driver confirms goods received and vehicle departure; system moves inventory from source to In-Transit and changes status to `IN_TRANSIT`.
+- `TRANSFER_RECEIVE_COUNT`: Thủ kho đích records received quantities and QC result.
+- `TRANSFER_RECEIVE_CONFIRM`: Trưởng kho đích confirms receipt, moves passed quantity to destination inventory, failed quantity to quarantine inventory, clears In-Transit, and completes the transfer.
+- `TRANSFER_DISCREPANCY_CREATE`: System creates shortage adjustment when received quantity is lower than sent quantity.
+- `TRANSFER_CANCEL`: Planner or Trưởng kho cancels a transfer before `IN_TRANSIT` and releases reserved quantity where applicable.
 
 ## 8. Acceptance Criteria
 *Vui lòng xem chi tiết kịch bản kiểm thử tại các tài liệu đặc tả tính năng:*
-* [Acceptance - Transfer Planning](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/005-inter-warehouse-transfer/features/feature-planner-transfer-planning.md#5-acceptance-criteria)
-* [Acceptance - Transfer Shipment](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/005-inter-warehouse-transfer/features/feature-storekeeper-transfer-ship.md#5-acceptance-criteria)
-* [Acceptance - Transfer Receipt](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/005-inter-warehouse-transfer/features/feature-storekeeper-transfer-receive.md#5-acceptance-criteria)
+* [Acceptance - Transfer Planning](./features/feature-planner-transfer-planning.md#5-acceptance-criteria)
+* [Acceptance - Transfer Shipment](./features/feature-storekeeper-transfer-ship.md#5-acceptance-criteria)
+* [Acceptance - Transfer Receipt](./features/feature-storekeeper-transfer-receive.md#5-acceptance-criteria)
 
 ## 9. Out of Scope
 

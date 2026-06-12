@@ -134,6 +134,7 @@
 
 - Tạo Chuyến xe (Trip Log): Chọn xe nội bộ Phúc Anh từ danh mục, gán Tài xế.
 - Gom các Đơn xuất hàng (ở trạng thái Ready to Ship) vào một Chuyến xe; sắp xếp thứ tự giao hàng (Stop Order) để tối ưu lộ trình.
+- Lập một chuyến xe nội bộ riêng cho từng Phiếu điều chuyển kho; không gom nhiều Phiếu điều chuyển vào cùng một chuyến trong Sprint 1.
 - Kiểm tra tải trọng xe trước khi xác nhận chuyến (hệ thống cảnh báo nếu vượt tải).
 
 **Lưu ý quan trọng:** Hệ thống **CHỈ dùng xe nội bộ** của Phúc Anh. KHÔNG phát sinh chi phí vận chuyển 3PL trong luồng xuất hàng thông thường → KHÔNG có quy trình Duyệt chi vận tải.
@@ -279,14 +280,19 @@ Công ty mẹ gửi yêu cầu xuất hàng
 ### Quy trình Điều chuyển Kho Nội bộ (Internal Transfer)
 
 ```
-Planner xem Planning Dashboard → Nhận gợi ý điều chuyển
+Planner xem Planning Dashboard → Nhận gợi ý điều chuyển (SKU, kho nguồn, kho đích, số lượng, ưu tiên, lý do)
     → Planner tạo Phiếu điều chuyển [Mới]
-    → Trưởng kho nguồn kiểm tra tồn khả dụng → Duyệt [Đã duyệt]
-    → Thủ kho nguồn xuất hàng lên xe nội bộ
+    → Trưởng kho nguồn kiểm tra tồn khả dụng → Duyệt và khóa hàng [Đã duyệt]
+    → Dispatcher lập chuyến xe riêng, gán xe và tài xế
+    → Thủ kho nguồn ghi nhận số gửi, bốc xếp lên xe nội bộ
+    → Tài xế xác nhận nhận hàng, xe rời kho
         → Hệ thống: Trừ tồn Kho nguồn, Cộng Kho ảo In-Transit [Đang vận chuyển]
-    → Trưởng kho đích nhận hàng, kiểm tra số lượng thực tế
-        ├── Khớp → Hệ thống: Trừ In-Transit, Cộng tồn Kho đích [Hoàn thành]
-        └── Lệch → Ghi lý do + Tạo Phiếu điều chỉnh bù trừ
+    → Thủ kho đích nhập số nhận thực tế và QC số lượng/chất lượng
+    → Trưởng kho đích xác nhận cuối cùng
+        ├── Khớp + QC đạt → Hệ thống: Trừ In-Transit, Cộng tồn Kho đích [Hoàn thành]
+        ├── Thiếu → Ghi lý do + Tạo Phiếu điều chỉnh bù trừ
+        ├── QC lỗi → Phần lỗi vào Quarantine, không available
+        └── Nhận thừa → Chặn xác nhận
 ```
 
 ### Quy trình Công nợ & Kế toán (Finance Cycle)

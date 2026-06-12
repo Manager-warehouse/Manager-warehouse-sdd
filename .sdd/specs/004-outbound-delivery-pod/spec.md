@@ -9,15 +9,19 @@
 
 ## 1. Context and Goal
 
-Xuất hàng là quy trình tạo doanh thu cho Phúc Anh. Planner nhận yêu cầu từ Công ty mẹ, kiểm tra credit + tồn kho, lập Đơn xuất. Thủ kho soạn hàng và kiểm QC Outbound, Dispatcher lập chuyến xe nội bộ, Tài xế giao hàng và ký POD. Kế toán lập hóa đơn.
+Xuất hàng là quy trình tạo doanh thu cho Phúc Anh. Planner nhận yêu cầu từ Công ty mẹ, kiểm tra credit + tồn kho, lập Đơn xuất. Thủ kho soạn hàng và kiểm QC Outbound, Dispatcher lập chuyến xe nội bộ, Tài xế giao hàng và xác nhận bằng OTP tại điểm giao. Kế toán lập hóa đơn.
 
 ### Features List
-* [US-WMS-06: Lập Đơn xuất hàng & Tự động Kiểm tra Công nợ](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/004-outbound-delivery-pod/features/feature-planner-delivery-order.md)
-* [Thủ kho Soạn hàng tại Kệ](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/004-outbound-delivery-pod/features/feature-storekeeper-picking.md)
-* [US-WMS-07: Nhân viên QC Kiểm tra Đóng gói Outbound](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/004-outbound-delivery-pod/features/feature-qc-outbound-inspection.md)
-* [US-WMS-08: Lập Chuyến xe & Vận chuyển Nội bộ](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/004-outbound-delivery-pod/features/feature-dispatcher-trip-dispatch.md)
-* [US-WMS-09: Tài xế Xác nhận Giao hàng & Chữ ký Điện tử POD](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/004-outbound-delivery-pod/features/feature-driver-mobile-pod.md)
-* [US-WMS-10: Kế toán Tiếp nhận Thông báo Lập Hóa đơn](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/004-outbound-delivery-pod/features/feature-accountant-billing-notification.md)
+* [US-WMS-06: Lập Đơn xuất hàng & Tự động Kiểm tra Công nợ](./features/feature-planner-delivery-order.md)
+* [Thủ kho Soạn hàng tại Kệ](./features/feature-storekeeper-picking.md)
+* [US-WMS-07: Nhân viên QC Kiểm tra Đóng gói Outbound](./features/feature-qc-outbound-inspection.md)
+* [US-WMS-08: Lập Chuyến xe & Vận chuyển Nội bộ](./features/feature-dispatcher-trip-dispatch.md)
+* [US-WMS-09: Tài xế Xác nhận Giao hàng bằng OTP](./features/feature-driver-mobile-pod.md)
+* [US-WMS-10: Kế toán Tiếp nhận Thông báo Lập Hóa đơn](./features/feature-accountant-billing-notification.md)
+
+### Cross-Spec Mapping Notes
+- US-WMS-10 trong spec này chỉ bao phủ notification sau khi Delivery Order chuyển sang `DELIVERED`. Nghiệp vụ tạo invoice, cộng công nợ, khóa/mở `CREDIT_HOLD`, và cảnh báo nợ quá hạn được đặc tả tại [008-finance-billing-closing](../008-finance-billing-closing/spec.md).
+- US-WMS-09 sử dụng nền tảng xác thực JWT và RBAC theo kho/role từ [001-security-auth-rbac-audit](../001-security-auth-rbac-audit/spec.md); driver mobile endpoints không được bypass authentication.
 
 ## 2. Actors
 
@@ -27,26 +31,26 @@ Xuất hàng là quy trình tạo doanh thu cho Phúc Anh. Planner nhận yêu c
 | Thủ kho kiêm QC | Maker | Nhận đơn xuất, soạn hàng từ các vị trí kệ (Picking), kiểm QC Outbound và cập nhật trạng thái đơn |
 | Nhân viên kho | Maker | Hỗ trợ bốc xếp, di chuyển hàng hóa theo chỉ dẫn của Thủ kho |
 | Dispatcher | Maker | Lập Chuyến xe nội bộ, gán xe và tài xế rảnh, sắp xếp thứ tự giao hàng |
-| Tài xế | Maker | Sử dụng smartphone xem chuyến xe, xác nhận nhận hàng (xe rời kho), giao hàng và ký nhận POD, báo cáo giao thất bại |
+| Tài xế | Maker | Sử dụng smartphone xem chuyến xe, xác nhận nhận hàng (xe rời kho), xác nhận giao bằng OTP, báo cáo giao thất bại |
 | Kế toán viên | Maker | Nhận thông báo đơn hàng Delivered, lập Hóa đơn bán hàng |
 | Kế toán trưởng | Checker | Phê duyệt Credit Limit cho Đại lý |
 | Trưởng kho | Checker | Ký duyệt xuất kho (giai đoạn Warehouse Approval) |
 
 ## 3. Functional Requirements (EARS)
 *Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đặc tả tính năng:*
-* [EARS - Delivery Order](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/004-outbound-delivery-pod/features/feature-planner-delivery-order.md#3-functional-requirements-ears)
-* [EARS - Picking](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/004-outbound-delivery-pod/features/feature-storekeeper-picking.md#3-functional-requirements-ears)
-* [EARS - Outbound QC](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/004-outbound-delivery-pod/features/feature-qc-outbound-inspection.md#3-functional-requirements-ears)
-* [EARS - Trip Dispatch](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/004-outbound-delivery-pod/features/feature-dispatcher-trip-dispatch.md#3-functional-requirements-ears)
-* [EARS - Driver Mobile & POD](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/004-outbound-delivery-pod/features/feature-driver-mobile-pod.md#3-functional-requirements-ears)
-* [EARS - Billing Notification](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/004-outbound-delivery-pod/features/feature-accountant-billing-notification.md#3-functional-requirements-ears)
+* [EARS - Delivery Order](./features/feature-planner-delivery-order.md#3-functional-requirements-ears)
+* [EARS - Picking](./features/feature-storekeeper-picking.md#3-functional-requirements-ears)
+* [EARS - Outbound QC](./features/feature-qc-outbound-inspection.md#3-functional-requirements-ears)
+* [EARS - Trip Dispatch](./features/feature-dispatcher-trip-dispatch.md#3-functional-requirements-ears)
+* [EARS - Driver Mobile & OTP](./features/feature-driver-mobile-pod.md#3-functional-requirements-ears)
+* [EARS - Billing Notification](./features/feature-accountant-billing-notification.md#3-functional-requirements-ears)
 
 ## 4. Non-functional Requirements
 
 | ID | Requirement | Target |
 |----|------------|--------|
 | NFR-001 | Credit check + reserve transaction | ≤ 1s |
-| NFR-002 | POD image upload | ≤ 5s for 5MB image |
+| NFR-002 | OTP delivery confirmation | ≤ 5s for OTP request/verify |
 | NFR-003 | Trip creation with 10+ DOs | ≤ 2s |
 | NFR-004 | Concurrent order creation for same product | No oversell (optimistic locking) |
 
@@ -59,7 +63,7 @@ Xuất hàng là quy trình tạo doanh thu cho Phúc Anh. Planner nhận yêu c
 - `warehouse_id` (BIGINT, FK→warehouses, NOT NULL)
 - `type` (VARCHAR(30), CHECK IN ('SALE','DELIVERY','ADJUSTMENT'), NOT NULL)
 - `expected_delivery_date` (DATE)
-- `status` (VARCHAR(30), DEFAULT 'NEW', CHECK IN ('NEW','PICKING','READY_TO_SHIP','IN_TRANSIT','OUT_FOR_DELIVERY','DELIVERED','COMPLETED','CLOSED','CANCELLED'))
+- `status` (VARCHAR(30), DEFAULT 'NEW', CHECK IN ('NEW','PICKING','READY_TO_SHIP','IN_TRANSIT','DELIVERED','RETURNED','CANCELLED'))
 - `created_by` (BIGINT, FK→users, NOT NULL)
 - `cancel_reason` (TEXT)
 - `document_date` (DATE, NOT NULL)
@@ -124,10 +128,13 @@ Xuất hàng là quy trình tạo doanh thu cho Phúc Anh. Planner nhận yêu c
 - `trip_id` (BIGINT, FK→trips)
 - `vehicle_id` (BIGINT, FK→vehicles, NOT NULL)
 - `driver_id` (BIGINT, FK→drivers, NOT NULL)
-- `status` (VARCHAR(30), DEFAULT 'PENDING', CHECK IN ('PENDING','IN_TRANSIT','OUT_FOR_DELIVERY','DELIVERED','RETURNED'))
-- `pod_image_url` (VARCHAR(500))
-- `pod_signature_url` (VARCHAR(500))
-- `pod_timestamp` (TIMESTAMPTZ)
+- `status` (VARCHAR(30), DEFAULT 'PENDING', CHECK IN ('PENDING','IN_TRANSIT','DELIVERED','RETURNED'))
+- `otp_code_hash` (VARCHAR(255))
+- `otp_requested_at` (TIMESTAMPTZ)
+- `otp_expires_at` (TIMESTAMPTZ)
+- `otp_verified_at` (TIMESTAMPTZ)
+- `otp_attempt_count` (INTEGER, DEFAULT 0)
+- `otp_recipient_phone` (VARCHAR(20))
 - `failure_reason` (TEXT)
 - `delivered_at` (TIMESTAMPTZ)
 - `created_at` (TIMESTAMPTZ)
@@ -149,12 +156,12 @@ Xuất hàng là quy trình tạo doanh thu cho Phúc Anh. Planner nhận yêu c
 
 ## 6. API Spec
 *Vui lòng xem chi tiết API endpoints tại các tài liệu đặc tả tính năng:*
-* [APIs - Delivery Order](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/004-outbound-delivery-pod/features/feature-planner-delivery-order.md#4-api-endpoints)
-* [APIs - Picking](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/004-outbound-delivery-pod/features/feature-storekeeper-picking.md#4-api-endpoints)
-* [APIs - Outbound QC](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/004-outbound-delivery-pod/features/feature-qc-outbound-inspection.md#4-api-endpoints)
-* [APIs - Trip Dispatch](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/004-outbound-delivery-pod/features/feature-dispatcher-trip-dispatch.md#4-api-endpoints)
-* [APIs - Driver Mobile & POD](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/004-outbound-delivery-pod/features/feature-driver-mobile-pod.md#4-api-endpoints)
-* [APIs - Billing Notification](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/004-outbound-delivery-pod/features/feature-accountant-billing-notification.md#4-api-endpoints)
+* [APIs - Delivery Order](./features/feature-planner-delivery-order.md#4-api-endpoints)
+* [APIs - Picking](./features/feature-storekeeper-picking.md#4-api-endpoints)
+* [APIs - Outbound QC](./features/feature-qc-outbound-inspection.md#4-api-endpoints)
+* [APIs - Trip Dispatch](./features/feature-dispatcher-trip-dispatch.md#4-api-endpoints)
+* [APIs - Driver Mobile & OTP](./features/feature-driver-mobile-pod.md#4-api-endpoints)
+* [APIs - Billing Notification](./features/feature-accountant-billing-notification.md#4-api-endpoints)
 
 ## 7. Error Handling
 
@@ -164,17 +171,35 @@ Xuất hàng là quy trình tạo doanh thu cho Phúc Anh. Planner nhận yêu c
 | INSUFFICIENT_STOCK | 422 | available_qty < requested_qty |
 | VEHICLE_OVERLOAD | 422 | Trip exceeds vehicle capacity |
 | DO_NOT_READY | 400 | DO not in READY_TO_SHIP status |
-| MISSING_POD | 400 | POD signature/image required |
+| OTP_REQUIRED | 400 | OTP verification required |
+| OTP_INVALID | 422 | OTP code is incorrect |
+| OTP_EXPIRED | 422 | OTP code expired |
+| OTP_ATTEMPT_LIMIT_EXCEEDED | 429 | Too many OTP attempts |
 | INVENTORY_VERSION_CONFLICT | 409 | Concurrent inventory update |
+
+### Audit Trail
+- Every outbound mutation SHALL create an audit log with `actor`, `action`, `entity_type`, `entity_id`, `entity_code`, `timestamp`, `before`, and `after`.
+- `DELIVERY_ORDER_CREATE`: create DO, select FEFO/FIFO batch/location, and reserve inventory.
+- `DELIVERY_ORDER_CANCEL`: cancel DO and release reserved inventory.
+- `DELIVERY_ORDER_PICK_START`: move DO to `PICKING`.
+- `DELIVERY_ORDER_PICK_COMPLETE`: mark picked items ready for outbound QC.
+- `DELIVERY_ORDER_QC_CONFIRM`: record outbound QC result and package verification.
+- `DELIVERY_ORDER_WAREHOUSE_APPROVE`: move DO to `READY_TO_SHIP`.
+- `TRIP_CREATE`: create trip, assign vehicle/driver, and store stop order.
+- `TRIP_DEPART`: move trip and DOs to `IN_TRANSIT`, decrease `total_qty`, and release `reserved_qty`.
+- `OTP_REQUEST`: generate and send OTP to the dealer/receiver.
+- `OTP_CONFIRM`: verify OTP, store verification timestamp, and move DO to `DELIVERED`.
+- `DELIVERY_FAIL`: store failure reason, move DO to `RETURNED`, and create quarantine return receipt.
+- `BILLING_NOTIFICATION_CREATE`: notify accounting that a delivered DO is ready for invoicing.
 
 ## 8. Acceptance Criteria
 *Vui lòng xem chi tiết kịch bản kiểm thử tại các tài liệu đặc tả tính năng:*
-* [Acceptance - Delivery Order](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/004-outbound-delivery-pod/features/feature-planner-delivery-order.md#5-acceptance-criteria)
-* [Acceptance - Picking](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/004-outbound-delivery-pod/features/feature-storekeeper-picking.md#5-acceptance-criteria)
-* [Acceptance - Outbound QC](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/004-outbound-delivery-pod/features/feature-qc-outbound-inspection.md#5-acceptance-criteria)
-* [Acceptance - Trip Dispatch](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/004-outbound-delivery-pod/features/feature-dispatcher-trip-dispatch.md#5-acceptance-criteria)
-* [Acceptance - Driver Mobile & POD](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/004-outbound-delivery-pod/features/feature-driver-mobile-pod.md#5-acceptance-criteria)
-* [Acceptance - Billing Notification](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/004-outbound-delivery-pod/features/feature-accountant-billing-notification.md#5-acceptance-criteria)
+* [Acceptance - Delivery Order](./features/feature-planner-delivery-order.md#5-acceptance-criteria)
+* [Acceptance - Picking](./features/feature-storekeeper-picking.md#5-acceptance-criteria)
+* [Acceptance - Outbound QC](./features/feature-qc-outbound-inspection.md#5-acceptance-criteria)
+* [Acceptance - Trip Dispatch](./features/feature-dispatcher-trip-dispatch.md#5-acceptance-criteria)
+* [Acceptance - Driver Mobile & OTP](./features/feature-driver-mobile-pod.md#5-acceptance-criteria)
+* [Acceptance - Billing Notification](./features/feature-accountant-billing-notification.md#5-acceptance-criteria)
 
 ## 9. Out of Scope
 

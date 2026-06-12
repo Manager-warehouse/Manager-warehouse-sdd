@@ -1,5 +1,6 @@
 package com.wms.entity;
 
+import lombok.*;
 import com.wms.enums.PriceHistoryStatus;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
@@ -8,6 +9,11 @@ import java.time.OffsetDateTime;
 
 @Entity
 @Table(name = "price_history")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class PriceHistory {
 
     @Id

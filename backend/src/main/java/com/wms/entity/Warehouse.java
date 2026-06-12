@@ -1,15 +1,17 @@
 package com.wms.entity;
 
+import lombok.*;
 import com.wms.enums.WarehouseType;
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
 import java.time.OffsetDateTime;
 
 @Entity
 @Table(name = "warehouses")
 @Getter
 @Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Warehouse {
 
     @Id

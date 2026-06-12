@@ -1,10 +1,16 @@
 package com.wms.entity;
 
+import lombok.*;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 
 @Entity
 @Table(name = "stock_take_items")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class StockTakeItem {
 
     @Id

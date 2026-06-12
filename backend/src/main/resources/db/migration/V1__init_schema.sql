@@ -334,7 +334,7 @@ CREATE TABLE receipt_items (
     id                BIGSERIAL     PRIMARY KEY,
     receipt_id        BIGINT        NOT NULL REFERENCES receipts(id),
     product_id        BIGINT        NOT NULL REFERENCES products(id),
-    batch_id          BIGINT        REFERENCES batches(id),        -- NULL trước QC
+    batch_id          BIGINT        REFERENCES batches(id),        -- NULL trước APPROVED
     location_id       BIGINT        REFERENCES warehouse_locations(id),
     expected_qty      DECIMAL(10,2) NOT NULL,
     actual_qty        DECIMAL(10,2),
@@ -353,7 +353,7 @@ CREATE TABLE receipt_items (
 -- SECTION 8: XUẤT KHO (OUTBOUND)
 -- =============================================================================
 
--- §6.1 delivery_orders  (Medium 2: đủ 9 trạng thái theo database.md)
+-- §6.1 delivery_orders  (delivery lifecycle: NEW -> PICKING -> READY_TO_SHIP -> IN_TRANSIT -> DELIVERED/RETURNED/CANCELLED)
 CREATE TABLE delivery_orders (
     id                   BIGSERIAL   PRIMARY KEY,
     do_number            VARCHAR(50) UNIQUE NOT NULL,
@@ -365,7 +365,7 @@ CREATE TABLE delivery_orders (
     status               VARCHAR(30) NOT NULL DEFAULT 'NEW'
                          CHECK (status IN (
                              'NEW','PICKING','READY_TO_SHIP','IN_TRANSIT',
-                             'OUT_FOR_DELIVERY','DELIVERED','RETURNED','COMPLETED','CLOSED','CANCELLED'
+                             'DELIVERED','RETURNED','CANCELLED'
                          )),
     created_by           BIGINT      NOT NULL REFERENCES users(id),
     cancel_reason        TEXT,
@@ -462,11 +462,14 @@ CREATE TABLE deliveries (
     driver_id         BIGINT       NOT NULL REFERENCES drivers(id),
     status            VARCHAR(30)  NOT NULL DEFAULT 'PENDING'
                       CHECK (status IN (
-                          'PENDING','IN_TRANSIT','OUT_FOR_DELIVERY','DELIVERED','RETURNED'
+                          'PENDING','IN_TRANSIT','DELIVERED','RETURNED'
                       )),
-    pod_image_url     VARCHAR(500),
-    pod_signature_url VARCHAR(500),
-    pod_timestamp     TIMESTAMPTZ,
+    otp_code_hash     VARCHAR(255),
+    otp_requested_at  TIMESTAMPTZ,
+    otp_expires_at    TIMESTAMPTZ,
+    otp_verified_at   TIMESTAMPTZ,
+    otp_attempt_count  INTEGER      NOT NULL DEFAULT 0,
+    otp_recipient_phone VARCHAR(20),
     failure_reason    TEXT,                    -- Vắng / từ chối / sai địa chỉ
     delivered_at      TIMESTAMPTZ,
     created_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),

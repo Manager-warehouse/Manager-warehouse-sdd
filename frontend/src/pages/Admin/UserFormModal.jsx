@@ -14,7 +14,6 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [selectedRole, setSelectedRole] = useState(ROLES.WAREHOUSE_STAFF);
-  const [jobTitle, setJobTitle] = useState('');
   const [shift, setShift] = useState('Ca sáng');
   const [region, setRegion] = useState('');
   const [selectedWarehouses, setSelectedWarehouses] = useState([]);
@@ -31,7 +30,6 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
         setPhone(user.phone || '');
         setPassword('');
         setSelectedRole(user.role || ROLES.WAREHOUSE_STAFF);
-        setJobTitle(user.jobTitle || '');
         setShift(user.shift || 'Ca sáng');
         setRegion(user.region || '');
         setSelectedWarehouses(user.warehouses || []);
@@ -42,7 +40,6 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
         setPhone('');
         setPassword('');
         setSelectedRole(ROLES.WAREHOUSE_STAFF);
-        setJobTitle('');
         setShift('Ca sáng');
         setRegion('');
         setSelectedWarehouses([]);
@@ -91,7 +88,7 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
       email,
       phone,
       role: selectedRole,
-      jobTitle,
+      jobTitle: ROLE_LABELS[selectedRole],
       shift,
       region: finalRegion,
       warehouses: needsWarehouse ? selectedWarehouses : []
@@ -113,6 +110,21 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
       const hasDigit = /[0-9]/.test(password);
       if (!hasLetter || !hasDigit) {
         setError('Mật khẩu mới phải chứa cả chữ và số');
+        return;
+      }
+
+      payload.password = password;
+    } else if (modalType === 'edit' && password) {
+      // Password strength validation for reset
+      if (password.length < 8) {
+        setError('Mật khẩu đặt lại phải dài từ 8 ký tự trở lên');
+        return;
+      }
+
+      const hasLetter = /[a-zA-Z]/.test(password);
+      const hasDigit = /[0-9]/.test(password);
+      if (!hasLetter || !hasDigit) {
+        setError('Mật khẩu đặt lại phải chứa cả chữ và số');
         return;
       }
 
@@ -195,7 +207,7 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
           />
         </div>
 
-        {modalType === 'create' && (
+        {modalType === 'create' ? (
           <Input
             label="Mật khẩu khởi tạo"
             type="password"
@@ -203,6 +215,14 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Mật khẩu tối thiểu 8 ký tự, chữ và số"
             required
+          />
+        ) : (
+          <Input
+            label="Đặt lại mật khẩu (Để trống nếu không đổi)"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Nhập mật khẩu mới để đặt lại mật khẩu cho tài khoản này"
           />
         )}
 
@@ -215,14 +235,7 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
           onChange={(e) => setSelectedRole(e.target.value)}
         />
 
-        <div className={`grid grid-cols-1 ${selectedRole === ROLES.DISPATCHER ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-4`}>
-          <Input
-            label="Chức danh"
-            type="text"
-            value={jobTitle}
-            onChange={(e) => setJobTitle(e.target.value)}
-            placeholder="Thủ kho / Bảo vệ..."
-          />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Input
             label="Ca làm việc"
             type="select"

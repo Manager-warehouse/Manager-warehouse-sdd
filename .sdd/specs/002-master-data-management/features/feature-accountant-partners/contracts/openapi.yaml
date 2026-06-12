@@ -722,7 +722,7 @@ components:
           format: date
         status:
           type: string
-          enum: [NEW, PICKING, READY_TO_SHIP, IN_TRANSIT, OUT_FOR_DELIVERY, DELIVERED, RETURNED, COMPLETED, CLOSED, CANCELLED]
+          enum: [NEW, PICKING, READY_TO_SHIP, IN_TRANSIT, DELIVERED, RETURNED, CANCELLED]
         documentDate:
           type: string
           format: date

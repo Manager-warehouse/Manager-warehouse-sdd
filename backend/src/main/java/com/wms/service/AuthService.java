@@ -24,10 +24,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.time.OffsetDateTime;
 import java.util.HexFormat;
 import java.util.List;
-import java.util.Random;
 import java.util.UUID;
 
 @Service
@@ -91,9 +91,7 @@ public class AuthService {
     public RefreshTokenResponse refresh(RefreshTokenRequest request) {
         String tokenHash = sha256(request.getRefreshToken());
 
-        User user = userRepository.findAll().stream()
-                .filter(u -> tokenHash.equals(u.getRefreshTokenHash()))
-                .findFirst()
+        User user = userRepository.findByRefreshTokenHash(tokenHash)
                 .orElseThrow(() -> new IllegalArgumentException("TOKEN_INVALID"));
 
         if (user.getRefreshTokenExpiresAt() == null ||
@@ -196,10 +194,10 @@ public class AuthService {
     @Transactional
     public void forgotPassword(ForgotPasswordRequest request) {
         userRepository.findByEmail(request.getEmail()).ifPresent(user -> {
-            String otp = String.format("%06d", new Random().nextInt(1_000_000));
+            String otp = String.format("%06d", new SecureRandom().nextInt(1_000_000));
             user.setOtpHash(sha256(otp));
             user.setOtpExpiresAt(OffsetDateTime.now().plusMinutes(10));
-            userRepository.save(user);
+            userRepository.saveAndFlush(user);
             sendOtpEmail(user.getEmail(), otp);
         });
         // Always return silently — no email enumeration
@@ -251,7 +249,8 @@ public class AuthService {
             mailSender.send(message);
             log.info("Đã gửi email OTP tới {}", to);
         } catch (Exception e) {
-            log.error("Không thể gửi email OTP (SMTP error). OTP được ghi nhận là: [ {} ]", otp, e);
+            log.error("Không thể gửi email OTP (SMTP error): {}", e.getMessage(), e);
+            throw new IllegalStateException("MAIL_SEND_FAILED");
         }
     }
 
