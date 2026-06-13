@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Users, UserSquare, ShieldAlert, BarChart3, Package2, Settings, History, Box, Warehouse, Handshake, Truck  } from 'lucide-react';
+import { LayoutDashboard, Users, UserSquare, ShieldAlert, BarChart3, Package2, Settings, History, Box, Warehouse, Handshake, Truck, MapPin, PackageCheck } from 'lucide-react';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
 import { ROLES } from '../../utils/constants';
@@ -84,9 +84,29 @@ const Sidebar = () => {
     }
   ];
 
+  const outboundItems = [
+    {
+      title: 'Đơn xuất hàng',
+      path: '/outbound/delivery-orders',
+      icon: PackageCheck,
+      roles: [ROLES.PLANNER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_MANAGER, ROLES.ACCOUNTANT, ROLES.ADMIN, ROLES.CEO]
+    },
+    {
+      title: 'Quản lý chuyến xe',
+      path: '/outbound/trips',
+      icon: Truck,
+      roles: [ROLES.DISPATCHER, ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]
+    },
+    {
+      title: 'Giao hàng của tôi',
+      path: '/outbound/driver/trips',
+      icon: MapPin,
+      roles: [ROLES.DRIVER, ROLES.ADMIN]
+    }
+  ];
+
   // Dummy menus to show full WMS modules structure (as disabled or mocked)
   const mockupModules = [
-    { title: 'Xuất kho (Outbound)', icon: Package2 },
     { title: 'Điều chuyển (Transfer)', icon: Package2 },
     { title: 'Kiểm kê (Stocktake)', icon: Package2 },
     { title: 'Báo cáo & Cảnh báo', icon: BarChart3 }
@@ -159,6 +179,34 @@ const Sidebar = () => {
             </div>
             <nav className="flex flex-col gap-1">
               {masterDataItems
+                .filter(item => item.roles.some(role => hasRole(role)))
+                .map((item) => (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    className={({ isActive }) =>
+                      `flex items-center gap-3 px-3 py-2.5 rounded-pill text-xs font-semibold uppercase tracking-wider transition-colors ${
+                        isActive
+                          ? 'bg-onPrimary text-canvas-night'
+                          : 'text-shade-40 hover:text-onPrimary hover:bg-canvas-nightElevated'
+                      }`
+                    }
+                  >
+                    <item.icon className="w-4 h-4 flex-shrink-0" />
+                    <span>{item.title}</span>
+                  </NavLink>
+                ))}
+            </nav>
+          </div>
+        )}
+
+        {outboundItems.filter(item => item.roles.some(role => hasRole(role))).length > 0 && (
+          <div>
+            <div className="px-3 py-1.5 text-[10px] font-bold text-shade-40 uppercase tracking-widest mb-2">
+              Xuất hàng & Giao vận
+            </div>
+            <nav className="flex flex-col gap-1">
+              {outboundItems
                 .filter(item => item.roles.some(role => hasRole(role)))
                 .map((item) => (
                   <NavLink

@@ -19,6 +19,11 @@ import PutawayPlan from '../pages/Inbound/PutawayPlan';
 import QuarantineWorkspace from '../pages/Inbound/QuarantineWorkspace';
 import SystemConfig from '../pages/Admin/SystemConfig';
 import AuditLogs from '../pages/Admin/AuditLogs';
+import DeliveryOrders from '../pages/Outbound/DeliveryOrders';
+import DeliveryOrderDetail from '../pages/Outbound/DeliveryOrderDetail';
+import QCOutbound from '../pages/Outbound/QCOutbound';
+import TripPlanning from '../pages/Outbound/TripPlanning';
+import DriverTrip from '../pages/Outbound/DriverTrip';
 import { ROLES } from '../utils/constants';
 const AppRoutes = () => {
   return (
@@ -81,6 +86,26 @@ const AppRoutes = () => {
 
       <Route element={<ProtectedRoute allowedRoles={[ROLES.WAREHOUSE_MANAGER, ROLES.CEO, ROLES.ADMIN]} />}>
         <Route path="/inbound/quarantine" element={<QuarantineWorkspace />} />
+      </Route>
+
+      {/* Outbound & Delivery protected routes */}
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.PLANNER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_MANAGER, ROLES.DISPATCHER, ROLES.ACCOUNTANT, ROLES.ADMIN, ROLES.CEO]} />}>
+        <Route path="/outbound/delivery-orders" element={<DeliveryOrders />} />
+        <Route path="/outbound/delivery-orders/:id" element={<DeliveryOrderDetail />} />
+      </Route>
+
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.ADMIN]} />}>
+        <Route path="/outbound/qc/:id" element={<QCOutbound />} />
+      </Route>
+
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.DISPATCHER, ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]} />}>
+        <Route path="/outbound/trips" element={<TripPlanning />} />
+        <Route path="/outbound/trips/:id" element={<TripPlanning />} />
+      </Route>
+
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.DRIVER, ROLES.ADMIN]} />}>
+        <Route path="/outbound/driver/trips" element={<DriverTrip />} />
+        <Route path="/outbound/driver/trips/:id" element={<DriverTrip />} />
       </Route>
 
       {/* Default Redirects */}
