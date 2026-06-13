@@ -4,9 +4,13 @@ import com.wms.enums.QcResult;
 import com.wms.enums.QcSamplingMethod;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
+import lombok.Getter;
+import lombok.Setter;
 
 @Entity
 @Table(name = "receipt_items")
+@Getter
+@Setter
 public class ReceiptItem {
 
     @Id
@@ -29,8 +33,8 @@ public class ReceiptItem {
     @JoinColumn(name = "location_id")
     private WarehouseLocation location;
 
-    @Column(name = "expected_qty", nullable = false, precision = 10, scale = 2)
-    private BigDecimal expectedQty;
+    @Column(name = "expected_qty", nullable = false)
+    private Integer expectedQty;
 
     @Column(name = "actual_qty", precision = 10, scale = 2)
     private BigDecimal actualQty;

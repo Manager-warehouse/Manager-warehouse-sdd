@@ -12,7 +12,7 @@
 Quy trình nhập hàng là đầu vào của toàn bộ hệ thống tồn kho. Hàng hóa từ Công ty mẹ được thông báo qua Zalo/Email, Planner lập lệnh, Nhân viên kho kiểm đếm thực tế và tạo bản nháp `DRAFT`, Nhân viên kho lấy mẫu QC theo từng lô, Storekeeper xác nhận kết quả QC thành `QC_COMPLETED` hoặc `QC_FAILED`, rồi Trưởng kho duyệt nhập kho chính thức hoặc xác nhận xử lý hàng lỗi.
 
 ### Features List
-* [US-WMS-02: Tiếp nhận & Lập Lệnh Nhập kho](./features/feature-planner-receipt-drafting.md)
+* [US-WMS-02: Tiếp nhận & Lập Lệnh Nhập kho](./features/feature-planner-receipt-drafting/feature-planner-receipt-drafting.md)
 * [Nhân viên kho Tiếp nhận & Đếm hàng thực tế](./features/feature-storekeeper-receipt-receive.md)
 * [US-WMS-03: Nhân viên kho Kiểm tra Chất lượng Inbound theo Sample](./features/feature-qc-inbound-inspection.md)
 * [US-WMS-04: Xử lý Hàng lỗi trong Quarantine Zone](./features/feature-manager-quarantine-handling.md)
@@ -30,7 +30,7 @@ Quy trình nhập hàng là đầu vào của toàn bộ hệ thống tồn kho.
 
 ## 3. Functional Requirements (EARS)
 *Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đặc tả tính năng:*
-* [EARS - Receipt Drafting](./features/feature-planner-receipt-drafting.md#3-functional-requirements-ears)
+* [EARS - Receipt Drafting](./features/feature-planner-receipt-drafting/feature-planner-receipt-drafting.md#3-functional-requirements-ears)
 * [EARS - Receipt Receive](./features/feature-storekeeper-receipt-receive.md#3-functional-requirements-ears)
 * [EARS - Inbound QC](./features/feature-qc-inbound-inspection.md#3-functional-requirements-ears)
 * [EARS - Quarantine Handling](./features/feature-manager-quarantine-handling.md#3-functional-requirements-ears)
@@ -75,7 +75,7 @@ Quy trình nhập hàng là đầu vào của toàn bộ hệ thống tồn kho.
 - `supplier_id` (BIGINT, FK→suppliers)
 - `dealer_id` (BIGINT, FK→dealers)
 - `contact_person` (VARCHAR(255))
-- `source_channel` (VARCHAR(50)) -- Zalo / Email
+- `source_channel` (VARCHAR(50), CHECK IN ('ZALO','EMAIL')) -- Zalo / Email
 - `status` (VARCHAR(30), DEFAULT 'PENDING_RECEIPT', CHECK IN ('PENDING_RECEIPT','DRAFT','QC_COMPLETED','QC_FAILED','APPROVED','REJECTED'))
 - `approved_by` (BIGINT, FK→users)
 - `approved_at` (TIMESTAMPTZ)
@@ -93,7 +93,7 @@ Quy trình nhập hàng là đầu vào của toàn bộ hệ thống tồn kho.
 - `product_id` (BIGINT, FK→products, NOT NULL)
 - `batch_id` (BIGINT, FK→batches) -- set sau khi APPROVED hoặc sau khi Trưởng kho xác nhận quarantine intake cho lô `QC_FAILED`
 - `location_id` (BIGINT, FK→warehouse_locations) -- set khi putaway hoặc khi Trưởng kho xác nhận quarantine intake
-- `expected_qty` (DECIMAL(10,2), NOT NULL)
+- `expected_qty` (INTEGER, NOT NULL, > 0)
 - `actual_qty` (DECIMAL(10,2)) -- quantity accepted into this receipt after receiving count; capped at expected_qty when over-received
 - `over_received_qty` (DECIMAL(10,2), DEFAULT 0) -- excess quantity counted beyond expected_qty, used as evidence for over-receipt return-to-supplier handling
 - `sample_qty` (DECIMAL(10,2))
@@ -104,9 +104,14 @@ Quy trình nhập hàng là đầu vào của toàn bộ hệ thống tồn kho.
 - `qc_failure_reason` (TEXT)
 - `unit_cost` (DECIMAL(18,2))
 
+### document_sequences
+- `sequence_key` (VARCHAR(50), PK) -- e.g. `RECEIPT`
+- `next_value` (BIGINT, NOT NULL, > 0)
+- `updated_at` (TIMESTAMPTZ)
+
 ## 6. API Spec
 *Vui lòng xem chi tiết API endpoints tại các tài liệu đặc tả tính năng:*
-* [APIs - Receipt Drafting](./features/feature-planner-receipt-drafting.md#4-api-endpoints)
+* [APIs - Receipt Drafting](./features/feature-planner-receipt-drafting/feature-planner-receipt-drafting.md#4-api-endpoints)
 * [APIs - Receipt Receive](./features/feature-storekeeper-receipt-receive.md#4-api-endpoints)
 * [APIs - Inbound QC](./features/feature-qc-inbound-inspection.md#4-api-endpoints)
 * [APIs - Quarantine Handling](./features/feature-manager-quarantine-handling.md#4-api-endpoints)
@@ -152,7 +157,7 @@ Quy trình nhập hàng là đầu vào của toàn bộ hệ thống tồn kho.
 
 ## 8. Acceptance Criteria
 *Vui lòng xem chi tiết kịch bản kiểm thử tại các tài liệu đặc tả tính năng:*
-* [Acceptance - Receipt Drafting](./features/feature-planner-receipt-drafting.md#5-acceptance-criteria)
+* [Acceptance - Receipt Drafting](./features/feature-planner-receipt-drafting/feature-planner-receipt-drafting.md#5-acceptance-criteria)
 * [Acceptance - Receipt Receive](./features/feature-storekeeper-receipt-receive.md#5-acceptance-criteria)
 * [Acceptance - Inbound QC](./features/feature-qc-inbound-inspection.md#5-acceptance-criteria)
 * [Acceptance - Quarantine Handling](./features/feature-manager-quarantine-handling.md#5-acceptance-criteria)

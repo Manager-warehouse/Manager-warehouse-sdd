@@ -1,0 +1,55 @@
+package com.wms.controller;
+
+import com.wms.dto.request.CreateReceiptRequest;
+import com.wms.dto.response.ReceiptResponse;
+import com.wms.entity.User;
+import com.wms.service.CurrentUserService;
+import com.wms.service.ReceiptService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api/v1/receipts")
+@Tag(name = "Receipts", description = "Inbound receipt drafting and processing")
+public class ReceiptController {
+
+    private final ReceiptService receiptService;
+    private final CurrentUserService currentUserService;
+
+    public ReceiptController(ReceiptService receiptService,
+                             CurrentUserService currentUserService) {
+        this.receiptService = receiptService;
+        this.currentUserService = currentUserService;
+    }
+
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasRole('PLANNER')")
+    @Operation(summary = "Create supplier purchase receipt draft")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Receipt created",
+                    content = @Content(schema = @Schema(implementation = ReceiptResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Validation error or return flow attempt"),
+            @ApiResponse(responseCode = "401", description = "Missing or invalid authentication"),
+            @ApiResponse(responseCode = "403", description = "Planner cannot access warehouse"),
+            @ApiResponse(responseCode = "404", description = "Supplier, warehouse, or product not found"),
+            @ApiResponse(responseCode = "409", description = "Duplicate source reference"),
+            @ApiResponse(responseCode = "422", description = "Inactive master data or invalid item semantics")
+    })
+    public ReceiptResponse createReceipt(@Valid @RequestBody CreateReceiptRequest request) {
+        User actor = currentUserService.getRequiredCurrentUser();
+        return receiptService.createPurchaseReceipt(request, actor);
+    }
+}
