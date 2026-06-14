@@ -31,21 +31,36 @@ ALTER TABLE receipt_items
     ALTER COLUMN expected_qty TYPE INTEGER
     USING expected_qty::INTEGER;
 
-ALTER TABLE receipt_items
-    ADD CONSTRAINT receipt_items_expected_qty_positive
-    CHECK (expected_qty > 0);
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'receipt_items_expected_qty_positive'
+    ) THEN
+        ALTER TABLE receipt_items
+            ADD CONSTRAINT receipt_items_expected_qty_positive
+            CHECK (expected_qty > 0);
+    END IF;
 
-ALTER TABLE receipts
-    ADD CONSTRAINT receipts_source_channel_check
-    CHECK (source_channel IS NULL OR source_channel IN ('ZALO', 'EMAIL'));
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'receipts_source_channel_check'
+    ) THEN
+        ALTER TABLE receipts
+            ADD CONSTRAINT receipts_source_channel_check
+            CHECK (source_channel IS NULL OR source_channel IN ('ZALO', 'EMAIL'));
+    END IF;
+END $$;
 
-CREATE UNIQUE INDEX ux_receipts_purchase_supplier_warehouse_source
+CREATE UNIQUE INDEX IF NOT EXISTS ux_receipts_purchase_supplier_warehouse_source
     ON receipts (supplier_id, warehouse_id, source_order_code)
     WHERE type = 'PURCHASE'
       AND status <> 'REJECTED'
       AND source_order_code IS NOT NULL;
 
-CREATE TABLE document_sequences (
+CREATE TABLE IF NOT EXISTS document_sequences (
     sequence_key VARCHAR(50) PRIMARY KEY,
     next_value BIGINT NOT NULL CHECK (next_value > 0),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

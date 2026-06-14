@@ -60,14 +60,45 @@ ALTER TABLE receipt_items
     ALTER COLUMN sample_failed_qty TYPE INTEGER
     USING sample_failed_qty::INTEGER;
 
-ALTER TABLE receipt_items
-    ADD CONSTRAINT receipt_items_actual_qty_positive
-    CHECK (actual_qty IS NULL OR actual_qty > 0),
-    ADD CONSTRAINT receipt_items_over_received_qty_non_negative
-    CHECK (over_received_qty IS NULL OR over_received_qty >= 0),
-    ADD CONSTRAINT receipt_items_sample_qty_non_negative
-    CHECK (sample_qty IS NULL OR sample_qty >= 0),
-    ADD CONSTRAINT receipt_items_sample_passed_qty_non_negative
-    CHECK (sample_passed_qty IS NULL OR sample_passed_qty >= 0),
-    ADD CONSTRAINT receipt_items_sample_failed_qty_non_negative
-    CHECK (sample_failed_qty IS NULL OR sample_failed_qty >= 0);
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'receipt_items_actual_qty_positive'
+    ) THEN
+        ALTER TABLE receipt_items
+            ADD CONSTRAINT receipt_items_actual_qty_positive
+            CHECK (actual_qty IS NULL OR actual_qty > 0);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'receipt_items_over_received_qty_non_negative'
+    ) THEN
+        ALTER TABLE receipt_items
+            ADD CONSTRAINT receipt_items_over_received_qty_non_negative
+            CHECK (over_received_qty IS NULL OR over_received_qty >= 0);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'receipt_items_sample_qty_non_negative'
+    ) THEN
+        ALTER TABLE receipt_items
+            ADD CONSTRAINT receipt_items_sample_qty_non_negative
+            CHECK (sample_qty IS NULL OR sample_qty >= 0);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'receipt_items_sample_passed_qty_non_negative'
+    ) THEN
+        ALTER TABLE receipt_items
+            ADD CONSTRAINT receipt_items_sample_passed_qty_non_negative
+            CHECK (sample_passed_qty IS NULL OR sample_passed_qty >= 0);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'receipt_items_sample_failed_qty_non_negative'
+    ) THEN
+        ALTER TABLE receipt_items
+            ADD CONSTRAINT receipt_items_sample_failed_qty_non_negative
+            CHECK (sample_failed_qty IS NULL OR sample_failed_qty >= 0);
+    END IF;
+END $$;

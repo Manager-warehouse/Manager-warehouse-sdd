@@ -1,8 +1,8 @@
 package com.wms.service;
 
-import com.wms.dto.AuditLogDetailResponse;
-import com.wms.dto.AuditLogListItemResponse;
-import com.wms.dto.AuditLogPageResponse;
+import com.wms.dto.response.AuditLogDetailResponse;
+import com.wms.dto.response.AuditLogListItemResponse;
+import com.wms.dto.response.AuditLogPageResponse;
 import com.wms.entity.AuditLog;
 import com.wms.entity.User;
 import com.wms.entity.Warehouse;
