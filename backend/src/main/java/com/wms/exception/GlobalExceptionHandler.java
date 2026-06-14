@@ -7,6 +7,7 @@ import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -31,6 +32,16 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.CONFLICT, "BUSINESS_RULE_VIOLATION", ex.getMessage(), ex.getMessage(), null);
     }
 
+    @ExceptionHandler(UnprocessableEntityException.class)
+    public ResponseEntity<ApiErrorResponse> handleUnprocessable(UnprocessableEntityException ex) {
+        return error(HttpStatus.UNPROCESSABLE_ENTITY, "UNPROCESSABLE_ENTITY", ex.getMessage(), null);
+    }
+
+    @ExceptionHandler(ReceiptCountException.class)
+    public ResponseEntity<ApiErrorResponse> handleReceiptCount(ReceiptCountException ex) {
+        return error(ex.getStatus(), ex.getCode(), ex.getMessage(), null);
+    }
+
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiErrorResponse> handleAccessDenied(AccessDeniedException ex) {
         return error(HttpStatus.FORBIDDEN, "ACCESS_DENIED", "Access denied", "Access denied", null);
@@ -46,6 +57,11 @@ public class GlobalExceptionHandler {
                 .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
                 .collect(java.util.stream.Collectors.joining(", "));
         return error(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", errorMsg, errorMsg, details);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiErrorResponse> handleUnreadableMessage(HttpMessageNotReadableException ex) {
+        return error(HttpStatus.BAD_REQUEST, "INVALID_REQUEST_BODY", "Invalid request body", null);
     }
 
     @ExceptionHandler(ConstraintViolationException.class)

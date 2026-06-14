@@ -29,7 +29,7 @@
 | # | Rule | Mức độ |
 |---|---|---|
 | QC-SAFE-01 | KHÔNG bỏ qua QC check trước khi nhập kho | MUST |
-| QC-SAFE-02 | Hàng fail QC → bắt buộc vào Quarantine | MUST |
+| QC-SAFE-02 | Hàng fail QC → bắt buộc chờ xử lý quarantine/RTV; chỉ ghi quarantine inventory sau xác nhận có thẩm quyền | MUST |
 | QC-SAFE-03 | Hàng Quarantine KHÔNG được tính vào available inventory | MUST |
 | QC-SAFE-04 | Hàng Quarantine KHÔNG được xuất bán | MUST |
 
