@@ -10,14 +10,14 @@ paths:
       summary: List dealers
       tags: [Dealers]
       responses:
-        '200':
+        "200":
           description: Dealer page
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/DealerResponse'
+                  $ref: "#/components/schemas/DealerResponse"
     post:
       summary: Create dealer profile
       tags: [Dealers]
@@ -28,34 +28,34 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/DealerCreateRequest'
+              $ref: "#/components/schemas/DealerCreateRequest"
       responses:
-        '201':
+        "201":
           description: Dealer created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DealerResponse'
-        '400':
+                $ref: "#/components/schemas/DealerResponse"
+        "400":
           description: Validation error
-        '403':
+        "403":
           description: ACCOUNTANT role required
-        '409':
+        "409":
           description: Duplicate dealer code
   /dealers/{id}:
     get:
       summary: Get dealer detail
       tags: [Dealers]
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       responses:
-        '200':
+        "200":
           description: Dealer detail
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DealerResponse'
-        '404':
+                $ref: "#/components/schemas/DealerResponse"
+        "404":
           description: Dealer not found
     put:
       summary: Update dealer profile
@@ -63,25 +63,25 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/DealerUpdateRequest'
+              $ref: "#/components/schemas/DealerUpdateRequest"
       responses:
-        '200':
+        "200":
           description: Dealer updated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DealerResponse'
-        '400':
+                $ref: "#/components/schemas/DealerResponse"
+        "400":
           description: Validation error
-        '403':
+        "403":
           description: ACCOUNTANT role required
-        '404':
+        "404":
           description: Dealer not found
     delete:
       summary: Soft-delete dealer
@@ -89,13 +89,13 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       responses:
-        '204':
+        "204":
           description: Dealer deactivated
-        '403':
+        "403":
           description: ACCOUNTANT role required
-        '404':
+        "404":
           description: Dealer not found
   /dealers/{id}/reactivate:
     put:
@@ -104,17 +104,17 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       responses:
-        '200':
+        "200":
           description: Dealer reactivated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DealerResponse'
-        '403':
+                $ref: "#/components/schemas/DealerResponse"
+        "403":
           description: ACCOUNTANT role required
-        '404':
+        "404":
           description: Dealer not found
   /dealers/{id}/credit-limit:
     put:
@@ -123,25 +123,25 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/DealerCreditLimitUpdateRequest'
+              $ref: "#/components/schemas/DealerCreditLimitUpdateRequest"
       responses:
-        '200':
+        "200":
           description: Credit limit updated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DealerResponse'
-        '400':
+                $ref: "#/components/schemas/DealerResponse"
+        "400":
           description: Credit limit must be positive and greater than current balance
-        '403':
+        "403":
           description: ACCOUNTANT_MANAGER role required
-        '404':
+        "404":
           description: Dealer not found
   /dealers/{id}/payment-term:
     put:
@@ -150,25 +150,25 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/DealerPaymentTermUpdateRequest'
+              $ref: "#/components/schemas/DealerPaymentTermUpdateRequest"
       responses:
-        '200':
+        "200":
           description: Payment term updated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DealerResponse'
-        '400':
+                $ref: "#/components/schemas/DealerResponse"
+        "400":
           description: Payment term must be 30 or 60
-        '403':
+        "403":
           description: ACCOUNTANT_MANAGER role required
-        '404':
+        "404":
           description: Dealer not found
   /dealers/{id}/credit-status:
     put:
@@ -177,39 +177,39 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/DealerCreditStatusUpdateRequest'
+              $ref: "#/components/schemas/DealerCreditStatusUpdateRequest"
       responses:
-        '200':
+        "200":
           description: Credit status updated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DealerResponse'
-        '400':
+                $ref: "#/components/schemas/DealerResponse"
+        "400":
           description: Invalid credit status
-        '403':
+        "403":
           description: ACCOUNTANT_MANAGER role required
-        '404':
+        "404":
           description: Dealer not found
   /suppliers:
     get:
       summary: List suppliers
       tags: [Suppliers]
       responses:
-        '200':
+        "200":
           description: Supplier page
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/SupplierResponse'
+                  $ref: "#/components/schemas/SupplierResponse"
     post:
       summary: Create supplier
       tags: [Suppliers]
@@ -220,34 +220,34 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SupplierCreateRequest'
+              $ref: "#/components/schemas/SupplierCreateRequest"
       responses:
-        '201':
+        "201":
           description: Supplier created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SupplierResponse'
-        '400':
+                $ref: "#/components/schemas/SupplierResponse"
+        "400":
           description: Validation error
-        '403':
+        "403":
           description: ACCOUNTANT role required
-        '409':
+        "409":
           description: Duplicate supplier code
   /suppliers/{id}:
     get:
       summary: Get supplier detail
       tags: [Suppliers]
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       responses:
-        '200':
+        "200":
           description: Supplier detail
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SupplierResponse'
-        '404':
+                $ref: "#/components/schemas/SupplierResponse"
+        "404":
           description: Supplier not found
     put:
       summary: Update supplier profile
@@ -255,25 +255,25 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SupplierUpdateRequest'
+              $ref: "#/components/schemas/SupplierUpdateRequest"
       responses:
-        '200':
+        "200":
           description: Supplier updated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SupplierResponse'
-        '400':
+                $ref: "#/components/schemas/SupplierResponse"
+        "400":
           description: Validation error
-        '403':
+        "403":
           description: ACCOUNTANT role required
-        '404':
+        "404":
           description: Supplier not found
     delete:
       summary: Soft-delete supplier
@@ -281,13 +281,13 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       responses:
-        '204':
+        "204":
           description: Supplier deactivated
-        '403':
+        "403":
           description: ACCOUNTANT role required
-        '404':
+        "404":
           description: Supplier not found
   /suppliers/{id}/reactivate:
     put:
@@ -296,17 +296,17 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       responses:
-        '200':
+        "200":
           description: Supplier reactivated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SupplierResponse'
-        '403':
+                $ref: "#/components/schemas/SupplierResponse"
+        "403":
           description: ACCOUNTANT role required
-        '404':
+        "404":
           description: Supplier not found
   /suppliers/{id}/received-orders:
     get:
@@ -315,17 +315,17 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       responses:
-        '200':
+        "200":
           description: Supplier received orders
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/SupplierReceivedOrderResponse'
-        '404':
+                  $ref: "#/components/schemas/SupplierReceivedOrderResponse"
+        "404":
           description: Supplier not found
   /suppliers/{id}/received-orders/{orderId}:
     get:
@@ -334,7 +334,7 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
         - name: orderId
           in: path
           required: true
@@ -342,13 +342,13 @@ paths:
             type: integer
             format: int64
       responses:
-        '200':
+        "200":
           description: Supplier received order detail
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SupplierReceivedOrderDetailResponse'
-        '404':
+                $ref: "#/components/schemas/SupplierReceivedOrderDetailResponse"
+        "404":
           description: Supplier or received order not found
   /delivery-orders:
     get:
@@ -357,14 +357,14 @@ paths:
       security:
         - bearerAuth: []
       responses:
-        '200':
+        "200":
           description: Delivery order list
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/DeliveryOrderResponse'
+                  $ref: "#/components/schemas/DeliveryOrderResponse"
     post:
       summary: Create delivery order
       tags: [DeliveryOrders]
@@ -375,17 +375,17 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/DeliveryOrderCreateRequest'
+              $ref: "#/components/schemas/DeliveryOrderCreateRequest"
       responses:
-        '201':
+        "201":
           description: Delivery order created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DeliveryOrderResponse'
-        '400':
+                $ref: "#/components/schemas/DeliveryOrderResponse"
+        "400":
           description: Validation error
-        '409':
+        "409":
           description: Dealer is inactive or business rule failed
   /delivery-orders/{id}:
     get:
@@ -394,15 +394,15 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       responses:
-        '200':
+        "200":
           description: Delivery order detail
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DeliveryOrderResponse'
-        '404':
+                $ref: "#/components/schemas/DeliveryOrderResponse"
+        "404":
           description: Delivery order not found
     put:
       summary: Update delivery order
@@ -410,23 +410,23 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/DeliveryOrderUpdateRequest'
+              $ref: "#/components/schemas/DeliveryOrderUpdateRequest"
       responses:
-        '200':
+        "200":
           description: Delivery order updated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DeliveryOrderResponse'
-        '400':
+                $ref: "#/components/schemas/DeliveryOrderResponse"
+        "400":
           description: Validation error
-        '404':
+        "404":
           description: Delivery order not found
     delete:
       summary: Cancel delivery order
@@ -434,11 +434,11 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       responses:
-        '204':
+        "204":
           description: Delivery order cancelled
-        '404':
+        "404":
           description: Delivery order not found
 components:
   securitySchemes:
@@ -662,7 +662,7 @@ components:
           type: array
           minItems: 1
           items:
-            $ref: '#/components/schemas/DeliveryOrderItemCreateRequest'
+            $ref: "#/components/schemas/DeliveryOrderItemCreateRequest"
       additionalProperties: false
     DeliveryOrderUpdateRequest:
       type: object
@@ -722,7 +722,19 @@ components:
           format: date
         status:
           type: string
-          enum: [NEW, PICKING, PENDING_WAREHOUSE_APPROVAL, READY_TO_SHIP, IN_TRANSIT, DELIVERED, RETURNED, COMPLETED, CLOSED, CANCELLED]
+          enum:
+            [
+              NEW,
+              PICKING,
+              READY_TO_SHIP,
+              IN_TRANSIT,
+              OUT_FOR_DELIVERY,
+              DELIVERED,
+              RETURNED,
+              COMPLETED,
+              CLOSED,
+              CANCELLED,
+            ]
         documentDate:
           type: string
           format: date
@@ -733,7 +745,7 @@ components:
         items:
           type: array
           items:
-            $ref: '#/components/schemas/DeliveryOrderItemResponse'
+            $ref: "#/components/schemas/DeliveryOrderItemResponse"
         createdAt:
           type: string
           format: date-time
@@ -757,7 +769,7 @@ components:
           type: string
     SupplierReceivedOrderDetailResponse:
       allOf:
-        - $ref: '#/components/schemas/SupplierReceivedOrderResponse'
+        - $ref: "#/components/schemas/SupplierReceivedOrderResponse"
         - type: object
           properties:
             items:

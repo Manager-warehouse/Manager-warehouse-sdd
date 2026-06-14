@@ -7,6 +7,8 @@ Thủ kho lấy hàng từ Bin nhỏ nhất được hệ thống chỉ định 
 * **Thủ kho**: Soạn hàng tại Bin, lấy đúng SKU, đúng batch, đúng Bin và đúng số lượng, cập nhật trạng thái soạn hàng.
 
 ## 3. Functional Requirements (EARS)
+* **Ubiquitous:**
+  * The system SHALL create `DELIVERY_ORDER_PICK_START` and `DELIVERY_ORDER_PICK_COMPLETE` audit log entries for picking state changes and picked quantities.
 * **Event-driven:**
   * WHEN a Thủ kho starts picking, the system SHALL update the DO status to `PICKING`.
   * WHEN a Thủ kho finishes picking all items, the system SHALL mark the items as picked and wait for QC inspection.

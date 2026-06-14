@@ -12,10 +12,10 @@
 Sau khi đơn hàng được giao thành công (DELIVERED), Kế toán viên lập hóa đơn, cộng dồn công nợ Đại lý. Hệ thống tự động kiểm tra hạn mức tín dụng (Credit Limit) và khóa/chặn đơn mới nếu vi phạm. Cuối tháng, Kế toán trưởng chốt sổ, khóa cứng kỳ quá khứ.
 
 ### Features List
-* [US-WMS-10: Lập Hóa đơn Bán hàng & Ghi nhận Công nợ](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/008-finance-billing-closing/features/feature-accountant-customer-invoicing.md)
-* [US-WMS-15: Ghi nhận Thanh toán & Quản lý Công nợ](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/008-finance-billing-closing/features/feature-accountant-payment-collection.md)
-* [US-WMS-16: Báo cáo Công nợ Phân kỳ (Aging Report)](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/008-finance-billing-closing/features/feature-accountant-credit-aging-report.md)
-* [US-WMS-17: Chốt sổ Kế toán & Khóa Kỳ](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/008-finance-billing-closing/features/feature-accountant-period-closing.md)
+* [US-WMS-10: Lập Hóa đơn Bán hàng & Ghi nhận Công nợ](./features/feature-accountant-customer-invoicing.md)
+* [US-WMS-15: Ghi nhận Thanh toán & Quản lý Công nợ](./features/feature-accountant-payment-collection.md)
+* [US-WMS-16: Báo cáo Công nợ Phân kỳ (Aging Report)](./features/feature-accountant-credit-aging-report.md)
+* [US-WMS-17: Chốt sổ Kế toán & Khóa Kỳ](./features/feature-accountant-period-closing.md)
 
 ## 2. Actors
 
@@ -27,10 +27,10 @@ Sau khi đơn hàng được giao thành công (DELIVERED), Kế toán viên l�
 
 ## 3. Functional Requirements (EARS)
 *Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đặc tả tính năng:*
-* [EARS - Customer Invoicing](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/008-finance-billing-closing/features/feature-accountant-customer-invoicing.md#3-functional-requirements-ears)
-* [EARS - Payment Collection](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/008-finance-billing-closing/features/feature-accountant-payment-collection.md#3-functional-requirements-ears)
-* [EARS - Credit Aging Report](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/008-finance-billing-closing/features/feature-accountant-credit-aging-report.md#3-functional-requirements-ears)
-* [EARS - Period Closing](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/008-finance-billing-closing/features/feature-accountant-period-closing.md#3-functional-requirements-ears)
+* [EARS - Customer Invoicing](./features/feature-accountant-customer-invoicing.md#3-functional-requirements-ears)
+* [EARS - Payment Collection](./features/feature-accountant-payment-collection.md#3-functional-requirements-ears)
+* [EARS - Credit Aging Report](./features/feature-accountant-credit-aging-report.md#3-functional-requirements-ears)
+* [EARS - Period Closing](./features/feature-accountant-period-closing.md#3-functional-requirements-ears)
 
 ## 4. Non-functional Requirements
 
@@ -87,10 +87,10 @@ Sau khi đơn hàng được giao thành công (DELIVERED), Kế toán viên l�
 
 ## 6. API Spec
 *Vui lòng xem chi tiết API endpoints tại các tài liệu đặc tả tính năng:*
-* [APIs - Customer Invoicing](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/008-finance-billing-closing/features/feature-accountant-customer-invoicing.md#4-api-endpoints)
-* [APIs - Payment Collection](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/008-finance-billing-closing/features/feature-accountant-payment-collection.md#4-api-endpoints)
-* [APIs - Credit Aging Report](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/008-finance-billing-closing/features/feature-accountant-credit-aging-report.md#4-api-endpoints)
-* [APIs - Period Closing](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/008-finance-billing-closing/features/feature-accountant-period-closing.md#4-api-endpoints)
+* [APIs - Customer Invoicing](./features/feature-accountant-customer-invoicing.md#4-api-endpoints)
+* [APIs - Payment Collection](./features/feature-accountant-payment-collection.md#4-api-endpoints)
+* [APIs - Credit Aging Report](./features/feature-accountant-credit-aging-report.md#4-api-endpoints)
+* [APIs - Period Closing](./features/feature-accountant-period-closing.md#4-api-endpoints)
 
 ## 7. Error Handling
 
@@ -104,10 +104,10 @@ Sau khi đơn hàng được giao thành công (DELIVERED), Kế toán viên l�
 
 ## 8. Acceptance Criteria
 *Vui lòng xem chi tiết kịch bản kiểm thử tại các tài liệu đặc tả tính năng:*
-* [Acceptance - Customer Invoicing](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/008-finance-billing-closing/features/feature-accountant-customer-invoicing.md#5-acceptance-criteria)
-* [Acceptance - Payment Collection](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/008-finance-billing-closing/features/feature-accountant-payment-collection.md#5-acceptance-criteria)
-* [Acceptance - Credit Aging Report](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/008-finance-billing-closing/features/feature-accountant-credit-aging-report.md#5-acceptance-criteria)
-* [Acceptance - Period Closing](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/008-finance-billing-closing/features/feature-accountant-period-closing.md#5-acceptance-criteria)
+* [Acceptance - Customer Invoicing](./features/feature-accountant-customer-invoicing.md#5-acceptance-criteria)
+* [Acceptance - Payment Collection](./features/feature-accountant-payment-collection.md#5-acceptance-criteria)
+* [Acceptance - Credit Aging Report](./features/feature-accountant-credit-aging-report.md#5-acceptance-criteria)
+* [Acceptance - Period Closing](./features/feature-accountant-period-closing.md#5-acceptance-criteria)
 
 ## 9. Out of Scope
 

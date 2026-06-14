@@ -167,7 +167,7 @@
 
 1. Planner truy cập màn hình "Planning Dashboard" → Nhấn "Quét gợi ý" hoặc hệ thống chạy Batch Job định kỳ.
 2. Hệ thống so sánh tồn kho khả dụng hiện tại với định mức tồn tối thiểu đã cấu hình tại 3 kho: Hải Phòng, Hà Nội, TP.HCM.
-3. Hiển thị danh sách đề xuất điều chuyển hợp lý (Ví dụ: Kho HCM hết SP-001 → Gợi ý điều chuyển 200 cái từ Kho Hà Nội đang dư).
+3. Hiển thị danh sách đề xuất điều chuyển hợp lý kèm SKU, kho nguồn, kho đích, số lượng gợi ý, mức ưu tiên và lý do (Ví dụ: Kho HCM hết SP-001 → Gợi ý điều chuyển 200 cái từ Kho Hà Nội đang dư).
 4. Planner có thể nhấn "Tạo nhanh Phiếu điều chuyển" trực tiếp từ gợi ý.
 
 ---
@@ -180,12 +180,16 @@
 
 1. Planner tạo Phiếu điều chuyển: Chọn kho nguồn, kho đích, SKU, số lượng → Trạng thái: **Mới**.
 2. **Trưởng kho nguồn (Checker)** kiểm tra tồn kho khả dụng:
-   - Nếu đủ hàng → Phê duyệt → Trạng thái: **Đã duyệt**.
+   - Nếu đủ hàng → Phê duyệt và hệ thống khóa/giữ chỗ số lượng điều chuyển ngay → Trạng thái: **Đã duyệt**.
    - Nếu không đủ → Hệ thống từ chối, hiển thị lý do rõ ràng.
-3. Thủ kho kho nguồn xác nhận xuất hàng lên xe nội bộ → Hệ thống **trừ tồn kho nguồn, cộng vào Kho ảo In-Transit** → Trạng thái: **Đang vận chuyển (In-Transit)**.
-4. Trưởng kho đích xác nhận nhận hàng, kiểm tra số lượng thực tế:
-   - Nếu khớp → Hệ thống **trừ Kho ảo In-Transit, cộng vào kho đích** → Trạng thái: **Hoàn thành**.
-   - Nếu lệch (thiếu/thừa) → Hệ thống **bắt buộc** ghi lý do chênh lệch và tự động tạo Phiếu điều chỉnh bù trừ.
+3. Dispatcher lập một chuyến xe nội bộ riêng cho phiếu điều chuyển: gán xe, tài xế và ngày vận chuyển.
+4. Thủ kho kho nguồn ghi nhận số lượng xuất và bốc xếp lên xe; Tài xế xác nhận đã nhận hàng và xe rời kho → Hệ thống **trừ tồn kho nguồn, giải phóng giữ chỗ, cộng vào Kho ảo In-Transit** → Trạng thái: **Đang vận chuyển (In-Transit)**.
+5. Thủ kho kho đích nhập số lượng thực nhận và kiểm QC số lượng/chất lượng; Trưởng kho đích xác nhận cuối cùng:
+   - Nếu khớp và QC đạt → Hệ thống **trừ Kho ảo In-Transit, cộng vào kho đích** → Trạng thái: **Hoàn thành**.
+   - Nếu thiếu → Hệ thống **bắt buộc** ghi lý do chênh lệch và tự động tạo Phiếu điều chỉnh bù trừ.
+   - Nếu nhận thừa (`received_qty > sent_qty`) → Hệ thống chặn, không cho xác nhận.
+   - Nếu QC lỗi → Phần lỗi được đưa vào Quarantine Zone, không tính vào tồn kho khả dụng.
+6. Hệ thống không hỗ trợ hủy phiếu điều chuyển sau khi trạng thái đã là **Đang vận chuyển (In-Transit)**.
 
 ---
 

@@ -1,7 +1,7 @@
 # Feature: Trưởng kho Xử lý Hàng lỗi trong Quarantine Zone (US-WMS-04)
 
 ## 1. Context and Goal
-Trưởng kho xử lý hàng lỗi đang nằm trong khu vực cách ly (Quarantine Zone) bằng phương án trả về nhà cung cấp (RTV) kèm Debit Note. Sprint 1 không xử lý tiêu hủy hàng lỗi trong inbound receipt.
+Trưởng kho xử lý hàng lỗi đang nằm trong khu vực cách ly (Quarantine Zone) bằng phương án trả về nhà cung cấp (RTV) kèm Debit Note. Luồng tiêu hủy hàng lỗi không nằm trong feature này; xem [009 returns & disposal](../../009-returns-scrap-disposal/spec.md) để xử lý disposal và approval thresholds.
 
 ## 2. Actors
 * **Trưởng kho**: Xác nhận trả hàng lỗi về nhà cung cấp.
@@ -9,6 +9,8 @@ Trưởng kho xử lý hàng lỗi đang nằm trong khu vực cách ly (Quarant
 * **Kế toán viên**: Nhận thông báo trả hàng NCC, lập Debit Note tương ứng.
 
 ## 3. Functional Requirements (EARS)
+* **Ubiquitous:**
+  * The system SHALL create `QUARANTINE_RTV_CREATE` and `QUARANTINE_RTV_CONFIRM` audit log entries for RTV documentation and quarantine stock deduction.
 * **Event-driven:**
   * WHEN a receipt is confirmed as `QC_FAILED`, the system SHALL create quarantine inventory for the whole failed lot and exclude it from available selling inventory.
   * WHEN a Trưởng kho selects "Trả NCC" (RTV), the system SHALL:

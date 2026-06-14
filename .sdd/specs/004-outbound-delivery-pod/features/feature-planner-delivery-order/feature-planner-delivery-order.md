@@ -12,6 +12,7 @@ Planner tiếp nhận yêu cầu xuất hàng từ Công ty mẹ, hệ thống b
   * The system SHALL also block order creation when `current_balance + order_value > credit_limit` or when the dealer has any overdue invoice older than 30 days.
   * The system SHALL always reserve inventory (`inventories.reserved_qty += quantity`) upon successful delivery order creation.
   * The system SHALL always release reserved inventory when a delivery order is CANCELLED.
+  * The system SHALL create `DELIVERY_ORDER_CREATE` and `DELIVERY_ORDER_CANCEL` audit log entries for successful DO creation and cancellation, including credit-check outcome and reserved inventory delta.
 * **Event-driven:**
   * WHEN a Planner creates a delivery order, the system SHALL:
     * Validate: `available_qty = total_qty - reserved_qty ≥ requested_qty`.

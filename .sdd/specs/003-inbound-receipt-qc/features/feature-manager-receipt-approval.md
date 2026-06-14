@@ -7,6 +7,8 @@ Trưởng kho duyệt hoặc từ chối phiếu nhập kho chính thức dựa 
 * **Trưởng kho**: Đối chiếu biên bản QC đã `QC_COMPLETED` và duyệt hoặc từ chối phiếu nhập kho chính thức.
 
 ## 3. Functional Requirements (EARS)
+* **Ubiquitous:**
+  * The system SHALL create `RECEIPT_APPROVE` or `RECEIPT_REJECT` audit log entries for every official receipt approval decision, including before/after status and inventory delta when applicable.
 * **Event-driven:**
   * WHEN a Trưởng kho approves a receipt in `QC_COMPLETED` status, the system SHALL:
     * Create or update a Batch record for the received lot.

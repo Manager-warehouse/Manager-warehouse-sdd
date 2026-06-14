@@ -353,7 +353,7 @@ CREATE TABLE receipt_items (
 -- SECTION 8: XUẤT KHO (OUTBOUND)
 -- =============================================================================
 
--- §6.1 delivery_orders
+-- §6.1 delivery_orders  (Medium 2: đủ 9 trạng thái theo database.md)
 CREATE TABLE delivery_orders (
     id                   BIGSERIAL   PRIMARY KEY,
     do_number            VARCHAR(50) UNIQUE NOT NULL,
@@ -364,8 +364,8 @@ CREATE TABLE delivery_orders (
     expected_delivery_date DATE,
     status               VARCHAR(40) NOT NULL DEFAULT 'NEW'
                          CHECK (status IN (
-                             'NEW','PICKING','PENDING_WAREHOUSE_APPROVAL','READY_TO_SHIP',
-                             'IN_TRANSIT','DELIVERED','RETURNED','COMPLETED','CLOSED','CANCELLED'
+                             'NEW','PICKING','READY_TO_SHIP','IN_TRANSIT',
+                             'OUT_FOR_DELIVERY','DELIVERED','RETURNED','COMPLETED','CLOSED','CANCELLED'
                          )),
     created_by           BIGINT      NOT NULL REFERENCES users(id),
     cancel_reason        TEXT,
@@ -464,12 +464,9 @@ CREATE TABLE deliveries (
                       CHECK (status IN (
                           'PENDING','IN_TRANSIT','DELIVERED','RETURNED'
                       )),
-    pod_image_url     VARCHAR(500),            -- Ảnh hàng hóa bàn giao
-    pod_signature_url VARCHAR(500),            -- Ảnh chữ ký/biên nhận của Đại lý
+    pod_image_url     VARCHAR(500),
+    pod_signature_url VARCHAR(500),
     pod_timestamp     TIMESTAMPTZ,
-    otp_recipient_email VARCHAR(255),
-    otp_sent_at       TIMESTAMPTZ,
-    otp_verified_at   TIMESTAMPTZ,
     failure_reason    TEXT,                    -- Vắng / từ chối / sai địa chỉ
     delivered_at      TIMESTAMPTZ,
     created_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),

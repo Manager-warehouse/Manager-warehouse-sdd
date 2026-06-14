@@ -10,6 +10,7 @@ Dispatcher gom nhiều đơn hàng và gán xe, tài xế nội bộ để lập
 ## 3. Functional Requirements (EARS)
 * **Ubiquitous:**
   * The system SHALL always release reserved inventory when a delivery order transitions to `IN_TRANSIT`.
+  * The system SHALL create `TRIP_CREATE` and `TRIP_DEPART` audit log entries for trip assignment and departure, including vehicle, driver, stop order, and inventory delta.
 * **Event-driven:**
   * WHEN a Dispatcher creates a trip, the system SHALL:
     * Validate that all selected DOs are in `READY_TO_SHIP` status.

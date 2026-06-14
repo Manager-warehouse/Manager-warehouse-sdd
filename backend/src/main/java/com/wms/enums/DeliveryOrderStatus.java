@@ -8,7 +8,5 @@ public enum DeliveryOrderStatus {
     IN_TRANSIT,
     DELIVERED,
     RETURNED,
-    COMPLETED,
-    CLOSED,
     CANCELLED
 }
