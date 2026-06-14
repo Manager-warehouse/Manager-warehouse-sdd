@@ -208,5 +208,5 @@ Active specs:
 Note: Nếu môi trường hiện tại không có GitNexus tooling, agent phải báo rõ không thể thực thi automation này trước khi tiếp tục các thay đổi thủ công.
 
 <!-- SPECKIT START -->
-<!-- Active Plan: .sdd/specs/003-inbound-receipt-qc/features/feature-planner-receipt-drafting/plan.md -->
+<!-- Active Plan: .sdd/specs/003-inbound-receipt-qc/features/feature-warehouse-staff-receipt-counting/plan.md -->
 <!-- SPECKIT END -->

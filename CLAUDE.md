@@ -793,8 +793,8 @@ Inventory (tồn kho)
 
 Receipt (Lệnh nhập kho / Phiếu nhập kho)
 ├── receiptNumber, sourceOrderCode, type (purchase/return)
-├── warehouse, supplier, status (pending_receipt/draft/qc_completed/approved/rejected)
-└── items (product + quantity + QC grade)
+├── warehouse, supplier, status (pending_receipt/draft/qc_completed/qc_failed/approved/rejected)
+└── items (product + expected_qty + actual_qty + over_received_qty + QC result)
 
 Issue (Đơn xuất hàng / Phiếu xuất kho)
 ├── issueNumber, customer/dealer, type (sale/delivery/adjustment)
@@ -841,16 +841,12 @@ DebitNote (Phiếu đòi bồi hoàn)
 |---|---|---|---|
 | Quản trị | CEO | Checker | Dashboard chiến lược |
 | Quản trị | System Admin | Admin | Quản lý tài khoản, RBAC, cấu hình tham số hệ thống |
-<<<<<<< HEAD
-| Quản lý | Trưởng kho kiêm Trưởng QC | Checker | Duyệt nhập/xuất/điều chuyển, xử lý chênh lệch thực tế, duyệt biên bản hàng lỗi |
-=======
 | Quản lý | Trưởng kho | Checker | Duyệt nhập/xuất/điều chuyển, xử lý chênh lệch 5M–100M, duyệt biên bản xử lý hàng lỗi |
->>>>>>> 78bb76f (update spec master data and database, entity)
 | Quản lý | Kế toán trưởng | Checker | Duyệt bảng giá, thiết lập Credit Limit, chốt sổ tháng, P&L/Aging Report |
 | Nghiệp vụ | Planner | Maker | Lập lệnh nhập / đơn xuất từ Công ty mẹ, kiểm tra Credit Check + tồn kho |
 | Nghiệp vụ | Dispatcher | Maker | Lập chuyến xe nội bộ Phúc Anh, gán tài xế, tối ưu lộ trình giao hàng |
-| Nghiệp vụ | Thủ kho kiêm QC | Maker | Tiếp nhận hàng, kiểm QC inbound/outbound, soạn hàng, kiểm kê, cất Bin, xác nhận điều chuyển |
-| Nghiệp vụ | Nhân viên kho (Bốc xếp) | Maker | Bốc xếp hàng hóa, hỗ trợ di chuyển hàng hóa, di chuyển hàng lỗi vào Quarantine theo chỉ dẫn |
+| Nghiệp vụ | Storekeeper | Checker | Rà soát kết quả QC, xác nhận `QC_COMPLETED`/`QC_FAILED`, chỉ định putaway sau phê duyệt |
+| Nghiệp vụ | Nhân viên kho | Maker | Tiếp nhận hàng, đếm số lượng thực tế, nhập phiếu kiểm tra nhận hàng, kiểm QC inbound/outbound, soạn hàng, kiểm kê |
 | Nghiệp vụ | Kế toán viên | Maker | Lập hóa đơn, ghi nhận thanh toán, cấn trừ công nợ, quản lý bảng giá |
 | Nghiệp vụ | Tài xế | Maker | Nhận chuyến (smartphone), giao hàng, xác nhận POD, báo giao thất bại |
 
@@ -926,7 +922,7 @@ Quy trình nhập hàng từ khi Công ty mẹ gửi thông tin qua Zalo/Email c
 ```
 
 **Luồng trạng thái đơn nhập:**
-`PENDING_RECEIPT` (Planner tạo) → `DRAFT` (Thủ kho kiểm đếm) → `QC_COMPLETED` (Thủ kho hoàn tất QC) → `APPROVED` (Trưởng kho duyệt, Hệ thống cộng tồn kho) / `REJECTED` (Trưởng kho từ chối, xuất hủy hoặc trả NCC)
+`PENDING_RECEIPT` (Planner tạo) → `DRAFT` (Nhân viên kho đếm đủ số lượng thực tế) → `QC_COMPLETED` / `QC_FAILED` (Storekeeper xác nhận kết quả QC) → `APPROVED` (Trưởng kho duyệt, Hệ thống cộng tồn kho) / `REJECTED` hoặc quarantine/RTV handling (Trưởng kho xử lý theo kết quả QC)
 
 ---
 
@@ -1106,12 +1102,8 @@ Quy trình đối chiếu số liệu tồn kho thực tế, tính toán chênh 
 ```
 
 **Thẩm quyền duyệt chênh lệch kiểm kê & xuất hủy hàng lỗi:**
-<<<<<<< HEAD
-- Tất cả chênh lệch kiểm kê và phiếu xuất hủy hàng lỗi đều do Trưởng kho phê duyệt trực tiếp trên hệ thống.
-=======
 - **Từ 5 triệu đến 100 triệu VNĐ**: Trưởng kho xem xét và phê duyệt trên hệ thống.
 - **Trên 100 triệu VNĐ hoặc lỗi xác định do nhân viên**: Phải trình trực tiếp CEO phê duyệt trên hệ thống.
->>>>>>> 78bb76f (update spec master data and database, entity)
 
 ---
 

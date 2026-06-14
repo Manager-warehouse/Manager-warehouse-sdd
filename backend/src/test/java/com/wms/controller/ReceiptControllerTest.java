@@ -1,9 +1,11 @@
 package com.wms.controller;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -12,6 +14,7 @@ import com.wms.dto.response.ReceiptResponse;
 import com.wms.entity.User;
 import com.wms.enums.UserRole;
 import com.wms.exception.DuplicateResourceException;
+import com.wms.exception.ReceiptCountException;
 import com.wms.service.CurrentUserService;
 import com.wms.service.ReceiptService;
 import java.time.LocalDate;
@@ -22,6 +25,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -38,12 +42,16 @@ class ReceiptControllerTest {
     private CurrentUserService currentUserService;
 
     private User planner;
+    private User warehouseStaff;
 
     @BeforeEach
     void setUp() {
         planner = new User();
         planner.setId(1L);
         planner.setRole(UserRole.PLANNER);
+        warehouseStaff = new User();
+        warehouseStaff.setId(2L);
+        warehouseStaff.setRole(UserRole.WAREHOUSE_STAFF);
     }
 
     @Test
@@ -119,8 +127,105 @@ class ReceiptControllerTest {
                 .andExpect(status().isBadRequest());
     }
 
+    @Test
+    @WithMockUser(username = "staff@wms.com", roles = "WAREHOUSE_STAFF")
+    void receiveReceipt_success() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(warehouseStaff);
+        when(receiptService.receiveReceiptCounts(eq(100L), any(), eq(warehouseStaff)))
+                .thenReturn(receivedResponse());
+
+        mockMvc.perform(put("/api/v1/receipts/100/receive")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(receiveJson()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("DRAFT"))
+                .andExpect(jsonPath("$.items[0].receipt_item_id").value(501))
+                .andExpect(jsonPath("$.items[0].actual_qty").value(90))
+                .andExpect(jsonPath("$.items[1].over_received_qty").value(20));
+    }
+
+    @Test
+    @WithMockUser(username = "staff@wms.com", roles = "WAREHOUSE_STAFF")
+    void receiveReceipt_correctsAfterQcDataExists() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(warehouseStaff);
+        when(receiptService.receiveReceiptCounts(eq(100L), any(), eq(warehouseStaff)))
+                .thenReturn(receivedResponse());
+
+        mockMvc.perform(put("/api/v1/receipts/100/receive")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(receiveJson()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("DRAFT"))
+                .andExpect(jsonPath("$.items[0].actual_qty").value(90));
+    }
+
+    @Test
+    @WithMockUser(username = "staff@wms.com", roles = "WAREHOUSE_STAFF")
+    void receiveReceipt_rejectsInvalidPayload() throws Exception {
+        mockMvc.perform(put("/api/v1/receipts/100/receive")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"items\":[]}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(username = "staff@wms.com", roles = "WAREHOUSE_STAFF")
+    void receiveReceipt_rejectsFractionalCount() throws Exception {
+        mockMvc.perform(put("/api/v1/receipts/100/receive")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(receiveJson().replace("90", "90.5")))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(username = "planner@wms.com", roles = "PLANNER")
+    void receiveReceipt_returnsForbiddenForWrongRole() throws Exception {
+        mockMvc.perform(put("/api/v1/receipts/100/receive")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(receiveJson()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(username = "staff@wms.com", roles = "WAREHOUSE_STAFF")
+    void receiveReceipt_returnsConflictForFinalizedReceipt() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(warehouseStaff);
+        when(receiptService.receiveReceiptCounts(eq(100L), any(), eq(warehouseStaff)))
+                .thenThrow(new ReceiptCountException("RECEIPT_ALREADY_FINALIZED",
+                        HttpStatus.CONFLICT, "finalized"));
+
+        mockMvc.perform(put("/api/v1/receipts/100/receive")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(receiveJson()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("RECEIPT_ALREADY_FINALIZED"));
+    }
+
+    @Test
+    @WithMockUser(username = "staff@wms.com", roles = "WAREHOUSE_STAFF")
+    void receiveReceipt_returnsUnprocessableForInvalidCount() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(warehouseStaff);
+        when(receiptService.receiveReceiptCounts(eq(100L), any(), eq(warehouseStaff)))
+                .thenThrow(new ReceiptCountException("INVALID_RECEIPT_COUNT",
+                        HttpStatus.UNPROCESSABLE_ENTITY, "invalid"));
+
+        mockMvc.perform(put("/api/v1/receipts/100/receive")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(receiveJson()))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("INVALID_RECEIPT_COUNT"));
+    }
+
     private ReceiptResponse response() {
         ReceiptItemResponse item = new ReceiptItemResponse();
+        item.setReceiptItemId(501L);
         item.setProductId(30L);
         item.setExpectedQty(500);
 
@@ -138,6 +243,27 @@ class ReceiptControllerTest {
         return response;
     }
 
+    private ReceiptResponse receivedResponse() {
+        ReceiptItemResponse item1 = new ReceiptItemResponse();
+        item1.setReceiptItemId(501L);
+        item1.setProductId(30L);
+        item1.setExpectedQty(100);
+        item1.setActualQty(90);
+        item1.setOverReceivedQty(0);
+
+        ReceiptItemResponse item2 = new ReceiptItemResponse();
+        item2.setReceiptItemId(502L);
+        item2.setProductId(31L);
+        item2.setExpectedQty(100);
+        item2.setActualQty(100);
+        item2.setOverReceivedQty(20);
+
+        ReceiptResponse response = response();
+        response.setStatus("DRAFT");
+        response.setItems(List.of(item1, item2));
+        return response;
+    }
+
     private String validJson() {
         return """
                 {
@@ -150,6 +276,23 @@ class ReceiptControllerTest {
                     {
                       "product_id": 30,
                       "expected_qty": 500
+                    }
+                  ]
+                }
+                """;
+    }
+
+    private String receiveJson() {
+        return """
+                {
+                  "items": [
+                    {
+                      "receipt_item_id": 501,
+                      "counted_qty": 90
+                    },
+                    {
+                      "receipt_item_id": 502,
+                      "counted_qty": 120
                     }
                   ]
                 }

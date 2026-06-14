@@ -2,6 +2,8 @@ package com.wms.service;
 
 import com.wms.dto.request.CreateReceiptItemRequest;
 import com.wms.dto.request.CreateReceiptRequest;
+import com.wms.dto.request.ReceiveReceiptItemRequest;
+import com.wms.dto.request.ReceiveReceiptRequest;
 import com.wms.dto.response.ReceiptResponse;
 import com.wms.entity.DocumentSequence;
 import com.wms.entity.Product;
@@ -15,6 +17,7 @@ import com.wms.enums.ReceiptStatus;
 import com.wms.enums.ReceiptType;
 import com.wms.enums.UserRole;
 import com.wms.exception.DuplicateResourceException;
+import com.wms.exception.ReceiptCountException;
 import com.wms.exception.ResourceNotFoundException;
 import com.wms.exception.UnprocessableEntityException;
 import com.wms.mapper.ReceiptMapper;
@@ -25,7 +28,6 @@ import com.wms.repository.ReceiptRepository;
 import com.wms.repository.SupplierRepository;
 import com.wms.repository.UserWarehouseAssignmentRepository;
 import com.wms.repository.WarehouseRepository;
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
@@ -34,6 +36,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -97,9 +102,49 @@ public class ReceiptService {
         return receiptMapper.toResponse(savedReceipt, savedItems);
     }
 
+    @Transactional
+    public ReceiptResponse receiveReceiptCounts(Long receiptId,
+                                                ReceiveReceiptRequest request,
+                                                User actor) {
+        requireWarehouseStaff(actor);
+        validateReceiveRequest(request);
+        Receipt receipt = receiptRepository.findByIdWithWarehouse(receiptId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Receipt not found with id: " + receiptId));
+        requireWarehouseAccess(actor, receipt.getWarehouse().getId());
+        validateReceivableStatus(receipt);
+
+        List<ReceiptItem> items = receiptItemRepository.findByReceiptIdOrderByIdAsc(receiptId);
+        Map<String, Object> before = receiveSnapshot(receipt, items);
+        Map<Long, ReceiveReceiptItemRequest> counts = validateCountCoverage(request, items);
+
+        for (ReceiptItem item : items) {
+            applyCount(item, counts.get(item.getId()).getCountedQty());
+        }
+        if (hasQcData(items)) {
+            clearQcData(items);
+        }
+        receipt.setStatus(ReceiptStatus.DRAFT);
+        receipt.setUpdatedAt(OffsetDateTime.now());
+
+        List<ReceiptItem> savedItems = receiptItemRepository.saveAll(items);
+        Receipt savedReceipt = receiptRepository.save(receipt);
+        auditLogService.log(actor, AuditAction.UPDATE, "RECEIPT",
+                savedReceipt.getId(), savedReceipt.getReceiptNumber(),
+                savedReceipt.getWarehouse().getId(), before,
+                receiveSnapshot(savedReceipt, savedItems));
+        return receiptMapper.toResponse(savedReceipt, savedItems);
+    }
+
     private void requirePlanner(User actor) {
         if (actor == null || actor.getRole() != UserRole.PLANNER) {
             throw new AccessDeniedException("Planner role is required");
+        }
+    }
+
+    private void requireWarehouseStaff(User actor) {
+        if (actor == null || actor.getRole() != UserRole.WAREHOUSE_STAFF) {
+            throw new AccessDeniedException("Warehouse Staff role is required");
         }
     }
 
@@ -212,7 +257,7 @@ public class ReceiptService {
         item.setReceipt(receipt);
         item.setProduct(product);
         item.setExpectedQty(request.getExpectedQty());
-        item.setOverReceivedQty(BigDecimal.ZERO);
+        item.setOverReceivedQty(0);
         return item;
     }
 
@@ -256,5 +301,137 @@ public class ReceiptService {
         values.put("productId", item.getProduct().getId());
         values.put("expectedQty", item.getExpectedQty());
         return values;
+    }
+
+    private void validateReceiveRequest(ReceiveReceiptRequest request) {
+        if (request == null || request.getItems() == null || request.getItems().isEmpty()) {
+            throw receiptCountError("RECEIPT_COUNT_INCOMPLETE",
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Receipt count request must include every receipt item");
+        }
+    }
+
+    private void validateReceivableStatus(Receipt receipt) {
+        if (receipt.getStatus() == ReceiptStatus.APPROVED
+                || receipt.getStatus() == ReceiptStatus.REJECTED) {
+            throw receiptCountError("RECEIPT_ALREADY_FINALIZED",
+                    HttpStatus.CONFLICT,
+                    "Receipt is already finalized");
+        }
+        if (receipt.getStatus() != ReceiptStatus.PENDING_RECEIPT
+                && receipt.getStatus() != ReceiptStatus.DRAFT
+                && receipt.getStatus() != ReceiptStatus.QC_COMPLETED
+                && receipt.getStatus() != ReceiptStatus.QC_FAILED) {
+            throw receiptCountError("INVALID_RECEIPT_STATUS",
+                    HttpStatus.CONFLICT,
+                    "Receipt status does not allow receiving");
+        }
+    }
+
+    private Map<Long, ReceiveReceiptItemRequest> validateCountCoverage(
+            ReceiveReceiptRequest request,
+            List<ReceiptItem> items) {
+        if (items.isEmpty()) {
+            throw receiptCountError("RECEIPT_COUNT_INCOMPLETE",
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Receipt has no items to count");
+        }
+        Map<Long, ReceiptItem> itemById = items.stream()
+                .collect(Collectors.toMap(ReceiptItem::getId, Function.identity()));
+        Map<Long, ReceiveReceiptItemRequest> countByItemId = new LinkedHashMap<>();
+        for (ReceiveReceiptItemRequest count : request.getItems()) {
+            validateCountLine(count, itemById, countByItemId);
+            countByItemId.put(count.getReceiptItemId(), count);
+        }
+        if (countByItemId.size() != itemById.size()) {
+            throw receiptCountError("RECEIPT_COUNT_INCOMPLETE",
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Receipt count request must include every receipt item");
+        }
+        return countByItemId;
+    }
+
+    private void validateCountLine(ReceiveReceiptItemRequest count,
+                                   Map<Long, ReceiptItem> itemById,
+                                   Map<Long, ReceiveReceiptItemRequest> countByItemId) {
+        if (count == null || count.getReceiptItemId() == null
+                || count.getCountedQty() == null || count.getCountedQty() <= 0) {
+            throw invalidReceiptCount();
+        }
+        if (countByItemId.containsKey(count.getReceiptItemId())
+                || !itemById.containsKey(count.getReceiptItemId())) {
+            throw invalidReceiptCount();
+        }
+    }
+
+    private void applyCount(ReceiptItem item, Integer countedQty) {
+        if (countedQty <= item.getExpectedQty()) {
+            item.setActualQty(countedQty);
+            item.setOverReceivedQty(0);
+            return;
+        }
+        item.setActualQty(item.getExpectedQty());
+        item.setOverReceivedQty(countedQty - item.getExpectedQty());
+    }
+
+    private boolean hasQcData(List<ReceiptItem> items) {
+        return items.stream().anyMatch(item ->
+                item.getQcResult() != null
+                        || item.getSampleQty() != null
+                        || item.getSamplePassedQty() != null
+                        || item.getSampleFailedQty() != null
+                        || item.getQcSamplingMethod() != null
+                        || item.getQcFailureReason() != null);
+    }
+
+    private void clearQcData(List<ReceiptItem> items) {
+        for (ReceiptItem item : items) {
+            item.setQcResult(null);
+            item.setSampleQty(null);
+            item.setSamplePassedQty(null);
+            item.setSampleFailedQty(null);
+            item.setQcSamplingMethod(null);
+            item.setQcFailureReason(null);
+            item.setQcBy(null);
+        }
+    }
+
+    private Map<String, Object> receiveSnapshot(Receipt receipt, List<ReceiptItem> items) {
+        Map<String, Object> values = new LinkedHashMap<>();
+        values.put("receiptNumber", receipt.getReceiptNumber());
+        values.put("status", receipt.getStatus().name());
+        values.put("warehouseId", receipt.getWarehouse().getId());
+        values.put("items", items.stream().map(this::receiveItemSnapshot).toList());
+        return values;
+    }
+
+    private Map<String, Object> receiveItemSnapshot(ReceiptItem item) {
+        Map<String, Object> values = new LinkedHashMap<>();
+        values.put("receiptItemId", item.getId());
+        values.put("productId", item.getProduct().getId());
+        values.put("expectedQty", item.getExpectedQty());
+        values.put("actualQty", item.getActualQty());
+        values.put("overReceivedQty", item.getOverReceivedQty());
+        values.put("qcResult", item.getQcResult() == null ? null : item.getQcResult().name());
+        values.put("sampleQty", item.getSampleQty());
+        values.put("samplePassedQty", item.getSamplePassedQty());
+        values.put("sampleFailedQty", item.getSampleFailedQty());
+        values.put("qcSamplingMethod",
+                item.getQcSamplingMethod() == null ? null : item.getQcSamplingMethod().name());
+        values.put("qcFailureReason", item.getQcFailureReason());
+        values.put("qcBy", item.getQcBy() == null ? null : item.getQcBy().getId());
+        return values;
+    }
+
+    private ReceiptCountException invalidReceiptCount() {
+        return receiptCountError("INVALID_RECEIPT_COUNT",
+                HttpStatus.UNPROCESSABLE_ENTITY,
+                "Receipt count contains invalid item or quantity");
+    }
+
+    private ReceiptCountException receiptCountError(String code,
+                                                    HttpStatus status,
+                                                    String message) {
+        return new ReceiptCountException(code, status, message);
     }
 }

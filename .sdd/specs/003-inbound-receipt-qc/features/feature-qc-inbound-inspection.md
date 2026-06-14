@@ -1,4 +1,4 @@
-# Feature: Nhân viên kho Kiểm tra Chất lượng Inbound theo Sample (US-WMS-03)
+# Feature: Nhân viên kho Kiểm tra Chất lượng Inbound theo Sample (US-WMS-04)
 
 ## 1. Context and Goal
 Nhân viên kho (WAREHOUSE_STAFF) kiểm tra ngoại quan và chất lượng bằng cách lấy mẫu theo từng lô hàng, ghi nhận số lượng mẫu đạt/lỗi và lý do QC. Storekeeper (STOREKEEPER) rà soát kết quả QC mẫu trước khi chuyển phiếu sang trạng thái `QC_COMPLETED` hoặc `QC_FAILED`. Hàng đạt chuẩn được giữ để Trưởng kho phê duyệt nhập kho, còn hàng lỗi QC mẫu được đánh dấu cần xử lý quarantine/RTV bởi Trưởng kho. Bước QC không tạo batch và không ghi tăng bất kỳ tồn kho nào.

@@ -3,7 +3,7 @@
 **Spec ID**: 003-inbound-receipt-qc
 **Created**: 2026-05-30
 **Status**: Draft
-**Features**: US-WMS-02, US-WMS-03, US-WMS-04, US-WMS-05
+**Features**: US-WMS-02, US-WMS-03, US-WMS-04, US-WMS-05, US-WMS-06
 
 ---
 
@@ -13,10 +13,10 @@ Quy trình nhập hàng là đầu vào của toàn bộ hệ thống tồn kho.
 
 ### Features List
 * [US-WMS-02: Tiếp nhận & Lập Lệnh Nhập kho](./features/feature-planner-receipt-drafting/feature-planner-receipt-drafting.md)
-* [Nhân viên kho Tiếp nhận & Đếm hàng thực tế](./features/feature-storekeeper-receipt-receive.md)
-* [US-WMS-03: Nhân viên kho Kiểm tra Chất lượng Inbound theo Sample](./features/feature-qc-inbound-inspection.md)
-* [US-WMS-04: Xử lý Hàng lỗi trong Quarantine Zone](./features/feature-manager-quarantine-handling.md)
-* [US-WMS-05: Duyệt Nhập kho Chính thức](./features/feature-manager-receipt-approval.md)
+* [US-WMS-03: Nhân viên kho Tiếp nhận & Đếm số lượng hàng thực tế](./features/feature-warehouse-staff-receipt-counting/feature-warehouse-staff-receipt-counting.md)
+* [US-WMS-04: Nhân viên kho Kiểm tra Chất lượng Inbound theo Sample](./features/feature-qc-inbound-inspection.md)
+* [US-WMS-05: Xử lý Hàng lỗi trong Quarantine Zone](./features/feature-manager-quarantine-handling.md)
+* [US-WMS-06: Duyệt Nhập kho Chính thức](./features/feature-manager-receipt-approval.md)
 
 ## 2. Actors
 
@@ -31,7 +31,7 @@ Quy trình nhập hàng là đầu vào của toàn bộ hệ thống tồn kho.
 ## 3. Functional Requirements (EARS)
 *Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đặc tả tính năng:*
 * [EARS - Receipt Drafting](./features/feature-planner-receipt-drafting/feature-planner-receipt-drafting.md#3-functional-requirements-ears)
-* [EARS - Receipt Receive](./features/feature-storekeeper-receipt-receive.md#3-functional-requirements-ears)
+* [EARS - Receipt Counting](./features/feature-warehouse-staff-receipt-counting/feature-warehouse-staff-receipt-counting.md#3-functional-requirements-ears)
 * [EARS - Inbound QC](./features/feature-qc-inbound-inspection.md#3-functional-requirements-ears)
 * [EARS - Quarantine Handling](./features/feature-manager-quarantine-handling.md#3-functional-requirements-ears)
 * [EARS - Receipt Approval](./features/feature-manager-receipt-approval.md#3-functional-requirements-ears)
@@ -63,7 +63,7 @@ Quy trình nhập hàng là đầu vào của toàn bộ hệ thống tồn kho.
 - `id` (BIGSERIAL, PK)
 - `po_id` (BIGINT, FK→purchase_orders, NOT NULL)
 - `product_id` (BIGINT, FK→products, NOT NULL)
-- `expected_qty` (DECIMAL(10,2), NOT NULL)
+- `expected_qty` (INTEGER, NOT NULL, > 0)
 - `unit_price` (DECIMAL(18,2))
 
 ### receipts
@@ -94,11 +94,11 @@ Quy trình nhập hàng là đầu vào của toàn bộ hệ thống tồn kho.
 - `batch_id` (BIGINT, FK→batches) -- set sau khi APPROVED hoặc sau khi Trưởng kho xác nhận quarantine intake cho lô `QC_FAILED`
 - `location_id` (BIGINT, FK→warehouse_locations) -- set khi putaway hoặc khi Trưởng kho xác nhận quarantine intake
 - `expected_qty` (INTEGER, NOT NULL, > 0)
-- `actual_qty` (DECIMAL(10,2)) -- quantity accepted into this receipt after receiving count; capped at expected_qty when over-received
-- `over_received_qty` (DECIMAL(10,2), DEFAULT 0) -- excess quantity counted beyond expected_qty, used as evidence for over-receipt return-to-supplier handling
-- `sample_qty` (DECIMAL(10,2))
-- `sample_passed_qty` (DECIMAL(10,2))
-- `sample_failed_qty` (DECIMAL(10,2))
+- `actual_qty` (INTEGER) -- quantity accepted into this receipt after receiving count; capped at expected_qty when over-received
+- `over_received_qty` (INTEGER, DEFAULT 0) -- excess quantity counted beyond expected_qty, used as evidence for over-receipt return-to-supplier handling
+- `sample_qty` (INTEGER)
+- `sample_passed_qty` (INTEGER)
+- `sample_failed_qty` (INTEGER)
 - `qc_sampling_method` (VARCHAR(30)) -- FULL_INSPECTION nếu supplier chưa có 5 receipt APPROVED trước đó; RANDOM_SAMPLE nếu supplier đã có ít nhất 5 receipt APPROVED
 - `qc_result` (VARCHAR(20), CHECK IN ('PENDING','PASSED','FAILED','PARTIAL'))
 - `qc_failure_reason` (TEXT)
@@ -112,7 +112,7 @@ Quy trình nhập hàng là đầu vào của toàn bộ hệ thống tồn kho.
 ## 6. API Spec
 *Vui lòng xem chi tiết API endpoints tại các tài liệu đặc tả tính năng:*
 * [APIs - Receipt Drafting](./features/feature-planner-receipt-drafting/feature-planner-receipt-drafting.md#4-api-endpoints)
-* [APIs - Receipt Receive](./features/feature-storekeeper-receipt-receive.md#4-api-endpoints)
+* [APIs - Receipt Counting](./features/feature-warehouse-staff-receipt-counting/feature-warehouse-staff-receipt-counting.md#4-api-endpoints)
 * [APIs - Inbound QC](./features/feature-qc-inbound-inspection.md#4-api-endpoints)
 * [APIs - Quarantine Handling](./features/feature-manager-quarantine-handling.md#4-api-endpoints)
 * [APIs - Receipt Approval](./features/feature-manager-receipt-approval.md#4-api-endpoints)
@@ -122,6 +122,10 @@ Quy trình nhập hàng là đầu vào của toàn bộ hệ thống tồn kho.
 | Error | HTTP | Condition |
 |-------|------|-----------|
 | RECEIPT_ALREADY_APPROVED | 409 | Duplicate approval attempt |
+| INVALID_RECEIPT_COUNT | 422 | Non-integer `counted_qty`, `counted_qty <= 0`, duplicate item, or item not belonging to the receipt |
+| RECEIPT_COUNT_INCOMPLETE | 422 | Receive/count request does not include every receipt item in the target receipt |
+| INVALID_RECEIPT_STATUS | 409 | Receipt status does not allow receiving/count correction |
+| RECEIPT_ALREADY_FINALIZED | 409 | Receipt status is already `APPROVED` or `REJECTED` |
 | QC_SAMPLE_MISMATCH | 422 | sample_passed_qty + sample_failed_qty != sample_qty |
 | INVENTORY_VERSION_CONFLICT | 409 | Concurrent inventory update |
 | NO_QUARANTINE_ITEMS | 400 | No failed items to process |
@@ -158,7 +162,7 @@ Quy trình nhập hàng là đầu vào của toàn bộ hệ thống tồn kho.
 ## 8. Acceptance Criteria
 *Vui lòng xem chi tiết kịch bản kiểm thử tại các tài liệu đặc tả tính năng:*
 * [Acceptance - Receipt Drafting](./features/feature-planner-receipt-drafting/feature-planner-receipt-drafting.md#5-acceptance-criteria)
-* [Acceptance - Receipt Receive](./features/feature-storekeeper-receipt-receive.md#5-acceptance-criteria)
+* [Acceptance - Receipt Counting](./features/feature-warehouse-staff-receipt-counting/feature-warehouse-staff-receipt-counting.md#6-acceptance-criteria)
 * [Acceptance - Inbound QC](./features/feature-qc-inbound-inspection.md#5-acceptance-criteria)
 * [Acceptance - Quarantine Handling](./features/feature-manager-quarantine-handling.md#5-acceptance-criteria)
 * [Acceptance - Receipt Approval](./features/feature-manager-receipt-approval.md#5-acceptance-criteria)

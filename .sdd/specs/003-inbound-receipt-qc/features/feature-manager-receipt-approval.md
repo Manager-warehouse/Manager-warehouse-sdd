@@ -1,4 +1,4 @@
-# Feature: Trưởng kho Duyệt Nhập kho Chính thức (US-WMS-05)
+# Feature: Trưởng kho Duyệt Nhập kho Chính thức (US-WMS-06)
 
 ## 1. Context and Goal
 Trưởng kho duyệt hoặc từ chối phiếu nhập kho chính thức dựa trên số lượng đếm thực tế và kết quả QC mẫu đã được Storekeeper xác nhận ở trạng thái `QC_COMPLETED`.

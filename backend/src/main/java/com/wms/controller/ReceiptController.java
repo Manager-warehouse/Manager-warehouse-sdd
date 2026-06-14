@@ -1,6 +1,7 @@
 package com.wms.controller;
 
 import com.wms.dto.request.CreateReceiptRequest;
+import com.wms.dto.request.ReceiveReceiptRequest;
 import com.wms.dto.response.ReceiptResponse;
 import com.wms.entity.User;
 import com.wms.service.CurrentUserService;
@@ -15,6 +16,8 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -51,5 +54,24 @@ public class ReceiptController {
     public ReceiptResponse createReceipt(@Valid @RequestBody CreateReceiptRequest request) {
         User actor = currentUserService.getRequiredCurrentUser();
         return receiptService.createPurchaseReceipt(request, actor);
+    }
+
+    @PutMapping("/{id}/receive")
+    @PreAuthorize("hasRole('WAREHOUSE_STAFF')")
+    @Operation(summary = "Submit or correct complete physical receipt counts")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Receipt counts accepted",
+                    content = @Content(schema = @Schema(implementation = ReceiptResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Validation error"),
+            @ApiResponse(responseCode = "401", description = "Missing or invalid authentication"),
+            @ApiResponse(responseCode = "403", description = "Warehouse Staff cannot access warehouse"),
+            @ApiResponse(responseCode = "404", description = "Receipt or receipt item not found"),
+            @ApiResponse(responseCode = "409", description = "Receipt status does not allow receive counting"),
+            @ApiResponse(responseCode = "422", description = "Invalid or incomplete count data")
+    })
+    public ReceiptResponse receiveReceipt(@PathVariable Long id,
+                                          @Valid @RequestBody ReceiveReceiptRequest request) {
+        User actor = currentUserService.getRequiredCurrentUser();
+        return receiptService.receiveReceiptCounts(id, request, actor);
     }
 }

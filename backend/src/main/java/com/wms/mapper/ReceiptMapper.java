@@ -28,8 +28,11 @@ public class ReceiptMapper {
 
     private ReceiptItemResponse toItemResponse(ReceiptItem item) {
         ReceiptItemResponse response = new ReceiptItemResponse();
+        response.setReceiptItemId(item.getId());
         response.setProductId(item.getProduct().getId());
         response.setExpectedQty(item.getExpectedQty());
+        response.setActualQty(item.getActualQty());
+        response.setOverReceivedQty(item.getOverReceivedQty());
         return response;
     }
 }

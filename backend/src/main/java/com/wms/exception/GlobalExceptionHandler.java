@@ -37,6 +37,11 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.UNPROCESSABLE_ENTITY, "UNPROCESSABLE_ENTITY", ex.getMessage(), null);
     }
 
+    @ExceptionHandler(ReceiptCountException.class)
+    public ResponseEntity<ApiErrorResponse> handleReceiptCount(ReceiptCountException ex) {
+        return error(ex.getStatus(), ex.getCode(), ex.getMessage(), null);
+    }
+
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiErrorResponse> handleAccessDenied(AccessDeniedException ex) {
         return error(HttpStatus.FORBIDDEN, "ACCESS_DENIED", "Access denied", null);

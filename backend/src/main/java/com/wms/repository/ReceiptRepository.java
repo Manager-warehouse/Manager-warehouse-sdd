@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 @Repository
@@ -15,6 +17,10 @@ public interface ReceiptRepository extends JpaRepository<Receipt, Long> {
 
     @EntityGraph(attributePaths = {"supplier", "warehouse"})
     Optional<Receipt> findByIdAndSupplierId(Long id, Long supplierId);
+
+    @EntityGraph(attributePaths = {"warehouse"})
+    @Query("select r from Receipt r where r.id = :id")
+    Optional<Receipt> findByIdWithWarehouse(@Param("id") Long id);
 
     boolean existsBySupplierIdAndWarehouseIdAndSourceOrderCodeAndTypeAndStatusNot(
             Long supplierId,

@@ -1,4 +1,4 @@
-# Feature: Trưởng kho Xử lý Hàng lỗi QC và Quarantine Zone (US-WMS-04)
+# Feature: Trưởng kho Xử lý Hàng lỗi QC và Quarantine Zone (US-WMS-05)
 
 ## 1. Context and Goal
 Trưởng kho xử lý lô hàng inbound đã bị xác nhận `QC_FAILED`. Chỉ Trưởng kho mới được xác nhận đưa lô lỗi vào tồn kho cách ly (Quarantine inventory) hoặc hoàn tất trả về nhà cung cấp (RTV) kèm Debit Note. Sprint 1 không xử lý tiêu hủy hàng lỗi trong inbound receipt.
