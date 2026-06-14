@@ -37,7 +37,6 @@ public class DeliveryOrderMapper {
                 .reservedQty(item.getReservedQty())
                 .issuedQty(item.getIssuedQty())
                 .unitPrice(item.getUnitPrice())
-                .serialNumber(item.getSerialNumber())
                 .build();
     }
 }

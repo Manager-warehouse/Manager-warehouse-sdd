@@ -134,15 +134,17 @@
 
 1. Tài xế đăng nhập bằng tài khoản riêng → Xem danh sách đơn hàng cần giao trong chuyến xe của mình.
 2. Tại điểm giao: Tài xế chụp ảnh hàng hóa bàn giao và chụp ảnh chữ ký/biên nhận của Đại lý xác nhận đã nhận hàng → Hệ thống upload và lưu POD images.
-3. Tài xế yêu cầu xác nhận giao hàng → Hệ thống gửi mã OTP qua email Đại lý; Đại lý đọc mã OTP cho Tài xế nhập vào màn hình xác nhận.
-4. Tài xế nhấn "Xác nhận đã giao" với OTP hợp lệ → Hệ thống trừ hàng khỏi Kho ảo In-Transit → Trạng thái đơn: **Đã giao thành công (Delivered)**.
-5. Nếu giao thất bại (đại lý vắng mặt, từ chối nhận) → Tài xế chọn lý do → Trạng thái đơn: **Giao thất bại (Returned)**; hàng vẫn được theo dõi ở Kho ảo In-Transit cho đến khi luồng hoàn hàng riêng tiếp nhận và phân loại.
+3. Tài xế yêu cầu xác nhận giao hàng → Hệ thống gửi mã OTP qua email Đại lý, chỉ lưu hash/verifier trong `delivery_otp_attempts`; Đại lý đọc mã OTP cho Tài xế nhập vào màn hình xác nhận.
+4. Tài xế nhấn "Xác nhận đã giao" với OTP hợp lệ → Hệ thống trừ hàng khỏi Kho ảo In-Transit → Delivery attempt và trạng thái đơn: **Đã giao thành công (Delivered)**.
+5. Nếu giao thất bại (đại lý vắng mặt, từ chối nhận) → Tài xế chọn lý do → Delivery attempt hiện tại đóng ở trạng thái **Failed**, trạng thái đơn: **Giao thất bại (Returned)**; hàng vẫn được theo dõi ở Kho ảo In-Transit cho đến khi luồng hoàn hàng riêng tiếp nhận và phân loại.
 
 ---
 
 ### US-WMS-10: Lập Hóa đơn bán hàng & Ghi nhận Công nợ (Priority: P1)
 
 **Mô tả:** Là Kế toán viên, sau khi đơn hàng chuyển sang trạng thái Delivered, tôi muốn lập Hóa đơn bán hàng kèm kỳ hạn thanh toán để hệ thống theo dõi và tự động cảnh báo nợ quá hạn.
+
+**Tiêu chí bổ sung:** Kế toán viên phải có màn hình/API danh sách đơn `DELIVERED` chưa có hóa đơn theo phạm vi kho được phân quyền để không bỏ sót đơn cần lập hóa đơn.
 
 **Tiêu chí nghiệm thu:**
 

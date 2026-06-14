@@ -257,8 +257,9 @@ Công ty mẹ gửi yêu cầu xuất hàng
     → Trưởng kho duyệt xuất [READY_TO_SHIP]
     → Dispatcher lập Chuyến xe nội bộ, gán Tài xế
     → Tài xế xác nhận nhận hàng → [IN_TRANSIT] → Hệ thống trừ kho xuất, cộng kho ảo In-Transit
-    → Tài xế upload ảnh hàng + ảnh chữ ký/biên nhận, Đại lý đọc OTP email [DELIVERED]
-    → Kế toán viên lập Hóa đơn (Invoice) → Cộng công nợ [COMPLETED]
+    → Tài xế upload ảnh hàng + ảnh chữ ký/biên nhận cho delivery attempt hiện tại, Đại lý đọc OTP email [DELIVERED]
+        (raw OTP không lưu DB; hệ thống chỉ lưu hash/verifier trong delivery_otp_attempts)
+    → Kế toán viên lấy danh sách invoice candidates và lập Hóa đơn (Invoice) → Cộng công nợ [COMPLETED]
     → Đại lý thanh toán → Cấn trừ công nợ [CLOSED]
 ```
 
@@ -279,7 +280,7 @@ Planner xem Planning Dashboard → Nhận gợi ý điều chuyển
 
 ```
 [Phát sinh nợ]
-Giao hàng Delivered → Kế toán lập Invoice (Net 30/60) → current_balance += giá trị đơn
+Giao hàng Delivered → Kế toán lấy invoice candidates → Lập Invoice (Net 30/60) → current_balance += giá trị đơn → DO [COMPLETED]
     → IF current_balance > credit_limit → CREDIT_HOLD (chặn đơn mới; bằng hạn mức vẫn cho phép)
     → Daily Job: IF invoice quá hạn > 30 ngày → CREDIT_HOLD + cảnh báo Kế toán trưởng
 
@@ -303,10 +304,10 @@ Kế toán trưởng kiểm tra điều kiện → Chốt sổ kỳ T → CLOSED
 | **Pending Warehouse Approval** | Thủ kho (sau khi kiểm QC đạt) |
 | **Ready to Ship** | Trưởng kho (phê duyệt xuất kho sau QC) |
 | **In-Transit** ⚠️ *Tồn kho bị trừ tại đây* | Tài xế (xác nhận nhận hàng) |
-| **Delivered** | Tài xế (POD images + OTP Đại lý hợp lệ) |
-| **Returned** | Tài xế (giao thất bại) |
-| **Completed** | Kế toán viên |
-| **Closed** | Hệ thống (sau Phiếu thu) |
+| **Delivered** | Tài xế (POD images + OTP Đại lý hợp lệ; OTP verifier lưu trong `delivery_otp_attempts`) |
+| **Returned** | Tài xế (delivery attempt thất bại; attempt hiện tại là `FAILED`, hàng vẫn ở In-Transit cho đến khi luồng hoàn hàng tiếp nhận) |
+| **Completed** | Kế toán viên (đã lập invoice cho DO Delivered) |
+| **Closed** | Hệ thống/Kế toán (đã tất toán hoặc khóa theo kỳ kế toán) |
 | **Cancelled** | Planner / Trưởng kho |
 
 ### Cơ chế Credit Check (Kiểm soát công nợ)

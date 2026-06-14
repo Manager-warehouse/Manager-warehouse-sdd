@@ -31,6 +31,9 @@ public class Delivery {
     @JoinColumn(name = "driver_id", nullable = false)
     private Driver driver;
 
+    @Column(name = "attempt_number", nullable = false)
+    private Integer attemptNumber;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 30)
     private DeliveryStatus status;
@@ -44,17 +47,14 @@ public class Delivery {
     @Column(name = "pod_timestamp")
     private OffsetDateTime podTimestamp;
 
-    @Column(name = "otp_recipient_email", length = 255)
-    private String otpRecipientEmail;
-
-    @Column(name = "otp_sent_at")
-    private OffsetDateTime otpSentAt;
-
     @Column(name = "otp_verified_at")
     private OffsetDateTime otpVerifiedAt;
 
     @Column(name = "failure_reason", columnDefinition = "TEXT")
     private String failureReason;
+
+    @Column(name = "dispatched_at")
+    private OffsetDateTime dispatchedAt;
 
     @Column(name = "delivered_at")
     private OffsetDateTime deliveredAt;

@@ -177,7 +177,7 @@ src/
 │   ├── Outbound/
 │   │   ├── DeliveryOrders.jsx  # Lệnh xuất kho DO & Picking (Spec 004)
 │   │   ├── QCOutbound.jsx     # QC đầu ra trước khi giao hàng (Spec 004)
-│   │   └── TripPlanning.jsx    # Gom chuyến xe, upload POD images & OTP giao hàng (Spec 004)
+│   │   └── TripPlanning.jsx    # Gom chuyến xe, tạo delivery attempts, upload POD images & OTP giao hàng (Spec 004)
 │   ├── InternalTransfer/
 │   │   ├── TransferRequest.jsx # Lệnh điều chuyển giữa các kho Hải Phòng/HN/HCM (Spec 005)
 │   │   ├── InTransitStock.jsx  # Theo dõi hàng đang đi đường (Virtual location) (Spec 005)
