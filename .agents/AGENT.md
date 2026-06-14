@@ -20,15 +20,15 @@ Neu chua co `spec.md`/`plan.md`/`tasks.md` trong `specs/`: KHONG doan stack/kien
 `/speckit-analyze` (READ-ONLY)
 `/speckit-implement`
 3. Tech Stack
-Runtime: Node.js 20
-Backend:  Spring Boot 3.4.5 (chon framework phu hop theo task)
-Language: Java 21.0.10(backend) / TypeScript (frontend)
-Frontend: React 18 + TypeScript
+Runtime: Java 21 backend, Node.js/Vite frontend tooling
+Backend: Spring Boot 3.4.5
+Language: Java 21 backend / JavaScript frontend
+Frontend: React 18 + JavaScript
 Database: PostgreSQL 18
 ORM: Spring Data JPA / Hibernate
 Styling: Tailwind CSS 3.x
 Auth: JWT + bcrypt
-Testing: Jest + Supertest
+Testing: JUnit 5 + Mockito backend / Jest + React Testing Library frontend
 Package Manager: npm / pnpm / pip (pick one, stick with it)
 4. Architecture Principles
 - Follow MVC pattern
@@ -40,20 +40,20 @@ Package Manager: npm / pnpm / pip (pick one, stick with it)
 - Max file length: 300 lines (split if longer)
 - Comments: explain WHY not WHAT. Remove TODO before merge.
 5. File Naming & Structure
-Components: PascalCase (e.g. UserCard.tsx)
-Utilities: camelCase (e.g. formatDate.ts)
+Components: PascalCase (e.g. UserCard.jsx)
+Utilities: camelCase (e.g. formatDate.js)
 API routes: kebab-case (e.g. /api/user-profile)
 DB tables: snake_case (e.g. user_profiles)
-Service pattern: src/services/[name].service.ts
-Controller pattern: src/controllers/[name].controller.ts
-Service test: Always create test file alongside service file
+Backend service pattern: backend/src/main/java/com/wms/service/[Name]Service.java
+Backend controller pattern: backend/src/main/java/com/wms/controller/[Name]Controller.java
+Service tests: backend/src/test/java/com/wms/service/
 Error codes: Use constants from src/constants/errors.ts
 6. Security Policies (non-negotiable)
 - Passwords: bcrypt voi min cost 12 - NEVER plain text or MD5
 - API keys: environment variables ONLY - never in source code
 - SQL: ORM ONLY - zero tolerance for string concatenation in queries
 - File uploads: validate type + size (max 10MB) + scan for malware
-- Input validation: zod/joi schema on every request body
+- Input validation: Jakarta Validation annotations on every write request DTO
 - CORS: whitelist only - no wildcard (*) in production
 - NEVER store secrets/passwords in plain text or .env files committed to git
 - NEVER skip input validation on API endpoints
@@ -103,7 +103,7 @@ Cac lenh build/test/lint chi khi da duoc dinh nghia trong `plan.md` hoac duoc us
 - Never output or commit API keys, passwords, tokens, credentials.
 - Never run destructive filesystem commands khi chua xac nhan (xoa hang loat/recursive, thao tac nguy hiem).
 - Khong hallucinate: neu thieu thong tin (stack, commands, paths), phai noi ro thieu va hoi lai.
-- Constitution authority: `.specify/memory/constitution.md` la nguon quy tac. Hien file nay dang la template/placeholder; neu can ap dung quy tac, doc file do truoc.
+- Constitution authority: `.specify/memory/constitution.md` la nguon quy tac canonical. `.sdd/constitution.md` chi la index tro ve nguon nay.
 14. Communication Style
 - Viet ngan gon, de scan; uu tien bang chung tu file (ten file/duong dan).
 - Progressive disclosure: chi doc/nhac phan can thiet, tranh dump dai.

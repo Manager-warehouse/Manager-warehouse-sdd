@@ -11,5 +11,30 @@ public enum AuditAction {
     CANCEL,
     SOFT_DELETE,
     ASSIGN,
-    UNASSIGN
+    UNASSIGN,
+    // Inbound receipt lifecycle actions (US-WMS-05)
+    RECEIPT_APPROVE,
+    RECEIPT_REJECT,
+    RECEIPT_RETURN_CONFIRM,
+    RECEIPT_PUTAWAY_COMPLETE,
+    // Quarantine RTV actions (US-WMS-04)
+    QUARANTINE_RTV_CREATE,
+    QUARANTINE_RTV_CONFIRM,
+    // Inventory mutation audit
+    INVENTORY_UPDATE,
+    // Internal transfer lifecycle actions (US-WMS-11/12)
+    TRANSFER_CREATE,
+    TRANSFER_UPDATE,
+    TRANSFER_APPROVE,
+    TRANSFER_REJECT,
+    TRANSFER_TRIP_ASSIGN,
+    TRANSFER_SHIP,
+    TRANSFER_DEPART,
+    TRANSFER_RECEIVE_COUNT,
+    TRANSFER_RECEIVE_CONFIRM,
+    TRANSFER_DISCREPANCY_CREATE,
+    TRANSFER_CANCEL,
+    // Billing notification actions (US-WMS-10)
+    BILLING_NOTIFICATION_CREATE,
+    BILLING_NOTIFICATION_READ
 }

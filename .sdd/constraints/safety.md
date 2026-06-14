@@ -19,7 +19,7 @@
 | # | Rule | Mức độ |
 |---|---|---|
 | INV-SAFE-01 | KHÔNG cho phép tồn kho âm dưới mọi hình thức | MUST |
-| INV-SAFE-02 | DB constraint `CHECK (quantity >= 0)` + application validation | MUST |
+| INV-SAFE-02 | DB constraints for `total_qty >= 0`, `reserved_qty >= 0`, and `total_qty - reserved_qty >= 0` + application validation | MUST |
 | INV-SAFE-03 | KHÔNG UPDATE inventory trực tiếp — chỉ qua các flow chuẩn | MUST |
 | INV-SAFE-04 | Optimistic locking (`@Version`) bắt buộc trên bảng inventories | MUST |
 | INV-SAFE-05 | Version conflict → HTTP 409 — không im lặng ghi đè | MUST |

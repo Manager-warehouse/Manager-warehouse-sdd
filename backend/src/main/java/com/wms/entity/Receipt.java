@@ -85,4 +85,8 @@ public class Receipt {
 
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
+
+    @Version
+    @Column(name = "version", nullable = false)
+    private Integer version;
 }

@@ -38,12 +38,25 @@ public class Transfer {
     @JoinColumn(name = "created_by", nullable = false)
     private User createdBy;
 
+    @Column(name = "external_instruction_code", length = 80)
+    private String externalInstructionCode;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "approved_by")
     private User approvedBy;
 
     @Column(name = "approved_at")
     private OffsetDateTime approvedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "rejected_by")
+    private User rejectedBy;
+
+    @Column(name = "rejected_at")
+    private OffsetDateTime rejectedAt;
+
+    @Column(name = "rejection_reason", columnDefinition = "TEXT")
+    private String rejectionReason;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "confirmed_by")
@@ -61,12 +74,19 @@ public class Transfer {
     @Column(name = "discrepancy_reason", columnDefinition = "TEXT")
     private String discrepancyReason;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "trip_id")
+    private Trip trip;
+
     @Column(name = "document_date", nullable = false)
     private LocalDate documentDate;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "accounting_period_id")
     private AccountingPeriod accountingPeriod;
+
+    @Column(name = "notes", columnDefinition = "TEXT")
+    private String notes;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;

@@ -1,5 +1,8 @@
 package com.wms.exception;
 
+import com.wms.exception.ForbiddenReceiptWarehouseException;
+import com.wms.exception.ReceiptAlreadyDecidedException;
+import com.wms.exception.RtvAlreadyExistsException;
 import jakarta.validation.ConstraintViolationException;
 import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
@@ -29,7 +32,31 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessRuleViolationException.class)
     public ResponseEntity<ApiErrorResponse> handleBusinessRule(BusinessRuleViolationException ex) {
-        return error(HttpStatus.CONFLICT, "BUSINESS_RULE_VIOLATION", ex.getMessage(), ex.getMessage(), null);
+        String msg = ex.getMessage();
+        HttpStatus status = HttpStatus.UNPROCESSABLE_ENTITY;
+        String code = "BUSINESS_RULE_VIOLATION";
+
+        if (msg != null) {
+            if (msg.contains("INVENTORY_VERSION_CONFLICT")) {
+                status = HttpStatus.CONFLICT;
+                code = "INVENTORY_VERSION_CONFLICT";
+            } else if (msg.contains("RTV_ALREADY_CONFIRMED")) {
+                status = HttpStatus.CONFLICT;
+                code = "RTV_ALREADY_CONFIRMED";
+            } else if (msg.contains("RTV_QUANTITY_MISMATCH")) {
+                code = "RTV_QUANTITY_MISMATCH";
+            } else if (msg.contains("INVALID_STATE")) {
+                code = "INVALID_STATE";
+            } else if (msg.contains("INVALID_LOCATION")) {
+                code = "INVALID_LOCATION";
+            } else if (msg.contains("BIN_CAPACITY_EXCEEDED")) {
+                code = "BIN_CAPACITY_EXCEEDED";
+            } else if (msg.contains("INVENTORY_INVARIANT_VIOLATED")) {
+                code = "INVENTORY_INVARIANT_VIOLATED";
+            }
+        }
+
+        return error(status, code, msg, msg, null);
     }
 
     @ExceptionHandler(UnprocessableEntityException.class)
@@ -45,6 +72,27 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiErrorResponse> handleAccessDenied(AccessDeniedException ex) {
         return error(HttpStatus.FORBIDDEN, "ACCESS_DENIED", "Access denied", "Access denied", null);
+    }
+
+    @ExceptionHandler(ForbiddenReceiptWarehouseException.class)
+    public ResponseEntity<ApiErrorResponse> handleForbiddenReceiptWarehouse(
+            ForbiddenReceiptWarehouseException ex) {
+        return error(HttpStatus.FORBIDDEN, "FORBIDDEN_RECEIPT_WAREHOUSE",
+                ex.getMessage(), ex.getMessage(), null);
+    }
+
+    @ExceptionHandler(ReceiptAlreadyDecidedException.class)
+    public ResponseEntity<ApiErrorResponse> handleReceiptAlreadyDecided(
+            ReceiptAlreadyDecidedException ex) {
+        return error(HttpStatus.CONFLICT, "RECEIPT_ALREADY_DECIDED",
+                ex.getMessage(), ex.getMessage(), null);
+    }
+
+    @ExceptionHandler(RtvAlreadyExistsException.class)
+    public ResponseEntity<ApiErrorResponse> handleRtvAlreadyExists(
+            RtvAlreadyExistsException ex) {
+        return error(HttpStatus.CONFLICT, "RTV_ALREADY_EXISTS",
+                ex.getMessage(), ex.getMessage(), null);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
