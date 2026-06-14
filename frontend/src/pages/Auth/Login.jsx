@@ -158,7 +158,7 @@ const Login = () => {
                 <strong>CEO:</strong> ceo@phucanh.vn
               </div>
               <div>
-                <strong>Planner:</strong> planner@phucanh.vn
+                <strong>Planner:</strong> planer@gmail.com
               </div>
               <div>
                 <strong>HP Manager:</strong> manager.hp@phucanh.vn

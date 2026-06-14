@@ -3,6 +3,7 @@ package com.wms.dto.request;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import java.math.BigDecimal;
 
 public class CreateReceiptItemRequest {
 
@@ -14,6 +15,9 @@ public class CreateReceiptItemRequest {
     @Min(1)
     @JsonProperty("expected_qty")
     private Integer expectedQty;
+
+    @JsonProperty("unit_cost")
+    private BigDecimal unitCost;
 
     public Long getProductId() {
         return productId;
@@ -30,4 +34,13 @@ public class CreateReceiptItemRequest {
     public void setExpectedQty(Integer expectedQty) {
         this.expectedQty = expectedQty;
     }
+
+    public BigDecimal getUnitCost() {
+        return unitCost;
+    }
+
+    public void setUnitCost(BigDecimal unitCost) {
+        this.unitCost = unitCost;
+    }
 }
+

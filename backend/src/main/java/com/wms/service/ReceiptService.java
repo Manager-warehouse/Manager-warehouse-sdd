@@ -28,6 +28,7 @@ import com.wms.repository.ReceiptRepository;
 import com.wms.repository.SupplierRepository;
 import com.wms.repository.UserWarehouseAssignmentRepository;
 import com.wms.repository.WarehouseRepository;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
@@ -79,6 +80,26 @@ public class ReceiptService {
         this.assignmentRepository = assignmentRepository;
         this.auditLogService = auditLogService;
         this.receiptMapper = receiptMapper;
+    }
+
+    @Transactional(readOnly = true)
+    public List<ReceiptResponse> getReceiptsByWarehouse(Long warehouseId, User actor) {
+        requireWarehouseAccess(actor, warehouseId);
+        List<Receipt> receipts = receiptRepository
+                .findByWarehouseIdOrderByDocumentDateDescCreatedAtDesc(warehouseId);
+        return receipts.stream()
+                .map(r -> receiptMapper.toResponse(r,
+                        receiptItemRepository.findByReceiptIdOrderByIdAsc(r.getId())))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public ReceiptResponse getReceiptById(Long id, User actor) {
+        Receipt receipt = receiptRepository.findByIdWithSupplierAndWarehouse(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Receipt not found with id: " + id));
+        requireWarehouseAccess(actor, receipt.getWarehouse().getId());
+        List<ReceiptItem> items = receiptItemRepository.findByReceiptIdOrderByIdAsc(id);
+        return receiptMapper.toResponse(receipt, items);
     }
 
     @Transactional
@@ -169,6 +190,9 @@ public class ReceiptService {
     }
 
     private void requireWarehouseAccess(User actor, Long warehouseId) {
+        if (actor.getRole() == com.wms.enums.UserRole.ADMIN || actor.getRole() == com.wms.enums.UserRole.CEO) {
+            return;
+        }
         boolean assigned = assignmentRepository.findWarehouseIdsByUserId(actor.getId())
                 .contains(warehouseId);
         if (!assigned) {
@@ -257,6 +281,7 @@ public class ReceiptService {
         item.setReceipt(receipt);
         item.setProduct(product);
         item.setExpectedQty(request.getExpectedQty());
+        item.setUnitCost(request.getUnitCost());
         item.setOverReceivedQty(0);
         return item;
     }

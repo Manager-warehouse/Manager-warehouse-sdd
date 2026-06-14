@@ -630,7 +630,8 @@ export const inboundService = {
       receiveData.items.forEach(updateItem => {
         const riIdx = receiptItems.findIndex(ri => ri.id === Number(updateItem.receipt_item_id));
         if (riIdx !== -1) {
-          receiptItems[riIdx].actual_qty = parseFloat(updateItem.actual_qty);
+          const counted = updateItem.counted_qty !== undefined ? updateItem.counted_qty : updateItem.actual_qty;
+          receiptItems[riIdx].actual_qty = parseFloat(counted);
           if (updateItem.serials) {
             receiptItems[riIdx].serial_number = updateItem.serials.join(',');
           }

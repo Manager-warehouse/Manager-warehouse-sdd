@@ -401,6 +401,7 @@ class ReceiptServiceTest {
         Receipt receipt = new Receipt();
         receipt.setId(id);
         receipt.setReceiptNumber("RN-1");
+        receipt.setType(ReceiptType.PURCHASE);
         receipt.setStatus(status);
         receipt.setSupplier(supplier);
         receipt.setWarehouse(warehouse);

@@ -66,7 +66,7 @@ const ReceiptList = () => {
   // Filter & Search logic
   const filteredReceipts = receipts.filter(r => {
     const matchesSearch = r.receipt_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (r.source_order_code && r.source_order_code.toLowerCase().includes(searchTerm.toLowerCase()));
+      (r.source_reference && r.source_reference.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesStatus = statusFilter === 'ALL' || r.status === statusFilter;
     const matchesType = typeFilter === 'ALL' || r.type === typeFilter;
     return matchesSearch && matchesStatus && matchesType;
@@ -136,12 +136,15 @@ const ReceiptList = () => {
     }
   };
 
-  const getProductName = (productId) => {
-    // A simple product mapping if necessary, or just display ID/SKU if mock
+  const getProductName = (item) => {
+    if (item && item.product_name) return item.product_name;
+    const productId = typeof item === 'object' ? item.product_id : item;
     return productId === 1 ? 'Màn hình ASUS ProArt 27K' : 'Chuột Logitech MX Master 3S';
   };
 
-  const getProductSku = (productId) => {
+  const getProductSku = (item) => {
+    if (item && item.product_sku) return item.product_sku;
+    const productId = typeof item === 'object' ? item.product_id : item;
     return productId === 1 ? 'SKU-PA-001' : 'SKU-LOGI-MX3';
   };
 
@@ -254,14 +257,14 @@ const ReceiptList = () => {
                         <span className="text-teal-600">Trả hàng (DO hoàn)</span>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-xs text-shade-50">{receipt.source_order_code || 'N/A'}</td>
+                    <td className="px-6 py-4 text-xs text-shade-50">{receipt.source_reference || 'N/A'}</td>
                     <td className="px-6 py-4 text-xs font-semibold">{getPartnerName(receipt)}</td>
                     <td className="px-6 py-4 text-xs text-shade-50">{receipt.document_date}</td>
                     <td className="px-6 py-4">{getStatusBadge(receipt.status)}</td>
                     <td className="px-6 py-4 text-right whitespace-nowrap">
                       <div className="flex gap-2 justify-end items-center">
-                        {/* 1. Receive Action: status=PENDING_RECEIPT, role=STOREKEEPER/ADMIN */}
-                        {receipt.status === 'PENDING_RECEIPT' && (hasRole(ROLES.STOREKEEPER) || hasRole(ROLES.ADMIN)) && (
+                        {/* 1. Receive Action: status=PENDING_RECEIPT, role=WAREHOUSE_STAFF/ADMIN */}
+                        {receipt.status === 'PENDING_RECEIPT' && (hasRole(ROLES.WAREHOUSE_STAFF) || hasRole(ROLES.ADMIN)) && (
                           <button
                             onClick={() => navigate(`/inbound/receive/${receipt.id}`)}
                             className="inline-flex items-center justify-center rounded-full border border-ink bg-canvas-light text-ink hover:bg-zinc-100 px-3 py-1 text-xs font-semibold whitespace-nowrap transition-colors duration-150"
@@ -270,8 +273,8 @@ const ReceiptList = () => {
                           </button>
                         )}
 
-                        {/* 2. QC Action: status=DRAFT, role=WAREHOUSE_STAFF/ADMIN */}
-                        {receipt.status === 'DRAFT' && (hasRole(ROLES.WAREHOUSE_STAFF) || hasRole(ROLES.ADMIN)) && (
+                        {/* 2. QC Action: status=DRAFT, role=STOREKEEPER/ADMIN */}
+                        {receipt.status === 'DRAFT' && (hasRole(ROLES.STOREKEEPER) || hasRole(ROLES.ADMIN)) && (
                           <button
                             onClick={() => navigate(`/inbound/qc/${receipt.id}`)}
                             className="inline-flex items-center justify-center rounded-full border border-ink bg-canvas-light text-ink hover:bg-zinc-100 px-3 py-1 text-xs font-semibold whitespace-nowrap transition-colors duration-150"
@@ -358,7 +361,7 @@ const ReceiptList = () => {
                 </div>
                 <div>
                   <span className="text-shade-50 block mb-0.5">Chứng từ gốc:</span>
-                  <span className="font-bold">{selectedReceipt.source_order_code || 'N/A'}</span>
+                  <span className="font-bold">{selectedReceipt.source_reference || 'N/A'}</span>
                 </div>
                 <div>
                   <span className="text-shade-50 block mb-0.5">Đối tác:</span>
@@ -401,8 +404,8 @@ const ReceiptList = () => {
                       {selectedReceipt.items.map((item) => (
                         <tr key={item.id} className="hover:bg-zinc-50/50">
                           <td className="px-4 py-3">
-                            <span className="font-semibold block">{getProductName(item.product_id)}</span>
-                            <span className="text-[10px] text-shade-40 font-mono block">{getProductSku(item.product_id)}</span>
+                            <span className="font-semibold block">{getProductName(item)}</span>
+                            <span className="text-[10px] text-shade-40 font-mono block">{getProductSku(item)}</span>
                           </td>
                           <td className="px-4 py-3 text-right font-semibold">{item.expected_qty}</td>
                           <td className="px-4 py-3 text-right font-semibold">{item.actual_qty !== null ? item.actual_qty : '-'}</td>

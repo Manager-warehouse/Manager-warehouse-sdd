@@ -1,6 +1,7 @@
 package com.wms.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.math.BigDecimal;
 
 public class ReceiptItemResponse {
 
@@ -18,6 +19,18 @@ public class ReceiptItemResponse {
 
     @JsonProperty("over_received_qty")
     private Integer overReceivedQty;
+
+    @JsonProperty("unit_cost")
+    private BigDecimal unitCost;
+
+    @JsonProperty("product_name")
+    private String productName;
+
+    @JsonProperty("product_sku")
+    private String productSku;
+
+    @JsonProperty("has_serial")
+    private Boolean hasSerial;
 
     public Long getReceiptItemId() {
         return receiptItemId;
@@ -58,4 +71,37 @@ public class ReceiptItemResponse {
     public void setOverReceivedQty(Integer overReceivedQty) {
         this.overReceivedQty = overReceivedQty;
     }
+
+    public BigDecimal getUnitCost() {
+        return unitCost;
+    }
+
+    public void setUnitCost(BigDecimal unitCost) {
+        this.unitCost = unitCost;
+    }
+
+    public String getProductName() {
+        return productName;
+    }
+
+    public void setProductName(String productName) {
+        this.productName = productName;
+    }
+
+    public String getProductSku() {
+        return productSku;
+    }
+
+    public void setProductSku(String productSku) {
+        this.productSku = productSku;
+    }
+
+    public Boolean getHasSerial() {
+        return hasSerial;
+    }
+
+    public void setHasSerial(Boolean hasSerial) {
+        this.hasSerial = hasSerial;
+    }
 }
+

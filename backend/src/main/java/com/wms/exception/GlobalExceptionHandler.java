@@ -34,12 +34,12 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(UnprocessableEntityException.class)
     public ResponseEntity<ApiErrorResponse> handleUnprocessable(UnprocessableEntityException ex) {
-        return error(HttpStatus.UNPROCESSABLE_ENTITY, "UNPROCESSABLE_ENTITY", ex.getMessage(), null);
+        return error(HttpStatus.UNPROCESSABLE_ENTITY, "UNPROCESSABLE_ENTITY", ex.getMessage(), null, null);
     }
 
     @ExceptionHandler(ReceiptCountException.class)
     public ResponseEntity<ApiErrorResponse> handleReceiptCount(ReceiptCountException ex) {
-        return error(ex.getStatus(), ex.getCode(), ex.getMessage(), null);
+        return error(ex.getStatus(), ex.getCode(), ex.getMessage(), null, null);
     }
 
     @ExceptionHandler(AccessDeniedException.class)
@@ -61,7 +61,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiErrorResponse> handleUnreadableMessage(HttpMessageNotReadableException ex) {
-        return error(HttpStatus.BAD_REQUEST, "INVALID_REQUEST_BODY", "Invalid request body", null);
+        return error(HttpStatus.BAD_REQUEST, "INVALID_REQUEST_BODY", "Invalid request body", null, null);
     }
 
     @ExceptionHandler(ConstraintViolationException.class)

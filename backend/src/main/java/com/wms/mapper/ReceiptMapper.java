@@ -16,7 +16,7 @@ public class ReceiptMapper {
         response.setReceiptNumber(receipt.getReceiptNumber());
         response.setType(receipt.getType().name());
         response.setStatus(receipt.getStatus().name());
-        response.setSupplierId(receipt.getSupplier().getId());
+        response.setSupplierId(receipt.getSupplier() != null ? receipt.getSupplier().getId() : null);
         response.setWarehouseId(receipt.getWarehouse().getId());
         response.setSourceReference(receipt.getSourceOrderCode());
         response.setSourceChannel(receipt.getSourceChannel());
@@ -33,6 +33,13 @@ public class ReceiptMapper {
         response.setExpectedQty(item.getExpectedQty());
         response.setActualQty(item.getActualQty());
         response.setOverReceivedQty(item.getOverReceivedQty());
+        response.setUnitCost(item.getUnitCost());
+        if (item.getProduct() != null) {
+            response.setProductName(item.getProduct().getName());
+            response.setProductSku(item.getProduct().getSku());
+            response.setHasSerial(item.getProduct().getHasSerial());
+        }
         return response;
     }
 }
+

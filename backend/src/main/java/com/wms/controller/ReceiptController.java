@@ -13,13 +13,16 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -35,6 +38,34 @@ public class ReceiptController {
                              CurrentUserService currentUserService) {
         this.receiptService = receiptService;
         this.currentUserService = currentUserService;
+    }
+
+    @GetMapping
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "List receipts for a warehouse")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Receipt list returned"),
+            @ApiResponse(responseCode = "401", description = "Missing or invalid authentication"),
+            @ApiResponse(responseCode = "403", description = "User cannot access this warehouse")
+    })
+    public List<ReceiptResponse> getReceipts(@RequestParam Long warehouseId) {
+        User actor = currentUserService.getRequiredCurrentUser();
+        return receiptService.getReceiptsByWarehouse(warehouseId, actor);
+    }
+
+    @GetMapping("/{id}")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Get receipt detail by ID")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Receipt detail returned",
+                    content = @Content(schema = @Schema(implementation = ReceiptResponse.class))),
+            @ApiResponse(responseCode = "401", description = "Missing or invalid authentication"),
+            @ApiResponse(responseCode = "403", description = "User cannot access this warehouse"),
+            @ApiResponse(responseCode = "404", description = "Receipt not found")
+    })
+    public ReceiptResponse getReceiptById(@PathVariable Long id) {
+        User actor = currentUserService.getRequiredCurrentUser();
+        return receiptService.getReceiptById(id, actor);
     }
 
     @PostMapping

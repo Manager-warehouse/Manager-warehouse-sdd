@@ -131,12 +131,12 @@ const QCInbound = () => {
       }
 
       if (passed + failed !== actual) {
-        addToast(`Tổng số lượng đạt và lỗi của sản phẩm ${getProductSku(item.product_id)} phải bằng số thực nhận (${actual})`, 'warning');
+        addToast(`Tổng số lượng đạt và lỗi của sản phẩm ${getProductSku(item)} phải bằng số thực nhận (${actual})`, 'warning');
         return;
       }
 
       if (failed > 0 && !item.qc_failure_reason.trim()) {
-        addToast(`Vui lòng nhập lý do lỗi cho sản phẩm ${getProductSku(item.product_id)}`, 'warning');
+        addToast(`Vui lòng nhập lý do lỗi cho sản phẩm ${getProductSku(item)}`, 'warning');
         return;
       }
 
@@ -168,11 +168,15 @@ const QCInbound = () => {
     }
   };
 
-  const getProductName = (productId) => {
+  const getProductName = (item) => {
+    if (item && item.product_name) return item.product_name;
+    const productId = typeof item === 'object' ? item.product_id : item;
     return productId === 1 ? 'Màn hình ASUS ProArt 27K' : 'Chuột Logitech MX Master 3S';
   };
 
-  const getProductSku = (productId) => {
+  const getProductSku = (item) => {
+    if (item && item.product_sku) return item.product_sku;
+    const productId = typeof item === 'object' ? item.product_id : item;
     return productId === 1 ? 'SKU-PA-001' : 'SKU-LOGI-MX3';
   };
 
@@ -283,13 +287,8 @@ const QCInbound = () => {
                   return (
                     <tr key={item.id} className={`hover:bg-zinc-50/50 ${isMismatch ? 'bg-red-50/30' : ''}`}>
                       <td className="px-6 py-4">
-                        <span className="font-bold block">{getProductSku(item.product_id)}</span>
-                        <span className="text-shade-50 block">{getProductName(item.product_id)}</span>
-                        {item.serial_number && (
-                          <span className="text-[10px] text-shade-40 font-mono block mt-1 overflow-hidden overflow-ellipsis whitespace-nowrap max-w-xs" title={item.serial_number}>
-                            Serials: {item.serial_number}
-                          </span>
-                        )}
+                        <span className="font-bold block">{getProductSku(item)}</span>
+                        <span className="text-shade-50 block">{getProductName(item)}</span>
                       </td>
                       <td className="px-4 py-4 text-right font-bold text-shade-60">{item.actual_qty}</td>
                       <td className="px-4 py-4">

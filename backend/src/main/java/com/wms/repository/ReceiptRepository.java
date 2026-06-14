@@ -22,6 +22,14 @@ public interface ReceiptRepository extends JpaRepository<Receipt, Long> {
     @Query("select r from Receipt r where r.id = :id")
     Optional<Receipt> findByIdWithWarehouse(@Param("id") Long id);
 
+    @EntityGraph(attributePaths = {"supplier", "warehouse"})
+    @Query("select r from Receipt r where r.warehouse.id = :warehouseId order by r.documentDate desc, r.createdAt desc")
+    List<Receipt> findByWarehouseIdOrderByDocumentDateDescCreatedAtDesc(@Param("warehouseId") Long warehouseId);
+
+    @EntityGraph(attributePaths = {"supplier", "warehouse"})
+    @Query("select r from Receipt r where r.id = :id")
+    Optional<Receipt> findByIdWithSupplierAndWarehouse(@Param("id") Long id);
+
     boolean existsBySupplierIdAndWarehouseIdAndSourceOrderCodeAndTypeAndStatusNot(
             Long supplierId,
             Long warehouseId,
