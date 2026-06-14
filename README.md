@@ -148,7 +148,7 @@ Hệ thống có **10 Actors** chia thành 3 tầng theo mô hình **Maker-Check
 | **Thủ kho kiêm QC** | Quản lý SKU/danh mục sản phẩm, tiếp nhận hàng, kiểm QC inbound/outbound, soạn hàng, kiểm kê, cất Bin, xác nhận điều chuyển |
 | **Nhân viên kho (Bốc xếp)** | Bốc xếp hàng hóa, hỗ trợ di chuyển hàng hóa, di chuyển hàng lỗi vào Quarantine theo chỉ dẫn của Thủ kho |
 | **Kế toán viên** | Quản lý hồ sơ Nhà cung cấp, lập hóa đơn, ghi nhận thanh toán, cấn trừ công nợ, quản lý bảng giá |
-| **Tài xế** | Nhận chuyến (smartphone), giao hàng, xác nhận POD, báo giao thất bại |
+| **Tài xế** | Nhận chuyến (smartphone), giao hàng, upload POD images, nhập OTP Đại lý, báo giao thất bại |
 
 > **Phân biệt Dispatcher vs Planner:** Planner = nhận đơn từ Công ty mẹ & lập Delivery Order; Dispatcher = điều phối xe & tài xế giao hàng — **hai vai trò hoàn toàn khác nhau**.
 
@@ -252,11 +252,12 @@ Công ty mẹ gửi yêu cầu xuất hàng
     → Planner kiểm tra [Credit Check + Tồn kho]
         ├── Vi phạm Credit → Chặn cứng, hiển thị lý do
         └── Hợp lệ → Lập Đơn xuất [NEW] + Reserve tồn kho
-    → Thủ kho soạn hàng [PICKING]
-    → Thủ kho kiểm QC & xác nhận [READY_TO_SHIP]
+    → Thủ kho soạn hàng từ Bin theo batch đã reserve [PICKING]
+    → Thủ kho kiểm QC đạt [PENDING_WAREHOUSE_APPROVAL]
+    → Trưởng kho duyệt xuất [READY_TO_SHIP]
     → Dispatcher lập Chuyến xe nội bộ, gán Tài xế
-    → Tài xế xác nhận nhận hàng → [IN_TRANSIT] → Hệ thống trừ tồn kho
-    → Tài xế giao hàng → Đại lý ký POD [DELIVERED]
+    → Tài xế xác nhận nhận hàng → [IN_TRANSIT] → Hệ thống trừ kho xuất, cộng kho ảo In-Transit
+    → Tài xế upload ảnh hàng + ảnh chữ ký/biên nhận, Đại lý đọc OTP email [DELIVERED]
     → Kế toán viên lập Hóa đơn (Invoice) → Cộng công nợ [COMPLETED]
     → Đại lý thanh toán → Cấn trừ công nợ [CLOSED]
 ```
@@ -299,9 +300,10 @@ Kế toán trưởng kiểm tra điều kiện → Chốt sổ kỳ T → CLOSED
 |---|---|
 | **New** | Planner |
 | **Picking** | Thủ kho |
-| **Ready to Ship** | Thủ kho (sau khi kiểm QC đạt) |
+| **Pending Warehouse Approval** | Thủ kho (sau khi kiểm QC đạt) |
+| **Ready to Ship** | Trưởng kho (phê duyệt xuất kho sau QC) |
 | **In-Transit** ⚠️ *Tồn kho bị trừ tại đây* | Tài xế (xác nhận nhận hàng) |
-| **Delivered** | Tài xế (xác nhận POD) |
+| **Delivered** | Tài xế (POD images + OTP Đại lý hợp lệ) |
 | **Returned** | Tài xế (giao thất bại) |
 | **Completed** | Kế toán viên |
 | **Closed** | Hệ thống (sau Phiếu thu) |

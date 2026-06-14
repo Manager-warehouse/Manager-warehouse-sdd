@@ -44,6 +44,15 @@ public class Delivery {
     @Column(name = "pod_timestamp")
     private OffsetDateTime podTimestamp;
 
+    @Column(name = "otp_recipient_email", length = 255)
+    private String otpRecipientEmail;
+
+    @Column(name = "otp_sent_at")
+    private OffsetDateTime otpSentAt;
+
+    @Column(name = "otp_verified_at")
+    private OffsetDateTime otpVerifiedAt;
+
     @Column(name = "failure_reason", columnDefinition = "TEXT")
     private String failureReason;
 

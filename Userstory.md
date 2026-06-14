@@ -95,20 +95,21 @@
    - `reserved_qty += số_lượng_đơn` tại kho xuất → Ngăn Planner khác oversell cùng lô hàng.
    - Tồn kho khả dụng hiển thị cho các đơn tiếp theo đã được trừ phần đã giữ chỗ.
 6. **Giải phóng Reserved Quantity** trong các trường hợp:
-   - Đơn chuyển sang **In-Transit** → Trừ thẳng vào `total_qty`, giải phóng `reserved_qty`.
+   - Đơn chuyển sang **In-Transit** → Trừ tồn kho kho xuất, giải phóng `reserved_qty`, và cộng số lượng đang đi đường vào Kho ảo In-Transit.
    - Đơn bị **Hủy (Cancelled)** → Giải phóng `reserved_qty` ngay lập tức.
 
 ---
 
 ### US-WMS-07: Soạn hàng & Kiểm QC đóng gói (Priority: P1)
 
-**Mô tả:** Là Thủ kho kiêm QC, tôi muốn soạn hàng từ vị trí kệ và kiểm tra chất lượng đóng gói QC trước khi xuất kho.
+**Mô tả:** Là Thủ kho kiêm QC, tôi muốn soạn hàng từ đúng Bin theo batch đã reserve và kiểm tra chất lượng đóng gói QC trước khi xuất kho.
 
 **Tiêu chí nghiệm thu:**
 
-1. Thủ kho nhận lệnh xuất → Đi lấy hàng từ các Bin Location → Cập nhật trạng thái đơn: **Đang soạn hàng (Picking)**.
+1. Thủ kho nhận lệnh xuất → Lấy hàng từ đúng Bin nhỏ nhất theo batch đã reserve → Cập nhật trạng thái đơn: **Đang soạn hàng (Picking)**.
 2. Thủ kho kiểm tra QC: đúng SKU, đúng số lượng, đóng thùng chống sốc → Xác nhận đạt trên hệ thống.
-3. Thủ kho xác nhận hoàn tất soạn hàng sau khi QC đạt → Trạng thái đơn: **Sẵn sàng xuất (Ready to Ship)**.
+3. Thủ kho xác nhận QC đạt → Trạng thái đơn: **Chờ Trưởng kho duyệt xuất (Pending Warehouse Approval)**.
+4. Trưởng kho phê duyệt xuất kho sau QC → Trạng thái đơn: **Sẵn sàng xuất (Ready to Ship)**.
 
 ---
 
@@ -121,20 +122,21 @@
 1. Dispatcher tạo Chuyến xe (Trip Log) mới: Chọn xe nội bộ (từ danh mục xe Phúc Anh), gán Tài xế, thiết lập ngày giao dự kiến.
 2. Gom nhiều Đơn xuất hàng (Delivery Orders) ở trạng thái **Ready to Ship** vào một Chuyến xe; sắp xếp thứ tự giao hàng (Stop Order).
 3. Hệ thống kiểm tra tải trọng xe: Nếu tổng khối lượng/thể tích hàng vượt tải trọng xe → Cảnh báo Dispatcher.
-4. Tài xế xác nhận nhận hàng, xe rời kho → Trạng thái Chuyến xe: **Đang vận chuyển (In-Transit)** → Hệ thống **tự động trừ tồn kho** tại thời điểm này.
+4. Tài xế xác nhận nhận hàng, xe rời kho → Trạng thái Chuyến xe: **Đang vận chuyển (In-Transit)** → Hệ thống trừ tồn kho kho xuất, giải phóng reserved, và cộng hàng vào Kho ảo In-Transit tại thời điểm này.
 
 ---
 
 ### US-WMS-09: Giao diện Web di động cho Tài xế & POD thời gian thực (Priority: P1)
 
-**Mô tả:** Là Tài xế, tôi muốn đăng nhập bằng smartphone vào giao diện Web Responsive của WMS để xem lộ trình giao hàng và ký nhận POD trực tiếp tại điểm giao.
+**Mô tả:** Là Tài xế, tôi muốn đăng nhập bằng smartphone vào giao diện Web Responsive của WMS để xem lộ trình giao hàng, upload POD images và nhập OTP Đại lý tại điểm giao.
 
 **Tiêu chí nghiệm thu:**
 
 1. Tài xế đăng nhập bằng tài khoản riêng → Xem danh sách đơn hàng cần giao trong chuyến xe của mình.
-2. Tại điểm giao: Đại lý ký tên trực tiếp trên màn hình cảm ứng; Tài xế chụp ảnh hàng hóa bàn giao → Hệ thống lưu POD gồm: Hình ảnh + Chữ ký + Timestamp.
-3. Tài xế nhấn "Xác nhận đã giao" → Trạng thái đơn: **Đã giao thành công (Delivered)**.
-4. Nếu giao thất bại (đại lý vắng mặt, từ chối nhận) → Tài xế chọn lý do → Trạng thái đơn: **Giao thất bại (Returned)** → Hệ thống tự động tạo Phiếu nhập hàng hoàn vào Kho cách ly chờ xử lý.
+2. Tại điểm giao: Tài xế chụp ảnh hàng hóa bàn giao và chụp ảnh chữ ký/biên nhận của Đại lý xác nhận đã nhận hàng → Hệ thống upload và lưu POD images.
+3. Tài xế yêu cầu xác nhận giao hàng → Hệ thống gửi mã OTP qua email Đại lý; Đại lý đọc mã OTP cho Tài xế nhập vào màn hình xác nhận.
+4. Tài xế nhấn "Xác nhận đã giao" với OTP hợp lệ → Hệ thống trừ hàng khỏi Kho ảo In-Transit → Trạng thái đơn: **Đã giao thành công (Delivered)**.
+5. Nếu giao thất bại (đại lý vắng mặt, từ chối nhận) → Tài xế chọn lý do → Trạng thái đơn: **Giao thất bại (Returned)**; hàng vẫn được theo dõi ở Kho ảo In-Transit cho đến khi luồng hoàn hàng riêng tiếp nhận và phân loại.
 
 ---
 

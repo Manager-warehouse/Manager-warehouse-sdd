@@ -353,7 +353,7 @@ CREATE TABLE receipt_items (
 -- SECTION 8: XUẤT KHO (OUTBOUND)
 -- =============================================================================
 
--- §6.1 delivery_orders  (Medium 2: đủ 9 trạng thái theo database.md)
+-- §6.1 delivery_orders
 CREATE TABLE delivery_orders (
     id                   BIGSERIAL   PRIMARY KEY,
     do_number            VARCHAR(50) UNIQUE NOT NULL,
@@ -362,10 +362,10 @@ CREATE TABLE delivery_orders (
     type                 VARCHAR(30) NOT NULL
                          CHECK (type IN ('SALE','DELIVERY','ADJUSTMENT')),
     expected_delivery_date DATE,
-    status               VARCHAR(30) NOT NULL DEFAULT 'NEW'
+    status               VARCHAR(40) NOT NULL DEFAULT 'NEW'
                          CHECK (status IN (
-                             'NEW','PICKING','READY_TO_SHIP','IN_TRANSIT',
-                             'OUT_FOR_DELIVERY','DELIVERED','RETURNED','COMPLETED','CLOSED','CANCELLED'
+                             'NEW','PICKING','PENDING_WAREHOUSE_APPROVAL','READY_TO_SHIP',
+                             'IN_TRANSIT','DELIVERED','RETURNED','COMPLETED','CLOSED','CANCELLED'
                          )),
     created_by           BIGINT      NOT NULL REFERENCES users(id),
     cancel_reason        TEXT,
@@ -462,11 +462,14 @@ CREATE TABLE deliveries (
     driver_id         BIGINT       NOT NULL REFERENCES drivers(id),
     status            VARCHAR(30)  NOT NULL DEFAULT 'PENDING'
                       CHECK (status IN (
-                          'PENDING','IN_TRANSIT','OUT_FOR_DELIVERY','DELIVERED','RETURNED'
+                          'PENDING','IN_TRANSIT','DELIVERED','RETURNED'
                       )),
-    pod_image_url     VARCHAR(500),
-    pod_signature_url VARCHAR(500),
+    pod_image_url     VARCHAR(500),            -- Ảnh hàng hóa bàn giao
+    pod_signature_url VARCHAR(500),            -- Ảnh chữ ký/biên nhận của Đại lý
     pod_timestamp     TIMESTAMPTZ,
+    otp_recipient_email VARCHAR(255),
+    otp_sent_at       TIMESTAMPTZ,
+    otp_verified_at   TIMESTAMPTZ,
     failure_reason    TEXT,                    -- Vắng / từ chối / sai địa chỉ
     delivered_at      TIMESTAMPTZ,
     created_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
@@ -945,7 +948,7 @@ SELECT
 FROM delivery_orders dord
 JOIN dealers d ON d.id = dord.dealer_id
 JOIN users   u ON u.id = dord.created_by
-WHERE dord.status IN ('NEW','PICKING','READY_TO_SHIP')
+WHERE dord.status IN ('NEW','PICKING','PENDING_WAREHOUSE_APPROVAL','READY_TO_SHIP')
 ORDER BY dord.expected_delivery_date ASC NULLS LAST, dord.created_at ASC;
 
 -- Cảnh báo tồn kho thấp chưa giải quyết

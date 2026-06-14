@@ -38,7 +38,7 @@
 | Thủ kho | Tiếp nhận hàng, soạn hàng, kiểm kê, cất Bin |
 | Nhân viên kho (Bốc xếp & QC) | Bốc xếp, QC inbound/outbound, di chuyển hàng lỗi |
 | Kế toán viên | Lập hóa đơn, ghi nhận thanh toán, cấn trừ công nợ |
-| Tài xế | Nhận chuyến (smartphone), giao hàng, ký POD |
+| Tài xế | Nhận chuyến (smartphone), giao hàng, upload POD images, nhập OTP Đại lý |
 
 ## 3. Domain Glossary
 
@@ -51,7 +51,7 @@
 | **FIFO** | First In First Out — ưu tiên xuất batch nhập trước |
 | **Quarantine** | Khu cách ly hàng lỗi QC — không available |
 | **In-Transit** | Kho ảo — hàng đang vận chuyển giữa 2 kho |
-| **POD** | Proof of Delivery — chữ ký + ảnh + timestamp |
+| **POD** | Proof of Delivery — ảnh hàng bàn giao + ảnh chữ ký/biên nhận Đại lý + timestamp + OTP email đã xác thực |
 | **COGS** | Cost of Goods Sold — giá vốn hàng bán |
 | **Credit Hold** | Trạng thái chặn xuất hàng do nợ quá hạn/vượt hạn mức |
 | **RTV** | Return to Vendor — trả hàng lỗi về NCC |
@@ -108,11 +108,9 @@ PENDING_RECEIPT → DRAFT → QC_COMPLETED → APPROVED
 
 ### Delivery Order (Đơn xuất)
 ```
-NEW → PICKING → READY_TO_SHIP → IN_TRANSIT → OUT_FOR_DELIVERY → DELIVERED → COMPLETED → CLOSED
-                                                                    ↓
-                                                               RETURNED
-                                                                    ↓
-                                                               CANCELLED
+NEW → PICKING → PENDING_WAREHOUSE_APPROVAL → READY_TO_SHIP → IN_TRANSIT → DELIVERED → COMPLETED → CLOSED
+          ↓                    ↓                                  ↓
+      CANCELLED             PICKING                            RETURNED
 ```
 
 ### Transfer (Điều chuyển)
