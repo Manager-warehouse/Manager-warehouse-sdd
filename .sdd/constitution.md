@@ -54,20 +54,20 @@ Governance.
 
 ## 2. Technology Stack (Bất Di Bất Dịch)
 
-| Layer              | Công nghệ                                           |
-|--------------------|-----------------------------------------------------|
-| **Backend**        | Spring Boot 3.4.5 + Java 21 (Maven)                |
-| **Frontend**       | React 18 + JavaScript                              |
-| **Database**       | PostgreSQL 18                                      |
-| **ORM**            | Spring Data JPA / Hibernate                        |
-| **Auth**           | JWT + bcrypt (cost factor ≥ 12)                    |
-| **Styling**        | Tailwind CSS 3.x                                   |
-| **Testing BE**     | JUnit 5 + Mockito                                  |
-| **Testing FE**     | Jest + React Testing Library                       |
-| **API Docs**       | OpenAPI / Swagger                                  |
-| **DB Migration**   | Flyway                                             |
-| **Build BE**       | Maven                                              |
-| **Build FE**       | Vite                                               |
+| Layer            | Công nghệ                           |
+| ---------------- | ----------------------------------- |
+| **Backend**      | Spring Boot 3.4.5 + Java 21 (Maven) |
+| **Frontend**     | React 18 + JavaScript               |
+| **Database**     | PostgreSQL 18                       |
+| **ORM**          | Spring Data JPA / Hibernate         |
+| **Auth**         | JWT + bcrypt (cost factor ≥ 12)     |
+| **Styling**      | Tailwind CSS 3.x                    |
+| **Testing BE**   | JUnit 5 + Mockito                   |
+| **Testing FE**   | Jest + React Testing Library        |
+| **API Docs**     | OpenAPI / Swagger                   |
+| **DB Migration** | Flyway                              |
+| **Build BE**     | Maven                               |
+| **Build FE**     | Vite                                |
 
 **Quy tắc:** KHÔNG được thay đổi công nghệ nền tảng mà không có RFC và
 approval từ toàn bộ nhóm. Thư viện bổ trợ (Lombok, MapStruct, Jackson,
@@ -109,6 +109,7 @@ Mọi module backend MUST tuân theo thứ tự:
 ### 3.4 Audit Log Bắt Buộc
 
 Mọi thao tác ghi dữ liệu trên kho MUST tạo audit log với:
+
 - actor: user hiện tại (từ JWT)
 - action: loại thao tác (CREATE, UPDATE, DELETE, APPROVE, REJECT, CANCEL)
 - timestamp: thời điểm thực hiện
@@ -273,12 +274,12 @@ MUST NOT:
 
 ### 8.1 Branch Naming
 
-| Prefix  | Usage                    |
-|---------|--------------------------|
-| `feat/` | Tính năng mới            |
-| `fix/`  | Sửa lỗi                  |
-| `spec/` | Viết spec / tài liệu     |
-| `chore/`| Cập nhật nhỏ, maintenance|
+| Prefix   | Usage                     |
+| -------- | ------------------------- |
+| `feat/`  | Tính năng mới             |
+| `fix/`   | Sửa lỗi                   |
+| `spec/`  | Viết spec / tài liệu      |
+| `chore/` | Cập nhật nhỏ, maintenance |
 
 ### 8.2 Commit Format
 
@@ -352,28 +353,28 @@ Một task chỉ được coi là **hoàn thành** khi tất cả các điều k
 
 ---
 
-*Hiến pháp này có hiệu lực kể từ ngày phê chuẩn. Mọi code và artifact trong
-dự án MUST tuân thủ.*
+_Hiến pháp này có hiệu lực kể từ ngày phê chuẩn. Mọi code và artifact trong
+dự án MUST tuân thủ._
 
 ---
 
 ## Phụ Lục A: Danh sách Feature Specs
- 
- Toàn bộ hệ thống WMS Phúc Anh được phân rã thành **35 features** trong **10 domain specs**:
- 
- | # | Spec | Đường dẫn | Features | P1 |
- |---|------|-----------|:--------:|:--:|
-| 001 | Quản trị & Phân quyền | `.sdd/specs/001-security-auth-rbac-audit/spec.md` | 4 | 4 |
-| 002 | Danh mục nền tảng | `.sdd/specs/002-master-data-management/spec.md` | 4 | 2 |
-| 003 | Nhập hàng & QC Inbound | `.sdd/specs/003-inbound-receipt-qc/spec.md` | 5 | 5 |
-| 004 | Xuất hàng & Giao hàng | `.sdd/specs/004-outbound-delivery-pod/spec.md` | 6 | 6 |
-| 005 | Điều chuyển nội bộ | `.sdd/specs/005-inter-warehouse-transfer/spec.md` | 3 | 2 |
-| 006 | Kiểm kê & Điều chỉnh | `.sdd/specs/006-stocktake-adjustment/spec.md` | 2 | 2 |
-| 007 | Bảng giá & Giá vốn | `.sdd/specs/007-pricing-cogs-management/spec.md` | 2 | 2 |
-| 008 | Tài chính & Công nợ | `.sdd/specs/008-finance-billing-closing/spec.md` | 4 | 4 |
-| 009 | Hàng hoàn trả & Tiêu hủy | `.sdd/specs/009-returns-scrap-disposal/spec.md` | 2 | 1 |
-| 010 | Báo cáo & Cảnh báo | `.sdd/specs/010-reports-dashboards-alerts/spec.md` | 3 | 2 |
- | | **Tổng cộng** | | **35** | **30** |
+
+Toàn bộ hệ thống WMS Phúc Anh được phân rã thành **70 features** trong **10 domain specs**:
+
+| #   | Spec                     | Đường dẫn                                          | Features |   P1   |
+| --- | ------------------------ | -------------------------------------------------- | :------: | :----: |
+| 001 | Quản trị & Phân quyền    | `.sdd/specs/001-security-auth-rbac-audit/spec.md`  |    7     |   5    |
+| 002 | Danh mục nền tảng        | `.sdd/specs/002-master-data-management/spec.md`    |    9     |   5    |
+| 003 | Nhập hàng & QC Inbound   | `.sdd/specs/003-inbound-receipt-qc/spec.md`        |    9     |   9    |
+| 004 | Xuất hàng & Giao hàng    | `.sdd/specs/004-outbound-delivery-pod/spec.md`     |    6     |   6    |
+| 005 | Điều chuyển nội bộ       | `.sdd/specs/005-inter-warehouse-transfer/spec.md`  |    6     |   5    |
+| 006 | Kiểm kê & Điều chỉnh     | `.sdd/specs/006-stocktake-adjustment/spec.md`      |    4     |   4    |
+| 007 | Bảng giá & Giá vốn       | `.sdd/specs/007-pricing-cogs-management/spec.md`   |    5     |   5    |
+| 008 | Tài chính & Công nợ      | `.sdd/specs/008-finance-billing-closing/spec.md`   |    10    |   10   |
+| 009 | Hàng hoàn trả & Tiêu hủy | `.sdd/specs/009-returns-scrap-disposal/spec.md`    |    3     |   2    |
+| 010 | Báo cáo & Cảnh báo       | `.sdd/specs/010-reports-dashboards-alerts/spec.md` |    3     |   2    |
+|     | **Tổng cộng**            |                                                    |  **70**  | **61** |
 
 Mỗi spec sử dụng cấu trúc 9 thành phần: Context & Goal, Actor, Functional Requirements (EARS),
 Non-functional Requirements, Data Model, API Spec, Error Handling, Acceptance Criteria, Out of Scope.

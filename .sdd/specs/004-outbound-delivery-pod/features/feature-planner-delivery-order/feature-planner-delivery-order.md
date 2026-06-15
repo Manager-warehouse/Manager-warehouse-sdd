@@ -17,7 +17,8 @@ Planner tiếp nhận yêu cầu xuất hàng từ Công ty mẹ, hệ thống b
   * WHEN a Planner creates a delivery order, the system SHALL:
     * Validate: `available_qty = total_qty - reserved_qty ≥ requested_qty`.
     * IF insufficient stock, the system SHALL warn and suggest alternative warehouses.
-    * Apply FEFO/FIFO to select batch and warehouse location for each item.
+    * Apply FIFO by default to select batch and Bin location for each item.
+    * Apply FEFO only for products with expiry date or explicit FEFO configuration.
     * Update inventories: `reserved_qty += requested_qty`.
 * **State-driven:**
   * WHILE dealer status is `CREDIT_HOLD`, the system SHALL block creation of new delivery orders for that dealer.

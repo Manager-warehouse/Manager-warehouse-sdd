@@ -8,8 +8,8 @@
 | ID | Rule | Mức độ |
 |---|---|---|
 | INV-01 | `inventory.quantity >= 0` luôn đúng trước và sau mọi thao tác | MUST |
-| INV-02 | FEFO: chọn batch có hạn dùng gần nhất cho sản phẩm có expiry | MUST |
-| INV-03 | FIFO: chọn batch có `received_date` cũ nhất cho sản phẩm không expiry | MUST |
+| INV-02 | FIFO mặc định: chọn batch có `received_date` cũ nhất cho domain hàng gia dụng không quản lý hạn dùng | MUST |
+| INV-03 | FEFO ngoại lệ: chỉ chọn batch có hạn dùng gần nhất cho sản phẩm có expiry hoặc được cấu hình FEFO | MUST |
 | INV-04 | Mọi thay đổi tồn kho MUST qua receipt/issue/transfer/adjustment/stocktake | MUST |
 | INV-05 | `@Version` trên inventory — conflict → HTTP 409 + retry | MUST |
 | INV-06 | `available = total - reserved >= 0`. Check trước khi xuất | MUST |
@@ -52,8 +52,9 @@
 | OUT-02 | Reserve inventory ngay khi DO tạo thành công | MUST |
 | OUT-03 | Giải phóng reserved khi DO chuyển In-Transit hoặc Cancelled | MUST |
 | OUT-04 | Hệ thống chỉ dùng xe nội bộ Phúc Anh — KHÔNG 3PL | MUST |
-| OUT-05 | Trừ tồn kho tại thời điểm Tài xế xác nhận In-Transit | MUST |
-| OUT-06 | POD = chữ ký + ảnh + timestamp. Bắt buộc khi giao thành công | MUST |
+| OUT-05 | Khi Tài xế xác nhận In-Transit, trừ tồn kho kho xuất và cộng vào kho ảo In-Transit | MUST |
+| OUT-06 | POD = ảnh hàng bàn giao + ảnh chữ ký/biên nhận Đại lý + timestamp + OTP email đã xác thực. Bắt buộc khi giao thành công | MUST |
+| OUT-07 | Giao thất bại chỉ ghi nhận trạng thái `RETURNED` và lý do; xử lý hàng hoàn đi theo luồng hoàn hàng riêng | MUST |
 
 ## 6. Credit & Debt Rules
 

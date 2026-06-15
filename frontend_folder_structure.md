@@ -60,7 +60,7 @@ frontend/
 │   │   ├── Outbound/
 │   │   │   ├── DeliveryOrders.jsx  # Danh sách đơn xuất kho (DO), quản lý danh sách picking (Spec 004)
 │   │   │   ├── QCOutbound.jsx     # Kiểm định chất lượng đầu ra trước khi xếp hàng lên xe (Spec 004)
-│   │   │   └── TripPlanning.jsx    # Điều phối xe, tài xế, sắp xếp lộ trình & ký nhận giao hàng POD (Spec 004)
+│   │   │   └── TripPlanning.jsx    # Điều phối xe, tài xế, delivery attempts & ký nhận giao hàng POD (Spec 004)
 │   │   │
 │   │   ├── InternalTransfer/
 │   │   │   ├── TransferRequest.jsx # Tạo lệnh điều chuyển giữa các kho Hải Phòng/HN/HCM (Spec 005)
@@ -143,7 +143,7 @@ frontend/
 | **Spec 001: System Admin & RBAC** | `pages/Auth/Login.jsx`<br>`pages/Admin/*` | `layout/Sidebar.jsx` (Phân quyền menu)<br>`ProtectedRoute.jsx` (Chặn route) | `services/auth.service.js`<br>`services/admin.service.js` | JWT Authentication, phân quyền thao tác theo cả **Role** và **Warehouse Assignment**. |
 | **Spec 002: Master Data** | `pages/MasterData/*` | - | `services/master.service.js` | Quản lý danh mục Sản phẩm, Kho, Bin, Nhà cung cấp, Đại lý, Đội xe & Tài xế. |
 | **Spec 003: Inbound (Nhập kho)** | `pages/Inbound/*` | `components/warehouse/BinCapacityIndicator.jsx` | `services/inbound.service.js` | Bắt buộc phải đi qua **QC Inbound** phân loại Grade (A/B/C) và kiểm tra sức chứa Bin (`bin_capacity`) trước khi Putaway. |
-| **Spec 004: Outbound (Giao hàng)** | `pages/Outbound/*` | `components/warehouse/SerialNumberList.jsx` | `services/outbound.service.js` | Hỗ trợ lập phiếu Picking, QC kiểm định xuất khẩu, gom chuyến xe (Trip) và thu thập chữ ký/ảnh chụp để xác nhận **POD**. |
+| **Spec 004: Outbound (Giao hàng)** | `pages/Outbound/*` | `components/warehouse/PODCapture.jsx` | `services/outbound.service.js` | Hỗ trợ lập phiếu Picking, QC kiểm định xuất kho, gom chuyến xe (Trip), thu thập chữ ký/ảnh chụp POD và xác thực OTP qua `delivery_otp_attempts`. |
 | **Spec 005: Internal Transfer** | `pages/InternalTransfer/*` | `components/warehouse/InTransitTracker.jsx` | `services/transfer.service.js` | Phải ghi nhận tồn kho tại kho ảo **In-Transit Location** khi đang vận chuyển và xử lý chênh lệch tại kho nhận. |
 | **Spec 006: Stocktake & Adjust** | `pages/Stocktake/*` | - | `services/stocktake.service.js` | Hỗ trợ tạo đợt kiểm kê, đối chiếu tồn thực tế - tồn hệ thống, tính toán **Variance** và quy trình duyệt điều chỉnh. |
 | **Spec 007: Pricing & COGS** | `pages/Finance/PriceListManagement.jsx` | - | `services/finance.service.js` | Quản lý giá bán đại lý, lịch sử giá và tích hợp tính **COGS** (Giá vốn) phục vụ báo cáo tài chính kho. |

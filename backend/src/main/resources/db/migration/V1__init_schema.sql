@@ -353,7 +353,7 @@ CREATE TABLE receipt_items (
 -- SECTION 8: XUẤT KHO (OUTBOUND)
 -- =============================================================================
 
--- §6.1 delivery_orders  (delivery lifecycle: NEW -> PICKING -> READY_TO_SHIP -> IN_TRANSIT -> DELIVERED/RETURNED/CANCELLED)
+-- §6.1 delivery_orders  (Medium 2: đủ 9 trạng thái theo database.md)
 CREATE TABLE delivery_orders (
     id                   BIGSERIAL   PRIMARY KEY,
     do_number            VARCHAR(50) UNIQUE NOT NULL,
@@ -362,10 +362,10 @@ CREATE TABLE delivery_orders (
     type                 VARCHAR(30) NOT NULL
                          CHECK (type IN ('SALE','DELIVERY','ADJUSTMENT')),
     expected_delivery_date DATE,
-    status               VARCHAR(30) NOT NULL DEFAULT 'NEW'
+    status               VARCHAR(40) NOT NULL DEFAULT 'NEW'
                          CHECK (status IN (
                              'NEW','PICKING','READY_TO_SHIP','IN_TRANSIT',
-                             'DELIVERED','RETURNED','CANCELLED'
+                             'OUT_FOR_DELIVERY','DELIVERED','RETURNED','COMPLETED','CLOSED','CANCELLED'
                          )),
     created_by           BIGINT      NOT NULL REFERENCES users(id),
     cancel_reason        TEXT,
@@ -464,12 +464,9 @@ CREATE TABLE deliveries (
                       CHECK (status IN (
                           'PENDING','IN_TRANSIT','DELIVERED','RETURNED'
                       )),
-    otp_code_hash     VARCHAR(255),
-    otp_requested_at  TIMESTAMPTZ,
-    otp_expires_at    TIMESTAMPTZ,
-    otp_verified_at   TIMESTAMPTZ,
-    otp_attempt_count  INTEGER      NOT NULL DEFAULT 0,
-    otp_recipient_phone VARCHAR(20),
+    pod_image_url     VARCHAR(500),
+    pod_signature_url VARCHAR(500),
+    pod_timestamp     TIMESTAMPTZ,
     failure_reason    TEXT,                    -- Vắng / từ chối / sai địa chỉ
     delivered_at      TIMESTAMPTZ,
     created_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
@@ -948,7 +945,7 @@ SELECT
 FROM delivery_orders dord
 JOIN dealers d ON d.id = dord.dealer_id
 JOIN users   u ON u.id = dord.created_by
-WHERE dord.status IN ('NEW','PICKING','READY_TO_SHIP')
+WHERE dord.status IN ('NEW','PICKING','PENDING_WAREHOUSE_APPROVAL','READY_TO_SHIP')
 ORDER BY dord.expected_delivery_date ASC NULLS LAST, dord.created_at ASC;
 
 -- Cảnh báo tồn kho thấp chưa giải quyết

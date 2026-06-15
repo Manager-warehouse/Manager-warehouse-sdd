@@ -1,10 +1,10 @@
-# Feature: Thủ kho Soạn hàng tại Kệ (US-WMS-07)
+# Feature: Thủ kho Soạn hàng tại Bin (US-WMS-07)
 
 ## 1. Context and Goal
-Thủ kho lấy hàng từ kệ theo chỉ định (Picking) được sinh bởi hệ thống dựa trên phương pháp FEFO/FIFO, đảm bảo soạn đúng sản phẩm và số lượng từ các vị trí Bin Location chính xác.
+Thủ kho lấy hàng từ Bin nhỏ nhất được hệ thống chỉ định (Picking). Batch/lô dùng để xác định tồn kho và quy tắc FIFO mặc định hoặc FEFO cho sản phẩm có expiry/được cấu hình; Bin là vị trí thao tác thực tế để lấy hàng.
 
 ## 2. Actors
-* **Thủ kho**: Soạn hàng tại kệ, lấy đúng SKU và số lượng, cập nhật trạng thái soạn hàng.
+* **Thủ kho**: Soạn hàng tại Bin, lấy đúng SKU, đúng batch, đúng Bin và đúng số lượng, cập nhật trạng thái soạn hàng.
 
 ## 3. Functional Requirements (EARS)
 * **Ubiquitous:**

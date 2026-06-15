@@ -160,7 +160,6 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         item.setReservedQty(BigDecimal.ZERO);
         item.setIssuedQty(BigDecimal.ZERO);
         item.setUnitPrice(request.getUnitPrice());
-        item.setSerialNumber(request.getSerialNumber());
         return item;
     }
 

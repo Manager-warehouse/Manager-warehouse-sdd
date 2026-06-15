@@ -10,13 +10,12 @@ Thủ kho kiêm QC kiểm QC đóng gói (kiểm tra SKU, số lượng, quy cá
 * **Ubiquitous:**
   * The system SHALL create `DELIVERY_ORDER_QC_CONFIRM`, `DELIVERY_ORDER_WAREHOUSE_APPROVE`, and `DELIVERY_ORDER_WAREHOUSE_REJECT` audit log entries for outbound QC and warehouse approval decisions.
 * **Event-driven:**
-  * WHEN a Thủ kho confirms QC Outbound passed, the system SHALL allow setting status to `READY_TO_SHIP`.
+  * WHEN a Thủ kho confirms QC Outbound passed, the system SHALL set the delivery order status to `PENDING_WAREHOUSE_APPROVAL`.
   * WHEN QC passes, the system SHALL require Trưởng kho approval before the delivery order can move to `READY_TO_SHIP`.
   * WHEN Trưởng kho rejects the outbound approval, the system SHALL keep the delivery order in `PICKING` and record the rejection reason.
 
 ## 4. API Endpoints
 * `PUT /api/v1/delivery-orders/{id}/qc-outbound` - Xác nhận đạt QC Outbound (STORE_KEEPER).
-* `PUT /api/v1/delivery-orders/{id}/ship` - Xác nhận sẵn sàng xuất (STORE_KEEPER).
 * `PUT /api/v1/delivery-orders/{id}/warehouse-approval` - Trưởng kho phê duyệt xuất kho sau QC.
 * `PUT /api/v1/delivery-orders/{id}/warehouse-reject` - Trưởng kho từ chối xuất kho sau QC.
 
@@ -24,14 +23,14 @@ Thủ kho kiêm QC kiểm QC đóng gói (kiểm tra SKU, số lượng, quy cá
 * **Scenario: Successful QC confirmation**
   * Given a delivery order in `PICKING` status with all items picked
   * When Thủ kho verifies correct SKU and packaging, and confirms QC passed
-  * Then the system SHALL require warehouse approval before the DO can be marked as `READY_TO_SHIP`.
+  * Then the system SHALL set the DO status to `PENDING_WAREHOUSE_APPROVAL` and require warehouse approval before the DO can be marked as `READY_TO_SHIP`.
 
 * **Scenario: Warehouse approval granted**
-  * Given a delivery order has passed QC
+  * Given a delivery order is in `PENDING_WAREHOUSE_APPROVAL`
   * When Trưởng kho approves the outbound request
   * Then the system SHALL change the DO status to `READY_TO_SHIP`.
 
 * **Scenario: Warehouse approval rejected**
-  * Given a delivery order has passed QC
+  * Given a delivery order is in `PENDING_WAREHOUSE_APPROVAL`
   * When Trưởng kho rejects the outbound request
   * Then the system SHALL keep the DO status in `PICKING` and store the rejection reason.
