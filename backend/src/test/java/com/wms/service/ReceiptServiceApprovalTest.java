@@ -40,7 +40,7 @@ class ReceiptServiceApprovalTest {
     @Mock private UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
     @Mock private AuditLogService auditLogService;
 
-    @InjectMocks
+    private ReceiptValidationService receiptValidationService;
     private ReceiptApprovalService receiptService;
 
     private User manager;
@@ -83,8 +83,19 @@ class ReceiptServiceApprovalTest {
         receiptItem = new ReceiptItem();
         receiptItem.setId(10L);
         receiptItem.setProduct(product);
-        receiptItem.setActualQty(java.math.BigDecimal.valueOf(100));
+        receiptItem.setActualQty(100);
         receiptItem.setBatch(batch);
+
+        receiptValidationService = new ReceiptValidationService(receiptRepository, userWarehouseAssignmentRepository);
+        receiptService = new ReceiptApprovalService(
+                receiptRepository,
+                receiptItemRepository,
+                batchRepository,
+                inventoryRepository,
+                warehouseLocationRepository,
+                receiptValidationService,
+                auditLogService
+        );
     }
 
     // -----------------------------------------------------------------------

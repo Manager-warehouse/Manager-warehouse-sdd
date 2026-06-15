@@ -53,7 +53,8 @@ class ReceiptPutawayServiceTest {
     @Mock private UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
     @Mock private AuditLogService auditLogService;
 
-    @InjectMocks private ReceiptApprovalService receiptService;
+    private ReceiptValidationService receiptValidationService;
+    private ReceiptApprovalService receiptService;
 
     private User storekeeper;
     private Warehouse warehouse;
@@ -94,7 +95,7 @@ class ReceiptPutawayServiceTest {
         item.setId(11L);
         item.setProduct(product);
         item.setBatch(batch);
-        item.setActualQty(BigDecimal.valueOf(10));
+        item.setActualQty(10);
         item.setUnitCost(BigDecimal.valueOf(30));
 
         regularBin = new WarehouseLocation();
@@ -105,6 +106,17 @@ class ReceiptPutawayServiceTest {
         regularBin.setCapacityKg(BigDecimal.valueOf(30));
         regularBin.setCurrentVolumeM3(BigDecimal.ONE);
         regularBin.setCurrentWeightKg(BigDecimal.valueOf(5));
+
+        receiptValidationService = new ReceiptValidationService(receiptRepository, userWarehouseAssignmentRepository);
+        receiptService = new ReceiptApprovalService(
+                receiptRepository,
+                receiptItemRepository,
+                batchRepository,
+                inventoryRepository,
+                warehouseLocationRepository,
+                receiptValidationService,
+                auditLogService
+        );
     }
 
     @Test

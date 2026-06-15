@@ -42,7 +42,7 @@ class ReceiptRtvConfirmServiceTest {
     @Mock private UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
     @Mock private AuditLogService auditLogService;
 
-    @InjectMocks
+    private ReceiptValidationService receiptValidationService;
     private QuarantineRtvService receiptService;
 
     private User storekeeper;
@@ -86,7 +86,7 @@ class ReceiptRtvConfirmServiceTest {
         failedItem = new ReceiptItem();
         failedItem.setId(10L);
         failedItem.setProduct(product);
-        failedItem.setActualQty(BigDecimal.valueOf(20));
+        failedItem.setActualQty(20);
         failedItem.setUnitCost(BigDecimal.valueOf(50));
         failedItem.setBatch(quarantineBatch);
         failedItem.setLocation(quarantineLocation);
@@ -112,6 +112,17 @@ class ReceiptRtvConfirmServiceTest {
         quarantineInventory.setTotalQty(BigDecimal.valueOf(20));
         quarantineInventory.setReservedQty(BigDecimal.ZERO);
         quarantineInventory.setUpdatedAt(OffsetDateTime.now());
+
+        receiptValidationService = new ReceiptValidationService(receiptRepository, userWarehouseAssignmentRepository);
+        receiptService = new QuarantineRtvService(
+                receiptRepository,
+                receiptItemRepository,
+                adjustmentRepository,
+                debitNoteRepository,
+                inventoryRepository,
+                receiptValidationService,
+                auditLogService
+        );
     }
 
     // -----------------------------------------------------------------------
@@ -130,7 +141,6 @@ class ReceiptRtvConfirmServiceTest {
                 .thenReturn(Optional.empty());
         when(adjustmentRepository.findPendingRtvByReference("RECEIPT", 1L, AdjustmentType.RETURN_TO_VENDOR))
                 .thenReturn(Optional.of(pendingRtv));
-        when(receiptItemRepository.sumActualQtyByReceiptId(1L)).thenReturn(BigDecimal.valueOf(20));
         when(receiptItemRepository.findByReceiptId(1L)).thenReturn(List.of(failedItem));
         when(inventoryRepository.findByWarehouseProductBatchLocationForUpdate(10L, 100L, 200L, 50L))
                 .thenReturn(Optional.of(quarantineInventory));
@@ -168,7 +178,6 @@ class ReceiptRtvConfirmServiceTest {
         when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(6L)).thenReturn(List.of(10L));
         when(adjustmentRepository.findConfirmedRtvByReference(any(), any(), any())).thenReturn(Optional.empty());
         when(adjustmentRepository.findPendingRtvByReference(any(), any(), any())).thenReturn(Optional.of(pendingRtv));
-        when(receiptItemRepository.sumActualQtyByReceiptId(1L)).thenReturn(BigDecimal.valueOf(20));
         when(receiptItemRepository.findByReceiptId(1L)).thenReturn(List.of(failedItem));
         when(inventoryRepository.findByWarehouseProductBatchLocationForUpdate(any(), any(), any(), any()))
                 .thenReturn(Optional.of(quarantineInventory));
@@ -197,7 +206,7 @@ class ReceiptRtvConfirmServiceTest {
         when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(6L)).thenReturn(List.of(10L));
         when(adjustmentRepository.findConfirmedRtvByReference(any(), any(), any())).thenReturn(Optional.empty());
         when(adjustmentRepository.findPendingRtvByReference(any(), any(), any())).thenReturn(Optional.of(pendingRtv));
-        when(receiptItemRepository.sumActualQtyByReceiptId(1L)).thenReturn(BigDecimal.valueOf(20));
+        when(receiptItemRepository.findByReceiptId(1L)).thenReturn(List.of(failedItem));
 
         BusinessRuleViolationException ex = assertThrows(BusinessRuleViolationException.class,
                 () -> receiptService.confirmRtv(1L, request, storekeeper));
@@ -216,7 +225,7 @@ class ReceiptRtvConfirmServiceTest {
         when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(6L)).thenReturn(List.of(10L));
         when(adjustmentRepository.findConfirmedRtvByReference(any(), any(), any())).thenReturn(Optional.empty());
         when(adjustmentRepository.findPendingRtvByReference(any(), any(), any())).thenReturn(Optional.of(pendingRtv));
-        when(receiptItemRepository.sumActualQtyByReceiptId(1L)).thenReturn(BigDecimal.valueOf(20));
+        when(receiptItemRepository.findByReceiptId(1L)).thenReturn(List.of(failedItem));
 
         assertThrows(BusinessRuleViolationException.class,
                 () -> receiptService.confirmRtv(1L, request, storekeeper));
@@ -267,7 +276,6 @@ class ReceiptRtvConfirmServiceTest {
         when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(6L)).thenReturn(List.of(10L));
         when(adjustmentRepository.findConfirmedRtvByReference(any(), any(), any())).thenReturn(Optional.empty());
         when(adjustmentRepository.findPendingRtvByReference(any(), any(), any())).thenReturn(Optional.of(pendingRtv));
-        when(receiptItemRepository.sumActualQtyByReceiptId(1L)).thenReturn(BigDecimal.valueOf(20));
         when(receiptItemRepository.findByReceiptId(1L)).thenReturn(List.of(failedItem));
         when(inventoryRepository.findByWarehouseProductBatchLocationForUpdate(any(), any(), any(), any()))
                 .thenReturn(Optional.of(quarantineInventory));
@@ -290,7 +298,6 @@ class ReceiptRtvConfirmServiceTest {
         when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(6L)).thenReturn(List.of(10L));
         when(adjustmentRepository.findConfirmedRtvByReference(any(), any(), any())).thenReturn(Optional.empty());
         when(adjustmentRepository.findPendingRtvByReference(any(), any(), any())).thenReturn(Optional.of(pendingRtv));
-        when(receiptItemRepository.sumActualQtyByReceiptId(1L)).thenReturn(BigDecimal.valueOf(20));
         when(receiptItemRepository.findByReceiptId(1L)).thenReturn(List.of(failedItem));
         when(inventoryRepository.findByWarehouseProductBatchLocationForUpdate(any(), any(), any(), any()))
                 .thenReturn(Optional.of(quarantineInventory));

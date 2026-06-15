@@ -205,7 +205,7 @@ public class ReceiptService {
                 .existsBySupplierIdAndWarehouseIdAndSourceOrderCodeAndTypeAndStatusNot(
                         request.getSupplierId(), request.getWarehouseId(),
                         request.getSourceReference(), ReceiptType.PURCHASE,
-                        ReceiptStatus.REJECTED);
+                        ReceiptStatus.RETURNED_TO_SUPPLIER);
         if (duplicate) {
             throw new DuplicateResourceException(
                     "Receipt source reference already exists for supplier and warehouse");
@@ -338,7 +338,8 @@ public class ReceiptService {
 
     private void validateReceivableStatus(Receipt receipt) {
         if (receipt.getStatus() == ReceiptStatus.APPROVED
-                || receipt.getStatus() == ReceiptStatus.REJECTED) {
+                || receipt.getStatus() == ReceiptStatus.RETURN_TO_SUPPLIER_PENDING
+                || receipt.getStatus() == ReceiptStatus.RETURNED_TO_SUPPLIER) {
             throw receiptCountError("RECEIPT_ALREADY_FINALIZED",
                     HttpStatus.CONFLICT,
                     "Receipt is already finalized");

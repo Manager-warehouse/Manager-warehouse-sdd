@@ -31,21 +31,24 @@ ALTER TABLE receipt_items
     ALTER COLUMN expected_qty TYPE INTEGER
     USING expected_qty::INTEGER;
 
+ALTER TABLE receipt_items DROP CONSTRAINT IF EXISTS receipt_items_expected_qty_positive;
 ALTER TABLE receipt_items
     ADD CONSTRAINT receipt_items_expected_qty_positive
     CHECK (expected_qty > 0);
 
+ALTER TABLE receipts DROP CONSTRAINT IF EXISTS receipts_source_channel_check;
 ALTER TABLE receipts
     ADD CONSTRAINT receipts_source_channel_check
     CHECK (source_channel IS NULL OR source_channel IN ('ZALO', 'EMAIL'));
 
-CREATE UNIQUE INDEX ux_receipts_purchase_supplier_warehouse_source
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_receipts_purchase_supplier_warehouse_source
     ON receipts (supplier_id, warehouse_id, source_order_code)
     WHERE type = 'PURCHASE'
-      AND status <> 'REJECTED'
+      AND status <> 'RETURNED_TO_SUPPLIER'
       AND source_order_code IS NOT NULL;
 
-CREATE TABLE document_sequences (
+CREATE TABLE IF NOT EXISTS document_sequences (
     sequence_key VARCHAR(50) PRIMARY KEY,
     next_value BIGINT NOT NULL CHECK (next_value > 0),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

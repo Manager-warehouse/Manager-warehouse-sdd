@@ -17,6 +17,9 @@ public interface ReceiptItemRepository extends JpaRepository<ReceiptItem, Long> 
     @EntityGraph(attributePaths = {"product", "batch", "location"})
     List<ReceiptItem> findByReceiptId(Long receiptId);
 
+    @EntityGraph(attributePaths = {"product", "batch", "location"})
+    List<ReceiptItem> findByReceiptIdOrderByIdAsc(Long receiptId);
+
     /**
      * Sum of actual quantities for items belonging to a receipt.
      * Used to compute total quarantine quantity for RTV validation.

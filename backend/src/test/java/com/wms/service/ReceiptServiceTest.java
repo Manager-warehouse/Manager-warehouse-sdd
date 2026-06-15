@@ -124,6 +124,8 @@ class ReceiptServiceTest {
     @Test
     void createPurchaseReceipt_rejectsInactiveProduct() {
         stubHeaderLookups();
+        when(sequenceRepository.findBySequenceKeyForUpdate("RECEIPT"))
+                .thenReturn(Optional.of(sequence()));
         when(productRepository.findById(30L)).thenReturn(Optional.of(product(30L, false)));
 
         assertThrows(UnprocessableEntityException.class,
@@ -163,7 +165,7 @@ class ReceiptServiceTest {
     void createPurchaseReceipt_rejectsDuplicateSourceReference() {
         stubHeaderLookups();
         when(receiptRepository.existsBySupplierIdAndWarehouseIdAndSourceOrderCodeAndTypeAndStatusNot(
-                10L, 20L, "PO-1", ReceiptType.PURCHASE, ReceiptStatus.REJECTED))
+                10L, 20L, "PO-1", ReceiptType.PURCHASE, ReceiptStatus.RETURNED_TO_SUPPLIER))
                 .thenReturn(true);
 
         assertThrows(DuplicateResourceException.class,
@@ -278,7 +280,7 @@ class ReceiptServiceTest {
 
     @Test
     void receiveReceiptCounts_rejectsRejectedReceipt() {
-        Receipt rejected = receipt(100L, ReceiptStatus.REJECTED);
+        Receipt rejected = receipt(100L, ReceiptStatus.RETURNED_TO_SUPPLIER);
         when(receiptRepository.findByIdWithWarehouse(100L)).thenReturn(Optional.of(rejected));
         when(assignmentRepository.findWarehouseIdsByUserId(2L)).thenReturn(List.of(20L));
 

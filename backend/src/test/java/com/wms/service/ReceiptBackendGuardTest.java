@@ -50,8 +50,9 @@ class ReceiptBackendGuardTest {
     @Mock private UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
     @Mock private AuditLogService auditLogService;
 
-    @InjectMocks private ReceiptApprovalService approvalService;
-    @InjectMocks private QuarantineRtvService rtvService;
+    private ReceiptValidationService receiptValidationService;
+    private ReceiptApprovalService approvalService;
+    private QuarantineRtvService rtvService;
 
     private Receipt qcCompletedReceipt;
     private Receipt qcFailedReceipt;
@@ -73,6 +74,26 @@ class ReceiptBackendGuardTest {
 
         qcCompletedReceipt = receipt(1L, "RCV-APPROVAL", ReceiptStatus.QC_COMPLETED, warehouse, 3);
         qcFailedReceipt = receipt(2L, "RCV-QC-FAILED", ReceiptStatus.QC_FAILED, warehouse, 4);
+
+        receiptValidationService = new ReceiptValidationService(receiptRepository, userWarehouseAssignmentRepository);
+        approvalService = new ReceiptApprovalService(
+                receiptRepository,
+                receiptItemRepository,
+                batchRepository,
+                inventoryRepository,
+                warehouseLocationRepository,
+                receiptValidationService,
+                auditLogService
+        );
+        rtvService = new QuarantineRtvService(
+                receiptRepository,
+                receiptItemRepository,
+                adjustmentRepository,
+                debitNoteRepository,
+                inventoryRepository,
+                receiptValidationService,
+                auditLogService
+        );
     }
 
     @Test

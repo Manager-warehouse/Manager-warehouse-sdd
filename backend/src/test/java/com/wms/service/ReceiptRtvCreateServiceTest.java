@@ -43,7 +43,7 @@ class ReceiptRtvCreateServiceTest {
     @Mock private UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
     @Mock private AuditLogService auditLogService;
 
-    @InjectMocks
+    private ReceiptValidationService receiptValidationService;
     private QuarantineRtvService receiptService;
 
     private User manager;
@@ -82,9 +82,20 @@ class ReceiptRtvCreateServiceTest {
         failedItem = new ReceiptItem();
         failedItem.setId(10L);
         failedItem.setProduct(product);
-        failedItem.setActualQty(BigDecimal.valueOf(20));
+        failedItem.setActualQty(20);
         failedItem.setUnitCost(BigDecimal.valueOf(50));
         failedItem.setQcResult(QcResult.FAILED);
+
+        receiptValidationService = new ReceiptValidationService(receiptRepository, userWarehouseAssignmentRepository);
+        receiptService = new QuarantineRtvService(
+                receiptRepository,
+                receiptItemRepository,
+                adjustmentRepository,
+                debitNoteRepository,
+                inventoryRepository,
+                receiptValidationService,
+                auditLogService
+        );
     }
 
     // -----------------------------------------------------------------------
@@ -102,7 +113,6 @@ class ReceiptRtvCreateServiceTest {
         when(adjustmentRepository.existsByReferenceTypeAndReferenceIdAndType(
                 "RECEIPT", 1L, AdjustmentType.RETURN_TO_VENDOR)).thenReturn(false);
         when(receiptItemRepository.findByReceiptId(1L)).thenReturn(List.of(failedItem));
-        when(receiptItemRepository.sumActualQtyByReceiptId(1L)).thenReturn(BigDecimal.valueOf(20));
         when(adjustmentRepository.save(any(Adjustment.class))).thenAnswer(i -> {
             Adjustment adj = i.getArgument(0);
             adj.setId(100L);
@@ -148,7 +158,6 @@ class ReceiptRtvCreateServiceTest {
         when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
         when(adjustmentRepository.existsByReferenceTypeAndReferenceIdAndType(any(), any(), any())).thenReturn(false);
         when(receiptItemRepository.findByReceiptId(1L)).thenReturn(List.of(failedItem));
-        when(receiptItemRepository.sumActualQtyByReceiptId(1L)).thenReturn(BigDecimal.valueOf(20));
         when(adjustmentRepository.save(any())).thenAnswer(i -> { Adjustment a = i.getArgument(0); a.setId(1L); return a; });
         when(debitNoteRepository.save(any())).thenAnswer(i -> { DebitNote d = i.getArgument(0); d.setId(1L); return d; });
 
@@ -169,7 +178,6 @@ class ReceiptRtvCreateServiceTest {
         when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
         when(adjustmentRepository.existsByReferenceTypeAndReferenceIdAndType(any(), any(), any())).thenReturn(false);
         when(receiptItemRepository.findByReceiptId(1L)).thenReturn(List.of(failedItem));
-        when(receiptItemRepository.sumActualQtyByReceiptId(1L)).thenReturn(BigDecimal.valueOf(20));
         when(adjustmentRepository.save(any())).thenAnswer(i -> { Adjustment a = i.getArgument(0); a.setId(1L); return a; });
         when(debitNoteRepository.save(any())).thenAnswer(i -> { DebitNote d = i.getArgument(0); d.setId(1L); return d; });
 

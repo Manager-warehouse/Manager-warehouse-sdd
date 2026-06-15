@@ -42,7 +42,7 @@ class ReceiptServiceReturnToSupplierTest {
     @Mock private UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
     @Mock private AuditLogService auditLogService;
 
-    @InjectMocks
+    private ReceiptValidationService receiptValidationService;
     private ReceiptApprovalService receiptService;
 
     private User manager;
@@ -84,6 +84,17 @@ class ReceiptServiceReturnToSupplierTest {
         returnPendingReceipt.setVersion(4);
         returnPendingReceipt.setCreatedAt(OffsetDateTime.now());
         returnPendingReceipt.setUpdatedAt(OffsetDateTime.now());
+
+        receiptValidationService = new ReceiptValidationService(receiptRepository, userWarehouseAssignmentRepository);
+        receiptService = new ReceiptApprovalService(
+                receiptRepository,
+                receiptItemRepository,
+                batchRepository,
+                inventoryRepository,
+                warehouseLocationRepository,
+                receiptValidationService,
+                auditLogService
+        );
     }
 
     // -----------------------------------------------------------------------

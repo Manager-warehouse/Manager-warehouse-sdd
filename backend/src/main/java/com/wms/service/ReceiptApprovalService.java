@@ -35,7 +35,7 @@ public class ReceiptApprovalService {
     private final BatchRepository batchRepository;
     private final InventoryRepository inventoryRepository;
     private final WarehouseLocationRepository warehouseLocationRepository;
-    private final UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
+    private final ReceiptValidationService receiptValidationService;
     private final AuditLogService auditLogService;
 
     public ReceiptApprovalService(ReceiptRepository receiptRepository,
@@ -43,14 +43,14 @@ public class ReceiptApprovalService {
                                   BatchRepository batchRepository,
                                   InventoryRepository inventoryRepository,
                                   WarehouseLocationRepository warehouseLocationRepository,
-                                  UserWarehouseAssignmentRepository userWarehouseAssignmentRepository,
+                                  ReceiptValidationService receiptValidationService,
                                   AuditLogService auditLogService) {
         this.receiptRepository = receiptRepository;
         this.receiptItemRepository = receiptItemRepository;
         this.batchRepository = batchRepository;
         this.inventoryRepository = inventoryRepository;
         this.warehouseLocationRepository = warehouseLocationRepository;
-        this.userWarehouseAssignmentRepository = userWarehouseAssignmentRepository;
+        this.receiptValidationService = receiptValidationService;
         this.auditLogService = auditLogService;
     }
 
@@ -61,10 +61,10 @@ public class ReceiptApprovalService {
     public ReceiptActionResponse approveReceipt(Long receiptId,
                                                 ReceiptDecisionRequest request,
                                                 User actor) {
-        assertRole(actor, UserRole.WAREHOUSE_MANAGER, "RECEIPT_APPROVE");
-        assertWarehouseAssignment(actor, receiptId);
-        Receipt receipt = loadReceiptForUpdate(receiptId);
-        assertVersionMatch(receipt, request.getExpectedVersion());
+        receiptValidationService.assertRole(actor, UserRole.WAREHOUSE_MANAGER, "RECEIPT_APPROVE");
+        receiptValidationService.assertWarehouseAssignment(actor, receiptId);
+        Receipt receipt = receiptValidationService.loadReceiptForUpdate(receiptId);
+        receiptValidationService.assertVersionMatch(receipt, request.getExpectedVersion());
         assertStatusForApproveOrReject(receipt);
 
         ReceiptStatus oldStatus = receipt.getStatus();
@@ -107,10 +107,10 @@ public class ReceiptApprovalService {
             throw new IllegalArgumentException("REASON_REQUIRED: Rejection reason is mandatory");
         }
 
-        assertRole(actor, UserRole.WAREHOUSE_MANAGER, "RECEIPT_REJECT");
-        assertWarehouseAssignment(actor, receiptId);
-        Receipt receipt = loadReceiptForUpdate(receiptId);
-        assertVersionMatch(receipt, request.getExpectedVersion());
+        receiptValidationService.assertRole(actor, UserRole.WAREHOUSE_MANAGER, "RECEIPT_REJECT");
+        receiptValidationService.assertWarehouseAssignment(actor, receiptId);
+        Receipt receipt = receiptValidationService.loadReceiptForUpdate(receiptId);
+        receiptValidationService.assertVersionMatch(receipt, request.getExpectedVersion());
         assertStatusForApproveOrReject(receipt);
 
         ReceiptStatus oldStatus = receipt.getStatus();
@@ -140,10 +140,10 @@ public class ReceiptApprovalService {
     public ReceiptActionResponse confirmReturnToSupplier(Long receiptId,
                                                           ReceiptReturnConfirmRequest request,
                                                           User actor) {
-        assertRole(actor, UserRole.STOREKEEPER, "RECEIPT_RETURN_CONFIRM");
-        assertWarehouseAssignment(actor, receiptId);
-        Receipt receipt = loadReceiptForUpdate(receiptId);
-        assertVersionMatch(receipt, request.getExpectedVersion());
+        receiptValidationService.assertRole(actor, UserRole.STOREKEEPER, "RECEIPT_RETURN_CONFIRM");
+        receiptValidationService.assertWarehouseAssignment(actor, receiptId);
+        Receipt receipt = receiptValidationService.loadReceiptForUpdate(receiptId);
+        receiptValidationService.assertVersionMatch(receipt, request.getExpectedVersion());
 
         if (receipt.getStatus() != ReceiptStatus.RETURN_TO_SUPPLIER_PENDING) {
             throw new BusinessRuleViolationException(
@@ -178,10 +178,10 @@ public class ReceiptApprovalService {
     public ReceiptActionResponse completePutaway(Long receiptId,
                                                   ReceiptPutawayRequest request,
                                                   User actor) {
-        assertRole(actor, UserRole.STOREKEEPER, "RECEIPT_PUTAWAY_COMPLETE");
-        assertWarehouseAssignment(actor, receiptId);
-        Receipt receipt = loadReceiptForUpdate(receiptId);
-        assertVersionMatch(receipt, request.getExpectedVersion());
+        receiptValidationService.assertRole(actor, UserRole.STOREKEEPER, "RECEIPT_PUTAWAY_COMPLETE");
+        receiptValidationService.assertWarehouseAssignment(actor, receiptId);
+        Receipt receipt = receiptValidationService.loadReceiptForUpdate(receiptId);
+        receiptValidationService.assertVersionMatch(receipt, request.getExpectedVersion());
 
         if (receipt.getStatus() != ReceiptStatus.APPROVED) {
             throw new BusinessRuleViolationException(
@@ -229,27 +229,7 @@ public class ReceiptApprovalService {
         return buildReceiptActionResponse(receipt, "Putaway completed. Regular inventory updated.");
     }
 
-    private Receipt loadReceiptForUpdate(Long receiptId) {
-        return receiptRepository.findById(receiptId)
-                .orElseThrow(() -> new ResourceNotFoundException("Receipt not found: " + receiptId));
-    }
 
-    private void assertVersionMatch(Receipt receipt, Integer expectedVersion) {
-        if (!receipt.getVersion().equals(expectedVersion)) {
-            throw new BusinessRuleViolationException(
-                    "INVENTORY_VERSION_CONFLICT: Receipt " + receipt.getId()
-                    + " has been modified since you last loaded it (expected version "
-                    + expectedVersion + ", current version " + receipt.getVersion()
-                    + "). Please reload and retry.");
-        }
-    }
-
-    private void assertRole(User actor, UserRole requiredRole, String action) {
-        if (actor == null || actor.getRole() != requiredRole) {
-            throw new ForbiddenReceiptWarehouseException(
-                    "FORBIDDEN_RECEIPT_ROLE: " + action + " requires role " + requiredRole);
-        }
-    }
 
     private void assertStatusForApproveOrReject(Receipt receipt) {
         ReceiptStatus status = receipt.getStatus();
@@ -265,16 +245,7 @@ public class ReceiptApprovalService {
         }
     }
 
-    private void assertWarehouseAssignment(User actor, Long receiptId) {
-        Receipt receipt = receiptRepository.findById(receiptId)
-                .orElseThrow(() -> new ResourceNotFoundException("Receipt not found: " + receiptId));
-        Long warehouseId = receipt.getWarehouse().getId();
-        List<Long> assignedWarehouseIds = userWarehouseAssignmentRepository
-                .findWarehouseIdsByUserId(actor.getId());
-        if (!assignedWarehouseIds.contains(warehouseId)) {
-            throw new ForbiddenReceiptWarehouseException(receiptId, warehouseId);
-        }
-    }
+
 
     private Batch resolveOrCreateBatch(ReceiptItem item, Receipt receipt) {
         Long productId = item.getProduct().getId();
@@ -293,7 +264,7 @@ public class ReceiptApprovalService {
                             .product(item.getProduct())
                             .warehouse(receipt.getWarehouse())
                             .receivedDate(receivedDate)
-                            .quantity(item.getActualQty() != null ? item.getActualQty() : BigDecimal.ZERO)
+                            .quantity(item.getActualQty() != null ? BigDecimal.valueOf(item.getActualQty()) : BigDecimal.ZERO)
                             .createdAt(OffsetDateTime.now())
                             .build();
                     return batchRepository.save(newBatch);
@@ -302,7 +273,7 @@ public class ReceiptApprovalService {
 
     private void increaseRegularInventory(Receipt receipt, ReceiptItem item,
                                            WarehouseLocation location, User actor) {
-        BigDecimal qty = item.getActualQty() != null ? item.getActualQty() : BigDecimal.ZERO;
+        BigDecimal qty = item.getActualQty() != null ? BigDecimal.valueOf(item.getActualQty()) : BigDecimal.ZERO;
         if (qty.compareTo(BigDecimal.ZERO) <= 0) {
             return;
         }
@@ -370,16 +341,20 @@ public class ReceiptApprovalService {
 
     private BigDecimal calculateAddedVolume(List<ReceiptItem> items) {
         return items.stream()
-                .map(item -> zeroIfNull(item.getActualQty())
+                .map(item -> getActualQtyAsBigDecimal(item)
                         .multiply(zeroIfNull(item.getProduct().getVolumeM3())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     private BigDecimal calculateAddedWeight(List<ReceiptItem> items) {
         return items.stream()
-                .map(item -> zeroIfNull(item.getActualQty())
+                .map(item -> getActualQtyAsBigDecimal(item)
                         .multiply(zeroIfNull(item.getProduct().getWeightKg())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private BigDecimal getActualQtyAsBigDecimal(ReceiptItem item) {
+        return item.getActualQty() != null ? BigDecimal.valueOf(item.getActualQty()) : BigDecimal.ZERO;
     }
 
     private BigDecimal zeroIfNull(BigDecimal value) {

@@ -37,7 +37,7 @@ public class QuarantineRtvService {
     private final AdjustmentRepository adjustmentRepository;
     private final DebitNoteRepository debitNoteRepository;
     private final InventoryRepository inventoryRepository;
-    private final UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
+    private final ReceiptValidationService receiptValidationService;
     private final AuditLogService auditLogService;
 
     public QuarantineRtvService(ReceiptRepository receiptRepository,
@@ -45,14 +45,14 @@ public class QuarantineRtvService {
                                  AdjustmentRepository adjustmentRepository,
                                  DebitNoteRepository debitNoteRepository,
                                  InventoryRepository inventoryRepository,
-                                 UserWarehouseAssignmentRepository userWarehouseAssignmentRepository,
+                                 ReceiptValidationService receiptValidationService,
                                  AuditLogService auditLogService) {
         this.receiptRepository = receiptRepository;
         this.receiptItemRepository = receiptItemRepository;
         this.adjustmentRepository = adjustmentRepository;
         this.debitNoteRepository = debitNoteRepository;
         this.inventoryRepository = inventoryRepository;
-        this.userWarehouseAssignmentRepository = userWarehouseAssignmentRepository;
+        this.receiptValidationService = receiptValidationService;
         this.auditLogService = auditLogService;
     }
 
@@ -63,10 +63,10 @@ public class QuarantineRtvService {
     public RtvActionResponse createRtv(Long receiptId,
                                         ReceiptRtvCreateRequest request,
                                         User actor) {
-        assertRole(actor, UserRole.WAREHOUSE_MANAGER, "QUARANTINE_RTV_CREATE");
-        assertWarehouseAssignment(actor, receiptId);
-        Receipt receipt = loadReceiptForUpdate(receiptId);
-        assertVersionMatch(receipt, request.getExpectedVersion());
+        receiptValidationService.assertRole(actor, UserRole.WAREHOUSE_MANAGER, "QUARANTINE_RTV_CREATE");
+        receiptValidationService.assertWarehouseAssignment(actor, receiptId);
+        Receipt receipt = receiptValidationService.loadReceiptForUpdate(receiptId);
+        receiptValidationService.assertVersionMatch(receipt, request.getExpectedVersion());
 
         if (receipt.getStatus() != ReceiptStatus.QC_FAILED) {
             throw new BusinessRuleViolationException(
@@ -85,10 +85,12 @@ public class QuarantineRtvService {
                     "NO_QUARANTINE_ITEMS: Receipt " + receiptId + " has no items to process for RTV.");
         }
 
-        BigDecimal totalFailedQty = receiptItemRepository.sumActualQtyByReceiptId(receiptId);
+        BigDecimal totalFailedQty = items.stream()
+                .map(i -> i.getActualQty() != null ? BigDecimal.valueOf(i.getActualQty()) : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal totalAmount = items.stream()
                 .map(i -> {
-                    BigDecimal qty = i.getActualQty() != null ? i.getActualQty() : BigDecimal.ZERO;
+                    BigDecimal qty = i.getActualQty() != null ? BigDecimal.valueOf(i.getActualQty()) : BigDecimal.ZERO;
                     BigDecimal cost = i.getUnitCost() != null ? i.getUnitCost() : BigDecimal.ZERO;
                     return qty.multiply(cost);
                 })
@@ -162,11 +164,10 @@ public class QuarantineRtvService {
     public RtvActionResponse confirmRtv(Long receiptId,
                                          ReceiptRtvConfirmRequest request,
                                          User actor) {
-        assertRole(actor, UserRole.STOREKEEPER, "QUARANTINE_RTV_CONFIRM");
-        assertWarehouseAssignment(actor, receiptId);
-        Receipt receipt = receiptRepository.findById(receiptId)
-                .orElseThrow(() -> new ResourceNotFoundException("Receipt not found: " + receiptId));
-        assertVersionMatch(receipt, request.getExpectedVersion());
+        receiptValidationService.assertRole(actor, UserRole.STOREKEEPER, "QUARANTINE_RTV_CONFIRM");
+        receiptValidationService.assertWarehouseAssignment(actor, receiptId);
+        Receipt receipt = receiptValidationService.loadReceiptForUpdate(receiptId);
+        receiptValidationService.assertVersionMatch(receipt, request.getExpectedVersion());
 
         if (adjustmentRepository.findConfirmedRtvByReference(
                 RTV_REFERENCE_TYPE, receiptId, AdjustmentType.RETURN_TO_VENDOR).isPresent()) {
@@ -180,7 +181,10 @@ public class QuarantineRtvService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "No pending RTV adjustment found for receipt: " + receiptId));
 
-        BigDecimal quarantineQty = receiptItemRepository.sumActualQtyByReceiptId(receiptId);
+        List<ReceiptItem> items = receiptItemRepository.findByReceiptId(receiptId);
+        BigDecimal quarantineQty = items.stream()
+                .map(i -> i.getActualQty() != null ? BigDecimal.valueOf(i.getActualQty()) : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         if (request.getReturnedQty().compareTo(quarantineQty) != 0) {
             throw new BusinessRuleViolationException(
@@ -188,8 +192,6 @@ public class QuarantineRtvService {
                     + " does not equal the full quarantined quantity " + quarantineQty
                     + " for receipt " + receiptId + ". Partial RTV confirmation is not allowed.");
         }
-
-        List<ReceiptItem> items = receiptItemRepository.findByReceiptId(receiptId);
         for (ReceiptItem item : items) {
             deductQuarantineInventory(receipt, item, actor);
         }
@@ -225,41 +227,10 @@ public class QuarantineRtvService {
                 .build();
     }
 
-    private Receipt loadReceiptForUpdate(Long receiptId) {
-        return receiptRepository.findById(receiptId)
-                .orElseThrow(() -> new ResourceNotFoundException("Receipt not found: " + receiptId));
-    }
 
-    private void assertWarehouseAssignment(User actor, Long receiptId) {
-        Receipt receipt = receiptRepository.findById(receiptId)
-                .orElseThrow(() -> new ResourceNotFoundException("Receipt not found: " + receiptId));
-        Long warehouseId = receipt.getWarehouse().getId();
-        List<Long> assignedWarehouseIds = userWarehouseAssignmentRepository
-                .findWarehouseIdsByUserId(actor.getId());
-        if (!assignedWarehouseIds.contains(warehouseId)) {
-            throw new ForbiddenReceiptWarehouseException(receiptId, warehouseId);
-        }
-    }
-
-    private void assertVersionMatch(Receipt receipt, Integer expectedVersion) {
-        if (!receipt.getVersion().equals(expectedVersion)) {
-            throw new BusinessRuleViolationException(
-                    "INVENTORY_VERSION_CONFLICT: Receipt " + receipt.getId()
-                    + " has been modified since you last loaded it (expected version "
-                    + expectedVersion + ", current version " + receipt.getVersion()
-                    + "). Please reload and retry.");
-        }
-    }
-
-    private void assertRole(User actor, UserRole requiredRole, String action) {
-        if (actor == null || actor.getRole() != requiredRole) {
-            throw new ForbiddenReceiptWarehouseException(
-                    "FORBIDDEN_RECEIPT_ROLE: " + action + " requires role " + requiredRole);
-        }
-    }
 
     private void deductQuarantineInventory(Receipt receipt, ReceiptItem item, User actor) {
-        BigDecimal qty = item.getActualQty() != null ? item.getActualQty() : BigDecimal.ZERO;
+        BigDecimal qty = item.getActualQty() != null ? BigDecimal.valueOf(item.getActualQty()) : BigDecimal.ZERO;
         if (qty.compareTo(BigDecimal.ZERO) <= 0) {
             return;
         }

@@ -60,6 +60,12 @@ ALTER TABLE receipt_items
     ALTER COLUMN sample_failed_qty TYPE INTEGER
     USING sample_failed_qty::INTEGER;
 
+ALTER TABLE receipt_items DROP CONSTRAINT IF EXISTS receipt_items_actual_qty_positive;
+ALTER TABLE receipt_items DROP CONSTRAINT IF EXISTS receipt_items_over_received_qty_non_negative;
+ALTER TABLE receipt_items DROP CONSTRAINT IF EXISTS receipt_items_sample_qty_non_negative;
+ALTER TABLE receipt_items DROP CONSTRAINT IF EXISTS receipt_items_sample_passed_qty_non_negative;
+ALTER TABLE receipt_items DROP CONSTRAINT IF EXISTS receipt_items_sample_failed_qty_non_negative;
+
 ALTER TABLE receipt_items
     ADD CONSTRAINT receipt_items_actual_qty_positive
     CHECK (actual_qty IS NULL OR actual_qty > 0),
@@ -71,3 +77,4 @@ ALTER TABLE receipt_items
     CHECK (sample_passed_qty IS NULL OR sample_passed_qty >= 0),
     ADD CONSTRAINT receipt_items_sample_failed_qty_non_negative
     CHECK (sample_failed_qty IS NULL OR sample_failed_qty >= 0);
+
