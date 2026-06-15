@@ -17,6 +17,8 @@ public interface BatchRepository extends JpaRepository<Batch, Long> {
      */
     Optional<Batch> findByBatchNumber(String batchNumber);
 
+    boolean existsByBatchNumber(String batchNumber);
+
     /**
      * Find a batch using the household-goods batch resolution key:
      * product + warehouse + receivedDate (no grade, no expiry).

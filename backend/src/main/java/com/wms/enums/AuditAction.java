@@ -36,5 +36,8 @@ public enum AuditAction {
     TRANSFER_CANCEL,
     // Billing notification actions (US-WMS-10)
     BILLING_NOTIFICATION_CREATE,
-    BILLING_NOTIFICATION_READ
+    BILLING_NOTIFICATION_READ,
+    // QC-related actions
+    RECEIPT_QC_SUBMIT,
+    RECEIPT_QC_CONFIRM
 }

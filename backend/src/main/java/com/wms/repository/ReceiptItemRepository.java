@@ -20,6 +20,8 @@ public interface ReceiptItemRepository extends JpaRepository<ReceiptItem, Long> 
     @EntityGraph(attributePaths = {"product", "batch", "location"})
     List<ReceiptItem> findByReceiptIdOrderByIdAsc(Long receiptId);
 
+    Optional<ReceiptItem> findByIdAndReceiptId(Long id, Long receiptId);
+
     /**
      * Sum of actual quantities for items belonging to a receipt.
      * Used to compute total quarantine quantity for RTV validation.
@@ -31,4 +33,7 @@ public interface ReceiptItemRepository extends JpaRepository<ReceiptItem, Long> 
      * Find an item by receipt and product for batch resolution during approval.
      */
     Optional<ReceiptItem> findByReceiptIdAndProductId(Long receiptId, Long productId);
+
+    @Query("SELECT COUNT(r) FROM Receipt r WHERE r.supplier.id = :supplierId AND r.status = 'APPROVED'")
+    long countApprovedReceiptsBySupplierId(@Param("supplierId") Long supplierId);
 }

@@ -47,5 +47,8 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
             @Param("productId") Long productId,
             @Param("batchId") Long batchId,
             @Param("locationId") Long locationId);
+
+    java.util.Optional<Inventory> findByWarehouseIdAndProductIdAndBatchIdAndLocationId(
+            Long warehouseId, Long productId, Long batchId, Long locationId);
 }
 
