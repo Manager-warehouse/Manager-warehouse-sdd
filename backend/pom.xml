@@ -158,6 +158,23 @@
                     <argLine>-Dnet.bytebuddy.experimental=true</argLine>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>com.pvsstudio</groupId>
+                <artifactId>pvsstudio-maven-plugin</artifactId>
+                <version>7.43.107165</version>
+                <configuration>
+                    <!-- Xuất cả HTML (đọc trên browser) lẫn JSON (VS Code plugin đọc) -->
+                    <outputType>html</outputType>
+                    <outputFile>${project.basedir}/pvs-report.html</outputFile>
+                    <!-- Bật chế độ trial nếu chưa có license file -->
+                    <licenseType>Community</licenseType>
+                    <!-- Chỉ scan source chính và test -->
+                    <sourceTreeRoot>${project.basedir}/src</sourceTreeRoot>
+                    <!-- Dừng build nếu có lỗi High (bỏ dòng này nếu chỉ muốn xem báo cáo) -->
+                    <failOnWarnings>false</failOnWarnings>
+                </configuration>
+            </plugin>
         </plugins>
+
     </build>
 </project>

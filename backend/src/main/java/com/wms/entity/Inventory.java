@@ -7,7 +7,9 @@ import java.time.OffsetDateTime;
 
 @Entity
 @Table(name = "inventories",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"warehouse_id", "product_id", "batch_id", "location_id"}))
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_inventory_warehouse_product_batch_location",
+                columnNames = {"warehouse_id", "product_id", "batch_id", "location_id"}))
 @Getter
 @Setter
 @NoArgsConstructor
@@ -28,7 +30,7 @@ public class Inventory {
     private Product product;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "batch_id", nullable = false)
+    @JoinColumn(name = "batch_id")
     private Batch batch;
 
     @ManyToOne(fetch = FetchType.LAZY)

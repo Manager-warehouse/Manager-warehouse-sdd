@@ -1,0 +1,132 @@
+{
+  "version": 3,
+  "warnings": [
+    {
+      "code": "Renew",
+      "cwe": 0,
+      "level": 1,
+      "positions": [],
+      "message": "Your license will expire in 7 days. Click \u0027Renew\u0027 to learn more or contact us via the Feedback form on our website.",
+      "projects": [],
+      "favorite": false,
+      "falseAlarm": false,
+      "analyzedSourceFiles": []
+    },
+    {
+      "code": "V6001",
+      "cwe": 571,
+      "level": 1,
+      "positions": [
+        {
+          "file": "E:\\SWP391_Project\\SWP391_ver2\\backend\\src\\test\\java\\com\\wms\\service\\ReceiptQcServiceTest.java",
+          "line": 471,
+          "endLine": 471,
+          "column": 16,
+          "endColumn": 26,
+          "navigation": {
+            "previousLine": 1248960780,
+            "currentLine": 1489701242,
+            "nextLine": 125,
+            "columns": 0
+          }
+        },
+        {
+          "file": "E:\\SWP391_Project\\SWP391_ver2\\backend\\src\\test\\java\\com\\wms\\service\\ReceiptQcServiceTest.java",
+          "line": 471,
+          "endLine": 471,
+          "column": 31,
+          "endColumn": 41,
+          "navigation": {
+            "previousLine": 1248960780,
+            "currentLine": 1489701242,
+            "nextLine": 125,
+            "columns": 0
+          }
+        }
+      ],
+      "message": "There are identical sub-expressions \u0027qty !\u003d null\u0027 to the left and to the right of the \u0027\u0026\u0026\u0027 operator.",
+      "projects": [],
+      "favorite": false,
+      "falseAlarm": false,
+      "analyzedSourceFiles": []
+    },
+    {
+      "code": "V6007",
+      "cwe": 570,
+      "sastId": "CERT-MSC57-J",
+      "level": 1,
+      "positions": [
+        {
+          "file": "E:\\SWP391_Project\\SWP391_ver2\\backend\\src\\test\\java\\com\\wms\\service\\ReceiptQcServiceTest.java",
+          "line": 492,
+          "endLine": 492,
+          "column": 34,
+          "endColumn": 46,
+          "navigation": {
+            "previousLine": -2069481494,
+            "currentLine": 428123696,
+            "nextLine": 125,
+            "columns": 0
+          }
+        }
+      ],
+      "message": "Expression \u0027receiptId \u003c 0\u0027 is always false.",
+      "projects": [],
+      "favorite": false,
+      "falseAlarm": false,
+      "analyzedSourceFiles": []
+    },
+    {
+      "code": "V6022",
+      "cwe": 0,
+      "sastId": "CERT-MSC56-J",
+      "level": 2,
+      "positions": [
+        {
+          "file": "E:\\SWP391_Project\\SWP391_ver2\\backend\\src\\main\\java\\com\\wms\\service\\AuthService.java",
+          "line": 268,
+          "endLine": 268,
+          "column": 75,
+          "endColumn": 78,
+          "navigation": {
+            "previousLine": 0,
+            "currentLine": 983825299,
+            "nextLine": 637631963,
+            "columns": 0
+          }
+        }
+      ],
+      "message": "Parameter \u0027user\u0027 is not used inside method body.",
+      "projects": [],
+      "favorite": false,
+      "falseAlarm": false,
+      "analyzedSourceFiles": []
+    },
+    {
+      "code": "V6022",
+      "cwe": 0,
+      "sastId": "CERT-MSC56-J",
+      "level": 2,
+      "positions": [
+        {
+          "file": "E:\\SWP391_Project\\SWP391_ver2\\backend\\src\\main\\java\\com\\wms\\service\\AuthService.java",
+          "line": 274,
+          "endLine": 274,
+          "column": 74,
+          "endColumn": 77,
+          "navigation": {
+            "previousLine": 0,
+            "currentLine": 2020112905,
+            "nextLine": 2846025,
+            "columns": 0
+          }
+        }
+      ],
+      "message": "Parameter \u0027user\u0027 is not used inside method body.",
+      "projects": [],
+      "favorite": false,
+      "falseAlarm": false,
+      "analyzedSourceFiles": []
+    }
+  ]
+}

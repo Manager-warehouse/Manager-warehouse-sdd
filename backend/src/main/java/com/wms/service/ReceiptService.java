@@ -1,80 +1,34 @@
 package com.wms.service;
 
-import com.wms.entity.Receipt;
+import com.wms.dto.request.ReceiptApproveRequest;
+import com.wms.dto.request.ReceiptCreateRequest;
+import com.wms.dto.request.ReceiptPutawayRequest;
+import com.wms.dto.request.ReceiptQcRequest;
+import com.wms.dto.request.ReceiptReceiveRequest;
+import com.wms.dto.request.ReceiptRejectRequest;
+import com.wms.dto.request.ReceiptRtvRequest;
+import com.wms.dto.response.ReceiptDetailResponse;
+import com.wms.dto.response.ReceiptResponse;
 import com.wms.entity.User;
-import com.wms.enums.AuditAction;
-import com.wms.enums.ReceiptStatus;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import java.util.List;
 
-import java.util.Map;
+public interface ReceiptService {
 
-/**
- * Service demonstrating audit logging integration pattern.
- */
-@Service
-public class ReceiptService {
+    ReceiptDetailResponse create(ReceiptCreateRequest request, User actor);
 
-    private final AuditLogService auditLogService;
+    ReceiptDetailResponse get(Long id);
 
-    public ReceiptService(AuditLogService auditLogService) {
-        this.auditLogService = auditLogService;
-    }
+    List<ReceiptResponse> listByWarehouse(Long warehouseId);
 
-    /**
-     * Example: Creating a new inbound receipt.
-     */
-    @Transactional
-    public Receipt createReceipt(Receipt receipt, User creator) {
-        // 1. Business logic to persist receipt
-        // receiptRepository.save(receipt); (omitted for demo)
+    ReceiptDetailResponse receive(Long id, ReceiptReceiveRequest request, User actor);
 
-        // 2. Prepare oldValue (null for CREATE) and newValue maps
-        Map<String, Object> newValue = Map.of(
-                "receiptNumber", receipt.getReceiptNumber(),
-                "status", ReceiptStatus.PENDING_RECEIPT.name(),
-                "supplierId", receipt.getSupplier() != null ? receipt.getSupplier().getId() : "null"
-        );
+    ReceiptDetailResponse qc(Long id, ReceiptQcRequest request, User actor);
 
-        // 3. Log the operation
-        auditLogService.log(
-                creator,
-                AuditAction.CREATE,
-                "RECEIPT",
-                receipt.getId(),
-                receipt.getReceiptNumber(),
-                receipt.getWarehouse() != null ? receipt.getWarehouse().getId() : null,
-                null,
-                newValue
-        );
+    ReceiptDetailResponse approve(Long id, ReceiptApproveRequest request, User actor);
 
-        return receipt;
-    }
+    ReceiptDetailResponse reject(Long id, ReceiptRejectRequest request, User actor);
 
-    /**
-     * Example: Approving an inbound receipt.
-     */
-    @Transactional
-    public void approveReceipt(Receipt receipt, User approver) {
-        ReceiptStatus oldStatus = receipt.getStatus();
-        
-        // Update state
-        receipt.setStatus(ReceiptStatus.APPROVED);
-        // receiptRepository.save(receipt); (omitted for demo)
+    ReceiptDetailResponse rtv(Long id, ReceiptRtvRequest request, User actor);
 
-        // Log the change (diff-only)
-        Map<String, Object> oldValue = Map.of("status", oldStatus.name());
-        Map<String, Object> newValue = Map.of("status", ReceiptStatus.APPROVED.name());
-
-        auditLogService.log(
-                approver,
-                AuditAction.APPROVE,
-                "RECEIPT",
-                receipt.getId(),
-                receipt.getReceiptNumber(),
-                receipt.getWarehouse() != null ? receipt.getWarehouse().getId() : null,
-                oldValue,
-                newValue
-        );
-    }
+    ReceiptDetailResponse putaway(Long id, ReceiptPutawayRequest request, User actor);
 }

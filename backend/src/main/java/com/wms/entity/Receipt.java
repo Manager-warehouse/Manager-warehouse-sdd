@@ -3,6 +3,7 @@ package com.wms.entity;
 import lombok.*;
 import com.wms.enums.ReceiptStatus;
 import com.wms.enums.ReceiptType;
+import com.wms.enums.SourceChannel;
 import jakarta.persistence.*;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -49,8 +50,9 @@ public class Receipt {
     @Column(name = "contact_person", length = 255)
     private String contactPerson;
 
-    @Column(name = "source_channel", length = 50)
-    private String sourceChannel;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "source_channel", length = 10)
+    private SourceChannel sourceChannel;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 30)

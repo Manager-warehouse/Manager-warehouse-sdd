@@ -2,6 +2,7 @@ package com.wms.repository;
 
 import com.wms.entity.WarehouseLocation;
 import com.wms.enums.LocationType;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -16,4 +17,6 @@ public interface WarehouseLocationRepository extends JpaRepository<WarehouseLoca
     boolean existsByWarehouseIdAndCode(Long warehouseId, String code);
     boolean existsByCode(String code);
     boolean existsByCodeAndIdNot(String code, Long id);
+
+    Optional<WarehouseLocation> findFirstByWarehouseIdAndIsQuarantineTrueAndIsActiveTrue(Long warehouseId);
 }

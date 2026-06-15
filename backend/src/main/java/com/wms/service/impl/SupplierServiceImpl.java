@@ -160,7 +160,7 @@ public class SupplierServiceImpl implements SupplierService {
                 .status(receipt.getStatus().name())
                 .sourceType(receipt.getType().name())
                 .sourceOrderCode(receipt.getSourceOrderCode())
-                .sourceChannel(receipt.getSourceChannel())
+                .sourceChannel(receipt.getSourceChannel() != null ? receipt.getSourceChannel().name() : null)
                 .contactPerson(receipt.getContactPerson())
                 .notes(receipt.getNotes())
                 .build();
