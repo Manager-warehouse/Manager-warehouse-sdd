@@ -1,44 +1,103 @@
 # Feature: Kế toán Lập Hóa đơn Bán hàng & Ghi nhận Công nợ (US-WMS-10)
 
 ## 1. Context and Goal
-Kế toán lập hóa đơn bán hàng cho Đại lý dựa trên đơn giao thành công (Delivered) và bảng giá có hiệu lực, cộng dồn công nợ Đại lý và tự động khóa tín dụng (`CREDIT_HOLD`) nếu vượt hạn mức.
+Khi đơn xuất kho (`delivery_orders`) được giao thành công cho Đại lý thông qua xác nhận mã OTP và tải lên ảnh chụp bàn giao thực tế (Proof of Delivery - POD) từ tài xế (được xử lý ở Spec 004), hệ thống sẽ tự động tạo một thông báo lập hóa đơn trong bảng `billing_notifications`. 
+Các thông tin xác thực giao nhận bao gồm thời gian xác nhận OTP (`otp_verified_at`), liên kết ảnh chụp bàn giao thực tế (`pod_image_url`), chữ ký đại lý (`pod_signature_url`), và thời gian bàn giao (`pod_timestamp`) sẽ được đồng bộ và hiển thị trên giao diện của Kế toán viên (`ACCOUNTANT`) để đối chiếu tính chính xác trước khi tiến hành lập hóa đơn bán hàng (`invoices`). 
 
-Spec 004 creates the billing notification when OTP confirmation moves the Delivery Order to `DELIVERED`. This feature consumes that notification to create the invoice, resolve the accounting period, update dealer debt, and close the operational Delivery Order lifecycle by moving it to `COMPLETED`.
+Sau khi hóa đơn được tạo thành công, hệ thống chuyển trạng thái của đơn hàng gốc sang `COMPLETED` để hoàn tất vòng đời vận hành. Hệ thống tự động kiểm tra hạn mức tín dụng và khóa tín dụng đại lý (`dealers.credit_status = 'CREDIT_HOLD'`) nếu dư nợ mới vượt quá hạn mức (`credit_limit`).
 
 ## 2. Actors
-* **Kế toán viên (Maker)**: Lập hóa đơn bán hàng từ đơn Delivered.
-* **Planner**: Bị chặn tạo đơn nếu Đại lý bị khóa tín dụng.
+* **Kế toán viên (`ACCOUNTANT`)**: Maker thực hiện lập hóa đơn từ thông báo giao hàng (sau khi đã đối chiếu mã OTP và ảnh chụp bàn giao POD).
+* **Nhân viên kế hoạch (`PLANNER`)**: Bị chặn không cho phép tạo đơn xuất kho mới cho đại lý nếu trạng thái tín dụng là `CREDIT_HOLD`.
 
 ## 3. Functional Requirements (EARS)
 * **Ubiquitous:**
-  * The system SHALL always maintain a running `current_balance` for each dealer that is updated with every invoice transaction.
-  * The system SHALL always perform a credit check before allowing new delivery order creation.
+  * Hệ thống luôn duy trì số dư nợ hiện tại `current_balance` của mỗi đại lý, cập nhật tức thời sau mỗi nghiệp vụ phát sinh hóa đơn hoặc thanh toán.
+  * Hệ thống luôn kiểm tra trạng thái tín dụng `credit_status` của đại lý trước khi cho phép tạo đơn xuất kho mới.
 * **Event-driven:**
-  * WHEN a delivery order status changes to `DELIVERED`, the system SHALL notify Kế toán viên to create an invoice.
-  * WHEN a Kế toán viên creates an invoice, the system SHALL:
-    * Calculate total from DO items × prices valid at shipment date.
-    * Set payment terms (`payment_term_days` from dealer profile).
-    * Resolve `accounting_period_id` from the invoice document date according to open accounting period rules.
-    * Increase dealer's `current_balance` by invoice `total_amount`.
-    * IF `current_balance > credit_limit`: auto-set dealer status to `CREDIT_HOLD`; if `current_balance = credit_limit`, keep the dealer eligible for new transaction creation subject to other rules.
-    * Update the source Delivery Order from `DELIVERED` to `COMPLETED`.
-    * Mark the related billing notification with `invoice_status = INVOICED` and `status = ARCHIVED`.
+  * **WHEN** đơn xuất kho (`delivery_orders`) chuyển sang trạng thái `DELIVERED` (tài xế đã xác nhận OTP thành công và tải lên ảnh chụp bàn giao theo Spec 004), hệ thống **SHALL** tạo bản ghi `billing_notifications` ở trạng thái `invoice_status = 'NOT_INVOICED'` và `status = 'ACTIVE'`, đồng thời liên kết các thông tin đối chứng bàn giao (`otp_verified_at`, `pod_image_url`, `pod_signature_url`, `pod_timestamp` từ bảng `deliveries`).
+  * **WHEN** Kế toán viên yêu cầu lập hóa đơn cho một thông báo giao hàng, hệ thống **SHALL**:
+    * Tính toán tổng tiền hóa đơn `total_amount` bằng cách tổng hợp số lượng thực tế đã xuất giao của các mặt hàng trong đơn nhân với đơn giá đang có hiệu lực tại thời điểm xuất hàng (lấy từ bảng `price_history`).
+    * Thiết lập hạn thanh toán `due_date` = `issue_date` + `payment_term_days` (lấy từ cấu hình của đại lý).
+    * Xác định kỳ kế toán hạch toán `accounting_period_id` từ ngày hạch toán chứng từ `document_date` (phải thuộc một kỳ kế toán có trạng thái `OPEN` trong bảng `accounting_periods`).
+    * Tạo hóa đơn `invoices` mới với trạng thái ban đầu là `UNPAID`.
+    * Cộng dồn dư nợ đại lý: `dealers.current_balance = current_balance + total_amount`.
+    * **IF** `current_balance > credit_limit`: Cập nhật trạng thái tín dụng đại lý sang `credit_status = 'CREDIT_HOLD'`.
+    * Cập nhật trạng thái đơn xuất kho gốc (`delivery_orders`) sang `COMPLETED`.
+    * Cập nhật bản ghi thông báo lập hóa đơn tương ứng sang `invoice_status = 'INVOICED'` và `status = 'ARCHIVED'`.
 * **State-driven:**
-  * WHILE dealer status is `CREDIT_HOLD`, the system SHALL block creation of new delivery orders for that dealer.
-  * WHILE a Delivery Order is not `DELIVERED`, the system SHALL reject invoice creation from that Delivery Order.
-  * WHILE a Delivery Order is already `COMPLETED` or already linked to an invoice, the system SHALL reject duplicate invoice creation with HTTP 409.
+  * **WHILE** trạng thái tín dụng của đại lý là `CREDIT_HOLD`, hệ thống **SHALL** chặn tất cả các yêu cầu tạo mới đơn xuất kho cho đại lý đó (trả về lỗi `CREDIT_HOLD` với HTTP 422).
+  * **WHILE** đơn xuất kho gốc chưa đạt trạng thái `DELIVERED`, hệ thống **SHALL** từ chối yêu cầu tạo hóa đơn (trả về lỗi `DELIVERY_ORDER_NOT_DELIVERED` với HTTP 400).
+  * **WHILE** đơn xuất kho đã được lập hóa đơn trước đó hoặc ở trạng thái `COMPLETED`, hệ thống **SHALL** từ chối tạo hóa đơn trùng lặp (trả về lỗi `INVOICE_ALREADY_EXISTS` with HTTP 409).
 
 ## 4. API Endpoints
-* `POST /api/v1/invoices` - Lập hóa đơn bán hàng từ đơn Delivered.
-* `GET /api/v1/invoices/{id}` - Xem chi tiết hóa đơn.
+
+### 4.1 Lấy danh sách thông báo lập hóa đơn cần xử lý
+* **Protocol & Path**: `GET /api/v1/billing-notifications`
+* **Query Params**:
+  * `status`: String (Mặc định: `'ACTIVE'`)
+  * `invoiceStatus`: String (Mặc định: `'NOT_INVOICED'`)
+* **Response 200 OK**:
+  ```json
+  [
+    {
+      "id": 12,
+      "doId": 45,
+      "doNumber": "DO-20260612-003",
+      "dealerId": 3,
+      "dealerName": "Đại lý Minh Trí",
+      "warehouseId": 1,
+      "deliveredAt": "2026-06-16T10:00:00Z",
+      "totalAmountEstimate": 17000000.00,
+      "invoiceStatus": "NOT_INVOICED",
+      "status": "ACTIVE",
+      "otpVerifiedAt": "2026-06-16T09:58:30Z",
+      "podImageUrl": "https://storage.phucanh.vn/pod/photos/DO-20260612-003_delivered.jpg",
+      "podSignatureUrl": "https://storage.phucanh.vn/pod/signatures/DO-20260612-003_sig.png",
+      "podTimestamp": "2026-06-16T10:00:00Z"
+    }
+  ]
+  ```
+
+### 4.2 Lập hóa đơn bán hàng từ đơn giao hàng
+* **Protocol & Path**: `POST /api/v1/invoices`
+* **Request Body**:
+  ```json
+  {
+    "doId": 45,
+    "documentDate": "2026-06-17",
+    "notes": "Lập hóa đơn cho đơn giao hàng Minh Trí"
+  }
+  ```
+* **Response 201 Created**:
+  ```json
+  {
+    "id": 101,
+    "invoiceNumber": "INV-202606-0005",
+    "doId": 45,
+    "dealerId": 3,
+    "totalAmount": 17000000.00,
+    "issueDate": "2026-06-17",
+    "dueDate": "2026-07-17",
+    "status": "UNPAID",
+    "accountingPeriodId": 2,
+    "documentDate": "2026-06-17",
+    "createdAt": "2026-06-17T00:30:00Z"
+  }
+  ```
+
+### 4.3 Xem chi tiết hóa đơn
+* **Protocol & Path**: `GET /api/v1/invoices/{id}`
+* **Response 200 OK**: Trả về thông tin chi tiết hóa đơn kèm theo thông tin đại lý, danh sách mặt hàng của đơn giao hàng gốc và các bằng chứng đối chứng bàn giao (xác thực OTP, chữ ký, ảnh chụp POD thực tế).
 
 ## 5. Acceptance Criteria
-* **Scenario: Lock credit limit upon invoicing**
-  * Given a dealer with `credit_limit = 500M` and `current_balance = 0`
-  * When an invoice of `600M` is created and posted
-  * Then the dealer's status SHALL be changed to `CREDIT_HOLD` and their `current_balance` set to `600M`.
 
-* **Scenario: Complete delivered Delivery Order after invoice creation**
-  * Given a Delivery Order is `DELIVERED` and has an active billing notification with `invoice_status = NOT_INVOICED`
-  * When Kế toán viên creates an invoice for that Delivery Order
-  * Then the system SHALL create the invoice, set the billing notification to `invoice_status = INVOICED` and `status = ARCHIVED`, and update the Delivery Order status to `COMPLETED`.
+* **Scenario: Khóa hạn mức công nợ khi lập hóa đơn vượt giới hạn**
+  * **Given**: Đại lý có `credit_limit = 500,000,000` VNĐ, dư nợ `current_balance = 0` VNĐ, và trạng thái `credit_status = 'ACTIVE'`.
+  * **When**: Kế toán viên lập hóa đơn cho đại lý này với giá trị `600,000,000` VNĐ.
+  * **Then**: Dư nợ của đại lý cập nhật thành `600,000,000` VNĐ, và trạng thái tín dụng tự động đổi sang `CREDIT_HOLD`. Hệ thống ghi nhận log audit tương ứng.
+
+* **Scenario: Hoàn thành đơn hàng sau khi lập hóa đơn**
+  * **Given**: Đơn xuất kho `DO-20260612-003` ở trạng thái `DELIVERED`, có thông báo giao hàng tương ứng với `invoice_status = 'NOT_INVOICED'`.
+  * **When**: Kế toán viên lập hóa đơn thành công cho đơn xuất kho đó.
+  * **Then**: Trạng thái đơn xuất kho chuyển sang `COMPLETED`, thông báo giao hàng cập nhật thành `invoice_status = 'INVOICED'` và `status = 'ARCHIVED'`.

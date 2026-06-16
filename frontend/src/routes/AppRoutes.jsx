@@ -24,7 +24,10 @@ import DeliveryOrderDetail from '../pages/Outbound/DeliveryOrderDetail';
 import QCOutbound from '../pages/Outbound/QCOutbound';
 import TripPlanning from '../pages/Outbound/TripPlanning';
 import DriverTrip from '../pages/Outbound/DriverTrip';
+import DealerDebtInvoice from '../pages/Finance/DealerDebtInvoice';
+import Payments from '../pages/Finance/Payments';
 import { ROLES } from '../utils/constants';
+
 const AppRoutes = () => {
   return (
     <Routes>
@@ -109,6 +112,12 @@ const AppRoutes = () => {
       <Route element={<ProtectedRoute allowedRoles={[ROLES.DRIVER, ROLES.ADMIN]} />}>
         <Route path="/outbound/driver/trips" element={<DriverTrip />} />
         <Route path="/outbound/driver/trips/:id" element={<DriverTrip />} />
+      </Route>
+
+      {/* Finance & Credit protected routes */}
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN, ROLES.CEO]} />}>
+        <Route path="/finance/invoices" element={<DealerDebtInvoice />} />
+        <Route path="/finance/payments" element={<Payments />} />
       </Route>
 
       {/* Default Redirects */}
