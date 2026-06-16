@@ -80,7 +80,7 @@ _Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đ
 - `id` (BIGSERIAL, PK)
 - `do_id` (BIGINT, FK→delivery_orders, NOT NULL)
 - `product_id` (BIGINT, FK→products, NOT NULL)
-- `batch_id` (BIGINT, FK→batches) -- batch planned by storekeeper; initial reservation follows FIFO/FEFO availability
+- `batch_id` (BIGINT, FK→batches) -- batch planned by storekeeper; Delivery Order creation reserves only product quantity at warehouse level
 - `location_id` (BIGINT, FK→warehouse_locations) -- bin planned by storekeeper for physical picking
 - `zone_id` (BIGINT, FK→warehouse_zones)
 - `requested_qty` (DECIMAL(10,2), NOT NULL)
@@ -91,6 +91,18 @@ _Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đ
 - `qc_fail_qty` (DECIMAL(10,2), DEFAULT 0)
 - `issued_qty` (DECIMAL(10,2), DEFAULT 0)
 - `unit_price` (DECIMAL(18,2)) -- Tra cứu từ price_history tại ngày giao
+
+### warehouse_product_reservations
+
+- `id` (BIGSERIAL, PK)
+- `warehouse_id` (BIGINT, FK→warehouses, NOT NULL)
+- `product_id` (BIGINT, FK→products, NOT NULL)
+- `reserved_qty` (DECIMAL(10,2), NOT NULL, DEFAULT 0)
+- `version` (INTEGER, NOT NULL, DEFAULT 0)
+- `created_at` (TIMESTAMPTZ, NOT NULL)
+- `updated_at` (TIMESTAMPTZ, NOT NULL)
+- `UNIQUE(warehouse_id, product_id)`
+- `CHECK(reserved_qty >= 0)`
 
 ### delivery_order_item_replacements
 
@@ -234,11 +246,13 @@ _Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đ
 
 ### Inventory Versioning Rules
 
-All outbound mutations that update `inventories.total_qty` or `inventories.reserved_qty` SHALL validate and increment `inventories.version` using optimistic locking.
+All outbound mutations that update `inventories.total_qty`, `inventories.reserved_qty`, or `warehouse_product_reservations.reserved_qty` SHALL validate and increment the corresponding `version` using optimistic locking.
 
-- Delivery order creation SHALL reserve inventory only if the selected inventory rows still match the expected version.
-- Delivery order cancellation SHALL release reserved inventory only if the reserved inventory rows still match the expected version.
-- Storekeeper picking plan SHALL assign the already-reserved quantities to batch/bin/zone rows from the FIFO/FEFO-ranked list and move the Delivery Order to `WAITING_PICKING`.
+- Delivery order creation SHALL calculate warehouse-level availability as `sum(inventories.total_qty - inventories.reserved_qty) - warehouse_product_reservations.reserved_qty` for each requested warehouse/product pair.
+- Delivery order creation SHALL reserve requested product quantity on `delivery_order_items.reserved_qty` and `warehouse_product_reservations.reserved_qty` at the selected warehouse and SHALL NOT update `inventories.reserved_qty`, `batch_id`, or `location_id`.
+- Delivery order creation SHALL create or update its `warehouse_product_reservations` rows in the same transaction as the availability check to prevent oversell across concurrent Planner requests.
+- Storekeeper picking plan SHALL assign the Delivery Order item reserved quantities to concrete batch/bin/zone rows from the FIFO-ranked inventory list, decrease the matching `warehouse_product_reservations.reserved_qty`, and increase affected `inventories.reserved_qty` with version checks before moving the Delivery Order to `WAITING_PICKING`.
+- Delivery order cancellation before warehouse approval SHALL release any remaining `warehouse_product_reservations.reserved_qty` and any concrete `inventories.reserved_qty` already assigned by picking plan, depending on the Delivery Order's current lifecycle status.
 - Warehouse staff picking SHALL move picked quantity from the planned bin to an outbound staging location inside the same warehouse; all affected inventory rows SHALL pass version checks.
 - Outbound QC fail SHALL move failed quantity from outbound staging to quarantine, create a quarantine record, and keep failed quantity out of available inventory.
 - Replacement picking SHALL update the Delivery Order item plan, create replacement history, and require the replacement goods to go through warehouse staff picking and QC again.
@@ -330,8 +344,8 @@ _Vui lòng xem chi tiết API endpoints tại các tài liệu đặc tả tính
 ### Audit Trail
 
 - Every outbound mutation SHALL create an audit log with `actor`, `role`, `warehouse_id`, `action`, `entity_type`, `entity_id`, `entity_code`, `timestamp`, `before`, and `after`.
-- `DELIVERY_ORDER_CREATE`: create DO, select FEFO/FIFO batch/location, and reserve inventory.
-- `DELIVERY_ORDER_CANCEL`: cancel DO and release reserved inventory.
+- `DELIVERY_ORDER_CREATE`: create DO and reserve requested product quantity on Delivery Order items plus `warehouse_product_reservations` at warehouse level; final batch/bin/location is selected by Storekeeper during picking planning.
+- `DELIVERY_ORDER_CANCEL`: cancel DO before warehouse approval and release aggregate and/or concrete inventory reservation according to current lifecycle status.
 - `PICKING_PLAN_START`: storekeeper starts planning picking and moves DO to `PICKING_PLANNED`.
 - `PICKING_PLAN_SAVE`: storekeeper selects batch/bin/zone from FIFO/FEFO-ranked list and moves DO to `WAITING_PICKING`.
 - `DELIVERY_ORDER_PICK_START`: warehouse staff moves DO to `PICKING`.

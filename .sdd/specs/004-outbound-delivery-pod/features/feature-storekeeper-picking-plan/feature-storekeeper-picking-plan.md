@@ -21,7 +21,8 @@ Thu kho nhan Delivery Order moi va lap ke hoach lay hang truoc khi nhan vien kho
   * WHEN a storekeeper starts planning picking for a Delivery Order in `NEW`, the system SHALL move the Delivery Order to `PICKING_PLANNED`.
   * WHEN a storekeeper saves the initial picking plan, the system SHALL:
     * Store planned batch, bin, zone, and quantity for each item.
-    * Keep the selected quantities reserved.
+    * Decrease the matching `warehouse_product_reservations.reserved_qty` and increase `inventories.reserved_qty` for the selected batch/bin/zone rows in the same transaction.
+    * Keep the selected concrete inventory quantities reserved.
     * Move the Delivery Order to `WAITING_PICKING`.
   * WHEN QC fail quantity requires replacement, the system SHALL allow the storekeeper to select replacement goods from the same FIFO/FEFO-ranked inventory list.
   * WHEN the storekeeper saves replacement goods, the system SHALL:
@@ -45,7 +46,7 @@ Thu kho nhan Delivery Order moi va lap ke hoach lay hang truoc khi nhan vien kho
 * **Scenario: Save picking plan**
   * Given a delivery order in `PICKING_PLANNED` status
   * When the storekeeper selects batch, bin, zone, and planned quantities from the FIFO-ranked inventory list
-  * Then the system SHALL save the picking plan, keep the quantities reserved, create a `PICKING_PLAN_SAVE` audit log, and move the order to `WAITING_PICKING`.
+  * Then the system SHALL save the picking plan, move reservation from `warehouse_product_reservations` to concrete `inventories.reserved_qty`, create a `PICKING_PLAN_SAVE` audit log, and move the order to `WAITING_PICKING`.
 
 * **Scenario: Save replacement after QC fail**
   * Given a delivery order has QC fail quantity recorded and failed goods moved to quarantine
