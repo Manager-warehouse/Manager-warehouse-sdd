@@ -22,6 +22,7 @@ public class ReceiptMapper {
         response.setSourceChannel(receipt.getSourceChannel());
         response.setDocumentDate(receipt.getDocumentDate());
         response.setCreatedAt(receipt.getCreatedAt());
+        response.setVersion(receipt.getVersion());
         response.setItems(items.stream().map(this::toItemResponse).toList());
         return response;
     }

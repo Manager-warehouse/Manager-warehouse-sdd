@@ -9,7 +9,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.wms.dto.request.ReceiptQcRequest;
 import com.wms.dto.response.ReceiptItemResponse;
+import com.wms.dto.response.ReceiptQcResponse;
 import com.wms.dto.response.ReceiptResponse;
 import com.wms.entity.User;
 import com.wms.enums.UserRole;
@@ -45,6 +47,9 @@ class ReceiptControllerTest {
 
     @MockBean
     private CurrentUserService currentUserService;
+
+    @MockBean
+    private com.wms.service.ReceiptQcService receiptQcService;
 
     @MockBean
     private com.wms.repository.UserRepository userRepository;
@@ -235,6 +240,45 @@ class ReceiptControllerTest {
                         .content(receiveJson()))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.code").value("INVALID_RECEIPT_COUNT"));
+    }
+
+    @Test
+    @WithMockUser(username = "staff@wms.com", roles = "WAREHOUSE_STAFF")
+    void processQc_submit_success() throws Exception {
+        ReceiptQcResponse res = ReceiptQcResponse.builder()
+                .receiptId(100L)
+                .receiptNumber("RCV-001")
+                .items(java.util.Collections.emptyList())
+                .build();
+
+        when(receiptQcService.processQc(eq(100L), any(), eq("staff@wms.com"))).thenReturn(res);
+
+        mockMvc.perform(put("/api/v1/receipts/100/qc")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"action\":\"SUBMIT\",\"items\":[{\"receipt_item_id\":501,\"qc_passed_qty\":90,\"qc_failed_qty\":5}]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.receipt_id").value(100))
+                .andExpect(jsonPath("$.receipt_number").value("RCV-001"));
+    }
+
+    @Test
+    @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
+    void processQc_confirm_success() throws Exception {
+        ReceiptQcResponse res = ReceiptQcResponse.builder()
+                .receiptId(100L)
+                .receiptNumber("RCV-001")
+                .items(java.util.Collections.emptyList())
+                .build();
+
+        when(receiptQcService.processQc(eq(100L), any(), eq("storekeeper@wms.com"))).thenReturn(res);
+
+        mockMvc.perform(put("/api/v1/receipts/100/qc")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"action\":\"CONFIRM\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.receipt_id").value(100));
     }
 
     private ReceiptResponse response() {

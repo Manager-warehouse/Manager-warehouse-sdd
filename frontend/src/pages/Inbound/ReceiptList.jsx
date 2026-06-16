@@ -107,7 +107,7 @@ const ReceiptList = () => {
   const submitApprove = async () => {
     setSubmittingApproval(true);
     try {
-      await inboundService.approveReceipt(selectedReceipt.id, approvalNotes);
+      await inboundService.approveReceipt(selectedReceipt.id, approvalNotes, selectedReceipt.version);
       addToast(`Đã phê duyệt phiếu nhập ${selectedReceipt.receipt_number} thành công`, 'success');
       setShowApprovalModal(false);
       fetchData();
@@ -118,6 +118,20 @@ const ReceiptList = () => {
     }
   };
 
+  const handleConfirmQc = async (receipt) => {
+    try {
+      await inboundService.qcReceipt(receipt.id, { action: 'CONFIRM' });
+      addToast(`Đã xác nhận QC cho phiếu ${receipt.receipt_number}`, 'success');
+      fetchData();
+    } catch (error) {
+      const serverMessage = error.response?.data?.message || error.response?.data?.error || error.message;
+      const message = serverMessage === 'QC_NOT_YET_SUBMITTED'
+        ? 'Chưa có kết quả QC để xác nhận'
+        : serverMessage;
+      addToast(message || 'Lỗi xác nhận QC', 'error');
+    }
+  };
+
   const submitReject = async () => {
     if (!rejectionReason.trim()) {
       addToast('Vui lòng nhập lý do từ chối', 'warning');
@@ -125,7 +139,7 @@ const ReceiptList = () => {
     }
     setSubmittingApproval(true);
     try {
-      await inboundService.rejectReceipt(selectedReceipt.id, rejectionReason);
+      await inboundService.rejectReceipt(selectedReceipt.id, rejectionReason, selectedReceipt.version);
       addToast(`Đã từ chối phiếu nhập ${selectedReceipt.receipt_number}`, 'info');
       setShowApprovalModal(false);
       fetchData();
@@ -274,12 +288,30 @@ const ReceiptList = () => {
                         )}
 
                         {/* 2. QC Action: status=DRAFT, role=STOREKEEPER/ADMIN */}
-                        {receipt.status === 'DRAFT' && (hasRole(ROLES.STOREKEEPER) || hasRole(ROLES.ADMIN)) && (
+                        {receipt.status === 'DRAFT' && (
+                          hasRole(ROLES.WAREHOUSE_STAFF)
+                          || hasRole(ROLES.STOREKEEPER)
+                          || hasRole(ROLES.WAREHOUSE_MANAGER)
+                          || hasRole(ROLES.ADMIN)
+                        ) && (
                           <button
                             onClick={() => navigate(`/inbound/qc/${receipt.id}`)}
                             className="inline-flex items-center justify-center rounded-full border border-ink bg-canvas-light text-ink hover:bg-zinc-100 px-3 py-1 text-xs font-semibold whitespace-nowrap transition-colors duration-150"
                           >
                             Kiểm QC
+                          </button>
+                        )}
+
+                        {receipt.status === 'DRAFT' && (
+                          hasRole(ROLES.STOREKEEPER)
+                          || hasRole(ROLES.WAREHOUSE_MANAGER)
+                          || hasRole(ROLES.ADMIN)
+                        ) && (
+                          <button
+                            onClick={() => handleConfirmQc(receipt)}
+                            className="inline-flex items-center justify-center rounded-full bg-ink text-onPrimary hover:bg-shade-70 px-3 py-1 text-xs font-semibold whitespace-nowrap transition-colors duration-150"
+                          >
+                            Xác nhận QC
                           </button>
                         )}
 

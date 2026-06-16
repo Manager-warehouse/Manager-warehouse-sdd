@@ -164,8 +164,8 @@ public class ReceiptService {
     }
 
     private void requireWarehouseStaff(User actor) {
-        if (actor == null || actor.getRole() != UserRole.WAREHOUSE_STAFF) {
-            throw new AccessDeniedException("Warehouse Staff role is required");
+        if (actor == null || (actor.getRole() != UserRole.WAREHOUSE_STAFF && actor.getRole() != UserRole.ADMIN)) {
+            throw new AccessDeniedException("Warehouse Staff or Admin role is required");
         }
     }
 
@@ -381,7 +381,7 @@ public class ReceiptService {
                                    Map<Long, ReceiptItem> itemById,
                                    Map<Long, ReceiveReceiptItemRequest> countByItemId) {
         if (count == null || count.getReceiptItemId() == null
-                || count.getCountedQty() == null || count.getCountedQty() <= 0) {
+                || count.getCountedQty() == null || count.getCountedQty() < 0) {
             throw invalidReceiptCount();
         }
         if (countByItemId.containsKey(count.getReceiptItemId())

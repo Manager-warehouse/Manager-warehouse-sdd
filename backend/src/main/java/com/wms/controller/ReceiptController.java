@@ -96,7 +96,7 @@ public class ReceiptController {
     }
 
     @PutMapping("/{id}/receive")
-    @PreAuthorize("hasRole('WAREHOUSE_STAFF')")
+    @PreAuthorize("hasAnyRole('WAREHOUSE_STAFF', 'ADMIN')")
     @Operation(summary = "Submit or correct complete physical receipt counts")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Receipt counts accepted",
@@ -132,6 +132,5 @@ public class ReceiptController {
             Authentication authentication) {
         ReceiptQcResponse response = receiptQcService.processQc(id, request, authentication.getName());
         return ResponseEntity.ok(response);
-    }
     }
 }

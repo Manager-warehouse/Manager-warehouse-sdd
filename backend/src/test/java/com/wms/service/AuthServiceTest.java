@@ -14,8 +14,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
+import com.wms.service.EmailService;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -37,7 +36,7 @@ class AuthServiceTest {
     @Mock private JwtUtil jwtUtil;
     @Mock private PasswordEncoder passwordEncoder;
     @Mock private AuthenticationManager authenticationManager;
-    @Mock private JavaMailSender mailSender;
+    @Mock private EmailService emailService;
     @Mock private UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
     @Mock private AuditLogRepository auditLogRepository;
 
@@ -209,7 +208,6 @@ class AuthServiceTest {
     void forgotPassword_validEmail_sendsOtp() {
         when(userRepository.findByEmail("test@wms.com")).thenReturn(Optional.of(activeUser));
         when(userRepository.saveAndFlush(any())).thenReturn(activeUser);
-        doNothing().when(mailSender).send(any(SimpleMailMessage.class));
 
         ForgotPasswordRequest req = new ForgotPasswordRequest();
         req.setEmail("test@wms.com");
@@ -218,7 +216,7 @@ class AuthServiceTest {
 
         assertThat(activeUser.getOtpHash()).isNotNull();
         assertThat(activeUser.getOtpExpiresAt()).isAfter(OffsetDateTime.now());
-        verify(mailSender).send(any(SimpleMailMessage.class));
+        verify(emailService).sendOtpEmail(eq("test@wms.com"), anyString());
     }
 
     @Test
@@ -230,7 +228,7 @@ class AuthServiceTest {
         req.setEmail("unknown@wms.com");
 
         assertThatCode(() -> authService.forgotPassword(req)).doesNotThrowAnyException();
-        verify(mailSender, never()).send(any(SimpleMailMessage.class));
+        verify(emailService, never()).sendOtpEmail(anyString(), anyString());
     }
 
     // ─── VERIFY OTP ──────────────────────────────────────────────────────────

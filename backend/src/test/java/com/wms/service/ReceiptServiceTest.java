@@ -239,16 +239,18 @@ class ReceiptServiceTest {
     }
 
     @Test
-    void receiveReceiptCounts_rejectsNonPositiveCount() {
+    void receiveReceiptCounts_allowsZeroCount() {
         Receipt receipt = receipt(100L, ReceiptStatus.PENDING_RECEIPT);
         ReceiptItem item1 = item(501L, receipt, 30L, 100);
         stubReceive(receipt, List.of(item1));
+        stubReceiveSaves();
 
-        ReceiptCountException ex = assertThrows(ReceiptCountException.class,
-                () -> receiptService.receiveReceiptCounts(100L,
-                        receiveRequest(line(501L, 0)), warehouseStaff));
+        ReceiptResponse response = receiptService.receiveReceiptCounts(100L,
+                receiveRequest(line(501L, 0)), warehouseStaff);
 
-        assertEquals("INVALID_RECEIPT_COUNT", ex.getCode());
+        assertEquals("DRAFT", response.getStatus());
+        assertEquals(0, item1.getActualQty());
+        assertEquals(0, item1.getOverReceivedQty());
     }
 
     @Test

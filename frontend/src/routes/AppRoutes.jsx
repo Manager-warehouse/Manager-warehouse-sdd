@@ -81,6 +81,9 @@ const AppRoutes = () => {
 
       <Route element={<ProtectedRoute allowedRoles={[ROLES.STOREKEEPER, ROLES.ADMIN]} />}>
         <Route path="/inbound/putaway/:id" element={<PutawayPlan />} />
+      </Route>
+
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.WAREHOUSE_STAFF, ROLES.STOREKEEPER, ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN]} />}>
         <Route path="/inbound/qc/:id" element={<QCInbound />} />
       </Route>
 

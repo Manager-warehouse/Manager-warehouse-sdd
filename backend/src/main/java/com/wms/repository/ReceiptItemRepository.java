@@ -36,4 +36,18 @@ public interface ReceiptItemRepository extends JpaRepository<ReceiptItem, Long> 
 
     @Query("SELECT COUNT(r) FROM Receipt r WHERE r.supplier.id = :supplierId AND r.status = 'APPROVED'")
     long countApprovedReceiptsBySupplierId(@Param("supplierId") Long supplierId);
+
+    @Query("SELECT ri FROM ReceiptItem ri " +
+           "JOIN FETCH ri.receipt r " +
+           "JOIN FETCH ri.product p " +
+           "WHERE r.warehouse.id = :warehouseId " +
+           "  AND r.status = 'QC_FAILED' " +
+           "  AND ri.sampleFailedQty > 0 " +
+           "  AND NOT EXISTS ( " +
+           "      SELECT 1 FROM Adjustment a " +
+           "      WHERE a.referenceType = 'RECEIPT' " +
+           "        AND a.referenceId = r.id " +
+           "        AND a.type = 'RETURN_TO_VENDOR' " +
+           "  )")
+    List<ReceiptItem> findQuarantineItemsByWarehouseId(@Param("warehouseId") Long warehouseId);
 }

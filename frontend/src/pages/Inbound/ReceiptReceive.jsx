@@ -37,7 +37,7 @@ const ReceiptReceive = () => {
   const handleQtyChange = (itemId, value) => {
     const qty = parseFloat(value);
     const updated = items.map(item => {
-      if (item.id === itemId) {
+      if (item.receipt_item_id === itemId) {
         return { ...item, actual_qty: isNaN(qty) ? '' : qty };
       }
       return item;
@@ -50,7 +50,7 @@ const ReceiptReceive = () => {
 
     // Validations
     for (const item of items) {
-      if (item.actual_qty === '' || item.actual_qty < 0) {
+      if (item.actual_qty === null || item.actual_qty === undefined || item.actual_qty === '' || item.actual_qty < 0) {
         addToast(`Vui lòng điền số thực nhận hợp lệ cho sản phẩm ID ${item.product_id}`, 'warning');
         return;
       }
@@ -58,7 +58,7 @@ const ReceiptReceive = () => {
 
     const payload = {
       items: items.map(item => ({
-        receipt_item_id: item.id,
+        receipt_item_id: item.receipt_item_id,
         counted_qty: Number(item.actual_qty)
       }))
     };
@@ -128,7 +128,7 @@ const ReceiptReceive = () => {
             </div>
             <div>
               <span className="text-shade-50 block mb-0.5 font-normal">Chứng từ gốc (PO/DO):</span>
-              <span>{receipt.source_order_code || 'N/A'}</span>
+              <span>{receipt.source_reference || receipt.source_order_code || 'N/A'}</span>
             </div>
             <div>
               <span className="text-shade-50 block mb-0.5 font-normal">Loại nhập:</span>
@@ -163,7 +163,7 @@ const ReceiptReceive = () => {
                   const sku = getProductSku(item);
                   
                   return (
-                    <tr key={item.id} className="hover:bg-zinc-50/50">
+                    <tr key={item.receipt_item_id} className="hover:bg-zinc-50/50">
                       <td className="px-6 py-4">
                         <span className="font-bold block">{sku}</span>
                         <span className="text-shade-50 block">{getProductName(item)}</span>
@@ -175,7 +175,7 @@ const ReceiptReceive = () => {
                           min="0"
                           step="any"
                           value={item.actual_qty === null ? '' : item.actual_qty}
-                          onChange={(e) => handleQtyChange(item.id, e.target.value)}
+                          onChange={(e) => handleQtyChange(item.receipt_item_id, e.target.value)}
                           placeholder="Nhập số đếm..."
                           className="text-input text-right font-bold w-32 py-1.5 focus:ring-1 focus:ring-zinc-400"
                           required

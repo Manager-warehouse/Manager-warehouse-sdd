@@ -2,7 +2,9 @@ package com.wms.service;
 
 import com.wms.dto.request.ReceiptRtvConfirmRequest;
 import com.wms.dto.request.ReceiptRtvCreateRequest;
+import com.wms.dto.response.QuarantineItemResponse;
 import com.wms.dto.response.RtvActionResponse;
+import java.util.stream.Collectors;
 import com.wms.entity.*;
 import com.wms.enums.*;
 import com.wms.exception.*;
@@ -279,6 +281,35 @@ public class QuarantineRtvService {
                 Map.of("totalQty", newQty, "reservedQty", inventory.getReservedQty(),
                        "delta", qty.negate(), "reason", "RTV_CONFIRM")
         );
+    }
+
+    @Transactional(readOnly = true)
+    public List<QuarantineItemResponse> getQuarantineItems(Long warehouseId, User actor) {
+        receiptValidationService.assertWarehouseAccess(actor, warehouseId);
+
+        List<ReceiptItem> failedItems = receiptItemRepository.findQuarantineItemsByWarehouseId(warehouseId);
+
+        return failedItems.stream()
+                .map(item -> {
+                    BigDecimal unitCost = item.getUnitCost() != null ? item.getUnitCost() : BigDecimal.ZERO;
+                    BigDecimal failedQty = item.getSampleFailedQty() != null ? BigDecimal.valueOf(item.getSampleFailedQty()) : BigDecimal.ZERO;
+                    BigDecimal totalValue = failedQty.multiply(unitCost);
+
+                    return QuarantineItemResponse.builder()
+                            .id(item.getId())
+                            .productSku(item.getProduct().getSku())
+                            .productName(item.getProduct().getName())
+                            .qcFailedQty(item.getSampleFailedQty())
+                            .qcFailureReason(item.getQcFailureReason())
+                            .receiptNumber(item.getReceipt().getReceiptNumber())
+                            .supplierId(item.getReceipt().getSupplier() != null ? item.getReceipt().getSupplier().getId() : null)
+                            .totalValue(totalValue)
+                            .unit("cái") // Default unit matching Sprint 1 context
+                            .receiptId(item.getReceipt().getId())
+                            .receiptVersion(item.getReceipt().getVersion())
+                            .build();
+                })
+                .collect(Collectors.toList());
     }
 
     private String generateAdjustmentNumber() {

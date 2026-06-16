@@ -46,6 +46,17 @@ public class ReceiptValidationService {
         }
     }
 
+    @Transactional(readOnly = true)
+    public void assertWarehouseAccess(User actor, Long warehouseId) {
+        List<Long> assignedWarehouseIds = userWarehouseAssignmentRepository
+                .findWarehouseIdsByUserId(actor.getId());
+        if (!assignedWarehouseIds.contains(warehouseId)) {
+            throw new ForbiddenReceiptWarehouseException(
+                    "FORBIDDEN_WAREHOUSE_ACCESS: User " + actor.getId()
+                    + " is not assigned to warehouse " + warehouseId);
+        }
+    }
+
     public void assertVersionMatch(Receipt receipt, Integer expectedVersion) {
         if (!receipt.getVersion().equals(expectedVersion)) {
             throw new BusinessRuleViolationException(
@@ -57,7 +68,32 @@ public class ReceiptValidationService {
     }
 
     public void assertRole(User actor, UserRole requiredRole, String action) {
-        if (actor == null || actor.getRole() != requiredRole) {
+        if (actor == null) {
+            throw new ForbiddenReceiptWarehouseException("FORBIDDEN_RECEIPT_ROLE: actor is null");
+        }
+
+        // ADMIN and CEO bypass for all actions
+        if (actor.getRole() == UserRole.ADMIN || actor.getRole() == UserRole.CEO) {
+            return;
+        }
+
+        boolean isAuthorized = false;
+        if (requiredRole == UserRole.WAREHOUSE_STAFF) {
+            // STAFF tasks can also be done by STOREKEEPER and WAREHOUSE_MANAGER
+            isAuthorized = actor.getRole() == UserRole.WAREHOUSE_STAFF
+                    || actor.getRole() == UserRole.STOREKEEPER
+                    || actor.getRole() == UserRole.WAREHOUSE_MANAGER;
+        } else if (requiredRole == UserRole.STOREKEEPER) {
+            // STOREKEEPER tasks can also be done by WAREHOUSE_MANAGER
+            isAuthorized = actor.getRole() == UserRole.STOREKEEPER
+                    || actor.getRole() == UserRole.WAREHOUSE_MANAGER;
+        } else if (requiredRole == UserRole.WAREHOUSE_MANAGER) {
+            isAuthorized = actor.getRole() == UserRole.WAREHOUSE_MANAGER;
+        } else {
+            isAuthorized = actor.getRole() == requiredRole;
+        }
+
+        if (!isAuthorized) {
             throw new ForbiddenReceiptWarehouseException(
                     "FORBIDDEN_RECEIPT_ROLE: " + action + " requires role " + requiredRole);
         }

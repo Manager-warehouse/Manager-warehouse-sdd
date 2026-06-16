@@ -72,7 +72,7 @@ const QuarantineWorkspace = () => {
   const submitRtv = async () => {
     setSubmitting(true);
     try {
-      await inboundService.handleRtv(selectedItem.id, actionNotes);
+      await inboundService.handleRtv(selectedItem.receipt_id, selectedItem.receipt_version, actionNotes);
       addToast('Đã lập phiếu xuất trả hàng NCC thành công. Debit Note đã được khởi tạo.', 'success');
       setShowRtvModal(false);
       fetchData();
