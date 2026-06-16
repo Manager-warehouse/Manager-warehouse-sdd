@@ -3,33 +3,33 @@
 **Spec ID**: 004-outbound-delivery-pod
 **Created**: 2026-05-30
 **Status**: Draft
-**Features**: 6 feature files covering US-WMS-06, US-WMS-07, US-WMS-08, US-WMS-09, US-WMS-10
+**Features**: 6 feature files covering US-WMS-06, US-WMS-07A, US-WMS-07B, US-WMS-08, US-WMS-09, US-WMS-10
 
 ---
 
 ## 1. Context and Goal
 
-Xuất hàng là quy trình tạo doanh thu cho Phúc Anh. Planner nhận yêu cầu từ Công ty mẹ, kiểm tra credit + tồn kho, lập Đơn xuất. Thủ kho soạn hàng và kiểm QC Outbound, Dispatcher lập chuyến xe nội bộ, Tài xế giao hàng và ký POD. Kế toán lập hóa đơn.
+Xuất hàng là quy trình tạo doanh thu cho Phúc Anh. Planner nhận yêu cầu từ Công ty mẹ, hệ thống kiểm tra công nợ và tồn kho trước khi tạo Đơn xuất. Sau khi tạo thành công, Thủ kho lập kế hoạch lấy hàng theo danh sách batch/bin sắp theo FIFO/FEFO; Nhân viên kho lấy hàng thực tế, kiểm tra chất lượng từng sản phẩm và nhập số lượng đạt/không đạt. Thủ kho phê duyệt chất lượng, xử lý hàng không đạt vào quarantine và chọn hàng thay thế nếu cần. Trưởng kho duyệt xuất kho trước khi Dispatcher xếp xe và tài xế. Khi giao thành công bằng POD + OTP, hệ thống tự động tạo invoice và ghi nhận công nợ; Kế toán theo dõi thanh toán từng đợt cho tới khi công nợ đơn hàng được tất toán.
 
 ### Features List
 
 - [US-WMS-06: Lập Đơn xuất hàng & Tự động Kiểm tra Công nợ](features/feature-planner-delivery-order/feature-planner-delivery-order.md)
-- [Thủ kho Soạn hàng tại Kệ](features/feature-storekeeper-picking/feature-storekeeper-picking.md)
-- [US-WMS-07: Nhân viên QC Kiểm tra Đóng gói Outbound](features/feature-qc-outbound-inspection/feature-qc-outbound-inspection.md)
+- [US-WMS-07A: Thủ kho Lập kế hoạch lấy hàng](features/feature-storekeeper-picking-plan/feature-storekeeper-picking-plan.md)
+- [US-WMS-07B: Nhân viên kho Lấy hàng & QC Outbound](features/feature-warehouse-staff-picking-qc/feature-warehouse-staff-picking-qc.md)
 - [US-WMS-08: Lập Chuyến xe & Vận chuyển Nội bộ](features/feature-dispatcher-trip-dispatch/feature-dispatcher-trip-dispatch.md)
 - [US-WMS-09: Tài xế Xác nhận Giao hàng & Chữ ký Điện tử POD](features/feature-driver-mobile-pod/feature-driver-mobile-pod.md)
-- [US-WMS-10: Kế toán Tiếp nhận Thông báo Lập Hóa đơn](features/feature-accountant-billing-notification/feature-accountant-billing-notification.md)
+- [US-WMS-10: Kế toán Quản lý Invoice, Công nợ & Thanh toán](features/feature-accountant-receivable-payment/feature-accountant-receivable-payment.md)
 
 ## 2. Actors
 
 | Actor           | Vai trò | Nghiệp vụ liên quan                                                                                                |
 | --------------- | ------- | ------------------------------------------------------------------------------------------------------------------ |
 | Planner         | Maker   | Lập Đơn xuất hàng (Delivery Order), kiểm tra tồn kho khả dụng và trạng thái công nợ Đại lý                         |
-| Thủ kho kiêm QC | Maker   | Nhận đơn xuất, soạn hàng từ Bin theo batch đã reserve (Picking), kiểm QC Outbound và cập nhật trạng thái đơn       |
-| Nhân viên kho   | Maker   | Hỗ trợ bốc xếp, di chuyển hàng hóa theo chỉ dẫn của Thủ kho                                                        |
+| Thủ kho         | Maker   | Lập kế hoạch lấy hàng, chọn batch/bin/zone từ danh sách FIFO/FEFO, phê duyệt chất lượng outbound và chọn hàng thay thế khi QC fail |
+| Nhân viên kho   | Maker   | Lấy hàng thực tế theo kế hoạch, kiểm tra chất lượng từng sản phẩm, nhập số lượng đã lấy, đạt QC và không đạt QC     |
 | Dispatcher      | Maker   | Lập Chuyến xe nội bộ, gán xe và tài xế rảnh, sắp xếp thứ tự giao hàng                                              |
 | Tài xế          | Maker   | Sử dụng smartphone xem chuyến xe, xác nhận nhận hàng (xe rời kho), giao hàng và ký nhận POD, báo cáo giao thất bại |
-| Kế toán viên    | Maker   | Nhận thông báo đơn hàng Delivered, lập Hóa đơn bán hàng                                                            |
+| Kế toán viên    | Maker   | Quản lý invoice/công nợ được tạo tự động sau giao hàng, ghi nhận từng đợt thanh toán kèm ảnh giao dịch             |
 | Kế toán trưởng  | Checker | Phê duyệt Credit Limit cho Đại lý                                                                                  |
 | Trưởng kho      | Checker | Ký duyệt xuất kho (giai đoạn Warehouse Approval)                                                                   |
 
@@ -38,11 +38,11 @@ Xuất hàng là quy trình tạo doanh thu cho Phúc Anh. Planner nhận yêu c
 _Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đặc tả tính năng:_
 
 - [EARS - Delivery Order](features/feature-planner-delivery-order/feature-planner-delivery-order.md#3-functional-requirements-ears)
-- [EARS - Picking](features/feature-storekeeper-picking/feature-storekeeper-picking.md#3-functional-requirements-ears)
-- [EARS - Outbound QC](features/feature-qc-outbound-inspection/feature-qc-outbound-inspection.md#3-functional-requirements-ears)
+- [EARS - Storekeeper Picking Plan](features/feature-storekeeper-picking-plan/feature-storekeeper-picking-plan.md#3-functional-requirements-ears)
+- [EARS - Warehouse Staff Picking & QC](features/feature-warehouse-staff-picking-qc/feature-warehouse-staff-picking-qc.md#3-functional-requirements-ears)
 - [EARS - Trip Dispatch](features/feature-dispatcher-trip-dispatch/feature-dispatcher-trip-dispatch.md#3-functional-requirements-ears)
 - [EARS - Driver Mobile & POD](features/feature-driver-mobile-pod/feature-driver-mobile-pod.md#3-functional-requirements-ears)
-- [EARS - Billing Notification](features/feature-accountant-billing-notification/feature-accountant-billing-notification.md#3-functional-requirements-ears)
+- [EARS - Invoice & Receivable Payment](features/feature-accountant-receivable-payment/feature-accountant-receivable-payment.md#3-functional-requirements-ears)
 
 ## 4. Non-functional Requirements
 
@@ -62,11 +62,13 @@ _Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đ
 - `do_number` (VARCHAR(50), UNIQUE, NOT NULL)
 - `dealer_id` (BIGINT, FK→dealers, NOT NULL)
 - `warehouse_id` (BIGINT, FK→warehouses, NOT NULL)
-- `type` (VARCHAR(30), CHECK IN ('SALE','DELIVERY','ADJUSTMENT'), NOT NULL)
+- `type` (VARCHAR(30), CHECK IN ('SALE','DELIVERY'), NOT NULL)
 - `expected_delivery_date` (DATE)
-- `status` (VARCHAR(30), DEFAULT 'NEW', CHECK IN ('NEW','PICKING','PENDING_WAREHOUSE_APPROVAL','READY_TO_SHIP','IN_TRANSIT','DELIVERED','RETURNED','COMPLETED','CLOSED','CANCELLED'))
+- `status` (VARCHAR(30), DEFAULT 'NEW', CHECK IN ('NEW','PICKING_PLANNED','WAITING_PICKING','PICKING','QC_PENDING_APPROVAL','QC_COMPLETED','WAREHOUSE_APPROVED','IN_TRANSIT','RETURNED','DELIVERY_FAILED','COMPLETED','CLOSED','REJECTED','CANCELLED'))
 - `created_by` (BIGINT, FK→users, NOT NULL)
 - `cancel_reason` (TEXT)
+- `rejection_reason` (TEXT)
+- `closed_at` (TIMESTAMPTZ)
 - `document_date` (DATE, NOT NULL)
 - `accounting_period_id` (BIGINT, FK→accounting_periods)
 - `notes` (TEXT)
@@ -78,12 +80,44 @@ _Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đ
 - `id` (BIGSERIAL, PK)
 - `do_id` (BIGINT, FK→delivery_orders, NOT NULL)
 - `product_id` (BIGINT, FK→products, NOT NULL)
-- `batch_id` (BIGINT, FK→batches) -- lô tồn kho được reserve; FIFO mặc định, FEFO chỉ áp dụng cho sản phẩm có expiry/được cấu hình
-- `location_id` (BIGINT, FK→warehouse_locations) -- Bin nhỏ nhất nơi lấy hàng
+- `batch_id` (BIGINT, FK→batches) -- batch planned by storekeeper; initial reservation follows FIFO/FEFO availability
+- `location_id` (BIGINT, FK→warehouse_locations) -- bin planned by storekeeper for physical picking
+- `zone_id` (BIGINT, FK→warehouse_zones)
 - `requested_qty` (DECIMAL(10,2), NOT NULL)
 - `reserved_qty` (DECIMAL(10,2), DEFAULT 0)
+- `planned_qty` (DECIMAL(10,2), DEFAULT 0)
+- `picked_qty` (DECIMAL(10,2), DEFAULT 0)
+- `qc_pass_qty` (DECIMAL(10,2), DEFAULT 0)
+- `qc_fail_qty` (DECIMAL(10,2), DEFAULT 0)
 - `issued_qty` (DECIMAL(10,2), DEFAULT 0)
 - `unit_price` (DECIMAL(18,2)) -- Tra cứu từ price_history tại ngày giao
+
+### delivery_order_item_replacements
+
+- `id` (BIGSERIAL, PK)
+- `do_item_id` (BIGINT, FK→delivery_order_items, NOT NULL)
+- `failed_inventory_id` (BIGINT, FK→inventories, NOT NULL)
+- `replacement_inventory_id` (BIGINT, FK→inventories, NOT NULL)
+- `failed_batch_id` (BIGINT, FK→batches, NOT NULL)
+- `failed_location_id` (BIGINT, FK→warehouse_locations, NOT NULL)
+- `replacement_batch_id` (BIGINT, FK→batches, NOT NULL)
+- `replacement_location_id` (BIGINT, FK→warehouse_locations, NOT NULL)
+- `quantity` (DECIMAL(10,2), NOT NULL)
+- `reason` (TEXT, NOT NULL)
+- `created_by` (BIGINT, FK→users, NOT NULL)
+- `created_at` (TIMESTAMPTZ)
+
+### outbound_qc_records
+
+- `id` (BIGSERIAL, PK)
+- `do_item_id` (BIGINT, FK→delivery_order_items, NOT NULL)
+- `inspector_id` (BIGINT, FK→users, NOT NULL) -- Nhân viên kho trực tiếp kiểm tra sản phẩm
+- `picked_qty` (DECIMAL(10,2), NOT NULL)
+- `qc_pass_qty` (DECIMAL(10,2), NOT NULL)
+- `qc_fail_qty` (DECIMAL(10,2), NOT NULL)
+- `quarantine_record_id` (BIGINT, FK→quarantine_records)
+- `notes` (TEXT)
+- `created_at` (TIMESTAMPTZ)
 
 ### delivery_order_approvals
 
@@ -103,6 +137,31 @@ _Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đ
 - `result` (VARCHAR(20), CHECK IN ('APPROVED','REJECTED'), NOT NULL)
 - `notes` (TEXT)
 - `approved_at` (TIMESTAMPTZ)
+
+### invoices
+
+- `id` (BIGSERIAL, PK)
+- `do_id` (BIGINT, FK→delivery_orders, UNIQUE, NOT NULL)
+- `invoice_number` (VARCHAR(50), UNIQUE, NOT NULL)
+- `dealer_id` (BIGINT, FK→dealers, NOT NULL)
+- `total_amount` (DECIMAL(18,2), NOT NULL)
+- `outstanding_amount` (DECIMAL(18,2), NOT NULL)
+- `status` (VARCHAR(30), CHECK IN ('OPEN','PARTIALLY_PAID','PAID'), NOT NULL)
+- `created_at` (TIMESTAMPTZ)
+- `updated_at` (TIMESTAMPTZ)
+
+### invoice_payments
+
+- `id` (BIGSERIAL, PK)
+- `invoice_id` (BIGINT, FK→invoices, NOT NULL)
+- `amount` (DECIMAL(18,2), NOT NULL)
+- `transaction_image_url` (VARCHAR(500), NOT NULL)
+- `status` (VARCHAR(30), CHECK IN ('PENDING_APPROVAL','APPROVED','REJECTED'), NOT NULL)
+- `submitted_by` (BIGINT, FK→users, NOT NULL)
+- `approved_by` (BIGINT, FK→users)
+- `approved_at` (TIMESTAMPTZ)
+- `rejection_reason` (TEXT)
+- `created_at` (TIMESTAMPTZ)
 
 ### trips
 
@@ -179,40 +238,64 @@ All outbound mutations that update `inventories.total_qty` or `inventories.reser
 
 - Delivery order creation SHALL reserve inventory only if the selected inventory rows still match the expected version.
 - Delivery order cancellation SHALL release reserved inventory only if the reserved inventory rows still match the expected version.
-- Trip departure SHALL update source warehouse inventory and virtual In-Transit inventory in one transaction; all affected inventory rows SHALL pass version checks.
-- Delivery confirmation SHALL decrease virtual In-Transit inventory in the same transaction that marks the delivery order as `DELIVERED`.
+- Storekeeper picking plan SHALL assign the already-reserved quantities to batch/bin/zone rows from the FIFO/FEFO-ranked list and move the Delivery Order to `WAITING_PICKING`.
+- Warehouse staff picking SHALL move picked quantity from the planned bin to an outbound staging location inside the same warehouse; all affected inventory rows SHALL pass version checks.
+- Outbound QC fail SHALL move failed quantity from outbound staging to quarantine, create a quarantine record, and keep failed quantity out of available inventory.
+- Replacement picking SHALL update the Delivery Order item plan, create replacement history, and require the replacement goods to go through warehouse staff picking and QC again.
+- Warehouse manager rejection SHALL move QC-passed goods from outbound staging back to their original bin/location, release reservations, keep failed goods in quarantine, and end the Delivery Order as `REJECTED`.
+- Trip departure SHALL move QC-approved goods from outbound staging to virtual In-Transit inventory in one transaction; all affected inventory rows SHALL pass version checks.
+- Delivery confirmation SHALL decrease virtual In-Transit inventory in the same transaction that marks the delivery order as `COMPLETED` and creates the invoice/receivable.
 - Delivery failure SHALL NOT change inventory quantity; goods remain in virtual In-Transit inventory until handled by the separate return flow.
-- Billing notification SHALL NOT change inventory quantity and does not require an inventory version check.
+- Billing/payment mutations SHALL NOT change inventory quantity and do not require an inventory version check.
 - On any version conflict, the system SHALL rollback the whole mutation and return `409 INVENTORY_VERSION_CONFLICT`.
+
+### Delivery Order Lifecycle Rules
+
+- Happy path SHALL be: `NEW` → `PICKING_PLANNED` → `WAITING_PICKING` → `PICKING` → `QC_PENDING_APPROVAL` → `QC_COMPLETED` → `WAREHOUSE_APPROVED` → `IN_TRANSIT` → `COMPLETED` → `CLOSED`.
+- A newly created Delivery Order SHALL start in `NEW`.
+- When a storekeeper starts planning picking, the Delivery Order SHALL move to `PICKING_PLANNED`.
+- Storekeeper planning SHALL choose batch/bin/zone from a list ranked by oldest received date first for FIFO products, or nearest expiry first for FEFO-enabled products.
+- After storekeeper saves the picking plan, the Delivery Order SHALL move to `WAITING_PICKING`.
+- Warehouse staff SHALL move the Delivery Order to `PICKING` while physically taking goods and checking product quality.
+- Warehouse staff SHALL enter picked quantity, QC pass quantity, and QC fail quantity before the Delivery Order can move to `QC_PENDING_APPROVAL`.
+- Storekeeper quality approval SHALL move the Delivery Order to `QC_COMPLETED` only when all requested quantities have QC-passed goods available after any required replacements.
+- Warehouse manager approval SHALL move the Delivery Order to `WAREHOUSE_APPROVED`, making it eligible for dispatcher trip planning.
+- Warehouse manager rejection SHALL move the Delivery Order to `REJECTED`; the flow ends and any later outbound attempt for the same business request must use a new Delivery Order.
+- Dealer refusal at delivery SHALL move the Delivery Order to `RETURNED`; the goods remain in virtual In-Transit inventory until the separate return flow receives them.
+- When the separate return flow confirms returned goods back into warehouse custody, the Delivery Order SHALL move to `DELIVERY_FAILED`.
+- After successful POD + OTP confirmation, the system SHALL auto-create invoice/receivable and move the Delivery Order directly to `COMPLETED`.
+- The Delivery Order SHALL move to `CLOSED` only after the invoice receivable has been fully paid and approved by accounting.
 
 ### Delivery Lifecycle Rules
 
 - Each `deliveries` record represents one physical delivery attempt for one Delivery Order.
-- A Delivery Order MAY have multiple `deliveries` records over its lifecycle.
+- A Delivery Order MAY have multiple `deliveries` records only if it is dispatched again before being closed as `DELIVERY_FAILED`; Sprint 1 normally uses one active delivery attempt per dispatched Delivery Order.
 - The system SHALL create a new `deliveries` record whenever goods are dispatched for another delivery attempt.
 - POD upload and delivery confirmation SHALL update only the current attempt's `deliveries` record and SHALL NOT overwrite previous `FAILED`, `RETURNED`, or `DELIVERED` attempts.
-- If a delivery attempt fails at the delivery point, the current `deliveries` record SHALL be closed with status `FAILED` and the Delivery Order SHALL move to `RETURNED` while goods remain tracked in virtual In-Transit inventory.
+- If a dealer refuses receipt or delivery fails at the delivery point, the current `deliveries` record SHALL be closed with status `FAILED` and the Delivery Order SHALL move to `RETURNED` while goods remain tracked in virtual In-Transit inventory.
 - If the goods are later returned to a warehouse, the same `deliveries` record MAY be marked `RETURNED` or linked to the separate return record created by the return flow.
-- If the same Delivery Order is delivered again later, the system SHALL create a new `deliveries` record with the next `attempt_number`.
+- After a returned Delivery Order is closed as `DELIVERY_FAILED`, any later outbound attempt for the same business request SHALL use a new Delivery Order.
 
 ### Trip Completion Rules
 
 - A trip SHALL move to `COMPLETED` only when every Delivery Order assigned to the trip has reached a terminal delivery outcome.
-- Terminal delivery outcomes for Sprint 1 are `DELIVERED` and `RETURNED`.
-- A trip with mixed successful and failed delivery orders MAY still be `COMPLETED` when all assigned orders have either been delivered or recorded as returned/failed for follow-up.
+- Terminal delivery outcomes for Sprint 1 are `COMPLETED` and `RETURNED`.
+- A trip with mixed successful and failed delivery orders MAY still be `COMPLETED` when all assigned orders have either been completed or recorded as returned for follow-up.
 
 ### Delivery Order Status Semantics
 
-- `DELIVERED`: the dealer received goods and POD + OTP verification succeeded.
-- `COMPLETED`: accounting has created the sales invoice for the delivered order and receivable has been recognized.
-- `CLOSED`: the receivable/payment cycle for the order is settled or locked by accounting period closing rules.
+- `WAREHOUSE_APPROVED`: the warehouse manager approved outbound release and the Delivery Order is eligible for dispatcher trip planning.
+- `RETURNED`: the dealer refused or the delivery attempt failed; goods remain in virtual In-Transit inventory until the separate return flow receives them.
+- `DELIVERY_FAILED`: returned goods have been received back by the separate return flow and the outbound order is closed as unsuccessful.
+- `COMPLETED`: the dealer received goods, POD + OTP verification succeeded, invoice was auto-created, and receivable was recognized.
+- `CLOSED`: the invoice receivable for the order has been fully paid and approved by accounting.
 
 ### Authorization and Warehouse Scope Rules
 
 - Every outbound API SHALL enforce both role permission and warehouse assignment.
-- Planner, Thủ kho, QC, Trưởng kho, and Dispatcher users SHALL only create, view, approve, pick, QC, dispatch, or mutate Delivery Orders for warehouses assigned to their user account.
+- Planner, Thủ kho, Nhân viên kho, Trưởng kho, and Dispatcher users SHALL only create, view, approve, pick, QC, dispatch, or mutate Delivery Orders for warehouses assigned to their user account.
 - Drivers SHALL only view and update trips and delivery attempts assigned to their driver profile.
-- Accountant users SHALL only view and invoice delivered orders for warehouses assigned to their user account, unless their role is explicitly configured for company-wide accounting access.
+- Accountant users SHALL only view invoices, receivables, and payments for warehouses assigned to their user account, unless their role is explicitly configured for company-wide accounting access.
 - System Admin and CEO roles MAY have cross-warehouse visibility, but every mutation SHALL still write audit logs with actor, role, warehouse, entity, before state, and after state.
 
 ## 6. API Spec
@@ -220,11 +303,11 @@ All outbound mutations that update `inventories.total_qty` or `inventories.reser
 _Vui lòng xem chi tiết API endpoints tại các tài liệu đặc tả tính năng:_
 
 - [APIs - Delivery Order](features/feature-planner-delivery-order/feature-planner-delivery-order.md#4-api-endpoints)
-- [APIs - Picking](features/feature-storekeeper-picking/feature-storekeeper-picking.md#4-api-endpoints)
-- [APIs - Outbound QC](features/feature-qc-outbound-inspection/feature-qc-outbound-inspection.md#4-api-endpoints)
+- [APIs - Storekeeper Picking Plan](features/feature-storekeeper-picking-plan/feature-storekeeper-picking-plan.md#4-api-endpoints)
+- [APIs - Warehouse Staff Picking & QC](features/feature-warehouse-staff-picking-qc/feature-warehouse-staff-picking-qc.md#4-api-endpoints)
 - [APIs - Trip Dispatch](features/feature-dispatcher-trip-dispatch/feature-dispatcher-trip-dispatch.md#4-api-endpoints)
 - [APIs - Driver Mobile & POD](features/feature-driver-mobile-pod/feature-driver-mobile-pod.md#4-api-endpoints)
-- [APIs - Billing Notification](features/feature-accountant-billing-notification/feature-accountant-billing-notification.md#4-api-endpoints)
+- [APIs - Invoice & Receivable Payment](features/feature-accountant-receivable-payment/feature-accountant-receivable-payment.md#4-api-endpoints)
 
 ## 7. Error Handling
 
@@ -233,7 +316,11 @@ _Vui lòng xem chi tiết API endpoints tại các tài liệu đặc tả tính
 | CREDIT_HOLD                | 422  | Dealer credit limit exceeded or overdue |
 | INSUFFICIENT_STOCK         | 422  | available_qty < requested_qty           |
 | VEHICLE_OVERLOAD           | 422  | Trip exceeds vehicle capacity           |
-| DO_NOT_READY               | 400  | DO not in READY_TO_SHIP status          |
+| DO_NOT_READY               | 400  | DO is not in the required status for the requested transition |
+| DO_NOT_WAREHOUSE_APPROVED  | 400  | DO not in WAREHOUSE_APPROVED status for trip planning |
+| QC_REPLACEMENT_REQUIRED    | 422  | QC pass quantity is lower than requested quantity and replacement is not completed |
+| WAREHOUSE_REJECTED         | 422  | Warehouse manager rejected outbound release |
+| PAYMENT_APPROVAL_REQUIRED  | 422  | Payment cannot reduce receivable before Chief Accountant approval |
 | MISSING_POD                | 400  | POD signature/image required            |
 | DELIVERY_OTP_INVALID       | 400  | OTP is incorrect or not issued for this delivery order |
 | DELIVERY_OTP_EXPIRED       | 400  | OTP has expired                         |
@@ -242,34 +329,41 @@ _Vui lòng xem chi tiết API endpoints tại các tài liệu đặc tả tính
 
 ### Audit Trail
 
-- Every outbound mutation SHALL create an audit log with `actor`, `action`, `entity_type`, `entity_id`, `entity_code`, `timestamp`, `before`, and `after`.
+- Every outbound mutation SHALL create an audit log with `actor`, `role`, `warehouse_id`, `action`, `entity_type`, `entity_id`, `entity_code`, `timestamp`, `before`, and `after`.
 - `DELIVERY_ORDER_CREATE`: create DO, select FEFO/FIFO batch/location, and reserve inventory.
 - `DELIVERY_ORDER_CANCEL`: cancel DO and release reserved inventory.
-- `DELIVERY_ORDER_PICK_START`: move DO to `PICKING`.
-- `DELIVERY_ORDER_PICK_COMPLETE`: mark picked items ready for outbound QC.
-- `DELIVERY_ORDER_QC_CONFIRM`: record outbound QC result and package verification.
-- `DELIVERY_ORDER_WAREHOUSE_APPROVE`: move DO to `READY_TO_SHIP`.
-- `DELIVERY_ORDER_WAREHOUSE_REJECT`: store warehouse rejection reason and move DO back to `PICKING`.
+- `PICKING_PLAN_START`: storekeeper starts planning picking and moves DO to `PICKING_PLANNED`.
+- `PICKING_PLAN_SAVE`: storekeeper selects batch/bin/zone from FIFO/FEFO-ranked list and moves DO to `WAITING_PICKING`.
+- `DELIVERY_ORDER_PICK_START`: warehouse staff moves DO to `PICKING`.
+- `DELIVERY_ORDER_PICK_COMPLETE`: warehouse staff records picked, QC pass, and QC fail quantities.
+- `OUTBOUND_QC_FAIL_QUARANTINE`: move failed quantity to quarantine and create quarantine record.
+- `PICKING_REPLACEMENT_SAVE`: store replacement batch/bin/zone and replacement history when QC fail requires substitute goods.
+- `DELIVERY_ORDER_QC_APPROVE`: storekeeper approves quality and moves DO to `QC_COMPLETED`.
+- `DELIVERY_ORDER_WAREHOUSE_APPROVE`: warehouse manager moves DO to `WAREHOUSE_APPROVED`.
+- `DELIVERY_ORDER_WAREHOUSE_REJECT`: store warehouse rejection reason, release QC-passed goods back to bin, keep failed goods in quarantine, and move DO to `REJECTED`.
 - `TRIP_CREATE`: create trip, assign vehicle/driver, and store stop order.
-- `TRIP_DEPART`: move trip and DOs to `IN_TRANSIT`, decrease `total_qty`, and release `reserved_qty`.
+- `TRIP_DEPART`: move trip and DOs to `IN_TRANSIT`, move goods from outbound staging to virtual In-Transit, and release `reserved_qty`.
 - `DELIVERY_ATTEMPT_CREATE`: create a new physical delivery attempt record for a dispatched Delivery Order.
 - `OTP_REQUEST`: generate raw OTP, send it to the dealer/receiver email, and store only the hashed verifier in `delivery_otp_attempts` with expiry metadata.
-- `OTP_CONFIRM`: verify OTP against the active `delivery_otp_attempts` record, mark the attempt consumed, store verification timestamp, and move DO to `DELIVERED`.
+- `OTP_CONFIRM`: verify OTP against the active `delivery_otp_attempts` record, mark the attempt consumed, store verification timestamp, auto-create invoice/receivable, and move DO to `COMPLETED`.
 - `DELIVERY_FAIL`: store failure reason, close the current delivery attempt as `FAILED`, and move DO to `RETURNED`; returned goods remain tracked in virtual In-Transit inventory until a separate return flow receives and classifies them.
-- `TRIP_COMPLETE`: mark trip `COMPLETED` only after all assigned DOs are `DELIVERED` or `RETURNED`.
-- `BILLING_NOTIFICATION_CREATE`: notify accounting that a delivered DO is ready for invoicing.
-- `INVOICE_CREATE_FROM_DO`: create invoice from a delivered DO and move the DO to `COMPLETED`.
+- `RETURN_FLOW_CONFIRMED`: separate return flow confirms returned goods back into warehouse custody and moves DO to `DELIVERY_FAILED`.
+- `TRIP_COMPLETE`: mark trip `COMPLETED` only after all assigned DOs are `COMPLETED` or `RETURNED`.
+- `INVOICE_AUTO_CREATE_FROM_DO`: create invoice and receivable automatically after successful POD + OTP.
+- `PAYMENT_SUBMIT`: accountant records a payment attempt with transaction image and `PENDING_APPROVAL` status.
+- `PAYMENT_APPROVE`: chief accountant approves payment, decreases outstanding receivable, and moves invoice/DO to `PAID`/`CLOSED` if fully settled.
+- `PAYMENT_REJECT`: chief accountant rejects a payment attempt with reason; receivable remains unchanged.
 
 ## 8. Acceptance Criteria
 
 _Vui lòng xem chi tiết kịch bản kiểm thử tại các tài liệu đặc tả tính năng:_
 
 - [Acceptance - Delivery Order](features/feature-planner-delivery-order/feature-planner-delivery-order.md#5-acceptance-criteria)
-- [Acceptance - Picking](features/feature-storekeeper-picking/feature-storekeeper-picking.md#5-acceptance-criteria)
-- [Acceptance - Outbound QC](features/feature-qc-outbound-inspection/feature-qc-outbound-inspection.md#5-acceptance-criteria)
+- [Acceptance - Storekeeper Picking Plan](features/feature-storekeeper-picking-plan/feature-storekeeper-picking-plan.md#5-acceptance-criteria)
+- [Acceptance - Warehouse Staff Picking & QC](features/feature-warehouse-staff-picking-qc/feature-warehouse-staff-picking-qc.md#5-acceptance-criteria)
 - [Acceptance - Trip Dispatch](features/feature-dispatcher-trip-dispatch/feature-dispatcher-trip-dispatch.md#5-acceptance-criteria)
 - [Acceptance - Driver Mobile & POD](features/feature-driver-mobile-pod/feature-driver-mobile-pod.md#5-acceptance-criteria)
-- [Acceptance - Billing Notification](features/feature-accountant-billing-notification/feature-accountant-billing-notification.md#5-acceptance-criteria)
+- [Acceptance - Invoice & Receivable Payment](features/feature-accountant-receivable-payment/feature-accountant-receivable-payment.md#5-acceptance-criteria)
 
 ## 9. Out of Scope
 

@@ -1,41 +1,54 @@
-# Feature: Điều phối viên Lập Chuyến xe & Vận chuyển Nội bộ (US-WMS-08)
+# Feature: Dispatcher Lap Chuyen xe & Van chuyen Noi bo (US-WMS-08)
 
 ## 1. Context and Goal
-Dispatcher gom nhiều đơn hàng và gán xe, tài xế nội bộ để lập Chuyến xe (Trip Log). Khi xe xuất phát rời kho, hệ thống chuyển tồn kho từ kho vật lý sang kho ảo In-Transit và chuyển trạng thái hàng sang In-Transit.
+
+Dispatcher gom cac Delivery Order da duoc Truong kho phe duyet xuat kho, gan xe va tai xe noi bo de lap chuyen xe. Khi tai xe xac nhan da nhan hang va xe roi kho, he thong chuyen hang tu outbound staging sang kho ao In-Transit, giai phong reserved quantity va tao delivery attempt cho tung Delivery Order.
 
 ## 2. Actors
-* **Dispatcher (Người điều phối)**: Lập chuyến xe, gán xe và tài xế, sắp xếp Stop Order.
-* **Tài xế**: Xác nhận nhận hàng và xuất phát rời kho.
+
+* **Dispatcher**: Lap chuyen xe, gan xe va tai xe, sap xep stop order.
+* **Tai xe**: Xac nhan nhan hang va xe roi kho.
 
 ## 3. Functional Requirements (EARS)
+
 * **Ubiquitous:**
-  * The system SHALL always release reserved inventory when a delivery order transitions to `IN_TRANSIT`.
-  * The system SHALL create `TRIP_CREATE` and `TRIP_DEPART` audit log entries for trip assignment and departure, including vehicle, driver, stop order, and inventory delta.
+  * The system SHALL only allow trip planning for Delivery Orders in `WAREHOUSE_APPROVED` status.
+  * The system SHALL release reserved inventory when a Delivery Order transitions to `IN_TRANSIT`.
+  * The system SHALL create `TRIP_CREATE`, `TRIP_DEPART`, and `DELIVERY_ATTEMPT_CREATE` audit log entries for trip assignment, departure, and delivery attempt creation.
 * **Event-driven:**
   * WHEN a Dispatcher creates a trip, the system SHALL:
-    * Validate that all selected DOs are in `READY_TO_SHIP` status.
-    * Validate total weight and volume of DO items against vehicle maximum weight/volume capacity.
-  * WHEN a Tài xế confirms departure (goods loaded, vehicle leaves warehouse), the system SHALL:
-    * Set `issued_qty = requested_qty` for Sprint 1 full-shipment delivery orders.
-    * Update source warehouse inventories: `total_qty -= issued_qty` and `reserved_qty -= issued_qty`.
-    * Increase virtual In-Transit warehouse inventories: `total_qty += issued_qty`.
-    * Create one new `deliveries` record per dispatched DO, using the next `attempt_number` for that DO.
-    * Update DO status to `IN_TRANSIT` and Trip status to `IN_TRANSIT`.
-  * WHEN all DOs assigned to a Trip reach terminal delivery outcomes, the system SHALL:
-    * Treat `DELIVERED` and `RETURNED` as terminal outcomes for Sprint 1.
+    * Validate that all selected Delivery Orders are in `WAREHOUSE_APPROVED` status.
+    * Validate total weight and volume of Delivery Order items against vehicle maximum weight/volume capacity.
+    * Store the selected vehicle, driver, dispatcher, planned date, and stop order.
+  * WHEN a driver confirms departure, the system SHALL:
+    * Set `issued_qty = requested_qty` for Sprint 1 full-shipment Delivery Orders.
+    * Decrease outbound staging inventory by `issued_qty`.
+    * Decrease the related reserved quantity by `issued_qty`.
+    * Increase virtual In-Transit inventory by `issued_qty`.
+    * Create one new `deliveries` record per dispatched Delivery Order, using the next `attempt_number`.
+    * Update Delivery Order status to `IN_TRANSIT` and Trip status to `IN_TRANSIT`.
+  * WHEN all Delivery Orders assigned to a Trip reach terminal delivery outcomes, the system SHALL:
+    * Treat `COMPLETED` and `RETURNED` as terminal outcomes for Sprint 1.
     * Update Trip status to `COMPLETED`.
 
 ## 4. API Endpoints
-* `POST /api/v1/trips` - Tạo chuyến xe mới (giao diện Dispatcher).
-* `PUT /api/v1/trips/{id}/depart` - Xác nhận xuất phát chuyến xe (Tài xế).
+
+* `POST /api/v1/trips` - Tao chuyen xe moi tu cac Delivery Order da `WAREHOUSE_APPROVED`.
+* `PUT /api/v1/trips/{id}/depart` - Tai xe xac nhan nhan hang va xe roi kho.
 
 ## 5. Acceptance Criteria
-* **Scenario: Stock deduction at departure**
-  * Given a trip loaded with DO items, where the DO items currently hold `reserved_qty = 50` and `total_qty = 100`
-  * When the driver clicks "Xác nhận nhận hàng & Xuất phát"
-  * Then the system SHALL create a delivery attempt for the DO, change DO status to `IN_TRANSIT`, decrease source warehouse `total_qty` by 50, decrease source warehouse `reserved_qty` by 50, and increase virtual In-Transit inventory by 50.
 
-* **Scenario: Complete trip after all assigned DOs finish**
-  * Given a trip has multiple assigned DOs
-  * When every assigned DO is either `DELIVERED` or `RETURNED`
+* **Scenario: Create trip from approved orders**
+  * Given multiple Delivery Orders are in `WAREHOUSE_APPROVED`
+  * When Dispatcher assigns a valid vehicle, driver, planned date, and stop order
+  * Then the system SHALL create the trip and keep the Delivery Orders ready for departure.
+
+* **Scenario: Move staged goods to In-Transit at departure**
+  * Given a trip loaded with 50 units in outbound staging
+  * When the driver confirms goods received and vehicle departure
+  * Then the system SHALL create delivery attempts, move Delivery Orders to `IN_TRANSIT`, decrease outbound staging by 50, release reserved quantity by 50, and increase virtual In-Transit inventory by 50.
+
+* **Scenario: Complete trip after all assigned orders finish**
+  * Given a trip has multiple assigned Delivery Orders
+  * When every assigned Delivery Order is either `COMPLETED` or `RETURNED`
   * Then the system SHALL mark the trip as `COMPLETED`.
