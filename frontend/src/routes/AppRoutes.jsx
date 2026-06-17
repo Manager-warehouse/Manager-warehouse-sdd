@@ -24,6 +24,8 @@ import DeliveryOrderDetail from '../pages/Outbound/DeliveryOrderDetail';
 import QCOutbound from '../pages/Outbound/QCOutbound';
 import TripPlanning from '../pages/Outbound/TripPlanning';
 import DriverTrip from '../pages/Outbound/DriverTrip';
+import PriceListManagement from '../pages/Finance/PriceListManagement';
+import PriceApproval from '../pages/Finance/PriceApproval';
 import { ROLES } from '../utils/constants';
 const AppRoutes = () => {
   return (
@@ -109,6 +111,15 @@ const AppRoutes = () => {
       <Route element={<ProtectedRoute allowedRoles={[ROLES.DRIVER, ROLES.ADMIN]} />}>
         <Route path="/outbound/driver/trips" element={<DriverTrip />} />
         <Route path="/outbound/driver/trips/:id" element={<DriverTrip />} />
+      </Route>
+
+      {/* Finance — Pricing & COGS */}
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN, ROLES.CEO]} />}>
+        <Route path="/finance/price-list" element={<PriceListManagement />} />
+      </Route>
+
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN]} />}>
+        <Route path="/finance/price-approval" element={<PriceApproval />} />
       </Route>
 
       {/* Default Redirects */}

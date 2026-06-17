@@ -95,6 +95,11 @@ public class GlobalExceptionHandler {
                 ex.getMessage(), ex.getMessage(), null);
     }
 
+    @ExceptionHandler(PriceHistoryException.class)
+    public ResponseEntity<ApiErrorResponse> handlePriceHistory(PriceHistoryException ex) {
+        return error(ex.getStatus(), ex.getCode(), ex.getMessage(), ex.getMessage(), null);
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiErrorResponse> handleValidation(MethodArgumentNotValidException ex) {
         Map<String, Object> details = new LinkedHashMap<>();

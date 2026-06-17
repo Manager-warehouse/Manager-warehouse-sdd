@@ -39,5 +39,11 @@ public enum AuditAction {
     BILLING_NOTIFICATION_READ,
     // QC-related actions
     RECEIPT_QC_SUBMIT,
-    RECEIPT_QC_CONFIRM
+    RECEIPT_QC_CONFIRM,
+    // Pricing actions (spec 007)
+    PRICE_CREATE,
+    PRICE_UPDATE,
+    PRICE_CANCEL,
+    PRICE_APPROVE,
+    PRICE_IMPORT
 }

@@ -13,6 +13,8 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
     boolean existsBySku(String sku);
 
+    Optional<Product> findBySkuAndIsActiveTrue(String sku);
+
     boolean existsBySkuAndIdNot(String sku, Long id);
 
     Optional<Product> findByIdAndIsActiveTrue(Long id);
