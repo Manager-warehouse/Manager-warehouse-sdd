@@ -95,10 +95,10 @@ class SystemConfigControllerTest {
     }
 
     @Test
-    @DisplayName("GET /system-config — 403 khi không có token")
+    @DisplayName("GET /system-config — 401 khi không có token")
     void getAllConfigs_unauthenticated_returns403() throws Exception {
         mockMvc.perform(get("/api/v1/admin/system-config").contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -148,7 +148,7 @@ class SystemConfigControllerTest {
     }
 
     @Test
-    @DisplayName("PUT /system-config/{key} — 403 khi không có token")
+    @DisplayName("PUT /system-config/{key} — 401 khi không có token")
     void updateConfig_unauthenticated_returns403() throws Exception {
         SystemConfigUpdateRequest req = new SystemConfigUpdateRequest();
         req.setConfigValue("500000000");
@@ -156,7 +156,7 @@ class SystemConfigControllerTest {
         mockMvc.perform(put("/api/v1/admin/system-config/DEFAULT_CREDIT_LIMIT")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

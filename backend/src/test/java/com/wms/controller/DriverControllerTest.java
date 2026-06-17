@@ -73,7 +73,7 @@ public class DriverControllerTest {
     @Test
     void getAllDrivers_Unauthenticated_Returns403() throws Exception {
         mockMvc.perform(get("/api/v1/dispatcher/drivers"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

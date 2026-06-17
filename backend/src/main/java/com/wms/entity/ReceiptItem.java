@@ -35,20 +35,20 @@ public class ReceiptItem {
     @JoinColumn(name = "location_id")
     private WarehouseLocation location;
 
-    @Column(name = "expected_qty", nullable = false, precision = 10, scale = 2)
-    private BigDecimal expectedQty;
+    @Column(name = "expected_qty", nullable = false)
+    private Integer expectedQty;
 
-    @Column(name = "actual_qty", precision = 10, scale = 2)
-    private BigDecimal actualQty;
+    @Column(name = "actual_qty")
+    private Integer actualQty;
 
-    @Column(name = "sample_qty", precision = 10, scale = 2)
-    private BigDecimal sampleQty;
+    @Column(name = "sample_qty")
+    private Integer sampleQty;
 
-    @Column(name = "sample_passed_qty", precision = 10, scale = 2)
-    private BigDecimal samplePassedQty;
+    @Column(name = "sample_passed_qty")
+    private Integer samplePassedQty;
 
-    @Column(name = "sample_failed_qty", precision = 10, scale = 2)
-    private BigDecimal sampleFailedQty;
+    @Column(name = "sample_failed_qty")
+    private Integer sampleFailedQty;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "qc_sampling_method", length = 30)

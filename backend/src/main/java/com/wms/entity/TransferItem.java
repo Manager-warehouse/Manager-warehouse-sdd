@@ -26,7 +26,7 @@ public class TransferItem {
     private Product product;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "batch_id", nullable = false)
+    @JoinColumn(name = "batch_id")
     private Batch batch;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -45,6 +45,31 @@ public class TransferItem {
 
     @Column(name = "received_qty", precision = 10, scale = 2)
     private BigDecimal receivedQty;
+
+    @Column(name = "worker_received_qty", precision = 10, scale = 2)
+    private BigDecimal workerReceivedQty;
+
+    @Column(name = "issue_reason", columnDefinition = "TEXT")
+    private String issueReason;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "checked_by")
+    private User checkedBy;
+
+    @Column(name = "checked_at")
+    private java.time.OffsetDateTime checkedAt;
+
+    @Column(name = "checker_note", columnDefinition = "TEXT")
+    private String checkerNote;
+
+    @Column(name = "qc_passed_qty", precision = 10, scale = 2)
+    private BigDecimal qcPassedQty;
+
+    @Column(name = "qc_failed_qty", precision = 10, scale = 2)
+    private BigDecimal qcFailedQty;
+
+    @Column(name = "qc_failure_reason", columnDefinition = "TEXT")
+    private String qcFailureReason;
 
     @Column(name = "variance_qty", precision = 10, scale = 2)
     private BigDecimal varianceQty;

@@ -53,6 +53,9 @@ public class Trip {
     @Column(name = "total_volume_m3", precision = 10, scale = 3)
     private BigDecimal totalVolumeM3;
 
+    @OneToOne(mappedBy = "trip", fetch = FetchType.LAZY)
+    private Transfer transfer;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 

@@ -157,16 +157,16 @@
 
 ## NHÓM 4: ĐIỀU CHUYỂN NỘI BỘ (REPLENISHMENT & TRANSFER)
 
-### US-WMS-11: Planning Dashboard & Gợi ý điều chuyển kho tự động (Priority: P2)
+### US-WMS-11: Planner nhập lệnh điều chuyển thủ công từ Công ty mẹ/bộ phận điều phối (Priority: P2)
 
-**Mô tả:** Là Planner, tôi muốn sử dụng Planning Dashboard để hệ thống tự động gợi ý các lệnh điều chuyển hàng hóa tối ưu giữa 3 miền nhằm tránh đứt gãy nguồn cung.
+**Mô tả:** Là Planner, tôi muốn nhập phiếu điều chuyển thủ công dựa trên lệnh từ Công ty mẹ hoặc bộ phận điều phối trung tâm để hệ thống có chứng từ điều chuyển rõ ràng và truy vết được nguồn lệnh.
 
 **Tiêu chí nghiệm thu:**
 
-1. Planner truy cập màn hình "Planning Dashboard" → Nhấn "Quét gợi ý" hoặc hệ thống chạy Batch Job định kỳ.
-2. Hệ thống so sánh tồn kho khả dụng hiện tại với định mức tồn tối thiểu đã cấu hình tại 3 kho: Hải Phòng, Hà Nội, TP.HCM.
-3. Hiển thị danh sách đề xuất điều chuyển hợp lý kèm SKU, kho nguồn, kho đích, số lượng gợi ý, mức ưu tiên và lý do (Ví dụ: Kho HCM hết SP-001 → Gợi ý điều chuyển 200 cái từ Kho Hà Nội đang dư).
-4. Planner có thể nhấn "Tạo nhanh Phiếu điều chuyển" trực tiếp từ gợi ý.
+1. Planner nhập mã lệnh điều chuyển từ Công ty mẹ/bộ phận điều phối (`external_instruction_code`), kho nguồn, kho đích, ngày kế hoạch, ngày chứng từ và các SKU/số lượng cần chuyển.
+2. Hệ thống không tự sinh gợi ý điều chuyển và không tự quyết định kho nguồn/kho đích/số lượng trong Sprint 1.
+3. Hệ thống bắt buộc mã lệnh ngoài để truy vết sau này.
+4. Planner có thể sửa hoặc hủy phiếu khi phiếu còn trạng thái **Mới**.
 
 ---
 
@@ -176,13 +176,15 @@
 
 **Tiêu chí nghiệm thu:**
 
-1. Planner tạo Phiếu điều chuyển: Chọn kho nguồn, kho đích, SKU, số lượng → Trạng thái: **Mới**.
+1. Planner tạo Phiếu điều chuyển: nhập mã lệnh điều chuyển ngoài, chọn kho nguồn, kho đích, SKU, số lượng → Trạng thái: **Mới**.
 2. **Trưởng kho nguồn (Checker)** kiểm tra tồn kho khả dụng:
    - Nếu đủ hàng → Phê duyệt và hệ thống khóa/giữ chỗ số lượng điều chuyển ngay → Trạng thái: **Đã duyệt**.
    - Nếu không đủ → Hệ thống từ chối, hiển thị lý do rõ ràng.
 3. Dispatcher lập một chuyến xe nội bộ riêng cho phiếu điều chuyển: gán xe, tài xế và ngày vận chuyển.
 4. Thủ kho kho nguồn ghi nhận số lượng xuất và bốc xếp lên xe; Tài xế xác nhận đã nhận hàng và xe rời kho → Hệ thống **trừ tồn kho nguồn, giải phóng giữ chỗ, cộng vào Kho ảo In-Transit** → Trạng thái: **Đang vận chuyển (In-Transit)**.
-5. Thủ kho kho đích nhập số lượng thực nhận và kiểm QC số lượng/chất lượng; Trưởng kho đích xác nhận cuối cùng:
+   - Thủ kho nguồn phải ghi đúng số lượng đã duyệt; không được xuất thừa hoặc thiếu.
+   - Nếu đã ghi hàng lên xe nhưng chưa rời kho mà cần hủy, hệ thống bắt buộc hạ hàng/unship trước rồi mới cho Trưởng kho nguồn hủy phiếu và nhả giữ chỗ.
+5. Công nhân kho đích nhập số lượng thực nhận; nếu số nhận thiếu/thừa so với số gửi thì phải nhập lý do. Thủ kho kho đích kiểm tra lại số lượng, có thể điều chỉnh số xác nhận kèm ghi chú, nhập/chốt QC và chọn vị trí nhập hàng đạt; Trưởng kho đích xác nhận cuối cùng:
    - Nếu khớp và QC đạt → Hệ thống **trừ Kho ảo In-Transit, cộng vào kho đích** → Trạng thái: **Hoàn thành**.
    - Nếu thiếu → Hệ thống **bắt buộc** ghi lý do chênh lệch và tự động tạo Phiếu điều chỉnh bù trừ.
    - Nếu nhận thừa (`received_qty > sent_qty`) → Hệ thống chặn, không cho xác nhận.
@@ -387,7 +389,7 @@
 **Tiêu chí nghiệm thu:**
 
 1. Khi tồn kho khả dụng tại một kho cụ thể < Định mức tối thiểu đã cấu hình → Hệ thống tự động bắn thông báo in-app (High Priority) đến Trưởng kho kho đó và Planner.
-2. Sản phẩm bị thiếu hụt được đánh dấu đỏ nổi bật trên Dashboard và Planning Dashboard.
+2. Sản phẩm bị thiếu hụt được đánh dấu đỏ nổi bật trên Dashboard và màn hình cảnh báo tồn kho.
 
 ---
 

@@ -1,4 +1,4 @@
-@echo off
+x`@echo off
 echo ========================================
 echo   WMS Phuc Anh - Khoi dong he thong
 echo ========================================

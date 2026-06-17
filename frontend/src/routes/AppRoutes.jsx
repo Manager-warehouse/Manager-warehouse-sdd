@@ -17,6 +17,7 @@ import ReceiptReceive from '../pages/Inbound/ReceiptReceive';
 import QCInbound from '../pages/Inbound/QCInbound';
 import PutawayPlan from '../pages/Inbound/PutawayPlan';
 import QuarantineWorkspace from '../pages/Inbound/QuarantineWorkspace';
+import TransferWorkspace from '../pages/Transfer/TransferWorkspace';
 import SystemConfig from '../pages/Admin/SystemConfig';
 import AuditLogs from '../pages/Admin/AuditLogs';
 import { ROLES } from '../utils/constants';
@@ -81,6 +82,10 @@ const AppRoutes = () => {
 
       <Route element={<ProtectedRoute allowedRoles={[ROLES.WAREHOUSE_MANAGER, ROLES.CEO, ROLES.ADMIN]} />}>
         <Route path="/inbound/quarantine" element={<QuarantineWorkspace />} />
+      </Route>
+
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.PLANNER, ROLES.DISPATCHER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.WAREHOUSE_MANAGER, ROLES.DRIVER, ROLES.ADMIN, ROLES.CEO]} />}>
+        <Route path="/transfers" element={<TransferWorkspace />} />
       </Route>
 
       {/* Default Redirects */}

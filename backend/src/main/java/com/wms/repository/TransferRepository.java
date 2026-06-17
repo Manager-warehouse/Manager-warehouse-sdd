@@ -1,0 +1,40 @@
+package com.wms.repository;
+
+import com.wms.entity.Transfer;
+import com.wms.enums.TransferStatus;
+import java.time.LocalDate;
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
+import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public interface TransferRepository extends JpaRepository<Transfer, Long> {
+
+    boolean existsByTransferNumber(String transferNumber);
+
+    boolean existsByExternalInstructionCodeAndSourceWarehouseIdAndDestinationWarehouseIdAndDocumentDateAndStatusNotIn(
+            String externalInstructionCode,
+            Long sourceWarehouseId,
+            Long destinationWarehouseId,
+            LocalDate documentDate,
+            Collection<TransferStatus> statuses);
+
+    boolean existsByExternalInstructionCodeAndSourceWarehouseIdAndDestinationWarehouseIdAndDocumentDateAndStatusNotInAndIdNot(
+            String externalInstructionCode,
+            Long sourceWarehouseId,
+            Long destinationWarehouseId,
+            LocalDate documentDate,
+            Collection<TransferStatus> statuses,
+            Long id);
+
+    @EntityGraph(attributePaths = {"sourceWarehouse", "destinationWarehouse", "createdBy", "approvedBy", "confirmedBy", "trip"})
+    List<Transfer> findAllByOrderByCreatedAtDesc();
+
+    @EntityGraph(attributePaths = {"sourceWarehouse", "destinationWarehouse", "createdBy", "approvedBy", "confirmedBy", "trip"})
+    @Query("select t from Transfer t where t.id = :id")
+    Optional<Transfer> findWithDetailsById(Long id);
+}

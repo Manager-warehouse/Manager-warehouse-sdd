@@ -429,7 +429,12 @@ export const masterDataService = {
   getWarehouses: async () => {
     if (useMock) {
       await new Promise((resolve) => setTimeout(resolve, 200));
-      return getDb(KEYS.WAREHOUSES, INITIAL_WAREHOUSES);
+      const warehouses = getDb(KEYS.WAREHOUSES, INITIAL_WAREHOUSES);
+      if (!Array.isArray(warehouses) || warehouses.length === 0) {
+        saveDb(KEYS.WAREHOUSES, INITIAL_WAREHOUSES);
+        return INITIAL_WAREHOUSES;
+      }
+      return warehouses;
     }
     const response = await apiClient.get("/admin/warehouses");
     return mapToSnakeCase(response.data);

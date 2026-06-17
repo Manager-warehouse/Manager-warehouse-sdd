@@ -127,7 +127,7 @@ class AuthServiceTest {
         activeUser.setRefreshTokenHash(sha256(rawToken));
         activeUser.setRefreshTokenExpiresAt(OffsetDateTime.now().plusDays(7));
 
-        when(userRepository.findAll()).thenReturn(List.of(activeUser));
+        when(userRepository.findByRefreshTokenHash(sha256(rawToken))).thenReturn(Optional.of(activeUser));
         when(jwtUtil.generateAccessToken(anyString(), anyString())).thenReturn("new-access-token");
 
         RefreshTokenRequest req = new RefreshTokenRequest();
@@ -142,8 +142,6 @@ class AuthServiceTest {
     @Test
     @DisplayName("Refresh thất bại khi token không tồn tại")
     void refresh_invalidToken_throwsTokenInvalid() {
-        when(userRepository.findAll()).thenReturn(List.of());
-
         RefreshTokenRequest req = new RefreshTokenRequest();
         req.setRefreshToken("nonexistent-token");
 
@@ -159,7 +157,7 @@ class AuthServiceTest {
         activeUser.setRefreshTokenHash(sha256(rawToken));
         activeUser.setRefreshTokenExpiresAt(OffsetDateTime.now().minusDays(1));
 
-        when(userRepository.findAll()).thenReturn(List.of(activeUser));
+        when(userRepository.findByRefreshTokenHash(sha256(rawToken))).thenReturn(Optional.of(activeUser));
 
         RefreshTokenRequest req = new RefreshTokenRequest();
         req.setRefreshToken(rawToken);
@@ -208,7 +206,7 @@ class AuthServiceTest {
     @DisplayName("Quên mật khẩu gửi OTP khi email tồn tại")
     void forgotPassword_validEmail_sendsOtp() {
         when(userRepository.findByEmail("test@wms.com")).thenReturn(Optional.of(activeUser));
-        when(userRepository.save(any())).thenReturn(activeUser);
+        when(userRepository.saveAndFlush(any())).thenReturn(activeUser);
         doNothing().when(mailSender).send(any(SimpleMailMessage.class));
 
         ForgotPasswordRequest req = new ForgotPasswordRequest();

@@ -1,0 +1,211 @@
+# Tasks: 005 Inter-Warehouse Transfer
+
+**Input**: Design documents from `.sdd/specs/005-inter-warehouse-transfer/`
+
+**Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/openapi.yaml, quickstart.md
+
+**Tests**: Required by constitution and AGENTS for service logic and API endpoints.
+
+**Organization**: Tasks are grouped by user story and implementation layer. Backend and frontend work is split into dedicated files.
+
+## Phase 1: Setup and Contract Alignment
+
+**Purpose**: Prepare shared constants, migrations, DTO package structure, frontend module shell, and API documentation before feature work.
+
+- [x] T001 Update active Spec Kit plan marker in AGENTS.md to `.sdd/specs/005-inter-warehouse-transfer/plan.md`
+- [x] T002 Create Flyway migration for transfer schema deltas in backend/src/main/resources/db/migration/V7__update_transfer_flow.sql
+- [x] T003 [P] Extend TransferStatus with REJECTED in backend/src/main/java/com/wms/enums/TransferStatus.java
+- [x] T004 [P] Extend AuditAction with transfer-specific actions in backend/src/main/java/com/wms/enums/AuditAction.java
+- [x] T005 [P] Create transfer request DTO package in backend/src/main/java/com/wms/dto/request/transfer/
+- [x] T006 [P] Create transfer response DTO package in backend/src/main/java/com/wms/dto/response/transfer/
+- [x] T007 [P] Create frontend transfer module folder in frontend/src/pages/Transfers/
+- [ ] T008 [P] Create frontend transfer component folder in frontend/src/components/transfer/
+- [ ] T009 Copy contract definitions from .sdd/specs/005-inter-warehouse-transfer/contracts/openapi.yaml into backend OpenAPI annotations planning notes in backend/src/main/java/com/wms/controller/TransferController.java
+
+---
+
+## Phase 2: Foundational Backend Services
+
+**Purpose**: Shared entities, repositories, service boundaries, authorization helpers, inventory helpers, and audit helpers required by all user stories.
+
+- [x] T010 Update Transfer entity fields in backend/src/main/java/com/wms/entity/Transfer.java
+- [x] T011 Update TransferItem entity fields in backend/src/main/java/com/wms/entity/TransferItem.java
+- [x] T012 [P] Create TransferRepository in backend/src/main/java/com/wms/repository/TransferRepository.java
+- [x] T013 [P] Create TransferItemRepository in backend/src/main/java/com/wms/repository/TransferItemRepository.java
+- [x] T014 [P] Extend WarehouseLocationRepository quarantine lookup in backend/src/main/java/com/wms/repository/WarehouseLocationRepository.java
+- [x] T015 [P] Extend InventoryRepository transfer-safe lookup methods in backend/src/main/java/com/wms/repository/InventoryRepository.java
+- [x] T016 [P] Create TransferMapper in backend/src/main/java/com/wms/mapper/TransferMapper.java
+- [x] T017 Create TransferService interface in backend/src/main/java/com/wms/service/TransferService.java
+- [x] T018 Create TransferServiceImpl skeleton in backend/src/main/java/com/wms/service/impl/TransferServiceImpl.java
+- [x] T019 Create TransferController skeleton in backend/src/main/java/com/wms/controller/TransferController.java
+- [x] T020 Create warehouse-scope helper methods in backend/src/main/java/com/wms/service/impl/TransferServiceImpl.java
+- [x] T021 Create transfer audit helper methods in backend/src/main/java/com/wms/service/impl/TransferServiceImpl.java
+- [x] T022 Create inventory invariant helper methods in backend/src/main/java/com/wms/service/impl/TransferServiceImpl.java
+- [x] T023 [P] Create frontend transfer service shell in frontend/src/services/transfer.service.js
+- [x] T024 [P] Create transfer status utility in frontend/src/utils/transferStatus.js
+
+---
+
+## Phase 3: US1 - Planner Transfer Creation and Maintenance (Priority: P2)
+
+**Goal**: Planner creates, loads, edits, and cancels `NEW` transfers from external instructions.
+
+**Independent Test**: Planner can create a multi-item transfer with external instruction code, edit the loaded item list, remove omitted items, reject duplicate active instruction, and cancel only while `NEW`.
+
+### Tests for US1
+
+- [x] T025 [P] [US1] Add service tests for create/update/cancel NEW transfer in backend/src/test/java/com/wms/service/TransferServiceImplTest.java
+- [ ] T026 [P] [US1] Add controller integration tests for POST/GET/PUT/cancel transfer in backend/src/test/java/com/wms/controller/TransferControllerIntegrationTest.java
+- [ ] T027 [P] [US1] Add frontend service tests for transfer create/update/cancel in frontend/src/services/transfer.service.test.js
+
+### Backend Implementation for US1
+
+- [x] T028 [P] [US1] Create TransferCreateRequest in backend/src/main/java/com/wms/dto/request/transfer/TransferCreateRequest.java
+- [x] T029 [P] [US1] Create TransferUpdateRequest in backend/src/main/java/com/wms/dto/request/transfer/TransferUpdateRequest.java
+- [x] T030 [P] [US1] Create TransferItemRequest in backend/src/main/java/com/wms/dto/request/transfer/TransferItemRequest.java
+- [x] T031 [P] [US1] Create TransferResponse in backend/src/main/java/com/wms/dto/response/transfer/TransferResponse.java
+- [x] T032 [P] [US1] Create TransferItemResponse in backend/src/main/java/com/wms/dto/response/transfer/TransferItemResponse.java
+- [x] T033 [US1] Implement createTransfer in backend/src/main/java/com/wms/service/impl/TransferServiceImpl.java
+- [x] T034 [US1] Implement getTransferById in backend/src/main/java/com/wms/service/impl/TransferServiceImpl.java
+- [x] T035 [US1] Implement updateTransfer with full item-list replacement in backend/src/main/java/com/wms/service/impl/TransferServiceImpl.java
+- [x] T036 [US1] Implement cancelTransfer for Planner NEW only in backend/src/main/java/com/wms/service/impl/TransferServiceImpl.java
+- [x] T037 [US1] Add Planner endpoints in backend/src/main/java/com/wms/controller/TransferController.java
+- [x] T038 [US1] Add OpenAPI annotations for Planner endpoints in backend/src/main/java/com/wms/controller/TransferController.java
+
+### Frontend Implementation for US1
+
+- [x] T039 [P] [US1] Implement transfer API methods in frontend/src/services/transfer.service.js
+- [ ] T040 [P] [US1] Create TransferList page in frontend/src/pages/Transfers/TransferList.jsx
+- [ ] T041 [P] [US1] Create TransferForm page in frontend/src/pages/Transfers/TransferForm.jsx
+- [ ] T042 [P] [US1] Create TransferItemsEditor component in frontend/src/components/transfer/TransferItemsEditor.jsx
+- [ ] T043 [US1] Create TransferDetail page shell in frontend/src/pages/Transfers/TransferDetail.jsx
+- [x] T044 [US1] Register transfer routes in frontend/src/routes/AppRoutes.jsx
+
+---
+
+## Phase 4: US2 - Source Approval, Shipment, Unship, and Departure (Priority: P1) 🎯 MVP
+
+**Goal**: Source manager approves/rejects, Dispatcher assigns dedicated trip, source storekeeper ships exact quantities, unship is required before cancelling loaded goods, and assigned driver departs to In-Transit.
+
+**Independent Test**: A transfer can move from `NEW` to `APPROVED`, reserve inventory, assign one trip, ship exact quantity, block mismatch, block cancel after ship, unship then cancel, or depart to `IN_TRANSIT`.
+
+### Tests for US2
+
+- [x] T045 [P] [US2] Add service tests for approve/reject/cancel approved in backend/src/test/java/com/wms/service/TransferServiceImplTest.java
+- [x] T046 [P] [US2] Add service tests for trip assign/ship/unship/depart in backend/src/test/java/com/wms/service/TransferServiceImplTest.java
+- [ ] T047 [P] [US2] Add controller integration tests for approve/reject/trip/ship/unship/depart in backend/src/test/java/com/wms/controller/TransferControllerIntegrationTest.java
+
+### Backend Implementation for US2
+
+- [x] T048 [P] [US2] Create RejectTransferRequest in backend/src/main/java/com/wms/dto/request/transfer/RejectTransferRequest.java
+- [x] T049 [P] [US2] Create AssignTransferTripRequest in backend/src/main/java/com/wms/dto/request/transfer/AssignTransferTripRequest.java
+- [x] T050 [P] [US2] Create ShipTransferRequest in backend/src/main/java/com/wms/dto/request/transfer/ShipTransferRequest.java
+- [x] T051 [P] [US2] Create ShipTransferItemRequest in backend/src/main/java/com/wms/dto/request/transfer/ShipTransferItemRequest.java
+- [x] T052 [US2] Implement approveTransfer reservation logic in backend/src/main/java/com/wms/service/impl/TransferServiceImpl.java
+- [x] T053 [US2] Implement rejectTransfer with reason in backend/src/main/java/com/wms/service/impl/TransferServiceImpl.java
+- [x] T054 [US2] Implement assignTransferTrip availability checks in backend/src/main/java/com/wms/service/impl/TransferServiceImpl.java
+- [x] T055 [US2] Implement shipTransfer exact quantity validation in backend/src/main/java/com/wms/service/impl/TransferServiceImpl.java
+- [x] T056 [US2] Implement unshipTransfer clearing sent quantities in backend/src/main/java/com/wms/service/impl/TransferServiceImpl.java
+- [x] T057 [US2] Implement departTransfer inventory movement to In-Transit in backend/src/main/java/com/wms/service/impl/TransferServiceImpl.java
+- [x] T058 [US2] Add source shipment endpoints in backend/src/main/java/com/wms/controller/TransferController.java
+- [x] T059 [US2] Add audit logging for source shipment actions in backend/src/main/java/com/wms/service/impl/TransferServiceImpl.java
+
+### Frontend Implementation for US2
+
+- [ ] T060 [P] [US2] Create TransferApprovalPanel component in frontend/src/components/transfer/TransferApprovalPanel.jsx
+- [ ] T061 [P] [US2] Create TransferTripPanel component in frontend/src/components/transfer/TransferTripPanel.jsx
+- [ ] T062 [P] [US2] Create TransferShipWorkspace page in frontend/src/pages/Transfers/TransferShipWorkspace.jsx
+- [ ] T063 [P] [US2] Create TransferDepartPanel component in frontend/src/components/transfer/TransferDepartPanel.jsx
+- [ ] T064 [US2] Wire source role action visibility in frontend/src/pages/Transfers/TransferDetail.jsx
+
+---
+
+## Phase 5: US3 - Destination Receive Count, QC Check, and Final Confirmation (Priority: P1)
+
+**Goal**: Destination worker records counts, destination storekeeper checks count/QC, and destination manager final-confirms receipt with quarantine and discrepancy handling.
+
+**Independent Test**: An `IN_TRANSIT` transfer can record count, reject over-receipt, require issue reasons, approve receive-check, require checker note on changed count, quarantine QC failed quantity, complete or complete with discrepancy.
+
+### Tests for US3
+
+- [x] T065 [P] [US3] Add service tests for receive-count validations in backend/src/test/java/com/wms/service/TransferServiceImplTest.java
+- [x] T066 [P] [US3] Add service tests for receive-check QC/quarantine validations in backend/src/test/java/com/wms/service/TransferServiceImplTest.java
+- [x] T067 [P] [US3] Add service tests for final receive inventory and discrepancy adjustment in backend/src/test/java/com/wms/service/TransferServiceImplTest.java
+- [ ] T068 [P] [US3] Add controller integration tests for receive-count/receive-check/receive in backend/src/test/java/com/wms/controller/TransferControllerIntegrationTest.java
+
+### Backend Implementation for US3
+
+- [x] T069 [P] [US3] Create ReceiveCountRequest in backend/src/main/java/com/wms/dto/request/transfer/ReceiveCountRequest.java
+- [x] T070 [P] [US3] Create ReceiveCountItemRequest in backend/src/main/java/com/wms/dto/request/transfer/ReceiveCountItemRequest.java
+- [x] T071 [P] [US3] Create ReceiveCheckRequest in backend/src/main/java/com/wms/dto/request/transfer/ReceiveCheckRequest.java
+- [x] T072 [P] [US3] Create ReceiveCheckItemRequest in backend/src/main/java/com/wms/dto/request/transfer/ReceiveCheckItemRequest.java
+- [x] T073 [P] [US3] Create ReceiveConfirmRequest in backend/src/main/java/com/wms/dto/request/transfer/ReceiveConfirmRequest.java
+- [x] T074 [US3] Implement receiveCount in backend/src/main/java/com/wms/service/impl/TransferServiceImpl.java
+- [x] T075 [US3] Implement receiveCheck in backend/src/main/java/com/wms/service/impl/TransferServiceImpl.java
+- [x] T076 [US3] Implement confirmReceive with destination/quarantine inventory updates in backend/src/main/java/com/wms/service/impl/TransferServiceImpl.java
+- [x] T077 [US3] Implement shortage adjustment creation in backend/src/main/java/com/wms/service/impl/TransferServiceImpl.java
+- [x] T078 [US3] Add destination receive endpoints in backend/src/main/java/com/wms/controller/TransferController.java
+- [x] T079 [US3] Add audit logging for receive actions in backend/src/main/java/com/wms/service/impl/TransferServiceImpl.java
+
+### Frontend Implementation for US3
+
+- [ ] T080 [P] [US3] Create TransferReceiveWorkspace page in frontend/src/pages/Transfers/TransferReceiveWorkspace.jsx
+- [ ] T081 [P] [US3] Create ReceiveCountForm component in frontend/src/components/transfer/ReceiveCountForm.jsx
+- [ ] T082 [P] [US3] Create ReceiveCheckForm component in frontend/src/components/transfer/ReceiveCheckForm.jsx
+- [ ] T083 [P] [US3] Create ReceiveConfirmPanel component in frontend/src/components/transfer/ReceiveConfirmPanel.jsx
+- [ ] T084 [US3] Wire destination role action visibility in frontend/src/pages/Transfers/TransferDetail.jsx
+
+---
+
+## Phase 6: Polish, Quality Gates, and Documentation
+
+**Purpose**: Cross-cutting checks required before coding is considered complete.
+
+- [x] T085 [P] Update Swagger/OpenAPI documentation annotations in backend/src/main/java/com/wms/controller/TransferController.java
+- [x] T086 [P] Add frontend transfer status labels/actions in frontend/src/utils/transferStatus.js
+- [x] T087 Run backend unit and integration tests with coverage for transfer service
+- [ ] T088 Run frontend tests/build for transfer module
+- [x] T089 Run `mvn compile` and frontend lint/build checks
+- [ ] T090 Verify audit log rows for every transfer mutation using backend/src/test/java/com/wms/controller/TransferControllerIntegrationTest.java
+- [ ] T091 Verify no transfer implementation file exceeds project size/function conventions where practical
+- [ ] T092 Update quickstart verification notes in .sdd/specs/005-inter-warehouse-transfer/quickstart.md
+
+---
+
+## Dependencies and Execution Order
+
+### Phase Dependencies
+
+- Phase 1 must complete first.
+- Phase 2 blocks all user story implementation.
+- US2 and US3 are P1 operational flow and should be implemented before US1 UI polish if delivery pressure exists.
+- US3 depends on US2 depart behavior for an `IN_TRANSIT` transfer.
+- Phase 6 depends on selected user stories being implemented.
+
+### User Story Dependencies
+
+- **US1 Planner Creation**: Can be tested independently through `NEW` transfer lifecycle.
+- **US2 Source Shipment**: Requires US1 create behavior and foundational inventory helpers.
+- **US3 Destination Receive**: Requires US2 depart behavior to create In-Transit state.
+
+### Parallel Opportunities
+
+- DTO creation tasks can run in parallel with frontend component skeletons.
+- Controller integration tests and service tests can be written in parallel.
+- Frontend pages/components for US2 and US3 can be built in parallel after `transfer.service.js` is stable.
+
+## Implementation Strategy
+
+### MVP First
+
+1. Complete Phase 1 and Phase 2.
+2. Implement US1 backend create/detail/update/cancel enough to create `NEW` transfers.
+3. Implement US2 backend source flow to reach `IN_TRANSIT`.
+4. Implement US3 backend receive flow to complete the transfer.
+5. Add frontend screens incrementally after API contracts are stable.
+
+### Split Work Safely
+
+- Backend engineer: migrations/entities/repositories/services/controllers/tests.
+- Frontend engineer: `transfer.service.js`, pages, components, route wiring, frontend tests.
+- Keep business rules in backend service layer; frontend only mirrors validation for user ergonomics.

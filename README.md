@@ -187,7 +187,7 @@ Hệ thống có **26 User Stories** chia thành 9 nhóm nghiệp vụ:
 
 | US | Tên | Priority |
 |---|---|---|
-| US-WMS-11 | Planning Dashboard & Gợi ý điều chuyển kho tự động | P2 |
+| US-WMS-11 | Planner nhập lệnh điều chuyển thủ công từ Công ty mẹ/bộ phận điều phối | P2 |
 | US-WMS-12 | Lập, Duyệt & Xác nhận Phiếu Điều chuyển Kho Nội bộ | P1 |
 
 ### Nhóm 5: Kiểm kê & Quản lý giá (Inventory, Price & Audit)
@@ -264,12 +264,18 @@ Công ty mẹ gửi yêu cầu xuất hàng
 ### 3. Quy trình Điều chuyển Kho Nội bộ
 
 ```
-Planner xem Planning Dashboard → Nhận gợi ý điều chuyển
-    → Planner tạo Phiếu điều chuyển [MỚI]
+Planner nhận lệnh điều chuyển từ Công ty mẹ/bộ phận điều phối
+    → Planner nhập Phiếu điều chuyển thủ công kèm mã lệnh ngoài [MỚI]
     → Trưởng kho nguồn kiểm tra tồn khả dụng → Duyệt [ĐÃ DUYỆT]
-    → Thủ kho nguồn xuất hàng lên xe
+    → Dispatcher lập chuyến xe nội bộ riêng, gán xe và Tài xế
+    → Thủ kho nguồn soạn/xuất hàng lên xe
+        ├── Phải ghi đúng số lượng đã duyệt; không cho xuất thừa/thiếu
+        └── Nếu cần hủy sau khi đã lên xe nhưng chưa rời kho → Unship/Unload trước rồi mới hủy
+    → Tài xế xác nhận đã nhận hàng và xe rời kho
         → Hệ thống: Trừ tồn Kho nguồn, Cộng Kho ảo In-Transit [ĐANG VẬN CHUYỂN]
-    → Trưởng kho đích nhận hàng, kiểm tra số lượng
+    → Công nhân kho đích nhập số lượng thực nhận
+    → Thủ kho đích kiểm tra lại số lượng, nhập QC, điều chỉnh số nếu cần và chọn vị trí nhập
+    → Trưởng kho đích xác nhận cuối
         ├── Khớp → Hệ thống: Trừ In-Transit, Cộng tồn Kho đích [HOÀN THÀNH]
         └── Lệch → Ghi lý do + Tạo Phiếu điều chỉnh bù trừ
 ```

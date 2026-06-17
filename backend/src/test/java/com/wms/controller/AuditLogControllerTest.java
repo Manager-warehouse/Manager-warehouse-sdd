@@ -106,10 +106,10 @@ class AuditLogControllerTest {
     }
 
     @Test
-    @DisplayName("GET /audit-logs — 403 khi không có token")
+    @DisplayName("GET /audit-logs — 401 khi không có token")
     void getAuditLogs_unauthenticated_returns403() throws Exception {
         mockMvc.perform(get("/api/v1/audit-logs").contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -238,10 +238,10 @@ class AuditLogControllerTest {
     }
 
     @Test
-    @DisplayName("GET /audit-logs/{id} — 403 khi không có token")
+    @DisplayName("GET /audit-logs/{id} — 401 khi không có token")
     void getAuditLogById_unauthenticated_returns403() throws Exception {
         mockMvc.perform(get("/api/v1/audit-logs/1").contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     // ─── Helper ──────────────────────────────────────────────────────────────

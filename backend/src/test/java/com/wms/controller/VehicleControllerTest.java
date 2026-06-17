@@ -73,7 +73,7 @@ public class VehicleControllerTest {
     @Test
     void getAllVehicles_Unauthenticated_Returns403() throws Exception {
         mockMvc.perform(get("/api/v1/dispatcher/vehicles"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

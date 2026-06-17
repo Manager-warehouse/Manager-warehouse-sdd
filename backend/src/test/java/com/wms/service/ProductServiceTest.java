@@ -240,23 +240,14 @@ class ProductServiceTest {
 
     //TC10(Boundary /FAILED)
     @Test
-    @DisplayName("[TC10][B][EXPECTED_FAIL] createProduct - sku=\"\" (empty boundary) - BUG: service không reject, lưu sku rỗng thành công")
-    void tc10_createProduct_emptySku_bugNotRejectedAtServiceLayer() {
+    @DisplayName("[TC10][B] createProduct - sku=\"\" (empty boundary) - service reject sku rỗng")
+    void tc10_createProduct_emptySku_rejectedAtServiceLayer() {
         ProductRequest request = buildRequest("", "Sản phẩm X", false, false);
-        when(productRepository.existsBySku("")).thenReturn(false);
-        when(userRepository.findById(1L)).thenReturn(Optional.of(actor));
-        when(productRepository.save(any())).thenAnswer(inv -> {
-            Product p = inv.getArgument(0);
-            p.setId(10L);
-            p.setCreatedAt(OffsetDateTime.now());
-            p.setUpdatedAt(OffsetDateTime.now());
-            return p;
-        });
 
-        ProductResponse response = productService.createProduct(request, 1L);
-        assertThat(response.getSku())
-                .as("DFID002: Service phải reject sku rỗng nhưng thực tế lưu sku=\"\" vào DB")
-                .isNotEmpty();
+        assertThatThrownBy(() -> productService.createProduct(request, 1L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("INVALID_SKU");
+        verify(productRepository, never()).save(any());
     }
 
     // =========================================================================
@@ -299,50 +290,27 @@ class ProductServiceTest {
 
     //TC13 (Normal / FAILED)
     @Test
-    @DisplayName("[TC13][N][EXPECTED_FAIL] updateProduct - name mới - BUG: save trả về name cũ, không phản ánh thay đổi")
-    void tc13_updateProduct_bugNameNotPersisted() {
+    @DisplayName("[TC13][N] updateProduct - name mới - trả về name mới sau update")
+    void tc13_updateProduct_namePersisted() {
         ProductRequest request = buildRequest("SKU-001", "Tên mới sau update", false, false);
         when(productRepository.findById(1L)).thenReturn(Optional.of(product));
         when(productRepository.existsBySkuAndIdNot("SKU-001", 1L)).thenReturn(false);
         when(userRepository.findById(1L)).thenReturn(Optional.of(actor));
-        when(productRepository.save(any())).thenAnswer(inv -> {
-            Product p = new Product();
-            p.setId(1L);
-            p.setSku("SKU-001");
-            p.setName("Sản phẩm A");
-            p.setUnit("cái");
-            p.setHasSerial(false);
-            p.setHasExpiry(false);
-            p.setIsActive(true);
-            p.setUpdatedAt(OffsetDateTime.now());
-            return p;
-        });
+        when(productRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         ProductResponse response = productService.updateProduct(1L, request, 1L);
         assertThat(response.getName())
-                .as("BUG-03: name phải được cập nhật thành 'Tên mới sau update' nhưng vẫn là name cũ")
                 .isEqualTo("Tên mới sau update");
     }
 
-    //TC14 (Boundary / FAILED)
-
     @Test
-    @DisplayName("[TC14][B][EXPECTED_FAIL] updateProduct - sku=\"\" (empty boundary) - BUG: service lưu sku rỗng thành công")
-    void tc14_updateProduct_emptySku_bugNotRejected() {
+    @DisplayName("[TC14][B] updateProduct - sku=\"\" (empty boundary) - service reject sku rỗng")
+    void tc14_updateProduct_emptySku_rejected() {
         ProductRequest request = buildRequest("", "Tên hợp lệ", false, false);
-        when(productRepository.findById(1L)).thenReturn(Optional.of(product));
-        when(productRepository.existsBySkuAndIdNot("", 1L)).thenReturn(false);
-        when(userRepository.findById(1L)).thenReturn(Optional.of(actor));
-        when(productRepository.save(any())).thenAnswer(inv -> {
-            Product p = inv.getArgument(0);
-            p.setUpdatedAt(OffsetDateTime.now());
-            return p;
-        });
 
-        ProductResponse response = productService.updateProduct(1L, request, 1L);
-
-        assertThat(response.getSku())
-                .as("BUG-04: Service phải reject sku rỗng nhưng thực tế lưu sku=\"\" vào DB")
-                .isNotEmpty();
+        assertThatThrownBy(() -> productService.updateProduct(1L, request, 1L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("INVALID_SKU");
+        verify(productRepository, never()).save(any());
     }
 
 

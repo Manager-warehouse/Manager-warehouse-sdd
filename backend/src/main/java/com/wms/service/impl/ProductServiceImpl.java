@@ -49,6 +49,7 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional
     public ProductResponse createProduct(ProductRequest request, Long createdByUserId) {
+        validateSku(request.getSku());
         if (productRepository.existsBySku(request.getSku())) {
             throw new IllegalArgumentException("DUPLICATE_SKU");
         }
@@ -73,16 +74,18 @@ public class ProductServiceImpl implements ProductService {
                 .build();
 
         Product saved = productRepository.save(product);
+        applyPersistenceMetadata(product, saved);
 
         // Record Audit Log
-        auditLogService.log(actor, AuditAction.CREATE, "Product", saved.getId(), saved.getSku(), null, null, toMap(saved));
+        auditLogService.log(actor, AuditAction.CREATE, "Product", product.getId(), product.getSku(), null, null, toMap(product));
 
-        return toResponse(saved);
+        return toResponse(product);
     }
 
     @Override
     @Transactional
     public ProductResponse updateProduct(Long id, ProductRequest request, Long updatedByUserId) {
+        validateSku(request.getSku());
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("PRODUCT_NOT_FOUND"));
 
@@ -107,11 +110,12 @@ public class ProductServiceImpl implements ProductService {
         product.setUpdatedBy(actor);
 
         Product saved = productRepository.save(product);
+        applyPersistenceMetadata(product, saved);
 
         // Record Audit Log
-        auditLogService.log(actor, AuditAction.UPDATE, "Product", saved.getId(), saved.getSku(), null, oldMap, toMap(saved));
+        auditLogService.log(actor, AuditAction.UPDATE, "Product", product.getId(), product.getSku(), null, oldMap, toMap(product));
 
-        return toResponse(saved);
+        return toResponse(product);
     }
 
     @Override
@@ -126,9 +130,10 @@ public class ProductServiceImpl implements ProductService {
         product.setIsActive(false);
         product.setUpdatedBy(actor);
         Product saved = productRepository.save(product);
+        applyPersistenceMetadata(product, saved);
 
         // Record Audit Log
-        auditLogService.log(actor, AuditAction.SOFT_DELETE, "Product", saved.getId(), saved.getSku(), null, oldMap, toMap(saved));
+        auditLogService.log(actor, AuditAction.SOFT_DELETE, "Product", product.getId(), product.getSku(), null, oldMap, toMap(product));
     }
 
     private User resolveUser(Long userId) {
@@ -174,5 +179,20 @@ public class ProductServiceImpl implements ProductService {
                 .createdAt(p.getCreatedAt())
                 .updatedAt(p.getUpdatedAt())
                 .build();
+    }
+
+    private void validateSku(String sku) {
+        if (sku != null && sku.isBlank()) {
+            throw new IllegalArgumentException("INVALID_SKU");
+        }
+    }
+
+    private void applyPersistenceMetadata(Product target, Product saved) {
+        if (saved == null || target == saved) {
+            return;
+        }
+        target.setId(saved.getId());
+        target.setCreatedAt(saved.getCreatedAt());
+        target.setUpdatedAt(saved.getUpdatedAt());
     }
 }

@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Users, UserSquare, ShieldAlert, BarChart3, Package2, Settings, History, Box, Warehouse, Handshake, Truck  } from 'lucide-react';
+import { LayoutDashboard, Users, UserSquare, ShieldAlert, BarChart3, Package2, Settings, History, Box, Warehouse, Handshake, Truck, ArrowRightLeft  } from 'lucide-react';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
 import { ROLES } from '../../utils/constants';
@@ -84,10 +84,18 @@ const Sidebar = () => {
     }
   ];
 
+  const operationItems = [
+    {
+      title: 'Điều chuyển nội bộ',
+      path: '/transfers',
+      icon: ArrowRightLeft,
+      roles: [ROLES.PLANNER, ROLES.DISPATCHER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.WAREHOUSE_MANAGER, ROLES.DRIVER, ROLES.ADMIN, ROLES.CEO]
+    }
+  ];
+
   // Dummy menus to show full WMS modules structure (as disabled or mocked)
   const mockupModules = [
     { title: 'Xuất kho (Outbound)', icon: Package2 },
-    { title: 'Điều chuyển (Transfer)', icon: Package2 },
     { title: 'Kiểm kê (Stocktake)', icon: Package2 },
     { title: 'Báo cáo & Cảnh báo', icon: BarChart3 }
   ];
@@ -131,6 +139,34 @@ const Sidebar = () => {
             </div>
             <nav className="flex flex-col gap-1">
               {inboundItems
+                .filter(item => item.roles.some(role => hasRole(role)))
+                .map((item) => (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    className={({ isActive }) =>
+                      `flex items-center gap-3 px-3 py-2.5 rounded-pill text-xs font-semibold uppercase tracking-wider transition-colors ${
+                        isActive
+                          ? 'bg-onPrimary text-canvas-night'
+                          : 'text-shade-40 hover:text-onPrimary hover:bg-canvas-nightElevated'
+                      }`
+                    }
+                  >
+                    <item.icon className="w-4 h-4 flex-shrink-0" />
+                    <span>{item.title}</span>
+                  </NavLink>
+                ))}
+            </nav>
+          </div>
+        )}
+
+        {operationItems.filter(item => item.roles.some(role => hasRole(role))).length > 0 && (
+          <div>
+            <div className="px-3 py-1.5 text-[10px] font-bold text-shade-40 uppercase tracking-widest mb-2">
+              Điều chuyển
+            </div>
+            <nav className="flex flex-col gap-1">
+              {operationItems
                 .filter(item => item.roles.some(role => hasRole(role)))
                 .map((item) => (
                   <NavLink
