@@ -44,12 +44,12 @@ backend/src/main/java/com/wms/
 ├── controller/   # REST controllers — KHÔNG business logic
 ├── dto/          # request/response DTOs + Jakarta Validation annotations
 ├── entity/       # JPA entities (@Entity, @Table, relationships)
-├── enums/        # Domain enums (WarehouseStatus, ReceiptStatus, BatchGrade...)
+├── enums/        # Domain enums (WarehouseStatus, ReceiptStatus, ...)
 ├── event/        # Domain events, audit events
 ├── exception/    # Custom exceptions + GlobalExceptionHandler (@ControllerAdvice)
 ├── repository/   # Spring Data JPA interfaces
 ├── service/      # Business logic, @Transactional, audit logging
-└── util/         # Helper utilities (FEFOSelector, FIFOSelector, mappers)
+└── util/         # Helper utilities (FIFOSelector, mappers)
 ```
 
 ## 4. Frontend Structure
@@ -95,7 +95,7 @@ frontend/src/
 |---|---|
 | Flyway | Database migration versioning |
 | SLF4J / Logback | Logging — KHÔNG `System.out` |
-| Lombok | `@Slf4j`, `@Data`, `@Builder`, `@NoArgsConstructor`... |
+| Lombok | `@Slf4j`, `@Getter`, `@Setter`, `@Builder`, `@NoArgsConstructor`...; avoid `@Data` on JPA entities with lazy relationships |
 | Swagger / OpenAPI | API documentation |
 
 ## 8. Database Conventions

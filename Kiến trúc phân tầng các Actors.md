@@ -73,7 +73,7 @@
 
 **Nghiệp vụ:**
 
-- Phê duyệt Phiếu nhập kho sau khi đối chiếu kết quả QC từ Thủ kho → Hệ thống tự động cộng tồn kho.
+- Phê duyệt Phiếu nhập kho sau khi đối chiếu kết quả QC từ Thủ kho → mở khóa putaway; hệ thống chỉ cộng tồn kho sau khi Thủ kho cất hàng vào Bin.
 - Phê duyệt Phiếu điều chuyển kho (kho nguồn): Kiểm tra tồn khả dụng trước khi duyệt.
 - Xác nhận nhận hàng điều chuyển (kho đích): Kiểm tra số lượng thực tế, ghi nhận chênh lệch nếu có.
 - Duyệt chênh lệch kiểm kê và phê duyệt điều chỉnh tồn kho thực tế.
@@ -152,7 +152,7 @@
 **Danh mục sản phẩm:**
 
 - Tạo mới, cập nhật và quản lý SKU/danh mục sản phẩm để đồng bộ thông tin hàng hóa phục vụ nhập, xuất, kiểm kê.
-- Quản lý thông tin quy cách đóng gói, đơn vị tính, khối lượng, thể tích và thuộc tính serial/expiry của SKU.
+- Quản lý thông tin quy cách đóng gói, đơn vị tính, khối lượng và thể tích của SKU; hàng gia dụng Sprint 1 không quản lý serial từng sản phẩm hoặc hạn sử dụng.
 
 **Nhập hàng:**
 
@@ -254,11 +254,15 @@
 Công ty mẹ gửi thông tin (Zalo/Email)
     → Planner lập Lệnh nhập [Pending Receipt]
     → Thủ kho đếm hàng thực tế và kiểm tra QC → Đạt/Lỗi
-        ├── Hàng Lỗi → Quarantine Zone → Trưởng kho quyết định xử lý (Trả NCC / Tiêu hủy)
-        └── Hàng Đạt → Nhân viên kho di chuyển & cất vào Bin Location theo chỉ dẫn của Thủ kho
-    → Trưởng kho Duyệt nhập [Approved]
-    → Hệ thống cộng tồn kho khả dụng
+        ├── Hàng Lỗi → Quarantine Zone → Trưởng kho tạo RTV [Trả NCC] trong Spec 003 → Thủ kho xác nhận trả đủ NCC rồi mới trừ Quarantine
+        └── Hàng Đạt → Trưởng kho Duyệt nhập [Approved] hoặc Từ chối [Return To Supplier Pending]
+            └── Nếu bị từ chối → Thủ kho bàn giao xe NCC [Returned To Supplier]
+    → Trưởng kho Duyệt nhập [Approved] → mở khóa putaway
+    → Thủ kho cất vào Bin Location sau duyệt
+    → Hệ thống cộng tồn kho khả dụng sau putaway
 ```
+
+Luồng tiêu hủy hàng lỗi không nằm trong feature inbound 003; xử lý theo Spec 009.
 
 ### Quy trình Xuất hàng & Giao hàng (Outbound & Delivery)
 

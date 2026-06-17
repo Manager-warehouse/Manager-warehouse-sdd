@@ -8,28 +8,25 @@
 
 **Input**: User description: "$ARGUMENTS"
 
-## User Scenarios & Testing *(mandatory)*
+## 1. Context And Goal
 
-<!--
-  IMPORTANT: User stories should be PRIORITIZED as user journeys ordered by importance.
-  Each user story/journey must be INDEPENDENTLY TESTABLE - meaning if you implement just ONE of them,
-  you should still have a viable MVP (Minimum Viable Product) that delivers value.
+[Business context, target actors, and why this feature matters for WMS.]
 
-  Assign priorities (P1, P2, P3, etc.) to each story, where P1 is the most critical.
-  Think of each story as a standalone slice of functionality that can be:
-  - Developed independently
-  - Tested independently
-  - Deployed independently
-  - Demonstrated to users independently
--->
+## 2. Actors
+
+| Actor | Role | Responsibilities |
+|-------|------|------------------|
+| [Actor] | [Maker/Checker/Admin/etc.] | [What they do] |
+
+## 3. User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - [Brief Title] (Priority: P1)
 
-[Describe this user journey in plain language]
+[Describe this user journey in business language.]
 
-**Why this priority**: [Explain the value and why it has this priority level]
+**Why this priority**: [Business value]
 
-**Independent Test**: [Describe how this can be tested independently - e.g., "Can be fully tested by [specific action] and delivers [specific value]"]
+**Independent Test**: [How to verify this story independently]
 
 **Acceptance Scenarios**:
 
@@ -40,92 +37,88 @@
 
 ### User Story 2 - [Brief Title] (Priority: P2)
 
-[Describe this user journey in plain language]
+[Describe this user journey.]
 
-**Why this priority**: [Explain the value and why it has this priority level]
+**Why this priority**: [Business value]
 
-**Independent Test**: [Describe how this can be tested independently]
-
-**Acceptance Scenarios**:
-
-1. **Given** [initial state], **When** [action], **Then** [expected outcome]
-
----
-
-### User Story 3 - [Brief Title] (Priority: P3)
-
-[Describe this user journey in plain language]
-
-**Why this priority**: [Explain the value and why it has this priority level]
-
-**Independent Test**: [Describe how this can be tested independently]
+**Independent Test**: [How to verify independently]
 
 **Acceptance Scenarios**:
 
 1. **Given** [initial state], **When** [action], **Then** [expected outcome]
 
 ---
-
-[Add more user stories as needed, each with an assigned priority]
 
 ### Edge Cases
 
-<!--
-  ACTION REQUIRED: The content in this section represents placeholders.
-  Fill them out with the right edge cases.
--->
+- [Validation boundary, e.g. zero/negative quantity]
+- [Concurrency case, e.g. inventory version conflict]
+- [Authorization case, e.g. user lacks warehouse scope]
+- [State transition case, e.g. invalid status transition]
 
-- What happens when [boundary condition]?
-- How does system handle [error scenario]?
+## 4. Functional Requirements (EARS)
 
-## Requirements *(mandatory)*
+- **FR-001**: WHEN [trigger], the system SHALL [observable behavior].
+- **FR-002**: WHILE [state], the system SHALL [constraint].
+- **FR-003**: IF [condition], the system SHALL [alternate behavior].
+- **FR-004**: WHERE [scope/entity], the system SHALL [data/business rule].
 
-<!--
-  ACTION REQUIRED: The content in this section represents placeholders.
-  Fill them out with the right functional requirements.
--->
+## 5. Non-functional Requirements
 
-### Functional Requirements
+| ID | Requirement | Target |
+|----|-------------|--------|
+| NFR-001 | [Performance/reliability/security requirement] | [Measurable target] |
 
-- **FR-001**: System MUST [specific capability, e.g., "allow users to create accounts"]
-- **FR-002**: System MUST [specific capability, e.g., "validate email addresses"]
-- **FR-003**: Users MUST be able to [key interaction, e.g., "reset their password"]
-- **FR-004**: System MUST [data requirement, e.g., "persist user preferences"]
-- **FR-005**: System MUST [behavior, e.g., "log all security events"]
+## 6. Data Model
 
-*Example of marking unclear requirements:*
+### [table_name]
 
-- **FR-006**: System MUST authenticate users via [NEEDS CLARIFICATION: auth method not specified - email/password, SSO, OAuth?]
-- **FR-007**: System MUST retain user data for [NEEDS CLARIFICATION: retention period not specified]
+- `id` (BIGSERIAL, PK)
+- [columns, constraints, relationships]
 
-### Key Entities *(include if feature involves data)*
+### Entity Rules
 
-- **[Entity 1]**: [What it represents, key attributes without implementation]
-- **[Entity 2]**: [What it represents, relationships to other entities]
+- [Soft-delete/cancel behavior]
+- [Inventory/QC/accounting invariants if applicable]
 
-## Success Criteria *(mandatory)*
+## 7. API Spec
 
-<!--
-  ACTION REQUIRED: Define measurable success criteria.
-  These must be technology-agnostic and measurable.
--->
+| Method | Endpoint | Purpose | Auth |
+|--------|----------|---------|------|
+| POST | `/api/v1/[resource]` | [Create/action] | [Role + warehouse scope] |
 
-### Measurable Outcomes
+Request/response schemas MUST be reflected in OpenAPI/Swagger.
 
-- **SC-001**: [Measurable metric, e.g., "Users can complete account creation in under 2 minutes"]
-- **SC-002**: [Measurable metric, e.g., "System handles 1000 concurrent users without degradation"]
-- **SC-003**: [User satisfaction metric, e.g., "90% of users successfully complete primary task on first attempt"]
-- **SC-004**: [Business metric, e.g., "Reduce support tickets related to [X] by 50%"]
+## 8. Error Handling
 
-## Assumptions
+| Error | HTTP | Condition |
+|-------|------|-----------|
+| [ERROR_CODE] | [400/401/403/404/409/422] | [Condition] |
 
-<!--
-  ACTION REQUIRED: The content in this section represents placeholders.
-  Fill them out with the right assumptions based on reasonable defaults
-  chosen when the feature description did not specify certain details.
--->
+## 9. Audit Trail
 
-- [Assumption about target users, e.g., "Users have stable internet connectivity"]
-- [Assumption about scope boundaries, e.g., "Mobile support is out of scope for v1"]
-- [Assumption about data/environment, e.g., "Existing authentication system will be reused"]
-- [Dependency on existing system/service, e.g., "Requires access to the existing user profile API"]
+- Every mutation SHALL create an audit log entry.
+- Audit action names: [ACTION_1, ACTION_2]
+- Audit payload MUST include actor, actor role, entity type, entity id, warehouse when relevant, timestamp, and before/after values when relevant.
+- Sensitive values such as passwords, JWTs, refresh tokens, secrets, and credentials MUST NOT be logged.
+
+## 10. Business Invariants
+
+- Inventory: [None or total/reserved/version/available rules].
+- QC/quarantine: [None or QC gate/quarantine rules].
+- Transfer: [None or In-Transit/discrepancy rules].
+- Accounting/credit: [None or period/debt/COGS rules].
+- Master/transaction data: [soft delete or cancel rules].
+
+## 11. Success Criteria
+
+- **SC-001**: [Measurable outcome]
+- **SC-002**: [Measurable outcome]
+
+## 12. Assumptions
+
+- [Assumption]
+
+## 13. Out Of Scope
+
+- [Explicit exclusions]

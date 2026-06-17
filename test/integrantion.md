@@ -148,8 +148,11 @@ class ReceiptControllerIntegrationTest {
 | Warehouses | GET | `/api/v1/warehouses` | P1 |
 | Products | CRUD | `/api/v1/products` | P1 |
 | Receipts | CRUD | `/api/v1/receipts` | P1 |
-| Receipts | PATCH | `/api/v1/receipts/{id}/approve` | P1 |
-| Receipts | PATCH | `/api/v1/receipts/{id}/reject` | P1 |
+| Receipts | PUT | `/api/v1/receipts/{id}/approve` | P1 |
+| Receipts | PUT | `/api/v1/receipts/{id}/reject` | P1 |
+| Receipts | PUT | `/api/v1/receipts/{id}/return-to-supplier/confirm` | P1 |
+| Receipts | POST | `/api/v1/receipts/{id}/rtv` | P1 |
+| Receipts | PUT | `/api/v1/receipts/{id}/rtv/confirm` | P1 |
 | Delivery Orders | CRUD | `/api/v1/delivery-orders` | P1 |
 | Delivery Orders | PATCH | `/api/v1/delivery-orders/{id}/status` | P1 |
 | Transfers | CRUD | `/api/v1/transfers` | P1 |

@@ -2,8 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useUiStore } from '../../stores/ui.store';
 import { inboundService } from '../../services/inbound.service';
-import { ArrowLeft, Loader2, CheckCircle2, ShieldCheck, ShieldAlert } from 'lucide-react';
-
+import { ArrowLeft, Loader2, ShieldCheck, ShieldAlert } from 'lucide-react';
 const QCInbound = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -27,6 +26,7 @@ const QCInbound = () => {
       // Initialize items with default values
       const initialItems = data.items.map(item => ({
         ...item,
+        id: item.receipt_item_id || item.id, // Fallback to item.id if receipt_item_id is not available
         qc_passed_qty: item.actual_qty, // default to all passed
         qc_failed_qty: 0,
         qc_failure_reason: '',
@@ -131,12 +131,12 @@ const QCInbound = () => {
       }
 
       if (passed + failed !== actual) {
-        addToast(`Tổng số lượng đạt và lỗi của sản phẩm ${getProductSku(item.product_id)} phải bằng số thực nhận (${actual})`, 'warning');
+        addToast(`Tổng số lượng đạt và lỗi của sản phẩm ${getProductSku(item)} phải bằng số thực nhận (${actual})`, 'warning');
         return;
       }
 
       if (failed > 0 && !item.qc_failure_reason.trim()) {
-        addToast(`Vui lòng nhập lý do lỗi cho sản phẩm ${getProductSku(item.product_id)}`, 'warning');
+        addToast(`Vui lòng nhập lý do lỗi cho sản phẩm ${getProductSku(item)}`, 'warning');
         return;
       }
 
@@ -147,6 +147,7 @@ const QCInbound = () => {
     }
 
     const payload = {
+      action: 'SUBMIT',
       items: items.map(item => ({
         receipt_item_id: item.id,
         qc_passed_qty: item.qc_passed_qty,
@@ -159,20 +160,26 @@ const QCInbound = () => {
     setSubmitting(true);
     try {
       await inboundService.qcReceipt(id, payload);
-      addToast('Hoàn thành kiểm định QC Inbound', 'success');
+      addToast('Đã ghi nhận kết quả QC. Thủ kho xác nhận ở danh sách phiếu.', 'success');
       navigate('/inbound/receipts');
     } catch (error) {
-      addToast(error.message === 'QC_PASSED_FAILED_MISMATCH' ? 'Lệch số lượng đếm QC' : 'Lỗi cập nhật QC', 'error');
+      const serverMessage = error.response?.data?.message || error.response?.data?.error || error.message;
+      const detail = serverMessage === 'QC_PASSED_FAILED_MISMATCH' ? 'Lệch số lượng đếm QC' : serverMessage;
+      addToast(detail, 'error');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const getProductName = (productId) => {
+  const getProductName = (item) => {
+    if (item && item.product_name) return item.product_name;
+    const productId = typeof item === 'object' ? item.product_id : item;
     return productId === 1 ? 'Màn hình ASUS ProArt 27K' : 'Chuột Logitech MX Master 3S';
   };
 
-  const getProductSku = (productId) => {
+  const getProductSku = (item) => {
+    if (item && item.product_sku) return item.product_sku;
+    const productId = typeof item === 'object' ? item.product_id : item;
     return productId === 1 ? 'SKU-PA-001' : 'SKU-LOGI-MX3';
   };
 
@@ -236,7 +243,7 @@ const QCInbound = () => {
             </div>
             <div>
               <span className="text-shade-50 block mb-0.5 font-normal">Chứng từ gốc (PO/DO):</span>
-              <span>{receipt.source_order_code || 'N/A'}</span>
+              <span>{receipt.source_reference || receipt.source_order_code || 'N/A'}</span>
             </div>
             <div>
               <span className="text-shade-50 block mb-0.5 font-normal">Loại nhập:</span>
@@ -249,7 +256,6 @@ const QCInbound = () => {
           </div>
         </div>
 
-        {/* QC Table */}
         <div className="bg-white border border-hairline-light rounded-lg shadow-sm card-premium overflow-hidden">
           <div className="p-4 border-b border-hairline-light bg-zinc-50 flex items-center justify-between">
             <h3 className="text-xs font-bold uppercase tracking-widest text-shade-40">
@@ -283,13 +289,8 @@ const QCInbound = () => {
                   return (
                     <tr key={item.id} className={`hover:bg-zinc-50/50 ${isMismatch ? 'bg-red-50/30' : ''}`}>
                       <td className="px-6 py-4">
-                        <span className="font-bold block">{getProductSku(item.product_id)}</span>
-                        <span className="text-shade-50 block">{getProductName(item.product_id)}</span>
-                        {item.serial_number && (
-                          <span className="text-[10px] text-shade-40 font-mono block mt-1 overflow-hidden overflow-ellipsis whitespace-nowrap max-w-xs" title={item.serial_number}>
-                            Serials: {item.serial_number}
-                          </span>
-                        )}
+                        <span className="font-bold block">{getProductSku(item)}</span>
+                        <span className="text-shade-50 block">{getProductName(item)}</span>
                       </td>
                       <td className="px-4 py-4 text-right font-bold text-shade-60">{item.actual_qty}</td>
                       <td className="px-4 py-4">
@@ -320,10 +321,10 @@ const QCInbound = () => {
                         <input
                           type="text"
                           placeholder="Móp méo, rỉ sét..."
-                          value={item.qc_failure_reason}
+                          value={item.qc_failure_reason || ''}
                           onChange={(e) => handleReasonChange(item.id, e.target.value)}
                           disabled={failed <= 0}
-                          className={`text-input py-1 text-xs ${failed > 0 && !item.qc_failure_reason.trim() ? 'border-red-300 bg-red-50/20' : ''}`}
+                          className={`text-input py-1 text-xs disabled:bg-zinc-100 disabled:text-shade-40 disabled:cursor-not-allowed disabled:border-zinc-200 ${failed > 0 && !item.qc_failure_reason.trim() ? 'border-red-300 bg-red-50/20' : ''}`}
                           required={failed > 0}
                         />
                       </td>

@@ -10,12 +10,11 @@
 | Bảng | Cột index | Lý do |
 |---|---|---|
 | `inventories` | `(warehouse_id, product_id, batch_id)` | Tra cứu tồn kho theo kho + SP |
-| `inventories` | `(product_id, batch_id)` | FEFO/FIFO selection |
+| `inventories` | `(product_id, batch_id)` | FIFO selection |
 | `inventory_transactions` | `(entity_type, entity_id)` | Audit lookup |
 | `delivery_orders` | `(dealer_id, status)` | Dashboard & report |
 | `delivery_orders` | `(trip_id)` | Tra cứu theo chuyến xe |
 | `invoices` | `(dealer_id, status, due_date)` | Aging report |
-| `batches` | `(product_id, expiry_date)` | FEFO sort |
 | `batches` | `(product_id, received_date)` | FIFO sort |
 | `price_history` | `(product_id, effective_date)` | COGS lookup |
 | `audit_logs` | `(entity_type, entity_id, timestamp)` | Audit trail |
@@ -24,13 +23,9 @@
 ### Composite index tips
 
 ```sql
--- FEFO: lấy batch sắp hết hạn còn hàng
-CREATE INDEX idx_batches_fefo ON batches (product_id, expiry_date)
-WHERE quantity > 0 AND expiry_date > CURRENT_DATE;
-
 -- FIFO: lấy batch nhập cũ nhất
 CREATE INDEX idx_batches_fifo ON batches (product_id, received_date)
-WHERE quantity > 0 AND (expiry_date IS NULL OR expiry_date > CURRENT_DATE);
+WHERE quantity > 0;
 ```
 
 ## 2. Query Patterns
@@ -42,7 +37,7 @@ WHERE quantity > 0 AND (expiry_date IS NULL OR expiry_date > CURRENT_DATE);
 SELECT id, code, full_name FROM users WHERE email = ?;
 
 -- Dùng JOIN thay vì N+1 queries
-SELECT i.*, p.name, b.expiry_date
+SELECT i.*, p.name, b.received_date
 FROM inventories i
 JOIN products p ON p.id = i.product_id
 JOIN batches b ON b.id = i.batch_id
@@ -91,7 +86,7 @@ WHERE id IN (
     SELECT id FROM inventories
     WHERE warehouse_id = ? AND product_id = ?
     AND quantity > 0
-    ORDER BY expiry_date ASC  -- FEFO
+    ORDER BY received_date ASC  -- FIFO
     LIMIT ?
 );
 ```

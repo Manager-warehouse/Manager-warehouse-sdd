@@ -20,8 +20,10 @@ Xuất hàng là quy trình tạo doanh thu cho Phúc Anh. Planner nhận yêu c
 * [US-WMS-10: Kế toán Tiếp nhận Thông báo Lập Hóa đơn](./features/feature-accountant-billing-notification.md)
 
 ### Cross-Spec Mapping Notes
-- US-WMS-10 trong spec này chỉ bao phủ notification sau khi Delivery Order chuyển sang `DELIVERED`. Nghiệp vụ tạo invoice, cộng công nợ, khóa/mở `CREDIT_HOLD`, và cảnh báo nợ quá hạn được đặc tả tại [008-finance-billing-closing](../008-finance-billing-closing/spec.md).
+- US-WMS-10 trong spec này chỉ bao phủ notification sau khi Delivery Order chuyển sang `DELIVERED`. Spec 004 owns event emission and billing notification creation; [008-finance-billing-closing](../008-finance-billing-closing/spec.md) consumes that notification to create invoice, resolve accounting period, cộng công nợ, khóa/mở `CREDIT_HOLD`, chuyển Delivery Order sang `COMPLETED`, và cảnh báo nợ quá hạn.
+- Billing notification realtime delivery uses Spring WebSocket + STOMP for authenticated Accountant sessions. The `billing_notifications` table and REST endpoints remain the source of truth; WebSocket/STOMP is only the realtime push channel.
 - US-WMS-09 sử dụng nền tảng xác thực JWT và RBAC theo kho/role từ [001-security-auth-rbac-audit](../001-security-auth-rbac-audit/spec.md); driver mobile endpoints không được bypass authentication.
+- US-WMS-08 delivery trips are single-warehouse trips with `trip_type = DELIVERY`; partial pick/partial ship is out of scope for Sprint 1. Dispatcher may add/remove/reorder DOs only while Trip status is `PLANNED`.
 
 ## 2. Actors
 
@@ -63,7 +65,7 @@ Xuất hàng là quy trình tạo doanh thu cho Phúc Anh. Planner nhận yêu c
 - `warehouse_id` (BIGINT, FK→warehouses, NOT NULL)
 - `type` (VARCHAR(30), CHECK IN ('SALE','DELIVERY','ADJUSTMENT'), NOT NULL)
 - `expected_delivery_date` (DATE)
-- `status` (VARCHAR(30), DEFAULT 'NEW', CHECK IN ('NEW','PICKING','READY_TO_SHIP','IN_TRANSIT','DELIVERED','RETURNED','CANCELLED'))
+- `status` (VARCHAR(30), DEFAULT 'NEW', CHECK IN ('NEW','PICKING','READY_TO_SHIP','IN_TRANSIT','DELIVERED','COMPLETED','RETURNED','CANCELLED'))
 - `created_by` (BIGINT, FK→users, NOT NULL)
 - `cancel_reason` (TEXT)
 - `document_date` (DATE, NOT NULL)
@@ -76,13 +78,12 @@ Xuất hàng là quy trình tạo doanh thu cho Phúc Anh. Planner nhận yêu c
 - `id` (BIGSERIAL, PK)
 - `do_id` (BIGINT, FK→delivery_orders, NOT NULL)
 - `product_id` (BIGINT, FK→products, NOT NULL)
-- `batch_id` (BIGINT, FK→batches) -- set khi picking/FEFO/FIFO
+- `batch_id` (BIGINT, FK→batches) -- set khi picking theo FIFO
 - `location_id` (BIGINT, FK→warehouse_locations)
 - `requested_qty` (DECIMAL(10,2), NOT NULL)
 - `reserved_qty` (DECIMAL(10,2), DEFAULT 0)
 - `issued_qty` (DECIMAL(10,2), DEFAULT 0)
 - `unit_price` (DECIMAL(18,2)) -- Tra cứu từ price_history tại ngày giao
-- `serial_number` (VARCHAR(100)) -- bắt buộc nếu product.has_serial = true
 
 ### delivery_order_approvals
 - `id` (BIGSERIAL, PK)
@@ -104,11 +105,13 @@ Xuất hàng là quy trình tạo doanh thu cho Phúc Anh. Planner nhận yêu c
 ### trips
 - `id` (BIGSERIAL, PK)
 - `trip_number` (VARCHAR(50), UNIQUE, NOT NULL)
+- `trip_type` (VARCHAR(20), DEFAULT 'DELIVERY', CHECK IN ('DELIVERY','TRANSFER'), NOT NULL)
+- `warehouse_id` (BIGINT, FK→warehouses, NOT NULL) -- source warehouse for delivery trips; all DOs in trip must match this warehouse
 - `vehicle_id` (BIGINT, FK→vehicles, NOT NULL)
 - `driver_id` (BIGINT, FK→drivers, NOT NULL)
 - `dispatcher_id` (BIGINT, FK→users, NOT NULL)
 - `planned_date` (DATE, NOT NULL)
-- `status` (VARCHAR(20), DEFAULT 'PLANNED', CHECK IN ('PLANNED','IN_TRANSIT','COMPLETED'))
+- `status` (VARCHAR(20), DEFAULT 'PLANNED', CHECK IN ('PLANNED','IN_TRANSIT','COMPLETED','CANCELLED'))
 - `total_weight_kg` (DECIMAL(10,2))
 - `total_volume_m3` (DECIMAL(10,3))
 - `created_at` (TIMESTAMPTZ)
@@ -139,6 +142,22 @@ Xuất hàng là quy trình tạo doanh thu cho Phúc Anh. Planner nhận yêu c
 - `delivered_at` (TIMESTAMPTZ)
 - `created_at` (TIMESTAMPTZ)
 - `updated_at` (TIMESTAMPTZ)
+
+### billing_notifications
+- `id` (BIGSERIAL, PK)
+- `do_id` (BIGINT, FK→delivery_orders, NOT NULL)
+- `do_number` (VARCHAR(50), NOT NULL)
+- `dealer_id` (BIGINT, FK→dealers, NOT NULL)
+- `dealer_name` (VARCHAR(255), NOT NULL)
+- `warehouse_id` (BIGINT, FK→warehouses, NOT NULL)
+- `delivered_at` (TIMESTAMPTZ, NOT NULL)
+- `total_amount_estimate` (DECIMAL(18,2), NOT NULL)
+- `invoice_status` (VARCHAR(30), DEFAULT 'NOT_INVOICED', CHECK IN ('NOT_INVOICED','INVOICED'), NOT NULL)
+- `status` (VARCHAR(20), DEFAULT 'ACTIVE', CHECK IN ('ACTIVE','READ','ARCHIVED'), NOT NULL)
+- `recipient_role` (VARCHAR(50), DEFAULT 'ACCOUNTANT', NOT NULL)
+- `read_at` (TIMESTAMPTZ)
+- `created_at` (TIMESTAMPTZ)
+- `UNIQUE(do_id, invoice_status)` for active not-invoiced notification deduplication, or an equivalent partial unique index in implementation.
 
 ### inventories (shared)
 - `id` (BIGSERIAL, PK)
@@ -171,6 +190,10 @@ Xuất hàng là quy trình tạo doanh thu cho Phúc Anh. Planner nhận yêu c
 | INSUFFICIENT_STOCK | 422 | available_qty < requested_qty |
 | VEHICLE_OVERLOAD | 422 | Trip exceeds vehicle capacity |
 | DO_NOT_READY | 400 | DO not in READY_TO_SHIP status |
+| TRIP_CROSS_WAREHOUSE | 422 | Selected DOs do not belong to the same warehouse |
+| TRIP_ALREADY_DEPARTED | 409 | Attempt to change or cancel a trip after it moved to IN_TRANSIT |
+| TRIP_ASSIGNMENT_CONFLICT | 409 | DO, vehicle, or driver is already assigned to a PLANNED or IN_TRANSIT trip |
+| PARTIAL_SHIPMENT_NOT_ALLOWED | 422 | issued_qty does not equal requested_qty/reserved_qty at departure |
 | OTP_REQUIRED | 400 | OTP verification required |
 | OTP_INVALID | 422 | OTP code is incorrect |
 | OTP_EXPIRED | 422 | OTP code expired |
@@ -179,18 +202,23 @@ Xuất hàng là quy trình tạo doanh thu cho Phúc Anh. Planner nhận yêu c
 
 ### Audit Trail
 - Every outbound mutation SHALL create an audit log with `actor`, `action`, `entity_type`, `entity_id`, `entity_code`, `timestamp`, `before`, and `after`.
-- `DELIVERY_ORDER_CREATE`: create DO, select FEFO/FIFO batch/location, and reserve inventory.
+- `DELIVERY_ORDER_CREATE`: create DO, select FIFO batch/location, and reserve inventory.
 - `DELIVERY_ORDER_CANCEL`: cancel DO and release reserved inventory.
 - `DELIVERY_ORDER_PICK_START`: move DO to `PICKING`.
 - `DELIVERY_ORDER_PICK_COMPLETE`: mark picked items ready for outbound QC.
 - `DELIVERY_ORDER_QC_CONFIRM`: record outbound QC result and package verification.
 - `DELIVERY_ORDER_WAREHOUSE_APPROVE`: move DO to `READY_TO_SHIP`.
 - `TRIP_CREATE`: create trip, assign vehicle/driver, and store stop order.
+- `TRIP_ASSIGNMENT_UPDATE`: add, remove, or reorder DOs on a `PLANNED` trip.
 - `TRIP_DEPART`: move trip and DOs to `IN_TRANSIT`, decrease `total_qty`, and release `reserved_qty`.
+- `TRIP_COMPLETE`: complete logistics trip after all DOs in the trip have delivery results (`DELIVERED` or `RETURNED`), and restore vehicle/driver availability. Trip completion does not wait for invoice creation.
+- `TRIP_CANCEL`: cancel a `PLANNED` trip and unassign its DOs while keeping DOs in `READY_TO_SHIP`.
 - `OTP_REQUEST`: generate and send OTP to the dealer/receiver.
 - `OTP_CONFIRM`: verify OTP, store verification timestamp, and move DO to `DELIVERED`.
 - `DELIVERY_FAIL`: store failure reason, move DO to `RETURNED`, and create quarantine return receipt.
-- `BILLING_NOTIFICATION_CREATE`: notify accounting that a delivered DO is ready for invoicing.
+- `BILLING_NOTIFICATION_CREATE`: create immutable billing notification and audit that a delivered DO is ready for invoicing.
+- Duplicate billing notification creation for the same delivered DO is idempotent: return the existing notification and do not create another record.
+- `BILLING_NOTIFICATION_READ`: Kế toán viên marks a billing notification as read.
 
 ## 8. Acceptance Criteria
 *Vui lòng xem chi tiết kịch bản kiểm thử tại các tài liệu đặc tả tính năng:*

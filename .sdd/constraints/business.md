@@ -7,22 +7,22 @@
 
 | ID | Rule | Mức độ |
 |---|---|---|
-| INV-01 | `inventory.quantity >= 0` luôn đúng trước và sau mọi thao tác | MUST |
-| INV-02 | FEFO: chọn batch có hạn dùng gần nhất cho sản phẩm có expiry | MUST |
-| INV-03 | FIFO: chọn batch có `received_date` cũ nhất cho sản phẩm không expiry | MUST |
+| INV-01 | `inventories.total_qty >= 0`, `inventories.reserved_qty >= 0`, và `total_qty - reserved_qty >= 0` luôn đúng trước và sau mọi thao tác | MUST |
+| INV-02 | FIFO: chọn batch có `received_date` cũ nhất cho domain hàng gia dụng không quản lý hạn sử dụng | MUST |
+| INV-03 | Không chọn lô theo hạn dùng trong Sprint 1 | MUST |
 | INV-04 | Mọi thay đổi tồn kho MUST qua receipt/issue/transfer/adjustment/stocktake | MUST |
 | INV-05 | `@Version` trên inventory — conflict → HTTP 409 + retry | MUST |
-| INV-06 | `available = total - reserved >= 0`. Check trước khi xuất | MUST |
+| INV-06 | `available = total_qty - reserved_qty >= 0`. Check trước khi xuất | MUST |
 | INV-07 | Chênh lệch 5-100M → Trưởng kho duyệt; > 100M → CEO duyệt | MUST |
 
 ## 2. Batch Rules
 
 | ID | Rule | Mức độ |
 |---|---|---|
-| BAT-01 | Mỗi batch chỉ 1 grade (A/B/C). Khác grade → tạo batch mới | MUST |
-| BAT-02 | Sản phẩm `has_serial = true` → bắt buộc nhập serial khi nhập/xuất | MUST |
+| BAT-01 | Batch gom hàng theo sản phẩm, nguồn nhập/chứng từ và ngày nhận; không tách theo cấp chất lượng | MUST |
+| BAT-02 | Không quản lý serial từng sản phẩm trong luồng nhập/xuất Sprint 1 | MUST |
 | BAT-03 | Putaway kiểm tra `bin_capacity` trước khi đặt hàng vào bin | MUST |
-| BAT-04 | Batch hết hạn không được chọn cho flow xuất kho thông thường | MUST |
+| BAT-04 | Không quản lý hạn sử dụng/hết hạn cho batch hàng gia dụng Sprint 1 | MUST |
 
 ## 3. QC & Quarantine Rules
 
@@ -30,7 +30,7 @@
 |---|---|---|
 | QC-01 | Hàng nhập MUST qua QC Inbound trước khi nhập chính thức | MUST |
 | QC-02 | Hàng xuất MUST qua QC Outbound trước khi giao | MUST |
-| QC-03 | Hàng fail QC → Quarantine Zone — không tính available inventory | MUST |
+| QC-03 | Hàng fail QC → chờ xử lý quarantine/RTV; chỉ ghi quarantine inventory sau xác nhận có thẩm quyền và không tính available inventory | MUST |
 | QC-04 | Hàng Quarantine chỉ được xử lý: Trả NCC (RTV) hoặc Tiêu hủy | MUST |
 | QC-05 | RTV → tạo Debit Note đòi bồi hoàn NCC | MUST |
 | QC-06 | Tiêu hủy → áp dụng bảng định mức phê duyệt (5M/100M) | MUST |

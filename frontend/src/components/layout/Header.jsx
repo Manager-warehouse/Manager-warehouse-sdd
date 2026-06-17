@@ -5,6 +5,7 @@ import { useUiStore } from '../../stores/ui.store';
 import { WAREHOUSES } from '../../utils/constants';
 import { getAvatarFallback } from '../../utils/format';
 import { useNavigate } from 'react-router-dom';
+import BillingNotificationMenu from './BillingNotificationMenu';
 
 const Header = () => {
   const navigate = useNavigate();
@@ -48,6 +49,12 @@ const Header = () => {
 
       {/* Right side: Actions */}
       <div className="flex items-center gap-4">
+        
+        {/* Billing Notifications for Accountant */}
+        {(user?.role === 'ACCOUNTANT' || user?.role === 'ADMIN') && (
+          <BillingNotificationMenu />
+        )}
+
         {/* Warehouse Selector Dropdown */}
         {activeWarehouse && (
           <div className="relative">

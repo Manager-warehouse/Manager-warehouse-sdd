@@ -1,73 +1,198 @@
-﻿# WMS Phuc Anh Constitution
+# WMS Phuc Anh Constitution
 
-## Core Principles
+<!--
+  Sync Impact Report
+  Version change: 1.0.0 -> 1.1.0
+  Modified principles:
+  - Consolidated canonical constitution from .sdd/constitution.md into this Speckit source.
+  - Clarified inventory fields, audit schema, migration lifecycle, and JPA/Lombok rules.
+  Added sections:
+  - Canonical Sources
+  - Migration Lifecycle
+  - Speckit Artifact Gates
+  Removed sections:
+  - Generic placeholder-style constraints
+  Templates requiring updates:
+  - .specify/templates/plan-template.md: pending in same cleanup
+  - .specify/templates/spec-template.md: pending in same cleanup
+  - .specify/templates/tasks-template.md: pending in same cleanup
+  Follow-up TODOs: none
+-->
 
-### I. Layered Architecture (NON-NEGOTIABLE)
-Backend phan tang bat buoc: Controller (@RestController) -> Service (@Service) -> Repository (@Repository) -> Entity (@Entity). Controller chi xu ly HTTP request/response. Service chua business logic. Repository chi lam viec voi JPA. Entity map truc tiep voi DB table.
+**Version**: 1.1.0
+**Ratified**: 2026-05-29
+**Last Amended**: 2026-06-11
+**Status**: Active
 
-### II. Inventory Integrity (NON-NEGOTIABLE)
-`inventory.quantity >= 0` luon dung truoc va sau moi thao tac. Khong cho phep negative inventory. Moi thao tac UPDATE inventory phai co @Version optimistic locking. Moi thao tac phai tao audit log (actor, action, timestamp, before/after).
+This constitution is the canonical rule source for Speckit agents and human
+review. Project docs under `.sdd/constraints/` may expand these rules, but they
+must not contradict this file.
 
-### III. FEFO/FIFO Batch Selection
-San pham co expiry: chon batch co han dung gan nhat (FEFO). San pham khong co expiry: chon batch co received_date cu nhat (FIFO). Batch het han khong duoc chon cho xuat kho thong thuong.
+## 1. Scope
 
-### IV. QC Gate & Quarantine
-Hang fail QC bat buoc vao Quarantine Zone. Quarantine inventory KHONG duoc tinh vao available inventory. Hang trong Quarantine can quyet dinh xu ly (tieu huy/tra NCC) truoc khi xoa khoi quarantine.
+The Warehouse Management System (WMS) manages inventory, receipt, outbound
+delivery, transfer, stocktake, internal accounting, dealer debt, and internal
+fleet operations for the Phuc Anh warehouses in Hai Phong, Ha Noi, and Ho Chi
+Minh.
 
-### V. In-Transit Tracking
-Dieu chuyen kho bat buoc di qua In-Transit location. Chi khi kho dich xac nhan nhan hang thi inventory moi duoc cap nhat. Chenh lech quantity_sent vs quantity_received phai tao adjustment record.
+In scope:
+- Warehouse operations: inbound, outbound, transfer, stocktake, adjustment.
+- Internal accounting: COGS, pricing, invoices, payments, credit status.
+- Internal fleet dispatch only; no third-party logistics in Sprint 1.
+- Dealer and supplier master data.
 
-### VI. Auth & RBAC
-JWT + bcrypt (cost factor >= 12). Phan quyen phai check BOTH role AND warehouse (RBAC theo chi nhanh). Nhan vien kho Hai Phong khong duoc xem du lieu kho Ha Noi.
+Out of scope unless explicitly specified:
+- Manufacturing, HR/HRM, B2B/B2C portals, external integrations, barcode/QR
+  scanner automation.
 
-### VII. Test Coverage (NON-NEGOTIABLE)
-Service logic moi: coverage toi thieu 80%. Unit test bat buoc cho FEFO/FIFO selection, credit check, inventory validation. Integration tests cho moi API endpoint.
+## 2. Immutable Tech Stack
 
-## Additional Constraints
+- Backend: Spring Boot 3.4.5 + Java 21 + Maven.
+- Frontend: React 18 + JavaScript + Vite.
+- Database: PostgreSQL 18.
+- ORM: Spring Data JPA / Hibernate. Application code MUST NOT use raw SQL.
+- Auth: JWT + bcrypt with cost factor >= 12.
+- API docs: OpenAPI / Swagger.
+- DB migration: Flyway.
+- Backend tests: JUnit 5 + Mockito.
+- Frontend tests: Jest + React Testing Library.
+- Styling: Tailwind CSS 3.x.
 
-### Tech Stack (STRICT - do not deviate)
-- Backend: Spring Boot 3.4.5 + Java 21 (Maven)
-- Frontend: React 18 + JavaScript
-- Database: PostgreSQL 18
-- ORM: Spring Data JPA / Hibernate (KHONG raw SQL)
-- Auth: JWT + bcrypt (cost >= 12)
-- Styling: Tailwind CSS 3.x
-- DB Migration: Flyway
-- API Docs: OpenAPI / Swagger
+Supporting libraries such as Lombok, MapStruct, Jackson, Zustand, React Hook
+Form, Axios, and Lucide Icons are allowed when they do not replace the stack.
 
-### Code Quality
-- Max function length: 40 lines
-- Max file length: 300 lines
-- Comments giai thich WHY, khong giai thich WHAT
-- KHONG co System.out / console.log trong production code
-- KHONG co TODO comments trong completed code
-- Constructor injection (preferred)
+## 3. Architecture Principles
 
-### Domain Rules
-- Master data: soft delete (is_active = false)
-- Transaction data: status = cancelled (khong xoa vinh vien)
-- Moi transaction chi co 1 grade (A/B/C). Khac grade = tao batch moi
-- San pham has_serial = true bat buoc nhap/xuat serial
+Backend code MUST follow layered architecture:
+Controller -> Service -> Repository -> Entity.
 
-## Development Workflow
+- Controllers handle HTTP, validation, response shape, status codes, and DTOs.
+  They MUST NOT contain business logic.
+- Services contain business rules, transactions, authorization checks, and audit
+  logging.
+- Repositories are Spring Data JPA interfaces.
+- Entities map database tables and relationships only.
 
-### Branching
-- feat/*, fix/*, spec/*, chore/*
-- KHONG commit truc tiep vao main/production
-- Moi feature la mot nhanh nho, merge bang PR
+All write endpoints MUST use request DTO validation with Jakarta Validation.
+Errors MUST be handled by centralized exception handling. Business rule
+violations use HTTP 422, validation failures use HTTP 400, and optimistic lock
+conflicts use HTTP 409.
 
-### Definition of Done
-1. Unit tests written and passing (>= 80% coverage)
-2. Integration tests cho API endpoints (happy + error paths)
-3. No linting/type errors
-4. API endpoint documented in OpenAPI/Swagger
-5. Error cases handled voi proper HTTP status codes
-6. Audit log entry created cho warehouse operations
-7. No TODO comments in code
-8. FEFO/FIFO logic tested
+## 4. Inventory And Batch Invariants
 
-## Governance
+- Inventory fields are `inventories.total_qty`, `inventories.reserved_qty`, and
+  `inventories.version`.
+- The following MUST always hold in database constraints and service logic:
+  `total_qty >= 0`, `reserved_qty >= 0`, and
+  `total_qty - reserved_qty >= 0`.
+- Inventory updates MUST go through receipt, outbound delivery, transfer,
+  adjustment, or stocktake flows. Services MUST NOT directly patch inventory
+  quantities outside those flows.
+- Every inventory update MUST use optimistic locking with `@Version`.
+- FIFO by received date is the default and only batch selection rule for the
+  current household-goods domain.
+- Products do not track per-unit serial numbers in Sprint 1.
+- Products and batches do not track expiry dates in Sprint 1.
+- Batches do not use A/B/C grade classification; QC-failed goods move to
+  quarantine for return-to-vendor or disposal handling instead of being
+  reclassified into another sellable grade.
+- Putaway MUST validate bin capacity before moving stock into a bin.
 
-Constitution nay ap dung cho toan bo du an WMS Phuc Anh. Moi thay doi can duoc approve boi technical lead va update vao file nay.
+## 5. QC, Quarantine, And Transfer Invariants
 
-**Version**: 1.0 | **Ratified**: 2026-05-29 | **Last Amended**: 2026-05-29
+- Inbound goods MUST pass QC before they can increase regular available stock.
+- Outbound goods MUST pass outbound QC before shipment.
+- QC-failed stock MUST be moved into a quarantine location
+  (`warehouse_locations.is_quarantine = true`) and excluded from available stock.
+- Quarantine stock may leave quarantine only through approved return-to-vendor
+  or disposal flows.
+- Internal transfers MUST pass through the In-Transit warehouse/location until
+  the destination warehouse confirms receipt.
+- Transfer discrepancies between sent and received quantities MUST create
+  adjustment and audit records.
+
+## 6. Audit, Security, And Data Integrity
+
+- Every business mutation MUST create an audit log entry.
+- Audit entries MUST include actor, actor role, action, entity type, entity id,
+  timestamp, warehouse when relevant, and before/after values when relevant.
+- Audit logs are append-only. Code MUST NOT update or delete audit rows.
+- Secrets, passwords, API keys, JWT secrets, and credentials MUST NOT be stored
+  in source control or committed `.env` files.
+- JWT authorization MUST check both role and warehouse scope where warehouse
+  data is involved.
+- Master data is soft-deleted with `is_active = false`.
+- Transaction data is cancelled with `status = CANCELLED`; business history MUST
+  NOT be physically deleted.
+- Code MUST NOT hardcode warehouse IDs, role assumptions, or approval state
+  transitions without explicit domain constants or lookup rules.
+
+## 7. Code Quality And JPA Conventions
+
+- Prefer constructor injection.
+- Java classes use PascalCase; React components use PascalCase; hooks/utilities
+  use camelCase; API resources use kebab-case; database tables and columns use
+  snake_case.
+- Production code MUST NOT use `System.out` or `console.log`.
+- Completed code MUST NOT leave TODO comments.
+- Keep functions near 40 lines and files near 300 lines when practical.
+- Comments explain why, not what.
+- JPA entities SHOULD use Lombok `@Getter`, `@Setter`, `@NoArgsConstructor`,
+  `@AllArgsConstructor`, and `@Builder` when useful.
+- JPA entities with lazy relationships MUST NOT use Lombok `@Data`.
+
+## 8. Migration Lifecycle
+
+- Before a database has been shared, deployed, or used as a durable environment,
+  migration squashing and renumbering may be done in a dedicated cleanup task.
+- After a migration has been applied in a shared or deployed environment, it is
+  immutable. New schema changes MUST be added in a new Flyway migration.
+- Duplicate Flyway versions are not allowed in runnable migration history.
+- Migration cleanup MUST NOT delete business data, `/data`, or `/uploads`.
+
+## 9. Speckit Artifact Gates
+
+Every feature spec, plan, and task list MUST make the following visible when
+relevant:
+- The affected WMS domain flow and state transitions.
+- Entity/table changes and Flyway migration impact.
+- Request/response DTO validation.
+- Authorization rule: role plus warehouse scope when applicable.
+- Audit log action and before/after state.
+- Inventory, batch, QC, reservation, transfer, or accounting invariant touched.
+- Unit tests for services/business rules and integration tests for endpoints.
+- OpenAPI/Swagger update for every new or changed endpoint.
+
+## 10. Testing And Definition Of Done
+
+A task is not done until:
+- Service/business logic tests are written and passing with >= 80% coverage for
+  the changed service surface.
+- API endpoint integration tests cover happy and error paths.
+- `maven compile` and frontend lint/build commands relevant to the change pass.
+- Swagger/OpenAPI is updated for endpoint changes.
+- Error cases use correct HTTP status codes.
+- Warehouse mutations create audit logs.
+- FIFO, negative inventory, reserved quantity, and version conflict paths are
+  tested when touched.
+
+## 11. Git And Review
+
+- Branches use `feat/*`, `fix/*`, `spec/*`, or `chore/*`.
+- Commits use `[type]([scope]): [description]`.
+- Direct commits to `main` or `production` are forbidden.
+- Pull requests require at least one approval and should stay under 400 changed
+  lines. Larger work should be split.
+
+## 12. Governance
+
+This constitution overrides conflicting project guidance. If another file
+disagrees, update that file or amend this constitution explicitly.
+
+Amendments require:
+1. A pull request or explicit user request describing the reason and impact.
+2. Review of dependent Speckit templates and project guidance files.
+3. Semantic versioning:
+   - MAJOR for incompatible principle removals or redefinitions.
+   - MINOR for new principles or materially expanded rules.
+   - PATCH for wording and non-semantic clarifications.

@@ -633,9 +633,6 @@ components:
           minimum: 0
         unitPrice:
           type: number
-        serialNumber:
-          type: string
-          maxLength: 100
       additionalProperties: false
     DeliveryOrderCreateRequest:
       type: object
@@ -698,8 +695,6 @@ components:
           type: number
         unitPrice:
           type: number
-        serialNumber:
-          type: string
     DeliveryOrderResponse:
       type: object
       properties:
