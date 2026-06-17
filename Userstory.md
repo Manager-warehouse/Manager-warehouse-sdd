@@ -102,14 +102,14 @@
 
 ### US-WMS-07: Soạn hàng & Kiểm QC đóng gói (Priority: P1)
 
-**Mô tả:** Là Thủ kho, tôi muốn lập kế hoạch lấy hàng từ một hoặc nhiều Bin FIFO trong kho được gán; sau đó Nhân viên kho lấy hàng thực tế và kiểm tra chất lượng đóng gói QC trước khi xuất kho.
+**Mô tả:** Là Thủ kho, tôi muốn lập kế hoạch lấy hàng từ một hoặc nhiều batch/bin/zone FIFO trong kho được gán; sau đó Nhân viên kho lấy hàng thực tế và kiểm tra chất lượng đóng gói QC trước khi xuất kho.
 
 **Tiêu chí nghiệm thu:**
 
-1. Thủ kho nhận lệnh xuất ở trạng thái **New**, chọn hàng từ một hoặc nhiều Bin hợp lệ trong kho được gán theo FIFO; tổng số lượng đã chọn cho từng dòng phải bằng số lượng yêu cầu trên phiếu xuất → Trạng thái đơn: **Chờ lấy hàng (Waiting Picking)**.
-2. Nhân viên kho lấy hàng theo kế hoạch → Trạng thái đơn: **Đang soạn hàng (Picking)**.
-3. Nếu sửa kế hoạch khi đơn đã ở **Picking**, hệ thống chỉ yêu cầu xác nhận trả hàng về bin gốc cho allocation đã pick và bị remove/reduce; allocation đã pick nhưng giữ nguyên không cần trả. Mỗi lần trả hàng ghi audit riêng.
-4. Nhân viên kho kiểm tra QC: đúng SKU, đúng số lượng, đóng thùng chống sốc. Hàng fail QC bắt buộc chuyển vào Quarantine, tạo phiếu điều chỉnh tồn kho và trừ khỏi tồn kho hợp lệ.
+1. Thủ kho nhận lệnh xuất ở trạng thái **New**, chọn hàng từ một hoặc nhiều batch/bin/zone hợp lệ trong kho được gán theo FIFO; tổng số lượng đã chọn cho từng dòng phải bằng số lượng yêu cầu trên phiếu xuất → Trạng thái đơn: **Chờ lấy hàng (Waiting Picking)**.
+2. Nhân viên kho lấy hàng theo kế hoạch và nhập kết quả lấy hàng/QC đúng 1 lần theo từng item/allocation/batch/bin/zone cho toàn bộ kế hoạch hiện tại ngay khi phiếu ở **Waiting Picking**; hệ thống không dùng trạng thái **Picking** riêng → Trạng thái đơn: **QC Pending Approval**, kể cả khi số lượng đạt QC chưa đủ.
+3. Nếu sửa kế hoạch sau khi đã có kết quả lấy/QC, hệ thống chỉ yêu cầu xác nhận trả hàng về bin gốc cho allocation đã pick và bị remove/reduce; allocation đã pick nhưng giữ nguyên không cần trả. Mỗi lần trả hàng ghi audit riêng.
+4. Nhân viên kho kiểm tra QC: đúng SKU, đúng số lượng, đóng thùng chống sốc. Hàng fail QC bắt buộc chuyển vào Quarantine, tạo phiếu điều chỉnh tồn kho, trừ khỏi tồn kho hợp lệ và xóa khỏi reserved của allocation gốc. Nếu cần hàng thay thế, Thủ kho lập lại kế hoạch từ trạng thái **QC Pending Approval** và phiếu quay về **Waiting Picking** để Nhân viên kho lấy/QC phần thay thế.
 5. Thủ kho xác nhận đủ hàng đạt QC → Trạng thái đơn: **QC Completed**.
 6. Trưởng kho phê duyệt xuất kho sau QC → Trạng thái đơn: **Warehouse Approved**.
 

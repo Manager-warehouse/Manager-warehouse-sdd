@@ -248,9 +248,9 @@ Công ty mẹ gửi yêu cầu xuất hàng
     → Planner kiểm tra [Credit Check + Tồn kho]
         ├── Vi phạm Credit → Chặn cứng, hiển thị lý do
         └── Hợp lệ → Lập Đơn xuất [NEW] + Reserve tồn kho
-    → Thủ kho lập kế hoạch lấy hàng từ một hoặc nhiều Bin FIFO [WAITING_PICKING]
-    → Nhân viên kho lấy hàng theo kế hoạch [PICKING]
-    → Nhân viên kho ghi QC, hàng fail vào Quarantine + phiếu điều chỉnh [QC_PENDING_APPROVAL]
+    → Thủ kho lập kế hoạch lấy hàng từ một hoặc nhiều batch/bin/zone FIFO [WAITING_PICKING]
+    → Nhân viên kho lấy hàng theo kế hoạch và ghi QC đúng 1 lần theo item/allocation/batch/bin/zone; hàng fail vào Quarantine + phiếu điều chỉnh, xóa reserve allocation fail [QC_PENDING_APPROVAL]
+        (nếu pass chưa đủ, Thủ kho xử lý replacement từ QC_PENDING_APPROVAL rồi DO quay lại WAITING_PICKING)
     → Thủ kho duyệt chất lượng khi đủ hàng đạt [QC_COMPLETED]
     → Trưởng kho duyệt xuất [WAREHOUSE_APPROVED]
     → Dispatcher lập Chuyến xe nội bộ, gán Tài xế
@@ -298,18 +298,22 @@ Kế toán trưởng kiểm tra điều kiện → Chốt sổ kỳ T → CLOSED
 | Trạng thái | Người chuyển |
 |---|---|
 | **New** | Planner |
-| **Waiting Picking** | Thủ kho (đã lập kế hoạch lấy hàng đầy đủ từ một hoặc nhiều Bin FIFO) |
-| **Picking** | Nhân viên kho |
-| **QC Pending Approval** | Nhân viên kho (sau khi nhập kết quả lấy hàng/QC) |
+| **Waiting Picking** | Thủ kho (đã lập kế hoạch lấy hàng đầy đủ từ một hoặc nhiều batch/bin/zone FIFO) |
+| **QC Pending Approval** | Nhân viên kho (sau khi nhập kết quả lấy hàng/QC một lần theo item/allocation/batch/bin/zone cho toàn bộ kế hoạch hiện tại; kể cả khi pass chưa đủ để Thủ kho xử lý replacement) |
 | **QC Completed** | Thủ kho (đã duyệt chất lượng, đủ hàng đạt) |
 | **Warehouse Approved** | Trưởng kho (phê duyệt xuất kho sau QC) |
 | **In-Transit** ⚠️ *Tồn kho bị trừ tại đây* | Tài xế (xác nhận nhận hàng) |
 | **Returned** | Tài xế (delivery attempt thất bại; attempt hiện tại là `FAILED`, hàng vẫn ở In-Transit cho đến khi luồng hoàn hàng tiếp nhận) |
 | **Completed** | Hệ thống (POD + OTP hợp lệ, delivery attempt `DELIVERED`, invoice/công nợ đã tự động tạo) |
 | **Closed** | Hệ thống/Kế toán (đã tất toán hoặc khóa theo kỳ kế toán) |
+| **Rejected** | Trưởng kho (từ chối xuất kho sau QC; hàng đạt QC trả về bin gốc và ghi audit return-to-bin) |
 | **Cancelled** | Planner / Trưởng kho |
 
-**Sửa picking plan sau khi đã pick:** Storekeeper vẫn dùng `PUT /api/v1/delivery-orders/{id}/picking-plan`. Payload `allocations[]` là kế hoạch lấy hàng đầy đủ mới; `returnToBinRecords[]` chỉ bắt buộc cho allocation đã pick và bị remove/reduce trong lần sửa. Allocation đã pick nhưng giữ nguyên không cần trả về bin. Mỗi lần trả hàng về bin gốc tạo audit `PICKED_GOODS_RETURN_TO_BIN`.
+**Sửa picking plan sau khi đã có kết quả lấy/QC:** Storekeeper vẫn dùng `PUT /api/v1/delivery-orders/{id}/picking-plan`. Payload `allocations[]` là kế hoạch lấy hàng đầy đủ mới; `returnToBinRecords[]` chỉ bắt buộc cho allocation đã pick và bị remove/reduce trong lần sửa. Allocation đã pick nhưng giữ nguyên không cần trả về bin. Mỗi lần trả hàng về bin gốc tạo audit `PICKED_GOODS_RETURN_TO_BIN`.
+
+**Ghi nhận lấy hàng/QC outbound:** Warehouse staff ghi nhận theo đúng định danh nguồn `doItemId + allocationId + batchId + locationId + zoneId`; `batchId`, `locationId`, `zoneId` trong payload phải khớp allocation đã được Thủ kho lập kế hoạch.
+
+**Reject sau QC:** Khi Trưởng kho reject ở `QC_COMPLETED`, tổng `returnedQty` trong `returnToBinRecords[]` phải bằng toàn bộ hàng đạt QC đang ở outbound staging. Hàng pass được cộng lại tồn hợp lệ tại bin gốc, release reservation và ghi audit `PICKED_GOODS_RETURN_TO_BIN`; hàng fail vẫn ở quarantine.
 
 ### Cơ chế Credit Check (Kiểm soát công nợ)
 

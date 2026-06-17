@@ -241,7 +241,7 @@ erDiagram
 ## NHÓM 7: NGHIỆP VỤ XUẤT KHO (OUTBOUND)
 
 ```
-[Delivery Order (DO)] ──> [Picking (Nhặt hàng)] ──> [QC Outbound] ──> [Trip Assignment (Gán xe)]
+[Delivery Order (DO)] ──> [Waiting Picking + QC Input] ──> [QC Outbound] ──> [Trip Assignment (Gán xe)]
 ```
 
 ### 18. Bảng `delivery_orders`
@@ -249,7 +249,7 @@ erDiagram
 *   **Chi tiết các trường:**
     *   `do_number` (VARCHAR(50), UNIQUE): Số lệnh xuất (ví dụ: `DO-20260601-005`).
     *   `dealer_id` (BIGINT, FK -> dealers): Đại lý nhận hàng.
-    *   `status` (VARCHAR(30)): Trạng thái vòng đời xuất kho. CHECK: `NEW` (Mới tạo), `WAITING_PICKING` (Đã lập kế hoạch lấy hàng), `PICKING` (Đang nhặt hàng), `QC_PENDING_APPROVAL`, `QC_COMPLETED`, `WAREHOUSE_APPROVED`, `IN_TRANSIT` (Đang đi trên xe), `RETURNED` (Bị trả về), `DELIVERY_FAILED`, `COMPLETED` (Hoàn tất giao nhận), `CLOSED`, `CANCELLED`.
+    *   `status` (VARCHAR(30)): Trạng thái vòng đời xuất kho. CHECK: `NEW` (Mới tạo), `WAITING_PICKING` (Đã lập kế hoạch lấy hàng và chờ nhập kết quả lấy/QC), `QC_PENDING_APPROVAL`, `QC_COMPLETED`, `WAREHOUSE_APPROVED`, `IN_TRANSIT` (Đang đi trên xe), `RETURNED` (Bị trả về), `DELIVERY_FAILED`, `COMPLETED` (Hoàn tất giao nhận), `CLOSED`, `REJECTED`, `CANCELLED`. Hệ thống không dùng trạng thái `PICKING` riêng.
 
 ### 19. Bảng `delivery_order_items`
 *   **Công dụng:** Danh sách hàng hóa chi tiết cần xuất của mỗi lệnh DO.
@@ -257,7 +257,7 @@ erDiagram
     *   `requested_qty` (DECIMAL): Số lượng khách đặt mua.
     *   `reserved_qty` (DECIMAL): Số lượng hệ thống tự động khóa giữ chỗ trong kho (để đảm bảo không bị đơn khác bán mất).
     *   `issued_qty` (DECIMAL): Số lượng thực xuất ra khỏi cửa kho.
-    *   `location_id` & `batch_id` (FK): Chỉ định ô kệ cụ thể và số lô cụ thể để nhặt hàng khi dòng hàng chỉ lấy từ một nguồn; trường hợp nhiều bin dùng bảng allocation chi tiết theo FIFO.
+    *   `location_id`, `batch_id`, `zone_id` (FK): Chỉ định ô kệ, số lô và zone cụ thể để nhặt hàng khi dòng hàng chỉ lấy từ một nguồn; trường hợp nhiều bin dùng bảng allocation chi tiết theo FIFO.
 
 ### 19a. Bảng `delivery_order_item_allocations`
 *   **Công dụng:** Kế hoạch lấy hàng chi tiết cho từng dòng DO, cho phép một dòng lấy từ nhiều bin trong cùng kho được gán của Storekeeper.
@@ -270,7 +270,7 @@ erDiagram
     *   `status` (VARCHAR(30)): Trạng thái allocation, ví dụ `PLANNED`, `PICKED`, `RETURNED`, `CANCELLED`.
 
 ### 19b. Bảng `delivery_order_item_return_to_bin_records`
-*   **Công dụng:** Nhật ký nghiệp vụ hàng đã pick được trả về bin gốc khi Storekeeper sửa picking plan sau khi đơn đã ở trạng thái `PICKING`.
+*   **Công dụng:** Nhật ký nghiệp vụ hàng đã pick được trả về bin gốc khi Storekeeper sửa picking plan sau khi đã có kết quả lấy/QC, hoặc khi Trưởng kho reject outbound sau QC.
 *   **Chi tiết các trường:**
     *   `allocation_id` (BIGINT, FK -> delivery_order_item_allocations): Allocation đã pick bị remove/reduce trong kế hoạch mới.
     *   `product_id`, `batch_id` (BIGINT, FK): Sản phẩm và batch được trả về, phục vụ đối soát.
@@ -279,6 +279,27 @@ erDiagram
     *   `returned_qty` (DECIMAL): Số lượng trả về. Chỉ bắt buộc cho phần allocation đã pick và bị thay đổi; allocation đã pick nhưng giữ nguyên không cần record trả hàng.
     *   `reason` (TEXT): Lý do trả hàng về bin gốc.
     *   `created_by`, `created_at`: Người thao tác và thời điểm ghi nhận; đồng thời tạo audit `PICKED_GOODS_RETURN_TO_BIN`.
+*   **Ràng buộc khi warehouse reject:** Nếu Trưởng kho reject sau `QC_COMPLETED`, tổng `returned_qty` theo từng allocation phải bằng số lượng QC-passed còn ở outbound staging của allocation đó, và tổng `returned_qty` toàn request phải bằng toàn bộ hàng pass trong outbound staging của DO.
+
+### 19c. Bảng `outbound_qc_records`
+*   **Công dụng:** Nhật ký kết quả lấy hàng và QC outbound do Nhân viên kho nhập theo từng Delivery Order item, allocation, batch, location và zone.
+*   **Chi tiết các trường:**
+    *   `do_item_id` (BIGINT, FK -> delivery_order_items): Dòng phiếu xuất được QC.
+    *   `allocation_id` (BIGINT, FK -> delivery_order_item_allocations): Allocation cụ thể đã được Thủ kho lập kế hoạch.
+    *   `batch_id` (BIGINT, FK -> batches): Batch gốc của allocation được lấy/QC.
+    *   `location_id` (BIGINT, FK -> warehouse_locations): Bin/location gốc của hàng được lấy.
+    *   `zone_id` (BIGINT, FK -> warehouse_zones): Zone gốc chứa bin/location được lấy/QC.
+    *   `staging_location_id` (BIGINT, FK -> warehouse_locations): Outbound staging location nhận hàng đạt QC.
+    *   `quarantine_location_id` (BIGINT, FK -> warehouse_locations): Quarantine location nhận hàng fail QC.
+    *   `inspector_id` (BIGINT, FK -> users): Nhân viên kho nhập kết quả.
+    *   `picked_qty`, `qc_pass_qty`, `qc_fail_qty` (DECIMAL): Số lượng đã lấy, đạt QC, fail QC; bắt buộc `picked_qty = qc_pass_qty + qc_fail_qty`.
+    *   `qc_fail_reason` (TEXT): Bắt buộc khi `qc_fail_qty > 0`.
+    *   `quarantine_record_id` (BIGINT, FK -> quarantine_records): Hồ sơ quarantine phát sinh cho phần fail QC.
+    *   `idempotency_key` (VARCHAR): Khóa chống retry duplicate cho cùng payload lấy hàng/QC.
+    *   `request_hash` (VARCHAR): Hash của payload đã normalize để phát hiện reuse idempotency key với payload khác.
+    *   `notes`, `created_at`: Ghi chú và thời điểm ghi nhận.
+*   **Ràng buộc kỹ thuật:** `UNIQUE(allocation_id)` để mỗi allocation chỉ có một QC record thành công trong một pick/QC cycle.
+*   **Ràng buộc nghiệp vụ:** Nhân viên kho nhập kết quả lấy hàng/QC đúng 1 lần cho toàn bộ allocation hiện tại; tổng `picked_qty` theo allocation phải bằng `planned_qty`, không cho nhập một phần rồi bổ sung sau. Khi DO quay lại `WAITING_PICKING` do replacement, chỉ nhập QC cho allocation replacement hoặc allocation còn `PLANNED` chưa có QC record; allocation cũ đã QC pass trong outbound staging không nhập lại. Phần `qc_pass_qty` giảm `total_qty` và `reserved_qty` ở source inventory, sau đó cộng `total_qty` và `reserved_qty` vào staging inventory cùng product/batch. Phần `qc_fail_qty` giảm `total_qty` và `reserved_qty` ở source inventory, cộng `total_qty` vào quarantine inventory với `reserved_qty = 0`, chuyển vào quarantine và tạo inventory adjustment loại `QC_FAIL_OUTBOUND` với quantity âm tham chiếu DO/allocation/QC/quarantine record. Sau khi lưu kết quả, DO chuyển sang `QC_PENDING_APPROVAL` kể cả khi số lượng đạt QC chưa đủ, để Thủ kho xử lý replacement. Duplicate submission bị chặn nếu allocation đã có QC record; retry cùng `idempotency_key` và cùng payload trả lại kết quả cũ, không chạy inventory movement lần nữa; reuse cùng `idempotency_key` nhưng khác `request_hash` bị chặn.
 
 ### 20. Bảng `delivery_order_approvals` (Duyệt Tài chính)
 *   **Công dụng:** Kế toán kiểm tra hạn mức nợ (Credit check) của đại lý. Nếu đại lý đang bị khóa nợ (`CREDIT_HOLD`), kế toán phải upload ảnh hợp đồng hoặc lý do phê duyệt đặc cách thì đơn mới được xuất.

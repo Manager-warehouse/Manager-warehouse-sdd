@@ -114,14 +114,18 @@ PENDING_RECEIPT → DRAFT → QC_COMPLETED → APPROVED
 ### Delivery Order (Đơn xuất)
 
 ```
-NEW → WAITING_PICKING → PICKING → QC_PENDING_APPROVAL → QC_COMPLETED → WAREHOUSE_APPROVED → IN_TRANSIT → COMPLETED → CLOSED
+NEW → WAITING_PICKING → QC_PENDING_APPROVAL → QC_COMPLETED → WAREHOUSE_APPROVED → IN_TRANSIT → COMPLETED → CLOSED
+                                ↓                    ↓
+                         QC fail replacement     REJECTED
+                                ↓
+                         WAITING_PICKING
                                                                     ↓
                                                                RETURNED
                                                                     ↓
-                                                               CANCELLED
+                                                            DELIVERY_FAILED
 ```
 
-Picking plan edits use `PUT /api/v1/delivery-orders/{id}/picking-plan`. `allocations[]` represents the full replacement picking plan; `returnToBinRecords[]` is required only for picked allocations that are removed or reduced by the revised plan. Picked allocations that remain unchanged do not require return-to-bin records.
+Warehouse staff records picked/QC results exactly once for the complete current picking plan while the Delivery Order is `WAITING_PICKING`; the system does not use a separate `PICKING` status. Each QC result line is keyed by `doItemId + allocationId + batchId + locationId + zoneId`, and payload batch/location/zone must match the planned allocation. The QC result always moves the DO to `QC_PENDING_APPROVAL`, even when QC pass is lower than requested quantity, so Storekeeper can decide replacement goods. Picking plan edits use `PUT /api/v1/delivery-orders/{id}/picking-plan`. `allocations[]` represents the full replacement picking plan; `returnToBinRecords[]` is required only for picked allocations that are removed or reduced by the revised plan. Picked allocations that remain unchanged do not require return-to-bin records. Warehouse rejection returns all QC-passed goods from outbound staging to original bins, requires total returned quantity to equal pass quantity in staging, releases reservation, and records `PICKED_GOODS_RETURN_TO_BIN`.
 
 ### Transfer (Điều chuyển)
 

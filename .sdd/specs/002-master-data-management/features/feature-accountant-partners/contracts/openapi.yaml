@@ -721,7 +721,6 @@ components:
             [
               NEW,
               WAITING_PICKING,
-              PICKING,
               QC_PENDING_APPROVAL,
               QC_COMPLETED,
               WAREHOUSE_APPROVED,
@@ -730,6 +729,7 @@ components:
               DELIVERY_FAILED,
               COMPLETED,
               CLOSED,
+              REJECTED,
               CANCELLED,
             ]
         documentDate:

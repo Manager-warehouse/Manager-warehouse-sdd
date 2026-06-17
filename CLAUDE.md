@@ -797,7 +797,7 @@ Receipt (Lệnh nhập kho / Phiếu nhập kho)
 
 Issue (Đơn xuất hàng / Phiếu xuất kho)
 ├── issueNumber, customer/dealer, type (sale/delivery/adjustment)
-├── warehouse, status (new/waiting_picking/picking/qc_pending_approval/qc_completed/warehouse_approved/in_transit/completed/closed)
+├── warehouse, status (new/waiting_picking/qc_pending_approval/qc_completed/warehouse_approved/in_transit/completed/closed)
 └── items (product + quantity)
 
 Transfer (Phiếu điều chuyển kho)
@@ -941,9 +941,9 @@ Quy trình xử lý đơn xuất hàng bán cho Đại lý, tích hợp kiểm t
 │             │ └── HỢP LỆ: Tạo DO [New],      │             │               │
 │             │             giữ hàng (Reserve) │             │               │
 │             │             └─────────────────►│             │               │
-│             │                                │ Soạn hàng   │               │
-│             │                                │ từ Bin, set │               │
-│             │                                │ [Picking]───►               │
+│             │                                │ Lấy hàng &  │               │
+│             │                                │ nhập QC từ  │               │
+│             │                                │ [Waiting]──►               │
 │             │                                │ Kiểm QC sản │               │
 │             │                                │ phẩm đã soạn│               │
 │             │                                │ xác nhận đạt│               │
@@ -957,9 +957,13 @@ Quy trình xử lý đơn xuất hàng bán cho Đại lý, tích hợp kiểm t
 ```
 
 **Luồng trạng thái đơn xuất:**
-`NEW` (Planner lập đơn & System check công nợ đạt) → `WAITING_PICKING` (Thủ kho lưu kế hoạch lấy hàng đầy đủ từ một hoặc nhiều Bin FIFO) → `PICKING` (Nhân viên kho lấy hàng theo kế hoạch) → `QC_PENDING_APPROVAL` (Nhân viên kho ghi kết quả lấy hàng/QC; hàng fail vào Quarantine và tạo phiếu điều chỉnh tồn kho) → `QC_COMPLETED` (Thủ kho duyệt chất lượng khi đủ hàng đạt) → `WAREHOUSE_APPROVED` (Trưởng kho phê duyệt xuất kho)
+`NEW` (Planner lập đơn & System check công nợ đạt) → `WAITING_PICKING` (Thủ kho lưu kế hoạch lấy hàng đầy đủ từ một hoặc nhiều batch/bin/zone FIFO; Nhân viên kho lấy hàng và nhập kết quả QC một lần theo item/allocation/batch/bin/zone cho toàn bộ kế hoạch hiện tại) → `QC_PENDING_APPROVAL` (Nhân viên kho ghi kết quả lấy hàng/QC; hàng fail vào Quarantine, tạo phiếu điều chỉnh tồn kho và xóa reserve allocation fail; trạng thái này vẫn dùng khi pass chưa đủ để Thủ kho chọn replacement) → `QC_COMPLETED` (Thủ kho duyệt chất lượng khi đủ hàng đạt) → `WAREHOUSE_APPROVED` (Trưởng kho phê duyệt xuất kho)
 
-**Sửa picking plan sau khi đã pick:** Storekeeper dùng cùng endpoint `PUT /api/v1/delivery-orders/{id}/picking-plan`; `allocations[]` là kế hoạch lấy hàng đầy đủ mới, `returnToBinRecords[]` chỉ bắt buộc cho allocation đã pick và bị remove/reduce. Allocation đã pick nhưng giữ nguyên không cần return; mỗi return ghi audit `PICKED_GOODS_RETURN_TO_BIN`.
+**Sửa picking plan sau khi đã có kết quả lấy/QC:** Storekeeper dùng cùng endpoint `PUT /api/v1/delivery-orders/{id}/picking-plan`; `allocations[]` là kế hoạch lấy hàng đầy đủ mới, `returnToBinRecords[]` chỉ bắt buộc cho allocation đã pick và bị remove/reduce. Allocation đã pick nhưng giữ nguyên không cần return; mỗi return ghi audit `PICKED_GOODS_RETURN_TO_BIN`. Khi QC fail cần hàng thay thế, Thủ kho lưu replacement plan từ `QC_PENDING_APPROVAL` và Delivery Order quay lại `WAITING_PICKING`.
+
+**Định danh nguồn khi lấy hàng/QC:** Warehouse staff ghi nhận từng dòng theo `doItemId + allocationId + batchId + locationId + zoneId`; payload phải khớp batch/location/zone của allocation đã lập để tránh lấy nhầm lô hoặc nhầm bin/zone.
+
+**Reject sau QC:** Warehouse reject phải trả toàn bộ hàng pass đang ở outbound staging về bin gốc; tổng `returnedQty` phải bằng tổng QC-passed còn ở staging. Hệ thống cộng lại available ở bin gốc, release reservation của hàng trả và ghi `PICKED_GOODS_RETURN_TO_BIN`.
 
 ---
 
