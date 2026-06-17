@@ -117,6 +117,12 @@ const Sidebar = () => {
       path: '/finance/payments',
       icon: Landmark,
       roles: [ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN, ROLES.CEO]
+    },
+    {
+      title: 'Hàng trả & Tiêu hủy',
+      path: '/finance/returns-disposal',
+      icon: ShieldAlert,
+      roles: [ROLES.STOREKEEPER, ROLES.WAREHOUSE_MANAGER, ROLES.ACCOUNTANT, ROLES.ADMIN, ROLES.CEO]
     }
   ];
 

@@ -180,10 +180,11 @@ const Login = () => {
 4. Duyệt phiếu	WAREHOUSE_MANAGER	whHP@gmail.com hoặc manager.hp@phucanh.vn	Kho Hải Phòng
 5. Cất kệ (Putaway)	STOREKEEPER	storekeeperHP@gmail.com hoặc storekeeper@wms.com	Kho Hải Phòng
               </div> */}
-              <div>
+              {/* <div>
                 Email: accountantHP@phucanh.vn
                 Email: acc_managerHP@phucanh.vn
-              </div>
+              </div> */}
+              
             </div>
           </div>
         </div>

@@ -398,3 +398,33 @@ Relevant tests:
 - `src/test/java/com/wms/service/ReceiptRtvConfirmServiceTest.java`
 - `src/test/java/com/wms/controller/ReceiptControllerApprovalIT.java`
 - `src/test/java/com/wms/controller/ReceiptQuarantineControllerIT.java`
+
+## Spec 009 Backend Notes
+
+For Customer Returns and Scrap Disposal:
+
+- **Customer Returns (US-WMS-24)**:
+  - Storekeeper drafts return receipt (`ReceiptType.RETURN`) linked to a `DELIVERED` delivery order.
+  - Storekeeper submits split QC results: `qc_passed_qty` and `qc_failed_qty` must sum up to `actual_qty`, which cannot exceed original `issued_qty` of the DO item.
+  - Warehouse Manager approves the return.
+  - Storekeeper completes putaway, splitting inventory increase: passed quantity increases regular bin inventory, failed quantity increases quarantine bin inventory.
+  - Accountant creates Credit Note, decreasing the dealer's `current_balance` by `actual_qty * unit_price` (from the original DO). Requires open accounting period.
+
+- **Scrap Disposal (US-WMS-04)**:
+  - Warehouse Manager proposes a disposal from Quarantine inventory, creating a pending `Adjustment` (negative quantity, `AdjustmentType.DISPOSAL`) and a `DamageReport` record. No inventory is deducted yet.
+  - Approval limit check:
+    - If total value (`quantity * costPrice` from target quarantine inventory) `≤ 100,000,000` VND, `WAREHOUSE_MANAGER` can approve. Limit is dynamically retrieved from system config `DISPOSAL_LIMIT_WAREHOUSE_MANAGER`.
+    - If `> 100,000,000` VND, only `CEO` (or `ADMIN`) can approve.
+  - Upon approval, the quarantine inventory batch `total_qty` is decreased.
+
+Relevant classes:
+- `controller/ReturnController.java`
+- `service/ReturnService.java`
+- `controller/DisposalController.java`
+- `service/DisposalService.java`
+- `repository/DamageReportRepository.java`
+- `repository/CreditNoteRepository.java`
+
+Relevant tests:
+- `src/test/java/com/wms/service/ReturnServiceTest.java`
+- `src/test/java/com/wms/service/DisposalServiceTest.java`

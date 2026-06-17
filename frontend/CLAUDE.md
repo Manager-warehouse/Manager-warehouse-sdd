@@ -198,6 +198,30 @@ src/
 
 ---
 
+## PHÂN HỆ NGHIỆP VỤ HÀNG HOÀN TRẢ & TIÊU HỦY (SPEC 009)
+
+Quản lý luồng hàng hoàn trả từ đại lý (Customer Returns) và tiêu hủy hàng hỏng từ Quarantine (Scrap Disposal).
+
+### 1. Phân hệ Customer Returns (Trả hàng)
+- **Tạo phiếu trả**: `STOREKEEPER` soạn nháp phiếu trả chọn từ DO gốc có trạng thái `DELIVERED`.
+- **QC kiểm đếm**: Storekeeper nhập số lượng thực tế, tách thành `qc_passed_qty` (Bin thường) và `qc_failed_qty` (Bin cách ly). Tổng số lượng phải `<= issued_qty` của DO gốc.
+- **Phê duyệt**: `WAREHOUSE_MANAGER` phê duyệt phiếu trả.
+- **Putaway**: Storekeeper phân bổ hàng đạt vào Bin thường và hàng hỏng vào Bin cách ly (Quarantine).
+- **Credit Note**: `ACCOUNTANT` tạo Credit Note cấn trừ công nợ `current_balance` của đại lý. Số tiền hoàn bằng `actual_qty * unit_price` từ DO gốc.
+
+### 2. Phân hệ Scrap Disposal (Tiêu hủy)
+- **Đề xuất tiêu hủy**: `WAREHOUSE_MANAGER` chọn hàng từ Quarantine đề xuất tiêu hủy, tạo `damage_reports` và `adjustments` chờ duyệt.
+- **Phê duyệt hạn mức**:
+  - Giá trị đề xuất `≤ 100,000,000` VND: `WAREHOUSE_MANAGER` duyệt trực tiếp.
+  - Giá trị đề xuất `> 100,000,000` VND: Chỉ `CEO` được duyệt.
+- **Trừ tồn kho**: Tồn kho Quarantine bị trừ ngay khi đề xuất được duyệt.
+
+### 3. Các File Frontend Liên Quan
+- Màn hình giao diện: [ReturnsDisposal.jsx](file:///d:/swp/Manager-warehouse-sdd/frontend/src/pages/Finance/ReturnsDisposal.jsx)
+- API Service: [finance.service.js](file:///d:/swp/Manager-warehouse-sdd/frontend/src/services/finance.service.js)
+
+---
+
 ## NGUYÊN TẮC PHÁT TRIỂN & VIẾT CODE
 
 ### ✅ LUÔN LUÔN LÀM (ALWAYS DO)

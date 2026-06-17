@@ -26,6 +26,7 @@ import TripPlanning from '../pages/Outbound/TripPlanning';
 import DriverTrip from '../pages/Outbound/DriverTrip';
 import DealerDebtInvoice from '../pages/Finance/DealerDebtInvoice';
 import Payments from '../pages/Finance/Payments';
+import ReturnsDisposal from '../pages/Finance/ReturnsDisposal';
 import { ROLES } from '../utils/constants';
 
 const AppRoutes = () => {
@@ -118,6 +119,10 @@ const AppRoutes = () => {
       <Route element={<ProtectedRoute allowedRoles={[ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN, ROLES.CEO]} />}>
         <Route path="/finance/invoices" element={<DealerDebtInvoice />} />
         <Route path="/finance/payments" element={<Payments />} />
+      </Route>
+
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.STOREKEEPER, ROLES.WAREHOUSE_MANAGER, ROLES.ACCOUNTANT, ROLES.ADMIN, ROLES.CEO]} />}>
+        <Route path="/finance/returns-disposal" element={<ReturnsDisposal />} />
       </Route>
 
       {/* Default Redirects */}

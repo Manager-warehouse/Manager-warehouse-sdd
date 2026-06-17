@@ -1,7 +1,7 @@
--- Drop the old restricted audit logs action check constraint
+-- Drop the check constraint from V21
 ALTER TABLE audit_logs DROP CONSTRAINT IF EXISTS audit_logs_action_check;
 
--- Re-create the check constraint with the updated AuditAction enum values
+-- Re-create the check constraint with the new disposal and return actions
 ALTER TABLE audit_logs
     ADD CONSTRAINT audit_logs_action_check
     CHECK (action IN (
@@ -11,6 +11,6 @@ ALTER TABLE audit_logs
         'TRANSFER_CREATE', 'TRANSFER_UPDATE', 'TRANSFER_APPROVE', 'TRANSFER_REJECT', 'TRANSFER_TRIP_ASSIGN', 'TRANSFER_SHIP', 'TRANSFER_DEPART', 'TRANSFER_RECEIVE_COUNT', 'TRANSFER_RECEIVE_CONFIRM', 'TRANSFER_DISCREPANCY_CREATE', 'TRANSFER_CANCEL',
         'BILLING_NOTIFICATION_CREATE', 'BILLING_NOTIFICATION_READ',
         'RECEIPT_QC_SUBMIT', 'RECEIPT_QC_CONFIRM',
-        'TRANSFER_FINAL_RECEIVE', 'TRANSFER_UNSHIP', 'TRANSFER_RECEIVE_CHECK',
-        'QUARANTINE_DISPOSAL_CREATE', 'QUARANTINE_DISPOSAL_APPROVE', 'CREDIT_NOTE_CREATE'
+        'QUARANTINE_DISPOSAL_CREATE', 'QUARANTINE_DISPOSAL_APPROVE', 'CREDIT_NOTE_CREATE',
+        'TRANSFER_FINAL_RECEIVE', 'TRANSFER_UNSHIP', 'TRANSFER_RECEIVE_CHECK'
     ));

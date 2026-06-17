@@ -199,7 +199,13 @@ Photography is full-bleed with no border. On cinematic pages it escapes the cont
 **`footer-light`** — equivalent on the transactional track.
 - Background `{colors.canvas-light}`, text `{colors.ink}`, otherwise same structure.
 
-## Do's and Don'ts
+**`returns-disposal-workspace`** — Dual-tab transactional layout for Customer Returns and Scrap Disposal.
+- Uses `{colors.canvas-cream}` as canvas background.
+- Interactive cards use Level 3 Elevation with `{rounded.lg}` border radius.
+- Buttons strictly follow the pill shape: `button-primary-pill` for confirmations (QC submit, putaway, Credit Note creation), and outline warning pill for proposing scrap disposals.
+- Forms and modal dialogs use Level 4 Elevation and `{rounded.md}` inputs.
+
+## Do's and Don't's
 
 ### Do
 - Reserve `{colors.aloe-10}` and `{colors.pistachio-10}` for the light track only — they don't appear on cinematic black pages.
