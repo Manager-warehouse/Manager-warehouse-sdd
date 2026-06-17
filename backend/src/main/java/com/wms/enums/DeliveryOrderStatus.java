@@ -6,6 +6,7 @@ public enum DeliveryOrderStatus {
     READY_TO_SHIP,
     IN_TRANSIT,
     DELIVERED,
+    COMPLETED,
     RETURNED,
     CANCELLED
 }

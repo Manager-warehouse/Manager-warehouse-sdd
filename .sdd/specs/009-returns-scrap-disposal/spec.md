@@ -9,7 +9,7 @@
 
 ## 1. Context and Goal
 
-Đại lý có thể hoàn trả hàng (hàng lỗi, sai quy cách, tồn kho) và hàng trong Quarantine Zone cần được xử lý (trả NCC hoặc tiêu hủy). Các quy trình này ảnh hưởng đến inventory và công nợ, cần kiểm soát chặt chẽ.
+Đại lý có thể hoàn trả hàng (hàng lỗi, sai quy cách, tồn kho) và hàng trong Quarantine Zone cần được xử lý tiêu hủy khi không thể nhập lại kho hoặc trả NCC theo luồng inbound. Các quy trình này ảnh hưởng đến inventory và công nợ, cần kiểm soát chặt chẽ. RTV của hàng lỗi inbound được xử lý tại Spec 003.
 
 ### Features List
 * [US-WMS-24: Xử lý Hàng hoàn trả từ Đại lý](./features/feature-storekeeper-customer-returns.md)
@@ -21,7 +21,7 @@
 |-------|---------|---------------------|
 | Thủ kho kiêm QC | Maker | Lập phiếu nhận hàng hoàn, kiểm QC hàng hoàn trả, phân loại hàng Đạt (nhập lại kho thường) / Lỗi (chuyển sang Quarantine) |
 | Nhân viên kho | Maker | Hỗ trợ bốc xếp, di chuyển hàng hoàn và hàng lỗi theo chỉ dẫn của Thủ kho |
-| Trưởng kho | Checker | Phê duyệt biên bản hàng lỗi tại Quarantine Zone, quyết định trả NCC (RETURN_TO_VENDOR) hoặc Tiêu hủy (DISPOSAL) |
+| Trưởng kho | Checker | Phê duyệt biên bản hàng lỗi tại Quarantine Zone và quyết định Tiêu hủy (DISPOSAL) theo thẩm quyền |
 | Kế toán viên | Maker | Tạo Credit Note ghi nhận giảm công nợ cho Đại lý tương ứng với hàng hoàn |
 
 ## 3. Functional Requirements (EARS)

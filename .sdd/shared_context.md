@@ -44,10 +44,9 @@
 
 | Thuật ngữ | Định nghĩa |
 |---|---|
-| **Batch** | Lô hàng nhập cùng đợt, cùng grade, cùng hạn dùng |
+| **Batch** | Lô hàng nhập cùng đợt, cùng SKU, nguồn chứng từ và ngày nhận |
 | **Bin Location** | Vị trí kệ trong kho — mã hóa WH-Zone.Rack.Shelf.Bin |
 | **Putaway** | Quy trình cất hàng vào Bin sau khi QC đạt |
-| **FEFO** | First Expiry First Out — ưu tiên xuất batch gần hết hạn |
 | **FIFO** | First In First Out — ưu tiên xuất batch nhập trước |
 | **Quarantine** | Khu cách ly hàng lỗi QC — không available |
 | **In-Transit** | Kho ảo — hàng đang vận chuyển giữa 2 kho |
@@ -117,18 +116,22 @@ NEW → PICKING → READY_TO_SHIP → IN_TRANSIT → DELIVERED
 ### Transfer (Điều chuyển)
 ```
 NEW → APPROVED → IN_TRANSIT → COMPLETED
-                                ↓
-                         COMPLETED_WITH_DISCREPANCY
+ ↓       ↓            ↓
+REJECTED CANCELLED    COMPLETED_WITH_DISCREPANCY
 ```
 
 Transfer-specific invariants:
+- Planner enters transfer instructions from Công ty mẹ/central coordination; Công ty mẹ is not a Sprint 1 WMS user.
+- Planner may edit header fields and item lines only while transfer status is NEW.
+- Trưởng kho nguồn rejection requires a reason and changes status to REJECTED without inventory changes.
+- REJECTED transfers are immutable; Planner creates a new transfer instead of resubmitting the rejected one.
 - Trưởng kho nguồn approval reserves planned quantity immediately.
 - Each transfer has exactly one dedicated internal trip; multi-transfer trips are out of scope.
 - Driver departure confirmation moves stock from source warehouse to In-Transit.
 - Thủ kho đích records received counts and QC; Trưởng kho đích confirms final receipt.
 - received_qty > sent_qty is blocked.
 - QC-failed received quantity goes to Quarantine and is excluded from available inventory.
-- Cancellation is allowed only before IN_TRANSIT.
+- Cancellation rules: Planner may cancel NEW; Trưởng kho nguồn/manager may cancel APPROVED and release reserved quantity; cancellation is blocked from REJECTED or IN_TRANSIT onward.
 
 ### Dealer Status
 ```

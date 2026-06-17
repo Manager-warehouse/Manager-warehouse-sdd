@@ -53,23 +53,28 @@
 
 1. Trưởng kho xem danh sách hàng lỗi đang chờ xử lý trong Quarantine Zone và phê duyệt biên bản xử lý.
 2. **Nếu chọn Trả về NCC (Return to Vendor — RTV):**
-   - Hệ thống tạo **Phiếu trả hàng NCC** kèm lý do lỗi chi tiết → Số lượng hàng trong Quarantine Zone bị trừ.
-   - Thủ kho đóng gói hàng lỗi và xác nhận đã giao trả về NCC trên hệ thống.
-   - **Kế toán viên** nhận thông báo → Tạo **Debit Note** (Phiếu đòi bồi hoàn NCC): ghi rõ số lượng, giá trị hàng lỗi, yêu cầu NCC hoàn tiền hoặc giao hàng thay thế.
+   - Hệ thống tạo **Phiếu trả hàng NCC** kèm lý do lỗi chi tiết và tự tạo **Debit Note**; số lượng hàng trong Quarantine Zone chưa bị trừ tại bước này.
+   - Thủ kho đóng gói hàng lỗi và xác nhận đã giao trả **toàn bộ** số lượng Quarantine của receipt cho NCC trên hệ thống.
+   - Khi Thủ kho xác nhận trả đủ, hệ thống mới trừ tồn Quarantine. Nếu xác nhận thiếu hoặc dư, hệ thống từ chối và không trừ tồn.
+   - **Kế toán viên** theo dõi **Debit Note** (Phiếu đòi bồi hoàn NCC): ghi rõ số lượng, giá trị hàng lỗi, yêu cầu NCC hoàn tiền hoặc giao hàng thay thế.
    - Debit Note được lưu vào hồ sơ giao dịch với NCC, làm căn cứ theo dõi và đối chiếu khi NCC phản hồi.
 3. **Nếu chọn Tiêu hủy:** Hệ thống tự động tạo Phiếu xuất hủy và được phê duyệt bởi Trưởng kho.
+
+**Ghi chú mapping Sprint 1:** Trong Spec 003 inbound receipt QC, màn hình xử lý Quarantine chỉ hiển thị nút **Trả NCC**. Hệ thống tự tạo Debit Note khi Trưởng kho tạo RTV request; Thủ kho xác nhận đã giao trả đủ toàn bộ số lượng Quarantine thì hệ thống mới trừ tồn Quarantine. Luồng **Tiêu hủy** được tách sang Spec 009 để áp dụng approval thresholds riêng.
    
 ---
 
 ### US-WMS-05: Ký duyệt Nhập kho chính thức (Priority: P1)
 
-**Mô tả:** Là Trưởng kho (Checker), tôi muốn đối chiếu biên bản QC và phê duyệt Phiếu nhập kho để tăng tồn kho thực tế.
+**Mô tả:** Là Trưởng kho (Checker), tôi muốn đối chiếu biên bản QC và phê duyệt Phiếu nhập kho để mở khóa putaway; tồn kho chỉ tăng sau khi Thủ kho cất hàng vào Bin.
 
 **Tiêu chí nghiệm thu:**
 
 1. Trưởng kho đối chiếu số lượng thực tế (do Thủ kho nhập) với kết quả QC Đạt → Nhấn "Duyệt nhập".
-2. Hệ thống tự động **cộng số lượng hàng Đạt vào tồn kho khả dụng** tại kho tương ứng.
-3. Hệ thống ghi Audit Log đầy đủ: người duyệt, thời gian, số lượng tăng, kho nhận.
+2. Hệ thống chuyển phiếu sang `APPROVED`, tạo/resolved batch và mở khóa putaway nhưng **chưa cộng tồn kho khả dụng**.
+3. Khi Thủ kho hoàn tất putaway vào Bin thường, hệ thống mới cộng số lượng đã duyệt vào tồn kho.
+4. Nếu Trưởng kho từ chối phiếu `QC_COMPLETED`, hệ thống chuyển sang `RETURN_TO_SUPPLIER_PENDING`; khi xe NCC tới lấy, Thủ kho xác nhận bàn giao và phiếu chuyển sang `RETURNED_TO_SUPPLIER`.
+5. Hệ thống ghi Audit Log đầy đủ cho duyệt/từ chối, putaway và xác nhận bàn giao trả NCC.
 
 ---
 
@@ -157,16 +162,18 @@
 
 ## NHÓM 4: ĐIỀU CHUYỂN NỘI BỘ (REPLENISHMENT & TRANSFER)
 
-### US-WMS-11: Planning Dashboard & Gợi ý điều chuyển kho tự động (Priority: P2)
+### US-WMS-11: Nhập Phiếu Điều chuyển theo lệnh từ Công ty mẹ (Priority: P1)
 
-**Mô tả:** Là Planner, tôi muốn sử dụng Planning Dashboard để hệ thống tự động gợi ý các lệnh điều chuyển hàng hóa tối ưu giữa 3 miền nhằm tránh đứt gãy nguồn cung.
+**Mô tả:** Là Planner, tôi muốn nhập phiếu điều chuyển kho nội bộ theo lệnh từ Công ty mẹ hoặc bộ phận điều phối trung tâm, để kho nguồn kiểm tra, phê duyệt và thực thi đúng nghiệp vụ kho.
 
 **Tiêu chí nghiệm thu:**
 
-1. Planner truy cập màn hình "Planning Dashboard" → Nhấn "Quét gợi ý" hoặc hệ thống chạy Batch Job định kỳ.
-2. Hệ thống so sánh tồn kho khả dụng hiện tại với định mức tồn tối thiểu đã cấu hình tại 3 kho: Hải Phòng, Hà Nội, TP.HCM.
-3. Hiển thị danh sách đề xuất điều chuyển hợp lý kèm SKU, kho nguồn, kho đích, số lượng gợi ý, mức ưu tiên và lý do (Ví dụ: Kho HCM hết SP-001 → Gợi ý điều chuyển 200 cái từ Kho Hà Nội đang dư).
-4. Planner có thể nhấn "Tạo nhanh Phiếu điều chuyển" trực tiếp từ gợi ý.
+1. Planner nhận lệnh điều chuyển từ Công ty mẹ/bộ phận điều phối trung tâm, ví dụ chuyển 50 cái chảo và 30 nồi từ kho Hải Phòng sang kho Hà Nội. Công ty mẹ không phải user trong hệ thống; Planner là người nhập trung gian.
+2. Planner nhập kho nguồn, kho đích, ngày chứng từ, ngày dự kiến chuyển và nhiều dòng hàng gồm SKU/sản phẩm + số lượng.
+3. Hệ thống tạo một phiếu điều chuyển trạng thái **Mới (NEW)** và ghi audit log `TRANSFER_CREATE`.
+4. Khi phiếu còn **NEW**, Planner được sửa thông tin phiếu và thêm/sửa/xóa dòng hàng; nếu phiếu bị **REJECTED** thì không sửa/gửi lại phiếu cũ, Planner phải tạo phiếu mới nếu vẫn cần thực hiện lệnh.
+5. Planner không chọn batch ở bước tạo phiếu; batch được hệ thống/kho nguồn xác định theo FIFO trong bước phê duyệt/soạn/xuất.
+6. Nếu kho nguồn trùng kho đích, thiếu dòng hàng hoặc số lượng không hợp lệ, hệ thống chặn tạo phiếu và hiển thị lý do rõ ràng.
 
 ---
 
@@ -179,7 +186,8 @@
 1. Planner tạo Phiếu điều chuyển: Chọn kho nguồn, kho đích, SKU, số lượng → Trạng thái: **Mới**.
 2. **Trưởng kho nguồn (Checker)** kiểm tra tồn kho khả dụng:
    - Nếu đủ hàng → Phê duyệt và hệ thống khóa/giữ chỗ số lượng điều chuyển ngay → Trạng thái: **Đã duyệt**.
-   - Nếu không đủ → Hệ thống từ chối, hiển thị lý do rõ ràng.
+   - Nếu không duyệt → Trưởng kho nguồn nhập lý do từ chối bắt buộc → Trạng thái: **Từ chối (REJECTED)**.
+   - Nếu đã duyệt nhưng cần hủy trước khi xe rời kho → Chỉ Trưởng kho nguồn/manager được hủy và hệ thống giải phóng giữ chỗ.
 3. Dispatcher lập một chuyến xe nội bộ riêng cho phiếu điều chuyển: gán xe, tài xế và ngày vận chuyển.
 4. Thủ kho kho nguồn ghi nhận số lượng xuất và bốc xếp lên xe; Tài xế xác nhận đã nhận hàng và xe rời kho → Hệ thống **trừ tồn kho nguồn, giải phóng giữ chỗ, cộng vào Kho ảo In-Transit** → Trạng thái: **Đang vận chuyển (In-Transit)**.
 5. Thủ kho kho đích nhập số lượng thực nhận và kiểm QC số lượng/chất lượng; Trưởng kho đích xác nhận cuối cùng:
@@ -187,7 +195,7 @@
    - Nếu thiếu → Hệ thống **bắt buộc** ghi lý do chênh lệch và tự động tạo Phiếu điều chỉnh bù trừ.
    - Nếu nhận thừa (`received_qty > sent_qty`) → Hệ thống chặn, không cho xác nhận.
    - Nếu QC lỗi → Phần lỗi được đưa vào Quarantine Zone, không tính vào tồn kho khả dụng.
-6. Hệ thống không hỗ trợ hủy phiếu điều chuyển sau khi trạng thái đã là **Đang vận chuyển (In-Transit)**.
+6. Planner chỉ được hủy phiếu khi còn **NEW**; sau khi **APPROVED** Planner không được hủy. Hệ thống không hỗ trợ hủy phiếu điều chuyển sau khi trạng thái đã là **Đang vận chuyển (In-Transit)**.
 
 ---
 
@@ -387,7 +395,7 @@
 **Tiêu chí nghiệm thu:**
 
 1. Khi tồn kho khả dụng tại một kho cụ thể < Định mức tối thiểu đã cấu hình → Hệ thống tự động bắn thông báo in-app (High Priority) đến Trưởng kho kho đó và Planner.
-2. Sản phẩm bị thiếu hụt được đánh dấu đỏ nổi bật trên Dashboard và Planning Dashboard.
+2. Sản phẩm bị thiếu hụt được đánh dấu đỏ nổi bật trên Dashboard tồn kho và báo cáo cảnh báo tồn thấp.
 
 ---
 

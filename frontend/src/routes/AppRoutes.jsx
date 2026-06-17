@@ -75,16 +75,19 @@ const AppRoutes = () => {
         <Route path="/inbound/create" element={<ReceiptForm />} />
       </Route>
 
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.STOREKEEPER, ROLES.ADMIN]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.WAREHOUSE_STAFF, ROLES.ADMIN]} />}>
         <Route path="/inbound/receive/:id" element={<ReceiptReceive />} />
+      </Route>
+
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.STOREKEEPER, ROLES.ADMIN]} />}>
         <Route path="/inbound/putaway/:id" element={<PutawayPlan />} />
       </Route>
 
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.WAREHOUSE_STAFF, ROLES.ADMIN]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.WAREHOUSE_STAFF, ROLES.STOREKEEPER, ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN]} />}>
         <Route path="/inbound/qc/:id" element={<QCInbound />} />
       </Route>
 
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.WAREHOUSE_MANAGER, ROLES.CEO, ROLES.ADMIN]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.STOREKEEPER, ROLES.WAREHOUSE_MANAGER, ROLES.CEO, ROLES.ADMIN]} />}>
         <Route path="/inbound/quarantine" element={<QuarantineWorkspace />} />
       </Route>
 

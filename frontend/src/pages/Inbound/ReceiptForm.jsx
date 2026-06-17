@@ -12,8 +12,9 @@ const ReceiptForm = () => {
   const { addToast } = useUiStore();
 
   const [type, setType] = useState('PURCHASE');
-  const [sourceOrderCode, setSourceOrderCode] = useState('');
-  const [sourceChannel, setSourceChannel] = useState('Zalo');
+  const [sourceReference, setSourceReference] = useState('');
+  const [sourceChannel, setSourceChannel] = useState('ZALO');
+  const [contactPerson, setContactPerson] = useState('');
   const [documentDate, setDocumentDate] = useState(new Date().toISOString().slice(0, 10));
   const [notes, setNotes] = useState('');
   const [partnerId, setPartnerId] = useState('');
@@ -47,11 +48,21 @@ const ReceiptForm = () => {
       setDealers(dealersData.filter(d => d.is_active));
       setProducts(productsData.filter(p => p.is_active));
     } catch (e) {
-      addToast('Lỗi khi tải danh mục sản phẩm/đối tác', 'error');
+      const status = e?.response?.status;
+      const msg = e?.response?.data?.message || e?.message || '';
+      if (status === 401) {
+        addToast('Phiên đăng nhập hết hạn, vui lòng đăng nhập lại', 'error');
+      } else if (status === 403) {
+        addToast('Không có quyền truy cập dữ liệu này', 'error');
+      } else {
+        addToast(`Lỗi tải danh mục: ${msg || 'Vui lòng thử lại'}`, 'error');
+      }
+      console.error('[ReceiptForm] fetchMetadata error:', status, msg, e);
     } finally {
       setLoading(false);
     }
   };
+
 
   // Simple product search debounce
   useEffect(() => {
@@ -120,6 +131,16 @@ const ReceiptForm = () => {
       return;
     }
 
+    if (!contactPerson.trim()) {
+      addToast('Vui lòng nhập tên người liên hệ', 'warning');
+      return;
+    }
+
+    if (!sourceReference.trim()) {
+      addToast('Vui lòng nhập mã chứng từ nguồn (PO/DO hoàn)', 'warning');
+      return;
+    }
+
     if (selectedItems.length === 0) {
       addToast('Vui lòng thêm ít nhất 1 sản phẩm vào phiếu nhập', 'warning');
       return;
@@ -137,14 +158,13 @@ const ReceiptForm = () => {
       }
     }
 
+    // Payload matches backend CreateReceiptRequest DTO exactly
     const payload = {
-      type,
+      supplier_id: Number(partnerId),
       warehouse_id: activeWarehouse.id,
-      supplier_id: type === 'PURCHASE' ? Number(partnerId) : null,
-      dealer_id: type === 'RETURN' ? Number(partnerId) : null,
-      source_order_code: sourceOrderCode.trim(),
+      source_reference: sourceReference.trim(),
       source_channel: sourceChannel,
-      document_date: documentDate,
+      contact_person: contactPerson.trim(),
       notes: notes.trim(),
       items: selectedItems.map(item => ({
         product_id: item.product_id,
@@ -159,7 +179,8 @@ const ReceiptForm = () => {
       addToast('Lập lệnh nhập kho thô thành công', 'success');
       navigate('/inbound/receipts');
     } catch (error) {
-      addToast('Lỗi khi lập lệnh nhập kho', 'error');
+      const msg = error?.response?.data?.message || error?.message || 'Lỗi khi lập lệnh nhập kho';
+      addToast(msg, 'error');
     } finally {
       setLoading(false);
     }
@@ -244,13 +265,26 @@ const ReceiptForm = () => {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold">Mã chứng từ nguồn (PO/DO hoàn)</label>
+            <label className="text-xs font-bold">Người liên hệ <span className="text-red-500">*</span></label>
+            <input
+              type="text"
+              placeholder="VD: Nguyễn Văn A"
+              value={contactPerson}
+              onChange={(e) => setContactPerson(e.target.value)}
+              className="text-input"
+              required
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-bold">Mã chứng từ nguồn (PO/DO hoàn) <span className="text-red-500">*</span></label>
             <input
               type="text"
               placeholder="VD: PO-2026-0005"
-              value={sourceOrderCode}
-              onChange={(e) => setSourceOrderCode(e.target.value)}
+              value={sourceReference}
+              onChange={(e) => setSourceReference(e.target.value)}
               className="text-input"
+              required
             />
           </div>
 
@@ -261,8 +295,8 @@ const ReceiptForm = () => {
               onChange={(e) => setSourceChannel(e.target.value)}
               className="text-input"
             >
-              <option value="Zalo">Zalo</option>
-              <option value="Email">Email</option>
+              <option value="ZALO">Zalo</option>
+              <option value="EMAIL">Email</option>
             </select>
           </div>
 
@@ -271,7 +305,7 @@ const ReceiptForm = () => {
             <input
               type="date"
               value={documentDate}
-              onChange={(e) => setSourceOrderCode(e.target.value)}
+              onChange={(e) => setDocumentDate(e.target.value)}
               className="text-input"
               required
             />
@@ -326,11 +360,7 @@ const ReceiptForm = () => {
                           <span className="font-bold block">{prod.sku}</span>
                           <span className="text-shade-50 block">{prod.name}</span>
                         </div>
-                        {prod.has_serial && (
-                          <span className="text-[9px] bg-zinc-100 text-zinc-700 px-1.5 py-0.5 rounded border border-zinc-200 uppercase font-semibold">
-                            Serial
-                          </span>
-                        )}
+
                       </div>
                     ))
                   )}
@@ -368,11 +398,7 @@ const ReceiptForm = () => {
                         <td className="px-6 py-4">
                           <span className="font-bold block">{item.sku}</span>
                           <span className="text-shade-50 block">{item.name}</span>
-                          {item.has_serial && (
-                            <span className="inline-block text-[9px] bg-zinc-100 text-zinc-600 px-1.5 py-0.2 rounded border border-zinc-200 mt-1">
-                              * Yêu cầu nhập mã Serial khi nhận hàng
-                            </span>
-                          )}
+
                         </td>
                         <td className="px-6 py-4 text-right">
                           <input

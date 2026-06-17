@@ -32,9 +32,9 @@ frontend/
 │   │   │   └── Footer.jsx          # Thanh chân trang (thông tin hệ thống, phiên bản)
 │   │   │
 │   │   └── warehouse/              # Các UI component nghiệp vụ kho đặc thù
-│   │       ├── BatchSelector.jsx   # Bộ chọn lô hàng (hỗ trợ tự động gợi ý theo FEFO/FIFO)
+│   │       ├── BatchSelector.jsx   # Bộ chọn lô hàng theo FIFO/ngày nhận
 │   │       ├── BinCapacityIndicator.jsx # Chỉ báo sức chứa của Bin trước khi Putaway hàng hóa
-│   │       ├── SerialNumberList.jsx # Trình quản lý danh sách số Serial cho hàng có "has_serial = true"
+│   │       ├── QuantityEntry.jsx    # Nhập số lượng theo SKU/batch cho đơn hàng lớn
 │   │       └── InTransitTracker.jsx # Trình theo dõi vị trí/trạng thái hàng đang điều chuyển
 │   │
 │   ├── pages/                      # Các màn hình chính tương ứng với 10 phân hệ nghiệp vụ Spec
@@ -47,14 +47,14 @@ frontend/
 │   │   │   └── AuditLogs.jsx       # Truy vết thao tác người dùng (Audit Trail) (Spec 001)
 │   │   │
 │   │   ├── MasterData/
-│   │   │   ├── ProductList.jsx     # Quản lý danh mục sản phẩm, SKU, đơn vị tính, has_serial (Spec 002)
+│   │   │   ├── ProductList.jsx     # Quản lý danh mục sản phẩm, SKU, đơn vị tính, quy cách đóng gói (Spec 002)
 │   │   │   ├── WarehouseList.jsx   # Quản lý sơ đồ kho vật lý, khu vực (zones), ô kệ (bins) (Spec 002)
 │   │   │   ├── Partners.jsx        # Quản lý Đại lý (Dealers) & Nhà cung cấp (Suppliers) (Spec 002)
 │   │   │   └── FleetManagement.jsx # Quản lý đội xe (Vehicles) & Tài xế (Drivers) (Spec 002)
 │   │   │
 │   │   ├── Inbound/
 │   │   │   ├── ReceiptList.jsx     # Danh sách phiếu nhập kho (Mua hàng / Đại lý trả hàng) (Spec 003)
-│   │   │   ├── QCInbound.jsx       # Màn hình kiểm định chất lượng đầu vào, phân loại Grade A/B/C (Spec 003)
+│   │   │   ├── QCInbound.jsx       # Màn hình kiểm định chất lượng đầu vào, kết luận đạt/lỗi (Spec 003)
 │   │   │   └── PutawayPlan.jsx     # Kế hoạch điều phối hàng vào Bin dựa trên sức chứa (Spec 003)
 │   │   │
 │   │   ├── Outbound/
@@ -142,8 +142,8 @@ frontend/
 |---|---|---|---|---|
 | **Spec 001: System Admin & RBAC** | `pages/Auth/Login.jsx`<br>`pages/Admin/*` | `layout/Sidebar.jsx` (Phân quyền menu)<br>`ProtectedRoute.jsx` (Chặn route) | `services/auth.service.js`<br>`services/admin.service.js` | JWT Authentication, phân quyền thao tác theo cả **Role** và **Warehouse Assignment**. |
 | **Spec 002: Master Data** | `pages/MasterData/*` | - | `services/master.service.js` | Quản lý danh mục Sản phẩm, Kho, Bin, Nhà cung cấp, Đại lý, Đội xe & Tài xế. |
-| **Spec 003: Inbound (Nhập kho)** | `pages/Inbound/*` | `components/warehouse/BinCapacityIndicator.jsx` | `services/inbound.service.js` | Bắt buộc phải đi qua **QC Inbound** phân loại Grade (A/B/C) và kiểm tra sức chứa Bin (`bin_capacity`) trước khi Putaway. |
-| **Spec 004: Outbound (Giao hàng)** | `pages/Outbound/*` | `components/warehouse/SerialNumberList.jsx` | `services/outbound.service.js` | Hỗ trợ lập phiếu Picking, QC kiểm định xuất khẩu, gom chuyến xe (Trip) và thu thập chữ ký/ảnh chụp để xác nhận **POD**. |
+| **Spec 003: Inbound (Nhập kho)** | `pages/Inbound/*` | `components/warehouse/BinCapacityIndicator.jsx` | `services/inbound.service.js` | Bắt buộc phải đi qua **QC Inbound** đạt/lỗi và kiểm tra sức chứa Bin (`bin_capacity`) trước khi Putaway. |
+| **Spec 004: Outbound (Giao hàng)** | `pages/Outbound/*` | `components/warehouse/BatchSelector.jsx` | `services/outbound.service.js` | Hỗ trợ lập phiếu Picking theo FIFO, QC kiểm định xuất khẩu, gom chuyến xe (Trip) và thu thập chữ ký/ảnh chụp để xác nhận **POD**. |
 | **Spec 005: Internal Transfer** | `pages/InternalTransfer/*` | `components/warehouse/InTransitTracker.jsx` | `services/transfer.service.js` | Phải ghi nhận tồn kho tại kho ảo **In-Transit Location** khi đang vận chuyển và xử lý chênh lệch tại kho nhận. |
 | **Spec 006: Stocktake & Adjust** | `pages/Stocktake/*` | - | `services/stocktake.service.js` | Hỗ trợ tạo đợt kiểm kê, đối chiếu tồn thực tế - tồn hệ thống, tính toán **Variance** và quy trình duyệt điều chỉnh. |
 | **Spec 007: Pricing & COGS** | `pages/Finance/PriceListManagement.jsx` | - | `services/finance.service.js` | Quản lý giá bán đại lý, lịch sử giá và tích hợp tính **COGS** (Giá vốn) phục vụ báo cáo tài chính kho. |

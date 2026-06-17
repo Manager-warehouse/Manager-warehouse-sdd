@@ -80,7 +80,7 @@ const Sidebar = () => {
       title: 'Xử lý hàng lỗi',
       path: '/inbound/quarantine',
       icon: ShieldAlert,
-      roles: [ROLES.WAREHOUSE_MANAGER, ROLES.CEO, ROLES.ADMIN]
+      roles: [ROLES.STOREKEEPER, ROLES.WAREHOUSE_MANAGER, ROLES.CEO, ROLES.ADMIN]
     }
   ];
 

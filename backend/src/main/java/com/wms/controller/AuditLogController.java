@@ -1,7 +1,7 @@
 package com.wms.controller;
 
-import com.wms.dto.AuditLogDetailResponse;
-import com.wms.dto.AuditLogPageResponse;
+import com.wms.dto.response.AuditLogDetailResponse;
+import com.wms.dto.response.AuditLogPageResponse;
 import com.wms.entity.User;
 import com.wms.enums.UserRole;
 import com.wms.repository.UserRepository;
