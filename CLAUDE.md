@@ -847,7 +847,7 @@ DebitNote (Phiếu đòi bồi hoàn)
 | Nghiệp vụ | Dispatcher              | Maker   | Lập chuyến xe nội bộ Phúc Anh, gán tài xế, tối ưu lộ trình giao hàng                        |
 | Nghiệp vụ | Thủ kho kiêm QC         | Maker   | Tiếp nhận hàng, kiểm QC inbound/outbound, soạn hàng, kiểm kê, cất Bin, xác nhận điều chuyển |
 | Nghiệp vụ | Nhân viên kho (Bốc xếp) | Maker   | Bốc xếp hàng hóa, hỗ trợ di chuyển hàng hóa, di chuyển hàng lỗi vào Quarantine theo chỉ dẫn |
-| Nghiệp vụ | Kế toán viên            | Maker   | Lập hóa đơn, ghi nhận thanh toán, cấn trừ công nợ, quản lý bảng giá                         |
+| Nghiệp vụ | Kế toán viên            | Maker   | Xử lý thanh toán và theo dõi công nợ trong luồng tài chính riêng, quản lý bảng giá |
 | Nghiệp vụ | Tài xế                  | Maker   | Nhận chuyến (smartphone), upload `goodsImage`/`signDocumentImage`, nhập OTP Đại lý, báo giao thất bại, xác nhận xe về kho |
 
 > **Lưu ý phân biệt Dispatcher vs Planner**: Planner = nhận đơn từ Công ty mẹ & lập DO; Dispatcher = điều phối xe & tài xế giao hàng. Hai vai trò khác nhau hoàn toàn.
@@ -1056,13 +1056,13 @@ Quy trình điều phối chuyến xe, vận chuyển bằng xe nội bộ của
 ```
 
 **Luồng trạng thái đơn giao:**
-`WAREHOUSE_APPROVED` → `IN_TRANSIT` (Dispatcher lập trip cùng kho, chọn xe/tài xế thuộc kho và kiểm tra tải trọng; Tài xế nhận hàng lên xe; hệ thống chuyển hàng từ outbound staging sang kho ảo In-Transit và tạo delivery attempt hiện tại) → `COMPLETED` (Tài xế upload `goodsImage` và `signDocumentImage` vào attempt hiện tại, Đại lý xác thực OTP email, delivery attempt chuyển `DELIVERED`, hệ thống bắt buộc giao đủ DO, chỉ trừ kho ảo In-Transit của DO đó và tự động tạo invoice/công nợ cho DO đó) / `RETURNED` (Đại lý không nhận hoặc giao thất bại; delivery attempt hiện tại đóng `FAILED`, ghi lý do; hàng vẫn ở kho ảo In-Transit cho tới khi luồng hoàn hàng riêng tiếp nhận)
+`WAREHOUSE_APPROVED` → `IN_TRANSIT` (Dispatcher lập trip cùng kho, chọn xe/tài xế thuộc kho và kiểm tra tải trọng; Tài xế nhận hàng lên xe; hệ thống chuyển hàng từ outbound staging sang kho ảo In-Transit và tạo delivery attempt hiện tại) → `COMPLETED` (Tài xế upload `goodsImage` và `signDocumentImage` vào attempt hiện tại, Đại lý xác thực OTP email, delivery attempt chuyển `DELIVERED`, hệ thống bắt buộc giao đủ DO, chỉ trừ kho ảo In-Transit của DO đó và tự động tạo invoice/công nợ cho DO đó theo giá snapshot trên phiếu xuất tại thời điểm Thủ kho soạn/lập picking plan) / `RETURNED` (Đại lý không nhận hoặc giao thất bại; delivery attempt hiện tại đóng `FAILED`, ghi lý do; hàng vẫn ở kho ảo In-Transit cho tới khi luồng hoàn hàng riêng tiếp nhận)
 
 **Trip outbound:** Mỗi trip outbound có `trip_type = DELIVERY`, phải có ít nhất một DO `WAREHOUSE_APPROVED` cùng kho; Dispatcher, xe và tài xế phải thuộc kho đó. Trip `PLANNED` được sửa xe/tài xế/ngày/stop order hoặc danh sách DO trước khi depart; `deliveryOrders[]` khi update là danh sách cuối cùng sau chỉnh sửa và thay thế danh sách cũ. Hủy trip giữ DO ở `WAREHOUSE_APPROVED`, giữ lịch sử xe/tài xế trên trip, nhưng giải phóng xe/tài xế khỏi active assignment. Kiểm tra tải trọng luôn áp dụng theo cân nặng; thể tích chỉ kiểm tra nếu xe có `max_volume_m3`. Khi depart, hệ thống chuyển hàng từ outbound staging sang kho ảo In-Transit và tạo delivery attempt `IN_TRANSIT`; Sprint 1 không dùng `OUT_FOR_DELIVERY`. Trip chỉ `COMPLETED` khi Tài xế xác nhận xe đã quay lại kho và toàn bộ DO trong trip đã `COMPLETED` hoặc `RETURNED`.
 
 **Lưu trữ OTP giao hàng:** Backend sinh OTP ngẫu nhiên 6 chữ số. Mỗi delivery attempt chỉ có một bản ghi `delivery_otp_attempts` liên kết với `deliveries`; chỉ lưu hash/verifier của OTP, `recipient_email`, `created_at`, `expires_at`, `consumed_at`, `attempt_count`, và `status`. OTP có hiệu lực 5 phút. Nếu OTP còn hạn và Tài xế yêu cầu gửi lại, hệ thống trả lỗi và không ghi đè mã cũ. Nếu OTP quá hạn và Tài xế yêu cầu gửi lại, hệ thống dùng `UPDATE` ghi đè OTP hiện tại của delivery attempt bằng mã mới và reset thời gian/số lần thử/trạng thái. Nếu nhập sai OTP 3 lần, OTP bị khóa; Admin phải nhập lý do reset, hệ thống đánh dấu row hiện tại `EXPIRED`, reset `attempt_count = 0`, ghi audit before/after, rồi Tài xế mới được yêu cầu mã mới trên cùng row. Khi xác thực thành công, OTP chuyển `VERIFIED`, ghi `consumed_at`, và không được dùng lại. Bảng `deliveries` chỉ lưu kết quả xác thực cuối cùng như `otp_verified_at`, không lưu raw OTP.
 
-**Ý nghĩa trạng thái DO sau giao hàng:** `COMPLETED` nghĩa là Đại lý đã nhận hàng, POD + OTP hợp lệ, delivery attempt đã `DELIVERED`, và hệ thống đã tự động tạo invoice/công nợ; `CLOSED` nghĩa là công nợ đã được tất toán hoặc khóa theo kỳ kế toán.
+**Ý nghĩa trạng thái DO sau giao hàng:** `COMPLETED` nghĩa là Đại lý đã nhận hàng, POD + OTP hợp lệ, delivery attempt đã `DELIVERED`, và hệ thống đã tự động tạo invoice/công nợ; thông báo kế toán thuộc luồng riêng. `CLOSED` thuộc luồng tài chính/thanh toán riêng sau khi công nợ được tất toán hoặc khóa theo kỳ kế toán.
 
 **Phân quyền kho trong outbound:** Mọi API outbound phải check cả role và warehouse assignment. Planner, Thủ kho, QC, Trưởng kho, Dispatcher và Kế toán chỉ thao tác dữ liệu thuộc kho được gán; Tài xế chỉ thấy chuyến/attempt được gán cho driver profile của mình. CEO/Admin có thể xem liên kho nhưng mọi mutation vẫn phải ghi audit log.
 
@@ -1078,7 +1078,9 @@ Chu kỳ lập Hóa đơn bán hàng, theo dõi hạn mức công nợ (Credit L
 ├─────────────────────────────────┼────────────────────────────────┼─────────┤
 │                                 │                                │         │
 │ Theo dõi invoice auto-created       │                            │         │
-│ (Net 30/60) ───────────────────►│ Cộng dồn current_balance,      │         │
+│ giá snapshot lúc soạn picking,  │ Cộng dồn current_balance,      │         │
+│ issue_date = ngày local,        │                            │         │
+│ due_date = issue_date + 30d ───►│                            │         │
 │                                 │ set trạng thái [Completed]     │         │
 │                                 │                                │         │
 │                                 │ [Credit Check khi tạo đơn mới] │         │

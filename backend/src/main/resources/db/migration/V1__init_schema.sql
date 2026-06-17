@@ -393,7 +393,7 @@ CREATE TABLE delivery_order_items (
     reserved_qty  DECIMAL(10,2) NOT NULL DEFAULT 0
                   CHECK (reserved_qty >= 0),   -- Đang giữ chỗ trong inventories
     issued_qty    DECIMAL(10,2) NOT NULL DEFAULT 0,
-    unit_price    DECIMAL(18,2),               -- Từ price_history tại ngày giao
+    unit_price    DECIMAL(18,2),               -- Snapshot giá bán tại thời điểm Thủ kho soạn picking plan
     serial_number VARCHAR(100),
     picked_by     BIGINT        REFERENCES users(id) ON DELETE SET NULL
 );
@@ -605,7 +605,7 @@ CREATE TABLE damage_reports (
 CREATE TABLE invoices (
     id                   BIGSERIAL     PRIMARY KEY,
     invoice_number       VARCHAR(50)   UNIQUE NOT NULL,
-    do_id                BIGINT        NOT NULL REFERENCES delivery_orders(id),
+    do_id                BIGINT        UNIQUE NOT NULL REFERENCES delivery_orders(id),
     dealer_id            BIGINT        NOT NULL REFERENCES dealers(id),
     total_amount         DECIMAL(18,2) NOT NULL,
     issue_date           DATE          NOT NULL,

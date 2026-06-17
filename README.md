@@ -143,7 +143,7 @@ Hệ thống có **10 Actors** chia thành 3 tầng theo mô hình **Maker-Check
 | **Dispatcher** | Lập chuyến xe nội bộ Phúc Anh, gán tài xế, tối ưu lộ trình giao hàng |
 | **Thủ kho kiêm QC** | Quản lý SKU/danh mục sản phẩm, tiếp nhận hàng, kiểm QC inbound/outbound, soạn hàng, kiểm kê, cất Bin, xác nhận điều chuyển |
 | **Nhân viên kho (Bốc xếp)** | Bốc xếp hàng hóa, hỗ trợ di chuyển hàng hóa, di chuyển hàng lỗi vào Quarantine theo chỉ dẫn của Thủ kho |
-| **Kế toán viên** | Quản lý hồ sơ Nhà cung cấp, lập hóa đơn, ghi nhận thanh toán, cấn trừ công nợ, quản lý bảng giá |
+| **Kế toán viên** | Quản lý hồ sơ Nhà cung cấp, theo dõi invoice/công nợ tự động, xử lý thanh toán trong luồng tài chính riêng, quản lý bảng giá |
 | **Tài xế** | Nhận chuyến (smartphone), upload `goodsImage`/`signDocumentImage`, nhập OTP Đại lý, báo giao thất bại, xác nhận xe về kho |
 
 > **Phân biệt Dispatcher vs Planner:** Planner = nhận đơn từ Công ty mẹ & lập Delivery Order; Dispatcher = điều phối xe & tài xế giao hàng — **hai vai trò hoàn toàn khác nhau**.
@@ -177,7 +177,7 @@ Hệ thống có **26 User Stories** chia thành 9 nhóm nghiệp vụ:
 | US-WMS-07 | Soạn hàng & Kiểm QC đóng gói | P1 |
 | US-WMS-08 | Lập Chuyến xe & Điều phối Vận tải Nội bộ | P1 |
 | US-WMS-09 | Giao diện Web mobile cho Tài xế & POD thời gian thực | P1 |
-| US-WMS-10 | Lập Hóa đơn bán hàng & Ghi nhận Công nợ | P1 |
+| US-WMS-10 | Tự động tạo Hóa đơn bán hàng & Cộng công nợ Đại lý | P1 |
 
 ### Nhóm 4: Điều chuyển nội bộ (Replenishment & Transfer)
 
@@ -260,7 +260,7 @@ Công ty mẹ gửi yêu cầu xuất hàng
     → Giao full DO: hệ thống chỉ trừ In-Transit của DO được xác nhận, tự động tạo Hóa đơn (Invoice), cộng công nợ và chuyển DO [COMPLETED]
     → Nếu Đại lý không nhận: Tài xế chuyển DO [RETURNED], hàng vẫn ở In-Transit cho luồng hoàn hàng riêng
     → Khi xe quay lại kho, Tài xế bấm xác nhận xe đã về và mọi DO trong chuyến đã COMPLETED/RETURNED → Trip [COMPLETED]
-    → Đại lý thanh toán → Cấn trừ công nợ [CLOSED]
+    → Luồng tài chính/thanh toán riêng xử lý thu tiền, cấn trừ công nợ và chuyển DO [CLOSED]
 ```
 
 ### 3. Quy trình Điều chuyển Kho Nội bộ
@@ -280,12 +280,12 @@ Planner xem Planning Dashboard → Nhận gợi ý điều chuyển
 
 ```
 [Phát sinh nợ]
-POD + OTP hợp lệ cho full DO → Hệ thống tự động lập Invoice (Net 30/60) → current_balance += giá trị đơn → DO [COMPLETED]
+POD + OTP hợp lệ cho full DO → Hệ thống tự động lập Invoice theo giá snapshot trên DO tại thời điểm Thủ kho soạn/lập picking plan (`issue_date` = ngày local hiện tại, `due_date = issue_date + 30 ngày`) → current_balance += giá trị đơn → DO [COMPLETED]
     → IF current_balance > credit_limit → CREDIT_HOLD (chặn đơn mới; bằng hạn mức vẫn cho phép)
     → Daily Job: IF invoice quá hạn > 30 ngày → CREDIT_HOLD + cảnh báo Kế toán trưởng
 
 [Thu nợ]
-Đại lý trả tiền → Kế toán tạo Phiếu thu → current_balance -= số tiền thu
+Luồng tài chính/thanh toán riêng: Đại lý trả tiền → Kế toán tạo Phiếu thu → current_balance -= số tiền thu
     → IF current_balance < credit_limit * 0.8 → ACTIVE (mở khóa, buffer 20%)
 
 [Chốt sổ — Cuối tháng]
@@ -540,7 +540,7 @@ Inventory         → warehouse + product + batch + location (NEVER negative)
 Receipt           → Lệnh nhập kho / Phiếu nhập kho
 Issue             → Đơn xuất hàng / Phiếu xuất kho
 Transfer          → Phiếu điều chuyển (qua In-Transit virtual warehouse)
-Invoice           → Hóa đơn bán hàng (Net 30/60)
+Invoice           → Hóa đơn bán hàng
 PaymentReceipt    → Phiếu thu tiền
 CreditNote        → Phiếu ghi giảm công nợ (hàng hoàn trả)
 DebitNote         → Phiếu đòi bồi hoàn (hàng lỗi trả NCC)

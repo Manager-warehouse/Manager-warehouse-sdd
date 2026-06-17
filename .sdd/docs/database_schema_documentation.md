@@ -408,9 +408,11 @@ erDiagram
 ### 31. Bảng `invoices`
 *   **Công dụng:** Hóa đơn tài chính xuất cho đại lý dựa trên số lượng hàng thực tế đã giao thành công của lệnh xuất kho `DO`.
 *   **Chi tiết các trường:**
-    *   `total_amount` (DECIMAL): Tổng giá trị hóa đơn (tiền hàng đại lý phải trả).
-    *   `due_date` (DATE): Hạn thanh toán cuối cùng (nếu quá hạn này, đại lý sẽ bị chuyển sang trạng thái cảnh báo nợ).
+    *   `total_amount` (DECIMAL): Tổng giá trị hóa đơn (tiền hàng đại lý phải trả), tính bằng tổng `delivered_qty * delivery_order_items.unit_price`. `unit_price` là giá bán snapshot tại thời điểm Thủ kho soạn/lập picking plan, không tra lại giá tại ngày giao.
+    *   `issue_date` (DATE): Ngày tạo hóa đơn theo ngày địa phương thực tế của backend tại thời điểm xác nhận giao thành công.
+    *   `due_date` (DATE): Hạn thanh toán cuối cùng. Với invoice tự động từ outbound POD, mặc định `due_date = issue_date + 30 ngày`; gia hạn hạn thanh toán do luồng tài chính/thanh toán riêng xử lý.
     *   `status` (VARCHAR(20)): CHECK: `UNPAID` (Chưa trả), `PARTIALLY_PAID` (Trả một phần), `PAID` (Đã thanh toán xong).
+*   **Ràng buộc outbound:** Mỗi Delivery Order chỉ được có một invoice (`do_id` unique). Nếu invoice đã tồn tại khi retry xác nhận giao hàng, hệ thống không được tạo invoice mới và không được cộng `dealers.current_balance` lần hai.
 
 ### 32. Bảng `payment_receipts`
 *   **Công dụng:** Phiếu thu ghi nhận tiền khách hàng (Đại lý) thanh toán cho hóa đơn nợ.

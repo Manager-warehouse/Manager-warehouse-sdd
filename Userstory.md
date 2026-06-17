@@ -146,22 +146,23 @@
 
 ---
 
-### US-WMS-10: Lập Hóa đơn bán hàng & Ghi nhận Công nợ (Priority: P1)
+### US-WMS-10: Tự động tạo Hóa đơn bán hàng & Cộng công nợ Đại lý (Priority: P1)
 
-**Mô tả:** Là Kế toán viên, sau khi đơn hàng chuyển sang trạng thái Delivered, tôi muốn lập Hóa đơn bán hàng kèm kỳ hạn thanh toán để hệ thống theo dõi và tự động cảnh báo nợ quá hạn.
+**Mô tả:** Sau khi tài xế xác nhận giao thành công bằng POD + OTP hợp lệ, hệ thống tự động tạo Hóa đơn bán hàng và cộng công nợ cho Đại lý.
 
-**Tiêu chí bổ sung:** Kế toán viên phải có màn hình/API danh sách invoice/công nợ đã tự động tạo từ các DO `COMPLETED` theo phạm vi kho được phân quyền để theo dõi thu tiền và không bỏ sót công nợ.
+**Tiêu chí bổ sung:** Scope của US-WMS-10 dừng ở việc tạo invoice và cộng công nợ tự động. Thông báo kế toán, ghi nhận thanh toán, phê duyệt thanh toán, cấn trừ công nợ và chuyển DO sang `CLOSED` thuộc các luồng riêng.
 
 **Tiêu chí nghiệm thu:**
 
-1. Kế toán viên nhận thông báo hệ thống: "Đơn hàng #DO-xxx đã giao thành công" → Tạo Hóa đơn bán hàng (Invoice) gồm:
-   - Mã hóa đơn (tự động sinh), Đại lý, Tổng giá trị (tính theo bảng giá hiệu lực tại ngày giao), Ngày xuất hóa đơn, **Hạn thanh toán** (Net 30 hoặc Net 60 theo hồ sơ Đại lý).
+1. Khi tài xế xác nhận giao full DO thành công bằng POD + OTP, hệ thống tự động tạo Hóa đơn bán hàng (Invoice) gồm:
+   - Mã hóa đơn (tự động sinh), Đại lý, Tổng giá trị (tính theo số lượng sản phẩm và `unit_price` đã snapshot trên phiếu xuất kho tại thời điểm Thủ kho soạn/lập picking plan), Ngày xuất hóa đơn theo ngày địa phương thực tế của backend, **Hạn thanh toán = ngày xuất hóa đơn + 30 ngày**.
    - Trạng thái hóa đơn ban đầu: **Chưa thanh toán (Unpaid)**.
 2. **Hệ thống tự động** sau khi hóa đơn được tạo:
    - Cộng dồn giá trị hóa đơn vào `current_balance` của Đại lý.
-   - Kiểm tra: `IF current_balance > credit_limit THEN customer.status = 'CREDIT_HOLD'`; nếu `current_balance = credit_limit` thì vẫn cho phép theo hạn mức.
-3. **Cảnh báo tự động quá hạn (Daily Job):** Hệ thống quét hàng ngày — nếu Hóa đơn đã quá ngày **Hạn thanh toán** mà chưa được thanh toán → Tự động gán `CREDIT_HOLD` cho Đại lý và bắn thông báo đến Kế toán trưởng.
-4. Đơn hàng chuyển trạng thái: **Đã hoàn thành (Completed)** — chờ thu tiền.
+   - Không gửi thông báo trong scope này; thông báo kế toán do luồng riêng xử lý.
+   - Chặn tạo trùng invoice cho cùng Delivery Order; retry không được cộng công nợ lần hai.
+3. Đơn hàng chuyển trạng thái: **Đã hoàn thành (Completed)**.
+4. **Ngoài scope:** Thông báo kế toán, gia hạn ngày thanh toán, xử lý thanh toán, cấn trừ công nợ, mở/khóa tín dụng do thanh toán, cảnh báo quá hạn và đóng DO sau khi thanh toán đầy đủ do các luồng riêng xử lý.
 
 ---
 

@@ -40,7 +40,7 @@
 | Dispatcher                   | Lập chuyến xe nội bộ, gán tài xế, tối ưu lộ trình                       |
 | Thủ kho                      | Tiếp nhận hàng, soạn hàng, kiểm kê, cất Bin                             |
 | Nhân viên kho (Bốc xếp & QC) | Bốc xếp, QC inbound/outbound, di chuyển hàng lỗi                        |
-| Kế toán viên                 | Lập hóa đơn, ghi nhận thanh toán, cấn trừ công nợ                       |
+| Kế toán viên                 | Xử lý thanh toán và theo dõi công nợ trong luồng tài chính riêng |
 | Tài xế                       | Nhận chuyến (smartphone), upload `goodsImage`/`signDocumentImage`, nhập OTP Đại lý, báo giao thất bại, xác nhận xe về kho |
 
 ## 3. Domain Glossary
