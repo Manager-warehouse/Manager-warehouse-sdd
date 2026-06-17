@@ -41,6 +41,9 @@ public class ReceiptItem {
     @Column(name = "actual_qty")
     private Integer actualQty;
 
+    @Column(name = "over_received_qty", nullable = false)
+    private Integer overReceivedQty = 0;
+
     @Column(name = "sample_qty")
     private Integer sampleQty;
 

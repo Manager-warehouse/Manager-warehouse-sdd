@@ -12,8 +12,6 @@ import com.wms.util.JwtUtil;
 import com.wms.util.AuditLogUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.AuthenticationException;
@@ -38,7 +36,7 @@ public class AuthService {
     private final JwtUtil jwtUtil;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
-    private final JavaMailSender mailSender;
+    private final EmailService emailService;
     private final UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
     private final AuditLogRepository auditLogRepository;
 
@@ -198,7 +196,7 @@ public class AuthService {
             user.setOtpHash(sha256(otp));
             user.setOtpExpiresAt(OffsetDateTime.now().plusMinutes(10));
             userRepository.saveAndFlush(user);
-            sendOtpEmail(user.getEmail(), otp);
+            emailService.sendOtpEmail(user.getEmail(), otp);
         });
         // Always return silently — no email enumeration
     }
@@ -237,23 +235,6 @@ public class AuthService {
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
     }
-
-    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AuthService.class);
-
-    private void sendOtpEmail(String to, String otp) {
-        try {
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setTo(to);
-            message.setSubject("Mã OTP đặt lại mật khẩu — WMS Phúc Anh");
-            message.setText("Mã OTP của bạn là: " + otp + "\nMã có hiệu lực trong 10 phút. Không chia sẻ mã này với bất kỳ ai.");
-            mailSender.send(message);
-            log.info("Đã gửi email OTP tới {}", to);
-        } catch (Exception e) {
-            log.error("Không thể gửi email OTP (SMTP error): {}", e.getMessage(), e);
-            throw new IllegalStateException("MAIL_SEND_FAILED");
-        }
-    }
-
 
     private String sha256(String input) {
         try {

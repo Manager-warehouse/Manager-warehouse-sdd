@@ -1,5 +1,6 @@
 package com.wms.entity;
 
+import com.wms.enums.QcResult;
 import lombok.*;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
@@ -73,4 +74,17 @@ public class TransferItem {
 
     @Column(name = "variance_qty", precision = 10, scale = 2)
     private BigDecimal varianceQty;
+
+    @Column(name = "qc_passed_qty", precision = 10, scale = 2)
+    private BigDecimal qcPassedQty;
+
+    @Column(name = "qc_failed_qty", precision = 10, scale = 2)
+    private BigDecimal qcFailedQty;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "qc_result", length = 20)
+    private QcResult qcResult;
+
+    @Column(name = "qc_failure_reason", columnDefinition = "TEXT")
+    private String qcFailureReason;
 }

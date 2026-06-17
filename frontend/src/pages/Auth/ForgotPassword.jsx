@@ -10,10 +10,12 @@ const ForgotPassword = () => {
   const navigate = useNavigate();
   const { addToast } = useUiStore();
 
-  const [step, setStep] = useState(1); // 1: Request OTP, 2: Reset Password, 3: Success
+  // step 1: email, step 2: OTP, step 3: new password, step 4: success
+  const [step, setStep] = useState(1);
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -23,46 +25,55 @@ const ForgotPassword = () => {
       setError('Vui lòng nhập địa chỉ email của bạn');
       return;
     }
-
     setLoading(true);
     setError('');
-
     try {
       await authService.forgotPassword(email);
       addToast('Mã OTP đã được gửi đến email của bạn', 'success');
-      console.log('Mock OTP Code: 123456');
       setStep(2);
     } catch (err) {
-      console.error(err);
       setError('Tài khoản không tồn tại hoặc đã bị khóa.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleResetPassword = async (e) => {
+  const handleVerifyOtp = (e) => {
     e.preventDefault();
-    if (!otp || !newPassword) {
-      setError('Vui lòng nhập đầy đủ mã OTP và mật khẩu mới');
+    if (!otp || otp.length < 6) {
+      setError('Vui lòng nhập đủ mã OTP 6 số');
       return;
     }
+    setError('');
+    setStep(3);
+  };
 
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    if (!newPassword) {
+      setError('Vui lòng nhập mật khẩu mới');
+      return;
+    }
     if (newPassword.length < 8) {
       setError('Mật khẩu mới phải có tối thiểu 8 ký tự');
       return;
     }
-
+    if (newPassword !== confirmPassword) {
+      setError('Mật khẩu xác nhận không khớp');
+      return;
+    }
     setLoading(true);
     setError('');
-
     try {
       await authService.verifyOtp(email, otp, newPassword);
       addToast('Đặt lại mật khẩu thành công', 'success');
-      setStep(3);
+      setStep(4);
     } catch (err) {
-      console.error(err);
       if (err.message === 'INVALID_OTP') {
-        setError('Mã OTP không chính xác hoặc đã hết hạn');
+        // OTP was wrong — send user back to re-enter it
+        setOtp('');
+        setStep(2);
+        setError('Mã OTP không chính xác hoặc đã hết hạn. Vui lòng nhập lại.');
       } else {
         setError('Đã có lỗi hệ thống xảy ra. Vui lòng thử lại.');
       }
@@ -122,8 +133,9 @@ const ForgotPassword = () => {
             </h2>
             <p className="text-sm text-shade-40 mt-2 font-light">
               {step === 1 && 'Nhập địa chỉ email của bạn để nhận mã xác thực khôi phục mật khẩu.'}
-              {step === 2 && 'Kiểm tra email của bạn và nhập mã OTP 6 số để thiết lập mật khẩu mới.'}
-              {step === 3 && 'Mật khẩu của bạn đã được khôi phục thành công.'}
+              {step === 2 && 'Kiểm tra email của bạn và nhập mã OTP 6 số.'}
+              {step === 3 && 'Mã OTP hợp lệ. Hãy thiết lập mật khẩu mới cho tài khoản của bạn.'}
+              {step === 4 && 'Mật khẩu của bạn đã được khôi phục thành công.'}
             </p>
           </div>
 
@@ -160,7 +172,7 @@ const ForgotPassword = () => {
           )}
 
           {step === 2 && (
-            <form onSubmit={handleResetPassword} className="flex flex-col gap-5">
+            <form onSubmit={handleVerifyOtp} className="flex flex-col gap-5">
               {error && (
                 <div className="p-4 bg-red-950/40 border border-red-800 rounded-lg text-red-400 text-xs font-medium">
                   {error}
@@ -179,25 +191,12 @@ const ForgotPassword = () => {
                 />
               </div>
 
-              <div>
-                <Input
-                  label="Mật khẩu mới"
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="Tối thiểu 8 ký tự"
-                  className="!bg-canvas-nightElevated !text-onPrimary !border-hairline-dark focus:!ring-onPrimary focus:!border-onPrimary placeholder-shade-60"
-                  required
-                />
-              </div>
-
               <Button
                 type="submit"
                 variant="outline-dark"
-                loading={loading}
                 className="w-full mt-2 min-h-[44px]"
               >
-                Cập nhật mật khẩu
+                Xác nhận mã OTP
               </Button>
 
               <div className="text-center mt-2">
@@ -215,6 +214,49 @@ const ForgotPassword = () => {
           )}
 
           {step === 3 && (
+            <form onSubmit={handleResetPassword} className="flex flex-col gap-5">
+              {error && (
+                <div className="p-4 bg-red-950/40 border border-red-800 rounded-lg text-red-400 text-xs font-medium">
+                  {error}
+                </div>
+              )}
+
+              <div>
+                <Input
+                  label="Mật khẩu mới"
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Tối thiểu 8 ký tự"
+                  className="!bg-canvas-nightElevated !text-onPrimary !border-hairline-dark focus:!ring-onPrimary focus:!border-onPrimary placeholder-shade-60"
+                  required
+                />
+              </div>
+
+              <div>
+                <Input
+                  label="Xác nhận mật khẩu mới"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Nhập lại mật khẩu mới"
+                  className="!bg-canvas-nightElevated !text-onPrimary !border-hairline-dark focus:!ring-onPrimary focus:!border-onPrimary placeholder-shade-60"
+                  required
+                />
+              </div>
+
+              <Button
+                type="submit"
+                variant="outline-dark"
+                loading={loading}
+                className="w-full mt-2 min-h-[44px]"
+              >
+                Cập nhật mật khẩu
+              </Button>
+            </form>
+          )}
+
+          {step === 4 && (
             <div className="flex flex-col items-center justify-center py-8 gap-6">
               <div className="w-16 h-16 rounded-full bg-aloe-10/20 flex items-center justify-center text-aloe-10">
                 <CheckCircle2 className="w-8 h-8" />

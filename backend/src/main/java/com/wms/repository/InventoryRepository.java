@@ -21,6 +21,7 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
     }
 
     boolean existsByWarehouseIdAndTotalQtyGreaterThan(Long warehouseId, BigDecimal totalQty);
+
     boolean existsByLocationIdAndTotalQtyGreaterThan(Long locationId, BigDecimal totalQty);
 
     @Query("""
@@ -63,4 +64,37 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select i from Inventory i where i.id = :id")
     Optional<Inventory> findByIdForUpdate(@Param("id") Long id);
+
+    /**
+     * Find inventory row for a specific warehouse/product/batch/location combo with a write lock.
+     * Used during putaway and RTV confirm to prevent concurrent inventory corruption.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT i FROM Inventory i " +
+           "WHERE i.warehouse.id = :warehouseId " +
+           "AND i.product.id = :productId " +
+           "AND i.batch.id = :batchId " +
+           "AND i.location.id = :locationId")
+    Optional<Inventory> findByWarehouseProductBatchLocationForUpdate(
+            @Param("warehouseId") Long warehouseId,
+            @Param("productId") Long productId,
+            @Param("batchId") Long batchId,
+            @Param("locationId") Long locationId);
+
+    /**
+     * Find inventory row (read only) for a specific combo.
+     */
+    @Query("SELECT i FROM Inventory i " +
+           "WHERE i.warehouse.id = :warehouseId " +
+           "AND i.product.id = :productId " +
+           "AND i.batch.id = :batchId " +
+           "AND i.location.id = :locationId")
+    Optional<Inventory> findByWarehouseProductBatchLocation(
+            @Param("warehouseId") Long warehouseId,
+            @Param("productId") Long productId,
+            @Param("batchId") Long batchId,
+            @Param("locationId") Long locationId);
+
+    Optional<Inventory> findByWarehouseIdAndProductIdAndBatchIdAndLocationId(
+            Long warehouseId, Long productId, Long batchId, Long locationId);
 }

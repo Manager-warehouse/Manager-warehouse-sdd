@@ -1,12 +1,13 @@
 package com.wms.service;
 
-import com.wms.dto.AuditLogDetailResponse;
-import com.wms.dto.AuditLogPageResponse;
+import com.wms.dto.response.AuditLogDetailResponse;
+import com.wms.dto.response.AuditLogPageResponse;
 import com.wms.entity.AuditLog;
 import com.wms.entity.User;
 import com.wms.enums.AuditAction;
 import com.wms.enums.UserRole;
 import com.wms.repository.AuditLogRepository;
+import com.wms.repository.UserRepository;
 import com.wms.repository.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,6 +40,7 @@ import static org.mockito.Mockito.*;
 class AuditLogServiceTest {
 
     @Mock private AuditLogRepository auditLogRepository;
+    @Mock private UserRepository userRepository;
     @Mock private UserRepository userRepository;
     @Mock private HttpServletRequest httpServletRequest;
 

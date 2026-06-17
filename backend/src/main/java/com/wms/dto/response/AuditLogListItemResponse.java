@@ -1,4 +1,4 @@
-package com.wms.dto;
+package com.wms.dto.response;
 
 import com.wms.entity.AuditLog;
 import lombok.Getter;

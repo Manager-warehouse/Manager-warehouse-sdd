@@ -537,7 +537,10 @@ export const inboundService = {
       if (!receipt) throw new Error('RECEIPT_NOT_FOUND');
 
       const items = getDb(KEYS.RECEIPT_ITEMS, INITIAL_RECEIPT_ITEMS);
-      const receiptItems = items.filter(item => item.receipt_id === Number(id));
+      const receiptItems = items.filter(item => item.receipt_id === Number(id)).map(item => ({
+        ...item,
+        receipt_item_id: item.id
+      }));
 
       return {
         ...receipt,
@@ -630,7 +633,8 @@ export const inboundService = {
       receiveData.items.forEach(updateItem => {
         const riIdx = receiptItems.findIndex(ri => ri.id === Number(updateItem.receipt_item_id));
         if (riIdx !== -1) {
-          receiptItems[riIdx].actual_qty = parseFloat(updateItem.actual_qty);
+          const counted = updateItem.counted_qty !== undefined ? updateItem.counted_qty : updateItem.actual_qty;
+          receiptItems[riIdx].actual_qty = parseFloat(counted);
           if (updateItem.serials) {
             receiptItems[riIdx].serial_number = updateItem.serials.join(',');
           }
@@ -660,39 +664,52 @@ export const inboundService = {
       if (rIdx === -1) throw new Error('RECEIPT_NOT_FOUND');
       if (receipts[rIdx].status !== 'DRAFT') throw new Error('RECEIPT_NOT_READY_FOR_QC');
 
-      qcData.items.forEach(updateItem => {
-        const riIdx = receiptItems.findIndex(ri => ri.id === Number(updateItem.receipt_item_id));
-        if (riIdx !== -1) {
-          const item = receiptItems[riIdx];
-          const passed = parseFloat(updateItem.qc_passed_qty);
-          const failed = parseFloat(updateItem.qc_failed_qty);
-          
-          if (passed + failed !== item.actual_qty) {
-            throw new Error('QC_PASSED_FAILED_MISMATCH');
+      if (qcData.action === 'CONFIRM') {
+        const items = receiptItems.filter(item => item.receipt_id === Number(id));
+        const hasPending = items.some(item => !item.qc_result || item.qc_result === 'PENDING');
+        if (hasPending) throw new Error('QC_NOT_YET_SUBMITTED');
+
+        const hasFailed = items.some(item => item.qc_result === 'FAILED');
+        receipts[rIdx].status = hasFailed ? 'QC_FAILED' : 'QC_COMPLETED';
+        receipts[rIdx].updated_at = new Date().toISOString();
+        saveDb(KEYS.RECEIPTS, receipts);
+        addMockAuditLog('RECEIPT_QC_CONFIRM', 'Receipt', id, `Xác nhận QC cho phiếu: ${receipts[rIdx].receipt_number}`);
+        return receipts[rIdx];
+      }
+
+      if (qcData.items) {
+        qcData.items.forEach(updateItem => {
+          const riIdx = receiptItems.findIndex(ri => ri.id === Number(updateItem.receipt_item_id));
+          if (riIdx !== -1) {
+            const item = receiptItems[riIdx];
+            const passed = parseFloat(updateItem.qc_passed_qty);
+            const failed = parseFloat(updateItem.qc_failed_qty);
+
+            if (passed + failed !== item.actual_qty) {
+              throw new Error('QC_PASSED_FAILED_MISMATCH');
+            }
+
+            item.qc_passed_qty = passed;
+            item.qc_failed_qty = failed;
+            item.qc_failure_reason = updateItem.qc_failure_reason || null;
+            item.grade = updateItem.grade || 'A';
+            item.qc_result = failed === 0 ? 'PASSED' : 'FAILED';
           }
+        });
+        saveDb(KEYS.RECEIPT_ITEMS, receiptItems);
+      }
 
-          item.qc_passed_qty = passed;
-          item.qc_failed_qty = failed;
-          item.qc_failure_reason = updateItem.qc_failure_reason || null;
-          item.grade = updateItem.grade || 'A';
-          item.qc_result = passed === item.actual_qty ? 'PASSED' : (failed === item.actual_qty ? 'FAILED' : 'PARTIAL');
-        }
-      });
-
-      receipts[rIdx].status = 'QC_COMPLETED';
       receipts[rIdx].updated_at = new Date().toISOString();
-
       saveDb(KEYS.RECEIPTS, receipts);
-      saveDb(KEYS.RECEIPT_ITEMS, receiptItems);
 
-      addMockAuditLog('RECEIPT_QC_COMPLETED', 'Receipt', id, `Hoàn tất kiểm QC cho phiếu: ${receipts[rIdx].receipt_number}`);
+      addMockAuditLog('RECEIPT_QC_SUBMIT', 'Receipt', id, `Ghi nhận kết quả QC cho phiếu: ${receipts[rIdx].receipt_number}`);
       return receipts[rIdx];
     }
     const response = await apiClient.put(`/receipts/${id}/qc`, qcData);
     return response.data;
   },
 
-  approveReceipt: async (id, notes) => {
+  approveReceipt: async (id, notes, version) => {
     if (useMock) {
       await new Promise(resolve => setTimeout(resolve, 600));
       const receipts = getDb(KEYS.RECEIPTS, INITIAL_RECEIPTS);
@@ -826,11 +843,11 @@ export const inboundService = {
       addMockAuditLog('RECEIPT_APPROVED', 'Receipt', id, `Ký duyệt nhập kho chính thức: ${receipts[rIdx].receipt_number}`);
       return receipts[rIdx];
     }
-    const response = await apiClient.put(`/receipts/${id}/approve`, { notes });
+    const response = await apiClient.put(`/receipts/${id}/approve`, { expectedVersion: version, reason: notes });
     return response.data;
   },
 
-  rejectReceipt: async (id, reason) => {
+  rejectReceipt: async (id, reason, version) => {
     if (useMock) {
       await new Promise(resolve => setTimeout(resolve, 400));
       const receipts = getDb(KEYS.RECEIPTS, INITIAL_RECEIPTS);
@@ -848,7 +865,7 @@ export const inboundService = {
       addMockAuditLog('RECEIPT_REJECTED', 'Receipt', id, `Từ chối phê duyệt nhập kho phiếu: ${receipts[rIdx].receipt_number}. Lý do: ${reason}`);
       return receipts[rIdx];
     }
-    const response = await apiClient.put(`/receipts/${id}/reject`, { rejection_reason: reason });
+    const response = await apiClient.put(`/receipts/${id}/reject`, { expectedVersion: version, reason: reason });
     return response.data;
   },
 
@@ -960,6 +977,7 @@ export const inboundService = {
         const prod = products.find(p => p.id === item.product_id);
         return {
           ...item,
+          receipt_item_id: item.id,
           receipt_number: rc.receipt_number,
           supplier_id: rc.supplier_id,
           product_name: prod ? prod.name : 'Unknown Product',
@@ -972,7 +990,7 @@ export const inboundService = {
     return response.data;
   },
 
-  handleRtv: async (receiptItemId, notes) => {
+  handleRtv: async (receiptId, receiptVersion, notes) => {
     if (useMock) {
       await new Promise(resolve => setTimeout(resolve, 500));
       const receiptItems = getDb(KEYS.RECEIPT_ITEMS, INITIAL_RECEIPT_ITEMS);
@@ -983,19 +1001,16 @@ export const inboundService = {
       const locations = getDb('wms_db_warehouse_locations', []);
       const products = await masterDataService.getProducts();
 
-      const riIdx = receiptItems.findIndex(ri => ri.id === Number(receiptItemId));
-      if (riIdx === -1) throw new Error('ITEM_NOT_FOUND');
-      
-      const item = receiptItems[riIdx];
-      const receipt = receipts.find(r => r.id === item.receipt_id);
+      const receipt = receipts.find(r => r.id === Number(receiptId));
       if (!receipt) throw new Error('RECEIPT_NOT_FOUND');
 
-      const prod = products.find(p => p.id === item.product_id);
+      const items = receiptItems.filter(ri => ri.receipt_id === receipt.id);
+      const pendingItems = items.filter(ri => ri.quarantine_status === 'PENDING');
 
-      // 1. Update item quarantine status
-      item.quarantine_status = 'RTV_COMPLETED';
+      pendingItems.forEach(item => {
+        item.quarantine_status = 'RTV_COMPLETED';
+      });
 
-      // 2. Create Debit Note
       const today = new Date();
       const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
       const countDn = debitNotes.length + 1;
@@ -1003,14 +1018,17 @@ export const inboundService = {
       
       const currentUser = JSON.parse(localStorage.getItem('wms_user')) || { id: 3 };
 
+      const totalFailedQty = items.reduce((sum, ri) => sum + (ri.qc_failed_qty || 0), 0);
+      const totalAmount = items.reduce((sum, ri) => sum + ((ri.qc_failed_qty || 0) * (ri.unit_cost || 0)), 0);
+
       const newDn = {
         id: debitNotes.length + 1,
         debit_note_number: dnNumber,
-        supplier_id: receipt.supplier_id || 1, // fallback
+        supplier_id: receipt.supplier_id || 1,
         receipt_id: receipt.id,
-        failed_qty: item.qc_failed_qty,
-        amount: item.qc_failed_qty * item.unit_cost,
-        reason: notes || item.qc_failure_reason || 'Trả hàng lỗi QC',
+        failed_qty: totalFailedQty,
+        amount: totalAmount,
+        reason: notes || 'Trả hàng lỗi QC',
         created_by: currentUser.id,
         document_date: today.toISOString().slice(0, 10),
         accounting_period_id: 1,
@@ -1018,7 +1036,7 @@ export const inboundService = {
       };
       debitNotes.push(newDn);
 
-      // 3. Create Adjustment
+      // Create Adjustment
       const countAdj = adjustments.length + 1;
       const adjNumber = `ADJ-RTV-${dateStr}-${String(countAdj).padStart(4, '0')}`;
 
@@ -1026,10 +1044,10 @@ export const inboundService = {
         id: adjustments.length + 1,
         adjustment_number: adjNumber,
         warehouse_id: receipt.warehouse_id,
-        product_id: item.product_id,
-        batch_id: item.batch_id || 2, // fallback
-        location_id: 102, // default quarantine location
-        quantity_adjustment: -item.qc_failed_qty,
+        product_id: items[0]?.product_id || 1,
+        batch_id: items[0]?.batch_id || 2,
+        location_id: 102,
+        quantity_adjustment: -totalFailedQty,
         type: 'RETURN_TO_VENDOR',
         reference_id: newDn.id,
         reference_type: 'debit_notes',
@@ -1043,32 +1061,35 @@ export const inboundService = {
       };
       adjustments.push(newAdj);
 
-      // 4. Decrease quarantine inventory
+      // Decrease quarantine inventory
       const qLoc = locations.find(l => l.warehouse_id === receipt.warehouse_id && l.is_quarantine === true);
       if (qLoc) {
-        // Find Grade C batch of this receipt
-        const batches = getDb(KEYS.BATCHES, INITIAL_BATCHES);
-        const failBatch = batches.find(b => b.product_id === item.product_id && b.warehouse_id === receipt.warehouse_id && b.grade === 'C');
-        const failBatchId = failBatch ? failBatch.id : 2;
+        items.forEach(item => {
+          const qty = item.qc_failed_qty || 0;
+          if (qty <= 0) return;
+          const prod = products.find(p => p.id === item.product_id);
+          const batches = getDb(KEYS.BATCHES, INITIAL_BATCHES);
+          const failBatch = batches.find(b => b.product_id === item.product_id && b.warehouse_id === receipt.warehouse_id && b.grade === 'C');
+          const failBatchId = failBatch ? failBatch.id : 2;
 
-        const invIdx = inventories.findIndex(inv => 
-          inv.warehouse_id === receipt.warehouse_id &&
-          inv.product_id === item.product_id &&
-          inv.batch_id === failBatchId &&
-          inv.location_id === qLoc.id
-        );
+          const invIdx = inventories.findIndex(inv =>
+            inv.warehouse_id === receipt.warehouse_id &&
+            inv.product_id === item.product_id &&
+            inv.batch_id === failBatchId &&
+            inv.location_id === qLoc.id
+          );
 
-        if (invIdx !== -1) {
-          inventories[invIdx].total_qty = Math.max(0, inventories[invIdx].total_qty - item.qc_failed_qty);
-          inventories[invIdx].updated_at = new Date().toISOString();
-          inventories[invIdx].version += 1;
-        }
+          if (invIdx !== -1) {
+            inventories[invIdx].total_qty = Math.max(0, inventories[invIdx].total_qty - qty);
+            inventories[invIdx].updated_at = new Date().toISOString();
+            inventories[invIdx].version += 1;
+          }
 
-        // Re-calc bin capacity
-        const vol = Math.max(0, qLoc.current_volume_m3 - (item.qc_failed_qty * (prod?.volume_m3 || 0)));
-        const wt = Math.max(0, qLoc.current_weight_kg - (item.qc_failed_qty * (prod?.weight_kg || 0)));
-        qLoc.current_volume_m3 = parseFloat(vol.toFixed(3));
-        qLoc.current_weight_kg = parseFloat(wt.toFixed(2));
+          const vol = Math.max(0, qLoc.current_volume_m3 - (qty * (prod?.volume_m3 || 0)));
+          const wt = Math.max(0, qLoc.current_weight_kg - (qty * (prod?.weight_kg || 0)));
+          qLoc.current_volume_m3 = parseFloat(vol.toFixed(3));
+          qLoc.current_weight_kg = parseFloat(wt.toFixed(2));
+        });
         
         const locIdx = locations.findIndex(l => l.id === qLoc.id);
         if (locIdx !== -1) locations[locIdx] = qLoc;
@@ -1080,10 +1101,13 @@ export const inboundService = {
       saveDb('wms_db_inventories', inventories);
       saveDb('wms_db_warehouse_locations', locations);
 
-      addMockAuditLog('QUARANTINE_RTV', 'ReceiptItem', receiptItemId, `Đã xuất trả hàng lỗi NCC (RTV) cho sản phẩm ${prod?.sku}. Đã sinh Debit Note: ${dnNumber}`);
+      addMockAuditLog('QUARANTINE_RTV', 'Receipt', receiptId, `Đã xuất trả hàng lỗi NCC (RTV) cho phiếu nhập ${receipt.receipt_number}. Đã sinh Debit Note: ${dnNumber}`);
       return newDn;
     }
-    const response = await apiClient.post(`/receipts/${receiptItemId}/rtv`, { notes });
+    const response = await apiClient.post(`/receipts/${receiptId}/rtv`, {
+      expectedVersion: receiptVersion,
+      reason: notes
+    });
     return response.data;
   },
 

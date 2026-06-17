@@ -13,6 +13,7 @@ Phúc Anh vận hành 3 kho vật lý (Hải Phòng, Hà Nội, Hồ Chí Minh).
 
 ### Features List
 * [US-WMS-11: Planner Nhập Lệnh Điều chuyển kho từ Công ty mẹ](./features/feature-planner-transfer-planning.md)
+* [US-WMS-11: Planner Nhập Lệnh Điều chuyển kho từ Công ty mẹ](./features/feature-planner-transfer-planning.md)
 * [Thủ kho Nguồn Soạn & Xuất hàng Điều chuyển](./features/feature-storekeeper-transfer-ship.md)
 * [US-WMS-12: Kho Đích Tiếp nhận & Xử lý Chênh lệch Điều chuyển](./features/feature-storekeeper-transfer-receive.md)
 
@@ -32,6 +33,7 @@ Phúc Anh vận hành 3 kho vật lý (Hải Phòng, Hà Nội, Hồ Chí Minh).
 | Actor | Vai trò | Nghiệp vụ liên quan |
 |-------|---------|---------------------|
 | Planner | Maker | Nhập phiếu điều chuyển kho nội bộ theo lệnh từ Công ty mẹ hoặc bộ phận điều phối trung tâm |
+| Planner | Maker | Nhập phiếu điều chuyển kho nội bộ theo lệnh từ Công ty mẹ hoặc bộ phận điều phối trung tâm |
 | Trưởng kho (Kho nguồn) | Checker | Kiểm tra tồn kho khả dụng tại kho nguồn và phê duyệt phiếu điều chuyển |
 | Dispatcher | Maker | Lập chuyến xe nội bộ riêng cho phiếu điều chuyển, gán xe và tài xế khả dụng |
 | Thủ kho (Kho nguồn) | Maker | Nhận lệnh xuất điều chuyển, soạn hàng và xác nhận xuất hàng lên xe |
@@ -43,6 +45,7 @@ Phúc Anh vận hành 3 kho vật lý (Hải Phòng, Hà Nội, Hồ Chí Minh).
 
 ## 3. Functional Requirements (EARS)
 *Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đặc tả tính năng:*
+* [EARS - Transfer Creation](./features/feature-planner-transfer-planning.md#3-functional-requirements-ears)
 * [EARS - Transfer Creation](./features/feature-planner-transfer-planning.md#3-functional-requirements-ears)
 * [EARS - Transfer Shipment](./features/feature-storekeeper-transfer-ship.md#3-functional-requirements-ears)
 * [EARS - Transfer Receipt](./features/feature-storekeeper-transfer-receive.md#3-functional-requirements-ears)
@@ -63,10 +66,14 @@ Phúc Anh vận hành 3 kho vật lý (Hải Phòng, Hà Nội, Hồ Chí Minh).
 - `source_warehouse_id` (BIGINT, FK→warehouses, NOT NULL)
 - `destination_warehouse_id` (BIGINT, FK→warehouses, NOT NULL)
 - `status` (VARCHAR(40), DEFAULT 'NEW', CHECK IN ('NEW','APPROVED','REJECTED','IN_TRANSIT','COMPLETED','COMPLETED_WITH_DISCREPANCY','CANCELLED'))
+- `status` (VARCHAR(40), DEFAULT 'NEW', CHECK IN ('NEW','APPROVED','REJECTED','IN_TRANSIT','COMPLETED','COMPLETED_WITH_DISCREPANCY','CANCELLED'))
 - `created_by` (BIGINT, FK→users, NOT NULL)
 - `external_instruction_code` (VARCHAR(80), NOT NULL) -- mã lệnh điều chuyển từ Công ty mẹ/bộ phận điều phối, bắt buộc để truy vết
 - `approved_by` (BIGINT, FK→users)
 - `approved_at` (TIMESTAMPTZ)
+- `rejected_by` (BIGINT, FK→users)
+- `rejected_at` (TIMESTAMPTZ)
+- `rejection_reason` (TEXT)
 - `rejected_by` (BIGINT, FK→users)
 - `rejected_at` (TIMESTAMPTZ)
 - `rejection_reason` (TEXT)
@@ -78,6 +85,7 @@ Phúc Anh vận hành 3 kho vật lý (Hải Phòng, Hà Nội, Hồ Chí Minh).
 - `trip_id` (BIGINT, FK→trips, UNIQUE) -- mỗi phiếu điều chuyển gắn đúng một chuyến xe nội bộ
 - `document_date` (DATE, NOT NULL)
 - `accounting_period_id` (BIGINT, FK→accounting_periods)
+- `notes` (TEXT)
 - `notes` (TEXT)
 - `created_at` (TIMESTAMPTZ)
 - `updated_at` (TIMESTAMPTZ)
@@ -111,6 +119,7 @@ Phúc Anh vận hành 3 kho vật lý (Hải Phòng, Hà Nội, Hồ Chí Minh).
 
 ## 6. API Spec
 *Vui lòng xem chi tiết API endpoints tại các tài liệu đặc tả tính năng:*
+* [APIs - Transfer Creation](./features/feature-planner-transfer-planning.md#4-api-endpoints)
 * [APIs - Transfer Creation](./features/feature-planner-transfer-planning.md#4-api-endpoints)
 * [APIs - Transfer Shipment](./features/feature-storekeeper-transfer-ship.md#4-api-endpoints)
 * [APIs - Transfer Receipt](./features/feature-storekeeper-transfer-receive.md#4-api-endpoints)
@@ -186,12 +195,15 @@ Phúc Anh vận hành 3 kho vật lý (Hải Phòng, Hà Nội, Hồ Chí Minh).
 - QC failure alone SHALL require `qc_failure_reason` during receive-check and SHALL NOT require duplicate `discrepancy_reason` unless Trưởng kho đích reports another final-level issue.
 - If `received_qty < sent_qty`, the system SHALL require `discrepancy_reason`, create a `TRANSFER_DISCREPANCY` adjustment for the shortage, and set status to `COMPLETED_WITH_DISCREPANCY`.
 - Transfer cancellation SHALL be rejected for `REJECTED`, `IN_TRANSIT`, `COMPLETED`, `COMPLETED_WITH_DISCREPANCY`, or `CANCELLED` transfers.
+- Transfer cancellation SHALL be rejected for `REJECTED`, `IN_TRANSIT`, `COMPLETED`, `COMPLETED_WITH_DISCREPANCY`, or `CANCELLED` transfers.
 
 ### Audit Trail
 - Every transfer mutation SHALL create an audit log with `actor`, `action`, `entity_type`, `entity_id`, `entity_code`, `timestamp`, `before`, and `after`.
 - `TRANSFER_CREATE`: Planner creates transfer with status `NEW`.
 - `TRANSFER_UPDATE`: Planner edits header or item lines while transfer status is `NEW`.
+- `TRANSFER_UPDATE`: Planner edits header or item lines while transfer status is `NEW`.
 - `TRANSFER_APPROVE`: Trưởng kho nguồn approves transfer, reserves source inventory, and changes status to `APPROVED`.
+- `TRANSFER_REJECT`: Trưởng kho nguồn rejects a `NEW` transfer with a required reason and changes status to `REJECTED`.
 - `TRANSFER_REJECT`: Trưởng kho nguồn rejects a `NEW` transfer with a required reason and changes status to `REJECTED`.
 - `TRANSFER_TRIP_ASSIGN`: Dispatcher assigns dedicated vehicle and driver trip for the transfer.
 - `TRANSFER_SHIP`: Thủ kho nguồn records sent quantities and loading details.
@@ -211,6 +223,7 @@ Phúc Anh vận hành 3 kho vật lý (Hải Phòng, Hà Nội, Hồ Chí Minh).
 
 ## 9. Out of Scope
 
+- Automated replenishment suggestions and transfer decision algorithms
 - Automated replenishment suggestions and transfer decision algorithms
 - Multi-warehouse transfer optimization
 - Transfer cost tracking

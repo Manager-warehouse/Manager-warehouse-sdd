@@ -14,8 +14,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
+import com.wms.service.EmailService;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -37,7 +36,7 @@ class AuthServiceTest {
     @Mock private JwtUtil jwtUtil;
     @Mock private PasswordEncoder passwordEncoder;
     @Mock private AuthenticationManager authenticationManager;
-    @Mock private JavaMailSender mailSender;
+    @Mock private EmailService emailService;
     @Mock private UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
     @Mock private AuditLogRepository auditLogRepository;
 
@@ -128,6 +127,7 @@ class AuthServiceTest {
         activeUser.setRefreshTokenExpiresAt(OffsetDateTime.now().plusDays(7));
 
         when(userRepository.findByRefreshTokenHash(sha256(rawToken))).thenReturn(Optional.of(activeUser));
+        when(userRepository.findByRefreshTokenHash(sha256(rawToken))).thenReturn(Optional.of(activeUser));
         when(jwtUtil.generateAccessToken(anyString(), anyString())).thenReturn("new-access-token");
 
         RefreshTokenRequest req = new RefreshTokenRequest();
@@ -157,6 +157,7 @@ class AuthServiceTest {
         activeUser.setRefreshTokenHash(sha256(rawToken));
         activeUser.setRefreshTokenExpiresAt(OffsetDateTime.now().minusDays(1));
 
+        when(userRepository.findByRefreshTokenHash(sha256(rawToken))).thenReturn(Optional.of(activeUser));
         when(userRepository.findByRefreshTokenHash(sha256(rawToken))).thenReturn(Optional.of(activeUser));
 
         RefreshTokenRequest req = new RefreshTokenRequest();
@@ -216,7 +217,7 @@ class AuthServiceTest {
 
         assertThat(activeUser.getOtpHash()).isNotNull();
         assertThat(activeUser.getOtpExpiresAt()).isAfter(OffsetDateTime.now());
-        verify(mailSender).send(any(SimpleMailMessage.class));
+        verify(emailService).sendOtpEmail(eq("test@wms.com"), anyString());
     }
 
     @Test
@@ -228,7 +229,7 @@ class AuthServiceTest {
         req.setEmail("unknown@wms.com");
 
         assertThatCode(() -> authService.forgotPassword(req)).doesNotThrowAnyException();
-        verify(mailSender, never()).send(any(SimpleMailMessage.class));
+        verify(emailService, never()).sendOtpEmail(anyString(), anyString());
     }
 
     // ─── VERIFY OTP ──────────────────────────────────────────────────────────

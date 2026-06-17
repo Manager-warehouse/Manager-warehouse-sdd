@@ -9,11 +9,11 @@ import java.util.Optional;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 @Repository
 public interface TransferRepository extends JpaRepository<Transfer, Long> {
-
     boolean existsByTransferNumber(String transferNumber);
 
     boolean existsByExternalInstructionCodeAndSourceWarehouseIdAndDestinationWarehouseIdAndDocumentDateAndStatusNotIn(
@@ -31,10 +31,10 @@ public interface TransferRepository extends JpaRepository<Transfer, Long> {
             Collection<TransferStatus> statuses,
             Long id);
 
-    @EntityGraph(attributePaths = {"sourceWarehouse", "destinationWarehouse", "createdBy", "approvedBy", "confirmedBy", "trip"})
+    @EntityGraph(attributePaths = {"sourceWarehouse", "destinationWarehouse", "createdBy", "approvedBy", "rejectedBy", "confirmedBy", "trip", "accountingPeriod"})
     List<Transfer> findAllByOrderByCreatedAtDesc();
 
-    @EntityGraph(attributePaths = {"sourceWarehouse", "destinationWarehouse", "createdBy", "approvedBy", "confirmedBy", "trip"})
+    @EntityGraph(attributePaths = {"sourceWarehouse", "destinationWarehouse", "createdBy", "approvedBy", "rejectedBy", "confirmedBy", "trip", "accountingPeriod"})
     @Query("select t from Transfer t where t.id = :id")
     Optional<Transfer> findWithDetailsById(Long id);
 }

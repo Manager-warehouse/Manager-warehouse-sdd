@@ -9,12 +9,12 @@ Stage: Development (Sprint 1)
 
 Bạn là một kỹ sư phần mềm senior trong dự án WMS.
 Mục tiêu chính: Xây dựng hệ thống quản lý kho cho doanh nghiệp thương mại với 3 kho vật lý tại Hải Phòng, Hà Nội, và Hồ Chí Minh; đảm bảo nghiệp vụ nhập, xuất, điều chuyển, kiểm kê, và truy vết tồn kho được thực thi chính xác, kiểm soát được, và có audit trail đầy đủ.
-Domain hàng hóa hiện tại: đồ gia dụng như nồi, chảo, đồ nhựa; mặc định không quản lý hạn sử dụng. FIFO là nguyên tắc xuất kho mặc định; FEFO chỉ áp dụng nếu sau này có nhóm sản phẩm đặc biệt được cấu hình `has_expiry = true`.
+Domain hàng hóa hiện tại: đồ gia dụng như nồi, chảo, đồ nhựa; không quản lý serial từng sản phẩm, không quản lý hạn sử dụng, và không phân cấp chất lượng để bán lại. FIFO theo ngày nhận hàng là nguyên tắc xuất kho mặc định.
 
 Đọc trước:
 
 1. `CLAUDE.md` — kiến trúc hệ thống, workflow, patterns, conventions
-2. `CONSTITUTION.md` — development principles và team agreements
+2. `.specify/memory/constitution.md` — canonical constitution, development principles và team agreements
 3. File này — quy tắc vận hành cụ thể cho agent
 
 ## 2. TECH STACK (STRICT — do not deviate)
@@ -70,7 +70,7 @@ Specs (SDD): `.sdd/specs/[number]-[feature-name]/`
 - NEVER store secrets, passwords, or API keys in source control or committed `.env` files
 - NEVER bypass Jakarta Validation or request DTO validation on write endpoints
 - NEVER update inventory directly when the operation should go through adjustment, receipt, issue, or transfer flows
-- NEVER mix multiple grades (A/B/C) inside a single batch
+- NEVER add per-unit tracking, expiry-date tracking, or quality-tier requirements for household-goods inventory unless the business model is explicitly changed in a future approved spec
 - NEVER bypass optimistic locking / version checks on inventory updates
 - NEVER hardcode warehouse IDs, role assumptions, or approval state transitions without clear domain constants or lookup rules
 - NEVER soft-delete transaction history by physical deletion; use status-based cancellation rules
@@ -80,19 +80,17 @@ Specs (SDD): `.sdd/specs/[number]-[feature-name]/`
 
 ### Inventory rules
 
-1. `inventory.quantity >= 0` luôn đúng trước và sau mọi thao tác
-2. Domain hiện tại là hàng gia dụng không có hạn sử dụng; FIFO là nguyên tắc xuất kho mặc định
-3. FEFO chỉ áp dụng cho sản phẩm ngoại lệ được cấu hình `has_expiry = true`; nếu không có cấu hình này thì không yêu cầu hạn dùng
-4. Điều chỉnh tồn kho chỉ đi qua adjustments, không sửa trực tiếp inventory
-5. Phải kiểm tra version trước `UPDATE` để tránh ghi đè cạnh tranh
-6. Phải kiểm tra reserved quantity trước khi xuất kho: `available = total - reserved >= 0`
+1. `inventories.total_qty >= 0`, `inventories.reserved_qty >= 0`, và `total_qty - reserved_qty >= 0` luôn đúng trước và sau mọi thao tác
+2. Domain hiện tại là hàng gia dụng không serial, không hạn sử dụng, không grade; FIFO là nguyên tắc xuất kho mặc định
+3. Điều chỉnh tồn kho chỉ đi qua adjustments, không sửa trực tiếp inventory
+4. Phải kiểm tra version trước `UPDATE` để tránh ghi đè cạnh tranh
+5. Phải kiểm tra reserved quantity trước khi xuất kho: `available = total - reserved >= 0`
 
 ### Batch rules
 
-1. Mỗi batch chỉ có 1 grade (A/B/C); khác grade phải tạo batch mới
-2. Sản phẩm `has_serial = true` phải nhập serial khi nhập và xuất
-3. Putaway phải kiểm tra `bin_capacity` trước khi đặt hàng vào bin
-4. Batch hết hạn chỉ áp dụng cho nhóm sản phẩm ngoại lệ có `has_expiry = true`; domain hàng gia dụng mặc định không có hạn sử dụng
+1. Batch dùng để gom hàng theo sản phẩm, nguồn nhập/chứng từ và ngày nhận; không tách batch theo serial, hạn sử dụng hoặc grade
+2. Putaway phải kiểm tra `bin_capacity` trước khi đặt hàng vào bin
+3. Hàng lỗi QC đi Quarantine để xử lý trả NCC/tiêu hủy theo flow phê duyệt; không phân loại lại thành cấp chất lượng khác
 
 ### QC and transfer rules
 
@@ -110,7 +108,7 @@ Specs (SDD): `.sdd/specs/[number]-[feature-name]/`
 
 - Java theo conventions của Spring Boot project hiện tại; ưu tiên constructor injection
 - JavaScript clean code; tránh lạm dụng các biến không khai báo hoặc cấu trúc lỏng lẻo
-- Max function length: 40 lines khi khả thi; max file length: 300 lines theo `CONSTITUTION.md`
+- Max function length: 40 lines khi khả thi; max file length: 300 lines theo `.specify/memory/constitution.md`
 - Comments giải thích `why`, không giải thích `what`
 - Test coverage tối thiểu: 80% cho service/business logic mới
 - Không bỏ qua Swagger/OpenAPI update khi thêm hoặc sửa endpoint
@@ -132,7 +130,7 @@ Specs (SDD): `.sdd/specs/[number]-[feature-name]/`
 - [ ] Error cases handled với proper HTTP status codes
 - [ ] Audit log entry created cho warehouse operations
 - [ ] No TODO comments left in code
-- [ ] FEFO/FIFO logic tested cho batch management
+- [ ] FIFO, negative inventory, reserved quantity, and version conflict paths tested when touched
 
 ## 11. GIT CONVENTIONS
 
@@ -148,7 +146,7 @@ Specs (SDD): `.sdd/specs/[number]-[feature-name]/`
 `[type]([scope]): [description]`
 
 Example:
-`feat(inventory): add FEFO batch selection logic`
+`feat(inventory): add FIFO batch selection logic`
 
 ### PR rules
 
@@ -180,7 +178,7 @@ Active specs:
 ## 13. PROJECT CONTEXT REFERENCES
 
 - `CLAUDE.md` — hệ thống kiến trúc, workflow, lessons learned, anti-patterns
-- `CONSTITUTION.md` — project law, testing requirements, immutable stack rules
+- `.specify/memory/constitution.md` — canonical project law, testing requirements, immutable stack rules
 - .sdd/specs/ (10 specs, 35 features, 30 P1) — feature specs chi tiết theo từng domain
 - `Userstory.md` — 26 user stories gu1ed1c
 
@@ -209,5 +207,50 @@ Active specs:
 Note: Nếu môi trường hiện tại không có GitNexus tooling, agent phải báo rõ không thể thực thi automation này trước khi tiếp tục các thay đổi thủ công.
 
 <!-- SPECKIT START -->
+<!-- Active Plan: .sdd/specs/003-inbound-receipt-qc/features/feature-warehouse-staff-receipt-counting/plan.md -->
 <!-- Active Plan: .sdd/specs/005-inter-warehouse-transfer/plan.md -->
 <!-- SPECKIT END -->
+
+<!-- gitnexus:start -->
+# GitNexus — Code Intelligence
+
+This project is indexed by GitNexus as **Manager-warehouse-sdd** (4686 symbols, 11279 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+
+> If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
+
+## Always Do
+
+- **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `gitnexus_impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
+- **MUST run `gitnexus_detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows.
+- **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before proceeding with edits.
+- When exploring unfamiliar code, use `gitnexus_query({query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
+- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `gitnexus_context({name: "symbolName"})`.
+
+## Never Do
+
+- NEVER edit a function, class, or method without first running `gitnexus_impact` on it.
+- NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
+- NEVER rename symbols with find-and-replace — use `gitnexus_rename` which understands the call graph.
+- NEVER commit changes without running `gitnexus_detect_changes()` to check affected scope.
+
+## Resources
+
+| Resource | Use for |
+|----------|---------|
+| `gitnexus://repo/Manager-warehouse-sdd/context` | Codebase overview, check index freshness |
+| `gitnexus://repo/Manager-warehouse-sdd/clusters` | All functional areas |
+| `gitnexus://repo/Manager-warehouse-sdd/processes` | All execution flows |
+| `gitnexus://repo/Manager-warehouse-sdd/process/{name}` | Step-by-step execution trace |
+
+## CLI
+
+| Task | Read this skill file |
+|------|---------------------|
+| Understand architecture / "How does X work?" | `.claude/skills/gitnexus/gitnexus-exploring/SKILL.md` |
+| Blast radius / "What breaks if I change X?" | `.claude/skills/gitnexus/gitnexus-impact-analysis/SKILL.md` |
+| Trace bugs / "Why is X failing?" | `.claude/skills/gitnexus/gitnexus-debugging/SKILL.md` |
+| Rename / extract / split / refactor | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md` |
+| Tools, resources, schema reference | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md` |
+| Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
+
+<!-- gitnexus:end -->
