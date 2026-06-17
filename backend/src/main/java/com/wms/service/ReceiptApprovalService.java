@@ -199,6 +199,12 @@ public class ReceiptApprovalService {
                     + "Location " + request.getLocationId() + " is a quarantine location.");
         }
 
+        if (Boolean.TRUE.equals(location.getIsLocked())) {
+            throw new BusinessRuleViolationException(
+                    "LOCATION_LOCKED: Location " + location.getCode()
+                    + " is locked by an active stocktake and cannot receive putaway.");
+        }
+
         List<ReceiptItem> items = receiptItemRepository.findByReceiptId(receiptId);
         assertBinCapacity(location, items);
         for (ReceiptItem item : items) {

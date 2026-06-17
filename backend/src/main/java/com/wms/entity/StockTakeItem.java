@@ -36,7 +36,9 @@ public class StockTakeItem {
     @Column(name = "system_qty", nullable = false, precision = 10, scale = 2)
     private BigDecimal systemQty;
 
-    @Column(name = "actual_qty", nullable = false, precision = 10, scale = 2)
+    // Nullable until the storekeeper records the count; the create→start→count flow
+    // inserts items before any actual count exists (Spec 006).
+    @Column(name = "actual_qty", precision = 10, scale = 2)
     private BigDecimal actualQty;
 
     @Column(name = "variance_qty", nullable = false, precision = 10, scale = 2)

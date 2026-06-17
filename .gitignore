@@ -161,3 +161,5 @@ $RECYCLE.BIN/
 *.rar
 *.tar
 *.zip
+
+.PVS-Studio/
