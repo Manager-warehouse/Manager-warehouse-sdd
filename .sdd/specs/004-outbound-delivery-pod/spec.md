@@ -9,7 +9,7 @@
 
 ## 1. Context and Goal
 
-Xuất hàng là quy trình tạo doanh thu cho Phúc Anh. Planner nhận yêu cầu từ Công ty mẹ, hệ thống kiểm tra công nợ và tồn kho trước khi tạo Đơn xuất. Sau khi tạo thành công, Thủ kho lập kế hoạch lấy hàng theo danh sách batch/bin sắp theo FIFO/FEFO; Nhân viên kho lấy hàng thực tế, kiểm tra chất lượng từng sản phẩm và nhập số lượng đạt/không đạt. Thủ kho phê duyệt chất lượng, xử lý hàng không đạt vào quarantine và chọn hàng thay thế nếu cần. Trưởng kho duyệt xuất kho trước khi Dispatcher xếp xe và tài xế. Khi giao thành công bằng POD + OTP, hệ thống tự động tạo invoice và ghi nhận công nợ; Kế toán theo dõi thanh toán từng đợt cho tới khi công nợ đơn hàng được tất toán.
+Xuất hàng là quy trình tạo doanh thu cho Phúc Anh. Planner nhận yêu cầu từ Công ty mẹ, hệ thống kiểm tra công nợ và tồn kho trước khi tạo Đơn xuất. Sau khi tạo thành công, Thủ kho lập kế hoạch lấy hàng theo danh sách batch/bin hợp lệ trong kho, sắp theo FIFO cho domain đồ gia dụng không quản lý hạn sử dụng; Nhân viên kho lấy hàng thực tế, kiểm tra chất lượng từng sản phẩm và nhập số lượng đạt/không đạt. Thủ kho phê duyệt chất lượng, xử lý hàng không đạt vào quarantine và chọn hàng thay thế nếu cần. Trưởng kho duyệt xuất kho trước khi Dispatcher xếp xe và tài xế. Khi giao thành công bằng POD + OTP, hệ thống tự động tạo invoice và ghi nhận công nợ; Kế toán theo dõi thanh toán từng đợt cho tới khi công nợ đơn hàng được tất toán.
 
 ### Features List
 
@@ -25,7 +25,7 @@ Xuất hàng là quy trình tạo doanh thu cho Phúc Anh. Planner nhận yêu c
 | Actor           | Vai trò | Nghiệp vụ liên quan                                                                                                |
 | --------------- | ------- | ------------------------------------------------------------------------------------------------------------------ |
 | Planner         | Maker   | Lập Đơn xuất hàng (Delivery Order), kiểm tra tồn kho khả dụng và trạng thái công nợ Đại lý                         |
-| Thủ kho         | Maker   | Lập kế hoạch lấy hàng, chọn batch/bin/zone từ danh sách FIFO/FEFO, phê duyệt chất lượng outbound và chọn hàng thay thế khi QC fail |
+| Thủ kho         | Maker   | Lập kế hoạch lấy hàng, chọn một hoặc nhiều batch/bin/zone từ danh sách FIFO trong kho được gán, phê duyệt chất lượng outbound và chọn hàng thay thế khi QC fail |
 | Nhân viên kho   | Maker   | Lấy hàng thực tế theo kế hoạch, kiểm tra chất lượng từng sản phẩm, nhập số lượng đã lấy, đạt QC và không đạt QC     |
 | Dispatcher      | Maker   | Lập Chuyến xe nội bộ, gán xe và tài xế rảnh, sắp xếp thứ tự giao hàng                                              |
 | Tài xế          | Maker   | Sử dụng smartphone xem chuyến xe, xác nhận nhận hàng (xe rời kho), giao hàng và ký nhận POD, báo cáo giao thất bại |
@@ -64,7 +64,7 @@ _Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đ
 - `warehouse_id` (BIGINT, FK→warehouses, NOT NULL)
 - `type` (VARCHAR(30), CHECK IN ('SALE','DELIVERY'), NOT NULL)
 - `expected_delivery_date` (DATE)
-- `status` (VARCHAR(30), DEFAULT 'NEW', CHECK IN ('NEW','PICKING_PLANNED','WAITING_PICKING','PICKING','QC_PENDING_APPROVAL','QC_COMPLETED','WAREHOUSE_APPROVED','IN_TRANSIT','RETURNED','DELIVERY_FAILED','COMPLETED','CLOSED','REJECTED','CANCELLED'))
+- `status` (VARCHAR(30), DEFAULT 'NEW', CHECK IN ('NEW','WAITING_PICKING','PICKING','QC_PENDING_APPROVAL','QC_COMPLETED','WAREHOUSE_APPROVED','IN_TRANSIT','RETURNED','DELIVERY_FAILED','COMPLETED','CLOSED','REJECTED','CANCELLED'))
 - `created_by` (BIGINT, FK→users, NOT NULL)
 - `cancel_reason` (TEXT)
 - `rejection_reason` (TEXT)
@@ -80,9 +80,9 @@ _Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đ
 - `id` (BIGSERIAL, PK)
 - `do_id` (BIGINT, FK→delivery_orders, NOT NULL)
 - `product_id` (BIGINT, FK→products, NOT NULL)
-- `batch_id` (BIGINT, FK→batches) -- batch planned by storekeeper; Delivery Order creation reserves only product quantity at warehouse level
-- `location_id` (BIGINT, FK→warehouse_locations) -- bin planned by storekeeper for physical picking
-- `zone_id` (BIGINT, FK→warehouse_zones)
+- `batch_id` (BIGINT, FK→batches) -- nullable summary of planned batch when a line is planned from one source; detailed multi-bin allocations live in `delivery_order_item_allocations`
+- `location_id` (BIGINT, FK→warehouse_locations) -- nullable summary of planned bin when a line is planned from one source
+- `zone_id` (BIGINT, FK→warehouse_zones) -- nullable summary of planned zone when a line is planned from one source
 - `requested_qty` (DECIMAL(10,2), NOT NULL)
 - `reserved_qty` (DECIMAL(10,2), DEFAULT 0)
 - `planned_qty` (DECIMAL(10,2), DEFAULT 0)
@@ -91,6 +91,39 @@ _Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đ
 - `qc_fail_qty` (DECIMAL(10,2), DEFAULT 0)
 - `issued_qty` (DECIMAL(10,2), DEFAULT 0)
 - `unit_price` (DECIMAL(18,2)) -- Tra cứu từ price_history tại ngày giao
+
+### delivery_order_item_allocations
+
+- `id` (BIGSERIAL, PK)
+- `do_item_id` (BIGINT, FK→delivery_order_items, NOT NULL)
+- `inventory_id` (BIGINT, FK→inventories, NOT NULL)
+- `batch_id` (BIGINT, FK→batches, NOT NULL)
+- `location_id` (BIGINT, FK→warehouse_locations, NOT NULL)
+- `zone_id` (BIGINT, FK→warehouse_zones, NOT NULL)
+- `planned_qty` (DECIMAL(10,2), NOT NULL)
+- `picked_qty` (DECIMAL(10,2), DEFAULT 0)
+- `is_replacement` (BOOLEAN, DEFAULT false)
+- `replaced_allocation_id` (BIGINT, FK→delivery_order_item_allocations)
+- `created_by` (BIGINT, FK→users, NOT NULL)
+- `created_at` (TIMESTAMPTZ)
+- `updated_at` (TIMESTAMPTZ)
+- `CHECK(planned_qty > 0)`
+
+### delivery_order_item_return_to_bin_records
+
+- `id` (BIGSERIAL, PK)
+- `do_item_id` (BIGINT, FK→delivery_order_items, NOT NULL)
+- `allocation_id` (BIGINT, FK→delivery_order_item_allocations, NOT NULL)
+- `product_id` (BIGINT, FK→products, NOT NULL)
+- `batch_id` (BIGINT, FK→batches, NOT NULL)
+- `original_location_id` (BIGINT, FK→warehouse_locations, NOT NULL)
+- `original_zone_id` (BIGINT, FK→warehouse_zones, NOT NULL)
+- `source_location_id` (BIGINT, FK→warehouse_locations) -- outbound staging or current picked state when applicable
+- `returned_qty` (DECIMAL(10,2), NOT NULL)
+- `reason` (TEXT)
+- `created_by` (BIGINT, FK→users, NOT NULL)
+- `created_at` (TIMESTAMPTZ)
+- `CHECK(returned_qty > 0)`
 
 ### warehouse_product_reservations
 
@@ -248,13 +281,17 @@ _Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đ
 
 All outbound mutations that update `inventories.total_qty`, `inventories.reserved_qty`, or `warehouse_product_reservations.reserved_qty` SHALL validate and increment the corresponding `version` using optimistic locking.
 
-- Delivery order creation SHALL calculate warehouse-level availability as `sum(inventories.total_qty - inventories.reserved_qty) - warehouse_product_reservations.reserved_qty` for each requested warehouse/product pair.
+- Delivery order creation SHALL calculate warehouse-level availability from valid regular quality-passed inventory as `sum(inventories.total_qty - inventories.reserved_qty) - warehouse_product_reservations.reserved_qty` for each requested warehouse/product pair.
 - Delivery order creation SHALL reserve requested product quantity on `delivery_order_items.reserved_qty` and `warehouse_product_reservations.reserved_qty` at the selected warehouse and SHALL NOT update `inventories.reserved_qty`, `batch_id`, or `location_id`.
 - Delivery order creation SHALL create or update its `warehouse_product_reservations` rows in the same transaction as the availability check to prevent oversell across concurrent Planner requests.
-- Storekeeper picking plan SHALL assign the Delivery Order item reserved quantities to concrete batch/bin/zone rows from the FIFO-ranked inventory list, decrease the matching `warehouse_product_reservations.reserved_qty`, and increase affected `inventories.reserved_qty` with version checks before moving the Delivery Order to `WAITING_PICKING`.
+- Storekeeper picking plan SHALL assign the Delivery Order item reserved quantities to one or more concrete batch/bin/zone rows from the FIFO-ranked valid regular inventory list, decrease the matching `warehouse_product_reservations.reserved_qty`, and increase affected `inventories.reserved_qty` with version checks before moving the Delivery Order from `NEW` to `WAITING_PICKING`.
+- Storekeeper picking plan SHALL validate that total allocation quantity for each Delivery Order item equals the requested quantity before saving.
+- Storekeeper picking plan changes while the Delivery Order is `WAITING_PICKING` SHALL release removed concrete reservations, reserve newly selected concrete inventory, and keep every item fully allocated to its requested quantity.
+- Picking plan changes after physical picking has started SHALL use the same picking-plan update request with `returnToBinRecords` payload, return picked goods from changed picked allocations to their original batch/bin/location, and create `PICKED_GOODS_RETURN_TO_BIN` audit entries before the revised plan is saved.
+- Picking plan changes SHALL require `returnToBinRecords` only for picked allocations that are removed or reduced by the revised plan; unchanged picked allocations SHALL remain in place and SHALL NOT require return records.
 - Delivery order cancellation before warehouse approval SHALL release any remaining `warehouse_product_reservations.reserved_qty` and any concrete `inventories.reserved_qty` already assigned by picking plan, depending on the Delivery Order's current lifecycle status.
 - Warehouse staff picking SHALL move picked quantity from the planned bin to an outbound staging location inside the same warehouse; all affected inventory rows SHALL pass version checks.
-- Outbound QC fail SHALL move failed quantity from outbound staging to quarantine, create a quarantine record, and keep failed quantity out of available inventory.
+- Outbound QC fail SHALL move failed quantity from outbound staging to quarantine, create a quarantine record, create an inventory adjustment record for the failed quantity, decrease regular valid inventory, and keep failed quantity out of available inventory.
 - Replacement picking SHALL update the Delivery Order item plan, create replacement history, and require the replacement goods to go through warehouse staff picking and QC again.
 - Warehouse manager rejection SHALL move QC-passed goods from outbound staging back to their original bin/location, release reservations, keep failed goods in quarantine, and end the Delivery Order as `REJECTED`.
 - Trip departure SHALL move QC-approved goods from outbound staging to virtual In-Transit inventory in one transaction; all affected inventory rows SHALL pass version checks.
@@ -265,11 +302,13 @@ All outbound mutations that update `inventories.total_qty`, `inventories.reserve
 
 ### Delivery Order Lifecycle Rules
 
-- Happy path SHALL be: `NEW` → `PICKING_PLANNED` → `WAITING_PICKING` → `PICKING` → `QC_PENDING_APPROVAL` → `QC_COMPLETED` → `WAREHOUSE_APPROVED` → `IN_TRANSIT` → `COMPLETED` → `CLOSED`.
+- Happy path SHALL be: `NEW` → `WAITING_PICKING` → `PICKING` → `QC_PENDING_APPROVAL` → `QC_COMPLETED` → `WAREHOUSE_APPROVED` → `IN_TRANSIT` → `COMPLETED` → `CLOSED`.
 - A newly created Delivery Order SHALL start in `NEW`.
-- When a storekeeper starts planning picking, the Delivery Order SHALL move to `PICKING_PLANNED`.
-- Storekeeper planning SHALL choose batch/bin/zone from a list ranked by oldest received date first for FIFO products, or nearest expiry first for FEFO-enabled products.
-- After storekeeper saves the picking plan, the Delivery Order SHALL move to `WAITING_PICKING`.
+- Storekeeper planning SHALL choose one or more batch/bin/zone allocations from valid regular quality-passed stock in the assigned warehouse, ranked by oldest received date first using FIFO.
+- Storekeeper planning SHALL NOT require expiry date or FEFO selection because the current household-goods domain does not track expiry.
+- After storekeeper saves a complete picking plan from `NEW`, the Delivery Order SHALL move directly to `WAITING_PICKING`.
+- While a Delivery Order is `WAITING_PICKING`, the storekeeper MAY change the picking plan if each item remains fully allocated and no physical pick has started.
+- If physical picking has started, the system SHALL require the picking-plan update payload to include valid `returnToBinRecords` only for picked allocations being removed or reduced; the revised picking plan SHALL be saved only after those returned goods are recorded back to their original batch/bin/location.
 - Warehouse staff SHALL move the Delivery Order to `PICKING` while physically taking goods and checking product quality.
 - Warehouse staff SHALL enter picked quantity, QC pass quantity, and QC fail quantity before the Delivery Order can move to `QC_PENDING_APPROVAL`.
 - Storekeeper quality approval SHALL move the Delivery Order to `QC_COMPLETED` only when all requested quantities have QC-passed goods available after any required replacements.
@@ -333,6 +372,8 @@ _Vui lòng xem chi tiết API endpoints tại các tài liệu đặc tả tính
 | DO_NOT_READY               | 400  | DO is not in the required status for the requested transition |
 | DO_NOT_WAREHOUSE_APPROVED  | 400  | DO not in WAREHOUSE_APPROVED status for trip planning |
 | QC_REPLACEMENT_REQUIRED    | 422  | QC pass quantity is lower than requested quantity and replacement is not completed |
+| PICKING_PLAN_QTY_MISMATCH  | 422  | Planned allocation quantity does not equal requested quantity |
+| PICKED_GOODS_RETURN_REQUIRED | 422 | Picking plan cannot remove or reduce a picked allocation until the request includes valid return-to-bin records for that changed allocation |
 | WAREHOUSE_REJECTED         | 422  | Warehouse manager rejected outbound release |
 | PAYMENT_APPROVAL_REQUIRED  | 422  | Payment cannot reduce receivable before Chief Accountant approval |
 | MISSING_POD                | 400  | POD signature/image required            |
@@ -346,11 +387,11 @@ _Vui lòng xem chi tiết API endpoints tại các tài liệu đặc tả tính
 - Every outbound mutation SHALL create an audit log with `actor`, `role`, `warehouse_id`, `action`, `entity_type`, `entity_id`, `entity_code`, `timestamp`, `before`, and `after`.
 - `DELIVERY_ORDER_CREATE`: create DO and reserve requested product quantity on Delivery Order items plus `warehouse_product_reservations` at warehouse level; final batch/bin/location is selected by Storekeeper during picking planning.
 - `DELIVERY_ORDER_CANCEL`: cancel DO before warehouse approval and release aggregate and/or concrete inventory reservation according to current lifecycle status.
-- `PICKING_PLAN_START`: storekeeper starts planning picking and moves DO to `PICKING_PLANNED`.
-- `PICKING_PLAN_SAVE`: storekeeper selects batch/bin/zone from FIFO/FEFO-ranked list and moves DO to `WAITING_PICKING`.
+- `PICKING_PLAN_SAVE`: storekeeper selects one or more batch/bin/zone allocations from FIFO-ranked valid regular inventory and moves DO from `NEW` to `WAITING_PICKING`, or changes the plan while DO remains `WAITING_PICKING`.
+- `PICKED_GOODS_RETURN_TO_BIN`: storekeeper changes a picking plan after physical picking has started; the system records picked goods from removed or reduced allocations returned to their original batch/bin/location before applying the revised plan.
 - `DELIVERY_ORDER_PICK_START`: warehouse staff moves DO to `PICKING`.
 - `DELIVERY_ORDER_PICK_COMPLETE`: warehouse staff records picked, QC pass, and QC fail quantities.
-- `OUTBOUND_QC_FAIL_QUARANTINE`: move failed quantity to quarantine and create quarantine record.
+- `OUTBOUND_QC_FAIL_QUARANTINE`: move failed quantity to quarantine, create quarantine record, create inventory adjustment record, and decrease valid regular inventory.
 - `PICKING_REPLACEMENT_SAVE`: store replacement batch/bin/zone and replacement history when QC fail requires substitute goods.
 - `DELIVERY_ORDER_QC_APPROVE`: storekeeper approves quality and moves DO to `QC_COMPLETED`.
 - `DELIVERY_ORDER_WAREHOUSE_APPROVE`: warehouse manager moves DO to `WAREHOUSE_APPROVED`.

@@ -97,7 +97,7 @@ Xây dựng giải pháp phần mềm quản lý kho tập trung, thay thế cá
 ```
 Controller (@RestController)  →  Input validation, HTTP status, DTOs
     ↓
-Service (@Service)            →  Business logic, FEFO/FIFO, Audit logging
+Service (@Service)            →  Business logic, FIFO allocation, Audit logging
     ↓
 Repository (@Repository)      →  JPA/Hibernate queries (KHÔNG dùng raw SQL)
     ↓
@@ -132,11 +132,7 @@ Hệ thống có **10 Actors** chia thành 3 tầng theo mô hình **Maker-Check
 
 | Actor | Loại | Trách nhiệm chính |
 |---|---|---|
-<<<<<<< HEAD
-| **Trưởng kho kiêm Trưởng QC** | Checker | Duyệt nhập/xuất/điều chuyển, xử lý chênh lệch thực tế, duyệt biên bản hàng lỗi |
-=======
 | **Trưởng kho** | Checker | Duyệt nhập/xuất/điều chuyển, xử lý chênh lệch 5M–100M VNĐ, duyệt biên bản xử lý hàng lỗi |
->>>>>>> 78bb76f (update spec master data and database, entity)
 | **Kế toán trưởng** | Checker | Duyệt bảng giá, thiết lập Credit Limit, chốt sổ tháng, P&L / Aging Report |
 
 ### Tầng 3: Nghiệp vụ (Maker)
@@ -252,14 +248,16 @@ Công ty mẹ gửi yêu cầu xuất hàng
     → Planner kiểm tra [Credit Check + Tồn kho]
         ├── Vi phạm Credit → Chặn cứng, hiển thị lý do
         └── Hợp lệ → Lập Đơn xuất [NEW] + Reserve tồn kho
-    → Thủ kho soạn hàng từ Bin theo batch đã reserve [PICKING]
-    → Thủ kho kiểm QC đạt [PENDING_WAREHOUSE_APPROVAL]
-    → Trưởng kho duyệt xuất [READY_TO_SHIP]
+    → Thủ kho lập kế hoạch lấy hàng từ một hoặc nhiều Bin FIFO [WAITING_PICKING]
+    → Nhân viên kho lấy hàng theo kế hoạch [PICKING]
+    → Nhân viên kho ghi QC, hàng fail vào Quarantine + phiếu điều chỉnh [QC_PENDING_APPROVAL]
+    → Thủ kho duyệt chất lượng khi đủ hàng đạt [QC_COMPLETED]
+    → Trưởng kho duyệt xuất [WAREHOUSE_APPROVED]
     → Dispatcher lập Chuyến xe nội bộ, gán Tài xế
     → Tài xế xác nhận nhận hàng → [IN_TRANSIT] → Hệ thống trừ kho xuất, cộng kho ảo In-Transit
-    → Tài xế upload ảnh hàng + ảnh chữ ký/biên nhận cho delivery attempt hiện tại, Đại lý đọc OTP email [DELIVERED]
-        (raw OTP không lưu DB; hệ thống chỉ lưu hash/verifier trong delivery_otp_attempts)
-    → Kế toán viên lấy danh sách invoice candidates và lập Hóa đơn (Invoice) → Cộng công nợ [COMPLETED]
+    → Tài xế upload ảnh hàng + ảnh chữ ký/biên nhận cho delivery attempt hiện tại, Đại lý đọc OTP email
+        (delivery attempt [DELIVERED], raw OTP không lưu DB; hệ thống chỉ lưu hash/verifier trong delivery_otp_attempts)
+    → Hệ thống tự động tạo Hóa đơn (Invoice), cộng công nợ và chuyển DO [COMPLETED]
     → Đại lý thanh toán → Cấn trừ công nợ [CLOSED]
 ```
 
@@ -280,7 +278,7 @@ Planner xem Planning Dashboard → Nhận gợi ý điều chuyển
 
 ```
 [Phát sinh nợ]
-Giao hàng Delivered → Kế toán lấy invoice candidates → Lập Invoice (Net 30/60) → current_balance += giá trị đơn → DO [COMPLETED]
+POD + OTP hợp lệ → Hệ thống tự động lập Invoice (Net 30/60) → current_balance += giá trị đơn → DO [COMPLETED]
     → IF current_balance > credit_limit → CREDIT_HOLD (chặn đơn mới; bằng hạn mức vẫn cho phép)
     → Daily Job: IF invoice quá hạn > 30 ngày → CREDIT_HOLD + cảnh báo Kế toán trưởng
 
@@ -300,15 +298,18 @@ Kế toán trưởng kiểm tra điều kiện → Chốt sổ kỳ T → CLOSED
 | Trạng thái | Người chuyển |
 |---|---|
 | **New** | Planner |
-| **Picking** | Thủ kho |
-| **Pending Warehouse Approval** | Thủ kho (sau khi kiểm QC đạt) |
-| **Ready to Ship** | Trưởng kho (phê duyệt xuất kho sau QC) |
+| **Waiting Picking** | Thủ kho (đã lập kế hoạch lấy hàng đầy đủ từ một hoặc nhiều Bin FIFO) |
+| **Picking** | Nhân viên kho |
+| **QC Pending Approval** | Nhân viên kho (sau khi nhập kết quả lấy hàng/QC) |
+| **QC Completed** | Thủ kho (đã duyệt chất lượng, đủ hàng đạt) |
+| **Warehouse Approved** | Trưởng kho (phê duyệt xuất kho sau QC) |
 | **In-Transit** ⚠️ *Tồn kho bị trừ tại đây* | Tài xế (xác nhận nhận hàng) |
-| **Delivered** | Tài xế (POD images + OTP Đại lý hợp lệ; OTP verifier lưu trong `delivery_otp_attempts`) |
 | **Returned** | Tài xế (delivery attempt thất bại; attempt hiện tại là `FAILED`, hàng vẫn ở In-Transit cho đến khi luồng hoàn hàng tiếp nhận) |
-| **Completed** | Kế toán viên (đã lập invoice cho DO Delivered) |
+| **Completed** | Hệ thống (POD + OTP hợp lệ, delivery attempt `DELIVERED`, invoice/công nợ đã tự động tạo) |
 | **Closed** | Hệ thống/Kế toán (đã tất toán hoặc khóa theo kỳ kế toán) |
 | **Cancelled** | Planner / Trưởng kho |
+
+**Sửa picking plan sau khi đã pick:** Storekeeper vẫn dùng `PUT /api/v1/delivery-orders/{id}/picking-plan`. Payload `allocations[]` là kế hoạch lấy hàng đầy đủ mới; `returnToBinRecords[]` chỉ bắt buộc cho allocation đã pick và bị remove/reduce trong lần sửa. Allocation đã pick nhưng giữ nguyên không cần trả về bin. Mỗi lần trả hàng về bin gốc tạo audit `PICKED_GOODS_RETURN_TO_BIN`.
 
 ### Cơ chế Credit Check (Kiểm soát công nợ)
 
@@ -321,14 +322,10 @@ Kế toán trưởng kiểm tra điều kiện → Chốt sổ kỳ T → CLOSED
 
 ### Phê duyệt điều chỉnh tồn kho & hủy hàng
 
-<<<<<<< HEAD
-Tất cả các phiếu điều chỉnh chênh lệch kiểm kê và phiếu xuất hủy hàng lỗi đều được gửi trực tiếp đến Trưởng kho để phê duyệt.
-=======
 | Giá trị lệch / Giá trị hủy | Người duyệt |
 |---|---|
 | 5 – 100 triệu VNĐ | Trưởng kho |
 | > 100 triệu VNĐ **hoặc** lỗi do nhân viên | CEO |
->>>>>>> 78bb76f (update spec master data and database, entity)
 
 ---
 
@@ -353,7 +350,7 @@ Manager-warehouse-sdd/
 │       ├── config/                   # Security, JPA config
 │       ├── exception/                # GlobalExceptionHandler
 │       ├── event/                    # Domain events
-│       └── util/                     # FEFOSelector, FIFOSelector
+│       └── util/                     # FIFOSelector
 │
 ├── frontend/                         # React 18 + Tailwind CSS
 │   └── src/
@@ -497,14 +494,14 @@ spring:
 
 ## Domain Rules
 
-Domain hàng hóa hiện tại của Phúc Anh là đồ gia dụng như nồi, chảo, đồ nhựa. Các mặt hàng này mặc định không quản lý hạn sử dụng; FIFO theo ngày nhận hàng là nguyên tắc xuất kho mặc định. FEFO chỉ giữ như khả năng mở rộng cho nhóm sản phẩm ngoại lệ được cấu hình có hạn sử dụng.
+Domain hàng hóa hiện tại của Phúc Anh là đồ gia dụng như nồi, chảo, đồ nhựa. Các mặt hàng này không quản lý hạn sử dụng; FIFO theo ngày nhận hàng là nguyên tắc xuất kho mặc định. FEFO, expiry date và batch hết hạn không thuộc phạm vi hiện tại.
 
 ### Inventory Rules
 
 ```
 1. inventory.quantity >= 0  — luôn đúng trước và sau mọi thao tác
-2. FIFO: chọn batch có received_date cũ nhất cho domain hàng gia dụng mặc định không có hạn sử dụng
-3. FEFO: chỉ áp dụng cho sản phẩm ngoại lệ có cấu hình expiry
+2. FIFO: chọn batch có received_date cũ nhất cho domain hàng gia dụng không có hạn sử dụng
+3. Không áp dụng FEFO/expiry trong phạm vi hiện tại
 4. Điều chỉnh tồn kho chỉ đi qua adjustments — không sửa trực tiếp
 5. Kiểm tra version trước UPDATE để tránh ghi đè cạnh tranh
 6. available = total - reserved >= 0 (kiểm tra trước khi xuất kho)
@@ -514,15 +511,15 @@ Domain hàng hóa hiện tại của Phúc Anh là đồ gia dụng như nồi, 
 
 ```
 1. Mỗi batch chỉ có 1 grade (A/B/C) — khác grade phải tạo batch mới
-2. Sản phẩm has_serial = true phải nhập serial khi nhập và xuất
+2. Không quản lý serial number trong phạm vi hiện tại
 3. Putaway phải kiểm tra bin_capacity trước khi đặt hàng vào bin
-4. Batch hết hạn chỉ áp dụng cho sản phẩm ngoại lệ có expiry; domain hàng gia dụng mặc định không yêu cầu hạn sử dụng
+4. Không có nghiệp vụ batch hết hạn trong domain hàng gia dụng hiện tại
 ```
 
 ### QC & Transfer Rules
 
 ```
-- Hàng fail QC → bắt buộc vào Quarantine Zone, không tính vào available inventory
+- Hàng fail QC → bắt buộc vào Quarantine Zone, tạo phiếu điều chỉnh tồn kho, trừ tồn kho hợp lệ và không tính vào available inventory
 - Điều chuyển phải đi qua In-Transit location cho đến khi kho đích xác nhận
 - Chênh lệch quantity_sent vs quantity_received → tạo adjustment/audit record
 ```
@@ -532,7 +529,7 @@ Domain hàng hóa hiện tại của Phúc Anh là đồ gia dụng như nồi, 
 ```
 Warehouse         → Zone → Bin Location (sức chứa m³, kg)
 Product           → SKU, PriceHistory (effective_date, end_date)
-Batch             → grade (A/B/C), receivedDate, quantity; expDate chỉ dùng cho sản phẩm ngoại lệ có expiry
+Batch             → grade (A/B/C), receivedDate, quantity; không quản lý expDate trong phạm vi hiện tại
 Inventory         → warehouse + product + batch + location (NEVER negative)
 Receipt           → Lệnh nhập kho / Phiếu nhập kho
 Issue             → Đơn xuất hàng / Phiếu xuất kho
@@ -565,7 +562,7 @@ Mọi thao tác nghiệp vụ **phải** ghi Audit Log:
 ### Branch Naming
 
 ```
-feat/[feature-name]    # Tính năng mới (e.g., feat/inventory-FEFO)
+feat/[feature-name]    # Tính năng mới (e.g., feat/inventory-fifo)
 fix/[bug-name]         # Sửa lỗi (e.g., fix/negative-stock)
 spec/[feature-name]    # Specification work
 chore/[short-name]     # Maintenance tasks
@@ -580,8 +577,8 @@ Types:  feat | fix | docs | style | refactor | test | chore
 Scopes: inventory | receipt | issue | transfer | batch | delivery | ...
 
 Ví dụ:
-feat(inventory): add FEFO batch selection logic
-fix(batch): correct expiry date calculation
+feat(inventory): add FIFO batch allocation logic
+fix(batch): correct received date sorting
 docs(api): update warehouse-stock endpoint docs
 ```
 
@@ -605,7 +602,7 @@ Mỗi task hoàn thành khi đáp ứng **tất cả** các điều kiện sau:
 - [ ] Error cases xử lý với proper HTTP status codes
 - [ ] Audit log entry được tạo cho warehouse operations
 - [ ] Không còn TODO comments trong code
-- [ ] FEFO/FIFO logic được test cho batch management
+- [ ] FIFO allocation logic được test cho batch management
 
 ---
 

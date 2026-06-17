@@ -174,5 +174,5 @@ Quy trình nhập hàng là đầu vào của toàn bộ hệ thống tồn kho.
 
 - Barcode/QR scanning for receiving
 - Integration with Công ty mẹ API (Zalo/Email manual for Sprint 1)
-- Automated putaway optimization (FEFO bin suggestion)
+- Automated putaway/picking optimization beyond FIFO display order
 - Supplier quality rating tracking

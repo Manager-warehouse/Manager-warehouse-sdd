@@ -49,7 +49,7 @@ backend/src/main/java/com/wms/
 ├── exception/    # Custom exceptions + GlobalExceptionHandler (@ControllerAdvice)
 ├── repository/   # Spring Data JPA interfaces
 ├── service/      # Business logic, @Transactional, audit logging
-└── util/         # Helper utilities (FEFOSelector, FIFOSelector, mappers)
+└── util/         # Helper utilities (FIFOSelector, mappers)
 ```
 
 ## 4. Frontend Structure

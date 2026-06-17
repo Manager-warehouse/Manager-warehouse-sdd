@@ -1,7 +1,7 @@
 # Feature: Thủ kho Quản lý SKU & Danh mục Sản phẩm (US-WMS-19)
 
 ## 1. Context and Goal
-Quản lý danh mục sản phẩm (SKU) tập trung làm nền tảng đồng bộ dữ liệu hàng hóa trên toàn hệ thống 3 kho, hỗ trợ một quy đổi cố định từ thùng sang cái và theo dõi thuộc tính serial/expiry.
+Quản lý danh mục sản phẩm (SKU) tập trung làm nền tảng đồng bộ dữ liệu hàng hóa trên toàn hệ thống 3 kho, hỗ trợ một quy đổi cố định từ thùng sang cái cho domain đồ gia dụng không quản lý serial hoặc hạn sử dụng.
 
 ## 2. Actors
 * **Thủ kho**: Tạo mới, cập nhật và quản lý danh mục sản phẩm.
@@ -11,13 +11,12 @@ Quản lý danh mục sản phẩm (SKU) tập trung làm nền tảng đồng b
 * **Ubiquitous:**
   * The system SHALL always validate that a product SKU is unique before creation.
 * **Event-driven:**
-  * WHEN a user creates a product, the system SHALL require: SKU, name, unit, and optional fields: description, weight_kg, volume_m3, has_serial, has_expiry, shelf_life_days, unit_per_pack, reorder_point.
+  * WHEN a user creates a product, the system SHALL require: SKU, name, unit, and optional fields: description, weight_kg, volume_m3, unit_per_pack, reorder_point.
   * WHEN a user configures package conversion, the system SHALL support only `thùng → cái` using `unit_per_pack` as the number of `cái` in one `thùng`.
 * **State-driven:**
   * WHILE a product is `is_active = false`, the system SHALL prevent new transactions (receipt, issue, transfer) referencing that product.
 * **Optional:**
-  * WHERE a product has `has_serial = true`, the system SHALL require serial number input during receipt and issue operations.
-  * WHERE a product has `has_expiry = true`, the system SHALL require expiry date input during receipt/batch creation.
+  * WHERE a product belongs to the current household-goods domain, the system SHALL NOT require serial number or expiry date during receipt, issue, or batch creation.
   * WHERE a product has `reorder_point` set and available inventory drops below it, the system SHALL trigger a low-stock alert.
 
 ## 4. API Endpoints
@@ -28,7 +27,7 @@ Quản lý danh mục sản phẩm (SKU) tập trung làm nền tảng đồng b
 * `DELETE /api/v1/products/{id}` - Vô hiệu hóa sản phẩm (soft-delete).
 
 ## 5. Acceptance Criteria
-* **Scenario: Serial number required validation**
-  * Given a product with `has_serial = true`
-  * When creating a receipt without serial numbers
-  * Then the system SHALL reject with error `MISSING_SERIAL`.
+* **Scenario: Create household-goods product without serial or expiry**
+  * Given a storekeeper creates a product for pots, pans, or plastic goods
+  * When the product has SKU, name, unit, and optional package conversion
+  * Then the system SHALL save the product without requiring serial or expiry attributes.

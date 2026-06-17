@@ -23,7 +23,7 @@ Tài liệu này giải thích chi tiết cấu trúc cơ sở dữ liệu Postg
 ---
 
 ## 1. TỔNG QUAN SƠ ĐỒ DATABASE
-Cơ sở dữ liệu WMS Phúc Anh được thiết kế nhằm đáp ứng quy trình vận hành khép kín từ lập kế hoạch nhập/xuất, kiểm tra chất lượng (QC), phân bổ cất hàng theo sức chứa (Putaway), kiểm soát hạn dùng (FEFO/FIFO), điều chuyển kho trung chuyển cho đến giao nhận POD bằng xe tải nội bộ và thanh toán/kiểm soát công nợ đại lý.
+Cơ sở dữ liệu WMS Phúc Anh được thiết kế nhằm đáp ứng quy trình vận hành khép kín từ lập kế hoạch nhập/xuất, kiểm tra chất lượng (QC), phân bổ cất hàng theo sức chứa (Putaway), chọn hàng xuất theo FIFO cho domain đồ gia dụng không hạn sử dụng, điều chuyển kho trung chuyển cho đến giao nhận POD bằng xe tải nội bộ và thanh toán/kiểm soát công nợ đại lý.
 
 ```mermaid
 erDiagram
@@ -121,20 +121,18 @@ erDiagram
     *   `unit` (VARCHAR(30)): Đơn vị tính cơ bản (ví dụ: `cái`, `hộp`).
     *   `unit_per_pack` (INTEGER): Quy đổi đóng gói cố định (ví dụ: 1 thùng = 24 cái).
     *   `weight_kg` & `volume_m3` (DECIMAL): Khối lượng và thể tích của 1 đơn vị sản phẩm (dùng để tính toán tải trọng vận chuyển và sức chứa kệ tự động).
-    *   `has_expiry` (BOOLEAN): Sản phẩm có theo dõi hạn sử dụng không (nếu có, xuất kho theo FEFO).
-    *   `has_serial` (BOOLEAN): Sản phẩm có quản lý theo số Serial Number không.
+    *   Domain hiện tại không quản lý hạn sử dụng hoặc Serial Number cho sản phẩm.
     *   `reorder_point` (DECIMAL): Ngưỡng tồn kho tối thiểu. Nếu tồn kho dưới mức này, hệ thống sẽ tự động kích hoạt cảnh báo tồn kho thấp.
 *   **Ví dụ thực tế:**
     ```json
     {
       "id": 1,
-      "sku": "SUA-TH-180",
-      "name": "Sữa TH True Milk 180ml",
+      "sku": "NOI-IN-24",
+      "name": "Nồi inox 24cm",
       "unit": "cái",
-      "weight_kg": 0.190,
-      "volume_m3": 0.0002,
-      "has_expiry": true,
-      "reorder_point": 500.0
+      "weight_kg": 1.200,
+      "volume_m3": 0.018,
+      "reorder_point": 50.0
     }
     ```
 
@@ -187,14 +185,13 @@ erDiagram
 ## NHÓM 5: QUẢN LÝ LÔ HÀNG & TỒN KHO
 
 ### 12. Bảng `batches`
-*   **Công dụng:** Quản lý thông tin nguồn gốc của lô hàng nhập kho. Phục vụ quản lý FIFO/FEFO và phân hạng chất lượng hàng.
+*   **Công dụng:** Quản lý thông tin nguồn gốc của lô hàng nhập kho. Phục vụ quản lý FIFO và phân hạng chất lượng hàng.
 *   **Chi tiết các trường:**
     *   `batch_number` (VARCHAR(100), UNIQUE): Số lô duy nhất (ví dụ: `LOT-TH-20260601`).
     *   `product_id` (BIGINT, FK -> products): SKU của sản phẩm thuộc lô này.
     *   `received_date` (DATE): Ngày nhập lô hàng về kho (Dùng để xác định lô cũ nhất cho FIFO).
-    *   `expiry_date` (DATE, Nullable): Hạn sử dụng của lô hàng (Dùng để xác định lô hết hạn trước cho FEFO).
     *   `grade` (VARCHAR(1)): Phân loại chất lượng của lô. CHECK: `A` (Hàng mới/hoàn hảo), `B` (Hàng móp vỏ nhẹ), `C` (Hàng lỗi hỏng cần thanh lý).
-*   **Ví dụ thực tế:** Lô hàng `LOT-A` hạn dùng `2026-12-01` sẽ được chọn để xuất kho trước lô `LOT-B` hạn dùng `2027-01-01` theo thuật toán FEFO.
+*   **Ví dụ thực tế:** Lô hàng `LOT-A` nhập ngày `2026-06-01` sẽ được chọn để xuất kho trước lô `LOT-B` nhập ngày `2026-06-05` theo FIFO.
 
 ### 13. Bảng `inventories`
 *   **Công dụng:** Bảng lõi theo dõi số lượng tồn kho chính xác tại từng vị trí ô kệ (Bin), thuộc từng lô hàng và kho cụ thể.
@@ -238,7 +235,6 @@ erDiagram
     *   `qc_passed_qty` (DECIMAL): Số lượng đạt tiêu chuẩn (hàng loại A $\rightarrow$ sẽ được cất vào các ô kệ thông thường).
     *   `qc_failed_qty` (DECIMAL): Số lượng lỗi hỏng (sẽ bắt buộc phải cất vào **Khu cách ly Quarantine**).
     *   `qc_result` (VARCHAR(20)): Kết quả kiểm định. CHECK: `PENDING`, `PASSED`, `FAILED`, `PARTIAL`.
-    *   `serial_number` (VARCHAR(100), Nullable): Số serial nếu SKU yêu cầu kiểm soát theo serial.
 
 ---
 
@@ -253,7 +249,7 @@ erDiagram
 *   **Chi tiết các trường:**
     *   `do_number` (VARCHAR(50), UNIQUE): Số lệnh xuất (ví dụ: `DO-20260601-005`).
     *   `dealer_id` (BIGINT, FK -> dealers): Đại lý nhận hàng.
-    *   `status` (VARCHAR(30)): Trạng thái vòng đời xuất kho. CHECK: `NEW` (Mới tạo), `PICKING` (Đang nhặt hàng), `READY_TO_SHIP` (Đã đóng gói sẵn sàng ở cửa xuất), `IN_TRANSIT` (Đang đi trên xe), `OUT_FOR_DELIVERY` (Gần đến nơi), `DELIVERED` (Đại lý nhận thành công), `RETURNED` (Bị trả về), `COMPLETED` (Hoàn tất giao nhận), `CLOSED`, `CANCELLED`.
+    *   `status` (VARCHAR(30)): Trạng thái vòng đời xuất kho. CHECK: `NEW` (Mới tạo), `WAITING_PICKING` (Đã lập kế hoạch lấy hàng), `PICKING` (Đang nhặt hàng), `QC_PENDING_APPROVAL`, `QC_COMPLETED`, `WAREHOUSE_APPROVED`, `IN_TRANSIT` (Đang đi trên xe), `RETURNED` (Bị trả về), `DELIVERY_FAILED`, `COMPLETED` (Hoàn tất giao nhận), `CLOSED`, `CANCELLED`.
 
 ### 19. Bảng `delivery_order_items`
 *   **Công dụng:** Danh sách hàng hóa chi tiết cần xuất của mỗi lệnh DO.
@@ -261,7 +257,28 @@ erDiagram
     *   `requested_qty` (DECIMAL): Số lượng khách đặt mua.
     *   `reserved_qty` (DECIMAL): Số lượng hệ thống tự động khóa giữ chỗ trong kho (để đảm bảo không bị đơn khác bán mất).
     *   `issued_qty` (DECIMAL): Số lượng thực xuất ra khỏi cửa kho.
-    *   `location_id` & `batch_id` (FK): Chỉ định ô kệ cụ thể và số lô cụ thể để nhặt hàng (theo thuật toán FEFO/FIFO).
+    *   `location_id` & `batch_id` (FK): Chỉ định ô kệ cụ thể và số lô cụ thể để nhặt hàng khi dòng hàng chỉ lấy từ một nguồn; trường hợp nhiều bin dùng bảng allocation chi tiết theo FIFO.
+
+### 19a. Bảng `delivery_order_item_allocations`
+*   **Công dụng:** Kế hoạch lấy hàng chi tiết cho từng dòng DO, cho phép một dòng lấy từ nhiều bin trong cùng kho được gán của Storekeeper.
+*   **Chi tiết các trường:**
+    *   `delivery_order_item_id` (BIGINT, FK -> delivery_order_items): Dòng phiếu xuất cần lấy hàng.
+    *   `inventory_id` (BIGINT, FK -> inventory): Dòng tồn kho hợp lệ được chọn; chỉ lấy hàng đã đạt chất lượng, không thuộc quarantine và còn available.
+    *   `batch_id`, `location_id`, `zone_id` (BIGINT, FK): Nguồn lấy hàng theo batch/bin/zone để giữ truy vết vị trí gốc.
+    *   `planned_qty` (DECIMAL): Số lượng dự kiến lấy từ nguồn này. Tổng `planned_qty` theo từng `delivery_order_item_id` phải bằng số lượng yêu cầu trên phiếu xuất.
+    *   `picked_qty` (DECIMAL): Số lượng đã lấy thực tế từ allocation này.
+    *   `status` (VARCHAR(30)): Trạng thái allocation, ví dụ `PLANNED`, `PICKED`, `RETURNED`, `CANCELLED`.
+
+### 19b. Bảng `delivery_order_item_return_to_bin_records`
+*   **Công dụng:** Nhật ký nghiệp vụ hàng đã pick được trả về bin gốc khi Storekeeper sửa picking plan sau khi đơn đã ở trạng thái `PICKING`.
+*   **Chi tiết các trường:**
+    *   `allocation_id` (BIGINT, FK -> delivery_order_item_allocations): Allocation đã pick bị remove/reduce trong kế hoạch mới.
+    *   `product_id`, `batch_id` (BIGINT, FK): Sản phẩm và batch được trả về, phục vụ đối soát.
+    *   `original_location_id`, `original_zone_id` (BIGINT, FK): Vị trí gốc của hàng trước khi pick; hàng phải được xác nhận trả về đúng vị trí này trước khi thêm allocation thay thế.
+    *   `source_location_id` (BIGINT, FK): Vị trí tạm/nguồn thao tác trả hàng tại thời điểm sửa plan.
+    *   `returned_qty` (DECIMAL): Số lượng trả về. Chỉ bắt buộc cho phần allocation đã pick và bị thay đổi; allocation đã pick nhưng giữ nguyên không cần record trả hàng.
+    *   `reason` (TEXT): Lý do trả hàng về bin gốc.
+    *   `created_by`, `created_at`: Người thao tác và thời điểm ghi nhận; đồng thời tạo audit `PICKED_GOODS_RETURN_TO_BIN`.
 
 ### 20. Bảng `delivery_order_approvals` (Duyệt Tài chính)
 *   **Công dụng:** Kế toán kiểm tra hạn mức nợ (Credit check) của đại lý. Nếu đại lý đang bị khóa nợ (`CREDIT_HOLD`), kế toán phải upload ảnh hợp đồng hoặc lý do phê duyệt đặc cách thì đơn mới được xuất.
@@ -345,7 +362,7 @@ erDiagram
     *   `type` (VARCHAR(30), NOT NULL): Lý do điều chỉnh. Bất biến với 5 giá trị CHECK:
         1.  `STOCK_TAKE`: Cân bằng kho tự động phát sinh từ phiếu kiểm kê.
         2.  `TRANSFER_DISCREPANCY`: Xử lý hao hụt hàng khi đi đường giữa các kho.
-        3.  `DISPOSAL`: Tiêu hủy hàng lỗi hỏng, hết hạn sử dụng.
+        3.  `DISPOSAL`: Tiêu hủy hàng lỗi hỏng hoặc fail QC.
         4.  `RETURN_TO_VENDOR`: Xuất trả hàng lỗi về cho Nhà cung cấp.
         5.  `CORRECTION_VOUCHER`: Sửa đổi sai sót kế toán đối với các kỳ kế toán đã chốt sổ.
 
@@ -405,6 +422,6 @@ erDiagram
 ### 2. Tự động cảnh báo tồn kho (`trg_inventories_stock_alert`)
 *   **Cơ chế:** Mỗi khi số lượng tồn của một sản phẩm thay đổi, hệ thống tự động so sánh tổng tồn kho của sản phẩm đó trong kho với trường `reorder_point` của sản phẩm. Nếu thấp hơn, hệ thống tự động chèn một dòng cảnh báo vào bảng `stock_alerts`.
 
-### 3. View kiểm soát hạn dùng FEFO/FIFO (`v_inventory_by_batch`)
-*   **Cơ chế:** View này sắp xếp tồn kho chi tiết theo nguyên tắc: Ưu tiên các lô hàng có hạn sử dụng gần nhất lên trước (`expiry_date ASC NULLS LAST` - FEFO). Đối với hàng không có hạn sử dụng, ưu tiên lô có ngày nhập kho cũ nhất lên trước (`received_date ASC` - FIFO).
+### 3. View xếp hạng tồn kho FIFO (`v_inventory_by_batch`)
+*   **Cơ chế:** View này sắp xếp tồn kho chi tiết theo nguyên tắc ưu tiên lô có ngày nhập kho cũ nhất lên trước (`received_date ASC` - FIFO), chỉ bao gồm tồn kho hợp lệ trong khu vực đạt chất lượng.
 *   **Lợi ích:** Khi xuất kho, backend chỉ cần select từ View này để tự động phân bổ hàng xuất tối ưu mà không cần viết thuật toán sắp xếp phức tạp ở code ứng dụng.

@@ -127,11 +127,11 @@ Mọi thao tác ghi dữ liệu trên kho MUST tạo audit log với:
    đúng trước và sau mọi thao tác. Áp dụng DB constraint (`CHECK (quantity >= 0)`)
    VÀ application-level validation.
 2. **INV-02 (FIFO default):** Domain hiện tại là hàng gia dụng như nồi, chảo,
-   đồ nhựa và mặc định không quản lý hạn sử dụng. Batch được chọn ưu tiên theo
-   ngày nhập cũ nhất (First In First Out).
-3. **INV-03 (FEFO exception):** FEFO chỉ áp dụng cho sản phẩm ngoại lệ được cấu
-   hình có expiry date; khi đó batch được chọn ưu tiên theo hạn dùng gần nhất
-   (First Expiry First Out).
+   đồ nhựa và không quản lý hạn sử dụng. Batch được chọn ưu tiên theo ngày nhập
+   cũ nhất (First In First Out).
+3. **INV-03 (No expiry in current scope):** FEFO và expiry date không thuộc phạm
+   vi domain hiện tại. Nếu sau này mở rộng sang nhóm hàng có hạn sử dụng thì phải
+   tạo spec và migration riêng trước khi áp dụng.
 4. **INV-04 (No direct inventory update):** Mọi thay đổi tồn kho MUST đi qua
    receipt, issue, transfer, adjustment, hoặc stocktake flows. KHÔNG được
    UPDATE/SET trực tiếp quantity trên entity Inventory.
@@ -148,15 +148,11 @@ Mọi thao tác ghi dữ liệu trên kho MUST tạo audit log với:
 
 1. **BAT-01 (Single grade):** Mỗi batch chỉ có 1 grade (A/B/C). Khác grade
    MUST tạo batch mới.
-2. **BAT-02 (Serial tracking):** Sản phẩm có `has_serial = true` MUST nhập
-   serial khi nhập kho và xuất kho.
-3. **BAT-03 (Bin capacity):** Putaway MUST kiểm tra `bin_capacity` trước khi
+2. **BAT-02 (Bin capacity):** Putaway MUST kiểm tra `bin_capacity` trước khi
    đặt hàng vào bin. Không cho phép vượt quá sức chứa.
-4. **BAT-04 (Expired batch exception):** Batch hết hạn chỉ áp dụng cho sản phẩm
-   ngoại lệ có expiry date. Với domain hàng gia dụng mặc định, hệ thống không
-   yêu cầu hạn sử dụng; nếu sản phẩm có expiry thì batch hết hạn MUST NOT được
-   chọn cho flow xuất kho thông thường và chỉ xuất được qua flow đặc biệt có
-   approval.
+3. **BAT-03 (No expired batch handling):** Domain hàng gia dụng hiện tại không
+   yêu cầu hạn sử dụng, không chọn theo FEFO, và không có nghiệp vụ batch hết hạn
+   trong flow xuất kho thông thường.
 
 ### 4.3 QC & Quarantine Rules
 
@@ -260,7 +256,7 @@ MUST NOT:
    paths)
 3. **Integration tests:** MUST viết cho tất cả API endpoints (happy path +
    error paths)
-4. **Batch logic:** FEFO/FIFO logic MUST có test riêng
+4. **Batch logic:** FIFO allocation logic MUST có test riêng
 5. **Inventory boundary:** Negative inventory, reserved > total, version
    conflict MUST có test
 6. **Frontend:** Component test với Jest + React Testing Library cho các
@@ -287,7 +283,7 @@ MUST NOT:
 [type]([scope]): [description]
 ```
 
-Ví dụ: `feat(inventory): add FEFO batch selection logic`
+Ví dụ: `feat(inventory): add FIFO batch allocation logic`
 
 ### 8.3 PR Rules
 
@@ -309,7 +305,7 @@ Một task chỉ được coi là **hoàn thành** khi tất cả các điều k
 - [ ] Error cases handled với proper HTTP status codes
 - [ ] Audit log entry created cho warehouse operations
 - [ ] No TODO comments left in code
-- [ ] FEFO/FIFO logic tested cho batch management
+- [ ] FIFO allocation logic tested cho batch management
 
 ---
 

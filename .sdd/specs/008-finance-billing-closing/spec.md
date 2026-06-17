@@ -9,7 +9,7 @@
 
 ## 1. Context and Goal
 
-Sau khi đơn hàng được giao thành công (`DELIVERED`), Kế toán viên lập hóa đơn từ invoice candidates worklist để không bỏ sót đơn đã giao chưa lập hóa đơn, cộng dồn công nợ Đại lý và chuyển Delivery Order sang `COMPLETED`. Hệ thống tự động kiểm tra hạn mức tín dụng (Credit Limit) và khóa/chặn đơn mới nếu vi phạm. Cuối tháng, Kế toán trưởng chốt sổ, khóa cứng kỳ quá khứ.
+Sau khi đơn hàng được giao thành công bằng POD + OTP, delivery attempt chuyển `DELIVERED`; hệ thống tự động tạo invoice/công nợ và chuyển Delivery Order sang `COMPLETED`. Kế toán viên theo dõi danh sách invoice/công nợ đã tự động tạo để thu tiền, đối soát và không bỏ sót khoản phải thu. Hệ thống tự động kiểm tra hạn mức tín dụng (Credit Limit) và khóa/chặn đơn mới nếu vi phạm. Cuối tháng, Kế toán trưởng chốt sổ, khóa cứng kỳ quá khứ.
 
 ### Features List
 * [US-WMS-10: Lập Hóa đơn Bán hàng & Ghi nhận Công nợ](./features/feature-accountant-customer-invoicing.md)
@@ -21,7 +21,7 @@ Sau khi đơn hàng được giao thành công (`DELIVERED`), Kế toán viên l
 
 | Actor | Vai trò | Nghiệp vụ liên quan |
 |-------|---------|---------------------|
-| Kế toán viên | Maker | Lập Hóa đơn (Invoice), tạo Phiếu thu (Payment Receipt) cấn trừ hóa đơn, cấn trừ công nợ |
+| Kế toán viên | Maker | Theo dõi invoice/công nợ tự động tạo từ DO hoàn tất, tạo Phiếu thu (Payment Receipt) cấn trừ hóa đơn, cấn trừ công nợ |
 | Kế toán trưởng | Checker | Phê duyệt Credit Limit cho Đại lý, xem Aging Report và báo cáo Lãi/Lỗ, thực hiện chốt sổ tháng |
 | Hệ thống (Daily Job) | System | Chạy Job định kỳ quét hóa đơn quá hạn >30 ngày để tự động khóa công nợ (CREDIT_HOLD) |
 
@@ -36,7 +36,7 @@ Sau khi đơn hàng được giao thành công (`DELIVERED`), Kế toán viên l
 
 | ID | Requirement | Target |
 |----|------------|--------|
-| NFR-001 | Invoice creation from DO | ≤ 1s |
+| NFR-001 | Auto invoice creation from completed DO | ≤ 1s |
 | NFR-002 | Payment recording + balance update | ≤ 1s |
 | NFR-003 | Aging report generation | ≤ 3s for 50+ dealers |
 | NFR-004 | Monthly closing process | ≤ 30s |

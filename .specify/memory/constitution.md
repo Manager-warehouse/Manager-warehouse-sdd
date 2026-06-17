@@ -8,8 +8,8 @@ Backend phan tang bat buoc: Controller (@RestController) -> Service (@Service) -
 ### II. Inventory Integrity (NON-NEGOTIABLE)
 `inventory.quantity >= 0` luon dung truoc va sau moi thao tac. Khong cho phep negative inventory. Moi thao tac UPDATE inventory phai co @Version optimistic locking. Moi thao tac phai tao audit log (actor, action, timestamp, before/after).
 
-### III. FEFO/FIFO Batch Selection
-San pham co expiry: chon batch co han dung gan nhat (FEFO). San pham khong co expiry: chon batch co received_date cu nhat (FIFO). Batch het han khong duoc chon cho xuat kho thong thuong.
+### III. FIFO Batch Selection
+Domain hien tai la do gia dung khong quan ly han su dung. Tat ca xuat kho thong thuong chon batch theo received_date cu nhat (FIFO). FEFO, expiry date, va batch het han khong thuoc pham vi hien tai; neu sau nay mo rong thi phai co spec va migration rieng.
 
 ### IV. QC Gate & Quarantine
 Hang fail QC bat buoc vao Quarantine Zone. Quarantine inventory KHONG duoc tinh vao available inventory. Hang trong Quarantine can quyet dinh xu ly (tieu huy/tra NCC) truoc khi xoa khoi quarantine.
@@ -47,7 +47,7 @@ Service logic moi: coverage toi thieu 80%. Unit test bat buoc cho FEFO/FIFO sele
 - Master data: soft delete (is_active = false)
 - Transaction data: status = cancelled (khong xoa vinh vien)
 - Moi transaction chi co 1 grade (A/B/C). Khac grade = tao batch moi
-- San pham has_serial = true bat buoc nhap/xuat serial
+- Khong quan ly serial number trong pham vi hien tai
 
 ## Development Workflow
 
@@ -64,7 +64,7 @@ Service logic moi: coverage toi thieu 80%. Unit test bat buoc cho FEFO/FIFO sele
 5. Error cases handled voi proper HTTP status codes
 6. Audit log entry created cho warehouse operations
 7. No TODO comments in code
-8. FEFO/FIFO logic tested
+8. FIFO allocation logic tested
 
 ## Governance
 

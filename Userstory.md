@@ -88,11 +88,11 @@
      - `Đại lý có ít nhất 1 hóa đơn quá hạn > 30 ngày`
    - Nếu vi phạm → Hệ thống **chặn cứng**, hiển thị popup cảnh báo rõ lý do (công nợ hiện tại, hạn mức, số tiền vượt), không cho tạo đơn.
 3. **Kiểm tra tồn kho khả dụng (Available Quantity):** Hệ thống tính:
-   - `available_qty = total_qty - reserved_qty`
+   - `available_qty = sum(tồn hợp lệ - reserved tại bin) - reserved cấp kho`
    - Nếu `available_qty < số_lượng_yêu_cầu` → Hiển thị cảnh báo thiếu hàng và gợi ý kho khác còn hàng.
 4. Đơn hàng tạo thành công → Trạng thái: **Mới (New)**.
 5. **Hệ thống tự động giữ chỗ (Reserve):** Ngay khi đơn được tạo thành công:
-   - `reserved_qty += số_lượng_đơn` tại kho xuất → Ngăn Planner khác oversell cùng lô hàng.
+   - `reserved_qty += số_lượng_đơn` ở cấp kho/sản phẩm; Thủ kho sẽ gán sang một hoặc nhiều batch/bin cụ thể khi lập kế hoạch lấy hàng.
    - Tồn kho khả dụng hiển thị cho các đơn tiếp theo đã được trừ phần đã giữ chỗ.
 6. **Giải phóng Reserved Quantity** trong các trường hợp:
    - Đơn chuyển sang **In-Transit** → Trừ tồn kho kho xuất, giải phóng `reserved_qty`, và cộng số lượng đang đi đường vào Kho ảo In-Transit.
@@ -102,14 +102,16 @@
 
 ### US-WMS-07: Soạn hàng & Kiểm QC đóng gói (Priority: P1)
 
-**Mô tả:** Là Thủ kho kiêm QC, tôi muốn soạn hàng từ đúng Bin theo batch đã reserve và kiểm tra chất lượng đóng gói QC trước khi xuất kho.
+**Mô tả:** Là Thủ kho, tôi muốn lập kế hoạch lấy hàng từ một hoặc nhiều Bin FIFO trong kho được gán; sau đó Nhân viên kho lấy hàng thực tế và kiểm tra chất lượng đóng gói QC trước khi xuất kho.
 
 **Tiêu chí nghiệm thu:**
 
-1. Thủ kho nhận lệnh xuất → Lấy hàng từ đúng Bin nhỏ nhất theo batch đã reserve → Cập nhật trạng thái đơn: **Đang soạn hàng (Picking)**.
-2. Thủ kho kiểm tra QC: đúng SKU, đúng số lượng, đóng thùng chống sốc → Xác nhận đạt trên hệ thống.
-3. Thủ kho xác nhận QC đạt → Trạng thái đơn: **Chờ Trưởng kho duyệt xuất (Pending Warehouse Approval)**.
-4. Trưởng kho phê duyệt xuất kho sau QC → Trạng thái đơn: **Sẵn sàng xuất (Ready to Ship)**.
+1. Thủ kho nhận lệnh xuất ở trạng thái **New**, chọn hàng từ một hoặc nhiều Bin hợp lệ trong kho được gán theo FIFO; tổng số lượng đã chọn cho từng dòng phải bằng số lượng yêu cầu trên phiếu xuất → Trạng thái đơn: **Chờ lấy hàng (Waiting Picking)**.
+2. Nhân viên kho lấy hàng theo kế hoạch → Trạng thái đơn: **Đang soạn hàng (Picking)**.
+3. Nếu sửa kế hoạch khi đơn đã ở **Picking**, hệ thống chỉ yêu cầu xác nhận trả hàng về bin gốc cho allocation đã pick và bị remove/reduce; allocation đã pick nhưng giữ nguyên không cần trả. Mỗi lần trả hàng ghi audit riêng.
+4. Nhân viên kho kiểm tra QC: đúng SKU, đúng số lượng, đóng thùng chống sốc. Hàng fail QC bắt buộc chuyển vào Quarantine, tạo phiếu điều chỉnh tồn kho và trừ khỏi tồn kho hợp lệ.
+5. Thủ kho xác nhận đủ hàng đạt QC → Trạng thái đơn: **QC Completed**.
+6. Trưởng kho phê duyệt xuất kho sau QC → Trạng thái đơn: **Warehouse Approved**.
 
 ---
 
@@ -120,7 +122,7 @@
 **Tiêu chí nghiệm thu:**
 
 1. Dispatcher tạo Chuyến xe (Trip Log) mới: Chọn xe nội bộ (từ danh mục xe Phúc Anh), gán Tài xế, thiết lập ngày giao dự kiến.
-2. Gom nhiều Đơn xuất hàng (Delivery Orders) ở trạng thái **Ready to Ship** vào một Chuyến xe; sắp xếp thứ tự giao hàng (Stop Order).
+2. Gom nhiều Đơn xuất hàng (Delivery Orders) ở trạng thái **Warehouse Approved** vào một Chuyến xe; sắp xếp thứ tự giao hàng (Stop Order).
 3. Hệ thống kiểm tra tải trọng xe: Nếu tổng khối lượng/thể tích hàng vượt tải trọng xe → Cảnh báo Dispatcher.
 4. Tài xế xác nhận nhận hàng, xe rời kho → Trạng thái Chuyến xe: **Đang vận chuyển (In-Transit)** → Hệ thống trừ tồn kho kho xuất, giải phóng reserved, và cộng hàng vào Kho ảo In-Transit tại thời điểm này.
 
@@ -144,7 +146,7 @@
 
 **Mô tả:** Là Kế toán viên, sau khi đơn hàng chuyển sang trạng thái Delivered, tôi muốn lập Hóa đơn bán hàng kèm kỳ hạn thanh toán để hệ thống theo dõi và tự động cảnh báo nợ quá hạn.
 
-**Tiêu chí bổ sung:** Kế toán viên phải có màn hình/API danh sách đơn `DELIVERED` chưa có hóa đơn theo phạm vi kho được phân quyền để không bỏ sót đơn cần lập hóa đơn.
+**Tiêu chí bổ sung:** Kế toán viên phải có màn hình/API danh sách invoice/công nợ đã tự động tạo từ các DO `COMPLETED` theo phạm vi kho được phân quyền để theo dõi thu tiền và không bỏ sót công nợ.
 
 **Tiêu chí nghiệm thu:**
 

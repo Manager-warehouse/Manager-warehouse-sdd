@@ -83,7 +83,7 @@
 ┌─────────────────────────────────────────┐
 │           Service Layer                  │  @Service
 │   - Business logic                      │  - Transaction management
-│   - FEFO/FIFO selection                 │  - Audit logging
+│   - FIFO allocation                     │  - Audit logging
 │   - Authorization checks                │
 └─────────────────┬─────────────────────┘
                   │
@@ -179,7 +179,7 @@ Manager-warehouse-sdd/
 
 ### LESSON-002: Batch tied to ONE grade only
 
-**Biến cố**: [TBD] Mixed grade trong batch → FEFO selection confusion
+**Biến cố**: [TBD] Mixed grade trong batch → FIFO allocation confusion
 **Giải pháp**: Mỗi batch chỉ có một grade (A/B/C), không mix
 **Áp dụng**: Receipt validation, batch creation
 
@@ -305,7 +305,7 @@ Manager-warehouse-sdd/
 ### Branch Naming
 
 ```
-feat/[feature-name]      # New features (e.g., feat/inventory-FEFO)
+feat/[feature-name]      # New features (e.g., feat/inventory-fifo)
 fix/[bug-name]           # Bug fixes (e.g., fix/negative-stock)
 spec/[feature-name]      # Specification work
 chore/                   # Maintenance tasks
@@ -320,8 +320,8 @@ Types: feat, fix, docs, style, refactor, test, chore
 Scopes: inventory, receipt, issue, transfer, batch, etc.
 
 Examples:
-feat(inventory): add FEFO batch selection logic
-fix(batch): correct expiry date calculation
+feat(inventory): add FIFO batch allocation logic
+fix(batch): correct received date sorting
 docs(api): update warehouse-stock endpoint docs
 ```
 
@@ -393,7 +393,7 @@ Semble is a semantic code search tool that finds code by **meaning**, not just t
 
 | Task                                   | Tool         | Why                             |
 | -------------------------------------- | ------------ | ------------------------------- |
-| "Find all FEFO implementations"        | **Semble**   | Semantic search across codebase |
+| "Find all FIFO implementations"        | **Semble**   | Semantic search across codebase |
 | "What breaks if I change X?"           | **GitNexus** | Call graph + impact analysis    |
 | "Show me code similar to BatchService" | **Semble**   | Similarity detection            |
 | "Who calls this method?"               | **GitNexus** | Relationship graph              |
@@ -405,7 +405,7 @@ Semble is a semantic code search tool that finds code by **meaning**, not just t
 | Tool                    | Purpose              | Example                                          |
 | ----------------------- | -------------------- | ------------------------------------------------ |
 | `semble.search()`       | Semantic code search | `semble.search("inventory quantity validation")` |
-| `semble.find_related()` | Find similar code    | `semble.find_related("BatchService.selectFEFO")` |
+| `semble.find_related()` | Find similar code    | `semble.find_related("BatchService.selectFIFO")` |
 
 ### Optimal Workflow: Semble + GitNexus
 
@@ -431,10 +431,10 @@ Semble is a semantic code search tool that finds code by **meaning**, not just t
 
 ```
 1. Semble search: Find all places with similar logic
-   → semble.search("batch expiry date calculation")
+   → semble.search("batch received date sorting")
 
 2. GitNexus query: Trace execution flow
-   → gitnexus_query("batch expiry validation")
+   → gitnexus_query("FIFO batch allocation validation")
 
 3. GitNexus impact: Check what depends on the buggy code
    → gitnexus_impact("BatchService.calculateExpiry")
@@ -469,7 +469,7 @@ Semble CLI is installed at `/Users/haison/.local/bin/semble` and provides direct
 ```bash
 # Search codebase with natural language
 semble search "authentication flow" .
-semble search "FEFO batch selection logic" .
+semble search "FIFO batch allocation logic" .
 
 # Search for specific symbol or identifier
 semble search "InventoryService" .
@@ -496,8 +496,8 @@ semble init
 #### Practical Examples for WMS Project
 
 ```bash
-# Find all FEFO implementations
-semble search "FEFO batch selection" . --top-k 10
+# Find all FIFO implementations
+semble search "FIFO batch allocation" . --top-k 10
 
 # Find inventory validation patterns
 semble search "inventory quantity validation" .
@@ -541,7 +541,7 @@ semble search "database configuration" . --include-text-files
 
 ```bash
 # Find code by concept (Semble)
-semble search "FEFO batch selection" --limit 10
+semble search "FIFO batch allocation" --limit 10
 
 # Understand execution flow (GitNexus)
 gitnexus query "warehouse receipt process"
@@ -554,10 +554,10 @@ gitnexus context --name "InventoryService.reserve"
 
 ```bash
 # Check impact (GitNexus)
-gitnexus impact --target "BatchService.selectFEFO" --direction upstream
+gitnexus impact --target "BatchService.selectFIFO" --direction upstream
 
 # Find similar code that might need same change (Semble)
-semble find-related "BatchService.selectFEFO"
+semble find-related "BatchService.selectFIFO"
 ```
 
 #### After Editing
@@ -664,7 +664,7 @@ Speckit works as an MCP (Model Context Protocol) server that needs to be configu
 
 ```
 1. SPEC PHASE (Speckit)
-   → speckit_specify: Create spec for "FEFO batch selection"
+   → speckit_specify: Create spec for "FIFO batch allocation"
    → Document business rules, edge cases
 
 2. EXPLORATION PHASE (Semble + GitNexus)
@@ -673,8 +673,8 @@ Speckit works as an MCP (Model Context Protocol) server that needs to be configu
 
 3. PLANNING PHASE (Speckit)
    → speckit_plan: Break down into tasks
-   → Task 1: Add FEFO selector utility
-   → Task 2: Update IssueService to use FEFO
+   → Task 1: Add FIFO selector utility
+   → Task 2: Update IssueService to use FIFO
    → Task 3: Add unit tests
 
 4. IMPACT ANALYSIS (GitNexus)
@@ -737,7 +737,7 @@ specs/
 
 # Create specification
 speckit_specify({
-  feature: "FEFO batch selection",
+  feature: "FIFO batch allocation",
   requirements: "...",
   acceptance_criteria: "..."
 })
@@ -782,7 +782,7 @@ Product (1000+ items)
 └── PriceHistory (cost_price, selling_price, effective_date, end_date)
 
 Batch (Lô hàng - tied to ONE grade)
-├── batchNumber, receivedDate, expDate (optional; only for exceptional expiry-tracked products)
+├── batchNumber, receivedDate (domain hiện tại không quản lý expDate)
 ├── grade (A/B/C)
 └── quantity
 
@@ -797,7 +797,7 @@ Receipt (Lệnh nhập kho / Phiếu nhập kho)
 
 Issue (Đơn xuất hàng / Phiếu xuất kho)
 ├── issueNumber, customer/dealer, type (sale/delivery/adjustment)
-├── warehouse, status (new/picking/ready_to_ship/in_transit/delivered/completed/closed)
+├── warehouse, status (new/waiting_picking/picking/qc_pending_approval/qc_completed/warehouse_approved/in_transit/completed/closed)
 └── items (product + quantity)
 
 Transfer (Phiếu điều chuyển kho)
@@ -826,9 +826,9 @@ DebitNote (Phiếu đòi bồi hoàn)
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | No negative inventory   | `@Column(check = "quantity >= 0")` + validation                                                                  |
 | Single grade per batch  | `grade` is immutable after creation                                                                              |
-| Household goods default | Products such as pots, pans, and plastic goods do not track expiry by default                                    |
+| Household goods default | Products such as pots, pans, and plastic goods do not track expiry in the current domain                         |
 | FIFO default            | `FIFOSelector` picks batch by receivedDate ASC for the current household-goods domain                            |
-| FEFO exception          | `FEFOSelector` is used only for exceptional products configured with expiry tracking                             |
+| No FEFO current scope   | FEFO, expiry date, and expired-batch handling are outside the current household-goods scope                       |
 | Quarantine excluded     | WHERE clause filters `zone != 'QUARANTINE'`                                                                      |
 | In-Transit tracking     | Virtual warehouse `IN_TRANSIT` for transfers                                                                     |
 | Credit Check Control    | Auto-block if balance + new > limit OR >30 days overdue; balance equal to limit is allowed. Buffer 20% to unlock |
@@ -957,7 +957,9 @@ Quy trình xử lý đơn xuất hàng bán cho Đại lý, tích hợp kiểm t
 ```
 
 **Luồng trạng thái đơn xuất:**
-`NEW` (Planner lập đơn & System check công nợ đạt) → `PICKING` (Thủ kho bắt đầu soạn hàng từ Bin theo batch đã reserve) → `PENDING_WAREHOUSE_APPROVAL` (Thủ kho xác nhận QC & đóng gói đạt, chờ Trưởng kho duyệt xuất) → `READY_TO_SHIP` (Trưởng kho phê duyệt xuất kho)
+`NEW` (Planner lập đơn & System check công nợ đạt) → `WAITING_PICKING` (Thủ kho lưu kế hoạch lấy hàng đầy đủ từ một hoặc nhiều Bin FIFO) → `PICKING` (Nhân viên kho lấy hàng theo kế hoạch) → `QC_PENDING_APPROVAL` (Nhân viên kho ghi kết quả lấy hàng/QC; hàng fail vào Quarantine và tạo phiếu điều chỉnh tồn kho) → `QC_COMPLETED` (Thủ kho duyệt chất lượng khi đủ hàng đạt) → `WAREHOUSE_APPROVED` (Trưởng kho phê duyệt xuất kho)
+
+**Sửa picking plan sau khi đã pick:** Storekeeper dùng cùng endpoint `PUT /api/v1/delivery-orders/{id}/picking-plan`; `allocations[]` là kế hoạch lấy hàng đầy đủ mới, `returnToBinRecords[]` chỉ bắt buộc cho allocation đã pick và bị remove/reduce. Allocation đã pick nhưng giữ nguyên không cần return; mỗi return ghi audit `PICKED_GOODS_RETURN_TO_BIN`.
 
 ---
 
@@ -1050,11 +1052,11 @@ Quy trình điều phối chuyến xe, vận chuyển bằng xe nội bộ của
 ```
 
 **Luồng trạng thái đơn giao:**
-`READY_TO_SHIP` → `IN_TRANSIT` (Tài xế nhận hàng lên xe; hệ thống trừ kho xuất, cộng kho ảo In-Transit và tạo delivery attempt hiện tại) → `DELIVERED` (Tài xế upload ảnh hàng + ảnh chữ ký/biên nhận vào attempt hiện tại, Đại lý xác thực OTP email, hệ thống trừ kho ảo In-Transit) / `RETURNED` (giao thất bại; delivery attempt hiện tại đóng `FAILED`, ghi lý do; hàng vẫn ở kho ảo In-Transit cho tới khi luồng hoàn hàng riêng tiếp nhận)
+`WAREHOUSE_APPROVED` → `IN_TRANSIT` (Tài xế nhận hàng lên xe; hệ thống trừ kho xuất, cộng kho ảo In-Transit và tạo delivery attempt hiện tại) → `COMPLETED` (Tài xế upload ảnh hàng + ảnh chữ ký/biên nhận vào attempt hiện tại, Đại lý xác thực OTP email, delivery attempt chuyển `DELIVERED`, hệ thống trừ kho ảo In-Transit và tự động tạo invoice/công nợ) / `RETURNED` (giao thất bại; delivery attempt hiện tại đóng `FAILED`, ghi lý do; hàng vẫn ở kho ảo In-Transit cho tới khi luồng hoàn hàng riêng tiếp nhận)
 
 **Lưu trữ OTP giao hàng:** Mỗi lần yêu cầu OTP tạo một bản ghi `delivery_otp_attempts` liên kết với `deliveries`; chỉ lưu hash/verifier của OTP, `recipient_email`, `expires_at`, `consumed_at`, `attempt_count`, và `created_at`. Bảng `deliveries` chỉ lưu kết quả xác thực cuối cùng như `otp_verified_at`, không lưu raw OTP.
 
-**Ý nghĩa trạng thái DO sau giao hàng:** `DELIVERED` nghĩa là Đại lý đã nhận hàng và POD + OTP hợp lệ; `COMPLETED` nghĩa là Kế toán đã lập invoice và ghi nhận công nợ; `CLOSED` nghĩa là công nợ đã được tất toán hoặc khóa theo kỳ kế toán.
+**Ý nghĩa trạng thái DO sau giao hàng:** `COMPLETED` nghĩa là Đại lý đã nhận hàng, POD + OTP hợp lệ, delivery attempt đã `DELIVERED`, và hệ thống đã tự động tạo invoice/công nợ; `CLOSED` nghĩa là công nợ đã được tất toán hoặc khóa theo kỳ kế toán.
 
 **Phân quyền kho trong outbound:** Mọi API outbound phải check cả role và warehouse assignment. Planner, Thủ kho, QC, Trưởng kho, Dispatcher và Kế toán chỉ thao tác dữ liệu thuộc kho được gán; Tài xế chỉ thấy chuyến/attempt được gán cho driver profile của mình. CEO/Admin có thể xem liên kho nhưng mọi mutation vẫn phải ghi audit log.
 
@@ -1069,7 +1071,7 @@ Chu kỳ lập Hóa đơn bán hàng, theo dõi hạn mức công nợ (Credit L
 │          KẾ TOÁN VIÊN           │             SYSTEM             │ KTT/CEO │
 ├─────────────────────────────────┼────────────────────────────────┼─────────┤
 │                                 │                                │         │
-│ Lấy invoice candidates, lập Invoice │                            │         │
+│ Theo dõi invoice auto-created       │                            │         │
 │ (Net 30/60) ───────────────────►│ Cộng dồn current_balance,      │         │
 │                                 │ set trạng thái [Completed]     │         │
 │                                 │                                │         │

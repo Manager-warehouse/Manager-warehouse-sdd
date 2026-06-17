@@ -47,10 +47,10 @@
 
 | Thuật ngữ         | Định nghĩa                                                                                              |
 | ----------------- | ------------------------------------------------------------------------------------------------------- |
-| **Batch**         | Lô hàng nhập cùng đợt, cùng grade, cùng hạn dùng                                                        |
+| **Batch**         | Lô hàng nhập cùng đợt, cùng grade; domain hiện tại không quản lý hạn dùng                                |
 | **Bin Location**  | Vị trí kệ trong kho — mã hóa WH-Zone.Rack.Shelf.Bin                                                     |
 | **Putaway**       | Quy trình cất hàng vào Bin sau khi QC đạt                                                               |
-| **FEFO**          | First Expiry First Out — ưu tiên xuất batch gần hết hạn                                                 |
+| **FEFO**          | Ngoài phạm vi hiện tại vì hàng gia dụng không quản lý hạn sử dụng                                       |
 | **FIFO**          | First In First Out — ưu tiên xuất batch nhập trước                                                      |
 | **Quarantine**    | Khu cách ly hàng lỗi QC — không available                                                               |
 | **In-Transit**    | Kho ảo — hàng đang vận chuyển giữa 2 kho                                                                |
@@ -114,12 +114,14 @@ PENDING_RECEIPT → DRAFT → QC_COMPLETED → APPROVED
 ### Delivery Order (Đơn xuất)
 
 ```
-NEW → PICKING → READY_TO_SHIP → IN_TRANSIT → OUT_FOR_DELIVERY → DELIVERED → COMPLETED → CLOSED
+NEW → WAITING_PICKING → PICKING → QC_PENDING_APPROVAL → QC_COMPLETED → WAREHOUSE_APPROVED → IN_TRANSIT → COMPLETED → CLOSED
                                                                     ↓
                                                                RETURNED
                                                                     ↓
                                                                CANCELLED
 ```
+
+Picking plan edits use `PUT /api/v1/delivery-orders/{id}/picking-plan`. `allocations[]` represents the full replacement picking plan; `returnToBinRecords[]` is required only for picked allocations that are removed or reduced by the revised plan. Picked allocations that remain unchanged do not require return-to-bin records.
 
 ### Transfer (Điều chuyển)
 

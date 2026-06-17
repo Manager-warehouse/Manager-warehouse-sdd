@@ -2,7 +2,7 @@
 
 ## 1. Context and Goal
 
-Nhan vien kho lay hang thuc te theo ke hoach cua Thu kho, kiem tra chat luong tung san pham va nhap so luong da lay, so luong dat QC, so luong khong dat QC. Hang dat QC duoc giu tai khu outbound staging trong cung kho de cho Thu kho phe duyet chat luong va Truong kho phe duyet xuat kho. Hang khong dat QC phai chuyen sang quarantine, tao quarantine record va khong duoc tinh vao available inventory.
+Nhan vien kho lay hang thuc te theo ke hoach cua Thu kho, kiem tra chat luong tung san pham va nhap so luong da lay, so luong dat QC, so luong khong dat QC. Hang dat QC duoc giu tai khu outbound staging trong cung kho de cho Thu kho phe duyet chat luong va Truong kho phe duyet xuat kho. Hang khong dat QC phai chuyen sang quarantine, tao quarantine record, tao inventory adjustment record cho phan fail, tru khoi ton kho hop le va khong duoc tinh vao available inventory.
 
 ## 2. Actors
 
@@ -14,14 +14,15 @@ Nhan vien kho lay hang thuc te theo ke hoach cua Thu kho, kiem tra chat luong tu
 
 * **Ubiquitous:**
   * The system SHALL create `DELIVERY_ORDER_PICK_START`, `DELIVERY_ORDER_PICK_COMPLETE`, `OUTBOUND_QC_FAIL_QUARANTINE`, `DELIVERY_ORDER_QC_APPROVE`, `DELIVERY_ORDER_WAREHOUSE_APPROVE`, and `DELIVERY_ORDER_WAREHOUSE_REJECT` audit log entries for outbound picking, QC, quarantine, and warehouse approval decisions.
-  * Failed QC quantity SHALL be moved to quarantine and excluded from available inventory.
+  * Failed QC quantity SHALL be moved to quarantine, recorded by an inventory adjustment, deducted from valid regular inventory, and excluded from available inventory.
   * QC-passed quantity SHALL remain in outbound staging until warehouse manager approval or rejection.
 * **Event-driven:**
   * WHEN warehouse staff starts physical picking for a Delivery Order in `WAITING_PICKING`, the system SHALL move the Delivery Order to `PICKING`.
   * WHEN warehouse staff saves picked and QC quantities, the system SHALL:
     * Store picked quantity, QC pass quantity, and QC fail quantity for each item.
     * Move picked goods from the planned bin to outbound staging.
-    * Move QC fail quantity from outbound staging to quarantine and create a quarantine record.
+    * Move QC fail quantity from outbound staging to quarantine, create a quarantine record, and create an inventory adjustment record.
+    * Deduct QC fail quantity from valid regular inventory.
     * Move the Delivery Order to `QC_PENDING_APPROVAL`.
   * WHEN QC pass quantity is lower than requested quantity, the system SHALL block storekeeper quality approval until replacement goods have been planned, picked, and QC-passed.
   * WHEN all requested quantities have QC-passed goods in outbound staging, the storekeeper SHALL be able to approve quality and move the Delivery Order to `QC_COMPLETED`.
@@ -46,7 +47,7 @@ Nhan vien kho lay hang thuc te theo ke hoach cua Thu kho, kiem tra chat luong tu
 * **Scenario: Warehouse staff records QC result**
   * Given a delivery order is in `WAITING_PICKING` with a saved picking plan
   * When warehouse staff picks goods and records picked, QC pass, and QC fail quantities
-  * Then the system SHALL move picked goods to outbound staging, move failed goods to quarantine, create QC/quarantine audit logs, and move the order to `QC_PENDING_APPROVAL`.
+  * Then the system SHALL move picked goods to outbound staging, move failed goods to quarantine, create the inventory adjustment record, create QC/quarantine audit logs, deduct failed goods from valid regular inventory, and move the order to `QC_PENDING_APPROVAL`.
 
 * **Scenario: Replacement required before quality approval**
   * Given requested quantity is 10 and warehouse staff records 8 QC pass and 2 QC fail

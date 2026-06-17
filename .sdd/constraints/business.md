@@ -9,7 +9,7 @@
 |---|---|---|
 | INV-01 | `inventory.quantity >= 0` luôn đúng trước và sau mọi thao tác | MUST |
 | INV-02 | FIFO mặc định: chọn batch có `received_date` cũ nhất cho domain hàng gia dụng không quản lý hạn dùng | MUST |
-| INV-03 | FEFO ngoại lệ: chỉ chọn batch có hạn dùng gần nhất cho sản phẩm có expiry hoặc được cấu hình FEFO | MUST |
+| INV-03 | Không áp dụng FEFO/expiry trong phạm vi hiện tại; nếu mở rộng phải có spec và migration riêng | MUST |
 | INV-04 | Mọi thay đổi tồn kho MUST qua receipt/issue/transfer/adjustment/stocktake | MUST |
 | INV-05 | `@Version` trên inventory — conflict → HTTP 409 + retry | MUST |
 | INV-06 | `available = total - reserved >= 0`. Check trước khi xuất | MUST |
@@ -20,9 +20,9 @@
 | ID | Rule | Mức độ |
 |---|---|---|
 | BAT-01 | Mỗi batch chỉ 1 grade (A/B/C). Khác grade → tạo batch mới | MUST |
-| BAT-02 | Sản phẩm `has_serial = true` → bắt buộc nhập serial khi nhập/xuất | MUST |
+| BAT-02 | Không quản lý serial number trong phạm vi hiện tại | MUST |
 | BAT-03 | Putaway kiểm tra `bin_capacity` trước khi đặt hàng vào bin | MUST |
-| BAT-04 | Batch hết hạn không được chọn cho flow xuất kho thông thường | MUST |
+| BAT-04 | Không có nghiệp vụ batch hết hạn trong domain hàng gia dụng hiện tại | MUST |
 
 ## 3. QC & Quarantine Rules
 
@@ -30,7 +30,7 @@
 |---|---|---|
 | QC-01 | Hàng nhập MUST qua QC Inbound trước khi nhập chính thức | MUST |
 | QC-02 | Hàng xuất MUST qua QC Outbound trước khi giao | MUST |
-| QC-03 | Hàng fail QC → chờ xử lý quarantine/RTV; chỉ ghi quarantine inventory sau xác nhận có thẩm quyền và không tính available inventory | MUST |
+| QC-03 | Hàng fail QC → chuyển Quarantine, tạo adjustment record, trừ tồn kho hợp lệ và không tính available inventory | MUST |
 | QC-04 | Hàng Quarantine chỉ được xử lý: Trả NCC (RTV) hoặc Tiêu hủy | MUST |
 | QC-05 | RTV → tạo Debit Note đòi bồi hoàn NCC | MUST |
 | QC-06 | Tiêu hủy → áp dụng bảng định mức phê duyệt (5M/100M) | MUST |

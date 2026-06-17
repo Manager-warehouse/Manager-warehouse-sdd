@@ -633,9 +633,6 @@ components:
           minimum: 0
         unitPrice:
           type: number
-        serialNumber:
-          type: string
-          maxLength: 100
       additionalProperties: false
     DeliveryOrderCreateRequest:
       type: object
@@ -698,8 +695,6 @@ components:
           type: number
         unitPrice:
           type: number
-        serialNumber:
-          type: string
     DeliveryOrderResponse:
       type: object
       properties:
@@ -725,12 +720,14 @@ components:
           enum:
             [
               NEW,
+              WAITING_PICKING,
               PICKING,
-              READY_TO_SHIP,
+              QC_PENDING_APPROVAL,
+              QC_COMPLETED,
+              WAREHOUSE_APPROVED,
               IN_TRANSIT,
-              OUT_FOR_DELIVERY,
-              DELIVERED,
               RETURNED,
+              DELIVERY_FAILED,
               COMPLETED,
               CLOSED,
               CANCELLED,
