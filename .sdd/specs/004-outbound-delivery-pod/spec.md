@@ -225,13 +225,19 @@ _Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đ
 
 - `id` (BIGSERIAL, PK)
 - `trip_number` (VARCHAR(50), UNIQUE, NOT NULL)
+- `warehouse_id` (BIGINT, FK→warehouses, NOT NULL)
 - `vehicle_id` (BIGINT, FK→vehicles, NOT NULL)
 - `driver_id` (BIGINT, FK→drivers, NOT NULL)
 - `dispatcher_id` (BIGINT, FK→users, NOT NULL)
 - `planned_date` (DATE, NOT NULL)
-- `status` (VARCHAR(20), DEFAULT 'PLANNED', CHECK IN ('PLANNED','IN_TRANSIT','COMPLETED'))
+- `trip_type` (VARCHAR(20), DEFAULT 'DELIVERY', CHECK IN ('DELIVERY','TRANSFER'), NOT NULL)
+- `status` (VARCHAR(20), DEFAULT 'PLANNED', CHECK IN ('PLANNED','IN_TRANSIT','COMPLETED','CANCELLED'))
 - `total_weight_kg` (DECIMAL(10,2))
 - `total_volume_m3` (DECIMAL(10,3))
+- `cancel_reason` (TEXT)
+- `departed_at` (TIMESTAMPTZ)
+- `completed_at` (TIMESTAMPTZ)
+- `notes` (TEXT)
 - `created_at` (TIMESTAMPTZ)
 - `updated_at` (TIMESTAMPTZ)
 
@@ -239,9 +245,10 @@ _Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đ
 
 - `id` (BIGSERIAL, PK)
 - `trip_id` (BIGINT, FK→trips, NOT NULL)
-- `do_id` (BIGINT, FK→delivery_orders, UNIQUE, NOT NULL)
+- `do_id` (BIGINT, FK→delivery_orders, NOT NULL)
 - `stop_order` (INTEGER, NOT NULL)
 - `UNIQUE(trip_id, stop_order)`
+- Active trip assignment SHALL be unique per Delivery Order; a cancelled planned trip releases the Delivery Order for reassignment.
 
 ### deliveries (Proof of Delivery)
 
@@ -311,7 +318,14 @@ All outbound mutations that update `inventories.total_qty`, `inventories.reserve
 - Pick/QC submissions SHALL be duplicate-safe: each allocation may have at most one successful QC record per pick/QC cycle; a retry with the same idempotency key and exact same payload SHALL return the previous successful result without applying inventory movement again, while duplicate submissions without a matching idempotency key SHALL be rejected.
 - Replacement picking SHALL update the Delivery Order item plan, create replacement history, move the Delivery Order back to `WAITING_PICKING`, and require the replacement goods to go through warehouse staff picking and QC again.
 - Warehouse manager rejection SHALL require returned quantity to equal all QC-passed goods in outbound staging, move QC-passed goods back to their original batch/bin/location/zone, increase available regular inventory, release reservations for returned goods, create `PICKED_GOODS_RETURN_TO_BIN` audit entries, keep failed goods in quarantine, and end the Delivery Order as `REJECTED`.
-- Trip departure SHALL move QC-approved goods from outbound staging to virtual In-Transit inventory in one transaction; all affected inventory rows SHALL pass version checks.
+- Outbound trip creation SHALL set `trip_type = 'DELIVERY'` and require at least one selected Delivery Order.
+- Trip creation SHALL require all selected Delivery Orders to be `WAREHOUSE_APPROVED`, belong to the same warehouse, not be assigned to another active trip, and fit within the selected vehicle weight capacity.
+- Trip creation/update SHALL validate volume only when the selected vehicle has `max_volume_m3` configured; if `max_volume_m3` is null, backend SHALL skip volume validation and validate weight only.
+- Dispatcher trip creation/update SHALL require Dispatcher, vehicle, and driver to belong to the trip warehouse; vehicle and driver SHALL be `AVAILABLE` and not assigned to another active trip.
+- Planned trips MAY be updated for vehicle, driver, planned date, notes, Delivery Order list, and stop order; when `deliveryOrders[]` is provided, it SHALL be treated as the final revised Delivery Order list and SHALL replace the existing list. Adding/removing Delivery Orders SHALL re-run same-warehouse, active-trip, status, vehicle/driver availability, and capacity validations against the final revised list. Active-trip validation SHALL ignore the current trip being updated and reject only assignments belonging to another active trip. The final revised list SHALL contain at least one Delivery Order; to remove every Delivery Order, Dispatcher SHALL cancel the trip instead.
+- Planned trips MAY be cancelled with a reason. Updates and cancellation SHALL be rejected after departure. Cancellation SHALL keep historical `vehicle_id` and `driver_id` on the trip record, but vehicle/driver SHALL no longer be treated as actively assigned to that cancelled trip.
+- Trip departure SHALL move QC-approved goods from outbound staging to virtual In-Transit inventory in one transaction by decreasing staging `total_qty` and `reserved_qty`, then increasing virtual In-Transit `total_qty` with `reserved_qty = 0`; all affected inventory rows SHALL pass version checks.
+- Trip departure SHALL create one current delivery attempt per dispatched Delivery Order with status `IN_TRANSIT`, `trip_id`, `do_id`, `vehicle_id`, `driver_id`, next `attempt_number`, and `dispatched_at`.
 - Delivery confirmation SHALL decrease virtual In-Transit inventory in the same transaction that marks the delivery order as `COMPLETED` and creates the invoice/receivable.
 - Delivery failure SHALL NOT change inventory quantity; goods remain in virtual In-Transit inventory until handled by the separate return flow.
 - Billing/payment mutations SHALL NOT change inventory quantity and do not require an inventory version check.
@@ -333,6 +347,9 @@ All outbound mutations that update `inventories.total_qty`, `inventories.reserve
 - If QC fail requires replacement, Storekeeper replacement planning from `QC_PENDING_APPROVAL` SHALL move the Delivery Order back to `WAITING_PICKING`; after replacement goods are picked and QC-passed, the Delivery Order SHALL move again to `QC_PENDING_APPROVAL`.
 - Storekeeper quality approval SHALL accept optional `notes`, create `DELIVERY_ORDER_QC_APPROVE` audit with before/after state, and move the Delivery Order to `QC_COMPLETED` only when all requested quantities have QC-passed goods available after any required replacements.
 - Warehouse manager approval SHALL accept optional `notes`, create `DELIVERY_ORDER_WAREHOUSE_APPROVE` audit with before/after state, and move the Delivery Order to `WAREHOUSE_APPROVED`, making it eligible for dispatcher trip planning.
+- Dispatcher trip planning SHALL only group Delivery Orders from the same warehouse, SHALL require the Dispatcher, vehicle, and driver to belong to that warehouse, SHALL prevent assigning a Delivery Order to more than one active trip, and SHALL validate vehicle capacity before creating or updating a trip.
+- Dispatcher MAY update or cancel a trip only while the trip is `PLANNED`; updates MAY add/remove Delivery Orders by submitting the final revised Delivery Order list and SHALL re-run all trip validations while ignoring the current trip for active-trip checks. Cancellation keeps Delivery Orders in `WAREHOUSE_APPROVED`, keeps historical vehicle/driver references, and releases vehicle/driver from active assignment.
+- Assigned driver departure SHALL move the trip and Delivery Orders to `IN_TRANSIT`, move staged goods to virtual In-Transit inventory, create delivery attempts in `IN_TRANSIT`, and mark vehicle/driver `ON_TRIP`.
 - Warehouse manager rejection SHALL move the Delivery Order to `REJECTED`; the flow ends and any later outbound attempt for the same business request must use a new Delivery Order.
 - Dealer refusal at delivery SHALL move the Delivery Order to `RETURNED`; the goods remain in virtual In-Transit inventory until the separate return flow receives them.
 - When the separate return flow confirms returned goods back into warehouse custody, the Delivery Order SHALL move to `DELIVERY_FAILED`.
@@ -343,7 +360,7 @@ All outbound mutations that update `inventories.total_qty`, `inventories.reserve
 
 - Each `deliveries` record represents one physical delivery attempt for one Delivery Order.
 - A Delivery Order MAY have multiple `deliveries` records only if it is dispatched again before being closed as `DELIVERY_FAILED`; Sprint 1 normally uses one active delivery attempt per dispatched Delivery Order.
-- The system SHALL create a new `deliveries` record whenever goods are dispatched for another delivery attempt.
+- The system SHALL create a new `deliveries` record at trip departure whenever goods are dispatched for another delivery attempt, with initial status `IN_TRANSIT`.
 - POD upload and delivery confirmation SHALL update only the current attempt's `deliveries` record and SHALL NOT overwrite previous `FAILED`, `RETURNED`, or `DELIVERED` attempts.
 - If a dealer refuses receipt or delivery fails at the delivery point, the current `deliveries` record SHALL be closed with status `FAILED` and the Delivery Order SHALL move to `RETURNED` while goods remain tracked in virtual In-Transit inventory.
 - If the goods are later returned to a warehouse, the same `deliveries` record MAY be marked `RETURNED` or linked to the separate return record created by the return flow.
@@ -351,9 +368,10 @@ All outbound mutations that update `inventories.total_qty`, `inventories.reserve
 
 ### Trip Completion Rules
 
-- A trip SHALL move to `COMPLETED` only when every Delivery Order assigned to the trip has reached a terminal delivery outcome.
+- A trip SHALL move to `COMPLETED` only when the assigned driver confirms the vehicle has returned to the source warehouse and every Delivery Order assigned to the trip has reached a terminal delivery outcome.
 - Terminal delivery outcomes for Sprint 1 are `COMPLETED` and `RETURNED`.
-- A trip with mixed successful and failed delivery orders MAY still be `COMPLETED` when all assigned orders have either been completed or recorded as returned for follow-up.
+- A trip with mixed successful and failed delivery orders MAY still be `COMPLETED` when all assigned orders have either been completed or recorded as returned for follow-up; any `RETURNED` goods remain in virtual In-Transit inventory until the separate return flow receives them.
+- Trip completion SHALL mark vehicle and driver as `AVAILABLE`.
 
 ### Delivery Order Status Semantics
 
@@ -391,6 +409,15 @@ _Vui lòng xem chi tiết API endpoints tại các tài liệu đặc tả tính
 | VEHICLE_OVERLOAD           | 422  | Trip exceeds vehicle capacity           |
 | DO_NOT_READY               | 400  | DO is not in the required status for the requested transition |
 | DO_NOT_WAREHOUSE_APPROVED  | 400  | DO not in WAREHOUSE_APPROVED status for trip planning |
+| TRIP_DO_WAREHOUSE_MISMATCH | 422  | Selected Delivery Orders do not all belong to the same trip warehouse |
+| DO_ALREADY_ASSIGNED_TO_TRIP | 409 | Delivery Order already belongs to another active trip |
+| VEHICLE_NOT_AVAILABLE      | 422  | Vehicle is unavailable, belongs to another warehouse, under maintenance, or assigned to another active trip |
+| DRIVER_NOT_AVAILABLE       | 422  | Driver is unavailable, belongs to another warehouse, or assigned to another active trip |
+| TRIP_NOT_EDITABLE          | 422  | Trip cannot be updated or cancelled because it is no longer PLANNED |
+| TRIP_NOT_READY_TO_DEPART   | 422  | Trip cannot depart because it is not planned, is cancelled, already departed, or selected orders are not ready |
+| TRIP_NOT_READY_TO_COMPLETE | 422  | Trip cannot complete because vehicle has not returned or assigned orders are not all COMPLETED/RETURNED |
+| DRIVER_NOT_ASSIGNED_TO_TRIP | 403 | Authenticated driver is not assigned to the trip |
+| STOP_ORDER_DUPLICATED      | 422  | Stop order values are duplicated within the trip |
 | QC_REPLACEMENT_REQUIRED    | 422  | QC pass quantity is lower than requested quantity and replacement is not completed |
 | QC_RESULT_QTY_INVALID      | 422  | Picked/QC quantities are negative, inconsistent, do not equal planned allocation quantity, or do not match allocation/batch/location/zone |
 | QC_RESULT_ALREADY_RECORDED | 409  | Pick/QC result for the submitted allocation has already been recorded |
@@ -418,14 +445,16 @@ _Vui lòng xem chi tiết API endpoints tại các tài liệu đặc tả tính
 - `DELIVERY_ORDER_QC_APPROVE`: storekeeper approves quality and moves DO to `QC_COMPLETED`.
 - `DELIVERY_ORDER_WAREHOUSE_APPROVE`: warehouse manager moves DO to `WAREHOUSE_APPROVED`.
 - `DELIVERY_ORDER_WAREHOUSE_REJECT`: store warehouse rejection reason, release QC-passed goods back to original batch/bin/location/zone, release reservations for returned goods, keep failed goods in quarantine, and move DO to `REJECTED`.
-- `TRIP_CREATE`: create trip, assign vehicle/driver, and store stop order.
-- `TRIP_DEPART`: move trip and DOs to `IN_TRANSIT`, move goods from outbound staging to virtual In-Transit, and release `reserved_qty`.
-- `DELIVERY_ATTEMPT_CREATE`: create a new physical delivery attempt record for a dispatched Delivery Order.
+- `TRIP_CREATE`: create a planned trip, assign vehicle/driver, store warehouse, planned date, notes, and stop order.
+- `TRIP_UPDATE`: update vehicle, driver, planned date, notes, Delivery Order list, or stop order while trip is still `PLANNED`.
+- `TRIP_CANCEL`: cancel a planned trip, store cancellation reason, release vehicle/driver assignment, and keep Delivery Orders in `WAREHOUSE_APPROVED`.
+- `TRIP_DEPART`: move trip and DOs to `IN_TRANSIT`, move goods from outbound staging to virtual In-Transit, release staging `reserved_qty`, mark vehicle/driver `ON_TRIP`, and store departure timestamp.
+- `DELIVERY_ATTEMPT_CREATE`: create a new physical delivery attempt record in `IN_TRANSIT` for a dispatched Delivery Order.
 - `OTP_REQUEST`: generate raw OTP, send it to the dealer/receiver email, and store only the hashed verifier in `delivery_otp_attempts` with expiry metadata.
 - `OTP_CONFIRM`: verify OTP against the active `delivery_otp_attempts` record, mark the attempt consumed, store verification timestamp, auto-create invoice/receivable, and move DO to `COMPLETED`.
 - `DELIVERY_FAIL`: store failure reason, close the current delivery attempt as `FAILED`, and move DO to `RETURNED`; returned goods remain tracked in virtual In-Transit inventory until a separate return flow receives and classifies them.
 - `RETURN_FLOW_CONFIRMED`: separate return flow confirms returned goods back into warehouse custody and moves DO to `DELIVERY_FAILED`.
-- `TRIP_COMPLETE`: mark trip `COMPLETED` only after all assigned DOs are `COMPLETED` or `RETURNED`.
+- `TRIP_COMPLETE`: mark trip `COMPLETED` only after vehicle returns to source warehouse and all assigned DOs are `COMPLETED` or `RETURNED`; mark vehicle/driver `AVAILABLE`.
 - `INVOICE_AUTO_CREATE_FROM_DO`: create invoice and receivable automatically after successful POD + OTP.
 - `PAYMENT_SUBMIT`: accountant records a payment attempt with transaction image and `PENDING_APPROVAL` status.
 - `PAYMENT_APPROVE`: chief accountant approves payment, decreases outstanding receivable, and moves invoice/DO to `PAID`/`CLOSED` if fully settled.

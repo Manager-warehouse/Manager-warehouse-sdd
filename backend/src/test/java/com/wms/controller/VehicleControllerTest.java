@@ -83,6 +83,7 @@ public class VehicleControllerTest {
         when(vehicleService.createVehicle(any(), eq(4L))).thenReturn(new VehicleResponse());
 
         VehicleRequest req = new VehicleRequest();
+        req.setWarehouseId(2L);
         req.setPlateNumber("29C-12345");
         req.setVehicleType("Container");
         req.setMaxWeightKg(BigDecimal.valueOf(10000.0));
@@ -97,6 +98,7 @@ public class VehicleControllerTest {
     @WithMockUser(username = "planner@wms.com", roles = "PLANNER")
     void createVehicle_Planner_Returns403() throws Exception {
         VehicleRequest req = new VehicleRequest();
+        req.setWarehouseId(2L);
         req.setPlateNumber("29C-12345");
         req.setVehicleType("Container");
         req.setMaxWeightKg(BigDecimal.valueOf(10000.0));
@@ -115,6 +117,7 @@ public class VehicleControllerTest {
                 .thenThrow(new IllegalArgumentException("DUPLICATE_PLATE_NUMBER"));
 
         VehicleRequest req = new VehicleRequest();
+        req.setWarehouseId(2L);
         req.setPlateNumber("29C-12345");
         req.setVehicleType("Container");
         req.setMaxWeightKg(BigDecimal.valueOf(10000.0));

@@ -10,6 +10,7 @@ import java.time.OffsetDateTime;
 @Setter
 public class VehicleResponse {
     private Long id;
+    private Long warehouseId;
     private String plateNumber;
     private String vehicleType;
     private BigDecimal maxWeightKg;

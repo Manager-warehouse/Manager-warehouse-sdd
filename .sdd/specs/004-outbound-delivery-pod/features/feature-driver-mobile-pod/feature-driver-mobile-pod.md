@@ -14,6 +14,7 @@ Tai xe su dung mobile view de xem chuyen xe, giao hang va ghi nhan ket qua giao 
   * WHEN goods are dispatched for a Delivery Order delivery attempt, the system SHALL:
     * Create a new `deliveries` record for the current physical attempt.
     * Assign the next `attempt_number` for that Delivery Order.
+    * Initialize the current attempt with status `IN_TRANSIT` at trip departure.
     * Preserve all previous failed, returned, or completed attempts without overwriting POD, OTP, or failure data.
   * WHEN a driver uploads POD evidence, the system SHALL:
     * Require one goods handover image showing goods unloaded/transferred into the dealer site.

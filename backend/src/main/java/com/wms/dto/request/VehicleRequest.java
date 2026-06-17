@@ -13,6 +13,9 @@ import java.math.BigDecimal;
 @Setter
 public class VehicleRequest {
 
+    @NotNull(message = "WAREHOUSE_ID_REQUIRED")
+    private Long warehouseId;
+
     @NotBlank(message = "PLATE_NUMBER_REQUIRED")
     @Size(max = 20, message = "PLATE_NUMBER_TOO_LONG")
     private String plateNumber;

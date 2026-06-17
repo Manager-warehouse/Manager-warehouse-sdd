@@ -154,6 +154,7 @@ erDiagram
 *   **Công dụng:** Quản lý đội xe tải nội bộ của công ty phục vụ điều phối giao hàng và chuyển kho.
 *   **Chi tiết các trường:**
     *   `plate_number` (VARCHAR(20), UNIQUE): Biển kiểm soát xe (ví dụ: `29C-123.45`).
+    *   `warehouse_id` (BIGINT, FK -> warehouses): Kho vật lý được gán cho xe; chỉ được chọn cho trip thuộc cùng kho.
     *   `vehicle_type` (VARCHAR(100)): Loại xe (ví dụ: "Xe tải Tấn rưỡi Suzuki").
     *   `max_weight_kg` (DECIMAL): Tải trọng tối đa của xe (kiểm soát quá tải).
     *   `max_volume_m3` (DECIMAL, Nullable): Thể tích lòng thùng xe (kiểm soát quá khổ). Thùng lửng có thể để trống.
@@ -163,6 +164,7 @@ erDiagram
 *   **Công dụng:** Quản lý danh sách tài xế vận chuyển và liên kết tài khoản app di động để làm chứng từ giao hàng (POD).
 *   **Chi tiết các trường:**
     *   `user_id` (BIGINT, FK -> users, UNIQUE): Tài khoản đăng nhập hệ thống của tài xế.
+    *   `warehouse_id` (BIGINT, FK -> warehouses): Kho vật lý được gán cho tài xế; chỉ được chọn cho trip thuộc cùng kho.
     *   `license_expiry` (DATE): Ngày hết hạn của giấy phép lái xe (Nếu hết hạn, hệ thống tự động khóa trạng thái phân chuyến).
     *   `status` (VARCHAR(20)): CHECK: `AVAILABLE`, `ON_TRIP`, `UNAVAILABLE` (nghỉ ốm/nghỉ phép).
 
@@ -316,14 +318,17 @@ erDiagram
 *   **Công dụng:** Quản lý các chuyến xe tải vận chuyển. Một chuyến xe có thể chở hàng của nhiều đơn xuất (`DO`) hoặc đơn chuyển kho (`Transfer`) để tối ưu hóa lộ trình.
 *   **Chi tiết các trường:**
     *   `trip_number` (VARCHAR(50), UNIQUE): Mã chuyến xe (ví dụ: `TRIP-20260601-01`).
-    *   `vehicle_id` & `driver_id` (BIGINT, FK): Xe tải và tài xế nội bộ được chỉ định.
+    *   `warehouse_id` (BIGINT, FK): Kho nguồn của chuyến outbound; Dispatcher, xe, tài xế và toàn bộ DO trong chuyến phải thuộc kho này.
+    *   `vehicle_id` & `driver_id` (BIGINT, FK): Xe tải và tài xế nội bộ được chỉ định; phải thuộc cùng `warehouse_id`, đang `AVAILABLE`, và chưa nằm trong trip active khác. Trip bị `CANCELLED` vẫn giữ các FK này để lưu lịch sử, nhưng không còn chiếm dụng xe/tài xế.
     *   `trip_type` (VARCHAR(20)): Mục đích chuyến đi. CHECK: `DELIVERY` (Giao hàng bán cho Đại lý), `TRANSFER` (Xe chở hàng điều chuyển giữa 3 kho Hải Phòng $\leftrightarrow$ Hà Nội $\leftrightarrow$ Hồ Chí Minh).
-    *   `status` (VARCHAR(20)): CHECK: `PLANNED` (Mới lên kế hoạch), `IN_TRANSIT` (Xe đang chạy dọc đường), `COMPLETED` (Xe đã về bãi).
-    *   `total_weight_kg` & `total_volume_m3` (DECIMAL): Tổng cân nặng và thể tích hàng trên xe (phục vụ tự động kiểm tra tải trọng xe trước khi xuất bến).
+    *   `status` (VARCHAR(20)): CHECK: `PLANNED` (Mới lên kế hoạch), `IN_TRANSIT` (Xe đang chạy dọc đường), `COMPLETED` (Xe đã quay trở lại kho), `CANCELLED` (Hủy trước khi xuất phát).
+    *   `total_weight_kg` & `total_volume_m3` (DECIMAL): Tổng cân nặng và thể tích hàng trên xe. Luôn kiểm tra cân nặng; chỉ kiểm tra thể tích khi `vehicles.max_volume_m3` được cấu hình.
+    *   `cancel_reason`, `departed_at`, `completed_at`, `notes`: Lý do hủy, thời điểm xuất phát, thời điểm xe quay lại kho và ghi chú điều phối.
+*   **Ràng buộc nghiệp vụ:** Chỉ được sửa hoặc hủy trip khi còn `PLANNED`. Trip outbound phải có `trip_type = DELIVERY` và ít nhất một DO. Khi sửa danh sách DO, payload là danh sách cuối cùng sau chỉnh sửa và thay thế danh sách hiện tại; nếu muốn xóa toàn bộ DO thì phải hủy trip. Khi hủy trip, các DO giữ nguyên `WAREHOUSE_APPROVED` để có thể xếp lại chuyến khác, trip vẫn giữ lịch sử xe/tài xế nhưng xe/tài xế không còn bị xem là đang được gán active. Khi depart, hệ thống chuyển hàng từ outbound staging sang kho ảo `IN_TRANSIT`, tạo delivery attempt status `IN_TRANSIT`, chuyển DO sang `IN_TRANSIT` và đánh dấu xe/tài xế `ON_TRIP`. Khi xe quay lại kho và mọi DO trong chuyến đã `COMPLETED` hoặc `RETURNED`, trip chuyển `COMPLETED`, xe/tài xế quay lại `AVAILABLE`.
 
 ### 23. Bảng `trip_delivery_orders`
 *   **Công dụng:** Bảng trung gian thể hiện danh sách các đơn hàng `DO` được gom chung vào chuyến xe `trips` và thứ tự các điểm dừng trả hàng.
-*   **Chi tiết các trường:** `stop_order` (Thứ tự giao hàng: Điểm 1 $\rightarrow$ Điểm 2 $\rightarrow$ Điểm 3). Mỗi DO chỉ được phép nằm trên tối đa 1 chuyến xe đang hoạt động.
+*   **Chi tiết các trường:** `stop_order` (Thứ tự giao hàng: Điểm 1 $\rightarrow$ Điểm 2 $\rightarrow$ Điểm 3). Mỗi DO chỉ được phép nằm trên tối đa 1 chuyến xe active (`PLANNED` hoặc `IN_TRANSIT`); DO thuộc trip `CANCELLED` được phép xếp lại chuyến mới.
 
 ### 24. Bảng `deliveries` (Chứng từ POD)
 *   **Công dụng:** Hồ sơ xác nhận giao nhận hàng hóa tại điểm đến (Proof of Delivery - POD). Tài xế sử dụng điện thoại để thao tác trên bảng này.
@@ -332,6 +337,7 @@ erDiagram
     *   `pod_image_url` (VARCHAR(500)): Ảnh chụp biên bản giao nhận có ký nhận của đại lý hoặc ảnh chụp hàng hóa tại kho đại lý.
     *   `pod_signature_url` (VARCHAR(500)): Ảnh chụp chữ ký số của người nhận hàng.
     *   `failure_reason` (TEXT): Lý do giao hàng thất bại (ví dụ: "Đại lý đóng cửa", "Sai quy cách hàng hóa").
+*   **Ràng buộc outbound:** Với phương án khuyến nghị, delivery attempt được tạo tại thời điểm trip depart với trạng thái ban đầu `IN_TRANSIT`, gắn `trip_id`, `do_id`, `vehicle_id`, `driver_id`, `attempt_number` kế tiếp và `dispatched_at`.
 
 ---
 

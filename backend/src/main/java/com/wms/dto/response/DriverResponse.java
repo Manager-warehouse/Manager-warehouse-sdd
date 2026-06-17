@@ -10,6 +10,7 @@ import java.time.OffsetDateTime;
 @Setter
 public class DriverResponse {
     private Long id;
+    private Long warehouseId;
     private Long userId;
     private String fullName;
     private String phone;

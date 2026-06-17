@@ -121,10 +121,12 @@
 
 **Tiêu chí nghiệm thu:**
 
-1. Dispatcher tạo Chuyến xe (Trip Log) mới: Chọn xe nội bộ (từ danh mục xe Phúc Anh), gán Tài xế, thiết lập ngày giao dự kiến.
-2. Gom nhiều Đơn xuất hàng (Delivery Orders) ở trạng thái **Warehouse Approved** vào một Chuyến xe; sắp xếp thứ tự giao hàng (Stop Order).
-3. Hệ thống kiểm tra tải trọng xe: Nếu tổng khối lượng/thể tích hàng vượt tải trọng xe → Cảnh báo Dispatcher.
-4. Tài xế xác nhận nhận hàng, xe rời kho → Trạng thái Chuyến xe: **Đang vận chuyển (In-Transit)** → Hệ thống trừ tồn kho kho xuất, giải phóng reserved, và cộng hàng vào Kho ảo In-Transit tại thời điểm này.
+1. Dispatcher tạo Chuyến xe (Trip Log) mới trong kho được gán: chọn xe nội bộ và Tài xế thuộc cùng kho, thiết lập ngày giao dự kiến.
+2. Gom ít nhất một Đơn xuất hàng (Delivery Orders) ở trạng thái **Warehouse Approved** và cùng kho vào một Chuyến xe `trip_type = DELIVERY`; mỗi DO chỉ được nằm trong một trip active, sắp xếp thứ tự giao hàng (Stop Order).
+3. Hệ thống kiểm tra tải trọng xe: luôn kiểm tra tổng khối lượng; chỉ kiểm tra tổng thể tích khi xe có cấu hình `max_volume_m3`.
+4. Dispatcher được sửa xe, tài xế, ngày dự kiến, stop order và danh sách DO, hoặc hủy trip nếu chuyến xe chưa xuất phát; payload sửa danh sách DO là danh sách cuối cùng sau chỉnh sửa. DO của trip bị hủy giữ trạng thái **Warehouse Approved** để xếp lại chuyến khác, còn trip giữ lịch sử xe/tài xế nhưng không chiếm dụng active assignment.
+5. Tài xế được gán xác nhận nhận hàng, xe rời kho → Trạng thái Chuyến xe: **Đang vận chuyển (In-Transit)** → Hệ thống chuyển hàng từ outbound staging sang Kho ảo In-Transit, giải phóng reserved ở staging và tạo delivery attempt hiện tại.
+6. Chuyến xe chỉ hoàn tất khi xe quay trở lại kho và mọi DO trong chuyến đã **Completed** hoặc **Returned**; hàng Returned vẫn ở Kho ảo In-Transit cho tới khi luồng hoàn hàng riêng xử lý.
 
 ---
 

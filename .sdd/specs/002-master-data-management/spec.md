@@ -138,6 +138,7 @@ _Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đ
 ### vehicles
 
 - `id` (BIGSERIAL, PK)
+- `warehouse_id` (BIGINT, FK→warehouses, NOT NULL)
 - `plate_number` (VARCHAR(20), UNIQUE, NOT NULL)
 - `vehicle_type` (VARCHAR(100), NOT NULL)
 - `max_weight_kg` (DECIMAL(10,2), NOT NULL)
@@ -152,6 +153,7 @@ _Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đ
 ### drivers
 
 - `id` (BIGSERIAL, PK)
+- `warehouse_id` (BIGINT, FK→warehouses, NOT NULL)
 - `user_id` (BIGINT, FK→users, UNIQUE, NOT NULL)
 - `full_name` (VARCHAR(255), NOT NULL)
 - `phone` (VARCHAR(20))
@@ -174,6 +176,7 @@ _Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đ
 - Bin capacity validation applies only to `BIN` locations using `capacity_m3`, `capacity_kg`, `current_volume_m3`, and `current_weight_kg`.
 - Vehicle status values are `AVAILABLE`, `ON_TRIP`, and `MAINTENANCE`.
 - Driver status values are `AVAILABLE`, `ON_TRIP`, and `UNAVAILABLE`.
+- Vehicles and drivers MUST be assigned to exactly one physical warehouse for dispatcher trip planning and warehouse-scope validation.
 - Trip purpose MUST be represented by `trips.trip_type` (`DELIVERY` or `TRANSFER`) instead of overloading vehicle or driver status.
 
 ## 6. API Spec

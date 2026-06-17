@@ -83,6 +83,7 @@ public class DriverControllerTest {
         when(driverService.createDriver(any(), eq(4L))).thenReturn(new DriverResponse());
 
         DriverRequest req = new DriverRequest();
+        req.setWarehouseId(2L);
         req.setUserId(3L);
         req.setFullName("Nguyen Van A");
         req.setLicenseNumber("LX-12345");
@@ -102,6 +103,7 @@ public class DriverControllerTest {
                 .thenThrow(new IllegalArgumentException("DUPLICATE_LICENSE_NUMBER"));
 
         DriverRequest req = new DriverRequest();
+        req.setWarehouseId(2L);
         req.setUserId(3L);
         req.setFullName("Nguyen Van A");
         req.setLicenseNumber("LX-12345");

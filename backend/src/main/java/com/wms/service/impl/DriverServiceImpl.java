@@ -4,6 +4,7 @@ import com.wms.dto.request.DriverRequest;
 import com.wms.dto.response.DriverResponse;
 import com.wms.entity.Driver;
 import com.wms.entity.User;
+import com.wms.entity.Warehouse;
 import com.wms.enums.AuditAction;
 import com.wms.enums.DriverStatus;
 import com.wms.enums.UserRole;
@@ -11,6 +12,7 @@ import com.wms.exception.ResourceNotFoundException;
 import com.wms.mapper.MasterDataMapper;
 import com.wms.repository.DriverRepository;
 import com.wms.repository.UserRepository;
+import com.wms.repository.WarehouseRepository;
 import com.wms.service.AuditLogService;
 import com.wms.service.DriverService;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +31,7 @@ public class DriverServiceImpl implements DriverService {
 
     private final DriverRepository driverRepository;
     private final UserRepository userRepository;
+    private final WarehouseRepository warehouseRepository;
     private final MasterDataMapper mapper;
     private final AuditLogService auditLogService;
 
@@ -59,6 +62,8 @@ public class DriverServiceImpl implements DriverService {
 
         User actor = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+        Warehouse warehouse = warehouseRepository.findById(request.getWarehouseId())
+                .orElseThrow(() -> new ResourceNotFoundException("Warehouse not found with id: " + request.getWarehouseId()));
 
         User driverUser = userRepository.findById(request.getUserId())
                 .orElseThrow(() -> new ResourceNotFoundException("Driver user not found with id: " + request.getUserId()));
@@ -77,6 +82,7 @@ public class DriverServiceImpl implements DriverService {
         }
 
         Driver driver = new Driver();
+        driver.setWarehouse(warehouse);
         driver.setUser(driverUser);
         driver.setFullName(request.getFullName());
         driver.setPhone(phone);
@@ -109,6 +115,8 @@ public class DriverServiceImpl implements DriverService {
 
         User actor = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+        Warehouse warehouse = warehouseRepository.findById(request.getWarehouseId())
+                .orElseThrow(() -> new ResourceNotFoundException("Warehouse not found with id: " + request.getWarehouseId()));
 
         User driverUser = userRepository.findById(request.getUserId())
                 .orElseThrow(() -> new ResourceNotFoundException("Driver user not found with id: " + request.getUserId()));
@@ -128,6 +136,7 @@ public class DriverServiceImpl implements DriverService {
 
         Map<String, Object> oldMap = toMap(driver);
 
+        driver.setWarehouse(warehouse);
         driver.setUser(driverUser);
         driver.setFullName(request.getFullName());
         driver.setPhone(phone);
@@ -227,6 +236,7 @@ public class DriverServiceImpl implements DriverService {
         if (d == null) return null;
         Map<String, Object> map = new HashMap<>();
         map.put("id", d.getId());
+        map.put("warehouseId", d.getWarehouse() != null ? d.getWarehouse().getId() : null);
         map.put("userId", d.getUser() != null ? d.getUser().getId() : null);
         map.put("fullName", d.getFullName());
         map.put("phone", d.getPhone());

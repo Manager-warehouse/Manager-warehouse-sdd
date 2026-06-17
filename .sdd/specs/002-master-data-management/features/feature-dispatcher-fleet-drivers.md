@@ -14,8 +14,9 @@ Quản lý đội xe tải nội bộ của Phúc Anh và danh sách tài xế, 
   * WHILE a vehicle or driver has `is_active = false` (soft-deleted), the system SHALL exclude them from all active operations and dropdown selection lists.
   * WHILE a vehicle or driver is already assigned to any incomplete trip (trip status is not `COMPLETED` or `CANCELLED`), the system SHALL exclude them from trip assignment dropdowns to prevent double booking.
 * **Event-driven:**
-  * WHEN a user creates a Vehicle, the system SHALL require: plate_number (unique), vehicle_type, and max_weight_kg (positive value). The `max_volume_m3` is optional (nullable), but if provided, it MUST be a positive value.
-  * WHEN a user creates a Driver, the system SHALL require: user_id (unique FK to users, which MUST belong to a user account with role `DRIVER`), full_name, license_number (unique), and license_expiry. The contact `phone` number is optional (nullable) and may inherit/fallback to the phone number of the associated user account.
+  * WHEN a user creates a Vehicle, the system SHALL require: warehouse_id, plate_number (unique), vehicle_type, and max_weight_kg (positive value). The `max_volume_m3` is optional (nullable), but if provided, it MUST be a positive value.
+  * WHEN a user creates a Driver, the system SHALL require: warehouse_id, user_id (unique FK to users, which MUST belong to a user account with role `DRIVER`), full_name, license_number (unique), and license_expiry. The contact `phone` number is optional (nullable) and may inherit/fallback to the phone number of the associated user account.
+  * WHEN a vehicle or driver is used for outbound trip planning, the system SHALL validate that its `warehouse_id` matches the trip warehouse.
   * WHEN a trip status changes to `'IN_TRANSIT'`, the system SHALL automatically set the status of the assigned vehicle and driver to `'ON_TRIP'`.
   * WHEN a trip is `COMPLETED` or cancelled, the system SHALL automatically restore the status of the assigned vehicle and driver to `'AVAILABLE'`.
   * WHEN a trip is created, the system SHALL store the trip purpose in `trips.trip_type` with value `DELIVERY` or `TRANSFER` instead of encoding it in vehicle or driver status.

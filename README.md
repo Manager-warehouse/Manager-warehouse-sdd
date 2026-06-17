@@ -253,11 +253,12 @@ Công ty mẹ gửi yêu cầu xuất hàng
         (nếu pass chưa đủ, Thủ kho xử lý replacement từ QC_PENDING_APPROVAL rồi DO quay lại WAITING_PICKING)
     → Thủ kho duyệt chất lượng khi đủ hàng đạt [QC_COMPLETED]
     → Trưởng kho duyệt xuất [WAREHOUSE_APPROVED]
-    → Dispatcher lập Chuyến xe nội bộ, gán Tài xế
-    → Tài xế xác nhận nhận hàng → [IN_TRANSIT] → Hệ thống trừ kho xuất, cộng kho ảo In-Transit
+    → Dispatcher lập Chuyến xe nội bộ `trip_type = DELIVERY` cùng kho, gán xe/tài xế thuộc kho, kiểm tra cân nặng và kiểm tra thể tích nếu xe có cấu hình thể tích
+    → Tài xế xác nhận nhận hàng → [IN_TRANSIT] → Hệ thống chuyển hàng từ outbound staging sang kho ảo In-Transit
     → Tài xế upload ảnh hàng + ảnh chữ ký/biên nhận cho delivery attempt hiện tại, Đại lý đọc OTP email
         (delivery attempt [DELIVERED], raw OTP không lưu DB; hệ thống chỉ lưu hash/verifier trong delivery_otp_attempts)
     → Hệ thống tự động tạo Hóa đơn (Invoice), cộng công nợ và chuyển DO [COMPLETED]
+    → Khi xe quay lại kho và mọi DO trong chuyến đã COMPLETED/RETURNED → Trip [COMPLETED]
     → Đại lý thanh toán → Cấn trừ công nợ [CLOSED]
 ```
 

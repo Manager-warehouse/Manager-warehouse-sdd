@@ -4,12 +4,14 @@ import com.wms.dto.request.VehicleRequest;
 import com.wms.dto.response.VehicleResponse;
 import com.wms.entity.User;
 import com.wms.entity.Vehicle;
+import com.wms.entity.Warehouse;
 import com.wms.enums.AuditAction;
 import com.wms.enums.VehicleStatus;
 import com.wms.exception.ResourceNotFoundException;
 import com.wms.mapper.MasterDataMapper;
 import com.wms.repository.UserRepository;
 import com.wms.repository.VehicleRepository;
+import com.wms.repository.WarehouseRepository;
 import com.wms.service.AuditLogService;
 import com.wms.service.VehicleService;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +30,7 @@ public class VehicleServiceImpl implements VehicleService {
 
     private final VehicleRepository vehicleRepository;
     private final UserRepository userRepository;
+    private final WarehouseRepository warehouseRepository;
     private final MasterDataMapper mapper;
     private final AuditLogService auditLogService;
 
@@ -58,8 +61,11 @@ public class VehicleServiceImpl implements VehicleService {
 
         User actor = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+        Warehouse warehouse = warehouseRepository.findById(request.getWarehouseId())
+                .orElseThrow(() -> new ResourceNotFoundException("Warehouse not found with id: " + request.getWarehouseId()));
 
         Vehicle vehicle = new Vehicle();
+        vehicle.setWarehouse(warehouse);
         vehicle.setPlateNumber(request.getPlateNumber());
         vehicle.setVehicleType(request.getVehicleType());
         vehicle.setMaxWeightKg(request.getMaxWeightKg());
@@ -91,9 +97,12 @@ public class VehicleServiceImpl implements VehicleService {
 
         User actor = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+        Warehouse warehouse = warehouseRepository.findById(request.getWarehouseId())
+                .orElseThrow(() -> new ResourceNotFoundException("Warehouse not found with id: " + request.getWarehouseId()));
 
         Map<String, Object> oldMap = toMap(vehicle);
 
+        vehicle.setWarehouse(warehouse);
         vehicle.setPlateNumber(request.getPlateNumber());
         vehicle.setVehicleType(request.getVehicleType());
         vehicle.setMaxWeightKg(request.getMaxWeightKg());
@@ -192,6 +201,7 @@ public class VehicleServiceImpl implements VehicleService {
         if (v == null) return null;
         Map<String, Object> map = new HashMap<>();
         map.put("id", v.getId());
+        map.put("warehouseId", v.getWarehouse() != null ? v.getWarehouse().getId() : null);
         map.put("plateNumber", v.getPlateNumber());
         map.put("vehicleType", v.getVehicleType());
         map.put("maxWeightKg", v.getMaxWeightKg());
