@@ -11,5 +11,11 @@ public enum AuditAction {
     CANCEL,
     SOFT_DELETE,
     ASSIGN,
-    UNASSIGN
+    UNASSIGN,
+    UPLOAD_POD,
+    REQUEST_OTP,
+    CONFIRM_DELIVERY,
+    RESET_DELIVERY_OTP,
+    FAIL_DELIVERY,
+    COMPLETE_TRIP
 }

@@ -132,15 +132,17 @@
 
 ### US-WMS-09: Giao diện Web di động cho Tài xế & POD thời gian thực (Priority: P1)
 
-**Mô tả:** Là Tài xế, tôi muốn đăng nhập bằng smartphone vào giao diện Web Responsive của WMS để xem lộ trình giao hàng, upload POD images và nhập OTP Đại lý tại điểm giao.
+**Mô tả:** Là Tài xế, tôi muốn đăng nhập bằng smartphone vào giao diện Web Responsive của WMS để chỉ xem trip được gán, upload `goodsImage`/`signDocumentImage`, yêu cầu OTP Đại lý và xác nhận giao full Delivery Order tại điểm giao.
 
 **Tiêu chí nghiệm thu:**
 
-1. Tài xế đăng nhập bằng tài khoản riêng → Xem danh sách đơn hàng cần giao trong chuyến xe của mình.
-2. Tại điểm giao: Tài xế chụp ảnh hàng hóa bàn giao và chụp ảnh chữ ký/biên nhận của Đại lý xác nhận đã nhận hàng → Hệ thống upload và lưu POD images.
-3. Tài xế yêu cầu xác nhận giao hàng → Hệ thống gửi mã OTP qua email Đại lý, chỉ lưu hash/verifier trong `delivery_otp_attempts`; Đại lý đọc mã OTP cho Tài xế nhập vào màn hình xác nhận.
-4. Tài xế nhấn "Xác nhận đã giao" với OTP hợp lệ → Hệ thống trừ hàng khỏi Kho ảo In-Transit → Delivery attempt và trạng thái đơn: **Đã giao thành công (Delivered)**.
-5. Nếu giao thất bại (đại lý vắng mặt, từ chối nhận) → Tài xế chọn lý do → Delivery attempt hiện tại đóng ở trạng thái **Failed**, trạng thái đơn: **Giao thất bại (Returned)**; hàng vẫn được theo dõi ở Kho ảo In-Transit cho đến khi luồng hoàn hàng riêng tiếp nhận và phân loại.
+1. Tài xế đăng nhập bằng tài khoản riêng → Chỉ xem được danh sách trip và delivery attempt được gán cho driver profile của mình.
+2. Tại điểm giao: Tài xế chụp ảnh hàng hóa bàn giao (`goodsImage`) và ảnh chữ ký/biên nhận của Đại lý (`signDocumentImage`); mỗi ảnh phải là file ảnh nhỏ hơn 5MB.
+3. Tài xế yêu cầu xác nhận giao hàng → Hệ thống sinh OTP ngẫu nhiên 6 chữ số, gửi qua email Đại lý, chỉ lưu hash/verifier, thời điểm tạo, thời điểm hết hạn, số lần thử và trạng thái trong `delivery_otp_attempts`; OTP có hiệu lực 5 phút và mỗi delivery attempt chỉ có một row OTP.
+4. Nếu OTP còn hạn và Tài xế yêu cầu gửi lại, hệ thống trả lỗi và không ghi đè mã cũ. Nếu OTP quá hạn và Tài xế yêu cầu gửi lại, hệ thống dùng `UPDATE` ghi đè OTP hiện tại của delivery attempt bằng mã mới. Nếu nhập sai OTP 3 lần, phải nhờ Admin reset thì mới có mã mới; nếu OTP xác thực thành công, hệ thống đánh dấu OTP đã xác thực và không cho dùng lại.
+5. Tài xế nhấn "Xác nhận đã giao" với OTP hợp lệ → Hệ thống bắt buộc giao đủ toàn bộ DO, trừ hàng khỏi Kho ảo In-Transit chỉ cho DO đó, tạo invoice/công nợ cho DO đó, đóng delivery attempt là **Delivered** và chuyển DO thành **Completed**.
+6. Nếu Đại lý không nhận hàng → Tài xế bấm chuyển DO sang **Returned**, delivery attempt hiện tại đóng là **Failed**, hàng vẫn ở Kho ảo In-Transit cho đến khi luồng hoàn hàng riêng tiếp nhận.
+7. Khi xe quay lại kho và mọi DO trong trip đã **Completed** hoặc **Returned**, Tài xế bấm xác nhận xe đã về kho → Trip chuyển **Completed**.
 
 ---
 

@@ -333,11 +333,16 @@ erDiagram
 ### 24. Bảng `deliveries` (Chứng từ POD)
 *   **Công dụng:** Hồ sơ xác nhận giao nhận hàng hóa tại điểm đến (Proof of Delivery - POD). Tài xế sử dụng điện thoại để thao tác trên bảng này.
 *   **Chi tiết các trường:**
-    *   `status` (VARCHAR(30)): CHECK: `PENDING`, `IN_TRANSIT`, `OUT_FOR_DELIVERY`, `DELIVERED` (Thành công), `RETURNED` (Thất bại/Bị trả về).
-    *   `pod_image_url` (VARCHAR(500)): Ảnh chụp biên bản giao nhận có ký nhận của đại lý hoặc ảnh chụp hàng hóa tại kho đại lý.
-    *   `pod_signature_url` (VARCHAR(500)): Ảnh chụp chữ ký số của người nhận hàng.
+    *   `status` (VARCHAR(30)): CHECK: `PENDING`, `IN_TRANSIT`, `DELIVERED` (Thành công), `FAILED` (Thất bại tại điểm giao), `RETURNED` (Đã được luồng hoàn hàng ghi nhận). Sprint 1 không dùng `OUT_FOR_DELIVERY`.
+    *   `pod_image_url` (VARCHAR(500)): Ảnh hàng hóa bàn giao, nhận từ multipart field `goodsImage`; file phải là ảnh và nhỏ hơn 5MB.
+    *   `pod_signature_url` (VARCHAR(500)): Ảnh chữ ký hoặc biên nhận của người nhận, nhận từ multipart field `signDocumentImage`; file phải là ảnh và nhỏ hơn 5MB.
     *   `failure_reason` (TEXT): Lý do giao hàng thất bại (ví dụ: "Đại lý đóng cửa", "Sai quy cách hàng hóa").
-*   **Ràng buộc outbound:** Với phương án khuyến nghị, delivery attempt được tạo tại thời điểm trip depart với trạng thái ban đầu `IN_TRANSIT`, gắn `trip_id`, `do_id`, `vehicle_id`, `driver_id`, `attempt_number` kế tiếp và `dispatched_at`.
+*   **Ràng buộc outbound:** Delivery attempt được tạo tại thời điểm trip depart với trạng thái ban đầu `IN_TRANSIT`, gắn `trip_id`, `do_id`, `vehicle_id`, `driver_id`, `attempt_number` kế tiếp và `dispatched_at`. Attempt hiện tại là bản ghi mới nhất theo `trip_id + do_id + driver_id` chưa ở trạng thái terminal. Tài xế chỉ được xem và thao tác trip/attempt được gán cho driver profile của mình. Mỗi DO phải giao đủ toàn bộ; hệ thống không hỗ trợ giao một phần. Khi một DO giao thành công, hệ thống chỉ trừ In-Transit inventory của DO đó, các DO khác trong cùng trip không bị ảnh hưởng. Nếu đại lý không nhận hàng, tài xế chuyển DO sang `RETURNED`; hàng vẫn nằm ở kho ảo In-Transit cho tới khi luồng hoàn hàng riêng xử lý.
+
+### 24.1. Bảng `delivery_otp_attempts`
+*   **Công dụng:** Lưu trạng thái OTP giao hàng cho từng delivery attempt.
+*   **Chi tiết các trường:** `delivery_id`, `otp_hash`, `recipient_email`, `created_at`, `expires_at`, `consumed_at`, `attempt_count`, `status`.
+*   **Ràng buộc OTP:** Backend sinh OTP ngẫu nhiên 6 chữ số và chỉ lưu hash/verifier, không lưu raw OTP. Mỗi delivery attempt chỉ có một row OTP; lần gửi đầu tạo row, các lần gửi lại hợp lệ dùng `UPDATE` trên row đó. OTP có hiệu lực 5 phút từ `created_at`. Khi tài xế nhập OTP, hệ thống phải kiểm tra `expires_at`; OTP hết hạn không được xác nhận. Nếu bấm gửi lại khi OTP còn hạn, hệ thống trả lỗi và không ghi đè mã cũ. Khi quá hạn và tài xế yêu cầu gửi lại, hệ thống ghi đè OTP hiện tại của delivery attempt bằng mã mới, reset `created_at`, `expires_at`, `attempt_count`, `consumed_at`, `status = ACTIVE`. Nếu nhập sai OTP 3 lần, hệ thống khóa OTP; Admin reset bằng cách ghi lý do, đặt `status = EXPIRED`, reset `attempt_count = 0`, giữ hash cũ chỉ để audit, sau đó tài xế mới được yêu cầu mã mới trên cùng row. Khi xác nhận thành công, hệ thống đặt `status = VERIFIED`, ghi `consumed_at`, và OTP không được dùng lại.
 
 ---
 

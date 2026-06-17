@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import java.time.OffsetDateTime;
 import lombok.Getter;
 import lombok.Setter;
+import com.wms.enums.DeliveryOtpStatus;
 
 @Entity
 @Table(name = "delivery_otp_attempts")
@@ -30,6 +31,10 @@ public class DeliveryOtpAttempt {
 
     @Column(name = "consumed_at")
     private OffsetDateTime consumedAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 20)
+    private DeliveryOtpStatus status;
 
     @Column(name = "attempt_count", nullable = false)
     private Integer attemptCount;

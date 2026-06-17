@@ -259,7 +259,7 @@ _Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đ
 - `vehicle_id` (BIGINT, FK→vehicles, NOT NULL)
 - `driver_id` (BIGINT, FK→drivers, NOT NULL)
 - `attempt_number` (INTEGER, NOT NULL)
-- `status` (VARCHAR(30), DEFAULT 'PENDING', CHECK IN ('PENDING','IN_TRANSIT','OUT_FOR_DELIVERY','DELIVERED','FAILED','RETURNED'))
+- `status` (VARCHAR(30), DEFAULT 'PENDING', CHECK IN ('PENDING','IN_TRANSIT','DELIVERED','FAILED','RETURNED'))
 - `pod_image_url` (VARCHAR(500))
 - `pod_signature_url` (VARCHAR(500))
 - `pod_timestamp` (TIMESTAMPTZ)
@@ -279,6 +279,7 @@ _Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đ
 - `recipient_email` (VARCHAR(255), NOT NULL)
 - `expires_at` (TIMESTAMPTZ, NOT NULL)
 - `consumed_at` (TIMESTAMPTZ)
+- `status` (VARCHAR(20), DEFAULT 'ACTIVE', CHECK IN ('ACTIVE','VERIFIED','EXPIRED'), NOT NULL)
 - `attempt_count` (INTEGER, DEFAULT 0)
 - `created_at` (TIMESTAMPTZ)
 
@@ -326,7 +327,8 @@ All outbound mutations that update `inventories.total_qty`, `inventories.reserve
 - Planned trips MAY be cancelled with a reason. Updates and cancellation SHALL be rejected after departure. Cancellation SHALL keep historical `vehicle_id` and `driver_id` on the trip record, but vehicle/driver SHALL no longer be treated as actively assigned to that cancelled trip.
 - Trip departure SHALL move QC-approved goods from outbound staging to virtual In-Transit inventory in one transaction by decreasing staging `total_qty` and `reserved_qty`, then increasing virtual In-Transit `total_qty` with `reserved_qty = 0`; all affected inventory rows SHALL pass version checks.
 - Trip departure SHALL create one current delivery attempt per dispatched Delivery Order with status `IN_TRANSIT`, `trip_id`, `do_id`, `vehicle_id`, `driver_id`, next `attempt_number`, and `dispatched_at`.
-- Delivery confirmation SHALL decrease virtual In-Transit inventory in the same transaction that marks the delivery order as `COMPLETED` and creates the invoice/receivable.
+- Delivery confirmation SHALL require full Delivery Order delivery; partial delivery is not supported in Sprint 1.
+- Delivery confirmation SHALL decrease virtual In-Transit inventory only for the confirmed Delivery Order by item/product/batch in the same transaction that marks that delivery order as `COMPLETED` and creates its invoice/receivable; other Delivery Orders in the same trip SHALL NOT be changed.
 - Delivery failure SHALL NOT change inventory quantity; goods remain in virtual In-Transit inventory until handled by the separate return flow.
 - Billing/payment mutations SHALL NOT change inventory quantity and do not require an inventory version check.
 - On any version conflict, the system SHALL rollback the whole mutation and return `409 INVENTORY_VERSION_CONFLICT`.
@@ -361,6 +363,8 @@ All outbound mutations that update `inventories.total_qty`, `inventories.reserve
 - Each `deliveries` record represents one physical delivery attempt for one Delivery Order.
 - A Delivery Order MAY have multiple `deliveries` records only if it is dispatched again before being closed as `DELIVERY_FAILED`; Sprint 1 normally uses one active delivery attempt per dispatched Delivery Order.
 - The system SHALL create a new `deliveries` record at trip departure whenever goods are dispatched for another delivery attempt, with initial status `IN_TRANSIT`.
+- Sprint 1 SHALL NOT use `OUT_FOR_DELIVERY`; delivery attempts remain `IN_TRANSIT` until they become `DELIVERED` or `FAILED`.
+- The current delivery attempt SHALL be the latest `deliveries` record for the given `trip_id`, `do_id`, and authenticated `driver_id` that is not terminal.
 - POD upload and delivery confirmation SHALL update only the current attempt's `deliveries` record and SHALL NOT overwrite previous `FAILED`, `RETURNED`, or `DELIVERED` attempts.
 - If a dealer refuses receipt or delivery fails at the delivery point, the current `deliveries` record SHALL be closed with status `FAILED` and the Delivery Order SHALL move to `RETURNED` while goods remain tracked in virtual In-Transit inventory.
 - If the goods are later returned to a warehouse, the same `deliveries` record MAY be marked `RETURNED` or linked to the separate return record created by the return flow.
@@ -415,7 +419,7 @@ _Vui lòng xem chi tiết API endpoints tại các tài liệu đặc tả tính
 | DRIVER_NOT_AVAILABLE       | 422  | Driver is unavailable, belongs to another warehouse, or assigned to another active trip |
 | TRIP_NOT_EDITABLE          | 422  | Trip cannot be updated or cancelled because it is no longer PLANNED |
 | TRIP_NOT_READY_TO_DEPART   | 422  | Trip cannot depart because it is not planned, is cancelled, already departed, or selected orders are not ready |
-| TRIP_NOT_READY_TO_COMPLETE | 422  | Trip cannot complete because vehicle has not returned or assigned orders are not all COMPLETED/RETURNED |
+| TRIP_NOT_READY_TO_COMPLETE | 422  | Trip cannot complete because vehicle return is not confirmed or assigned orders are not all COMPLETED/RETURNED |
 | DRIVER_NOT_ASSIGNED_TO_TRIP | 403 | Authenticated driver is not assigned to the trip |
 | STOP_ORDER_DUPLICATED      | 422  | Stop order values are duplicated within the trip |
 | QC_REPLACEMENT_REQUIRED    | 422  | QC pass quantity is lower than requested quantity and replacement is not completed |
@@ -429,6 +433,18 @@ _Vui lòng xem chi tiết API endpoints tại các tài liệu đặc tả tính
 | MISSING_POD                | 400  | POD signature/image required            |
 | DELIVERY_OTP_INVALID       | 400  | OTP is incorrect or not issued for this delivery order |
 | DELIVERY_OTP_EXPIRED       | 400  | OTP has expired                         |
+| DELIVERY_ATTEMPT_NOT_FOUND | 404  | Current delivery attempt does not exist for trip/order/driver |
+| DELIVERY_ATTEMPT_NOT_CURRENT | 409 | Request targets an old or terminal delivery attempt |
+| DELIVERY_ALREADY_FINALIZED | 409  | Delivery attempt is already DELIVERED, FAILED, or RETURNED |
+| POD_FILE_INVALID           | 400  | POD file is missing, not an image, or larger than 5MB |
+| DEALER_EMAIL_MISSING       | 422  | Dealer profile has no email for delivery OTP |
+| OTP_NOT_REQUESTED          | 400  | Delivery confirmation is attempted before OTP is requested |
+| OTP_STILL_ACTIVE           | 409  | Driver requested resend while the current OTP is still valid |
+| OTP_MAX_ATTEMPTS_EXCEEDED  | 423  | OTP has been entered incorrectly 3 times and requires Admin reset |
+| OTP_RESET_REQUIRED         | 423  | OTP is locked and must be reset by Admin before a new code can be generated |
+| PARTIAL_DELIVERY_NOT_ALLOWED | 422 | Request attempts to deliver less than the full Delivery Order |
+| IN_TRANSIT_STOCK_NOT_FOUND | 422  | Required In-Transit inventory rows are missing or insufficient for this DO |
+| INVOICE_ALREADY_EXISTS     | 409  | Invoice already exists for the Delivery Order |
 | INVENTORY_VERSION_CONFLICT | 409  | Concurrent inventory update             |
 | WAREHOUSE_SCOPE_FORBIDDEN  | 403  | User role is valid but user is not assigned to the target warehouse, trip, or delivery attempt |
 
@@ -450,12 +466,13 @@ _Vui lòng xem chi tiết API endpoints tại các tài liệu đặc tả tính
 - `TRIP_CANCEL`: cancel a planned trip, store cancellation reason, release vehicle/driver assignment, and keep Delivery Orders in `WAREHOUSE_APPROVED`.
 - `TRIP_DEPART`: move trip and DOs to `IN_TRANSIT`, move goods from outbound staging to virtual In-Transit, release staging `reserved_qty`, mark vehicle/driver `ON_TRIP`, and store departure timestamp.
 - `DELIVERY_ATTEMPT_CREATE`: create a new physical delivery attempt record in `IN_TRANSIT` for a dispatched Delivery Order.
-- `OTP_REQUEST`: generate raw OTP, send it to the dealer/receiver email, and store only the hashed verifier in `delivery_otp_attempts` with expiry metadata.
-- `OTP_CONFIRM`: verify OTP against the active `delivery_otp_attempts` record, mark the attempt consumed, store verification timestamp, auto-create invoice/receivable, and move DO to `COMPLETED`.
-- `DELIVERY_FAIL`: store failure reason, close the current delivery attempt as `FAILED`, and move DO to `RETURNED`; returned goods remain tracked in virtual In-Transit inventory until a separate return flow receives and classifies them.
+- `UPLOAD_POD`: driver uploads `goodsImage` and `signDocumentImage` for the current delivery attempt.
+- `REQUEST_OTP`: generate a random 6-digit OTP, send it to the dealer/receiver email, and store only the hashed verifier in `delivery_otp_attempts` with 5-minute expiry metadata. The first request inserts the single OTP row for the current delivery attempt; resend after expiry updates that same row. Resend while the current OTP is still active is rejected with `OTP_STILL_ACTIVE`.
+- `CONFIRM_DELIVERY`: verify OTP against the active `delivery_otp_attempts` record, increment `attempt_count` on incorrect submissions, lock confirmation after 3 incorrect submissions with `OTP_MAX_ATTEMPTS_EXCEEDED` until Admin reset, mark status `VERIFIED`, mark the attempt consumed, store verification timestamp, close the current delivery attempt as `DELIVERED`, decrease virtual In-Transit inventory only for that DO, auto-create invoice/receivable, move only that DO to `COMPLETED`, and keep other DOs in the same trip unchanged.
+- `RESET_DELIVERY_OTP`: Admin resets a locked OTP row for the current delivery attempt by requiring a reset reason, marking the current row `EXPIRED`, resetting `attempt_count` to 0, preserving before/after state, and allowing Driver to request a new code on the same row.
+- `FAIL_DELIVERY`: store failure reason, close the current delivery attempt as `FAILED`, and move DO to `RETURNED`; returned goods remain tracked in virtual In-Transit inventory until a separate return flow receives and classifies them.
 - `RETURN_FLOW_CONFIRMED`: separate return flow confirms returned goods back into warehouse custody and moves DO to `DELIVERY_FAILED`.
-- `TRIP_COMPLETE`: mark trip `COMPLETED` only after vehicle returns to source warehouse and all assigned DOs are `COMPLETED` or `RETURNED`; mark vehicle/driver `AVAILABLE`.
-- `INVOICE_AUTO_CREATE_FROM_DO`: create invoice and receivable automatically after successful POD + OTP.
+- `COMPLETE_TRIP`: mark trip `COMPLETED` only after vehicle returns to source warehouse and all assigned DOs are `COMPLETED` or `RETURNED`; mark vehicle/driver `AVAILABLE`.
 - `PAYMENT_SUBMIT`: accountant records a payment attempt with transaction image and `PENDING_APPROVAL` status.
 - `PAYMENT_APPROVE`: chief accountant approves payment, decreases outstanding receivable, and moves invoice/DO to `PAID`/`CLOSED` if fully settled.
 - `PAYMENT_REJECT`: chief accountant rejects a payment attempt with reason; receivable remains unchanged.

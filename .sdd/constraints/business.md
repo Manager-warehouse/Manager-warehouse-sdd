@@ -53,8 +53,11 @@
 | OUT-03 | Giải phóng reserved khi DO chuyển In-Transit hoặc Cancelled | MUST |
 | OUT-04 | Hệ thống chỉ dùng xe nội bộ Phúc Anh — KHÔNG 3PL | MUST |
 | OUT-05 | Khi Tài xế xác nhận In-Transit, trừ tồn kho kho xuất và cộng vào kho ảo In-Transit | MUST |
-| OUT-06 | POD = ảnh hàng bàn giao + ảnh chữ ký/biên nhận Đại lý + timestamp + OTP email đã xác thực. Bắt buộc khi giao thành công | MUST |
-| OUT-07 | Giao thất bại chỉ ghi nhận trạng thái `RETURNED` và lý do; xử lý hàng hoàn đi theo luồng hoàn hàng riêng | MUST |
+| OUT-06 | POD bắt buộc khi giao thành công: `goodsImage` + `signDocumentImage`, mỗi ảnh là file ảnh nhỏ hơn 5MB, gắn với current delivery attempt | MUST |
+| OUT-07 | OTP giao hàng là mã ngẫu nhiên 6 chữ số, hiệu lực 5 phút, chỉ lưu hash/verifier; mỗi delivery attempt chỉ có 1 row OTP, resend khi còn hạn bị chặn, resend sau hết hạn dùng `UPDATE` trên row cũ | MUST |
+| OUT-08 | Nhập sai OTP tối đa 3 lần; sau 3 lần OTP bị khóa và chỉ Admin reset có lý do/audit thì tài xế mới được yêu cầu mã mới | MUST |
+| OUT-09 | Giao hàng phải full DO; xác nhận thành công chỉ trừ In-Transit và tạo invoice/công nợ cho đúng DO đó, không ảnh hưởng DO khác trong trip | MUST |
+| OUT-10 | Giao thất bại chỉ ghi nhận trạng thái `RETURNED` và lý do; xử lý hàng hoàn đi theo luồng hoàn hàng riêng | MUST |
 
 ## 6. Credit & Debt Rules
 

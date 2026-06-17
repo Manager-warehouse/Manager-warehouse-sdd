@@ -23,7 +23,7 @@ Trip được xem là hoàn tất vận hành khi xe quay trở lại kho và m�
   * The system SHALL prevent a Delivery Order from being assigned to more than one active trip.
   * The system SHALL always validate total shipment weight against vehicle maximum weight before creating or updating a trip, and SHALL validate total shipment volume only when the selected vehicle has maximum volume configured.
   * The system SHALL release reserved inventory when a Delivery Order transitions to `IN_TRANSIT`.
-  * The system SHALL create `TRIP_CREATE`, `TRIP_UPDATE`, `TRIP_CANCEL`, `TRIP_DEPART`, `TRIP_COMPLETE`, and `DELIVERY_ATTEMPT_CREATE` audit log entries with actor, warehouse, before state, and after state.
+  * The system SHALL create `TRIP_CREATE`, `TRIP_UPDATE`, `TRIP_CANCEL`, `TRIP_DEPART`, `COMPLETE_TRIP`, and `DELIVERY_ATTEMPT_CREATE` audit log entries with actor, warehouse, before state, and after state.
 
 * **Event-driven:**
   * WHEN a Dispatcher creates a trip, the system SHALL:
@@ -65,7 +65,7 @@ Trip được xem là hoàn tất vận hành khi xe quay trở lại kho và m�
     * Update Trip status to `COMPLETED`.
     * Mark vehicle and driver as `AVAILABLE`.
     * Keep any `RETURNED` goods in virtual `IN_TRANSIT` inventory until the separate return flow receives them.
-    * Create `TRIP_COMPLETE` audit log.
+    * Create `COMPLETE_TRIP` audit log.
 
 ## 4. API Endpoints
 

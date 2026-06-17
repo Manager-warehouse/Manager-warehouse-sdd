@@ -144,7 +144,7 @@ Hệ thống có **10 Actors** chia thành 3 tầng theo mô hình **Maker-Check
 | **Thủ kho kiêm QC** | Quản lý SKU/danh mục sản phẩm, tiếp nhận hàng, kiểm QC inbound/outbound, soạn hàng, kiểm kê, cất Bin, xác nhận điều chuyển |
 | **Nhân viên kho (Bốc xếp)** | Bốc xếp hàng hóa, hỗ trợ di chuyển hàng hóa, di chuyển hàng lỗi vào Quarantine theo chỉ dẫn của Thủ kho |
 | **Kế toán viên** | Quản lý hồ sơ Nhà cung cấp, lập hóa đơn, ghi nhận thanh toán, cấn trừ công nợ, quản lý bảng giá |
-| **Tài xế** | Nhận chuyến (smartphone), giao hàng, upload POD images, nhập OTP Đại lý, báo giao thất bại |
+| **Tài xế** | Nhận chuyến (smartphone), upload `goodsImage`/`signDocumentImage`, nhập OTP Đại lý, báo giao thất bại, xác nhận xe về kho |
 
 > **Phân biệt Dispatcher vs Planner:** Planner = nhận đơn từ Công ty mẹ & lập Delivery Order; Dispatcher = điều phối xe & tài xế giao hàng — **hai vai trò hoàn toàn khác nhau**.
 
@@ -255,10 +255,11 @@ Công ty mẹ gửi yêu cầu xuất hàng
     → Trưởng kho duyệt xuất [WAREHOUSE_APPROVED]
     → Dispatcher lập Chuyến xe nội bộ `trip_type = DELIVERY` cùng kho, gán xe/tài xế thuộc kho, kiểm tra cân nặng và kiểm tra thể tích nếu xe có cấu hình thể tích
     → Tài xế xác nhận nhận hàng → [IN_TRANSIT] → Hệ thống chuyển hàng từ outbound staging sang kho ảo In-Transit
-    → Tài xế upload ảnh hàng + ảnh chữ ký/biên nhận cho delivery attempt hiện tại, Đại lý đọc OTP email
-        (delivery attempt [DELIVERED], raw OTP không lưu DB; hệ thống chỉ lưu hash/verifier trong delivery_otp_attempts)
-    → Hệ thống tự động tạo Hóa đơn (Invoice), cộng công nợ và chuyển DO [COMPLETED]
-    → Khi xe quay lại kho và mọi DO trong chuyến đã COMPLETED/RETURNED → Trip [COMPLETED]
+    → Tài xế upload goodsImage + signDocumentImage cho delivery attempt hiện tại, Đại lý đọc OTP email 6 số
+        (ảnh < 5MB; OTP hiệu lực 5 phút; raw OTP không lưu DB; chỉ 1 row OTP/attempt; resend khi còn hạn bị chặn; sai 3 lần cần Admin reset)
+    → Giao full DO: hệ thống chỉ trừ In-Transit của DO được xác nhận, tự động tạo Hóa đơn (Invoice), cộng công nợ và chuyển DO [COMPLETED]
+    → Nếu Đại lý không nhận: Tài xế chuyển DO [RETURNED], hàng vẫn ở In-Transit cho luồng hoàn hàng riêng
+    → Khi xe quay lại kho, Tài xế bấm xác nhận xe đã về và mọi DO trong chuyến đã COMPLETED/RETURNED → Trip [COMPLETED]
     → Đại lý thanh toán → Cấn trừ công nợ [CLOSED]
 ```
 
@@ -279,7 +280,7 @@ Planner xem Planning Dashboard → Nhận gợi ý điều chuyển
 
 ```
 [Phát sinh nợ]
-POD + OTP hợp lệ → Hệ thống tự động lập Invoice (Net 30/60) → current_balance += giá trị đơn → DO [COMPLETED]
+POD + OTP hợp lệ cho full DO → Hệ thống tự động lập Invoice (Net 30/60) → current_balance += giá trị đơn → DO [COMPLETED]
     → IF current_balance > credit_limit → CREDIT_HOLD (chặn đơn mới; bằng hạn mức vẫn cho phép)
     → Daily Job: IF invoice quá hạn > 30 ngày → CREDIT_HOLD + cảnh báo Kế toán trưởng
 
