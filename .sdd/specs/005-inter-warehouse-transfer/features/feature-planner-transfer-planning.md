@@ -3,6 +3,9 @@
 ## 1. Context and Goal
 Planner nhận chỉ đạo điều chuyển hàng từ Công ty mẹ hoặc bộ phận điều phối trung tâm, sau đó nhập phiếu điều chuyển vào hệ thống WMS để kho nguồn kiểm tra, phê duyệt và thực thi. Công ty mẹ không phải user trong hệ thống ở Sprint 1; mọi lệnh điều chuyển từ Công ty mẹ được nhập trung gian qua Planner. Sprint 1 không có nghiệp vụ kho tự quyết định điều chuyển và không có gợi ý điều chuyển tự động dựa trên tồn kho.
 
+Planner thao tác trên man hinh dieu chuyen noi bo dung chung (`/transfers`). Luong nay tach rieng khoi man hinh phieu nhap `RN` tu nha cung cap.
+Trong Sprint 1, man nay dong vai tro la workspace van hanh chinh cho transfer. Bao cao/dashboard chuyen sau cho transfer moi o muc co ban: list theo trang thai, route, dong hang, tai xe/chuyen neu da co. Cac KPI tong hop chuyen sau co the bo sung sau.
+
 Phiếu điều chuyển có thể gồm nhiều dòng hàng vì lệnh điều chuyển thực tế có thể yêu cầu gửi nhiều SKU trong cùng một chuyến chứng từ, ví dụ 50 cái chảo và 30 nồi từ kho Hải Phòng sang kho Hà Nội.
 
 ## 2. Actors
@@ -19,6 +22,7 @@ Phiếu điều chuyển có thể gồm nhiều dòng hàng vì lệnh điều 
   * The system SHALL store each created transfer with status `NEW`.
   * The system SHALL create a `TRANSFER_CREATE` audit log entry when a Planner creates a transfer.
   * The system SHALL NOT require upload/attachment for the external transfer instruction in Sprint 1.
+  * The system SHALL keep the Planner view focused on transfer-document operations; trip dispatching, departure, and destination receiving are handled by later role-specific stages.
 * **Event-driven:**
   * WHEN a Planner creates a transfer manually, the system SHALL require source warehouse, destination warehouse, planned date, document date, external instruction code, and at least one item line.
   * WHEN a Planner adds an item line, the system SHALL require product and planned quantity.
@@ -67,7 +71,7 @@ Phiếu điều chuyển có thể gồm nhiều dòng hàng vì lệnh điều 
 ```json
 {
   "id": 10,
-  "transferNumber": "ITN-20260613-001",
+  "transferNumber": "TRF-20260613-0001",
   "status": "NEW",
   "sourceWarehouseId": 1,
   "destinationWarehouseId": 2,
@@ -149,3 +153,8 @@ Phiếu điều chuyển có thể gồm nhiều dòng hàng vì lệnh điều 
   * Given a transfer was rejected by Trưởng kho nguồn with a rejection reason
   * When Planner needs to continue the external transfer instruction after correction
   * Then Planner SHALL create a new transfer, and the rejected transfer SHALL remain unchanged for audit traceability.
+
+* **Scenario: Planner sees lightweight transfer dashboard**
+  * Given Planner opens the shared transfer workspace
+  * When transfer records already exist
+  * Then the screen SHALL at minimum show transfer code, route, status, and line count so Planner can identify which document to continue or review.

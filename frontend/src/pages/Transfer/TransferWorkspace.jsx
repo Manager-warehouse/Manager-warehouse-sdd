@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { Plus, RefreshCw, Search } from 'lucide-react';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
@@ -16,7 +17,8 @@ const isPhysicalWarehouse = (warehouse) => (warehouse.type || '').toUpperCase() 
 const hasAnyRole = (hasRole, roles) => roles.some((role) => hasRole(role));
 
 const TransferWorkspace = () => {
-  const { hasRole, hasWarehouseAccess } = useAuthStore();
+  const { id: routeTransferId } = useParams();
+  const { user, activeWarehouse, hasRole, hasWarehouseAccess } = useAuthStore();
   const { addToast } = useUiStore();
   const [transfers, setTransfers] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
@@ -40,13 +42,13 @@ const TransferWorkspace = () => {
     notes: '',
     items: [{ productId: '', plannedQty: 1 }],
   });
-  const canCreateTransfer = hasAnyRole(hasRole, [ROLES.PLANNER, ROLES.ADMIN, ROLES.CEO]);
-  const needsFleetData = hasAnyRole(hasRole, [ROLES.DISPATCHER, ROLES.ADMIN, ROLES.CEO]);
-  const needsLocationData = hasAnyRole(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]);
+  const canCreateTransfer = hasRole(ROLES.PLANNER);
+  const needsFleetData = hasRole(ROLES.DISPATCHER);
+  const needsLocationData = hasAnyRole(hasRole, [ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF]);
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [routeTransferId, activeWarehouse?.id]);
 
   useEffect(() => {
     let active = true;
@@ -99,8 +101,13 @@ const TransferWorkspace = () => {
       setProducts(productRows);
       setLocations(locationRows);
       setVehicles(vehicleRows.filter((vehicle) => (vehicle.status || '').toUpperCase() === 'AVAILABLE'));
-      setDrivers(driverRows.filter((driver) => (driver.status || '').toUpperCase() === 'AVAILABLE'));
-      setSelectedId((current) => current || transferRows[0]?.id || null);
+      setDrivers(driverRows);
+      const requestedId = normalizeId(routeTransferId);
+      setSelectedId((current) => (
+        requestedId && transferRows.some((transfer) => transfer.id === requestedId)
+          ? requestedId
+          : current || transferRows[0]?.id || null
+      ));
     } catch (error) {
       addToast(error.message || 'Không thể tải dữ liệu điều chuyển', 'error');
     } finally {
@@ -108,7 +115,37 @@ const TransferWorkspace = () => {
     }
   };
 
-  const selectedTransfer = transfers.find((transfer) => transfer.id === selectedId);
+  const visibleTransfers = useMemo(() => {
+    const activeWarehouseId = normalizeId(activeWarehouse?.id);
+    if (hasRole(ROLES.DISPATCHER)) {
+      const assignedWarehouses = user?.warehouses?.map(Number) || [];
+      return transfers.filter((transfer) => assignedWarehouses.includes(Number(transfer.sourceWarehouseId)));
+    }
+    if (hasRole(ROLES.WAREHOUSE_STAFF)) {
+      return transfers.filter((transfer) => (
+        normalizeId(transfer.destinationWarehouseId) === activeWarehouseId
+      ));
+    }
+    if (hasAnyRole(hasRole, [ROLES.STOREKEEPER, ROLES.WAREHOUSE_MANAGER])) {
+      return transfers.filter((transfer) => (
+        normalizeId(transfer.sourceWarehouseId) === activeWarehouseId
+        || normalizeId(transfer.destinationWarehouseId) === activeWarehouseId
+      ));
+    }
+    return transfers;
+  }, [transfers, user, activeWarehouse, hasRole]);
+
+  useEffect(() => {
+    if (!visibleTransfers.length) {
+      setSelectedId(null);
+      return;
+    }
+    if (!visibleTransfers.some((transfer) => transfer.id === selectedId)) {
+      setSelectedId(visibleTransfers[0].id);
+    }
+  }, [visibleTransfers, selectedId]);
+
+  const selectedTransfer = visibleTransfers.find((transfer) => transfer.id === selectedId);
 
   useEffect(() => {
     let active = true;
@@ -143,11 +180,11 @@ const TransferWorkspace = () => {
     };
   }, [selectedTransfer]);
 
-  const filteredTransfers = useMemo(() => transfers.filter((transfer) => {
+  const filteredTransfers = useMemo(() => visibleTransfers.filter((transfer) => {
     const haystack = `${transfer.transferNumber} ${transfer.externalInstructionCode} ${transfer.sourceWarehouseCode} ${transfer.destinationWarehouseCode}`.toLowerCase();
     return haystack.includes(searchTerm.toLowerCase())
       && (statusFilter === 'ALL' || transfer.status === statusFilter);
-  }), [transfers, searchTerm, statusFilter]);
+  }), [visibleTransfers, searchTerm, statusFilter]);
 
   const setItem = (index, patch) => {
     setForm((current) => ({
@@ -173,11 +210,12 @@ const TransferWorkspace = () => {
         throw new Error('Phiếu điều chuyển cần ít nhất một dòng hàng');
       }
       const payload = {
-        ...form,
+        externalInstructionCode: form.externalInstructionCode,
         sourceWarehouseId: source.id,
-        sourceWarehouseCode: source.code,
         destinationWarehouseId: destination.id,
-        destinationWarehouseCode: destination.code,
+        documentDate: form.documentDate,
+        plannedDate: form.plannedDate,
+        notes: form.notes,
         items: form.items.map((item, index) => {
           const product = products.find((row) => row.id === normalizeId(item.productId));
           if (!product) {
@@ -192,8 +230,6 @@ const TransferWorkspace = () => {
           }
           return {
             productId: product.id,
-            productSku: product.sku,
-            productName: product.name,
             plannedQty: Number(item.plannedQty),
           };
         }),
@@ -353,6 +389,13 @@ const TransferWorkspace = () => {
                 </div>
                 <TransferStatusBadge status={selectedTransfer.status} />
               </div>
+              {selectedTransfer.tripId && (
+                <div className="mb-3 grid grid-cols-1 md:grid-cols-3 gap-2 rounded-md border border-hairline-light bg-canvas-cream/50 px-3 py-2 text-xs">
+                  <span><span className="text-shade-50">Chuyến:</span> <strong>{selectedTransfer.tripNumber || '-'}</strong></span>
+                  <span><span className="text-shade-50">Xe:</span> <strong>{selectedTransfer.vehiclePlate || '-'}</strong></span>
+                  <span><span className="text-shade-50">Tài xế:</span> <strong>{selectedTransfer.driverName || '-'}</strong></span>
+                </div>
+              )}
               <div className="divide-y divide-hairline-light">
                 {selectedTransfer.items?.map((item) => (
                   <div key={item.id} className="py-2 text-sm">
@@ -373,10 +416,12 @@ const TransferWorkspace = () => {
           )}
           <TransferActionPanel
             transfer={selectedTransfer}
+            currentUser={user}
             hasRole={hasRole}
             hasWarehouseAccess={hasWarehouseAccess}
             vehicles={vehicles}
             drivers={drivers}
+            activeWarehouse={activeWarehouse}
             locations={locations}
             onAction={handleAction}
           />

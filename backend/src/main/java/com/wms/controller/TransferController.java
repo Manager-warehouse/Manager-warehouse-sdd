@@ -44,26 +44,26 @@ public class TransferController {
     @PreAuthorize("hasAnyRole('ADMIN','CEO','PLANNER','DISPATCHER','WAREHOUSE_MANAGER','STOREKEEPER','WAREHOUSE_STAFF','DRIVER')")
     @Operation(summary = "List inter-warehouse transfers")
     public List<TransferResponse> getAllTransfers() {
-        return transferService.getAllTransfers();
+        return transferService.getAllTransfers(currentUser());
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN','CEO','PLANNER','DISPATCHER','WAREHOUSE_MANAGER','STOREKEEPER','WAREHOUSE_STAFF','DRIVER')")
     @Operation(summary = "Get inter-warehouse transfer detail")
     public TransferResponse getTransferById(@PathVariable Long id) {
-        return transferService.getTransferById(id);
+        return transferService.getTransferById(id, currentUser());
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAnyRole('ADMIN','CEO','PLANNER')")
+    @PreAuthorize("hasRole('PLANNER')")
     @Operation(summary = "Create NEW transfer from external instruction")
     public TransferResponse createTransfer(@Valid @RequestBody TransferCreateRequest request) {
         return transferService.createTransfer(request, currentUser());
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN','CEO','PLANNER')")
+    @PreAuthorize("hasRole('PLANNER')")
     @Operation(summary = "Replace NEW transfer details and item list")
     public TransferResponse updateTransfer(@PathVariable Long id,
                                            @Valid @RequestBody TransferUpdateRequest request) {
@@ -71,7 +71,7 @@ public class TransferController {
     }
 
     @PostMapping("/{id}/cancel")
-    @PreAuthorize("hasAnyRole('ADMIN','CEO','PLANNER','WAREHOUSE_MANAGER')")
+    @PreAuthorize("hasAnyRole('PLANNER','WAREHOUSE_MANAGER')")
     @Operation(summary = "Cancel NEW or unshipped APPROVED transfer")
     public TransferResponse cancelTransfer(@PathVariable Long id,
                                            @RequestBody TransferReasonRequest request) {
@@ -79,14 +79,14 @@ public class TransferController {
     }
 
     @PostMapping("/{id}/approve")
-    @PreAuthorize("hasAnyRole('ADMIN','CEO','WAREHOUSE_MANAGER')")
+    @PreAuthorize("hasRole('WAREHOUSE_MANAGER')")
     @Operation(summary = "Source warehouse manager approves and reserves stock")
     public TransferResponse approveTransfer(@PathVariable Long id) {
         return transferService.approveTransfer(id, currentUser());
     }
 
     @PostMapping("/{id}/reject")
-    @PreAuthorize("hasAnyRole('ADMIN','CEO','WAREHOUSE_MANAGER')")
+    @PreAuthorize("hasRole('WAREHOUSE_MANAGER')")
     @Operation(summary = "Source warehouse manager rejects NEW transfer")
     public TransferResponse rejectTransfer(@PathVariable Long id,
                                            @RequestBody TransferReasonRequest request) {
@@ -94,7 +94,7 @@ public class TransferController {
     }
 
     @PostMapping("/{id}/trip")
-    @PreAuthorize("hasAnyRole('ADMIN','CEO','DISPATCHER')")
+    @PreAuthorize("hasRole('DISPATCHER')")
     @Operation(summary = "Dispatcher assigns dedicated TRANSFER trip")
     public TransferResponse assignTrip(@PathVariable Long id,
                                        @Valid @RequestBody TransferTripAssignRequest request) {
@@ -102,28 +102,28 @@ public class TransferController {
     }
 
     @PostMapping("/{id}/ship")
-    @PreAuthorize("hasAnyRole('ADMIN','CEO','STOREKEEPER')")
+    @PreAuthorize("hasRole('STOREKEEPER')")
     @Operation(summary = "Source storekeeper loads exact planned quantity")
     public TransferResponse shipTransfer(@PathVariable Long id) {
         return transferService.shipTransfer(id, currentUser());
     }
 
     @PostMapping("/{id}/unship")
-    @PreAuthorize("hasAnyRole('ADMIN','CEO','STOREKEEPER','WAREHOUSE_MANAGER')")
+    @PreAuthorize("hasAnyRole('STOREKEEPER','WAREHOUSE_MANAGER')")
     @Operation(summary = "Unload transfer before canceling APPROVED transfer")
     public TransferResponse unshipTransfer(@PathVariable Long id) {
         return transferService.unshipTransfer(id, currentUser());
     }
 
     @PostMapping("/{id}/depart")
-    @PreAuthorize("hasAnyRole('ADMIN','CEO','DRIVER')")
+    @PreAuthorize("hasRole('DRIVER')")
     @Operation(summary = "Assigned driver confirms departure and moves stock to in-transit")
     public TransferResponse departTransfer(@PathVariable Long id) {
         return transferService.departTransfer(id, currentUser());
     }
 
     @PutMapping("/{id}/receive-count")
-    @PreAuthorize("hasAnyRole('ADMIN','CEO','WAREHOUSE_STAFF')")
+    @PreAuthorize("hasRole('WAREHOUSE_STAFF')")
     @Operation(summary = "Destination worker records initial received quantities")
     public TransferResponse receiveCount(@PathVariable Long id,
                                          @Valid @RequestBody TransferReceiveCountRequest request) {
@@ -131,7 +131,7 @@ public class TransferController {
     }
 
     @PutMapping("/{id}/receive-check")
-    @PreAuthorize("hasAnyRole('ADMIN','CEO','STOREKEEPER')")
+    @PreAuthorize("hasRole('STOREKEEPER')")
     @Operation(summary = "Destination storekeeper checks count and QC")
     public TransferResponse receiveCheck(@PathVariable Long id,
                                          @Valid @RequestBody TransferReceiveCheckRequest request) {
@@ -139,7 +139,7 @@ public class TransferController {
     }
 
     @PostMapping("/{id}/final-receive")
-    @PreAuthorize("hasAnyRole('ADMIN','CEO','WAREHOUSE_MANAGER')")
+    @PreAuthorize("hasRole('WAREHOUSE_MANAGER')")
     @Operation(summary = "Destination warehouse manager finalizes transfer")
     public TransferResponse finalReceive(@PathVariable Long id,
                                          @RequestBody TransferFinalReceiveRequest request) {

@@ -7,6 +7,5 @@ public enum TransferStatus {
     IN_TRANSIT,
     COMPLETED,
     COMPLETED_WITH_DISCREPANCY,
-    REJECTED,
     CANCELLED
 }

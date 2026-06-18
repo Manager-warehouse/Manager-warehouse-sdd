@@ -91,6 +91,7 @@ class TransferServiceImplTest {
     private User destinationWorker;
     private User destinationStorekeeper;
     private User destinationManager;
+    private User dispatcher;
     private User driverUser;
     private Vehicle vehicle;
     private Driver driver;
@@ -120,6 +121,7 @@ class TransferServiceImplTest {
         destinationWorker = user(9L, UserRole.WAREHOUSE_STAFF);
         destinationStorekeeper = user(10L, UserRole.STOREKEEPER);
         destinationManager = user(11L, UserRole.WAREHOUSE_MANAGER);
+        dispatcher = user(13L, UserRole.DISPATCHER);
         driverUser = user(12L, UserRole.DRIVER);
         vehicle = vehicle();
         driver = driver();
@@ -136,6 +138,7 @@ class TransferServiceImplTest {
         assignments.put(destinationWorker.getId(), List.of(destinationWarehouse.getId()));
         assignments.put(destinationStorekeeper.getId(), List.of(destinationWarehouse.getId()));
         assignments.put(destinationManager.getId(), List.of(destinationWarehouse.getId()));
+        assignments.put(dispatcher.getId(), List.of(sourceWarehouse.getId()));
         assignments.put(planner.getId(), List.of());
         assignments.put(driverUser.getId(), List.of(sourceWarehouse.getId(), destinationWarehouse.getId()));
 
@@ -199,7 +202,7 @@ class TransferServiceImplTest {
         assertThat(allocationState.saved).hasSize(1);
         assertThat(auditUtil.lastAction).isEqualTo(AuditAction.TRANSFER_APPROVE);
 
-        TransferResponse assigned = service.assignTrip(1L, new TransferTripAssignRequest(vehicle.getId(), driver.getId(), LocalDate.of(2026, 6, 19)), user(13L, UserRole.DISPATCHER));
+        TransferResponse assigned = service.assignTrip(1L, new TransferTripAssignRequest(vehicle.getId(), driver.getId(), LocalDate.of(2026, 6, 19)), dispatcher);
         assertThat(assigned.tripId()).isNotNull();
         assertThat(transfer.getTrip()).isNotNull();
 
@@ -219,9 +222,57 @@ class TransferServiceImplTest {
     }
 
     @Test
+    void assignTrip_requiresDriverFromSourceWarehouse() {
+        service.approveTransfer(1L, sourceManager);
+        assignments.put(driverUser.getId(), List.of(destinationWarehouse.getId()));
+
+        assertThatThrownBy(() -> service.assignTrip(
+                1L,
+                new TransferTripAssignRequest(vehicle.getId(), driver.getId(), LocalDate.of(2026, 6, 19)),
+                dispatcher))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("DRIVER_SOURCE_WAREHOUSE_REQUIRED");
+    }
+
+    @Test
+    void assignTrip_requiresDispatcherAndVehicleFromSourceWarehouse() {
+        service.approveTransfer(1L, sourceManager);
+
+        assignments.put(dispatcher.getId(), List.of(destinationWarehouse.getId()));
+        assertThatThrownBy(() -> service.assignTrip(
+                1L,
+                new TransferTripAssignRequest(vehicle.getId(), driver.getId(), LocalDate.of(2026, 6, 19)),
+                dispatcher))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("WAREHOUSE_SCOPE_REQUIRED");
+
+        assignments.put(dispatcher.getId(), List.of(sourceWarehouse.getId()));
+        vehicle.setWarehouse(destinationWarehouse);
+        assertThatThrownBy(() -> service.assignTrip(
+                1L,
+                new TransferTripAssignRequest(vehicle.getId(), driver.getId(), LocalDate.of(2026, 6, 19)),
+                dispatcher))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("VEHICLE_SOURCE_WAREHOUSE_REQUIRED");
+    }
+
+    @Test
+    void destinationWorker_onlySeesTransfersForAssignedDestinationWarehouse() {
+        transfer.setStatus(TransferStatus.IN_TRANSIT);
+
+        assertThat(service.getAllTransfers(destinationWorker)).hasSize(1);
+
+        assignments.put(destinationWorker.getId(), List.of(sourceWarehouse.getId()));
+        assertThat(service.getAllTransfers(destinationWorker)).isEmpty();
+        assertThatThrownBy(() -> service.getTransferById(transfer.getId(), destinationWorker))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("WAREHOUSE_SCOPE_REQUIRED");
+    }
+
+    @Test
     void destinationFlow_receiveCountCheckAndFinalConfirmWorks() {
         service.approveTransfer(1L, sourceManager);
-        service.assignTrip(1L, new TransferTripAssignRequest(vehicle.getId(), driver.getId(), LocalDate.of(2026, 6, 19)), user(13L, UserRole.DISPATCHER));
+        service.assignTrip(1L, new TransferTripAssignRequest(vehicle.getId(), driver.getId(), LocalDate.of(2026, 6, 19)), dispatcher);
         service.shipTransfer(1L, sourceManager);
         service.departTransfer(1L, driverUser);
 
@@ -254,7 +305,7 @@ class TransferServiceImplTest {
     @Test
     void receiveCount_overReceipt_isBlocked() {
         service.approveTransfer(1L, sourceManager);
-        service.assignTrip(1L, new TransferTripAssignRequest(vehicle.getId(), driver.getId(), LocalDate.of(2026, 6, 19)), user(13L, UserRole.DISPATCHER));
+        service.assignTrip(1L, new TransferTripAssignRequest(vehicle.getId(), driver.getId(), LocalDate.of(2026, 6, 19)), dispatcher);
         service.shipTransfer(1L, sourceManager);
         service.departTransfer(1L, driverUser);
 
@@ -347,6 +398,7 @@ class TransferServiceImplTest {
         value.setPlateNumber("15C-234.56");
         value.setVehicleType("Truck");
         value.setMaxWeightKg(new BigDecimal("1500.00"));
+        value.setWarehouse(sourceWarehouse);
         value.setStatus(VehicleStatus.AVAILABLE);
         value.setIsActive(true);
         return value;
@@ -524,7 +576,7 @@ class TransferServiceImplTest {
         public Object invoke(Object proxy, Method method, Object[] args) {
             return switch (method.getName()) {
                 case "existsByTripNumber" -> false;
-                case "findByVehicleIdAndPlannedDate", "findByDriverIdAndPlannedDate" -> List.of();
+                case "existsByVehicleIdAndPlannedDateAndStatusIn", "existsByDriverIdAndPlannedDateAndStatusIn" -> false;
                 case "save" -> {
                     transferTrip = (Trip) args[0];
                     if (transferTrip.getId() == null) {

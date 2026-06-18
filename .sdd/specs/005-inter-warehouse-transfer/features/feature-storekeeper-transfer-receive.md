@@ -3,6 +3,9 @@
 ## 1. Context and Goal
 Công nhân/Nhân viên kho tại kho đích kiểm tra mặt số lượng khi xe điều chuyển đến và nhập số lượng thực nhận ban đầu. Thủ kho đích kiểm tra lại số lượng, nhập/chốt QC, chọn vị trí nhập kho cho hàng đạt và duyệt kết quả nhận. Trưởng kho đích là người xác nhận cuối cùng, xử lý chênh lệch nếu có và hoàn tất phiếu. Bất kỳ thiếu hụt hoặc vấn đề nào so với số lượng gửi đi đều phải được ghi nhận lý do; nhận thừa so với số lượng gửi đi bị chặn.
 
+Luong nay duoc xu ly trong man **Dieu chuyen noi bo** cho ma `TRF-*`. No khong di vao danh sach phieu nhap `RN-*` tu nha cung cap.
+Sprint 1 gia dinh moi phieu `TRF` co mot lan ship va mot lan final receive. Cac truong hop nhieu dot nhan dang do, split receive, hoac chia thanh nhieu lan final receive khong nam trong scope chuan cua feature nay.
+
 ## 2. Actors
 * **Nhân viên kho/Công nhân kho đích**: Kiểm tra mặt số lượng khi xe đến và nhập số lượng thực nhận ban đầu.
 * **Thủ kho (Kho đích)**: Kiểm tra lại số lượng công nhân nhập, nhập/chốt QC, chọn `destinationLocationId` cho hàng đạt QC và duyệt kết quả nhận.
@@ -17,6 +20,7 @@ Công nhân/Nhân viên kho tại kho đích kiểm tra mặt số lượng khi 
     * Store the worker-entered counts as the current `received_qty` without completing the transfer.
     * Allow the worker to edit the received counts until Thủ kho đích approves the receive check.
     * Create a `TRANSFER_RECEIVE_COUNT` audit log entry.
+    * Treat repeated worker saves before receive-check approval as draft overwrite of the same receiving cycle, not as separate partial receives.
   * WHEN a Thủ kho đích checks and approves received counts and QC results, the system SHALL:
     * Allow the action only after initial received counts exist and before receive check approval.
     * Require `received_qty <= sent_qty`.
@@ -59,7 +63,7 @@ Công nhân/Nhân viên kho tại kho đích kiểm tra mặt số lượng khi 
 ## 4. API Endpoints
 * `PUT /api/v1/transfers/{id}/receive-count` - Nhân viên kho/Công nhân kho đích nhập hoặc sửa số lượng thực nhận ban đầu khi phiếu còn `IN_TRANSIT` và chưa được Thủ kho duyệt receive check.
 * `PUT /api/v1/transfers/{id}/receive-check` - Thủ kho đích kiểm tra lại số lượng, nhập/chốt QC, chọn vị trí nhập kho cho hàng đạt và duyệt kết quả nhận.
-* `PUT /api/v1/transfers/{id}/receive` - Trưởng kho đích xác nhận nhận hàng tại kho đích và báo cáo chênh lệch nếu có.
+* `POST /api/v1/transfers/{id}/final-receive` - Trưởng kho đích xác nhận nhận hàng tại kho đích và báo cáo chênh lệch nếu có.
 
 ### `PUT /api/v1/transfers/{id}/receive-count` Request
 ```json
@@ -91,7 +95,7 @@ Công nhân/Nhân viên kho tại kho đích kiểm tra mặt số lượng khi 
 }
 ```
 
-### `PUT /api/v1/transfers/{id}/receive` Request
+### `POST /api/v1/transfers/{id}/final-receive` Request
 ```json
 {
   "discrepancyReason": "Thieu 2 san pham so voi so luong da gui tu kho nguon"
@@ -111,6 +115,7 @@ Công nhân/Nhân viên kho tại kho đích kiểm tra mặt số lượng khi 
 * `DESTINATION_LOCATION_REQUIRED` (HTTP 400): QC-passed quantity exists without `destinationLocationId`.
 * `QUARANTINE_LOCATION_REQUIRED` (HTTP 422): QC-failed quantity exists but destination warehouse has no active quarantine location.
 * `DISCREPANCY_REQUIRES_REASON` (HTTP 400): shortage or final-level material issue outside normal QC failure exists without a reason.
+* `TRANSFER_SPLIT_RECEIVE_NOT_SUPPORTED` (HTTP 409): actor attempts to finalize the same transfer through multiple independent receipt cycles.
 
 ## 6. Acceptance Criteria
 * **Scenario: Receive with quantity discrepancy**
@@ -166,3 +171,14 @@ Công nhân/Nhân viên kho tại kho đích kiểm tra mặt số lượng khi 
   * Given Nhân viên kho HN recorded initial receipt counts
   * When Trưởng kho HN attempts to confirm final receipt before Thủ kho HN approves receive check
   * Then the system SHALL reject the request with `RECEIVE_CHECK_REQUIRED`.
+
+* **Scenario: Worker updates draft before receive-check approval**
+  * Given transfer `TRF-*` is `IN_TRANSIT`
+  * And worker saved an initial received draft
+  * When the same worker updates the counts again before storekeeper approve receive-check
+  * Then the system SHALL overwrite the worker draft for the same receiving cycle and keep the transfer in the pre-check state.
+
+* **Scenario: Split final receive is out of scope**
+  * Given transfer `TRF-*` is in one active receiving cycle
+  * When a user attempts to complete half of the quantity now and half later as separate final confirmations
+  * Then the system SHALL reject the flow because split final receive is not supported in Sprint 1.

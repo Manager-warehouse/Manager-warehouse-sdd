@@ -8,7 +8,6 @@ import com.wms.enums.AuditAction;
 import com.wms.enums.UserRole;
 import com.wms.repository.AuditLogRepository;
 import com.wms.repository.UserRepository;
-import com.wms.repository.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -40,7 +39,6 @@ import static org.mockito.Mockito.*;
 class AuditLogServiceTest {
 
     @Mock private AuditLogRepository auditLogRepository;
-    @Mock private UserRepository userRepository;
     @Mock private UserRepository userRepository;
     @Mock private HttpServletRequest httpServletRequest;
 

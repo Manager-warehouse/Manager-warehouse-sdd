@@ -56,6 +56,16 @@ const readMockInventories = () => {
   }
 };
 
+const readMockDrivers = () => {
+  const raw = localStorage.getItem('wms_db_drivers');
+  if (!raw) return [];
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    return [];
+  }
+};
+
 const updateMockStatus = async (id, status, patch = {}) => {
   const transfers = readMockTransfers();
   const index = transfers.findIndex((transfer) => transfer.id === Number(id));
@@ -168,9 +178,13 @@ export const transferService = {
 
   assignTrip: async (id, payload) => {
     if (useMock) {
+      const driver = readMockDrivers().find((item) => Number(item.id) === Number(payload.driverId));
       return updateMockStatus(id, 'APPROVED', {
         tripId: Number(id) * 10,
         tripNumber: `TTR-${today().replaceAll('-', '')}-${String(id).padStart(4, '0')}`,
+        driverId: payload.driverId,
+        driverUserId: driver?.userId ?? driver?.user_id ?? null,
+        driverName: driver?.fullName ?? driver?.full_name ?? null,
         trip: payload,
       });
     }
@@ -201,7 +215,14 @@ export const transferService = {
   },
 
   departTransfer: async (id) => {
-    if (useMock) return updateMockStatus(id, 'IN_TRANSIT');
+    if (useMock) {
+      const transfer = await transferService.getTransferById(id);
+      const allItemsLoaded = transfer.items?.length > 0 && transfer.items.every(
+        (item) => item.sentQty != null && Number(item.sentQty) === Number(item.plannedQty)
+      );
+      if (!allItemsLoaded) throw new Error('SENT_QTY_REQUIRED');
+      return updateMockStatus(id, 'IN_TRANSIT');
+    }
     const response = await apiClient.post(`/transfers/${id}/depart`);
     return response.data;
   },

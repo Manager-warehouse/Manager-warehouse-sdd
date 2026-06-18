@@ -6,6 +6,7 @@ import com.wms.config.SecurityConfig;
 import com.wms.config.UserDetailsServiceImpl;
 import com.wms.dto.request.DriverRequest;
 import com.wms.dto.response.DriverResponse;
+import com.wms.dto.response.UserResponse;
 import com.wms.entity.User;
 import com.wms.enums.UserRole;
 import com.wms.exception.GlobalExceptionHandler;
@@ -64,7 +65,8 @@ public class DriverControllerTest {
     @Test
     @WithMockUser(username = "dispatcher@wms.com", roles = "DISPATCHER")
     void getAllDrivers_Dispatcher_Returns200() throws Exception {
-        when(driverService.getAllDrivers(any(), any())).thenReturn(List.of(new DriverResponse()));
+        when(userRepository.findByEmail("dispatcher@wms.com")).thenReturn(Optional.of(dispatcherUser));
+        when(driverService.getAllDrivers(any(), any(), eq(4L))).thenReturn(List.of(new DriverResponse()));
 
         mockMvc.perform(get("/api/v1/dispatcher/drivers"))
                 .andExpect(status().isOk());
@@ -74,6 +76,16 @@ public class DriverControllerTest {
     void getAllDrivers_Unauthenticated_Returns403() throws Exception {
         mockMvc.perform(get("/api/v1/dispatcher/drivers"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser(username = "dispatcher@wms.com", roles = "DISPATCHER")
+    void getDriverUserCandidates_Dispatcher_Returns200() throws Exception {
+        when(userRepository.findByEmail("dispatcher@wms.com")).thenReturn(Optional.of(dispatcherUser));
+        when(driverService.getDriverUserCandidates(4L)).thenReturn(List.of(new UserResponse()));
+
+        mockMvc.perform(get("/api/v1/dispatcher/drivers/candidate-users"))
+                .andExpect(status().isOk());
     }
 
     @Test

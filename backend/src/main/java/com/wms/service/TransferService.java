@@ -12,8 +12,8 @@ import com.wms.entity.User;
 import java.util.List;
 
 public interface TransferService {
-    List<TransferResponse> getAllTransfers();
-    TransferResponse getTransferById(Long id);
+    List<TransferResponse> getAllTransfers(User actor);
+    TransferResponse getTransferById(Long id, User actor);
     TransferResponse createTransfer(TransferCreateRequest request, User actor);
     TransferResponse updateTransfer(Long id, TransferUpdateRequest request, User actor);
     TransferResponse cancelTransfer(Long id, TransferReasonRequest request, User actor);

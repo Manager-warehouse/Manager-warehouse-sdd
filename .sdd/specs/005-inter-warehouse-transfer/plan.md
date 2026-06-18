@@ -6,7 +6,7 @@
 
 ## Summary
 
-Implement Sprint 1 inter-warehouse transfer for both backend and frontend. Planner manually creates transfer documents from external company instructions. Source warehouse manager approves and reserves inventory, Dispatcher assigns one dedicated transfer trip, source storekeeper ships exact approved quantities, assigned driver moves goods to In-Transit, destination worker records counts, destination storekeeper checks count/QC, and destination manager final-confirms receipt. The implementation must preserve inventory invariants, warehouse-scoped RBAC, immutable audit trail, quarantine handling, and non-negative inventory.
+Implement Sprint 1 inter-warehouse transfer as a dedicated `TRF`/`TTR` workflow, separate from supplier inbound `RN` receipts. Planner manually creates transfer documents from external company instructions. Source warehouse manager approves and reserves inventory, Dispatcher at the source warehouse assigns one dedicated transfer trip, source storekeeper ships exact approved quantities, assigned driver moves goods to In-Transit, destination worker records counts, destination storekeeper checks count/QC, and destination manager final-confirms receipt. The implementation must preserve inventory invariants, warehouse-scoped RBAC, immutable audit trail, quarantine handling, and non-negative inventory.
 
 ## Technical Context
 
@@ -85,18 +85,15 @@ backend/src/test/java/com/wms/
 
 frontend/src/
 ├── services/transfer.service.js
-├── pages/Transfers/
-│   ├── TransferList.jsx
-│   ├── TransferForm.jsx
-│   ├── TransferDetail.jsx
-│   ├── TransferShipWorkspace.jsx
-│   └── TransferReceiveWorkspace.jsx
-├── components/transfer/*.jsx
+├── pages/Transfer/
+│   ├── TransferWorkspace.jsx
+│   ├── TransferActionPanel.jsx
+│   └── TransferStatusBadge.jsx
 ├── utils/transferStatus.js
 └── routes/AppRoutes.jsx
 ```
 
-**Structure Decision**: Keep transfer code in dedicated backend transfer files and dedicated frontend transfer module files. Do not merge planner, shipment, and receive behavior into one large frontend page or one large backend utility.
+**Structure Decision**: Keep transfer code in dedicated backend transfer files and a dedicated frontend transfer module. The current frontend uses one shared `TransferWorkspace` with role-aware and state-aware action panels instead of separate planner/ship/receive pages. Internal transfer receiving stays inside this transfer module and is intentionally not merged into the supplier inbound `RN` screens.
 
 ## Complexity Tracking
 

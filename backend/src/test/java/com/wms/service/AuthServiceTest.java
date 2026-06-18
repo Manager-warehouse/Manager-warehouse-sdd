@@ -14,10 +14,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import com.wms.service.EmailService;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -208,7 +206,6 @@ class AuthServiceTest {
     void forgotPassword_validEmail_sendsOtp() {
         when(userRepository.findByEmail("test@wms.com")).thenReturn(Optional.of(activeUser));
         when(userRepository.saveAndFlush(any())).thenReturn(activeUser);
-        doNothing().when(mailSender).send(any(SimpleMailMessage.class));
 
         ForgotPasswordRequest req = new ForgotPasswordRequest();
         req.setEmail("test@wms.com");

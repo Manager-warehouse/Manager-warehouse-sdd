@@ -172,6 +172,7 @@
 2. Hệ thống không tự sinh gợi ý điều chuyển và không tự quyết định kho nguồn/kho đích/số lượng trong Sprint 1.
 3. Hệ thống bắt buộc mã lệnh ngoài để truy vết sau này.
 4. Planner có thể sửa hoặc hủy phiếu khi phiếu còn trạng thái **Mới**.
+5. Phiếu điều chuyển nội bộ dùng mã `TRF-*` và được xử lý ở màn Điều chuyển nội bộ, tách riêng khỏi phiếu nhập NCC `RN-*`.
 
 ---
 
@@ -187,6 +188,8 @@
    - Nếu không duyệt → Trưởng kho nguồn nhập lý do từ chối bắt buộc → Trạng thái: **Từ chối (REJECTED)**.
    - Nếu đã duyệt nhưng cần hủy trước khi xe rời kho → Chỉ Trưởng kho nguồn/manager được hủy và hệ thống giải phóng giữ chỗ.
 3. Dispatcher lập một chuyến xe nội bộ riêng cho phiếu điều chuyển: gán xe, tài xế và ngày vận chuyển.
+   - Dispatcher chỉ được lập chuyến cho phiếu có kho nguồn thuộc phạm vi kho mình.
+   - Danh sách tài xế hợp lệ chỉ gồm các tài xế có thể hoạt động tại kho nguồn của phiếu.
 4. Thủ kho kho nguồn ghi nhận số lượng xuất và bốc xếp lên xe; Tài xế xác nhận đã nhận hàng và xe rời kho → Hệ thống **trừ tồn kho nguồn, giải phóng giữ chỗ, cộng vào Kho ảo In-Transit** → Trạng thái: **Đang vận chuyển (In-Transit)**.
    - Thủ kho nguồn phải ghi đúng số lượng đã duyệt; không được xuất thừa hoặc thiếu.
    - Nếu đã ghi hàng lên xe nhưng chưa rời kho mà cần hủy, hệ thống bắt buộc hạ hàng/unship trước rồi mới cho Trưởng kho nguồn hủy phiếu và nhả giữ chỗ.
@@ -196,6 +199,7 @@
    - Nếu nhận thừa (`received_qty > sent_qty`) → Hệ thống chặn, không cho xác nhận.
    - Nếu QC lỗi → Phần lỗi được đưa vào Quarantine Zone, không tính vào tồn kho khả dụng.
 6. Planner chỉ được hủy phiếu khi còn **NEW**; sau khi **APPROVED** Planner không được hủy. Hệ thống không hỗ trợ hủy phiếu điều chuyển sau khi trạng thái đã là **Đang vận chuyển (In-Transit)**.
+7. Luồng nhận hàng điều chuyển vẫn ở màn Điều chuyển nội bộ; không gộp vào danh sách phiếu nhập NCC `RN`.
 
 ---
 

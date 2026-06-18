@@ -41,9 +41,6 @@ public class Transfer {
     @JoinColumn(name = "created_by", nullable = false)
     private User createdBy;
 
-    @Column(name = "external_instruction_code", length = 80)
-    private String externalInstructionCode;
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "approved_by")
     private User approvedBy;

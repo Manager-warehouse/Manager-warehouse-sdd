@@ -4,6 +4,8 @@ import lombok.*;
 import com.wms.enums.QcResult;
 import com.wms.enums.QcSamplingMethod;
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
 import java.math.BigDecimal;
 
 @Entity

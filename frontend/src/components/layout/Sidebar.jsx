@@ -84,6 +84,15 @@ const Sidebar = () => {
     }
   ];
 
+  const transferItems = [
+    {
+      title: 'Điều chuyển nội bộ',
+      path: '/transfers',
+      icon: Package2,
+      roles: [ROLES.PLANNER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.WAREHOUSE_MANAGER, ROLES.DISPATCHER, ROLES.ADMIN, ROLES.CEO]
+    }
+  ];
+
   const outboundItems = [
     {
       title: 'Đơn xuất hàng',
@@ -107,7 +116,6 @@ const Sidebar = () => {
 
   // Dummy menus to show full WMS modules structure (as disabled or mocked)
   const mockupModules = [
-    { title: 'Điều chuyển (Transfer)', icon: Package2 },
     { title: 'Kiểm kê (Stocktake)', icon: Package2 },
     { title: 'Báo cáo & Cảnh báo', icon: BarChart3 }
   ];
@@ -172,13 +180,13 @@ const Sidebar = () => {
           </div>
         )}
 
-        {operationItems.filter(item => item.roles.some(role => hasRole(role))).length > 0 && (
+        {transferItems.filter(item => item.roles.some(role => hasRole(role))).length > 0 && (
           <div>
             <div className="px-3 py-1.5 text-[10px] font-bold text-shade-40 uppercase tracking-widest mb-2">
               Điều chuyển
             </div>
             <nav className="flex flex-col gap-1">
-              {operationItems
+              {transferItems
                 .filter(item => item.roles.some(role => hasRole(role)))
                 .map((item) => (
                   <NavLink

@@ -86,6 +86,7 @@ public class VehicleControllerTest {
         req.setPlateNumber("29C-12345");
         req.setVehicleType("Container");
         req.setMaxWeightKg(BigDecimal.valueOf(10000.0));
+        req.setWarehouseId(1L);
 
         mockMvc.perform(post("/api/v1/dispatcher/vehicles")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -100,6 +101,7 @@ public class VehicleControllerTest {
         req.setPlateNumber("29C-12345");
         req.setVehicleType("Container");
         req.setMaxWeightKg(BigDecimal.valueOf(10000.0));
+        req.setWarehouseId(1L);
 
         mockMvc.perform(post("/api/v1/dispatcher/vehicles")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -118,6 +120,7 @@ public class VehicleControllerTest {
         req.setPlateNumber("29C-12345");
         req.setVehicleType("Container");
         req.setMaxWeightKg(BigDecimal.valueOf(10000.0));
+        req.setWarehouseId(1L);
 
         mockMvc.perform(post("/api/v1/dispatcher/vehicles")
                         .contentType(MediaType.APPLICATION_JSON)

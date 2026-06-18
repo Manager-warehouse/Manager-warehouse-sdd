@@ -92,6 +92,11 @@ const AppRoutes = () => {
         <Route path="/inbound/quarantine" element={<QuarantineWorkspace />} />
       </Route>
 
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.PLANNER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.WAREHOUSE_MANAGER, ROLES.DISPATCHER, ROLES.ADMIN, ROLES.CEO]} />}>
+        <Route path="/transfers" element={<TransferWorkspace />} />
+        <Route path="/transfers/:id" element={<TransferWorkspace />} />
+      </Route>
+
       {/* Outbound & Delivery protected routes */}
       <Route element={<ProtectedRoute allowedRoles={[ROLES.PLANNER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_MANAGER, ROLES.DISPATCHER, ROLES.ACCOUNTANT, ROLES.ADMIN, ROLES.CEO]} />}>
         <Route path="/outbound/delivery-orders" element={<DeliveryOrders />} />

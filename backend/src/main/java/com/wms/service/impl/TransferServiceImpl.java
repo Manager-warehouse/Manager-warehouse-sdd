@@ -29,6 +29,8 @@ public class TransferServiceImpl implements TransferService {
     private static final String IN_TRANSIT_WAREHOUSE_CODE = "IN_TRANSIT";
     private static final List<TransferStatus> DUPLICATE_IGNORED_STATUSES =
             List.of(TransferStatus.REJECTED, TransferStatus.CANCELLED);
+    private static final List<TripStatus> RESOURCE_BLOCKING_TRIP_STATUSES =
+            List.of(TripStatus.PLANNED, TripStatus.IN_TRANSIT);
 
     private final TransferRepository transferRepository;
     private final TransferItemRepository transferItemRepository;
@@ -46,16 +48,46 @@ public class TransferServiceImpl implements TransferService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<TransferResponse> getAllTransfers() {
+    public List<TransferResponse> getAllTransfers(User actor) {
         return transferRepository.findAllByOrderByCreatedAtDesc().stream()
+                .filter(transfer -> canViewTransfer(actor, transfer))
                 .map(this::toResponse)
                 .toList();
     }
 
     @Override
     @Transactional(readOnly = true)
-    public TransferResponse getTransferById(Long id) {
-        return toResponse(findTransfer(id));
+    public TransferResponse getTransferById(Long id, User actor) {
+        Transfer transfer = findTransfer(id);
+        if (!canViewTransfer(actor, transfer)) {
+            throw new BusinessRuleViolationException("WAREHOUSE_SCOPE_REQUIRED");
+        }
+        return toResponse(transfer);
+    }
+
+    private boolean canViewTransfer(User actor, Transfer transfer) {
+        if (actor.getRole() == UserRole.ADMIN
+                || actor.getRole() == UserRole.CEO
+                || actor.getRole() == UserRole.PLANNER) {
+            return true;
+        }
+        if (actor.getRole() == UserRole.DRIVER) {
+            return transfer.getTrip() != null
+                    && transfer.getTrip().getDriver() != null
+                    && transfer.getTrip().getDriver().getUser() != null
+                    && Objects.equals(transfer.getTrip().getDriver().getUser().getId(), actor.getId());
+        }
+
+        List<Long> warehouseIds = assignmentRepository.findWarehouseIdsByUserId(actor.getId());
+        Long sourceWarehouseId = transfer.getSourceWarehouse().getId();
+        Long destinationWarehouseId = transfer.getDestinationWarehouse().getId();
+        return switch (actor.getRole()) {
+            case DISPATCHER -> warehouseIds.contains(sourceWarehouseId);
+            case WAREHOUSE_STAFF -> warehouseIds.contains(destinationWarehouseId);
+            case STOREKEEPER, WAREHOUSE_MANAGER ->
+                    warehouseIds.contains(sourceWarehouseId) || warehouseIds.contains(destinationWarehouseId);
+            default -> false;
+        };
     }
 
     @Override
@@ -166,7 +198,10 @@ public class TransferServiceImpl implements TransferService {
                 .orElseThrow(() -> new ResourceNotFoundException("Vehicle not found: " + request.vehicleId()));
         Driver driver = driverRepository.findById(request.driverId())
                 .orElseThrow(() -> new ResourceNotFoundException("Driver not found: " + request.driverId()));
+        ensureWarehouseScope(actor, transfer.getSourceWarehouse().getId());
         ensureVehicleAndDriverAvailable(vehicle, driver, request.plannedDate());
+        ensureVehicleBelongsToSourceWarehouse(transfer, vehicle);
+        ensureDriverBelongsToSourceWarehouse(transfer, driver);
 
         Map<String, Object> before = snapshot(transfer);
         Trip trip = new Trip();
@@ -544,9 +579,23 @@ public class TransferServiceImpl implements TransferService {
         if (Boolean.FALSE.equals(driver.getIsActive()) || driver.getStatus() != DriverStatus.AVAILABLE) {
             throw new BusinessRuleViolationException("DRIVER_NOT_AVAILABLE");
         }
-        if (!tripRepository.findByVehicleIdAndPlannedDate(vehicle.getId(), plannedDate).isEmpty()
-                || !tripRepository.findByDriverIdAndPlannedDate(driver.getId(), plannedDate).isEmpty()) {
+        if (tripRepository.existsByVehicleIdAndPlannedDateAndStatusIn(vehicle.getId(), plannedDate, RESOURCE_BLOCKING_TRIP_STATUSES)
+                || tripRepository.existsByDriverIdAndPlannedDateAndStatusIn(driver.getId(), plannedDate, RESOURCE_BLOCKING_TRIP_STATUSES)) {
             throw new BusinessRuleViolationException("TRIP_RESOURCE_OVERLAP");
+        }
+    }
+
+    private void ensureDriverBelongsToSourceWarehouse(Transfer transfer, Driver driver) {
+        Long sourceWarehouseId = transfer.getSourceWarehouse().getId();
+        Long driverUserId = driver.getUser().getId();
+        if (!assignmentRepository.findWarehouseIdsByUserId(driverUserId).contains(sourceWarehouseId)) {
+            throw new BusinessRuleViolationException("DRIVER_SOURCE_WAREHOUSE_REQUIRED");
+        }
+    }
+
+    private void ensureVehicleBelongsToSourceWarehouse(Transfer transfer, Vehicle vehicle) {
+        if (vehicle.getWarehouse() == null || !Objects.equals(vehicle.getWarehouse().getId(), transfer.getSourceWarehouse().getId())) {
+            throw new BusinessRuleViolationException("VEHICLE_SOURCE_WAREHOUSE_REQUIRED");
         }
     }
 
