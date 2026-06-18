@@ -42,6 +42,11 @@ public class GlobalExceptionHandler {
         return error(ex.getStatus(), ex.getCode(), ex.getMessage(), null, null);
     }
 
+    @ExceptionHandler(OutboundDeliveryException.class)
+    public ResponseEntity<ApiErrorResponse> handleOutboundDelivery(OutboundDeliveryException ex) {
+        return error(ex.getStatus(), ex.getCode(), ex.getMessage(), null, ex.getDetails());
+    }
+
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiErrorResponse> handleAccessDenied(AccessDeniedException ex) {
         return error(HttpStatus.FORBIDDEN, "ACCESS_DENIED", "Access denied", "Access denied", null);

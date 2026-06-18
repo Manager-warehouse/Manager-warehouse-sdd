@@ -14,6 +14,8 @@ public interface ReceiptItemRepository extends JpaRepository<ReceiptItem, Long> 
 
     List<ReceiptItem> findByReceiptId(Long receiptId);
 
+    List<ReceiptItem> findByReceiptIdOrderByIdAsc(Long receiptId);
+
     Optional<ReceiptItem> findByIdAndReceiptId(Long id, Long receiptId);
 
     @Query("SELECT COUNT(r) FROM Receipt r WHERE r.supplier.id = :supplierId AND r.status = 'APPROVED'")

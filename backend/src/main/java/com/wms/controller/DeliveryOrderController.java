@@ -1,18 +1,21 @@
 package com.wms.controller;
 
+import com.wms.dto.request.DeliveryOrderCancelRequest;
 import com.wms.dto.request.DeliveryOrderCreateRequest;
 import com.wms.dto.request.DeliveryOrderUpdateRequest;
 import com.wms.dto.response.DeliveryOrderResponse;
 import com.wms.entity.User;
 import com.wms.service.CurrentUserService;
 import com.wms.service.DeliveryOrderService;
+import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -52,8 +55,14 @@ public class DeliveryOrderController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','ACCOUNTANT_MANAGER','PLANNER')")
+    @PreAuthorize("hasRole('PLANNER')")
     @Operation(summary = "Create delivery order")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Delivery order created"),
+            @ApiResponse(responseCode = "400", description = "Invalid request payload", content = @Content),
+            @ApiResponse(responseCode = "403", description = "Planner is not assigned to the selected warehouse", content = @Content),
+            @ApiResponse(responseCode = "422", description = "Credit hold or insufficient stock", content = @Content)
+    })
     public DeliveryOrderResponse createDeliveryOrder(@Valid @RequestBody DeliveryOrderCreateRequest request) {
         return deliveryOrderService.createDeliveryOrder(request, currentUser());
     }
@@ -66,12 +75,19 @@ public class DeliveryOrderController {
         return deliveryOrderService.updateDeliveryOrder(id, request, currentUser());
     }
 
-    @DeleteMapping("/{id}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','ACCOUNTANT_MANAGER','PLANNER')")
-    @Operation(summary = "Cancel delivery order")
-    public void cancelDeliveryOrder(@PathVariable Long id) {
-        deliveryOrderService.cancelDeliveryOrder(id, currentUser());
+    @PutMapping("/{id}/cancel")
+    @PreAuthorize("hasRole('WAREHOUSE_MANAGER')")
+    @Operation(summary = "Cancel delivery order before warehouse approval")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Delivery order cancelled"),
+            @ApiResponse(responseCode = "400", description = "Invalid cancel reason", content = @Content),
+            @ApiResponse(responseCode = "403", description = "Warehouse Manager is not assigned to the delivery order warehouse", content = @Content),
+            @ApiResponse(responseCode = "404", description = "Delivery order not found", content = @Content),
+            @ApiResponse(responseCode = "422", description = "Delivery order cannot be cancelled in its current status", content = @Content)
+    })
+    public DeliveryOrderResponse cancelDeliveryOrder(@PathVariable Long id,
+                                                     @Valid @RequestBody DeliveryOrderCancelRequest request) {
+        return deliveryOrderService.cancelDeliveryOrder(id, request, currentUser());
     }
 
     private User currentUser() {
