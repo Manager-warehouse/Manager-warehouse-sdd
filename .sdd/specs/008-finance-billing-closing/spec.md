@@ -4,7 +4,7 @@
 **Created**: 2026-05-30
 **Updated**: 2026-06-17
 **Status**: Approved
-**Features**: US-WMS-10, US-WMS-15, US-WMS-16, US-WMS-17
+**Features**: US-WMS-10, US-WMS-15, US-WMS-16, US-WMS-17, US-WMS-18
 
 ---
 
@@ -17,6 +17,7 @@ Sau khi đơn hàng được giao thành công (trạng thái `DELIVERED`), hệ
 * [US-WMS-15: Ghi nhận Thanh toán & Quản lý Công nợ](./features/feature-accountant-payment-collection.md)
 * [US-WMS-16: Báo cáo Công nợ Phân kỳ (Aging Report)](./features/feature-accountant-credit-aging-report.md)
 * [US-WMS-17: Chốt sổ Kế toán & Khóa Kỳ](./features/feature-accountant-period-closing.md)
+* [US-WMS-18: Quét hóa đơn chuyển khoản bằng OCR](./features/feature-ocr-payment-receipt-scanning.md)
 
 ## 2. Actors
 
@@ -32,6 +33,7 @@ Sau khi đơn hàng được giao thành công (trạng thái `DELIVERED`), hệ
 * [EARS - Payment Collection](./features/feature-accountant-payment-collection.md#3-functional-requirements-ears)
 * [EARS - Credit Aging Report](./features/feature-accountant-credit-aging-report.md#3-functional-requirements-ears)
 * [EARS - Period Closing](./features/feature-accountant-period-closing.md#3-functional-requirements-ears)
+* [EARS - OCR Payment Receipt Scanning](./features/feature-ocr-payment-receipt-scanning.md#3-functional-requirements-ears)
 
 ## 4. Non-functional Requirements
 
@@ -117,6 +119,7 @@ Các endpoints được cấu hình thông qua base API prefix `/api/v1`:
 | **GET** | `/api/v1/invoices` | `ACCOUNTANT`, `ACCOUNTANT_MANAGER` | Danh sách hóa đơn (lọc theo dealer, status, kỳ) |
 | **GET** | `/api/v1/invoices/{id}` | `ACCOUNTANT`, `ACCOUNTANT_MANAGER` | Chi tiết hóa đơn |
 | **POST** | `/api/v1/payment-receipts` | `ACCOUNTANT` | Ghi nhận phiếu thu cấn trừ công nợ đại lý |
+| **POST** | `/api/v1/payment-receipts/ocr` | `ACCOUNTANT` | Upload và phân tích hóa đơn chuyển khoản qua OCR |
 | **GET** | `/api/v1/payment-receipts` | `ACCOUNTANT`, `ACCOUNTANT_MANAGER` | Danh sách phiếu thu công nợ |
 | **GET** | `/api/v1/credit/aging-report` | `ACCOUNTANT_MANAGER` | Báo cáo công nợ phân kỳ của đại lý |
 | **GET** | `/api/v1/accounting-periods` | `ACCOUNTANT`, `ACCOUNTANT_MANAGER` | Danh sách kỳ kế toán |
@@ -138,6 +141,7 @@ Các endpoints được cấu hình thông qua base API prefix `/api/v1`:
 * [Acceptance - Payment Collection](./features/feature-accountant-payment-collection.md#5-acceptance-criteria)
 * [Acceptance - Credit Aging Report](./features/feature-accountant-credit-aging-report.md#5-acceptance-criteria)
 * [Acceptance - Period Closing](./features/feature-accountant-period-closing.md#5-acceptance-criteria)
+* [Acceptance - OCR Payment Receipt Scanning](./features/feature-ocr-payment-receipt-scanning.md#5-acceptance-criteria)
 
 ## 9. Out of Scope
 

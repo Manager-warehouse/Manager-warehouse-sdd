@@ -302,6 +302,59 @@ export const financeService = {
     return response.data;
   },
 
+  scanPaymentReceiptOcr: async (file) => {
+    if (useMock) {
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      const dealers = getDb(KEYS.DEALERS, []);
+      const activeDealers = dealers.filter(d => d.credit_status === 'ACTIVE' || d.is_active !== false);
+      const demoDealer = activeDealers[0] || { id: 1, name: 'Đại lý Minh Trí' };
+      
+      // Phân tích tên file ảnh giả lập số tiền
+      let filenameClean = file.name.toLowerCase();
+      if (filenameClean.includes("screenshot")) {
+        // Nếu là file screenshot hệ thống tự đặt tên, xóa bỏ phần số ngày giờ đi kèm (ví dụ: screenshot 2026-06-17 221536)
+        filenameClean = filenameClean.replace(/screenshot[\s-_]*\d+.*/g, 'screenshot');
+      } else {
+        // Loại bỏ phần ngày tháng năm của screenshot (dạng 202x-xx-xx hoặc năm 202x)
+        filenameClean = filenameClean.replace(/202\d[-_]\d{2}[-_]\d{2}/g, '').replace(/202\d/g, '');
+      }
+      let amount = 25000000.00;
+      const numberPattern = /\d{4,}/;
+      const match = filenameClean.match(numberPattern);
+      if (match) {
+        amount = parseFloat(match[0]);
+      }
+      
+      // Phân tích tên file ảnh để map đại lý
+      let matchedDealer = demoDealer;
+      const filename = file.name.toLowerCase();
+      for (const d of dealers) {
+        const cleanName = d.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const cleanFilename = filename.replace(/[^a-z0-9]/g, '');
+        if (cleanFilename.includes(cleanName) || filename.includes(d.code.toLowerCase().replace(/-/g, '_'))) {
+          matchedDealer = d;
+          break;
+        }
+      }
+
+      return {
+        amount: amount,
+        payment_date: new Date().toISOString().slice(0, 10),
+        dealer_id: matchedDealer.id,
+        notes: `CK TIEN HANG - ${matchedDealer.name.toUpperCase()} - GIAO DICH OCR_MOCK_${Math.floor(Math.random() * 100000)}`,
+        confidence_score: 0.96
+      };
+    }
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await apiClient.post('/payment-receipts/ocr', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    return response.data;
+  },
+
   // --- AGING REPORT ---
   getAgingReport: async () => {
     if (useMock) {

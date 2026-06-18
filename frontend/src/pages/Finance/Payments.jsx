@@ -6,7 +6,7 @@ import { useAuthStore } from '../../stores/auth.store';
 import { ROLES } from '../../utils/constants';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
-import { Landmark, Receipt, ClipboardList, ShieldAlert, CheckCircle2, TrendingUp, TrendingDown, Users } from 'lucide-react';
+import { Landmark, Receipt, ClipboardList, ShieldAlert, CheckCircle2, TrendingUp, TrendingDown, Users, UploadCloud } from 'lucide-react';
 
 const Payments = () => {
   const { addToast } = useUiStore();
@@ -31,6 +31,45 @@ const Payments = () => {
     paymentMethod: 'BANK_TRANSFER',
     notes: ''
   });
+
+  // OCR states
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const [ocrFileName, setOcrFileName] = useState('');
+
+  const handleOcrUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!['image/png', 'image/jpeg', 'image/jpg'].includes(file.type)) {
+      addToast('Chỉ hỗ trợ file ảnh PNG, JPEG, JPG', 'error');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      addToast('Dung lượng ảnh tối đa 5MB', 'error');
+      return;
+    }
+
+    setOcrLoading(true);
+    setOcrFileName(file.name);
+    try {
+      const result = await financeService.scanPaymentReceiptOcr(file);
+      setFormData(prev => ({
+        ...prev,
+        dealerId: result.dealer_id ? String(result.dealer_id) : '',
+        amount: result.amount ? String(result.amount) : '',
+        paymentDate: result.payment_date || prev.paymentDate,
+        notes: result.notes || ''
+      }));
+
+      addToast(`Quét hóa đơn thành công! Độ chính xác nhận diện: ${Math.round(result.confidence_score * 100)}%`, 'success');
+    } catch (err) {
+      console.error('OCR failed:', err);
+      addToast(err.message || 'Không thể quét hóa đơn OCR', 'error');
+      setOcrFileName('');
+    } finally {
+      setOcrLoading(false);
+    }
+  };
 
   // Selected Invoice Info for validation & helper text
   const [selectedInvoice, setSelectedInvoice] = useState(null);
@@ -204,6 +243,60 @@ const Payments = () => {
                 <div className="flex items-center gap-3 pb-3 border-b border-hairline-light">
                   <Landmark className="w-4 h-4 text-shade-60" />
                   <h2 className="text-sm font-semibold uppercase tracking-wider text-ink">Ghi nhận phiếu thu mới</h2>
+                </div>
+
+                {/* Upload OCR hóa đơn chuyển khoản */}
+                <div className="flex flex-col gap-1.5 border border-dashed border-hairline rounded p-4 bg-canvas-cream/30 text-center">
+                  <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block">
+                    Quét hóa đơn thông minh (OCR)
+                  </span>
+                  {ocrLoading ? (
+                    <div className="flex flex-col items-center justify-center py-2 text-shade-50 gap-2">
+                      <svg className="animate-spin h-5 w-5 text-ink" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      <span className="text-[11px] font-medium">Đang nhận diện hóa đơn...</span>
+                    </div>
+                  ) : ocrFileName ? (
+                    <div className="flex items-center justify-between bg-canvas-light border border-hairline-light rounded px-2.5 py-1.5 text-xs">
+                      <span className="truncate max-w-[150px] font-medium text-ink">{ocrFileName}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOcrFileName('');
+                          setFormData({
+                            dealerId: '',
+                            invoiceId: '',
+                            amount: '',
+                            paymentDate: new Date().toISOString().slice(0, 10),
+                            paymentMethod: 'BANK_TRANSFER',
+                            notes: ''
+                          });
+                        }}
+                        className="text-red-500 hover:text-red-700 font-bold ml-2 text-[10px] uppercase tracking-wider"
+                      >
+                        Xóa
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="flex flex-col items-center gap-1 cursor-pointer py-1.5 hover:bg-canvas-cream/50 rounded transition-colors">
+                      <UploadCloud className="w-5 h-5 text-shade-40" />
+                      <span className="text-[11px] font-semibold text-ink">
+                        Chọn ảnh giao dịch chuyển khoản
+                      </span>
+                      <span className="text-[9px] text-shade-40">
+                        Định dạng PNG, JPG (tối đa 5MB)
+                      </span>
+                      <input
+                        type="file"
+                        accept="image/png, image/jpeg, image/jpg"
+                        onChange={handleOcrUpload}
+                        className="hidden"
+                        disabled={!isAccountant}
+                      />
+                    </label>
+                  )}
                 </div>
 
                 <form onSubmit={handleSubmitPayment} className="flex flex-col gap-4">

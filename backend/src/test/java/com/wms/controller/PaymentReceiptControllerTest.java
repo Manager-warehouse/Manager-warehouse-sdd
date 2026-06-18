@@ -13,6 +13,9 @@ import com.wms.exception.GlobalExceptionHandler;
 import com.wms.repository.UserRepository;
 import com.wms.service.PaymentReceiptService;
 import com.wms.util.JwtUtil;
+import com.wms.dto.response.PaymentReceiptOcrResponse;
+import com.wms.service.OcrService;
+import org.springframework.mock.web.MockMultipartFile;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -47,6 +50,7 @@ class PaymentReceiptControllerTest {
     @MockBean UserRepository userRepository;
     @MockBean JwtUtil jwtUtil;
     @MockBean UserDetailsServiceImpl userDetailsService;
+    @MockBean OcrService ocrService;
 
     private User accountant;
 
@@ -123,5 +127,47 @@ class PaymentReceiptControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].payment_number").value("PAY-001"));
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/payment-receipts/ocr — 200 OK khi upload ảnh hóa đơn hợp lệ")
+    @WithMockUser(username = "accountant@wms.com", roles = "ACCOUNTANT")
+    void scanPaymentReceipt_success() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "receipt_25000000_hoang_phat.png", "image/png", "fake image content".getBytes()
+        );
+
+        PaymentReceiptOcrResponse response = PaymentReceiptOcrResponse.builder()
+                .amount(BigDecimal.valueOf(25000000))
+                .paymentDate(LocalDate.of(2026, 6, 20))
+                .dealerId(1L)
+                .notes("CK TIEN HANG")
+                .confidenceScore(0.95)
+                .build();
+
+        when(userRepository.findByEmail("accountant@wms.com")).thenReturn(Optional.of(accountant));
+        when(ocrService.processOcr(any(), any())).thenReturn(response);
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart("/api/v1/payment-receipts/ocr")
+                        .file(file))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.amount").value(25000000))
+                .andExpect(jsonPath("$.dealer_id").value(1))
+                .andExpect(jsonPath("$.confidence_score").value(0.95));
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/payment-receipts/ocr — 400 Bad Request khi upload sai định dạng file")
+    @WithMockUser(username = "accountant@wms.com", roles = "ACCOUNTANT")
+    void scanPaymentReceipt_invalidFileType() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "receipt.txt", "text/plain", "fake text content".getBytes()
+        );
+
+        when(userRepository.findByEmail("accountant@wms.com")).thenReturn(Optional.of(accountant));
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart("/api/v1/payment-receipts/ocr")
+                        .file(file))
+                .andExpect(status().isBadRequest());
     }
 }
