@@ -31,12 +31,13 @@ import org.springframework.http.MediaType;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
+import com.wms.config.JacksonConfig;
 import com.wms.config.SecurityConfig;
 import com.wms.config.JwtAuthFilter;
 import com.wms.exception.GlobalExceptionHandler;
 
 @WebMvcTest(ReceiptController.class)
-@Import({SecurityConfig.class, JwtAuthFilter.class, GlobalExceptionHandler.class})
+@Import({SecurityConfig.class, JwtAuthFilter.class, GlobalExceptionHandler.class, JacksonConfig.class})
 class ReceiptControllerTest {
 
     @Autowired

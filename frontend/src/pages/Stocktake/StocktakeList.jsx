@@ -32,8 +32,8 @@ const APPROVAL_LABELS = {
 
 const StocktakeList = () => {
   const navigate = useNavigate();
-  const { user, hasRole } = useAuthStore();
-  const { activeWarehouse, showToast } = useUiStore();
+  const { user, hasRole, activeWarehouse } = useAuthStore();
+  const { showToast } = useUiStore();
 
   const [stocktakes, setStocktakes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -105,7 +105,7 @@ const StocktakeList = () => {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-6 w-full space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -118,7 +118,7 @@ const StocktakeList = () => {
         {canCreate && (
           <button
             onClick={() => navigate('/stocktake/new')}
-            className="flex items-center gap-2 px-4 py-2 rounded-pill bg-aloe-40 text-white text-xs font-semibold hover:bg-aloe-50 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 rounded-pill bg-black text-white text-xs font-semibold hover:bg-zinc-800 transition-colors"
           >
             <Plus className="w-4 h-4" />
             Tạo phiếu kiểm kê
@@ -135,8 +135,8 @@ const StocktakeList = () => {
             onClick={() => setStatusFilter(s)}
             className={`px-3 py-1.5 rounded-pill text-xs font-semibold transition-colors border ${
               statusFilter === s
-                ? 'bg-aloe-40 text-white border-aloe-40'
-                : 'border-hairline text-shade-50 hover:border-aloe-40 hover:text-aloe-40'
+                ? 'bg-black text-white border-black'
+                : 'border-hairline text-shade-50 hover:border-black hover:text-black'
             }`}
           >
             {s ? STATUS_LABELS[s] : 'Tất cả'}

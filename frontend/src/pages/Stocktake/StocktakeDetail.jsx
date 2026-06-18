@@ -163,7 +163,7 @@ const StocktakeDetail = () => {
   const isDraft = stocktake.status === 'DRAFT';
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-6 w-full space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
@@ -199,7 +199,7 @@ const StocktakeDetail = () => {
               <button
                 onClick={handleSaveCount}
                 disabled={saving}
-                className="flex items-center gap-2 px-4 py-2 rounded-pill bg-aloe-40 text-white text-xs font-semibold hover:bg-aloe-50 transition-colors disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 rounded-pill bg-zinc-700 text-white text-xs font-semibold hover:bg-zinc-800 transition-colors disabled:opacity-50"
               >
                 <Save className="w-3.5 h-3.5" />
                 {saving ? 'Đang lưu...' : 'Lưu số liệu'}

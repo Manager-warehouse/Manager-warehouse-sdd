@@ -42,6 +42,7 @@ VALUES ('ST', 1, NOW())
 ON CONFLICT (sequence_key) DO NOTHING;
 
 -- 6. Extend audit_logs action CHECK to include stocktake lifecycle actions
+-- NOT VALID skips validation of existing rows (avoids constraint violation on legacy data)
 ALTER TABLE audit_logs DROP CONSTRAINT IF EXISTS audit_logs_action_check;
 ALTER TABLE audit_logs
     ADD CONSTRAINT audit_logs_action_check
@@ -60,4 +61,4 @@ ALTER TABLE audit_logs
         'STOCKTAKE_CREATE', 'STOCKTAKE_START', 'STOCKTAKE_COUNT_UPDATE',
         'STOCKTAKE_COMPLETE', 'STOCKTAKE_AUTO_APPROVE', 'STOCKTAKE_APPROVE',
         'STOCKTAKE_REJECT', 'STOCKTAKE_CANCEL'
-    ));
+    )) NOT VALID;
