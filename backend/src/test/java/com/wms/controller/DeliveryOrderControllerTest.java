@@ -12,6 +12,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.wms.config.JwtAuthFilter;
 import com.wms.config.SecurityConfig;
 import com.wms.config.UserDetailsServiceImpl;
+import com.wms.dto.response.DeliveryOrderAllocationResponse;
+import com.wms.dto.response.DeliveryOrderItemResponse;
 import com.wms.dto.response.DeliveryOrderResponse;
 import com.wms.entity.User;
 import com.wms.enums.DeliveryOrderStatus;
@@ -48,11 +50,13 @@ class DeliveryOrderControllerTest {
 
     private User planner;
     private User manager;
+    private User storekeeper;
 
     @BeforeEach
     void setUp() {
         planner = user(1L, UserRole.PLANNER);
         manager = user(2L, UserRole.WAREHOUSE_MANAGER);
+        storekeeper = user(3L, UserRole.STOREKEEPER);
     }
 
     @Test
@@ -112,6 +116,86 @@ class DeliveryOrderControllerTest {
                 .andExpect(status().isForbidden());
     }
 
+    @Test
+    @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
+    void savePickingPlan_success() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(storekeeper);
+        when(deliveryOrderService.saveDeliveryOrderPickingPlan(eq(100L), any(), eq(storekeeper)))
+                .thenReturn(response(DeliveryOrderStatus.WAITING_PICKING));
+
+        mockMvc.perform(put("/api/v1/delivery-orders/100/picking-plan")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(pickingPlanJson()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("WAITING_PICKING"))
+                .andExpect(jsonPath("$.items[0].plannedQty").value(10))
+                .andExpect(jsonPath("$.items[0].allocations[0].inventoryId").value(501));
+    }
+
+    @Test
+    @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
+    void savePickingPlan_rejectsBusinessError() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(storekeeper);
+        when(deliveryOrderService.saveDeliveryOrderPickingPlan(eq(100L), any(), eq(storekeeper)))
+                .thenThrow(new OutboundDeliveryException("PICKING_PLAN_QTY_MISMATCH",
+                        HttpStatus.UNPROCESSABLE_ENTITY, "Planned quantity mismatch"));
+
+        mockMvc.perform(put("/api/v1/delivery-orders/100/picking-plan")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(pickingPlanJson()))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("PICKING_PLAN_QTY_MISMATCH"));
+    }
+
+    @Test
+    @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
+    void savePickingPlan_rejectsMissingReturnToBinRecord() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(storekeeper);
+        when(deliveryOrderService.saveDeliveryOrderPickingPlan(eq(100L), any(), eq(storekeeper)))
+                .thenThrow(new OutboundDeliveryException("PICKED_GOODS_RETURN_REQUIRED",
+                        HttpStatus.UNPROCESSABLE_ENTITY, "Changing a picked allocation requires return-to-bin records"));
+
+        mockMvc.perform(put("/api/v1/delivery-orders/100/picking-plan")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(revisionPickingPlanJson()))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("PICKED_GOODS_RETURN_REQUIRED"));
+    }
+
+    @Test
+    @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
+    void saveReplacementPlan_success() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(storekeeper);
+        when(deliveryOrderService.saveDeliveryOrderReplacementPlan(eq(100L), any(), eq(storekeeper)))
+                .thenReturn(response(DeliveryOrderStatus.WAITING_PICKING));
+
+        mockMvc.perform(put("/api/v1/delivery-orders/100/replacement-plan")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(replacementPlanJson()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("WAITING_PICKING"));
+    }
+
+    @Test
+    @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
+    void saveReplacementPlan_rejectsInvalidStatus() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(storekeeper);
+        when(deliveryOrderService.saveDeliveryOrderReplacementPlan(eq(100L), any(), eq(storekeeper)))
+                .thenThrow(new OutboundDeliveryException("DELIVERY_ORDER_STATUS_INVALID",
+                        HttpStatus.UNPROCESSABLE_ENTITY, "Replacement plan can only be saved from QC_PENDING_APPROVAL status"));
+
+        mockMvc.perform(put("/api/v1/delivery-orders/100/replacement-plan")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(replacementPlanJson()))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("DELIVERY_ORDER_STATUS_INVALID"));
+    }
+
     private String createJson() {
         return """
                 {
@@ -127,6 +211,77 @@ class DeliveryOrderControllerTest {
                 """;
     }
 
+    private String pickingPlanJson() {
+        return """
+                {
+                  "allocations": [
+                    {
+                      "doItemId": 200,
+                      "inventoryId": 501,
+                      "batchId": 71,
+                      "locationId": 801,
+                      "zoneId": 31,
+                      "plannedQty": 10
+                    }
+                  ]
+                }
+                """;
+    }
+
+    private String revisionPickingPlanJson() {
+        return """
+                {
+                  "allocations": [
+                    {
+                      "doItemId": 200,
+                      "inventoryId": 501,
+                      "batchId": 71,
+                      "locationId": 801,
+                      "zoneId": 31,
+                      "plannedQty": 6
+                    },
+                    {
+                      "doItemId": 200,
+                      "inventoryId": 502,
+                      "batchId": 72,
+                      "locationId": 802,
+                      "zoneId": 32,
+                      "plannedQty": 4
+                    }
+                  ],
+                  "returnToBinRecords": [
+                    {
+                      "allocationId": 900,
+                      "returnedQty": 4,
+                      "sourceLocationId": 880,
+                      "reason": "Rebalance after picked bin became blocked"
+                    }
+                  ]
+                }
+                """;
+    }
+
+    private String replacementPlanJson() {
+        return """
+                {
+                  "replacements": [
+                    {
+                      "doItemId": 200,
+                      "failedInventoryId": 501,
+                      "failedBatchId": 71,
+                      "failedLocationId": 801,
+                      "replacementInventoryId": 502,
+                      "replacementBatchId": 72,
+                      "replacementLocationId": 802,
+                      "replacementZoneId": 32,
+                      "quantity": 2,
+                      "reason": "QC fail scratched cookware"
+                    }
+                  ]
+                }
+                """;
+    }
+
     private DeliveryOrderResponse response(DeliveryOrderStatus status) {
         return DeliveryOrderResponse.builder()
                 .id(100L)
@@ -137,7 +292,23 @@ class DeliveryOrderControllerTest {
                 .documentDate(LocalDate.of(2026, 6, 18))
                 .expectedDeliveryDate(LocalDate.of(2026, 6, 20))
                 .status(status)
-                .items(List.of())
+                .items(List.of(DeliveryOrderItemResponse.builder()
+                        .id(200L)
+                        .productId(30L)
+                        .requestedQty(java.math.BigDecimal.TEN)
+                        .plannedQty(java.math.BigDecimal.TEN)
+                        .reservedQty(java.math.BigDecimal.TEN)
+                        .allocations(List.of(DeliveryOrderAllocationResponse.builder()
+                                .allocationId(900L)
+                                .inventoryId(501L)
+                                .batchId(71L)
+                                .locationId(801L)
+                                .zoneId(31L)
+                                .plannedQty(java.math.BigDecimal.TEN)
+                                .pickedQty(java.math.BigDecimal.ZERO)
+                                .replacement(false)
+                                .build()))
+                        .build()))
                 .build();
     }
 

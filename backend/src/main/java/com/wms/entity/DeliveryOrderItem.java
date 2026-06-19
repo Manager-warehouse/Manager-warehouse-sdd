@@ -33,11 +33,27 @@ public class DeliveryOrderItem {
     @JoinColumn(name = "location_id")
     private WarehouseLocation location;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "zone_id")
+    private WarehouseLocation zone;
+
     @Column(name = "requested_qty", nullable = false, precision = 10, scale = 2)
     private BigDecimal requestedQty;
 
     @Column(name = "reserved_qty", nullable = false, precision = 10, scale = 2)
     private BigDecimal reservedQty;
+
+    @Column(name = "planned_qty", nullable = false, precision = 10, scale = 2)
+    private BigDecimal plannedQty;
+
+    @Column(name = "picked_qty", nullable = false, precision = 10, scale = 2)
+    private BigDecimal pickedQty;
+
+    @Column(name = "qc_pass_qty", nullable = false, precision = 10, scale = 2)
+    private BigDecimal qcPassQty;
+
+    @Column(name = "qc_fail_qty", nullable = false, precision = 10, scale = 2)
+    private BigDecimal qcFailQty;
 
     @Column(name = "issued_qty", nullable = false, precision = 10, scale = 2)
     private BigDecimal issuedQty;

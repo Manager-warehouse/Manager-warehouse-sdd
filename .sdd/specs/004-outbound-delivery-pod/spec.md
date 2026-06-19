@@ -82,7 +82,7 @@ _Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đ
 - `product_id` (BIGINT, FK→products, NOT NULL)
 - `batch_id` (BIGINT, FK→batches) -- nullable summary of planned batch when a line is planned from one source; detailed multi-bin allocations live in `delivery_order_item_allocations`
 - `location_id` (BIGINT, FK→warehouse_locations) -- nullable summary of planned bin/location when a line is planned from one source
-- `zone_id` (BIGINT, FK→warehouse_zones) -- nullable summary of planned zone when a line is planned from one source
+- `zone_id` (BIGINT, FK→warehouse_locations) -- nullable summary of planned zone when a line is planned from one source; zone rows are stored in `warehouse_locations`
 - `requested_qty` (DECIMAL(10,2), NOT NULL)
 - `reserved_qty` (DECIMAL(10,2), DEFAULT 0)
 - `planned_qty` (DECIMAL(10,2), DEFAULT 0)
@@ -99,7 +99,7 @@ _Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đ
 - `inventory_id` (BIGINT, FK→inventories, NOT NULL)
 - `batch_id` (BIGINT, FK→batches, NOT NULL)
 - `location_id` (BIGINT, FK→warehouse_locations, NOT NULL)
-- `zone_id` (BIGINT, FK→warehouse_zones, NOT NULL)
+- `zone_id` (BIGINT, FK→warehouse_locations, NOT NULL) -- zone rows are stored in `warehouse_locations`
 - `planned_qty` (DECIMAL(10,2), NOT NULL)
 - `picked_qty` (DECIMAL(10,2), DEFAULT 0)
 - `is_replacement` (BOOLEAN, DEFAULT false)
@@ -117,7 +117,7 @@ _Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đ
 - `product_id` (BIGINT, FK→products, NOT NULL)
 - `batch_id` (BIGINT, FK→batches, NOT NULL)
 - `original_location_id` (BIGINT, FK→warehouse_locations, NOT NULL)
-- `original_zone_id` (BIGINT, FK→warehouse_zones, NOT NULL)
+- `original_zone_id` (BIGINT, FK→warehouse_locations, NOT NULL) -- zone rows are stored in `warehouse_locations`
 - `source_location_id` (BIGINT, FK→warehouse_locations) -- outbound staging or current picked state when applicable
 - `returned_qty` (DECIMAL(10,2), NOT NULL)
 - `reason` (TEXT)
@@ -159,7 +159,7 @@ _Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đ
 - `allocation_id` (BIGINT, FK→delivery_order_item_allocations, NOT NULL)
 - `batch_id` (BIGINT, FK→batches, NOT NULL)
 - `location_id` (BIGINT, FK→warehouse_locations, NOT NULL)
-- `zone_id` (BIGINT, FK→warehouse_zones, NOT NULL)
+- `zone_id` (BIGINT, FK→warehouse_locations, NOT NULL) -- zone rows are stored in `warehouse_locations`
 - `staging_location_id` (BIGINT, FK→warehouse_locations)
 - `quarantine_location_id` (BIGINT, FK→warehouse_locations)
 - `inspector_id` (BIGINT, FK→users, NOT NULL) -- Nhân viên kho trực tiếp kiểm tra sản phẩm

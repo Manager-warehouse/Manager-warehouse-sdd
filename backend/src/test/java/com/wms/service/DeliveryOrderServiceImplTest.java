@@ -4,22 +4,35 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.wms.dto.request.DeliveryOrderAllocationRequest;
 import com.wms.dto.request.DeliveryOrderCancelRequest;
 import com.wms.dto.request.DeliveryOrderCreateRequest;
 import com.wms.dto.request.DeliveryOrderItemCreateRequest;
+import com.wms.dto.request.DeliveryOrderPickingPlanRequest;
+import com.wms.dto.request.DeliveryOrderReplacementAllocationRequest;
+import com.wms.dto.request.DeliveryOrderReplacementPlanRequest;
+import com.wms.dto.request.DeliveryOrderReturnToBinRequest;
 import com.wms.dto.response.DeliveryOrderResponse;
+import com.wms.entity.Batch;
 import com.wms.entity.Dealer;
 import com.wms.entity.DeliveryOrder;
 import com.wms.entity.DeliveryOrderItem;
+import com.wms.entity.DeliveryOrderItemAllocation;
+import com.wms.entity.DeliveryOrderItemReplacement;
+import com.wms.entity.Inventory;
 import com.wms.entity.PriceHistory;
 import com.wms.entity.Product;
 import com.wms.entity.User;
 import com.wms.entity.Warehouse;
+import com.wms.entity.WarehouseLocation;
 import com.wms.entity.WarehouseProductReservation;
+import com.wms.repository.DeliveryOrderItemAllocationRepository;
+import com.wms.repository.DeliveryOrderItemReplacementRepository;
 import com.wms.enums.CreditStatus;
 import com.wms.enums.DeliveryOrderStatus;
 import com.wms.enums.DeliveryOrderType;
@@ -30,9 +43,11 @@ import com.wms.exception.OutboundDeliveryException;
 import com.wms.mapper.DeliveryOrderMapper;
 import com.wms.repository.DealerRepository;
 import com.wms.repository.DeliveryOrderItemRepository;
+import com.wms.repository.DeliveryOrderItemReturnToBinRecordRepository;
 import com.wms.repository.DeliveryOrderRepository;
 import com.wms.repository.InventoryRepository;
 import com.wms.repository.InvoiceRepository;
+import com.wms.repository.OutboundQcRecordRepository;
 import com.wms.repository.PriceHistoryRepository;
 import com.wms.repository.ProductRepository;
 import com.wms.repository.UserWarehouseAssignmentRepository;
@@ -44,6 +59,7 @@ import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -51,17 +67,24 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
 @ExtendWith(MockitoExtension.class)
 class DeliveryOrderServiceImplTest {
 
+    private static final BigDecimal ZERO = BigDecimal.ZERO;
+
     @Mock private DeliveryOrderRepository deliveryOrderRepository;
     @Mock private DeliveryOrderItemRepository deliveryOrderItemRepository;
+    @Mock private DeliveryOrderItemAllocationRepository allocationRepository;
+    @Mock private DeliveryOrderItemReturnToBinRecordRepository returnToBinRecordRepository;
+    @Mock private DeliveryOrderItemReplacementRepository replacementRepository;
     @Mock private DealerRepository dealerRepository;
     @Mock private WarehouseRepository warehouseRepository;
     @Mock private ProductRepository productRepository;
     @Mock private InventoryRepository inventoryRepository;
     @Mock private InvoiceRepository invoiceRepository;
+    @Mock private OutboundQcRecordRepository outboundQcRecordRepository;
     @Mock private PriceHistoryRepository priceHistoryRepository;
     @Mock private WarehouseProductReservationRepository reservationRepository;
     @Mock private UserWarehouseAssignmentRepository assignmentRepository;
@@ -77,12 +100,18 @@ class DeliveryOrderServiceImplTest {
     private Product product;
     private PriceHistory price;
     private WarehouseProductReservation reservation;
+    private User storekeeper;
+    private Batch batch;
+    private WarehouseLocation zone;
+    private WarehouseLocation bin;
+    private Inventory inventory;
 
     @BeforeEach
     void setUp() {
         service = new DeliveryOrderServiceImpl(deliveryOrderRepository, deliveryOrderItemRepository,
+                allocationRepository, returnToBinRecordRepository, replacementRepository,
                 dealerRepository, warehouseRepository, productRepository, inventoryRepository,
-                invoiceRepository, priceHistoryRepository, reservationRepository, assignmentRepository,
+                invoiceRepository, outboundQcRecordRepository, priceHistoryRepository, reservationRepository, assignmentRepository,
                 partnerEligibilityService, new DeliveryOrderMapper(), auditUtil, entityManager);
         planner = user(1L, UserRole.PLANNER);
         manager = user(2L, UserRole.WAREHOUSE_MANAGER);
@@ -91,6 +120,11 @@ class DeliveryOrderServiceImplTest {
         product = product(30L);
         price = price(product, new BigDecimal("2.00"));
         reservation = reservation(warehouse, product, new BigDecimal("5.00"));
+        storekeeper = user(3L, UserRole.STOREKEEPER);
+        zone = zone(31L, warehouse);
+        bin = bin(801L, warehouse, zone);
+        batch = batch(71L, product, warehouse);
+        inventory = inventory(501L, warehouse, product, batch, bin, new BigDecimal("15.00"), ZERO);
     }
 
     @Test
@@ -185,7 +219,8 @@ class DeliveryOrderServiceImplTest {
         when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
         when(assignmentRepository.findWarehouseIdsByUserId(2L)).thenReturn(List.of(20L));
         when(deliveryOrderItemRepository.findByDeliveryOrderId(100L)).thenReturn(List.of(item));
-        when(reservationRepository.findByWarehouseIdAndProductId(20L, 30L)).thenReturn(Optional.of(reservation));
+        when(reservationRepository.findWithWarehouseAndProductByWarehouseIdAndProductIdForUpdate(20L, 30L))
+                .thenReturn(Optional.of(reservation));
         when(deliveryOrderRepository.save(any(DeliveryOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(deliveryOrderItemRepository.save(any(DeliveryOrderItem.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -216,6 +251,370 @@ class DeliveryOrderServiceImplTest {
                 .isEqualTo("WAREHOUSE_SCOPE_FORBIDDEN");
     }
 
+    @Test
+    void saveDeliveryOrderPickingPlan_transfersReservationAndMovesStatus() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.NEW);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("10.00"));
+        item.setPlannedQty(ZERO);
+        item.setPickedQty(ZERO);
+        item.setQcPassQty(ZERO);
+        item.setQcFailQty(ZERO);
+        reservation.setReservedQty(new BigDecimal("10.00"));
+
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
+        when(deliveryOrderItemRepository.findByDeliveryOrderId(100L)).thenReturn(List.of(item));
+        when(allocationRepository.findByDeliveryOrderItemDeliveryOrderId(100L)).thenReturn(List.of());
+        when(inventoryRepository.findByIdInWithLock(List.of(501L))).thenReturn(List.of(inventory));
+        when(reservationRepository.findWithWarehouseAndProductByWarehouseIdAndProductIdForUpdate(20L, 30L))
+                .thenReturn(Optional.of(reservation));
+        when(inventoryRepository.save(any(Inventory.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(reservationRepository.save(any(WarehouseProductReservation.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(allocationRepository.save(any(DeliveryOrderItemAllocation.class))).thenAnswer(invocation -> {
+            DeliveryOrderItemAllocation allocation = invocation.getArgument(0);
+            allocation.setId(900L);
+            return allocation;
+        });
+        when(deliveryOrderItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(deliveryOrderRepository.save(any(DeliveryOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DeliveryOrderResponse response = service.saveDeliveryOrderPickingPlan(100L, pickingPlanRequest(), storekeeper);
+
+        assertThat(response.getStatus()).isEqualTo(DeliveryOrderStatus.WAITING_PICKING);
+        assertThat(reservation.getReservedQty()).isEqualByComparingTo("0.00");
+        assertThat(inventory.getReservedQty()).isEqualByComparingTo("10.00");
+        assertThat(item.getPlannedQty()).isEqualByComparingTo("10.00");
+        verify(allocationRepository).save(any(DeliveryOrderItemAllocation.class));
+    }
+
+    @Test
+    void saveDeliveryOrderPickingPlan_rejectsIncompleteItemTotals() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.NEW);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("10.00"));
+        item.setPlannedQty(ZERO);
+        item.setPickedQty(ZERO);
+        item.setQcPassQty(ZERO);
+        item.setQcFailQty(ZERO);
+
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
+        when(deliveryOrderItemRepository.findByDeliveryOrderId(100L)).thenReturn(List.of(item));
+        when(allocationRepository.findByDeliveryOrderItemDeliveryOrderId(100L)).thenReturn(List.of());
+        when(inventoryRepository.findByIdInWithLock(List.of(501L))).thenReturn(List.of(inventory));
+
+        DeliveryOrderPickingPlanRequest request = pickingPlanRequest();
+        request.getAllocations().get(0).setPlannedQty(new BigDecimal("8.00"));
+
+        assertThatThrownBy(() -> service.saveDeliveryOrderPickingPlan(100L, request, storekeeper))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code")
+                .isEqualTo("PICKING_PLAN_QTY_MISMATCH");
+    }
+
+    @Test
+    void saveDeliveryOrderPickingPlan_rejectsStorekeeperOutsideWarehouseScope() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.NEW);
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(99L));
+
+        assertThatThrownBy(() -> service.saveDeliveryOrderPickingPlan(100L, pickingPlanRequest(), storekeeper))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code")
+                .isEqualTo("WAREHOUSE_SCOPE_FORBIDDEN");
+    }
+
+    @Test
+    void saveDeliveryOrderPickingPlan_revisesConcreteReservationsByDelta() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.WAITING_PICKING);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("10.00"));
+        item.setPlannedQty(new BigDecimal("10.00"));
+        inventory.setReservedQty(new BigDecimal("10.00"));
+        DeliveryOrderItemAllocation existingAllocation = allocation(900L, item, inventory, zone,
+                new BigDecimal("10.00"), ZERO, false);
+
+        WarehouseLocation zone2 = zone(32L, warehouse);
+        WarehouseLocation bin2 = bin(802L, warehouse, zone2);
+        Batch batch2 = batch(72L, product, warehouse);
+        Inventory inventory2 = inventory(502L, warehouse, product, batch2, bin2, new BigDecimal("12.00"), ZERO);
+
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
+        when(deliveryOrderItemRepository.findByDeliveryOrderId(100L)).thenReturn(List.of(item));
+        when(allocationRepository.findByDeliveryOrderItemDeliveryOrderId(100L)).thenReturn(List.of(existingAllocation));
+        when(inventoryRepository.findByIdInWithLock(List.of(501L, 502L))).thenReturn(List.of(inventory, inventory2));
+        when(inventoryRepository.save(any(Inventory.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(allocationRepository.save(any(DeliveryOrderItemAllocation.class))).thenAnswer(invocation -> {
+            DeliveryOrderItemAllocation allocation = invocation.getArgument(0);
+            if (allocation.getId() == null) {
+                allocation.setId(901L);
+            }
+            return allocation;
+        });
+        when(deliveryOrderItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(deliveryOrderRepository.save(any(DeliveryOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DeliveryOrderPickingPlanRequest request = new DeliveryOrderPickingPlanRequest();
+        request.setAllocations(new ArrayList<>(List.of(
+                allocationRequest(200L, 501L, 71L, 801L, 31L, new BigDecimal("6.00")),
+                allocationRequest(200L, 502L, 72L, 802L, 32L, new BigDecimal("4.00")))));
+
+        DeliveryOrderResponse response = service.saveDeliveryOrderPickingPlan(100L, request, storekeeper);
+
+        assertThat(response.getStatus()).isEqualTo(DeliveryOrderStatus.WAITING_PICKING);
+        assertThat(inventory.getReservedQty()).isEqualByComparingTo("6.00");
+        assertThat(inventory2.getReservedQty()).isEqualByComparingTo("4.00");
+        assertThat(item.getPlannedQty()).isEqualByComparingTo("10.00");
+        assertThat(response.getItems().get(0).getAllocations()).hasSize(2);
+    }
+
+    @Test
+    void saveDeliveryOrderPickingPlan_requiresReturnRecordForChangedPickedAllocation() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.WAITING_PICKING);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("10.00"));
+        item.setPlannedQty(new BigDecimal("10.00"));
+        inventory.setReservedQty(new BigDecimal("10.00"));
+        DeliveryOrderItemAllocation existingAllocation = allocation(900L, item, inventory, zone,
+                new BigDecimal("10.00"), new BigDecimal("3.00"), false);
+        WarehouseLocation zone2 = zone(32L, warehouse);
+        WarehouseLocation bin2 = bin(802L, warehouse, zone2);
+        Batch batch2 = batch(72L, product, warehouse);
+        Inventory inventory2 = inventory(502L, warehouse, product, batch2, bin2, new BigDecimal("8.00"), ZERO);
+
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
+        when(deliveryOrderItemRepository.findByDeliveryOrderId(100L)).thenReturn(List.of(item));
+        when(allocationRepository.findByDeliveryOrderItemDeliveryOrderId(100L)).thenReturn(List.of(existingAllocation));
+        when(inventoryRepository.findByIdInWithLock(List.of(501L, 502L))).thenReturn(List.of(inventory, inventory2));
+        when(outboundQcRecordRepository.existsByAllocationId(900L)).thenReturn(true);
+
+        DeliveryOrderPickingPlanRequest request = new DeliveryOrderPickingPlanRequest();
+        request.setAllocations(new ArrayList<>(List.of(
+                allocationRequest(200L, 501L, 71L, 801L, 31L, new BigDecimal("7.00")),
+                allocationRequest(200L, 502L, 72L, 802L, 32L, new BigDecimal("3.00")))));
+
+        assertThatThrownBy(() -> service.saveDeliveryOrderPickingPlan(100L, request, storekeeper))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code")
+                .isEqualTo("PICKED_GOODS_RETURN_REQUIRED");
+    }
+
+    @Test
+    void saveDeliveryOrderPickingPlan_requiresReturnRecordWhenQcRecordExists() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.WAITING_PICKING);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("10.00"));
+        item.setPlannedQty(new BigDecimal("10.00"));
+        inventory.setReservedQty(new BigDecimal("10.00"));
+        DeliveryOrderItemAllocation existingAllocation = allocation(900L, item, inventory, zone,
+                new BigDecimal("10.00"), ZERO, false);
+        WarehouseLocation zone2 = zone(32L, warehouse);
+        WarehouseLocation bin2 = bin(802L, warehouse, zone2);
+        Batch batch2 = batch(72L, product, warehouse);
+        Inventory inventory2 = inventory(502L, warehouse, product, batch2, bin2, new BigDecimal("8.00"), ZERO);
+
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
+        when(deliveryOrderItemRepository.findByDeliveryOrderId(100L)).thenReturn(List.of(item));
+        when(allocationRepository.findByDeliveryOrderItemDeliveryOrderId(100L)).thenReturn(List.of(existingAllocation));
+        when(inventoryRepository.findByIdInWithLock(List.of(501L, 502L))).thenReturn(List.of(inventory, inventory2));
+        when(outboundQcRecordRepository.existsByAllocationId(900L)).thenReturn(true);
+
+        DeliveryOrderPickingPlanRequest request = new DeliveryOrderPickingPlanRequest();
+        request.setAllocations(new ArrayList<>(List.of(
+                allocationRequest(200L, 501L, 71L, 801L, 31L, new BigDecimal("7.00")),
+                allocationRequest(200L, 502L, 72L, 802L, 32L, new BigDecimal("3.00")))));
+
+        assertThatThrownBy(() -> service.saveDeliveryOrderPickingPlan(100L, request, storekeeper))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code")
+                .isEqualTo("PICKED_GOODS_RETURN_REQUIRED");
+    }
+
+    @Test
+    void saveDeliveryOrderPickingPlan_allowsUnchangedPickedAllocationWithoutReturnRecord() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.WAITING_PICKING);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("10.00"));
+        item.setPlannedQty(new BigDecimal("10.00"));
+        inventory.setReservedQty(new BigDecimal("10.00"));
+        DeliveryOrderItemAllocation existingAllocation = allocation(900L, item, inventory, zone,
+                new BigDecimal("10.00"), new BigDecimal("3.00"), false);
+
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
+        when(deliveryOrderItemRepository.findByDeliveryOrderId(100L)).thenReturn(List.of(item));
+        when(allocationRepository.findByDeliveryOrderItemDeliveryOrderId(100L)).thenReturn(List.of(existingAllocation));
+        when(inventoryRepository.findByIdInWithLock(List.of(501L))).thenReturn(List.of(inventory));
+        when(allocationRepository.save(any(DeliveryOrderItemAllocation.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(deliveryOrderItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(deliveryOrderRepository.save(any(DeliveryOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DeliveryOrderPickingPlanRequest request = new DeliveryOrderPickingPlanRequest();
+        request.setAllocations(new ArrayList<>(List.of(
+                allocationRequest(200L, 501L, 71L, 801L, 31L, new BigDecimal("10.00")))));
+
+        DeliveryOrderResponse response = service.saveDeliveryOrderPickingPlan(100L, request, storekeeper);
+
+        assertThat(response.getStatus()).isEqualTo(DeliveryOrderStatus.WAITING_PICKING);
+        verify(returnToBinRecordRepository, never()).save(any());
+    }
+
+    @Test
+    void saveDeliveryOrderPickingPlan_rejectsWrongReturnSourceLocation() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.WAITING_PICKING);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("10.00"));
+        item.setPlannedQty(new BigDecimal("10.00"));
+        item.setPickedQty(new BigDecimal("4.00"));
+        inventory.setReservedQty(new BigDecimal("10.00"));
+        DeliveryOrderItemAllocation existingAllocation = allocation(900L, item, inventory, zone,
+                new BigDecimal("10.00"), new BigDecimal("4.00"), false);
+
+        WarehouseLocation sourceBin = bin(880L, warehouse, zone);
+        WarehouseLocation zone2 = zone(32L, warehouse);
+        WarehouseLocation bin2 = bin(802L, warehouse, zone2);
+        Batch batch2 = batch(72L, product, warehouse);
+        Inventory inventory2 = inventory(502L, warehouse, product, batch2, bin2, new BigDecimal("8.00"), ZERO);
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
+        when(deliveryOrderItemRepository.findByDeliveryOrderId(100L)).thenReturn(List.of(item));
+        when(allocationRepository.findByDeliveryOrderItemDeliveryOrderId(100L)).thenReturn(List.of(existingAllocation));
+        when(inventoryRepository.findByIdInWithLock(List.of(501L, 502L))).thenReturn(List.of(inventory, inventory2));
+        when(entityManager.getReference(WarehouseLocation.class, 880L)).thenReturn(sourceBin);
+        when(inventoryRepository.findConcreteReservationRows(20L, 30L, 71L, 880L)).thenReturn(List.of());
+
+        DeliveryOrderPickingPlanRequest request = new DeliveryOrderPickingPlanRequest();
+        request.setAllocations(new ArrayList<>(List.of(
+                allocationRequest(200L, 501L, 71L, 801L, 31L, new BigDecimal("6.00")),
+                allocationRequest(200L, 502L, 72L, 802L, 32L, new BigDecimal("4.00")))));
+        request.setReturnToBinRecords(List.of(returnToBinRequest(900L, new BigDecimal("4.00"), 880L)));
+
+        assertThatThrownBy(() -> service.saveDeliveryOrderPickingPlan(100L, request, storekeeper))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code")
+                .isEqualTo("INVENTORY_ROW_INVALID");
+    }
+
+    @Test
+    void saveDeliveryOrderReplacementPlan_requiresQcPendingApprovalStatus() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.WAITING_PICKING);
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
+
+        assertThatThrownBy(() -> service.saveDeliveryOrderReplacementPlan(100L, replacementPlanRequest(), storekeeper))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code")
+                .isEqualTo("DELIVERY_ORDER_STATUS_INVALID");
+    }
+
+    @Test
+    void saveDeliveryOrderReplacementPlan_rejectsQuantityBeyondUnresolvedQcFail() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.QC_PENDING_APPROVAL);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("10.00"));
+        item.setQcFailQty(new BigDecimal("2.00"));
+        DeliveryOrderItemAllocation failedAllocation = allocation(900L, item, inventory, zone,
+                new BigDecimal("10.00"), new BigDecimal("8.00"), false);
+
+        WarehouseLocation zone2 = zone(32L, warehouse);
+        WarehouseLocation bin2 = bin(802L, warehouse, zone2);
+        Batch batch2 = batch(72L, product, warehouse);
+        Inventory replacementInventory = inventory(502L, warehouse, product, batch2, bin2,
+                new BigDecimal("10.00"), ZERO);
+
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
+        when(deliveryOrderItemRepository.findByDeliveryOrderId(100L)).thenReturn(List.of(item));
+        when(allocationRepository.findByDeliveryOrderItemDeliveryOrderId(100L)).thenReturn(List.of(failedAllocation));
+        when(inventoryRepository.findByIdInWithLock(List.of(502L))).thenReturn(List.of(replacementInventory));
+        when(replacementRepository.sumReplacementQtyByDeliveryOrderItemId(200L)).thenReturn(new BigDecimal("1.00"));
+
+        DeliveryOrderReplacementPlanRequest request = replacementPlanRequest();
+        request.getReplacements().get(0).setQuantity(new BigDecimal("2.00"));
+
+        assertThatThrownBy(() -> service.saveDeliveryOrderReplacementPlan(100L, request, storekeeper))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code")
+                .isEqualTo("QC_REPLACEMENT_REQUIRED");
+    }
+
+    @Test
+    void saveDeliveryOrderReplacementPlan_translatesOptimisticLockConflict() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.QC_PENDING_APPROVAL);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("10.00"));
+        item.setQcFailQty(new BigDecimal("2.00"));
+        DeliveryOrderItemAllocation failedAllocation = allocation(900L, item, inventory, zone,
+                new BigDecimal("10.00"), new BigDecimal("8.00"), false);
+
+        WarehouseLocation zone2 = zone(32L, warehouse);
+        WarehouseLocation bin2 = bin(802L, warehouse, zone2);
+        Batch batch2 = batch(72L, product, warehouse);
+        Inventory replacementInventory = inventory(502L, warehouse, product, batch2, bin2,
+                new BigDecimal("10.00"), ZERO);
+
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
+        when(deliveryOrderItemRepository.findByDeliveryOrderId(100L)).thenReturn(List.of(item));
+        when(allocationRepository.findByDeliveryOrderItemDeliveryOrderId(100L)).thenReturn(List.of(failedAllocation));
+        when(inventoryRepository.findByIdInWithLock(List.of(502L))).thenReturn(List.of(replacementInventory));
+        when(replacementRepository.sumReplacementQtyByDeliveryOrderItemId(200L)).thenReturn(ZERO);
+        when(inventoryRepository.save(any(Inventory.class)))
+                .thenThrow(new ObjectOptimisticLockingFailureException(Inventory.class, 502L));
+
+        assertThatThrownBy(() -> service.saveDeliveryOrderReplacementPlan(100L, replacementPlanRequest(), storekeeper))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code")
+                .isEqualTo("INVENTORY_VERSION_CONFLICT");
+    }
+
+    @Test
+    void saveDeliveryOrderReplacementPlan_reservesReplacementInventoryAndMovesStatus() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.QC_PENDING_APPROVAL);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("10.00"));
+        item.setPlannedQty(new BigDecimal("10.00"));
+        item.setPickedQty(new BigDecimal("8.00"));
+        item.setQcFailQty(new BigDecimal("2.00"));
+        DeliveryOrderItemAllocation failedAllocation = allocation(900L, item, inventory, zone,
+                new BigDecimal("10.00"), new BigDecimal("8.00"), false);
+
+        WarehouseLocation zone2 = zone(32L, warehouse);
+        WarehouseLocation bin2 = bin(802L, warehouse, zone2);
+        Batch batch2 = batch(72L, product, warehouse);
+        Inventory replacementInventory = inventory(502L, warehouse, product, batch2, bin2,
+                new BigDecimal("10.00"), ZERO);
+
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
+        when(deliveryOrderItemRepository.findByDeliveryOrderId(100L)).thenReturn(List.of(item));
+        when(allocationRepository.findByDeliveryOrderItemDeliveryOrderId(100L)).thenReturn(List.of(failedAllocation));
+        when(inventoryRepository.findByIdInWithLock(List.of(502L))).thenReturn(List.of(replacementInventory));
+        when(replacementRepository.sumReplacementQtyByDeliveryOrderItemId(200L)).thenReturn(ZERO);
+        when(inventoryRepository.save(any(Inventory.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(replacementRepository.save(any(DeliveryOrderItemReplacement.class))).thenAnswer(invocation -> {
+            DeliveryOrderItemReplacement replacement = invocation.getArgument(0);
+            replacement.setId(700L);
+            return replacement;
+        });
+        when(allocationRepository.save(any(DeliveryOrderItemAllocation.class))).thenAnswer(invocation -> {
+            DeliveryOrderItemAllocation allocation = invocation.getArgument(0);
+            if (allocation.getId() == null) {
+                allocation.setId(901L);
+            }
+            return allocation;
+        });
+        when(deliveryOrderItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(deliveryOrderRepository.save(any(DeliveryOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(entityManager.getReference(Inventory.class, 501L)).thenReturn(inventory);
+        when(entityManager.getReference(Batch.class, 71L)).thenReturn(batch);
+        when(entityManager.getReference(WarehouseLocation.class, 801L)).thenReturn(bin);
+        when(entityManager.getReference(Batch.class, 72L)).thenReturn(batch2);
+        when(entityManager.getReference(WarehouseLocation.class, 802L)).thenReturn(bin2);
+        when(entityManager.getReference(WarehouseLocation.class, 32L)).thenReturn(zone2);
+
+        DeliveryOrderResponse response = service.saveDeliveryOrderReplacementPlan(100L, replacementPlanRequest(), storekeeper);
+
+        assertThat(response.getStatus()).isEqualTo(DeliveryOrderStatus.WAITING_PICKING);
+        assertThat(replacementInventory.getReservedQty()).isEqualByComparingTo("2.00");
+        assertThat(response.getItems().get(0).getAllocations()).hasSize(2);
+        assertThat(response.getItems().get(0).getAllocations().get(1).isReplacement()).isTrue();
+    }
+
     private void stubSuccessfulCreate(BigDecimal inventoryAvailable) {
         stubCreateUntilAvailability(inventoryAvailable, reservation.getReservedQty());
         when(deliveryOrderRepository.existsByDoNumber("DO-" + LocalDate.now().toString().replace("-", "") + "-0001"))
@@ -239,7 +638,10 @@ class DeliveryOrderServiceImplTest {
                 eq(10L), eq(List.of(InvoiceStatus.UNPAID, InvoiceStatus.PARTIALLY_PAID)), any(LocalDate.class)))
                 .thenReturn(false);
         when(inventoryRepository.sumValidAvailableQty(20L, 30L)).thenReturn(inventoryAvailable);
-        when(reservationRepository.findByWarehouseIdAndProductId(20L, 30L)).thenReturn(Optional.of(reservation));
+        when(reservationRepository.findWithWarehouseAndProductByWarehouseIdAndProductId(20L, 30L))
+                .thenReturn(Optional.of(reservation));
+        lenient().when(reservationRepository.findWithWarehouseAndProductByWarehouseIdAndProductIdForUpdate(20L, 30L))
+                .thenReturn(Optional.of(reservation));
     }
 
     private void stubCreateUntilCredit() {
@@ -271,6 +673,57 @@ class DeliveryOrderServiceImplTest {
         return request;
     }
 
+    private DeliveryOrderPickingPlanRequest pickingPlanRequest() {
+        DeliveryOrderPickingPlanRequest request = new DeliveryOrderPickingPlanRequest();
+        request.setAllocations(new ArrayList<>(List.of(
+                allocationRequest(200L, 501L, 71L, 801L, 31L, new BigDecimal("10.00")))));
+        return request;
+    }
+
+    private DeliveryOrderReplacementPlanRequest replacementPlanRequest() {
+        DeliveryOrderReplacementAllocationRequest replacement = new DeliveryOrderReplacementAllocationRequest();
+        replacement.setDoItemId(200L);
+        replacement.setFailedInventoryId(501L);
+        replacement.setFailedBatchId(71L);
+        replacement.setFailedLocationId(801L);
+        replacement.setReplacementInventoryId(502L);
+        replacement.setReplacementBatchId(72L);
+        replacement.setReplacementLocationId(802L);
+        replacement.setReplacementZoneId(32L);
+        replacement.setQuantity(new BigDecimal("2.00"));
+        replacement.setReason("QC fail scratched cookware");
+        DeliveryOrderReplacementPlanRequest request = new DeliveryOrderReplacementPlanRequest();
+        request.setReplacements(List.of(replacement));
+        return request;
+    }
+
+    private DeliveryOrderAllocationRequest allocationRequest(Long doItemId,
+                                                             Long inventoryId,
+                                                             Long batchId,
+                                                             Long locationId,
+                                                             Long zoneId,
+                                                             BigDecimal plannedQty) {
+        DeliveryOrderAllocationRequest allocation = new DeliveryOrderAllocationRequest();
+        allocation.setDoItemId(doItemId);
+        allocation.setInventoryId(inventoryId);
+        allocation.setBatchId(batchId);
+        allocation.setLocationId(locationId);
+        allocation.setZoneId(zoneId);
+        allocation.setPlannedQty(plannedQty);
+        return allocation;
+    }
+
+    private DeliveryOrderReturnToBinRequest returnToBinRequest(Long allocationId,
+                                                               BigDecimal returnedQty,
+                                                               Long sourceLocationId) {
+        DeliveryOrderReturnToBinRequest request = new DeliveryOrderReturnToBinRequest();
+        request.setAllocationId(allocationId);
+        request.setReturnedQty(returnedQty);
+        request.setSourceLocationId(sourceLocationId);
+        request.setReason("Return picked goods");
+        return request;
+    }
+
     private DeliveryOrder order(Long id, DeliveryOrderStatus status) {
         DeliveryOrder order = new DeliveryOrder();
         order.setId(id);
@@ -293,6 +746,10 @@ class DeliveryOrderServiceImplTest {
         item.setProduct(product);
         item.setRequestedQty(reservedQty);
         item.setReservedQty(reservedQty);
+        item.setPlannedQty(ZERO);
+        item.setPickedQty(ZERO);
+        item.setQcPassQty(ZERO);
+        item.setQcFailQty(ZERO);
         item.setIssuedQty(BigDecimal.ZERO);
         return item;
     }
@@ -345,5 +802,75 @@ class DeliveryOrderServiceImplTest {
         reservation.setCreatedAt(OffsetDateTime.now());
         reservation.setUpdatedAt(OffsetDateTime.now());
         return reservation;
+    }
+
+    private WarehouseLocation zone(Long id, Warehouse warehouse) {
+        WarehouseLocation zone = new WarehouseLocation();
+        zone.setId(id);
+        zone.setWarehouse(warehouse);
+        zone.setIsActive(true);
+        zone.setIsQuarantine(false);
+        return zone;
+    }
+
+    private WarehouseLocation bin(Long id, Warehouse warehouse, WarehouseLocation parent) {
+        WarehouseLocation bin = new WarehouseLocation();
+        bin.setId(id);
+        bin.setWarehouse(warehouse);
+        bin.setParent(parent);
+        bin.setIsActive(true);
+        bin.setIsQuarantine(false);
+        return bin;
+    }
+
+    private Batch batch(Long id, Product product, Warehouse warehouse) {
+        Batch batch = new Batch();
+        batch.setId(id);
+        batch.setProduct(product);
+        batch.setWarehouse(warehouse);
+        batch.setReceivedDate(LocalDate.of(2026, 6, 1));
+        return batch;
+    }
+
+    private Inventory inventory(Long id,
+                                Warehouse warehouse,
+                                Product product,
+                                Batch batch,
+                                WarehouseLocation location,
+                                BigDecimal totalQty,
+                                BigDecimal reservedQty) {
+        Inventory inventory = new Inventory();
+        inventory.setId(id);
+        inventory.setWarehouse(warehouse);
+        inventory.setProduct(product);
+        inventory.setBatch(batch);
+        inventory.setLocation(location);
+        inventory.setTotalQty(totalQty);
+        inventory.setReservedQty(reservedQty);
+        inventory.setUpdatedAt(OffsetDateTime.now());
+        return inventory;
+    }
+
+    private DeliveryOrderItemAllocation allocation(Long id,
+                                                   DeliveryOrderItem item,
+                                                   Inventory inventory,
+                                                   WarehouseLocation zone,
+                                                   BigDecimal plannedQty,
+                                                   BigDecimal pickedQty,
+                                                   boolean replacement) {
+        DeliveryOrderItemAllocation allocation = new DeliveryOrderItemAllocation();
+        allocation.setId(id);
+        allocation.setDeliveryOrderItem(item);
+        allocation.setInventory(inventory);
+        allocation.setBatch(inventory.getBatch());
+        allocation.setLocation(inventory.getLocation());
+        allocation.setZone(zone);
+        allocation.setPlannedQty(plannedQty);
+        allocation.setPickedQty(pickedQty);
+        allocation.setReplacement(replacement);
+        allocation.setCreatedBy(storekeeper);
+        allocation.setCreatedAt(OffsetDateTime.now());
+        allocation.setUpdatedAt(OffsetDateTime.now());
+        return allocation;
     }
 }

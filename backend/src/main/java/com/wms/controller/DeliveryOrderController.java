@@ -2,6 +2,8 @@ package com.wms.controller;
 
 import com.wms.dto.request.DeliveryOrderCancelRequest;
 import com.wms.dto.request.DeliveryOrderCreateRequest;
+import com.wms.dto.request.DeliveryOrderPickingPlanRequest;
+import com.wms.dto.request.DeliveryOrderReplacementPlanRequest;
 import com.wms.dto.request.DeliveryOrderUpdateRequest;
 import com.wms.dto.response.DeliveryOrderResponse;
 import com.wms.entity.User;
@@ -88,6 +90,60 @@ public class DeliveryOrderController {
     public DeliveryOrderResponse cancelDeliveryOrder(@PathVariable Long id,
                                                      @Valid @RequestBody DeliveryOrderCancelRequest request) {
         return deliveryOrderService.cancelDeliveryOrder(id, request, currentUser());
+    }
+
+    @PutMapping("/{id}/picking-plan")
+    @PreAuthorize("hasRole('STOREKEEPER')")
+    @Operation(
+            summary = "Save or revise delivery order picking plan",
+            description = "Stores the full picking allocation set for a delivery order. "
+                    + "When revising a WAITING_PICKING plan, returnToBinRecords are required only for picked allocations "
+                    + "that are reduced or removed."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Picking plan saved"),
+            @ApiResponse(responseCode = "400", description = "Invalid picking-plan payload", content = @Content),
+            @ApiResponse(responseCode = "403", description = "Storekeeper is not assigned to the delivery order warehouse", content = @Content),
+            @ApiResponse(responseCode = "404", description = "Delivery order or inventory row not found", content = @Content),
+            @ApiResponse(responseCode = "409", description = "Inventory or reservation version conflict", content = @Content),
+            @ApiResponse(responseCode = "422",
+                    description = "Picking-plan business rule violation such as PICKING_PLAN_QTY_MISMATCH, "
+                            + "PICKED_GOODS_RETURN_REQUIRED, INVENTORY_ROW_INVALID, or DELIVERY_ORDER_STATUS_INVALID",
+                    content = @Content)
+    })
+    public DeliveryOrderResponse saveDeliveryOrderPickingPlan(@PathVariable Long id,
+                                                              @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                                                                      description = "Full revised allocation list. "
+                                                                              + "returnToBinRecords are required only for picked allocations being removed or reduced.",
+                                                                      required = true)
+                                                              @Valid @RequestBody DeliveryOrderPickingPlanRequest request) {
+        return deliveryOrderService.saveDeliveryOrderPickingPlan(id, request, currentUser());
+    }
+
+    @PutMapping("/{id}/replacement-plan")
+    @PreAuthorize("hasRole('STOREKEEPER')")
+    @Operation(
+            summary = "Save delivery order replacement plan after QC fail",
+            description = "Stores replacement allocations for unresolved QC-failed quantity while the delivery order "
+                    + "is in QC_PENDING_APPROVAL and moves the order back to WAITING_PICKING."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Replacement plan saved"),
+            @ApiResponse(responseCode = "400", description = "Invalid replacement-plan payload", content = @Content),
+            @ApiResponse(responseCode = "403", description = "Storekeeper is not assigned to the delivery order warehouse", content = @Content),
+            @ApiResponse(responseCode = "404", description = "Delivery order or inventory row not found", content = @Content),
+            @ApiResponse(responseCode = "409", description = "Inventory version conflict", content = @Content),
+            @ApiResponse(responseCode = "422",
+                    description = "Replacement-plan business rule violation such as QC_REPLACEMENT_REQUIRED, "
+                            + "INVENTORY_ROW_INVALID, or DELIVERY_ORDER_STATUS_INVALID",
+                    content = @Content)
+    })
+    public DeliveryOrderResponse saveDeliveryOrderReplacementPlan(@PathVariable Long id,
+                                                                  @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                                                                          description = "Replacement rows for unresolved QC-failed quantity.",
+                                                                          required = true)
+                                                                  @Valid @RequestBody DeliveryOrderReplacementPlanRequest request) {
+        return deliveryOrderService.saveDeliveryOrderReplacementPlan(id, request, currentUser());
     }
 
     private User currentUser() {
