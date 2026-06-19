@@ -3,6 +3,8 @@
 .agents/
 .specify/
 
+run-all.sh
+
 # ===== AI AGENT CONTEXT =====
 # Exclude Claude Code local memory files
 CLAUDE-Local.md
