@@ -20,7 +20,7 @@ const Sidebar = () => {
       title: 'Quản lý tài khoản',
       path: '/admin/users',
       icon: Users,
-      roles: [ROLES.ADMIN, ROLES.WAREHOUSE_MANAGER]
+      roles: [ROLES.ADMIN]
     },
     {
       title: 'Cấu hình hệ thống',

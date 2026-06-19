@@ -24,6 +24,4 @@ public class DeliveryOrderItemCreateRequest {
 
     private BigDecimal unitPrice;
 
-    @Size(max = 100)
-    private String serialNumber;
 }

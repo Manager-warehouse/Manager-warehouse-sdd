@@ -35,11 +35,8 @@ public class ReceiptMapper {
         response.setActualQty(item.getActualQty());
         response.setOverReceivedQty(item.getOverReceivedQty());
         response.setUnitCost(item.getUnitCost());
-        if (item.getProduct() != null) {
             response.setProductName(item.getProduct().getName());
             response.setProductSku(item.getProduct().getSku());
-            response.setHasSerial(item.getProduct().getHasSerial());
-        }
         return response;
     }
 }

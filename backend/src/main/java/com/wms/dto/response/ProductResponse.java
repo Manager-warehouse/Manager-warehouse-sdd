@@ -19,9 +19,6 @@ public class ProductResponse {
     private String imageUrl;
     private BigDecimal weightKg;
     private BigDecimal volumeM3;
-    private Boolean hasSerial;
-    private Boolean hasExpiry;
-    private Integer shelfLifeDays;
     private BigDecimal reorderPoint;
     private Boolean isActive;
     private OffsetDateTime createdAt;

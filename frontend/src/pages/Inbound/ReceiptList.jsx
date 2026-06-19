@@ -440,7 +440,7 @@ const ReceiptList = () => {
                         <th className="px-4 py-2.5 font-bold text-shade-60 text-right">Đếm thực tế</th>
                         <th className="px-4 py-2.5 font-bold text-shade-60 text-right">Đạt QC</th>
                         <th className="px-4 py-2.5 font-bold text-shade-60 text-right">Lỗi QC</th>
-                        <th className="px-4 py-2.5 font-bold text-shade-60">Grade/Chi tiết</th>
+                        <th className="px-4 py-2.5 font-bold text-shade-60">Chi tiết QC</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-hairline-light">
@@ -458,9 +458,6 @@ const ReceiptList = () => {
                             {item.qc_result ? (
                               <div className="flex flex-col gap-0.5">
                                 <div className="flex gap-1.5 items-center">
-                                  <span className="text-[10px] font-bold uppercase text-indigo-700 bg-indigo-50 px-1 py-0.2 rounded border border-indigo-200">
-                                    Grade {item.grade || 'A'}
-                                  </span>
                                   <span className={`text-[9px] font-bold ${item.qc_result === 'PASSED' ? 'text-emerald-700' : item.qc_result === 'FAILED' ? 'text-red-700' : 'text-amber-700'}`}>
                                     {item.qc_result}
                                   </span>

@@ -1,5 +1,6 @@
 package com.wms.dto.request;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -10,6 +11,7 @@ import java.math.BigDecimal;
 
 @Getter
 @Setter
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class ProductRequest {
 
     @NotBlank
@@ -31,14 +33,6 @@ public class ProductRequest {
     private BigDecimal weightKg;
 
     private BigDecimal volumeM3;
-
-    @NotNull
-    private Boolean hasSerial;
-
-    @NotNull
-    private Boolean hasExpiry;
-
-    private Integer shelfLifeDays;
 
     private BigDecimal reorderPoint;
 }

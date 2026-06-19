@@ -64,9 +64,6 @@ public class ProductServiceImpl implements ProductService {
                 .description(request.getDescription())
                 .weightKg(request.getWeightKg())
                 .volumeM3(request.getVolumeM3())
-                .hasSerial(request.getHasSerial())
-                .hasExpiry(request.getHasExpiry())
-                .shelfLifeDays(request.getShelfLifeDays())
                 .reorderPoint(request.getReorderPoint())
                 .isActive(true)
                 .createdBy(actor)
@@ -103,9 +100,6 @@ public class ProductServiceImpl implements ProductService {
         product.setDescription(request.getDescription());
         product.setWeightKg(request.getWeightKg());
         product.setVolumeM3(request.getVolumeM3());
-        product.setHasSerial(request.getHasSerial());
-        product.setHasExpiry(request.getHasExpiry());
-        product.setShelfLifeDays(request.getShelfLifeDays());
         product.setReorderPoint(request.getReorderPoint());
         product.setUpdatedBy(actor);
 
@@ -152,9 +146,6 @@ public class ProductServiceImpl implements ProductService {
         map.put("description", p.getDescription());
         map.put("weightKg", p.getWeightKg());
         map.put("volumeM3", p.getVolumeM3());
-        map.put("hasSerial", p.getHasSerial());
-        map.put("hasExpiry", p.getHasExpiry());
-        map.put("shelfLifeDays", p.getShelfLifeDays());
         map.put("reorderPoint", p.getReorderPoint());
         map.put("isActive", p.getIsActive());
         return map;
@@ -171,9 +162,6 @@ public class ProductServiceImpl implements ProductService {
                 .imageUrl(p.getImageUrl())
                 .weightKg(p.getWeightKg())
                 .volumeM3(p.getVolumeM3())
-                .hasSerial(p.getHasSerial())
-                .hasExpiry(p.getHasExpiry())
-                .shelfLifeDays(p.getShelfLifeDays())
                 .reorderPoint(p.getReorderPoint())
                 .isActive(p.getIsActive())
                 .createdAt(p.getCreatedAt())
