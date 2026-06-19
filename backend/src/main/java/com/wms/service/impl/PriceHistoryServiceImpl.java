@@ -51,7 +51,7 @@ import java.util.Optional;
 public class PriceHistoryServiceImpl implements PriceHistoryService {
 
     private static final Logger log = LoggerFactory.getLogger(PriceHistoryServiceImpl.class);
-    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final DateTimeFormatter DATE_FMT_DMY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final int EXCEL_MAX_ROWS = 1000;
 
     private final PriceHistoryRepository priceHistoryRepository;
@@ -148,6 +148,14 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
         if (ph.getStatus() == PriceHistoryStatus.APPROVED) throw PriceHistoryException.alreadyApproved();
         if (ph.getStatus() == PriceHistoryStatus.CANCELLED) throw PriceHistoryException.alreadyCancelled();
 
+        // Maker-Checker: creator must not self-approve (defensive; RBAC already blocks this via roles)
+        if (ph.getCreatedBy().getId().equals(actor.getId())) {
+            throw new PriceHistoryException(
+                    org.springframework.http.HttpStatus.FORBIDDEN,
+                    "FORBIDDEN_APPROVE_OWN",
+                    "Người tạo bản giá không được tự duyệt.");
+        }
+
         // Re-check overlap at approval time (race-condition guard)
         checkNoApprovedOverlap(ph.getProduct().getId(), ph.getEffectiveDate(), ph.getEndDate(), id);
 
@@ -176,15 +184,21 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
     @Transactional(readOnly = true)
     public List<PriceHistoryResponse> getAll(Long productId, PriceHistoryStatus status) {
         List<PriceHistory> list;
-        if (status != null) {
+        if (productId != null && status != null) {
+            list = priceHistoryRepository.findByProductIdAndStatusOrderByCreatedAtAsc(productId, status);
+        } else if (productId != null) {
+            list = priceHistoryRepository.findByProductIdOrderByCreatedAtDesc(productId);
+        } else if (status != null) {
             list = priceHistoryRepository.findByStatusOrderByCreatedAtAsc(status);
         } else {
-            list = priceHistoryRepository.findAll();
+            list = priceHistoryRepository.findAllByOrderByCreatedAtAsc();
         }
-        if (productId != null) {
-            list = list.stream().filter(p -> p.getProduct().getId().equals(productId)).toList();
-        }
-        return list.stream().map(p -> toResponse(p, null)).toList();
+        // Populate previous_approved for PENDING entries so the approval list can show delta comparisons.
+        return list.stream().map(p -> {
+            PreviousApprovedRef prev = (p.getStatus() == PriceHistoryStatus.PENDING)
+                    ? buildPreviousApproved(p) : null;
+            return toResponse(p, prev);
+        }).toList();
     }
 
     @Override
@@ -458,11 +472,17 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
     }
 
     private LocalDate parseExcelDate(Cell cell, String raw) {
-        // Excel stores dates as numeric serials; try that first, then string parse
+        // Excel stores dates as numeric serials; try that first.
         if (cell != null && cell.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell)) {
             return cell.getLocalDateTimeCellValue().toLocalDate();
         }
-        return LocalDate.parse(raw.trim(), DATE_FMT);
+        String trimmed = raw.trim();
+        // Accept dd/MM/yyyy (Vietnamese convention) and yyyy-MM-dd (ISO, common in Excel text cells).
+        try {
+            return LocalDate.parse(trimmed, DATE_FMT_DMY);
+        } catch (DateTimeParseException e) {
+            return LocalDate.parse(trimmed); // falls back to ISO formatter; re-throws if still invalid
+        }
     }
 
     private String cellString(Row row, int col) {
@@ -471,7 +491,7 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
         return switch (cell.getCellType()) {
             case STRING -> cell.getStringCellValue().trim();
             case NUMERIC -> DateUtil.isCellDateFormatted(cell)
-                    ? cell.getLocalDateTimeCellValue().toLocalDate().format(DATE_FMT)
+                    ? cell.getLocalDateTimeCellValue().toLocalDate().format(DATE_FMT_DMY)
                     : BigDecimal.valueOf(cell.getNumericCellValue()).toPlainString();
             case BLANK -> "";
             default -> "";

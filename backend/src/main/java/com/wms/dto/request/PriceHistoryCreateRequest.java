@@ -1,5 +1,6 @@
 package com.wms.dto.request;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
@@ -13,21 +14,27 @@ import java.time.LocalDate;
 public class PriceHistoryCreateRequest {
 
     @NotNull
+    @JsonProperty("product_id")
     private Long productId;
 
     @NotNull
+    @JsonProperty("effective_date")
     private LocalDate effectiveDate;
 
     @NotNull
+    @JsonProperty("end_date")
     private LocalDate endDate;
 
     @NotNull
     @DecimalMin(value = "0.01", message = "cost_price phải lớn hơn 0")
+    @JsonProperty("cost_price")
     private BigDecimal costPrice;
 
     @NotNull
     @DecimalMin(value = "0.01", message = "selling_price phải lớn hơn 0")
+    @JsonProperty("selling_price")
     private BigDecimal sellingPrice;
 
+    @JsonProperty("notes")
     private String notes;
 }

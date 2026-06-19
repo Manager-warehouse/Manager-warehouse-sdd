@@ -37,13 +37,26 @@ ALTER TABLE price_history
     CHECK (status IN ('PENDING', 'APPROVED', 'CANCELLED'));
 
 -- 4. Add date-range and price positivity constraints if missing
-ALTER TABLE price_history
-    ADD CONSTRAINT IF NOT EXISTS price_history_date_range_check
-    CHECK (effective_date <= end_date);
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'price_history_date_range_check'
+    ) THEN
+        ALTER TABLE price_history
+            ADD CONSTRAINT price_history_date_range_check
+            CHECK (effective_date <= end_date);
+    END IF;
 
-ALTER TABLE price_history
-    ADD CONSTRAINT IF NOT EXISTS price_history_positive_prices_check
-    CHECK (cost_price > 0 AND selling_price > 0);
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'price_history_positive_prices_check'
+    ) THEN
+        ALTER TABLE price_history
+            ADD CONSTRAINT price_history_positive_prices_check
+            CHECK (cost_price > 0 AND selling_price > 0);
+    END IF;
+END $$;
 
 -- 5. Performance indexes for price lookup and history browsing
 CREATE INDEX IF NOT EXISTS idx_price_history_product_status

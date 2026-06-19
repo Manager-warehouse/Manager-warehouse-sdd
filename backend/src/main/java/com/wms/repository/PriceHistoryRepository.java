@@ -18,6 +18,10 @@ public interface PriceHistoryRepository extends JpaRepository<PriceHistory, Long
 
     List<PriceHistory> findByStatusOrderByCreatedAtAsc(PriceHistoryStatus status);
 
+    List<PriceHistory> findByProductIdAndStatusOrderByCreatedAtAsc(Long productId, PriceHistoryStatus status);
+
+    List<PriceHistory> findAllByOrderByCreatedAtAsc();
+
     /** Approved entries for overlap check — excludes the entry being edited when id is provided. */
     @Query("""
         SELECT p FROM PriceHistory p

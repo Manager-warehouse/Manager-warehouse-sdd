@@ -50,7 +50,8 @@ const pricingService = {
     const query = new URLSearchParams();
     if (params.status) query.set('status', params.status);
     if (params.product_id) query.set('productId', params.product_id);
-    return apiClient.get(`${BASE}?${query}`);
+    const response = await apiClient.get(`${BASE}?${query}`);
+    return response.data;
   },
 
   async getById(id) {
@@ -60,7 +61,8 @@ const pricingService = {
       if (!entry) throw new Error('Bản giá không tồn tại');
       return entry;
     }
-    return apiClient.get(`${BASE}/${id}`);
+    const response = await apiClient.get(`${BASE}/${id}`);
+    return response.data;
   },
 
   async getByProduct(productId) {
@@ -69,7 +71,8 @@ const pricingService = {
       const entries = mockEntries.filter(e => e.product_id === productId);
       return { product_id: productId, product_sku: entries[0]?.product_sku ?? '', entries };
     }
-    return apiClient.get(`/products/${productId}/price-history`);
+    const response = await apiClient.get(`/products/${productId}/price-history`);
+    return response.data;
   },
 
   async create(data) {
@@ -94,7 +97,8 @@ const pricingService = {
       mockEntries.push(entry);
       return entry;
     }
-    return apiClient.post(BASE, data);
+    const response = await apiClient.post(BASE, data);
+    return response.data;
   },
 
   async update(id, data) {
@@ -105,7 +109,9 @@ const pricingService = {
       mockEntries[idx] = { ...mockEntries[idx], ...data };
       return mockEntries[idx];
     }
-    return apiClient.put(`${BASE}/${id}`, data);
+    const { effective_date, end_date, cost_price, selling_price, notes } = data;
+    const response = await apiClient.put(`${BASE}/${id}`, { effective_date, end_date, cost_price, selling_price, notes });
+    return response.data;
   },
 
   async cancel(id) {
@@ -116,7 +122,8 @@ const pricingService = {
       mockEntries[idx] = { ...mockEntries[idx], status: 'CANCELLED', cancelled_at: new Date().toISOString() };
       return mockEntries[idx];
     }
-    return apiClient.delete(`${BASE}/${id}`);
+    const response = await apiClient.put(`${BASE}/${id}/cancel`);
+    return response.data;
   },
 
   async approve(id) {
@@ -131,7 +138,8 @@ const pricingService = {
       };
       return mockEntries[idx];
     }
-    return apiClient.put(`${BASE}/${id}/approve`);
+    const response = await apiClient.put(`${BASE}/${id}/approve`);
+    return response.data;
   },
 
   async lookup(productId, date) {
@@ -144,7 +152,8 @@ const pricingService = {
       if (!entry) throw Object.assign(new Error('Không có giá hợp lệ'), { status: 404 });
       return entry;
     }
-    return apiClient.get(`${BASE}/lookup?product_id=${productId}&date=${date}`);
+    const response = await apiClient.get(`${BASE}/lookup?productId=${productId}&date=${date}`);
+    return response.data;
   },
 
   async importExcel(file) {
@@ -154,13 +163,30 @@ const pricingService = {
     }
     const form = new FormData();
     form.append('file', file);
-    return apiClient.post(`${BASE}/import`, form, {
+    const response = await apiClient.post(`${BASE}/import`, form, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
+    return response.data;
   },
 
-  getTemplateUrl() {
-    return `${import.meta.env.VITE_API_BASE_URL || '/api/v1'}${BASE}/import/template`;
+  async downloadTemplate() {
+    const response = await apiClient.get(`${BASE}/import/template`, { responseType: 'blob' });
+    const url = URL.createObjectURL(response.data);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'price_import_template.xlsx';
+    a.click();
+    URL.revokeObjectURL(url);
+  },
+
+  async exportXlsx(params = {}) {
+    const response = await apiClient.get(`${BASE}/export`, { params, responseType: 'blob' });
+    const url = URL.createObjectURL(response.data);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `bang-gia-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
   },
 };
 
