@@ -6,5 +6,6 @@ public enum ReceiptStatus {
     QC_COMPLETED,
     QC_FAILED,
     APPROVED,
-    REJECTED
+    RETURN_TO_SUPPLIER_PENDING,
+    RETURNED_TO_SUPPLIER
 }

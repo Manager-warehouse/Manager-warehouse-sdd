@@ -1,10 +1,9 @@
 package com.wms.entity;
 
+import lombok.*;
 import com.wms.enums.DeliveryOrderStatus;
 import com.wms.enums.DeliveryOrderType;
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
@@ -12,6 +11,9 @@ import java.time.OffsetDateTime;
 @Table(name = "delivery_orders")
 @Getter
 @Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class DeliveryOrder {
 
     @Id

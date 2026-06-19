@@ -1,10 +1,16 @@
 package com.wms.entity;
 
+import lombok.*;
 import jakarta.persistence.*;
 
 @Entity
 @Table(name = "trip_delivery_orders",
         uniqueConstraints = @UniqueConstraint(columnNames = {"trip_id", "stop_order"}))
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class TripDeliveryOrder {
 
     @Id

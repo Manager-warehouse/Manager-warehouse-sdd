@@ -62,9 +62,6 @@ _Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đ
 - `image_url` (VARCHAR(500))
 - `weight_kg` (DECIMAL(10,3))
 - `volume_m3` (DECIMAL(10,5))
-- `has_serial` (BOOLEAN, DEFAULT false)
-- `has_expiry` (BOOLEAN, DEFAULT false)
-- `shelf_life_days` (INTEGER)
 - `reorder_point` (DECIMAL(10,2))
 - `is_active` (BOOLEAN, DEFAULT true)
 - `created_by` (BIGINT, FK→users)
@@ -170,7 +167,7 @@ _Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đ
 ### Master data constraints
 
 - Product unit conversion in Sprint 1 supports only one fixed conversion: `thùng → cái`, using `unit_per_pack` as the number of base units (`cái`) in one pack (`thùng`).
-- Products with `has_expiry = true` require expiry date capture during receipt/batch creation; products with `has_expiry = false` do not participate in FEFO expiry selection.
+- Product master data for Sprint 1 household goods does not include serial tracking, expiry tracking, or shelf-life configuration.
 - Warehouse location hierarchy supports only two levels: `ZONE → BIN`.
 - `ZONE.parent_id` MUST be null and capacity fields are not used for capacity enforcement.
 - `BIN.parent_id` MUST reference a `ZONE` in the same warehouse.
@@ -195,7 +192,6 @@ _Vui lòng xem chi tiết API endpoints tại các tài liệu đặc tả tính
 | DUPLICATE_SKU           | 409  | SKU already exists                |
 | BIN_OVER_CAPACITY       | 422  | Putaway exceeds bin capacity      |
 | DEALER_IS_INACTIVE      | 400  | Transaction on inactive dealer    |
-| MISSING_SERIAL          | 400  | has_serial product without serial |
 | INVALID_UNIT_CONVERSION | 400  | Invalid or missing thùng → cái conversion |
 
 ## 8. Acceptance Criteria

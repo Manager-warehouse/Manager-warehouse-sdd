@@ -31,7 +31,12 @@ const PutawayPlan = () => {
       setReceipt(receiptData);
       
       // Filter out items with no passed quantity
-      const passedItems = receiptData.items.filter(item => item.qc_passed_qty > 0);
+      const passedItems = receiptData.items
+        .filter(item => item.qc_passed_qty > 0)
+        .map(item => ({
+          ...item,
+          id: item.receipt_item_id
+        }));
       setItems(passedItems);
 
       const [productsData, binsData] = await Promise.all([
@@ -238,7 +243,7 @@ const PutawayPlan = () => {
             </div>
             <div>
               <span className="text-shade-50 block mb-0.5 font-normal">Chứng từ gốc (PO/DO):</span>
-              <span>{receipt.source_order_code || 'N/A'}</span>
+              <span>{receipt.source_reference || receipt.source_order_code || 'N/A'}</span>
             </div>
             <div>
               <span className="text-shade-50 block mb-0.5 font-normal">Trạng thái:</span>

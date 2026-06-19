@@ -2,7 +2,7 @@ import React from 'react';
 import Table from '../../components/common/Table';
 import Badge from '../../components/common/Badge';
 import { ROLES, ROLE_LABELS, WAREHOUSES } from '../../utils/constants';
-import { Edit2, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Edit, ToggleLeft, ToggleRight } from 'lucide-react';
 
 const UserTable = ({ users, loading, onEdit, onToggleStatus }) => {
   return (
@@ -27,7 +27,7 @@ const UserTable = ({ users, loading, onEdit, onToggleStatus }) => {
             </td>
             <td className="px-6 py-4">
               {user.role && (
-                <span className="text-[10px] font-bold bg-canvas-cream text-ink border border-hairline-light px-2.5 py-1 rounded-pill uppercase tracking-wider">
+                <span className="text-[10px] font-bold bg-canvas-cream text-ink border border-hairline-light px-2.5 py-1 rounded-pill whitespace-nowrap uppercase tracking-wider">
                   {ROLE_LABELS[user.role] || user.role}
                 </span>
               )}
@@ -45,27 +45,27 @@ const UserTable = ({ users, loading, onEdit, onToggleStatus }) => {
             </td>
             <td className="px-6 py-4">
               <Badge type={user.isActive ? 'success' : 'neutral'}>
-                {user.isActive ? 'Đang hoạt động' : 'Tạm khóa'}
+                {user.isActive ? 'Hoạt động' : 'Khóa'}
               </Badge>
             </td>
             <td className="px-6 py-4">
-              <div className="flex items-center gap-3">
+              <div className="flex justify-end items-center gap-3 whitespace-nowrap">
                 <button
                   onClick={() => onEdit(user)}
-                  className="text-shade-60 hover:text-ink transition-colors"
+                  className="p-1 text-shade-60 hover:text-ink hover:bg-zinc-100 rounded-full transition-colors shrink-0"
                   title="Chỉnh sửa tài khoản"
                 >
-                  <Edit2 className="w-4 h-4" />
+                  <Edit className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => onToggleStatus(user)}
-                  className={`${user.isActive ? 'text-green-600 hover:text-green-800' : 'text-shade-40 hover:text-ink'} transition-colors`}
-                  title={user.isActive ? 'Khóa tài khoản (Soft Delete)' : 'Kích hoạt tài khoản'}
+                  className={`p-1 rounded-full transition-colors shrink-0 ${user.isActive ? 'text-emerald-600 hover:bg-zinc-100' : 'text-shade-40 hover:bg-zinc-100'}`}
+                  title={user.isActive ? 'Khóa tài khoản' : 'Kích hoạt tài khoản'}
                 >
                   {user.isActive ? (
-                    <ToggleRight className="w-6 h-6" />
+                    <ToggleRight className="w-5 h-5" />
                   ) : (
-                    <ToggleLeft className="w-6 h-6" />
+                    <ToggleLeft className="w-5 h-5" />
                   )}
                 </button>
               </div>

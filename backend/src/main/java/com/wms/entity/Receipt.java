@@ -1,10 +1,9 @@
 package com.wms.entity;
 
+import lombok.*;
 import com.wms.enums.ReceiptStatus;
 import com.wms.enums.ReceiptType;
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
@@ -12,6 +11,9 @@ import java.time.OffsetDateTime;
 @Table(name = "receipts")
 @Getter
 @Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Receipt {
 
     @Id
@@ -83,4 +85,8 @@ public class Receipt {
 
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
+
+    @Version
+    @Column(name = "version", nullable = false)
+    private Integer version;
 }

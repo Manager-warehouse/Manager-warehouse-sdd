@@ -1,5 +1,8 @@
 package com.wms.exception;
 
+import com.wms.exception.ForbiddenReceiptWarehouseException;
+import com.wms.exception.ReceiptAlreadyDecidedException;
+import com.wms.exception.RtvAlreadyExistsException;
 import jakarta.validation.ConstraintViolationException;
 import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
@@ -7,6 +10,7 @@ import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -28,12 +32,67 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessRuleViolationException.class)
     public ResponseEntity<ApiErrorResponse> handleBusinessRule(BusinessRuleViolationException ex) {
-        return error(HttpStatus.CONFLICT, "BUSINESS_RULE_VIOLATION", ex.getMessage(), ex.getMessage(), null);
+        String msg = ex.getMessage();
+        HttpStatus status = HttpStatus.UNPROCESSABLE_ENTITY;
+        String code = "BUSINESS_RULE_VIOLATION";
+
+        if (msg != null) {
+            if (msg.contains("INVENTORY_VERSION_CONFLICT")) {
+                status = HttpStatus.CONFLICT;
+                code = "INVENTORY_VERSION_CONFLICT";
+            } else if (msg.contains("RTV_ALREADY_CONFIRMED")) {
+                status = HttpStatus.CONFLICT;
+                code = "RTV_ALREADY_CONFIRMED";
+            } else if (msg.contains("RTV_QUANTITY_MISMATCH")) {
+                code = "RTV_QUANTITY_MISMATCH";
+            } else if (msg.contains("INVALID_STATE")) {
+                code = "INVALID_STATE";
+            } else if (msg.contains("INVALID_LOCATION")) {
+                code = "INVALID_LOCATION";
+            } else if (msg.contains("BIN_CAPACITY_EXCEEDED")) {
+                code = "BIN_CAPACITY_EXCEEDED";
+            } else if (msg.contains("INVENTORY_INVARIANT_VIOLATED")) {
+                code = "INVENTORY_INVARIANT_VIOLATED";
+            }
+        }
+
+        return error(status, code, msg, msg, null);
+    }
+
+    @ExceptionHandler(UnprocessableEntityException.class)
+    public ResponseEntity<ApiErrorResponse> handleUnprocessable(UnprocessableEntityException ex) {
+        return error(HttpStatus.UNPROCESSABLE_ENTITY, "UNPROCESSABLE_ENTITY", ex.getMessage(), null, null);
+    }
+
+    @ExceptionHandler(ReceiptCountException.class)
+    public ResponseEntity<ApiErrorResponse> handleReceiptCount(ReceiptCountException ex) {
+        return error(ex.getStatus(), ex.getCode(), ex.getMessage(), null, null);
     }
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiErrorResponse> handleAccessDenied(AccessDeniedException ex) {
         return error(HttpStatus.FORBIDDEN, "ACCESS_DENIED", "Access denied", "Access denied", null);
+    }
+
+    @ExceptionHandler(ForbiddenReceiptWarehouseException.class)
+    public ResponseEntity<ApiErrorResponse> handleForbiddenReceiptWarehouse(
+            ForbiddenReceiptWarehouseException ex) {
+        return error(HttpStatus.FORBIDDEN, "FORBIDDEN_RECEIPT_WAREHOUSE",
+                ex.getMessage(), ex.getMessage(), null);
+    }
+
+    @ExceptionHandler(ReceiptAlreadyDecidedException.class)
+    public ResponseEntity<ApiErrorResponse> handleReceiptAlreadyDecided(
+            ReceiptAlreadyDecidedException ex) {
+        return error(HttpStatus.CONFLICT, "RECEIPT_ALREADY_DECIDED",
+                ex.getMessage(), ex.getMessage(), null);
+    }
+
+    @ExceptionHandler(RtvAlreadyExistsException.class)
+    public ResponseEntity<ApiErrorResponse> handleRtvAlreadyExists(
+            RtvAlreadyExistsException ex) {
+        return error(HttpStatus.CONFLICT, "RTV_ALREADY_EXISTS",
+                ex.getMessage(), ex.getMessage(), null);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -46,6 +105,11 @@ public class GlobalExceptionHandler {
                 .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
                 .collect(java.util.stream.Collectors.joining(", "));
         return error(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", errorMsg, errorMsg, details);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiErrorResponse> handleUnreadableMessage(HttpMessageNotReadableException ex) {
+        return error(HttpStatus.BAD_REQUEST, "INVALID_REQUEST_BODY", "Invalid request body", null, null);
     }
 
     @ExceptionHandler(ConstraintViolationException.class)

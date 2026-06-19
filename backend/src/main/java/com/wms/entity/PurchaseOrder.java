@@ -1,5 +1,6 @@
 package com.wms.entity;
 
+import lombok.*;
 import com.wms.enums.PurchaseOrderStatus;
 import jakarta.persistence.*;
 import java.time.LocalDate;
@@ -7,6 +8,11 @@ import java.time.OffsetDateTime;
 
 @Entity
 @Table(name = "purchase_orders")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class PurchaseOrder {
 
     @Id

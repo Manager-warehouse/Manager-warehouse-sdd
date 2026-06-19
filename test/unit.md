@@ -11,7 +11,7 @@
 backend/src/test/java/com/wms/
 ├── service/        # Unit test cho services
 ├── controller/     # Unit test cho controllers (mock service)
-├── util/           # Unit test cho utilities (FEFO, FIFO)
+├── util/           # Unit test cho utilities (FIFO)
 └── repository/     # Repository test với @DataJpaTest (integration)
 ```
 
@@ -20,7 +20,7 @@ backend/src/test/java/com/wms/
 | Layer | Coverage | Bắt buộc |
 |---|---|---|
 | Service (business logic) | ≥ 80% lines + branches | MUST |
-| Util (FEFO/FIFO) | ≥ 90% lines | MUST |
+| Util (FIFO) | ≥ 90% lines | MUST |
 | Controller | happy path + error paths | MUST |
 | Repository | CRUD + custom queries | KHUYẾN KHÍCH |
 
@@ -76,26 +76,26 @@ class InventoryServiceTest {
 }
 ```
 
-### Ví dụ FEFO/FIFO Test
+### Ví dụ FIFO Test
 
 ```java
-class FefeSelectorTest {
+class FifoSelectorTest {
 
     @Test
-    void selectBatchesFefo_shouldPickNearestExpiry() {
+    void selectBatchesFifo_shouldPickOldestReceivedDate() {
         // Given
         List<Batch> batches = List.of(
-            Batch.builder().id(1L).expiryDate(LocalDate.of(2026, 8, 15)).quantity(100).build(),
-            Batch.builder().id(2L).expiryDate(LocalDate.of(2026, 6, 1)).quantity(50).build(),
-            Batch.builder().id(3L).expiryDate(LocalDate.of(2026, 10, 1)).quantity(200).build()
+            Batch.builder().id(1L).receivedDate(LocalDate.of(2026, 5, 15)).quantity(100).build(),
+            Batch.builder().id(2L).receivedDate(LocalDate.of(2026, 5, 1)).quantity(50).build(),
+            Batch.builder().id(3L).receivedDate(LocalDate.of(2026, 6, 1)).quantity(200).build()
         );
 
         // When
-        List<Batch> result = FefoSelector.select(batches, 120);
+        List<Batch> result = FifoSelector.select(batches, 120);
 
         // Then
         assertThat(result).hasSize(2);
-        assertThat(result.get(0).getId()).isEqualTo(2L); // Hết hạn sớm nhất
+        assertThat(result.get(0).getId()).isEqualTo(2L); // Nhập sớm nhất
         assertThat(result.get(1).getId()).isEqualTo(1L);
     }
 }

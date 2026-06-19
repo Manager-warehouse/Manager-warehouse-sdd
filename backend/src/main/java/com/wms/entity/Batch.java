@@ -1,9 +1,7 @@
 package com.wms.entity;
 
-import com.wms.enums.BatchGrade;
+import lombok.*;
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -12,6 +10,9 @@ import java.time.OffsetDateTime;
 @Table(name = "batches")
 @Getter
 @Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Batch {
 
     @Id
@@ -31,13 +32,6 @@ public class Batch {
 
     @Column(name = "received_date", nullable = false)
     private LocalDate receivedDate;
-
-    @Column(name = "expiry_date")
-    private LocalDate expiryDate;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "grade", nullable = false, columnDefinition = "varchar(1)")
-    private BatchGrade grade;
 
     @Column(name = "quantity", nullable = false, precision = 10, scale = 2)
     private BigDecimal quantity;

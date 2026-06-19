@@ -1,12 +1,13 @@
 package com.wms.service;
 
-import com.wms.dto.AuditLogDetailResponse;
-import com.wms.dto.AuditLogPageResponse;
+import com.wms.dto.response.AuditLogDetailResponse;
+import com.wms.dto.response.AuditLogPageResponse;
 import com.wms.entity.AuditLog;
 import com.wms.entity.User;
 import com.wms.enums.AuditAction;
 import com.wms.enums.UserRole;
 import com.wms.repository.AuditLogRepository;
+import com.wms.repository.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -38,6 +39,7 @@ import static org.mockito.Mockito.*;
 class AuditLogServiceTest {
 
     @Mock private AuditLogRepository auditLogRepository;
+    @Mock private UserRepository userRepository;
     @Mock private HttpServletRequest httpServletRequest;
 
     @InjectMocks
@@ -88,10 +90,11 @@ class AuditLogServiceTest {
     @DisplayName("Ghi audit log từ SecurityContext khi không truyền actor")
     void log_withSecurityContext_resolvesActorFromContext() {
         when(httpServletRequest.getRemoteAddr()).thenReturn("10.0.0.1");
+        when(userRepository.findByEmail(adminActor.getEmail())).thenReturn(Optional.of(adminActor));
 
         // Đặt adminActor vào SecurityContext
         var auth = new UsernamePasswordAuthenticationToken(
-                adminActor, null, Collections.emptyList());
+                adminActor.getEmail(), null, Collections.emptyList());
         SecurityContextHolder.getContext().setAuthentication(auth);
 
         auditLogService.log(

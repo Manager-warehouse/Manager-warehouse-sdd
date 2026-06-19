@@ -1,5 +1,6 @@
 package com.wms.entity;
 
+import lombok.*;
 import com.wms.enums.AlertType;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
@@ -8,6 +9,11 @@ import java.time.OffsetDateTime;
 @Entity
 @Table(name = "stock_alerts",
         uniqueConstraints = @UniqueConstraint(columnNames = {"warehouse_id", "product_id", "alert_type", "is_resolved"}))
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class StockAlert {
 
     @Id

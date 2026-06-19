@@ -1,8 +1,8 @@
 package com.wms.service;
 
-import com.wms.dto.AuditLogDetailResponse;
-import com.wms.dto.AuditLogListItemResponse;
-import com.wms.dto.AuditLogPageResponse;
+import com.wms.dto.response.AuditLogDetailResponse;
+import com.wms.dto.response.AuditLogListItemResponse;
+import com.wms.dto.response.AuditLogPageResponse;
 import com.wms.entity.AuditLog;
 import com.wms.entity.User;
 import com.wms.entity.Warehouse;
@@ -64,7 +64,7 @@ public class AuditLogService {
                     Long warehouseId,
                     Map<String, Object> oldValue,
                     Map<String, Object> newValue) {
-        doLog(resolveCurrentActor(), action, entityType, entityId, description,
+        saveAuditLog(resolveCurrentActor(), action, entityType, entityId, description,
                 warehouseId, oldValue, newValue);
     }
 
@@ -79,7 +79,7 @@ public class AuditLogService {
                     Map<String, Object> newValue) {
         String description = AuditLogUtil.generateDescription(
                 action, entityType, entityCode);
-        doLog(actor, action, entityType, entityId, description,
+        saveAuditLog(actor, action, entityType, entityId, description,
                 warehouseId, oldValue, newValue);
     }
 
@@ -119,14 +119,14 @@ public class AuditLogService {
         return AuditLogDetailResponse.from(auditLog);
     }
 
-    private void doLog(User actor,
-                        AuditAction action,
-                        String entityType,
-                        Long entityId,
-                        String description,
-                        Long warehouseId,
-                        Map<String, Object> oldValue,
-                        Map<String, Object> newValue) {
+    private void saveAuditLog(User actor,
+                              AuditAction action,
+                              String entityType,
+                              Long entityId,
+                              String description,
+                              Long warehouseId,
+                              Map<String, Object> oldValue,
+                              Map<String, Object> newValue) {
         if (actor == null) {
             throw new IllegalStateException("Audit actor is required");
         }

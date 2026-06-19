@@ -1,5 +1,6 @@
 package com.wms.entity;
 
+import lombok.*;
 import com.wms.enums.TripStatus;
 import com.wms.enums.TripType;
 import jakarta.persistence.*;
@@ -9,6 +10,11 @@ import java.time.OffsetDateTime;
 
 @Entity
 @Table(name = "trips")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Trip {
 
     @Id
