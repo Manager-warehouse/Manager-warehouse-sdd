@@ -49,6 +49,7 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional
     public ProductResponse createProduct(ProductRequest request, Long createdByUserId) {
+        validateSku(request.getSku());
         if (productRepository.existsBySku(request.getSku())) {
             throw new IllegalArgumentException("DUPLICATE_SKU");
         }
@@ -63,9 +64,6 @@ public class ProductServiceImpl implements ProductService {
                 .description(request.getDescription())
                 .weightKg(request.getWeightKg())
                 .volumeM3(request.getVolumeM3())
-                .hasSerial(request.getHasSerial())
-                .hasExpiry(request.getHasExpiry())
-                .shelfLifeDays(request.getShelfLifeDays())
                 .reorderPoint(request.getReorderPoint())
                 .isActive(true)
                 .createdBy(actor)
@@ -73,16 +71,18 @@ public class ProductServiceImpl implements ProductService {
                 .build();
 
         Product saved = productRepository.save(product);
+        applyPersistenceMetadata(product, saved);
 
         // Record Audit Log
-        auditLogService.log(actor, AuditAction.CREATE, "Product", saved.getId(), saved.getSku(), null, null, toMap(saved));
+        auditLogService.log(actor, AuditAction.CREATE, "Product", product.getId(), product.getSku(), null, null, toMap(product));
 
-        return toResponse(saved);
+        return toResponse(product);
     }
 
     @Override
     @Transactional
     public ProductResponse updateProduct(Long id, ProductRequest request, Long updatedByUserId) {
+        validateSku(request.getSku());
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("PRODUCT_NOT_FOUND"));
 
@@ -100,18 +100,16 @@ public class ProductServiceImpl implements ProductService {
         product.setDescription(request.getDescription());
         product.setWeightKg(request.getWeightKg());
         product.setVolumeM3(request.getVolumeM3());
-        product.setHasSerial(request.getHasSerial());
-        product.setHasExpiry(request.getHasExpiry());
-        product.setShelfLifeDays(request.getShelfLifeDays());
         product.setReorderPoint(request.getReorderPoint());
         product.setUpdatedBy(actor);
 
         Product saved = productRepository.save(product);
+        applyPersistenceMetadata(product, saved);
 
         // Record Audit Log
-        auditLogService.log(actor, AuditAction.UPDATE, "Product", saved.getId(), saved.getSku(), null, oldMap, toMap(saved));
+        auditLogService.log(actor, AuditAction.UPDATE, "Product", product.getId(), product.getSku(), null, oldMap, toMap(product));
 
-        return toResponse(saved);
+        return toResponse(product);
     }
 
     @Override
@@ -126,9 +124,10 @@ public class ProductServiceImpl implements ProductService {
         product.setIsActive(false);
         product.setUpdatedBy(actor);
         Product saved = productRepository.save(product);
+        applyPersistenceMetadata(product, saved);
 
         // Record Audit Log
-        auditLogService.log(actor, AuditAction.SOFT_DELETE, "Product", saved.getId(), saved.getSku(), null, oldMap, toMap(saved));
+        auditLogService.log(actor, AuditAction.SOFT_DELETE, "Product", product.getId(), product.getSku(), null, oldMap, toMap(product));
     }
 
     private User resolveUser(Long userId) {
@@ -147,9 +146,6 @@ public class ProductServiceImpl implements ProductService {
         map.put("description", p.getDescription());
         map.put("weightKg", p.getWeightKg());
         map.put("volumeM3", p.getVolumeM3());
-        map.put("hasSerial", p.getHasSerial());
-        map.put("hasExpiry", p.getHasExpiry());
-        map.put("shelfLifeDays", p.getShelfLifeDays());
         map.put("reorderPoint", p.getReorderPoint());
         map.put("isActive", p.getIsActive());
         return map;
@@ -166,13 +162,25 @@ public class ProductServiceImpl implements ProductService {
                 .imageUrl(p.getImageUrl())
                 .weightKg(p.getWeightKg())
                 .volumeM3(p.getVolumeM3())
-                .hasSerial(p.getHasSerial())
-                .hasExpiry(p.getHasExpiry())
-                .shelfLifeDays(p.getShelfLifeDays())
                 .reorderPoint(p.getReorderPoint())
                 .isActive(p.getIsActive())
                 .createdAt(p.getCreatedAt())
                 .updatedAt(p.getUpdatedAt())
                 .build();
+    }
+
+    private void validateSku(String sku) {
+        if (sku != null && sku.isBlank()) {
+            throw new IllegalArgumentException("INVALID_SKU");
+        }
+    }
+
+    private void applyPersistenceMetadata(Product target, Product saved) {
+        if (saved == null || target == saved) {
+            return;
+        }
+        target.setId(saved.getId());
+        target.setCreatedAt(saved.getCreatedAt());
+        target.setUpdatedAt(saved.getUpdatedAt());
     }
 }

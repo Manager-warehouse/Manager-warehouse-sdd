@@ -961,53 +961,32 @@ Quy trình xử lý đơn xuất hàng bán cho Đại lý, tích hợp kiểm t
 
 ### 3. Quy trình Điều chuyển Kho Nội bộ (Internal Transfer)
 
-Quy trình điều phối hàng hóa giữa 3 kho vật lý Hải Phòng, Hà Nội, TP.HCM thông qua kho ảo trung chuyển `IN-TRANSIT` bằng xe nội bộ của Phúc Anh. Sprint 1 không có nghiệp vụ kho tự gợi ý hoặc tự quyết định điều chuyển; Planner nhập phiếu theo lệnh từ Công ty mẹ hoặc bộ phận điều phối trung tâm.
+Quy trình điều phối hàng hóa giữa 3 kho vật lý Hải Phòng, Hà Nội, TP.HCM thông qua kho ảo trung chuyển `IN-TRANSIT` bằng xe nội bộ của Phúc Anh. Sprint 1 không có nghiệp vụ kho tự gợi ý hoặc tự quyết định điều chuyển; Planner nhập phiếu theo lệnh từ Công ty mẹ hoặc bộ phận điều phối trung tâm. Mã phiếu điều chuyển dùng `TRF-*`, mã chuyến điều chuyển dùng `TTR-*`, và luồng này tách riêng khỏi phiếu nhập NCC `RN-*`.
 
 ```
-┌─────────────┬───────────────┬────────────────┬────────────────┬────────────┐
-│   PLANNER   │ TRƯỞNG KHO N  │ THỦ KHO NGUỒN  │     SYSTEM     │TRƯỞNG KHO Đ│
-├─────────────┼───────────────┼────────────────┼────────────────┼────────────┤
-│             │               │                │                │            │
-│ Nhập phiếu  │               │                │                │            │
-│ theo lệnh CT│               │                │                │            │
-│ [Mới] ─────►│ Duyệt hoặc    │                │                │            │
-│             │ từ chối lý do │                │                │            │
-│             │ [Rejected]    │                │                │            │
-│             │      │        │                │                │            │
-│             │  [Duyệt]─────►│                │                │            │
-│             │               │ Ghi số gửi,    │                │            │
-│             │               │ bốc xếp xe ───►│ Chờ tài xế     │            │
-│             │               │                │ xác nhận       │            │
-│             │               │                │                │            │
-│             │               │ Tài xế xác nhận│ Trừ tồn kho N, │            │
-│             │               │ xe rời kho ───►│ cộng In-Transit│            │
-│             │               │                │ └──────────────► Đếm hàng   │
-│             │               │                │                │ số nhận, QC│
-│             │               │                │                │ chất lượng,│
-│             │               │                │                │ đối chiếu  │
-│             │               │                │                │     │      │
-│             │               │                │                │   [KHỚP]   │
-│             │               │                │                │     ├─────►│
-│             │               │                │ Trừ In-Transit,│            │
-│             │               │                │ cộng kho Đích  │            │
-│             │               │                │ ◄──────────────┤            │
-│             │               │                │                │   [LỆCH]   │
-│             │               │                │                │     ├─────►│
-│             │               │                │ Ghi lý do lệch │            │
-│             │               │                │ tạo Adjustment │            │
-│             │               │                │ QC lỗi →       │            │
-│             │               │                │ Quarantine     │            │
-│             │               │                │ ◄──────────────┤            │
-│             │               │                │                │            │
-└─────────────┴───────────────┴────────────────┴────────────────┴────────────┘
+Planner nhap phieu `TRF-*` theo lenh ngoai
+    -> Truong kho nguon duyet/tu choi va giu cho hang
+    -> Dispatcher kho nguon lap chuyen `TTR-*`, gan xe va tai xe thuoc pham vi kho nguon
+    -> Thu kho nguon ghi so gui, boc xep len xe
+    -> Tai xe duoc gan xac nhan nhan hang va roi kho
+        -> System tru ton kho nguon, giai phong reserved, cong kho ao `IN_TRANSIT`
+    -> Cong nhan/Nhan vien kho dich nhap so nhan ban dau
+    -> Thu kho dich kiem tra lai, chot QC, chon vi tri nhap kho cho hang dat
+    -> Truong kho dich xac nhan cuoi cung
+        -> Khop + QC dat: tru `IN_TRANSIT`, cong ton kho dich, status `COMPLETED`
+        -> Thieu: bat buoc ly do, tao adjustment, status `COMPLETED_WITH_DISCREPANCY`
+        -> QC loi: phan loi vao Quarantine, khong tinh available
+        -> Nhan thua: chan xac nhan
 ```
 
 **Luồng trạng thái phiếu điều chuyển:**
-`NEW` (Planner nhập phiếu nhiều dòng hàng theo lệnh từ Công ty mẹ/bộ phận điều phối trung tâm; Công ty mẹ không phải user WMS; chưa chọn batch; Planner được sửa dòng hàng hoặc hủy phiếu khi còn `NEW`) → `APPROVED` (Trưởng kho nguồn duyệt, hệ thống chọn/giữ hàng theo FIFO và khóa hàng ngay) hoặc `REJECTED` (Trưởng kho nguồn từ chối và bắt buộc nhập lý do; phiếu rejected không được sửa/gửi lại, phải tạo phiếu mới nếu cần tiếp tục) → `IN_TRANSIT` (Dispatcher đã lập chuyến xe riêng, Thủ kho nguồn ghi số gửi, Tài xế xác nhận nhận hàng và xe rời kho; hệ thống dịch chuyển tồn kho vào kho trung chuyển `IN_TRANSIT` và trừ tồn kho nguồn) → `COMPLETED` (Thủ kho đích nhập số nhận + QC, Trưởng kho đích xác nhận cuối cùng, khớp số lượng và QC đạt) / `COMPLETED_WITH_DISCREPANCY` (Nhận thiếu, tạo phiếu điều chỉnh bù trừ và log audit). Sau `APPROVED` không cho sửa header/dòng hàng; chỉ Trưởng kho nguồn/manager được hủy trước khi `IN_TRANSIT` và phải giải phóng reserved quantity. Nếu `received_qty > sent_qty` hệ thống chặn xác nhận; nếu QC lỗi thì phần lỗi vào Quarantine và không tính available. Không hỗ trợ hủy phiếu sau khi đã `IN_TRANSIT`.
+`NEW` (Planner nhap phieu nhieu dong hang theo lenh tu Cong ty me/bo phan dieu phoi trung tam; Planner duoc sua dong hang hoac huy phieu khi con `NEW`) -> `APPROVED` (Truong kho nguon duyet va giu cho hang ngay) hoac `REJECTED` (Truong kho nguon tu choi va bat buoc nhap ly do; phieu rejected khong duoc sua/gui lai, phai tao phieu moi neu can tiep tuc) -> `IN_TRANSIT` (Dispatcher da lap chuyen xe rieng, Thu kho nguon ghi so gui, Tai xe duoc gan xac nhan roi kho; he thong dich chuyen ton kho vao kho trung chuyen `IN_TRANSIT`) -> `COMPLETED` (Cong nhan kho dich nhap so nhan, Thu kho dich kiem tra + QC + chon vi tri, Truong kho dich xac nhan cuoi cung va khop so luong) / `COMPLETED_WITH_DISCREPANCY` (Nhan thieu, tao phieu dieu chinh bu tru va log audit). Sau `APPROVED` khong cho sua header/dong hang; chi Truong kho nguon/manager duoc huy truoc khi `IN_TRANSIT` va phai giai phong reserved quantity. Neu `received_qty > sent_qty` he thong chan xac nhan; neu QC loi thi phan loi vao Quarantine va khong tinh available. Khong ho tro huy phieu sau khi da `IN_TRANSIT`.
 
 **Quy tắc chuyến xe điều chuyển:**
 - Mỗi Phiếu điều chuyển gắn đúng một chuyến xe nội bộ riêng (`trips.trip_type = TRANSFER`).
 - Không gom nhiều Phiếu điều chuyển vào một chuyến xe trong Sprint 1.
+- Dispatcher chỉ được lập chuyến cho các phiếu có kho nguồn thuộc phạm vi kho mình phụ trách.
+- Danh sách tài xế hợp lệ chỉ gồm tài xế có thể hoạt động tại kho nguồn của phiếu điều chuyển.
 - Tài xế phải xác nhận đã nhận hàng và xe rời kho trước khi hệ thống chuyển tồn sang `IN_TRANSIT`.
 
 ---

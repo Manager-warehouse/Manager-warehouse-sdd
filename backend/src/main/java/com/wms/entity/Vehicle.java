@@ -31,6 +31,10 @@ public class Vehicle {
     @Column(name = "max_volume_m3", precision = 10, scale = 3)
     private BigDecimal maxVolumeM3;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "warehouse_id", nullable = false)
+    private Warehouse warehouse;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     private VehicleStatus status;

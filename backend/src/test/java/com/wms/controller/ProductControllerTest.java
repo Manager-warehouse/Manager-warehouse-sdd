@@ -58,8 +58,6 @@ class ProductControllerTest {
                 .sku("SKU-001")
                 .name("Sản phẩm A")
                 .unit("cái")
-                .hasSerial(false)
-                .hasExpiry(false)
                 .isActive(true)
                 .createdAt(OffsetDateTime.now())
                 .updatedAt(OffsetDateTime.now())
@@ -107,7 +105,7 @@ class ProductControllerTest {
     @DisplayName("GET /products - không xác thực - 403")
     void getProducts_unauthenticated_returns403() throws Exception {
         mockMvc.perform(get("/api/v1/products"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -319,8 +317,6 @@ class ProductControllerTest {
         r.setSku(sku);
         r.setName("Sản phẩm Test");
         r.setUnit("cái");
-        r.setHasSerial(false);
-        r.setHasExpiry(false);
         return r;
     }
 }

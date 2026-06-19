@@ -90,11 +90,13 @@ class AuditLogServiceTest {
     @DisplayName("Ghi audit log từ SecurityContext khi không truyền actor")
     void log_withSecurityContext_resolvesActorFromContext() {
         when(httpServletRequest.getRemoteAddr()).thenReturn("10.0.0.1");
-        when(userRepository.findByEmail(adminActor.getEmail())).thenReturn(Optional.of(adminActor));
+        when(userRepository.findByEmail("admin@wms.com")).thenReturn(Optional.of(adminActor));
 
-        // Đặt adminActor vào SecurityContext
+        // Đặt principal dạng UserDetails để khớp với JwtAuthFilter runtime shape
+        var principal = new org.springframework.security.core.userdetails.User(
+                adminActor.getEmail(), "N/A", Collections.emptyList());
         var auth = new UsernamePasswordAuthenticationToken(
-                adminActor.getEmail(), null, Collections.emptyList());
+                principal, null, Collections.emptyList());
         SecurityContextHolder.getContext().setAuthentication(auth);
 
         auditLogService.log(

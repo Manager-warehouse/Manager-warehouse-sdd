@@ -271,7 +271,7 @@ const PutawayPlan = () => {
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-zinc-50 border-b border-hairline-light">
-                  <th className="px-6 py-3 font-bold text-shade-60">Sản phẩm / Grade</th>
+                  <th className="px-6 py-3 font-bold text-shade-60">Sản phẩm</th>
                   <th className="px-4 py-3 font-bold text-shade-60 text-right w-24">Số lượng đạt</th>
                   <th className="px-6 py-3 font-bold text-shade-60 w-56">Chọn ô kệ cất hàng (Bin)</th>
                   <th className="px-6 py-3 font-bold text-shade-60 w-72">Sức chứa ô kệ dự kiến</th>
@@ -287,9 +287,7 @@ const PutawayPlan = () => {
                       <td className="px-6 py-4">
                         <span className="font-bold block">{prod.sku}</span>
                         <span className="text-shade-50 block mb-1">{prod.name}</span>
-                        <span className="text-[9px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded uppercase">
-                          Grade {item.grade || 'A'}
-                        </span>
+
                       </td>
                       <td className="px-4 py-4 text-right font-bold text-emerald-600 text-sm">
                         {item.qc_passed_qty}

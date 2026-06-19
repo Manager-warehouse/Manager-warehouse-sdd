@@ -15,5 +15,5 @@ public class DeliveryOrderItemResponse {
     private BigDecimal reservedQty;
     private BigDecimal issuedQty;
     private BigDecimal unitPrice;
-    private String serialNumber;
 }
+

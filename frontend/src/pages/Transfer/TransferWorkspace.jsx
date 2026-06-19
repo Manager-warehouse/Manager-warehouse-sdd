@@ -1,0 +1,434 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { useParams } from 'react-router-dom';
+import { Plus, RefreshCw, Search } from 'lucide-react';
+import Button from '../../components/common/Button';
+import Input from '../../components/common/Input';
+import { masterDataService } from '../../services/masterData.service';
+import { transferService } from '../../services/transfer.service';
+import { useAuthStore } from '../../stores/auth.store';
+import { useUiStore } from '../../stores/ui.store';
+import { ROLES } from '../../utils/constants';
+import TransferActionPanel from './TransferActionPanel';
+import TransferStatusBadge from './TransferStatusBadge';
+
+const normalizeId = (value) => Number(value || 0);
+const isActiveRecord = (record) => record.is_active !== false && record.isActive !== false;
+const isPhysicalWarehouse = (warehouse) => (warehouse.type || '').toUpperCase() !== 'IN_TRANSIT';
+const hasAnyRole = (hasRole, roles) => roles.some((role) => hasRole(role));
+
+const TransferWorkspace = () => {
+  const { id: routeTransferId } = useParams();
+  const { user, activeWarehouse, hasRole, hasWarehouseAccess } = useAuthStore();
+  const { addToast } = useUiStore();
+  const [transfers, setTransfers] = useState([]);
+  const [warehouses, setWarehouses] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [locations, setLocations] = useState([]);
+  const [vehicles, setVehicles] = useState([]);
+  const [drivers, setDrivers] = useState([]);
+  const [selectedId, setSelectedId] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [formOpen, setFormOpen] = useState(false);
+  const [availabilityByLine, setAvailabilityByLine] = useState({});
+  const [selectedAvailabilityByItem, setSelectedAvailabilityByItem] = useState({});
+  const [form, setForm] = useState({
+    externalInstructionCode: '',
+    sourceWarehouseId: '',
+    destinationWarehouseId: '',
+    documentDate: new Date().toISOString().slice(0, 10),
+    plannedDate: new Date().toISOString().slice(0, 10),
+    notes: '',
+    items: [{ productId: '', plannedQty: 1 }],
+  });
+  const canCreateTransfer = hasRole(ROLES.PLANNER);
+  const needsFleetData = hasRole(ROLES.DISPATCHER);
+  const needsLocationData = hasAnyRole(hasRole, [ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF]);
+
+  useEffect(() => {
+    loadData();
+  }, [routeTransferId, activeWarehouse?.id]);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadAvailability = async () => {
+      const sourceWarehouseId = normalizeId(form.sourceWarehouseId);
+      if (!sourceWarehouseId) {
+        setAvailabilityByLine({});
+        return;
+      }
+
+      const requests = form.items.map(async (item, index) => {
+        const productId = normalizeId(item.productId);
+        if (!productId) {
+          return [index, null];
+        }
+        try {
+          const availability = await transferService.getAvailability(sourceWarehouseId, productId);
+          return [index, availability];
+        } catch (error) {
+          return [index, { error: error.message || 'Không tải được tồn kho' }];
+        }
+      });
+
+      const results = await Promise.all(requests);
+      if (!active) return;
+      setAvailabilityByLine(Object.fromEntries(results));
+    };
+
+    loadAvailability();
+
+    return () => {
+      active = false;
+    };
+  }, [form.sourceWarehouseId, form.items]);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [transferRows, warehouseRows, productRows, locationRows, vehicleRows, driverRows] = await Promise.all([
+        transferService.getTransfers(),
+        canCreateTransfer ? masterDataService.getWarehouses() : Promise.resolve([]),
+        canCreateTransfer ? masterDataService.getProducts() : Promise.resolve([]),
+        needsLocationData ? masterDataService.getBinLocations() : Promise.resolve([]),
+        needsFleetData ? masterDataService.getVehicles() : Promise.resolve([]),
+        needsFleetData ? masterDataService.getDrivers() : Promise.resolve([]),
+      ]);
+      setTransfers(transferRows);
+      setWarehouses(warehouseRows.filter((warehouse) => isActiveRecord(warehouse) && isPhysicalWarehouse(warehouse)));
+      setProducts(productRows);
+      setLocations(locationRows);
+      setVehicles(vehicleRows.filter((vehicle) => (vehicle.status || '').toUpperCase() === 'AVAILABLE'));
+      setDrivers(driverRows);
+      const requestedId = normalizeId(routeTransferId);
+      setSelectedId((current) => (
+        requestedId && transferRows.some((transfer) => transfer.id === requestedId)
+          ? requestedId
+          : current || transferRows[0]?.id || null
+      ));
+    } catch (error) {
+      addToast(error.message || 'Không thể tải dữ liệu điều chuyển', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const visibleTransfers = useMemo(() => {
+    const activeWarehouseId = normalizeId(activeWarehouse?.id);
+    if (hasRole(ROLES.DISPATCHER)) {
+      const assignedWarehouses = user?.warehouses?.map(Number) || [];
+      return transfers.filter((transfer) => assignedWarehouses.includes(Number(transfer.sourceWarehouseId)));
+    }
+    if (hasRole(ROLES.WAREHOUSE_STAFF)) {
+      return transfers.filter((transfer) => (
+        normalizeId(transfer.destinationWarehouseId) === activeWarehouseId
+      ));
+    }
+    if (hasAnyRole(hasRole, [ROLES.STOREKEEPER, ROLES.WAREHOUSE_MANAGER])) {
+      return transfers.filter((transfer) => (
+        normalizeId(transfer.sourceWarehouseId) === activeWarehouseId
+        || normalizeId(transfer.destinationWarehouseId) === activeWarehouseId
+      ));
+    }
+    return transfers;
+  }, [transfers, user, activeWarehouse, hasRole]);
+
+  useEffect(() => {
+    if (!visibleTransfers.length) {
+      setSelectedId(null);
+      return;
+    }
+    if (!visibleTransfers.some((transfer) => transfer.id === selectedId)) {
+      setSelectedId(visibleTransfers[0].id);
+    }
+  }, [visibleTransfers, selectedId]);
+
+  const selectedTransfer = visibleTransfers.find((transfer) => transfer.id === selectedId);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadSelectedAvailability = async () => {
+      if (!selectedTransfer?.sourceWarehouseId || !selectedTransfer.items?.length) {
+        setSelectedAvailabilityByItem({});
+        return;
+      }
+
+      const requests = selectedTransfer.items.map(async (item) => {
+        try {
+          const availability = await transferService.getAvailability(
+            selectedTransfer.sourceWarehouseId,
+            item.productId
+          );
+          return [item.id, availability];
+        } catch (error) {
+          return [item.id, { error: error.message || 'Không tải được tồn kho' }];
+        }
+      });
+
+      const results = await Promise.all(requests);
+      if (!active) return;
+      setSelectedAvailabilityByItem(Object.fromEntries(results));
+    };
+
+    loadSelectedAvailability();
+
+    return () => {
+      active = false;
+    };
+  }, [selectedTransfer]);
+
+  const filteredTransfers = useMemo(() => visibleTransfers.filter((transfer) => {
+    const haystack = `${transfer.transferNumber} ${transfer.externalInstructionCode} ${transfer.sourceWarehouseCode} ${transfer.destinationWarehouseCode}`.toLowerCase();
+    return haystack.includes(searchTerm.toLowerCase())
+      && (statusFilter === 'ALL' || transfer.status === statusFilter);
+  }), [visibleTransfers, searchTerm, statusFilter]);
+
+  const setItem = (index, patch) => {
+    setForm((current) => ({
+      ...current,
+      items: current.items.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)),
+    }));
+  };
+
+  const createTransfer = async () => {
+    try {
+      const source = warehouses.find((warehouse) => warehouse.id === normalizeId(form.sourceWarehouseId));
+      const destination = warehouses.find((warehouse) => warehouse.id === normalizeId(form.destinationWarehouseId));
+      if (!source) {
+        throw new Error('Vui lòng chọn kho nguồn');
+      }
+      if (!destination) {
+        throw new Error('Vui lòng chọn kho đích');
+      }
+      if (source.id === destination.id) {
+        throw new Error('Kho nguồn và kho đích phải khác nhau');
+      }
+      if (!form.items.length) {
+        throw new Error('Phiếu điều chuyển cần ít nhất một dòng hàng');
+      }
+      const payload = {
+        externalInstructionCode: form.externalInstructionCode,
+        sourceWarehouseId: source.id,
+        destinationWarehouseId: destination.id,
+        documentDate: form.documentDate,
+        plannedDate: form.plannedDate,
+        notes: form.notes,
+        items: form.items.map((item, index) => {
+          const product = products.find((row) => row.id === normalizeId(item.productId));
+          if (!product) {
+            throw new Error('Vui lòng chọn sản phẩm cho tất cả dòng hàng');
+          }
+          if (Number(item.plannedQty) <= 0) {
+            throw new Error('Số lượng đặt phải lớn hơn 0');
+          }
+          const availability = availabilityByLine[index];
+          if (availability && !availability.error && Number(item.plannedQty) > Number(availability.availableQty ?? 0)) {
+            throw new Error(`Số lượng đặt của ${product.sku} vượt tồn khả dụng`);
+          }
+          return {
+            productId: product.id,
+            plannedQty: Number(item.plannedQty),
+          };
+        }),
+      };
+      const created = await transferService.createTransfer(payload);
+      addToast('Đã tạo phiếu điều chuyển NEW', 'success');
+      setFormOpen(false);
+      await loadData();
+      setSelectedId(created.id);
+    } catch (error) {
+      addToast(error.message || 'Không thể tạo phiếu điều chuyển', 'error');
+    }
+  };
+
+  const handleAction = async (name, payload) => {
+    try {
+      const id = selectedTransfer.id;
+      const actions = {
+        approve: () => transferService.approveTransfer(id),
+        reject: () => transferService.rejectTransfer(id, payload),
+        cancel: () => transferService.cancelTransfer(id, payload),
+        assignTrip: () => transferService.assignTrip(id, payload),
+        ship: () => transferService.shipTransfer(id),
+        unship: () => transferService.unshipTransfer(id),
+        depart: () => transferService.departTransfer(id),
+        receiveCount: () => transferService.receiveCount(id, payload),
+        receiveCheck: () => transferService.receiveCheck(id, payload),
+        finalReceive: () => transferService.finalReceive(id, payload),
+      };
+      const updated = await actions[name]();
+      addToast('Đã cập nhật phiếu điều chuyển', 'success');
+      await loadData();
+      setSelectedId(updated.id);
+    } catch (error) {
+      addToast(error.message || 'Thao tác điều chuyển thất bại', 'error');
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
+            Vận hành / Transfer
+          </span>
+          <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">
+            Điều chuyển nội bộ
+          </h1>
+          <p className="text-xs text-shade-50 mt-1">
+            Lập phiếu thủ công từ lệnh Công ty mẹ, giữ chỗ, xuất hàng, vận chuyển và xác nhận nhận hàng.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button icon={RefreshCw} variant="outline-light" onClick={loadData} loading={loading}>Tải lại</Button>
+          {canCreateTransfer && (
+            <Button icon={Plus} onClick={() => setFormOpen((value) => !value)}>Tạo phiếu</Button>
+          )}
+        </div>
+      </div>
+
+      {formOpen && (
+        <div className="border border-hairline-light rounded-lg bg-white p-4 grid grid-cols-1 md:grid-cols-4 gap-3">
+          <Input label="Mã lệnh Công ty mẹ" value={form.externalInstructionCode} onChange={(e) => setForm({ ...form, externalInstructionCode: e.target.value })} />
+          <Input type="select" label="Kho nguồn" value={form.sourceWarehouseId} onChange={(e) => setForm({ ...form, sourceWarehouseId: e.target.value })}
+            options={[{ value: '', label: 'Chọn kho nguồn' }, ...warehouses.map((warehouse) => ({ value: warehouse.id, label: `${warehouse.code} - ${warehouse.name}` }))]} />
+          <Input type="select" label="Kho đích" value={form.destinationWarehouseId} onChange={(e) => setForm({ ...form, destinationWarehouseId: e.target.value })}
+            options={[{ value: '', label: 'Chọn kho đích' }, ...warehouses.map((warehouse) => ({ value: warehouse.id, label: `${warehouse.code} - ${warehouse.name}` }))]} />
+          <Input type="date" label="Ngày chứng từ" value={form.documentDate} onChange={(e) => setForm({ ...form, documentDate: e.target.value })} />
+          <Input type="date" label="Ngày dự kiến" value={form.plannedDate} onChange={(e) => setForm({ ...form, plannedDate: e.target.value })} />
+          <Input className="md:col-span-3" label="Ghi chú" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+          <div className="md:col-span-4 flex flex-col gap-2">
+            {form.items.map((item, index) => (
+              <div key={index} className="grid grid-cols-1 md:grid-cols-[1fr_160px_160px_120px] gap-2 items-end">
+                <Input type="select" label="Sản phẩm" value={item.productId} onChange={(e) => setItem(index, { productId: e.target.value })}
+                  options={[{ value: '', label: 'Chọn SKU' }, ...products.map((product) => ({ value: product.id, label: `${product.sku} - ${product.name}` }))]} />
+                <Input label="Số lượng đặt" type="number" min="0.01" step="0.01" value={item.plannedQty} onChange={(e) => setItem(index, { plannedQty: e.target.value })} />
+                <div className="min-h-[44px] rounded-md border border-hairline-light bg-canvas-cream/50 px-3 py-2 text-xs">
+                  <div className="font-semibold uppercase tracking-wider text-shade-60">Tồn khả dụng</div>
+                  {availabilityByLine[index]?.error ? (
+                    <div className="text-red-600">{availabilityByLine[index].error}</div>
+                  ) : availabilityByLine[index] ? (
+                    <div className={Number(item.plannedQty) > Number(availabilityByLine[index].availableQty ?? 0) ? 'text-red-600 font-semibold' : 'text-ink'}>
+                      {availabilityByLine[index].availableQty ?? 0}
+                      <span className="text-shade-50 font-normal"> / giữ {availabilityByLine[index].reservedQty ?? 0}</span>
+                    </div>
+                  ) : (
+                    <div className="text-shade-50">Chưa chọn</div>
+                  )}
+                </div>
+                <Button variant="outline-light" onClick={() => setForm((current) => ({ ...current, items: current.items.filter((_, itemIndex) => itemIndex !== index) }))}>Xóa dòng</Button>
+              </div>
+            ))}
+            <div className="flex gap-2">
+              <Button variant="outline-light" onClick={() => setForm((current) => ({ ...current, items: [...current.items, { productId: '', plannedQty: 1 }] }))}>Thêm dòng</Button>
+              <Button onClick={createTransfer}>Lưu phiếu NEW</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.8fr)] gap-4">
+        <div className="border border-hairline-light rounded-lg bg-white overflow-hidden">
+          <div className="p-4 flex flex-col md:flex-row gap-3 md:items-center justify-between border-b border-hairline-light">
+            <div className="relative w-full md:w-80">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-shade-40" />
+              <input className="w-full text-input pl-10" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Tìm mã phiếu, mã lệnh..." />
+            </div>
+            <select className="text-input text-xs py-2" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+              <option value="ALL">Tất cả trạng thái</option>
+              <option value="NEW">NEW</option>
+              <option value="APPROVED">APPROVED</option>
+              <option value="IN_TRANSIT">IN_TRANSIT</option>
+              <option value="COMPLETED">COMPLETED</option>
+              <option value="COMPLETED_WITH_DISCREPANCY">COMPLETED_WITH_DISCREPANCY</option>
+              <option value="REJECTED">REJECTED</option>
+              <option value="CANCELLED">CANCELLED</option>
+            </select>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="bg-canvas-cream text-xs uppercase tracking-wider text-shade-60">
+                <tr>
+                  <th className="text-left px-4 py-3">Phiếu</th>
+                  <th className="text-left px-4 py-3">Tuyến</th>
+                  <th className="text-left px-4 py-3">Trạng thái</th>
+                  <th className="text-right px-4 py-3">Dòng hàng</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-hairline-light">
+                {filteredTransfers.map((transfer) => (
+                  <tr key={transfer.id} onClick={() => setSelectedId(transfer.id)}
+                    className={`cursor-pointer hover:bg-canvas-cream/60 ${selectedId === transfer.id ? 'bg-aloe-10/30' : ''}`}>
+                    <td className="px-4 py-3">
+                      <div className="font-semibold">{transfer.transferNumber}</div>
+                      <div className="text-xs text-shade-50">{transfer.externalInstructionCode}</div>
+                    </td>
+                    <td className="px-4 py-3 text-xs">{transfer.sourceWarehouseCode} → {transfer.destinationWarehouseCode}</td>
+                    <td className="px-4 py-3"><TransferStatusBadge status={transfer.status} /></td>
+                    <td className="px-4 py-3 text-right">{transfer.items?.length || 0}</td>
+                  </tr>
+                ))}
+                {!filteredTransfers.length && (
+                  <tr><td className="px-4 py-8 text-center text-shade-50" colSpan="4">Không có phiếu điều chuyển phù hợp.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-4">
+          {selectedTransfer && (
+            <div className="border border-hairline-light rounded-lg bg-white p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <div className="text-xs font-bold uppercase tracking-wider text-shade-60">Chi tiết hàng</div>
+                  <div className="font-semibold">{selectedTransfer.transferNumber}</div>
+                </div>
+                <TransferStatusBadge status={selectedTransfer.status} />
+              </div>
+              {selectedTransfer.tripId && (
+                <div className="mb-3 grid grid-cols-1 md:grid-cols-3 gap-2 rounded-md border border-hairline-light bg-canvas-cream/50 px-3 py-2 text-xs">
+                  <span><span className="text-shade-50">Chuyến:</span> <strong>{selectedTransfer.tripNumber || '-'}</strong></span>
+                  <span><span className="text-shade-50">Xe:</span> <strong>{selectedTransfer.vehiclePlate || '-'}</strong></span>
+                  <span><span className="text-shade-50">Tài xế:</span> <strong>{selectedTransfer.driverName || '-'}</strong></span>
+                </div>
+              )}
+              <div className="divide-y divide-hairline-light">
+                {selectedTransfer.items?.map((item) => (
+                  <div key={item.id} className="py-2 text-sm">
+                    <div className="font-semibold">{item.productSku} <span className="font-normal text-shade-60">{item.productName}</span></div>
+                    <div className="grid grid-cols-5 gap-2 text-xs text-shade-60 mt-1">
+                      <span>Kế hoạch: {item.plannedQty}</span>
+                      <span className={Number(item.plannedQty) > Number(selectedAvailabilityByItem[item.id]?.availableQty ?? 0) ? 'text-red-600 font-semibold' : ''}>
+                        Khả dụng: {selectedAvailabilityByItem[item.id]?.error ? 'Lỗi tải' : (selectedAvailabilityByItem[item.id]?.availableQty ?? '-')}
+                      </span>
+                      <span>Xuất: {item.sentQty ?? '-'}</span>
+                      <span>Công nhân: {item.workerReceivedQty ?? '-'}</span>
+                      <span>QC đạt/lỗi: {item.qcPassedQty ?? '-'} / {item.qcFailedQty ?? '-'}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          <TransferActionPanel
+            transfer={selectedTransfer}
+            currentUser={user}
+            hasRole={hasRole}
+            hasWarehouseAccess={hasWarehouseAccess}
+            vehicles={vehicles}
+            drivers={drivers}
+            activeWarehouse={activeWarehouse}
+            locations={locations}
+            onAction={handleAction}
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default TransferWorkspace;

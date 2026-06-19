@@ -47,8 +47,21 @@ public class TransferItem {
     @Column(name = "received_qty", precision = 10, scale = 2)
     private BigDecimal receivedQty;
 
-    @Column(name = "variance_qty", precision = 10, scale = 2)
-    private BigDecimal varianceQty;
+    @Column(name = "worker_received_qty", precision = 10, scale = 2)
+    private BigDecimal workerReceivedQty;
+
+    @Column(name = "issue_reason", columnDefinition = "TEXT")
+    private String issueReason;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "checked_by")
+    private User checkedBy;
+
+    @Column(name = "checked_at")
+    private java.time.OffsetDateTime checkedAt;
+
+    @Column(name = "checker_note", columnDefinition = "TEXT")
+    private String checkerNote;
 
     @Column(name = "qc_passed_qty", precision = 10, scale = 2)
     private BigDecimal qcPassedQty;
@@ -56,10 +69,9 @@ public class TransferItem {
     @Column(name = "qc_failed_qty", precision = 10, scale = 2)
     private BigDecimal qcFailedQty;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "qc_result", length = 20)
-    private QcResult qcResult;
-
     @Column(name = "qc_failure_reason", columnDefinition = "TEXT")
     private String qcFailureReason;
+
+    @Column(name = "variance_qty", precision = 10, scale = 2)
+    private BigDecimal varianceQty;
 }

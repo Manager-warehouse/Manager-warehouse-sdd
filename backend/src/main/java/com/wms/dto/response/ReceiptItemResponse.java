@@ -29,8 +29,7 @@ public class ReceiptItemResponse {
     @JsonProperty("product_sku")
     private String productSku;
 
-    @JsonProperty("has_serial")
-    private Boolean hasSerial;
+
 
     public Long getReceiptItemId() {
         return receiptItemId;
@@ -96,12 +95,6 @@ public class ReceiptItemResponse {
         this.productSku = productSku;
     }
 
-    public Boolean getHasSerial() {
-        return hasSerial;
-    }
 
-    public void setHasSerial(Boolean hasSerial) {
-        this.hasSerial = hasSerial;
-    }
 }
 

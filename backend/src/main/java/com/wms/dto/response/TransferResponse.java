@@ -1,36 +1,62 @@
 package com.wms.dto.response;
 
+import com.wms.entity.Transfer;
 import com.wms.enums.TransferStatus;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
-import lombok.Builder;
-import lombok.Getter;
 
-@Builder
-@Getter
-public class TransferResponse {
-    private Long id;
-    private String transferNumber;
-    private Long sourceWarehouseId;
-    private Long destinationWarehouseId;
-    private TransferStatus status;
-    private String externalInstructionCode;
-    private Long approvedById;
-    private OffsetDateTime approvedAt;
-    private Long rejectedById;
-    private OffsetDateTime rejectedAt;
-    private String rejectionReason;
-    private Long confirmedById;
-    private OffsetDateTime confirmedAt;
-    private LocalDate plannedDate;
-    private LocalDate actualReceivedDate;
-    private String discrepancyReason;
-    private Long tripId;
-    private LocalDate documentDate;
-    private Long accountingPeriodId;
-    private String notes;
-    private List<TransferItemResponse> items;
-    private OffsetDateTime createdAt;
-    private OffsetDateTime updatedAt;
+public record TransferResponse(
+        Long id,
+        String transferNumber,
+        String externalInstructionCode,
+        Long sourceWarehouseId,
+        String sourceWarehouseCode,
+        Long destinationWarehouseId,
+        String destinationWarehouseCode,
+        TransferStatus status,
+        Long tripId,
+        String tripNumber,
+        Long vehicleId,
+        String vehiclePlate,
+        Long driverId,
+        Long driverUserId,
+        String driverName,
+        LocalDate documentDate,
+        LocalDate plannedDate,
+        LocalDate actualReceivedDate,
+        String discrepancyReason,
+        String rejectionReason,
+        String notes,
+        OffsetDateTime createdAt,
+        OffsetDateTime updatedAt,
+        List<TransferItemResponse> items) {
+
+    public static TransferResponse from(Transfer transfer, List<TransferItemResponse> items) {
+        return new TransferResponse(
+                transfer.getId(),
+                transfer.getTransferNumber(),
+                transfer.getExternalInstructionCode(),
+                transfer.getSourceWarehouse().getId(),
+                transfer.getSourceWarehouse().getCode(),
+                transfer.getDestinationWarehouse().getId(),
+                transfer.getDestinationWarehouse().getCode(),
+                transfer.getStatus(),
+                transfer.getTrip() == null ? null : transfer.getTrip().getId(),
+                transfer.getTrip() == null ? null : transfer.getTrip().getTripNumber(),
+                transfer.getTrip() == null ? null : transfer.getTrip().getVehicle().getId(),
+                transfer.getTrip() == null ? null : transfer.getTrip().getVehicle().getPlateNumber(),
+                transfer.getTrip() == null ? null : transfer.getTrip().getDriver().getId(),
+                transfer.getTrip() == null ? null : transfer.getTrip().getDriver().getUser().getId(),
+                transfer.getTrip() == null ? null : transfer.getTrip().getDriver().getFullName(),
+                transfer.getDocumentDate(),
+                transfer.getPlannedDate(),
+                transfer.getActualReceivedDate(),
+                transfer.getDiscrepancyReason(),
+                transfer.getRejectionReason(),
+                transfer.getNotes(),
+                transfer.getCreatedAt(),
+                transfer.getUpdatedAt(),
+                items);
+    }
 }

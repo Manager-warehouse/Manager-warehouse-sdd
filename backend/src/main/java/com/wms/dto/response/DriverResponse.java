@@ -5,12 +5,14 @@ import lombok.Setter;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.List;
 
 @Getter
 @Setter
 public class DriverResponse {
     private Long id;
     private Long userId;
+    private List<Long> warehouseIds;
     private String fullName;
     private String phone;
     private String licenseNumber;

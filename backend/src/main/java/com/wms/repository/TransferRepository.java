@@ -2,6 +2,8 @@ package com.wms.repository;
 
 import com.wms.entity.Transfer;
 import com.wms.enums.TransferStatus;
+import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -14,18 +16,25 @@ import org.springframework.stereotype.Repository;
 public interface TransferRepository extends JpaRepository<Transfer, Long> {
     boolean existsByTransferNumber(String transferNumber);
 
-    List<Transfer> findBySourceWarehouseIdAndStatus(Long sourceWarehouseId, TransferStatus status);
+    boolean existsByExternalInstructionCodeAndSourceWarehouseIdAndDestinationWarehouseIdAndDocumentDateAndStatusNotIn(
+            String externalInstructionCode,
+            Long sourceWarehouseId,
+            Long destinationWarehouseId,
+            LocalDate documentDate,
+            Collection<TransferStatus> statuses);
 
-    @EntityGraph(attributePaths = {
-            "sourceWarehouse",
-            "destinationWarehouse",
-            "createdBy",
-            "approvedBy",
-            "rejectedBy",
-            "confirmedBy",
-            "trip",
-            "accountingPeriod"
-    })
+    boolean existsByExternalInstructionCodeAndSourceWarehouseIdAndDestinationWarehouseIdAndDocumentDateAndStatusNotInAndIdNot(
+            String externalInstructionCode,
+            Long sourceWarehouseId,
+            Long destinationWarehouseId,
+            LocalDate documentDate,
+            Collection<TransferStatus> statuses,
+            Long id);
+
+    @EntityGraph(attributePaths = {"sourceWarehouse", "destinationWarehouse", "createdBy", "approvedBy", "rejectedBy", "confirmedBy", "trip", "accountingPeriod"})
+    List<Transfer> findAllByOrderByCreatedAtDesc();
+
+    @EntityGraph(attributePaths = {"sourceWarehouse", "destinationWarehouse", "createdBy", "approvedBy", "rejectedBy", "confirmedBy", "trip", "accountingPeriod"})
     @Query("select t from Transfer t where t.id = :id")
-    Optional<Transfer> findDetailedById(@Param("id") Long id);
+    Optional<Transfer> findWithDetailsById(Long id);
 }

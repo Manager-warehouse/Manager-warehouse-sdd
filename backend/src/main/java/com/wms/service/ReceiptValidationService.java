@@ -36,6 +36,12 @@ public class ReceiptValidationService {
 
     @Transactional(readOnly = true)
     public void assertWarehouseAssignment(User actor, Long receiptId) {
+        if (actor == null) {
+            throw new ForbiddenReceiptWarehouseException("FORBIDDEN_RECEIPT_ROLE: actor is null");
+        }
+        if (actor.getRole() == UserRole.ADMIN || actor.getRole() == UserRole.CEO) {
+            return;
+        }
         Receipt receipt = receiptRepository.findById(receiptId)
                 .orElseThrow(() -> new ResourceNotFoundException("Receipt not found: " + receiptId));
         Long warehouseId = receipt.getWarehouse().getId();
@@ -48,6 +54,12 @@ public class ReceiptValidationService {
 
     @Transactional(readOnly = true)
     public void assertWarehouseAccess(User actor, Long warehouseId) {
+        if (actor == null) {
+            throw new ForbiddenReceiptWarehouseException("FORBIDDEN_RECEIPT_ROLE: actor is null");
+        }
+        if (actor.getRole() == UserRole.ADMIN || actor.getRole() == UserRole.CEO) {
+            return;
+        }
         List<Long> assignedWarehouseIds = userWarehouseAssignmentRepository
                 .findWarehouseIdsByUserId(actor.getId());
         if (!assignedWarehouseIds.contains(warehouseId)) {

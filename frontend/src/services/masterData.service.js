@@ -1,4 +1,5 @@
 import apiClient, { useMock } from "./api.client";
+import { MOCK_USERS } from "../utils/constants";
 
 const mapToCamelCase = (obj) => {
   if (!obj || typeof obj !== "object") return obj;
@@ -213,6 +214,7 @@ const INITIAL_VEHICLES = [
     vehicle_type: "Xe tải Hyundai H150 1.5 Tấn",
     max_weight_kg: 1500.0,
     max_volume_m3: 12.5,
+    warehouse_id: 1,
     status: "AVAILABLE",
     is_active: true,
   },
@@ -222,6 +224,7 @@ const INITIAL_VEHICLES = [
     vehicle_type: "Xe tải Isuzu NPR400 3.5 Tấn",
     max_weight_kg: 3500.0,
     max_volume_m3: 20.0,
+    warehouse_id: 2,
     status: "MAINTENANCE",
     is_active: true,
   },
@@ -231,6 +234,7 @@ const INITIAL_DRIVERS = [
   {
     id: 1,
     user_id: 13,
+    warehouse_ids: [1],
     full_name: "Nguyễn Văn Tài Xế 1",
     phone: "0904445556",
     license_number: "HP-12345678",
@@ -241,6 +245,7 @@ const INITIAL_DRIVERS = [
   {
     id: 2,
     user_id: 14,
+    warehouse_ids: [2],
     full_name: "Trần Văn Giao Hàng",
     phone: "0905556667",
     license_number: "HN-87654321",
@@ -267,6 +272,26 @@ const getDb = (key, initial) => {
 
 const saveDb = (key, data) => {
   localStorage.setItem(key, JSON.stringify(data));
+};
+
+const getMockUsers = () => {
+  try {
+    const stored = JSON.parse(localStorage.getItem("wms_db_users"));
+    return Array.isArray(stored) && stored.length ? stored : MOCK_USERS;
+  } catch (e) {
+    return MOCK_USERS;
+  }
+};
+
+const hydrateDriverWarehouses = (driver) => {
+  if (Array.isArray(driver.warehouse_ids) && driver.warehouse_ids.length) {
+    return driver;
+  }
+  const linkedUser = getMockUsers().find((user) => Number(user.id) === Number(driver.user_id));
+  return {
+    ...driver,
+    warehouse_ids: linkedUser?.warehouses || [],
+  };
 };
 
 const addMockAuditLog = (action, entityType, entityId, details) => {
@@ -429,7 +454,12 @@ export const masterDataService = {
   getWarehouses: async () => {
     if (useMock) {
       await new Promise((resolve) => setTimeout(resolve, 200));
-      return getDb(KEYS.WAREHOUSES, INITIAL_WAREHOUSES);
+      const warehouses = getDb(KEYS.WAREHOUSES, INITIAL_WAREHOUSES);
+      if (!Array.isArray(warehouses) || warehouses.length === 0) {
+        saveDb(KEYS.WAREHOUSES, INITIAL_WAREHOUSES);
+        return INITIAL_WAREHOUSES;
+      }
+      return warehouses;
     }
     const response = await apiClient.get("/admin/warehouses");
     return mapToSnakeCase(response.data);
@@ -1051,6 +1081,7 @@ export const masterDataService = {
         vehicle_type: vhData.vehicle_type.trim(),
         max_weight_kg: parseFloat(vhData.max_weight_kg) || 0,
         max_volume_m3: parseFloat(vhData.max_volume_m3) || 0,
+        warehouse_id: Number(vhData.warehouse_id),
         status: vhData.status || "AVAILABLE",
         is_active: true,
       };
@@ -1095,6 +1126,7 @@ export const masterDataService = {
           parseFloat(vhData.max_weight_kg) || vehicles[idx].max_weight_kg,
         max_volume_m3:
           parseFloat(vhData.max_volume_m3) || vehicles[idx].max_volume_m3,
+        warehouse_id: Number(vhData.warehouse_id) || vehicles[idx].warehouse_id,
         status: vhData.status || vehicles[idx].status,
       };
 
@@ -1155,9 +1187,20 @@ export const masterDataService = {
   getDrivers: async () => {
     if (useMock) {
       await new Promise((resolve) => setTimeout(resolve, 200));
-      return getDb(KEYS.DRIVERS, INITIAL_DRIVERS);
+      const drivers = getDb(KEYS.DRIVERS, INITIAL_DRIVERS).map(hydrateDriverWarehouses);
+      saveDb(KEYS.DRIVERS, drivers);
+      return drivers;
     }
     const response = await apiClient.get("/dispatcher/drivers");
+    return mapToSnakeCase(response.data);
+  },
+
+  getDriverUserCandidates: async () => {
+    if (useMock) {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      return getMockUsers().filter((user) => user.role === "DRIVER");
+    }
+    const response = await apiClient.get("/dispatcher/drivers/candidate-users");
     return mapToSnakeCase(response.data);
   },
 
@@ -1173,9 +1216,11 @@ export const masterDataService = {
       );
       if (lExists) throw new Error("DUPLICATE_LICENSE_NUMBER");
 
+      const linkedUser = getMockUsers().find((u) => u.id === Number(drvData.user_id));
       const newDrv = {
         id: drivers.length > 0 ? Math.max(...drivers.map((d) => d.id)) + 1 : 1,
         user_id: drvData.user_id ? Number(drvData.user_id) : 13, // Default driver user_id link
+        warehouse_ids: drvData.warehouse_ids || drvData.warehouseIds || linkedUser?.warehouses || [],
         full_name: drvData.full_name.trim(),
         phone: drvData.phone || "",
         license_number: drvData.license_number.trim().toUpperCase(),
@@ -1194,10 +1239,17 @@ export const masterDataService = {
       );
       return newDrv;
     }
+    const { status, warehouse_ids, warehouseIds, ...profileData } = drvData;
     const response = await apiClient.post(
       "/dispatcher/drivers",
-      mapToCamelCase(drvData),
+      mapToCamelCase(profileData),
     );
+    if (status && status !== response.data.status) {
+      await apiClient.patch(`/dispatcher/drivers/${response.data.id}/status`, {
+        status,
+      });
+      response.data.status = status;
+    }
     return mapToSnakeCase(response.data);
   },
 
@@ -1218,6 +1270,7 @@ export const masterDataService = {
 
       const updated = {
         ...drivers[idx],
+        warehouse_ids: drvData.warehouse_ids || drvData.warehouseIds || drivers[idx].warehouse_ids || [],
         full_name: drvData.full_name.trim(),
         phone: drvData.phone || "",
         license_number: drvData.license_number.trim().toUpperCase(),
@@ -1235,15 +1288,16 @@ export const masterDataService = {
       );
       return updated;
     }
+    const { status, warehouse_ids, warehouseIds, ...profileData } = drvData;
     const response = await apiClient.put(
       `/dispatcher/drivers/${id}`,
-      mapToCamelCase(drvData),
+      mapToCamelCase(profileData),
     );
-    if (drvData.status) {
+    if (status) {
       await apiClient.patch(`/dispatcher/drivers/${id}/status`, {
-        status: drvData.status,
+        status,
       });
-      response.data.status = drvData.status;
+      response.data.status = status;
     }
     return mapToSnakeCase(response.data);
   },

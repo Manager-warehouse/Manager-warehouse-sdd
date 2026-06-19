@@ -8,6 +8,8 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface TransferItemRepository extends JpaRepository<TransferItem, Long> {
+    @EntityGraph(attributePaths = {"product", "batch", "sourceLocation", "destinationLocation"})
+    List<TransferItem> findByTransferIdOrderById(Long transferId);
 
     @EntityGraph(attributePaths = {"product", "batch", "sourceLocation", "destinationLocation"})
     List<TransferItem> findByTransferId(Long transferId);

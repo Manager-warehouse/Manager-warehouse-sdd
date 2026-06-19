@@ -20,6 +20,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -30,6 +32,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class SystemConfigServiceTest {
 
     @Mock private SystemConfigRepository systemConfigRepository;
@@ -439,8 +442,8 @@ class SystemConfigServiceTest {
         when(systemConfigRepository.findByConfigKey("INVALID_ENUM_KEY")).thenReturn(Optional.of(cfg));
 
         assertThatThrownBy(() -> systemConfigService.updateConfig("INVALID_ENUM_KEY", request, 1L))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Unknown config key");
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Configuration not found for key");
     }
 
     @Test

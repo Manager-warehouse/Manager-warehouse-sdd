@@ -17,6 +17,7 @@ import ReceiptReceive from '../pages/Inbound/ReceiptReceive';
 import QCInbound from '../pages/Inbound/QCInbound';
 import PutawayPlan from '../pages/Inbound/PutawayPlan';
 import QuarantineWorkspace from '../pages/Inbound/QuarantineWorkspace';
+import TransferWorkspace from '../pages/Transfer/TransferWorkspace';
 import SystemConfig from '../pages/Admin/SystemConfig';
 import AuditLogs from '../pages/Admin/AuditLogs';
 import DeliveryOrders from '../pages/Outbound/DeliveryOrders';
@@ -45,7 +46,7 @@ const AppRoutes = () => {
         <Route path="/admin/audit-logs" element={<AuditLogs />} />
       </Route>
 
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.WAREHOUSE_MANAGER]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]} />}>
         <Route path="/admin/users" element={<UserManagement />} />
       </Route>
 
@@ -89,6 +90,11 @@ const AppRoutes = () => {
 
       <Route element={<ProtectedRoute allowedRoles={[ROLES.STOREKEEPER, ROLES.WAREHOUSE_MANAGER, ROLES.CEO, ROLES.ADMIN]} />}>
         <Route path="/inbound/quarantine" element={<QuarantineWorkspace />} />
+      </Route>
+
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.PLANNER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.WAREHOUSE_MANAGER, ROLES.DISPATCHER, ROLES.ADMIN, ROLES.CEO]} />}>
+        <Route path="/transfers" element={<TransferWorkspace />} />
+        <Route path="/transfers/:id" element={<TransferWorkspace />} />
       </Route>
 
       {/* Outbound & Delivery protected routes */}

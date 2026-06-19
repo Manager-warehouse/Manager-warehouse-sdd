@@ -22,6 +22,9 @@ public class Transfer {
     @Column(name = "transfer_number", nullable = false, unique = true, length = 50)
     private String transferNumber;
 
+    @Column(name = "external_instruction_code", nullable = false, length = 100)
+    private String externalInstructionCode;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "source_warehouse_id", nullable = false)
     private Warehouse sourceWarehouse;
@@ -37,9 +40,6 @@ public class Transfer {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by", nullable = false)
     private User createdBy;
-
-    @Column(name = "external_instruction_code", length = 80)
-    private String externalInstructionCode;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "approved_by")
