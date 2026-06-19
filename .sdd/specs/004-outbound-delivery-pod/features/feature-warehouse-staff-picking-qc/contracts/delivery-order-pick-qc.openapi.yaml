@@ -1,0 +1,388 @@
+openapi: 3.0.3
+info:
+  title: Warehouse Staff Picking & QC Outbound API
+  version: 1.0.0
+  description: Contracts for recording outbound pick/QC results and downstream approval flows in Sprint 1.
+paths:
+  /api/v1/delivery-orders/{id}/pick-qc-result:
+    put:
+      summary: Save one complete outbound pick and QC result set
+      operationId: saveDeliveryOrderPickQcResult
+      tags:
+        - Delivery Orders
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PickQcResultRequest"
+      responses:
+        "200":
+          description: Pick/QC result saved and Delivery Order moved to QC_PENDING_APPROVAL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeliveryOrderResponse"
+        "400":
+          description: Invalid request payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Warehouse staff is not assigned to the Delivery Order warehouse
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Delivery Order, allocation, or referenced location not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Optimistic-lock conflict or idempotency key conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Pick/QC business validation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/delivery-orders/{id}/quality-approval:
+    put:
+      summary: Approve outbound quality after QC review
+      operationId: approveDeliveryOrderQuality
+      tags:
+        - Delivery Orders
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QualityApprovalRequest"
+      responses:
+        "200":
+          description: Quality approved and Delivery Order moved to QC_COMPLETED
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeliveryOrderResponse"
+        "400":
+          description: Invalid request payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Storekeeper is not assigned to the Delivery Order warehouse
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Quality approval validation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/delivery-orders/{id}/warehouse-approval:
+    put:
+      summary: Approve outbound release after QC completion
+      operationId: approveDeliveryOrderWarehouseRelease
+      tags:
+        - Delivery Orders
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WarehouseApprovalRequest"
+      responses:
+        "200":
+          description: Warehouse approval saved and Delivery Order moved to WAREHOUSE_APPROVED
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeliveryOrderResponse"
+        "400":
+          description: Invalid request payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Warehouse Manager is not assigned to the Delivery Order warehouse
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Warehouse approval validation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/delivery-orders/{id}/warehouse-reject:
+    put:
+      summary: Reject outbound release and return staged goods to source bins
+      operationId: rejectDeliveryOrderWarehouseRelease
+      tags:
+        - Delivery Orders
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WarehouseRejectRequest"
+      responses:
+        "200":
+          description: Warehouse rejection saved and Delivery Order moved to REJECTED
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeliveryOrderResponse"
+        "400":
+          description: Invalid request payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Warehouse Manager is not assigned to the Delivery Order warehouse
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Optimistic-lock conflict on source or staging inventory rows
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Warehouse reject validation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    PickQcResultRequest:
+      type: object
+      required:
+        - results
+      properties:
+        idempotencyKey:
+          type: string
+          maxLength: 100
+        results:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/PickQcResultRowRequest"
+    PickQcResultRowRequest:
+      type: object
+      required:
+        - doItemId
+        - allocationId
+        - batchId
+        - locationId
+        - zoneId
+        - pickedQty
+        - qcPassQty
+        - qcFailQty
+      properties:
+        doItemId:
+          type: integer
+          format: int64
+        allocationId:
+          type: integer
+          format: int64
+        batchId:
+          type: integer
+          format: int64
+        locationId:
+          type: integer
+          format: int64
+        zoneId:
+          type: integer
+          format: int64
+        pickedQty:
+          type: number
+          minimum: 0
+        qcPassQty:
+          type: number
+          minimum: 0
+        qcFailQty:
+          type: number
+          minimum: 0
+        qcFailReason:
+          type: string
+          maxLength: 1000
+        stagingLocationId:
+          type: integer
+          format: int64
+        quarantineLocationId:
+          type: integer
+          format: int64
+        notes:
+          type: string
+          maxLength: 1000
+    QualityApprovalRequest:
+      type: object
+      properties:
+        notes:
+          type: string
+          maxLength: 1000
+    WarehouseApprovalRequest:
+      type: object
+      properties:
+        notes:
+          type: string
+          maxLength: 1000
+    WarehouseRejectRequest:
+      type: object
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        returnToBinRecords:
+          type: array
+          items:
+            $ref: "#/components/schemas/WarehouseRejectReturnRow"
+    WarehouseRejectReturnRow:
+      type: object
+      required:
+        - doItemId
+        - allocationId
+        - batchId
+        - returnedQty
+        - sourceLocationId
+        - originalLocationId
+        - originalZoneId
+      properties:
+        doItemId:
+          type: integer
+          format: int64
+        allocationId:
+          type: integer
+          format: int64
+        batchId:
+          type: integer
+          format: int64
+        returnedQty:
+          type: number
+          minimum: 0
+          exclusiveMinimum: true
+        sourceLocationId:
+          type: integer
+          format: int64
+        originalLocationId:
+          type: integer
+          format: int64
+        originalZoneId:
+          type: integer
+          format: int64
+        reason:
+          type: string
+          maxLength: 1000
+    DeliveryOrderResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        doNumber:
+          type: string
+        warehouseId:
+          type: integer
+          format: int64
+        status:
+          type: string
+          example: QC_PENDING_APPROVAL
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeliveryOrderItemResponse"
+    DeliveryOrderItemResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        productId:
+          type: integer
+          format: int64
+        plannedQty:
+          type: number
+        pickedQty:
+          type: number
+        qcPassQty:
+          type: number
+        qcFailQty:
+          type: number
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: string
+          examples:
+            - WAREHOUSE_SCOPE_FORBIDDEN
+            - DELIVERY_ORDER_STATUS_INVALID
+            - QC_RESULT_ALREADY_RECORDED
+            - IDEMPOTENCY_KEY_CONFLICT
+            - PICK_QC_RESULT_INVALID
+            - QC_REPLACEMENT_REQUIRED
+            - INVENTORY_VERSION_CONFLICT
+            - INVENTORY_ROW_INVALID
+        message:
+          type: string
