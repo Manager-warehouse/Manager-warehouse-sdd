@@ -13,6 +13,7 @@ public class DealerResponse {
     private String code;
     private String name;
     private String phone;
+    private String email;
     private String defaultDeliveryAddress;
     private String region;
     private Integer paymentTermDays;

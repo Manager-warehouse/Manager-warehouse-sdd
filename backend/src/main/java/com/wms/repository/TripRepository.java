@@ -18,6 +18,14 @@ public interface TripRepository extends JpaRepository<Trip, Long> {
     @EntityGraph(attributePaths = {"warehouse", "vehicle", "driver", "driver.user", "dispatcher"})
     Optional<Trip> findWithWarehouseAndResourcesById(Long id);
 
+    @EntityGraph(attributePaths = {"warehouse", "vehicle", "driver", "driver.user", "dispatcher"})
+    @Query("""
+            select t from Trip t
+            where t.id = :tripId
+              and t.driver.user.id = :userId
+            """)
+    Optional<Trip> findAssignedDriverTrip(@Param("tripId") Long tripId, @Param("userId") Long userId);
+
     @Query("""
             select count(t) > 0 from Trip t
             where t.vehicle.id = :vehicleId

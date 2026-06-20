@@ -17,6 +17,15 @@ public interface TripDeliveryOrderRepository extends JpaRepository<TripDeliveryO
     @EntityGraph(attributePaths = {"trip", "deliveryOrder", "deliveryOrder.warehouse"})
     List<TripDeliveryOrder> findByTripIdOrderByStopOrderAsc(Long tripId);
 
+    @EntityGraph(attributePaths = {"trip", "deliveryOrder", "deliveryOrder.dealer", "deliveryOrder.warehouse"})
+    @Query("""
+            select tdo from TripDeliveryOrder tdo
+            where tdo.trip.id = :tripId
+              and tdo.deliveryOrder.id = :deliveryOrderId
+            """)
+    java.util.Optional<TripDeliveryOrder> findByTripIdAndDeliveryOrderId(@Param("tripId") Long tripId,
+                                                                         @Param("deliveryOrderId") Long deliveryOrderId);
+
     @Modifying
     void deleteByTripId(Long tripId);
 

@@ -1,0 +1,552 @@
+package com.wms.service.impl;
+
+import com.wms.dto.request.ConfirmDeliveryRequest;
+import com.wms.dto.request.DeliveryOtpRequest;
+import com.wms.dto.request.FailDeliveryRequest;
+import com.wms.dto.request.ResetDeliveryOtpRequest;
+import com.wms.dto.request.TripCompleteRequest;
+import com.wms.dto.response.DeliveryAttemptResponse;
+import com.wms.dto.response.DeliveryOtpResponse;
+import com.wms.dto.response.DriverDeliveryOrderResponse;
+import com.wms.dto.response.TripDriverViewResponse;
+import com.wms.entity.Dealer;
+import com.wms.entity.Delivery;
+import com.wms.entity.DeliveryOrder;
+import com.wms.entity.DeliveryOrderItem;
+import com.wms.entity.DeliveryOtpAttempt;
+import com.wms.entity.Driver;
+import com.wms.entity.Inventory;
+import com.wms.entity.Invoice;
+import com.wms.entity.Trip;
+import com.wms.entity.TripDeliveryOrder;
+import com.wms.entity.User;
+import com.wms.enums.AuditAction;
+import com.wms.enums.DeliveryOrderStatus;
+import com.wms.enums.DeliveryOtpStatus;
+import com.wms.enums.DeliveryStatus;
+import com.wms.enums.DriverStatus;
+import com.wms.enums.InvoiceStatus;
+import com.wms.enums.TripStatus;
+import com.wms.enums.VehicleStatus;
+import com.wms.exception.OutboundDeliveryException;
+import com.wms.exception.ResourceNotFoundException;
+import com.wms.repository.DeliveryOrderItemRepository;
+import com.wms.repository.DeliveryOrderRepository;
+import com.wms.repository.DeliveryOtpAttemptRepository;
+import com.wms.repository.DeliveryRepository;
+import com.wms.repository.InventoryRepository;
+import com.wms.repository.InvoiceRepository;
+import com.wms.repository.TripDeliveryOrderRepository;
+import com.wms.repository.TripRepository;
+import com.wms.service.AuditLogService;
+import com.wms.service.DriverDeliveryService;
+import java.io.IOException;
+import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.util.Collection;
+import java.util.HexFormat;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import org.springframework.http.HttpStatus;
+import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+
+@Service
+public class DriverDeliveryServiceImpl implements DriverDeliveryService {
+
+    private static final BigDecimal ZERO = BigDecimal.ZERO;
+    private static final long MAX_POD_BYTES = 5L * 1024L * 1024L;
+    private static final List<DeliveryStatus> CURRENT_ATTEMPT_STATUSES = List.of(DeliveryStatus.IN_TRANSIT);
+    private static final List<DeliveryOrderStatus> TERMINAL_DO_STATUSES =
+            List.of(DeliveryOrderStatus.COMPLETED, DeliveryOrderStatus.RETURNED);
+
+    private final TripRepository tripRepository;
+    private final TripDeliveryOrderRepository tripDeliveryOrderRepository;
+    private final DeliveryRepository deliveryRepository;
+    private final DeliveryOtpAttemptRepository otpRepository;
+    private final DeliveryOrderRepository deliveryOrderRepository;
+    private final DeliveryOrderItemRepository deliveryOrderItemRepository;
+    private final InventoryRepository inventoryRepository;
+    private final InvoiceRepository invoiceRepository;
+    private final AuditLogService auditLogService;
+    private final JavaMailSender mailSender;
+    private final SecureRandom secureRandom = new SecureRandom();
+
+    public DriverDeliveryServiceImpl(TripRepository tripRepository,
+                                     TripDeliveryOrderRepository tripDeliveryOrderRepository,
+                                     DeliveryRepository deliveryRepository,
+                                     DeliveryOtpAttemptRepository otpRepository,
+                                     DeliveryOrderRepository deliveryOrderRepository,
+                                     DeliveryOrderItemRepository deliveryOrderItemRepository,
+                                     InventoryRepository inventoryRepository,
+                                     InvoiceRepository invoiceRepository,
+                                     AuditLogService auditLogService,
+                                     JavaMailSender mailSender) {
+        this.tripRepository = tripRepository;
+        this.tripDeliveryOrderRepository = tripDeliveryOrderRepository;
+        this.deliveryRepository = deliveryRepository;
+        this.otpRepository = otpRepository;
+        this.deliveryOrderRepository = deliveryOrderRepository;
+        this.deliveryOrderItemRepository = deliveryOrderItemRepository;
+        this.inventoryRepository = inventoryRepository;
+        this.invoiceRepository = invoiceRepository;
+        this.auditLogService = auditLogService;
+        this.mailSender = mailSender;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public TripDriverViewResponse getAssignedTrip(Long tripId, User actor) {
+        Trip trip = assignedTrip(tripId, actor);
+        return toTripDriverView(trip);
+    }
+
+    @Override
+    @Transactional
+    public DeliveryAttemptResponse uploadPodEvidence(Long tripId, Long deliveryOrderId,
+                                                     MultipartFile goodsImage,
+                                                     MultipartFile signDocumentImage,
+                                                     String notes,
+                                                     User actor) {
+        Trip trip = assignedTrip(tripId, actor);
+        Delivery delivery = currentAttempt(trip, deliveryOrderId);
+        validatePodFile(goodsImage);
+        validatePodFile(signDocumentImage);
+        Map<String, Object> before = attemptSnapshot(delivery);
+        delivery.setPodImageUrl(storePodFile(goodsImage, "goods"));
+        delivery.setPodSignatureUrl(storePodFile(signDocumentImage, "signature"));
+        delivery.setPodTimestamp(OffsetDateTime.now());
+        delivery.setUpdatedAt(OffsetDateTime.now());
+        Delivery saved = deliveryRepository.save(delivery);
+        audit(actor, AuditAction.UPLOAD_POD, saved, before, attemptSnapshot(saved));
+        return toAttemptResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public DeliveryOtpResponse requestDeliveryOtp(Long tripId, Long deliveryOrderId,
+                                                  DeliveryOtpRequest request,
+                                                  User actor) {
+        Trip trip = assignedTrip(tripId, actor);
+        Delivery delivery = currentAttempt(trip, deliveryOrderId);
+        requirePod(delivery);
+        Dealer dealer = delivery.getDeliveryOrder().getDealer();
+        if (dealer.getEmail() == null || dealer.getEmail().isBlank()) {
+            throw rule("DEALER_EMAIL_MISSING", "Dealer email is required before requesting delivery OTP");
+        }
+        DeliveryOtpAttempt otp = otpRepository.findByDeliveryId(delivery.getId()).orElse(null);
+        OffsetDateTime now = OffsetDateTime.now();
+        if (otp != null && otp.getStatus() == DeliveryOtpStatus.LOCKED) {
+            throw locked("OTP_RESET_REQUIRED", "OTP is locked and requires admin reset");
+        }
+        if (otp != null && otp.getStatus() == DeliveryOtpStatus.ACTIVE && otp.getExpiresAt().isAfter(now)) {
+            throw conflict("OTP_STILL_ACTIVE", "Current OTP is still active");
+        }
+        Map<String, Object> before = otp == null ? null : otpSnapshot(otp);
+        String code = sixDigitOtp();
+        if (otp == null) {
+            otp = new DeliveryOtpAttempt();
+            otp.setDelivery(delivery);
+            otp.setCreatedAt(now);
+        }
+        otp.setOtpHash(sha256(code));
+        otp.setRecipientEmail(dealer.getEmail());
+        otp.setExpiresAt(now.plusMinutes(5));
+        otp.setConsumedAt(null);
+        otp.setStatus(DeliveryOtpStatus.ACTIVE);
+        otp.setAttemptCount(0);
+        DeliveryOtpAttempt saved = otpRepository.save(otp);
+        sendOtpEmail(dealer.getEmail(), code);
+        auditLogService.log(actor, AuditAction.REQUEST_OTP, "DELIVERY_OTP_ATTEMPT",
+                saved.getId(), "OTP-" + delivery.getDeliveryNumber(), trip.getWarehouse().getId(),
+                before, otpSnapshot(saved));
+        return toOtpResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public DeliveryAttemptResponse confirmDelivery(Long tripId, Long deliveryOrderId,
+                                                   ConfirmDeliveryRequest request,
+                                                   User actor) {
+        Trip trip = assignedTrip(tripId, actor);
+        Delivery delivery = currentAttempt(trip, deliveryOrderId);
+        requirePod(delivery);
+        DeliveryOtpAttempt otp = otpRepository.findByDeliveryId(delivery.getId())
+                .orElseThrow(() -> rule("OTP_NOT_REQUESTED", "Delivery OTP was not requested"));
+        verifyOtp(otp, request.getOtp());
+        if (invoiceRepository.existsByDeliveryOrderId(deliveryOrderId)) {
+            throw conflict("INVOICE_ALREADY_EXISTS", "Invoice already exists for this delivery order");
+        }
+        Map<String, Object> before = attemptSnapshot(delivery);
+        decrementTransitInventory(delivery.getDeliveryOrder());
+        createInvoiceAndReceivable(delivery.getDeliveryOrder(), actor);
+        OffsetDateTime now = OffsetDateTime.now();
+        otp.setStatus(DeliveryOtpStatus.VERIFIED);
+        otp.setConsumedAt(now);
+        otpRepository.save(otp);
+        delivery.setStatus(DeliveryStatus.DELIVERED);
+        delivery.setOtpVerifiedAt(now);
+        delivery.setDeliveredAt(now);
+        delivery.setUpdatedAt(now);
+        delivery.getDeliveryOrder().setStatus(DeliveryOrderStatus.COMPLETED);
+        delivery.getDeliveryOrder().setUpdatedAt(now);
+        deliveryOrderRepository.save(delivery.getDeliveryOrder());
+        Delivery saved = deliveryRepository.save(delivery);
+        audit(actor, AuditAction.CONFIRM_DELIVERY, saved, before, attemptSnapshot(saved));
+        return toAttemptResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public DeliveryAttemptResponse failDelivery(Long tripId, Long deliveryOrderId,
+                                                FailDeliveryRequest request,
+                                                User actor) {
+        Trip trip = assignedTrip(tripId, actor);
+        Delivery delivery = currentAttempt(trip, deliveryOrderId);
+        Map<String, Object> before = attemptSnapshot(delivery);
+        OffsetDateTime now = OffsetDateTime.now();
+        delivery.setStatus(DeliveryStatus.FAILED);
+        delivery.setFailureReason(request.getFailureReason());
+        delivery.setUpdatedAt(now);
+        delivery.getDeliveryOrder().setStatus(DeliveryOrderStatus.RETURNED);
+        delivery.getDeliveryOrder().setUpdatedAt(now);
+        deliveryOrderRepository.save(delivery.getDeliveryOrder());
+        Delivery saved = deliveryRepository.save(delivery);
+        audit(actor, AuditAction.FAIL_DELIVERY, saved, before, attemptSnapshot(saved));
+        return toAttemptResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public TripDriverViewResponse completeTrip(Long tripId, TripCompleteRequest request, User actor) {
+        Trip trip = assignedTrip(tripId, actor);
+        if (trip.getStatus() != TripStatus.IN_TRANSIT) {
+            throw rule("TRIP_NOT_READY_TO_COMPLETE", "Trip must be IN_TRANSIT before completion");
+        }
+        List<TripDeliveryOrder> rows = tripDeliveryOrderRepository.findByTripIdOrderByStopOrderAsc(tripId);
+        boolean notReady = rows.stream().map(TripDeliveryOrder::getDeliveryOrder)
+                .anyMatch(order -> !TERMINAL_DO_STATUSES.contains(order.getStatus()));
+        if (notReady) {
+            throw rule("TRIP_NOT_READY_TO_COMPLETE", "All delivery orders must be COMPLETED or RETURNED");
+        }
+        Map<String, Object> before = tripSnapshot(trip);
+        OffsetDateTime now = request.getReturnedAt() == null ? OffsetDateTime.now() : request.getReturnedAt();
+        trip.setStatus(TripStatus.COMPLETED);
+        trip.setCompletedAt(now);
+        trip.getVehicle().setStatus(VehicleStatus.AVAILABLE);
+        trip.getDriver().setStatus(DriverStatus.AVAILABLE);
+        trip.setUpdatedAt(now);
+        Trip saved = tripRepository.save(trip);
+        auditLogService.log(actor, AuditAction.COMPLETE_TRIP, "TRIP", saved.getId(), saved.getTripNumber(),
+                saved.getWarehouse().getId(), before, tripSnapshot(saved));
+        return toTripDriverView(saved);
+    }
+
+    @Override
+    @Transactional
+    public DeliveryOtpResponse resetDeliveryOtp(Long deliveryOrderId, ResetDeliveryOtpRequest request, User actor) {
+        Delivery delivery = deliveryRepository.findLatestCurrentAttemptByDeliveryOrderId(
+                        deliveryOrderId, CURRENT_ATTEMPT_STATUSES)
+                .orElseThrow(() -> notFound("Current delivery attempt not found"));
+        DeliveryOtpAttempt otp = otpRepository.findByDeliveryId(delivery.getId())
+                .orElseThrow(() -> notFound("Delivery OTP row not found"));
+        if (otp.getStatus() != DeliveryOtpStatus.LOCKED) {
+            throw locked("OTP_RESET_REQUIRED", "Only locked OTP rows can be reset");
+        }
+        Map<String, Object> before = otpSnapshot(otp);
+        otp.setStatus(DeliveryOtpStatus.EXPIRED);
+        otp.setAttemptCount(0);
+        otp.setConsumedAt(null);
+        otp.setExpiresAt(OffsetDateTime.now().minusSeconds(1));
+        DeliveryOtpAttempt saved = otpRepository.save(otp);
+        auditLogService.log(actor, AuditAction.RESET_DELIVERY_OTP, "DELIVERY_OTP_ATTEMPT",
+                saved.getId(), "OTP-" + delivery.getDeliveryNumber(),
+                delivery.getDeliveryOrder().getWarehouse().getId(), before, otpSnapshot(saved));
+        return toOtpResponse(saved);
+    }
+
+    private Trip assignedTrip(Long tripId, User actor) {
+        return tripRepository.findAssignedDriverTrip(tripId, actor.getId())
+                .orElseThrow(() -> new OutboundDeliveryException("DRIVER_NOT_ASSIGNED_TO_TRIP",
+                        HttpStatus.FORBIDDEN, "Driver is not assigned to this trip"));
+    }
+
+    private Delivery currentAttempt(Trip trip, Long deliveryOrderId) {
+        tripDeliveryOrderRepository.findByTripIdAndDeliveryOrderId(trip.getId(), deliveryOrderId)
+                .orElseThrow(() -> new OutboundDeliveryException("DELIVERY_ORDER_NOT_IN_TRIP",
+                        HttpStatus.FORBIDDEN, "Delivery order does not belong to this trip"));
+        return deliveryRepository.findCurrentAttempt(trip.getId(), deliveryOrderId,
+                        trip.getDriver().getId(), CURRENT_ATTEMPT_STATUSES)
+                .orElseThrow(() -> notFound("Current delivery attempt not found"));
+    }
+
+    private void verifyOtp(DeliveryOtpAttempt otp, String rawOtp) {
+        OffsetDateTime now = OffsetDateTime.now();
+        if (otp.getStatus() == DeliveryOtpStatus.LOCKED) {
+            throw locked("OTP_RESET_REQUIRED", "OTP is locked and requires admin reset");
+        }
+        if (otp.getStatus() != DeliveryOtpStatus.ACTIVE) {
+            throw rule("OTP_NOT_REQUESTED", "No active OTP exists for this delivery");
+        }
+        if (otp.getExpiresAt().isBefore(now)) {
+            otp.setStatus(DeliveryOtpStatus.EXPIRED);
+            otpRepository.save(otp);
+            throw rule("DELIVERY_OTP_EXPIRED", "Delivery OTP expired");
+        }
+        if (!Objects.equals(otp.getOtpHash(), sha256(rawOtp))) {
+            int attempts = otp.getAttemptCount() == null ? 0 : otp.getAttemptCount();
+            otp.setAttemptCount(attempts + 1);
+            if (otp.getAttemptCount() >= 3) {
+                otp.setStatus(DeliveryOtpStatus.LOCKED);
+                otpRepository.save(otp);
+                throw locked("OTP_MAX_ATTEMPTS_EXCEEDED", "OTP max attempts exceeded");
+            }
+            otpRepository.save(otp);
+            throw new OutboundDeliveryException("DELIVERY_OTP_INVALID",
+                    HttpStatus.BAD_REQUEST, "Delivery OTP is invalid");
+        }
+    }
+
+    private void decrementTransitInventory(DeliveryOrder order) {
+        List<DeliveryOrderItem> items = deliveryOrderItemRepository.findByDeliveryOrderId(order.getId());
+        for (DeliveryOrderItem item : items) {
+            Inventory transit = inventoryRepository.findTransitRowForDeliveryConfirmation(
+                            item.getProduct().getId(), item.getBatch().getId())
+                    .orElseThrow(() -> rule("IN_TRANSIT_STOCK_NOT_FOUND", "In-transit stock not found"));
+            BigDecimal after = value(transit.getTotalQty()).subtract(value(item.getIssuedQty()));
+            if (after.compareTo(ZERO) < 0) {
+                throw rule("IN_TRANSIT_STOCK_NOT_FOUND", "In-transit stock is insufficient");
+            }
+            transit.setTotalQty(after);
+            transit.setUpdatedAt(OffsetDateTime.now());
+            saveInventory(transit);
+        }
+    }
+
+    private void createInvoiceAndReceivable(DeliveryOrder order, User actor) {
+        List<DeliveryOrderItem> items = deliveryOrderItemRepository.findByDeliveryOrderId(order.getId());
+        BigDecimal total = items.stream()
+                .map(item -> value(item.getUnitPrice()).multiply(value(item.getIssuedQty())))
+                .reduce(ZERO, BigDecimal::add);
+        LocalDate issueDate = LocalDate.now();
+        Invoice invoice = Invoice.builder()
+                .invoiceNumber(generateInvoiceNumber())
+                .deliveryOrder(order)
+                .dealer(order.getDealer())
+                .totalAmount(total)
+                .issueDate(issueDate)
+                .dueDate(issueDate.plusDays(30))
+                .status(InvoiceStatus.UNPAID)
+                .createdBy(actor)
+                .documentDate(issueDate)
+                .createdAt(OffsetDateTime.now())
+                .updatedAt(OffsetDateTime.now())
+                .build();
+        invoiceRepository.save(invoice);
+        Dealer dealer = order.getDealer();
+        dealer.setCurrentBalance(value(dealer.getCurrentBalance()).add(total));
+        dealer.setUpdatedAt(OffsetDateTime.now());
+    }
+
+    private TripDriverViewResponse toTripDriverView(Trip trip) {
+        List<TripDeliveryOrder> rows = tripDeliveryOrderRepository.findByTripIdOrderByStopOrderAsc(trip.getId());
+        Map<Long, Delivery> attempts = deliveryRepository.findByTripIdAndDeliveryOrderIdIn(
+                        trip.getId(),
+                        rows.stream().map(row -> row.getDeliveryOrder().getId()).toList())
+                .stream()
+                .collect(Collectors.toMap(d -> d.getDeliveryOrder().getId(), Function.identity(), (first, ignored) -> first));
+        return TripDriverViewResponse.builder()
+                .tripId(trip.getId())
+                .tripNumber(trip.getTripNumber())
+                .status(trip.getStatus())
+                .driverId(trip.getDriver().getId())
+                .vehicleId(trip.getVehicle().getId())
+                .deliveryOrders(rows.stream()
+                        .map(row -> DriverDeliveryOrderResponse.builder()
+                                .doId(row.getDeliveryOrder().getId())
+                                .doNumber(row.getDeliveryOrder().getDoNumber())
+                                .status(row.getDeliveryOrder().getStatus())
+                                .stopOrder(row.getStopOrder())
+                                .currentAttempt(toAttemptResponseOrNull(attempts.get(row.getDeliveryOrder().getId())))
+                                .build())
+                        .toList())
+                .build();
+    }
+
+    private DeliveryAttemptResponse toAttemptResponseOrNull(Delivery delivery) {
+        return delivery == null ? null : toAttemptResponse(delivery);
+    }
+
+    private DeliveryAttemptResponse toAttemptResponse(Delivery delivery) {
+        return DeliveryAttemptResponse.builder()
+                .deliveryId(delivery.getId())
+                .attemptNumber(delivery.getAttemptNumber())
+                .status(delivery.getStatus())
+                .podImageUrl(delivery.getPodImageUrl())
+                .podSignatureUrl(delivery.getPodSignatureUrl())
+                .podTimestamp(delivery.getPodTimestamp())
+                .otpVerifiedAt(delivery.getOtpVerifiedAt())
+                .failureReason(delivery.getFailureReason())
+                .dispatchedAt(delivery.getDispatchedAt())
+                .deliveredAt(delivery.getDeliveredAt())
+                .build();
+    }
+
+    private DeliveryOtpResponse toOtpResponse(DeliveryOtpAttempt otp) {
+        return DeliveryOtpResponse.builder()
+                .deliveryId(otp.getDelivery().getId())
+                .recipientEmail(otp.getRecipientEmail())
+                .status(otp.getStatus())
+                .expiresAt(otp.getExpiresAt())
+                .attemptCount(otp.getAttemptCount())
+                .build();
+    }
+
+    private void validatePodFile(MultipartFile file) {
+        if (file == null || file.isEmpty()
+                || file.getSize() > MAX_POD_BYTES
+                || file.getContentType() == null
+                || !file.getContentType().startsWith("image/")) {
+            throw new OutboundDeliveryException("POD_FILE_INVALID",
+                    HttpStatus.BAD_REQUEST, "POD file must be an image up to 5MB");
+        }
+    }
+
+    private String storePodFile(MultipartFile file, String prefix) {
+        try {
+            Files.createDirectories(Path.of("uploads", "pod"));
+            String ext = extension(file.getOriginalFilename());
+            String filename = prefix + "-" + UUID.randomUUID() + ext;
+            Path target = Path.of("uploads", "pod", filename);
+            Files.copy(file.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
+            return "/uploads/pod/" + filename;
+        } catch (IOException ex) {
+            throw new OutboundDeliveryException("POD_STORAGE_FAILED",
+                    HttpStatus.INTERNAL_SERVER_ERROR, "Could not store POD evidence");
+        }
+    }
+
+    private String extension(String filename) {
+        if (filename == null || !filename.contains(".")) {
+            return ".bin";
+        }
+        return filename.substring(filename.lastIndexOf('.'));
+    }
+
+    private void requirePod(Delivery delivery) {
+        if (delivery.getPodImageUrl() == null || delivery.getPodSignatureUrl() == null) {
+            throw new OutboundDeliveryException("MISSING_POD",
+                    HttpStatus.BAD_REQUEST, "Both POD images are required");
+        }
+    }
+
+    private void sendOtpEmail(String to, String otp) {
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setTo(to);
+        message.setSubject("Delivery confirmation OTP");
+        message.setText("Your delivery confirmation OTP is: " + otp + "\nThis code is valid for 5 minutes.");
+        mailSender.send(message);
+    }
+
+    private String sixDigitOtp() {
+        return String.format("%06d", secureRandom.nextInt(1_000_000));
+    }
+
+    private String sha256(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(value.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException ex) {
+            throw new IllegalStateException("SHA-256 algorithm is not available", ex);
+        }
+    }
+
+    private String generateInvoiceNumber() {
+        String date = LocalDate.now().toString().replace("-", "");
+        for (int sequence = 1; sequence <= 9999; sequence++) {
+            String candidate = "INV-" + date + "-" + String.format("%04d", sequence);
+            if (!invoiceRepository.existsByInvoiceNumber(candidate)) {
+                return candidate;
+            }
+        }
+        throw rule("INVOICE_NUMBER_EXHAUSTED", "Cannot generate invoice number");
+    }
+
+    private void saveInventory(Inventory inventory) {
+        try {
+            inventoryRepository.save(inventory);
+        } catch (ObjectOptimisticLockingFailureException ex) {
+            throw conflict("INVENTORY_VERSION_CONFLICT", "Inventory version conflict");
+        }
+    }
+
+    private void audit(User actor, AuditAction action, Delivery delivery,
+                       Map<String, Object> before, Map<String, Object> after) {
+        auditLogService.log(actor, action, "DELIVERY", delivery.getId(),
+                delivery.getDeliveryNumber(), delivery.getDeliveryOrder().getWarehouse().getId(), before, after);
+    }
+
+    private Map<String, Object> attemptSnapshot(Delivery delivery) {
+        Map<String, Object> values = new LinkedHashMap<>();
+        values.put("deliveryId", delivery.getId());
+        values.put("deliveryOrderId", delivery.getDeliveryOrder().getId());
+        values.put("status", delivery.getStatus());
+        values.put("podImageUrl", delivery.getPodImageUrl());
+        values.put("podSignatureUrl", delivery.getPodSignatureUrl());
+        values.put("failureReason", delivery.getFailureReason());
+        return values;
+    }
+
+    private Map<String, Object> otpSnapshot(DeliveryOtpAttempt otp) {
+        return Map.of(
+                "id", otp.getId(),
+                "deliveryId", otp.getDelivery().getId(),
+                "status", otp.getStatus(),
+                "attemptCount", otp.getAttemptCount(),
+                "expiresAt", otp.getExpiresAt());
+    }
+
+    private Map<String, Object> tripSnapshot(Trip trip) {
+        return Map.of(
+                "tripId", trip.getId(),
+                "status", trip.getStatus(),
+                "vehicleStatus", trip.getVehicle().getStatus(),
+                "driverStatus", trip.getDriver().getStatus());
+    }
+
+    private BigDecimal value(BigDecimal value) {
+        return value == null ? ZERO : value;
+    }
+
+    private ResourceNotFoundException notFound(String message) {
+        return new ResourceNotFoundException(message);
+    }
+
+    private OutboundDeliveryException conflict(String code, String message) {
+        return new OutboundDeliveryException(code, HttpStatus.CONFLICT, message);
+    }
+
+    private OutboundDeliveryException rule(String code, String message) {
+        return new OutboundDeliveryException(code, HttpStatus.UNPROCESSABLE_ENTITY, message);
+    }
+
+    private OutboundDeliveryException locked(String code, String message) {
+        return new OutboundDeliveryException(code, HttpStatus.LOCKED, message);
+    }
+}

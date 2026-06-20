@@ -12,6 +12,7 @@ public class DealerMapper {
                 .code(dealer.getCode())
                 .name(dealer.getName())
                 .phone(dealer.getPhone())
+                .email(dealer.getEmail())
                 .defaultDeliveryAddress(dealer.getDefaultDeliveryAddress())
                 .region(dealer.getRegion())
                 .paymentTermDays(dealer.getPaymentTermDays())

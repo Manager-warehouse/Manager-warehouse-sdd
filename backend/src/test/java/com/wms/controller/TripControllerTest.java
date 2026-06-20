@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.wms.config.JwtAuthFilter;
 import com.wms.config.SecurityConfig;
 import com.wms.config.UserDetailsServiceImpl;
+import com.wms.dto.response.TripDriverViewResponse;
 import com.wms.dto.response.TripDeliveryOrderResponse;
 import com.wms.dto.response.TripResponse;
 import com.wms.entity.User;
@@ -22,6 +23,7 @@ import com.wms.enums.UserRole;
 import com.wms.exception.GlobalExceptionHandler;
 import com.wms.exception.OutboundDeliveryException;
 import com.wms.service.CurrentUserService;
+import com.wms.service.DriverDeliveryService;
 import com.wms.service.TripService;
 import com.wms.util.JwtUtil;
 import java.time.LocalDate;
@@ -44,6 +46,7 @@ class TripControllerTest {
     @Autowired private MockMvc mockMvc;
 
     @MockBean private TripService tripService;
+    @MockBean private DriverDeliveryService driverDeliveryService;
     @MockBean private CurrentUserService currentUserService;
     @MockBean private JwtUtil jwtUtil;
     @MockBean private UserDetailsServiceImpl userDetailsService;
@@ -136,13 +139,15 @@ class TripControllerTest {
     @WithMockUser(username = "driver@wms.com", roles = "DRIVER")
     void completeTrip_success() throws Exception {
         when(currentUserService.getRequiredCurrentUser()).thenReturn(driver);
-        when(tripService.completeTrip(eq(900L), any(), eq(driver))).thenReturn(response(TripStatus.COMPLETED));
+        when(driverDeliveryService.completeTrip(eq(900L), any(), eq(driver)))
+                .thenReturn(driverTripResponse(TripStatus.COMPLETED));
 
         mockMvc.perform(put("/api/v1/trips/900/complete")
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"notes\":\"Returned\"}"))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tripId").value(900))
                 .andExpect(jsonPath("$.status").value("COMPLETED"));
     }
 
@@ -150,7 +155,7 @@ class TripControllerTest {
     @WithMockUser(username = "driver@wms.com", roles = "DRIVER")
     void completeTrip_rejectsReadinessFailure() throws Exception {
         when(currentUserService.getRequiredCurrentUser()).thenReturn(driver);
-        when(tripService.completeTrip(eq(900L), any(), eq(driver)))
+        when(driverDeliveryService.completeTrip(eq(900L), any(), eq(driver)))
                 .thenThrow(new OutboundDeliveryException("TRIP_NOT_READY_TO_COMPLETE",
                         HttpStatus.UNPROCESSABLE_ENTITY, "All delivery orders must be terminal"));
 
@@ -160,6 +165,17 @@ class TripControllerTest {
                         .content("{\"notes\":\"Returned\"}"))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.code").value("TRIP_NOT_READY_TO_COMPLETE"));
+    }
+
+    private TripDriverViewResponse driverTripResponse(TripStatus status) {
+        return TripDriverViewResponse.builder()
+                .tripId(900L)
+                .tripNumber("TRIP-20260620-0001")
+                .status(status)
+                .driverId(401L)
+                .vehicleId(301L)
+                .deliveryOrders(List.of())
+                .build();
     }
 
     private String createJson() {

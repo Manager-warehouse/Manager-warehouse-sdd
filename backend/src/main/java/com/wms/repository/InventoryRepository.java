@@ -97,4 +97,18 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
                                                        @Param("productId") Long productId,
                                                        @Param("batchId") Long batchId,
                                                        @Param("locationId") Long locationId);
+
+    @EntityGraph(attributePaths = {"warehouse", "product", "batch", "location", "location.parent"})
+    @Lock(LockModeType.OPTIMISTIC)
+    @Query("""
+            select i from Inventory i
+            where i.warehouse.type = com.wms.enums.WarehouseType.IN_TRANSIT
+              and i.product.id = :productId
+              and i.batch.id = :batchId
+              and i.totalQty > 0
+            order by i.id asc
+            limit 1
+            """)
+    Optional<Inventory> findTransitRowForDeliveryConfirmation(@Param("productId") Long productId,
+                                                              @Param("batchId") Long batchId);
 }
