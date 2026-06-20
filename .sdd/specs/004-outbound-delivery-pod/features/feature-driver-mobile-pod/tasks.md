@@ -1,0 +1,249 @@
+# Tasks: Driver Mobile POD
+
+**Input**: Design documents from `.sdd/specs/004-outbound-delivery-pod/features/feature-driver-mobile-pod/`
+
+**Prerequisites**: [plan.md](plan.md), [feature-driver-mobile-pod.md](feature-driver-mobile-pod.md), [research.md](research.md), [data-model.md](data-model.md), [quickstart.md](quickstart.md), [contracts/driver-pod.openapi.yaml](contracts/driver-pod.openapi.yaml)
+
+**Tests**: Required by the feature spec, quickstart, and constitution for service/business logic and API endpoints.
+
+**Organization**: Tasks are grouped by independently testable user stories.
+
+## Phase 1: Setup
+
+**Purpose**: Review the driver mobile POD seams that this feature extends.
+
+- [ ] T001 Review current delivery-attempt and OTP entities in `backend/src/main/java/com/wms/entity/Delivery.java` and `backend/src/main/java/com/wms/entity/DeliveryOtpAttempt.java`
+- [ ] T002 [P] Review current trip, driver, and Delivery Order status models in `backend/src/main/java/com/wms/entity/Trip.java`, `backend/src/main/java/com/wms/entity/Driver.java`, and `backend/src/main/java/com/wms/enums`
+- [ ] T003 [P] Review current outbound inventory, invoice, and receivable seams in `backend/src/main/java/com/wms/entity/Inventory.java`, `backend/src/main/java/com/wms/entity/Invoice.java`, and `backend/src/main/java/com/wms/repository`
+- [ ] T004 [P] Review current mail, auth, multipart upload, and audit patterns in `backend/src/main/java/com/wms/config/MailConfig.java`, `backend/src/main/java/com/wms/service/AuthService.java`, and `backend/src/main/java/com/wms/service`
+
+---
+
+## Phase 2: Foundational
+
+**Purpose**: Add shared delivery-attempt, OTP, file-upload, and API infrastructure that blocks all user stories.
+
+**Critical**: No user-story implementation should begin until this phase is complete.
+
+- [ ] T005 Add Flyway migration for POD evidence, OTP lifecycle, admin reset, and delivery-attempt support fields or indexes in `backend/src/main/resources/db/migration`
+- [ ] T006 [P] Extend `DeliveryRepository` and `DeliveryOtpAttemptRepository` with current-attempt and single-row OTP lookup helpers in `backend/src/main/java/com/wms/repository`
+- [ ] T007 [P] Extend `TripRepository`, `TripDeliveryOrderRepository`, and `DriverRepository` with driver-assignment scoped trip queries in `backend/src/main/java/com/wms/repository`
+- [ ] T008 [P] Extend `DeliveryOrderRepository`, `DeliveryOrderItemRepository`, `InventoryRepository`, and `InvoiceRepository` with delivery-confirmation and trip-completion lookup helpers in `backend/src/main/java/com/wms/repository`
+- [ ] T009 [P] Add response DTOs for driver trip detail, delivery attempt detail, and OTP state in `backend/src/main/java/com/wms/dto/response`
+- [ ] T010 [P] Add request DTOs for OTP request, confirm delivery, fail delivery, admin reset, and driver trip completion in `backend/src/main/java/com/wms/dto/request`
+- [ ] T011 Add `DriverDeliveryService` contract and shared current-attempt, driver-assignment, OTP, and `IN_TRANSIT` inventory helper methods in `backend/src/main/java/com/wms/service/DriverDeliveryService.java` and `backend/src/main/java/com/wms/service/impl/DriverDeliveryServiceImpl.java`
+- [ ] T012 Add admin-facing delivery reset controller skeleton and driver/mobile controller skeleton in `backend/src/main/java/com/wms/controller/AdminDeliveryController.java` and `backend/src/main/java/com/wms/controller/TripController.java`
+- [ ] T013 Add or extend audit action and OTP status enum support if missing in `backend/src/main/java/com/wms/enums/AuditAction.java` and `backend/src/main/java/com/wms/enums/DeliveryOtpStatus.java`
+
+**Checkpoint**: Foundation ready for user-story implementation.
+
+---
+
+## Phase 3: User Story 1 - Driver views assigned trip, uploads POD, and requests OTP (Priority: P1) MVP
+
+**Goal**: Driver can see only assigned trip detail, upload both POD images for a Delivery Order in `IN_TRANSIT`, and request a dealer OTP after POD evidence exists.
+
+**Independent Test**: Load `GET /api/v1/trips/{id}` for an assigned trip, upload valid POD evidence to `POST /api/v1/trips/{tripId}/delivery-orders/{doId}/pod-evidence`, then request OTP with `POST /api/v1/trips/{tripId}/delivery-orders/{doId}/delivery-otp` and verify trip assignment scope, file validation, dealer-email validation, and OTP-row creation rules.
+
+### Tests for User Story 1
+
+- [ ] T014 [P] [US1] Add controller test for `GET /api/v1/trips/{id}` assigned-trip happy path in `backend/src/test/java/com/wms/controller/DriverDeliveryControllerTest.java`
+- [ ] T015 [P] [US1] Add controller test for `POST /api/v1/trips/{tripId}/delivery-orders/{doId}/pod-evidence` happy path and invalid-file failure in `backend/src/test/java/com/wms/controller/DriverDeliveryControllerTest.java`
+- [ ] T016 [P] [US1] Add controller test for `POST /api/v1/trips/{tripId}/delivery-orders/{doId}/delivery-otp` happy path and missing-POD failure in `backend/src/test/java/com/wms/controller/DriverDeliveryControllerTest.java`
+- [ ] T017 [P] [US1] Add service unit test for rejecting driver access outside the assigned trip in `backend/src/test/java/com/wms/service/DriverDeliveryServiceImplTest.java`
+- [ ] T018 [P] [US1] Add service unit test for rejecting missing, oversized, or non-image POD files in `backend/src/test/java/com/wms/service/DriverDeliveryServiceImplTest.java`
+- [ ] T019 [P] [US1] Add service unit test for blocking OTP request before both POD images exist in `backend/src/test/java/com/wms/service/DriverDeliveryServiceImplTest.java`
+- [ ] T020 [P] [US1] Add service unit test for rejecting OTP request when dealer email is missing in `backend/src/test/java/com/wms/service/DriverDeliveryServiceImplTest.java`
+
+### Implementation for User Story 1
+
+- [ ] T021 [P] [US1] Add driver trip and OTP request DTO validation in `backend/src/main/java/com/wms/dto/request/DeliveryOtpRequest.java` and `backend/src/main/java/com/wms/dto/response/TripDriverViewResponse.java`
+- [ ] T022 [US1] Add `GET /api/v1/trips/{id}`, `POST /api/v1/trips/{tripId}/delivery-orders/{doId}/pod-evidence`, and `POST /api/v1/trips/{tripId}/delivery-orders/{doId}/delivery-otp` endpoints with validation and OpenAPI metadata in `backend/src/main/java/com/wms/controller/TripController.java`
+- [ ] T023 [US1] Implement assigned-trip detail loading and current-attempt mapping for the driver mobile view in `backend/src/main/java/com/wms/service/impl/DriverDeliveryServiceImpl.java`
+- [ ] T024 [US1] Implement POD evidence validation, file storage, and current-attempt POD URL persistence in `backend/src/main/java/com/wms/service/impl/DriverDeliveryServiceImpl.java`
+- [ ] T025 [US1] Implement first-time OTP generation, single-row OTP persistence, and dealer-email delivery in `backend/src/main/java/com/wms/service/impl/DriverDeliveryServiceImpl.java`
+- [ ] T026 [US1] Write `UPLOAD_POD` and `REQUEST_OTP` audit logs with before/after attempt and OTP state in `backend/src/main/java/com/wms/service/impl/DriverDeliveryServiceImpl.java`
+
+**Checkpoint**: US1 is fully functional and testable as the MVP.
+
+---
+
+## Phase 4: User Story 2 - Driver confirms delivery with OTP and system finalizes the Delivery Order (Priority: P1)
+
+**Goal**: Driver confirms full Delivery Order delivery using a valid OTP, while the system supports resend after expiry, blocks resend while active, locks after 3 incorrect submissions, and atomically finalizes the Delivery Order on success.
+
+**Independent Test**: After POD and OTP exist, confirm delivery with `PUT /api/v1/trips/{tripId}/delivery-orders/{doId}/confirm-delivery` and verify OTP validation, retry/lock behavior, `IN_TRANSIT` inventory decrement, invoice/receivable creation, attempt transition to `DELIVERED`, and Delivery Order transition to `COMPLETED`.
+
+### Tests for User Story 2
+
+- [ ] T027 [P] [US2] Add controller test for `PUT /api/v1/trips/{tripId}/delivery-orders/{doId}/confirm-delivery` happy path and invalid-OTP failure in `backend/src/test/java/com/wms/controller/DriverDeliveryControllerTest.java`
+- [ ] T028 [P] [US2] Add controller test for OTP resend conflict while active in `backend/src/test/java/com/wms/controller/DriverDeliveryControllerTest.java`
+- [ ] T029 [P] [US2] Add service unit test for updating the same OTP row after expiry resend in `backend/src/test/java/com/wms/service/DriverDeliveryServiceImplTest.java`
+- [ ] T030 [P] [US2] Add service unit test for wrong OTP incrementing `attempt_count` and locking after 3 submissions in `backend/src/test/java/com/wms/service/DriverDeliveryServiceImplTest.java`
+- [ ] T031 [P] [US2] Add service unit test for rejecting confirmation when OTP is expired or not requested in `backend/src/test/java/com/wms/service/DriverDeliveryServiceImplTest.java`
+- [ ] T032 [P] [US2] Add service unit test for successful confirmation updating attempt, consuming OTP, decrementing `IN_TRANSIT` inventory, and moving Delivery Order to `COMPLETED` in `backend/src/test/java/com/wms/service/DriverDeliveryServiceImplTest.java`
+- [ ] T033 [P] [US2] Add service unit test for rejecting confirmation when invoice already exists or `IN_TRANSIT` stock is missing in `backend/src/test/java/com/wms/service/DriverDeliveryServiceImplTest.java`
+
+### Implementation for User Story 2
+
+- [ ] T034 [P] [US2] Add confirm-delivery request DTO validation in `backend/src/main/java/com/wms/dto/request/ConfirmDeliveryRequest.java`
+- [ ] T035 [US2] Extend `POST /api/v1/trips/{tripId}/delivery-orders/{doId}/delivery-otp` and add `PUT /api/v1/trips/{tripId}/delivery-orders/{doId}/confirm-delivery` OpenAPI responses for resend, expiry, lock, and success in `backend/src/main/java/com/wms/controller/TripController.java`
+- [ ] T036 [US2] Implement OTP resend-after-expiry and active-OTP conflict handling on the single OTP row in `backend/src/main/java/com/wms/service/impl/DriverDeliveryServiceImpl.java`
+- [ ] T037 [US2] Implement OTP verification, lock-after-3-failures, and consumed-state persistence in `backend/src/main/java/com/wms/service/impl/DriverDeliveryServiceImpl.java`
+- [ ] T038 [US2] Implement successful delivery confirmation transaction for attempt update, `IN_TRANSIT` inventory decrement, invoice/receivable creation, and Delivery Order completion in `backend/src/main/java/com/wms/service/impl/DriverDeliveryServiceImpl.java`
+- [ ] T039 [US2] Write `CONFIRM_DELIVERY` audit logs with before/after attempt, OTP, inventory, and Delivery Order state in `backend/src/main/java/com/wms/service/impl/DriverDeliveryServiceImpl.java`
+
+**Checkpoint**: US2 is independently testable after US1 and fully finalizes one Delivery Order on successful OTP confirmation.
+
+---
+
+## Phase 5: User Story 3 - Driver records failed delivery and completes the trip after vehicle return (Priority: P1)
+
+**Goal**: Driver can mark a Delivery Order as failed or refused without changing inventory, and later complete the trip only when every assigned Delivery Order is `COMPLETED` or `RETURNED`.
+
+**Independent Test**: Submit `PUT /api/v1/trips/{tripId}/delivery-orders/{doId}/fail-delivery` for an `IN_TRANSIT` Delivery Order and verify current attempt becomes `FAILED`, Delivery Order becomes `RETURNED`, and inventory stays unchanged; then submit `PUT /api/v1/trips/{tripId}/complete` after all trip orders are terminal and verify the trip moves to `COMPLETED` and vehicle/driver become `AVAILABLE`.
+
+### Tests for User Story 3
+
+- [ ] T040 [P] [US3] Add controller test for `PUT /api/v1/trips/{tripId}/delivery-orders/{doId}/fail-delivery` happy path in `backend/src/test/java/com/wms/controller/DriverDeliveryControllerTest.java`
+- [ ] T041 [P] [US3] Add controller test for `PUT /api/v1/trips/{tripId}/complete` happy path and readiness failure in `backend/src/test/java/com/wms/controller/DriverDeliveryControllerTest.java`
+- [ ] T042 [P] [US3] Add service unit test for failed delivery requiring `failureReason` and leaving inventory unchanged in `backend/src/test/java/com/wms/service/DriverDeliveryServiceImplTest.java`
+- [ ] T043 [P] [US3] Add service unit test for moving the current attempt to `FAILED` and Delivery Order to `RETURNED` in `backend/src/test/java/com/wms/service/DriverDeliveryServiceImplTest.java`
+- [ ] T044 [P] [US3] Add service unit test for rejecting trip completion before all assigned Delivery Orders are `COMPLETED` or `RETURNED` in `backend/src/test/java/com/wms/service/DriverDeliveryServiceImplTest.java`
+- [ ] T045 [P] [US3] Add service unit test for completing the trip and releasing vehicle/driver to `AVAILABLE` in `backend/src/test/java/com/wms/service/DriverDeliveryServiceImplTest.java`
+
+### Implementation for User Story 3
+
+- [ ] T046 [P] [US3] Add fail-delivery and trip-complete request DTO validation in `backend/src/main/java/com/wms/dto/request/FailDeliveryRequest.java` and `backend/src/main/java/com/wms/dto/request/TripCompleteRequest.java`
+- [ ] T047 [US3] Add `PUT /api/v1/trips/{tripId}/delivery-orders/{doId}/fail-delivery` and `PUT /api/v1/trips/{tripId}/complete` endpoints with validation and OpenAPI metadata in `backend/src/main/java/com/wms/controller/TripController.java`
+- [ ] T048 [US3] Implement failed-delivery validation and current-attempt/Delivery Order status updates without inventory mutation in `backend/src/main/java/com/wms/service/impl/DriverDeliveryServiceImpl.java`
+- [ ] T049 [US3] Implement trip-completion terminal-outcome validation and vehicle/driver availability release in `backend/src/main/java/com/wms/service/impl/DriverDeliveryServiceImpl.java`
+- [ ] T050 [US3] Write `FAIL_DELIVERY` and `COMPLETE_TRIP` audit logs with before/after attempt, Delivery Order, trip, vehicle, and driver state in `backend/src/main/java/com/wms/service/impl/DriverDeliveryServiceImpl.java`
+
+**Checkpoint**: US3 is independently testable after dispatched Delivery Orders exist and covers the non-success delivery path plus trip closeout.
+
+---
+
+## Phase 6: User Story 4 - Admin resets a locked delivery OTP (Priority: P1)
+
+**Goal**: Admin can reset a locked OTP row for the latest current delivery attempt so the driver can request a new OTP on the same row.
+
+**Independent Test**: After OTP lock is triggered, submit `POST /api/v1/admin/delivery-orders/{doId}/delivery-otp/reset` with `resetReason` and verify the current OTP row moves to `EXPIRED`, `attempt_count` resets to `0`, `consumed_at` clears, and a new driver OTP request can update the same row.
+
+### Tests for User Story 4
+
+- [ ] T051 [P] [US4] Add controller test for `POST /api/v1/admin/delivery-orders/{doId}/delivery-otp/reset` happy path and validation failure in `backend/src/test/java/com/wms/controller/AdminDeliveryControllerTest.java`
+- [ ] T052 [P] [US4] Add service unit test for rejecting OTP reset when the latest current attempt or OTP row is missing in `backend/src/test/java/com/wms/service/DriverDeliveryServiceImplTest.java`
+- [ ] T053 [P] [US4] Add service unit test for resetting the locked OTP row and allowing a later driver resend on the same row in `backend/src/test/java/com/wms/service/DriverDeliveryServiceImplTest.java`
+
+### Implementation for User Story 4
+
+- [ ] T054 [P] [US4] Add admin OTP reset request DTO validation in `backend/src/main/java/com/wms/dto/request/ResetDeliveryOtpRequest.java`
+- [ ] T055 [US4] Add `POST /api/v1/admin/delivery-orders/{doId}/delivery-otp/reset` endpoint with validation and OpenAPI metadata in `backend/src/main/java/com/wms/controller/AdminDeliveryController.java`
+- [ ] T056 [US4] Implement latest-current-attempt OTP reset logic, resettable-state validation, and same-row reuse support in `backend/src/main/java/com/wms/service/impl/DriverDeliveryServiceImpl.java`
+- [ ] T057 [US4] Write `RESET_DELIVERY_OTP` audit logs with before/after OTP state in `backend/src/main/java/com/wms/service/impl/DriverDeliveryServiceImpl.java`
+
+**Checkpoint**: US4 is independently testable after OTP lock behavior from US2 exists.
+
+---
+
+## Phase 7: Polish & Cross-Cutting Concerns
+
+**Purpose**: Align documentation, verify integration points, and run feature-level validation across all stories.
+
+- [ ] T058 [P] Update driver/mobile and admin endpoint OpenAPI annotations to match `contracts/driver-pod.openapi.yaml` in `backend/src/main/java/com/wms/controller/TripController.java` and `backend/src/main/java/com/wms/controller/AdminDeliveryController.java`
+- [ ] T059 [P] Review outbound spec alignment for POD evidence, OTP lifecycle, successful delivery, failure handling, and trip completion in `.sdd/specs/004-outbound-delivery-pod/spec.md`
+- [ ] T060 Run targeted driver delivery controller and service tests in `backend/pom.xml`
+- [ ] T061 Run backend compile to verify POD, OTP, inventory, invoice, and controller wiring in `backend/pom.xml`
+- [ ] T062 Verify quickstart scenarios against the implemented API using `.sdd/specs/004-outbound-delivery-pod/features/feature-driver-mobile-pod/quickstart.md`
+
+---
+
+## Dependencies & Execution Order
+
+### Phase Dependencies
+
+- **Phase 1 Setup**: No dependencies.
+- **Phase 2 Foundational**: Depends on setup review and blocks all user stories.
+- **Phase 3 US1**: Depends on foundational repository, DTO, upload, and mail support; this is the MVP.
+- **Phase 4 US2**: Depends on US1 because OTP confirmation builds on current attempt, POD evidence, and OTP-row creation.
+- **Phase 5 US3**: Depends on dispatched `IN_TRANSIT` attempts from upstream outbound flow and shares the current-attempt infrastructure from US1.
+- **Phase 6 US4**: Depends on US2 because OTP reset only matters after lock behavior exists.
+- **Phase 7 Polish**: Depends on whichever user stories are included in the release scope.
+
+### User Story Dependencies
+
+- **US1**: First MVP story because it creates the core driver trip view, POD upload, and OTP-request flow.
+- **US2**: Depends on US1 POD and OTP-row persistence.
+- **US3**: Depends on driver assignment and current-attempt resolution from US1, but is otherwise independent of successful delivery confirmation.
+- **US4**: Depends on OTP lock semantics from US2.
+
+### Parallel Opportunities
+
+- T002, T003, and T004 can run in parallel during setup.
+- T006 through T010 can run in parallel where file ownership does not overlap.
+- T014 through T020 can be written in parallel for US1 tests.
+- T021 and T022 can run in parallel before POD and OTP service integration.
+- T027 through T033 can be written in parallel for US2 tests.
+- T040 through T045 can be written in parallel for US3 tests.
+- T051 through T053 can be written in parallel for US4 tests.
+- T058 and T059 can run in parallel during polish.
+
+## Parallel Example: User Story 1
+
+```text
+Task: "T014 [P] [US1] Add controller test for assigned-trip mobile view"
+Task: "T015 [P] [US1] Add controller test for POD upload"
+Task: "T017 [P] [US1] Add service unit test for driver-scope rejection"
+Task: "T018 [P] [US1] Add service unit test for invalid POD files"
+Task: "T020 [P] [US1] Add service unit test for dealer-email requirement"
+```
+
+## Parallel Example: User Story 2
+
+```text
+Task: "T027 [P] [US2] Add controller test for confirm-delivery"
+Task: "T028 [P] [US2] Add controller test for active-OTP resend conflict"
+Task: "T029 [P] [US2] Add service unit test for resend-after-expiry row update"
+Task: "T030 [P] [US2] Add service unit test for OTP lock after 3 failures"
+Task: "T032 [P] [US2] Add service unit test for successful delivery confirmation transaction"
+```
+
+## Parallel Example: User Story 3
+
+```text
+Task: "T040 [P] [US3] Add controller test for fail-delivery"
+Task: "T041 [P] [US3] Add controller test for trip completion"
+Task: "T042 [P] [US3] Add service unit test for failure-reason validation"
+Task: "T044 [P] [US3] Add service unit test for trip-completion readiness guard"
+Task: "T045 [P] [US3] Add service unit test for vehicle/driver release on completion"
+```
+
+## Implementation Strategy
+
+### MVP First
+
+1. Complete Phase 1 and Phase 2.
+2. Complete Phase 3 (US1).
+3. Validate assigned trip view, POD upload, and OTP request end-to-end.
+4. Stop and demo the driver mobile evidence and OTP-request flow before adding confirmation and failure handling.
+
+### Incremental Delivery
+
+1. Deliver US1 trip view, POD upload, and OTP request.
+2. Deliver US2 OTP confirmation, resend/lock behavior, and successful delivery finalization.
+3. Deliver US3 failed-delivery flow and trip completion.
+4. Deliver US4 admin OTP reset.
+5. Finish polish verification and OpenAPI alignment.
+
+### Validation Checklist
+
+- Every driver action remains trip-assignment scoped and every admin reset remains role-gated.
+- Current delivery attempt resolution always targets the latest non-terminal attempt only.
+- OTP is never stored in raw form and only one OTP row exists per current attempt.
+- OTP resend is blocked while active and reuses the same row after expiry.
+- OTP locks after 3 incorrect submissions and requires admin reset before a new code can be generated.
+- Successful delivery confirmation remains transactional, version-safe, and only decrements virtual `IN_TRANSIT` stock for the confirmed Delivery Order.
+- Failed delivery never changes inventory and keeps goods in virtual `IN_TRANSIT`.
+- Trip completion only happens after all assigned Delivery Orders are `COMPLETED` or `RETURNED`.
+- Service and controller tests cover happy paths and business-error paths for each user story.

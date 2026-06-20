@@ -1,0 +1,565 @@
+openapi: 3.0.3
+info:
+  title: Driver Mobile POD API
+  version: 1.0.0
+  description: Contracts for driver mobile POD upload, OTP confirmation, failed delivery, trip completion, and admin OTP reset in Sprint 1.
+paths:
+  /api/v1/trips/{id}:
+    get:
+      summary: Get assigned trip detail for driver mobile
+      operationId: getDriverTrip
+      tags:
+        - Driver Trips
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: Assigned trip detail with Delivery Orders and current attempt data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripDriverViewResponse"
+        "403":
+          description: Driver is not assigned to the trip
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Trip not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/trips/{tripId}/delivery-orders/{doId}/pod-evidence:
+    post:
+      summary: Upload POD evidence for a Delivery Order in the assigned trip
+      operationId: uploadPodEvidence
+      tags:
+        - Driver Trips
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: tripId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: doId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - goodsImage
+                - signDocumentImage
+              properties:
+                goodsImage:
+                  type: string
+                  format: binary
+                signDocumentImage:
+                  type: string
+                  format: binary
+                notes:
+                  type: string
+                  maxLength: 1000
+      responses:
+        "200":
+          description: POD evidence stored on the current delivery attempt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeliveryAttemptResponse"
+        "400":
+          description: Missing or invalid POD file
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Driver is not assigned to the trip
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Current delivery attempt not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Delivery attempt is no longer current or already finalized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/trips/{tripId}/delivery-orders/{doId}/delivery-otp:
+    post:
+      summary: Generate or resend OTP for the current delivery attempt
+      operationId: requestDeliveryOtp
+      tags:
+        - Driver Trips
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: tripId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: doId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeliveryOtpRequest"
+      responses:
+        "200":
+          description: OTP generated or resent for the current delivery attempt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeliveryOtpResponse"
+        "400":
+          description: POD evidence missing or payload invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Driver is not assigned to the trip
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Delivery attempt not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: OTP is still active
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Dealer email missing or OTP is locked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/trips/{tripId}/delivery-orders/{doId}/confirm-delivery:
+    put:
+      summary: Confirm full Delivery Order delivery with dealer OTP
+      operationId: confirmDelivery
+      tags:
+        - Driver Trips
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: tripId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: doId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConfirmDeliveryRequest"
+      responses:
+        "200":
+          description: Delivery confirmed and Delivery Order completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeliveryAttemptResponse"
+        "400":
+          description: Invalid OTP, expired OTP, missing POD, or malformed payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Driver is not assigned to the trip
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Delivery attempt not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Delivery already finalized or concurrent inventory/financial conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Partial delivery attempted or In-Transit stock missing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: OTP locked and requires admin reset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/trips/{tripId}/delivery-orders/{doId}/fail-delivery:
+    put:
+      summary: Record dealer refusal or delivery failure
+      operationId: failDelivery
+      tags:
+        - Driver Trips
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: tripId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: doId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FailDeliveryRequest"
+      responses:
+        "200":
+          description: Delivery attempt failed and Delivery Order moved to RETURNED
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeliveryAttemptResponse"
+        "400":
+          description: Invalid request payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Driver is not assigned to the trip
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Delivery attempt not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Delivery already finalized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/trips/{tripId}/complete:
+    put:
+      summary: Confirm vehicle return and complete the assigned trip
+      operationId: completeDriverTrip
+      tags:
+        - Driver Trips
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: tripId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TripCompleteRequest"
+      responses:
+        "200":
+          description: Trip completed and driver/vehicle released
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripDriverViewResponse"
+        "400":
+          description: Invalid request payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Driver is not assigned to the trip
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Trip not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Trip is not ready to complete
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/admin/delivery-orders/{doId}/delivery-otp/reset:
+    post:
+      summary: Reset a locked OTP for the current delivery attempt
+      operationId: resetDeliveryOtp
+      tags:
+        - Admin Delivery
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: doId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetDeliveryOtpRequest"
+      responses:
+        "200":
+          description: Locked OTP reset for the current delivery attempt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeliveryOtpResponse"
+        "400":
+          description: Invalid request payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Current delivery attempt or OTP row not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: OTP reset requested for a row that is not in a resettable locked state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    DeliveryOtpRequest:
+      type: object
+      properties:
+        resend:
+          type: boolean
+          default: false
+    ConfirmDeliveryRequest:
+      type: object
+      required:
+        - otp
+      properties:
+        otp:
+          type: string
+          pattern: "^[0-9]{6}$"
+        notes:
+          type: string
+          maxLength: 1000
+    FailDeliveryRequest:
+      type: object
+      required:
+        - failureReason
+      properties:
+        failureReason:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        notes:
+          type: string
+          maxLength: 1000
+    ResetDeliveryOtpRequest:
+      type: object
+      required:
+        - resetReason
+      properties:
+        resetReason:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        notes:
+          type: string
+          maxLength: 1000
+    TripCompleteRequest:
+      type: object
+      properties:
+        returnedAt:
+          type: string
+          format: date-time
+        notes:
+          type: string
+          maxLength: 1000
+    TripDriverViewResponse:
+      type: object
+      properties:
+        tripId:
+          type: integer
+          format: int64
+        tripNumber:
+          type: string
+        status:
+          type: string
+          example: IN_TRANSIT
+        driverId:
+          type: integer
+          format: int64
+        vehicleId:
+          type: integer
+          format: int64
+        deliveryOrders:
+          type: array
+          items:
+            $ref: "#/components/schemas/DriverDeliveryOrderResponse"
+    DriverDeliveryOrderResponse:
+      type: object
+      properties:
+        doId:
+          type: integer
+          format: int64
+        doNumber:
+          type: string
+        status:
+          type: string
+          example: IN_TRANSIT
+        stopOrder:
+          type: integer
+        currentAttempt:
+          $ref: "#/components/schemas/DeliveryAttemptResponse"
+    DeliveryAttemptResponse:
+      type: object
+      properties:
+        deliveryId:
+          type: integer
+          format: int64
+        attemptNumber:
+          type: integer
+        status:
+          type: string
+          example: IN_TRANSIT
+        podImageUrl:
+          type: string
+        podSignatureUrl:
+          type: string
+        podTimestamp:
+          type: string
+          format: date-time
+        otpVerifiedAt:
+          type: string
+          format: date-time
+        failureReason:
+          type: string
+        dispatchedAt:
+          type: string
+          format: date-time
+        deliveredAt:
+          type: string
+          format: date-time
+    DeliveryOtpResponse:
+      type: object
+      properties:
+        deliveryId:
+          type: integer
+          format: int64
+        recipientEmail:
+          type: string
+        status:
+          type: string
+          example: ACTIVE
+        expiresAt:
+          type: string
+          format: date-time
+        attemptCount:
+          type: integer
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: string
+          examples:
+            - DRIVER_NOT_ASSIGNED_TO_TRIP
+            - DELIVERY_ATTEMPT_NOT_FOUND
+            - DELIVERY_ATTEMPT_NOT_CURRENT
+            - DELIVERY_ALREADY_FINALIZED
+            - POD_FILE_INVALID
+            - MISSING_POD
+            - DEALER_EMAIL_MISSING
+            - OTP_NOT_REQUESTED
+            - DELIVERY_OTP_INVALID
+            - DELIVERY_OTP_EXPIRED
+            - OTP_STILL_ACTIVE
+            - OTP_MAX_ATTEMPTS_EXCEEDED
+            - OTP_RESET_REQUIRED
+            - PARTIAL_DELIVERY_NOT_ALLOWED
+            - IN_TRANSIT_STOCK_NOT_FOUND
+            - INVOICE_ALREADY_EXISTS
+            - TRIP_NOT_READY_TO_COMPLETE
+            - INVENTORY_VERSION_CONFLICT
+        message:
+          type: string

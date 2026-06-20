@@ -32,4 +32,16 @@ public interface OutboundQcRecordRepository extends JpaRepository<OutboundQcReco
             """)
     List<OutboundQcRecord> findByDeliveryOrderIdAndIdempotencyKey(@Param("deliveryOrderId") Long deliveryOrderId,
                                                                   @Param("idempotencyKey") String idempotencyKey);
+
+    @EntityGraph(attributePaths = {
+            "deliveryOrder", "deliveryOrderItem", "allocation", "batch", "location", "zone",
+            "stagingLocation", "quarantineLocation", "quarantineRecord"
+    })
+    @Query("""
+            select r from OutboundQcRecord r
+            where r.deliveryOrder.id in :deliveryOrderIds
+              and r.qcPassQty > 0
+            order by r.deliveryOrder.id asc, r.id asc
+            """)
+    List<OutboundQcRecord> findPassedRecordsByDeliveryOrderIdIn(@Param("deliveryOrderIds") Collection<Long> deliveryOrderIds);
 }

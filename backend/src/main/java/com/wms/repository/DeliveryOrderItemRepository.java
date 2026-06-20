@@ -32,4 +32,12 @@ public interface DeliveryOrderItemRepository extends JpaRepository<DeliveryOrder
             order by i.id asc
             """)
     List<DeliveryOrderItem> findItemsWithQcPassQtyByDeliveryOrderId(@Param("deliveryOrderId") Long deliveryOrderId);
+
+    @EntityGraph(attributePaths = {"product", "batch", "location", "zone", "deliveryOrder", "deliveryOrder.warehouse"})
+    @Query("""
+            select i from DeliveryOrderItem i
+            where i.deliveryOrder.id in :deliveryOrderIds
+            order by i.deliveryOrder.id asc, i.id asc
+            """)
+    List<DeliveryOrderItem> findByDeliveryOrderIdIn(@Param("deliveryOrderIds") Collection<Long> deliveryOrderIds);
 }
