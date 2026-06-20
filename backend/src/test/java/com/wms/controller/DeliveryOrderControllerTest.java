@@ -51,12 +51,14 @@ class DeliveryOrderControllerTest {
     private User planner;
     private User manager;
     private User storekeeper;
+    private User warehouseStaff;
 
     @BeforeEach
     void setUp() {
         planner = user(1L, UserRole.PLANNER);
         manager = user(2L, UserRole.WAREHOUSE_MANAGER);
         storekeeper = user(3L, UserRole.STOREKEEPER);
+        warehouseStaff = user(4L, UserRole.WAREHOUSE_STAFF);
     }
 
     @Test
@@ -196,6 +198,129 @@ class DeliveryOrderControllerTest {
                 .andExpect(jsonPath("$.code").value("DELIVERY_ORDER_STATUS_INVALID"));
     }
 
+    @Test
+    @WithMockUser(username = "warehouse@wms.com", roles = "WAREHOUSE_STAFF")
+    void savePickQcResult_success() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(warehouseStaff);
+        when(deliveryOrderService.saveDeliveryOrderPickQcResult(eq(100L), any(), eq(warehouseStaff)))
+                .thenReturn(response(DeliveryOrderStatus.QC_PENDING_APPROVAL));
+
+        mockMvc.perform(put("/api/v1/delivery-orders/100/pick-qc-result")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(pickQcResultJson()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("QC_PENDING_APPROVAL"));
+    }
+
+    @Test
+    @WithMockUser(username = "warehouse@wms.com", roles = "WAREHOUSE_STAFF")
+    void savePickQcResult_replaysSamePayload() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(warehouseStaff);
+        when(deliveryOrderService.saveDeliveryOrderPickQcResult(eq(100L), any(), eq(warehouseStaff)))
+                .thenReturn(response(DeliveryOrderStatus.QC_PENDING_APPROVAL));
+
+        mockMvc.perform(put("/api/v1/delivery-orders/100/pick-qc-result")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(pickQcResultJson()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("QC_PENDING_APPROVAL"));
+    }
+
+    @Test
+    @WithMockUser(username = "warehouse@wms.com", roles = "WAREHOUSE_STAFF")
+    void savePickQcResult_rejectsDuplicateSubmission() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(warehouseStaff);
+        when(deliveryOrderService.saveDeliveryOrderPickQcResult(eq(100L), any(), eq(warehouseStaff)))
+                .thenThrow(new OutboundDeliveryException("QC_RESULT_ALREADY_RECORDED",
+                        HttpStatus.UNPROCESSABLE_ENTITY, "Pick/QC result already recorded"));
+
+        mockMvc.perform(put("/api/v1/delivery-orders/100/pick-qc-result")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(pickQcResultJson()))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("QC_RESULT_ALREADY_RECORDED"));
+    }
+
+    @Test
+    @WithMockUser(username = "warehouse@wms.com", roles = "WAREHOUSE_STAFF")
+    void savePickQcResult_rejectsIdempotencyConflict() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(warehouseStaff);
+        when(deliveryOrderService.saveDeliveryOrderPickQcResult(eq(100L), any(), eq(warehouseStaff)))
+                .thenThrow(new OutboundDeliveryException("IDEMPOTENCY_KEY_CONFLICT",
+                        HttpStatus.CONFLICT, "Idempotency key conflict"));
+
+        mockMvc.perform(put("/api/v1/delivery-orders/100/pick-qc-result")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(pickQcResultJson()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("IDEMPOTENCY_KEY_CONFLICT"));
+    }
+
+    @Test
+    @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
+    void approveQuality_success() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(storekeeper);
+        when(deliveryOrderService.approveDeliveryOrderQuality(eq(100L), any(), eq(storekeeper)))
+                .thenReturn(response(DeliveryOrderStatus.QC_COMPLETED));
+
+        mockMvc.perform(put("/api/v1/delivery-orders/100/quality-approval")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"notes\":\"All replacement goods passed\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("QC_COMPLETED"));
+    }
+
+    @Test
+    @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
+    void approveQuality_rejectsReplacementRequired() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(storekeeper);
+        when(deliveryOrderService.approveDeliveryOrderQuality(eq(100L), any(), eq(storekeeper)))
+                .thenThrow(new OutboundDeliveryException("QC_REPLACEMENT_REQUIRED",
+                        HttpStatus.UNPROCESSABLE_ENTITY, "Replacement required"));
+
+        mockMvc.perform(put("/api/v1/delivery-orders/100/quality-approval")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"notes\":\"Try approval early\"}"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("QC_REPLACEMENT_REQUIRED"));
+    }
+
+    @Test
+    @WithMockUser(username = "manager@wms.com", roles = "WAREHOUSE_MANAGER")
+    void warehouseApproval_success() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(manager);
+        when(deliveryOrderService.approveDeliveryOrderWarehouseRelease(eq(100L), any(), eq(manager)))
+                .thenReturn(response(DeliveryOrderStatus.WAREHOUSE_APPROVED));
+
+        mockMvc.perform(put("/api/v1/delivery-orders/100/warehouse-approval")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"notes\":\"Release approved\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("WAREHOUSE_APPROVED"));
+    }
+
+    @Test
+    @WithMockUser(username = "manager@wms.com", roles = "WAREHOUSE_MANAGER")
+    void warehouseReject_success() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(manager);
+        when(deliveryOrderService.rejectDeliveryOrderWarehouseRelease(eq(100L), any(), eq(manager)))
+                .thenReturn(response(DeliveryOrderStatus.REJECTED));
+
+        mockMvc.perform(put("/api/v1/delivery-orders/100/warehouse-reject")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(warehouseRejectJson()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("REJECTED"));
+    }
+
     private String createJson() {
         return """
                 {
@@ -276,6 +401,50 @@ class DeliveryOrderControllerTest {
                       "replacementZoneId": 32,
                       "quantity": 2,
                       "reason": "QC fail scratched cookware"
+                    }
+                  ]
+                }
+                """;
+    }
+
+    private String pickQcResultJson() {
+        return """
+                {
+                  "idempotencyKey": "qc-100",
+                  "results": [
+                    {
+                      "doItemId": 200,
+                      "allocationId": 900,
+                      "batchId": 71,
+                      "locationId": 801,
+                      "zoneId": 31,
+                      "pickedQty": 10,
+                      "qcPassQty": 8,
+                      "qcFailQty": 2,
+                      "qcFailReason": "Surface scratch",
+                      "stagingLocationId": 880,
+                      "quarantineLocationId": 990,
+                      "notes": "Checked at source bin"
+                    }
+                  ]
+                }
+                """;
+    }
+
+    private String warehouseRejectJson() {
+        return """
+                {
+                  "reason": "Seal issue found before loading",
+                  "returnToBinRecords": [
+                    {
+                      "doItemId": 200,
+                      "allocationId": 900,
+                      "batchId": 71,
+                      "returnedQty": 8,
+                      "sourceLocationId": 880,
+                      "originalLocationId": 801,
+                      "originalZoneId": 31,
+                      "reason": "Return staged goods after reject"
                     }
                   ]
                 }

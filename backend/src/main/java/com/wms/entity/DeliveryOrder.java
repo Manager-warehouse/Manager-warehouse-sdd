@@ -49,6 +49,9 @@ public class DeliveryOrder {
     @Column(name = "cancel_reason", columnDefinition = "TEXT")
     private String cancelReason;
 
+    @Column(name = "rejection_reason", columnDefinition = "TEXT")
+    private String rejectionReason;
+
     @Column(name = "document_date", nullable = false)
     private LocalDate documentDate;
 

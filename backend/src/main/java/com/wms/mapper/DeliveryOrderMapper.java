@@ -5,6 +5,7 @@ import com.wms.dto.response.DeliveryOrderResponse;
 import com.wms.entity.DeliveryOrder;
 import com.wms.entity.DeliveryOrderItemAllocation;
 import com.wms.entity.DeliveryOrderItem;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -21,6 +22,15 @@ public class DeliveryOrderMapper {
                                             List<DeliveryOrderItemAllocation> allocations) {
         Map<Long, List<DeliveryOrderItemAllocation>> allocationsByItemId = allocations.stream()
                 .collect(Collectors.groupingBy(allocation -> allocation.getDeliveryOrderItem().getId()));
+        BigDecimal totalPickedQty = items.stream()
+                .map(DeliveryOrderItem::getPickedQty)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalQcPassQty = items.stream()
+                .map(DeliveryOrderItem::getQcPassQty)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalQcFailQty = items.stream()
+                .map(DeliveryOrderItem::getQcFailQty)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
         return DeliveryOrderResponse.builder()
                 .id(order.getId())
                 .doNumber(order.getDoNumber())
@@ -30,6 +40,10 @@ public class DeliveryOrderMapper {
                 .expectedDeliveryDate(order.getExpectedDeliveryDate())
                 .status(order.getStatus())
                 .cancelReason(order.getCancelReason())
+                .rejectionReason(order.getRejectionReason())
+                .totalPickedQty(totalPickedQty)
+                .totalQcPassQty(totalQcPassQty)
+                .totalQcFailQty(totalQcFailQty)
                 .documentDate(order.getDocumentDate())
                 .notes(order.getNotes())
                 .items(items.stream()

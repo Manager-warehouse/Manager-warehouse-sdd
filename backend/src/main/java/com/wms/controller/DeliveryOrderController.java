@@ -2,9 +2,13 @@ package com.wms.controller;
 
 import com.wms.dto.request.DeliveryOrderCancelRequest;
 import com.wms.dto.request.DeliveryOrderCreateRequest;
+import com.wms.dto.request.DeliveryOrderPickQcResultRequest;
 import com.wms.dto.request.DeliveryOrderPickingPlanRequest;
+import com.wms.dto.request.DeliveryOrderQualityApprovalRequest;
 import com.wms.dto.request.DeliveryOrderReplacementPlanRequest;
 import com.wms.dto.request.DeliveryOrderUpdateRequest;
+import com.wms.dto.request.DeliveryOrderWarehouseApprovalRequest;
+import com.wms.dto.request.DeliveryOrderWarehouseRejectRequest;
 import com.wms.dto.response.DeliveryOrderResponse;
 import com.wms.entity.User;
 import com.wms.service.CurrentUserService;
@@ -120,6 +124,27 @@ public class DeliveryOrderController {
         return deliveryOrderService.saveDeliveryOrderPickingPlan(id, request, currentUser());
     }
 
+    @PutMapping("/{id}/pick-qc-result")
+    @PreAuthorize("hasRole('WAREHOUSE_STAFF')")
+    @Operation(
+            summary = "Save one complete outbound pick and QC result set",
+            description = "Stores one full active pick/QC cycle for the delivery order. "
+                    + "Duplicate allocation submission is blocked unless the same idempotency key "
+                    + "and exact same payload are replayed after a previous success."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Pick/QC result saved"),
+            @ApiResponse(responseCode = "400", description = "Invalid pick/QC payload", content = @Content),
+            @ApiResponse(responseCode = "403", description = "Warehouse staff is not assigned to the delivery order warehouse", content = @Content),
+            @ApiResponse(responseCode = "404", description = "Delivery order, allocation, or location not found", content = @Content),
+            @ApiResponse(responseCode = "409", description = "Inventory version conflict or idempotency conflict", content = @Content),
+            @ApiResponse(responseCode = "422", description = "Pick/QC business validation failed", content = @Content)
+    })
+    public DeliveryOrderResponse saveDeliveryOrderPickQcResult(@PathVariable Long id,
+                                                               @Valid @RequestBody DeliveryOrderPickQcResultRequest request) {
+        return deliveryOrderService.saveDeliveryOrderPickQcResult(id, request, currentUser());
+    }
+
     @PutMapping("/{id}/replacement-plan")
     @PreAuthorize("hasRole('STOREKEEPER')")
     @Operation(
@@ -144,6 +169,49 @@ public class DeliveryOrderController {
                                                                           required = true)
                                                                   @Valid @RequestBody DeliveryOrderReplacementPlanRequest request) {
         return deliveryOrderService.saveDeliveryOrderReplacementPlan(id, request, currentUser());
+    }
+
+    @PutMapping("/{id}/quality-approval")
+    @PreAuthorize("hasRole('STOREKEEPER')")
+    @Operation(summary = "Approve outbound quality after QC review")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Quality approved and delivery order moved to QC_COMPLETED"),
+            @ApiResponse(responseCode = "400", description = "Invalid quality-approval payload", content = @Content),
+            @ApiResponse(responseCode = "403", description = "Storekeeper is not assigned to the delivery order warehouse", content = @Content),
+            @ApiResponse(responseCode = "422", description = "Quality approval validation failed, such as QC_REPLACEMENT_REQUIRED or DELIVERY_ORDER_STATUS_INVALID", content = @Content)
+    })
+    public DeliveryOrderResponse approveDeliveryOrderQuality(@PathVariable Long id,
+                                                             @Valid @RequestBody DeliveryOrderQualityApprovalRequest request) {
+        return deliveryOrderService.approveDeliveryOrderQuality(id, request, currentUser());
+    }
+
+    @PutMapping("/{id}/warehouse-approval")
+    @PreAuthorize("hasRole('WAREHOUSE_MANAGER')")
+    @Operation(summary = "Approve outbound release after QC completion")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Warehouse approval saved and delivery order moved to WAREHOUSE_APPROVED"),
+            @ApiResponse(responseCode = "400", description = "Invalid warehouse-approval payload", content = @Content),
+            @ApiResponse(responseCode = "403", description = "Warehouse Manager is not assigned to the delivery order warehouse", content = @Content),
+            @ApiResponse(responseCode = "422", description = "Warehouse approval validation failed, such as DELIVERY_ORDER_STATUS_INVALID", content = @Content)
+    })
+    public DeliveryOrderResponse approveDeliveryOrderWarehouseRelease(@PathVariable Long id,
+                                                                     @Valid @RequestBody DeliveryOrderWarehouseApprovalRequest request) {
+        return deliveryOrderService.approveDeliveryOrderWarehouseRelease(id, request, currentUser());
+    }
+
+    @PutMapping("/{id}/warehouse-reject")
+    @PreAuthorize("hasRole('WAREHOUSE_MANAGER')")
+    @Operation(summary = "Reject outbound release and return staged goods to source bins")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Warehouse rejection saved and delivery order moved to REJECTED"),
+            @ApiResponse(responseCode = "400", description = "Invalid warehouse-reject payload", content = @Content),
+            @ApiResponse(responseCode = "403", description = "Warehouse Manager is not assigned to the delivery order warehouse", content = @Content),
+            @ApiResponse(responseCode = "409", description = "Inventory version conflict while returning staged goods", content = @Content),
+            @ApiResponse(responseCode = "422", description = "Warehouse reject validation failed, such as PICKED_GOODS_RETURN_REQUIRED, INVENTORY_ROW_INVALID, or DELIVERY_ORDER_STATUS_INVALID", content = @Content)
+    })
+    public DeliveryOrderResponse rejectDeliveryOrderWarehouseRelease(@PathVariable Long id,
+                                                                    @Valid @RequestBody DeliveryOrderWarehouseRejectRequest request) {
+        return deliveryOrderService.rejectDeliveryOrderWarehouseRelease(id, request, currentUser());
     }
 
     private User currentUser() {

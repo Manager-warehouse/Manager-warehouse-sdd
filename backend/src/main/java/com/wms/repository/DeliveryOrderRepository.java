@@ -28,4 +28,14 @@ public interface DeliveryOrderRepository extends JpaRepository<DeliveryOrder, Lo
             """)
     Optional<DeliveryOrder> findWithDealerAndWarehouseByIdAndStatusIn(@Param("id") Long id,
                                                                        @Param("statuses") Collection<DeliveryOrderStatus> statuses);
+
+    @EntityGraph(attributePaths = {"dealer", "warehouse", "createdBy", "packedBy", "qcBy"})
+    @Query("""
+            select d from DeliveryOrder d
+            where d.warehouse.id = :warehouseId
+              and d.status in :statuses
+            order by d.updatedAt desc
+            """)
+    List<DeliveryOrder> findDetailedByWarehouseIdAndStatusIn(@Param("warehouseId") Long warehouseId,
+                                                             @Param("statuses") Collection<DeliveryOrderStatus> statuses);
 }

@@ -25,6 +25,10 @@ public class OutboundQcRecord {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "do_id", nullable = false)
+    private DeliveryOrder deliveryOrder;
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "do_item_id", nullable = false)
     private DeliveryOrderItem deliveryOrderItem;
 
@@ -60,6 +64,26 @@ public class OutboundQcRecord {
 
     @Column(name = "qc_fail_qty", nullable = false, precision = 10, scale = 2)
     private BigDecimal qcFailQty;
+
+    @Column(name = "qc_fail_reason", columnDefinition = "TEXT")
+    private String qcFailReason;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "quarantine_record_id")
+    private QuarantineRecord quarantineRecord;
+
+    @Column(name = "idempotency_key", length = 100)
+    private String idempotencyKey;
+
+    @Column(name = "request_hash", length = 128)
+    private String requestHash;
+
+    @Column(name = "notes", columnDefinition = "TEXT")
+    private String notes;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by", nullable = false)
+    private User createdBy;
 
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;

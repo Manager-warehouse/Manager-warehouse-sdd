@@ -39,6 +39,26 @@ public class Adjustment {
     @JoinColumn(name = "location_id")
     private WarehouseLocation location;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "delivery_order_id")
+    private DeliveryOrder deliveryOrder;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "do_item_id")
+    private DeliveryOrderItem deliveryOrderItem;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "allocation_id")
+    private DeliveryOrderItemAllocation allocation;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "outbound_qc_record_id")
+    private OutboundQcRecord outboundQcRecord;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "quarantine_record_id")
+    private QuarantineRecord quarantineRecord;
+
     @Column(name = "quantity_adjustment", nullable = false, precision = 10, scale = 2)
     private BigDecimal quantityAdjustment;
 

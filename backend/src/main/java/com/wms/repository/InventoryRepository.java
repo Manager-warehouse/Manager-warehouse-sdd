@@ -60,6 +60,20 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
     @Lock(LockModeType.OPTIMISTIC)
     @Query("""
             select i from Inventory i
+            where i.warehouse.id = :warehouseId
+              and i.product.id = :productId
+              and i.batch.id = :batchId
+              and i.location.id = :locationId
+            """)
+    Optional<Inventory> findConcreteReservationRowForUpdate(@Param("warehouseId") Long warehouseId,
+                                                            @Param("productId") Long productId,
+                                                            @Param("batchId") Long batchId,
+                                                            @Param("locationId") Long locationId);
+
+    @EntityGraph(attributePaths = {"warehouse", "product", "batch", "location", "location.parent"})
+    @Lock(LockModeType.OPTIMISTIC)
+    @Query("""
+            select i from Inventory i
             where i.id in :ids
             """)
     List<Inventory> findByIdInWithLock(@Param("ids") List<Long> ids);
