@@ -13,6 +13,7 @@ import com.wms.dto.response.DeliveryOtpResponse;
 import com.wms.dto.response.TripDriverViewResponse;
 import com.wms.dto.response.TripResponse;
 import com.wms.entity.User;
+import com.wms.enums.TripStatus;
 import com.wms.service.CurrentUserService;
 import com.wms.service.DriverDeliveryService;
 import com.wms.service.TripService;
@@ -22,6 +23,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -50,6 +52,18 @@ public class TripController {
         this.tripService = tripService;
         this.driverDeliveryService = driverDeliveryService;
         this.currentUserService = currentUserService;
+    }
+
+    @GetMapping
+    @PreAuthorize("hasAnyRole('DISPATCHER','WAREHOUSE_MANAGER','ADMIN','CEO')")
+    @Operation(summary = "List outbound trips for dispatch planning")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trips returned for assigned warehouse scope"),
+            @ApiResponse(responseCode = "403", description = "User is not assigned to the requested warehouse", content = @Content)
+    })
+    public List<TripResponse> listTrips(@RequestParam(required = false) Long warehouseId,
+                                        @RequestParam(required = false) TripStatus status) {
+        return tripService.listTrips(warehouseId, status, currentUser());
     }
 
     @GetMapping("/{id}")

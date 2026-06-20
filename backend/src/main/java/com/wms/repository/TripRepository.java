@@ -3,6 +3,7 @@ package com.wms.repository;
 import com.wms.entity.Trip;
 import com.wms.enums.TripStatus;
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -17,6 +18,16 @@ public interface TripRepository extends JpaRepository<Trip, Long> {
 
     @EntityGraph(attributePaths = {"warehouse", "vehicle", "driver", "driver.user", "dispatcher"})
     Optional<Trip> findWithWarehouseAndResourcesById(Long id);
+
+    @EntityGraph(attributePaths = {"warehouse", "vehicle", "driver", "driver.user", "dispatcher"})
+    @Query("""
+            select t from Trip t
+            where t.warehouse.id in :warehouseIds
+              and (:status is null or t.status = :status)
+            order by t.createdAt desc, t.id desc
+            """)
+    List<Trip> findByWarehouseIdInAndOptionalStatus(@Param("warehouseIds") Collection<Long> warehouseIds,
+                                                    @Param("status") TripStatus status);
 
     @EntityGraph(attributePaths = {"warehouse", "vehicle", "driver", "driver.user", "dispatcher"})
     @Query("""

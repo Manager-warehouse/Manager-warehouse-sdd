@@ -2,9 +2,50 @@ openapi: 3.0.3
 info:
   title: Dispatcher Trip Dispatch API
   version: 1.0.0
-  description: Contracts for outbound trip create, update, cancel, depart, and complete in Sprint 1.
+  description: Contracts for outbound trip list, create, update, cancel, depart, and complete in Sprint 1.
 paths:
   /api/v1/trips:
+    get:
+      summary: List outbound trips for dispatch planning
+      operationId: listTrips
+      tags:
+        - Trips
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: warehouseId
+          in: query
+          required: false
+          description: Optional warehouse filter. The authenticated user must be assigned to this warehouse.
+          schema:
+            type: integer
+            format: int64
+        - name: status
+          in: query
+          required: false
+          description: Optional trip status filter.
+          schema:
+            type: string
+            enum:
+              - PLANNED
+              - IN_TRANSIT
+              - COMPLETED
+              - CANCELLED
+      responses:
+        "200":
+          description: Trips returned for the user's assigned warehouse scope
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TripResponse"
+        "403":
+          description: User is not assigned to the requested warehouse
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
     post:
       summary: Create a planned outbound trip
       operationId: createTrip

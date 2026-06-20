@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle2, Circle, AlertCircle } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Circle } from 'lucide-react';
 
 const PickingListTable = ({ items, isPicking, onPickItem, pickedItems }) => {
   return (
@@ -23,41 +23,47 @@ const PickingListTable = ({ items, isPicking, onPickItem, pickedItems }) => {
           </thead>
           <tbody className="divide-y divide-hairline-light">
             {items.map((item) => {
-              const picked = pickedItems?.find(p => p.id === item.id);
-              const isFullyPicked = picked?.issued_qty === item.requested_qty;
-              const hasError = picked && picked.issued_qty > item.requested_qty;
+              const picked = pickedItems?.find((row) => row.id === item.id);
+              const requestedQty = Number(item.requested_qty || 0);
+              const issuedQty = Number(picked?.issued_qty ?? item.issued_qty ?? 0);
+              const isFullyPicked = issuedQty === requestedQty;
+              const hasError = issuedQty > requestedQty;
+              const firstAllocation = item.allocations?.[0];
 
               return (
                 <tr key={item.id} className={`transition-colors ${isFullyPicked ? 'bg-emerald-50/40' : 'hover:bg-zinc-50'}`}>
                   <td className="px-6 py-4 text-xs font-semibold text-ink">{item.product_name}</td>
-                  <td className="px-6 py-4 text-xs text-shade-50 font-mono">{item.sku}</td>
+                  <td className="px-6 py-4 text-xs text-shade-50 font-mono">{item.sku || '-'}</td>
                   <td className="px-6 py-4">
-                    <p className="text-xs font-semibold text-ink">{item.bin_code || <span className="text-shade-40 font-normal italic">Chưa xếp vị trí</span>}</p>
-                    <p className="text-[11px] text-shade-40">{item.batch_number || '—'}</p>
+                    <p className="text-xs font-semibold text-ink">
+                      {item.bin_code || firstAllocation?.location_id || <span className="text-shade-40 font-normal italic">Chưa xếp vị trí</span>}
+                    </p>
+                    <p className="text-[11px] text-shade-40">{item.batch_number || firstAllocation?.batch_id || '—'}</p>
                   </td>
-                  <td className="px-6 py-4 text-xs font-bold text-ink text-right">{item.requested_qty}</td>
+                  <td className="px-6 py-4 text-xs font-bold text-ink text-right">{requestedQty}</td>
 
                   {isPicking && (
                     <td className="px-6 py-4 text-right">
                       <input
                         type="number"
                         min="0"
-                        max={item.requested_qty}
+                        max={requestedQty}
                         className={`w-20 text-input text-xs py-1 text-right ${hasError ? 'border-red-400 focus:border-red-500' : ''}`}
-                        value={picked?.issued_qty ?? 0}
-                        onChange={(e) => onPickItem(item.id, Number(e.target.value), picked?.serial_number)}
+                        value={issuedQty}
+                        onChange={(event) => onPickItem(item.id, Number(event.target.value), picked?.serial_number)}
                       />
                     </td>
                   )}
 
                   {isPicking && (
                     <td className="px-6 py-4 text-center">
-                      {isFullyPicked
-                        ? <CheckCircle2 className="w-5 h-5 text-emerald-500 mx-auto" />
-                        : hasError
-                          ? <AlertCircle className="w-5 h-5 text-red-500 mx-auto" title="Số lượng vượt mức" />
-                          : <Circle className="w-5 h-5 text-shade-30 mx-auto" />
-                      }
+                      {isFullyPicked ? (
+                        <CheckCircle2 className="w-5 h-5 text-emerald-500 mx-auto" />
+                      ) : hasError ? (
+                        <AlertCircle className="w-5 h-5 text-red-500 mx-auto" title="Số lượng vượt mức" />
+                      ) : (
+                        <Circle className="w-5 h-5 text-shade-30 mx-auto" />
+                      )}
                     </td>
                   )}
                 </tr>

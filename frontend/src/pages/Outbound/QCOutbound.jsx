@@ -1,8 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import {
-  ArrowLeft, CheckCircle2, AlertCircle, PackageSearch, Loader2, Check
-} from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { AlertCircle, ArrowLeft, Check, CheckCircle2, Loader2, PackageSearch } from 'lucide-react';
 import { outboundService } from '../../services/outbound.service';
 import { useUiStore } from '../../stores/ui.store';
 
@@ -25,13 +23,14 @@ export default function QCOutbound() {
     try {
       const data = await outboundService.getDeliveryOrderById(id);
       setOrder(data);
-      setQcData(data.items.map(item => ({
+      setQcData((data.items || []).map((item) => ({
         id: item.id,
         result: item.qc_result || 'PASSED',
         reason: item.qc_failure_reason || '',
+        picked_qty: item.issued_qty || item.picked_qty || item.requested_qty || 0,
       })));
-    } catch {
-      addToast('Không tìm thấy đơn', 'error');
+    } catch (error) {
+      addToast(error.message || 'Không tìm thấy đơn xuất hàng', 'error');
       navigate('/outbound/delivery-orders');
     } finally {
       setLoading(false);
@@ -39,12 +38,17 @@ export default function QCOutbound() {
   };
 
   const updateQcItem = (itemId, field, value) => {
-    setQcData(prev => prev.map(q => q.id === itemId ? { ...q, [field]: value } : q));
+    setQcData((prev) => prev.map((item) => (
+      item.id === itemId ? { ...item, [field]: value } : item
+    )));
   };
 
   const handleConfirmQC = async () => {
-    const invalid = qcData.some(q => q.result === 'FAILED' && !q.reason);
-    if (invalid) { addToast('Vui lòng nhập lý do cho các sản phẩm KHÔNG ĐẠT', 'error'); return; }
+    const invalid = qcData.some((item) => item.result === 'FAILED' && !item.reason.trim());
+    if (invalid) {
+      addToast('Vui lòng nhập lý do cho các sản phẩm không đạt QC', 'error');
+      return;
+    }
     setSubmitting(true);
     try {
       await outboundService.confirmQCOutbound(id, { items: qcData });
@@ -57,8 +61,7 @@ export default function QCOutbound() {
     }
   };
 
-  const allChecked = qcData.length > 0;
-  const failCount = qcData.filter(q => q.result === 'FAILED').length;
+  const failCount = qcData.filter((item) => item.result === 'FAILED').length;
 
   if (loading) {
     return (
@@ -71,7 +74,6 @@ export default function QCOutbound() {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Page Header */}
       <div className="flex items-start gap-4">
         <button
           onClick={() => navigate(`/outbound/delivery-orders/${id}`)}
@@ -92,7 +94,6 @@ export default function QCOutbound() {
         </div>
       </div>
 
-      {/* Summary Bar */}
       {failCount > 0 && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
           <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
@@ -102,7 +103,6 @@ export default function QCOutbound() {
         </div>
       )}
 
-      {/* QC Checklist */}
       <div className="bg-white rounded-lg border border-hairline-light shadow-sm overflow-hidden card-premium">
         <div className="px-6 py-4 bg-zinc-50 border-b border-hairline-light flex items-center gap-2">
           <PackageSearch className="w-4 h-4 text-shade-50" />
@@ -113,28 +113,21 @@ export default function QCOutbound() {
 
         <div className="divide-y divide-hairline-light">
           {order.items.map((item) => {
-            const qc = qcData.find(q => q.id === item.id);
+            const qc = qcData.find((row) => row.id === item.id);
             if (!qc) return null;
             const isPassed = qc.result === 'PASSED';
             const isFailed = qc.result === 'FAILED';
 
             return (
-              <div key={item.id} className={`p-6 transition-colors ${isFailed ? 'bg-red-50/50' : isPassed ? 'bg-white' : 'bg-zinc-50'}`}>
+              <div key={item.id} className={`p-6 transition-colors ${isFailed ? 'bg-red-50/50' : 'bg-white'}`}>
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
                   <div className="flex-1">
                     <h4 className="text-sm font-bold text-ink">{item.product_name}</h4>
-                    <p className="text-xs text-shade-40 mt-0.5 font-mono">
-                      SKU: {item.sku}
-                    </p>
+                    <p className="text-xs text-shade-40 mt-0.5 font-mono">SKU: {item.sku || '-'}</p>
                     <p className="text-xs text-shade-50 mt-1">
                       Số lượng yêu cầu: <span className="font-semibold text-ink">{item.requested_qty}</span>
-                      {item.issued_qty != null && (
-                        <> · Đã soạn: <span className="font-semibold text-ink">{item.issued_qty}</span></>
-                      )}
+                      <span> · Đã soạn: <span className="font-semibold text-ink">{qc.picked_qty}</span></span>
                     </p>
-                    {item.serial_number && (
-                      <p className="text-xs text-shade-50 mt-0.5">S/N: <span className="font-mono text-ink">{item.serial_number}</span></p>
-                    )}
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
@@ -170,9 +163,9 @@ export default function QCOutbound() {
                     <input
                       type="text"
                       className="w-full text-input text-xs border-red-300 focus:border-red-500"
-                      placeholder="Ghi rõ lý do lỗi (móp méo, trầy xước, sai mã...)"
+                      placeholder="Ghi rõ lý do lỗi: móp méo, trầy xước, sai mã..."
                       value={qc.reason}
-                      onChange={(e) => updateQcItem(item.id, 'reason', e.target.value)}
+                      onChange={(event) => updateQcItem(item.id, 'reason', event.target.value)}
                     />
                   </div>
                 )}
@@ -182,15 +175,12 @@ export default function QCOutbound() {
         </div>
 
         <div className="px-6 py-4 border-t border-hairline-light bg-zinc-50 flex justify-between items-center gap-3">
-          <button
-            onClick={() => navigate(`/outbound/delivery-orders/${id}`)}
-            className="btn-pill btn-pill-outline-light text-xs"
-          >
+          <button onClick={() => navigate(`/outbound/delivery-orders/${id}`)} className="btn-pill btn-pill-outline-light text-xs">
             Hủy bỏ
           </button>
           <button
             onClick={handleConfirmQC}
-            disabled={!allChecked || submitting}
+            disabled={qcData.length === 0 || submitting}
             className="btn-pill btn-pill-aloe text-xs py-1.5 px-4 font-bold disabled:opacity-50 flex items-center gap-1.5"
           >
             {submitting ? (

@@ -7,8 +7,12 @@ import com.wms.dto.request.TripDepartRequest;
 import com.wms.dto.request.TripUpdateRequest;
 import com.wms.dto.response.TripResponse;
 import com.wms.entity.User;
+import com.wms.enums.TripStatus;
+import java.util.List;
 
 public interface TripService {
+    List<TripResponse> listTrips(Long warehouseId, TripStatus status, User actor);
+
     TripResponse createTrip(TripCreateRequest request, User actor);
 
     TripResponse updateTrip(Long id, TripUpdateRequest request, User actor);

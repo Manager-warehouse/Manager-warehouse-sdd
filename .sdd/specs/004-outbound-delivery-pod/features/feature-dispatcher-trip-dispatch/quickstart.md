@@ -2,13 +2,14 @@
 
 ## Goal
 
-Implement outbound trip create, update, cancel, depart, and complete flows while preserving warehouse scope, Delivery Order readiness, vehicle and driver availability, capacity validation, inventory integrity, and delivery-attempt initialization.
+Implement outbound trip list, create, update, cancel, depart, and complete flows while preserving warehouse scope, Delivery Order readiness, vehicle and driver availability, capacity validation, inventory integrity, and delivery-attempt initialization.
 
 ## Suggested implementation order
 
 1. Add or extend repositories and DTOs for trip header, stop-order rows, driver departure, and trip completion requests.
 2. Add repository helpers to load trip details with Delivery Orders, validate active-trip conflicts, find the assigned driver by user, and fetch staged inventory rows required for departure movement.
 3. Add controller endpoints for:
+   - `GET /api/v1/trips`
    - `POST /api/v1/trips`
    - `PUT /api/v1/trips/{id}`
    - `PUT /api/v1/trips/{id}/cancel`
@@ -25,7 +26,21 @@ Implement outbound trip create, update, cancel, depart, and complete flows while
 
 ## API walkthrough
 
-### 1. Create a planned trip
+### 1. List trips for the dispatch board
+
+```http
+GET /api/v1/trips?warehouseId=20&status=PLANNED
+Authorization: Bearer <jwt>
+```
+
+Expected result:
+
+- Validate the authenticated user is assigned to warehouse 20.
+- Apply optional `warehouseId` and `status` filters.
+- Return trip headers with assigned Delivery Orders and stop order.
+- Order trips newest first for dispatch planning.
+
+### 2. Create a planned trip
 
 Request:
 
@@ -60,7 +75,7 @@ Expected result:
 - Keep Delivery Orders in `WAREHOUSE_APPROVED`.
 - Write `TRIP_CREATE` audit.
 
-### 2. Update a planned trip
+### 3. Update a planned trip
 
 ```http
 PUT /api/v1/trips/9001
@@ -87,7 +102,7 @@ Expected result:
 - Keep removed Delivery Orders in `WAREHOUSE_APPROVED`.
 - Write `TRIP_UPDATE` audit.
 
-### 3. Driver departs with staged goods
+### 4. Driver departs with staged goods
 
 ```http
 PUT /api/v1/trips/9001/depart
@@ -113,7 +128,7 @@ Expected result:
 - Mark trip `IN_TRANSIT` and vehicle/driver `ON_TRIP`.
 - Write `TRIP_DEPART` and `DELIVERY_ATTEMPT_CREATE` audit events.
 
-### 4. Complete trip after vehicle returns
+### 5. Complete trip after vehicle returns
 
 ```http
 PUT /api/v1/trips/9001/complete
@@ -148,6 +163,7 @@ Expected result:
 - Service test: departure moves staging stock to virtual `IN_TRANSIT`, sets `issued_qty`, creates delivery attempts, and marks vehicle/driver `ON_TRIP`.
 - Service test: complete trip rejects when any assigned Delivery Order is not `COMPLETED` or `RETURNED`.
 - Service test: complete trip releases vehicle and driver to `AVAILABLE`.
+- Controller integration test: list endpoint returns scoped trips with warehouse and status filters.
 - Controller integration test: create and update endpoints return trip detail for happy path.
 - Controller integration test: cancel, depart, and complete endpoints return expected business errors and status transitions.
 

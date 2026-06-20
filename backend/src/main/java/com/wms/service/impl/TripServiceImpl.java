@@ -114,6 +114,25 @@ public class TripServiceImpl implements TripService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<TripResponse> listTrips(Long warehouseId, TripStatus status, User actor) {
+        List<Long> warehouseIds;
+        if (warehouseId == null) {
+            warehouseIds = assignmentRepository.findWarehouseIdsByUserId(actor.getId());
+        } else {
+            requireWarehouseScope(actor, warehouseId);
+            warehouseIds = List.of(warehouseId);
+        }
+        if (warehouseIds.isEmpty()) {
+            return List.of();
+        }
+        return tripRepository.findByWarehouseIdInAndOptionalStatus(warehouseIds, status)
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    @Override
     @Transactional
     public TripResponse createTrip(TripCreateRequest request, User actor) {
         Warehouse warehouse = activeWarehouse(request.getWarehouseId());

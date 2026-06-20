@@ -99,6 +99,33 @@ class TripServiceImplTest {
     }
 
     @Test
+    void listTrips_filtersByAssignedWarehouseAndStatus() {
+        Trip trip = plannedTrip();
+        when(assignmentRepository.findWarehouseIdsByUserId(1L)).thenReturn(List.of(20L));
+        when(tripRepository.findByWarehouseIdInAndOptionalStatus(List.of(20L), TripStatus.PLANNED))
+                .thenReturn(List.of(trip));
+        when(tripDeliveryOrderRepository.findByTripIdOrderByStopOrderAsc(900L))
+                .thenReturn(List.of(member(trip, order, 1)));
+
+        var responses = service.listTrips(null, TripStatus.PLANNED, dispatcher);
+
+        assertThat(responses).hasSize(1);
+        assertThat(responses.get(0).getTripNumber()).isEqualTo("TRIP-20260620-0001");
+        assertThat(responses.get(0).getDeliveryOrders()).hasSize(1);
+    }
+
+    @Test
+    void listTrips_rejectsUnassignedWarehouseScope() {
+        when(assignmentRepository.findWarehouseIdsByUserId(1L)).thenReturn(List.of(20L));
+
+        assertThatThrownBy(() -> service.listTrips(99L, null, dispatcher))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code")
+                .isEqualTo("WAREHOUSE_SCOPE_FORBIDDEN");
+        verify(tripRepository, never()).findByWarehouseIdInAndOptionalStatus(any(), any());
+    }
+
+    @Test
     void createTrip_successKeepsDeliveryOrderWarehouseApproved() {
         stubCreateHappyPath();
 

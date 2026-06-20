@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -58,6 +59,21 @@ class TripControllerTest {
     void setUp() {
         dispatcher = user(1L, UserRole.DISPATCHER);
         driver = user(2L, UserRole.DRIVER);
+    }
+
+    @Test
+    @WithMockUser(username = "dispatcher@wms.com", roles = "DISPATCHER")
+    void listTrips_success() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(dispatcher);
+        when(tripService.listTrips(eq(20L), eq(TripStatus.PLANNED), eq(dispatcher)))
+                .thenReturn(List.of(response(TripStatus.PLANNED)));
+
+        mockMvc.perform(get("/api/v1/trips")
+                        .param("warehouseId", "20")
+                        .param("status", "PLANNED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].tripNumber").value("TRIP-20260620-0001"))
+                .andExpect(jsonPath("$[0].status").value("PLANNED"));
     }
 
     @Test
