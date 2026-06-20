@@ -16,7 +16,6 @@ import com.wms.entity.DeliveryOrderItem;
 import com.wms.entity.DeliveryOtpAttempt;
 import com.wms.entity.Driver;
 import com.wms.entity.Inventory;
-import com.wms.entity.Invoice;
 import com.wms.entity.Trip;
 import com.wms.entity.TripDeliveryOrder;
 import com.wms.entity.User;
@@ -25,7 +24,6 @@ import com.wms.enums.DeliveryOrderStatus;
 import com.wms.enums.DeliveryOtpStatus;
 import com.wms.enums.DeliveryStatus;
 import com.wms.enums.DriverStatus;
-import com.wms.enums.InvoiceStatus;
 import com.wms.enums.TripStatus;
 import com.wms.enums.VehicleStatus;
 import com.wms.exception.OutboundDeliveryException;
@@ -35,10 +33,10 @@ import com.wms.repository.DeliveryOrderRepository;
 import com.wms.repository.DeliveryOtpAttemptRepository;
 import com.wms.repository.DeliveryRepository;
 import com.wms.repository.InventoryRepository;
-import com.wms.repository.InvoiceRepository;
 import com.wms.repository.TripDeliveryOrderRepository;
 import com.wms.repository.TripRepository;
 import com.wms.service.AuditLogService;
+import com.wms.service.AutoInvoiceService;
 import com.wms.service.DriverDeliveryService;
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -48,7 +46,6 @@ import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
-import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.HexFormat;
@@ -83,7 +80,7 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
     private final DeliveryOrderRepository deliveryOrderRepository;
     private final DeliveryOrderItemRepository deliveryOrderItemRepository;
     private final InventoryRepository inventoryRepository;
-    private final InvoiceRepository invoiceRepository;
+    private final AutoInvoiceService autoInvoiceService;
     private final AuditLogService auditLogService;
     private final JavaMailSender mailSender;
     private final SecureRandom secureRandom = new SecureRandom();
@@ -95,7 +92,7 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
                                      DeliveryOrderRepository deliveryOrderRepository,
                                      DeliveryOrderItemRepository deliveryOrderItemRepository,
                                      InventoryRepository inventoryRepository,
-                                     InvoiceRepository invoiceRepository,
+                                     AutoInvoiceService autoInvoiceService,
                                      AuditLogService auditLogService,
                                      JavaMailSender mailSender) {
         this.tripRepository = tripRepository;
@@ -105,7 +102,7 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
         this.deliveryOrderRepository = deliveryOrderRepository;
         this.deliveryOrderItemRepository = deliveryOrderItemRepository;
         this.inventoryRepository = inventoryRepository;
-        this.invoiceRepository = invoiceRepository;
+        this.autoInvoiceService = autoInvoiceService;
         this.auditLogService = auditLogService;
         this.mailSender = mailSender;
     }
@@ -190,12 +187,9 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
         DeliveryOtpAttempt otp = otpRepository.findByDeliveryId(delivery.getId())
                 .orElseThrow(() -> rule("OTP_NOT_REQUESTED", "Delivery OTP was not requested"));
         verifyOtp(otp, request.getOtp());
-        if (invoiceRepository.existsByDeliveryOrderId(deliveryOrderId)) {
-            throw conflict("INVOICE_ALREADY_EXISTS", "Invoice already exists for this delivery order");
-        }
         Map<String, Object> before = attemptSnapshot(delivery);
         decrementTransitInventory(delivery.getDeliveryOrder());
-        createInvoiceAndReceivable(delivery.getDeliveryOrder(), actor);
+        autoInvoiceService.createForConfirmedDelivery(delivery.getDeliveryOrder(), actor);
         OffsetDateTime now = OffsetDateTime.now();
         otp.setStatus(DeliveryOtpStatus.VERIFIED);
         otp.setConsumedAt(now);
@@ -339,31 +333,6 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
         }
     }
 
-    private void createInvoiceAndReceivable(DeliveryOrder order, User actor) {
-        List<DeliveryOrderItem> items = deliveryOrderItemRepository.findByDeliveryOrderId(order.getId());
-        BigDecimal total = items.stream()
-                .map(item -> value(item.getUnitPrice()).multiply(value(item.getIssuedQty())))
-                .reduce(ZERO, BigDecimal::add);
-        LocalDate issueDate = LocalDate.now();
-        Invoice invoice = Invoice.builder()
-                .invoiceNumber(generateInvoiceNumber())
-                .deliveryOrder(order)
-                .dealer(order.getDealer())
-                .totalAmount(total)
-                .issueDate(issueDate)
-                .dueDate(issueDate.plusDays(30))
-                .status(InvoiceStatus.UNPAID)
-                .createdBy(actor)
-                .documentDate(issueDate)
-                .createdAt(OffsetDateTime.now())
-                .updatedAt(OffsetDateTime.now())
-                .build();
-        invoiceRepository.save(invoice);
-        Dealer dealer = order.getDealer();
-        dealer.setCurrentBalance(value(dealer.getCurrentBalance()).add(total));
-        dealer.setUpdatedAt(OffsetDateTime.now());
-    }
-
     private TripDriverViewResponse toTripDriverView(Trip trip) {
         List<TripDeliveryOrder> rows = tripDeliveryOrderRepository.findByTripIdOrderByStopOrderAsc(trip.getId());
         Map<Long, Delivery> attempts = deliveryRepository.findByTripIdAndDeliveryOrderIdIn(
@@ -475,17 +444,6 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
         } catch (NoSuchAlgorithmException ex) {
             throw new IllegalStateException("SHA-256 algorithm is not available", ex);
         }
-    }
-
-    private String generateInvoiceNumber() {
-        String date = LocalDate.now().toString().replace("-", "");
-        for (int sequence = 1; sequence <= 9999; sequence++) {
-            String candidate = "INV-" + date + "-" + String.format("%04d", sequence);
-            if (!invoiceRepository.existsByInvoiceNumber(candidate)) {
-                return candidate;
-            }
-        }
-        throw rule("INVOICE_NUMBER_EXHAUSTED", "Cannot generate invoice number");
     }
 
     private void saveInventory(Inventory inventory) {
