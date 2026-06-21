@@ -10,7 +10,7 @@ import com.wms.entity.User;
 import com.wms.enums.UserRole;
 import com.wms.exception.GlobalExceptionHandler;
 import com.wms.exception.ResourceNotFoundException;
-import com.wms.repository.UserRepository;
+import com.wms.service.CurrentUserService;
 import com.wms.service.SystemConfigService;
 import com.wms.util.JwtUtil;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,7 +43,7 @@ class SystemConfigControllerTest {
     @Autowired ObjectMapper objectMapper;
 
     @MockBean SystemConfigService systemConfigService;
-    @MockBean UserRepository userRepository;
+    @MockBean CurrentUserService currentUserService;
     @MockBean JwtUtil jwtUtil;
     @MockBean UserDetailsServiceImpl userDetailsService;
 
@@ -118,7 +118,7 @@ class SystemConfigControllerTest {
     @DisplayName("PUT /system-config/{key} — 200 OK khi ADMIN cập nhật hợp lệ")
     @WithMockUser(username = "admin@wms.com", roles = "ADMIN")
     void updateConfig_admin_validValue_returns200() throws Exception {
-        when(userRepository.findByEmail("admin@wms.com")).thenReturn(Optional.of(adminUser));
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(adminUser);
         when(systemConfigService.updateConfig(eq("DEFAULT_CREDIT_LIMIT"), any(), eq(1L)))
                 .thenReturn(SystemConfigResponse.builder()
                         .configKey("DEFAULT_CREDIT_LIMIT").configValue("500000000").build());
@@ -163,7 +163,7 @@ class SystemConfigControllerTest {
     @DisplayName("PUT /system-config/{key} — 400 khi service ném IllegalArgumentException (giá trị âm)")
     @WithMockUser(username = "admin@wms.com", roles = "ADMIN")
     void updateConfig_invalidValue_returns400() throws Exception {
-        when(userRepository.findByEmail("admin@wms.com")).thenReturn(Optional.of(adminUser));
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(adminUser);
         when(systemConfigService.updateConfig(eq("DEFAULT_CREDIT_LIMIT"), any(), eq(1L)))
                 .thenThrow(new IllegalArgumentException("DEFAULT_CREDIT_LIMIT must be > 0"));
 
@@ -180,7 +180,7 @@ class SystemConfigControllerTest {
     @DisplayName("PUT /system-config/{key} — 404 khi configKey không tồn tại trong DB")
     @WithMockUser(username = "admin@wms.com", roles = "ADMIN")
     void updateConfig_keyNotFound_returns404() throws Exception {
-        when(userRepository.findByEmail("admin@wms.com")).thenReturn(Optional.of(adminUser));
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(adminUser);
         when(systemConfigService.updateConfig(eq("UNKNOWN_KEY"), any(), eq(1L)))
                 .thenThrow(new ResourceNotFoundException("SystemConfig not found"));
 
@@ -197,7 +197,7 @@ class SystemConfigControllerTest {
     @DisplayName("PUT /system-config/{key} — 400 khi format số không hợp lệ")
     @WithMockUser(username = "admin@wms.com", roles = "ADMIN")
     void updateConfig_nonNumericValue_returns400() throws Exception {
-        when(userRepository.findByEmail("admin@wms.com")).thenReturn(Optional.of(adminUser));
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(adminUser);
         when(systemConfigService.updateConfig(eq("DEFAULT_CREDIT_LIMIT"), any(), eq(1L)))
                 .thenThrow(new IllegalArgumentException("Invalid number format for key DEFAULT_CREDIT_LIMIT"));
 
@@ -214,7 +214,7 @@ class SystemConfigControllerTest {
     @DisplayName("PUT /system-config/MONTHLY_CLOSING_DAY — 200 OK với giá trị hợp lệ")
     @WithMockUser(username = "admin@wms.com", roles = "ADMIN")
     void updateConfig_monthlyClosingDay_valid_returns200() throws Exception {
-        when(userRepository.findByEmail("admin@wms.com")).thenReturn(Optional.of(adminUser));
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(adminUser);
         when(systemConfigService.updateConfig(eq("MONTHLY_CLOSING_DAY"), any(), eq(1L)))
                 .thenReturn(SystemConfigResponse.builder()
                         .configKey("MONTHLY_CLOSING_DAY").configValue("25").build());

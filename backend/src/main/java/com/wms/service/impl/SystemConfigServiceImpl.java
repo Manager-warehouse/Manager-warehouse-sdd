@@ -75,6 +75,10 @@ public class SystemConfigServiceImpl implements SystemConfigService {
                 .action(AuditAction.UPDATE)
                 .entityType("SystemConfig")
                 .entityId(savedConfig.getId())
+                .description(AuditLogUtil.generateDescription(
+                        AuditAction.UPDATE,
+                        "SystemConfig",
+                        savedConfig.getConfigKey()))
                 .oldValue(AuditLogUtil.toJson(Map.of("config_value", oldValue != null ? oldValue : "")))
                 .newValue(AuditLogUtil.toJson(Map.of("config_value", newValue)))
                 .timestamp(OffsetDateTime.now())
