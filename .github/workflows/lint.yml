@@ -34,10 +34,10 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: package-lock.json
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: cd frontend && npm ci
 
       - name: ESLint
-        run: npx eslint frontend/src/ --max-warnings=0 || echo "No ESLint config found, skipping"
+        run: cd frontend && npx eslint src/ --max-warnings=0 || echo "No ESLint config found, skipping"
