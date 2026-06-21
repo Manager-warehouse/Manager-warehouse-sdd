@@ -948,7 +948,15 @@ export const inboundService = {
       addMockAuditLog('RECEIPT_PUTAWAY_COMPLETED', 'Receipt', id, `Hoàn thành cất hàng (Putaway) cho phiếu: ${receipts[rIdx].receipt_number}`);
       return receipts[rIdx];
     }
-    const response = await apiClient.put(`/receipts/${id}/complete`, putawayData);
+    // For real backend: convert snake_case payload to camelCase
+    const apiPayload = {
+      expectedVersion: putawayData.expectedVersion !== undefined ? putawayData.expectedVersion : putawayData.expected_version,
+      items: (putawayData.items || []).map(item => ({
+        receiptItemId: item.receiptItemId !== undefined ? item.receiptItemId : item.receipt_item_id,
+        locationId: item.locationId !== undefined ? item.locationId : item.location_id
+      }))
+    };
+    const response = await apiClient.put(`/receipts/${id}/complete`, apiPayload);
     return response.data;
   },
 

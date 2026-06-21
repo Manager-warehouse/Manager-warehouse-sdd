@@ -150,7 +150,7 @@ class ReceiptControllerApprovalIT {
         mockMvc.perform(put("/api/v1/receipts/1/complete")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"expectedVersion":5,"locationId":50}
+                                {"expectedVersion":5,"items":[{"receiptItemId":11,"locationId":50}]}
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("OK"));

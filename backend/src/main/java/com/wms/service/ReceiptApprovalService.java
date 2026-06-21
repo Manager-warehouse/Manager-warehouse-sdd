@@ -1,6 +1,7 @@
 package com.wms.service;
 
 import com.wms.dto.request.ReceiptDecisionRequest;
+import com.wms.dto.request.ReceiptPutawayItem;
 import com.wms.dto.request.ReceiptPutawayRequest;
 import com.wms.dto.request.ReceiptReturnConfirmRequest;
 import com.wms.dto.response.ReceiptActionResponse;
@@ -16,8 +17,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Service for handling receipt approval, rejection, and putaway operations (US-WMS-05).
@@ -189,29 +193,66 @@ public class ReceiptApprovalService {
                     + "Current status: " + receipt.getStatus());
         }
 
-        WarehouseLocation location = warehouseLocationRepository.findById(request.getLocationId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Location not found: " + request.getLocationId()));
-
-        if (Boolean.TRUE.equals(location.getIsQuarantine())) {
-            throw new BusinessRuleViolationException(
-                    "INVALID_LOCATION: Putaway target must be a regular (non-quarantine) Bin. "
-                    + "Location " + request.getLocationId() + " is a quarantine location.");
+        List<ReceiptItem> receiptItems = receiptItemRepository.findByReceiptId(receiptId);
+        if (receiptItems.isEmpty()) {
+            throw new BusinessRuleViolationException("NO_ITEMS: Receipt has no items to put away");
         }
 
-        List<ReceiptItem> items = receiptItemRepository.findByReceiptId(receiptId);
-        assertBinCapacity(location, items);
-        for (ReceiptItem item : items) {
+        // Map target locationId by receiptItemId from request
+        Map<Long, Long> itemLocations = request.getItems().stream()
+                .collect(Collectors.toMap(
+                        ReceiptPutawayItem::getReceiptItemId,
+                        ReceiptPutawayItem::getLocationId,
+                        (v1, v2) -> v1
+                ));
+
+        // Group receipt items by their target locations
+        Map<Long, List<ReceiptItem>> itemsByLocation = new HashMap<>();
+
+        for (ReceiptItem item : receiptItems) {
+            if (item.getActualQty() == null || item.getActualQty() <= 0) {
+                continue;
+            }
             if (item.getBatch() == null) {
                 throw new BusinessRuleViolationException(
                         "MISSING_BATCH: Receipt item " + item.getId() + " has no batch assigned. "
                         + "Ensure receipt is properly APPROVED with batch resolution.");
             }
-            increaseRegularInventory(receipt, item, location, actor);
-            item.setLocation(location);
-            receiptItemRepository.save(item);
+            
+            Long locationId = itemLocations.get(item.getId());
+            if (locationId == null) {
+                throw new BusinessRuleViolationException(
+                        "LOCATION_REQUIRED: Location must be specified for item " + item.getId());
+            }
+
+            WarehouseLocation location = warehouseLocationRepository.findById(locationId)
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Location not found: " + locationId));
+
+            if (Boolean.TRUE.equals(location.getIsQuarantine())) {
+                throw new BusinessRuleViolationException(
+                        "INVALID_LOCATION: Putaway target must be a regular (non-quarantine) Bin. "
+                        + "Location " + locationId + " is a quarantine location.");
+            }
+
+            itemsByLocation.computeIfAbsent(locationId, k -> new ArrayList<>()).add(item);
         }
-        applyBinOccupancy(location, items);
+
+        // Perform putaway and capacity check for each location
+        for (Map.Entry<Long, List<ReceiptItem>> entry : itemsByLocation.entrySet()) {
+            Long locationId = entry.getKey();
+            List<ReceiptItem> itemsToPutaway = entry.getValue();
+            WarehouseLocation location = warehouseLocationRepository.findById(locationId).get();
+
+            assertBinCapacity(location, itemsToPutaway);
+            
+            for (ReceiptItem item : itemsToPutaway) {
+                increaseRegularInventory(receipt, item, location, actor);
+                item.setLocation(location);
+                receiptItemRepository.save(item);
+            }
+            applyBinOccupancy(location, itemsToPutaway);
+        }
 
         receipt.setUpdatedAt(OffsetDateTime.now());
         receiptRepository.save(receipt);
@@ -221,11 +262,10 @@ public class ReceiptApprovalService {
                 receipt.getId(), receipt.getReceiptNumber(),
                 receipt.getWarehouse().getId(),
                 Map.of("status", ReceiptStatus.APPROVED.name()),
-                Map.of("locationId", request.getLocationId(), "putawayCompletedBy", actor.getId())
+                Map.of("putawayCompletedBy", actor.getId(), "itemsCount", request.getItems().size())
         );
 
-        log.info("Receipt {} putaway completed by user {} at location {}",
-                receiptId, actor.getId(), request.getLocationId());
+        log.info("Receipt {} putaway completed by user {}", receiptId, actor.getId());
         return buildReceiptActionResponse(receipt, "Putaway completed. Regular inventory updated.");
     }
 

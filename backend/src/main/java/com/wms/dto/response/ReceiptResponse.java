@@ -35,6 +35,9 @@ public class ReceiptResponse {
     @JsonProperty("created_at")
     private OffsetDateTime createdAt;
 
+    @JsonProperty("approved_at")
+    private OffsetDateTime approvedAt;
+
     private Integer version;
 
     public Long getId() {
@@ -123,6 +126,14 @@ public class ReceiptResponse {
 
     public void setCreatedAt(OffsetDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public OffsetDateTime getApprovedAt() {
+        return approvedAt;
+    }
+
+    public void setApprovedAt(OffsetDateTime approvedAt) {
+        this.approvedAt = approvedAt;
     }
 
     public Integer getVersion() {

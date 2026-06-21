@@ -19,7 +19,7 @@ public class WarehouseLocationRequest {
 
     @NotBlank(message = "CODE_REQUIRED")
     @Size(max = 50, message = "CODE_TOO_LONG")
-    @Pattern(regexp = "^[a-zA-Z0-9_-]+$", message = "INVALID_CODE_FORMAT")
+    @Pattern(regexp = "^[a-zA-Z0-9_.\\-]+$", message = "INVALID_CODE_FORMAT")
     private String code;
 
     @NotBlank(message = "TYPE_REQUIRED")

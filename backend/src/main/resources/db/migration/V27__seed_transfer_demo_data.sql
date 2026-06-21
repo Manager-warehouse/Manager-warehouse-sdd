@@ -40,13 +40,13 @@ ON CONFLICT (code) DO NOTHING;
 
 -- Products for household-goods transfer testing
 INSERT INTO products (
-    sku, name, unit, unit_per_pack, description, weight_kg, volume_m3, has_expiry, has_serial,
+    sku, name, unit, unit_per_pack, description, weight_kg, volume_m3,
     reorder_point, is_active, created_at, updated_at
 )
 VALUES
-    ('SKU-TRF-001', 'Nồi chống dính 24cm', 'cái', NULL, 'Demo transfer stock', 1.400, 0.00450, false, false, 10, true, NOW(), NOW()),
-    ('SKU-TRF-002', 'Chảo inox 28cm',       'cái', NULL, 'Demo transfer stock', 1.200, 0.00400, false, false, 10, true, NOW(), NOW()),
-    ('SKU-TRF-003', 'Hộp nhựa 10L',         'cái', NULL, 'Demo transfer stock', 0.300, 0.00250, false, false, 20, true, NOW(), NOW())
+    ('SKU-TRF-001', 'Nồi chống dính 24cm', 'cái', NULL, 'Demo transfer stock', 1.400, 0.00450, 10, true, NOW(), NOW()),
+    ('SKU-TRF-002', 'Chảo inox 28cm',       'cái', NULL, 'Demo transfer stock', 1.200, 0.00400, 10, true, NOW(), NOW()),
+    ('SKU-TRF-003', 'Hộp nhựa 10L',         'cái', NULL, 'Demo transfer stock', 0.300, 0.00250, 20, true, NOW(), NOW())
 ON CONFLICT (sku) DO NOTHING;
 
 -- Batches and inventories for HP/HN so transfer can be tested immediately

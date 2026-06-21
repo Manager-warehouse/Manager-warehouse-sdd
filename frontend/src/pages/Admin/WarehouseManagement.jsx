@@ -81,7 +81,7 @@ const WarehouseManagement = () => {
     setLoadingBins(true);
     try {
       const data = await masterDataService.getBinLocations(whId);
-      setBins(data);
+      setBins((data || []).filter(b => b.type === 'BIN'));
     } catch (e) {
       addToast('Lỗi tải danh sách vị trí ô kệ', 'error');
     } finally {
@@ -272,7 +272,15 @@ const WarehouseManagement = () => {
 
   // Helper render progress bar
   const renderCapacityBar = (current, capacity, unit) => {
-    const pct = capacity > 0 ? (current / capacity) * 100 : 0;
+    if (capacity === null || capacity === undefined) {
+      return <span className="text-shade-40">-</span>;
+    }
+    const capNum = Number(capacity);
+    if (isNaN(capNum) || capNum <= 0) {
+      return <span className="text-shade-40">-</span>;
+    }
+    const curNum = Number(current) || 0;
+    const pct = (curNum / capNum) * 100;
     let barColor = 'bg-emerald-500'; // Under 80%
     if (pct >= 100) {
       barColor = 'bg-red-500';
@@ -283,7 +291,7 @@ const WarehouseManagement = () => {
     return (
       <div className="flex flex-col gap-1 w-full max-w-[150px]">
         <div className="flex justify-between text-[10px] text-shade-50 font-semibold font-mono">
-          <span>{current.toFixed(2)} / {capacity.toFixed(0)} {unit}</span>
+          <span>{curNum.toFixed(2)} / {capNum.toFixed(0)} {unit}</span>
           <span>{pct.toFixed(0)}%</span>
         </div>
         <div className="w-full bg-zinc-100 rounded-full h-1.5 overflow-hidden border border-zinc-200/50">
