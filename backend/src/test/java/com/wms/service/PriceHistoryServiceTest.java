@@ -6,6 +6,7 @@ import com.wms.dto.response.PriceHistoryResponse;
 import com.wms.entity.PriceHistory;
 import com.wms.entity.Product;
 import com.wms.entity.User;
+import com.wms.entity.Warehouse;
 import com.wms.enums.PriceHistoryStatus;
 import com.wms.enums.UserRole;
 import com.wms.exception.PriceHistoryException;
@@ -13,6 +14,7 @@ import com.wms.repository.NotificationRepository;
 import com.wms.repository.PriceHistoryRepository;
 import com.wms.repository.ProductRepository;
 import com.wms.repository.UserRepository;
+import com.wms.repository.WarehouseRepository;
 import com.wms.service.impl.PriceHistoryServiceImpl;
 import com.wms.util.PartnerAuditUtil;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,6 +39,7 @@ class PriceHistoryServiceTest {
 
     @Mock PriceHistoryRepository priceHistoryRepository;
     @Mock ProductRepository productRepository;
+    @Mock WarehouseRepository warehouseRepository;
     @Mock UserRepository userRepository;
     @Mock NotificationRepository notificationRepository;
     @Mock PartnerAuditUtil auditUtil;
@@ -45,12 +48,13 @@ class PriceHistoryServiceTest {
 
     User actor;
     Product product;
+    Warehouse warehouse;
 
     @BeforeEach
     void setUp() {
         service = new PriceHistoryServiceImpl(
                 priceHistoryRepository, productRepository,
-                userRepository, notificationRepository, auditUtil);
+                warehouseRepository, userRepository, notificationRepository, auditUtil);
 
         actor = new User();
         actor.setId(1L);
@@ -61,6 +65,9 @@ class PriceHistoryServiceTest {
         product.setId(10L);
         product.setSku("POT-001");
         product.setName("Nồi inox");
+
+        warehouse = new Warehouse();
+        warehouse.setId(1L);
     }
 
     // ── create ────────────────────────────────────────────────────────────────
@@ -71,7 +78,8 @@ class PriceHistoryServiceTest {
                 LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31));
 
         when(productRepository.findById(10L)).thenReturn(Optional.of(product));
-        when(priceHistoryRepository.findApprovedOverlapping(eq(10L), any(), any(), isNull()))
+        when(warehouseRepository.findById(1L)).thenReturn(Optional.of(warehouse));
+        when(priceHistoryRepository.findApprovedOverlapping(eq(10L), anyLong(), any(), any(), isNull()))
                 .thenReturn(List.of());
         when(userRepository.findByRole(UserRole.ACCOUNTANT_MANAGER)).thenReturn(List.of());
         PriceHistory saved = pendingPriceHistory(1L);
@@ -100,7 +108,8 @@ class PriceHistoryServiceTest {
                 LocalDate.of(2026, 6, 15), LocalDate.of(2026, 7, 15));
 
         when(productRepository.findById(10L)).thenReturn(Optional.of(product));
-        when(priceHistoryRepository.findApprovedOverlapping(eq(10L), any(), any(), isNull()))
+        when(warehouseRepository.findById(1L)).thenReturn(Optional.of(warehouse));
+        when(priceHistoryRepository.findApprovedOverlapping(eq(10L), anyLong(), any(), any(), isNull()))
                 .thenReturn(List.of(pendingPriceHistory(5L)));
 
         assertThatThrownBy(() -> service.create(req, actor))
@@ -155,7 +164,7 @@ class PriceHistoryServiceTest {
         manager.setId(2L);
         manager.setFullName("KTT");
         when(priceHistoryRepository.findById(1L)).thenReturn(Optional.of(ph));
-        when(priceHistoryRepository.findApprovedOverlapping(eq(10L), any(), any(), eq(1L)))
+        when(priceHistoryRepository.findApprovedOverlapping(eq(10L), anyLong(), any(), any(), eq(1L)))
                 .thenReturn(List.of());
         when(priceHistoryRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
@@ -168,7 +177,7 @@ class PriceHistoryServiceTest {
     void approve_raceConditionOverlap_throws() {
         PriceHistory ph = pendingPriceHistory(1L);
         when(priceHistoryRepository.findById(1L)).thenReturn(Optional.of(ph));
-        when(priceHistoryRepository.findApprovedOverlapping(eq(10L), any(), any(), eq(1L)))
+        when(priceHistoryRepository.findApprovedOverlapping(eq(10L), anyLong(), any(), any(), eq(1L)))
                 .thenReturn(List.of(pendingPriceHistory(2L)));
 
         assertThatThrownBy(() -> service.approve(1L, actor))
@@ -192,20 +201,20 @@ class PriceHistoryServiceTest {
     void lookupApproved_found_returnsPrice() {
         PriceHistory ph = pendingPriceHistory(1L);
         ph.setStatus(PriceHistoryStatus.APPROVED);
-        when(priceHistoryRepository.findApprovedAtDate(10L, LocalDate.of(2026, 6, 15)))
+        when(priceHistoryRepository.findApprovedAtDate(eq(10L), anyLong(), eq(LocalDate.of(2026, 6, 15))))
                 .thenReturn(Optional.of(ph));
 
-        Optional<PriceHistory> result = service.lookupApproved(10L, LocalDate.of(2026, 6, 15));
+        Optional<PriceHistory> result = service.lookupApproved(10L, 1L, LocalDate.of(2026, 6, 15));
 
         assertThat(result).isPresent();
     }
 
     @Test
     void lookupApproved_notFound_returnsEmpty() {
-        when(priceHistoryRepository.findApprovedAtDate(10L, LocalDate.of(2026, 7, 1)))
+        when(priceHistoryRepository.findApprovedAtDate(eq(10L), anyLong(), eq(LocalDate.of(2026, 7, 1))))
                 .thenReturn(Optional.empty());
 
-        Optional<PriceHistory> result = service.lookupApproved(10L, LocalDate.of(2026, 7, 1));
+        Optional<PriceHistory> result = service.lookupApproved(10L, 1L, LocalDate.of(2026, 7, 1));
 
         assertThat(result).isEmpty();
     }
@@ -215,6 +224,7 @@ class PriceHistoryServiceTest {
     private PriceHistoryCreateRequest buildCreateRequest(LocalDate effective, LocalDate end) {
         PriceHistoryCreateRequest req = new PriceHistoryCreateRequest();
         req.setProductId(10L);
+        req.setWarehouseId(1L);
         req.setEffectiveDate(effective);
         req.setEndDate(end);
         req.setCostPrice(new BigDecimal("80000"));

@@ -328,4 +328,9 @@ class ProductServiceTest {
         r.setUnit("cái");
         return r;
     }
+
+    // hasSerial/hasExpiry removed in V29 — overload kept for legacy test calls
+    private ProductRequest buildRequest(String sku, String name, boolean hasSerial, boolean hasExpiry) {
+        return buildRequest(sku, name);
+    }
 }

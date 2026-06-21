@@ -17,7 +17,6 @@ import java.util.Set;
 public final class AuditLogUtil {
 
     private static final ObjectMapper MAPPER = new ObjectMapper()
-            .registerModule(new JavaTimeModule())
             .findAndRegisterModules()
             .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
