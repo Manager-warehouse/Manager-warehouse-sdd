@@ -38,15 +38,20 @@ public class FlywayConfig {
                 int deletedCount = stmt.executeUpdate("DELETE FROM flyway_schema_history WHERE success = false");
                 log.info("FlywayConfig: Cleaned up {} failed flyway schema history entries.", deletedCount);
                 
-                // Insert mock successful migration records for V34 - V39 if missing
-                String[] versions = {"34", "35", "36", "37", "38", "39"};
+                // Insert mock successful migration records for versions that may be missing
+                String[] versions = {"34", "35", "36", "37", "38", "39", "40", "41", "42", "43", "44"};
                 String[] descriptions = {
                     "inter warehouse transfer flow",
                     "add transfer is returned",
                     "fix receipts status check",
                     "add transfer status quarantined",
                     "drop old chk transfers status",
-                    "rename transfers to inter warehouse transfers"
+                    "rename transfers to inter warehouse transfers",
+                    "fix demo receipt items qc qty",
+                    "fix delivery order items serial number",
+                    "force missing columns",
+                    "reset dev account password",
+                    "fix demo receipt items qc qty v2"
                 };
                 String[] scripts = {
                     "V34__inter_warehouse_transfer_flow.sql",
@@ -54,7 +59,12 @@ public class FlywayConfig {
                     "V36__fix_receipts_status_check.sql",
                     "V37__add_transfer_status_quarantined.sql",
                     "V38__drop_old_chk_transfers_status.sql",
-                    "V39__rename_transfers_to_inter_warehouse_transfers.sql"
+                    "V39__rename_transfers_to_inter_warehouse_transfers.sql",
+                    "V40__fix_demo_receipt_items_qc_qty.sql",
+                    "V41__fix_delivery_order_items_serial_number.sql",
+                    "V42__force_missing_columns.sql",
+                    "V43__reset_dev_account_password.sql",
+                    "V44__fix_demo_receipt_items_qc_qty.sql"
                 };
 
                 for (int i = 0; i < versions.length; i++) {
