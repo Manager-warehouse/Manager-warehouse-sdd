@@ -732,7 +732,7 @@ export const inboundService = {
 
         // 1. Batch for Passed
         if (item.qc_passed_qty > 0) {
-          const batchNumber = `BT-${receipt.receipt_number}-${prod.sku}-${item.grade}`;
+          const batchNumber = `BT-${receipt.receipt_number}-${prod.sku}`;
           const bIdx = batches.findIndex(b => b.batch_number === batchNumber);
           if (bIdx === -1) {
             const newBatch = {
@@ -742,7 +742,7 @@ export const inboundService = {
               warehouse_id: receipt.warehouse_id,
               received_date: new Date().toISOString().slice(0, 10),
               expiry_date: null,
-              grade: item.grade,
+              grade: null,
               quantity: item.qc_passed_qty,
               created_at: new Date().toISOString()
             };
@@ -754,9 +754,9 @@ export const inboundService = {
           }
         }
 
-        // 2. Batch for Failed (Force Grade C, Quarantine)
+        // 2. Batch for Failed (Force FAILED, Quarantine)
         if (item.qc_failed_qty > 0) {
-          const failBatchNumber = `BT-${receipt.receipt_number}-${prod.sku}-C`;
+          const failBatchNumber = `BT-${receipt.receipt_number}-${prod.sku}-FAILED`;
           const bIdx = batches.findIndex(b => b.batch_number === failBatchNumber);
           
           let failBatchId;
@@ -768,7 +768,7 @@ export const inboundService = {
               warehouse_id: receipt.warehouse_id,
               received_date: new Date().toISOString().slice(0, 10),
               expiry_date: null,
-              grade: 'C',
+              grade: null,
               quantity: item.qc_failed_qty,
               created_at: new Date().toISOString()
             };
@@ -948,7 +948,15 @@ export const inboundService = {
       addMockAuditLog('RECEIPT_PUTAWAY_COMPLETED', 'Receipt', id, `Hoàn thành cất hàng (Putaway) cho phiếu: ${receipts[rIdx].receipt_number}`);
       return receipts[rIdx];
     }
-    const response = await apiClient.put(`/receipts/${id}/complete`, putawayData);
+    // For real backend: convert snake_case payload to camelCase
+    const apiPayload = {
+      expectedVersion: putawayData.expectedVersion !== undefined ? putawayData.expectedVersion : putawayData.expected_version,
+      items: (putawayData.items || []).map(item => ({
+        receiptItemId: item.receiptItemId !== undefined ? item.receiptItemId : item.receipt_item_id,
+        locationId: item.locationId !== undefined ? item.locationId : item.location_id
+      }))
+    };
+    const response = await apiClient.put(`/receipts/${id}/complete`, apiPayload);
     return response.data;
   },
 
@@ -1069,7 +1077,7 @@ export const inboundService = {
           if (qty <= 0) return;
           const prod = products.find(p => p.id === item.product_id);
           const batches = getDb(KEYS.BATCHES, INITIAL_BATCHES);
-          const failBatch = batches.find(b => b.product_id === item.product_id && b.warehouse_id === receipt.warehouse_id && b.grade === 'C');
+          const failBatch = batches.find(b => b.product_id === item.product_id && b.warehouse_id === receipt.warehouse_id && b.batch_number.endsWith('-FAILED'));
           const failBatchId = failBatch ? failBatch.id : 2;
 
           const invIdx = inventories.findIndex(inv =>

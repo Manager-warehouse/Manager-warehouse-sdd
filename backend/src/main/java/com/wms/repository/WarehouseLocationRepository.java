@@ -13,6 +13,8 @@ import java.util.List;
 public interface WarehouseLocationRepository extends JpaRepository<WarehouseLocation, Long> {
     List<WarehouseLocation> findByWarehouseId(Long warehouseId);
     List<WarehouseLocation> findByWarehouseIdAndType(Long warehouseId, LocationType type);
+    List<WarehouseLocation> findByWarehouseIdAndTypeAndIsActiveTrue(Long warehouseId, LocationType type);
+    List<WarehouseLocation> findByWarehouseIdAndIsQuarantineTrueAndIsActiveTrue(Long warehouseId);
     List<WarehouseLocation> findByParentId(Long parentId);
     long countByParentIdAndIsActiveTrue(Long parentId);
     boolean existsByWarehouseIdAndCode(Long warehouseId, String code);

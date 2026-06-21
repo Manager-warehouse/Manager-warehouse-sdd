@@ -14,10 +14,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import com.wms.service.EmailService;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -127,6 +125,7 @@ class AuthServiceTest {
         activeUser.setRefreshTokenExpiresAt(OffsetDateTime.now().plusDays(7));
 
         when(userRepository.findByRefreshTokenHash(sha256(rawToken))).thenReturn(Optional.of(activeUser));
+        when(userRepository.findByRefreshTokenHash(sha256(rawToken))).thenReturn(Optional.of(activeUser));
         when(jwtUtil.generateAccessToken(anyString(), anyString())).thenReturn("new-access-token");
 
         RefreshTokenRequest req = new RefreshTokenRequest();
@@ -141,8 +140,6 @@ class AuthServiceTest {
     @Test
     @DisplayName("Refresh thất bại khi token không tồn tại")
     void refresh_invalidToken_throwsTokenInvalid() {
-        when(userRepository.findByRefreshTokenHash(anyString())).thenReturn(Optional.empty());
-
         RefreshTokenRequest req = new RefreshTokenRequest();
         req.setRefreshToken("nonexistent-token");
 
@@ -158,6 +155,7 @@ class AuthServiceTest {
         activeUser.setRefreshTokenHash(sha256(rawToken));
         activeUser.setRefreshTokenExpiresAt(OffsetDateTime.now().minusDays(1));
 
+        when(userRepository.findByRefreshTokenHash(sha256(rawToken))).thenReturn(Optional.of(activeUser));
         when(userRepository.findByRefreshTokenHash(sha256(rawToken))).thenReturn(Optional.of(activeUser));
 
         RefreshTokenRequest req = new RefreshTokenRequest();

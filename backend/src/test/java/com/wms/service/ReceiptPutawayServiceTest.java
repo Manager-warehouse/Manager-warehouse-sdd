@@ -1,5 +1,6 @@
 package com.wms.service;
 
+import com.wms.dto.request.ReceiptPutawayItem;
 import com.wms.dto.request.ReceiptPutawayRequest;
 import com.wms.dto.response.ReceiptActionResponse;
 import com.wms.entity.Batch;
@@ -150,9 +151,7 @@ class ReceiptPutawayServiceTest {
         regularBin.setIsQuarantine(true);
         ReceiptPutawayRequest request = request();
 
-        when(receiptRepository.findById(1L)).thenReturn(Optional.of(approvedReceipt));
-        when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(6L)).thenReturn(List.of(10L));
-        when(warehouseLocationRepository.findById(50L)).thenReturn(Optional.of(regularBin));
+        commonStubs();
 
         BusinessRuleViolationException ex = assertThrows(BusinessRuleViolationException.class,
                 () -> receiptService.completePutaway(1L, request, storekeeper));
@@ -184,7 +183,9 @@ class ReceiptPutawayServiceTest {
         item.setBatch(null);
         ReceiptPutawayRequest request = request();
 
-        commonStubs();
+        when(receiptRepository.findById(1L)).thenReturn(Optional.of(approvedReceipt));
+        when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(6L)).thenReturn(List.of(10L));
+        when(receiptItemRepository.findByReceiptId(1L)).thenReturn(List.of(item));
 
         BusinessRuleViolationException ex = assertThrows(BusinessRuleViolationException.class,
                 () -> receiptService.completePutaway(1L, request, storekeeper));
@@ -203,7 +204,12 @@ class ReceiptPutawayServiceTest {
     private ReceiptPutawayRequest request() {
         ReceiptPutawayRequest request = new ReceiptPutawayRequest();
         request.setExpectedVersion(5);
-        request.setLocationId(50L);
+        
+        ReceiptPutawayItem putawayItem = new ReceiptPutawayItem();
+        putawayItem.setReceiptItemId(11L);
+        putawayItem.setLocationId(50L);
+        
+        request.setItems(List.of(putawayItem));
         return request;
     }
 

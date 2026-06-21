@@ -71,7 +71,7 @@ public class WarehouseLocationControllerTest {
     @Test
     void getAllLocations_Unauthenticated_Returns403() throws Exception {
         mockMvc.perform(get("/api/v1/admin/warehouse-locations"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

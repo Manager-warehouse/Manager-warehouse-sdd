@@ -41,8 +41,14 @@ const StocktakeDetail = () => {
   const [rejectModal, setRejectModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
 
-  const canOperate = hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.STOREKEEPER) || hasRole(ROLES.ADMIN);
-  const canApprove = hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.CEO) || hasRole(ROLES.ADMIN);
+  // STOREKEEPER: tạo phiếu, bắt đầu đếm, nhập số liệu, hoàn tất & trình duyệt
+  const canCount = hasRole(ROLES.STOREKEEPER) || hasRole(ROLES.ADMIN);
+  // WAREHOUSE_MANAGER + CEO: chỉ duyệt/từ chối — không thao tác kiểm đếm
+  // Approval is gated by both role AND the approval_level on the stocktake
+  const canManagerApprove = (st) => st?.approval_level === 'MANAGER' && (hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.ADMIN));
+  const canCeoApprove = (st) => st?.approval_level === 'CEO' && (hasRole(ROLES.CEO) || hasRole(ROLES.ADMIN));
+  const canAutoApprove = (st) => st?.approval_level === 'AUTO';
+  const canApprove = (st) => canManagerApprove(st) || canCeoApprove(st) || canAutoApprove(st);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -76,6 +82,20 @@ const StocktakeDetail = () => {
   };
 
   const handleSaveCount = async () => {
+    // Validate: notes required when actual_qty differs from system_qty
+    const itemsWithVarianceNoReason = (stocktake.items || []).filter((item) => {
+      const edit = countEdits[item.id] || {};
+      if (edit.actual_qty === '' || edit.actual_qty === undefined) return false;
+      const actualNum = Number(edit.actual_qty);
+      const hasVariance = actualNum !== item.system_qty;
+      const noNotes = !edit.notes || !edit.notes.trim();
+      return hasVariance && noNotes;
+    });
+    if (itemsWithVarianceNoReason.length > 0) {
+      showToast?.('error', `Vui lòng nhập lý do chênh lệch cho ${itemsWithVarianceNoReason.length} dòng hàng có số lượng khác hệ thống`);
+      return;
+    }
+
     setSaving(true);
     try {
       const items = Object.entries(countEdits)
@@ -118,7 +138,7 @@ const StocktakeDetail = () => {
 
   const handleApprove = async () => {
     try {
-      if (hasRole(ROLES.CEO)) {
+      if (stocktake.approval_level === 'CEO') {
         await stocktakeService.approveCeoStockTake(id);
       } else {
         await stocktakeService.approveStockTake(id);
@@ -136,7 +156,7 @@ const StocktakeDetail = () => {
       return;
     }
     try {
-      if (hasRole(ROLES.CEO)) {
+      if (stocktake.approval_level === 'CEO') {
         await stocktakeService.rejectCeoStockTake(id, rejectionReason);
       } else {
         await stocktakeService.rejectStockTake(id, rejectionReason);
@@ -185,7 +205,7 @@ const StocktakeDetail = () => {
 
         {/* Action buttons */}
         <div className="flex items-center gap-2 flex-wrap">
-          {isDraft && canOperate && (
+          {isDraft && canCount && (
             <button
               onClick={handleStart}
               className="flex items-center gap-2 px-4 py-2 rounded-pill bg-blue-500 text-white text-xs font-semibold hover:bg-blue-600 transition-colors"
@@ -194,7 +214,7 @@ const StocktakeDetail = () => {
               Bắt đầu kiểm kê
             </button>
           )}
-          {isInProgress && canOperate && (
+          {isInProgress && canCount && (
             <>
               <button
                 onClick={handleSaveCount}
@@ -213,7 +233,7 @@ const StocktakeDetail = () => {
               </button>
             </>
           )}
-          {isPendingApproval && canApprove && (
+          {isPendingApproval && canApprove(stocktake) && (
             <>
               <button
                 onClick={handleApprove}
@@ -230,6 +250,11 @@ const StocktakeDetail = () => {
                 Từ chối
               </button>
             </>
+          )}
+          {isPendingApproval && !canApprove(stocktake) && stocktake.approval_level === 'CEO' && (hasRole(ROLES.WAREHOUSE_MANAGER)) && (
+            <span className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-pill">
+              Phiếu này yêu cầu CEO phê duyệt
+            </span>
           )}
         </div>
       </div>
@@ -294,12 +319,10 @@ const StocktakeDetail = () => {
                   <th className="px-4 py-3 text-right text-xs font-bold text-shade-50 uppercase tracking-wider">Hệ thống</th>
                   <th className="px-4 py-3 text-right text-xs font-bold text-shade-50 uppercase tracking-wider">Thực tế</th>
                   <th className="px-4 py-3 text-right text-xs font-bold text-shade-50 uppercase tracking-wider">Chênh lệch</th>
-                  {isInProgress && (
-                    <th className="px-4 py-3 text-center text-xs font-bold text-shade-50 uppercase tracking-wider">Lỗi NV</th>
-                  )}
-                  {isInProgress && (
-                    <th className="px-4 py-3 text-left text-xs font-bold text-shade-50 uppercase tracking-wider">Ghi chú</th>
-                  )}
+                  <th className="px-4 py-3 text-center text-xs font-bold text-shade-50 uppercase tracking-wider">Lỗi NV</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-shade-50 uppercase tracking-wider">
+                    Lý do chênh lệch {isInProgress && <span className="text-red-500">*</span>}
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-hairline">
@@ -345,27 +368,41 @@ const StocktakeDetail = () => {
                           <span className="text-sm text-shade-50">—</span>
                         )}
                       </td>
-                      {isInProgress && (
-                        <td className="px-4 py-3 text-center">
+                      <td className="px-4 py-3 text-center">
+                        {isInProgress ? (
                           <input
                             type="checkbox"
                             checked={edit.is_employee_fault || false}
                             onChange={(e) => updateEdit(item.id, 'is_employee_fault', e.target.checked)}
                             className="w-4 h-4 accent-red-500"
                           />
-                        </td>
-                      )}
-                      {isInProgress && (
-                        <td className="px-4 py-3">
+                        ) : (
+                          item.is_employee_fault ? (
+                            <span className="text-red-600 font-bold text-xs">✓</span>
+                          ) : (
+                            <span className="text-shade-30 text-xs">—</span>
+                          )
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {isInProgress ? (
                           <input
                             type="text"
                             value={edit.notes || ''}
                             onChange={(e) => updateEdit(item.id, 'notes', e.target.value)}
-                            placeholder="Ghi chú"
-                            className="w-full px-2 py-1 rounded-lg border border-hairline focus:border-aloe-40 text-xs outline-none"
+                            placeholder={variance !== null && variance !== 0 ? 'Bắt buộc nhập lý do...' : 'Ghi chú (không bắt buộc)'}
+                            className={`w-full px-2 py-1 rounded-lg border text-xs outline-none ${
+                              variance !== null && variance !== 0 && !edit.notes?.trim()
+                                ? 'border-red-300 bg-red-50 focus:border-red-400'
+                                : 'border-hairline focus:border-aloe-40'
+                            }`}
                           />
-                        </td>
-                      )}
+                        ) : (
+                          <span className={`text-xs ${item.notes ? 'text-canvas-night' : 'text-shade-30 italic'}`}>
+                            {item.notes || '—'}
+                          </span>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
@@ -374,6 +411,74 @@ const StocktakeDetail = () => {
           </div>
         </div>
       )}
+
+      {/* Variance Report Panel — shown to approver when PENDING_APPROVAL */}
+      {isPendingApproval && (() => {
+        const variantItems = (stocktake.items || []).filter(
+          (it) => it.variance_qty !== null && it.variance_qty !== 0
+        );
+        if (variantItems.length === 0) return null;
+        return (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl overflow-hidden">
+            <div className="px-5 py-3 border-b border-amber-200 bg-amber-100 flex items-center justify-between">
+              <h2 className="text-xs font-bold text-amber-800 uppercase tracking-wider">
+                Báo cáo chênh lệch — {variantItems.length} dòng hàng cần phê duyệt
+              </h2>
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                stocktake.approval_level === 'CEO'
+                  ? 'bg-red-100 text-red-700'
+                  : 'bg-amber-200 text-amber-800'
+              }`}>
+                Cấp duyệt: {stocktake.approval_level === 'CEO' ? 'CEO' : 'Trưởng kho'}
+              </span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-amber-200 bg-amber-50">
+                    <th className="px-4 py-2 text-left text-xs font-bold text-amber-700 uppercase">SKU / Tên</th>
+                    <th className="px-4 py-2 text-right text-xs font-bold text-amber-700 uppercase">Hệ thống</th>
+                    <th className="px-4 py-2 text-right text-xs font-bold text-amber-700 uppercase">Thực tế</th>
+                    <th className="px-4 py-2 text-right text-xs font-bold text-amber-700 uppercase">Chênh lệch</th>
+                    <th className="px-4 py-2 text-center text-xs font-bold text-amber-700 uppercase">Lỗi NV</th>
+                    <th className="px-4 py-2 text-left text-xs font-bold text-amber-700 uppercase">Lý do</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-amber-100">
+                  {variantItems.map((it) => (
+                    <tr key={it.id} className={it.is_employee_fault ? 'bg-red-50' : ''}>
+                      <td className="px-4 py-2">
+                        <p className="text-xs font-mono text-shade-50">{it.product_sku}</p>
+                        <p className="text-sm font-semibold text-canvas-night">{it.product_name}</p>
+                      </td>
+                      <td className="px-4 py-2 text-right text-sm font-semibold">{it.system_qty?.toLocaleString('vi-VN')}</td>
+                      <td className="px-4 py-2 text-right text-sm font-semibold">{it.actual_qty?.toLocaleString('vi-VN')}</td>
+                      <td className="px-4 py-2 text-right">
+                        <span className={`text-sm font-bold ${it.variance_qty < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                          {it.variance_qty > 0 ? '+' : ''}{it.variance_qty?.toLocaleString('vi-VN')}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 text-center">
+                        {it.is_employee_fault
+                          ? <span className="text-red-600 font-bold text-xs bg-red-100 px-1.5 py-0.5 rounded">Có</span>
+                          : <span className="text-shade-40 text-xs">Không</span>}
+                      </td>
+                      <td className="px-4 py-2 text-xs text-canvas-night">
+                        {it.notes || <span className="text-shade-30 italic">Chưa có lý do</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {stocktake.is_employee_fault && (
+              <div className="px-5 py-3 border-t border-amber-200 bg-red-50 text-xs text-red-700 font-semibold">
+                ⚠ Phiếu này được đánh dấu có lỗi nhân viên — yêu cầu CEO phê duyệt
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Reject Modal */}
       {rejectModal && (

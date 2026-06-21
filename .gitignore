@@ -2,7 +2,9 @@
 # Exclude Spec Kit metadata directories
 .agents/
 .specify/
+brain/
 
+run-all.sh
 # ===== AI AGENT CONTEXT =====
 # Exclude Claude Code local memory files
 CLAUDE-Local.md

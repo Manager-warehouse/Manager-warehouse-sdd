@@ -203,9 +203,17 @@ public class StockTakeService {
 
             StockTakeItem item = stockTakeItemRepository.findById(countReq.getItemId())
                     .orElseThrow(() -> new ResourceNotFoundException("StockTakeItem not found: " + countReq.getItemId()));
+
             if (!item.getStockTake().getId().equals(id)) {
                 throw new StockTakeException("INVALID_ARGUMENT", HttpStatus.BAD_REQUEST,
                         "Item " + countReq.getItemId() + " does not belong to stocktake " + id);
+            }
+
+            // Notes (variance reason) is mandatory when actual_qty differs from system_qty
+            if (countReq.getActualQty().compareTo(item.getSystemQty()) != 0
+                    && (countReq.getNotes() == null || countReq.getNotes().isBlank())) {
+                throw new StockTakeException("VARIANCE_REASON_REQUIRED", HttpStatus.BAD_REQUEST,
+                        "Lý do chênh lệch (notes) bắt buộc khi số lượng thực tế khác hệ thống — item " + countReq.getItemId());
             }
 
             // Load inventory to get cost price

@@ -189,10 +189,10 @@ class AuthControllerTest {
     }
 
     @Test
-    @DisplayName("POST /logout — 403 khi không có token")
+    @DisplayName("POST /logout — 401 khi không có token")
     void logout_unauthenticated_returns401() throws Exception {
         mockMvc.perform(post("/api/v1/auth/logout"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     // ─── GET /api/v1/auth/me ──────────────────────────────────────────────────
@@ -220,10 +220,10 @@ class AuthControllerTest {
     }
 
     @Test
-    @DisplayName("GET /me — 403 khi không có token")
+    @DisplayName("GET /me — 401 khi không có token")
     void me_unauthenticated_returns401() throws Exception {
         mockMvc.perform(get("/api/v1/auth/me"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     // ─── POST /api/v1/auth/forgot-password ────────────────────────────────────
@@ -330,14 +330,14 @@ class AuthControllerTest {
     }
 
     @Test
-    @DisplayName("PUT /change-password — 403 khi không có token")
+    @DisplayName("PUT /change-password — 401 khi không có token")
     void changePassword_unauthenticated_returns401() throws Exception {
         mockMvc.perform(put("/api/v1/auth/change-password")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"currentPassword":"OldPass@123","newPassword":"NewPass@456"}
                                 """))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     // ─── PUT /api/v1/auth/profile ─────────────────────────────────────────────
@@ -383,13 +383,13 @@ class AuthControllerTest {
     }
 
     @Test
-    @DisplayName("PUT /profile — 403 khi không có token")
+    @DisplayName("PUT /profile — 401 khi không có token")
     void updateProfile_unauthenticated_returns403() throws Exception {
         mockMvc.perform(put("/api/v1/auth/profile")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"fullName":"Nguyen Van B","email":"newemail@wms.com","phone":"0987654321"}
                                 """))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 }

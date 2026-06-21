@@ -1,19 +1,19 @@
 package com.wms.entity;
 
 import lombok.*;
-import com.wms.enums.TransferStatus;
+import com.wms.enums.InterWarehouseTransferStatus;
 import jakarta.persistence.*;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
 @Entity
-@Table(name = "transfers")
+@Table(name = "inter_warehouse_transfers")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Transfer {
+public class InterWarehouseTransfer {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -21,6 +21,9 @@ public class Transfer {
 
     @Column(name = "transfer_number", nullable = false, unique = true, length = 50)
     private String transferNumber;
+
+    @Column(name = "external_instruction_code", nullable = false, length = 100)
+    private String externalInstructionCode;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "source_warehouse_id", nullable = false)
@@ -32,14 +35,11 @@ public class Transfer {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 40)
-    private TransferStatus status;
+    private InterWarehouseTransferStatus status;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by", nullable = false)
     private User createdBy;
-
-    @Column(name = "external_instruction_code", length = 80)
-    private String externalInstructionCode;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "approved_by")
@@ -87,6 +87,10 @@ public class Transfer {
 
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
+
+    @Column(name = "is_returned", nullable = false)
+    @Builder.Default
+    private boolean isReturned = false;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;

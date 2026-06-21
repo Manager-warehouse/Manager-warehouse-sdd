@@ -22,7 +22,7 @@ import java.util.List;
 @RequestMapping("/api/v1/admin/users")
 @RequiredArgsConstructor
 @Tag(name = "Admin User Management", description = "Quản lý tài khoản, vai trò và gán kho cho nhân viên (chỉ dành cho System Admin)")
-@PreAuthorize("hasAnyRole('ADMIN', 'WAREHOUSE_MANAGER')")
+@PreAuthorize("hasRole('ADMIN')")
 public class UserController {
 
     private final UserService userService;

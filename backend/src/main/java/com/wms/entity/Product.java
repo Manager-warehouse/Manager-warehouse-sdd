@@ -42,15 +42,6 @@ public class Product {
     @Column(name = "volume_m3", precision = 10, scale = 5)
     private BigDecimal volumeM3;
 
-    @Column(name = "has_serial", nullable = false)
-    private Boolean hasSerial;
-
-    @Column(name = "has_expiry", nullable = false)
-    private Boolean hasExpiry;
-
-    @Column(name = "shelf_life_days")
-    private Integer shelfLifeDays;
-
     @Column(name = "reorder_point", precision = 10, scale = 2)
     private BigDecimal reorderPoint;
 
@@ -77,8 +68,6 @@ public class Product {
         this.createdAt = now;
         this.updatedAt = now;
         if (this.isActive == null) this.isActive = true;
-        if (this.hasSerial == null) this.hasSerial = false;
-        if (this.hasExpiry == null) this.hasExpiry = false;
     }
 
     @PreUpdate

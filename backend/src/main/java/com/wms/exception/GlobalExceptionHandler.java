@@ -176,17 +176,44 @@ public class GlobalExceptionHandler {
         return error(status, code, msg, msg, null);
     }
 
+    private String translateMessage(String msg) {
+        if (msg == null) return null;
+        switch (msg) {
+            case "TRIP_SCHEDULE_INVALID": return "Lịch trình chuyến đi không hợp lệ (thời gian kết thúc phải sau thời gian bắt đầu).";
+            case "TRIP_START_IN_PAST": return "Thời gian bắt đầu chuyến đi không được ở quá khứ.";
+            case "TRIP_END_IN_PAST": return "Thời gian hạn giao hàng không được ở quá khứ.";
+            case "TRIP_RESOURCE_OVERLAP": return "Tài xế hoặc phương tiện đã được gán cho một chuyến đi khác trùng thời gian.";
+            case "VEHICLE_NOT_AVAILABLE": return "Phương tiện vận tải hiện không khả dụng.";
+            case "DRIVER_NOT_AVAILABLE": return "Tài xế hiện không khả dụng.";
+            case "DUPLICATE_EXTERNAL_INSTRUCTION": return "Mã chỉ thị điều chuyển này đã tồn tại trên hệ thống.";
+            case "TRANSFER_ALREADY_HAS_TRIP": return "Phiếu điều chuyển đã được gán chuyến xe trước đó.";
+            case "OVER_RECEIPT_BLOCKED": return "Số lượng thực nhận không được lớn hơn số lượng đã gửi đi.";
+            case "QC_TOTAL_MUST_MATCH_CONFIRMED_QTY": return "Tổng số lượng QC đạt và QC lỗi phải bằng số lượng thực nhận.";
+            case "QC_FAILURE_REASON_REQUIRED": return "Yêu cầu nhập lý do lỗi khi có số lượng QC không đạt.";
+            case "DESTINATION_LOCATION_REQUIRED": return "Yêu cầu chọn vị trí lưu trữ (Bin) cho hàng đạt QC.";
+            case "UNSHIP_REQUIRED_BEFORE_CANCEL": return "Cần hủy xuất hàng (Unship) trước khi hủy phiếu điều chuyển.";
+            case "TRANSFER_TRIP_REQUIRED": return "Chuyến xe chưa được gán hoặc chưa sẵn sàng khởi hành.";
+            case "ASSIGNED_DRIVER_REQUIRED": return "Chỉ tài xế được chỉ định mới có quyền xác nhận khởi hành.";
+            case "QC_PASSED_BIN_MUST_NOT_BE_QUARANTINE": return "Hàng đạt QC không thể xếp vào khu vực cách ly (Quarantine). Vui lòng chọn bin lưu trữ thông thường.";
+            case "QUARANTINE_LOCATION_NOT_CONFIGURED": return "Kho đích chưa có khu vực cách ly (Quarantine). Cần thêm ít nhất một Bin Quarantine trước khi duyệt QC lỗi.";
+            default: return msg;
+        }
+    }
+
     private ResponseEntity<ApiErrorResponse> error(HttpStatus status,
                                                    String code,
                                                    String message,
                                                    String errorVal,
                                                    Map<String, Object> details) {
+        String translatedMsg = translateMessage(message);
+        String translatedErr = translateMessage(errorVal);
         return ResponseEntity.status(status).body(ApiErrorResponse.builder()
                 .code(code)
-                .message(message)
-                .error(errorVal)
+                .message(translatedMsg)
+                .error(translatedErr)
                 .details(details)
                 .timestamp(OffsetDateTime.now())
                 .build());
     }
+
 }

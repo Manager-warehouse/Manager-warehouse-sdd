@@ -4,6 +4,8 @@ import com.wms.enums.AuditAction;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -143,6 +145,21 @@ class AuditLogUtilTest {
         String json = AuditLogUtil.toJson(input);
 
         assertThat(json).contains("\"status\"").contains("ACTIVE");
+    }
+
+    @Test
+    @DisplayName("toJson serialize Java time values dùng trong audit snapshot")
+    void toJson_serializesJavaTimeValues() {
+        Map<String, Object> input = new HashMap<>();
+        input.put("documentDate", LocalDate.of(2026, 6, 16));
+        input.put("updatedAt", OffsetDateTime.parse("2026-06-16T10:15:30+07:00"));
+
+        String json = AuditLogUtil.toJson(input);
+
+        assertThat(json)
+                .contains("\"documentDate\"")
+                .contains("2026-06-16")
+                .contains("\"updatedAt\"");
     }
 
     @Test

@@ -40,14 +40,14 @@ public class StockTakeController {
 
     // ─── List ─────────────────────────────────────────────────────────────────
 
-    @Operation(summary = "Danh sách phiếu kiểm kê", description = "Lấy danh sách phiếu kiểm kê của một kho, lọc theo status tùy chọn.")
+    @Operation(summary = "Danh sách phiếu kiểm kê", description = "Lấy danh sách phiếu kiểm kê của một kho, lọc theo status tùy chọn. Roles: WAREHOUSE_MANAGER, STOREKEEPER, CEO, ADMIN.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Thành công"),
         @ApiResponse(responseCode = "401", description = "Chưa xác thực"),
-        @ApiResponse(responseCode = "403", description = "Không có quyền truy cập kho")
+        @ApiResponse(responseCode = "403", description = "Không đủ role hoặc không có quyền truy cập kho")
     })
     @GetMapping
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('WAREHOUSE_MANAGER', 'STOREKEEPER', 'CEO', 'ADMIN')")
     public ResponseEntity<List<StockTakeSummaryResponse>> getStockTakes(
             @RequestParam("warehouse_id") Long warehouseId,
             @RequestParam(value = "status", required = false) StockTakeStatus status) {
@@ -63,7 +63,7 @@ public class StockTakeController {
         @ApiResponse(responseCode = "404", description = "Không tìm thấy phiếu kiểm kê")
     })
     @GetMapping("/{id}")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('WAREHOUSE_MANAGER', 'STOREKEEPER', 'CEO', 'ADMIN')")
     public ResponseEntity<StockTakeResponse> getStockTakeById(@PathVariable Long id) {
         User actor = currentUserService.getRequiredCurrentUser();
         return ResponseEntity.ok(stockTakeService.getStockTakeById(id, actor));
@@ -71,14 +71,14 @@ public class StockTakeController {
 
     // ─── Create ───────────────────────────────────────────────────────────────
 
-    @Operation(summary = "Tạo phiếu kiểm kê mới", description = "Thủ kho / Trưởng kho tạo phiếu kiểm kê. Trạng thái ban đầu: DRAFT. Chưa khóa kệ.")
+    @Operation(summary = "Tạo phiếu kiểm kê mới", description = "Thủ kho tạo phiếu kiểm kê. Trạng thái ban đầu: DRAFT. Chưa khóa kệ. Roles: STOREKEEPER, ADMIN.")
     @ApiResponses({
         @ApiResponse(responseCode = "201", description = "Tạo thành công"),
         @ApiResponse(responseCode = "400", description = "Thiếu trường bắt buộc"),
         @ApiResponse(responseCode = "422", description = "Kỳ kế toán đã đóng (ACCOUNTING_PERIOD_CLOSED)")
     })
     @PostMapping
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('STOREKEEPER', 'ADMIN')")
     @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<StockTakeResponse> createStockTake(
             @Valid @RequestBody CreateStockTakeRequest request) {
@@ -89,13 +89,13 @@ public class StockTakeController {
 
     // ─── Start ────────────────────────────────────────────────────────────────
 
-    @Operation(summary = "Bắt đầu kiểm kê", description = "Chuyển DRAFT → IN_PROGRESS và khóa tất cả vị trí kệ.")
+    @Operation(summary = "Bắt đầu kiểm kê", description = "Chuyển DRAFT → IN_PROGRESS và khóa tất cả vị trí kệ. Roles: STOREKEEPER, ADMIN.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Bắt đầu thành công"),
         @ApiResponse(responseCode = "422", description = "Trạng thái không hợp lệ")
     })
     @PutMapping("/{id}/start")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('STOREKEEPER', 'ADMIN')")
     public ResponseEntity<StockTakeResponse> startStockTake(@PathVariable Long id) {
         User actor = currentUserService.getRequiredCurrentUser();
         return ResponseEntity.ok(stockTakeService.startStockTake(id, actor));
@@ -103,14 +103,14 @@ public class StockTakeController {
 
     // ─── Count ────────────────────────────────────────────────────────────────
 
-    @Operation(summary = "Nhập số đếm thực tế", description = "Nhập actual_qty cho từng item. Hệ thống tự tính variance.")
+    @Operation(summary = "Nhập số đếm thực tế", description = "Nhập actual_qty cho từng item. Hệ thống tự tính variance. Roles: STOREKEEPER, ADMIN.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Ghi nhận thành công"),
         @ApiResponse(responseCode = "400", description = "actual_qty âm (INVALID_COUNT_QTY) hoặc thiếu ghi chú lỗi NV (EMPLOYEE_FAULT_REASON_REQUIRED)"),
         @ApiResponse(responseCode = "422", description = "Phiếu không ở trạng thái IN_PROGRESS")
     })
     @PutMapping("/{id}/count")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('STOREKEEPER', 'ADMIN')")
     public ResponseEntity<StockTakeResponse> recordCount(
             @PathVariable Long id,
             @Valid @RequestBody StockTakeCountRequest request) {
@@ -120,13 +120,13 @@ public class StockTakeController {
 
     // ─── Complete ─────────────────────────────────────────────────────────────
 
-    @Operation(summary = "Hoàn tất đếm & trình duyệt", description = "Tính tổng chênh lệch, xác định cấp duyệt. Nếu AUTO thì phê duyệt ngay.")
+    @Operation(summary = "Hoàn tất đếm & trình duyệt", description = "Tính tổng chênh lệch, xác định cấp duyệt. Nếu AUTO thì phê duyệt ngay. Roles: STOREKEEPER, ADMIN.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Thành công"),
         @ApiResponse(responseCode = "400", description = "Còn item chưa có actual_qty (INCOMPLETE_COUNT)")
     })
     @PutMapping("/{id}/complete")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('STOREKEEPER', 'ADMIN')")
     public ResponseEntity<StockTakeResponse> completeStockTake(@PathVariable Long id) {
         User actor = currentUserService.getRequiredCurrentUser();
         return ResponseEntity.ok(stockTakeService.completeStockTake(id, actor));
@@ -134,13 +134,13 @@ public class StockTakeController {
 
     // ─── Cancel ───────────────────────────────────────────────────────────────
 
-    @Operation(summary = "Hủy phiếu kiểm kê", description = "Hủy phiếu khi DRAFT hoặc IN_PROGRESS. Giải phóng lock nếu đang IN_PROGRESS.")
+    @Operation(summary = "Hủy phiếu kiểm kê", description = "Hủy phiếu khi DRAFT hoặc IN_PROGRESS. Giải phóng lock nếu đang IN_PROGRESS. Roles: STOREKEEPER, WAREHOUSE_MANAGER, ADMIN.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Hủy thành công"),
         @ApiResponse(responseCode = "422", description = "Không thể hủy (STOCK_TAKE_NOT_CANCELLABLE)")
     })
     @PutMapping("/{id}/cancel")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('STOREKEEPER', 'WAREHOUSE_MANAGER', 'ADMIN')")
     public ResponseEntity<StockTakeResponse> cancelStockTake(@PathVariable Long id) {
         User actor = currentUserService.getRequiredCurrentUser();
         return ResponseEntity.ok(stockTakeService.cancelStockTake(id, actor));
