@@ -101,11 +101,12 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         order.setUpdatedAt(now);
 
         LocalDate today = now.toLocalDate();
-        // Validate all lines have an approved price before creating anything
+        Long warehouseId = request.getWarehouseId();
+        // Validate all lines have an approved price for this warehouse before creating anything
         List<Long> missingPrice = request.getItems().stream()
                 .map(i -> i.getProductId())
                 .distinct()
-                .filter(pid -> priceHistoryService.lookupApproved(pid, today).isEmpty())
+                .filter(pid -> priceHistoryService.lookupApproved(pid, warehouseId, today).isEmpty())
                 .toList();
         if (!missingPrice.isEmpty()) {
             throw PriceHistoryException.missingPrice(missingPrice.toString());
@@ -114,7 +115,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         DeliveryOrder saved = deliveryOrderRepository.save(order);
         List<DeliveryOrderItem> savedItems = request.getItems().stream()
                 .map(item -> {
-                    PriceHistory price = priceHistoryService.lookupApproved(item.getProductId(), today).get();
+                    PriceHistory price = priceHistoryService.lookupApproved(item.getProductId(), warehouseId, today).get();
                     return toEntity(item, saved, price);
                 })
                 .map(deliveryOrderItemRepository::save)
@@ -184,7 +185,6 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         // Snapshot from price_history — not from request (spec 007)
         item.setUnitPrice(price.getSellingPrice());
         item.setUnitCost(price.getCostPrice());
-        item.setSerialNumber(request.getSerialNumber());
         return item;
     }
 

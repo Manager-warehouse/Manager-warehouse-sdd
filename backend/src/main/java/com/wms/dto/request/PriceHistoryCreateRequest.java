@@ -18,6 +18,10 @@ public class PriceHistoryCreateRequest {
     private Long productId;
 
     @NotNull
+    @JsonProperty("warehouse_id")
+    private Long warehouseId;
+
+    @NotNull
     @JsonProperty("effective_date")
     private LocalDate effectiveDate;
 

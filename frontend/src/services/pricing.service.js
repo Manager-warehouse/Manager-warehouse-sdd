@@ -45,11 +45,13 @@ const pricingService = {
       let list = [...mockEntries];
       if (params.status) list = list.filter(e => e.status === params.status);
       if (params.product_id) list = list.filter(e => e.product_id === Number(params.product_id));
+      if (params.warehouse_id) list = list.filter(e => e.warehouse_id === Number(params.warehouse_id));
       return list;
     }
     const query = new URLSearchParams();
     if (params.status) query.set('status', params.status);
     if (params.product_id) query.set('productId', params.product_id);
+    if (params.warehouse_id) query.set('warehouseId', params.warehouse_id);
     const response = await apiClient.get(`${BASE}?${query}`);
     return response.data;
   },
@@ -142,17 +144,18 @@ const pricingService = {
     return response.data;
   },
 
-  async lookup(productId, date) {
+  async lookup(productId, warehouseId, date) {
     if (USE_MOCK) {
       await delay(200);
       const entry = mockEntries.find(
-        e => e.product_id === productId && e.status === 'APPROVED'
+        e => e.product_id === productId && e.warehouse_id === warehouseId
+          && e.status === 'APPROVED'
           && e.effective_date <= date && e.end_date >= date
       );
       if (!entry) throw Object.assign(new Error('Không có giá hợp lệ'), { status: 404 });
       return entry;
     }
-    const response = await apiClient.get(`${BASE}/lookup?productId=${productId}&date=${date}`);
+    const response = await apiClient.get(`${BASE}/lookup?productId=${productId}&warehouseId=${warehouseId}&date=${date}`);
     return response.data;
   },
 
@@ -180,7 +183,10 @@ const pricingService = {
   },
 
   async exportXlsx(params = {}) {
-    const response = await apiClient.get(`${BASE}/export`, { params, responseType: 'blob' });
+    const apiParams = {};
+    if (params.status) apiParams.status = params.status;
+    if (params.warehouse_id) apiParams.warehouseId = params.warehouse_id;
+    const response = await apiClient.get(`${BASE}/export`, { params: apiParams, responseType: 'blob' });
     const url = URL.createObjectURL(response.data);
     const a = document.createElement('a');
     a.href = url;

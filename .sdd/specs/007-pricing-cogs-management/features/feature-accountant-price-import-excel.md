@@ -23,7 +23,7 @@ Import không tự động duyệt. Tất cả bản ghi tạo ra đều ở `PE
 - The system SHALL return HTTP 201 when all rows are valid and all records are created.
 - The system SHALL return HTTP 207 when the file is structurally valid but at least one row fails data validation (including the case where all data rows fail).
 - The system SHALL return HTTP 400 when the file itself is invalid: not `.xlsx`, unreadable, or missing required columns A–E in the header.
-- The system SHALL apply the same validation rules as single-entry creation: required fields, date range, positive prices, product existence, APPROVED overlap.
+- The system SHALL apply the same validation rules as single-entry creation: required fields, date range, positive prices, product existence, warehouse existence, APPROVED overlap per `(product_id, warehouse_id)`.
 - Every successfully created record SHALL trigger a single aggregated in-app notification to all `ACCOUNTANT_MANAGER` users (not one notification per row).
 - Every created price entry SHALL have `created_by = authenticated user` and `status = PENDING`.
 - Every mutation SHALL create an audit log entry per created record.
@@ -53,24 +53,26 @@ File `.xlsx` phải có header ở **dòng 1** chính xác như sau (case-insens
 | Cột | Header | Kiểu | Bắt buộc | Ghi chú |
 |-----|--------|------|----------|---------|
 | A | `product_sku` | TEXT | Có | Phải khớp `products.sku` đang active |
-| B | `effective_date` | DATE | Có | Định dạng `DD/MM/YYYY` hoặc Excel date serial |
-| C | `end_date` | DATE | Có | Định dạng `DD/MM/YYYY` hoặc Excel date serial |
-| D | `cost_price` | DECIMAL | Có | > 0, không có dấu phẩy ngăn cách hàng nghìn |
-| E | `selling_price` | DECIMAL | Có | > 0 |
-| F | `notes` | TEXT | Không | Bỏ trống nếu không có |
+| B | `warehouse_code` | TEXT | Có | Mã kho (`warehouses.code`), ví dụ: `HP`, `HN`, `HCM` |
+| C | `effective_date` | DATE | Có | Định dạng `DD/MM/YYYY` hoặc Excel date serial |
+| D | `end_date` | DATE | Có | Định dạng `DD/MM/YYYY` hoặc Excel date serial |
+| E | `cost_price` | DECIMAL | Có | > 0, không có dấu phẩy ngăn cách hàng nghìn |
+| F | `selling_price` | DECIMAL | Có | > 0 |
+| G | `notes` | TEXT | Không | Bỏ trống nếu không có |
 
-Cột thừa ngoài A–F: bỏ qua. Cột thiếu trong A–E: toàn bộ file bị reject với `EXCEL_FORMAT_INVALID`.
+Cột thừa ngoài A–G: bỏ qua. Cột thiếu trong A–F: toàn bộ file bị reject với `EXCEL_FORMAT_INVALID`.
 
 ### 3.4 Mã lỗi per-row
 
 | Mã lỗi dòng | Nguyên nhân |
 |-------------|-------------|
-| `MISSING_REQUIRED_FIELD` | Thiếu product_sku, effective_date, end_date, cost_price, hoặc selling_price |
+| `MISSING_REQUIRED_FIELD` | Thiếu product_sku, warehouse_code, effective_date, end_date, cost_price, hoặc selling_price |
 | `PRODUCT_NOT_FOUND` | product_sku không tồn tại hoặc `is_active = false` |
+| `WAREHOUSE_NOT_FOUND` | warehouse_code không tồn tại hoặc không active |
 | `INVALID_DATE_FORMAT` | Ngày không parse được |
 | `INVALID_DATE_RANGE` | `effective_date > end_date` |
 | `INVALID_PRICE` | `cost_price` hoặc `selling_price` <= 0 |
-| `OVERLAPPING_EFFECTIVE_DATE` | Overlap với bản giá APPROVED của product đó |
+| `OVERLAPPING_EFFECTIVE_DATE` | Overlap với bản giá APPROVED của product tại cùng kho đó |
 
 ---
 

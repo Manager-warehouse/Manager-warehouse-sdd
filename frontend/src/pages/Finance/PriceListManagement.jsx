@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, Upload, Download, Search, X, Edit2, Ban, DollarSign, Loader2 } from 'lucide-react';
+import { Plus, Upload, Download, Search, X, Edit2, Ban, DollarSign, Loader2, Warehouse } from 'lucide-react';
+import Pagination from '../../components/common/Pagination';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
 import pricingService from '../../services/pricing.service';
@@ -15,7 +16,7 @@ const STATUS_STYLE = {
 const BADGE = 'text-[10px] font-semibold px-2 py-0.5 rounded-pill border uppercase tracking-wider whitespace-nowrap';
 
 export default function PriceListManagement() {
-  const { user, hasRole } = useAuthStore();
+  const { user, hasRole, activeWarehouse } = useAuthStore();
   const { addToast } = useUiStore();
 
   const [entries, setEntries] = useState([]);
@@ -26,15 +27,20 @@ export default function PriceListManagement() {
   const [showForm, setShowForm] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
   const [showImport, setShowImport] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
 
   const canWrite = hasRole(ROLES.ACCOUNTANT) || hasRole(ROLES.ADMIN);
+  const warehouseId = activeWarehouse?.id;
 
   const fetchEntries = useCallback(async () => {
+    if (!warehouseId) return;
     setLoading(true);
     try {
+      const baseParams = { warehouse_id: warehouseId };
       const [filtered, all] = await Promise.all([
-        pricingService.getAll(statusFilter !== 'ALL' ? { status: statusFilter } : {}),
-        pricingService.getAll({}),
+        pricingService.getAll(statusFilter !== 'ALL' ? { ...baseParams, status: statusFilter } : baseParams),
+        pricingService.getAll(baseParams),
       ]);
       setEntries(filtered);
       setAllEntries(all);
@@ -43,7 +49,7 @@ export default function PriceListManagement() {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }, [statusFilter, warehouseId]);
 
   useEffect(() => { fetchEntries(); }, [fetchEntries]);
 
@@ -52,6 +58,12 @@ export default function PriceListManagement() {
     e.product_name?.toLowerCase().includes(search.toLowerCase())
   );
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginated = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  useEffect(() => { setCurrentPage(1); }, [search, statusFilter]);
+
   const totalEntries = allEntries.length;
   const pendingCount = allEntries.filter(e => e.status === 'PENDING').length;
   const approvedCount = allEntries.filter(e => e.status === 'APPROVED').length;
@@ -59,7 +71,9 @@ export default function PriceListManagement() {
   const handleExportXlsx = async () => {
     if (entries.length === 0) { addToast('Không có dữ liệu để xuất', 'warning'); return; }
     try {
-      await pricingService.exportXlsx(statusFilter !== 'ALL' ? { status: statusFilter } : {});
+      const params = { warehouse_id: warehouseId };
+      if (statusFilter !== 'ALL') params.status = statusFilter;
+      await pricingService.exportXlsx(params);
     } catch (err) {
       addToast(err.message || 'Không thể xuất file', 'error');
     }
@@ -88,23 +102,23 @@ export default function PriceListManagement() {
             Quản lý bảng giá
           </h1>
           <p className="text-xs text-shade-50 font-light mt-1">
-            Quản lý giá vốn & giá bán theo kỳ hiệu lực. Bản giá mới cần được Kế toán trưởng phê duyệt trước khi có hiệu lực.
+            Quản lý giá vốn & giá bán theo kỳ hiệu lực tại <span className="font-semibold text-ink">{activeWarehouse?.name ?? '—'}</span>. Bản giá mới cần được Kế toán trưởng phê duyệt trước khi có hiệu lực.
           </p>
         </div>
         <div className="flex gap-2 flex-wrap justify-end">
           <button onClick={handleExportXlsx}
             className="btn-pill btn-pill-outline-light flex items-center gap-2 text-sm">
-            <Download className="w-4 h-4" /> Xuất Excel
+            <Upload className="w-4 h-4" /> Xuất Excel
           </button>
           {canWrite && (
             <>
               <button onClick={() => setShowImport(true)}
                 className="btn-pill btn-pill-outline-light flex items-center gap-2 text-sm">
-                <Upload className="w-4 h-4" /> Import Excel
+                <Download className="w-4 h-4" /> Nhập Excel
               </button>
               <button onClick={() => pricingService.downloadTemplate().catch(() => addToast('Không tải được file mẫu', 'error'))}
                 className="btn-pill btn-pill-outline-light flex items-center gap-2 text-sm">
-                <Download className="w-4 h-4" /> Tải mẫu
+                <Upload className="w-4 h-4" /> Tải mẫu
               </button>
               <button onClick={() => { setEditTarget(null); setShowForm(true); }}
                 className="btn-pill btn-pill-primary flex items-center gap-2">
@@ -184,7 +198,7 @@ export default function PriceListManagement() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-hairline-light">
-                {filtered.map((entry) => (
+                {paginated.map((entry) => (
                   <tr key={entry.id} className="hover:bg-zinc-50 transition-colors">
                     <td className="px-6 py-4 font-mono text-xs text-shade-60">{entry.product_sku}</td>
                     <td className="px-6 py-4 text-xs font-semibold">{entry.product_name}</td>
@@ -228,12 +242,22 @@ export default function PriceListManagement() {
               </tbody>
             </table>
           </div>
+          <Pagination
+            currentPage={safePage}
+            totalPages={totalPages}
+            totalItems={filtered.length}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(s) => { setPageSize(s); setCurrentPage(1); }}
+          />
         </div>
       )}
 
       {showForm && (
         <PriceEntryModal
           entry={editTarget}
+          warehouseId={warehouseId}
+          warehouseName={activeWarehouse?.name}
           onClose={() => { setShowForm(false); setEditTarget(null); }}
           onSaved={() => { setShowForm(false); setEditTarget(null); fetchEntries(); }}
         />
@@ -251,10 +275,11 @@ export default function PriceListManagement() {
 
 // ── PriceEntryModal ────────────────────────────────────────────────────────
 
-function PriceEntryModal({ entry, onClose, onSaved }) {
+function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }) {
   const { addToast } = useUiStore();
   const [form, setForm] = useState({
     product_id: entry?.product_id ?? '',
+    warehouse_id: entry?.warehouse_id ?? warehouseId ?? '',
     effective_date: entry?.effective_date ?? '',
     end_date: entry?.end_date ?? '',
     cost_price: entry?.cost_price ?? '',
@@ -337,7 +362,7 @@ function PriceEntryModal({ entry, onClose, onSaved }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.product_id || !form.effective_date || !form.end_date || !form.cost_price || !form.selling_price) {
+    if (!form.product_id || !form.warehouse_id || !form.effective_date || !form.end_date || !form.cost_price || !form.selling_price) {
       addToast('Vui lòng điền đầy đủ các trường bắt buộc', 'error');
       return;
     }
@@ -351,7 +376,11 @@ function PriceEntryModal({ entry, onClose, onSaved }) {
         await pricingService.update(entry.id, form);
         addToast('Đã cập nhật bản giá', 'success');
       } else {
-        await pricingService.create({ ...form, product_id: Number(form.product_id) });
+        await pricingService.create({
+          ...form,
+          product_id: Number(form.product_id),
+          warehouse_id: Number(form.warehouse_id),
+        });
         addToast('Đã tạo bản giá, chờ Kế toán trưởng duyệt', 'success');
       }
       onSaved();
@@ -461,6 +490,18 @@ function PriceEntryModal({ entry, onClose, onSaved }) {
               )}
             </div>
           )}
+
+          <div>
+            <label className="block text-xs font-bold text-shade-60 uppercase tracking-wider mb-1.5">
+              Kho áp dụng
+            </label>
+            <input
+              type="text"
+              value={entry?.warehouse_name ?? warehouseName ?? '—'}
+              disabled
+              className="text-input w-full bg-zinc-50 text-shade-50 cursor-not-allowed font-semibold"
+            />
+          </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>

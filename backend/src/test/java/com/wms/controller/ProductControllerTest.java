@@ -58,8 +58,6 @@ class ProductControllerTest {
                 .sku("SKU-001")
                 .name("Sản phẩm A")
                 .unit("cái")
-                .hasSerial(false)
-                .hasExpiry(false)
                 .isActive(true)
                 .createdAt(OffsetDateTime.now())
                 .updatedAt(OffsetDateTime.now())
@@ -319,8 +317,6 @@ class ProductControllerTest {
         r.setSku(sku);
         r.setName("Sản phẩm Test");
         r.setUnit("cái");
-        r.setHasSerial(false);
-        r.setHasExpiry(false);
         return r;
     }
 }

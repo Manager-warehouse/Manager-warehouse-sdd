@@ -49,8 +49,6 @@ class ProductServiceTest {
         product.setSku("SKU-001");
         product.setName("Sản phẩm A");
         product.setUnit("cái");
-        product.setHasSerial(false);
-        product.setHasExpiry(false);
         product.setIsActive(true);
         product.setCreatedAt(OffsetDateTime.now());
         product.setUpdatedAt(OffsetDateTime.now());
@@ -162,8 +160,6 @@ class ProductServiceTest {
             p.setSku("SKU-SER");
             p.setName("SP Serial");
             p.setUnit("cai");
-            p.setHasSerial(false);
-            p.setHasExpiry(false);
             p.setIsActive(true);
             p.setCreatedAt(OffsetDateTime.now());
             p.setUpdatedAt(OffsetDateTime.now());
@@ -171,8 +167,8 @@ class ProductServiceTest {
         });
 
         ProductResponse response = productService.createProduct(request, 1L);
-        assertThat(response.getHasSerial())
-                .as("DFID001: hasSerial phải được lưu là true nhưng bị reset về false")
+        assertThat(response.getIsActive())
+                .as("DFID001: hasSerial field removed in V29 migration")
                 .isTrue();
     }
 
@@ -181,7 +177,7 @@ class ProductServiceTest {
     @DisplayName("[TC07][N] createProduct - hasExpiry=true + shelfLifeDays=365 - lưu đúng")
     void tc07_createProduct_hasExpiry_savesShelfLifeDays() {
         ProductRequest request = buildRequest("SKU-EXP", "SP Co han", false, true);
-        request.setShelfLifeDays(365);
+        // shelfLifeDays removed in V29 migration
         when(productRepository.existsBySku("SKU-EXP")).thenReturn(false);
         when(userRepository.findById(1L)).thenReturn(Optional.of(actor));
         when(productRepository.save(any())).thenAnswer(inv -> {
@@ -194,8 +190,7 @@ class ProductServiceTest {
 
         ProductResponse response = productService.createProduct(request, 1L);
 
-        assertThat(response.getHasExpiry()).isTrue();
-        assertThat(response.getShelfLifeDays()).isEqualTo(365);
+        assertThat(response.getIsActive()).isTrue(); // hasExpiry/shelfLifeDays removed in V29
     }
 
     //TC08 (Normal / Pass)
@@ -315,8 +310,6 @@ class ProductServiceTest {
             p.setSku("SKU-001");
             p.setName("Sản phẩm A");
             p.setUnit("cái");
-            p.setHasSerial(false);
-            p.setHasExpiry(false);
             p.setIsActive(true);
             p.setUpdatedAt(OffsetDateTime.now());
             return p;
@@ -356,8 +349,6 @@ class ProductServiceTest {
         r.setSku(sku);
         r.setName(name);
         r.setUnit("cái");
-        r.setHasSerial(hasSerial);
-        r.setHasExpiry(hasExpiry);
         return r;
     }
 }

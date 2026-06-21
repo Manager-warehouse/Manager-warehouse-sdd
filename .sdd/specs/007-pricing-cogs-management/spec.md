@@ -56,10 +56,13 @@ A: Không. Áp dụng nguyên tắc Maker-Checker: Kế toán viên (role `ACCOU
 A: In-app notification: hệ thống tạo một bản ghi trong bảng `notifications` cho Kế toán trưởng khi bản giá chuyển sang `PENDING`. Không tích hợp email/Zalo trong Sprint 1.
 
 **Q: Giá bán (`selling_price`) có phân biệt theo Đại lý không?**
-A: Không. Sprint 1 chỉ hỗ trợ một mức giá bán thống nhất cho tất cả Đại lý (`price_history` là universal). Không có dealer-tier pricing.
+A: Không. Sprint 1 không có dealer-tier pricing — một bản giá áp dụng cho tất cả Đại lý trong cùng kho.
+
+**Q: Giá có phân biệt theo kho không?**
+A: Có. Mỗi bản giá (`price_history`) gắn với một `warehouse_id` cụ thể. Cùng một sản phẩm có thể có giá khác nhau tại Hải Phòng, Hà Nội và Hồ Chí Minh. Kế toán viên phải chọn kho khi tạo/import bản giá. Overlap check áp dụng trên `(product_id, warehouse_id)` — hai bản giá APPROVED cho cùng sản phẩm nhưng khác kho không bị coi là overlap.
 
 **Q: COGS được lấy từ `price_history.cost_price` hay từ `receipt_items.unit_cost`?**
-A: Từ `price_history.cost_price` tại ngày tạo DO. Sprint 1 dùng **standard cost** (giá vốn kỳ) thay vì actual purchase cost (giá mua từng lô). `receipt_items.unit_cost` là giá mua ghi nhận trên phiếu nhập (để tính DebitNote, đối chiếu NCC) và là dữ liệu riêng biệt, không ảnh hưởng đến COGS trong module này.
+A: Từ `price_history.cost_price` tại ngày tạo DO, lọc theo `warehouse_id` của DO. Sprint 1 dùng **standard cost** (giá vốn kỳ) thay vì actual purchase cost (giá mua từng lô). `receipt_items.unit_cost` là giá mua ghi nhận trên phiếu nhập (để tính DebitNote, đối chiếu NCC) và là dữ liệu riêng biệt, không ảnh hưởng đến COGS trong module này.
 
 > **Lý do**: Cách tiếp cận standard cost đơn giản hơn trong Sprint 1 và đủ cho nhu cầu P&L nội bộ của Phúc Anh.
 
@@ -113,6 +116,7 @@ A: Kế toán viên có thể import nhiều dòng sản phẩm từ file Excel 
 |-------|------|-------|
 | `id` | BIGSERIAL (PK) | |
 | `product_id` | BIGINT (FK→products, NOT NULL) | |
+| `warehouse_id` | BIGINT (FK→warehouses, NOT NULL) | Kho áp dụng bản giá này |
 | `effective_date` | DATE (NOT NULL) | Ngày bắt đầu hiệu lực (inclusive) |
 | `end_date` | DATE (NOT NULL) | Ngày kết thúc hiệu lực (inclusive). Bắt buộc, không cho NULL |
 | `cost_price` | DECIMAL(18,2) (NOT NULL, > 0) | Giá vốn kỳ — dùng cho COGS khi xuất hàng |
@@ -130,12 +134,12 @@ A: Kế toán viên có thể import nhiều dòng sản phẩm từ file Excel 
 **Constraints:**
 - `CHECK (effective_date <= end_date)` — ngày bắt đầu phải trước hoặc bằng ngày kết thúc.
 - `CHECK (cost_price > 0 AND selling_price > 0)`
-- Không có UNIQUE index đơn giản trên `(product_id, effective_date)` — thay vào đó dùng partial unique index hoặc application-level overlap check để ngăn overlap giữa các bản `APPROVED`.
-- **Overlap invariant** (enforced at service layer + DB trigger/unique exclusion): không được tồn tại hai bản `APPROVED` cho cùng `product_id` có khoảng ngày chồng nhau.
+- Không có UNIQUE index đơn giản trên `(product_id, warehouse_id, effective_date)` — thay vào đó dùng application-level overlap check để ngăn overlap giữa các bản `APPROVED`.
+- **Overlap invariant** (enforced at service layer): không được tồn tại hai bản `APPROVED` cho cùng `(product_id, warehouse_id)` có khoảng ngày chồng nhau. Hai bản giá `APPROVED` cho cùng product nhưng khác `warehouse_id` không bị coi là overlap.
 
 **Indexes:**
-- `idx_price_history_product_status` on `(product_id, status, effective_date, end_date)` — tra cứu giá theo ngày giao dịch.
-- `idx_price_history_product_created` on `(product_id, created_at DESC)` — lịch sử giá theo thời gian tạo.
+- `idx_price_history_product_warehouse_status` on `(product_id, warehouse_id, status, effective_date, end_date)` — tra cứu giá theo kho và ngày giao dịch.
+- `idx_price_history_product_warehouse_created` on `(product_id, warehouse_id, created_at DESC)` — lịch sử giá theo kho và thời gian tạo.
 
 ### delivery_order_items (snapshot fields — đã tồn tại trong spec 004)
 
@@ -177,7 +181,7 @@ Hai trường sau được thêm vào `delivery_order_items` tại thời điể
 
 | Error Code | HTTP | Điều kiện |
 |------------|------|-----------|
-| `OVERLAPPING_EFFECTIVE_DATE` | 409 | Khoảng ngày `[effective_date, end_date]` giao với bản giá `APPROVED` đang tồn tại cho cùng sản phẩm (áp dụng khi tạo, sửa, và duyệt) |
+| `OVERLAPPING_EFFECTIVE_DATE` | 409 | Khoảng ngày `[effective_date, end_date]` giao với bản giá `APPROVED` đang tồn tại cho cùng `(product_id, warehouse_id)` (áp dụng khi tạo, sửa, và duyệt) |
 | `INVALID_DATE_RANGE` | 400 | `effective_date > end_date` |
 | `PRICE_ALREADY_APPROVED` | 409 | Thao tác sửa/hủy/duyệt trên bản giá đã ở trạng thái `APPROVED` |
 | `PRICE_ALREADY_CANCELLED` | 409 | Thao tác sửa/hủy/duyệt trên bản giá đã ở trạng thái `CANCELLED` |

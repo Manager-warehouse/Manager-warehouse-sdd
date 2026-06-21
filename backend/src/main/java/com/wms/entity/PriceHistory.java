@@ -25,6 +25,10 @@ public class PriceHistory {
     @JoinColumn(name = "product_id", nullable = false)
     private Product product;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "warehouse_id", nullable = false)
+    private Warehouse warehouse;
+
     @Column(name = "effective_date", nullable = false)
     private LocalDate effectiveDate;
 

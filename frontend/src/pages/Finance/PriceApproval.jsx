@@ -1,26 +1,33 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { CheckCircle, TrendingUp, TrendingDown, Minus, Info, ChevronDown, ChevronUp, Check, Loader2, ClipboardCheck } from 'lucide-react';
+import Pagination from '../../components/common/Pagination';
 import { useUiStore } from '../../stores/ui.store';
+import { useAuthStore } from '../../stores/auth.store';
 import pricingService from '../../services/pricing.service';
 
 export default function PriceApproval() {
   const { addToast } = useUiStore();
+  const activeWarehouse = useAuthStore(s => s.activeWarehouse);
+  const warehouseId = activeWarehouse?.id;
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [approving, setApproving] = useState(null);
   const [expanded, setExpanded] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const fetchPending = useCallback(async () => {
+    if (!warehouseId) return;
     setLoading(true);
     try {
-      const data = await pricingService.getAll({ status: 'PENDING' });
+      const data = await pricingService.getAll({ status: 'PENDING', warehouse_id: warehouseId });
       setEntries(data);
     } catch (err) {
       addToast(err.message || 'Không tải được danh sách chờ duyệt', 'error');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [warehouseId]);
 
   useEffect(() => { fetchPending(); }, [fetchPending]);
 
@@ -51,7 +58,8 @@ export default function PriceApproval() {
           Phê duyệt bảng giá
         </h1>
         <p className="text-xs text-shade-50 font-light mt-1">
-          Xem xét và phê duyệt các bản giá mới do Kế toán viên đề xuất.
+          Xem xét và phê duyệt các bản giá mới do Kế toán viên đề xuất
+          {activeWarehouse && <> — Kho <span className="font-semibold text-ink">{activeWarehouse.name}</span></>}.
           {!loading && entries.length > 0 && (
             <span className="ml-1 font-semibold text-amber-700">{entries.length} bản giá đang chờ duyệt.</span>
           )}
@@ -69,18 +77,32 @@ export default function PriceApproval() {
           <p className="text-sm text-shade-50">Tất cả bản giá đã được xử lý.</p>
         </div>
       ) : (
-        <div className="flex flex-col gap-3">
-          {entries.map(entry => (
-            <PriceCard
-              key={entry.id}
-              entry={entry}
-              expanded={expanded === entry.id}
-              onToggle={() => toggle(entry.id)}
-              onApprove={() => handleApprove(entry.id)}
-              approving={approving === entry.id}
+        <>
+          <div className="flex flex-col gap-3">
+            {entries
+              .slice((currentPage - 1) * pageSize, currentPage * pageSize)
+              .map(entry => (
+                <PriceCard
+                  key={entry.id}
+                  entry={entry}
+                  expanded={expanded === entry.id}
+                  onToggle={() => toggle(entry.id)}
+                  onApprove={() => handleApprove(entry.id)}
+                  approving={approving === entry.id}
+                />
+              ))}
+          </div>
+          <div className="bg-white rounded-lg border border-hairline-light shadow-sm overflow-hidden">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={Math.max(1, Math.ceil(entries.length / pageSize))}
+              totalItems={entries.length}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={(s) => { setPageSize(s); setCurrentPage(1); }}
             />
-          ))}
-        </div>
+          </div>
+        </>
       )}
     </div>
   );
@@ -101,6 +123,11 @@ function PriceCard({ entry, expanded, onToggle, onApprove, approving }) {
             <span className="font-semibold text-sm text-ink truncate">{entry.product_name}</span>
           </div>
           <div className="text-xs text-shade-50 mt-1">
+            {entry.warehouse_name && (
+              <span className="inline-block bg-blue-50 text-blue-700 border border-blue-200 rounded px-1.5 py-0.5 text-[10px] font-semibold mr-2">
+                {entry.warehouse_name}
+              </span>
+            )}
             Kỳ hiệu lực: <span className="font-medium text-ink">{entry.effective_date} → {entry.end_date}</span>
             &nbsp;·&nbsp; Tạo bởi <span className="font-medium text-ink">{entry.created_by?.full_name}</span>
           </div>

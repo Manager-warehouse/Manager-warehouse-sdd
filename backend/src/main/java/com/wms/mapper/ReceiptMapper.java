@@ -38,7 +38,6 @@ public class ReceiptMapper {
         if (item.getProduct() != null) {
             response.setProductName(item.getProduct().getName());
             response.setProductSku(item.getProduct().getSku());
-            response.setHasSerial(item.getProduct().getHasSerial());
         }
         return response;
     }

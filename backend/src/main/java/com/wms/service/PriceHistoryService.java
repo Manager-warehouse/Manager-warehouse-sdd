@@ -26,12 +26,12 @@ public interface PriceHistoryService {
 
     PriceHistoryResponse getById(Long id, User actor);
 
-    List<PriceHistoryResponse> getAll(Long productId, PriceHistoryStatus status);
+    List<PriceHistoryResponse> getAll(Long productId, Long warehouseId, PriceHistoryStatus status);
 
     ProductPriceHistoryResponse getByProduct(Long productId);
 
-    /** Price lookup for DO creation — returns empty if no APPROVED entry exists for that date. */
-    Optional<PriceHistory> lookupApproved(Long productId, LocalDate date);
+    /** Price lookup for DO creation — scoped to the DO's warehouse. Returns empty if no APPROVED entry exists. */
+    Optional<PriceHistory> lookupApproved(Long productId, Long warehouseId, LocalDate date);
 
     PriceImportResponse importFromExcel(MultipartFile file, User actor);
 }

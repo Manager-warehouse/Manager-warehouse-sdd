@@ -23,6 +23,12 @@ public class PriceHistoryResponse {
     @JsonProperty("product_name")
     private String productName;
 
+    @JsonProperty("warehouse_id")
+    private Long warehouseId;
+
+    @JsonProperty("warehouse_name")
+    private String warehouseName;
+
     @JsonProperty("effective_date")
     private LocalDate effectiveDate;
 

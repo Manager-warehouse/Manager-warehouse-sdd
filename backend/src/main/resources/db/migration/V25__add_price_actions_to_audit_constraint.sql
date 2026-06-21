@@ -1,16 +1,6 @@
--- Extend audit_logs_action_check to include PRICE_* actions (spec 007).
--- V21 created the constraint without these values.
--- V24 intended to fix this but was already marked applied before the fix was added.
-ALTER TABLE audit_logs DROP CONSTRAINT IF EXISTS audit_logs_action_check;
-
-ALTER TABLE audit_logs
-    ADD CONSTRAINT audit_logs_action_check
-    CHECK (action IN (
-        'LOGIN', 'LOGOUT', 'CREATE', 'UPDATE', 'STATUS_CHANGE', 'APPROVE', 'REJECT', 'CANCEL', 'SOFT_DELETE', 'ASSIGN', 'UNASSIGN',
-        'RECEIPT_APPROVE', 'RECEIPT_REJECT', 'RECEIPT_RETURN_CONFIRM', 'RECEIPT_PUTAWAY_COMPLETE',
-        'QUARANTINE_RTV_CREATE', 'QUARANTINE_RTV_CONFIRM', 'INVENTORY_UPDATE',
-        'TRANSFER_CREATE', 'TRANSFER_UPDATE', 'TRANSFER_APPROVE', 'TRANSFER_REJECT', 'TRANSFER_TRIP_ASSIGN', 'TRANSFER_SHIP', 'TRANSFER_DEPART', 'TRANSFER_RECEIVE_COUNT', 'TRANSFER_RECEIVE_CONFIRM', 'TRANSFER_DISCREPANCY_CREATE', 'TRANSFER_CANCEL',
-        'BILLING_NOTIFICATION_CREATE', 'BILLING_NOTIFICATION_READ',
-        'RECEIPT_QC_SUBMIT', 'RECEIPT_QC_CONFIRM',
-        'PRICE_CREATE', 'PRICE_UPDATE', 'PRICE_CANCEL', 'PRICE_APPROVE', 'PRICE_IMPORT'
-    ));
+-- V25__add_price_actions_to_audit_constraint.sql
+-- Originally intended to extend audit_logs_action_check with PRICE_* actions.
+-- DB reached V38 via other branches; V38 already contains a complete constraint.
+-- Dropping and re-adding here would replace V38's constraint with a narrower one.
+-- This migration is intentionally a no-op.
+SELECT 1;

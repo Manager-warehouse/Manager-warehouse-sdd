@@ -32,13 +32,5 @@ public class ProductRequest {
 
     private BigDecimal volumeM3;
 
-    @NotNull
-    private Boolean hasSerial;
-
-    @NotNull
-    private Boolean hasExpiry;
-
-    private Integer shelfLifeDays;
-
     private BigDecimal reorderPoint;
 }
