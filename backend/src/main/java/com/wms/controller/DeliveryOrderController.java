@@ -10,6 +10,7 @@ import com.wms.dto.request.DeliveryOrderUpdateRequest;
 import com.wms.dto.request.DeliveryOrderWarehouseApprovalRequest;
 import com.wms.dto.request.DeliveryOrderWarehouseRejectRequest;
 import com.wms.dto.response.DeliveryOrderResponse;
+import com.wms.dto.response.PickingCandidateResponse;
 import com.wms.entity.User;
 import com.wms.service.CurrentUserService;
 import com.wms.service.DeliveryOrderService;
@@ -20,6 +21,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
+import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -46,17 +48,34 @@ public class DeliveryOrderController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','ACCOUNTANT_MANAGER','PLANNER','STOREKEEPER','WAREHOUSE_MANAGER','DISPATCHER','ADMIN','CEO')")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','ACCOUNTANT_MANAGER','PLANNER','STOREKEEPER','WAREHOUSE_STAFF','WAREHOUSE_MANAGER','DISPATCHER','ADMIN','CEO')")
     @Operation(summary = "List delivery orders")
     public List<DeliveryOrderResponse> getAllDeliveryOrders() {
         return deliveryOrderService.getAllDeliveryOrders(currentUser());
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','ACCOUNTANT_MANAGER','PLANNER','STOREKEEPER','WAREHOUSE_MANAGER','DISPATCHER','ADMIN','CEO')")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','ACCOUNTANT_MANAGER','PLANNER','STOREKEEPER','WAREHOUSE_STAFF','WAREHOUSE_MANAGER','DISPATCHER','ADMIN','CEO')")
     @Operation(summary = "Get delivery order detail")
     public DeliveryOrderResponse getDeliveryOrderById(@PathVariable Long id) {
         return deliveryOrderService.getDeliveryOrderById(id, currentUser());
+    }
+
+    @GetMapping("/{id}/picking-candidates")
+    @PreAuthorize("hasRole('STOREKEEPER')")
+    @Operation(
+            summary = "Get FIFO picking candidates for each item in the delivery order",
+            description = "Returns available inventory rows ordered by FIFO (receivedDate ASC) "
+                    + "for each DO item, grouped by DO item ID. "
+                    + "Only available when the delivery order status is NEW or WAITING_PICKING."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Picking candidates returned"),
+            @ApiResponse(responseCode = "403", description = "Storekeeper not assigned to this warehouse", content = @Content),
+            @ApiResponse(responseCode = "404", description = "Delivery order not found", content = @Content)
+    })
+    public Map<Long, List<PickingCandidateResponse>> getPickingCandidates(@PathVariable Long id) {
+        return deliveryOrderService.getPickingCandidates(id, currentUser());
     }
 
     @PostMapping

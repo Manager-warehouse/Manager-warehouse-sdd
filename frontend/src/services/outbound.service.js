@@ -28,7 +28,7 @@ const INITIAL_DELIVERY_ORDERS = [
     dealer_id: 2,
     dealer_name: 'Đại lý Trần Gia',
     warehouse_id: 1,
-    status: 'PICKING',
+    status: 'WAITING_PICKING',
     raw_status: 'WAITING_PICKING',
     expected_delivery_date: '2026-06-14',
     document_date: '2026-06-12',
@@ -43,7 +43,7 @@ const INITIAL_DELIVERY_ORDERS = [
     dealer_id: 3,
     dealer_name: 'Đại lý Minh Trí',
     warehouse_id: 1,
-    status: 'READY_TO_SHIP',
+    status: 'WAREHOUSE_APPROVED',
     raw_status: 'WAREHOUSE_APPROVED',
     expected_delivery_date: '2026-06-13',
     document_date: '2026-06-11',
@@ -155,10 +155,117 @@ const INITIAL_TRIP_DOS = [
     stop_order: 1,
     dealer_name: 'Đại lý Minh Trí',
     dealer_address: '123 Lê Lợi, Hải Phòng',
-    delivery_status: 'READY_TO_SHIP',
+    delivery_status: 'WAREHOUSE_APPROVED',
     raw_status: 'WAREHOUSE_APPROVED',
     current_attempt: null,
     failure_reason: null,
+  },
+];
+
+const INITIAL_PICKING_CANDIDATES = [
+  {
+    inventory_id: 1001,
+    warehouse_id: 1,
+    product_id: 1,
+    batch_id: 11,
+    batch_code: 'LO-HP-001',
+    location_id: 101,
+    location_code: 'HP-01.Z1.R1.S1.B01',
+    zone_id: 11,
+    zone_code: 'HP-01.Z1',
+    available_qty: 8,
+    received_at: '2026-05-20T08:00:00.000Z',
+  },
+  {
+    inventory_id: 1002,
+    warehouse_id: 1,
+    product_id: 1,
+    batch_id: 12,
+    batch_code: 'LO-HP-002',
+    location_id: 101,
+    location_code: 'HP-01.Z1.R1.S1.B01',
+    zone_id: 11,
+    zone_code: 'HP-01.Z1',
+    available_qty: 16,
+    received_at: '2026-05-24T08:00:00.000Z',
+  },
+  {
+    inventory_id: 1003,
+    warehouse_id: 1,
+    product_id: 2,
+    batch_id: 13,
+    batch_code: 'LO-HP-003',
+    location_id: 101,
+    location_code: 'HP-01.Z1.R1.S1.B01',
+    zone_id: 11,
+    zone_code: 'HP-01.Z1',
+    available_qty: 24,
+    received_at: '2026-05-18T08:00:00.000Z',
+  },
+  {
+    inventory_id: 2001,
+    warehouse_id: 2,
+    product_id: 1,
+    batch_id: 21,
+    batch_code: 'LO-HN-001',
+    location_id: 201,
+    location_code: 'HN-01.Z1.R1.S1.B01',
+    zone_id: 21,
+    zone_code: 'HN-01.Z1',
+    available_qty: 10,
+    received_at: '2026-05-19T08:00:00.000Z',
+  },
+  {
+    inventory_id: 2002,
+    warehouse_id: 2,
+    product_id: 1,
+    batch_id: 22,
+    batch_code: 'LO-HN-002',
+    location_id: 201,
+    location_code: 'HN-01.Z1.R1.S1.B01',
+    zone_id: 21,
+    zone_code: 'HN-01.Z1',
+    available_qty: 18,
+    received_at: '2026-05-27T08:00:00.000Z',
+  },
+  {
+    inventory_id: 2003,
+    warehouse_id: 2,
+    product_id: 2,
+    batch_id: 23,
+    batch_code: 'LO-HN-003',
+    location_id: 201,
+    location_code: 'HN-01.Z1.R1.S1.B01',
+    zone_id: 21,
+    zone_code: 'HN-01.Z1',
+    available_qty: 20,
+    received_at: '2026-05-17T08:00:00.000Z',
+  },
+  {
+    inventory_id: 3001,
+    warehouse_id: 3,
+    product_id: 1,
+    batch_id: 31,
+    batch_code: 'LO-HCM-001',
+    location_id: 301,
+    location_code: 'HCM-01.Z1.R1.S1.B01',
+    zone_id: 31,
+    zone_code: 'HCM-01.Z1',
+    available_qty: 12,
+    received_at: '2026-05-22T08:00:00.000Z',
+  },
+  {
+    inventory_id: 3002,
+    warehouse_id: 3,
+    product_id: 2,
+    batch_id: 32,
+    batch_code: 'LO-HCM-002',
+    location_id: 301,
+    location_code: 'HCM-01.Z1.R1.S1.B01',
+    zone_id: 31,
+    zone_code: 'HCM-01.Z1',
+    available_qty: 22,
+    received_at: '2026-05-16T08:00:00.000Z',
   },
 ];
 
@@ -221,24 +328,24 @@ const value = (object, camel, snake, fallback = null) => {
 const normalizeDoStatus = (status) => {
   const map = {
     NEW: 'NEW',
-    WAITING_PICKING: 'PICKING',
-    PICKING: 'PICKING',
-    QC_PENDING_APPROVAL: 'PICKING',
-    QC_COMPLETED: 'PICKING',
-    WAREHOUSE_APPROVED: 'READY_TO_SHIP',
-    READY_TO_SHIP: 'READY_TO_SHIP',
+    WAITING_PICKING: 'WAITING_PICKING',
+    PICKING: 'WAITING_PICKING',
+    QC_PENDING_APPROVAL: 'QC_PENDING_APPROVAL',
+    QC_COMPLETED: 'QC_COMPLETED',
+    WAREHOUSE_APPROVED: 'WAREHOUSE_APPROVED',
+    READY_TO_SHIP: 'WAREHOUSE_APPROVED',
     IN_TRANSIT: 'IN_TRANSIT',
-    COMPLETED: 'DELIVERED',
-    DELIVERED: 'DELIVERED',
+    COMPLETED: 'COMPLETED',
+    DELIVERED: 'COMPLETED',
     RETURNED: 'RETURNED',
-    REJECTED: 'PICKING',
+    REJECTED: 'REJECTED',
     CANCELLED: 'CANCELLED',
   };
   return map[status] || status;
 };
 
 const normalizeDeliveryStatus = (status, attempt) => {
-  if (attempt?.status === 'DELIVERED') return 'DELIVERED';
+  if (attempt?.status === 'DELIVERED') return 'COMPLETED';
   if (attempt?.status === 'FAILED') return 'FAILED';
   return normalizeDoStatus(status);
 };
@@ -247,8 +354,11 @@ const normalizeAllocation = (allocation = {}) => ({
   allocation_id: value(allocation, 'allocationId', 'allocation_id'),
   inventory_id: value(allocation, 'inventoryId', 'inventory_id'),
   batch_id: value(allocation, 'batchId', 'batch_id'),
+  batch_code: value(allocation, 'batchCode', 'batch_code'),
   location_id: value(allocation, 'locationId', 'location_id'),
+  location_code: value(allocation, 'locationCode', 'location_code'),
   zone_id: value(allocation, 'zoneId', 'zone_id'),
+  zone_code: value(allocation, 'zoneCode', 'zone_code'),
   planned_qty: Number(value(allocation, 'plannedQty', 'planned_qty', 0)),
   picked_qty: Number(value(allocation, 'pickedQty', 'picked_qty', 0)),
 });
@@ -366,42 +476,104 @@ const toTripCreatePayload = (data) => ({
 
 const buildPickingPlanPayload = (items) => {
   const allocations = items.flatMap((item) =>
-    (item.allocations || []).map((allocation) => ({
-      doItemId: Number(item.id),
-      inventoryId: Number(allocation.inventory_id),
-      batchId: Number(allocation.batch_id),
-      locationId: Number(allocation.location_id),
-      zoneId: Number(allocation.zone_id),
-      plannedQty: Number(allocation.planned_qty || item.requested_qty),
-    })),
+    (item.allocations || [])
+      .filter((allocation) => allocation.inventory_id && Number(allocation.planned_qty || 0) > 0)
+      .map((allocation) => ({
+        doItemId: Number(item.id),
+        inventoryId: Number(allocation.inventory_id),
+        batchId: Number(allocation.batch_id),
+        locationId: Number(allocation.location_id),
+        // zoneId must be null (not 0) when BIN has no parent zone
+        zoneId: allocation.zone_id ? Number(allocation.zone_id) : null,
+        plannedQty: Number(allocation.planned_qty || item.requested_qty),
+      })),
   );
-  if (!allocations.length) {
-    throw new Error('Thiếu allocation để lưu kế hoạch lấy hàng. Vui lòng lập picking plan từ dữ liệu tồn kho trước.');
-  }
   return { allocations, returnToBinRecords: [] };
 };
 
-const buildPickQcPayload = (items, qcRows = null) => {
-  const rowsByItem = new Map((qcRows || []).map((row) => [Number(row.id), row]));
-  const results = items.flatMap((item) => {
-    const uiRow = rowsByItem.get(Number(item.id));
-    const failReason = uiRow?.reason || item.qc_failure_reason || '';
-    const isFailed = uiRow?.result === 'FAILED';
-    return (item.allocations || []).map((allocation) => {
-      const pickedQty = Number(uiRow?.picked_qty ?? uiRow?.issued_qty ?? item.issued_qty ?? allocation.planned_qty);
-      return {
-        doItemId: Number(item.id),
-        allocationId: Number(allocation.allocation_id),
-        batchId: Number(allocation.batch_id),
-        locationId: Number(allocation.location_id),
-        zoneId: Number(allocation.zone_id),
-        pickedQty,
-        qcPassQty: isFailed ? 0 : pickedQty,
-        qcFailQty: isFailed ? pickedQty : 0,
-        qcFailReason: isFailed ? failReason : null,
-        notes: uiRow?.notes || '',
-      };
-    });
+const createEmptyAllocation = () => ({
+  allocation_id: null,
+  inventory_id: '',
+  batch_id: '',
+  batch_code: '',
+  location_id: '',
+  location_code: '',
+  zone_id: '',
+  zone_code: '',
+  planned_qty: 0,
+  picked_qty: 0,
+});
+
+const cloneDraftItems = (items = []) => items.map((item) => ({
+  ...item,
+  allocations: item.allocations?.length
+    ? item.allocations.map((allocation) => ({ ...allocation }))
+    : [createEmptyAllocation()],
+}));
+
+const mapCandidateToAllocation = (candidate, plannedQty = 0) => ({
+  allocation_id: null,
+  inventory_id: candidate.inventory_id,
+  batch_id: candidate.batch_id,
+  batch_code: candidate.batch_code,
+  location_id: candidate.location_id,
+  location_code: candidate.location_code,
+  zone_id: candidate.zone_id,
+  zone_code: candidate.zone_code,
+  planned_qty: plannedQty,
+  picked_qty: 0,
+});
+
+const buildMockPickingCandidates = (order) => order.items.reduce((accumulator, item) => {
+  const seededCandidates = INITIAL_PICKING_CANDIDATES
+    .filter((candidate) => candidate.warehouse_id === Number(order.warehouse_id))
+    .filter((candidate) => candidate.product_id === Number(item.product_id))
+    .sort((left, right) => new Date(left.received_at) - new Date(right.received_at));
+
+  const existingCandidates = (item.allocations || [])
+    .filter((allocation) => allocation.inventory_id)
+    .map((allocation, index) => ({
+      inventory_id: allocation.inventory_id,
+      warehouse_id: order.warehouse_id,
+      product_id: item.product_id,
+      batch_id: allocation.batch_id,
+      batch_code: allocation.batch_code || `Lô ${allocation.batch_id || index + 1}`,
+      location_id: allocation.location_id,
+      location_code: allocation.location_code || `Vị trí ${allocation.location_id || '-'}`,
+      zone_id: allocation.zone_id,
+      zone_code: allocation.zone_code || `Khu ${allocation.zone_id || '-'}`,
+      available_qty: Number(allocation.planned_qty || item.requested_qty || 0),
+      received_at: order.created_at || new Date().toISOString(),
+    }));
+
+  const merged = [...existingCandidates, ...seededCandidates].filter(
+    (candidate, index, array) => array.findIndex(
+      (current) => Number(current.inventory_id) === Number(candidate.inventory_id),
+    ) === index,
+  );
+
+  accumulator[item.id] = merged;
+  return accumulator;
+}, {});
+
+const buildPickQcPayload = (qcRows = []) => {
+  const results = qcRows.map((row) => {
+    const pickedQty = Number(row.picked_qty ?? row.planned_qty ?? 0);
+    const isFailed = row.result === 'FAILED';
+    return {
+      doItemId: Number(row.do_item_id),
+      allocationId: Number(row.allocation_id),
+      batchId: Number(row.batch_id),
+      locationId: Number(row.location_id),
+      zoneId: Number(row.zone_id),
+      pickedQty,
+      qcPassQty: isFailed ? 0 : pickedQty,
+      qcFailQty: isFailed ? pickedQty : 0,
+      qcFailReason: isFailed ? row.reason || null : null,
+      stagingLocationId: row.staging_location_id ? Number(row.staging_location_id) : null,
+      quarantineLocationId: row.quarantine_location_id ? Number(row.quarantine_location_id) : null,
+      notes: row.notes || '',
+    };
   });
   if (!results.length) {
     throw new Error('Thiếu allocation để gửi kết quả pick/QC.');
@@ -435,7 +607,18 @@ export const outboundService = {
     if (filters.status && filters.status !== 'ALL') params.status = filters.status;
     if (filters.search) params.search = filters.search;
     const response = await apiClient.get('/delivery-orders', { params });
-    return asArray(response.data).map(normalizeDeliveryOrder);
+    let orders = asArray(response.data).map(normalizeDeliveryOrder);
+    if (filters.status && filters.status !== 'ALL') {
+      orders = orders.filter((order) => order.status === filters.status);
+    }
+    if (filters.search) {
+      const query = filters.search.toLowerCase();
+      orders = orders.filter((order) =>
+        String(order.do_number || '').toLowerCase().includes(query)
+        || String(order.dealer_name || '').toLowerCase().includes(query),
+      );
+    }
+    return orders;
   },
 
   getDeliveryOrderById: async (id) => {
@@ -512,16 +695,100 @@ export const outboundService = {
 
   startPicking: async (id) => {
     const order = await outboundService.getDeliveryOrderById(id);
+    return outboundService.savePickingPlan(id, order.items);
+  },
+
+  getPickingCandidates: async (id) => {
     if (useMock) {
-      const orders = getDb(KEYS.DELIVERY_ORDERS, INITIAL_DELIVERY_ORDERS);
-      const idx = orders.findIndex((item) => item.id === Number(id));
-      if (idx !== -1) {
-        orders[idx] = { ...orders[idx], status: 'PICKING', raw_status: 'WAITING_PICKING' };
-        saveDb(KEYS.DELIVERY_ORDERS, orders);
-      }
-      return { ...order, status: 'PICKING', raw_status: 'WAITING_PICKING' };
+      const order = await outboundService.getDeliveryOrderById(id);
+      return buildMockPickingCandidates(order);
     }
-    const response = await apiClient.put(`/delivery-orders/${id}/picking-plan`, buildPickingPlanPayload(order.items));
+    // Call backend FIFO picking-candidates endpoint — returns Map<doItemId, List<candidate>>
+    const response = await apiClient.get(`/delivery-orders/${id}/picking-candidates`);
+    const raw = response.data || {};
+    // Normalize camelCase from backend to snake_case used by the editor component
+    return Object.fromEntries(
+      Object.entries(raw).map(([itemId, candidates]) => [
+        itemId,
+        (candidates || []).map((c) => ({
+          inventory_id: c.inventoryId,
+          batch_id: c.batchId,
+          batch_code: c.batchCode || `Lô ${c.batchId || '-'}`,
+          location_id: c.locationId,
+          location_code: c.locationCode || `Vị trí ${c.locationId || '-'}`,
+          zone_id: c.zoneId,
+          zone_code: c.zoneCode || `Khu ${c.zoneId || '-'}`,
+          available_qty: Number(c.availableQty || 0),
+          received_at: c.receivedDate,
+        })),
+      ]),
+    );
+  },
+
+
+  createPickingPlanDraft: (items = []) => cloneDraftItems(items),
+
+  createEmptyAllocationDraft: () => createEmptyAllocation(),
+
+  applyPickingCandidate: (candidate, plannedQty = 0) => mapCandidateToAllocation(candidate, plannedQty),
+
+  savePickingPlan: async (id, items) => {
+    if (useMock) {
+      await mockDelay(250);
+      const orders = getDb(KEYS.DELIVERY_ORDERS, INITIAL_DELIVERY_ORDERS);
+      const orderIndex = orders.findIndex((item) => item.id === Number(id));
+      if (orderIndex === -1) throw new Error('Không tìm thấy đơn xuất hàng');
+
+      const storedItems = getDb(KEYS.DO_ITEMS, INITIAL_DO_ITEMS);
+      const nextAllocationId = storedItems.reduce((maxId, item) => {
+        const itemMax = (item.allocations || []).reduce(
+          (currentMax, allocation) => Math.max(currentMax, Number(allocation.allocation_id || 0)),
+          maxId,
+        );
+        return Math.max(maxId, itemMax);
+      }, 0);
+
+      let allocationCursor = nextAllocationId;
+      const updatedItems = storedItems.map((storedItem) => {
+        const changedItem = items.find((item) => Number(item.id) === Number(storedItem.id));
+        if (!changedItem) return storedItem;
+
+        const allocations = (changedItem.allocations || [])
+          .filter((allocation) => allocation.inventory_id && Number(allocation.planned_qty || 0) > 0)
+          .map((allocation) => {
+            allocationCursor += allocation.allocation_id ? 0 : 1;
+            return {
+              ...allocation,
+              allocation_id: allocation.allocation_id || allocationCursor,
+              planned_qty: Number(allocation.planned_qty || 0),
+              picked_qty: Number(allocation.picked_qty || 0),
+            };
+          });
+
+        return {
+          ...storedItem,
+          planned_qty: allocations.reduce((sum, allocation) => sum + Number(allocation.planned_qty || 0), 0),
+          allocations,
+        };
+      });
+
+      orders[orderIndex] = {
+        ...orders[orderIndex],
+        status: 'WAITING_PICKING',
+        raw_status: 'WAITING_PICKING',
+        updated_at: new Date().toISOString(),
+      };
+
+      saveDb(KEYS.DO_ITEMS, updatedItems);
+      saveDb(KEYS.DELIVERY_ORDERS, orders);
+      addAuditLog('PICKING_PLAN_SAVE', 'DeliveryOrder', Number(id), `Lưu kế hoạch lấy hàng cho DO #${id}`);
+
+      return {
+        ...orders[orderIndex],
+        items: updatedItems.filter((item) => item.do_id === Number(id)),
+      };
+    }
+    const response = await apiClient.put(`/delivery-orders/${id}/picking-plan`, buildPickingPlanPayload(items));
     return normalizeDeliveryOrder(response.data);
   },
 
@@ -544,29 +811,72 @@ export const outboundService = {
       ...item,
       ...(pickedItems.find((picked) => Number(picked.id) === Number(item.id)) || {}),
     }));
-    const response = await apiClient.put(`/delivery-orders/${id}/pick-qc-result`, buildPickQcPayload(mergedItems));
+    const qcRows = mergedItems.flatMap((item) =>
+      (item.allocations || []).map((allocation) => ({
+        do_item_id: item.id,
+        allocation_id: allocation.allocation_id,
+        batch_id: allocation.batch_id,
+        location_id: allocation.location_id,
+        zone_id: allocation.zone_id,
+        picked_qty: Number(item.issued_qty ?? allocation.planned_qty ?? 0),
+        result: 'PASSED',
+      })),
+    );
+    const response = await apiClient.put(`/delivery-orders/${id}/pick-qc-result`, buildPickQcPayload(qcRows));
     return normalizeDeliveryOrder(response.data);
   },
 
   confirmQCOutbound: async (id, qcData) => {
-    const order = await outboundService.getDeliveryOrderById(id);
     if (useMock) {
       const items = getDb(KEYS.DO_ITEMS, INITIAL_DO_ITEMS);
-      qcData.items.forEach((qcItem) => {
-        const idx = items.findIndex((item) => item.id === Number(qcItem.id));
+      const rowsByItemId = qcData.items.reduce((map, row) => {
+        const itemId = Number(row.do_item_id);
+        if (!map.has(itemId)) {
+          map.set(itemId, []);
+        }
+        map.get(itemId).push(row);
+        return map;
+      }, new Map());
+
+      rowsByItemId.forEach((rows, itemId) => {
+        const idx = items.findIndex((item) => item.id === itemId);
         if (idx !== -1) {
-          items[idx].qc_result = qcItem.result;
-          items[idx].qc_failure_reason = qcItem.reason || null;
+          const pickedQty = rows.reduce((sum, row) => sum + Number(row.picked_qty || 0), 0);
+          const qcFailQty = rows
+            .filter((row) => row.result === 'FAILED')
+            .reduce((sum, row) => sum + Number(row.picked_qty || 0), 0);
+          const qcPassQty = pickedQty - qcFailQty;
+
+          items[idx].picked_qty = pickedQty;
+          items[idx].issued_qty = pickedQty;
+          items[idx].qc_pass_qty = qcPassQty;
+          items[idx].qc_fail_qty = qcFailQty;
+          items[idx].qc_result = rows.some((row) => row.result === 'FAILED') ? 'FAILED' : 'PASSED';
+          items[idx].qc_failure_reason = rows.find((row) => row.result === 'FAILED')?.reason || null;
+          items[idx].allocations = (items[idx].allocations || []).map((allocation) => {
+            const matchedRow = rows.find((row) => Number(row.allocation_id) === Number(allocation.allocation_id));
+            return matchedRow
+              ? { ...allocation, picked_qty: Number(matchedRow.picked_qty || 0) }
+              : allocation;
+          });
         }
       });
       const orders = getDb(KEYS.DELIVERY_ORDERS, INITIAL_DELIVERY_ORDERS);
       const orderIdx = orders.findIndex((item) => item.id === Number(id));
-      if (orderIdx !== -1) orders[orderIdx].qc_completed_at = new Date().toISOString();
+      if (orderIdx !== -1) {
+        orders[orderIdx] = {
+          ...orders[orderIdx],
+          status: 'QC_PENDING_APPROVAL',
+          raw_status: 'QC_PENDING_APPROVAL',
+          qc_completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+      }
       saveDb(KEYS.DO_ITEMS, items);
       saveDb(KEYS.DELIVERY_ORDERS, orders);
-      return orders[orderIdx] || order;
+      return orders[orderIdx] || null;
     }
-    const response = await apiClient.put(`/delivery-orders/${id}/pick-qc-result`, buildPickQcPayload(order.items, qcData.items));
+    const response = await apiClient.put(`/delivery-orders/${id}/pick-qc-result`, buildPickQcPayload(qcData.items));
     return normalizeDeliveryOrder(response.data);
   },
 
@@ -576,7 +886,7 @@ export const outboundService = {
       const orders = getDb(KEYS.DELIVERY_ORDERS, INITIAL_DELIVERY_ORDERS);
       const idx = orders.findIndex((order) => order.id === Number(id));
       if (idx === -1) throw new Error('Không tìm thấy đơn xuất hàng');
-      orders[idx] = { ...orders[idx], status: 'PICKING', raw_status: 'QC_COMPLETED', qc_completed_at: new Date().toISOString() };
+      orders[idx] = { ...orders[idx], status: 'QC_COMPLETED', raw_status: 'QC_COMPLETED', qc_completed_at: new Date().toISOString() };
       saveDb(KEYS.DELIVERY_ORDERS, orders);
       return orders[idx];
     }
@@ -590,7 +900,7 @@ export const outboundService = {
       const orders = getDb(KEYS.DELIVERY_ORDERS, INITIAL_DELIVERY_ORDERS);
       const idx = orders.findIndex((order) => order.id === Number(id));
       if (idx === -1) throw new Error('Không tìm thấy đơn xuất hàng');
-      orders[idx] = { ...orders[idx], status: 'READY_TO_SHIP', raw_status: 'WAREHOUSE_APPROVED' };
+      orders[idx] = { ...orders[idx], status: 'WAREHOUSE_APPROVED', raw_status: 'WAREHOUSE_APPROVED' };
       saveDb(KEYS.DELIVERY_ORDERS, orders);
       return orders[idx];
     }
@@ -604,7 +914,7 @@ export const outboundService = {
       const orders = getDb(KEYS.DELIVERY_ORDERS, INITIAL_DELIVERY_ORDERS);
       const idx = orders.findIndex((order) => order.id === Number(id));
       if (idx === -1) throw new Error('Không tìm thấy đơn xuất hàng');
-      orders[idx] = { ...orders[idx], status: 'PICKING', raw_status: 'REJECTED', cancel_reason: reason, qc_completed_at: null };
+      orders[idx] = { ...orders[idx], status: 'REJECTED', raw_status: 'REJECTED', cancel_reason: reason, qc_completed_at: null };
       saveDb(KEYS.DELIVERY_ORDERS, orders);
       return orders[idx];
     }
@@ -672,7 +982,7 @@ export const outboundService = {
         stop_order: index + 1,
         dealer_name: order.dealer_name,
         dealer_address: order.dealer_address || 'Địa chỉ đại lý',
-        delivery_status: 'READY_TO_SHIP',
+        delivery_status: 'WAREHOUSE_APPROVED',
         raw_status: 'WAREHOUSE_APPROVED',
       }));
       saveDb(KEYS.TRIPS, [...trips, newTrip]);
@@ -724,7 +1034,7 @@ export const outboundService = {
       if (otp !== '123456') throw new Error('Mã OTP không chính xác');
       const stops = getDb(KEYS.TRIP_DOS, INITIAL_TRIP_DOS);
       const idx = stops.findIndex((stop) => stop.trip_id === Number(tripId) && stop.do_id === Number(doId));
-      if (idx !== -1) stops[idx] = { ...stops[idx], delivery_status: 'DELIVERED', raw_status: 'COMPLETED' };
+      if (idx !== -1) stops[idx] = { ...stops[idx], delivery_status: 'COMPLETED', raw_status: 'COMPLETED' };
       saveDb(KEYS.TRIP_DOS, stops);
       return { success: true };
     }

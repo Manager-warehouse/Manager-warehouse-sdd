@@ -25,7 +25,6 @@ public interface WarehouseProductReservationRepository extends JpaRepository<War
                                                                                                 @Param("productId") Long productId);
 
     @Lock(LockModeType.OPTIMISTIC)
-    @EntityGraph(attributePaths = {"warehouse", "product"})
     @Query("""
             select r from WarehouseProductReservation r
             where r.warehouse.id = :warehouseId

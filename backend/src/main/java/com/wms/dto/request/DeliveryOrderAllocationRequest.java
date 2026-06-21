@@ -22,8 +22,8 @@ public class DeliveryOrderAllocationRequest {
     @NotNull
     private Long locationId;
 
-    @NotNull
     private Long zoneId;
+
 
     @NotNull
     @DecimalMin(value = "0.0", inclusive = false)

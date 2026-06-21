@@ -11,11 +11,14 @@ import com.wms.dto.request.DeliveryOrderUpdateRequest;
 import com.wms.dto.request.DeliveryOrderWarehouseApprovalRequest;
 import com.wms.dto.request.DeliveryOrderWarehouseRejectRequest;
 import com.wms.dto.response.DeliveryOrderResponse;
+import com.wms.dto.response.PickingCandidateResponse;
 import com.wms.entity.User;
 import java.util.List;
+import java.util.Map;
 
 public interface DeliveryOrderService {
     List<DeliveryOrderResponse> getAllDeliveryOrders(User actor);
+    Map<Long, List<PickingCandidateResponse>> getPickingCandidates(Long doId, User actor);
     DeliveryOrderResponse getDeliveryOrderById(Long id, User actor);
     DeliveryOrderResponse createDeliveryOrder(DeliveryOrderCreateRequest request, User actor);
     DeliveryOrderResponse updateDeliveryOrder(Long id, DeliveryOrderUpdateRequest request, User actor);

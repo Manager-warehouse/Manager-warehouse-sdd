@@ -188,6 +188,43 @@ class DeliveryOrderServiceImplTest {
     }
 
     @Test
+    void saveDeliveryOrderPickingPlan_autoBuildsFifoAllocationsWhenRequestIsEmpty() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.NEW);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("10.00"));
+        item.setPlannedQty(ZERO);
+        reservation.setReservedQty(new BigDecimal("10.00"));
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
+        when(deliveryOrderItemRepository.findByDeliveryOrderId(100L)).thenReturn(List.of(item));
+        when(allocationRepository.findByDeliveryOrderItemDeliveryOrderId(100L)).thenReturn(List.of());
+        when(inventoryRepository.findValidFifoCandidates(20L, 30L)).thenReturn(List.of(inventory));
+        when(inventoryRepository.findByIdInWithLock(List.of(501L))).thenReturn(List.of(inventory));
+        when(reservationRepository.findWithWarehouseAndProductByWarehouseIdAndProductIdForUpdate(20L, 30L))
+                .thenReturn(Optional.of(reservation));
+        when(reservationRepository.save(any(WarehouseProductReservation.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(inventoryRepository.save(any(Inventory.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(allocationRepository.save(any(DeliveryOrderItemAllocation.class))).thenAnswer(invocation -> {
+            DeliveryOrderItemAllocation saved = invocation.getArgument(0);
+            saved.setId(900L);
+            return saved;
+        });
+        when(deliveryOrderItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(deliveryOrderRepository.save(any(DeliveryOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DeliveryOrderPickingPlanRequest request = new DeliveryOrderPickingPlanRequest();
+        request.setAllocations(List.of());
+        request.setReturnToBinRecords(List.of());
+
+        DeliveryOrderResponse response = service.saveDeliveryOrderPickingPlan(100L, request, storekeeper);
+
+        assertThat(response.getStatus()).isEqualTo(DeliveryOrderStatus.WAITING_PICKING);
+        assertThat(response.getItems()).hasSize(1);
+        assertThat(response.getItems().get(0).getAllocations()).hasSize(1);
+        assertThat(response.getItems().get(0).getAllocations().get(0).getLocationId()).isEqualTo(801L);
+        assertThat(response.getItems().get(0).getAllocations().get(0).getZoneId()).isEqualTo(31L);
+    }
+
+    @Test
     void createDeliveryOrder_incrementsWarehouseProductReservation() {
         stubSuccessfulCreate(new BigDecimal("100.00"));
 

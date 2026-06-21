@@ -1,6 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, Clock, Eye, Loader2, PackageCheck, Plus, Search, Truck, X } from 'lucide-react';
+import {
+  AlertTriangle,
+  Clock,
+  Eye,
+  Loader2,
+  PackageCheck,
+  Plus,
+  Search,
+  Truck,
+  X,
+} from 'lucide-react';
 import { outboundService } from '../../services/outbound.service';
 import { masterDataService } from '../../services/masterData.service';
 import { useAuthStore } from '../../stores/auth.store';
@@ -13,13 +23,32 @@ import { ROLES } from '../../utils/constants';
 
 const DO_STATUS_MAP = {
   NEW: { label: 'Mới', color: 'bg-zinc-100 text-zinc-800 border-zinc-200' },
-  PICKING: { label: 'Đang soạn', color: 'bg-blue-50 text-blue-700 border-blue-200' },
-  READY_TO_SHIP: { label: 'Chờ vận chuyển', color: 'bg-amber-50 text-amber-700 border-amber-200' },
+  WAITING_PICKING: { label: 'Chờ lấy hàng/QC', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+  QC_PENDING_APPROVAL: { label: 'Chờ duyệt QC', color: 'bg-violet-50 text-violet-700 border-violet-200' },
+  QC_COMPLETED: { label: 'QC xong', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  WAREHOUSE_APPROVED: { label: 'Chờ vận chuyển', color: 'bg-amber-50 text-amber-700 border-amber-200' },
   IN_TRANSIT: { label: 'Đang giao', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-  DELIVERED: { label: 'Đã giao', color: 'bg-aloe-10 text-emerald-900 border-emerald-300' },
+  COMPLETED: { label: 'Đã giao', color: 'bg-emerald-50 text-emerald-900 border-emerald-300' },
   RETURNED: { label: 'Hoàn trả', color: 'bg-orange-50 text-orange-700 border-orange-200' },
+  REJECTED: { label: 'Bị từ chối', color: 'bg-rose-50 text-rose-700 border-rose-200' },
   CANCELLED: { label: 'Đã hủy', color: 'bg-red-50 text-red-700 border-red-200' },
 };
+
+const STATUS_OPTIONS = [
+  { value: 'ALL', label: 'Tất cả' },
+  { value: 'NEW', label: 'Mới' },
+  { value: 'WAITING_PICKING', label: 'Chờ lấy hàng/QC' },
+  { value: 'QC_PENDING_APPROVAL', label: 'Chờ duyệt QC' },
+  { value: 'QC_COMPLETED', label: 'QC xong' },
+  { value: 'WAREHOUSE_APPROVED', label: 'Chờ vận chuyển' },
+  { value: 'IN_TRANSIT', label: 'Đang giao' },
+  { value: 'COMPLETED', label: 'Đã giao' },
+  { value: 'RETURNED', label: 'Hoàn trả' },
+  { value: 'REJECTED', label: 'Bị từ chối' },
+  { value: 'CANCELLED', label: 'Đã hủy' },
+];
+
+const emptyForm = { dealer_id: '', expected_delivery_date: '', notes: '', items: [] };
 
 const getStatusBadge = (status) => {
   const base = 'text-[10px] font-semibold px-2 py-0.5 rounded-pill border uppercase tracking-wider whitespace-nowrap';
@@ -27,7 +56,21 @@ const getStatusBadge = (status) => {
   return <span className={`${base} ${color}`}>{label}</span>;
 };
 
-const emptyForm = { dealer_id: '', expected_delivery_date: '', notes: '', items: [] };
+const getRoleHint = (order, hasRole) => {
+  if (hasRole(ROLES.STOREKEEPER) && order.status === 'NEW') {
+    return 'Thủ kho lập kế hoạch lấy hàng';
+  }
+  if (hasRole(ROLES.WAREHOUSE_STAFF) && order.status === 'WAITING_PICKING') {
+    return 'Nhân viên kho nhập kết quả lấy hàng/QC';
+  }
+  if (hasRole(ROLES.STOREKEEPER) && order.status === 'QC_PENDING_APPROVAL') {
+    return 'Thủ kho duyệt kết quả QC';
+  }
+  if (hasRole(ROLES.WAREHOUSE_MANAGER) && order.status === 'QC_COMPLETED') {
+    return 'Quản lý kho phê duyệt xuất kho';
+  }
+  return 'Theo dõi chi tiết đơn xuất';
+};
 
 export default function DeliveryOrders() {
   const navigate = useNavigate();
@@ -57,7 +100,10 @@ export default function DeliveryOrders() {
   const fetchOrders = async () => {
     setLoading(true);
     try {
-      const data = await outboundService.getDeliveryOrders(activeWarehouse?.id, { status: statusFilter, search });
+      const data = await outboundService.getDeliveryOrders(activeWarehouse?.id, {
+        status: statusFilter,
+        search,
+      });
       setOrders(data);
     } catch (error) {
       addToast(error.message || 'Lỗi khi tải danh sách đơn xuất hàng', 'error');
@@ -97,13 +143,13 @@ export default function DeliveryOrders() {
         items[index].unit_price = Number(product.selling_price || product.unit_price || items[index].unit_price || 0);
       }
     }
-    setFormData({ ...formData, items });
+    setFormData((prev) => ({ ...prev, items }));
   };
 
   const removeItemRow = (index) => {
     const items = [...formData.items];
     items.splice(index, 1);
-    setFormData({ ...formData, items });
+    setFormData((prev) => ({ ...prev, items }));
   };
 
   const handleCreateSubmit = async () => {
@@ -111,15 +157,15 @@ export default function DeliveryOrders() {
       addToast('Vui lòng chọn kho trước khi lập đơn xuất', 'error');
       return;
     }
-    if (formData.items.length === 0) {
+    if (!formData.items.length) {
       addToast('Vui lòng thêm ít nhất 1 sản phẩm', 'error');
       return;
     }
-    const invalidItem = formData.items.some((item) => !item.product_id || Number(item.requested_qty) <= 0);
-    if (invalidItem) {
+    if (formData.items.some((item) => !item.product_id || Number(item.requested_qty) <= 0)) {
       addToast('Sản phẩm và số lượng phải hợp lệ', 'error');
       return;
     }
+
     setSubmitting(true);
     try {
       await outboundService.createDeliveryOrder({
@@ -155,11 +201,11 @@ export default function DeliveryOrders() {
   };
 
   const totalDO = orders.length;
-  const pickingDO = orders.filter((order) => order.status === 'PICKING').length;
-  const readyDO = orders.filter((order) => order.status === 'READY_TO_SHIP').length;
-  const inTransitDO = orders.filter((order) => order.status === 'IN_TRANSIT').length;
+  const waitingPickingDO = orders.filter((order) => order.status === 'WAITING_PICKING').length;
+  const qcPendingDO = orders.filter((order) => order.status === 'QC_PENDING_APPROVAL').length;
+  const approvedDO = orders.filter((order) => order.status === 'WAREHOUSE_APPROVED').length;
   const creditStatus = selectedDealerObj?.id === 4 ? 'BLOCKED' : selectedDealerObj?.id === 2 ? 'WARNING' : selectedDealerObj ? 'OK' : null;
-  const isSubmitDisabled = !formData.dealer_id || !formData.expected_delivery_date || formData.items.length === 0 || creditStatus === 'BLOCKED' || submitting;
+  const isSubmitDisabled = !formData.dealer_id || !formData.expected_delivery_date || !formData.items.length || creditStatus === 'BLOCKED' || submitting;
 
   return (
     <div className="flex flex-col gap-6">
@@ -168,10 +214,10 @@ export default function DeliveryOrders() {
           <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">Vận hành / Xuất kho</span>
           <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">Đơn xuất hàng</h1>
           <p className="text-xs text-shade-50 font-light mt-1">
-            Quản lý lệnh xuất cho đại lý tại kho <span className="font-semibold text-ink">{activeWarehouse?.name} ({activeWarehouse?.code})</span>.
+            Quản lý lệnh xuất tại kho <span className="font-semibold text-ink">{activeWarehouse?.name} ({activeWarehouse?.code})</span>.
           </p>
         </div>
-        {(hasRole(ROLES.PLANNER) || hasRole(ROLES.ADMIN)) && (
+        {hasRole(ROLES.PLANNER) && (
           <button onClick={() => setShowCreateModal(true)} className="btn-pill btn-pill-primary flex items-center gap-2">
             <Plus className="w-4 h-4" />
             <span>Lập đơn xuất mới</span>
@@ -182,9 +228,9 @@ export default function DeliveryOrders() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           { label: 'Tổng đơn', value: totalDO, icon: <PackageCheck className="w-5 h-5" />, accent: 'text-zinc-600 bg-zinc-100' },
-          { label: 'Đang soạn', value: pickingDO, icon: <Clock className="w-5 h-5" />, accent: 'text-blue-600 bg-blue-50' },
-          { label: 'Chờ vận chuyển', value: readyDO, icon: <PackageCheck className="w-5 h-5" />, accent: 'text-amber-600 bg-amber-50' },
-          { label: 'Đang giao', value: inTransitDO, icon: <Truck className="w-5 h-5" />, accent: 'text-indigo-600 bg-indigo-50' },
+          { label: 'Chờ lấy hàng/QC', value: waitingPickingDO, icon: <Clock className="w-5 h-5" />, accent: 'text-blue-600 bg-blue-50' },
+          { label: 'Chờ duyệt QC', value: qcPendingDO, icon: <PackageCheck className="w-5 h-5" />, accent: 'text-violet-600 bg-violet-50' },
+          { label: 'Chờ vận chuyển', value: approvedDO, icon: <Truck className="w-5 h-5" />, accent: 'text-amber-600 bg-amber-50' },
         ].map(({ label, value, icon, accent }) => (
           <div key={label} className="bg-white rounded-lg border border-hairline-light p-4 shadow-sm flex items-center gap-3">
             <div className={`p-2.5 rounded-full ${accent}`}>{icon}</div>
@@ -210,14 +256,9 @@ export default function DeliveryOrders() {
         <div className="flex items-center gap-2">
           <span className="text-xs font-semibold text-shade-50">Trạng thái:</span>
           <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="text-input text-xs py-1.5">
-            <option value="ALL">Tất cả</option>
-            <option value="NEW">Mới</option>
-            <option value="PICKING">Đang soạn</option>
-            <option value="READY_TO_SHIP">Chờ vận chuyển</option>
-            <option value="IN_TRANSIT">Đang giao</option>
-            <option value="DELIVERED">Đã giao</option>
-            <option value="RETURNED">Hoàn trả</option>
-            <option value="CANCELLED">Đã hủy</option>
+            {STATUS_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
           </select>
         </div>
       </div>
@@ -230,7 +271,7 @@ export default function DeliveryOrders() {
         <div className="bg-white rounded-lg border border-hairline-light p-12 text-center shadow-sm">
           <PackageCheck className="w-12 h-12 text-shade-30 mx-auto mb-4" />
           <h3 className="text-lg font-bold mb-1">Không tìm thấy đơn xuất hàng nào</h3>
-          <p className="text-sm text-shade-50">Thay đổi bộ lọc hoặc tạo một đơn mới để bắt đầu.</p>
+          <p className="text-sm text-shade-50">Thử đổi bộ lọc hoặc tạo một đơn mới để bắt đầu.</p>
         </div>
       ) : (
         <div className="bg-white rounded-lg border border-hairline-light shadow-sm overflow-hidden card-premium">
@@ -247,42 +288,62 @@ export default function DeliveryOrders() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-hairline-light">
-                {orders.map((order) => (
-                  <tr key={order.id} className="hover:bg-zinc-50 transition-colors">
-                    <td className="px-6 py-4 text-xs font-bold">{order.do_number}</td>
-                    <td className="px-6 py-4 text-xs font-semibold">{order.dealer_name}</td>
-                    <td className="px-6 py-4 text-xs text-shade-50">{order.document_date ? new Date(order.document_date).toLocaleDateString('vi-VN') : '-'}</td>
-                    <td className="px-6 py-4 text-xs text-shade-50">{order.expected_delivery_date ? new Date(order.expected_delivery_date).toLocaleDateString('vi-VN') : '-'}</td>
-                    <td className="px-6 py-4">{getStatusBadge(order.status)}</td>
-                    <td className="px-6 py-4 text-right whitespace-nowrap">
-                      <div className="flex gap-2 justify-end items-center">
-                        {(hasRole(ROLES.PLANNER) || hasRole(ROLES.ADMIN)) && order.status === 'NEW' && (
-                          <button
-                            onClick={() => setCancelModal({ show: true, orderId: order.id, reason: '' })}
-                            className="inline-flex items-center justify-center rounded-full border border-red-300 text-red-600 hover:bg-red-50 px-3 py-1 text-xs font-semibold transition-colors"
-                          >
-                            Hủy đơn
-                          </button>
-                        )}
-                        {(hasRole(ROLES.STOREKEEPER) || hasRole(ROLES.ADMIN)) && ['NEW', 'PICKING'].includes(order.status) && (
+                {orders.map((order) => {
+                  const canCancel = hasRole(ROLES.WAREHOUSE_MANAGER)
+                    && ['NEW', 'WAITING_PICKING', 'QC_PENDING_APPROVAL', 'QC_COMPLETED'].includes(order.status);
+                  const canOpenPicking = hasRole(ROLES.STOREKEEPER)
+                    && ['NEW', 'WAITING_PICKING', 'QC_PENDING_APPROVAL', 'QC_COMPLETED'].includes(order.status);
+                  const canOpenQcEntry = hasRole(ROLES.WAREHOUSE_STAFF)
+                    && order.status === 'WAITING_PICKING';
+
+                  return (
+                    <tr key={order.id} className="hover:bg-zinc-50 transition-colors">
+                      <td className="px-6 py-4 text-xs font-bold">{order.do_number}</td>
+                      <td className="px-6 py-4">
+                        <p className="text-xs font-semibold">{order.dealer_name}</p>
+                        <p className="text-[11px] text-shade-40 mt-1">{getRoleHint(order, hasRole)}</p>
+                      </td>
+                      <td className="px-6 py-4 text-xs text-shade-50">{order.document_date ? new Date(order.document_date).toLocaleDateString('vi-VN') : '-'}</td>
+                      <td className="px-6 py-4 text-xs text-shade-50">{order.expected_delivery_date ? new Date(order.expected_delivery_date).toLocaleDateString('vi-VN') : '-'}</td>
+                      <td className="px-6 py-4">{getStatusBadge(order.status)}</td>
+                      <td className="px-6 py-4 text-right whitespace-nowrap">
+                        <div className="flex gap-2 justify-end items-center">
+                          {canCancel && (
+                            <button
+                              onClick={() => setCancelModal({ show: true, orderId: order.id, reason: '' })}
+                              className="inline-flex items-center justify-center rounded-full border border-red-300 text-red-600 hover:bg-red-50 px-3 py-1 text-xs font-semibold transition-colors"
+                            >
+                              Hủy đơn
+                            </button>
+                          )}
+                          {canOpenPicking && (
+                            <button
+                              onClick={() => navigate(`/outbound/delivery-orders/${order.id}`)}
+                              className="inline-flex items-center justify-center rounded-full border border-ink bg-canvas-light text-ink hover:bg-zinc-100 px-3 py-1 text-xs font-semibold transition-colors"
+                            >
+                              {order.status === 'NEW' ? 'Lập kế hoạch lấy hàng' : 'Duyệt xử lý kho'}
+                            </button>
+                          )}
+                          {canOpenQcEntry && (
+                            <button
+                              onClick={() => navigate(`/outbound/delivery-orders/${order.id}`)}
+                              className="inline-flex items-center justify-center rounded-full border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 px-3 py-1 text-xs font-semibold transition-colors"
+                            >
+                              Nhập kết quả lấy hàng/QC
+                            </button>
+                          )}
                           <button
                             onClick={() => navigate(`/outbound/delivery-orders/${order.id}`)}
-                            className="inline-flex items-center justify-center rounded-full border border-ink bg-canvas-light text-ink hover:bg-zinc-100 px-3 py-1 text-xs font-semibold transition-colors"
+                            className="p-1.5 hover:bg-zinc-200 rounded-full text-shade-50 hover:text-ink transition-colors flex items-center justify-center"
+                            title="Xem chi tiết"
                           >
-                            Soạn hàng
+                            <Eye className="w-4 h-4" />
                           </button>
-                        )}
-                        <button
-                          onClick={() => navigate(`/outbound/delivery-orders/${order.id}`)}
-                          className="p-1.5 hover:bg-zinc-200 rounded-full text-shade-50 hover:text-ink transition-colors flex items-center justify-center"
-                          title="Xem chi tiết"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -298,22 +359,25 @@ export default function DeliveryOrders() {
               type="select"
               value={formData.dealer_id}
               onChange={(event) => {
-                setFormData({ ...formData, dealer_id: event.target.value });
+                setFormData((prev) => ({ ...prev, dealer_id: event.target.value }));
                 setSelectedDealerObj(dealers.find((dealer) => Number(dealer.id) === Number(event.target.value)));
               }}
-              options={[{ value: '', label: '-- Chọn đại lý --' }, ...dealers.map((dealer) => ({ value: dealer.id, label: dealer.name || dealer.company_name }))]}
+              options={[
+                { value: '', label: '-- Chọn đại lý --' },
+                ...dealers.map((dealer) => ({ value: dealer.id, label: dealer.name || dealer.company_name })),
+              ]}
             />
             <Input
               label="Ngày giao dự kiến *"
               type="date"
               value={formData.expected_delivery_date}
-              onChange={(event) => setFormData({ ...formData, expected_delivery_date: event.target.value })}
+              onChange={(event) => setFormData((prev) => ({ ...prev, expected_delivery_date: event.target.value }))}
             />
             <div className="col-span-2">
               <Input
                 label="Ghi chú"
                 value={formData.notes}
-                onChange={(event) => setFormData({ ...formData, notes: event.target.value })}
+                onChange={(event) => setFormData((prev) => ({ ...prev, notes: event.target.value }))}
                 placeholder="Ghi chú về đơn hàng..."
               />
             </div>
@@ -333,11 +397,11 @@ export default function DeliveryOrders() {
                     <th className="px-4 py-3 font-bold text-shade-60 uppercase tracking-wider">Sản phẩm</th>
                     <th className="px-4 py-3 font-bold text-shade-60 uppercase tracking-wider w-28">Số lượng</th>
                     <th className="px-4 py-3 font-bold text-shade-60 uppercase tracking-wider w-36">Đơn giá</th>
-                    <th className="px-4 py-3 w-10"></th>
+                    <th className="px-4 py-3 w-10" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-hairline-light">
-                  {formData.items.length === 0 && (
+                  {!formData.items.length && (
                     <tr>
                       <td colSpan="4" className="px-4 py-8 text-center text-shade-40 italic text-xs">
                         Chưa có sản phẩm nào. Nhấn Thêm sản phẩm để bắt đầu.
@@ -345,7 +409,7 @@ export default function DeliveryOrders() {
                     </tr>
                   )}
                   {formData.items.map((item, index) => (
-                    <tr key={index} className="hover:bg-zinc-50/50">
+                    <tr key={`${item.product_id || 'new'}-${index}`} className="hover:bg-zinc-50/50">
                       <td className="px-4 py-2.5">
                         <select
                           className="w-full bg-canvas-light text-ink text-sm px-3 py-2.5 rounded-md border border-hairline-light focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink transition-all"
@@ -403,7 +467,7 @@ export default function DeliveryOrders() {
           <Input
             label="Lý do hủy *"
             value={cancelModal.reason}
-            onChange={(event) => setCancelModal({ ...cancelModal, reason: event.target.value })}
+            onChange={(event) => setCancelModal((prev) => ({ ...prev, reason: event.target.value }))}
             placeholder="Nhập lý do hủy đơn này..."
           />
           <div className="flex justify-end gap-3 border-t border-hairline-light pt-4">

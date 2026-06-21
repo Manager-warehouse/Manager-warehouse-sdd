@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Calendar, CheckCircle2, Eye, Loader2, MapPin, Package, Play, Plus, Search, Truck, User } from 'lucide-react';
+import { Calendar, Eye, Loader2, Package, Plus, Search, Truck, User } from 'lucide-react';
 import { outboundService } from '../../services/outbound.service';
 import { masterDataService } from '../../services/masterData.service';
 import { useAuthStore } from '../../stores/auth.store';
@@ -14,17 +14,17 @@ import { ROLES } from '../../utils/constants';
 const TRIP_STATUS_MAP = {
   PLANNED: { label: 'Lên kế hoạch', color: 'bg-zinc-100 text-zinc-800 border-zinc-200' },
   IN_TRANSIT: { label: 'Đang giao', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-  COMPLETED: { label: 'Hoàn thành', color: 'bg-aloe-10 text-emerald-900 border-emerald-300' },
+  COMPLETED: { label: 'Hoàn thành', color: 'bg-emerald-50 text-emerald-900 border-emerald-300' },
   CANCELLED: { label: 'Đã hủy', color: 'bg-red-50 text-red-700 border-red-200' },
 };
+
+const emptyForm = { vehicle_id: '', driver_id: '', planned_date: '', notes: '', delivery_orders: [] };
 
 const getTripStatusBadge = (status) => {
   const base = 'text-[10px] font-semibold px-2 py-0.5 rounded-pill border uppercase tracking-wider whitespace-nowrap';
   const { label, color } = TRIP_STATUS_MAP[status] ?? { label: status, color: 'bg-zinc-100 text-zinc-800 border-zinc-200' };
   return <span className={`${base} ${color}`}>{label}</span>;
 };
-
-const emptyForm = { vehicle_id: '', driver_id: '', planned_date: '', notes: '', delivery_orders: [] };
 
 export default function TripPlanning() {
   const navigate = useNavigate();
@@ -44,7 +44,6 @@ export default function TripPlanning() {
   const [selectedVehicleObj, setSelectedVehicleObj] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [detailTrip, setDetailTrip] = useState(null);
-  const [detailLoading, setDetailLoading] = useState(false);
 
   useEffect(() => {
     fetchTrips();
@@ -55,8 +54,12 @@ export default function TripPlanning() {
   }, []);
 
   useEffect(() => {
-    if (routeId) openDetailModal(Number(routeId));
-  }, [routeId]);
+    if (!routeId || !trips.length) return;
+    const trip = trips.find((item) => Number(item.id) === Number(routeId));
+    if (trip) {
+      setDetailTrip(trip);
+    }
+  }, [routeId, trips]);
 
   const fetchTrips = async () => {
     setLoading(true);
@@ -85,15 +88,15 @@ export default function TripPlanning() {
 
   const openCreateModal = async () => {
     try {
-      const orders = await outboundService.getDeliveryOrders(activeWarehouse?.id, { status: 'READY_TO_SHIP' });
+      const orders = await outboundService.getDeliveryOrders(activeWarehouse?.id, { status: 'WAREHOUSE_APPROVED' });
       setAvailableDOs(orders.map((order) => ({
         ...order,
         weight: Number(order.total_weight_kg || order.items?.reduce((sum, item) => sum + Number(item.requested_qty || 0) * 5, 0) || 50),
       })));
+      setShowCreateModal(true);
     } catch (error) {
       addToast(error.message || 'Không thể tải đơn chờ vận chuyển', 'error');
     }
-    setShowCreateModal(true);
   };
 
   const toggleDOSelection = (order) => {
@@ -112,11 +115,11 @@ export default function TripPlanning() {
     if (index === 0) return;
     const orders = [...formData.delivery_orders];
     [orders[index - 1], orders[index]] = [orders[index], orders[index - 1]];
-    setFormData({ ...formData, delivery_orders: orders });
+    setFormData((prev) => ({ ...prev, delivery_orders: orders }));
   };
 
   const handleCreateSubmit = async () => {
-    if (formData.delivery_orders.length === 0) {
+    if (!formData.delivery_orders.length) {
       addToast('Vui lòng chọn ít nhất 1 đơn xuất hàng', 'error');
       return;
     }
@@ -125,6 +128,7 @@ export default function TripPlanning() {
       addToast('Tổng khối lượng vượt quá tải trọng của xe', 'error');
       return;
     }
+
     setSubmitting(true);
     try {
       const driver = drivers.find((item) => Number(item.id) === Number(formData.driver_id));
@@ -147,27 +151,10 @@ export default function TripPlanning() {
     }
   };
 
-  const handleDepart = async (tripId) => {
-    try {
-      await outboundService.departTrip(tripId);
-      addToast('Chuyến xe đã xuất bến', 'success');
-      fetchTrips();
-    } catch (error) {
-      addToast(error.message || 'Lỗi khi xác nhận xuất bến', 'error');
-    }
-  };
-
-  const openDetailModal = async (tripId) => {
-    setDetailLoading(true);
-    setDetailTrip(null);
-    try {
-      const data = await outboundService.getTripById(tripId);
-      setDetailTrip(data);
-    } catch (error) {
-      addToast(error.message || 'Không thể tải chi tiết chuyến xe', 'error');
-      navigate('/outbound/trips');
-    } finally {
-      setDetailLoading(false);
+  const openDetailModal = (trip) => {
+    setDetailTrip(trip);
+    if (routeId !== String(trip.id)) {
+      navigate(`/outbound/trips/${trip.id}`);
     }
   };
 
@@ -176,17 +163,20 @@ export default function TripPlanning() {
     if (routeId) navigate('/outbound/trips');
   };
 
+  const filteredTrips = useMemo(() => {
+    return trips.filter((trip) => {
+      const query = search.toLowerCase();
+      return !search
+        || trip.trip_number?.toLowerCase().includes(query)
+        || trip.vehicle_plate?.toLowerCase().includes(query)
+        || trip.driver_name?.toLowerCase().includes(query);
+    });
+  }, [search, trips]);
+
   const currentWeight = formData.delivery_orders.reduce((sum, order) => sum + Number(order.weight || 0), 0);
   const maxWeight = Number(selectedVehicleObj?.max_weight_kg || selectedVehicleObj?.maxWeightKg || 0);
   const isOverweight = selectedVehicleObj && currentWeight > maxWeight;
-  const isSubmitDisabled = !formData.vehicle_id || !formData.driver_id || !formData.planned_date || formData.delivery_orders.length === 0 || isOverweight || submitting;
-  const filteredTrips = trips.filter((trip) => {
-    if (!search) return true;
-    const query = search.toLowerCase();
-    return trip.trip_number?.toLowerCase().includes(query)
-      || trip.vehicle_plate?.toLowerCase().includes(query)
-      || trip.driver_name?.toLowerCase().includes(query);
-  });
+  const isSubmitDisabled = !formData.vehicle_id || !formData.driver_id || !formData.planned_date || !formData.delivery_orders.length || isOverweight || submitting;
 
   return (
     <div className="flex flex-col gap-6">
@@ -198,7 +188,7 @@ export default function TripPlanning() {
             Lập chuyến và điều phối giao hàng từ kho <span className="font-semibold text-ink">{activeWarehouse?.name} ({activeWarehouse?.code})</span>.
           </p>
         </div>
-        {(hasRole(ROLES.DISPATCHER) || hasRole(ROLES.ADMIN)) && (
+        {hasRole(ROLES.DISPATCHER) && (
           <button onClick={openCreateModal} className="btn-pill btn-pill-primary flex items-center gap-2">
             <Plus className="w-4 h-4" />
             <span>Lập chuyến mới</span>
@@ -224,6 +214,7 @@ export default function TripPlanning() {
             <option value="PLANNED">Lên kế hoạch</option>
             <option value="IN_TRANSIT">Đang giao</option>
             <option value="COMPLETED">Hoàn thành</option>
+            <option value="CANCELLED">Đã hủy</option>
           </select>
         </div>
       </div>
@@ -236,7 +227,7 @@ export default function TripPlanning() {
         <div className="bg-white rounded-lg border border-hairline-light p-12 text-center shadow-sm">
           <Truck className="w-12 h-12 text-shade-30 mx-auto mb-4" />
           <h3 className="text-lg font-bold mb-1">Không tìm thấy chuyến xe nào</h3>
-          <p className="text-sm text-shade-50">Thay đổi bộ lọc hoặc tạo chuyến mới để bắt đầu.</p>
+          <p className="text-sm text-shade-50">Thử đổi bộ lọc hoặc tạo chuyến mới để bắt đầu.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -253,31 +244,17 @@ export default function TripPlanning() {
                 <p className="text-xs"><span className="text-shade-50">Tổng KL:</span> <span className="font-semibold text-ink">{trip.total_weight_kg} kg</span></p>
               </div>
               <div className="p-4 border-t border-hairline-light flex gap-2">
-                <button onClick={() => openDetailModal(trip.id)} className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-full border border-hairline-light bg-white text-ink hover:bg-zinc-50 px-3 py-1.5 text-xs font-semibold transition-colors">
+                <button onClick={() => openDetailModal(trip)} className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-full border border-hairline-light bg-white text-ink hover:bg-zinc-50 px-3 py-1.5 text-xs font-semibold transition-colors">
                   <Eye className="w-3.5 h-3.5" /> Chi tiết
                 </button>
-                {trip.status === 'PLANNED' && (hasRole(ROLES.DISPATCHER) || hasRole(ROLES.ADMIN)) && (
-                  <button onClick={() => handleDepart(trip.id)} className="flex-1 inline-flex items-center justify-center gap-1.5 btn-pill btn-pill-primary px-3 py-1.5 text-xs">
-                    <Play className="w-3.5 h-3.5" /> Xuất bến
-                  </button>
-                )}
-                {trip.status === 'IN_TRANSIT' && (hasRole(ROLES.DRIVER) || hasRole(ROLES.ADMIN)) && (
-                  <button onClick={() => navigate(`/outbound/driver/trips/${trip.id}`)} className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 px-3 py-1.5 text-xs font-semibold transition-colors">
-                    <Truck className="w-3.5 h-3.5" /> Lộ trình
-                  </button>
-                )}
               </div>
             </div>
           ))}
         </div>
       )}
 
-      <Modal isOpen={!!(detailLoading || detailTrip)} onClose={closeDetailModal} title={detailTrip?.trip_number ?? 'Chi tiết chuyến xe'} maxWidth="max-w-2xl">
-        {detailLoading ? (
-          <div className="flex items-center justify-center p-16">
-            <Loader2 className="w-7 h-7 animate-spin text-shade-50" />
-          </div>
-        ) : detailTrip && (
+      <Modal isOpen={!!detailTrip} onClose={closeDetailModal} title={detailTrip?.trip_number ?? 'Chi tiết chuyến xe'} maxWidth="max-w-2xl">
+        {detailTrip && (
           <div className="flex flex-col gap-6">
             <div className="grid grid-cols-2 gap-3">
               {[
@@ -301,34 +278,28 @@ export default function TripPlanning() {
                 <p className="text-xs text-shade-40 italic text-center py-4">Chưa có điểm giao nào</p>
               ) : (
                 <div className="space-y-3">
-                  {detailTrip.delivery_orders.map((stop, index) => {
-                    const isDelivered = stop.delivery_status === 'DELIVERED';
-                    const isFailed = stop.delivery_status === 'FAILED';
-                    return (
-                      <div key={`${stop.do_id}-${index}`} className={`rounded-lg border p-4 flex gap-3 ${isDelivered ? 'bg-aloe-10 border-emerald-300' : isFailed ? 'bg-red-50 border-red-200' : 'bg-canvas-cream border-hairline-light'}`}>
-                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${isDelivered ? 'bg-emerald-600 text-white' : isFailed ? 'bg-red-500 text-white' : 'bg-ink text-white'}`}>
-                          {index + 1}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold text-ink">{stop.dealer_name}</p>
-                          {stop.dealer_address && <p className="text-xs text-shade-40 mt-0.5 flex items-center gap-1"><MapPin className="w-3 h-3 shrink-0" /> {stop.dealer_address}</p>}
-                          <p className="text-xs text-shade-50 mt-1 font-mono">{stop.do_number}</p>
-                        </div>
-                        <div className="shrink-0">{getTripStatusBadge(isDelivered ? 'COMPLETED' : isFailed ? 'CANCELLED' : 'PLANNED')}</div>
+                  {detailTrip.delivery_orders.map((stop, index) => (
+                    <div key={`${stop.do_id}-${index}`} className="rounded-lg border p-4 flex gap-3 bg-canvas-cream border-hairline-light">
+                      <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 bg-ink text-white">
+                        {index + 1}
                       </div>
-                    );
-                  })}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-ink">{stop.dealer_name || stop.do_number}</p>
+                        <p className="text-xs text-shade-40 mt-0.5 font-mono">{stop.do_number}</p>
+                      </div>
+                      <div className="shrink-0 text-xs font-semibold text-shade-50">{stop.raw_status || stop.status || '-'}</div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
 
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800">
+              Frontend này đã đồng bộ với backend hiện tại: dispatcher chỉ lập/xem trip, không xuất bến. Driver sẽ xác nhận depart trong màn hình driver.
+            </div>
+
             <div className="flex justify-end gap-3 border-t border-hairline-light pt-4">
               <Button variant="outline-light" onClick={closeDetailModal}>Đóng</Button>
-              {detailTrip.status === 'PLANNED' && (hasRole(ROLES.DISPATCHER) || hasRole(ROLES.ADMIN)) && (
-                <Button variant="primary" icon={Play} onClick={async () => { await handleDepart(detailTrip.id); closeDetailModal(); }}>
-                  Xuất bến
-                </Button>
-              )}
             </div>
           </div>
         )}
@@ -343,27 +314,41 @@ export default function TripPlanning() {
                 type="select"
                 value={formData.vehicle_id}
                 onChange={(event) => {
-                  setFormData({ ...formData, vehicle_id: event.target.value });
+                  setFormData((prev) => ({ ...prev, vehicle_id: event.target.value }));
                   setSelectedVehicleObj(vehicles.find((vehicle) => Number(vehicle.id) === Number(event.target.value)));
                 }}
-                options={[{ value: '', label: '-- Chọn xe --' }, ...vehicles.map((vehicle) => ({ value: vehicle.id, label: `${vehicle.plate_number || vehicle.plate || vehicle.license_plate} (Tải: ${vehicle.max_weight_kg || vehicle.maxWeightKg || 0}kg)` }))]}
+                options={[
+                  { value: '', label: '-- Chọn xe --' },
+                  ...vehicles.map((vehicle) => ({
+                    value: vehicle.id,
+                    label: `${vehicle.plate_number || vehicle.plate || vehicle.license_plate} (Tải: ${vehicle.max_weight_kg || vehicle.maxWeightKg || 0}kg)`,
+                  })),
+                ]}
               />
               <Input
                 label="Tài xế *"
                 type="select"
                 value={formData.driver_id}
-                onChange={(event) => setFormData({ ...formData, driver_id: event.target.value })}
-                options={[{ value: '', label: '-- Chọn tài xế --' }, ...drivers.map((driver) => ({ value: driver.id, label: driver.full_name || driver.name }))]}
+                onChange={(event) => setFormData((prev) => ({ ...prev, driver_id: event.target.value }))}
+                options={[
+                  { value: '', label: '-- Chọn tài xế --' },
+                  ...drivers.map((driver) => ({ value: driver.id, label: driver.full_name || driver.name })),
+                ]}
               />
               <div className="col-span-2">
-                <Input label="Ngày thực hiện *" type="date" value={formData.planned_date} onChange={(event) => setFormData({ ...formData, planned_date: event.target.value })} />
+                <Input
+                  label="Ngày thực hiện *"
+                  type="date"
+                  value={formData.planned_date}
+                  onChange={(event) => setFormData((prev) => ({ ...prev, planned_date: event.target.value }))}
+                />
               </div>
             </div>
 
             <div>
               <span className="text-xs font-semibold uppercase tracking-wider text-shade-60 block mb-2">Chọn đơn xuất hàng chờ vận chuyển</span>
               <div className="border border-hairline-light rounded-lg overflow-hidden bg-canvas-light max-h-[260px] overflow-y-auto">
-                {availableDOs.length === 0 ? (
+                {!availableDOs.length ? (
                   <p className="p-6 text-center text-shade-40 text-xs italic">Không có đơn hàng nào chờ vận chuyển</p>
                 ) : (
                   availableDOs.map((order) => {
@@ -372,19 +357,16 @@ export default function TripPlanning() {
                       <button
                         type="button"
                         key={order.id}
-                        className={`w-full text-left px-4 py-3 border-b border-hairline-light flex items-center justify-between transition-colors ${isSelected ? 'bg-aloe-10 border-l-2 border-l-emerald-500' : 'hover:bg-zinc-50'}`}
+                        className={`w-full text-left px-4 py-3 border-b border-hairline-light flex items-center justify-between transition-colors ${
+                          isSelected ? 'bg-emerald-50 border-l-2 border-l-emerald-500' : 'hover:bg-zinc-50'
+                        }`}
                         onClick={() => toggleDOSelection(order)}
                       >
                         <div>
                           <p className="text-xs font-bold text-ink">{order.do_number}</p>
                           <p className="text-[11px] text-shade-40">{order.dealer_name}</p>
                         </div>
-                        <div className="flex items-center gap-3">
-                          <span className="text-[11px] font-medium text-shade-50">{order.weight}kg</span>
-                          <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${isSelected ? 'bg-emerald-600 border-emerald-600' : 'border-shade-30'}`}>
-                            {isSelected && <CheckCircle2 className="w-3 h-3 text-white" />}
-                          </div>
-                        </div>
+                        <div className="text-[11px] font-medium text-shade-50">{order.weight}kg</div>
                       </button>
                     );
                   })
@@ -395,10 +377,14 @@ export default function TripPlanning() {
 
           <div className="w-full md:w-[300px] bg-canvas-cream rounded-lg border border-hairline-light p-4 flex flex-col gap-4">
             <span className="text-xs font-bold uppercase tracking-widest text-shade-40">Lộ trình & tải trọng</span>
-            {selectedVehicleObj ? <TripCapacityBar currentWeight={currentWeight} maxWeight={maxWeight} /> : <p className="text-xs text-shade-40 italic">Chọn xe để xem tải trọng.</p>}
+            {selectedVehicleObj ? (
+              <TripCapacityBar currentWeight={currentWeight} maxWeight={maxWeight} />
+            ) : (
+              <p className="text-xs text-shade-40 italic">Chọn xe để xem tải trọng.</p>
+            )}
             <div className="flex-1">
               <span className="text-xs font-semibold text-shade-50 block mb-2">Thứ tự giao hàng</span>
-              {formData.delivery_orders.length === 0 ? (
+              {!formData.delivery_orders.length ? (
                 <div className="p-4 border-2 border-dashed border-shade-30 rounded-lg text-center text-shade-40 text-xs">Chưa chọn đơn hàng nào</div>
               ) : (
                 <div className="space-y-2">

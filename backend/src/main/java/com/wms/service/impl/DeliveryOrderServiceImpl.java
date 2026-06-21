@@ -16,6 +16,7 @@ import com.wms.dto.request.DeliveryOrderWarehouseApprovalRequest;
 import com.wms.dto.request.DeliveryOrderWarehouseRejectRequest;
 import com.wms.dto.request.DeliveryOrderWarehouseRejectReturnRequest;
 import com.wms.dto.response.DeliveryOrderResponse;
+import com.wms.dto.response.PickingCandidateResponse;
 import com.wms.entity.Adjustment;
 import com.wms.entity.Batch;
 import com.wms.entity.Dealer;
@@ -197,6 +198,54 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public Map<Long, List<PickingCandidateResponse>> getPickingCandidates(Long doId, User actor) {
+        requireRole(actor, UserRole.STOREKEEPER, "Only Storekeeper can view picking candidates");
+        DeliveryOrder order = findOrder(doId);
+        requireWarehouseScope(actor, order.getWarehouse().getId());
+
+        if (order.getStatus() != DeliveryOrderStatus.NEW
+                && order.getStatus() != DeliveryOrderStatus.WAITING_PICKING) {
+            // Outside picking window — return empty map, no candidates needed
+            return Map.of();
+        }
+
+        List<DeliveryOrderItem> orderItems = items(order.getId());
+        Long warehouseId = order.getWarehouse().getId();
+
+        Map<Long, List<PickingCandidateResponse>> result = new LinkedHashMap<>();
+        for (DeliveryOrderItem item : orderItems) {
+            Long productId = item.getProduct().getId();
+            List<Inventory> candidates = inventoryRepository.findValidFifoCandidates(warehouseId, productId);
+            List<PickingCandidateResponse> candidateResponses = candidates.stream()
+                    .map(inv -> toPickingCandidate(inv, item))
+                    .toList();
+            result.put(item.getId(), candidateResponses);
+        }
+        return result;
+    }
+
+    /** Maps an Inventory row + the parent zone (location.parent) to a PickingCandidateResponse. */
+    private PickingCandidateResponse toPickingCandidate(Inventory inv, DeliveryOrderItem item) {
+        WarehouseLocation bin = inv.getLocation();
+        // Parent of a BIN is the ZONE; parent of a ZONE is null
+        WarehouseLocation zone = (bin != null && bin.getParent() != null) ? bin.getParent() : bin;
+        Batch batch = inv.getBatch();
+        BigDecimal available = value(inv.getTotalQty()).subtract(value(inv.getReservedQty()));
+        return PickingCandidateResponse.builder()
+                .inventoryId(inv.getId())
+                .batchId(batch != null ? batch.getId() : null)
+                .batchCode(batch != null ? batch.getBatchNumber() : null)
+                .locationId(bin != null ? bin.getId() : null)
+                .locationCode(bin != null ? bin.getCode() : null)
+                .zoneId(zone != null ? zone.getId() : null)
+                .zoneCode(zone != null ? zone.getCode() : null)
+                .availableQty(available.compareTo(ZERO) < 0 ? ZERO : available)
+                .receivedDate(batch != null ? batch.getReceivedDate() : null)
+                .build();
+    }
+
+    @Override
     @Transactional
     public DeliveryOrderResponse createDeliveryOrder(DeliveryOrderCreateRequest request, User actor) {
         requireRole(actor, UserRole.PLANNER, "Only Planner can create Delivery Orders");
@@ -309,8 +358,10 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         List<DeliveryOrderItemAllocation> existingAllocations = allocations(order.getId());
         Map<String, Object> before = snapshot(order, null, List.of(), orderItems, existingAllocations);
 
+        List<DeliveryOrderAllocationRequest> allocationRequests =
+                preparePickingPlanRequests(order, orderItems, request.getAllocations());
         List<ResolvedAllocationSelection> requestedSelections =
-                resolvePickingSelections(order, orderItems, existingAllocations, request.getAllocations(), actor);
+                resolvePickingSelections(order, orderItems, existingAllocations, allocationRequests, actor);
         validateRequestedItemTotals(orderItems, requestedSelections);
 
         OffsetDateTime now = OffsetDateTime.now();
@@ -335,6 +386,19 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         auditUtil.logChange(actor, AuditAction.PICKING_PLAN_SAVE, "DELIVERY_ORDER", saved.getId(), saved.getDoNumber(),
                 before, snapshot(saved, null, reservationDeltas, orderItems, finalAllocations));
         return deliveryOrderMapper.toResponse(saved, orderItems, finalAllocations);
+    }
+
+    private List<DeliveryOrderAllocationRequest> preparePickingPlanRequests(DeliveryOrder order,
+                                                                            List<DeliveryOrderItem> orderItems,
+                                                                            List<DeliveryOrderAllocationRequest> requests) {
+        List<DeliveryOrderAllocationRequest> safeRequests = Optional.ofNullable(requests).orElse(List.of());
+        if (!safeRequests.isEmpty()) {
+            return safeRequests;
+        }
+        if (order.getStatus() == DeliveryOrderStatus.NEW) {
+            return buildAutoFifoPickingPlanRequests(order, orderItems);
+        }
+        return safeRequests;
     }
 
     @Override
@@ -1118,14 +1182,64 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         return selections;
     }
 
+    private List<DeliveryOrderAllocationRequest> buildAutoFifoPickingPlanRequests(DeliveryOrder order,
+                                                                                  List<DeliveryOrderItem> items) {
+        List<DeliveryOrderAllocationRequest> requests = new ArrayList<>();
+        for (DeliveryOrderItem item : items) {
+            BigDecimal remainingQty = value(item.getRequestedQty());
+            List<Inventory> candidates = inventoryRepository.findValidFifoCandidates(
+                    order.getWarehouse().getId(), item.getProduct().getId());
+            for (Inventory candidate : candidates) {
+                if (remainingQty.compareTo(ZERO) <= 0) {
+                    break;
+                }
+                BigDecimal availableQty = value(candidate.getTotalQty()).subtract(value(candidate.getReservedQty()));
+                if (availableQty.compareTo(ZERO) <= 0) {
+                    continue;
+                }
+                BigDecimal plannedQty = remainingQty.min(availableQty);
+                DeliveryOrderAllocationRequest request = new DeliveryOrderAllocationRequest();
+                request.setDoItemId(item.getId());
+                request.setInventoryId(candidate.getId());
+                request.setBatchId(candidate.getBatch().getId());
+                request.setLocationId(candidate.getLocation().getId());
+                request.setZoneId(candidate.getLocation().getParent() == null ? null : candidate.getLocation().getParent().getId());
+                request.setPlannedQty(plannedQty);
+                requests.add(request);
+                remainingQty = remainingQty.subtract(plannedQty);
+            }
+            if (remainingQty.compareTo(ZERO) > 0) {
+                throw new OutboundDeliveryException("INSUFFICIENT_STOCK",
+                        HttpStatus.UNPROCESSABLE_ENTITY,
+                        "Insufficient FIFO inventory to auto-build the picking plan for product " + item.getProduct().getId());
+            }
+        }
+        return requests;
+    }
+
+    /**
+     * Resolves the ZONE for a given inventory row and validates it matches the requested zoneId.
+     * If the BIN has no parent (flat warehouse without explicit zones), the BIN itself is treated
+     * as the zone, and a null/absent zoneId from the request is accepted.
+     */
     private WarehouseLocation resolveZone(Inventory inventory, Long zoneId) {
-        WarehouseLocation zone = inventory.getLocation().getParent();
-        if (zone == null || !zone.getId().equals(zoneId)) {
+        WarehouseLocation parent = inventory.getLocation().getParent();
+        if (parent == null) {
+            // Flat structure: BIN has no parent zone — accept null or the location's own id as zoneId
+            if (zoneId != null && !zoneId.equals(inventory.getLocation().getId())) {
+                throw new OutboundDeliveryException("INVENTORY_ROW_INVALID",
+                        HttpStatus.UNPROCESSABLE_ENTITY,
+                        "Inventory row does not match the requested zone");
+            }
+            // Return the BIN itself as the zone so downstream code has a non-null location
+            return inventory.getLocation();
+        }
+        if (!parent.getId().equals(zoneId)) {
             throw new OutboundDeliveryException("INVENTORY_ROW_INVALID",
                     HttpStatus.UNPROCESSABLE_ENTITY,
                     "Inventory row does not match the requested zone");
         }
-        return zone;
+        return parent;
     }
 
     private void validateConcreteInventorySelection(DeliveryOrder order,
@@ -1145,9 +1259,12 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                     HttpStatus.UNPROCESSABLE_ENTITY,
                     "Inventory product does not match the delivery order item");
         }
-        if (!inventory.getBatch().getId().equals(request.getBatchId())
-                || !inventory.getLocation().getId().equals(request.getLocationId())
-                || !zone.getId().equals(request.getZoneId())) {
+        // zone is guaranteed non-null here (resolveZone falls back to the BIN itself for flat structures)
+        boolean batchMatch = inventory.getBatch().getId().equals(request.getBatchId());
+        boolean locationMatch = inventory.getLocation().getId().equals(request.getLocationId());
+        boolean zoneMatch = zone.getId().equals(request.getZoneId())
+                || (inventory.getLocation().getParent() == null && request.getZoneId() == null);
+        if (!batchMatch || !locationMatch || !zoneMatch) {
             throw new OutboundDeliveryException("INVENTORY_ROW_INVALID",
                     HttpStatus.UNPROCESSABLE_ENTITY,
                     "Inventory row does not match requested batch/bin/zone");
@@ -1403,7 +1520,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                         "returnedQty", request.getReturnedQty(),
                         "sourceLocationId", request.getSourceLocationId(),
                         "originalLocationId", existing.getLocation().getId(),
-                        "originalZoneId", existing.getZone().getId()));
+                        "originalZoneId", existing.getZone() != null ? existing.getZone().getId() : null));
     }
 
     private void validateReplacementInventory(DeliveryOrder order,
@@ -1729,7 +1846,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                     "inventoryId", allocation.getInventory().getId(),
                     "batchId", allocation.getBatch().getId(),
                     "locationId", allocation.getLocation().getId(),
-                    "zoneId", allocation.getZone().getId(),
+                    "zoneId", allocation.getZone() != null ? allocation.getZone().getId() : null,
                     "plannedQty", allocation.getPlannedQty(),
                     "pickedQty", allocation.getPickedQty(),
                     "replacement", allocation.getReplacement())).toList());

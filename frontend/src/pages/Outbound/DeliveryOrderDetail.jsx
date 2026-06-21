@@ -1,21 +1,35 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { AlertTriangle, ArrowLeft, CheckCircle2, CheckSquare, Clock, FileText, Loader2, MapPin, PackageSearch, Play, X } from 'lucide-react';
+import {
+  AlertTriangle,
+  ArrowLeft,
+  CheckCircle2,
+  Clock,
+  FileText,
+  Loader2,
+  MapPin,
+  PackageSearch,
+  X,
+} from 'lucide-react';
 import { outboundService } from '../../services/outbound.service';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
 import PickingListTable from '../../components/warehouse/PickingListTable';
+import DeliveryOrderPickingPlanEditor from '../../components/warehouse/DeliveryOrderPickingPlanEditor';
 import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import { ROLES } from '../../utils/constants';
 
 const DO_STATUS_MAP = {
   NEW: { label: 'Mới', color: 'bg-zinc-100 text-zinc-800 border-zinc-200' },
-  PICKING: { label: 'Đang soạn', color: 'bg-blue-50 text-blue-700 border-blue-200' },
-  READY_TO_SHIP: { label: 'Chờ vận chuyển', color: 'bg-amber-50 text-amber-700 border-amber-200' },
+  WAITING_PICKING: { label: 'Chờ lấy hàng/QC', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+  QC_PENDING_APPROVAL: { label: 'Chờ duyệt QC', color: 'bg-violet-50 text-violet-700 border-violet-200' },
+  QC_COMPLETED: { label: 'QC xong', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  WAREHOUSE_APPROVED: { label: 'Chờ vận chuyển', color: 'bg-amber-50 text-amber-700 border-amber-200' },
   IN_TRANSIT: { label: 'Đang giao', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-  DELIVERED: { label: 'Đã giao', color: 'bg-aloe-10 text-emerald-900 border-emerald-300' },
+  COMPLETED: { label: 'Đã giao', color: 'bg-emerald-50 text-emerald-900 border-emerald-300' },
   RETURNED: { label: 'Hoàn trả', color: 'bg-orange-50 text-orange-700 border-orange-200' },
+  REJECTED: { label: 'Bị từ chối', color: 'bg-rose-50 text-rose-700 border-rose-200' },
   CANCELLED: { label: 'Đã hủy', color: 'bg-red-50 text-red-700 border-red-200' },
 };
 
@@ -33,9 +47,11 @@ export default function DeliveryOrderDetail() {
 
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [pickedItems, setPickedItems] = useState([]);
-  const [rejectModal, setRejectModal] = useState({ show: false, reason: '' });
   const [submitting, setSubmitting] = useState(false);
+  const [loadingCandidates, setLoadingCandidates] = useState(false);
+  const [rejectModal, setRejectModal] = useState({ show: false, reason: '' });
+  const [draftItems, setDraftItems] = useState([]);
+  const [pickingCandidates, setPickingCandidates] = useState({});
 
   useEffect(() => {
     fetchOrder();
@@ -46,11 +62,18 @@ export default function DeliveryOrderDetail() {
     try {
       const data = await outboundService.getDeliveryOrderById(id);
       setOrder(data);
-      setPickedItems((data.items || []).map((item) => ({
-        id: item.id,
-        issued_qty: item.issued_qty || item.picked_qty || 0,
-        serial_number: item.serial_number || '',
-      })));
+      setDraftItems(outboundService.createPickingPlanDraft(data.items || []));
+      if (hasRole(ROLES.STOREKEEPER) && ['NEW', 'WAITING_PICKING'].includes(data.status || data.raw_status)) {
+        setLoadingCandidates(true);
+        try {
+          const candidates = await outboundService.getPickingCandidates(id);
+          setPickingCandidates(candidates);
+        } finally {
+          setLoadingCandidates(false);
+        }
+      } else {
+        setPickingCandidates({});
+      }
     } catch (error) {
       addToast(error.message || 'Không tìm thấy đơn xuất hàng', 'error');
       navigate('/outbound/delivery-orders');
@@ -60,53 +83,29 @@ export default function DeliveryOrderDetail() {
   };
 
   const handleStartPicking = async () => {
+    const hasInvalidItem = draftItems.some((item) => {
+      const plannedQty = (item.allocations || []).reduce(
+        (sum, allocation) => sum + Number(allocation.planned_qty || 0),
+        0,
+      );
+      const hasIncompleteAllocation = (item.allocations || []).some(
+        (allocation) => Number(allocation.planned_qty || 0) > 0 && !allocation.inventory_id,
+      );
+      return hasIncompleteAllocation || plannedQty !== Number(item.requested_qty || 0);
+    });
+
+    if (hasInvalidItem) {
+      addToast('Mỗi dòng hàng phải chọn đủ inventory và số lượng trước khi lưu.', 'error');
+      return;
+    }
+
     setSubmitting(true);
     try {
-      await outboundService.startPicking(id);
+      await outboundService.savePickingPlan(id, draftItems);
       addToast('Đã lưu kế hoạch lấy hàng', 'success');
       fetchOrder();
     } catch (error) {
       addToast(error.message || 'Không thể bắt đầu soạn hàng', 'error');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handlePickItem = (itemId, qty, serial = '') => {
-    setPickedItems((prev) => prev.map((item) => (
-      item.id === itemId ? { ...item, issued_qty: qty, serial_number: serial } : item
-    )));
-  };
-
-  const handleCompletePicking = async () => {
-    const invalid = pickedItems.some((picked) => {
-      const original = order.items.find((item) => item.id === picked.id);
-      return !original || Number(picked.issued_qty) < 0 || Number(picked.issued_qty) > Number(original.requested_qty);
-    });
-    if (invalid) {
-      addToast('Số lượng lấy không hợp lệ', 'error');
-      return;
-    }
-    setSubmitting(true);
-    try {
-      await outboundService.completePicking(id, pickedItems);
-      addToast('Hoàn tất soạn hàng thành công', 'success');
-      fetchOrder();
-    } catch (error) {
-      addToast(error.message || 'Lỗi khi hoàn tất soạn hàng', 'error');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleApproveQC = async () => {
-    setSubmitting(true);
-    try {
-      await outboundService.approveWarehouseOutbound(id);
-      addToast('Đã phê duyệt xuất kho', 'success');
-      fetchOrder();
-    } catch (error) {
-      addToast(error.message || 'Lỗi khi phê duyệt xuất kho', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -120,6 +119,19 @@ export default function DeliveryOrderDetail() {
       fetchOrder();
     } catch (error) {
       addToast(error.message || 'Lỗi khi xác nhận chất lượng', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleApproveWarehouse = async () => {
+    setSubmitting(true);
+    try {
+      await outboundService.approveWarehouseOutbound(id);
+      addToast('Đã phê duyệt xuất kho', 'success');
+      fetchOrder();
+    } catch (error) {
+      addToast(error.message || 'Lỗi khi phê duyệt xuất kho', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -150,16 +162,96 @@ export default function DeliveryOrderDetail() {
       </div>
     );
   }
+
   if (!order) return null;
 
-  const qcDone = Boolean(order.qc_completed_at) || ['QC_PENDING_APPROVAL', 'QC_COMPLETED', 'WAREHOUSE_APPROVED'].includes(order.raw_status);
-  const needsQualityApproval = order.raw_status === 'QC_PENDING_APPROVAL';
-  const needsWarehouseApproval = ['QC_COMPLETED', 'PICKING'].includes(order.raw_status) || (qcDone && !needsQualityApproval);
-  const allItemsPicked = pickedItems.length > 0 && pickedItems.every((picked) => {
-    const original = order.items.find((item) => item.id === picked.id);
-    return original && Number(picked.issued_qty) === Number(original.requested_qty);
+  const currentStatus = order.status || order.raw_status;
+  const canEditPickingPlan = ['NEW', 'WAITING_PICKING'].includes(currentStatus) && hasRole(ROLES.STOREKEEPER);
+  const canOpenQc = currentStatus === 'WAITING_PICKING' && hasRole(ROLES.WAREHOUSE_STAFF);
+  const canApproveQuality = currentStatus === 'QC_PENDING_APPROVAL' && hasRole(ROLES.STOREKEEPER);
+  const canApproveWarehouse = currentStatus === 'QC_COMPLETED' && hasRole(ROLES.WAREHOUSE_MANAGER);
+  const displayedItems = canEditPickingPlan ? draftItems : order.items;
+
+  const handleAddAllocation = (itemId) => {
+    setDraftItems((previous) => previous.map((item) => (
+      Number(item.id) === Number(itemId)
+        ? {
+            ...item,
+            allocations: [...(item.allocations || []), outboundService.createEmptyAllocationDraft()],
+          }
+        : item
+    )));
+  };
+
+  const handleRemoveAllocation = (itemId, allocationIndex) => {
+    setDraftItems((previous) => previous.map((item) => {
+      if (Number(item.id) !== Number(itemId)) return item;
+      const nextAllocations = (item.allocations || []).filter((_, index) => index !== allocationIndex);
+      return {
+        ...item,
+        allocations: nextAllocations.length ? nextAllocations : [outboundService.createEmptyAllocationDraft()],
+      };
+    }));
+  };
+
+  const handleAllocationChange = (itemId, allocationIndex, field, value) => {
+    setDraftItems((previous) => previous.map((item) => {
+      if (Number(item.id) !== Number(itemId)) return item;
+      return {
+        ...item,
+        allocations: (item.allocations || []).map((allocation, index) => (
+          index === allocationIndex
+            ? {
+                ...allocation,
+                [field]: field === 'planned_qty' ? Number(value || 0) : value,
+              }
+            : allocation
+        )),
+      };
+    }));
+  };
+
+  const handleCandidateSelect = (itemId, allocationIndex, inventoryId) => {
+    const candidate = (pickingCandidates[itemId] || []).find(
+      (row) => Number(row.inventory_id) === Number(inventoryId),
+    );
+    if (!candidate) {
+      handleAllocationChange(itemId, allocationIndex, 'inventory_id', '');
+      return;
+    }
+
+    setDraftItems((previous) => previous.map((item) => {
+      if (Number(item.id) !== Number(itemId)) return item;
+
+      const totalOtherQty = (item.allocations || []).reduce((sum, allocation, index) => (
+        index === allocationIndex ? sum : sum + Number(allocation.planned_qty || 0)
+      ), 0);
+      const remainingQty = Math.max(0, Number(item.requested_qty || 0) - totalOtherQty);
+
+      return {
+        ...item,
+        allocations: (item.allocations || []).map((allocation, index) => (
+          index === allocationIndex
+            ? outboundService.applyPickingCandidate(
+                candidate,
+                allocation.planned_qty ? Number(allocation.planned_qty) : remainingQty,
+              )
+            : allocation
+        )),
+      };
+    }));
+  };
+
+  const hasInvalidDraft = draftItems.some((item) => {
+    const plannedQty = (item.allocations || []).reduce(
+      (sum, allocation) => sum + Number(allocation.planned_qty || 0),
+      0,
+    );
+    const hasIncompleteAllocation = (item.allocations || []).some(
+      (allocation) => Number(allocation.planned_qty || 0) > 0 && !allocation.inventory_id,
+    );
+    return hasIncompleteAllocation || plannedQty !== Number(item.requested_qty || 0);
   });
-  const canPick = order.status === 'PICKING' && (hasRole(ROLES.STOREKEEPER) || hasRole(ROLES.ADMIN));
 
   return (
     <div className="flex flex-col gap-6">
@@ -175,7 +267,7 @@ export default function DeliveryOrderDetail() {
             <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">Vận hành / Xuất kho</span>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">{order.do_number}</h1>
-              {getStatusBadge(order.status)}
+              {getStatusBadge(currentStatus)}
             </div>
             <p className="text-xs text-shade-50 font-light mt-1">
               Lập ngày: {order.document_date ? new Date(order.document_date).toLocaleDateString('vi-VN') : '-'}
@@ -184,36 +276,19 @@ export default function DeliveryOrderDetail() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3 ml-10 md:ml-0">
-          {order.status === 'NEW' && (hasRole(ROLES.STOREKEEPER) || hasRole(ROLES.ADMIN)) && (
-            <button disabled={submitting} onClick={handleStartPicking} className="btn-pill btn-pill-primary flex items-center gap-2 disabled:opacity-50">
-              <Play className="w-4 h-4" /> Bắt đầu soạn hàng
-            </button>
-          )}
-
-          {canPick && !qcDone && (
-            <button
-              disabled={!allItemsPicked || submitting}
-              onClick={handleCompletePicking}
-              title={!allItemsPicked ? 'Nhập đầy đủ số lượng thực lấy trong bảng bên dưới' : ''}
-              className="btn-pill btn-pill-aloe flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <CheckSquare className="w-4 h-4" /> Xác nhận hoàn tất
-            </button>
-          )}
-
-          {order.status === 'PICKING' && (hasRole(ROLES.WAREHOUSE_STAFF) || hasRole(ROLES.STOREKEEPER) || hasRole(ROLES.ADMIN)) && allItemsPicked && !qcDone && (
+          {canOpenQc && (
             <button onClick={() => navigate(`/outbound/qc/${id}`)} className="btn-pill btn-pill-primary flex items-center gap-2">
-              <PackageSearch className="w-4 h-4" /> Kiểm tra QC
+              <PackageSearch className="w-4 h-4" /> Nhập kết quả lấy hàng/QC
             </button>
           )}
 
-          {order.status === 'PICKING' && (hasRole(ROLES.STOREKEEPER) || hasRole(ROLES.ADMIN)) && needsQualityApproval && (
+          {canApproveQuality && (
             <button disabled={submitting} onClick={handleApproveQuality} className="btn-pill btn-pill-aloe flex items-center gap-2 disabled:opacity-50">
-              <CheckCircle2 className="w-4 h-4" /> Xác nhận chất lượng
+              <CheckCircle2 className="w-4 h-4" /> Duyệt kết quả QC
             </button>
           )}
 
-          {order.status === 'PICKING' && (hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.ADMIN)) && qcDone && needsWarehouseApproval && (
+          {canApproveWarehouse && (
             <>
               <button
                 disabled={submitting}
@@ -222,7 +297,7 @@ export default function DeliveryOrderDetail() {
               >
                 <X className="w-4 h-4" /> Từ chối
               </button>
-              <button disabled={submitting} onClick={handleApproveQC} className="btn-pill btn-pill-aloe flex items-center gap-2 disabled:opacity-50">
+              <button disabled={submitting} onClick={handleApproveWarehouse} className="btn-pill btn-pill-aloe flex items-center gap-2 disabled:opacity-50">
                 <CheckCircle2 className="w-4 h-4" /> Phê duyệt xuất kho
               </button>
             </>
@@ -230,11 +305,20 @@ export default function DeliveryOrderDetail() {
         </div>
       </div>
 
-      {qcDone && order.status === 'PICKING' && (
-        <div className="bg-aloe-10 border border-emerald-300 rounded-lg p-4 flex items-center gap-3">
-          <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
-          <p className="text-xs font-semibold text-emerald-900">
-            QC Outbound đã hoàn tất. Đơn đang chờ Trưởng kho phê duyệt xuất.
+      {currentStatus === 'WAITING_PICKING' && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center gap-3">
+          <Clock className="w-4 h-4 text-blue-700 shrink-0" />
+          <p className="text-xs font-semibold text-blue-900">
+            Kế hoạch lấy hàng đã được lưu. Nhân viên kho nhập số lượng đã lấy và kết quả QC theo từng dòng phân bổ.
+          </p>
+        </div>
+      )}
+
+      {currentStatus === 'QC_PENDING_APPROVAL' && (
+        <div className="bg-violet-50 border border-violet-200 rounded-lg p-4 flex items-center gap-3">
+          <CheckCircle2 className="w-4 h-4 text-violet-700 shrink-0" />
+          <p className="text-xs font-semibold text-violet-900">
+            Nhân viên kho đã gửi kết quả lấy hàng/QC. Thủ kho rà soát và duyệt chất lượng trước khi chuyển bước tiếp.
           </p>
         </div>
       )}
@@ -259,6 +343,7 @@ export default function DeliveryOrderDetail() {
             <p><span className="text-shade-50">Mã đại lý:</span> <span className="font-mono text-ink">{order.dealer_id}</span></p>
           </div>
         </div>
+
         <div className="bg-white rounded-lg border border-hairline-light p-5 shadow-sm">
           <h3 className="text-xs font-bold uppercase tracking-widest text-shade-40 mb-3 flex items-center gap-2">
             <Clock className="w-3.5 h-3.5" /> Tiến độ giao hàng
@@ -268,9 +353,10 @@ export default function DeliveryOrderDetail() {
               <span className="text-shade-50">Ngày giao dự kiến:</span>{' '}
               <span className="font-semibold text-ink">{order.expected_delivery_date ? new Date(order.expected_delivery_date).toLocaleDateString('vi-VN') : '-'}</span>
             </p>
-            <p><span className="text-shade-50">Trạng thái gốc:</span> <span className="font-semibold text-ink">{order.raw_status}</span></p>
+            <p><span className="text-shade-50">Trạng thái backend:</span> <span className="font-semibold text-ink">{currentStatus}</span></p>
           </div>
         </div>
+
         <div className="bg-white rounded-lg border border-hairline-light p-5 shadow-sm">
           <h3 className="text-xs font-bold uppercase tracking-widest text-shade-40 mb-3 flex items-center gap-2">
             <FileText className="w-3.5 h-3.5" /> Ghi chú
@@ -281,23 +367,36 @@ export default function DeliveryOrderDetail() {
         </div>
       </div>
 
+      {canEditPickingPlan && (
+        <DeliveryOrderPickingPlanEditor
+          items={draftItems}
+          candidatesByItemId={pickingCandidates}
+          submitting={submitting || loadingCandidates}
+          disableSave={hasInvalidDraft}
+          onAddAllocation={handleAddAllocation}
+          onAllocationChange={handleAllocationChange}
+          onCandidateSelect={handleCandidateSelect}
+          onRemoveAllocation={handleRemoveAllocation}
+          onSave={handleStartPicking}
+        />
+      )}
+
+      {canEditPickingPlan && hasInvalidDraft && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-center gap-3">
+          <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" />
+          <p className="text-xs font-semibold text-amber-900">
+            Mỗi dòng hàng phải được phân bổ đủ số lượng yêu cầu và mọi allocation có số lượng lớn hơn 0 phải chọn inventory cụ thể trước khi lưu.
+          </p>
+        </div>
+      )}
+
       <div>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xs font-bold uppercase tracking-widest text-shade-40 flex items-center gap-2">
             <PackageSearch className="w-3.5 h-3.5" /> Chi tiết hàng hóa ({order.items.length} mặt hàng)
           </h2>
-          {canPick && !qcDone && (
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-blue-700 bg-blue-50 px-3 py-1 rounded-pill border border-blue-200">
-              Đang soạn. Nhập số lượng thực lấy rồi bấm Xác nhận.
-            </span>
-          )}
         </div>
-        <PickingListTable
-          items={order.items}
-          isPicking={canPick && !qcDone}
-          pickedItems={pickedItems}
-          onPickItem={handlePickItem}
-        />
+        <PickingListTable items={displayedItems} />
       </div>
 
       <Modal isOpen={rejectModal.show} onClose={() => setRejectModal({ show: false, reason: '' })} title="Từ chối đơn xuất hàng" maxWidth="max-w-md">
@@ -312,7 +411,7 @@ export default function DeliveryOrderDetail() {
               rows={4}
               placeholder="Nhập lý do từ chối đơn này..."
               value={rejectModal.reason}
-              onChange={(event) => setRejectModal({ ...rejectModal, reason: event.target.value })}
+              onChange={(event) => setRejectModal((prev) => ({ ...prev, reason: event.target.value }))}
               className="w-full bg-canvas-light text-ink text-sm px-3 py-2.5 rounded-md border border-hairline-light focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink transition-all resize-none min-h-[44px]"
             />
           </div>

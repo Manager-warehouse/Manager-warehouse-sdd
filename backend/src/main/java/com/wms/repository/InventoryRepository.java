@@ -56,7 +56,6 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
                                                 @Param("batchId") Long batchId,
                                                 @Param("locationId") Long locationId);
 
-    @EntityGraph(attributePaths = {"warehouse", "product", "batch", "location", "location.parent"})
     @Lock(LockModeType.OPTIMISTIC)
     @Query("""
             select i from Inventory i
@@ -70,7 +69,6 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
                                                             @Param("batchId") Long batchId,
                                                             @Param("locationId") Long locationId);
 
-    @EntityGraph(attributePaths = {"warehouse", "product", "batch", "location", "location.parent"})
     @Lock(LockModeType.OPTIMISTIC)
     @Query("""
             select i from Inventory i
@@ -84,7 +82,6 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
     @EntityGraph(attributePaths = {"warehouse", "product", "batch", "location", "location.parent"})
     Optional<Inventory> findWithDetailsById(Long id);
 
-    @EntityGraph(attributePaths = {"warehouse", "product", "batch", "location", "location.parent"})
     @Lock(LockModeType.OPTIMISTIC)
     @Query("""
             select i from Inventory i
@@ -98,7 +95,6 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
                                                        @Param("batchId") Long batchId,
                                                        @Param("locationId") Long locationId);
 
-    @EntityGraph(attributePaths = {"warehouse", "product", "batch", "location", "location.parent"})
     @Lock(LockModeType.OPTIMISTIC)
     @Query("""
             select i from Inventory i
