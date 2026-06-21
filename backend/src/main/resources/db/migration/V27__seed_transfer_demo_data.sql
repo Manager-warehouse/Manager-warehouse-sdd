@@ -59,13 +59,12 @@ WITH batch_seed AS (
     ) AS t(batch_number, sku, warehouse_code, received_date, quantity, cost_price, location_code)
 )
 INSERT INTO batches (
-    batch_number, product_id, warehouse_id, received_date, grade, quantity, created_at
+    batch_number, product_id, warehouse_id, received_date, quantity, created_at
 )
 SELECT b.batch_number,
        p.id,
        w.id,
        b.received_date,
-       'A',
        b.quantity,
        NOW()
 FROM batch_seed b

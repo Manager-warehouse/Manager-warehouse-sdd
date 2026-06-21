@@ -17,7 +17,7 @@ import ReceiptReceive from '../pages/Inbound/ReceiptReceive';
 import QCInbound from '../pages/Inbound/QCInbound';
 import PutawayPlan from '../pages/Inbound/PutawayPlan';
 import QuarantineWorkspace from '../pages/Inbound/QuarantineWorkspace';
-import TransferWorkspace from '../pages/Transfer/TransferWorkspace';
+import InterWarehouseTransferWorkspace from '../pages/InterWarehouseTransfer/InterWarehouseTransferWorkspace';
 import SystemConfig from '../pages/Admin/SystemConfig';
 import AuditLogs from '../pages/Admin/AuditLogs';
 import DeliveryOrders from '../pages/Outbound/DeliveryOrders';
@@ -93,8 +93,8 @@ const AppRoutes = () => {
       </Route>
 
       <Route element={<ProtectedRoute allowedRoles={[ROLES.PLANNER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.WAREHOUSE_MANAGER, ROLES.DISPATCHER, ROLES.ADMIN, ROLES.CEO]} />}>
-        <Route path="/transfers" element={<TransferWorkspace />} />
-        <Route path="/transfers/:id" element={<TransferWorkspace />} />
+        <Route path="/transfers" element={<InterWarehouseTransferWorkspace />} />
+        <Route path="/transfers/:id" element={<InterWarehouseTransferWorkspace />} />
       </Route>
 
       {/* Outbound & Delivery protected routes */}

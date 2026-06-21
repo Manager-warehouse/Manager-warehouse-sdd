@@ -2,8 +2,8 @@
 
 **Spec ID**: 005-inter-warehouse-transfer
 **Created**: 2026-05-30
-**Updated**: 2026-06-18
-**Status**: Draft
+**Updated**: 2026-06-19
+**Status**: Implemented (Sprint 1)
 **Features**: US-WMS-11, US-WMS-12
 
 ---
@@ -36,6 +36,13 @@ Moi phieu dieu chuyen gan voi dung **mot** chuyen xe noi bo rieng, gom xe, tai x
 - Q: How are destination locations and receiving reasons handled? -> A: Storekeeper selects destination location for QC-passed stock; QC-failed stock uses the active destination quarantine location; shortage, QC failure, or any material issue requires a reason.
 - Q: How do transfer edit and receive correction work? -> A: Planner edits a loaded existing transfer list and saves the current state; worker shortage/over-count requires an issue reason; destination storekeeper may correct worker count but must add a checker note when values differ.
 - Q: Can drivers manually change their own dispatch availability status inside transfer flow? -> A: No; driver dispatch status is managed by dispatcher/admin scheduling and by system auto-transition when a transfer trip starts/ends. Driver only confirms the assigned trip departure inside spec 005.
+
+### Session 2026-06-19
+- Q: Who can initiate return-to-source for an overdue trip? -> A: Only WAREHOUSE_MANAGER of the source warehouse, ADMIN, CEO, or PLANNER. Destination storekeeper and destination manager do NOT have this right; only the source manager or authorized role can reverse a transfer direction.
+- Q: What happens when trip planned_end_at is in the past while the transfer is still IN_TRANSIT? -> A: The system marks `tripOverdue = true` on the transfer response. The source manager must use the Return to Source action to send goods back. The system blocks receive-count and receive-check actions at the destination and shows an overdue warning in the UI.
+- Q: What happens to QC-failed items in internal transfer receiving? -> A: QC-failed quantity is automatically routed to the destination warehouse quarantine bin (is_quarantine = true) at finalReceive. The storekeeper does NOT manually select the quarantine bin; the system selects it automatically. QC-failed items are excluded from available inventory.
+- Q: Should the system validate quarantine existence early (at receiveCheck) rather than at finalReceive? -> A: Yes. If qcFailedQty > 0, the system validates at receiveCheck time that the destination warehouse has at least one active quarantine bin. This prevents the storekeeper from completing the check step only to fail at the final confirmation step.
+- Q: Can the QC-passed bin selected by the storekeeper be a quarantine bin? -> A: No. The system must reject any attempt to assign a quarantine bin as the destination for QC-passed stock. The storekeeper's bin dropdown already filters out quarantine bins; the backend also enforces this as an invariant.
 
 ## 2. Actors
 
@@ -75,7 +82,8 @@ Moi phieu dieu chuyen gan voi dung **mot** chuyen xe noi bo rieng, gom xe, tai x
 - `transfer_number` (VARCHAR(50), UNIQUE, NOT NULL) -- format `TRF-YYYYMMDD-####`
 - `source_warehouse_id` (BIGINT, FK->warehouses, NOT NULL)
 - `destination_warehouse_id` (BIGINT, FK->warehouses, NOT NULL)
-- `status` (VARCHAR(40), DEFAULT 'NEW', CHECK IN ('NEW','APPROVED','REJECTED','IN_TRANSIT','COMPLETED','COMPLETED_WITH_DISCREPANCY','CANCELLED'))
+- `status` (VARCHAR(40), DEFAULT 'NEW', CHECK IN ('NEW','APPROVED','REJECTED','IN_TRANSIT','COMPLETED','COMPLETED_WITH_DISCREPANCY','CANCELLED','QUARANTINED'))
+- `is_returned` (BOOLEAN, DEFAULT false) -- true when source manager triggers Return to Source; flips receiving scope back to source warehouse
 - `created_by` (BIGINT, FK->users, NOT NULL)
 - `external_instruction_code` (VARCHAR(80), NOT NULL)
 - `approved_by` (BIGINT, FK->users)
@@ -163,9 +171,17 @@ Moi phieu dieu chuyen gan voi dung **mot** chuyen xe noi bo rieng, gom xe, tai x
 | QC_FAILURE_REASON_REQUIRED | 400 | qc_failed_qty > 0 without qc_failure_reason |
 | DESTINATION_LOCATION_REQUIRED | 400 | qc_passed_qty > 0 without destination_location_id |
 | QUARANTINE_LOCATION_REQUIRED | 422 | qc_failed_qty > 0 but destination warehouse has no active quarantine location |
+| QUARANTINE_LOCATION_NOT_CONFIGURED | 422 | Same as above — validated eagerly at receiveCheck step before finalReceive |
+| QC_PASSED_BIN_MUST_NOT_BE_QUARANTINE | 400 | destinationLocationId provided for QC-passed stock is itself a quarantine bin |
+| INVALID_DESTINATION_LOCATION | 400 | Destination bin does not belong to the target warehouse or is inactive |
 | DISCREPANCY_REQUIRES_REASON | 400 | Shortage, QC failure follow-up, or another material issue requires a reason |
 | TRANSFER_CANCEL_NOT_ALLOWED | 409 | Actor or current status is not allowed to cancel the transfer |
 | INVENTORY_VERSION_CONFLICT | 409 | Concurrent inventory update |
+| WAREHOUSE_MANAGER_ROLE_REQUIRED | 403 | Return-to-source action attempted by a non-manager actor without authorized override role |
+| TRIP_SCHEDULE_INVALID | 422 | Trip planned_end_at is not after planned_start_at |
+| TRIP_START_IN_PAST | 422 | Trip planned_start_at is in the past |
+| TRIP_END_IN_PAST | 422 | Trip planned_end_at is in the past |
+| TRIP_RESOURCE_OVERLAP | 409 | Vehicle or driver already assigned to another overlapping trip |
 
 ### Transfer Business Rules
 - Sprint 1 SHALL NOT generate transfer suggestions or automatically decide source/destination/quantity for inter-warehouse transfers.
@@ -177,7 +193,7 @@ Moi phieu dieu chuyen gan voi dung **mot** chuyen xe noi bo rieng, gom xe, tai x
 - Each transfer MAY contain multiple item lines.
 - Planner MAY edit transfer header fields and add/update/remove transfer item lines only while status is `NEW`.
 - During a `NEW` transfer update, the submitted item list SHALL be treated as the full current state.
-- Transfers SHALL NOT be editable after status changes to `APPROVED`, `REJECTED`, `IN_TRANSIT`, `COMPLETED`, `COMPLETED_WITH_DISCREPANCY`, or `CANCELLED`.
+- Transfers SHALL NOT be editable after status changes to `APPROVED`, `REJECTED`, `IN_TRANSIT`, `COMPLETED`, `COMPLETED_WITH_DISCREPANCY`, `CANCELLED`, or `QUARANTINED`.
 - Truong kho nguon approval SHALL reserve the planned quantity immediately and SHALL require source warehouse scope unless the actor has an authorized manager override role.
 - Truong kho nguon MAY reject a `NEW` transfer; rejection SHALL require `rejection_reason` and set status to `REJECTED`.
 - A `REJECTED` transfer SHALL be immutable and SHALL NOT be resubmitted; Planner MUST create a new transfer if needed.
@@ -198,6 +214,29 @@ Moi phieu dieu chuyen gan voi dung **mot** chuyen xe noi bo rieng, gom xe, tai x
 - Destination receiving SHALL stay inside the **Transfer** module. Internal transfer receiving SHALL NOT be merged into the supplier inbound `RN` workflow.
 - Destination receiving SHALL be split by responsibility: worker records initial counts; destination storekeeper checks those counts, records/approves QC, and selects destination location for QC-passed stock; destination warehouse manager performs final confirmation.
 - Nhan vien kho/Cong nhan kho dich MAY edit initial received counts until Thu kho dich approves receive check; after that, worker edits SHALL be rejected.
+- If an item's initial `received_qty` is different from `sent_qty`, the worker SHALL provide item-level `receive_issue_reason`.
+- Thu kho dich MAY correct the worker-entered received quantity during receive check; if the checked quantity differs, `receive_checker_note` SHALL be required.
+- After receive check approval, the storekeeper-confirmed quantity SHALL become the effective `received_qty`.
+- Destination QC SHALL check both received quantity and product quality. QC-failed quantities SHALL be moved to quarantine inventory and excluded from available inventory.
+- Thu kho dich SHALL select `destination_location_id` for QC-passed quantity only. The `destination_location_id` SHALL NOT be a quarantine bin; the system enforces this as an invariant.
+- QC-failed quantity SHALL be automatically routed to the destination warehouse quarantine location (`is_quarantine = true`) by the system at finalReceive; Thu kho dich does NOT manually select the quarantine bin.
+- When `qcFailedQty > 0`, the system SHALL validate at receiveCheck time that the destination warehouse has at least one active quarantine bin (`QUARANTINE_LOCATION_NOT_CONFIGURED`); this prevents receiving being blocked at the finalReceive step.
+- The system SHALL surface a quarantine destination hint in the UI (e.g., "2 sp lỗi → WH-HCM-Q01 (tự động)") when the storekeeper enters QC-failed quantity greater than zero.
+- `received_qty > sent_qty` SHALL be blocked.
+- If `received_qty < sent_qty` or any final-level material issue is reported during receiving, the system SHALL require `discrepancy_reason`.
+- QC failure alone SHALL require `qc_failure_reason` during receive-check and SHALL NOT require duplicate `discrepancy_reason` unless another final-level issue exists.
+- If `received_qty < sent_qty`, the system SHALL create a `TRANSFER_DISCREPANCY` adjustment and set status to `COMPLETED_WITH_DISCREPANCY`.
+- Transfer cancellation SHALL be rejected for `REJECTED`, `IN_TRANSIT`, `COMPLETED`, `COMPLETED_WITH_DISCREPANCY`, `CANCELLED`, or `QUARANTINED` transfers.
+- **Return to Source**: When a transfer trip's `planned_end_at` has passed and the transfer is still `IN_TRANSIT`, the system marks `tripOverdue = true` on the transfer response. The source manager (WAREHOUSE_MANAGER scoped to the source warehouse, ADMIN, CEO, or PLANNER) MAY trigger Return to Source, which sets `is_returned = true`. When `is_returned = true`, receiving scope flips to the source warehouse; destination storekeeper and manager of the destination warehouse SHALL NOT be able to receive the goods. The source manager is solely responsible for this decision.
+- **Quarantine Rejection**:
+  - WHEN a Storekeeper (at receive check stage) or a Warehouse Manager (at final confirmation stage) decides to reject the entire shipment due to severe damage or discrepancy, they SHALL trigger a quarantine rejection.
+  - The rejection SHALL require a `rejection_reason`.
+  - The system SHALL set the transfer status to `QUARANTINED`.
+  - The system SHALL update all transfer items so that `received_qty = sent_qty`, `qc_passed_qty = 0`, and `qc_failed_qty = sent_qty`. The system SHALL record the rejection reason in each item's `checker_note` and `qc_failure_reason`.
+  - The system SHALL deduct all transit stock of this transfer from the `IN_TRANSIT` virtual location and add it to the destination warehouse's active quarantine bin (or source warehouse's active quarantine bin if `is_returned = true`). If no quarantine bin exists, the operation SHALL fail with `QUARANTINE_LOCATION_NOT_CONFIGURED`.
+  - The system SHALL release the vehicle, driver, and trip, setting the vehicle and driver back to `AVAILABLE` and the trip status to `COMPLETED`.
+  - The system SHALL write a `TRANSFER_QUARANTINE_REJECT` audit log containing the rejection reason.
+- **Trip date validation**: When assigning a trip, `planned_start_at` SHALL NOT be in the past, `planned_end_at` SHALL NOT be in the past, and `planned_end_at` SHALL be after `planned_start_at`. If any condition is violated, the assignment SHALL be rejected with the appropriate error code (`TRIP_START_IN_PAST`, `TRIP_END_IN_PAST`, `TRIP_SCHEDULE_INVALID`).
 - If an item's initial `received_qty` is different from `sent_qty`, the worker SHALL provide item-level `receive_issue_reason`.
 - Thu kho dich MAY correct the worker-entered received quantity during receive check; if the checked quantity differs, `receive_checker_note` SHALL be required.
 - After receive check approval, the storekeeper-confirmed quantity SHALL become the effective `received_qty`.
@@ -223,6 +262,8 @@ Moi phieu dieu chuyen gan voi dung **mot** chuyen xe noi bo rieng, gom xe, tai x
 - `TRANSFER_RECEIVE_CHECK`: Thu kho dich checks received counts, records/approves QC, and selects destination location for QC-passed stock.
 - `TRANSFER_RECEIVE_CONFIRM`: Truong kho dich confirms receipt, moves passed quantity to destination inventory, failed quantity to quarantine inventory, clears In-Transit, and completes the transfer.
 - `TRANSFER_DISCREPANCY_CREATE`: System creates shortage adjustment when received quantity is lower than sent quantity.
+- `TRANSFER_RETURN_TO_SOURCE`: Source warehouse manager or authorized role triggers return-to-source on an overdue IN_TRANSIT transfer; sets `is_returned = true` and flips receiving scope to source warehouse.
+- `TRANSFER_QUARANTINE_REJECT`: Storekeeper or Warehouse Manager rejects the entire transfer order, moving all stock to the target warehouse quarantine location and setting status to `QUARANTINED`.
 - `TRANSFER_CANCEL`: Planner cancels a `NEW` transfer without inventory changes, or Truong kho nguon/manager cancels an unshipped `APPROVED` transfer and releases reserved quantity.
 - If driver reassignment or trip reschedule is later supported before departure, those changes SHALL also require dedicated audit actions such as `TRANSFER_TRIP_REASSIGN` or `TRANSFER_TRIP_RESCHEDULE`.
 
@@ -279,3 +320,42 @@ Moi phieu dieu chuyen gan voi dung **mot** chuyen xe noi bo rieng, gom xe, tai x
 - Rescheduling an in-progress trip
 - Split shipment from one transfer into multiple departure events
 - Split receive from one transfer into multiple final receipt events
+- Return of QC-failed transfer goods back to source warehouse (deferred to spec 009 Returns & Disposal)
+- QC grade classification for internally transferred goods (household goods domain has no quality tiers)
+
+---
+
+## 11. Implementation Notes (Sprint 1 actuals)
+
+> This section documents decisions and changes discovered during Sprint 1 implementation that deviate from or extend the original spec.
+
+### 11.1 is_returned field and Return-to-Source flow
+- Field `is_returned BOOLEAN DEFAULT false` was added to `transfers` table.
+- When `is_returned = true`, all receive scope checks use `sourceWarehouseId` instead of `destinationWarehouseId`.
+- Return to Source may only be triggered by: WAREHOUSE_MANAGER scoped to **source** warehouse, ADMIN, CEO, or PLANNER.
+- Destination-side roles (storekeeper, manager of destination) are explicitly blocked from triggering Return to Source.
+- API: `POST /api/v1/transfers/{id}/return-to-source`
+
+### 11.2 Trip date validation at assign time
+- When assigning a trip (`TRANSFER_TRIP_ASSIGN`), the system validates:
+  - `planned_start_at` must not be in the past.
+  - `planned_end_at` must not be in the past.
+  - `planned_end_at` must be after `planned_start_at`.
+- Validation fires with Vietnamese-translated messages via GlobalExceptionHandler.
+- UI shows a plain-language alert for past-date submissions instead of silently cancelling.
+
+### 11.3 Quarantine validation moved earlier
+- `QUARANTINE_LOCATION_NOT_CONFIGURED` is now validated at `receiveCheck` time (not only at `finalReceive`).
+- This ensures the storekeeper is informed of missing quarantine configuration before completing the check step.
+- Additionally, the system now rejects (`QC_PASSED_BIN_MUST_NOT_BE_QUARANTINE`) any attempt to assign a quarantine bin as the QC-passed destination.
+
+### 11.4 Quarantine destination UI hint
+- When the storekeeper enters `qcFailedQty > 0` in the Kiểm tra count/QC form, the system displays a dynamic hint below the QC lỗi input:
+  `"{N} sp lỗi → WH-XYZ-Q01 (tự động)"`
+- If no quarantine bin exists, the hint shows a warning: `"⚠ Kho đích chưa có Quarantine Bin!"`
+- This is a read-only informational hint; the storekeeper cannot change or override the quarantine destination.
+
+### 11.5 Trip overdue detection
+- The transfer response includes a computed field `tripOverdue` which is `true` when the assigned trip's `planned_end_at` < current time and the transfer is still `IN_TRANSIT`.
+- When `tripOverdue = true` and `is_returned = false`, the destination UI shows an overdue warning instead of receive actions.
+- Return to Source action is surfaced only to the source manager role.
