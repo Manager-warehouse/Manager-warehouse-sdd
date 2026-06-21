@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useUiStore } from '../../stores/ui.store';
 import { inboundService } from '../../services/inbound.service';
 import { ArrowLeft, Loader2, ShieldCheck, ShieldAlert } from 'lucide-react';
+
 const QCInbound = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -30,7 +31,6 @@ const QCInbound = () => {
         qc_passed_qty: item.actual_qty, // default to all passed
         qc_failed_qty: 0,
         qc_failure_reason: '',
-        grade: 'A',
       }));
       setItems(initialItems);
     } catch (e) {
@@ -83,16 +83,6 @@ const QCInbound = () => {
     const updated = items.map(item => {
       if (item.id === itemId) {
         return { ...item, qc_failure_reason: value };
-      }
-      return item;
-    });
-    setItems(updated);
-  };
-
-  const handleGradeChange = (itemId, value) => {
-    const updated = items.map(item => {
-      if (item.id === itemId) {
-        return { ...item, grade: value };
       }
       return item;
     });
@@ -152,8 +142,7 @@ const QCInbound = () => {
         receipt_item_id: item.id,
         qc_passed_qty: item.qc_passed_qty,
         qc_failed_qty: item.qc_failed_qty,
-        qc_failure_reason: item.qc_failed_qty > 0 ? item.qc_failure_reason : null,
-        grade: item.grade
+        qc_failure_reason: item.qc_failed_qty > 0 ? item.qc_failure_reason : null
       }))
     };
 
@@ -275,7 +264,6 @@ const QCInbound = () => {
                   <th className="px-4 py-3 font-bold text-shade-60 text-right w-24">Đạt QC</th>
                   <th className="px-4 py-3 font-bold text-shade-60 text-right w-24">Lỗi QC</th>
                   <th className="px-4 py-3 font-bold text-shade-60 w-44">Chi tiết lỗi (Nếu hỏng)</th>
-                  <th className="px-4 py-3 font-bold text-shade-60 w-24">Grade</th>
                   <th className="px-4 py-3 font-bold text-shade-60 text-center w-24">Kết quả</th>
                 </tr>
               </thead>
@@ -323,21 +311,9 @@ const QCInbound = () => {
                           placeholder="Móp méo, rỉ sét..."
                           value={item.qc_failure_reason || ''}
                           onChange={(e) => handleReasonChange(item.id, e.target.value)}
-                          disabled={failed <= 0}
-                          className={`text-input py-1 text-xs disabled:bg-zinc-100 disabled:text-shade-40 disabled:cursor-not-allowed disabled:border-zinc-200 ${failed > 0 && !item.qc_failure_reason.trim() ? 'border-red-300 bg-red-50/20' : ''}`}
+                          className={`text-input py-1 text-xs ${failed > 0 && !item.qc_failure_reason.trim() ? 'border-red-300 bg-red-50/20' : ''}`}
                           required={failed > 0}
                         />
-                      </td>
-                      <td className="px-4 py-4">
-                        <select
-                          value={item.grade}
-                          onChange={(e) => handleGradeChange(item.id, e.target.value)}
-                          className="text-input py-1 text-xs font-semibold"
-                        >
-                          <option value="A">Grade A</option>
-                          <option value="B">Grade B</option>
-                          <option value="C">Grade C</option>
-                        </select>
                       </td>
                       <td className="px-4 py-4 text-center">
                         {getRowResultBadge(item)}

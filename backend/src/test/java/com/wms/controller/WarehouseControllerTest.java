@@ -71,7 +71,7 @@ public class WarehouseControllerTest {
     @Test
     void getAllWarehouses_Unauthenticated_Returns403() throws Exception {
         mockMvc.perform(get("/api/v1/admin/warehouses"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

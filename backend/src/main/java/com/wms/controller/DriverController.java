@@ -3,6 +3,7 @@ package com.wms.controller;
 import com.wms.dto.request.DriverRequest;
 import com.wms.dto.request.DriverStatusRequest;
 import com.wms.dto.response.DriverResponse;
+import com.wms.dto.response.UserResponse;
 import com.wms.entity.User;
 import com.wms.repository.UserRepository;
 import com.wms.service.DriverService;
@@ -24,18 +25,25 @@ public class DriverController {
     private final DriverService driverService;
     private final UserRepository userRepository;
 
+    @GetMapping("/candidate-users")
+    @PreAuthorize("hasAnyRole('CEO', 'ADMIN', 'DISPATCHER')")
+    public ResponseEntity<List<UserResponse>> getDriverUserCandidates(Principal principal) {
+        return ResponseEntity.ok(driverService.getDriverUserCandidates(getActorId(principal)));
+    }
+
     @GetMapping
     @PreAuthorize("hasAnyRole('CEO', 'ADMIN', 'DISPATCHER', 'PLANNER', 'WAREHOUSE_MANAGER')")
     public ResponseEntity<List<DriverResponse>> getAllDrivers(
             @RequestParam(required = false) String status,
-            @RequestParam(required = false) Boolean isActive) {
-        return ResponseEntity.ok(driverService.getAllDrivers(status, isActive));
+            @RequestParam(required = false) Boolean isActive,
+            Principal principal) {
+        return ResponseEntity.ok(driverService.getAllDrivers(status, isActive, getActorId(principal)));
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('CEO', 'ADMIN', 'DISPATCHER', 'PLANNER', 'WAREHOUSE_MANAGER')")
-    public ResponseEntity<DriverResponse> getDriverById(@PathVariable Long id) {
-        return ResponseEntity.ok(driverService.getDriverById(id));
+    public ResponseEntity<DriverResponse> getDriverById(@PathVariable Long id, Principal principal) {
+        return ResponseEntity.ok(driverService.getDriverById(id, getActorId(principal)));
     }
 
     @PostMapping

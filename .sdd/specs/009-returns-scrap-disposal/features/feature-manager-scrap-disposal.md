@@ -1,11 +1,10 @@
 # Feature: Trưởng kho Duyệt Tiêu hủy Hàng lỗi từ Quarantine (US-WMS-04 - Disposal Sub-flow)
 
 ## 1. Context and Goal
-Hàng hóa hư hỏng hoặc hết hạn sử dụng tích tụ trong khu cách ly (Quarantine Zone) được Trưởng kho đề xuất xuất tiêu hủy, lập Biên bản hư hỏng (Damage Report) và duyệt xuất theo hạn mức thẩm quyền. Luồng trả NCC (RTV) của hàng lỗi inbound được xử lý tại Spec 003 bằng `RETURN_TO_VENDOR` adjustment.
+Hàng hóa hư hỏng hoặc hết hạn sử dụng tích tụ trong khu cách ly (Quarantine Zone) được Trưởng kho đề xuất xuất tiêu hủy, lập Biên bản hư hỏng (Damage Report) và duyệt xuất theo hạn mức thẩm quyền.
 
 ## 2. Actors
-* **Trưởng kho**: Đề xuất và duyệt tiêu hủy dưới 100M VND.
-* **CEO**: Duyệt tiêu hủy trên 100M VND.
+* **Trưởng kho kiêm Trưởng QC**: Đề xuất và phê duyệt tiêu hủy.
 
 ## 3. Functional Requirements (EARS)
 * **Event-driven:**
@@ -14,8 +13,12 @@ Hàng hóa hư hỏng hoặc hết hạn sử dụng tích tụ trong khu cách 
     * Send for Trưởng kho approval.
     * Once approved, decrease quarantine inventories: `total_qty -= quantity`.
     * Record an audit log entry with destruction reason, cost value, and approving authority.
+  * WHEN Trưởng kho selects Return to Vendor (RTV) for quarantine goods:
+    * Create a `debit_notes` record for the supplier.
+    * Create adjustments record with type = `'RETURN_TO_VENDOR'`.
+    * Decrease quarantine inventories: `total_qty -= quantity`.
 * **State-driven:**
-  * WHILE a disposal adjustment is pending approval, the system SHALL NOT deduct quarantine inventories.
+  * WHILE adjustments for disposal or return to vendor is pending approval, the system SHALL NOT deduct quarantine inventories.
 
 ## 4. API Endpoints
 * `POST /api/v1/disposal` - Tạo biên bản đề xuất hủy hàng lỗi (WAREHOUSE_MANAGER).

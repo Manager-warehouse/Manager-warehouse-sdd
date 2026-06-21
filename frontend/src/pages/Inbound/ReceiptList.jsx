@@ -64,11 +64,15 @@ const ReceiptList = () => {
   };
 
   // Filter & Search logic
-  const filteredReceipts = receipts.filter(r => {
-    const matchesSearch = r.receipt_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (r.source_reference && r.source_reference.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesStatus = statusFilter === 'ALL' || r.status === statusFilter;
-    const matchesType = typeFilter === 'ALL' || r.type === typeFilter;
+  const filteredReceipts = receipts.filter((receipt) => {
+    const needle = searchTerm.toLowerCase();
+    const partnerName = getPartnerName(receipt);
+    const sourceReference = receipt.source_reference || 'N/A';
+    const matchesSearch = receipt.receipt_number.toLowerCase().includes(needle)
+      || sourceReference.toLowerCase().includes(needle)
+      || partnerName.toLowerCase().includes(needle);
+    const matchesStatus = statusFilter === 'ALL' || receipt.status === statusFilter;
+    const matchesType = typeFilter === 'ALL' || receipt.type === typeFilter;
     return matchesSearch && matchesStatus && matchesType;
   });
 
@@ -85,6 +89,12 @@ const ReceiptList = () => {
         return <span className={`${baseStyle} bg-aloe-10 text-emerald-900 border-emerald-300`}>Đã duyệt</span>;
       case 'REJECTED':
         return <span className={`${baseStyle} bg-red-50 text-red-700 border-red-200`}>Từ chối</span>;
+      case 'IN_TRANSIT':
+        return <span className={`${baseStyle} bg-amber-50 text-amber-700 border-amber-200`}>Chờ nhận nội bộ</span>;
+      case 'COMPLETED':
+        return <span className={`${baseStyle} bg-aloe-10 text-emerald-900 border-emerald-300`}>Đã nhập kho</span>;
+      case 'COMPLETED_WITH_DISCREPANCY':
+        return <span className={`${baseStyle} bg-amber-50 text-amber-700 border-amber-200`}>Đã nhập có lệch</span>;
       default:
         return <span className={`${baseStyle} bg-zinc-100 text-zinc-800 border-zinc-200`}>{status}</span>;
     }
@@ -174,7 +184,7 @@ const ReceiptList = () => {
             Nhập hàng & QC Inbound
           </h1>
           <p className="text-xs text-shade-50 font-light mt-1">
-            Quản lý tiếp nhận hàng, kiểm đếm thực tế, QC và cất kệ tại kho <span className="font-semibold text-ink">{activeWarehouse?.name} ({activeWarehouse?.code})</span>.
+            Quản lý nhập mua, nhập trả và QC tại kho <span className="font-semibold text-ink">{activeWarehouse?.name} ({activeWarehouse?.code})</span>. Mã `RN` thuộc luồng phiếu nhập; điều chuyển nội bộ `TRF` được xử lý ở màn Điều chuyển nội bộ riêng.
           </p>
         </div>
 
@@ -239,13 +249,15 @@ const ReceiptList = () => {
         <div className="flex items-center justify-center p-20">
           <Loader2 className="w-8 h-8 animate-spin text-shade-50" />
         </div>
-      ) : filteredReceipts.length === 0 ? (
+      ) : (
+        <>
+          {filteredReceipts.length === 0 ? (
         <div className="bg-white rounded-lg border border-hairline-light p-12 text-center shadow-sm">
           <FileText className="w-12 h-12 text-shade-30 mx-auto mb-4" />
           <h3 className="text-lg font-bold mb-1">Không tìm thấy phiếu nhập kho nào</h3>
-          <p className="text-sm text-shade-50">Thay đổi bộ lọc hoặc tạo một phiếu mới để bắt đầu.</p>
+          <p className="text-sm text-shade-50">Thử đổi bộ lọc để xem phiếu nhập mua hoặc phiếu nhập trả.</p>
         </div>
-      ) : (
+          ) : (
         <div className="bg-white rounded-lg border border-hairline-light shadow-sm overflow-hidden card-premium">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
@@ -267,8 +279,10 @@ const ReceiptList = () => {
                     <td className="px-6 py-4 text-xs font-semibold">
                       {receipt.type === 'PURCHASE' ? (
                         <span className="text-indigo-600">Nhập mua (PO)</span>
+                      ) : receipt.type === 'RETURN' ? (
+                        <span className="text-teal-600">Nhập trả (DO hoàn)</span>
                       ) : (
-                        <span className="text-teal-600">Trả hàng (DO hoàn)</span>
+                        <span>-</span>
                       )}
                     </td>
                     <td className="px-6 py-4 text-xs text-shade-50">{receipt.source_reference || 'N/A'}</td>
@@ -277,7 +291,6 @@ const ReceiptList = () => {
                     <td className="px-6 py-4">{getStatusBadge(receipt.status)}</td>
                     <td className="px-6 py-4 text-right whitespace-nowrap">
                       <div className="flex gap-2 justify-end items-center">
-                        {/* 1. Receive Action: status=PENDING_RECEIPT, role=WAREHOUSE_STAFF/ADMIN */}
                         {receipt.status === 'PENDING_RECEIPT' && (hasRole(ROLES.WAREHOUSE_STAFF) || hasRole(ROLES.ADMIN)) && (
                           <button
                             onClick={() => navigate(`/inbound/receive/${receipt.id}`)}
@@ -287,7 +300,6 @@ const ReceiptList = () => {
                           </button>
                         )}
 
-                        {/* 2. QC Action: status=DRAFT, role=STOREKEEPER/ADMIN */}
                         {receipt.status === 'DRAFT' && (
                           hasRole(ROLES.WAREHOUSE_STAFF)
                           || hasRole(ROLES.STOREKEEPER)
@@ -315,7 +327,6 @@ const ReceiptList = () => {
                           </button>
                         )}
 
-                        {/* 3. Approval Action: status=QC_COMPLETED, role=WAREHOUSE_MANAGER/ADMIN */}
                         {receipt.status === 'QC_COMPLETED' && (hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.ADMIN)) && (
                           <button
                             onClick={() => handleOpenApproval(receipt.id)}
@@ -325,7 +336,6 @@ const ReceiptList = () => {
                           </button>
                         )}
 
-                        {/* 4. Putaway Action: status=APPROVED, role=STOREKEEPER/ADMIN */}
                         {receipt.status === 'APPROVED' && (hasRole(ROLES.STOREKEEPER) || hasRole(ROLES.ADMIN)) && (
                           <button
                             onClick={() => navigate(`/inbound/putaway/${receipt.id}`)}
@@ -335,7 +345,6 @@ const ReceiptList = () => {
                           </button>
                         )}
 
-                        {/* View only fallback */}
                         <button
                           onClick={async () => {
                             try {
@@ -361,6 +370,8 @@ const ReceiptList = () => {
             </table>
           </div>
         </div>
+          )}
+        </>
       )}
 
       {/* Approval & View Detail Modal */}
@@ -429,7 +440,7 @@ const ReceiptList = () => {
                         <th className="px-4 py-2.5 font-bold text-shade-60 text-right">Đếm thực tế</th>
                         <th className="px-4 py-2.5 font-bold text-shade-60 text-right">Đạt QC</th>
                         <th className="px-4 py-2.5 font-bold text-shade-60 text-right">Lỗi QC</th>
-                        <th className="px-4 py-2.5 font-bold text-shade-60">Grade/Chi tiết</th>
+                        <th className="px-4 py-2.5 font-bold text-shade-60">Chi tiết QC</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-hairline-light">
@@ -447,9 +458,6 @@ const ReceiptList = () => {
                             {item.qc_result ? (
                               <div className="flex flex-col gap-0.5">
                                 <div className="flex gap-1.5 items-center">
-                                  <span className="text-[10px] font-bold uppercase text-indigo-700 bg-indigo-50 px-1 py-0.2 rounded border border-indigo-200">
-                                    Grade {item.grade || 'A'}
-                                  </span>
                                   <span className={`text-[9px] font-bold ${item.qc_result === 'PASSED' ? 'text-emerald-700' : item.qc_result === 'FAILED' ? 'text-red-700' : 'text-amber-700'}`}>
                                     {item.qc_result}
                                   </span>

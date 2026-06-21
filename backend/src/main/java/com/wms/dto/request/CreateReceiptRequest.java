@@ -7,6 +7,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Null;
 import jakarta.validation.constraints.Size;
 import java.util.List;
 
@@ -16,6 +17,9 @@ public class CreateReceiptRequest {
     @NotNull
     @JsonProperty("supplier_id")
     private Long supplierId;
+
+    @Null
+    private String type;
 
     @NotBlank
     @Size(max = 255)
@@ -47,6 +51,14 @@ public class CreateReceiptRequest {
 
     public void setSupplierId(Long supplierId) {
         this.supplierId = supplierId;
+    }
+
+    public String getType() {
+        return type;
+    }
+
+    public void setType(String type) {
+        this.type = type;
     }
 
     public String getContactPerson() {

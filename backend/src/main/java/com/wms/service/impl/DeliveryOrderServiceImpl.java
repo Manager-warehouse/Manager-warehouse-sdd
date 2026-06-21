@@ -182,7 +182,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         item.setRequestedQty(request.getRequestedQty());
         item.setReservedQty(BigDecimal.ZERO);
         item.setIssuedQty(BigDecimal.ZERO);
-        // Snapshot from price_history — not from request (spec 007)
+        // Snapshot from price_history, not from request (spec 007)
         item.setUnitPrice(price.getSellingPrice());
         item.setUnitCost(price.getCostPrice());
         return item;

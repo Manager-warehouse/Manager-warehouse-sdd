@@ -2,6 +2,7 @@ package com.wms.service.impl;
 
 import com.wms.dto.request.DriverRequest;
 import com.wms.dto.response.DriverResponse;
+import com.wms.dto.response.UserResponse;
 import com.wms.entity.Driver;
 import com.wms.entity.User;
 import com.wms.enums.AuditAction;
@@ -11,6 +12,7 @@ import com.wms.exception.ResourceNotFoundException;
 import com.wms.mapper.MasterDataMapper;
 import com.wms.repository.DriverRepository;
 import com.wms.repository.UserRepository;
+import com.wms.repository.UserWarehouseAssignmentRepository;
 import com.wms.service.AuditLogService;
 import com.wms.service.DriverService;
 import lombok.RequiredArgsConstructor;
@@ -29,25 +31,43 @@ public class DriverServiceImpl implements DriverService {
 
     private final DriverRepository driverRepository;
     private final UserRepository userRepository;
+    private final UserWarehouseAssignmentRepository assignmentRepository;
     private final MasterDataMapper mapper;
     private final AuditLogService auditLogService;
 
     @Override
     @Transactional(readOnly = true)
-    public List<DriverResponse> getAllDrivers(String status, Boolean isActive) {
-        List<Driver> list = driverRepository.findAll().stream()
-                .filter(d -> status == null || d.getStatus().name().equals(status))
-                .filter(d -> isActive == null || d.getIsActive().equals(isActive))
+    public List<UserResponse> getDriverUserCandidates(Long actorId) {
+        User actor = requireUser(actorId);
+        List<Long> actorWarehouseIds = getActorWarehouseIds(actor);
+
+        return userRepository.findByRole(UserRole.DRIVER).stream()
+                .filter(user -> isWithinActorScope(actor, actorWarehouseIds, getWarehouseIds(user)))
+                .map(this::toUserResponse)
                 .collect(Collectors.toList());
-        return list.stream().map(mapper::toResponse).collect(Collectors.toList());
     }
 
     @Override
     @Transactional(readOnly = true)
-    public DriverResponse getDriverById(Long id) {
+    public List<DriverResponse> getAllDrivers(String status, Boolean isActive, Long actorId) {
+        User actor = requireUser(actorId);
+        List<Long> actorWarehouseIds = getActorWarehouseIds(actor);
+
+        List<Driver> list = driverRepository.findAll().stream()
+                .filter(d -> status == null || d.getStatus().name().equals(status))
+                .filter(d -> isActive == null || d.getIsActive().equals(isActive))
+                .filter(d -> isWithinActorScope(actor, actorWarehouseIds, getWarehouseIds(d.getUser())))
+                .collect(Collectors.toList());
+        return list.stream().map(this::toResponse).collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public DriverResponse getDriverById(Long id, Long actorId) {
         Driver driver = driverRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Driver not found with id: " + id));
-        return mapper.toResponse(driver);
+        ensureDriverWithinActorScope(requireUser(actorId), driver);
+        return toResponse(driver);
     }
 
     @Override
@@ -66,6 +86,7 @@ public class DriverServiceImpl implements DriverService {
         if (driverUser.getRole() != UserRole.DRIVER) {
             throw new IllegalArgumentException("USER_MUST_HAVE_DRIVER_ROLE");
         }
+        ensureUserWithinActorScope(actor, driverUser);
 
         if (driverRepository.existsByUserId(request.getUserId())) {
             throw new IllegalArgumentException("DUPLICATE_DRIVER_USER");
@@ -94,7 +115,7 @@ public class DriverServiceImpl implements DriverService {
         // Audit Log
         auditLogService.log(actor, AuditAction.CREATE, "Driver", saved.getId(), saved.getLicenseNumber(), null, null, toMap(saved));
 
-        return mapper.toResponse(saved);
+        return toResponse(saved);
     }
 
     @Override
@@ -116,6 +137,8 @@ public class DriverServiceImpl implements DriverService {
         if (driverUser.getRole() != UserRole.DRIVER) {
             throw new IllegalArgumentException("USER_MUST_HAVE_DRIVER_ROLE");
         }
+        ensureDriverWithinActorScope(actor, driver);
+        ensureUserWithinActorScope(actor, driverUser);
 
         if (!driver.getUser().getId().equals(request.getUserId()) && driverRepository.existsByUserIdAndIdNot(request.getUserId(), id)) {
             throw new IllegalArgumentException("DUPLICATE_DRIVER_USER");
@@ -141,7 +164,7 @@ public class DriverServiceImpl implements DriverService {
         // Audit Log
         auditLogService.log(actor, AuditAction.UPDATE, "Driver", saved.getId(), saved.getLicenseNumber(), null, oldMap, toMap(saved));
 
-        return mapper.toResponse(saved);
+        return toResponse(saved);
     }
 
     @Override
@@ -152,6 +175,7 @@ public class DriverServiceImpl implements DriverService {
 
         User actor = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+        ensureDriverWithinActorScope(actor, driver);
 
         Map<String, Object> oldMap = toMap(driver);
 
@@ -164,7 +188,7 @@ public class DriverServiceImpl implements DriverService {
         // Audit Log
         auditLogService.log(actor, AuditAction.STATUS_CHANGE, "Driver", saved.getId(), saved.getLicenseNumber(), null, oldMap, toMap(saved));
 
-        return mapper.toResponse(saved);
+        return toResponse(saved);
     }
 
     @Override
@@ -183,6 +207,7 @@ public class DriverServiceImpl implements DriverService {
 
         User actor = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+        ensureDriverWithinActorScope(actor, driver);
 
         Map<String, Object> oldMap = toMap(driver);
 
@@ -202,12 +227,13 @@ public class DriverServiceImpl implements DriverService {
         Driver driver = driverRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Driver not found with id: " + id));
 
-        if (driver.getIsActive()) {
-            return mapper.toResponse(driver);
-        }
-
         User actor = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+        ensureDriverWithinActorScope(actor, driver);
+
+        if (driver.getIsActive()) {
+            return toResponse(driver);
+        }
 
         Map<String, Object> oldMap = toMap(driver);
 
@@ -220,7 +246,68 @@ public class DriverServiceImpl implements DriverService {
         // Audit Log
         auditLogService.log(actor, AuditAction.UPDATE, "Driver", saved.getId(), saved.getLicenseNumber(), null, oldMap, toMap(saved));
 
-        return mapper.toResponse(saved);
+        return toResponse(saved);
+    }
+
+    private DriverResponse toResponse(Driver driver) {
+        DriverResponse response = mapper.toResponse(driver);
+        if (driver.getUser() != null) {
+            response.setWarehouseIds(getWarehouseIds(driver.getUser()));
+        }
+        return response;
+    }
+
+    private UserResponse toUserResponse(User user) {
+        return UserResponse.builder()
+                .id(user.getId())
+                .code(user.getCode())
+                .fullName(user.getFullName())
+                .email(user.getEmail())
+                .phone(user.getPhone())
+                .role(user.getRole())
+                .jobTitle(user.getJobTitle())
+                .shift(user.getShift())
+                .region(user.getRegion())
+                .isActive(user.getIsActive())
+                .warehouses(getWarehouseIds(user))
+                .createdAt(user.getCreatedAt())
+                .updatedAt(user.getUpdatedAt())
+                .build();
+    }
+
+    private User requireUser(Long userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+    }
+
+    private List<Long> getWarehouseIds(User user) {
+        if (user == null || user.getId() == null) {
+            return List.of();
+        }
+        return assignmentRepository.findWarehouseIdsByUserId(user.getId());
+    }
+
+    private List<Long> getActorWarehouseIds(User actor) {
+        return hasGlobalScope(actor) ? List.of() : getWarehouseIds(actor);
+    }
+
+    private boolean hasGlobalScope(User actor) {
+        return actor.getRole() == UserRole.ADMIN || actor.getRole() == UserRole.CEO;
+    }
+
+    private boolean isWithinActorScope(User actor, List<Long> actorWarehouseIds, List<Long> targetWarehouseIds) {
+        return hasGlobalScope(actor)
+                || actorWarehouseIds.stream().anyMatch(targetWarehouseIds::contains);
+    }
+
+    private void ensureUserWithinActorScope(User actor, User targetUser) {
+        if (!isWithinActorScope(actor, getActorWarehouseIds(actor), getWarehouseIds(targetUser))) {
+            throw new IllegalArgumentException("WAREHOUSE_SCOPE_REQUIRED");
+        }
+    }
+
+    private void ensureDriverWithinActorScope(User actor, Driver driver) {
+        ensureUserWithinActorScope(actor, driver.getUser());
     }
 
     private Map<String, Object> toMap(Driver d) {

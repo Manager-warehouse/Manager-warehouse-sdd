@@ -16,3 +16,4 @@ public class DeliveryOrderItemResponse {
     private BigDecimal issuedQty;
     private BigDecimal unitPrice;
 }
+

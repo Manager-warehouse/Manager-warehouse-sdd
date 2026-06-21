@@ -119,9 +119,6 @@ const ProductManagement = () => {
       unit_per_pack: Number(formUnitPerPack),
       weight_kg: parseFloat(formWeight),
       volume_m3: parseFloat(formVolume),
-      has_serial: formHasSerial,
-      has_expiry: formHasExpiry,
-      shelf_life_days: formHasExpiry ? Number(formShelfLifeDays) : null,
       reorder_point: parseFloat(formReorderPoint),
       description: formDescription,
     };
@@ -224,7 +221,7 @@ const ProductManagement = () => {
 
         {/* Filter controls */}
         <div className="flex gap-4 w-full md:w-auto">
-          <div className="w-1/2 md:w-44">
+          <div className="w-full md:w-44">
             <label className="block text-[10px] font-bold text-shade-50 uppercase mb-1 tracking-wider">Trạng thái</label>
             <select
               value={statusFilter}
@@ -234,19 +231,6 @@ const ProductManagement = () => {
               <option value="ALL">Tất cả trạng thái</option>
               <option value="ACTIVE">Đang hoạt động</option>
               <option value="INACTIVE">Đang khóa</option>
-            </select>
-          </div>
-
-          <div className="w-1/2 md:w-44">
-            <label className="block text-[10px] font-bold text-shade-50 uppercase mb-1 tracking-wider">Theo dõi Serial</label>
-            <select
-              value={serialFilter}
-              onChange={(e) => setSerialFilter(e.target.value)}
-              className="w-full bg-canvas-light text-ink text-sm px-3 py-2 rounded-md border border-hairline-light focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink min-h-[38px]"
-            >
-              <option value="ALL">Tất cả</option>
-              <option value="YES">Bắt buộc Serial</option>
-              <option value="NO">Không dùng Serial</option>
             </select>
           </div>
         </div>
@@ -275,7 +259,6 @@ const ProductManagement = () => {
                   <th className="px-6 py-4 font-bold text-shade-60 text-right">Quy đổi đóng gói</th>
                   <th className="px-6 py-4 font-bold text-shade-60 text-right">Trọng lượng (kg)</th>
                   <th className="px-6 py-4 font-bold text-shade-60 text-right">Thể tích (m³)</th>
-                  <th className="px-6 py-4 font-bold text-shade-60 text-center">Theo dõi Serial</th>
                   <th className="px-6 py-4 font-bold text-shade-60 text-right">Mức tối thiểu</th>
                   <th className="px-6 py-4 font-bold text-shade-60 text-center">Trạng thái</th>
                   <th className="px-6 py-4 font-bold text-shade-60 text-right">Hành động</th>
@@ -296,13 +279,6 @@ const ProductManagement = () => {
                     <td className="px-6 py-4 text-right font-medium">{prod.unit_per_pack}</td>
                     <td className="px-6 py-4 text-right font-mono text-shade-60">{prod.weight_kg?.toFixed(3)}</td>
                     <td className="px-6 py-4 text-right font-mono text-shade-60">{prod.volume_m3?.toFixed(5)}</td>
-                    <td className="px-6 py-4 text-center">
-                      {prod.has_serial ? (
-                        <span className="text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-pill whitespace-nowrap">Có (Unique)</span>
-                      ) : (
-                        <span className="text-[10px] text-shade-40">Không</span>
-                      )}
-                    </td>
                     <td className="px-6 py-4 text-right font-mono font-medium">{prod.reorder_point}</td>
                     <td className="px-6 py-4 text-center">
                       <Badge type={prod.is_active ? 'success' : 'neutral'}>
@@ -416,62 +392,17 @@ const ProductManagement = () => {
             />
           </div>
 
-          <div className="flex flex-col gap-4 bg-zinc-50 p-3.5 rounded border border-hairline-light">
-            <div className="grid grid-cols-2 gap-4 items-center">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formHasSerial}
-                  onChange={(e) => setFormHasSerial(e.target.checked)}
-                  className="w-4 h-4 rounded border-hairline-light text-ink focus:ring-ink"
-                />
-                <div className="flex flex-col">
-                  <span className="text-xs font-bold text-ink">Bắt buộc nhập Serial</span>
-                  <span className="text-[10px] text-shade-50 leading-none">Khi nhập/xuất kho</span>
-                </div>
-              </label>
-
-              <Input
-                label="Mức Stock cảnh báo"
-                type="number"
-                value={formReorderPoint}
-                onChange={(e) => setFormReorderPoint(e.target.value)}
-                error={formErrors.reorder_point}
-                min="0"
-                step="1"
-                required
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 items-center border-t border-zinc-200 pt-3">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formHasExpiry}
-                  onChange={(e) => setFormHasExpiry(e.target.checked)}
-                  className="w-4 h-4 rounded border-hairline-light text-ink focus:ring-ink"
-                />
-                <div className="flex flex-col">
-                  <span className="text-xs font-bold text-ink">Theo dõi Hạn sử dụng</span>
-                  <span className="text-[10px] text-shade-50 leading-none">Quản lý lô & hạn dùng</span>
-                </div>
-              </label>
-
-              {formHasExpiry ? (
-                <Input
-                  label="Số ngày sử dụng (Shelf Life)"
-                  type="number"
-                  value={formShelfLifeDays}
-                  onChange={(e) => setFormShelfLifeDays(e.target.value)}
-                  error={formErrors.shelf_life_days}
-                  min="1"
-                  step="1"
-                  required
-                />
-              ) : (
-                <div className="text-xs text-shade-40 italic pt-4">Không theo dõi hạn dùng.</div>
-              )}
-            </div>
+          <div className="bg-zinc-50 p-3.5 rounded border border-hairline-light">
+            <Input
+              label="Mức Stock cảnh báo"
+              type="number"
+              value={formReorderPoint}
+              onChange={(e) => setFormReorderPoint(e.target.value)}
+              error={formErrors.reorder_point}
+              min="0"
+              step="1"
+              required
+            />
           </div>
 
           <div className="flex flex-col gap-1.5">

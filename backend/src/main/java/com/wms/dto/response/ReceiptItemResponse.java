@@ -29,6 +29,8 @@ public class ReceiptItemResponse {
     @JsonProperty("product_sku")
     private String productSku;
 
+
+
     public Long getReceiptItemId() {
         return receiptItemId;
     }

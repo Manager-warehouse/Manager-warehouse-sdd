@@ -208,12 +208,13 @@ Note: Nếu môi trường hiện tại không có GitNexus tooling, agent phả
 
 <!-- SPECKIT START -->
 <!-- Active Plan: .sdd/specs/003-inbound-receipt-qc/features/feature-warehouse-staff-receipt-counting/plan.md -->
+<!-- Active Plan: .sdd/specs/005-inter-warehouse-transfer/plan.md -->
 <!-- SPECKIT END -->
 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **Manager-warehouse-sdd** (4686 symbols, 11279 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **Manager-warehouse-sdd** (5994 symbols, 14794 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 

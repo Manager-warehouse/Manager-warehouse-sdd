@@ -105,7 +105,7 @@ class ProductControllerTest {
     @DisplayName("GET /products - không xác thực - 403")
     void getProducts_unauthenticated_returns403() throws Exception {
         mockMvc.perform(get("/api/v1/products"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

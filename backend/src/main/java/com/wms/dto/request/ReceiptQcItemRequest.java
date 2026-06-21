@@ -36,6 +36,4 @@ public class ReceiptQcItemRequest {
     @JsonProperty("qc_failure_reason")
     private String qcFailureReason;
 
-    @JsonProperty("grade")
-    private String grade;
 }
