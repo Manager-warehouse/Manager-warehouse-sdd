@@ -288,12 +288,29 @@ const addMockAuditLog = (action, entityType, entityId, details) => {
 
 export const masterDataService = {
   // --- PRODUCTS (SKU) ---
-  getProducts: async () => {
+  getProducts: async (params = {}) => {
     if (useMock) {
       await new Promise((resolve) => setTimeout(resolve, 300));
-      return getDb(KEYS.PRODUCTS, INITIAL_PRODUCTS);
+      const products = getDb(KEYS.PRODUCTS, INITIAL_PRODUCTS);
+      const normalizedSearch = params.search?.trim().toLowerCase();
+
+      if (!normalizedSearch) {
+        return products;
+      }
+
+      return products.filter(
+        (product) =>
+          product.sku?.toLowerCase().includes(normalizedSearch) ||
+          product.name?.toLowerCase().includes(normalizedSearch),
+      );
     }
-    const response = await apiClient.get("/products");
+    const response = await apiClient.get("/products", {
+      params: {
+        search: params.search?.trim() || undefined,
+        page: params.page ?? 0,
+        size: params.size ?? 200,
+      },
+    });
     const data = response.data;
     const arrayData = Array.isArray(data) ? data : (data && Array.isArray(data.content) ? data.content : []);
     return mapToSnakeCase(arrayData);

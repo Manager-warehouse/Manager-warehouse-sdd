@@ -52,7 +52,11 @@ const emptyForm = { dealer_id: '', expected_delivery_date: '', notes: '', items:
 
 const getStatusBadge = (status) => {
   const base = 'text-[10px] font-semibold px-2 py-0.5 rounded-pill border uppercase tracking-wider whitespace-nowrap';
-  const { label, color } = DO_STATUS_MAP[status] ?? { label: status, color: 'bg-zinc-100 text-zinc-800 border-zinc-200' };
+  const { label, color } = DO_STATUS_MAP[status] ?? {
+    label: status,
+    color: 'bg-zinc-100 text-zinc-800 border-zinc-200',
+  };
+
   return <span className={`${base} ${color}`}>{label}</span>;
 };
 
@@ -83,9 +87,12 @@ export default function DeliveryOrders() {
   const [search, setSearch] = useState('');
   const [dealers, setDealers] = useState([]);
   const [products, setProducts] = useState([]);
+  const [masterDataLoading, setMasterDataLoading] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [formData, setFormData] = useState(emptyForm);
   const [selectedDealerObj, setSelectedDealerObj] = useState(null);
+  const [dealerSearch, setDealerSearch] = useState('');
+  const [productSearch, setProductSearch] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [cancelModal, setCancelModal] = useState({ show: false, orderId: null, reason: '' });
 
@@ -94,8 +101,12 @@ export default function DeliveryOrders() {
   }, [activeWarehouse?.id, statusFilter, search]);
 
   useEffect(() => {
-    fetchMasterData();
-  }, []);
+    if (!showCreateModal) {
+      return;
+    }
+
+    fetchMasterData(productSearch);
+  }, [showCreateModal, productSearch]);
 
   const fetchOrders = async () => {
     setLoading(true);
@@ -112,17 +123,36 @@ export default function DeliveryOrders() {
     }
   };
 
-  const fetchMasterData = async () => {
+  const fetchMasterData = async (searchTerm = '') => {
+    setMasterDataLoading(true);
     try {
       const [dealersData, productsData] = await Promise.all([
         masterDataService.getDealers(),
-        masterDataService.getProducts(),
+        masterDataService.getProducts({ search: searchTerm, size: 100 }),
       ]);
-      setDealers(dealersData);
+      setDealers(dealersData.filter((dealer) => dealer.is_active !== false));
       setProducts(productsData.filter((product) => product.is_active !== false));
     } catch {
       addToast('Không thể tải dữ liệu đại lý/sản phẩm', 'warning');
+    } finally {
+      setMasterDataLoading(false);
     }
+  };
+
+  const handleOpenCreateModal = () => {
+    setFormData(emptyForm);
+    setSelectedDealerObj(null);
+    setDealerSearch('');
+    setProductSearch('');
+    setShowCreateModal(true);
+  };
+
+  const handleCloseCreateModal = () => {
+    setShowCreateModal(false);
+    setFormData(emptyForm);
+    setSelectedDealerObj(null);
+    setDealerSearch('');
+    setProductSearch('');
   };
 
   const addItemRow = () => {
@@ -135,6 +165,7 @@ export default function DeliveryOrders() {
   const updateItemRow = (index, field, value) => {
     const items = [...formData.items];
     items[index][field] = value;
+
     if (field === 'product_id') {
       const product = products.find((item) => Number(item.id) === Number(value));
       if (product) {
@@ -143,6 +174,7 @@ export default function DeliveryOrders() {
         items[index].unit_price = Number(product.selling_price || product.unit_price || items[index].unit_price || 0);
       }
     }
+
     setFormData((prev) => ({ ...prev, items }));
   };
 
@@ -174,9 +206,7 @@ export default function DeliveryOrders() {
         warehouse_id: activeWarehouse.id,
       });
       addToast('Tạo đơn xuất hàng thành công', 'success');
-      setShowCreateModal(false);
-      setFormData(emptyForm);
-      setSelectedDealerObj(null);
+      handleCloseCreateModal();
       fetchOrders();
     } catch (error) {
       addToast(error.message || 'Lỗi khi tạo đơn xuất hàng', 'error');
@@ -206,45 +236,53 @@ export default function DeliveryOrders() {
   const approvedDO = orders.filter((order) => order.status === 'WAREHOUSE_APPROVED').length;
   const creditStatus = selectedDealerObj?.id === 4 ? 'BLOCKED' : selectedDealerObj?.id === 2 ? 'WARNING' : selectedDealerObj ? 'OK' : null;
   const isSubmitDisabled = !formData.dealer_id || !formData.expected_delivery_date || !formData.items.length || creditStatus === 'BLOCKED' || submitting;
+  const filteredDealers = dealers.filter((dealer) => {
+    const keyword = dealerSearch.trim().toLowerCase();
+    if (!keyword) {
+      return true;
+    }
+
+    return `${dealer.code || ''} ${dealer.name || dealer.company_name || ''}`.toLowerCase().includes(keyword);
+  });
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
         <div>
-          <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">Vận hành / Xuất kho</span>
-          <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">Đơn xuất hàng</h1>
-          <p className="text-xs text-shade-50 font-light mt-1">
+          <span className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-shade-60">Vận hành / Xuất kho</span>
+          <h1 className="text-2xl font-display font-semibold tracking-tight md:text-3xl">Đơn xuất hàng</h1>
+          <p className="mt-1 text-xs font-light text-shade-50">
             Quản lý lệnh xuất tại kho <span className="font-semibold text-ink">{activeWarehouse?.name} ({activeWarehouse?.code})</span>.
           </p>
         </div>
         {hasRole(ROLES.PLANNER) && (
-          <button onClick={() => setShowCreateModal(true)} className="btn-pill btn-pill-primary flex items-center gap-2">
-            <Plus className="w-4 h-4" />
+          <button onClick={handleOpenCreateModal} className="btn-pill btn-pill-primary flex items-center gap-2">
+            <Plus className="h-4 w-4" />
             <span>Lập đơn xuất mới</span>
           </button>
         )}
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         {[
-          { label: 'Tổng đơn', value: totalDO, icon: <PackageCheck className="w-5 h-5" />, accent: 'text-zinc-600 bg-zinc-100' },
-          { label: 'Chờ lấy hàng/QC', value: waitingPickingDO, icon: <Clock className="w-5 h-5" />, accent: 'text-blue-600 bg-blue-50' },
-          { label: 'Chờ duyệt QC', value: qcPendingDO, icon: <PackageCheck className="w-5 h-5" />, accent: 'text-violet-600 bg-violet-50' },
-          { label: 'Chờ vận chuyển', value: approvedDO, icon: <Truck className="w-5 h-5" />, accent: 'text-amber-600 bg-amber-50' },
+          { label: 'Tổng đơn', value: totalDO, icon: <PackageCheck className="h-5 w-5" />, accent: 'text-zinc-600 bg-zinc-100' },
+          { label: 'Chờ lấy hàng/QC', value: waitingPickingDO, icon: <Clock className="h-5 w-5" />, accent: 'text-blue-600 bg-blue-50' },
+          { label: 'Chờ duyệt QC', value: qcPendingDO, icon: <PackageCheck className="h-5 w-5" />, accent: 'text-violet-600 bg-violet-50' },
+          { label: 'Chờ vận chuyển', value: approvedDO, icon: <Truck className="h-5 w-5" />, accent: 'text-amber-600 bg-amber-50' },
         ].map(({ label, value, icon, accent }) => (
-          <div key={label} className="bg-white rounded-lg border border-hairline-light p-4 shadow-sm flex items-center gap-3">
-            <div className={`p-2.5 rounded-full ${accent}`}>{icon}</div>
+          <div key={label} className="flex items-center gap-3 rounded-lg border border-hairline-light bg-white p-4 shadow-sm">
+            <div className={`rounded-full p-2.5 ${accent}`}>{icon}</div>
             <div>
-              <p className="text-xs text-shade-50 font-medium">{label}</p>
+              <p className="text-xs font-medium text-shade-50">{label}</p>
               <p className="text-2xl font-bold text-ink">{value}</p>
             </div>
           </div>
         ))}
       </div>
 
-      <div className="bg-white rounded-lg border border-hairline-light p-4 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
+      <div className="flex flex-col items-center justify-between gap-4 rounded-lg border border-hairline-light bg-white p-4 shadow-sm md:flex-row">
         <div className="relative w-full md:w-80">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-shade-40" />
+          <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-shade-40" />
           <input
             type="text"
             placeholder="Tìm mã DO, tên đại lý..."
@@ -255,7 +293,7 @@ export default function DeliveryOrders() {
         </div>
         <div className="flex items-center gap-2">
           <span className="text-xs font-semibold text-shade-50">Trạng thái:</span>
-          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="text-input text-xs py-1.5">
+          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="text-input py-1.5 text-xs">
             {STATUS_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
@@ -265,26 +303,26 @@ export default function DeliveryOrders() {
 
       {loading ? (
         <div className="flex items-center justify-center p-20">
-          <Loader2 className="w-8 h-8 animate-spin text-shade-50" />
+          <Loader2 className="h-8 w-8 animate-spin text-shade-50" />
         </div>
       ) : orders.length === 0 ? (
-        <div className="bg-white rounded-lg border border-hairline-light p-12 text-center shadow-sm">
-          <PackageCheck className="w-12 h-12 text-shade-30 mx-auto mb-4" />
-          <h3 className="text-lg font-bold mb-1">Không tìm thấy đơn xuất hàng nào</h3>
+        <div className="rounded-lg border border-hairline-light bg-white p-12 text-center shadow-sm">
+          <PackageCheck className="mx-auto mb-4 h-12 w-12 text-shade-30" />
+          <h3 className="mb-1 text-lg font-bold">Không tìm thấy đơn xuất hàng nào</h3>
           <p className="text-sm text-shade-50">Thử đổi bộ lọc hoặc tạo một đơn mới để bắt đầu.</p>
         </div>
       ) : (
-        <div className="bg-white rounded-lg border border-hairline-light shadow-sm overflow-hidden card-premium">
+        <div className="card-premium overflow-hidden rounded-lg border border-hairline-light bg-white shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full border-collapse text-left">
               <thead>
-                <tr className="bg-zinc-50 border-b border-hairline-light">
-                  <th className="px-6 py-3.5 text-xs font-bold text-shade-60 uppercase tracking-wider">Mã DO</th>
-                  <th className="px-6 py-3.5 text-xs font-bold text-shade-60 uppercase tracking-wider">Đại lý</th>
-                  <th className="px-6 py-3.5 text-xs font-bold text-shade-60 uppercase tracking-wider">Ngày lập</th>
-                  <th className="px-6 py-3.5 text-xs font-bold text-shade-60 uppercase tracking-wider">Ngày giao dự kiến</th>
-                  <th className="px-6 py-3.5 text-xs font-bold text-shade-60 uppercase tracking-wider">Trạng thái</th>
-                  <th className="px-6 py-3.5 text-xs font-bold text-shade-60 uppercase tracking-wider text-right">Thao tác</th>
+                <tr className="border-b border-hairline-light bg-zinc-50">
+                  <th className="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-shade-60">Mã DO</th>
+                  <th className="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-shade-60">Đại lý</th>
+                  <th className="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-shade-60">Ngày lập</th>
+                  <th className="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-shade-60">Ngày giao dự kiến</th>
+                  <th className="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-shade-60">Trạng thái</th>
+                  <th className="px-6 py-3.5 text-right text-xs font-bold uppercase tracking-wider text-shade-60">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-hairline-light">
@@ -301,17 +339,17 @@ export default function DeliveryOrders() {
                       <td className="px-6 py-4 text-xs font-bold">{order.do_number}</td>
                       <td className="px-6 py-4">
                         <p className="text-xs font-semibold">{order.dealer_name}</p>
-                        <p className="text-[11px] text-shade-40 mt-1">{getRoleHint(order, hasRole)}</p>
+                        <p className="mt-1 text-[11px] text-shade-40">{getRoleHint(order, hasRole)}</p>
                       </td>
                       <td className="px-6 py-4 text-xs text-shade-50">{order.document_date ? new Date(order.document_date).toLocaleDateString('vi-VN') : '-'}</td>
                       <td className="px-6 py-4 text-xs text-shade-50">{order.expected_delivery_date ? new Date(order.expected_delivery_date).toLocaleDateString('vi-VN') : '-'}</td>
                       <td className="px-6 py-4">{getStatusBadge(order.status)}</td>
-                      <td className="px-6 py-4 text-right whitespace-nowrap">
-                        <div className="flex gap-2 justify-end items-center">
+                      <td className="whitespace-nowrap px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
                           {canCancel && (
                             <button
                               onClick={() => setCancelModal({ show: true, orderId: order.id, reason: '' })}
-                              className="inline-flex items-center justify-center rounded-full border border-red-300 text-red-600 hover:bg-red-50 px-3 py-1 text-xs font-semibold transition-colors"
+                              className="inline-flex items-center justify-center rounded-full border border-red-300 px-3 py-1 text-xs font-semibold text-red-600 transition-colors hover:bg-red-50"
                             >
                               Hủy đơn
                             </button>
@@ -319,7 +357,7 @@ export default function DeliveryOrders() {
                           {canOpenPicking && (
                             <button
                               onClick={() => navigate(`/outbound/delivery-orders/${order.id}`)}
-                              className="inline-flex items-center justify-center rounded-full border border-ink bg-canvas-light text-ink hover:bg-zinc-100 px-3 py-1 text-xs font-semibold transition-colors"
+                              className="inline-flex items-center justify-center rounded-full border border-ink bg-canvas-light px-3 py-1 text-xs font-semibold text-ink transition-colors hover:bg-zinc-100"
                             >
                               {order.status === 'NEW' ? 'Lập kế hoạch lấy hàng' : 'Duyệt xử lý kho'}
                             </button>
@@ -327,17 +365,17 @@ export default function DeliveryOrders() {
                           {canOpenQcEntry && (
                             <button
                               onClick={() => navigate(`/outbound/delivery-orders/${order.id}`)}
-                              className="inline-flex items-center justify-center rounded-full border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 px-3 py-1 text-xs font-semibold transition-colors"
+                              className="inline-flex items-center justify-center rounded-full border border-blue-300 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
                             >
                               Nhập kết quả lấy hàng/QC
                             </button>
                           )}
                           <button
                             onClick={() => navigate(`/outbound/delivery-orders/${order.id}`)}
-                            className="p-1.5 hover:bg-zinc-200 rounded-full text-shade-50 hover:text-ink transition-colors flex items-center justify-center"
+                            className="flex items-center justify-center rounded-full p-1.5 text-shade-50 transition-colors hover:bg-zinc-200 hover:text-ink"
                             title="Xem chi tiết"
                           >
-                            <Eye className="w-4 h-4" />
+                            <Eye className="h-4 w-4" />
                           </button>
                         </div>
                       </td>
@@ -350,30 +388,45 @@ export default function DeliveryOrders() {
         </div>
       )}
 
-      <Modal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} title="Lập đơn xuất hàng" maxWidth="max-w-4xl">
+      <Modal isOpen={showCreateModal} onClose={handleCloseCreateModal} title="Lập đơn xuất hàng" maxWidth="max-w-4xl">
         <div className="flex flex-col gap-5">
           <CreditCheckBanner status={creditStatus} remainingCredit={selectedDealerObj?.id === 2 ? 15000000 : 250000000} />
-          <div className="grid grid-cols-2 gap-4">
-            <Input
-              label="Đại lý nhận hàng *"
-              type="select"
-              value={formData.dealer_id}
-              onChange={(event) => {
-                setFormData((prev) => ({ ...prev, dealer_id: event.target.value }));
-                setSelectedDealerObj(dealers.find((dealer) => Number(dealer.id) === Number(event.target.value)));
-              }}
-              options={[
-                { value: '', label: '-- Chọn đại lý --' },
-                ...dealers.map((dealer) => ({ value: dealer.id, label: dealer.name || dealer.company_name })),
-              ]}
-            />
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="flex flex-col gap-3">
+              <Input
+                label="Tìm đại lý"
+                value={dealerSearch}
+                onChange={(event) => setDealerSearch(event.target.value)}
+                placeholder="Nhập mã hoặc tên đại lý"
+              />
+              <Input
+                label="Đại lý nhận hàng *"
+                type="select"
+                disabled={masterDataLoading}
+                value={formData.dealer_id}
+                onChange={(event) => {
+                  setFormData((prev) => ({ ...prev, dealer_id: event.target.value }));
+                  setSelectedDealerObj(dealers.find((dealer) => Number(dealer.id) === Number(event.target.value)));
+                }}
+                options={[
+                  { value: '', label: masterDataLoading ? '-- Đang tải đại lý --' : '-- Chọn đại lý --' },
+                  ...filteredDealers.map((dealer) => ({
+                    value: dealer.id,
+                    label: `${dealer.code ? `[${dealer.code}] ` : ''}${dealer.name || dealer.company_name}`,
+                  })),
+                ]}
+              />
+            </div>
+
             <Input
               label="Ngày giao dự kiến *"
               type="date"
               value={formData.expected_delivery_date}
               onChange={(event) => setFormData((prev) => ({ ...prev, expected_delivery_date: event.target.value }))}
             />
-            <div className="col-span-2">
+
+            <div className="md:col-span-2">
               <Input
                 label="Ghi chú"
                 value={formData.notes}
@@ -384,39 +437,55 @@ export default function DeliveryOrders() {
           </div>
 
           <div>
-            <div className="flex justify-between items-center mb-3">
+            <div className="mb-3 flex items-center justify-between">
               <span className="text-xs font-semibold uppercase tracking-wider text-shade-60">Danh sách sản phẩm</span>
-              <button type="button" onClick={addItemRow} className="text-xs font-semibold text-ink hover:underline flex items-center gap-1">
-                <Plus className="w-3.5 h-3.5" /> Thêm sản phẩm
+              <button type="button" onClick={addItemRow} className="flex items-center gap-1 text-xs font-semibold text-ink hover:underline">
+                <Plus className="h-3.5 w-3.5" /> Thêm sản phẩm
               </button>
             </div>
-            <div className="border border-hairline-light rounded-lg overflow-hidden bg-canvas-light">
-              <table className="w-full text-left text-xs border-collapse">
+
+            <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+              <Input
+                label="Tìm sản phẩm từ API"
+                value={productSearch}
+                onChange={(event) => setProductSearch(event.target.value)}
+                placeholder="Nhập SKU hoặc tên sản phẩm"
+              />
+              <div className="flex items-center gap-2 text-xs text-shade-50">
+                {masterDataLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+                <span>{masterDataLoading ? 'Đang tải danh mục sản phẩm...' : `Đang hiển thị ${products.length} sản phẩm`}</span>
+              </div>
+            </div>
+
+            <div className="overflow-hidden rounded-lg border border-hairline-light bg-canvas-light">
+              <table className="w-full border-collapse text-left text-xs">
                 <thead>
-                  <tr className="bg-zinc-50 border-b border-hairline-light">
-                    <th className="px-4 py-3 font-bold text-shade-60 uppercase tracking-wider">Sản phẩm</th>
-                    <th className="px-4 py-3 font-bold text-shade-60 uppercase tracking-wider w-28">Số lượng</th>
-                    <th className="px-4 py-3 font-bold text-shade-60 uppercase tracking-wider w-36">Đơn giá</th>
-                    <th className="px-4 py-3 w-10" />
+                  <tr className="border-b border-hairline-light bg-zinc-50">
+                    <th className="px-4 py-3 font-bold uppercase tracking-wider text-shade-60">Sản phẩm</th>
+                    <th className="w-28 px-4 py-3 font-bold uppercase tracking-wider text-shade-60">Số lượng</th>
+                    <th className="w-36 px-4 py-3 font-bold uppercase tracking-wider text-shade-60">Đơn giá</th>
+                    <th className="w-10 px-4 py-3" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-hairline-light">
                   {!formData.items.length && (
                     <tr>
-                      <td colSpan="4" className="px-4 py-8 text-center text-shade-40 italic text-xs">
+                      <td colSpan="4" className="px-4 py-8 text-center text-xs italic text-shade-40">
                         Chưa có sản phẩm nào. Nhấn Thêm sản phẩm để bắt đầu.
                       </td>
                     </tr>
                   )}
+
                   {formData.items.map((item, index) => (
                     <tr key={`${item.product_id || 'new'}-${index}`} className="hover:bg-zinc-50/50">
                       <td className="px-4 py-2.5">
                         <select
-                          className="w-full bg-canvas-light text-ink text-sm px-3 py-2.5 rounded-md border border-hairline-light focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink transition-all"
+                          disabled={masterDataLoading}
+                          className="w-full rounded-md border border-hairline-light bg-canvas-light px-3 py-2.5 text-sm text-ink transition-all focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
                           value={item.product_id}
                           onChange={(event) => updateItemRow(index, 'product_id', event.target.value)}
                         >
-                          <option value="">-- Chọn sản phẩm --</option>
+                          <option value="">{masterDataLoading ? '-- Đang tải sản phẩm --' : '-- Chọn sản phẩm --'}</option>
                           {products.map((product) => (
                             <option key={product.id} value={product.id}>[{product.sku}] {product.name}</option>
                           ))}
@@ -426,7 +495,7 @@ export default function DeliveryOrders() {
                         <input
                           type="number"
                           min="1"
-                          className="w-full bg-canvas-light text-ink text-sm px-3 py-2.5 rounded-md border border-hairline-light focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink transition-all"
+                          className="w-full rounded-md border border-hairline-light bg-canvas-light px-3 py-2.5 text-sm text-ink transition-all focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
                           value={item.requested_qty}
                           onChange={(event) => updateItemRow(index, 'requested_qty', Number(event.target.value))}
                         />
@@ -435,14 +504,14 @@ export default function DeliveryOrders() {
                         <input
                           type="number"
                           min="0"
-                          className="w-full bg-canvas-light text-ink text-sm px-3 py-2.5 rounded-md border border-hairline-light focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink transition-all"
+                          className="w-full rounded-md border border-hairline-light bg-canvas-light px-3 py-2.5 text-sm text-ink transition-all focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
                           value={item.unit_price}
                           onChange={(event) => updateItemRow(index, 'unit_price', Number(event.target.value))}
                         />
                       </td>
                       <td className="px-4 py-2.5 text-center">
-                        <button type="button" onClick={() => removeItemRow(index)} className="p-1 hover:bg-zinc-100 rounded-full text-shade-40 hover:text-red-600 transition-colors">
-                          <X className="w-4 h-4" />
+                        <button type="button" onClick={() => removeItemRow(index)} className="rounded-full p-1 text-shade-40 transition-colors hover:bg-zinc-100 hover:text-red-600">
+                          <X className="h-4 w-4" />
                         </button>
                       </td>
                     </tr>
@@ -453,7 +522,7 @@ export default function DeliveryOrders() {
           </div>
 
           <div className="flex justify-end gap-3 border-t border-hairline-light pt-4">
-            <Button variant="outline-light" onClick={() => setShowCreateModal(false)}>Đóng</Button>
+            <Button variant="outline-light" onClick={handleCloseCreateModal}>Đóng</Button>
             <Button variant="primary" loading={submitting} disabled={isSubmitDisabled} onClick={handleCreateSubmit}>Tạo đơn xuất</Button>
           </div>
         </div>
@@ -461,8 +530,8 @@ export default function DeliveryOrders() {
 
       <Modal isOpen={cancelModal.show} onClose={() => setCancelModal({ show: false, orderId: null, reason: '' })} title="Hủy lệnh xuất hàng">
         <div className="flex flex-col gap-4">
-          <div className="flex items-center gap-2 text-red-600 text-sm font-semibold">
-            <AlertTriangle className="w-4 h-4 shrink-0" /> Hành động này không thể hoàn tác.
+          <div className="flex items-center gap-2 text-sm font-semibold text-red-600">
+            <AlertTriangle className="h-4 w-4 shrink-0" /> Hành động này không thể hoàn tác.
           </div>
           <Input
             label="Lý do hủy *"
@@ -472,7 +541,7 @@ export default function DeliveryOrders() {
           />
           <div className="flex justify-end gap-3 border-t border-hairline-light pt-4">
             <Button variant="outline-light" onClick={() => setCancelModal({ show: false, orderId: null, reason: '' })}>Đóng</Button>
-            <Button onClick={handleCancelDO} disabled={!cancelModal.reason.trim()} className="bg-red-600 hover:bg-red-700 text-white focus:ring-red-500">
+            <Button onClick={handleCancelDO} disabled={!cancelModal.reason.trim()} className="bg-red-600 text-white hover:bg-red-700 focus:ring-red-500">
               Xác nhận hủy
             </Button>
           </div>

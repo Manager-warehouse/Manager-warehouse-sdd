@@ -608,6 +608,10 @@ export const outboundService = {
     if (filters.search) params.search = filters.search;
     const response = await apiClient.get('/delivery-orders', { params });
     let orders = asArray(response.data).map(normalizeDeliveryOrder);
+    const wid = Number(warehouseId);
+    if (warehouseId && !Number.isNaN(wid)) {
+      orders = orders.filter((order) => Number(order.warehouse_id) === wid);
+    }
     if (filters.status && filters.status !== 'ALL') {
       orders = orders.filter((order) => order.status === filters.status);
     }
