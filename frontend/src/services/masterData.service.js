@@ -585,14 +585,15 @@ export const masterDataService = {
     if (useMock) {
       await new Promise((resolve) => setTimeout(resolve, 300));
       const locations = getDb(KEYS.LOCATIONS, INITIAL_LOCATIONS);
+      const filtered = locations.filter((l) => l.type === "BIN");
       if (warehouseId) {
-        return locations.filter((l) => l.warehouse_id === Number(warehouseId));
+        return filtered.filter((l) => l.warehouse_id === Number(warehouseId));
       }
-      return locations;
+      return filtered;
     }
     const url = warehouseId
-      ? `/admin/warehouse-locations?warehouseId=${warehouseId}`
-      : "/admin/warehouse-locations";
+      ? `/admin/warehouse-locations?warehouseId=${warehouseId}&type=BIN`
+      : "/admin/warehouse-locations?type=BIN";
     const response = await apiClient.get(url);
     return mapToSnakeCase(response.data);
   },

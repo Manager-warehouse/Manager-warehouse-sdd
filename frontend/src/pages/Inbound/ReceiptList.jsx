@@ -53,6 +53,13 @@ const ReceiptList = () => {
     }
   };
 
+  const isPutawayCompleted = (receipt) => {
+    if (!receipt.items || receipt.items.length === 0) return false;
+    const passedItems = receipt.items.filter(item => (item.qc_passed_qty || 0) > 0);
+    if (passedItems.length === 0) return false;
+    return passedItems.every(item => item.location_id !== null && item.location_id !== undefined);
+  };
+
   const getPartnerName = (receipt) => {
     if (receipt.type === 'PURCHASE') {
       const supplier = suppliers.find(s => s.id === receipt.supplier_id);
@@ -76,9 +83,13 @@ const ReceiptList = () => {
     return matchesSearch && matchesStatus && matchesType;
   });
 
-  const getStatusBadge = (status) => {
+  const getStatusBadge = (receipt) => {
+    if (!receipt) return null;
     const baseStyle = "text-[10px] font-semibold px-2 py-0.5 rounded-pill border uppercase tracking-wider whitespace-nowrap";
-    switch (status) {
+    if (receipt.status === 'APPROVED' && isPutawayCompleted(receipt)) {
+      return <span className={`${baseStyle} bg-emerald-100 text-emerald-800 border-emerald-300`}>Đã cất kệ</span>;
+    }
+    switch (receipt.status) {
       case 'PENDING_RECEIPT':
         return <span className={`${baseStyle} bg-zinc-100 text-zinc-800 border-zinc-200`}>Chờ nhận</span>;
       case 'DRAFT':
@@ -96,7 +107,7 @@ const ReceiptList = () => {
       case 'COMPLETED_WITH_DISCREPANCY':
         return <span className={`${baseStyle} bg-amber-50 text-amber-700 border-amber-200`}>Đã nhập có lệch</span>;
       default:
-        return <span className={`${baseStyle} bg-zinc-100 text-zinc-800 border-zinc-200`}>{status}</span>;
+        return <span className={`${baseStyle} bg-zinc-100 text-zinc-800 border-zinc-200`}>{receipt.status}</span>;
     }
   };
 
@@ -288,7 +299,7 @@ const ReceiptList = () => {
                     <td className="px-6 py-4 text-xs text-shade-50">{receipt.source_reference || 'N/A'}</td>
                     <td className="px-6 py-4 text-xs font-semibold">{getPartnerName(receipt)}</td>
                     <td className="px-6 py-4 text-xs text-shade-50">{receipt.document_date}</td>
-                    <td className="px-6 py-4">{getStatusBadge(receipt.status)}</td>
+                    <td className="px-6 py-4">{getStatusBadge(receipt)}</td>
                     <td className="px-6 py-4 text-right whitespace-nowrap">
                       <div className="flex gap-2 justify-end items-center">
                         {receipt.status === 'PENDING_RECEIPT' && (hasRole(ROLES.WAREHOUSE_STAFF) || hasRole(ROLES.ADMIN)) && (
@@ -336,13 +347,20 @@ const ReceiptList = () => {
                           </button>
                         )}
 
-                        {receipt.status === 'APPROVED' && (hasRole(ROLES.STOREKEEPER) || hasRole(ROLES.ADMIN)) && (
+                        {receipt.status === 'APPROVED' && !isPutawayCompleted(receipt) && (hasRole(ROLES.STOREKEEPER) || hasRole(ROLES.ADMIN)) && (
                           <button
                             onClick={() => navigate(`/inbound/putaway/${receipt.id}`)}
                             className="inline-flex items-center justify-center rounded-full bg-ink text-onPrimary hover:bg-shade-70 px-3 py-1 text-xs font-semibold whitespace-nowrap transition-colors duration-150"
                           >
                             Cất kệ
                           </button>
+                        )}
+
+                        {receipt.status === 'APPROVED' && isPutawayCompleted(receipt) && (
+                          <span className="text-xs font-bold text-emerald-600 flex items-center gap-1.5 px-3 py-1">
+                            <Check className="w-3.5 h-3.5" />
+                            Đã cất
+                          </span>
                         )}
 
                         <button
@@ -383,7 +401,7 @@ const ReceiptList = () => {
                 <span className="text-[10px] font-bold text-shade-40 uppercase tracking-widest block mb-1">Chi tiết phiếu</span>
                 <h3 className="text-xl font-bold flex items-center gap-3">
                   {selectedReceipt.receipt_number}
-                  {getStatusBadge(selectedReceipt.status)}
+                  {getStatusBadge(selectedReceipt)}
                 </h3>
               </div>
               <button

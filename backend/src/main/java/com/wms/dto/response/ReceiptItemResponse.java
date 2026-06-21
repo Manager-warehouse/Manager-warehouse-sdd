@@ -29,7 +29,16 @@ public class ReceiptItemResponse {
     @JsonProperty("product_sku")
     private String productSku;
 
+    @JsonProperty("qc_passed_qty")
+    private Integer qcPassedQty;
 
+    @JsonProperty("qc_failed_qty")
+    private Integer qcFailedQty;
+
+
+
+    @JsonProperty("location_id")
+    private Long locationId;
 
     public Long getReceiptItemId() {
         return receiptItemId;
@@ -95,6 +104,28 @@ public class ReceiptItemResponse {
         this.productSku = productSku;
     }
 
+    public Integer getQcPassedQty() {
+        return qcPassedQty;
+    }
 
+    public void setQcPassedQty(Integer qcPassedQty) {
+        this.qcPassedQty = qcPassedQty;
+    }
+
+    public Integer getQcFailedQty() {
+        return qcFailedQty;
+    }
+
+    public void setQcFailedQty(Integer qcFailedQty) {
+        this.qcFailedQty = qcFailedQty;
+    }
+
+    public Long getLocationId() {
+        return locationId;
+    }
+
+    public void setLocationId(Long locationId) {
+        this.locationId = locationId;
+    }
 }
 
