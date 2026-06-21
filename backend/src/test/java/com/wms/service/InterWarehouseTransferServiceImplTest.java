@@ -170,34 +170,34 @@ class InterWarehouseTransferServiceImplTest {
         entityManager = proxy(EntityManager.class, new EntityManagerHandler());
 
         InterWarehouseTransferMapper mapper = new InterWarehouseTransferMapper();
-        
+
         InterWarehouseTransferHelper helper = new InterWarehouseTransferHelper(
                 transferRepository, transferItemRepository, allocationRepository,
                 inventoryRepository, locationRepository, assignmentRepository,
                 tripRepository, mapper, auditUtil, entityManager
         );
-        
+
         InterWarehouseTransferPlanningService planningService = new InterWarehouseTransferPlanningService(
                 transferRepository, transferItemRepository, helper
         );
-        
+
         InterWarehouseTransferApprovalService approvalService = new InterWarehouseTransferApprovalService(
                 transferRepository, helper
         );
-        
+
         InterWarehouseTransferShippingService shippingService = new InterWarehouseTransferShippingService(
                 transferRepository, transferItemRepository, allocationRepository,
                 inventoryRepository, warehouseRepository, locationRepository,
                 assignmentRepository, vehicleRepository, driverRepository,
                 tripRepository, helper
         );
-        
+
         InterWarehouseTransferReceivingService receivingService = new InterWarehouseTransferReceivingService(
                 transferRepository, transferItemRepository, allocationRepository,
                 inventoryRepository, warehouseRepository, locationRepository,
                 adjustmentRepository, auditUtil, helper
         );
-        
+
         service = new InterWarehouseTransferServiceImpl(
                 transferRepository, helper, planningService,
                 approvalService, shippingService, receivingService

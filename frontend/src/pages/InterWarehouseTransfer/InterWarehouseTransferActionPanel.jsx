@@ -428,7 +428,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
                          {Number(row.qcFailedQty) > 0 && (
                            <div className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 leading-snug">
                              {destinationQuarantineBin
-                               ? <>{Number(row.qcFailedQty)} sp lỗi → <span className="font-mono font-bold">{destinationQuarantineBin.code ?? destinationQuarantineBin.code}</span> (tự động)</>  
+                               ? <>{Number(row.qcFailedQty)} sp lỗi → <span className="font-mono font-bold">{destinationQuarantineBin.code ?? destinationQuarantineBin.code}</span> (tự động)</>
                                : '⚠ Kho đích chưa có Quarantine Bin!'}
                            </div>
                          )}

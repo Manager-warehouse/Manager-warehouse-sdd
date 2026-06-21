@@ -25,14 +25,14 @@ public class InterWarehouseTransferApprovalService {
         helper.requireStatus(transfer, InterWarehouseTransferStatus.NEW);
         helper.ensureWarehouseScope(actor, transfer.getSourceWarehouse().getId());
         Map<String, Object> before = helper.snapshot(transfer);
-        
+
         helper.allocateReservations(transfer);
-        
+
         transfer.setStatus(InterWarehouseTransferStatus.APPROVED);
         transfer.setApprovedBy(actor);
         transfer.setApprovedAt(OffsetDateTime.now());
         transfer.setUpdatedAt(OffsetDateTime.now());
-        
+
         InterWarehouseTransfer saved = transferRepository.save(transfer);
         helper.audit(saved, actor, AuditAction.TRANSFER_APPROVE, before, helper.snapshot(saved));
         return helper.toResponse(saved);
@@ -44,13 +44,13 @@ public class InterWarehouseTransferApprovalService {
         helper.requireStatus(transfer, InterWarehouseTransferStatus.NEW);
         helper.ensureWarehouseScope(actor, transfer.getSourceWarehouse().getId());
         Map<String, Object> before = helper.snapshot(transfer);
-        
+
         transfer.setStatus(InterWarehouseTransferStatus.REJECTED);
         transfer.setRejectedBy(actor);
         transfer.setRejectedAt(OffsetDateTime.now());
         transfer.setRejectionReason(helper.requiredReason(request, "REJECTION_REASON_REQUIRED"));
         transfer.setUpdatedAt(OffsetDateTime.now());
-        
+
         InterWarehouseTransfer saved = transferRepository.save(transfer);
         helper.audit(saved, actor, AuditAction.TRANSFER_REJECT, before, helper.snapshot(saved));
         return helper.toResponse(saved);
