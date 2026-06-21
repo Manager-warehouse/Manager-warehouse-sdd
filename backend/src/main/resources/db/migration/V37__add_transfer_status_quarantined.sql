@@ -1,7 +1,22 @@
--- Drop the restricted audit logs action check constraint
+-- Add QUARANTINED status to transfers check constraint
+ALTER TABLE transfers DROP CONSTRAINT IF EXISTS transfers_status_check;
+
+ALTER TABLE transfers
+    ADD CONSTRAINT transfers_status_check
+    CHECK (status IN (
+        'NEW',
+        'APPROVED',
+        'REJECTED',
+        'IN_TRANSIT',
+        'COMPLETED',
+        'COMPLETED_WITH_DISCREPANCY',
+        'CANCELLED',
+        'QUARANTINED'
+    ));
+
+-- Add new transfer audit actions to audit_logs check constraint
 ALTER TABLE audit_logs DROP CONSTRAINT IF EXISTS audit_logs_action_check;
 
--- Re-create the check constraint with the updated AuditAction enum values including StockTake and all Transfer flows
 ALTER TABLE audit_logs
     ADD CONSTRAINT audit_logs_action_check
     CHECK (action IN (
@@ -11,5 +26,6 @@ ALTER TABLE audit_logs
         'TRANSFER_CREATE', 'TRANSFER_UPDATE', 'TRANSFER_APPROVE', 'TRANSFER_REJECT', 'TRANSFER_TRIP_ASSIGN', 'TRANSFER_SHIP', 'TRANSFER_UNSHIP', 'TRANSFER_DEPART', 'TRANSFER_RECEIVE_COUNT', 'TRANSFER_RECEIVE_CHECK', 'TRANSFER_RECEIVE_CONFIRM', 'TRANSFER_FINAL_RECEIVE', 'TRANSFER_DISCREPANCY_CREATE', 'TRANSFER_CANCEL',
         'BILLING_NOTIFICATION_CREATE', 'BILLING_NOTIFICATION_READ',
         'STOCKTAKE_CREATE', 'STOCKTAKE_START', 'STOCKTAKE_COUNT_UPDATE', 'STOCKTAKE_COMPLETE', 'STOCKTAKE_APPROVE', 'STOCKTAKE_REJECT', 'STOCKTAKE_CANCEL', 'STOCKTAKE_AUTO_APPROVE',
-        'PRICE_CREATE', 'PRICE_UPDATE', 'PRICE_IMPORT', 'PRICE_CANCEL', 'PRICE_APPROVE'
+        'PRICE_CREATE', 'PRICE_UPDATE', 'PRICE_IMPORT', 'PRICE_CANCEL', 'PRICE_APPROVE',
+        'TRANSFER_RETURN_TO_SOURCE', 'TRANSFER_QUARANTINE_REJECT'
     ));

@@ -4,7 +4,7 @@
 
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/openapi.yaml, quickstart.md
 
-**Tests**: Required by constitution and AGENTS for service logic and API endpoints.
+**Last updated**: 2026-06-19 — Sprint 1 implementation complete for all core flows.
 
 **Organization**: Tasks are grouped by user story and implementation layer. Backend and frontend work is split into dedicated files.
 
@@ -131,6 +131,7 @@
 - [x] T065 [P] [US3] Add service tests for receive-count validations in backend/src/test/java/com/wms/service/TransferServiceImplTest.java
 - [x] T066 [P] [US3] Add service tests for receive-check QC/quarantine validations in backend/src/test/java/com/wms/service/TransferServiceImplTest.java
 - [x] T067 [P] [US3] Add service tests for final receive inventory and discrepancy adjustment in backend/src/test/java/com/wms/service/TransferServiceImplTest.java
+- [x] T085 [P] [US3] Add unit tests for quarantineReject success and validation errors in backend/src/test/java/com/wms/service/TransferServiceImplTest.java
 - [ ] T068 [P] [US3] Add controller integration tests for receive-count/receive-check/receive in backend/src/test/java/com/wms/controller/TransferControllerIntegrationTest.java
 
 ### Backend Implementation for US3
@@ -146,13 +147,19 @@
 - [x] T077 [US3] Implement shortage adjustment creation in backend/src/main/java/com/wms/service/impl/TransferServiceImpl.java
 - [x] T078 [US3] Add destination receive endpoints in backend/src/main/java/com/wms/controller/TransferController.java
 - [x] T079 [US3] Add audit logging for receive actions in backend/src/main/java/com/wms/service/impl/TransferServiceImpl.java
+- [x] T086 [P] [US3] Create TransferRejectRequest DTO in backend/src/main/java/com/wms/dto/request/TransferRejectRequest.java
+- [x] T087 [US3] Implement quarantineReject service logic and transit inventory transfer to quarantine location in backend/src/main/java/com/wms/service/impl/TransferServiceImpl.java
+- [x] T088 [US3] Create POST /api/v1/transfers/{id}/quarantine-reject endpoint in backend/src/main/java/com/wms/controller/TransferController.java
 
 ### Frontend Implementation for US3
 
-- [ ] T080 [P] [US3] Create TransferReceiveWorkspace page in frontend/src/pages/Transfers/TransferReceiveWorkspace.jsx
-- [ ] T081 [P] [US3] Create ReceiveCountForm component in frontend/src/components/transfer/ReceiveCountForm.jsx
-- [ ] T082 [P] [US3] Create ReceiveCheckForm component in frontend/src/components/transfer/ReceiveCheckForm.jsx
-- [ ] T083 [P] [US3] Create ReceiveConfirmPanel component in frontend/src/components/transfer/ReceiveConfirmPanel.jsx
+- [x] T080 [P] [US3] Implement receive-count, receive-check, final-receive forms in TransferActionPanel.jsx (integrated into single workspace, not separate pages)
+- [x] T081 [P] [US3] Add quarantine destination hint UI (dynamic amber badge showing target quarantine bin when qcFailedQty > 0) in frontend/src/pages/Transfer/TransferActionPanel.jsx
+- [x] T082 [P] [US3] Filter quarantine bins from QC-passed bin dropdown (client-side) in frontend/src/pages/Transfer/TransferActionPanel.jsx
+- [x] T089 [P] [US3] Implement quarantineReject API call in frontend/src/services/transfer.service.js
+- [x] T090 [P] [US3] Add "Từ chối & Cách ly toàn bộ" buttons with required reason inputs for Storekeeper and Manager in frontend/src/pages/Transfer/TransferActionPanel.jsx
+- [x] T091 [P] [US3] Update TRANSFER_STATUS_LABELS and TransferStatusBadge to support QUARANTINED status
+- [ ] T083 [P] [US3] Create standalone ReceiveConfirmPanel component if workspace grows beyond 300 lines in frontend/src/components/transfer/
 - [ ] T084 [US3] Wire destination role action visibility in frontend/src/pages/Transfers/TransferDetail.jsx
 
 ---

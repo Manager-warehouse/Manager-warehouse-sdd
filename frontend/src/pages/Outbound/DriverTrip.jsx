@@ -5,7 +5,7 @@ import {
   Truck, Calendar, Package, Play, ArrowLeft, Loader2, Search, User
 } from 'lucide-react';
 import { outboundService } from '../../services/outbound.service';
-import { transferService } from '../../services/transfer.service';
+import { interWarehouseTransferService } from '../../services/inter-warehouse-transfer.service';
 import { useUiStore } from '../../stores/ui.store';
 import { useAuthStore } from '../../stores/auth.store';
 import OTPInput from '../../components/warehouse/OTPInput';
@@ -20,7 +20,8 @@ const toTransferDriverTrip = (transfer) => ({
   transfer_number: transfer.transferNumber,
   vehicle_plate: transfer.vehiclePlate || '-',
   driver_name: transfer.driverName || '-',
-  planned_date: transfer.plannedDate || transfer.documentDate,
+  planned_date: transfer.tripPlannedStartAt || transfer.plannedDate || transfer.documentDate,
+  planned_end_at: transfer.tripPlannedEndAt || null,
   status: transfer.status === 'APPROVED'
     ? 'PLANNED'
     : transfer.status === 'IN_TRANSIT'
@@ -28,6 +29,9 @@ const toTransferDriverTrip = (transfer) => ({
       : transfer.status?.startsWith('COMPLETED')
         ? 'COMPLETED'
         : transfer.status,
+  tripWarningActive: Boolean(transfer.tripWarningActive),
+  tripOverdue: Boolean(transfer.tripOverdue),
+  tripWarningMessage: transfer.tripWarningMessage || null,
   sourceWarehouseCode: transfer.sourceWarehouseCode,
   destinationWarehouseCode: transfer.destinationWarehouseCode,
   items: transfer.items || [],
@@ -124,7 +128,7 @@ export default function DriverTrip() {
     }
 
     try {
-      const transfers = await transferService.getTransfers();
+      const transfers = await interWarehouseTransferService.getTransfers();
       const transferTrips = transfers
         .filter((transfer) => transfer.tripId && Number(transfer.driverUserId || 0) === Number(user?.id || 0))
         .map(toTransferDriverTrip);
@@ -149,7 +153,7 @@ export default function DriverTrip() {
     try {
       if (String(tripId).startsWith(TRANSFER_TRIP_PREFIX)) {
         const transferId = Number(String(tripId).replace(TRANSFER_TRIP_PREFIX, ''));
-        const data = await transferService.getTransferById(transferId);
+        const data = await interWarehouseTransferService.getTransferById(transferId);
         if (Number(data.driverUserId || 0) !== Number(user?.id || 0)) {
           throw new Error('TRANSFER_TRIP_NOT_ASSIGNED');
         }
@@ -170,7 +174,7 @@ export default function DriverTrip() {
     setSubmitting(true);
     try {
       if (trip.type === 'TRANSFER') {
-        await transferService.departTransfer(trip.transferId);
+        await interWarehouseTransferService.departTransfer(trip.transferId);
       } else {
         await outboundService.departTrip(trip.id);
       }
@@ -355,10 +359,19 @@ export default function DriverTrip() {
                   </div>
                   <div className="flex items-center gap-2 text-xs">
                     <Calendar className="w-3.5 h-3.5 text-shade-40 shrink-0" />
-                    <span className="text-shade-50">Ngày giao:</span>
-                    <span className="font-semibold text-ink">{new Date(t.planned_date).toLocaleDateString('vi-VN')}</span>
+                    <span className="text-shade-50">Khởi hành:</span>
+                    <span className="font-semibold text-ink">{new Date(t.planned_date).toLocaleString('vi-VN')}</span>
                   </div>
                 </div>
+                {t.tripWarningActive && (
+                  <div className={`mx-4 mb-4 rounded-md border px-3 py-2 text-[11px] ${
+                    t.tripOverdue
+                      ? 'border-red-200 bg-red-50 text-red-700'
+                      : 'border-amber-200 bg-amber-50 text-amber-700'
+                  }`}>
+                    {t.tripWarningMessage}
+                  </div>
+                )}
                 <div className="px-4 pb-4">
                   <button className="w-full inline-flex items-center justify-center gap-1.5 rounded-full border border-ink bg-canvas-light text-ink hover:bg-zinc-100 px-3 py-1.5 text-xs font-semibold transition-colors">
                     Xem chi tiết
@@ -428,8 +441,20 @@ export default function DriverTrip() {
           <div className="space-y-2 text-xs mb-4">
             <p className="flex items-center gap-2 text-shade-50"><Truck className="w-3.5 h-3.5 text-shade-40 shrink-0" /> Xe: <span className="font-semibold text-ink">{trip.vehicle_plate}</span></p>
             <p className="flex items-center gap-2 text-shade-50"><User className="w-3.5 h-3.5 text-shade-40 shrink-0" /> Tài xế: <span className="font-semibold text-ink">{trip.driver_name}</span></p>
-            <p className="flex items-center gap-2 text-shade-50"><Calendar className="w-3.5 h-3.5 text-shade-40 shrink-0" /> Ngày: <span className="font-semibold text-ink">{new Date(trip.planned_date).toLocaleDateString('vi-VN')}</span></p>
+            <p className="flex items-center gap-2 text-shade-50"><Calendar className="w-3.5 h-3.5 text-shade-40 shrink-0" /> Khởi hành: <span className="font-semibold text-ink">{new Date(trip.planned_date).toLocaleString('vi-VN')}</span></p>
+            {trip.planned_end_at && (
+              <p className="flex items-center gap-2 text-shade-50"><Calendar className="w-3.5 h-3.5 text-shade-40 shrink-0" /> Hạn giao: <span className="font-semibold text-ink">{new Date(trip.planned_end_at).toLocaleString('vi-VN')}</span></p>
+            )}
           </div>
+          {trip.tripWarningActive && (
+            <div className={`mb-4 rounded-md border px-3 py-2 text-[11px] ${
+              trip.tripOverdue
+                ? 'border-red-200 bg-red-50 text-red-700'
+                : 'border-amber-200 bg-amber-50 text-amber-700'
+            }`}>
+              {trip.tripWarningMessage}
+            </div>
+          )}
 
           {/* Depart button for PLANNED trips */}
           {trip.status === 'PLANNED' && (

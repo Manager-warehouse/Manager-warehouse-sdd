@@ -29,7 +29,8 @@ Sprint 1 gia dinh moi phieu `TRF` co mot lan ship va mot lan final receive. Cac 
     * Require `checkerNote` when `confirmedReceivedQty` differs from the worker-entered `receivedQty`.
     * Require `qc_passed_qty + qc_failed_qty = confirmedReceivedQty`.
     * Require a QC failure reason when `qc_failed_qty > 0`.
-    * Require `destination_location_id` for QC-passed quantity.
+    * Require `destination_location_id` for QC-passed quantity; the selected bin SHALL NOT be a quarantine bin (`QC_PASSED_BIN_MUST_NOT_BE_QUARANTINE`).
+    * When `qcFailedQty > 0`, validate at this step that the target warehouse has at least one active quarantine bin (`QUARANTINE_LOCATION_NOT_CONFIGURED`); do not defer this check to finalReceive.
     * Save `confirmedReceivedQty` as the effective `received_qty` for final confirmation and inventory settlement.
     * Store the approved received counts and QC result without completing the transfer.
     * Treat `receive_checked_at IS NOT NULL` as the receive-check approval marker; no separate receive-check status field is required.
@@ -55,15 +56,31 @@ Sprint 1 gia dinh moi phieu `TRF` co mot lan ship va mot lan final receive. Cac 
     * IF QC failed quantity is greater than zero and no active quarantine location exists in the destination warehouse, the system SHALL reject confirmation with `QUARANTINE_LOCATION_REQUIRED`.
     * Create a `TRANSFER_RECEIVE_CONFIRM` audit log entry.
     * Create a `TRANSFER_DISCREPANCY_CREATE` audit log entry when a shortage adjustment is created.
+  * WHEN a Thủ kho đích or Trưởng kho đích triggers quarantine rejection (QC lỗi - Từ chối & Cách ly toàn bộ), the system SHALL:
+    * Allow the action only while the transfer is `IN_TRANSIT`.
+    * Require a non-blank `rejectionReason`.
+    * Set status of the transfer to `QUARANTINED`.
+    * Record the actor and timestamp under `rejectedBy` and `rejectedAt`, and store the rejection reason under `rejectionReason`.
+    * Update all transfer items: set `receivedQty` to `sentQty`, `qcPassedQty` to `0`, `qcFailedQty` to `sentQty`. Set `checkerNote` and `qcFailureReason` of all items to the rejection reason.
+    * Move all transit stock of this transfer from the `IN_TRANSIT` virtual location and add it to the destination warehouse's active quarantine bin (or source warehouse's active quarantine bin if `is_returned = true`).
+    * Release the vehicle, driver, and trip: set driver and vehicle status back to `AVAILABLE` and the trip status to `COMPLETED`.
+    * Create a `TRANSFER_QUARANTINE_REJECT` audit log entry containing the rejection reason.
 * **Authorization and warehouse scope:**
   * Nhân viên kho/Công nhân kho đích SHALL record initial counts only for transfers whose destination warehouse is in the actor's assigned warehouse scope.
-  * Thủ kho đích SHALL approve receive check only for transfers whose destination warehouse is in the actor's assigned warehouse scope.
-  * Trưởng kho đích SHALL confirm final receipt only for transfers whose destination warehouse is in the actor's assigned warehouse scope.
+  * When `is_returned = true` (Return to Source triggered), the receiving scope flips to the source warehouse; destination-side actors SHALL be blocked from all receive actions.
+  * Thủ kho đích SHALL approve receive check only for transfers whose destination warehouse is in the actor's assigned warehouse scope (or source warehouse when `is_returned = true`).
+  * Trưởng kho đích SHALL confirm final receipt only for transfers whose destination warehouse is in the actor's assigned warehouse scope (or source warehouse when `is_returned = true`).
+* **UI behavior:**
+  * When the storekeeper enters `qcFailedQty > 0` in the Kiểm tra count/QC form, the system SHALL display a read-only quarantine destination hint below the QC lỗi input: e.g., `"2 sp lỗi → WH-HCM-Q01 (tự động)"`.
+  * If the destination warehouse has no active quarantine bin, the hint SHALL display: `"⚠ Kho đích chưa có Quarantine Bin!"`
+  * The storekeeper CANNOT select or override the quarantine bin; it is system-assigned only.
+  * The bin dropdown for QC-passed stock SHALL filter out quarantine bins (client-side pre-filtering), with backend enforcement as the authoritative guard.
 
 ## 4. API Endpoints
 * `PUT /api/v1/transfers/{id}/receive-count` - Nhân viên kho/Công nhân kho đích nhập hoặc sửa số lượng thực nhận ban đầu khi phiếu còn `IN_TRANSIT` và chưa được Thủ kho duyệt receive check.
 * `PUT /api/v1/transfers/{id}/receive-check` - Thủ kho đích kiểm tra lại số lượng, nhập/chốt QC, chọn vị trí nhập kho cho hàng đạt và duyệt kết quả nhận.
 * `POST /api/v1/transfers/{id}/final-receive` - Trưởng kho đích xác nhận nhận hàng tại kho đích và báo cáo chênh lệch nếu có.
+* `POST /api/v1/transfers/{id}/quarantine-reject` - Thủ kho đích hoặc Trưởng kho đích từ chối toàn bộ và đưa vào quarantine.
 
 ### `PUT /api/v1/transfers/{id}/receive-count` Request
 ```json
@@ -102,6 +119,13 @@ Sprint 1 gia dinh moi phieu `TRF` co mot lan ship va mot lan final receive. Cac 
 }
 ```
 
+### `POST /api/v1/transfers/{id}/quarantine-reject` Request
+```json
+{
+  "rejectionReason": "Toàn bộ kiện hàng bị ướt sũng nước, không thể nhập kho"
+}
+```
+
 `discrepancyReason` is required when any item has `receivedQty < sentQty` or the final confirmer reports a final-level material issue with the transfer. Trưởng kho đích uses `discrepancyReason` itself to report that final-level issue; no separate boolean or new field is required. It MAY be omitted when all received quantities match sent quantities and no issue is reported. QC failure alone uses `qcFailureReason` from receive-check and does not require a duplicate `discrepancyReason` unless the Trưởng kho đích reports another final-level issue.
 
 ## 5. Validation and Error Handling
@@ -113,7 +137,9 @@ Sprint 1 gia dinh moi phieu `TRF` co mot lan ship va mot lan final receive. Cac 
 * `QC_TOTAL_MISMATCH` (HTTP 400): `qcPassedQty + qcFailedQty != confirmedReceivedQty`.
 * `QC_FAILURE_REASON_REQUIRED` (HTTP 400): `qcFailedQty > 0` without `qcFailureReason`.
 * `DESTINATION_LOCATION_REQUIRED` (HTTP 400): QC-passed quantity exists without `destinationLocationId`.
-* `QUARANTINE_LOCATION_REQUIRED` (HTTP 422): QC-failed quantity exists but destination warehouse has no active quarantine location.
+* `QC_PASSED_BIN_MUST_NOT_BE_QUARANTINE` (HTTP 400): the selected `destinationLocationId` is a quarantine bin; QC-passed stock must go to a regular storage bin.
+* `INVALID_DESTINATION_LOCATION` (HTTP 400): the selected `destinationLocationId` does not belong to the target warehouse or is inactive.
+* `QUARANTINE_LOCATION_NOT_CONFIGURED` (HTTP 422): QC-failed quantity exists but the target warehouse has no active quarantine bin — validated at `receiveCheck` time.
 * `DISCREPANCY_REQUIRES_REASON` (HTTP 400): shortage or final-level material issue outside normal QC failure exists without a reason.
 * `TRANSFER_SPLIT_RECEIVE_NOT_SUPPORTED` (HTTP 409): actor attempts to finalize the same transfer through multiple independent receipt cycles.
 
@@ -166,6 +192,16 @@ Sprint 1 gia dinh moi phieu `TRF` co mot lan ship va mot lan final receive. Cac 
   * Given a transfer is in `IN_TRANSIT` status and initial received counts exist
   * When Thủ kho HN records `qcFailedQty > 0` without `qcFailureReason`
   * Then the system SHALL reject the receive-check request with `QC_FAILURE_REASON_REQUIRED`.
+
+* **Scenario: Reject quarantine bin as destination for QC-passed stock**
+  * Given a transfer is in `IN_TRANSIT` status and initial received counts exist
+  * When Thủ kho HCM records `qcPassedQty = 8`, `qcFailedQty = 2`, and selects `WH-HCM-Q01` (a quarantine bin) as `destinationLocationId`
+  * Then the system SHALL reject the receive-check request with `QC_PASSED_BIN_MUST_NOT_BE_QUARANTINE`.
+
+* **Scenario: Reject receive-check when destination warehouse has no quarantine bin and QC failed**
+  * Given a transfer is in `IN_TRANSIT` status, initial received counts exist, and the destination warehouse has no active quarantine bin
+  * When Thủ kho đích records `qcFailedQty > 0`
+  * Then the system SHALL reject the receive-check request with `QUARANTINE_LOCATION_NOT_CONFIGURED`.
 
 * **Scenario: Reject final confirmation before receive check approval**
   * Given Nhân viên kho HN recorded initial receipt counts
