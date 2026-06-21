@@ -23,6 +23,21 @@ public interface DeliveryOrderRepository extends JpaRepository<DeliveryOrder, Lo
     @EntityGraph(attributePaths = {"dealer", "warehouse", "createdBy"})
     @Query("""
             select d from DeliveryOrder d
+            order by d.updatedAt desc
+            """)
+    List<DeliveryOrder> findAllDetailedOrderByUpdatedAtDesc();
+
+    @EntityGraph(attributePaths = {"dealer", "warehouse", "createdBy"})
+    @Query("""
+            select d from DeliveryOrder d
+            where d.warehouse.id in :warehouseIds
+            order by d.updatedAt desc
+            """)
+    List<DeliveryOrder> findDetailedByWarehouseIdIn(@Param("warehouseIds") Collection<Long> warehouseIds);
+
+    @EntityGraph(attributePaths = {"dealer", "warehouse", "createdBy"})
+    @Query("""
+            select d from DeliveryOrder d
             where d.id = :id
               and d.status in :statuses
             """)

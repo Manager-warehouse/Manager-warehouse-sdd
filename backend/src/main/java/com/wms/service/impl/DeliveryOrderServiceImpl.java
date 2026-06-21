@@ -170,16 +170,30 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<DeliveryOrderResponse> getAllDeliveryOrders() {
-        return deliveryOrderRepository.findAll().stream()
+    public List<DeliveryOrderResponse> getAllDeliveryOrders(User actor) {
+        List<DeliveryOrder> orders;
+        if (isWarehouseScopedReadRole(actor)) {
+            List<Long> warehouseIds = assignmentRepository.findWarehouseIdsByUserId(actor.getId());
+            if (warehouseIds.isEmpty()) {
+                return List.of();
+            }
+            orders = deliveryOrderRepository.findDetailedByWarehouseIdIn(warehouseIds);
+        } else {
+            orders = deliveryOrderRepository.findAllDetailedOrderByUpdatedAtDesc();
+        }
+        return orders.stream()
                 .map(this::toResponse)
                 .toList();
     }
 
     @Override
     @Transactional(readOnly = true)
-    public DeliveryOrderResponse getDeliveryOrderById(Long id) {
-        return toResponse(findOrder(id));
+    public DeliveryOrderResponse getDeliveryOrderById(Long id, User actor) {
+        DeliveryOrder order = findOrder(id);
+        if (isWarehouseScopedReadRole(actor)) {
+            requireWarehouseScope(actor, order.getWarehouse().getId());
+        }
+        return toResponse(order);
     }
 
     @Override
@@ -1038,6 +1052,16 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                     HttpStatus.FORBIDDEN,
                     "User is not assigned to warehouse: " + warehouseId);
         }
+    }
+
+    private boolean isWarehouseScopedReadRole(User actor) {
+        if (actor == null || actor.getRole() == null) {
+            return false;
+        }
+        return actor.getRole() == UserRole.STOREKEEPER
+                || actor.getRole() == UserRole.WAREHOUSE_MANAGER
+                || actor.getRole() == UserRole.WAREHOUSE_STAFF
+                || actor.getRole() == UserRole.DISPATCHER;
     }
 
     private Warehouse activeWarehouse(Long warehouseId) {

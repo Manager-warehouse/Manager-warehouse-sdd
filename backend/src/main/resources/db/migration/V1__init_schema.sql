@@ -33,10 +33,10 @@ CREATE TABLE users (
     role          VARCHAR(50)  NOT NULL
                   CHECK (role IN (
                       'ADMIN',             -- Toàn quyền hệ thống
-                      'CEO',               -- Duyệt dashboard chiến lược
+                      'CEO',               -- Duyệt chi/điều chỉnh > 100M VNĐ
                       'WAREHOUSE_MANAGER', -- Quản lý kho, duyệt nhập/xuất
-                      'STOREKEEPER',       -- Thủ kho kiêm QC: tiếp nhận, soạn, cất Bin, kiểm QC
-                      'WAREHOUSE_STAFF',   -- Nhân viên kho: bốc xếp, di chuyển hàng
+                      'STOREKEEPER',       -- Thủ kho: tiếp nhận, soạn, cất Bin
+                      'WAREHOUSE_STAFF',   -- Nhân viên kho: bốc xếp, QC
                       'ACCOUNTANT',        -- Lập HĐ, ghi nhận thanh toán
                       'ACCOUNTANT_MANAGER',-- Duyệt giá, Credit Limit, chốt sổ
                       'PLANNER',           -- Lập lệnh nhập / đơn xuất
@@ -66,10 +66,7 @@ CREATE TABLE warehouses (
     type       VARCHAR(20)  NOT NULL
                CHECK (type IN ('PHYSICAL','IN_TRANSIT')),
     is_active  BOOLEAN      NOT NULL DEFAULT TRUE,
-    created_by BIGINT       REFERENCES users(id),
-    updated_by BIGINT       REFERENCES users(id),
-    created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
 -- §1.2 user_warehouse_assignments  (phụ thuộc users + warehouses)
@@ -82,24 +79,20 @@ CREATE TABLE user_warehouse_assignments (
     UNIQUE (user_id, warehouse_id)
 );
 
--- §2.2 warehouse_locations  (phân cấp: Zone → Bin)
+-- §2.2 warehouse_locations  (phân cấp: Zone → Rack → Shelf → Bin)
 CREATE TABLE warehouse_locations (
     id                BIGSERIAL     PRIMARY KEY,
     warehouse_id      BIGINT        NOT NULL REFERENCES warehouses(id),
-    code              VARCHAR(50)   UNIQUE NOT NULL,  -- e.g. WH-HP.A.01
+    code              VARCHAR(50)   UNIQUE NOT NULL,  -- e.g. WH-HP.A.01.1.01
     type              VARCHAR(10)   NOT NULL
-                      CHECK (type IN ('ZONE','BIN')),
+                      CHECK (type IN ('ZONE','RACK','SHELF','BIN')),
     parent_id         BIGINT        REFERENCES warehouse_locations(id),
     capacity_m3       DECIMAL(10,3),
     capacity_kg       DECIMAL(10,2),
     current_volume_m3 DECIMAL(10,3) NOT NULL DEFAULT 0,
     current_weight_kg DECIMAL(10,2) NOT NULL DEFAULT 0,
     is_quarantine     BOOLEAN       NOT NULL DEFAULT FALSE,
-    is_active         BOOLEAN       NOT NULL DEFAULT TRUE,
-    created_by        BIGINT        REFERENCES users(id),
-    updated_by        BIGINT        REFERENCES users(id),
-    created_at        TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
-    updated_at        TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+    is_active         BOOLEAN       NOT NULL DEFAULT TRUE
 );
 
 -- =============================================================================
@@ -111,21 +104,28 @@ CREATE TABLE products (
     id            BIGSERIAL     PRIMARY KEY,
     sku           VARCHAR(50)   UNIQUE NOT NULL,
     name          VARCHAR(255)  NOT NULL,
-    unit          VARCHAR(30)   NOT NULL,         -- base unit: cái
-    unit_per_pack INTEGER,                        -- Quy đổi cố định thùng -> cái
+    unit          VARCHAR(30)   NOT NULL,         -- cái / thùng / kg ...
+    unit_per_pack INTEGER,                        -- Quy đổi đơn vị đóng gói
     description   TEXT,
     image_url     VARCHAR(500),
     weight_kg     DECIMAL(10,3),
     volume_m3     DECIMAL(10,5),
     has_expiry    BOOLEAN       NOT NULL DEFAULT FALSE,
-    shelf_life_days INTEGER,
     has_serial    BOOLEAN       NOT NULL DEFAULT FALSE,
     reorder_point DECIMAL(10,2),                 -- Ngưỡng cảnh báo tồn kho thấp
     is_active     BOOLEAN       NOT NULL DEFAULT TRUE,
-    created_by    BIGINT        REFERENCES users(id),
-    updated_by    BIGINT        REFERENCES users(id),
     created_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
     updated_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+);
+
+-- §2.3a product_units  (UOM conversion per product)
+CREATE TABLE product_units (
+    id                BIGINT        PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    product_id        BIGINT        NOT NULL REFERENCES products(id),
+    unit_name         VARCHAR(50)   NOT NULL,
+    conversion_factor DECIMAL(10,4) NOT NULL,
+    is_base_unit      BOOLEAN       NOT NULL DEFAULT FALSE,
+    created_at        TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
 -- §2.4 dealers  (Critical 2: thêm 4 cột công nợ)
@@ -142,8 +142,6 @@ CREATE TABLE dealers (
     credit_status            VARCHAR(20)   NOT NULL DEFAULT 'ACTIVE'
                              CHECK (credit_status IN ('ACTIVE','CREDIT_HOLD')),
     is_active                BOOLEAN       NOT NULL DEFAULT TRUE,
-    created_by               BIGINT        REFERENCES users(id),
-    updated_by               BIGINT        REFERENCES users(id),
     created_at               TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
     updated_at               TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
@@ -158,10 +156,7 @@ CREATE TABLE suppliers (
     contact_person VARCHAR(255),
     address        TEXT,
     is_active      BOOLEAN      NOT NULL DEFAULT TRUE,
-    created_by     BIGINT       REFERENCES users(id),
-    updated_by     BIGINT       REFERENCES users(id),
-    created_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    updated_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    created_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
 -- §2.6 vehicles  (Medium 4: thêm max_volume_m3)
@@ -173,11 +168,7 @@ CREATE TABLE vehicles (
     max_volume_m3 DECIMAL(10,3),
     status        VARCHAR(20)   NOT NULL DEFAULT 'AVAILABLE'
                   CHECK (status IN ('AVAILABLE','ON_TRIP','MAINTENANCE')),
-    is_active     BOOLEAN       NOT NULL DEFAULT TRUE,
-    created_by    BIGINT        REFERENCES users(id),
-    updated_by    BIGINT        REFERENCES users(id),
-    created_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
-    updated_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+    is_active     BOOLEAN       NOT NULL DEFAULT TRUE
 );
 
 -- §2.7 drivers  (Medium 7: license_expiry NOT NULL per database.md)
@@ -189,12 +180,8 @@ CREATE TABLE drivers (
     license_number VARCHAR(50)  UNIQUE NOT NULL,
     license_expiry DATE         NOT NULL,
     status         VARCHAR(20)  NOT NULL DEFAULT 'AVAILABLE'
-                   CHECK (status IN ('AVAILABLE','ON_TRIP','UNAVAILABLE')),
-    is_active      BOOLEAN      NOT NULL DEFAULT TRUE,
-    created_by     BIGINT       REFERENCES users(id),
-    updated_by     BIGINT       REFERENCES users(id),
-    created_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    updated_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+                   CHECK (status IN ('AVAILABLE','ON_DELIVERY','MAINTENANCE')),
+    is_active      BOOLEAN      NOT NULL DEFAULT TRUE
 );
 
 -- =============================================================================
@@ -334,7 +321,7 @@ CREATE TABLE receipt_items (
     id                BIGSERIAL     PRIMARY KEY,
     receipt_id        BIGINT        NOT NULL REFERENCES receipts(id),
     product_id        BIGINT        NOT NULL REFERENCES products(id),
-    batch_id          BIGINT        REFERENCES batches(id),        -- NULL trước APPROVED
+    batch_id          BIGINT        REFERENCES batches(id),        -- NULL trước QC
     location_id       BIGINT        REFERENCES warehouse_locations(id),
     expected_qty      DECIMAL(10,2) NOT NULL,
     actual_qty        DECIMAL(10,2),
@@ -362,7 +349,7 @@ CREATE TABLE delivery_orders (
     type                 VARCHAR(30) NOT NULL
                          CHECK (type IN ('SALE','DELIVERY','ADJUSTMENT')),
     expected_delivery_date DATE,
-    status               VARCHAR(40) NOT NULL DEFAULT 'NEW'
+    status               VARCHAR(30) NOT NULL DEFAULT 'NEW'
                          CHECK (status IN (
                              'NEW','PICKING','READY_TO_SHIP','IN_TRANSIT',
                              'OUT_FOR_DELIVERY','DELIVERED','RETURNED','COMPLETED','CLOSED','CANCELLED'
@@ -393,7 +380,7 @@ CREATE TABLE delivery_order_items (
     reserved_qty  DECIMAL(10,2) NOT NULL DEFAULT 0
                   CHECK (reserved_qty >= 0),   -- Đang giữ chỗ trong inventories
     issued_qty    DECIMAL(10,2) NOT NULL DEFAULT 0,
-    unit_price    DECIMAL(18,2),               -- Snapshot giá bán tại thời điểm Thủ kho soạn picking plan
+    unit_price    DECIMAL(18,2),               -- Từ price_history tại ngày giao
     serial_number VARCHAR(100),
     picked_by     BIGINT        REFERENCES users(id) ON DELETE SET NULL
 );
@@ -433,8 +420,6 @@ CREATE TABLE trips (
     driver_id       BIGINT        NOT NULL REFERENCES drivers(id),
     dispatcher_id   BIGINT        NOT NULL REFERENCES users(id),
     planned_date    DATE          NOT NULL,
-    trip_type       VARCHAR(20)   NOT NULL DEFAULT 'DELIVERY'
-                    CHECK (trip_type IN ('DELIVERY','TRANSFER')),
     status          VARCHAR(20)   NOT NULL DEFAULT 'PLANNED'
                     CHECK (status IN ('PLANNED','IN_TRANSIT','COMPLETED')),
     total_weight_kg DECIMAL(10,2) DEFAULT 0,   -- Tổng khối lượng (kiểm tra tải trọng)
@@ -462,7 +447,7 @@ CREATE TABLE deliveries (
     driver_id         BIGINT       NOT NULL REFERENCES drivers(id),
     status            VARCHAR(30)  NOT NULL DEFAULT 'PENDING'
                       CHECK (status IN (
-                          'PENDING','IN_TRANSIT','DELIVERED','RETURNED'
+                          'PENDING','IN_TRANSIT','OUT_FOR_DELIVERY','DELIVERED','RETURNED'
                       )),
     pod_image_url     VARCHAR(500),
     pod_signature_url VARCHAR(500),
@@ -605,7 +590,7 @@ CREATE TABLE damage_reports (
 CREATE TABLE invoices (
     id                   BIGSERIAL     PRIMARY KEY,
     invoice_number       VARCHAR(50)   UNIQUE NOT NULL,
-    do_id                BIGINT        UNIQUE NOT NULL REFERENCES delivery_orders(id),
+    do_id                BIGINT        NOT NULL REFERENCES delivery_orders(id),
     dealer_id            BIGINT        NOT NULL REFERENCES dealers(id),
     total_amount         DECIMAL(18,2) NOT NULL,
     issue_date           DATE          NOT NULL,
@@ -686,22 +671,20 @@ CREATE TABLE audit_logs (
     actor_id      BIGINT       NOT NULL REFERENCES users(id),
     actor_role    VARCHAR(50)  NOT NULL,              -- Snapshot role tại thời điểm thực hiện
     action        VARCHAR(50)  NOT NULL
-                  CHECK (action IN ('LOGIN','LOGOUT','CREATE','UPDATE','STATUS_CHANGE','APPROVE','REJECT','CANCEL','SOFT_DELETE','ASSIGN','UNASSIGN')),
+                  CHECK (action IN ('CREATE','UPDATE','APPROVE','REJECT','CANCEL','DELETE')),
     entity_type   VARCHAR(100) NOT NULL,
     entity_id     BIGINT       NOT NULL,
     description   TEXT         NOT NULL,              -- Auto-generated: "{ACTION} {ENTITY_TYPE} {ENTITY_CODE}"
     warehouse_id  BIGINT       REFERENCES warehouses(id),
     old_value     JSONB,                              -- Diff-only: chỉ chứa field đã thay đổi, loại bỏ sensitive fields
     new_value     JSONB,                              -- Diff-only: chỉ chứa field đã thay đổi, loại bỏ sensitive fields
-    timestamp     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    ip_address    VARCHAR(45)
+    timestamp     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_audit_logs_timestamp    ON audit_logs (timestamp DESC);
 CREATE INDEX idx_audit_logs_actor_id     ON audit_logs (actor_id);
 CREATE INDEX idx_audit_logs_entity       ON audit_logs (entity_type, entity_id);
 CREATE INDEX idx_audit_logs_warehouse_id ON audit_logs (warehouse_id);
-CREATE INDEX idx_audit_logs_warehouse_timestamp ON audit_logs (warehouse_id, timestamp DESC);
 
 -- =============================================================================
 -- SECTION 14: BẢNG HỖ TRỢ NGHIỆP VỤ
@@ -768,7 +751,10 @@ CREATE INDEX idx_transfers_src_status ON transfers(source_warehouse_id, status);
 CREATE INDEX idx_stock_takes_warehouse ON stock_takes(warehouse_id, status);
 
 -- audit_logs
-CREATE INDEX idx_audit_actor_role ON audit_logs(actor_role);
+CREATE INDEX idx_audit_entity     ON audit_logs(entity_type, entity_id);
+CREATE INDEX idx_audit_actor      ON audit_logs(actor_id);
+CREATE INDEX idx_audit_actor_role ON audit_logs(actor_role) WHERE actor_role IS NOT NULL;
+CREATE INDEX idx_audit_timestamp  ON audit_logs(timestamp DESC);
 
 -- =============================================================================
 -- SECTION 16: TRIGGERS & FUNCTIONS
@@ -800,18 +786,6 @@ BEGIN
     END LOOP;
 END;
 $$;
-
--- ── Trigger: chặn sửa/xóa audit log sau khi đã ghi ─────────────────────────
-CREATE OR REPLACE FUNCTION fn_prevent_audit_log_mutation()
-RETURNS TRIGGER AS $$
-BEGIN
-    RAISE EXCEPTION 'audit_logs are immutable and cannot be updated or deleted';
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trg_audit_logs_immutable
-    BEFORE UPDATE OR DELETE ON audit_logs
-    FOR EACH ROW EXECUTE FUNCTION fn_prevent_audit_log_mutation();
 
 -- ── Trigger: cập nhật sức chứa location khi inventories thay đổi ────────────
 CREATE OR REPLACE FUNCTION fn_update_bin_capacity()
@@ -945,7 +919,7 @@ SELECT
 FROM delivery_orders dord
 JOIN dealers d ON d.id = dord.dealer_id
 JOIN users   u ON u.id = dord.created_by
-WHERE dord.status IN ('NEW','PICKING','PENDING_WAREHOUSE_APPROVAL','READY_TO_SHIP')
+WHERE dord.status IN ('NEW','PICKING','READY_TO_SHIP')
 ORDER BY dord.expected_delivery_date ASC NULLS LAST, dord.created_at ASC;
 
 -- Cảnh báo tồn kho thấp chưa giải quyết
@@ -992,8 +966,8 @@ INSERT INTO system_configs (config_key, config_value, description) VALUES
     ('DEFAULT_PAYMENT_TERM_DAYS',            '30',        'Kỳ hạn thanh toán mặc định (ngày)'),
     ('CREDIT_HOLD_OVERDUE_DAYS',             '30',        'Số ngày quá hạn trước khi khóa tín dụng'),
     ('CREDIT_UNLOCK_BUFFER_PCT',             '0.8',       'Ngưỡng mở khóa tín dụng (80% credit_limit)'),
-    ('MONTHLY_CLOSING_DAY',                  '25',        'Ngày khóa sổ kỳ kế toán hàng tháng (ví dụ: ngày 25 hàng tháng)'),
-    ('MIN_INVENTORY_WARNING_THRESHOLD',      '10',        'Ngưỡng cảnh báo tồn kho tối thiểu mặc định (áp dụng khi sản phẩm chưa được thiết lập ngưỡng riêng)');
+    ('STOCKTAKE_APPROVAL_THRESHOLD_MANAGER', '5000000',   'Ngưỡng chênh lệch Trưởng kho duyệt (VNĐ)'),
+    ('STOCKTAKE_APPROVAL_THRESHOLD_CEO',     '100000000', 'Ngưỡng chênh lệch CEO duyệt (VNĐ)');
 
 -- =============================================================================
 -- Tổng cộng:

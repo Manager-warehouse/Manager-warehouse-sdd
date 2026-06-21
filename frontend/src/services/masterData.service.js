@@ -1029,7 +1029,9 @@ export const masterDataService = {
       return getDb(KEYS.VEHICLES, INITIAL_VEHICLES);
     }
     const response = await apiClient.get("/dispatcher/vehicles");
-    return mapToSnakeCase(response.data);
+    const data = response.data;
+    const arrayData = Array.isArray(data) ? data : (data && Array.isArray(data.content) ? data.content : (data && Array.isArray(data.data) ? data.data : []));
+    return mapToSnakeCase(arrayData);
   },
 
   createVehicle: async (vhData) => {
@@ -1158,7 +1160,9 @@ export const masterDataService = {
       return getDb(KEYS.DRIVERS, INITIAL_DRIVERS);
     }
     const response = await apiClient.get("/dispatcher/drivers");
-    return mapToSnakeCase(response.data);
+    const data = response.data;
+    const arrayData = Array.isArray(data) ? data : (data && Array.isArray(data.content) ? data.content : (data && Array.isArray(data.data) ? data.data : []));
+    return mapToSnakeCase(arrayData);
   },
 
   createDriver: async (drvData) => {

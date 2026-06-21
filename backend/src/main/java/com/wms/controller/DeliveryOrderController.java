@@ -46,17 +46,17 @@ public class DeliveryOrderController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','ACCOUNTANT_MANAGER','PLANNER')")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','ACCOUNTANT_MANAGER','PLANNER','STOREKEEPER','WAREHOUSE_MANAGER','DISPATCHER','ADMIN','CEO')")
     @Operation(summary = "List delivery orders")
     public List<DeliveryOrderResponse> getAllDeliveryOrders() {
-        return deliveryOrderService.getAllDeliveryOrders();
+        return deliveryOrderService.getAllDeliveryOrders(currentUser());
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','ACCOUNTANT_MANAGER','PLANNER')")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','ACCOUNTANT_MANAGER','PLANNER','STOREKEEPER','WAREHOUSE_MANAGER','DISPATCHER','ADMIN','CEO')")
     @Operation(summary = "Get delivery order detail")
     public DeliveryOrderResponse getDeliveryOrderById(@PathVariable Long id) {
-        return deliveryOrderService.getDeliveryOrderById(id);
+        return deliveryOrderService.getDeliveryOrderById(id, currentUser());
     }
 
     @PostMapping

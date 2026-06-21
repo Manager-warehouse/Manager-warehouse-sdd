@@ -15,8 +15,8 @@ import com.wms.entity.User;
 import java.util.List;
 
 public interface DeliveryOrderService {
-    List<DeliveryOrderResponse> getAllDeliveryOrders();
-    DeliveryOrderResponse getDeliveryOrderById(Long id);
+    List<DeliveryOrderResponse> getAllDeliveryOrders(User actor);
+    DeliveryOrderResponse getDeliveryOrderById(Long id, User actor);
     DeliveryOrderResponse createDeliveryOrder(DeliveryOrderCreateRequest request, User actor);
     DeliveryOrderResponse updateDeliveryOrder(Long id, DeliveryOrderUpdateRequest request, User actor);
     DeliveryOrderResponse cancelDeliveryOrder(Long id, DeliveryOrderCancelRequest request, User actor);

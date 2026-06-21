@@ -160,6 +160,34 @@ class DeliveryOrderServiceImplTest {
     }
 
     @Test
+    void getAllDeliveryOrders_filtersToAssignedWarehouseForStorekeeper() {
+        DeliveryOrder hpOrder = order(100L, DeliveryOrderStatus.NEW);
+        DeliveryOrder hcmOrder = order(101L, DeliveryOrderStatus.NEW);
+        Warehouse hcmWarehouse = warehouse(30L, "HCM");
+        hcmOrder.setWarehouse(hcmWarehouse);
+        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
+        when(deliveryOrderRepository.findDetailedByWarehouseIdIn(List.of(20L)))
+                .thenReturn(List.of(hpOrder));
+
+        List<DeliveryOrderResponse> responses = service.getAllDeliveryOrders(storekeeper);
+
+        assertThat(responses).hasSize(1);
+        assertThat(responses.get(0).getWarehouseId()).isEqualTo(20L);
+    }
+
+    @Test
+    void getDeliveryOrderById_rejectsStorekeeperOutsideWarehouseScope() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.NEW);
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(99L));
+
+        assertThatThrownBy(() -> service.getDeliveryOrderById(100L, storekeeper))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code")
+                .isEqualTo("WAREHOUSE_SCOPE_FORBIDDEN");
+    }
+
+    @Test
     void createDeliveryOrder_incrementsWarehouseProductReservation() {
         stubSuccessfulCreate(new BigDecimal("100.00"));
 

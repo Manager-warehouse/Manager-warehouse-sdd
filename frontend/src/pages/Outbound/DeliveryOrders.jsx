@@ -69,7 +69,7 @@ export default function DeliveryOrders() {
   const fetchMasterData = async () => {
     try {
       const [dealersData, productsData] = await Promise.all([
-        masterDataService.getPartners('DEALER'),
+        masterDataService.getDealers(),
         masterDataService.getProducts(),
       ]);
       setDealers(dealersData);

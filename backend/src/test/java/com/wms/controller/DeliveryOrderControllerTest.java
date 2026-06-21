@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -75,6 +76,30 @@ class DeliveryOrderControllerTest {
                 .andExpect(jsonPath("$.status").value("NEW"))
                 .andExpect(jsonPath("$.dealerId").value(10))
                 .andExpect(jsonPath("$.warehouseId").value(20));
+    }
+
+    @Test
+    @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
+    void getAllDeliveryOrders_allowsStorekeeper() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(storekeeper);
+        when(deliveryOrderService.getAllDeliveryOrders(storekeeper))
+                .thenReturn(List.of(response(DeliveryOrderStatus.NEW)));
+
+        mockMvc.perform(get("/api/v1/delivery-orders"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].status").value("NEW"));
+    }
+
+    @Test
+    @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
+    void getDeliveryOrderById_allowsStorekeeper() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(storekeeper);
+        when(deliveryOrderService.getDeliveryOrderById(100L, storekeeper))
+                .thenReturn(response(DeliveryOrderStatus.WAITING_PICKING));
+
+        mockMvc.perform(get("/api/v1/delivery-orders/100"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("WAITING_PICKING"));
     }
 
     @Test
