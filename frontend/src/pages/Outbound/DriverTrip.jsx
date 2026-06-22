@@ -60,7 +60,9 @@ export default function DriverTrip() {
   const { user } = useAuthStore();
 
   const [trip, setTrip] = useState(null);
+  const [tripList, setTripList] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingList, setLoadingList] = useState(false);
   const [activeDO, setActiveDO] = useState(null);
   const [modalType, setModalType] = useState(null);
   const [otpSent, setOtpSent] = useState(false);
@@ -75,10 +77,23 @@ export default function DriverTrip() {
   useEffect(() => {
     if (!id) {
       setLoading(false);
+      fetchTripList();
       return;
     }
     fetchTrip(id);
   }, [id]);
+
+  const fetchTripList = async () => {
+    setLoadingList(true);
+    try {
+      const data = await outboundService.getDriverTrips();
+      setTripList(data);
+    } catch (error) {
+      addToast(error.message || 'Lỗi lấy danh sách chuyến xe', 'error');
+    } finally {
+      setLoadingList(false);
+    }
+  };
 
   const fetchTrip = async (tripId) => {
     setLoading(true);
@@ -171,14 +186,46 @@ export default function DriverTrip() {
   };
 
   if (!id) {
-    const isDriver = user?.role === 'DRIVER';
+    if (loadingList) {
+      return (
+        <div className="flex items-center justify-center p-20">
+          <Loader2 className="w-8 h-8 animate-spin text-shade-50" />
+        </div>
+      );
+    }
+
     return (
-      <div className="bg-white rounded-lg border border-hairline-light p-12 text-center shadow-sm">
-        <Truck className="w-12 h-12 text-shade-30 mx-auto mb-4" />
-        <h3 className="text-lg font-bold mb-1">{isDriver ? 'Cần mở chuyến đã được gán' : 'Không có chuyến được mở'}</h3>
-        <p className="text-sm text-shade-50">
-          Backend hiện tại chỉ hỗ trợ màn hình driver theo route có trip id. Hãy mở chuyến từ danh sách điều phối.
-        </p>
+      <div className="flex flex-col gap-6">
+        <div>
+          <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">Giao hàng</span>
+          <h1 className="text-xl font-display font-semibold tracking-tight">Chuyến xe của tôi</h1>
+        </div>
+        
+        {tripList.length === 0 ? (
+          <div className="bg-white rounded-lg border border-hairline-light p-12 text-center shadow-sm">
+            <Truck className="w-12 h-12 text-shade-30 mx-auto mb-4" />
+            <h3 className="text-lg font-bold mb-1">Chưa có chuyến được gán</h3>
+            <p className="text-sm text-shade-50">Hiện tại bạn chưa được phân công chuyến xe nào.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {tripList.map((t) => (
+              <div key={t.id || t.tripId || t.trip_id} className="bg-white rounded-lg border border-hairline-light p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate(`/outbound/driver/trips/${t.id || t.tripId || t.trip_id}`)}>
+                <div className="flex justify-between items-start mb-3">
+                  <h3 className="font-bold text-ink">{t.trip_number || t.tripNumber}</h3>
+                  <StatusBadge status={t.status} />
+                </div>
+                <div className="space-y-1 text-xs mb-4">
+                  <p className="flex items-center gap-2 text-shade-50"><Truck className="w-3.5 h-3.5 text-shade-40" /> Xe: <span className="font-semibold text-ink">{t.vehicle_plate || t.vehiclePlate || '-'}</span></p>
+                  <p className="flex items-center gap-2 text-shade-50"><Calendar className="w-3.5 h-3.5 text-shade-40" /> Ngày: <span className="font-semibold text-ink">{t.planned_date || t.plannedDate ? new Date(t.planned_date || t.plannedDate).toLocaleDateString('vi-VN') : '-'}</span></p>
+                </div>
+                <button className="w-full text-center py-2 bg-indigo-50 text-indigo-700 font-semibold rounded-lg hover:bg-indigo-100 transition-colors text-sm">
+                  Xem chi tiết
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   }

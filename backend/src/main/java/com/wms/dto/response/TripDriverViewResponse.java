@@ -12,6 +12,9 @@ public class TripDriverViewResponse {
     private String tripNumber;
     private TripStatus status;
     private Long driverId;
+    private String driverName;
     private Long vehicleId;
+    private String vehiclePlate;
+    private String plannedDate;
     private List<DriverDeliveryOrderResponse> deliveryOrders;
 }

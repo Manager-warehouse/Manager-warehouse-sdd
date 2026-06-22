@@ -109,6 +109,13 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<TripDriverViewResponse> listMyTrips(TripStatus status, User actor) {
+        List<Trip> trips = tripRepository.findAllAssignedDriverTrips(actor.getId(), status);
+        return trips.stream().map(this::toTripDriverView).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public TripDriverViewResponse getAssignedTrip(Long tripId, User actor) {
         Trip trip = assignedTrip(tripId, actor);
         return toTripDriverView(trip);
@@ -345,7 +352,10 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
                 .tripNumber(trip.getTripNumber())
                 .status(trip.getStatus())
                 .driverId(trip.getDriver().getId())
+                .driverName(trip.getDriver().getUser().getFullName())
                 .vehicleId(trip.getVehicle().getId())
+                .vehiclePlate(trip.getVehicle().getPlateNumber())
+                .plannedDate(trip.getPlannedDate() != null ? trip.getPlannedDate().toString() : null)
                 .deliveryOrders(rows.stream()
                         .map(row -> DriverDeliveryOrderResponse.builder()
                                 .doId(row.getDeliveryOrder().getId())

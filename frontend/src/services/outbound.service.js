@@ -954,6 +954,20 @@ export const outboundService = {
     }
   },
 
+  getDriverTrips: async (filters = {}) => {
+    if (useMock) {
+      await mockDelay();
+      let trips = getDb(KEYS.TRIPS, INITIAL_TRIPS);
+      if (filters.status && filters.status !== 'ALL') {
+        trips = trips.filter((trip) => trip.status === filters.status);
+      }
+      // For mock, just return all trips since we don't have driver session in mock data easily
+      return trips.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    }
+    const response = await apiClient.get('/trips/my-trips', { params: { status: filters.status } });
+    return asArray(response.data).map(normalizeTrip);
+  },
+
   getTripById: async (id) => {
     if (useMock) {
       await mockDelay(150);

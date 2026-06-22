@@ -66,6 +66,13 @@ public class TripController {
         return tripService.listTrips(warehouseId, status, currentUser());
     }
 
+    @GetMapping("/my-trips")
+    @PreAuthorize("hasRole('DRIVER')")
+    @Operation(summary = "List assigned trips for driver mobile")
+    public List<TripDriverViewResponse> listMyTrips(@RequestParam(required = false) TripStatus status) {
+        return driverDeliveryService.listMyTrips(status, currentUser());
+    }
+
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('DRIVER')")
     @Operation(summary = "Get assigned trip detail for driver mobile")
