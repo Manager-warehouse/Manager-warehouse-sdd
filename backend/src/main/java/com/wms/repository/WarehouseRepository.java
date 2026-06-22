@@ -11,7 +11,10 @@ import java.util.Optional;
 @Repository
 public interface WarehouseRepository extends JpaRepository<Warehouse, Long> {
     List<Warehouse> findByIsActive(Boolean isActive);
+
     boolean existsByCode(String code);
+
     boolean existsByCodeAndIdNot(String code, Long id);
+
     Optional<Warehouse> findFirstByTypeAndIsActiveTrue(WarehouseType type);
 }

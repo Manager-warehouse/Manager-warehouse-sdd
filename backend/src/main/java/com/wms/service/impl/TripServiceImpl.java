@@ -150,6 +150,8 @@ public class TripServiceImpl implements TripService {
                 .driver(driver)
                 .dispatcher(actor)
                 .plannedDate(request.getPlannedDate())
+                .plannedStartAt(request.getPlannedStartAt())
+                .plannedEndAt(request.getPlannedEndAt())
                 .tripType(TripType.DELIVERY)
                 .status(TripStatus.PLANNED)
                 .totalWeightKg(capacity.weight())
@@ -186,6 +188,12 @@ public class TripServiceImpl implements TripService {
         trip.setDriver(driver);
         if (request.getPlannedDate() != null) {
             trip.setPlannedDate(request.getPlannedDate());
+        }
+        if (request.getPlannedStartAt() != null) {
+            trip.setPlannedStartAt(request.getPlannedStartAt());
+        }
+        if (request.getPlannedEndAt() != null) {
+            trip.setPlannedEndAt(request.getPlannedEndAt());
         }
         trip.setNotes(request.getNotes());
         trip.setTotalWeightKg(capacity.weight());
@@ -524,6 +532,8 @@ public class TripServiceImpl implements TripService {
                 .driverId(trip.getDriver().getId())
                 .dispatcherId(trip.getDispatcher().getId())
                 .plannedDate(trip.getPlannedDate())
+                .plannedStartAt(trip.getPlannedStartAt())
+                .plannedEndAt(trip.getPlannedEndAt())
                 .tripType(trip.getTripType())
                 .status(trip.getStatus())
                 .totalWeightKg(trip.getTotalWeightKg())
@@ -559,6 +569,8 @@ public class TripServiceImpl implements TripService {
         values.put("vehicleId", trip.getVehicle().getId());
         values.put("driverId", trip.getDriver().getId());
         values.put("status", trip.getStatus());
+        values.put("plannedStartAt", trip.getPlannedStartAt());
+        values.put("plannedEndAt", trip.getPlannedEndAt());
         values.put("totalWeightKg", trip.getTotalWeightKg());
         values.put("totalVolumeM3", trip.getTotalVolumeM3());
         return values;

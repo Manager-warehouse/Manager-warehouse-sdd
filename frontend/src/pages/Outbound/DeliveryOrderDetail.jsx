@@ -39,6 +39,23 @@ const getStatusBadge = (status) => {
   return <span className={`${base} ${color}`}>{label}</span>;
 };
 
+const itemHasReadOnlyAllocations = (item, pickingCandidates) => {
+  const candidates = pickingCandidates[item.id] || [];
+  return candidates.length === 0;
+};
+
+const isAllocationMissingInventory = (allocation, item, pickingCandidates) => {
+  if (Number(allocation.planned_qty || 0) <= 0) {
+    return false;
+  }
+
+  if (allocation.inventory_id) {
+    return false;
+  }
+
+  return !itemHasReadOnlyAllocations(item, pickingCandidates);
+};
+
 export default function DeliveryOrderDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -89,7 +106,7 @@ export default function DeliveryOrderDetail() {
         0,
       );
       const hasIncompleteAllocation = (item.allocations || []).some(
-        (allocation) => Number(allocation.planned_qty || 0) > 0 && !allocation.inventory_id,
+        (allocation) => isAllocationMissingInventory(allocation, item, pickingCandidates),
       );
       return hasIncompleteAllocation || plannedQty !== Number(item.requested_qty || 0);
     });
@@ -248,7 +265,7 @@ export default function DeliveryOrderDetail() {
       0,
     );
     const hasIncompleteAllocation = (item.allocations || []).some(
-      (allocation) => Number(allocation.planned_qty || 0) > 0 && !allocation.inventory_id,
+      (allocation) => isAllocationMissingInventory(allocation, item, pickingCandidates),
     );
     return hasIncompleteAllocation || plannedQty !== Number(item.requested_qty || 0);
   });

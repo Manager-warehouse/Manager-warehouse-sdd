@@ -2,19 +2,17 @@ package com.wms.service.impl;
 
 import com.wms.dto.request.UserRequest;
 import com.wms.dto.response.UserResponse;
-import com.wms.entity.AuditLog;
 import com.wms.entity.User;
 import com.wms.entity.UserWarehouseAssignment;
 import com.wms.entity.Warehouse;
 import com.wms.enums.AuditAction;
 import com.wms.enums.UserRole;
 import com.wms.exception.ResourceNotFoundException;
-import com.wms.repository.AuditLogRepository;
 import com.wms.repository.UserRepository;
 import com.wms.repository.UserWarehouseAssignmentRepository;
 import com.wms.repository.WarehouseRepository;
+import com.wms.service.AuditLogService;
 import com.wms.service.UserService;
-import com.wms.util.AuditLogUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -32,7 +30,7 @@ public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
     private final WarehouseRepository warehouseRepository;
-    private final AuditLogRepository auditLogRepository;
+    private final AuditLogService auditLogService;
     private final PasswordEncoder passwordEncoder;
 
     @Override
@@ -91,18 +89,9 @@ public class UserServiceImpl implements UserService {
             saveWarehouseAssignments(savedUser, request.getWarehouses(), adminUser);
         }
 
-        // Record Audit Log
-        AuditLog auditLog = AuditLog.builder()
-                .actor(adminUser)
-                .actorRole(adminUser.getRole() != null ? adminUser.getRole().name() : "ADMIN")
-                .action(AuditAction.CREATE)
-                .entityType("User")
-                .entityId(savedUser.getId())
-                .description("CREATE User " + savedUser.getId())
-                .newValue(AuditLogUtil.toJson(Map.of("email", savedUser.getEmail(), "role", savedUser.getRole().name())))
-                .timestamp(OffsetDateTime.now())
-                .build();
-        auditLogRepository.save(auditLog);
+        auditLogService.log(adminUser, AuditAction.CREATE, "User",
+                savedUser.getId(), savedUser.getEmail(), null, null,
+                Map.of("email", savedUser.getEmail(), "role", savedUser.getRole().name()));
 
         List<Long> assignedWarehouseIds = userWarehouseAssignmentRepository.findWarehouseIdsByUserId(savedUser.getId());
         return mapToResponse(savedUser, assignedWarehouseIds);
@@ -150,19 +139,10 @@ public class UserServiceImpl implements UserService {
             saveWarehouseAssignments(savedUser, request.getWarehouses(), adminUser);
         }
 
-        // Record Audit Log
-        AuditLog auditLog = AuditLog.builder()
-                .actor(adminUser)
-                .actorRole(adminUser.getRole() != null ? adminUser.getRole().name() : "ADMIN")
-                .action(AuditAction.UPDATE)
-                .entityType("User")
-                .entityId(savedUser.getId())
-                .description("UPDATE User " + savedUser.getId())
-                .oldValue(AuditLogUtil.toJson(Map.of("fullName", oldFullName, "role", oldRole.name())))
-                .newValue(AuditLogUtil.toJson(Map.of("fullName", savedUser.getFullName(), "role", savedUser.getRole().name())))
-                .timestamp(OffsetDateTime.now())
-                .build();
-        auditLogRepository.save(auditLog);
+        auditLogService.log(adminUser, AuditAction.UPDATE, "User",
+                savedUser.getId(), savedUser.getEmail(), null,
+                Map.of("fullName", oldFullName, "role", oldRole.name()),
+                Map.of("fullName", savedUser.getFullName(), "role", savedUser.getRole().name()));
 
         List<Long> assignedWarehouseIds = userWarehouseAssignmentRepository.findWarehouseIdsByUserId(savedUser.getId());
         return mapToResponse(savedUser, assignedWarehouseIds);
@@ -187,19 +167,10 @@ public class UserServiceImpl implements UserService {
         user.setUpdatedAt(OffsetDateTime.now());
         User savedUser = userRepository.save(user);
 
-        // Record Audit Log
-        AuditLog auditLog = AuditLog.builder()
-                .actor(adminUser)
-                .actorRole(adminUser.getRole() != null ? adminUser.getRole().name() : "ADMIN")
-                .action(AuditAction.STATUS_CHANGE)
-                .entityType("User")
-                .entityId(savedUser.getId())
-                .description("STATUS_CHANGE User " + savedUser.getId())
-                .oldValue(AuditLogUtil.toJson(Map.of("isActive", oldIsActive)))
-                .newValue(AuditLogUtil.toJson(Map.of("isActive", savedUser.getIsActive())))
-                .timestamp(OffsetDateTime.now())
-                .build();
-        auditLogRepository.save(auditLog);
+        auditLogService.log(adminUser, AuditAction.STATUS_CHANGE, "User",
+                savedUser.getId(), savedUser.getEmail(), null,
+                Map.of("isActive", oldIsActive),
+                Map.of("isActive", savedUser.getIsActive()));
 
         List<Long> assignedWarehouseIds = userWarehouseAssignmentRepository.findWarehouseIdsByUserId(savedUser.getId());
         return mapToResponse(savedUser, assignedWarehouseIds);
@@ -223,19 +194,10 @@ public class UserServiceImpl implements UserService {
         user.setUpdatedAt(OffsetDateTime.now());
         User savedUser = userRepository.save(user);
 
-        // Record Audit Log
-        AuditLog auditLog = AuditLog.builder()
-                .actor(adminUser)
-                .actorRole(adminUser.getRole() != null ? adminUser.getRole().name() : "ADMIN")
-                .action(AuditAction.SOFT_DELETE)
-                .entityType("User")
-                .entityId(savedUser.getId())
-                .description("SOFT_DELETE User " + savedUser.getId())
-                .oldValue(AuditLogUtil.toJson(Map.of("isActive", true)))
-                .newValue(AuditLogUtil.toJson(Map.of("isActive", false)))
-                .timestamp(OffsetDateTime.now())
-                .build();
-        auditLogRepository.save(auditLog);
+        auditLogService.log(adminUser, AuditAction.SOFT_DELETE, "User",
+                savedUser.getId(), savedUser.getEmail(), null,
+                Map.of("isActive", true),
+                Map.of("isActive", false));
 
         List<Long> assignedWarehouseIds = userWarehouseAssignmentRepository.findWarehouseIdsByUserId(savedUser.getId());
         return mapToResponse(savedUser, assignedWarehouseIds);

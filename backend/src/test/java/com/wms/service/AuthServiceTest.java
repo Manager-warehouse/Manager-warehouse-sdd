@@ -2,11 +2,11 @@ package com.wms.service;
 
 import com.wms.dto.auth.*;
 import com.wms.entity.User;
+import com.wms.enums.AuditAction;
 import com.wms.enums.UserRole;
+import com.wms.util.JwtUtil;
 import com.wms.repository.UserRepository;
 import com.wms.repository.UserWarehouseAssignmentRepository;
-import com.wms.repository.AuditLogRepository;
-import com.wms.util.JwtUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -39,7 +39,7 @@ class AuthServiceTest {
     @Mock private AuthenticationManager authenticationManager;
     @Mock private JavaMailSender mailSender;
     @Mock private UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
-    @Mock private AuditLogRepository auditLogRepository;
+    @Mock private AuditLogService auditLogService;
 
     @InjectMocks
     private AuthService authService;
@@ -127,7 +127,7 @@ class AuthServiceTest {
         activeUser.setRefreshTokenHash(sha256(rawToken));
         activeUser.setRefreshTokenExpiresAt(OffsetDateTime.now().plusDays(7));
 
-        when(userRepository.findAll()).thenReturn(List.of(activeUser));
+        when(userRepository.findByRefreshTokenHash(anyString())).thenReturn(Optional.of(activeUser));
         when(jwtUtil.generateAccessToken(anyString(), anyString())).thenReturn("new-access-token");
 
         RefreshTokenRequest req = new RefreshTokenRequest();
@@ -142,7 +142,7 @@ class AuthServiceTest {
     @Test
     @DisplayName("Refresh thất bại khi token không tồn tại")
     void refresh_invalidToken_throwsTokenInvalid() {
-        when(userRepository.findAll()).thenReturn(List.of());
+        when(userRepository.findByRefreshTokenHash(anyString())).thenReturn(Optional.empty());
 
         RefreshTokenRequest req = new RefreshTokenRequest();
         req.setRefreshToken("nonexistent-token");
@@ -159,7 +159,7 @@ class AuthServiceTest {
         activeUser.setRefreshTokenHash(sha256(rawToken));
         activeUser.setRefreshTokenExpiresAt(OffsetDateTime.now().minusDays(1));
 
-        when(userRepository.findAll()).thenReturn(List.of(activeUser));
+        when(userRepository.findByRefreshTokenHash(anyString())).thenReturn(Optional.of(activeUser));
 
         RefreshTokenRequest req = new RefreshTokenRequest();
         req.setRefreshToken(rawToken);
@@ -351,7 +351,15 @@ class AuthServiceTest {
         assertThat(response.getEmail()).isEqualTo("newemail@wms.com");
         assertThat(response.getPhone()).isEqualTo("0987654321");
         verify(userRepository).save(activeUser);
-        verify(auditLogRepository).save(any());
+        verify(auditLogService).log(
+                eq(activeUser),
+                eq(AuditAction.UPDATE),
+                eq("User"),
+                eq(activeUser.getId()),
+                eq(activeUser.getEmail()),
+                isNull(),
+                anyMap(),
+                anyMap());
     }
 
     @Test

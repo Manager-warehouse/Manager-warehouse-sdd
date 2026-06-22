@@ -19,6 +19,8 @@ public class TripResponse {
     private Long driverId;
     private Long dispatcherId;
     private LocalDate plannedDate;
+    private OffsetDateTime plannedStartAt;
+    private OffsetDateTime plannedEndAt;
     private TripType tripType;
     private TripStatus status;
     private BigDecimal totalWeightKg;

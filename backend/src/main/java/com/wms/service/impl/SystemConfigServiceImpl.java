@@ -2,18 +2,16 @@ package com.wms.service.impl;
 
 import com.wms.dto.request.SystemConfigUpdateRequest;
 import com.wms.dto.response.SystemConfigResponse;
-import com.wms.entity.AuditLog;
 import com.wms.entity.SystemConfig;
 import com.wms.entity.User;
 import com.wms.enums.AuditAction;
 import com.wms.enums.SystemConfigKey;
 import com.wms.exception.ResourceNotFoundException;
 import com.wms.mapper.SystemConfigMapper;
-import com.wms.repository.AuditLogRepository;
 import com.wms.repository.SystemConfigRepository;
 import com.wms.repository.UserRepository;
+import com.wms.service.AuditLogService;
 import com.wms.service.SystemConfigService;
-import com.wms.util.AuditLogUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,7 +27,7 @@ public class SystemConfigServiceImpl implements SystemConfigService {
 
     private final SystemConfigRepository systemConfigRepository;
     private final SystemConfigMapper systemConfigMapper;
-    private final AuditLogRepository auditLogRepository;
+    private final AuditLogService auditLogService;
     private final UserRepository userRepository;
 
     @Override
@@ -62,18 +60,10 @@ public class SystemConfigServiceImpl implements SystemConfigService {
         
         SystemConfig savedConfig = systemConfigRepository.save(config);
 
-        // Record Audit Log
-        AuditLog auditLog = AuditLog.builder()
-                .actor(adminUser)
-                .actorRole(adminUser.getRole() != null ? adminUser.getRole().name() : "ADMIN")
-                .action(AuditAction.UPDATE)
-                .entityType("SystemConfig")
-                .entityId(savedConfig.getId())
-                .oldValue(AuditLogUtil.toJson(Map.of("config_value", oldValue != null ? oldValue : "")))
-                .newValue(AuditLogUtil.toJson(Map.of("config_value", newValue)))
-                .timestamp(OffsetDateTime.now())
-                .build();
-        auditLogRepository.save(auditLog);
+        auditLogService.log(adminUser, AuditAction.UPDATE, "SystemConfig",
+                savedConfig.getId(), savedConfig.getConfigKey(), null,
+                Map.of("config_value", oldValue != null ? oldValue : ""),
+                Map.of("config_value", newValue));
 
         return systemConfigMapper.toResponse(savedConfig);
     }

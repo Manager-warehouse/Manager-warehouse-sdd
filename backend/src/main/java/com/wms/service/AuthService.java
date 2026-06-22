@@ -3,13 +3,10 @@ package com.wms.service;
 import com.wms.dto.auth.*;
 import com.wms.entity.User;
 import com.wms.entity.UserWarehouseAssignment;
-import com.wms.entity.AuditLog;
 import com.wms.enums.AuditAction;
 import com.wms.repository.UserRepository;
 import com.wms.repository.UserWarehouseAssignmentRepository;
-import com.wms.repository.AuditLogRepository;
 import com.wms.util.JwtUtil;
-import com.wms.util.AuditLogUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
@@ -40,7 +37,7 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final JavaMailSender mailSender;
     private final UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
-    private final AuditLogRepository auditLogRepository;
+    private final AuditLogService auditLogService;
 
     @Value("${jwt.refresh-token-expiry}")
     private long refreshTokenExpiry;
@@ -174,19 +171,8 @@ public class AuthService {
                 "phone", savedUser.getPhone() != null ? savedUser.getPhone() : ""
         );
 
-        // Save audit log
-        AuditLog auditLog = AuditLog.builder()
-                .actor(savedUser)
-                .actorRole(savedUser.getRole().name())
-                .action(AuditAction.UPDATE)
-                .entityType("User")
-                .entityId(savedUser.getId())
-                .description("UPDATE User Profile: " + savedUser.getEmail())
-                .oldValue(AuditLogUtil.toJson(oldValue))
-                .newValue(AuditLogUtil.toJson(newValue))
-                .timestamp(OffsetDateTime.now())
-                .build();
-        auditLogRepository.save(auditLog);
+        auditLogService.log(savedUser, AuditAction.UPDATE, "User",
+                savedUser.getId(), savedUser.getEmail(), null, oldValue, newValue);
 
         return me(savedUser.getEmail());
     }

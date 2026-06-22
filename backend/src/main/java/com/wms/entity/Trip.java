@@ -43,6 +43,12 @@ public class Trip {
     @Column(name = "planned_date", nullable = false)
     private LocalDate plannedDate;
 
+    @Column(name = "planned_start_at")
+    private OffsetDateTime plannedStartAt;
+
+    @Column(name = "planned_end_at")
+    private OffsetDateTime plannedEndAt;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "trip_type", nullable = false, length = 20)
     private TripType tripType;

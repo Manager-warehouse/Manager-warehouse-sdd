@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Calendar, Eye, Loader2, Package, Plus, Search, Truck, User } from 'lucide-react';
+import { Calendar, Clock, Eye, Loader2, Package, Plus, Search, Truck, User } from 'lucide-react';
 import { outboundService } from '../../services/outbound.service';
 import { masterDataService } from '../../services/masterData.service';
 import { useAuthStore } from '../../stores/auth.store';
@@ -18,7 +18,7 @@ const TRIP_STATUS_MAP = {
   CANCELLED: { label: 'Đã hủy', color: 'bg-red-50 text-red-700 border-red-200' },
 };
 
-const emptyForm = { vehicle_id: '', driver_id: '', planned_date: '', notes: '', delivery_orders: [] };
+const emptyForm = { vehicle_id: '', driver_id: '', planned_date: '', planned_start_at: '', planned_end_at: '', notes: '', delivery_orders: [] };
 
 const getTripStatusBadge = (status) => {
   const base = 'text-[10px] font-semibold px-2 py-0.5 rounded-pill border uppercase tracking-wider whitespace-nowrap';
@@ -241,6 +241,9 @@ export default function TripPlanning() {
                 <p className="flex items-center gap-2 text-xs"><Truck className="w-3.5 h-3.5 text-shade-40" /><span className="text-shade-50">Xe:</span><span className="font-semibold text-ink">{trip.vehicle_plate || '-'}</span></p>
                 <p className="flex items-center gap-2 text-xs"><User className="w-3.5 h-3.5 text-shade-40" /><span className="text-shade-50">Tài xế:</span><span className="font-semibold text-ink">{trip.driver_name || trip.driver_id}</span></p>
                 <p className="flex items-center gap-2 text-xs"><Calendar className="w-3.5 h-3.5 text-shade-40" /><span className="text-shade-50">Ngày giao:</span><span className="font-semibold text-ink">{trip.planned_date ? new Date(trip.planned_date).toLocaleDateString('vi-VN') : '-'}</span></p>
+                {(trip.planned_start_at || trip.planned_end_at) && (
+                  <p className="flex items-center gap-2 text-xs"><Clock className="w-3.5 h-3.5 text-shade-40" /><span className="text-shade-50">Khung giờ:</span><span className="font-semibold text-ink">{trip.planned_start_at ? new Date(trip.planned_start_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '?'} – {trip.planned_end_at ? new Date(trip.planned_end_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '?'}</span></p>
+                )}
                 <p className="text-xs"><span className="text-shade-50">Tổng KL:</span> <span className="font-semibold text-ink">{trip.total_weight_kg} kg</span></p>
               </div>
               <div className="p-4 border-t border-hairline-light flex gap-2">
@@ -261,6 +264,7 @@ export default function TripPlanning() {
                 { label: 'Biển số xe', value: detailTrip.vehicle_plate || '-', icon: <Truck className="w-3.5 h-3.5" /> },
                 { label: 'Tài xế', value: detailTrip.driver_name || detailTrip.driver_id, icon: <User className="w-3.5 h-3.5" /> },
                 { label: 'Ngày giao', value: detailTrip.planned_date ? new Date(detailTrip.planned_date).toLocaleDateString('vi-VN') : '-', icon: <Calendar className="w-3.5 h-3.5" /> },
+                { label: 'Khung giờ', value: (detailTrip.planned_start_at || detailTrip.planned_end_at) ? `${detailTrip.planned_start_at ? new Date(detailTrip.planned_start_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '?'} – ${detailTrip.planned_end_at ? new Date(detailTrip.planned_end_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '?'}` : 'Chưa thiết lập', icon: <Clock className="w-3.5 h-3.5" /> },
                 { label: 'Tổng khối lượng', value: `${detailTrip.total_weight_kg} kg`, icon: <Package className="w-3.5 h-3.5" /> },
               ].map(({ label, value, icon }) => (
                 <div key={label} className="bg-canvas-cream rounded-lg border border-hairline-light p-3.5">
@@ -343,6 +347,18 @@ export default function TripPlanning() {
                   onChange={(event) => setFormData((prev) => ({ ...prev, planned_date: event.target.value }))}
                 />
               </div>
+              <Input
+                label="Giờ xuất phát dự kiến"
+                type="datetime-local"
+                value={formData.planned_start_at}
+                onChange={(event) => setFormData((prev) => ({ ...prev, planned_start_at: event.target.value }))}
+              />
+              <Input
+                label="Giờ kết thúc dự kiến"
+                type="datetime-local"
+                value={formData.planned_end_at}
+                onChange={(event) => setFormData((prev) => ({ ...prev, planned_end_at: event.target.value }))}
+              />
             </div>
 
             <div>

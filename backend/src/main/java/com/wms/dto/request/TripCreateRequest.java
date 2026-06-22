@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.List;
 import lombok.Getter;
 import lombok.Setter;
@@ -27,6 +28,10 @@ public class TripCreateRequest {
 
     @Size(max = 1000)
     private String notes;
+
+    private OffsetDateTime plannedStartAt;
+
+    private OffsetDateTime plannedEndAt;
 
     @Valid
     @NotEmpty

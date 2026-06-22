@@ -2,14 +2,12 @@ package com.wms.service;
 
 import com.wms.dto.request.UserRequest;
 import com.wms.dto.response.UserResponse;
-import com.wms.entity.AuditLog;
 import com.wms.entity.User;
 import com.wms.entity.UserWarehouseAssignment;
 import com.wms.entity.Warehouse;
 import com.wms.enums.AuditAction;
 import com.wms.enums.UserRole;
 import com.wms.exception.ResourceNotFoundException;
-import com.wms.repository.AuditLogRepository;
 import com.wms.repository.UserRepository;
 import com.wms.repository.UserWarehouseAssignmentRepository;
 import com.wms.repository.WarehouseRepository;
@@ -18,7 +16,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -32,6 +29,9 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -40,7 +40,7 @@ class UserServiceImplTest {
     @Mock private UserRepository userRepository;
     @Mock private UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
     @Mock private WarehouseRepository warehouseRepository;
-    @Mock private AuditLogRepository auditLogRepository;
+    @Mock private AuditLogService auditLogService;
     @Mock private PasswordEncoder passwordEncoder;
 
     @InjectMocks
@@ -151,12 +151,15 @@ class UserServiceImplTest {
 
         verify(userWarehouseAssignmentRepository).save(any(UserWarehouseAssignment.class));
 
-        ArgumentCaptor<AuditLog> auditCaptor = ArgumentCaptor.forClass(AuditLog.class);
-        verify(auditLogRepository).save(auditCaptor.capture());
-        AuditLog auditLog = auditCaptor.getValue();
-        assertThat(auditLog.getAction()).isEqualTo(AuditAction.CREATE);
-        assertThat(auditLog.getEntityType()).isEqualTo("User");
-        assertThat(auditLog.getActor().getId()).isEqualTo(1L);
+        verify(auditLogService).log(
+                eq(adminUser),
+                eq(AuditAction.CREATE),
+                eq("User"),
+                eq(savedUser.getId()),
+                eq(savedUser.getEmail()),
+                isNull(),
+                isNull(),
+                anyMap());
     }
 
     @Test
@@ -244,9 +247,15 @@ class UserServiceImplTest {
         verify(userWarehouseAssignmentRepository).deleteByUserId(2L);
         verify(userWarehouseAssignmentRepository).save(any(UserWarehouseAssignment.class));
 
-        ArgumentCaptor<AuditLog> auditCaptor = ArgumentCaptor.forClass(AuditLog.class);
-        verify(auditLogRepository).save(auditCaptor.capture());
-        assertThat(auditCaptor.getValue().getAction()).isEqualTo(AuditAction.UPDATE);
+        verify(auditLogService).log(
+                eq(adminUser),
+                eq(AuditAction.UPDATE),
+                eq("User"),
+                eq(targetUser.getId()),
+                eq(targetUser.getEmail()),
+                isNull(),
+                anyMap(),
+                anyMap());
     }
 
     @Test
@@ -261,9 +270,15 @@ class UserServiceImplTest {
 
         assertThat(response.getIsActive()).isFalse();
 
-        ArgumentCaptor<AuditLog> auditCaptor = ArgumentCaptor.forClass(AuditLog.class);
-        verify(auditLogRepository).save(auditCaptor.capture());
-        assertThat(auditCaptor.getValue().getAction()).isEqualTo(AuditAction.STATUS_CHANGE);
+        verify(auditLogService).log(
+                eq(adminUser),
+                eq(AuditAction.STATUS_CHANGE),
+                eq("User"),
+                eq(targetUser.getId()),
+                eq(targetUser.getEmail()),
+                isNull(),
+                anyMap(),
+                anyMap());
     }
 
     @Test
@@ -278,8 +293,14 @@ class UserServiceImplTest {
 
         assertThat(response.getIsActive()).isFalse();
 
-        ArgumentCaptor<AuditLog> auditCaptor = ArgumentCaptor.forClass(AuditLog.class);
-        verify(auditLogRepository).save(auditCaptor.capture());
-        assertThat(auditCaptor.getValue().getAction()).isEqualTo(AuditAction.SOFT_DELETE);
+        verify(auditLogService).log(
+                eq(adminUser),
+                eq(AuditAction.SOFT_DELETE),
+                eq("User"),
+                eq(targetUser.getId()),
+                eq(targetUser.getEmail()),
+                isNull(),
+                anyMap(),
+                anyMap());
     }
 }

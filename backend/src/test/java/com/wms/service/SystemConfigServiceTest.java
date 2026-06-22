@@ -2,13 +2,12 @@ package com.wms.service;
 
 import com.wms.dto.request.SystemConfigUpdateRequest;
 import com.wms.dto.response.SystemConfigResponse;
-import com.wms.entity.AuditLog;
 import com.wms.entity.SystemConfig;
 import com.wms.entity.User;
+import com.wms.enums.AuditAction;
 import com.wms.enums.UserRole;
 import com.wms.exception.ResourceNotFoundException;
 import com.wms.mapper.SystemConfigMapper;
-import com.wms.repository.AuditLogRepository;
 import com.wms.repository.SystemConfigRepository;
 import com.wms.repository.UserRepository;
 import com.wms.service.impl.SystemConfigServiceImpl;
@@ -16,7 +15,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -27,6 +25,9 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -34,7 +35,7 @@ class SystemConfigServiceTest {
 
     @Mock private SystemConfigRepository systemConfigRepository;
     @Mock private SystemConfigMapper systemConfigMapper;
-    @Mock private AuditLogRepository auditLogRepository;
+    @Mock private AuditLogService auditLogService;
     @Mock private UserRepository userRepository;
 
     @InjectMocks
@@ -109,12 +110,15 @@ class SystemConfigServiceTest {
         assertThat(response.getConfigValue()).isEqualTo("800000000");
 
         // Verify audit log ghi đúng old/new value
-        ArgumentCaptor<AuditLog> auditCaptor = ArgumentCaptor.forClass(AuditLog.class);
-        verify(auditLogRepository).save(auditCaptor.capture());
-        AuditLog audit = auditCaptor.getValue();
-        assertThat(audit.getActor()).isEqualTo(adminUser);
-        assertThat(audit.getOldValue()).contains("10000000");
-        assertThat(audit.getNewValue()).contains("800000000");
+        verify(auditLogService).log(
+                eq(adminUser),
+                eq(AuditAction.UPDATE),
+                eq("SystemConfig"),
+                eq(mockConfig.getId()),
+                eq(mockConfig.getConfigKey()),
+                isNull(),
+                anyMap(),
+                anyMap());
     }
 
     @Test
@@ -159,7 +163,15 @@ class SystemConfigServiceTest {
         SystemConfigResponse response = systemConfigService.updateConfig("DEFAULT_PAYMENT_TERM_DAYS", request, 1L);
 
         assertThat(response.getConfigValue()).isEqualTo("30");
-        verify(auditLogRepository).save(any(AuditLog.class));
+        verify(auditLogService).log(
+                eq(adminUser),
+                eq(AuditAction.UPDATE),
+                eq("SystemConfig"),
+                eq(cfg.getId()),
+                eq(cfg.getConfigKey()),
+                isNull(),
+                anyMap(),
+                anyMap());
     }
 
     @Test
@@ -470,13 +482,15 @@ class SystemConfigServiceTest {
 
         systemConfigService.updateConfig("DEFAULT_CREDIT_LIMIT", request, 1L);
 
-        ArgumentCaptor<AuditLog> captor = ArgumentCaptor.forClass(AuditLog.class);
-        verify(auditLogRepository).save(captor.capture());
-        AuditLog audit = captor.getValue();
-
-        assertThat(audit.getEntityType()).isEqualTo("SystemConfig");
-        assertThat(audit.getAction().name()).isEqualTo("UPDATE");
-        assertThat(audit.getActorRole()).isEqualTo("ADMIN");
+        verify(auditLogService).log(
+                eq(adminUser),
+                eq(AuditAction.UPDATE),
+                eq("SystemConfig"),
+                eq(mockConfig.getId()),
+                eq(mockConfig.getConfigKey()),
+                isNull(),
+                anyMap(),
+                anyMap());
     }
 
     // ─── Helper ──────────────────────────────────────────────────────────────

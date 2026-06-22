@@ -13,23 +13,25 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface WarehouseProductReservationRepository extends JpaRepository<WarehouseProductReservation, Long> {
 
-    Optional<WarehouseProductReservation> findByWarehouseIdAndProductId(Long warehouseId, Long productId);
+  Optional<WarehouseProductReservation> findByWarehouseIdAndProductId(Long warehouseId, Long productId);
 
-    @EntityGraph(attributePaths = {"warehouse", "product"})
-    @Query("""
-            select r from WarehouseProductReservation r
-            where r.warehouse.id = :warehouseId
-              and r.product.id = :productId
-            """)
-    Optional<WarehouseProductReservation> findWithWarehouseAndProductByWarehouseIdAndProductId(@Param("warehouseId") Long warehouseId,
-                                                                                                @Param("productId") Long productId);
+  @EntityGraph(attributePaths = { "warehouse", "product" })
+  @Query("""
+      select r from WarehouseProductReservation r
+      where r.warehouse.id = :warehouseId
+        and r.product.id = :productId
+      """)
+  Optional<WarehouseProductReservation> findWithWarehouseAndProductByWarehouseIdAndProductId(
+      @Param("warehouseId") Long warehouseId,
+      @Param("productId") Long productId);
 
-    @Lock(LockModeType.OPTIMISTIC)
-    @Query("""
-            select r from WarehouseProductReservation r
-            where r.warehouse.id = :warehouseId
-              and r.product.id = :productId
-            """)
-    Optional<WarehouseProductReservation> findWithWarehouseAndProductByWarehouseIdAndProductIdForUpdate(@Param("warehouseId") Long warehouseId,
-                                                                                                         @Param("productId") Long productId);
+  @Lock(LockModeType.OPTIMISTIC)
+  @Query("""
+      select r from WarehouseProductReservation r
+      where r.warehouse.id = :warehouseId
+        and r.product.id = :productId
+      """)
+  Optional<WarehouseProductReservation> findWithWarehouseAndProductByWarehouseIdAndProductIdForUpdate(
+      @Param("warehouseId") Long warehouseId,
+      @Param("productId") Long productId);
 }

@@ -89,7 +89,7 @@ const Sidebar = () => {
       title: 'Đơn xuất hàng',
       path: '/outbound/delivery-orders',
       icon: PackageCheck,
-      roles: [ROLES.PLANNER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_MANAGER, ROLES.ACCOUNTANT, ROLES.ADMIN, ROLES.CEO]
+      roles: [ROLES.PLANNER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.WAREHOUSE_MANAGER, ROLES.DISPATCHER, ROLES.ACCOUNTANT, ROLES.ADMIN, ROLES.CEO]
     },
     {
       title: 'Quản lý chuyến xe',
@@ -130,10 +130,9 @@ const Sidebar = () => {
                   key={item.path}
                   to={item.path}
                   className={({ isActive }) =>
-                    `flex items-center gap-3 px-3 py-2.5 rounded-pill text-xs font-semibold uppercase tracking-wider transition-colors ${
-                      isActive
-                        ? 'bg-onPrimary text-canvas-night'
-                        : 'text-shade-40 hover:text-onPrimary hover:bg-canvas-nightElevated'
+                    `flex items-center gap-3 px-3 py-2.5 rounded-pill text-xs font-semibold uppercase tracking-wider transition-colors ${isActive
+                      ? 'bg-onPrimary text-canvas-night'
+                      : 'text-shade-40 hover:text-onPrimary hover:bg-canvas-nightElevated'
                     }`
                   }
                 >
@@ -157,10 +156,9 @@ const Sidebar = () => {
                     key={item.path}
                     to={item.path}
                     className={({ isActive }) =>
-                      `flex items-center gap-3 px-3 py-2.5 rounded-pill text-xs font-semibold uppercase tracking-wider transition-colors ${
-                        isActive
-                          ? 'bg-onPrimary text-canvas-night'
-                          : 'text-shade-40 hover:text-onPrimary hover:bg-canvas-nightElevated'
+                      `flex items-center gap-3 px-3 py-2.5 rounded-pill text-xs font-semibold uppercase tracking-wider transition-colors ${isActive
+                        ? 'bg-onPrimary text-canvas-night'
+                        : 'text-shade-40 hover:text-onPrimary hover:bg-canvas-nightElevated'
                       }`
                     }
                   >
@@ -185,10 +183,9 @@ const Sidebar = () => {
                     key={item.path}
                     to={item.path}
                     className={({ isActive }) =>
-                      `flex items-center gap-3 px-3 py-2.5 rounded-pill text-xs font-semibold uppercase tracking-wider transition-colors ${
-                        isActive
-                          ? 'bg-onPrimary text-canvas-night'
-                          : 'text-shade-40 hover:text-onPrimary hover:bg-canvas-nightElevated'
+                      `flex items-center gap-3 px-3 py-2.5 rounded-pill text-xs font-semibold uppercase tracking-wider transition-colors ${isActive
+                        ? 'bg-onPrimary text-canvas-night'
+                        : 'text-shade-40 hover:text-onPrimary hover:bg-canvas-nightElevated'
                       }`
                     }
                   >
@@ -213,10 +210,9 @@ const Sidebar = () => {
                     key={item.path}
                     to={item.path}
                     className={({ isActive }) =>
-                      `flex items-center gap-3 px-3 py-2.5 rounded-pill text-xs font-semibold uppercase tracking-wider transition-colors ${
-                        isActive
-                          ? 'bg-onPrimary text-canvas-night'
-                          : 'text-shade-40 hover:text-onPrimary hover:bg-canvas-nightElevated'
+                      `flex items-center gap-3 px-3 py-2.5 rounded-pill text-xs font-semibold uppercase tracking-wider transition-colors ${isActive
+                        ? 'bg-onPrimary text-canvas-night'
+                        : 'text-shade-40 hover:text-onPrimary hover:bg-canvas-nightElevated'
                       }`
                     }
                   >

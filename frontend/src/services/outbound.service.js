@@ -442,6 +442,8 @@ const normalizeTrip = (trip = {}) => ({
   driver_id: value(trip, 'driverId', 'driver_id'),
   driver_name: value(trip, 'driverName', 'driver_name', ''),
   planned_date: value(trip, 'plannedDate', 'planned_date', value(trip, 'createdAt', 'created_at')),
+  planned_start_at: value(trip, 'plannedStartAt', 'planned_start_at'),
+  planned_end_at: value(trip, 'plannedEndAt', 'planned_end_at'),
   status: value(trip, 'status', 'status'),
   total_weight_kg: Number(value(trip, 'totalWeightKg', 'total_weight_kg', 0)),
   delivery_orders: asArray(value(trip, 'deliveryOrders', 'delivery_orders', [])).map(normalizeTripStop),
@@ -462,11 +464,19 @@ const toDeliveryOrderCreatePayload = (data) => ({
   })),
 });
 
+const toIsoDateTime = (localDateTimeStr) => {
+  if (!localDateTimeStr) return null;
+  const date = new Date(localDateTimeStr);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+};
+
 const toTripCreatePayload = (data) => ({
   warehouseId: Number(data.warehouse_id),
   vehicleId: Number(data.vehicle_id),
   driverId: Number(data.driver_id),
   plannedDate: data.planned_date,
+  plannedStartAt: toIsoDateTime(data.planned_start_at),
+  plannedEndAt: toIsoDateTime(data.planned_end_at),
   notes: data.notes || '',
   deliveryOrders: data.delivery_orders.map((order, index) => ({
     doId: Number(order.id || order.do_id),

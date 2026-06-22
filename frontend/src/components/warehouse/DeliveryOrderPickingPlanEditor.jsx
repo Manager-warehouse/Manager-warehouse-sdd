@@ -17,6 +17,27 @@ const sumPlannedQty = (item) => (item.allocations || []).reduce(
   0,
 );
 
+const hasSavedAllocation = (allocation) => Boolean(
+  allocation.inventory_id
+  || allocation.batch_id
+  || allocation.location_id
+  || allocation.zone_id,
+);
+
+const renderAllocationSummary = (allocation) => {
+  if (!hasSavedAllocation(allocation)) {
+    return 'Chưa có phân bổ đã lưu';
+  }
+
+  const parts = [
+    allocation.location_code || `Vị trí ${allocation.location_id || '-'}`,
+    allocation.zone_code || `Khu ${allocation.zone_id || '-'}`,
+    allocation.batch_code || `Lô ${allocation.batch_id || '-'}`,
+  ];
+
+  return parts.join(' · ');
+};
+
 const DeliveryOrderPickingPlanEditor = ({
   items = [],
   candidatesByItemId = {},
@@ -52,6 +73,7 @@ const DeliveryOrderPickingPlanEditor = ({
     <div className="p-6 space-y-6">
       {items.map((item) => {
         const candidates = candidatesByItemId[item.id] || [];
+        const readOnly = candidates.length === 0;
         const plannedQty = sumPlannedQty(item);
         const qtyMatched = plannedQty === Number(item.requested_qty || 0);
 
@@ -71,10 +93,13 @@ const DeliveryOrderPickingPlanEditor = ({
             </div>
 
             <div className="p-4 space-y-3">
-              {!candidates.length && (
+              {readOnly && (
                 <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
                   <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                  <span>API hiện chưa trả danh sách tồn kho FIFO để chọn cho dòng này. Có thể chỉ xem phân bổ đã lưu.</span>
+                  <span>
+                    API hiện chưa trả danh sách tồn kho FIFO cho dòng này. Phần này chỉ hiển thị
+                    phân bổ đã lưu, chưa thể chọn thêm inventory mới.
+                  </span>
                 </div>
               )}
 
@@ -84,18 +109,24 @@ const DeliveryOrderPickingPlanEditor = ({
                     <label className="block text-[11px] font-semibold uppercase tracking-wider text-shade-50">
                       Nguồn lấy hàng
                     </label>
-                    <select
-                      value={allocation.inventory_id || ''}
-                      onChange={(event) => onCandidateSelect(item.id, index, event.target.value)}
-                      className="w-full rounded-md border border-hairline-light bg-canvas-light px-3 py-2 text-sm text-ink focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
-                    >
-                      <option value="">Chọn batch / vị trí / khu</option>
-                      {candidates.map((candidate) => (
-                        <option key={candidate.inventory_id} value={candidate.inventory_id}>
-                          {formatCandidateLabel(candidate)}
-                        </option>
-                      ))}
-                    </select>
+                    {readOnly ? (
+                      <div className="w-full rounded-md border border-hairline-light bg-zinc-50 px-3 py-2 text-sm text-ink min-h-[42px] flex items-center">
+                        {renderAllocationSummary(allocation)}
+                      </div>
+                    ) : (
+                      <select
+                        value={allocation.inventory_id || ''}
+                        onChange={(event) => onCandidateSelect(item.id, index, event.target.value)}
+                        className="w-full rounded-md border border-hairline-light bg-canvas-light px-3 py-2 text-sm text-ink focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
+                      >
+                        <option value="">Chọn batch / vị trí / khu</option>
+                        {candidates.map((candidate) => (
+                          <option key={candidate.inventory_id} value={candidate.inventory_id}>
+                            {formatCandidateLabel(candidate)}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                     <p className="text-[11px] text-shade-50">
                       Inventory #{allocation.inventory_id || '-'} · {allocation.location_code || `Vị trí ${allocation.location_id || '-'}`}
                     </p>
@@ -109,9 +140,10 @@ const DeliveryOrderPickingPlanEditor = ({
                       type="number"
                       min="0"
                       step="1"
+                      disabled={readOnly}
                       value={allocation.planned_qty ?? 0}
                       onChange={(event) => onAllocationChange(item.id, index, 'planned_qty', event.target.value)}
-                      className="w-full rounded-md border border-hairline-light bg-canvas-light px-3 py-2 text-sm text-ink focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
+                      className="w-full rounded-md border border-hairline-light bg-canvas-light px-3 py-2 text-sm text-ink focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink disabled:cursor-not-allowed disabled:opacity-60"
                     />
                   </div>
 
@@ -122,7 +154,7 @@ const DeliveryOrderPickingPlanEditor = ({
                     <button
                       type="button"
                       onClick={() => onRemoveAllocation(item.id, index)}
-                      disabled={(item.allocations || []).length <= 1}
+                      disabled={readOnly || (item.allocations || []).length <= 1}
                       className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-hairline-light text-shade-50 transition hover:bg-zinc-100 hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -134,7 +166,8 @@ const DeliveryOrderPickingPlanEditor = ({
               <button
                 type="button"
                 onClick={() => onAddAllocation(item.id)}
-                className="inline-flex items-center gap-2 rounded-pill border border-hairline-light px-4 py-2 text-xs font-semibold text-shade-60 transition hover:bg-zinc-100 hover:text-ink"
+                disabled={readOnly}
+                className="inline-flex items-center gap-2 rounded-pill border border-hairline-light px-4 py-2 text-xs font-semibold text-shade-60 transition hover:bg-zinc-100 hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <Plus className="w-3.5 h-3.5" />
                 Thêm dòng phân bổ
