@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Users, UserSquare, ShieldAlert, BarChart3, Package2, Settings, History, Box, Warehouse, Handshake, Truck, MapPin, PackageCheck, ClipboardList } from 'lucide-react';
+import { LayoutDashboard, Users, UserSquare, ShieldAlert, BarChart3, Package2, Settings, History, Box, Warehouse, Handshake, Truck, MapPin, PackageCheck, ClipboardList, DollarSign, CheckSquare } from 'lucide-react';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
 import { ROLES } from '../../utils/constants';
@@ -121,6 +121,21 @@ const Sidebar = () => {
       icon: ClipboardList,
       roles: [ROLES.WAREHOUSE_MANAGER, ROLES.STOREKEEPER, ROLES.CEO, ROLES.ADMIN],
     },
+  ];
+
+  const financeItems = [
+    {
+      title: 'Bảng giá',
+      path: '/finance/price-list',
+      icon: DollarSign,
+      roles: [ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN, ROLES.CEO]
+    },
+    {
+      title: 'Duyệt bảng giá',
+      path: '/finance/price-approval',
+      icon: CheckSquare,
+      roles: [ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN]
+    }
   ];
 
   // Dummy menus to show full WMS modules structure (as disabled or mocked)
@@ -279,6 +294,34 @@ const Sidebar = () => {
             </div>
             <nav className="flex flex-col gap-1">
               {stocktakeItems
+                .filter(item => item.roles.some(role => hasRole(role)))
+                .map((item) => (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    className={({ isActive }) =>
+                      `flex items-center gap-3 px-3 py-2.5 rounded-pill text-xs font-semibold uppercase tracking-wider transition-colors ${
+                        isActive
+                          ? 'bg-onPrimary text-canvas-night'
+                          : 'text-shade-40 hover:text-onPrimary hover:bg-canvas-nightElevated'
+                      }`
+                    }
+                  >
+                    <item.icon className="w-4 h-4 flex-shrink-0" />
+                    <span>{item.title}</span>
+                  </NavLink>
+                ))}
+            </nav>
+          </div>
+        )}
+
+        {financeItems.filter(item => item.roles.some(role => hasRole(role))).length > 0 && (
+          <div>
+            <div className="px-3 py-1.5 text-[10px] font-bold text-shade-40 uppercase tracking-widest mb-2">
+              Tài chính & Bảng giá
+            </div>
+            <nav className="flex flex-col gap-1">
+              {financeItems
                 .filter(item => item.roles.some(role => hasRole(role)))
                 .map((item) => (
                   <NavLink

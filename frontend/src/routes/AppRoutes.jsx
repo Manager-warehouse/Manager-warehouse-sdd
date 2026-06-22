@@ -28,6 +28,8 @@ import DriverTrip from '../pages/Outbound/DriverTrip';
 import StocktakeList from '../pages/Stocktake/StocktakeList';
 import StocktakeForm from '../pages/Stocktake/StocktakeForm';
 import StocktakeDetail from '../pages/Stocktake/StocktakeDetail';
+import PriceListManagement from '../pages/Finance/PriceListManagement';
+import PriceApproval from '../pages/Finance/PriceApproval';
 import { ROLES } from '../utils/constants';
 const AppRoutes = () => {
   return (
@@ -125,6 +127,15 @@ const AppRoutes = () => {
         <Route path="/stocktake" element={<StocktakeList />} />
         <Route path="/stocktake/new" element={<StocktakeForm />} />
         <Route path="/stocktake/:id" element={<StocktakeDetail />} />
+      </Route>
+
+      {/* Finance — Pricing & COGS */}
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN, ROLES.CEO]} />}>
+        <Route path="/finance/price-list" element={<PriceListManagement />} />
+      </Route>
+
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN]} />}>
+        <Route path="/finance/price-approval" element={<PriceApproval />} />
       </Route>
 
       {/* Default Redirects */}

@@ -45,6 +45,9 @@ public class DeliveryOrderItem {
     @Column(name = "unit_price", precision = 18, scale = 2)
     private BigDecimal unitPrice;
 
+    @Column(name = "unit_cost", precision = 18, scale = 2)
+    private BigDecimal unitCost;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "picked_by")
     private User pickedBy;

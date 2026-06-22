@@ -8,12 +8,14 @@ import com.wms.entity.Batch;
 import com.wms.entity.Dealer;
 import com.wms.entity.DeliveryOrder;
 import com.wms.entity.DeliveryOrderItem;
+import com.wms.entity.PriceHistory;
 import com.wms.entity.Product;
 import com.wms.entity.User;
 import com.wms.entity.Warehouse;
 import com.wms.entity.WarehouseLocation;
 import com.wms.enums.AuditAction;
 import com.wms.enums.DeliveryOrderStatus;
+import com.wms.exception.PriceHistoryException;
 import com.wms.exception.ResourceNotFoundException;
 import com.wms.mapper.DeliveryOrderMapper;
 import com.wms.repository.DeliveryOrderItemRepository;
@@ -21,9 +23,11 @@ import com.wms.repository.DeliveryOrderRepository;
 import com.wms.repository.DealerRepository;
 import com.wms.service.DeliveryOrderService;
 import com.wms.service.PartnerEligibilityService;
+import com.wms.service.PriceHistoryService;
 import com.wms.util.PartnerAuditUtil;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +44,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     private final DeliveryOrderMapper deliveryOrderMapper;
     private final PartnerAuditUtil auditUtil;
     private final EntityManager entityManager;
+    private final PriceHistoryService priceHistoryService;
 
     public DeliveryOrderServiceImpl(DeliveryOrderRepository deliveryOrderRepository,
                                     DeliveryOrderItemRepository deliveryOrderItemRepository,
@@ -47,7 +52,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                                     PartnerEligibilityService partnerEligibilityService,
                                     DeliveryOrderMapper deliveryOrderMapper,
                                     PartnerAuditUtil auditUtil,
-                                    EntityManager entityManager) {
+                                    EntityManager entityManager,
+                                    PriceHistoryService priceHistoryService) {
         this.deliveryOrderRepository = deliveryOrderRepository;
         this.deliveryOrderItemRepository = deliveryOrderItemRepository;
         this.dealerRepository = dealerRepository;
@@ -55,6 +61,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         this.deliveryOrderMapper = deliveryOrderMapper;
         this.auditUtil = auditUtil;
         this.entityManager = entityManager;
+        this.priceHistoryService = priceHistoryService;
     }
 
     @Override
@@ -93,9 +100,24 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         order.setCreatedAt(now);
         order.setUpdatedAt(now);
 
+        LocalDate today = now.toLocalDate();
+        Long warehouseId = request.getWarehouseId();
+        // Validate all lines have an approved price for this warehouse before creating anything
+        List<Long> missingPrice = request.getItems().stream()
+                .map(i -> i.getProductId())
+                .distinct()
+                .filter(pid -> priceHistoryService.lookupApproved(pid, warehouseId, today).isEmpty())
+                .toList();
+        if (!missingPrice.isEmpty()) {
+            throw PriceHistoryException.missingPrice(missingPrice.toString());
+        }
+
         DeliveryOrder saved = deliveryOrderRepository.save(order);
         List<DeliveryOrderItem> savedItems = request.getItems().stream()
-                .map(item -> toEntity(item, saved))
+                .map(item -> {
+                    PriceHistory price = priceHistoryService.lookupApproved(item.getProductId(), warehouseId, today).get();
+                    return toEntity(item, saved, price);
+                })
                 .map(deliveryOrderItemRepository::save)
                 .toList();
         auditUtil.logChange(actor, AuditAction.CREATE, "DELIVERY_ORDER", saved.getId(), saved.getDoNumber(),
@@ -146,7 +168,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         return deliveryOrderItemRepository.findByDeliveryOrderId(orderId);
     }
 
-    private DeliveryOrderItem toEntity(DeliveryOrderItemCreateRequest request, DeliveryOrder order) {
+    private DeliveryOrderItem toEntity(DeliveryOrderItemCreateRequest request, DeliveryOrder order,
+                                       PriceHistory price) {
         DeliveryOrderItem item = new DeliveryOrderItem();
         item.setDeliveryOrder(order);
         item.setProduct(reference(Product.class, request.getProductId()));
@@ -159,7 +182,9 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         item.setRequestedQty(request.getRequestedQty());
         item.setReservedQty(BigDecimal.ZERO);
         item.setIssuedQty(BigDecimal.ZERO);
-        item.setUnitPrice(request.getUnitPrice());
+        // Snapshot from price_history, not from request (spec 007)
+        item.setUnitPrice(price.getSellingPrice());
+        item.setUnitCost(price.getCostPrice());
         return item;
     }
 
