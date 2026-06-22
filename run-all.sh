@@ -8,7 +8,7 @@ echo "   KHOI DONG HE THONG WMS CHO MACOS (BACKEND & FRONTEND)"
 echo "==================================================="
 
 echo "[1/2] Dang chay Backend (Spring Boot)..."
-osascript -e "tell application \"Terminal\" to do script \"cd '$DIR/backend' && mvn spring-boot:run\""
+osascript -e "tell application \"Terminal\" to do script \"cd '$DIR/backend' && mvn spring-boot:run -Dspring-boot.run.arguments=--server.port=8081\""
 
 echo "[2/2] Dang chay Frontend (Vite/React)..."
 osascript -e "tell application \"Terminal\" to do script \"cd '$DIR/frontend' && npm run dev\""
