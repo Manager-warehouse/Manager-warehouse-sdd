@@ -11,7 +11,6 @@ export const ROLES = {
   PLANNER: 'PLANNER',
   DISPATCHER: 'DISPATCHER',
   DRIVER: 'DRIVER',
-  REPORT_VIEWER: 'REPORT_VIEWER',
 };
 
 export const ROLE_LABELS = {
@@ -25,7 +24,6 @@ export const ROLE_LABELS = {
   [ROLES.PLANNER]: 'Inventory Planner',
   [ROLES.DISPATCHER]: 'Dispatcher',
   [ROLES.DRIVER]: 'Driver',
-  [ROLES.REPORT_VIEWER]: 'Report Viewer',
 };
 
 export const WAREHOUSES = [

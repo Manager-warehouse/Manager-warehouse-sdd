@@ -52,6 +52,14 @@ public class WarehouseLocation {
     @Column(name = "is_active", nullable = false)
     private Boolean isActive;
 
+    @Builder.Default
+    @Column(name = "is_locked", nullable = false)
+    private Boolean isLocked = false;
+
+    // References the stock_takes.id that holds the lock; plain FK value to avoid circular dependency
+    @Column(name = "locked_by_stock_take_id")
+    private Long lockedByStockTakeId;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by")
     private User createdBy;

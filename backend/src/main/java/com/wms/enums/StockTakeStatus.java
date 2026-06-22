@@ -5,5 +5,6 @@ public enum StockTakeStatus {
     IN_PROGRESS,
     PENDING_APPROVAL,
     APPROVED,
+    REJECTED,
     CANCELLED
 }

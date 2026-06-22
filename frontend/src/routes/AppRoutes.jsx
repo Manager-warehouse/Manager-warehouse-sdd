@@ -25,6 +25,9 @@ import DeliveryOrderDetail from '../pages/Outbound/DeliveryOrderDetail';
 import QCOutbound from '../pages/Outbound/QCOutbound';
 import TripPlanning from '../pages/Outbound/TripPlanning';
 import DriverTrip from '../pages/Outbound/DriverTrip';
+import StocktakeList from '../pages/Stocktake/StocktakeList';
+import StocktakeForm from '../pages/Stocktake/StocktakeForm';
+import StocktakeDetail from '../pages/Stocktake/StocktakeDetail';
 import PriceListManagement from '../pages/Finance/PriceListManagement';
 import PriceApproval from '../pages/Finance/PriceApproval';
 import { ROLES } from '../utils/constants';
@@ -117,6 +120,13 @@ const AppRoutes = () => {
       <Route element={<ProtectedRoute allowedRoles={[ROLES.DRIVER, ROLES.ADMIN]} />}>
         <Route path="/outbound/driver/trips" element={<DriverTrip />} />
         <Route path="/outbound/driver/trips/:id" element={<DriverTrip />} />
+      </Route>
+
+      {/* Stocktake protected routes */}
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.WAREHOUSE_MANAGER, ROLES.STOREKEEPER, ROLES.CEO, ROLES.ADMIN]} />}>
+        <Route path="/stocktake" element={<StocktakeList />} />
+        <Route path="/stocktake/new" element={<StocktakeForm />} />
+        <Route path="/stocktake/:id" element={<StocktakeDetail />} />
       </Route>
 
       {/* Finance — Pricing & COGS */}

@@ -97,4 +97,17 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
 
     Optional<Inventory> findByWarehouseIdAndProductIdAndBatchIdAndLocationId(
             Long warehouseId, Long productId, Long batchId, Long locationId);
+
+    /**
+     * Fetch all non-quarantine inventory rows with stock > 0 for a warehouse.
+     * Used when populating stocktake items.
+     */
+    @Query("SELECT i FROM Inventory i " +
+           "JOIN FETCH i.product " +
+           "JOIN FETCH i.batch " +
+           "JOIN FETCH i.location " +
+           "WHERE i.warehouse.id = :warehouseId " +
+           "AND i.location.isQuarantine = false " +
+           "AND i.totalQty > 0")
+    java.util.List<Inventory> findActiveNonQuarantineByWarehouseId(@Param("warehouseId") Long warehouseId);
 }

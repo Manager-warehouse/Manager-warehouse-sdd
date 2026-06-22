@@ -146,52 +146,7 @@ class ProductServiceTest {
                 .hasMessage("USER_NOT_FOUND");
     }
 
-    //TC06 (Normal / FAILED)
-    @Test
-    @Disabled("Expected fail - hasSerial is not supported/persisted")
-    @DisplayName("[TC06][N][EXPECTED_FAIL] createProduct - hasSerial=true - BUG: response.hasSerial trả về false do mock save không giữ lại field")
-    void tc06_createProduct_hasSerial_bugFieldNotPersisted() {
-        ProductRequest request = buildRequest("SKU-SER", "SP Serial", true, false);
-        when(productRepository.existsBySku("SKU-SER")).thenReturn(false);
-        when(userRepository.findById(1L)).thenReturn(Optional.of(actor));
-        when(productRepository.save(any())).thenAnswer(inv -> {
-            Product p = new Product();
-            p.setId(6L);
-            p.setSku("SKU-SER");
-            p.setName("SP Serial");
-            p.setUnit("cai");
-            p.setIsActive(true);
-            p.setCreatedAt(OffsetDateTime.now());
-            p.setUpdatedAt(OffsetDateTime.now());
-            return p;
-        });
-
-        ProductResponse response = productService.createProduct(request, 1L);
-        assertThat(response.getIsActive())
-                .as("DFID001: hasSerial field removed in V29 migration")
-                .isTrue();
-    }
-
-    //TC07 (Normal / Pass)
-    @Test
-    @DisplayName("[TC07][N] createProduct - hasExpiry=true + shelfLifeDays=365 - lưu đúng")
-    void tc07_createProduct_hasExpiry_savesShelfLifeDays() {
-        ProductRequest request = buildRequest("SKU-EXP", "SP Co han", false, true);
-        // shelfLifeDays removed in V29 migration
-        when(productRepository.existsBySku("SKU-EXP")).thenReturn(false);
-        when(userRepository.findById(1L)).thenReturn(Optional.of(actor));
-        when(productRepository.save(any())).thenAnswer(inv -> {
-            Product p = inv.getArgument(0);
-            p.setId(7L);
-            p.setCreatedAt(OffsetDateTime.now());
-            p.setUpdatedAt(OffsetDateTime.now());
-            return p;
-        });
-
-        ProductResponse response = productService.createProduct(request, 1L);
-
-        assertThat(response.getIsActive()).isTrue(); // hasExpiry/shelfLifeDays removed in V29
-    }
+        // Expiry and serial tests removed.
 
     //TC08 (Normal / Pass)
     @Test
@@ -293,16 +248,7 @@ class ProductServiceTest {
         when(productRepository.findById(1L)).thenReturn(Optional.of(product));
         when(productRepository.existsBySkuAndIdNot("SKU-001", 1L)).thenReturn(false);
         when(userRepository.findById(1L)).thenReturn(Optional.of(actor));
-        when(productRepository.save(any())).thenAnswer(inv -> {
-            Product p = new Product();
-            p.setId(1L);
-            p.setSku("SKU-001");
-            p.setName("Sản phẩm A");
-            p.setUnit("cái");
-            p.setIsActive(true);
-            p.setUpdatedAt(OffsetDateTime.now());
-            return p;
-        });
+        when(productRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         ProductResponse response = productService.updateProduct(1L, request, 1L);
         assertThat(response.getName())
                 .isEqualTo("Tên mới sau update");
@@ -327,10 +273,5 @@ class ProductServiceTest {
         r.setName(name);
         r.setUnit("cái");
         return r;
-    }
-
-    // hasSerial/hasExpiry removed in V29 — overload kept for legacy test calls
-    private ProductRequest buildRequest(String sku, String name, boolean hasSerial, boolean hasExpiry) {
-        return buildRequest(sku, name);
     }
 }
