@@ -116,6 +116,7 @@ class SystemConfigServiceTest {
         verify(auditLogRepository).save(auditCaptor.capture());
         AuditLog audit = auditCaptor.getValue();
         assertThat(audit.getActor()).isEqualTo(adminUser);
+        assertThat(audit.getDescription()).isEqualTo("UPDATE SystemConfig DEFAULT_CREDIT_LIMIT");
         assertThat(audit.getOldValue()).contains("10000000");
         assertThat(audit.getNewValue()).contains("800000000");
     }
