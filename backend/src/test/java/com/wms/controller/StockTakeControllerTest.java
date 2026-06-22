@@ -117,9 +117,9 @@ class StockTakeControllerTest {
 
     @Test
     void getStockTakes_unauthenticated_isDenied() throws Exception {
-        // No JWT → security chain denies access (project entry point maps to 403).
+        // No JWT → security entry point returns 401 Unauthorized.
         mockMvc.perform(get("/api/v1/stocktakes").param("warehouse_id", "10"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -167,10 +167,10 @@ class StockTakeControllerTest {
         String body = "{\"warehouse_id\":10,\"stock_take_date\":\"2026-06-17\","
                 + "\"document_date\":\"2026-06-17\",\"accounting_period_id\":1}";
 
-        // No JWT → security chain denies access (project entry point maps to 403).
+        // No JWT → security entry point returns 401 Unauthorized.
         mockMvc.perform(post("/api/v1/stocktakes").with(csrf())
                         .contentType(MediaType.APPLICATION_JSON).content(body))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     // ─── Lifecycle transitions ──────────────────────────────────────────────────

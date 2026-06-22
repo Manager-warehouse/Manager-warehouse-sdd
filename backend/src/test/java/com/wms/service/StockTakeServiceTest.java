@@ -271,6 +271,7 @@ class StockTakeServiceTest {
         StockTakeCountItemRequest ci = new StockTakeCountItemRequest();
         ci.setItemId(50L);
         ci.setActualQty(new BigDecimal("88"));
+        ci.setNotes("Hư hỏng trong lưu kho");
         StockTakeCountRequest req = new StockTakeCountRequest();
         req.setItems(List.of(ci));
 
@@ -298,6 +299,7 @@ class StockTakeServiceTest {
         StockTakeCountItemRequest ci = new StockTakeCountItemRequest();
         ci.setItemId(50L);
         ci.setActualQty(new BigDecimal("95"));
+        ci.setNotes("Đếm lại sau khi bị từ chối");
         StockTakeCountRequest req = new StockTakeCountRequest();
         req.setItems(List.of(ci));
 
