@@ -1,50 +1,60 @@
 # [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
 
-## Core Principles
+<!--
+  Use `.specify/memory/constitution.md` as the canonical project constitution.
+  This template exists only for re-initialization. Keep it aligned with the WMS
+  constitution shape when the canonical file is regenerated.
+-->
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+**Version**: [CONSTITUTION_VERSION]
+**Ratified**: [RATIFICATION_DATE]
+**Last Amended**: [LAST_AMENDED_DATE]
+**Status**: Active
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+## 1. Scope
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+[PROJECT_SCOPE]
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+## 2. Immutable Tech Stack
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+- Backend: Spring Boot 3.4.5 + Java 21 + Maven.
+- Frontend: React 18 + JavaScript + Vite.
+- Database: PostgreSQL 18.
+- ORM: Spring Data JPA / Hibernate; no raw SQL in application code.
+- Auth: JWT + bcrypt with cost factor >= 12.
+- API Docs: OpenAPI / Swagger.
+- DB Migration: Flyway.
+- Testing: JUnit 5 + Mockito; Jest + React Testing Library.
+- Styling: Tailwind CSS 3.x.
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+## 3. Architecture Principles
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+[LAYERED_ARCHITECTURE_AND_ERROR_HANDLING_RULES]
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+## 4. Domain Invariants
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+[INVENTORY_BATCH_QC_TRANSFER_ACCOUNTING_RULES]
 
-## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
+## 5. Audit, Security, And Data Integrity
+
+[AUDIT_SECURITY_SOFT_DELETE_RULES]
+
+## 6. Code Quality And JPA Conventions
+
+[CODE_QUALITY_AND_JPA_RULES]
+
+## 7. Migration Lifecycle
+
+[FLYWAY_LIFECYCLE_RULES]
+
+## 8. Speckit Artifact Gates
+
+[SPEC_PLAN_TASK_GATE_RULES]
+
+## 9. Testing And Definition Of Done
+
+[TESTING_AND_DOD_RULES]
+
+## 10. Governance
 
 [GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
-
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->

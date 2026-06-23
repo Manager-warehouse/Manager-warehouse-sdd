@@ -29,6 +29,7 @@ import java.util.stream.Collectors;
 public class VehicleServiceImpl implements VehicleService {
 
     private final VehicleRepository vehicleRepository;
+    private final WarehouseRepository warehouseRepository;
     private final UserRepository userRepository;
     private final WarehouseRepository warehouseRepository;
     private final MasterDataMapper mapper;
@@ -70,6 +71,7 @@ public class VehicleServiceImpl implements VehicleService {
         vehicle.setVehicleType(request.getVehicleType());
         vehicle.setMaxWeightKg(request.getMaxWeightKg());
         vehicle.setMaxVolumeM3(request.getMaxVolumeM3());
+        vehicle.setWarehouse(findWarehouse(request.getWarehouseId()));
         vehicle.setStatus(VehicleStatus.AVAILABLE);
         vehicle.setIsActive(true);
         vehicle.setCreatedBy(actor);
@@ -107,6 +109,7 @@ public class VehicleServiceImpl implements VehicleService {
         vehicle.setVehicleType(request.getVehicleType());
         vehicle.setMaxWeightKg(request.getMaxWeightKg());
         vehicle.setMaxVolumeM3(request.getMaxVolumeM3());
+        vehicle.setWarehouse(findWarehouse(request.getWarehouseId()));
         vehicle.setUpdatedBy(actor);
         vehicle.setUpdatedAt(OffsetDateTime.now());
 
@@ -206,8 +209,14 @@ public class VehicleServiceImpl implements VehicleService {
         map.put("vehicleType", v.getVehicleType());
         map.put("maxWeightKg", v.getMaxWeightKg());
         map.put("maxVolumeM3", v.getMaxVolumeM3());
+        map.put("warehouseId", v.getWarehouse() != null ? v.getWarehouse().getId() : null);
         map.put("status", v.getStatus() != null ? v.getStatus().name() : null);
         map.put("isActive", v.getIsActive());
         return map;
+    }
+
+    private Warehouse findWarehouse(Long warehouseId) {
+        return warehouseRepository.findById(warehouseId)
+                .orElseThrow(() -> new ResourceNotFoundException("Warehouse not found with id: " + warehouseId));
     }
 }

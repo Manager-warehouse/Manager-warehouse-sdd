@@ -97,7 +97,11 @@ Xây dựng giải pháp phần mềm quản lý kho tập trung, thay thế cá
 ```
 Controller (@RestController)  →  Input validation, HTTP status, DTOs
     ↓
+<<<<<<< HEAD
 Service (@Service)            →  Business logic, FIFO allocation, Audit logging
+=======
+Service (@Service)            →  Business logic, FIFO, Audit logging
+>>>>>>> main
     ↓
 Repository (@Repository)      →  JPA/Hibernate queries (KHÔNG dùng raw SQL)
     ↓
@@ -183,7 +187,7 @@ Hệ thống có **26 User Stories** chia thành 9 nhóm nghiệp vụ:
 
 | US | Tên | Priority |
 |---|---|---|
-| US-WMS-11 | Planning Dashboard & Gợi ý điều chuyển kho tự động | P2 |
+| US-WMS-11 | Planner nhập lệnh điều chuyển thủ công từ Công ty mẹ/bộ phận điều phối | P2 |
 | US-WMS-12 | Lập, Duyệt & Xác nhận Phiếu Điều chuyển Kho Nội bộ | P1 |
 
 ### Nhóm 5: Kiểm kê & Quản lý giá (Inventory, Price & Audit)
@@ -235,11 +239,14 @@ Hệ thống có **26 User Stories** chia thành 9 nhóm nghiệp vụ:
 Công ty mẹ (Zalo/Email)
     → Planner lập Lệnh nhập [PENDING_RECEIPT]
     → Thủ kho đếm hàng thực tế và kiểm QC → [QC_COMPLETED]
-        ├── Hàng Lỗi → Quarantine Zone → Trưởng kho quyết định xử lý (Trả NCC / Tiêu hủy)
-        └── Hàng Đạt → Thủ kho chỉ định cất vào Bin Location
-    → Trưởng kho Duyệt nhập [APPROVED]
-    → Hệ thống cộng tồn kho khả dụng
+        ├── Hàng Lỗi → Quarantine Zone → Trưởng kho tạo RTV [Trả NCC] → Thủ kho xác nhận trả đủ NCC rồi mới trừ Quarantine
+        └── Hàng Đạt → Trưởng kho Duyệt nhập [APPROVED]
+            └── Nếu Trưởng kho từ chối → [RETURN_TO_SUPPLIER_PENDING] → Thủ kho bàn giao xe NCC [RETURNED_TO_SUPPLIER]
+    → Thủ kho cất vào Bin Location sau duyệt
+    → Hệ thống cộng tồn kho khả dụng sau putaway
 ```
+
+Feature 003 chỉ xử lý RTV bằng nút "Trả NCC". Luồng tiêu hủy hàng lỗi nằm trong Spec 009.
 
 ### 2. Quy trình Xuất hàng & Giao hàng (Outbound & Delivery)
 
@@ -266,12 +273,18 @@ Công ty mẹ gửi yêu cầu xuất hàng
 ### 3. Quy trình Điều chuyển Kho Nội bộ
 
 ```
-Planner xem Planning Dashboard → Nhận gợi ý điều chuyển
-    → Planner tạo Phiếu điều chuyển [MỚI]
+Planner nhận lệnh điều chuyển từ Công ty mẹ/bộ phận điều phối
+    → Planner nhập Phiếu điều chuyển thủ công kèm mã lệnh ngoài [MỚI]
     → Trưởng kho nguồn kiểm tra tồn khả dụng → Duyệt [ĐÃ DUYỆT]
-    → Thủ kho nguồn xuất hàng lên xe
+    → Dispatcher lập chuyến xe nội bộ riêng, gán xe và Tài xế
+    → Thủ kho nguồn soạn/xuất hàng lên xe
+        ├── Phải ghi đúng số lượng đã duyệt; không cho xuất thừa/thiếu
+        └── Nếu cần hủy sau khi đã lên xe nhưng chưa rời kho → Unship/Unload trước rồi mới hủy
+    → Tài xế xác nhận đã nhận hàng và xe rời kho
         → Hệ thống: Trừ tồn Kho nguồn, Cộng Kho ảo In-Transit [ĐANG VẬN CHUYỂN]
-    → Trưởng kho đích nhận hàng, kiểm tra số lượng
+    → Công nhân kho đích nhập số lượng thực nhận
+    → Thủ kho đích kiểm tra lại số lượng, nhập QC, điều chỉnh số nếu cần và chọn vị trí nhập
+    → Trưởng kho đích xác nhận cuối
         ├── Khớp → Hệ thống: Trừ In-Transit, Cộng tồn Kho đích [HOÀN THÀNH]
         └── Lệch → Ghi lý do + Tạo Phiếu điều chỉnh bù trừ
 ```
@@ -500,26 +513,44 @@ spring:
 
 ## Domain Rules
 
+<<<<<<< HEAD
 Domain hàng hóa hiện tại của Phúc Anh là đồ gia dụng như nồi, chảo, đồ nhựa. Các mặt hàng này không quản lý hạn sử dụng; FIFO theo ngày nhận hàng là nguyên tắc xuất kho mặc định. FEFO, expiry date và batch hết hạn không thuộc phạm vi hiện tại.
+=======
+Domain hàng hóa hiện tại của Phúc Anh là đồ gia dụng như nồi, chảo, đồ nhựa. Các mặt hàng này không quản lý serial từng sản phẩm, không quản lý hạn sử dụng, và không phân cấp chất lượng để bán lại. FIFO theo ngày nhận hàng là nguyên tắc xuất kho mặc định.
+>>>>>>> main
 
 ### Inventory Rules
 
 ```
+<<<<<<< HEAD
 1. inventory.quantity >= 0  — luôn đúng trước và sau mọi thao tác
 2. FIFO: chọn batch có received_date cũ nhất cho domain hàng gia dụng không có hạn sử dụng
 3. Không áp dụng FEFO/expiry trong phạm vi hiện tại
 4. Điều chỉnh tồn kho chỉ đi qua adjustments — không sửa trực tiếp
 5. Kiểm tra version trước UPDATE để tránh ghi đè cạnh tranh
 6. available = total - reserved >= 0 (kiểm tra trước khi xuất kho)
+=======
+1. inventories.total_qty >= 0, inventories.reserved_qty >= 0, and total_qty - reserved_qty >= 0 — luôn đúng trước và sau mọi thao tác
+2. FIFO: chọn batch có received_date cũ nhất cho domain hàng gia dụng
+3. Điều chỉnh tồn kho chỉ đi qua adjustments — không sửa trực tiếp
+4. Kiểm tra version trước UPDATE để tránh ghi đè cạnh tranh
+5. available = total - reserved >= 0 (kiểm tra trước khi xuất kho)
+>>>>>>> main
 ```
 
 ### Batch Rules
 
 ```
+<<<<<<< HEAD
 1. Mỗi batch chỉ có 1 grade (A/B/C) — khác grade phải tạo batch mới
 2. Không quản lý serial number trong phạm vi hiện tại
 3. Putaway phải kiểm tra bin_capacity trước khi đặt hàng vào bin
 4. Không có nghiệp vụ batch hết hạn trong domain hàng gia dụng hiện tại
+=======
+1. Batch gom hàng theo sản phẩm, nguồn nhập/chứng từ và ngày nhận; không tách theo serial, hạn sử dụng hoặc grade
+2. Putaway phải kiểm tra bin_capacity trước khi đặt hàng vào bin
+3. Hàng lỗi QC đi Quarantine để RTV/disposal; không phân loại lại thành cấp chất lượng khác
+>>>>>>> main
 ```
 
 ### QC & Transfer Rules
@@ -535,7 +566,11 @@ Domain hàng hóa hiện tại của Phúc Anh là đồ gia dụng như nồi, 
 ```
 Warehouse         → Zone → Bin Location (sức chứa m³, kg)
 Product           → SKU, PriceHistory (effective_date, end_date)
+<<<<<<< HEAD
 Batch             → grade (A/B/C), receivedDate, quantity; không quản lý expDate trong phạm vi hiện tại
+=======
+Batch             → receivedDate, source document/receipt, quantity
+>>>>>>> main
 Inventory         → warehouse + product + batch + location (NEVER negative)
 Receipt           → Lệnh nhập kho / Phiếu nhập kho
 Issue             → Đơn xuất hàng / Phiếu xuất kho
@@ -583,8 +618,13 @@ Types:  feat | fix | docs | style | refactor | test | chore
 Scopes: inventory | receipt | issue | transfer | batch | delivery | ...
 
 Ví dụ:
+<<<<<<< HEAD
 feat(inventory): add FIFO batch allocation logic
 fix(batch): correct received date sorting
+=======
+feat(inventory): add FIFO batch selection logic
+fix(batch): correct received date ordering
+>>>>>>> main
 docs(api): update warehouse-stock endpoint docs
 ```
 
@@ -608,7 +648,11 @@ Mỗi task hoàn thành khi đáp ứng **tất cả** các điều kiện sau:
 - [ ] Error cases xử lý với proper HTTP status codes
 - [ ] Audit log entry được tạo cho warehouse operations
 - [ ] Không còn TODO comments trong code
+<<<<<<< HEAD
 - [ ] FIFO allocation logic được test cho batch management
+=======
+- [ ] FIFO logic được test cho batch management
+>>>>>>> main
 
 ---
 

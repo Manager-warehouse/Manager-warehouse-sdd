@@ -172,6 +172,14 @@ const Login = () => {
               <div>
                 <strong>Account Manager:</strong> accountmanager@gmail.com
               </div>
+              <div>
+                Nghiệp vụ	Role yêu cầu	Tài khoản kiểm nghiệm (Email)	Kho được gán quyền
+1. Lập lệnh nhập	PLANNER	planer@gmail.com	Kho Hải Phòng
+2. Kiểm đếm thực tế	WAREHOUSE_STAFF	staff@email.com hoặc inspect.test@phucanh.vn	Kho Hải Phòng
+3. Kiểm QC	STOREKEEPER	storekeeperHP@gmail.com hoặc storekeeper@wms.com	Kho Hải Phòng
+4. Duyệt phiếu	WAREHOUSE_MANAGER	whHP@gmail.com hoặc manager.hp@phucanh.vn	Kho Hải Phòng
+5. Cất kệ (Putaway)	STOREKEEPER	storekeeperHP@gmail.com hoặc storekeeper@wms.com	Kho Hải Phòng
+              </div>
             </div>
           </div>
         </div>

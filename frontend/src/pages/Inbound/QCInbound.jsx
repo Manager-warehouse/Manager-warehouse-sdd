@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useUiStore } from '../../stores/ui.store';
 import { inboundService } from '../../services/inbound.service';
-import { ArrowLeft, Loader2, CheckCircle2, ShieldCheck, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, Loader2, ShieldCheck, ShieldAlert } from 'lucide-react';
 
 const QCInbound = () => {
   const { id } = useParams();
@@ -27,10 +27,10 @@ const QCInbound = () => {
       // Initialize items with default values
       const initialItems = data.items.map(item => ({
         ...item,
+        id: item.receipt_item_id || item.id, // Fallback to item.id if receipt_item_id is not available
         qc_passed_qty: item.actual_qty, // default to all passed
         qc_failed_qty: 0,
         qc_failure_reason: '',
-        grade: 'A',
       }));
       setItems(initialItems);
     } catch (e) {
@@ -89,16 +89,6 @@ const QCInbound = () => {
     setItems(updated);
   };
 
-  const handleGradeChange = (itemId, value) => {
-    const updated = items.map(item => {
-      if (item.id === itemId) {
-        return { ...item, grade: value };
-      }
-      return item;
-    });
-    setItems(updated);
-  };
-
   const checkValidationErrors = () => {
     let hasError = false;
     items.forEach(item => {
@@ -147,22 +137,24 @@ const QCInbound = () => {
     }
 
     const payload = {
+      action: 'SUBMIT',
       items: items.map(item => ({
         receipt_item_id: item.id,
         qc_passed_qty: item.qc_passed_qty,
         qc_failed_qty: item.qc_failed_qty,
-        qc_failure_reason: item.qc_failed_qty > 0 ? item.qc_failure_reason : null,
-        grade: item.grade
+        qc_failure_reason: item.qc_failed_qty > 0 ? item.qc_failure_reason : null
       }))
     };
 
     setSubmitting(true);
     try {
       await inboundService.qcReceipt(id, payload);
-      addToast('Hoàn thành kiểm định QC Inbound', 'success');
+      addToast('Đã ghi nhận kết quả QC. Thủ kho xác nhận ở danh sách phiếu.', 'success');
       navigate('/inbound/receipts');
     } catch (error) {
-      addToast(error.message === 'QC_PASSED_FAILED_MISMATCH' ? 'Lệch số lượng đếm QC' : 'Lỗi cập nhật QC', 'error');
+      const serverMessage = error.response?.data?.message || error.response?.data?.error || error.message;
+      const detail = serverMessage === 'QC_PASSED_FAILED_MISMATCH' ? 'Lệch số lượng đếm QC' : serverMessage;
+      addToast(detail, 'error');
     } finally {
       setSubmitting(false);
     }
@@ -240,7 +232,7 @@ const QCInbound = () => {
             </div>
             <div>
               <span className="text-shade-50 block mb-0.5 font-normal">Chứng từ gốc (PO/DO):</span>
-              <span>{receipt.source_order_code || 'N/A'}</span>
+              <span>{receipt.source_reference || receipt.source_order_code || 'N/A'}</span>
             </div>
             <div>
               <span className="text-shade-50 block mb-0.5 font-normal">Loại nhập:</span>
@@ -253,7 +245,6 @@ const QCInbound = () => {
           </div>
         </div>
 
-        {/* QC Table */}
         <div className="bg-white border border-hairline-light rounded-lg shadow-sm card-premium overflow-hidden">
           <div className="p-4 border-b border-hairline-light bg-zinc-50 flex items-center justify-between">
             <h3 className="text-xs font-bold uppercase tracking-widest text-shade-40">
@@ -273,7 +264,6 @@ const QCInbound = () => {
                   <th className="px-4 py-3 font-bold text-shade-60 text-right w-24">Đạt QC</th>
                   <th className="px-4 py-3 font-bold text-shade-60 text-right w-24">Lỗi QC</th>
                   <th className="px-4 py-3 font-bold text-shade-60 w-44">Chi tiết lỗi (Nếu hỏng)</th>
-                  <th className="px-4 py-3 font-bold text-shade-60 w-24">Grade</th>
                   <th className="px-4 py-3 font-bold text-shade-60 text-center w-24">Kết quả</th>
                 </tr>
               </thead>
@@ -319,23 +309,11 @@ const QCInbound = () => {
                         <input
                           type="text"
                           placeholder="Móp méo, rỉ sét..."
-                          value={item.qc_failure_reason}
+                          value={item.qc_failure_reason || ''}
                           onChange={(e) => handleReasonChange(item.id, e.target.value)}
-                          disabled={failed <= 0}
                           className={`text-input py-1 text-xs ${failed > 0 && !item.qc_failure_reason.trim() ? 'border-red-300 bg-red-50/20' : ''}`}
                           required={failed > 0}
                         />
-                      </td>
-                      <td className="px-4 py-4">
-                        <select
-                          value={item.grade}
-                          onChange={(e) => handleGradeChange(item.id, e.target.value)}
-                          className="text-input py-1 text-xs font-semibold"
-                        >
-                          <option value="A">Grade A</option>
-                          <option value="B">Grade B</option>
-                          <option value="C">Grade C</option>
-                        </select>
                       </td>
                       <td className="px-4 py-4 text-center">
                         {getRowResultBadge(item)}

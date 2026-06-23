@@ -18,13 +18,15 @@ import java.util.Set;
 public final class AuditLogUtil {
 
     private static final ObjectMapper MAPPER = new ObjectMapper()
+            .findAndRegisterModules()
+            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+    private static final ObjectMapper registeredMAPPER = new ObjectMapper()
             .registerModule(new JavaTimeModule())
             .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
     private static final Set<String> SENSITIVE_FIELDS = Set.of(
             "passwordHash", "password_hash", "password",
-            "refreshToken", "accessToken", "token"
-    );
+            "refreshToken", "accessToken", "token");
 
     private AuditLogUtil() {
     }
@@ -46,7 +48,8 @@ public final class AuditLogUtil {
     /**
      * Compares two field maps and returns only the fields that differ.
      *
-     * @return two-element array: [0] = old changed fields, [1] = new changed fields.
+     * @return two-element array: [0] = old changed fields, [1] = new changed
+     *         fields.
      *         For CREATE (oldValues is null), returns [null, newValues].
      */
     public static Map<String, Object>[] buildDiff(
@@ -117,7 +120,8 @@ public final class AuditLogUtil {
         }
         try {
             return MAPPER.readValue(json,
-                    new TypeReference<Map<String, Object>>() {});
+                    new TypeReference<Map<String, Object>>() {
+                    });
         } catch (JsonProcessingException e) {
             throw new IllegalStateException(
                     "Failed to deserialize audit log values", e);

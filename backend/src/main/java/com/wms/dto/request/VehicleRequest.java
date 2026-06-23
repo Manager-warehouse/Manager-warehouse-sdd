@@ -30,4 +30,7 @@ public class VehicleRequest {
 
     @DecimalMin(value = "0.001", message = "MAX_VOLUME_MUST_BE_POSITIVE")
     private BigDecimal maxVolumeM3;
+
+    @NotNull(message = "WAREHOUSE_REQUIRED")
+    private Long warehouseId;
 }

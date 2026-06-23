@@ -49,17 +49,17 @@ Mọi spec và mã nguồn trong dự án phải tuân thủ tuyệt đối các
 
 ### 3.1 Quy Tắc Quản Lý Tồn Kho (Inventory Rules)
 1. **Ràng buộc tồn kho không âm:** `inventories.total_qty >= 0` và `total_qty - reserved_qty >= 0` phải luôn đúng trước và sau mọi thao tác. Được kiểm soát bằng DB Constraint (`CHECK (total_qty >= 0)`) và application-level validation.
-2. **Quy tắc FEFO (First Expiry First Out):** Đối với sản phẩm có hạn sử dụng (`has_expiry = true`), hệ thống bắt buộc tự động chọn lô hàng (batch) có hạn dùng gần nhất còn hợp lệ khi xuất kho.
-3. **Quy tắc FIFO (First In First Out):** Đối với sản phẩm không có hạn sử dụng (`has_expiry = false`), hệ thống bắt buộc tự động chọn lô hàng có ngày nhập (`received_date`) cũ nhất khi xuất kho.
+2. **Quy tắc FIFO (First In First Out):** Với domain hàng gia dụng Sprint 1, hệ thống bắt buộc tự động chọn lô hàng có ngày nhập (`received_date`) cũ nhất khi xuất kho.
+3. **Không quản lý hạn sử dụng:** Sản phẩm và batch hàng gia dụng không yêu cầu hạn dùng hoặc chọn lô theo hạn dùng.
 4. **Không cập nhật tồn kho trực tiếp:** Mọi biến động tồn kho phải thông qua các quy trình nghiệp vụ chính thức: nhập kho (receipts), xuất kho (delivery_orders), điều chuyển (transfers), điều chỉnh (adjustments) hoặc kiểm kê (stock_takes). Tuyệt đối không thực hiện sửa đổi trực tiếp trường số lượng tồn kho trên thực thể Inventory.
 5. **Khóa lạc quan (Optimistic Locking):** Mọi thao tác cập nhật tồn kho phải sử dụng cơ chế `@Version` trong bảng `inventories` để ngăn ngừa ghi đè dữ liệu cạnh tranh. Nếu xảy ra xung đột, hệ thống trả về lỗi `HTTP 409 Conflict` và thực hiện retry.
 6. **Số lượng khả dụng:** Số lượng hàng khả dụng để bán được tính theo công thức: `available = total_qty - reserved_qty`. Số lượng này phải luôn `≥ 0`. Hệ thống phải kiểm tra số lượng khả dụng trước khi xuất kho.
 
 ### 3.2 Quy Tắc Lô Hàng & Kệ Lưu Trữ (Batch & Bin Rules)
-1. **Lô hàng đơn cấp chất lượng:** Mỗi lô hàng (batches) chỉ chứa đúng 1 loại chất lượng sản phẩm (Grade A hoặc B hoặc C). Hàng hóa có chất lượng khác nhau phải được chia vào các batches khác nhau.
-2. **Truy vết mã Serial:** Đối với sản phẩm được cấu hình `has_serial = true`, nhân viên bắt buộc phải nhập mã serial chi tiết cho từng đơn vị sản phẩm khi thực hiện cả hai quy trình Nhập kho và Xuất kho.
+1. **Lô hàng không phân cấp chất lượng:** Batch chỉ gom theo SKU, nguồn nhập/chứng từ và ngày nhận; không tách hàng gia dụng thành các cấp chất lượng để bán lại.
+2. **Không truy vết serial từng sản phẩm:** Đơn hàng lớn trong domain hàng gia dụng chỉ quản lý theo SKU, số lượng, batch/ngày nhận và vị trí kho.
 3. **Sức chứa của Kệ (Bin Capacity):** Quy trình cất hàng vào kệ (Putaway) bắt buộc phải kiểm tra thể tích tối đa (`capacity_m3`) và khối lượng tối đa (`capacity_kg`) của vị trí kệ (`warehouse_locations`). Hệ thống sẽ chặn và cảnh báo nếu số lượng hàng mới vượt quá sức chứa còn lại.
-4. **Lô hàng hết hạn:** Các lô hàng đã hết hạn sử dụng (`expiry_date < current_date`) bắt buộc phải bị loại trừ khỏi quy trình xuất kho thông thường. Hàng hết hạn chỉ có thể xuất thông qua luồng xử lý/tiêu hủy đặc biệt được phê duyệt.
+4. **Hàng lỗi QC:** Hàng lỗi không được phân loại lại thành cấp chất lượng khác; phải vào Quarantine và xử lý trả NCC hoặc tiêu hủy theo luồng phê duyệt.
 
 ### 3.3 Quy Tắc QC & Cách Ly (QC & Quarantine Rules)
 1. **Cổng kiểm soát chất lượng bắt buộc:** Hàng nhập kho phải đi qua cổng QC Inbound. Hàng xuất kho phải đi qua QC Outbound trước khi giao hàng cho tài xế.
@@ -99,7 +99,7 @@ Dưới đây là tổng hợp 10 Domain Specifications chứa 26 User Stories g
 * **Mã Spec:** [002-master-data-management](.sdd/specs/002-master-data-management/spec.md)
 * **Mục tiêu:** Quản lý tập trung các thực thể nền tảng làm xương sống cho toàn bộ quy trình kho bãi và logistics.
 * **Các User Stories:**
-  * **US-WMS-19 (P1):** [Quản lý SKU và danh mục sản phẩm](.sdd/specs/002-master-data-management/features/feature-admin-products.md) (hỗ trợ quy đổi đơn vị Thùng → Cái, quản lý thuộc tính `has_serial`, `has_expiry`).
+  * **US-WMS-19 (P1):** [Quản lý SKU và danh mục sản phẩm](.sdd/specs/002-master-data-management/features/feature-admin-products.md) (hỗ trợ quy đổi đơn vị Thùng → Cái; không quản lý serial/hạn sử dụng cho hàng gia dụng Sprint 1).
   * **US-WMS-20 (P2):** [Cấu hình Vị trí kho](.sdd/specs/002-master-data-management/features/feature-admin-warehouses.md) (Zone → Bin) và kiểm tra sức chứa Bin (m3/kg) khi Putaway (`warehouse_locations`).
   * **US-WMS-22 (P1):** [Quản lý Danh mục Đối tác](.sdd/specs/002-master-data-management/features/feature-accountant-partners.md) (Đại lý & Nhà cung cấp). Kế toán trưởng thiết lập Credit Limit cho từng Đại lý.
   * **US-WMS-23 (P2):** [Quản lý Danh mục Xe tải & Tài xế Nội bộ](.sdd/specs/002-master-data-management/features/feature-dispatcher-fleet-drivers.md) (xe: Rảnh/Đang đi chuyến/Bảo trì; tài xế: Rảnh/Đang đi chuyến/Không khả dụng).
@@ -108,14 +108,14 @@ Dưới đây là tổng hợp 10 Domain Specifications chứa 26 User Stories g
 
 ### Spec 003: Nhập Hàng & QC Inbound
 * **Mã Spec:** [003-inbound-receipt-qc](.sdd/specs/003-inbound-receipt-qc/spec.md)
-* **Mục tiêu:** Quản lý toàn bộ quy trình nhập kho từ tiếp nhận lệnh nhập thô đến kiểm hàng thực tế, thực hiện QC kiểm chất lượng và duyệt nhập chính thức để tăng tồn kho khả dụng.
+* **Mục tiêu:** Quản lý toàn bộ quy trình nhập kho từ tiếp nhận lệnh nhập thô đến kiểm hàng thực tế, thực hiện QC kiểm chất lượng, duyệt nhập chính thức để mở khóa putaway, và chỉ tăng tồn kho khả dụng sau khi putaway hoàn tất.
 * **Các User Stories:**
   * **US-WMS-02 (P1):** [Lập Lệnh nhập kho thủ công](.sdd/specs/003-inbound-receipt-qc/features/feature-planner-receipt-drafting.md) từ nguồn Email/Zalo (Trạng thái ban đầu: `Pending Receipt`).
   * **US-WMS-03 (P1):** [Đếm hàng thực tế](.sdd/specs/003-inbound-receipt-qc/features/feature-storekeeper-receipt-receive.md) và [Kiểm QC Inbound](.sdd/specs/003-inbound-receipt-qc/features/feature-qc-inbound-inspection.md) (Phân loại Đạt → cất vào warehouse_locations đạt chuẩn; Lỗi → bắt buộc chuyển sang Quarantine Zone).
-  * **US-WMS-04 (P1 - RTV sub-flow):** [Phê duyệt hàng lỗi trong Quarantine Zone](.sdd/specs/003-inbound-receipt-qc/features/feature-manager-quarantine-handling.md) (Nếu chọn Trả NCC → trừ quarantine, thông báo Kế toán lập Debit Note). Tiêu hủy hàng lỗi được map riêng trong Spec 009.
-  * **US-WMS-05 (P1):** [Duyệt nhập kho](.sdd/specs/003-inbound-receipt-qc/features/feature-manager-receipt-approval.md) (Trưởng kho đối chiếu kết quả QC và ký duyệt Phiếu nhập kho để tăng tồn kho khả dụng thực tế).
+  * **US-WMS-04 (P1 - RTV sub-flow):** [Phê duyệt hàng lỗi trong Quarantine Zone](.sdd/specs/003-inbound-receipt-qc/features/feature-manager-quarantine-handling.md) (Feature 003 chỉ hiển thị "Trả NCC": Trưởng kho tạo RTV request + hệ thống tự tạo Debit Note; Thủ kho phải xác nhận giao trả đủ toàn bộ số lượng Quarantine thì mới trừ quarantine). Tiêu hủy hàng lỗi được map riêng trong Spec 009.
+  * **US-WMS-05 (P1):** [Duyệt nhập kho](.sdd/specs/003-inbound-receipt-qc/features/feature-manager-receipt-approval.md) (Trưởng kho đối chiếu kết quả QC, ký duyệt Phiếu nhập kho để mở khóa putaway; nếu từ chối thì chờ xe NCC đến nhận và Thủ kho xác nhận `RETURNED_TO_SUPPLIER`; sau khi putaway xong mới tăng tồn kho khả dụng thực tế).
 * **Actors:** Planner, Thủ kho kiêm QC, Nhân viên kho, Trưởng kho, Kế toán viên.
-* **Endpoints chính:** `/api/v1/receipts`, `/api/v1/receipts/{id}/qc`, `/api/v1/receipts/{id}/approve`, `/api/v1/receipts/{id}/rtv`, `/api/v1/receipts/{id}/dispose`.
+* **Endpoints chính:** `/api/v1/receipts`, `/api/v1/receipts/{id}/qc`, `/api/v1/receipts/{id}/approve`, `/api/v1/receipts/{id}/reject`, `/api/v1/receipts/{id}/return-to-supplier/confirm`, `/api/v1/receipts/{id}/rtv`, `/api/v1/receipts/{id}/rtv/confirm`.
 
 ### Spec 004: Xuất Hàng & Giao Hàng (Outbound)
 * **Mã Spec:** [004-outbound-delivery-pod](.sdd/specs/004-outbound-delivery-pod/spec.md)
@@ -133,10 +133,10 @@ Dưới đây là tổng hợp 10 Domain Specifications chứa 26 User Stories g
 * **Mã Spec:** [005-inter-warehouse-transfer](.sdd/specs/005-inter-warehouse-transfer/spec.md)
 * **Mục tiêu:** Cân bằng nguồn hàng giữa 3 kho miền thông qua kho ảo In-Transit và đội xe nội bộ Phúc Anh.
 * **Các User Stories:**
-  * **US-WMS-11 (P2):** [Planning Dashboard](.sdd/specs/005-inter-warehouse-transfer/features/feature-planner-transfer-planning.md) gợi ý tự động các lệnh điều chuyển tối ưu dựa trên định mức tồn kho tối thiểu, trả về SKU, kho nguồn, kho đích, số lượng gợi ý, mức ưu tiên và lý do.
-  * **US-WMS-12 (P1):** [Lập, Duyệt và Xác nhận Phiếu Điều chuyển Kho](.sdd/specs/005-inter-warehouse-transfer/features/feature-storekeeper-transfer-ship.md). Trưởng kho nguồn duyệt thì khóa hàng ngay. Mỗi phiếu điều chuyển gắn đúng một chuyến xe nội bộ riêng; Tài xế xác nhận rời kho mới chuyển `IN_TRANSIT`. Kho đích nhận hàng phải kiểm số lượng và QC; phần QC lỗi vào Quarantine, nhận thừa bị chặn, thiếu thì tạo `TRANSFER_DISCREPANCY`. (Xem thêm: [Thủ kho Đích Nhận hàng](.sdd/specs/005-inter-warehouse-transfer/features/feature-storekeeper-transfer-receive.md))
-* **Actors:** Planner, Trưởng kho (Kho nguồn), Dispatcher, Thủ kho (Kho nguồn), Thủ kho (Kho đích), Trưởng kho (Kho đích), Nhân viên kho, Tài xế.
-* **Endpoints chính:** `/api/v1/planning/suggestions`, `/api/v1/transfers`, `/api/v1/transfers/{id}/approve`, `/api/v1/transfers/{id}/trip`, `/api/v1/transfers/{id}/ship`, `/api/v1/transfers/{id}/depart`, `/api/v1/transfers/{id}/receive-count`, `/api/v1/transfers/{id}/receive`.
+  * **US-WMS-11 (P2):** [Planner nhập lệnh điều chuyển thủ công](.sdd/specs/005-inter-warehouse-transfer/features/feature-planner-transfer-planning.md) dựa trên lệnh từ Công ty mẹ/bộ phận điều phối trung tâm. Sprint 1 không tự sinh gợi ý điều chuyển; mỗi phiếu bắt buộc có mã lệnh ngoài để truy vết.
+  * **US-WMS-12 (P1):** [Lập, Duyệt và Xác nhận Phiếu Điều chuyển Kho](.sdd/specs/005-inter-warehouse-transfer/features/feature-storekeeper-transfer-ship.md). Trưởng kho nguồn duyệt thì khóa hàng ngay. Mỗi phiếu điều chuyển gắn đúng một chuyến xe nội bộ riêng do Dispatcher lập; Thủ kho nguồn phải xuất đúng số đã duyệt, muốn hủy sau khi hàng đã lên xe thì phải unship/unload trước; Tài xế xác nhận rời kho mới chuyển `IN_TRANSIT`. Kho đích nhận hàng theo 3 bước: công nhân nhập số lượng, Thủ kho kiểm/QC/chọn vị trí nhập, Trưởng kho xác nhận cuối; phần QC lỗi vào Quarantine, nhận thừa bị chặn, thiếu thì tạo `TRANSFER_DISCREPANCY`. (Xem thêm: [Kho Đích Tiếp nhận](.sdd/specs/005-inter-warehouse-transfer/features/feature-storekeeper-transfer-receive.md))
+* **Actors:** Planner, Trưởng kho (Kho nguồn), Dispatcher, Thủ kho (Kho nguồn), Nhân viên kho/Công nhân kho đích, Thủ kho (Kho đích), Trưởng kho (Kho đích), Nhân viên kho, Tài xế.
+* **Endpoints chính:** `/api/v1/transfers`, `/api/v1/transfers/{id}`, `/api/v1/transfers/{id}/cancel`, `/api/v1/transfers/{id}/approve`, `/api/v1/transfers/{id}/reject`, `/api/v1/transfers/{id}/trip`, `/api/v1/transfers/{id}/ship`, `/api/v1/transfers/{id}/unship`, `/api/v1/transfers/{id}/depart`, `/api/v1/transfers/{id}/receive-count`, `/api/v1/transfers/{id}/receive-check`, `/api/v1/transfers/{id}/receive`.
 
 ### Spec 006: Kiểm Kê & Điều Chỉnh Tồn Kho
 * **Mã Spec:** [006-stocktake-adjustment](.sdd/specs/006-stocktake-adjustment/spec.md)

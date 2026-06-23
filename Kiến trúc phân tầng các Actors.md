@@ -25,7 +25,7 @@
 |                               | System Admin                 | Admin                                                           | Quản trị tài khoản, phân quyền RBAC, cấu hình tham số hệ thống                   |
 | **Tầng 2: Quản lý **          | Trưởng kho                   | Checker                                                         | Phê duyệt phiếu nhập/xuất/điều chuyển, xử lý chênh lệch kiểm kê; Phê duyệt biên bản xử lý hàng lỗi, quyết định tiêu hủy/trả NCC |
 |                               | Kế toán trưởng               | Checker                                                         | Duyệt bảng giá, chốt sổ kế toán, xem P&L và Aging Report, thiết lập Credit Limit |
-| **Tầng 3: Nghiệp vụ (Maker)** | Planner (Người nhận đơn)     | Maker                                                           | Tiếp nhận yêu cầu xuất/nhập kho từ Công ty mẹ hoặc bên thứ ba, nhập yêu cầu lên hệ thống, quản lý Planning Dashboard |
+| **Tầng 3: Nghiệp vụ (Maker)** | Planner (Người nhận đơn)     | Maker                                                           | Tiếp nhận yêu cầu xuất/nhập kho từ Công ty mẹ hoặc bên thứ ba, nhập yêu cầu lên hệ thống, nhập phiếu điều chuyển thủ công theo lệnh ngoài |
 |                               | Dispatcher (Người điều phối) | Maker                                                           | Lập chuyến xe nội bộ, gán tài xế, tối ưu lộ trình giao hàng                      |
 |                               | Thủ kho kiêm QC              | Maker                                                           | Quản lý SKU/danh mục sản phẩm, tiếp nhận hàng thực tế, kiểm QC inbound/outbound, soạn hàng, kiểm kê, cất hàng vào Bin Location |
 |                               | Nhân viên kho (Bốc xếp)      | Maker                                                           | Bốc xếp, di chuyển hàng hóa, hỗ trợ Thủ kho cất hàng và chuyển hàng lỗi vào Quarantine theo chỉ dẫn |
@@ -73,7 +73,7 @@
 
 **Nghiệp vụ:**
 
-- Phê duyệt Phiếu nhập kho sau khi đối chiếu kết quả QC từ Thủ kho → Hệ thống tự động cộng tồn kho.
+- Phê duyệt Phiếu nhập kho sau khi đối chiếu kết quả QC từ Thủ kho → mở khóa putaway; hệ thống chỉ cộng tồn kho sau khi Thủ kho cất hàng vào Bin.
 - Phê duyệt Phiếu điều chuyển kho (kho nguồn): Kiểm tra tồn khả dụng trước khi duyệt.
 - Xác nhận nhận hàng điều chuyển (kho đích): Kiểm tra số lượng thực tế, ghi nhận chênh lệch nếu có.
 - Duyệt chênh lệch kiểm kê và phê duyệt điều chỉnh tồn kho thực tế.
@@ -120,7 +120,7 @@
 
 **Điều chuyển:**
 
-- Truy cập Planning Dashboard → Xem gợi ý điều chuyển → Tạo Phiếu điều chuyển kho nội bộ.
+- Nhận lệnh điều chuyển từ Công ty mẹ/bộ phận điều phối trung tâm → Tạo Phiếu điều chuyển kho nội bộ thủ công (`TRF-*`) trên màn Điều chuyển nội bộ.
 
 **User Stories liên quan:** US-WMS-02, US-WMS-06, US-WMS-11, US-WMS-12, US-WMS-26
 
@@ -152,7 +152,7 @@
 **Danh mục sản phẩm:**
 
 - Tạo mới, cập nhật và quản lý SKU/danh mục sản phẩm để đồng bộ thông tin hàng hóa phục vụ nhập, xuất, kiểm kê.
-- Quản lý thông tin quy cách đóng gói, đơn vị tính, khối lượng, thể tích và thuộc tính serial/expiry của SKU.
+- Quản lý thông tin quy cách đóng gói, đơn vị tính, khối lượng và thể tích của SKU; hàng gia dụng Sprint 1 không quản lý serial từng sản phẩm hoặc hạn sử dụng.
 
 **Nhập hàng:**
 
@@ -167,8 +167,8 @@
 
 **Điều chuyển:**
 
-- Xác nhận xuất hàng lên xe nội bộ khi Phiếu điều chuyển đã được duyệt.
-- Xác nhận nhận hàng điều chuyển đến kho mình (báo cáo số lượng thực tế nhận được).
+- Ở kho nguồn: xác nhận xuất hàng lên xe nội bộ khi Phiếu điều chuyển đã được duyệt.
+- Ở kho đích: kiểm tra lại số lượng công nhân nhập, chốt QC, chọn vị trí nhập kho cho hàng đạt, duyệt receive-check.
 
 **Kiểm kê:**
 
@@ -254,11 +254,15 @@
 Công ty mẹ gửi thông tin (Zalo/Email)
     → Planner lập Lệnh nhập [Pending Receipt]
     → Thủ kho đếm hàng thực tế và kiểm tra QC → Đạt/Lỗi
-        ├── Hàng Lỗi → Quarantine Zone → Trưởng kho quyết định xử lý (Trả NCC / Tiêu hủy)
-        └── Hàng Đạt → Nhân viên kho di chuyển & cất vào Bin Location theo chỉ dẫn của Thủ kho
-    → Trưởng kho Duyệt nhập [Approved]
-    → Hệ thống cộng tồn kho khả dụng
+        ├── Hàng Lỗi → Quarantine Zone → Trưởng kho tạo RTV [Trả NCC] trong Spec 003 → Thủ kho xác nhận trả đủ NCC rồi mới trừ Quarantine
+        └── Hàng Đạt → Trưởng kho Duyệt nhập [Approved] hoặc Từ chối [Return To Supplier Pending]
+            └── Nếu bị từ chối → Thủ kho bàn giao xe NCC [Returned To Supplier]
+    → Trưởng kho Duyệt nhập [Approved] → mở khóa putaway
+    → Thủ kho cất vào Bin Location sau duyệt
+    → Hệ thống cộng tồn kho khả dụng sau putaway
 ```
+
+Luồng tiêu hủy hàng lỗi không nằm trong feature inbound 003; xử lý theo Spec 009.
 
 ### Quy trình Xuất hàng & Giao hàng (Outbound & Delivery)
 
@@ -280,14 +284,15 @@ Công ty mẹ gửi yêu cầu xuất hàng
 ### Quy trình Điều chuyển Kho Nội bộ (Internal Transfer)
 
 ```
-Planner xem Planning Dashboard → Nhận gợi ý điều chuyển (SKU, kho nguồn, kho đích, số lượng, ưu tiên, lý do)
-    → Planner tạo Phiếu điều chuyển [Mới]
+Planner nhận lệnh điều chuyển ngoài (external instruction code)
+    → Planner tạo Phiếu điều chuyển `TRF-*` [Mới] trên màn Điều chuyển nội bộ
     → Trưởng kho nguồn kiểm tra tồn khả dụng → Duyệt và khóa hàng [Đã duyệt]
-    → Dispatcher lập chuyến xe riêng, gán xe và tài xế
+    → Dispatcher kho nguồn lập chuyến xe `TTR-*` riêng, gán xe và tài xế thuộc phạm vi kho nguồn
     → Thủ kho nguồn ghi nhận số gửi, bốc xếp lên xe nội bộ
     → Tài xế xác nhận nhận hàng, xe rời kho
         → Hệ thống: Trừ tồn Kho nguồn, Cộng Kho ảo In-Transit [Đang vận chuyển]
-    → Thủ kho đích nhập số nhận thực tế và QC số lượng/chất lượng
+    → Công nhân/Nhân viên kho đích nhập số nhận thực tế ban đầu
+    → Thủ kho đích kiểm tra lại số lượng, chốt QC, chọn vị trí nhập kho cho hàng đạt
     → Trưởng kho đích xác nhận cuối cùng
         ├── Khớp + QC đạt → Hệ thống: Trừ In-Transit, Cộng tồn Kho đích [Hoàn thành]
         ├── Thiếu → Ghi lý do + Tạo Phiếu điều chỉnh bù trừ

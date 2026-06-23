@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
 import { masterDataService } from '../../services/masterData.service';
-import { ROLES, MOCK_USERS } from '../../utils/constants';
+import { ROLES, WAREHOUSES } from '../../utils/constants';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import Modal from '../../components/common/Modal';
@@ -10,12 +10,14 @@ import Badge from '../../components/common/Badge';
 import { Plus, Search, Edit, ToggleLeft, ToggleRight, AlertCircle, Loader2, Truck, UserCheck, Calendar, ShieldAlert } from 'lucide-react';
 
 const FleetManagement = () => {
-  const { hasRole } = useAuthStore();
+  const { user, activeWarehouse, hasRole } = useAuthStore();
   const { addToast } = useUiStore();
 
   const [activeTab, setActiveTab] = useState('VEHICLES'); // VEHICLES or DRIVERS
   const [vehicles, setVehicles] = useState([]);
   const [drivers, setDrivers] = useState([]);
+  const [driverUsers, setDriverUsers] = useState([]);
+  const [driverUserLoadFailed, setDriverUserLoadFailed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -31,6 +33,7 @@ const FleetManagement = () => {
   const [vhType, setVhType] = useState('');
   const [vhMaxWeight, setVhMaxWeight] = useState('1500');
   const [vhMaxVolume, setVhMaxVolume] = useState('10');
+  const [vhWarehouseId, setVhWarehouseId] = useState('1');
   const [vhStatus, setVhStatus] = useState('AVAILABLE');
 
   // Driver Modal States
@@ -48,6 +51,28 @@ const FleetManagement = () => {
   const [drLicenseExpiry, setDrLicenseExpiry] = useState('');
   const [drStatus, setDrStatus] = useState('AVAILABLE');
 
+  const getUserId = (user) => user?.id;
+  const getUserCode = (user) => user?.code;
+  const getUserFullName = (user) => user?.full_name || user?.fullName || '';
+  const getUserPhone = (user) => user?.phone || '';
+  const getUserWarehouses = (user) => user?.warehouse_ids || user?.warehouseIds || user?.warehouses || [];
+  const isUserActive = (user) => user?.is_active !== false && user?.isActive !== false;
+  const hasGlobalFleetScope = hasRole(ROLES.ADMIN) || hasRole(ROLES.CEO);
+  const fleetWarehouseIds = hasGlobalFleetScope
+    ? []
+    : (
+      hasRole(ROLES.DISPATCHER) && activeWarehouse?.id
+        ? [Number(activeWarehouse.id)]
+        : (user?.warehouses || []).map(Number)
+    );
+  const isInFleetWarehouseScope = (warehouseIds = []) => (
+    hasGlobalFleetScope
+    || fleetWarehouseIds.some((id) => (warehouseIds || []).map(Number).includes(id))
+  );
+  const fleetWarehouses = hasGlobalFleetScope
+    ? WAREHOUSES
+    : WAREHOUSES.filter((warehouse) => fleetWarehouseIds.includes(warehouse.id));
+
   useEffect(() => {
     fetchData();
   }, [activeTab]);
@@ -59,8 +84,18 @@ const FleetManagement = () => {
         const data = await masterDataService.getVehicles();
         setVehicles(data);
       } else {
-        const data = await masterDataService.getDrivers();
-        setDrivers(data);
+        const [driverResult, userResult] = await Promise.allSettled([
+          masterDataService.getDrivers(),
+          masterDataService.getDriverUserCandidates(),
+        ]);
+        if (driverResult.status === 'rejected') {
+          throw driverResult.reason;
+        }
+        const driverData = driverResult.value || [];
+        const userData = userResult.status === 'fulfilled' ? userResult.value : [];
+        setDrivers(driverData);
+        setDriverUsers(Array.isArray(userData) ? userData.filter((user) => user.role === ROLES.DRIVER) : []);
+        setDriverUserLoadFailed(userResult.status === 'rejected');
       }
     } catch (e) {
       addToast('Lỗi tải dữ liệu đội xe', 'error');
@@ -77,6 +112,7 @@ const FleetManagement = () => {
     setVhType('');
     setVhMaxWeight('1500');
     setVhMaxVolume('10');
+    setVhWarehouseId(String(fleetWarehouses[0]?.id || ''));
     setVhStatus('AVAILABLE');
     setVhFormErrors({});
     setIsVhModalOpen(true);
@@ -89,6 +125,7 @@ const FleetManagement = () => {
     setVhType(vehicle.vehicle_type);
     setVhMaxWeight(String(vehicle.max_weight_kg));
     setVhMaxVolume(String(vehicle.max_volume_m3));
+    setVhWarehouseId(String(vehicle.warehouse_id || vehicle.warehouseId || 1));
     setVhStatus(vehicle.status || 'AVAILABLE');
     setVhFormErrors({});
     setIsVhModalOpen(true);
@@ -98,6 +135,7 @@ const FleetManagement = () => {
     const errors = {};
     if (!vhPlateNumber.trim()) errors.plate_number = 'Biển số xe bắt buộc';
     if (!vhType.trim()) errors.vehicle_type = 'Loại xe tải bắt buộc';
+    if (!vhWarehouseId) errors.warehouse_id = 'Kho phụ trách bắt buộc';
     if (Number(vhMaxWeight) <= 0) errors.max_weight = 'Tải trọng tối đa phải lớn hơn 0';
     if (Number(vhMaxVolume) <= 0) errors.max_volume = 'Thể tích tối đa phải lớn hơn 0';
     setVhFormErrors(errors);
@@ -114,6 +152,7 @@ const FleetManagement = () => {
       vehicle_type: vhType.trim(),
       max_weight_kg: parseFloat(vhMaxWeight),
       max_volume_m3: parseFloat(vhMaxVolume),
+      warehouse_id: Number(vhWarehouseId),
       status: vhStatus,
     };
 
@@ -153,12 +192,12 @@ const FleetManagement = () => {
   };
 
   // --- DRIVER ACTIONS ---
-  const handleOpenAddDriver = () => {
+  const handleOpenAddDriver = (user = null) => {
     setDrModalType('ADD');
     setSelectedDriver(null);
-    setDrUserId('');
-    setDrFullName('');
-    setDrPhone('');
+    setDrUserId(user ? String(getUserId(user)) : '');
+    setDrFullName(getUserFullName(user));
+    setDrPhone(getUserPhone(user));
     setDrLicenseNumber('');
     setDrLicenseExpiry('');
     setDrStatus('AVAILABLE');
@@ -199,6 +238,7 @@ const FleetManagement = () => {
     setDrSubmitting(true);
     const driverData = {
       user_id: Number(drUserId),
+      warehouse_ids: getUserWarehouses(driverUsers.find((user) => Number(getUserId(user)) === Number(drUserId))),
       full_name: drFullName.trim(),
       phone: drPhone.trim(),
       license_number: drLicenseNumber.trim(),
@@ -217,7 +257,7 @@ const FleetManagement = () => {
       setIsDrModalOpen(false);
       fetchData();
     } catch (err) {
-      addToast('Lỗi lưu trữ thông tin tài xế', 'error');
+      addToast(err.message || 'Lỗi lưu trữ thông tin tài xế', 'error');
     } finally {
       setDrSubmitting(false);
     }
@@ -284,13 +324,13 @@ const FleetManagement = () => {
   const getDriverStatusBadge = (status) => {
     const styles = {
       AVAILABLE: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-      ON_DELIVERY: 'bg-blue-50 text-blue-700 border-blue-200',
-      MAINTENANCE: 'bg-amber-50 text-amber-700 border-amber-200',
+      ON_TRIP: 'bg-blue-50 text-blue-700 border-blue-200',
+      UNAVAILABLE: 'bg-amber-50 text-amber-700 border-amber-200',
     };
     const labels = {
       AVAILABLE: 'Sẵn sàng',
-      ON_DELIVERY: 'Đang giao hàng',
-      MAINTENANCE: 'Nghỉ / Bảo dưỡng',
+      ON_TRIP: 'Đang chạy chuyến',
+      UNAVAILABLE: 'Không khả dụng',
     };
     return (
       <span className={`text-[10px] font-bold border px-2 py-0.5 rounded-pill whitespace-nowrap ${styles[status] || styles.AVAILABLE}`}>
@@ -299,15 +339,69 @@ const FleetManagement = () => {
     );
   };
 
-  // --- FILTERS ---
-  const filteredVehicles = vehicles.filter((v) =>
-    v.plate_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    v.vehicle_type.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const getWarehouseLabels = (warehouseIds = []) => {
+    if (!Array.isArray(warehouseIds) || warehouseIds.length === 0) return '-';
+    return warehouseIds
+      .map((id) => WAREHOUSES.find((warehouse) => warehouse.id === Number(id))?.code)
+      .filter(Boolean)
+      .join(', ') || '-';
+  };
+  const searchable = (value) => String(value ?? '').toLowerCase();
 
-  const filteredDrivers = drivers.filter((d) =>
-    d.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    d.license_number.toLowerCase().includes(searchTerm.toLowerCase())
+  // --- FILTERS ---
+  const filteredVehicles = vehicles.filter((v) => {
+    const warehouseId = Number(v.warehouse_id || v.warehouseId);
+    const matchesWarehouse = hasGlobalFleetScope || fleetWarehouseIds.includes(warehouseId);
+    const matchesSearch = searchable(v.plate_number).includes(searchable(searchTerm))
+      || searchable(v.vehicle_type).includes(searchable(searchTerm))
+      || searchable(v.warehouse_code).includes(searchable(searchTerm));
+    return matchesWarehouse && matchesSearch;
+  });
+
+  const driverDirectory = [
+    ...drivers.map((profile) => {
+      const user = driverUsers.find((item) => Number(getUserId(item)) === Number(profile.user_id || profile.userId));
+      return {
+        ...profile,
+        rowType: 'PROFILE',
+        accountCode: getUserCode(user),
+        accountWarehouses: getUserWarehouses(user).length ? getUserWarehouses(user) : profile.warehouse_ids || profile.warehouseIds || [],
+      };
+    }),
+    ...driverUsers.filter((user) => (
+      !drivers.some((driver) => Number(driver.user_id || driver.userId) === Number(getUserId(user)))
+    )).map((user) => ({
+      id: `account-${getUserId(user)}`,
+      rowType: 'ACCOUNT_ONLY',
+      user_id: getUserId(user),
+      accountCode: getUserCode(user),
+      full_name: getUserFullName(user),
+      phone: getUserPhone(user),
+      license_number: '',
+      license_expiry: '',
+      status: 'NO_PROFILE',
+      is_active: isUserActive(user),
+      accountWarehouses: getUserWarehouses(user),
+      user,
+    })),
+  ].filter((driver) => isInFleetWarehouseScope(
+    driver.warehouse_ids || driver.warehouseIds || driver.accountWarehouses
+  ));
+  const linkedDriverUserIds = new Set(drivers.map((driver) => Number(driver.user_id || driver.userId)));
+  const selectableDriverUsers = driverUsers.filter((user) => (
+    isInFleetWarehouseScope(getUserWarehouses(user))
+    && (
+      drModalType === 'EDIT'
+        || !linkedDriverUserIds.has(Number(getUserId(user)))
+        || Number(getUserId(user)) === Number(drUserId)
+    )
+  ));
+
+  const filteredDrivers = driverDirectory.filter((d) =>
+    searchable(d.full_name || d.fullName).includes(searchable(searchTerm)) ||
+    searchable(d.license_number || d.licenseNumber).includes(searchable(searchTerm)) ||
+    searchable(d.accountCode).includes(searchable(searchTerm)) ||
+    searchable(getWarehouseLabels(d.warehouse_ids || d.warehouseIds || d.accountWarehouses)).includes(searchable(searchTerm))
   );
 
   return (
@@ -402,6 +496,7 @@ const FleetManagement = () => {
                   <tr className="bg-zinc-50 border-b border-hairline-light">
                     <th className="px-6 py-4 font-bold text-shade-60">Biển kiểm soát</th>
                     <th className="px-6 py-4 font-bold text-shade-60">Dòng xe / Model</th>
+                    <th className="px-6 py-4 font-bold text-shade-60">Kho phụ trách</th>
                     <th className="px-6 py-4 font-bold text-shade-60 text-right">Tải trọng tối đa (kg)</th>
                     <th className="px-6 py-4 font-bold text-shade-60 text-right">Thể tích tối đa (m³)</th>
                     <th className="px-6 py-4 font-bold text-shade-60 text-center">Trạng thái vận chuyển</th>
@@ -418,6 +513,9 @@ const FleetManagement = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 font-semibold text-ink">{vh.vehicle_type}</td>
+                      <td className="px-6 py-4 text-shade-60 font-semibold">
+                        {vh.warehouse_code || WAREHOUSES.find((warehouse) => warehouse.id === Number(vh.warehouse_id || vh.warehouseId))?.code || '-'}
+                      </td>
                       <td className="px-6 py-4 text-right font-mono text-shade-70 font-semibold">
                         {vh.max_weight_kg?.toLocaleString('vi-VN')} kg
                       </td>
@@ -479,6 +577,7 @@ const FleetManagement = () => {
                   <tr className="bg-zinc-50 border-b border-hairline-light">
                     <th className="px-6 py-4 font-bold text-shade-60">Họ và tên</th>
                     <th className="px-6 py-4 font-bold text-shade-60">ID nhân viên</th>
+                    <th className="px-6 py-4 font-bold text-shade-60">Kho phụ trách</th>
                     <th className="px-6 py-4 font-bold text-shade-60">Số điện thoại</th>
                     <th className="px-6 py-4 font-bold text-shade-60">Số giấy phép lái xe</th>
                     <th className="px-6 py-4 font-bold text-shade-60">Hạn bằng lái</th>
@@ -491,14 +590,21 @@ const FleetManagement = () => {
                   {filteredDrivers.map((dr) => (
                     <tr key={dr.id} className={`hover:bg-zinc-50/50 transition-colors ${!dr.is_active ? 'opacity-50' : ''}`}>
                       <td className="px-6 py-4 font-semibold text-ink">{dr.full_name}</td>
-                      <td className="px-6 py-4 font-mono text-shade-50">NV-{String(dr.user_id).padStart(3, '0')}</td>
+                      <td className="px-6 py-4 font-mono text-shade-50">{dr.accountCode || `NV-${String(dr.user_id).padStart(3, '0')}`}</td>
+                      <td className="px-6 py-4 text-shade-60 font-semibold">
+                        {getWarehouseLabels(dr.warehouse_ids || dr.warehouseIds || dr.accountWarehouses)}
+                      </td>
                       <td className="px-6 py-4 text-shade-60 font-mono">{dr.phone || 'N/A'}</td>
-                      <td className="px-6 py-4 text-shade-60 font-mono font-bold">{dr.license_number}</td>
+                      <td className="px-6 py-4 text-shade-60 font-mono font-bold">{dr.license_number || '-'}</td>
                       <td className="px-6 py-4">
                         {getExpiryBadge(dr.license_expiry)}
                       </td>
                       <td className="px-6 py-4 text-center">
-                        {getDriverStatusBadge(dr.status)}
+                        {dr.rowType === 'ACCOUNT_ONLY' ? (
+                          <span className="text-[10px] font-bold border px-2 py-0.5 rounded-pill whitespace-nowrap bg-amber-50 text-amber-700 border-amber-200">
+                            Chưa có hồ sơ
+                          </span>
+                        ) : getDriverStatusBadge(dr.status)}
                       </td>
                       <td className="px-6 py-4 text-center">
                         <Badge type={dr.is_active ? 'success' : 'neutral'} className="text-[9px]">
@@ -509,24 +615,26 @@ const FleetManagement = () => {
                         <div className="flex gap-3.5 justify-end items-center font-bold">
                           {hasRole(ROLES.DISPATCHER) || hasRole(ROLES.ADMIN) || hasRole(ROLES.CEO) ? (
                             <button
-                              onClick={() => handleOpenEditDriver(dr)}
+                              onClick={() => (dr.rowType === 'ACCOUNT_ONLY' ? handleOpenAddDriver(dr.user) : handleOpenEditDriver(dr))}
                               className="p-1 hover:bg-zinc-100 rounded-full transition-colors shrink-0 text-shade-60 hover:text-ink"
-                              title="Sửa hồ sơ tài xế"
+                              title={dr.rowType === 'ACCOUNT_ONLY' ? 'Tạo hồ sơ tài xế' : 'Sửa hồ sơ tài xế'}
                             >
                               <Edit className="w-4 h-4" />
                             </button>
                           ) : null}
-                          <button
-                            onClick={() => handleToggleDrStatus(dr)}
-                            className="p-1 hover:bg-zinc-100 rounded-full transition-colors shrink-0"
-                            title={dr.is_active ? 'Khóa tài xế' : 'Kích hoạt tài xế'}
-                          >
-                            {dr.is_active ? (
-                              <ToggleRight className="w-5 h-5 text-emerald-600" />
-                            ) : (
-                              <ToggleLeft className="w-5 h-5 text-shade-40" />
-                            )}
-                          </button>
+                          {dr.rowType === 'PROFILE' && (
+                            <button
+                              onClick={() => handleToggleDrStatus(dr)}
+                              className="p-1 hover:bg-zinc-100 rounded-full transition-colors shrink-0"
+                              title={dr.is_active ? 'Khóa tài xế' : 'Kích hoạt tài xế'}
+                            >
+                              {dr.is_active ? (
+                                <ToggleRight className="w-5 h-5 text-emerald-600" />
+                              ) : (
+                                <ToggleLeft className="w-5 h-5 text-shade-40" />
+                              )}
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -575,6 +683,19 @@ const FleetManagement = () => {
             onChange={(e) => setVhType(e.target.value)}
             error={vhFormErrors.vehicle_type}
             placeholder="VD: Xe tải Hyundai H150 1.5 Tấn"
+            required
+          />
+
+          <Input
+            label="Kho phụ trách"
+            type="select"
+            value={vhWarehouseId}
+            onChange={(e) => setVhWarehouseId(e.target.value)}
+            error={vhFormErrors.warehouse_id}
+            options={fleetWarehouses.map((warehouse) => ({
+              value: String(warehouse.id),
+              label: `${warehouse.code} - ${warehouse.name}`,
+            }))}
             required
           />
 
@@ -627,34 +748,51 @@ const FleetManagement = () => {
               onChange={(e) => {
                 setDrUserId(e.target.value);
                 // Pre-fill full name and phone if matching user
-                const user = MOCK_USERS.find(u => u.id === Number(e.target.value));
+                const user = driverUsers.find(u => Number(getUserId(u)) === Number(e.target.value));
                 if (user) {
-                  setDrFullName(user.fullName);
-                  setDrPhone(user.phone || '');
+                  setDrFullName(getUserFullName(user));
+                  setDrPhone(getUserPhone(user));
                 }
               }}
-              disabled={drModalType === 'EDIT'}
+              disabled={drModalType === 'EDIT' || (drModalType === 'ADD' && selectableDriverUsers.length === 0)}
               error={drFormErrors.user_id}
               options={[
-                { value: '', label: 'Chọn tài khoản tài xế' },
-                ...MOCK_USERS.filter(u => u.role === ROLES.DRIVER).map(u => ({
-                  value: String(u.id),
-                  label: `${u.fullName} (NV-${String(u.id).padStart(3, '0')})`
+                {
+                  value: '',
+                  label: driverUserLoadFailed
+                    ? 'Không tải được danh sách tài khoản DRIVER'
+                    : selectableDriverUsers.length
+                      ? 'Chọn tài khoản tài xế'
+                      : 'Không còn tài khoản DRIVER chưa có hồ sơ',
+                },
+                ...selectableDriverUsers.map(u => ({
+                  value: String(getUserId(u)),
+                  label: `${getUserFullName(u)} (${getUserCode(u) || `NV-${String(getUserId(u)).padStart(3, '0')}`}) - ${getWarehouseLabels(getUserWarehouses(u))}`
                 }))
               ]}
               required
             />
             <Input
-              label="Trạng thái tài xế"
+              label="Trạng thái điều phối"
               type="select"
               value={drStatus}
               onChange={(e) => setDrStatus(e.target.value)}
               options={[
                 { value: 'AVAILABLE', label: 'Sẵn sàng chạy chuyến' },
-                { value: 'ON_DELIVERY', label: 'Đang đi giao hàng' },
-                { value: 'MAINTENANCE', label: 'Nghỉ phép / Đang bận' },
+                ...(drStatus === 'ON_TRIP' ? [{ value: 'ON_TRIP', label: 'Đang chạy chuyến', disabled: true }] : []),
+                { value: 'UNAVAILABLE', label: 'Không khả dụng / Nghỉ phép' },
               ]}
             />
+          </div>
+          {drModalType === 'ADD' && (driverUserLoadFailed || selectableDriverUsers.length === 0) && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              {driverUserLoadFailed
+                ? 'Không tải được danh sách tài khoản DRIVER để liên kết. Cần kiểm tra quyền/API quản lý tài khoản trước khi tạo hồ sơ tài xế.'
+                : 'Tất cả tài khoản DRIVER hiện có đã có hồ sơ tài xế. Muốn thêm tài xế mới, hãy tạo tài khoản role DRIVER trước rồi quay lại tạo hồ sơ.'}
+            </div>
+          )}
+          <div className="rounded-md border border-hairline-light bg-canvas-cream/60 px-3 py-2 text-xs text-shade-60">
+            Trạng thái điều phối gồm: Sẵn sàng, Đang chạy chuyến, Không khả dụng. Tài xế không tự đổi trạng thái này; dispatcher/admin quản lý lịch rảnh, còn hệ thống chuyển sang Đang chạy chuyến theo luồng vận chuyển.
           </div>
 
           <Input
@@ -696,7 +834,7 @@ const FleetManagement = () => {
             <Button variant="outline-light" onClick={() => setIsDrModalOpen(false)}>
               Hủy
             </Button>
-            <Button type="submit" variant="primary" loading={drSubmitting}>
+            <Button type="submit" variant="primary" loading={drSubmitting} disabled={drModalType === 'ADD' && selectableDriverUsers.length === 0}>
               {drModalType === 'ADD' ? 'Tạo mới' : 'Lưu thay đổi'}
             </Button>
           </div>

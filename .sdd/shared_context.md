@@ -34,31 +34,31 @@
 
 ### Tầng Nghiệp vụ (Maker)
 
-| Actor                        | Vai trò                                                                 |
-| ---------------------------- | ----------------------------------------------------------------------- |
-| Planner                      | Tiếp nhận đơn, lập lệnh nhập/đơn xuất, credit check                     |
-| Dispatcher                   | Lập chuyến xe nội bộ, gán tài xế, tối ưu lộ trình                       |
-| Thủ kho                      | Tiếp nhận hàng, soạn hàng, kiểm kê, cất Bin                             |
-| Nhân viên kho (Bốc xếp & QC) | Bốc xếp, QC inbound/outbound, di chuyển hàng lỗi                        |
-| Kế toán viên                 | Xử lý thanh toán và theo dõi công nợ trong luồng tài chính riêng |
+| Actor                        | Vai trò                                                                                                                   |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Planner                      | Tiếp nhận đơn, lập lệnh nhập/đơn xuất, credit check                                                                       |
+| Dispatcher                   | Lập chuyến xe nội bộ, gán tài xế, tối ưu lộ trình                                                                         |
+| Thủ kho                      | Tiếp nhận hàng, soạn hàng, kiểm kê, cất Bin                                                                               |
+| Nhân viên kho (Bốc xếp & QC) | Bốc xếp, QC inbound/outbound, di chuyển hàng lỗi                                                                          |
+| Kế toán viên                 | Xử lý thanh toán và theo dõi công nợ trong luồng tài chính riêng                                                          |
 | Tài xế                       | Nhận chuyến (smartphone), upload `goodsImage`/`signDocumentImage`, nhập OTP Đại lý, báo giao thất bại, xác nhận xe về kho |
 
 ## 3. Domain Glossary
 
-| Thuật ngữ         | Định nghĩa                                                                                              |
-| ----------------- | ------------------------------------------------------------------------------------------------------- |
-| **Batch**         | Lô hàng nhập cùng đợt, cùng grade; domain hiện tại không quản lý hạn dùng                                |
-| **Bin Location**  | Vị trí kệ trong kho — mã hóa WH-Zone.Rack.Shelf.Bin                                                     |
-| **Putaway**       | Quy trình cất hàng vào Bin sau khi QC đạt                                                               |
-| **FEFO**          | Ngoài phạm vi hiện tại vì hàng gia dụng không quản lý hạn sử dụng                                       |
-| **FIFO**          | First In First Out — ưu tiên xuất batch nhập trước                                                      |
-| **Quarantine**    | Khu cách ly hàng lỗi QC — không available                                                               |
-| **In-Transit**    | Kho ảo — hàng đang vận chuyển giữa 2 kho                                                                |
+| Thuật ngữ         | Định nghĩa                                                                                      |
+| ----------------- | ----------------------------------------------------------------------------------------------- |
+| **Batch**         | Lô hàng nhập cùng đợt, cùng grade; domain hiện tại không quản lý hạn dùng                       |
+| **Bin Location**  | Vị trí kệ trong kho — mã hóa WH-Zone.Rack.Shelf.Bin                                             |
+| **Putaway**       | Quy trình cất hàng vào Bin sau khi QC đạt                                                       |
+| **FEFO**          | Ngoài phạm vi hiện tại vì hàng gia dụng không quản lý hạn sử dụng                               |
+| **FIFO**          | First In First Out — ưu tiên xuất batch nhập trước                                              |
+| **Quarantine**    | Khu cách ly hàng lỗi QC — không available                                                       |
+| **In-Transit**    | Kho ảo — hàng đang vận chuyển giữa 2 kho                                                        |
 | **POD**           | Proof of Delivery — `goodsImage` + `signDocumentImage` + timestamp + OTP email 6 số đã xác thực |
-| **COGS**          | Cost of Goods Sold — giá vốn hàng bán                                                                   |
-| **Credit Hold**   | Trạng thái chặn xuất hàng do nợ quá hạn/vượt hạn mức                                                    |
-| **RTV**           | Return to Vendor — trả hàng lỗi về NCC                                                                  |
-| **Maker-Checker** | Nguyên tắc: người tạo ≠ người duyệt                                                                     |
+| **COGS**          | Cost of Goods Sold — giá vốn hàng bán                                                           |
+| **Credit Hold**   | Trạng thái chặn xuất hàng do nợ quá hạn/vượt hạn mức                                            |
+| **RTV**           | Return to Vendor — trả hàng lỗi về NCC                                                          |
+| **Maker-Checker** | Nguyên tắc: người tạo ≠ người duyệt                                                             |
 
 ## 4. Module Map & Dependencies
 
@@ -133,8 +133,8 @@ Outbound delivery trips use `trip_type = DELIVERY` and group at least one `WAREH
 
 ```
 NEW → APPROVED → IN_TRANSIT → COMPLETED
-                                ↓
-                         COMPLETED_WITH_DISCREPANCY
+ ↓       ↓            ↓
+REJECTED CANCELLED    COMPLETED_WITH_DISCREPANCY
 ```
 
 Transfer-specific invariants:
@@ -145,7 +145,7 @@ Transfer-specific invariants:
 - Thủ kho đích records received counts and QC; Trưởng kho đích confirms final receipt.
 - received_qty > sent_qty is blocked.
 - QC-failed received quantity goes to Quarantine and is excluded from available inventory.
-- Cancellation is allowed only before IN_TRANSIT.
+- Cancellation rules: Planner may cancel NEW; Trưởng kho nguồn/manager may cancel APPROVED and release reserved quantity; cancellation is blocked from REJECTED or IN_TRANSIT onward.
 
 ### Dealer Status
 

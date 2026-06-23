@@ -6,6 +6,7 @@ import com.wms.config.SecurityConfig;
 import com.wms.config.UserDetailsServiceImpl;
 import com.wms.dto.request.DriverRequest;
 import com.wms.dto.response.DriverResponse;
+import com.wms.dto.response.UserResponse;
 import com.wms.entity.User;
 import com.wms.enums.UserRole;
 import com.wms.exception.GlobalExceptionHandler;
@@ -14,9 +15,9 @@ import com.wms.service.DriverService;
 import com.wms.util.JwtUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mock;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
@@ -34,7 +35,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(DriverController.class)
-@Import({SecurityConfig.class, JwtAuthFilter.class, GlobalExceptionHandler.class})
+@Import({ SecurityConfig.class, JwtAuthFilter.class, GlobalExceptionHandler.class })
 public class DriverControllerTest {
 
     @Autowired
@@ -42,13 +43,13 @@ public class DriverControllerTest {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @MockBean
+    @Mock
     private DriverService driverService;
-    @MockBean
+    @Mock
     private UserRepository userRepository;
-    @MockBean
+    @Mock
     private JwtUtil jwtUtil;
-    @MockBean
+    @Mock
     private UserDetailsServiceImpl userDetailsService;
 
     private User dispatcherUser;
@@ -64,7 +65,8 @@ public class DriverControllerTest {
     @Test
     @WithMockUser(username = "dispatcher@wms.com", roles = "DISPATCHER")
     void getAllDrivers_Dispatcher_Returns200() throws Exception {
-        when(driverService.getAllDrivers(any(), any())).thenReturn(List.of(new DriverResponse()));
+        when(userRepository.findByEmail("dispatcher@wms.com")).thenReturn(Optional.of(dispatcherUser));
+        when(driverService.getAllDrivers(any(), any(), eq(4L))).thenReturn(List.of(new DriverResponse()));
 
         mockMvc.perform(get("/api/v1/dispatcher/drivers"))
                 .andExpect(status().isOk());
@@ -73,7 +75,17 @@ public class DriverControllerTest {
     @Test
     void getAllDrivers_Unauthenticated_Returns403() throws Exception {
         mockMvc.perform(get("/api/v1/dispatcher/drivers"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser(username = "dispatcher@wms.com", roles = "DISPATCHER")
+    void getDriverUserCandidates_Dispatcher_Returns200() throws Exception {
+        when(userRepository.findByEmail("dispatcher@wms.com")).thenReturn(Optional.of(dispatcherUser));
+        when(driverService.getDriverUserCandidates(4L)).thenReturn(List.of(new UserResponse()));
+
+        mockMvc.perform(get("/api/v1/dispatcher/drivers/candidate-users"))
+                .andExpect(status().isOk());
     }
 
     @Test
@@ -90,8 +102,8 @@ public class DriverControllerTest {
         req.setLicenseExpiry(LocalDate.now().plusYears(5));
 
         mockMvc.perform(post("/api/v1/dispatcher/drivers")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isCreated());
     }
 
@@ -110,8 +122,8 @@ public class DriverControllerTest {
         req.setLicenseExpiry(LocalDate.now().plusYears(5));
 
         mockMvc.perform(post("/api/v1/dispatcher/drivers")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isConflict());
     }
 }

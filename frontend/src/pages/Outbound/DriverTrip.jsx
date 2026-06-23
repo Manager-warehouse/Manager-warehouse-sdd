@@ -14,6 +14,9 @@ import {
   X,
 } from 'lucide-react';
 import { outboundService } from '../../services/outbound.service';
+import { interWarehouseTransferService } from '../../services/inter-warehouse-transfer.service';
+import { useUiStore } from '../../stores/ui.store';
+import { useAuthStore } from '../../stores/auth.store';
 import OTPInput from '../../components/warehouse/OTPInput';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
@@ -84,10 +87,34 @@ export default function DriverTrip() {
   const fetchTrips = async () => {
     setLoading(true);
     try {
-      const data = await outboundService.getMyTrips();
-      setTrips(data);
-    } catch (error) {
-      addToast(error.message || 'Lỗi khi tải danh sách chuyến xe', 'error');
+      const allTrips = await outboundService.getTrips(null, {});
+      const isDriver = user?.role === 'DRIVER';
+      const myOutboundTrips = isDriver
+        ? allTrips.filter(t => Number(t.driver_user_id || t.driverUserId || 0) === Number(user?.id)
+            || Number(t.driver_id || t.driverId || 0) === Number(user?.driverId || 0))
+        : allTrips;
+      loadedTrips.push(...myOutboundTrips.map((tripRow) => ({ ...tripRow, type: tripRow.type || 'OUTBOUND' })));
+      loadedAnySource = true;
+    } catch {
+      // Outbound trips are optional on this screen while transfer trips use the transfer API.
+    }
+
+    try {
+      const transfers = await interWarehouseTransferService.getTransfers();
+      const transferTrips = transfers
+        .filter((transfer) => transfer.tripId && Number(transfer.driverUserId || 0) === Number(user?.id || 0))
+        .map(toTransferDriverTrip);
+      loadedTrips.push(...transferTrips);
+      loadedAnySource = true;
+    } catch {
+      // Surface a toast only if both trip sources failed.
+    }
+
+    try {
+      if (!loadedAnySource) {
+        addToast('Lỗi khi tải danh sách chuyến xe', 'error');
+      }
+      setTrips(loadedTrips.sort((a, b) => new Date(b.planned_date || 0) - new Date(a.planned_date || 0)));
     } finally {
       setLoading(false);
     }
@@ -96,10 +123,19 @@ export default function DriverTrip() {
   const fetchTrip = async (tripId) => {
     setLoading(true);
     try {
-      const data = await outboundService.getTripById(tripId);
-      setTrip(data);
-    } catch (error) {
-      addToast(error.message || 'Không tìm thấy chuyến xe', 'error');
+      if (String(tripId).startsWith(TRANSFER_TRIP_PREFIX)) {
+        const transferId = Number(String(tripId).replace(TRANSFER_TRIP_PREFIX, ''));
+        const data = await interWarehouseTransferService.getTransferById(transferId);
+        if (Number(data.driverUserId || 0) !== Number(user?.id || 0)) {
+          throw new Error('TRANSFER_TRIP_NOT_ASSIGNED');
+        }
+        setTrip(toTransferDriverTrip(data));
+      } else {
+        const data = await outboundService.getTripById(tripId);
+        setTrip({ ...data, type: data.type || 'OUTBOUND' });
+      }
+    } catch {
+      addToast('Không tìm thấy chuyến xe', 'error');
       navigate('/outbound/driver/trips');
     } finally {
       setLoading(false);
@@ -109,9 +145,20 @@ export default function DriverTrip() {
   const handleDepart = async () => {
     setSubmitting(true);
     try {
-      await outboundService.departTrip(trip.id);
-      addToast('Chuyến xe đã xuất phát', 'success');
+      if (trip.type === 'TRANSFER') {
+        await interWarehouseTransferService.departTransfer(trip.transferId);
+      } else {
+        await outboundService.departTrip(trip.id);
+      }
+      addToast('Chuyến xe đã xuất phát!', 'success');
       fetchTrip(trip.id);
+    } catch (error) {
+      const messages = {
+        SENT_QTY_REQUIRED: 'Thủ kho nguồn chưa xếp đủ hàng lên xe',
+        ASSIGNED_DRIVER_REQUIRED: 'Chuyến này không được phân công cho tài xế hiện tại',
+        TRANSFER_TRIP_REQUIRED: 'Phiếu điều chuyển chưa được lập chuyến',
+      };
+      addToast(messages[error.message] || error.message || 'Lỗi khi xác nhận xuất phát', 'error');
     } catch (error) {
       addToast(error.message || 'Lỗi khi xác nhận xuất phát', 'error');
     } finally {
@@ -237,6 +284,16 @@ export default function DriverTrip() {
 
   if (!trip) return null;
 
+  const isTransferTrip = trip.type === 'TRANSFER';
+  const deliveredCount = trip.delivery_orders?.filter(d => d.delivery_status === 'DELIVERED').length ?? 0;
+  const totalCount = isTransferTrip ? trip.items.length : (trip.delivery_orders?.length ?? 0);
+  const transferLoaded = !isTransferTrip || (
+    trip.items.length > 0
+    && trip.items.every((item) => (
+      item.sentQty != null
+      && Number(item.sentQty) === Number(item.plannedQty)
+    ))
+  );
   const deliveredCount = trip.delivery_orders?.filter((item) => item.delivery_status === 'COMPLETED').length ?? 0;
   const totalCount = trip.delivery_orders?.length ?? 0;
 
@@ -249,7 +306,9 @@ export default function DriverTrip() {
         <div>
           <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">Giao hàng / Chuyến của tôi</span>
           <h1 className="text-xl font-display font-semibold tracking-tight">{trip.trip_number}</h1>
-          <p className="text-xs text-shade-50 mt-0.5">{deliveredCount}/{totalCount} điểm đã giao</p>
+          <p className="text-xs text-shade-50 mt-0.5">
+            {isTransferTrip ? `${trip.sourceWarehouseCode} → ${trip.destinationWarehouseCode}` : `${deliveredCount}/${totalCount} điểm đã giao`}
+          </p>
         </div>
       </div>
 
@@ -260,20 +319,85 @@ export default function DriverTrip() {
             <StatusBadge status={trip.status} />
           </div>
           <div className="space-y-2 text-xs mb-4">
+            <p className="flex items-center gap-2 text-shade-50"><Truck className="w-3.5 h-3.5 text-shade-40 shrink-0" /> Xe: <span className="font-semibold text-ink">{trip.vehicle_plate}</span></p>
+            <p className="flex items-center gap-2 text-shade-50"><User className="w-3.5 h-3.5 text-shade-40 shrink-0" /> Tài xế: <span className="font-semibold text-ink">{trip.driver_name}</span></p>
+            <p className="flex items-center gap-2 text-shade-50"><Calendar className="w-3.5 h-3.5 text-shade-40 shrink-0" /> Khởi hành: <span className="font-semibold text-ink">{new Date(trip.planned_date).toLocaleString('vi-VN')}</span></p>
+            {trip.planned_end_at && (
+              <p className="flex items-center gap-2 text-shade-50"><Calendar className="w-3.5 h-3.5 text-shade-40 shrink-0" /> Hạn giao: <span className="font-semibold text-ink">{new Date(trip.planned_end_at).toLocaleString('vi-VN')}</span></p>
+            )}
             <p className="flex items-center gap-2 text-shade-50"><Truck className="w-3.5 h-3.5 text-shade-40" /> Xe: <span className="font-semibold text-ink">{trip.vehicle_plate || '-'}</span></p>
             <p className="flex items-center gap-2 text-shade-50"><User className="w-3.5 h-3.5 text-shade-40" /> Tài xế: <span className="font-semibold text-ink">{trip.driver_name || trip.driver_id}</span></p>
             <p className="flex items-center gap-2 text-shade-50"><Calendar className="w-3.5 h-3.5 text-shade-40" /> T.gian dự kiến: <span className="font-semibold text-ink">{trip.planned_start_at ? new Date(trip.planned_start_at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) : '-'} - {trip.planned_end_at ? new Date(trip.planned_end_at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) : '-'}</span></p>
           </div>
+          {trip.tripWarningActive && (
+            <div className={`mb-4 rounded-md border px-3 py-2 text-[11px] ${
+              trip.tripOverdue
+                ? 'border-red-200 bg-red-50 text-red-700'
+                : 'border-amber-200 bg-amber-50 text-amber-700'
+            }`}>
+              {trip.tripWarningMessage}
+            </div>
+          )}
 
           {trip.status === 'PLANNED' && (
-            <button onClick={handleDepart} disabled={submitting} className="w-full btn-pill btn-pill-primary flex items-center justify-center gap-2 py-2.5 text-sm disabled:opacity-50">
-              {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-              Xác nhận xuất phát
-            </button>
+            <>
+              <button
+                onClick={handleDepart}
+                disabled={submitting || !transferLoaded}
+                className="w-full btn-pill btn-pill-primary flex items-center justify-center gap-2 py-2.5 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                {transferLoaded ? 'Xác nhận xuất phát' : 'Chờ xếp hàng'}
+              </button>
+              {!transferLoaded && (
+                <p className="mt-2 text-[11px] leading-relaxed text-amber-700">
+                  Thủ kho nguồn cần xác nhận xếp đủ số lượng hàng lên xe trước khi tài xế xuất phát.
+                </p>
+              )}
+            </>
+          )}
+
+          {/* Progress bar */}
+          {!isTransferTrip && totalCount > 0 && (
+            <div className="mt-4 pt-4 border-t border-hairline-light">
+              <div className="flex justify-between text-[11px] text-shade-50 mb-2">
+                <span>Tiến độ giao hàng</span>
+                <span className="font-semibold text-ink">{deliveredCount}/{totalCount}</span>
+              </div>
+              <div className="w-full bg-zinc-100 rounded-full h-2">
+                <div
+                  className="bg-emerald-500 h-2 rounded-full transition-all duration-500"
+                  style={{ width: `${totalCount > 0 ? (deliveredCount / totalCount) * 100 : 0}%` }}
+                />
+              </div>
+            </div>
           )}
         </div>
 
+        {/* Right: transfer lines or stops list */}
         <div className="flex-1 flex flex-col gap-3">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-shade-40">
+          {isTransferTrip ? `Danh sách hàng điều chuyển (${totalCount} dòng)` : `Danh sách điểm giao (${totalCount} điểm)`}
+        </h3>
+
+        {isTransferTrip && trip.items.map((item) => (
+          <div key={item.id} className="rounded-lg border border-hairline-light bg-white shadow-sm p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h4 className="text-sm font-bold text-ink leading-tight">{item.productSku} <span className="font-normal text-shade-50">{item.productName}</span></h4>
+                <p className="text-xs text-shade-50 mt-1">Kế hoạch: {item.plannedQty} · Xuất: {item.sentQty ?? '-'}</p>
+              </div>
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-pill border uppercase tracking-wider bg-amber-50 text-amber-700 border-amber-200">
+                Điều chuyển
+              </span>
+            </div>
+          </div>
+        ))}
+
+        {!isTransferTrip && trip.delivery_orders?.map((doItem, index) => {
+          const isDelivered = doItem.delivery_status === 'DELIVERED';
+          const isFailed = doItem.delivery_status === 'FAILED';
+          const isPending = !isDelivered && !isFailed;
           <h3 className="text-xs font-bold uppercase tracking-wider text-shade-40">Danh sách điểm giao ({totalCount} điểm)</h3>
           {trip.delivery_orders?.map((doItem, index) => {
             const isDelivered = doItem.delivery_status === 'COMPLETED';

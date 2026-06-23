@@ -6,35 +6,38 @@ import Button from '../../components/common/Button';
 import { Save, Settings, CreditCard, CalendarDays, BarChart3 } from 'lucide-react';
 
 
+const normalizeNumericValue = (value) => String(value ?? '').replace(',', '.').trim();
+const toNumber = (value) => Number(normalizeNumericValue(value));
+
 const validate = (form) => {
   const errs = {};
 
-  const creditLimit = Number(form.defaultCreditLimit);
+  const creditLimit = toNumber(form.defaultCreditLimit);
   if (!Number.isFinite(creditLimit) || !Number.isInteger(creditLimit) || creditLimit <= 0) {
     errs.defaultCreditLimit = 'Hạn mức nợ phải là số nguyên dương (> 0)';
   }
 
-  const paymentTerm = Number(form.defaultPaymentTermDays);
+  const paymentTerm = toNumber(form.defaultPaymentTermDays);
   if (!Number.isFinite(paymentTerm) || !Number.isInteger(paymentTerm) || paymentTerm <= 0) {
     errs.defaultPaymentTermDays = 'Thời hạn thanh toán phải là số nguyên dương (> 0)';
   }
 
-  const overdueDays = Number(form.creditHoldOverdueDays);
+  const overdueDays = toNumber(form.creditHoldOverdueDays);
   if (!Number.isFinite(overdueDays) || !Number.isInteger(overdueDays) || overdueDays <= 0) {
     errs.creditHoldOverdueDays = 'Số ngày trễ hạn phải là số nguyên dương (> 0)';
   }
 
-  const bufferPct = Number(form.creditUnlockBufferPct);
+  const bufferPct = toNumber(form.creditUnlockBufferPct);
   if (!Number.isFinite(bufferPct) || bufferPct <= 0 || bufferPct > 1) {
     errs.creditUnlockBufferPct = 'Hệ số đệm mở khóa phải là số thập phân trong khoảng (0, 1]';
   }
 
-  const closingDay = Number(form.monthlyClosingDay);
+  const closingDay = toNumber(form.monthlyClosingDay);
   if (!Number.isFinite(closingDay) || !Number.isInteger(closingDay) || closingDay < 1 || closingDay > 31) {
     errs.monthlyClosingDay = 'Ngày khóa sổ phải là số nguyên từ 1 đến 31';
   }
 
-  const threshold = Number(form.minInventoryWarningThreshold);
+  const threshold = toNumber(form.minInventoryWarningThreshold);
   if (!Number.isFinite(threshold) || !Number.isInteger(threshold) || threshold < 0) {
     errs.minInventoryWarningThreshold = 'Ngưỡng cảnh báo tồn kho phải là số nguyên >= 0';
   }
@@ -97,7 +100,10 @@ const SystemConfig = () => {
   useEffect(() => { loadConfig(); }, [loadConfig]);
 
   const handleChange = (field) => (e) => {
-    setForm((prev) => ({ ...prev, [field]: e.target.value }));
+    const nextValue = typeof e.target.value === 'string'
+      ? normalizeNumericValue(e.target.value)
+      : e.target.value;
+    setForm((prev) => ({ ...prev, [field]: nextValue }));
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: undefined }));
   };
 
@@ -113,12 +119,12 @@ const SystemConfig = () => {
     setSaveLoading(true);
     try {
       await adminService.updateSystemConfig({
-        defaultCreditLimit: Number(form.defaultCreditLimit),
-        defaultPaymentTermDays: Number(form.defaultPaymentTermDays),
-        creditHoldOverdueDays: Number(form.creditHoldOverdueDays),
-        creditUnlockBufferPct: Number(form.creditUnlockBufferPct),
-        monthlyClosingDay: Number(form.monthlyClosingDay),
-        minInventoryWarningThreshold: Number(form.minInventoryWarningThreshold)
+        defaultCreditLimit: toNumber(form.defaultCreditLimit),
+        defaultPaymentTermDays: toNumber(form.defaultPaymentTermDays),
+        creditHoldOverdueDays: toNumber(form.creditHoldOverdueDays),
+        creditUnlockBufferPct: toNumber(form.creditUnlockBufferPct),
+        monthlyClosingDay: toNumber(form.monthlyClosingDay),
+        minInventoryWarningThreshold: toNumber(form.minInventoryWarningThreshold)
       });
       addToast('Cập nhật cấu hình hệ thống thành công', 'success');
       setErrors({});
@@ -169,7 +175,7 @@ const SystemConfig = () => {
               placeholder="Ví dụ: 500000000"
               required
             />
-            <Hint>Giá trị hiện tại: {Number(form.defaultCreditLimit).toLocaleString()} VND</Hint>
+            <Hint>Giá trị hiện tại: {toNumber(form.defaultCreditLimit).toLocaleString()} VND</Hint>
           </div>
 
           <div className="flex flex-col gap-1">
@@ -212,7 +218,7 @@ const SystemConfig = () => {
               placeholder="Ví dụ: 0.8"
               required
             />
-            <Hint>Đại lý phải thanh toán ít nhất {Math.round(Number(form.creditUnlockBufferPct) * 100)}% dư nợ để mở khóa. Giá trị từ 0 đến 1.</Hint>
+            <Hint>Đại lý phải thanh toán ít nhất {Math.round(toNumber(form.creditUnlockBufferPct) * 100)}% dư nợ để mở khóa. Giá trị từ 0 đến 1.</Hint>
           </div>
         </Section>
 

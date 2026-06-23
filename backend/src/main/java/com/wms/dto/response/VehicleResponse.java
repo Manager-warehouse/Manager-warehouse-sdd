@@ -15,6 +15,9 @@ public class VehicleResponse {
     private String vehicleType;
     private BigDecimal maxWeightKg;
     private BigDecimal maxVolumeM3;
+    private Long warehouseId;
+    private String warehouseCode;
+    private String warehouseName;
     private String status;
     private Boolean isActive;
     private OffsetDateTime createdAt;

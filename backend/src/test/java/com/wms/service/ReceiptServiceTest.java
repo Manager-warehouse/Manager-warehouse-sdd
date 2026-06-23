@@ -124,6 +124,8 @@ class ReceiptServiceTest {
     @Test
     void createPurchaseReceipt_rejectsInactiveProduct() {
         stubHeaderLookups();
+        when(sequenceRepository.findBySequenceKeyForUpdate("RECEIPT"))
+                .thenReturn(Optional.of(sequence()));
         when(productRepository.findById(30L)).thenReturn(Optional.of(product(30L, false)));
 
         assertThrows(UnprocessableEntityException.class,
@@ -163,7 +165,7 @@ class ReceiptServiceTest {
     void createPurchaseReceipt_rejectsDuplicateSourceReference() {
         stubHeaderLookups();
         when(receiptRepository.existsBySupplierIdAndWarehouseIdAndSourceOrderCodeAndTypeAndStatusNot(
-                10L, 20L, "PO-1", ReceiptType.PURCHASE, ReceiptStatus.REJECTED))
+                10L, 20L, "PO-1", ReceiptType.PURCHASE, ReceiptStatus.RETURNED_TO_SUPPLIER))
                 .thenReturn(true);
 
         assertThrows(DuplicateResourceException.class,
@@ -237,16 +239,18 @@ class ReceiptServiceTest {
     }
 
     @Test
-    void receiveReceiptCounts_rejectsNonPositiveCount() {
+    void receiveReceiptCounts_allowsZeroCount() {
         Receipt receipt = receipt(100L, ReceiptStatus.PENDING_RECEIPT);
         ReceiptItem item1 = item(501L, receipt, 30L, 100);
         stubReceive(receipt, List.of(item1));
+        stubReceiveSaves();
 
-        ReceiptCountException ex = assertThrows(ReceiptCountException.class,
-                () -> receiptService.receiveReceiptCounts(100L,
-                        receiveRequest(line(501L, 0)), warehouseStaff));
+        ReceiptResponse response = receiptService.receiveReceiptCounts(100L,
+                receiveRequest(line(501L, 0)), warehouseStaff);
 
-        assertEquals("INVALID_RECEIPT_COUNT", ex.getCode());
+        assertEquals("DRAFT", response.getStatus());
+        assertEquals(0, item1.getActualQty());
+        assertEquals(0, item1.getOverReceivedQty());
     }
 
     @Test
@@ -278,7 +282,7 @@ class ReceiptServiceTest {
 
     @Test
     void receiveReceiptCounts_rejectsRejectedReceipt() {
-        Receipt rejected = receipt(100L, ReceiptStatus.REJECTED);
+        Receipt rejected = receipt(100L, ReceiptStatus.RETURNED_TO_SUPPLIER);
         when(receiptRepository.findByIdWithWarehouse(100L)).thenReturn(Optional.of(rejected));
         when(assignmentRepository.findWarehouseIdsByUserId(2L)).thenReturn(List.of(20L));
 

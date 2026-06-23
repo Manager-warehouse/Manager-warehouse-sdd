@@ -15,10 +15,13 @@ ALTER TABLE receipts
     ));
 
 ALTER TABLE receipt_items
-    ADD COLUMN sample_qty DECIMAL(10,2),
-    ADD COLUMN sample_passed_qty DECIMAL(10,2),
-    ADD COLUMN sample_failed_qty DECIMAL(10,2),
-    ADD COLUMN qc_sampling_method VARCHAR(30);
+    ADD COLUMN IF NOT EXISTS sample_qty DECIMAL(10,2),
+    ADD COLUMN IF NOT EXISTS sample_passed_qty DECIMAL(10,2),
+    ADD COLUMN IF NOT EXISTS sample_failed_qty DECIMAL(10,2),
+    ADD COLUMN IF NOT EXISTS qc_sampling_method VARCHAR(30);
+
+ALTER TABLE receipt_items
+    DROP CONSTRAINT IF EXISTS receipt_items_qc_sampling_method_check;
 
 ALTER TABLE receipt_items
     ADD CONSTRAINT receipt_items_qc_sampling_method_check

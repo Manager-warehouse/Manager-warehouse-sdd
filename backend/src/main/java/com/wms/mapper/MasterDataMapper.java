@@ -66,6 +66,8 @@ public class MasterDataMapper {
         response.setMaxVolumeM3(entity.getMaxVolumeM3());
         if (entity.getWarehouse() != null) {
             response.setWarehouseId(entity.getWarehouse().getId());
+            response.setWarehouseCode(entity.getWarehouse().getCode());
+            response.setWarehouseName(entity.getWarehouse().getName());
         }
         response.setStatus(entity.getStatus() != null ? entity.getStatus().name() : null);
         response.setIsActive(entity.getIsActive());

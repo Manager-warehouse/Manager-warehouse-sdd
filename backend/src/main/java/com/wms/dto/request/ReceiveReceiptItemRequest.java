@@ -1,8 +1,10 @@
 package com.wms.dto.request;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.wms.config.jackson.StrictIntegerDeserializer;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
 
 public class ReceiveReceiptItemRequest {
 
@@ -11,8 +13,9 @@ public class ReceiveReceiptItemRequest {
     private Long receiptItemId;
 
     @NotNull
-    @Positive
+    @PositiveOrZero
     @JsonProperty("counted_qty")
+    @JsonDeserialize(using = StrictIntegerDeserializer.class)
     private Integer countedQty;
 
     public Long getReceiptItemId() {

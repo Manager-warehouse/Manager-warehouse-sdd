@@ -164,8 +164,8 @@ public class ReceiptService {
     }
 
     private void requireWarehouseStaff(User actor) {
-        if (actor == null || actor.getRole() != UserRole.WAREHOUSE_STAFF) {
-            throw new AccessDeniedException("Warehouse Staff role is required");
+        if (actor == null || (actor.getRole() != UserRole.WAREHOUSE_STAFF && actor.getRole() != UserRole.ADMIN)) {
+            throw new AccessDeniedException("Warehouse Staff or Admin role is required");
         }
     }
 
@@ -205,7 +205,7 @@ public class ReceiptService {
                 .existsBySupplierIdAndWarehouseIdAndSourceOrderCodeAndTypeAndStatusNot(
                         request.getSupplierId(), request.getWarehouseId(),
                         request.getSourceReference(), ReceiptType.PURCHASE,
-                        ReceiptStatus.REJECTED);
+                        ReceiptStatus.RETURNED_TO_SUPPLIER);
         if (duplicate) {
             throw new DuplicateResourceException(
                     "Receipt source reference already exists for supplier and warehouse");
@@ -338,7 +338,8 @@ public class ReceiptService {
 
     private void validateReceivableStatus(Receipt receipt) {
         if (receipt.getStatus() == ReceiptStatus.APPROVED
-                || receipt.getStatus() == ReceiptStatus.REJECTED) {
+                || receipt.getStatus() == ReceiptStatus.RETURN_TO_SUPPLIER_PENDING
+                || receipt.getStatus() == ReceiptStatus.RETURNED_TO_SUPPLIER) {
             throw receiptCountError("RECEIPT_ALREADY_FINALIZED",
                     HttpStatus.CONFLICT,
                     "Receipt is already finalized");
@@ -380,7 +381,7 @@ public class ReceiptService {
                                    Map<Long, ReceiptItem> itemById,
                                    Map<Long, ReceiveReceiptItemRequest> countByItemId) {
         if (count == null || count.getReceiptItemId() == null
-                || count.getCountedQty() == null || count.getCountedQty() <= 0) {
+                || count.getCountedQty() == null || count.getCountedQty() < 0) {
             throw invalidReceiptCount();
         }
         if (countByItemId.containsKey(count.getReceiptItemId())

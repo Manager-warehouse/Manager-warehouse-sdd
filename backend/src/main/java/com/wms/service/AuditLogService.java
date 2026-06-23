@@ -77,6 +77,12 @@ public class AuditLogService {
                     Long warehouseId,
                     Map<String, Object> oldValue,
                     Map<String, Object> newValue) {
+        if (actor == null) {
+            throw new IllegalStateException("Audit actor is required");
+        }
+        if (action == null) {
+            throw new IllegalArgumentException("Audit action is required");
+        }
         String description = AuditLogUtil.generateDescription(
                 action, entityType, entityCode);
         saveAuditLog(actor, action, entityType, entityId, description,

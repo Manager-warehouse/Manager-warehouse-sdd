@@ -1,5 +1,8 @@
 package com.wms.exception;
 
+import com.wms.exception.ForbiddenReceiptWarehouseException;
+import com.wms.exception.ReceiptAlreadyDecidedException;
+import com.wms.exception.RtvAlreadyExistsException;
 import jakarta.validation.ConstraintViolationException;
 import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
@@ -29,7 +32,35 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessRuleViolationException.class)
     public ResponseEntity<ApiErrorResponse> handleBusinessRule(BusinessRuleViolationException ex) {
-        return error(HttpStatus.CONFLICT, "BUSINESS_RULE_VIOLATION", ex.getMessage(), ex.getMessage(), null);
+        String msg = ex.getMessage();
+        HttpStatus status = HttpStatus.UNPROCESSABLE_ENTITY;
+        String code = "BUSINESS_RULE_VIOLATION";
+
+        if (msg != null) {
+            if (msg.contains("INVENTORY_VERSION_CONFLICT")) {
+                status = HttpStatus.CONFLICT;
+                code = "INVENTORY_VERSION_CONFLICT";
+            } else if (msg.contains("RTV_ALREADY_CONFIRMED")) {
+                status = HttpStatus.CONFLICT;
+                code = "RTV_ALREADY_CONFIRMED";
+            } else if (msg.contains("RTV_QUANTITY_MISMATCH")) {
+                code = "RTV_QUANTITY_MISMATCH";
+            } else if (msg.contains("INVALID_STATE")) {
+                code = "INVALID_STATE";
+            } else if (msg.contains("INVALID_LOCATION")) {
+                code = "INVALID_LOCATION";
+            } else if (msg.contains("BIN_CAPACITY_EXCEEDED")) {
+                code = "BIN_CAPACITY_EXCEEDED";
+            } else if (msg.contains("INVENTORY_INVARIANT_VIOLATED")) {
+                code = "INVENTORY_INVARIANT_VIOLATED";
+            } else if (msg.contains("LOCATION_LOCKED")) {
+                code = "LOCATION_LOCKED";
+            } else if (msg.contains("ACCOUNTING_PERIOD_CLOSED")) {
+                code = "ACCOUNTING_PERIOD_CLOSED";
+            }
+        }
+
+        return error(status, code, msg, msg, null);
     }
 
     @ExceptionHandler(UnprocessableEntityException.class)
@@ -50,6 +81,37 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiErrorResponse> handleAccessDenied(AccessDeniedException ex) {
         return error(HttpStatus.FORBIDDEN, "ACCESS_DENIED", "Access denied", "Access denied", null);
+    }
+
+    @ExceptionHandler(ForbiddenReceiptWarehouseException.class)
+    public ResponseEntity<ApiErrorResponse> handleForbiddenReceiptWarehouse(
+            ForbiddenReceiptWarehouseException ex) {
+        return error(HttpStatus.FORBIDDEN, "FORBIDDEN_RECEIPT_WAREHOUSE",
+                ex.getMessage(), ex.getMessage(), null);
+    }
+
+    @ExceptionHandler(ReceiptAlreadyDecidedException.class)
+    public ResponseEntity<ApiErrorResponse> handleReceiptAlreadyDecided(
+            ReceiptAlreadyDecidedException ex) {
+        return error(HttpStatus.CONFLICT, "RECEIPT_ALREADY_DECIDED",
+                ex.getMessage(), ex.getMessage(), null);
+    }
+
+    @ExceptionHandler(RtvAlreadyExistsException.class)
+    public ResponseEntity<ApiErrorResponse> handleRtvAlreadyExists(
+            RtvAlreadyExistsException ex) {
+        return error(HttpStatus.CONFLICT, "RTV_ALREADY_EXISTS",
+                ex.getMessage(), ex.getMessage(), null);
+    }
+
+    @ExceptionHandler(StockTakeException.class)
+    public ResponseEntity<ApiErrorResponse> handleStockTake(StockTakeException ex) {
+        return error(ex.getStatus(), ex.getCode(), ex.getMessage(), ex.getMessage(), null);
+    }
+
+    @ExceptionHandler(PriceHistoryException.class)
+    public ResponseEntity<ApiErrorResponse> handlePriceHistory(PriceHistoryException ex) {
+        return error(ex.getStatus(), ex.getCode(), ex.getMessage(), ex.getMessage(), null);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -124,17 +186,44 @@ public class GlobalExceptionHandler {
         return error(status, code, msg, msg, null);
     }
 
+    private String translateMessage(String msg) {
+        if (msg == null) return null;
+        switch (msg) {
+            case "TRIP_SCHEDULE_INVALID": return "Lịch trình chuyến đi không hợp lệ (thời gian kết thúc phải sau thời gian bắt đầu).";
+            case "TRIP_START_IN_PAST": return "Thời gian bắt đầu chuyến đi không được ở quá khứ.";
+            case "TRIP_END_IN_PAST": return "Thời gian hạn giao hàng không được ở quá khứ.";
+            case "TRIP_RESOURCE_OVERLAP": return "Tài xế hoặc phương tiện đã được gán cho một chuyến đi khác trùng thời gian.";
+            case "VEHICLE_NOT_AVAILABLE": return "Phương tiện vận tải hiện không khả dụng.";
+            case "DRIVER_NOT_AVAILABLE": return "Tài xế hiện không khả dụng.";
+            case "DUPLICATE_EXTERNAL_INSTRUCTION": return "Mã chỉ thị điều chuyển này đã tồn tại trên hệ thống.";
+            case "TRANSFER_ALREADY_HAS_TRIP": return "Phiếu điều chuyển đã được gán chuyến xe trước đó.";
+            case "OVER_RECEIPT_BLOCKED": return "Số lượng thực nhận không được lớn hơn số lượng đã gửi đi.";
+            case "QC_TOTAL_MUST_MATCH_CONFIRMED_QTY": return "Tổng số lượng QC đạt và QC lỗi phải bằng số lượng thực nhận.";
+            case "QC_FAILURE_REASON_REQUIRED": return "Yêu cầu nhập lý do lỗi khi có số lượng QC không đạt.";
+            case "DESTINATION_LOCATION_REQUIRED": return "Yêu cầu chọn vị trí lưu trữ (Bin) cho hàng đạt QC.";
+            case "UNSHIP_REQUIRED_BEFORE_CANCEL": return "Cần hủy xuất hàng (Unship) trước khi hủy phiếu điều chuyển.";
+            case "TRANSFER_TRIP_REQUIRED": return "Chuyến xe chưa được gán hoặc chưa sẵn sàng khởi hành.";
+            case "ASSIGNED_DRIVER_REQUIRED": return "Chỉ tài xế được chỉ định mới có quyền xác nhận khởi hành.";
+            case "QC_PASSED_BIN_MUST_NOT_BE_QUARANTINE": return "Hàng đạt QC không thể xếp vào khu vực cách ly (Quarantine). Vui lòng chọn bin lưu trữ thông thường.";
+            case "QUARANTINE_LOCATION_NOT_CONFIGURED": return "Kho đích chưa có khu vực cách ly (Quarantine). Cần thêm ít nhất một Bin Quarantine trước khi duyệt QC lỗi.";
+            default: return msg;
+        }
+    }
+
     private ResponseEntity<ApiErrorResponse> error(HttpStatus status,
                                                    String code,
                                                    String message,
                                                    String errorVal,
                                                    Map<String, Object> details) {
+        String translatedMsg = translateMessage(message);
+        String translatedErr = translateMessage(errorVal);
         return ResponseEntity.status(status).body(ApiErrorResponse.builder()
                 .code(code)
-                .message(message)
-                .error(errorVal)
+                .message(translatedMsg)
+                .error(translatedErr)
                 .details(details)
                 .timestamp(OffsetDateTime.now())
                 .build());
     }
+
 }

@@ -22,4 +22,5 @@ public class DeliveryOrderItemCreateRequest {
     private BigDecimal requestedQty;
 
     private BigDecimal unitPrice;
+
 }

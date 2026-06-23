@@ -22,12 +22,15 @@ import com.wms.entity.Batch;
 import com.wms.entity.Dealer;
 import com.wms.entity.DeliveryOrder;
 import com.wms.entity.DeliveryOrderItem;
+<<<<<<< HEAD
 import com.wms.entity.DeliveryOrderItemAllocation;
 import com.wms.entity.DeliveryOrderItemReplacement;
 import com.wms.entity.DeliveryOrderItemReturnToBinRecord;
 import com.wms.entity.DeliveryOrderWarehouseApproval;
 import com.wms.entity.Inventory;
 import com.wms.entity.OutboundQcRecord;
+=======
+>>>>>>> main
 import com.wms.entity.PriceHistory;
 import com.wms.entity.Product;
 import com.wms.entity.QuarantineRecord;
@@ -40,12 +43,16 @@ import com.wms.enums.AdjustmentType;
 import com.wms.enums.ApprovalResult;
 import com.wms.enums.CreditStatus;
 import com.wms.enums.DeliveryOrderStatus;
+<<<<<<< HEAD
 import com.wms.enums.InvoiceStatus;
 import com.wms.enums.LocationType;
 import com.wms.enums.PriceHistoryStatus;
 import com.wms.enums.UserRole;
 import com.wms.enums.WarehouseType;
 import com.wms.exception.OutboundDeliveryException;
+=======
+import com.wms.exception.PriceHistoryException;
+>>>>>>> main
 import com.wms.exception.ResourceNotFoundException;
 import com.wms.mapper.DeliveryOrderMapper;
 import com.wms.repository.DealerRepository;
@@ -67,12 +74,16 @@ import com.wms.repository.WarehouseProductReservationRepository;
 import com.wms.repository.WarehouseRepository;
 import com.wms.service.DeliveryOrderService;
 import com.wms.service.PartnerEligibilityService;
+import com.wms.service.PriceHistoryService;
 import com.wms.util.PartnerAuditUtil;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
+<<<<<<< HEAD
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+=======
+>>>>>>> main
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -124,6 +135,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     private final DeliveryOrderMapper deliveryOrderMapper;
     private final PartnerAuditUtil auditUtil;
     private final EntityManager entityManager;
+    private final PriceHistoryService priceHistoryService;
 
     public DeliveryOrderServiceImpl(DeliveryOrderRepository deliveryOrderRepository,
                                     DeliveryOrderItemRepository deliveryOrderItemRepository,
@@ -145,7 +157,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                                     PartnerEligibilityService partnerEligibilityService,
                                     DeliveryOrderMapper deliveryOrderMapper,
                                     PartnerAuditUtil auditUtil,
-                                    EntityManager entityManager) {
+                                    EntityManager entityManager,
+                                    PriceHistoryService priceHistoryService) {
         this.deliveryOrderRepository = deliveryOrderRepository;
         this.deliveryOrderItemRepository = deliveryOrderItemRepository;
         this.allocationRepository = allocationRepository;
@@ -167,6 +180,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         this.deliveryOrderMapper = deliveryOrderMapper;
         this.auditUtil = auditUtil;
         this.entityManager = entityManager;
+        this.priceHistoryService = priceHistoryService;
     }
 
     @Override
@@ -279,10 +293,30 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         order.setCreatedAt(now);
         order.setUpdatedAt(now);
 
+        LocalDate today = now.toLocalDate();
+        Long warehouseId = request.getWarehouseId();
+        // Validate all lines have an approved price for this warehouse before creating anything
+        List<Long> missingPrice = request.getItems().stream()
+                .map(i -> i.getProductId())
+                .distinct()
+                .filter(pid -> priceHistoryService.lookupApproved(pid, warehouseId, today).isEmpty())
+                .toList();
+        if (!missingPrice.isEmpty()) {
+            throw PriceHistoryException.missingPrice(missingPrice.toString());
+        }
+
         DeliveryOrder saved = deliveryOrderRepository.save(order);
+<<<<<<< HEAD
         List<Map<String, Object>> reservationDeltas = reserveWarehouseProducts(warehouse, requestedByProduct, now);
         List<DeliveryOrderItem> savedItems = itemPlans.stream()
                 .map(plan -> toEntity(plan, saved))
+=======
+        List<DeliveryOrderItem> savedItems = request.getItems().stream()
+                .map(item -> {
+                    PriceHistory price = priceHistoryService.lookupApproved(item.getProductId(), warehouseId, today).get();
+                    return toEntity(item, saved, price);
+                })
+>>>>>>> main
                 .map(deliveryOrderItemRepository::save)
                 .toList();
 
@@ -888,6 +922,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         return deliveryOrderItemRepository.findByDeliveryOrderId(orderId);
     }
 
+<<<<<<< HEAD
     private List<DeliveryOrderItemAllocation> allocations(Long orderId) {
         return allocationRepository.findByDeliveryOrderItemDeliveryOrderId(orderId);
     }
@@ -1100,6 +1135,25 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         item.setQcFailQty(ZERO);
         item.setIssuedQty(ZERO);
         item.setUnitPrice(plan.unitPrice());
+=======
+    private DeliveryOrderItem toEntity(DeliveryOrderItemCreateRequest request, DeliveryOrder order,
+                                       PriceHistory price) {
+        DeliveryOrderItem item = new DeliveryOrderItem();
+        item.setDeliveryOrder(order);
+        item.setProduct(reference(Product.class, request.getProductId()));
+        if (request.getBatchId() != null) {
+            item.setBatch(reference(Batch.class, request.getBatchId()));
+        }
+        if (request.getLocationId() != null) {
+            item.setLocation(reference(WarehouseLocation.class, request.getLocationId()));
+        }
+        item.setRequestedQty(request.getRequestedQty());
+        item.setReservedQty(BigDecimal.ZERO);
+        item.setIssuedQty(BigDecimal.ZERO);
+        // Snapshot from price_history, not from request (spec 007)
+        item.setUnitPrice(price.getSellingPrice());
+        item.setUnitCost(price.getCostPrice());
+>>>>>>> main
         return item;
     }
 

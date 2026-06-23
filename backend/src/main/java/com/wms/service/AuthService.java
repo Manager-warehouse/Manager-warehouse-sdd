@@ -2,7 +2,6 @@ package com.wms.service;
 
 import com.wms.dto.auth.*;
 import com.wms.entity.User;
-import com.wms.entity.UserWarehouseAssignment;
 import com.wms.entity.AuditLog;
 import com.wms.enums.AuditAction;
 import com.wms.repository.UserRepository;
@@ -12,8 +11,6 @@ import com.wms.util.JwtUtil;
 import com.wms.util.AuditLogUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.AuthenticationException;
@@ -38,7 +35,7 @@ public class AuthService {
     private final JwtUtil jwtUtil;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
-    private final JavaMailSender mailSender;
+    private final EmailService emailService;
     private final UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
     private final AuditLogRepository auditLogRepository;
 
@@ -156,8 +153,7 @@ public class AuthService {
         java.util.Map<String, Object> oldValue = java.util.Map.of(
                 "fullName", user.getFullName(),
                 "email", user.getEmail(),
-                "phone", user.getPhone() != null ? user.getPhone() : ""
-        );
+                "phone", user.getPhone() != null ? user.getPhone() : "");
 
         // Perform update
         user.setFullName(request.getFullName());
@@ -171,8 +167,7 @@ public class AuthService {
         java.util.Map<String, Object> newValue = java.util.Map.of(
                 "fullName", savedUser.getFullName(),
                 "email", savedUser.getEmail(),
-                "phone", savedUser.getPhone() != null ? savedUser.getPhone() : ""
-        );
+                "phone", savedUser.getPhone() != null ? savedUser.getPhone() : "");
 
         // Save audit log
         AuditLog auditLog = AuditLog.builder()
@@ -198,7 +193,7 @@ public class AuthService {
             user.setOtpHash(sha256(otp));
             user.setOtpExpiresAt(OffsetDateTime.now().plusMinutes(10));
             userRepository.saveAndFlush(user);
-            sendOtpEmail(user.getEmail(), otp);
+            emailService.sendOtpEmail(user.getEmail(), otp);
         });
         // Always return silently — no email enumeration
     }
@@ -238,23 +233,6 @@ public class AuthService {
         userRepository.save(user);
     }
 
-    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AuthService.class);
-
-    private void sendOtpEmail(String to, String otp) {
-        try {
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setTo(to);
-            message.setSubject("Mã OTP đặt lại mật khẩu — WMS Phúc Anh");
-            message.setText("Mã OTP của bạn là: " + otp + "\nMã có hiệu lực trong 10 phút. Không chia sẻ mã này với bất kỳ ai.");
-            mailSender.send(message);
-            log.info("Đã gửi email OTP tới {}", to);
-        } catch (Exception e) {
-            log.error("Không thể gửi email OTP (SMTP error): {}", e.getMessage(), e);
-            throw new IllegalStateException("MAIL_SEND_FAILED");
-        }
-    }
-
-
     private String sha256(String input) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -267,7 +245,8 @@ public class AuthService {
 
     private List<LoginResponse.WarehouseInfo> buildWarehouseInfoList(User user) {
         // UserWarehouseAssignment is loaded via separate query to avoid N+1
-        // For now returning empty list — will be populated when UserWarehouseAssignmentRepository is added
+        // For now returning empty list — will be populated when
+        // UserWarehouseAssignmentRepository is added
         return List.of();
     }
 

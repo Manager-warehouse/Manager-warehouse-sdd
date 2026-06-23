@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 @echo off
 setlocal
 
@@ -5,6 +6,9 @@ set "ROOT_DIR=%~dp0"
 set "BACKEND_DIR=%ROOT_DIR%backend"
 set "FRONTEND_DIR=%ROOT_DIR%frontend"
 
+=======
+x`@echo off
+>>>>>>> main
 echo ========================================
 echo   WMS Phuc Anh - Khoi dong he thong
 echo ========================================

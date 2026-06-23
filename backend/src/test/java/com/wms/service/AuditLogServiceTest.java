@@ -7,6 +7,7 @@ import com.wms.entity.User;
 import com.wms.enums.AuditAction;
 import com.wms.enums.UserRole;
 import com.wms.repository.AuditLogRepository;
+import com.wms.repository.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -37,8 +38,12 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class AuditLogServiceTest {
 
-    @Mock private AuditLogRepository auditLogRepository;
-    @Mock private HttpServletRequest httpServletRequest;
+    @Mock
+    private AuditLogRepository auditLogRepository;
+    @Mock
+    private UserRepository userRepository;
+    @Mock
+    private HttpServletRequest httpServletRequest;
 
     @InjectMocks
     private AuditLogService auditLogService;
@@ -88,10 +93,13 @@ class AuditLogServiceTest {
     @DisplayName("Ghi audit log từ SecurityContext khi không truyền actor")
     void log_withSecurityContext_resolvesActorFromContext() {
         when(httpServletRequest.getRemoteAddr()).thenReturn("10.0.0.1");
+        when(userRepository.findByEmail("admin@wms.com")).thenReturn(Optional.of(adminActor));
 
-        // Đặt adminActor vào SecurityContext
+        // Đặt principal dạng UserDetails để khớp với JwtAuthFilter runtime shape
+        var principal = new org.springframework.security.core.userdetails.User(
+                adminActor.getEmail(), "N/A", Collections.emptyList());
         var auth = new UsernamePasswordAuthenticationToken(
-                adminActor, null, Collections.emptyList());
+                principal, null, Collections.emptyList());
         SecurityContextHolder.getContext().setAuthentication(auth);
 
         auditLogService.log(
@@ -170,6 +178,7 @@ class AuditLogServiceTest {
 
     // ─── GET AUDIT LOGS (PAGINATION) ─────────────────────────────────────────
 
+    @SuppressWarnings("unchecked")
     @Test
     @DisplayName("Trả về trang 1 mặc định với 30 entries khi không có filter")
     void getAuditLogs_noParams_returnsDefaultPage1Size30() {
@@ -185,6 +194,7 @@ class AuditLogServiceTest {
         assertThat(response.isHasPrevious()).isFalse();
     }
 
+    @SuppressWarnings("unchecked")
     @Test
     @DisplayName("pageSize vượt quá 30 → bị cap về 30")
     void getAuditLogs_pageSizeOver30_isCappedAt30() {
@@ -196,6 +206,7 @@ class AuditLogServiceTest {
         assertThat(response.getPageSize()).isEqualTo(30);
     }
 
+    @SuppressWarnings("unchecked")
     @Test
     @DisplayName("page null hoặc < 1 → mặc định về trang 1")
     void getAuditLogs_invalidPage_defaultsToPage1() {
@@ -209,10 +220,11 @@ class AuditLogServiceTest {
         assertThat(r2.getPage()).isEqualTo(1);
     }
 
+    @SuppressWarnings("deprecation")
     @Test
     @DisplayName("Yêu cầu trang > 50 không có filter → 400 QUERY_RANGE_TOO_LARGE")
     void getAuditLogs_page51NoFilter_throwsQueryRangeTooLarge() {
-        ResponseStatusException ex = catchThrowableOfType(
+        var ex = catchThrowableOfType(
                 () -> auditLogService.getAuditLogs(51, 30, null, null, null),
                 ResponseStatusException.class);
 
@@ -220,6 +232,7 @@ class AuditLogServiceTest {
         assertThat(ex.getReason()).isEqualTo("QUERY_RANGE_TOO_LARGE");
     }
 
+    @SuppressWarnings("unchecked")
     @Test
     @DisplayName("Trang > 50 nhưng có filter time → được phép (không throw)")
     void getAuditLogs_page51WithFilter_allowed() {
@@ -231,6 +244,7 @@ class AuditLogServiceTest {
                 .doesNotThrowAnyException();
     }
 
+    @SuppressWarnings("unchecked")
     @Test
     @DisplayName("Trang > 50 nhưng có filter warehouseId → được phép")
     void getAuditLogs_page51WithWarehouseFilter_allowed() {
@@ -241,10 +255,11 @@ class AuditLogServiceTest {
                 .doesNotThrowAnyException();
     }
 
+    @SuppressWarnings("deprecation")
     @Test
     @DisplayName("from > to → 400 INVALID_DATE_RANGE")
     void getAuditLogs_fromAfterTo_throwsInvalidDateRange() {
-        ResponseStatusException ex = catchThrowableOfType(
+        var ex = catchThrowableOfType(
                 () -> auditLogService.getAuditLogs(1, 30, "2026-12-31", "2026-01-01", null),
                 ResponseStatusException.class);
 
@@ -252,10 +267,11 @@ class AuditLogServiceTest {
         assertThat(ex.getReason()).isEqualTo("INVALID_DATE_RANGE");
     }
 
+    @SuppressWarnings("deprecation")
     @Test
     @DisplayName("Định dạng ngày không hợp lệ → 400 INVALID_DATE_RANGE")
     void getAuditLogs_invalidDateFormat_throwsInvalidDateRange() {
-        ResponseStatusException ex = catchThrowableOfType(
+        var ex = catchThrowableOfType(
                 () -> auditLogService.getAuditLogs(1, 30, "not-a-date", null, null),
                 ResponseStatusException.class);
 
@@ -263,6 +279,7 @@ class AuditLogServiceTest {
         assertThat(ex.getReason()).isEqualTo("INVALID_DATE_RANGE");
     }
 
+    @SuppressWarnings("unchecked")
     @Test
     @DisplayName("Filter theo ngày hợp lệ → trả kết quả đúng thứ tự timestamp DESC")
     void getAuditLogs_withDateFilter_returnsResults() {
@@ -291,12 +308,13 @@ class AuditLogServiceTest {
         assertThat(response.getEntityType()).isEqualTo("User");
     }
 
+    @SuppressWarnings("deprecation")
     @Test
     @DisplayName("ID không tồn tại → 404 AUDIT_LOG_NOT_FOUND")
     void getAuditLogById_notFound_throws404() {
         when(auditLogRepository.findById(999L)).thenReturn(Optional.empty());
 
-        ResponseStatusException ex = catchThrowableOfType(
+        var ex = catchThrowableOfType(
                 () -> auditLogService.getAuditLogById(999L),
                 ResponseStatusException.class);
 

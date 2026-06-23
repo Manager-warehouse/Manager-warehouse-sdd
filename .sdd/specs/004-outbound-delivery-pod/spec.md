@@ -22,16 +22,16 @@ Xuất hàng là quy trình tạo doanh thu cho Phúc Anh. Planner nhận yêu c
 
 ## 2. Actors
 
-| Actor           | Vai trò | Nghiệp vụ liên quan                                                                                                |
-| --------------- | ------- | ------------------------------------------------------------------------------------------------------------------ |
-| Planner         | Maker   | Lập Đơn xuất hàng (Delivery Order), kiểm tra tồn kho khả dụng và trạng thái công nợ Đại lý                         |
-| Thủ kho         | Maker   | Lập kế hoạch lấy hàng, chọn một hoặc nhiều batch/bin/zone từ danh sách FIFO trong kho được gán, phê duyệt chất lượng outbound và chọn hàng thay thế khi QC fail |
-| Nhân viên kho   | Maker   | Lấy hàng thực tế theo kế hoạch trong kho được gán, kiểm tra chất lượng từng sản phẩm, nhập số lượng đã lấy, đạt QC và không đạt QC theo từng item/allocation/batch/location/zone |
-| Dispatcher      | Maker   | Lập Chuyến xe nội bộ, gán xe và tài xế rảnh, sắp xếp thứ tự giao hàng                                              |
-| Tài xế          | Maker   | Sử dụng smartphone xem chuyến xe, xác nhận nhận hàng (xe rời kho), giao hàng và ký nhận POD, báo cáo giao thất bại |
-| Kế toán viên    | Maker   | Xử lý thanh toán và theo dõi công nợ trong luồng tài chính riêng                                                  |
-| Kế toán trưởng  | Checker | Phê duyệt Credit Limit cho Đại lý                                                                                  |
-| Trưởng kho      | Checker | Ký duyệt xuất kho (giai đoạn Warehouse Approval)                                                                   |
+| Actor          | Vai trò | Nghiệp vụ liên quan                                                                                                                                                              |
+| -------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Planner        | Maker   | Lập Đơn xuất hàng (Delivery Order), kiểm tra tồn kho khả dụng và trạng thái công nợ Đại lý                                                                                       |
+| Thủ kho        | Maker   | Lập kế hoạch lấy hàng, chọn một hoặc nhiều batch/bin/zone từ danh sách FIFO trong kho được gán, phê duyệt chất lượng outbound và chọn hàng thay thế khi QC fail                  |
+| Nhân viên kho  | Maker   | Lấy hàng thực tế theo kế hoạch trong kho được gán, kiểm tra chất lượng từng sản phẩm, nhập số lượng đã lấy, đạt QC và không đạt QC theo từng item/allocation/batch/location/zone |
+| Dispatcher     | Maker   | Lập Chuyến xe nội bộ, gán xe và tài xế rảnh, sắp xếp thứ tự giao hàng                                                                                                            |
+| Tài xế         | Maker   | Sử dụng smartphone xem chuyến xe, xác nhận nhận hàng (xe rời kho), giao hàng và ký nhận POD, báo cáo giao thất bại                                                               |
+| Kế toán viên   | Maker   | Xử lý thanh toán và theo dõi công nợ trong luồng tài chính riêng                                                                                                                 |
+| Kế toán trưởng | Checker | Phê duyệt Credit Limit cho Đại lý                                                                                                                                                |
+| Trưởng kho     | Checker | Ký duyệt xuất kho (giai đoạn Warehouse Approval)                                                                                                                                 |
 
 ## 3. Functional Requirements (EARS)
 
@@ -414,45 +414,45 @@ _Vui lòng xem chi tiết API endpoints tại các tài liệu đặc tả tính
 
 ## 7. Error Handling
 
-| Error                      | HTTP | Condition                               |
-| -------------------------- | ---- | --------------------------------------- |
-| CREDIT_HOLD                | 422  | Dealer credit limit exceeded or overdue |
-| INSUFFICIENT_STOCK         | 422  | available_qty < requested_qty           |
-| VEHICLE_OVERLOAD           | 422  | Trip exceeds vehicle capacity           |
-| DO_NOT_READY               | 400  | DO is not in the required status for the requested transition |
-| DO_NOT_WAREHOUSE_APPROVED  | 400  | DO not in WAREHOUSE_APPROVED status for trip planning |
-| TRIP_DO_WAREHOUSE_MISMATCH | 422  | Selected Delivery Orders do not all belong to the same trip warehouse |
-| DO_ALREADY_ASSIGNED_TO_TRIP | 409 | Delivery Order already belongs to another active trip |
-| VEHICLE_NOT_AVAILABLE      | 422  | Vehicle is unavailable, belongs to another warehouse, under maintenance, or assigned to another active trip |
-| DRIVER_NOT_AVAILABLE       | 422  | Driver is unavailable, belongs to another warehouse, or assigned to another active trip |
-| TRIP_NOT_EDITABLE          | 422  | Trip cannot be updated or cancelled because it is no longer PLANNED |
-| TRIP_NOT_READY_TO_DEPART   | 422  | Trip cannot depart because it is not planned, is cancelled, already departed, or selected orders are not ready |
-| TRIP_NOT_READY_TO_COMPLETE | 422  | Trip cannot complete because vehicle return is not confirmed or assigned orders are not all COMPLETED/RETURNED |
-| DRIVER_NOT_ASSIGNED_TO_TRIP | 403 | Authenticated driver is not assigned to the trip |
-| STOP_ORDER_DUPLICATED      | 422  | Stop order values are duplicated within the trip |
-| QC_REPLACEMENT_REQUIRED    | 422  | QC pass quantity is lower than requested quantity and replacement is not completed |
-| QC_RESULT_QTY_INVALID      | 422  | Picked/QC quantities are negative, inconsistent, do not equal planned allocation quantity, or do not match allocation/batch/location/zone |
-| QC_RESULT_ALREADY_RECORDED | 409  | Pick/QC result for the submitted allocation has already been recorded |
-| IDEMPOTENCY_KEY_CONFLICT   | 409  | Same idempotency key is reused with a different payload |
-| PICKING_PLAN_QTY_MISMATCH  | 422  | Planned allocation quantity does not equal requested quantity |
-| PICKED_GOODS_RETURN_REQUIRED | 422 | Picking plan cannot remove or reduce a picked allocation until the request includes valid return-to-bin records for that changed allocation |
-| WAREHOUSE_REJECTED         | 422  | Warehouse manager rejected outbound release |
-| MISSING_POD                | 400  | POD signature/image required            |
-| DELIVERY_OTP_INVALID       | 400  | OTP is incorrect or not issued for this delivery order |
-| DELIVERY_OTP_EXPIRED       | 400  | OTP has expired                         |
-| DELIVERY_ATTEMPT_NOT_FOUND | 404  | Current delivery attempt does not exist for trip/order/driver |
-| DELIVERY_ATTEMPT_NOT_CURRENT | 409 | Request targets an old or terminal delivery attempt |
-| DELIVERY_ALREADY_FINALIZED | 409  | Delivery attempt is already DELIVERED, FAILED, or RETURNED |
-| POD_FILE_INVALID           | 400  | POD file is missing, not an image, or larger than 5MB |
-| DEALER_EMAIL_MISSING       | 422  | Dealer profile has no email for delivery OTP |
-| OTP_NOT_REQUESTED          | 400  | Delivery confirmation is attempted before OTP is requested |
-| OTP_STILL_ACTIVE           | 409  | Driver requested resend while the current OTP is still valid |
-| OTP_MAX_ATTEMPTS_EXCEEDED  | 423  | OTP has been entered incorrectly 3 times and requires Admin reset |
-| OTP_RESET_REQUIRED         | 423  | OTP is locked and must be reset by Admin before a new code can be generated |
-| PARTIAL_DELIVERY_NOT_ALLOWED | 422 | Request attempts to deliver less than the full Delivery Order |
-| IN_TRANSIT_STOCK_NOT_FOUND | 422  | Required In-Transit inventory rows are missing or insufficient for this DO |
-| INVENTORY_VERSION_CONFLICT | 409  | Concurrent inventory update             |
-| WAREHOUSE_SCOPE_FORBIDDEN  | 403  | User role is valid but user is not assigned to the target warehouse, trip, or delivery attempt |
+| Error                        | HTTP | Condition                                                                                                                                   |
+| ---------------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| CREDIT_HOLD                  | 422  | Dealer credit limit exceeded or overdue                                                                                                     |
+| INSUFFICIENT_STOCK           | 422  | available_qty < requested_qty                                                                                                               |
+| VEHICLE_OVERLOAD             | 422  | Trip exceeds vehicle capacity                                                                                                               |
+| DO_NOT_READY                 | 400  | DO is not in the required status for the requested transition                                                                               |
+| DO_NOT_WAREHOUSE_APPROVED    | 400  | DO not in WAREHOUSE_APPROVED status for trip planning                                                                                       |
+| TRIP_DO_WAREHOUSE_MISMATCH   | 422  | Selected Delivery Orders do not all belong to the same trip warehouse                                                                       |
+| DO_ALREADY_ASSIGNED_TO_TRIP  | 409  | Delivery Order already belongs to another active trip                                                                                       |
+| VEHICLE_NOT_AVAILABLE        | 422  | Vehicle is unavailable, belongs to another warehouse, under maintenance, or assigned to another active trip                                 |
+| DRIVER_NOT_AVAILABLE         | 422  | Driver is unavailable, belongs to another warehouse, or assigned to another active trip                                                     |
+| TRIP_NOT_EDITABLE            | 422  | Trip cannot be updated or cancelled because it is no longer PLANNED                                                                         |
+| TRIP_NOT_READY_TO_DEPART     | 422  | Trip cannot depart because it is not planned, is cancelled, already departed, or selected orders are not ready                              |
+| TRIP_NOT_READY_TO_COMPLETE   | 422  | Trip cannot complete because vehicle return is not confirmed or assigned orders are not all COMPLETED/RETURNED                              |
+| DRIVER_NOT_ASSIGNED_TO_TRIP  | 403  | Authenticated driver is not assigned to the trip                                                                                            |
+| STOP_ORDER_DUPLICATED        | 422  | Stop order values are duplicated within the trip                                                                                            |
+| QC_REPLACEMENT_REQUIRED      | 422  | QC pass quantity is lower than requested quantity and replacement is not completed                                                          |
+| QC_RESULT_QTY_INVALID        | 422  | Picked/QC quantities are negative, inconsistent, do not equal planned allocation quantity, or do not match allocation/batch/location/zone   |
+| QC_RESULT_ALREADY_RECORDED   | 409  | Pick/QC result for the submitted allocation has already been recorded                                                                       |
+| IDEMPOTENCY_KEY_CONFLICT     | 409  | Same idempotency key is reused with a different payload                                                                                     |
+| PICKING_PLAN_QTY_MISMATCH    | 422  | Planned allocation quantity does not equal requested quantity                                                                               |
+| PICKED_GOODS_RETURN_REQUIRED | 422  | Picking plan cannot remove or reduce a picked allocation until the request includes valid return-to-bin records for that changed allocation |
+| WAREHOUSE_REJECTED           | 422  | Warehouse manager rejected outbound release                                                                                                 |
+| MISSING_POD                  | 400  | POD signature/image required                                                                                                                |
+| DELIVERY_OTP_INVALID         | 400  | OTP is incorrect or not issued for this delivery order                                                                                      |
+| DELIVERY_OTP_EXPIRED         | 400  | OTP has expired                                                                                                                             |
+| DELIVERY_ATTEMPT_NOT_FOUND   | 404  | Current delivery attempt does not exist for trip/order/driver                                                                               |
+| DELIVERY_ATTEMPT_NOT_CURRENT | 409  | Request targets an old or terminal delivery attempt                                                                                         |
+| DELIVERY_ALREADY_FINALIZED   | 409  | Delivery attempt is already DELIVERED, FAILED, or RETURNED                                                                                  |
+| POD_FILE_INVALID             | 400  | POD file is missing, not an image, or larger than 5MB                                                                                       |
+| DEALER_EMAIL_MISSING         | 422  | Dealer profile has no email for delivery OTP                                                                                                |
+| OTP_NOT_REQUESTED            | 400  | Delivery confirmation is attempted before OTP is requested                                                                                  |
+| OTP_STILL_ACTIVE             | 409  | Driver requested resend while the current OTP is still valid                                                                                |
+| OTP_MAX_ATTEMPTS_EXCEEDED    | 423  | OTP has been entered incorrectly 3 times and requires Admin reset                                                                           |
+| OTP_RESET_REQUIRED           | 423  | OTP is locked and must be reset by Admin before a new code can be generated                                                                 |
+| PARTIAL_DELIVERY_NOT_ALLOWED | 422  | Request attempts to deliver less than the full Delivery Order                                                                               |
+| IN_TRANSIT_STOCK_NOT_FOUND   | 422  | Required In-Transit inventory rows are missing or insufficient for this DO                                                                  |
+| INVENTORY_VERSION_CONFLICT   | 409  | Concurrent inventory update                                                                                                                 |
+| WAREHOUSE_SCOPE_FORBIDDEN    | 403  | User role is valid but user is not assigned to the target warehouse, trip, or delivery attempt                                              |
 
 ### Audit Trail
 

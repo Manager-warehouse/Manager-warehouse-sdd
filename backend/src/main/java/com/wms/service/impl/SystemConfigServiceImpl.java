@@ -44,22 +44,28 @@ public class SystemConfigServiceImpl implements SystemConfigService {
     @Override
     @Transactional
     public SystemConfigResponse updateConfig(String configKey, SystemConfigUpdateRequest request, Long adminUserId) {
-        SystemConfig config = systemConfigRepository.findByConfigKey(configKey)
-                .orElseThrow(() -> new ResourceNotFoundException("Configuration not found for key: " + configKey));
-
         String newValue = request.getConfigValue();
-        validateConfigValue(configKey, newValue);
+        SystemConfigKey configEnum;
+        try {
+            configEnum = SystemConfigKey.valueOf(configKey);
+        } catch (IllegalArgumentException e) {
+            throw new ResourceNotFoundException("Configuration not found for key: " + configKey);
+        }
+        validateConfigValue(configEnum, newValue);
 
         User adminUser = userRepository.findById(adminUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + adminUserId));
+        SystemConfig config = systemConfigRepository.findByConfigKey(configKey)
+                .orElseGet(() -> SystemConfig.builder()
+                        .configKey(configKey)
+                        .description(resolveDefaultDescription(configKey))
+                        .build());
 
         String oldValue = config.getConfigValue();
-        
-        // Update config
         config.setConfigValue(newValue);
         config.setUpdatedBy(adminUser);
         config.setUpdatedAt(OffsetDateTime.now());
-        
+
         SystemConfig savedConfig = systemConfigRepository.save(config);
 
         // Record Audit Log
@@ -69,6 +75,10 @@ public class SystemConfigServiceImpl implements SystemConfigService {
                 .action(AuditAction.UPDATE)
                 .entityType("SystemConfig")
                 .entityId(savedConfig.getId())
+                .description(AuditLogUtil.generateDescription(
+                        AuditAction.UPDATE,
+                        "SystemConfig",
+                        savedConfig.getConfigKey()))
                 .oldValue(AuditLogUtil.toJson(Map.of("config_value", oldValue != null ? oldValue : "")))
                 .newValue(AuditLogUtil.toJson(Map.of("config_value", newValue)))
                 .timestamp(OffsetDateTime.now())
@@ -78,16 +88,25 @@ public class SystemConfigServiceImpl implements SystemConfigService {
         return systemConfigMapper.toResponse(savedConfig);
     }
 
-    private void validateConfigValue(String keyStr, String value) {
+    private String resolveDefaultDescription(String configKey) {
+        try {
+            SystemConfigKey key = SystemConfigKey.valueOf(configKey);
+            return switch (key) {
+                case DEFAULT_CREDIT_LIMIT -> "Hạn mức công nợ mặc định (VNĐ)";
+                case DEFAULT_PAYMENT_TERM_DAYS -> "Kỳ hạn thanh toán mặc định (ngày)";
+                case CREDIT_HOLD_OVERDUE_DAYS -> "Số ngày quá hạn trước khi khóa tín dụng";
+                case CREDIT_UNLOCK_BUFFER_PCT -> "Ngưỡng mở khóa tín dụng";
+                case MONTHLY_CLOSING_DAY -> "Ngày khóa sổ kỳ kế toán hàng tháng";
+                case MIN_INVENTORY_WARNING_THRESHOLD -> "Ngưỡng cảnh báo tồn kho tối thiểu mặc định";
+            };
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    private void validateConfigValue(SystemConfigKey key, String value) {
         if (value == null || value.trim().isEmpty()) {
             throw new IllegalArgumentException("Value cannot be empty");
-        }
-
-        SystemConfigKey key;
-        try {
-            key = SystemConfigKey.valueOf(keyStr);
-        } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Unknown config key: " + keyStr);
         }
 
         try {
@@ -118,7 +137,7 @@ public class SystemConfigServiceImpl implements SystemConfigService {
                     break;
             }
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Invalid number format for key: " + keyStr);
+            throw new IllegalArgumentException("Invalid number format for key: " + key.name());
         }
     }
 }
