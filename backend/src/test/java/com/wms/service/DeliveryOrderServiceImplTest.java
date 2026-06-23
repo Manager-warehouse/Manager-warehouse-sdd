@@ -66,6 +66,7 @@ import com.wms.repository.QuarantineRecordRepository;
 import com.wms.repository.UserWarehouseAssignmentRepository;
 import com.wms.repository.WarehouseProductReservationRepository;
 import com.wms.repository.WarehouseRepository;
+import com.wms.service.PriceHistoryService;
 import com.wms.service.impl.DeliveryOrderServiceImpl;
 import com.wms.util.PartnerAuditUtil;
 import jakarta.persistence.EntityManager;
@@ -105,6 +106,7 @@ class DeliveryOrderServiceImplTest {
     @Mock private WarehouseProductReservationRepository reservationRepository;
     @Mock private UserWarehouseAssignmentRepository assignmentRepository;
     @Mock private PartnerEligibilityService partnerEligibilityService;
+    @Mock private PriceHistoryService priceHistoryService;
     @Mock private PartnerAuditUtil auditUtil;
     @Mock private EntityManager entityManager;
 
@@ -131,7 +133,8 @@ class DeliveryOrderServiceImplTest {
                 dealerRepository, warehouseRepository, productRepository, inventoryRepository,
                 invoiceRepository, outboundQcRecordRepository, quarantineRecordRepository, adjustmentRepository,
                 priceHistoryRepository, reservationRepository, assignmentRepository,
-                partnerEligibilityService, new DeliveryOrderMapper(), auditUtil, entityManager);
+                partnerEligibilityService, new DeliveryOrderMapper(), auditUtil, entityManager,
+                priceHistoryService);
         planner = user(1L, UserRole.PLANNER);
         manager = user(2L, UserRole.WAREHOUSE_MANAGER);
         dealer = dealer(10L, new BigDecimal("480.00"), new BigDecimal("500.00"), CreditStatus.ACTIVE);
@@ -562,7 +565,7 @@ class DeliveryOrderServiceImplTest {
         when(deliveryOrderItemRepository.findByDeliveryOrderId(100L)).thenReturn(List.of(item));
         when(allocationRepository.findByDeliveryOrderItemDeliveryOrderId(100L)).thenReturn(List.of(existingAllocation));
         when(inventoryRepository.findByIdInWithLock(List.of(501L, 502L))).thenReturn(List.of(inventory, inventory2));
-        when(entityManager.getReference(WarehouseLocation.class, 880L)).thenReturn(sourceBin);
+        when(entityManager.find(WarehouseLocation.class, 880L)).thenReturn(sourceBin);
         when(inventoryRepository.findConcreteReservationRows(20L, 30L, 71L, 880L)).thenReturn(List.of());
 
         DeliveryOrderPickingPlanRequest request = new DeliveryOrderPickingPlanRequest();
@@ -1068,8 +1071,8 @@ class DeliveryOrderServiceImplTest {
         when(assignmentRepository.findWarehouseIdsByUserId(1L)).thenReturn(List.of(20L));
         when(dealerRepository.findById(10L)).thenReturn(Optional.of(dealer));
         when(productRepository.findByIdAndIsActiveTrue(30L)).thenReturn(Optional.of(product));
-        when(priceHistoryRepository.findEffectivePrices(30L, PriceHistoryStatus.APPROVED, LocalDate.of(2026, 6, 18)))
-                .thenReturn(List.of(price));
+        when(priceHistoryService.lookupApproved(30L, 20L, LocalDate.of(2026, 6, 18)))
+                .thenReturn(Optional.of(price));
     }
 
     private DeliveryOrderCreateRequest validRequest(BigDecimal qty) {

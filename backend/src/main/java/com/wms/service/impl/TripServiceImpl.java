@@ -1,6 +1,5 @@
 package com.wms.service.impl;
 
-<<<<<<< HEAD
 import com.wms.dto.request.TripCancelRequest;
 import com.wms.dto.request.TripCompleteRequest;
 import com.wms.dto.request.TripCreateRequest;
@@ -9,17 +8,12 @@ import com.wms.dto.request.TripDepartRequest;
 import com.wms.dto.request.TripUpdateRequest;
 import com.wms.dto.response.TripDeliveryOrderResponse;
 import com.wms.dto.response.TripResponse;
-=======
->>>>>>> main
 import com.wms.entity.Delivery;
 import com.wms.entity.DeliveryOrder;
 import com.wms.entity.DeliveryOrderItem;
 import com.wms.entity.Driver;
 import com.wms.entity.Inventory;
-<<<<<<< HEAD
 import com.wms.entity.OutboundQcRecord;
-=======
->>>>>>> main
 import com.wms.entity.Trip;
 import com.wms.entity.TripDeliveryOrder;
 import com.wms.entity.User;
@@ -34,7 +28,6 @@ import com.wms.enums.TripStatus;
 import com.wms.enums.TripType;
 import com.wms.enums.VehicleStatus;
 import com.wms.enums.WarehouseType;
-<<<<<<< HEAD
 import com.wms.exception.OutboundDeliveryException;
 import com.wms.exception.ResourceNotFoundException;
 import com.wms.repository.DeliveryOrderItemRepository;
@@ -44,23 +37,14 @@ import com.wms.repository.DriverRepository;
 import com.wms.repository.InventoryRepository;
 import com.wms.repository.OutboundQcRecordRepository;
 import com.wms.repository.TripDeliveryOrderRepository;
-=======
-import com.wms.exception.ResourceNotFoundException;
-import com.wms.repository.DeliveryOrderItemRepository;
-import com.wms.repository.DeliveryOrderRepository;
-import com.wms.repository.DriverRepository;
-import com.wms.repository.InventoryRepository;
->>>>>>> main
 import com.wms.repository.TripRepository;
 import com.wms.repository.UserWarehouseAssignmentRepository;
 import com.wms.repository.VehicleRepository;
 import com.wms.repository.WarehouseLocationRepository;
 import com.wms.repository.WarehouseRepository;
 import com.wms.service.AuditLogService;
-<<<<<<< HEAD
 import com.wms.service.TripService;
-=======
->>>>>>> main
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -85,13 +69,8 @@ public class TripServiceImpl implements TripService {
 
     private static final BigDecimal ZERO = BigDecimal.ZERO;
     private static final List<TripStatus> ACTIVE_TRIP_STATUSES = List.of(TripStatus.PLANNED, TripStatus.IN_TRANSIT);
-<<<<<<< HEAD
-    private static final List<DeliveryOrderStatus> TERMINAL_DO_STATUSES =
-            List.of(DeliveryOrderStatus.COMPLETED, DeliveryOrderStatus.RETURNED);
-=======
     private static final List<DeliveryOrderStatus> TERMINAL_DO_STATUSES = List.of(DeliveryOrderStatus.COMPLETED,
             DeliveryOrderStatus.RETURNED);
->>>>>>> main
 
     private final TripRepository tripRepository;
     private final TripDeliveryOrderRepository tripDeliveryOrderRepository;
@@ -108,20 +87,6 @@ public class TripServiceImpl implements TripService {
     private final AuditLogService auditLogService;
 
     public TripServiceImpl(TripRepository tripRepository,
-<<<<<<< HEAD
-                           TripDeliveryOrderRepository tripDeliveryOrderRepository,
-                           DeliveryRepository deliveryRepository,
-                           DeliveryOrderRepository deliveryOrderRepository,
-                           DeliveryOrderItemRepository deliveryOrderItemRepository,
-                           VehicleRepository vehicleRepository,
-                           DriverRepository driverRepository,
-                           WarehouseRepository warehouseRepository,
-                           WarehouseLocationRepository warehouseLocationRepository,
-                           InventoryRepository inventoryRepository,
-                           OutboundQcRecordRepository outboundQcRecordRepository,
-                           UserWarehouseAssignmentRepository assignmentRepository,
-                           AuditLogService auditLogService) {
-=======
             TripDeliveryOrderRepository tripDeliveryOrderRepository,
             DeliveryRepository deliveryRepository,
             DeliveryOrderRepository deliveryOrderRepository,
@@ -134,7 +99,6 @@ public class TripServiceImpl implements TripService {
             OutboundQcRecordRepository outboundQcRecordRepository,
             UserWarehouseAssignmentRepository assignmentRepository,
             AuditLogService auditLogService) {
->>>>>>> main
         this.tripRepository = tripRepository;
         this.tripDeliveryOrderRepository = tripDeliveryOrderRepository;
         this.deliveryRepository = deliveryRepository;
@@ -186,13 +150,9 @@ public class TripServiceImpl implements TripService {
                 .vehicle(vehicle)
                 .driver(driver)
                 .dispatcher(actor)
-<<<<<<< HEAD
+                .plannedDate(request.getPlannedStartAt().toLocalDate())
                 .plannedStartAt(request.getPlannedStartAt())
                 .plannedEndAt(request.getPlannedEndAt())
-=======
-                .plannedDate(request.getPlannedDate())
-                .plannedStartAt(request.getPlannedStartAt())
->>>>>>> main
                 .tripType(TripType.DELIVERY)
                 .status(TripStatus.PLANNED)
                 .totalWeightKg(capacity.weight())
@@ -227,16 +187,12 @@ public class TripServiceImpl implements TripService {
 
         trip.setVehicle(vehicle);
         trip.setDriver(driver);
-<<<<<<< HEAD
         if (request.getPlannedStartAt() != null) {
+            trip.setPlannedDate(request.getPlannedStartAt().toLocalDate());
             trip.setPlannedStartAt(request.getPlannedStartAt());
         }
         if (request.getPlannedEndAt() != null) {
             trip.setPlannedEndAt(request.getPlannedEndAt());
-=======
-        if (request.getPlannedDate() != null) {
-            trip.setPlannedDate(request.getPlannedDate());
->>>>>>> main
         }
         trip.setNotes(request.getNotes());
         trip.setTotalWeightKg(capacity.weight());
@@ -321,24 +277,15 @@ public class TripServiceImpl implements TripService {
     }
 
     private List<DeliveryOrder> validateOrders(List<TripDeliveryOrderRequest> rows,
-<<<<<<< HEAD
-                                               Long warehouseId,
-                                               Long excludedTripId) {
-=======
             Long warehouseId,
             Long excludedTripId) {
->>>>>>> main
         validateStopOrders(rows);
         List<Long> ids = rows.stream().map(TripDeliveryOrderRequest::getDoId).distinct().toList();
         if (ids.size() != rows.size()) {
             throw rule("DUPLICATE_DELIVERY_ORDER", "Delivery orders must be unique within a trip");
         }
-<<<<<<< HEAD
-        if (tripDeliveryOrderRepository.existsActiveAssignmentForAnyDeliveryOrder(ids, ACTIVE_TRIP_STATUSES, excludedTripId)) {
-=======
         if (tripDeliveryOrderRepository.existsActiveAssignmentForAnyDeliveryOrder(ids, ACTIVE_TRIP_STATUSES,
                 excludedTripId)) {
->>>>>>> main
             throw conflict("DO_ALREADY_ASSIGNED_TO_TRIP", "Delivery order already belongs to an active trip");
         }
         Map<Long, DeliveryOrder> orders = deliveryOrderRepository.findDetailedByIdIn(ids).stream()
@@ -363,12 +310,8 @@ public class TripServiceImpl implements TripService {
                 .stream().collect(Collectors.groupingBy(i -> i.getDeliveryOrder().getId()));
         validateFullQcPass(orders, itemsByOrder);
         Warehouse transitWarehouse = warehouseRepository.findFirstByTypeAndIsActiveTrue(WarehouseType.IN_TRANSIT)
-<<<<<<< HEAD
-                .orElseThrow(() -> rule("IN_TRANSIT_WAREHOUSE_NOT_CONFIGURED", "In-transit warehouse is not configured"));
-=======
                 .orElseThrow(
                         () -> rule("IN_TRANSIT_WAREHOUSE_NOT_CONFIGURED", "In-transit warehouse is not configured"));
->>>>>>> main
         WarehouseLocation transitLocation = warehouseLocationRepository
                 .findFirstByWarehouseIdAndIsActiveTrue(transitWarehouse.getId())
                 .orElseThrow(() -> rule("IN_TRANSIT_LOCATION_NOT_CONFIGURED", "In-transit location is not configured"));
@@ -390,41 +333,25 @@ public class TripServiceImpl implements TripService {
         itemsByOrder.values().forEach(deliveryOrderItemRepository::saveAll);
     }
 
-<<<<<<< HEAD
-    private BigDecimal moveRecord(OutboundQcRecord record, Warehouse transitWarehouse, WarehouseLocation transitLocation) {
-=======
     private BigDecimal moveRecord(OutboundQcRecord record, Warehouse transitWarehouse,
             WarehouseLocation transitLocation) {
->>>>>>> main
         BigDecimal qty = value(record.getQcPassQty());
         if (qty.compareTo(ZERO) <= 0 || record.getStagingLocation() == null) {
             return ZERO;
         }
         Inventory staging = inventoryRepository.findConcreteRowForTripMovement(
-<<<<<<< HEAD
-                        record.getDeliveryOrder().getWarehouse().getId(),
-                        record.getDeliveryOrderItem().getProduct().getId(),
-                        record.getBatch().getId(),
-                        record.getStagingLocation().getId())
-=======
                 record.getDeliveryOrder().getWarehouse().getId(),
                 record.getDeliveryOrderItem().getProduct().getId(),
                 record.getBatch().getId(),
                 record.getStagingLocation().getId())
->>>>>>> main
                 .orElseThrow(() -> notFound("Staging inventory not found"));
         staging.setTotalQty(subtract(staging.getTotalQty(), qty, "STAGED_QC_PASS_QTY_INSUFFICIENT"));
         staging.setReservedQty(subtract(staging.getReservedQty(), qty, "STAGED_QC_PASS_QTY_INSUFFICIENT"));
         staging.setUpdatedAt(OffsetDateTime.now());
         saveInventory(staging);
         Inventory transit = inventoryRepository.findConcreteRowForTripMovement(
-<<<<<<< HEAD
-                        transitWarehouse.getId(), record.getDeliveryOrderItem().getProduct().getId(),
-                        record.getBatch().getId(), transitLocation.getId())
-=======
                 transitWarehouse.getId(), record.getDeliveryOrderItem().getProduct().getId(),
                 record.getBatch().getId(), transitLocation.getId())
->>>>>>> main
                 .orElseGet(() -> newTransitInventory(record, transitWarehouse, transitLocation, staging));
         transit.setTotalQty(value(transit.getTotalQty()).add(qty));
         transit.setReservedQty(value(transit.getReservedQty()));
@@ -454,12 +381,8 @@ public class TripServiceImpl implements TripService {
     }
 
     private void saveMembership(Trip trip, List<TripDeliveryOrderRequest> rows, List<DeliveryOrder> orders) {
-<<<<<<< HEAD
-        Map<Long, DeliveryOrder> byId = orders.stream().collect(Collectors.toMap(DeliveryOrder::getId, Function.identity()));
-=======
         Map<Long, DeliveryOrder> byId = orders.stream()
                 .collect(Collectors.toMap(DeliveryOrder::getId, Function.identity()));
->>>>>>> main
         List<TripDeliveryOrder> members = rows.stream()
                 .sorted(Comparator.comparing(TripDeliveryOrderRequest::getStopOrder))
                 .map(row -> TripDeliveryOrder.builder()
@@ -494,12 +417,8 @@ public class TripServiceImpl implements TripService {
         for (DeliveryOrder order : orders) {
             for (DeliveryOrderItem item : itemsByOrder.getOrDefault(order.getId(), List.of())) {
                 if (value(item.getQcPassQty()).compareTo(value(item.getRequestedQty())) != 0) {
-<<<<<<< HEAD
-                    throw rule("STAGED_QC_PASS_QTY_INSUFFICIENT", "QC-passed quantity must fully cover requested quantity");
-=======
                     throw rule("STAGED_QC_PASS_QTY_INSUFFICIENT",
                             "QC-passed quantity must fully cover requested quantity");
->>>>>>> main
                 }
             }
         }
@@ -599,12 +518,8 @@ public class TripServiceImpl implements TripService {
     }
 
     private TripResponse toResponse(Trip trip) {
-<<<<<<< HEAD
-        List<TripDeliveryOrderResponse> orders = tripDeliveryOrderRepository.findByTripIdOrderByStopOrderAsc(trip.getId())
-=======
         List<TripDeliveryOrderResponse> orders = tripDeliveryOrderRepository
                 .findByTripIdOrderByStopOrderAsc(trip.getId())
->>>>>>> main
                 .stream()
                 .map(row -> TripDeliveryOrderResponse.builder()
                         .doId(row.getDeliveryOrder().getId())
@@ -621,12 +536,9 @@ public class TripServiceImpl implements TripService {
                 .vehicleId(trip.getVehicle().getId())
                 .driverId(trip.getDriver().getId())
                 .dispatcherId(trip.getDispatcher().getId())
-<<<<<<< HEAD
+                .plannedDate(trip.getPlannedDate())
                 .plannedStartAt(trip.getPlannedStartAt())
                 .plannedEndAt(trip.getPlannedEndAt())
-=======
-                .plannedDate(trip.getPlannedDate())
->>>>>>> main
                 .tripType(trip.getTripType())
                 .status(trip.getStatus())
                 .totalWeightKg(trip.getTotalWeightKg())
@@ -640,11 +552,7 @@ public class TripServiceImpl implements TripService {
     }
 
     private void auditTrip(User actor, AuditAction action, Trip trip,
-<<<<<<< HEAD
-                           Map<String, Object> before, Map<String, Object> after) {
-=======
             Map<String, Object> before, Map<String, Object> after) {
->>>>>>> main
         auditLogService.log(actor, action, "TRIP", trip.getId(), trip.getTripNumber(),
                 trip.getWarehouse().getId(), before, after);
     }
@@ -672,15 +580,9 @@ public class TripServiceImpl implements TripService {
     }
 
     private Inventory newTransitInventory(OutboundQcRecord record,
-<<<<<<< HEAD
-                                          Warehouse transitWarehouse,
-                                          WarehouseLocation transitLocation,
-                                          Inventory staging) {
-=======
             Warehouse transitWarehouse,
             WarehouseLocation transitLocation,
             Inventory staging) {
->>>>>>> main
         return Inventory.builder()
                 .warehouse(transitWarehouse)
                 .product(record.getDeliveryOrderItem().getProduct())

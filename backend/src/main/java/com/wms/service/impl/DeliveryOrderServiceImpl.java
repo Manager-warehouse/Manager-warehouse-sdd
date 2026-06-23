@@ -22,16 +22,12 @@ import com.wms.entity.Batch;
 import com.wms.entity.Dealer;
 import com.wms.entity.DeliveryOrder;
 import com.wms.entity.DeliveryOrderItem;
-<<<<<<< HEAD
 import com.wms.entity.DeliveryOrderItemAllocation;
 import com.wms.entity.DeliveryOrderItemReplacement;
 import com.wms.entity.DeliveryOrderItemReturnToBinRecord;
 import com.wms.entity.DeliveryOrderWarehouseApproval;
 import com.wms.entity.Inventory;
 import com.wms.entity.OutboundQcRecord;
-=======
->>>>>>> main
-import com.wms.entity.PriceHistory;
 import com.wms.entity.Product;
 import com.wms.entity.QuarantineRecord;
 import com.wms.entity.User;
@@ -43,16 +39,12 @@ import com.wms.enums.AdjustmentType;
 import com.wms.enums.ApprovalResult;
 import com.wms.enums.CreditStatus;
 import com.wms.enums.DeliveryOrderStatus;
-<<<<<<< HEAD
 import com.wms.enums.InvoiceStatus;
 import com.wms.enums.LocationType;
-import com.wms.enums.PriceHistoryStatus;
 import com.wms.enums.UserRole;
 import com.wms.enums.WarehouseType;
 import com.wms.exception.OutboundDeliveryException;
-=======
 import com.wms.exception.PriceHistoryException;
->>>>>>> main
 import com.wms.exception.ResourceNotFoundException;
 import com.wms.mapper.DeliveryOrderMapper;
 import com.wms.repository.DealerRepository;
@@ -78,12 +70,9 @@ import com.wms.service.PriceHistoryService;
 import com.wms.util.PartnerAuditUtil;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
-<<<<<<< HEAD
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-=======
->>>>>>> main
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -138,27 +127,27 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     private final PriceHistoryService priceHistoryService;
 
     public DeliveryOrderServiceImpl(DeliveryOrderRepository deliveryOrderRepository,
-                                    DeliveryOrderItemRepository deliveryOrderItemRepository,
-                                    DeliveryOrderItemAllocationRepository allocationRepository,
-                                    DeliveryOrderItemReturnToBinRecordRepository returnToBinRecordRepository,
-                                    DeliveryOrderItemReplacementRepository replacementRepository,
-                                    DeliveryOrderWarehouseApprovalRepository deliveryOrderWarehouseApprovalRepository,
-                                    DealerRepository dealerRepository,
-                                    WarehouseRepository warehouseRepository,
-                                    ProductRepository productRepository,
-                                    InventoryRepository inventoryRepository,
-                                    InvoiceRepository invoiceRepository,
-                                    OutboundQcRecordRepository outboundQcRecordRepository,
-                                    QuarantineRecordRepository quarantineRecordRepository,
-                                    AdjustmentRepository adjustmentRepository,
-                                    PriceHistoryRepository priceHistoryRepository,
-                                    WarehouseProductReservationRepository reservationRepository,
-                                    UserWarehouseAssignmentRepository assignmentRepository,
-                                    PartnerEligibilityService partnerEligibilityService,
-                                    DeliveryOrderMapper deliveryOrderMapper,
-                                    PartnerAuditUtil auditUtil,
-                                    EntityManager entityManager,
-                                    PriceHistoryService priceHistoryService) {
+            DeliveryOrderItemRepository deliveryOrderItemRepository,
+            DeliveryOrderItemAllocationRepository allocationRepository,
+            DeliveryOrderItemReturnToBinRecordRepository returnToBinRecordRepository,
+            DeliveryOrderItemReplacementRepository replacementRepository,
+            DeliveryOrderWarehouseApprovalRepository deliveryOrderWarehouseApprovalRepository,
+            DealerRepository dealerRepository,
+            WarehouseRepository warehouseRepository,
+            ProductRepository productRepository,
+            InventoryRepository inventoryRepository,
+            InvoiceRepository invoiceRepository,
+            OutboundQcRecordRepository outboundQcRecordRepository,
+            QuarantineRecordRepository quarantineRecordRepository,
+            AdjustmentRepository adjustmentRepository,
+            PriceHistoryRepository priceHistoryRepository,
+            WarehouseProductReservationRepository reservationRepository,
+            UserWarehouseAssignmentRepository assignmentRepository,
+            PartnerEligibilityService partnerEligibilityService,
+            DeliveryOrderMapper deliveryOrderMapper,
+            PartnerAuditUtil auditUtil,
+            EntityManager entityManager,
+            PriceHistoryService priceHistoryService) {
         this.deliveryOrderRepository = deliveryOrderRepository;
         this.deliveryOrderItemRepository = deliveryOrderItemRepository;
         this.allocationRepository = allocationRepository;
@@ -239,7 +228,10 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         return result;
     }
 
-    /** Maps an Inventory row + the parent zone (location.parent) to a PickingCandidateResponse. */
+    /**
+     * Maps an Inventory row + the parent zone (location.parent) to a
+     * PickingCandidateResponse.
+     */
     private PickingCandidateResponse toPickingCandidate(Inventory inv, DeliveryOrderItem item) {
         WarehouseLocation bin = inv.getLocation();
         // Parent of a BIN is the ZONE; parent of a ZONE is null
@@ -293,9 +285,10 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         order.setCreatedAt(now);
         order.setUpdatedAt(now);
 
-        LocalDate today = now.toLocalDate();
+        LocalDate today = request.getDocumentDate();
         Long warehouseId = request.getWarehouseId();
-        // Validate all lines have an approved price for this warehouse before creating anything
+        // Validate all lines have an approved price for this warehouse before creating
+        // anything
         List<Long> missingPrice = request.getItems().stream()
                 .map(i -> i.getProductId())
                 .distinct()
@@ -306,17 +299,9 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         }
 
         DeliveryOrder saved = deliveryOrderRepository.save(order);
-<<<<<<< HEAD
         List<Map<String, Object>> reservationDeltas = reserveWarehouseProducts(warehouse, requestedByProduct, now);
         List<DeliveryOrderItem> savedItems = itemPlans.stream()
                 .map(plan -> toEntity(plan, saved))
-=======
-        List<DeliveryOrderItem> savedItems = request.getItems().stream()
-                .map(item -> {
-                    PriceHistory price = priceHistoryService.lookupApproved(item.getProductId(), warehouseId, today).get();
-                    return toEntity(item, saved, price);
-                })
->>>>>>> main
                 .map(deliveryOrderItemRepository::save)
                 .toList();
 
@@ -377,8 +362,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     @Override
     @Transactional
     public DeliveryOrderResponse saveDeliveryOrderPickingPlan(Long id,
-                                                              DeliveryOrderPickingPlanRequest request,
-                                                              User actor) {
+            DeliveryOrderPickingPlanRequest request,
+            User actor) {
         requireRole(actor, UserRole.STOREKEEPER, "Only Storekeeper can save picking plans");
         DeliveryOrder order = findOrder(id);
         requireWarehouseScope(actor, order.getWarehouse().getId());
@@ -392,10 +377,10 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         List<DeliveryOrderItemAllocation> existingAllocations = allocations(order.getId());
         Map<String, Object> before = snapshot(order, null, List.of(), orderItems, existingAllocations);
 
-        List<DeliveryOrderAllocationRequest> allocationRequests =
-                preparePickingPlanRequests(order, orderItems, request.getAllocations());
-        List<ResolvedAllocationSelection> requestedSelections =
-                resolvePickingSelections(order, orderItems, existingAllocations, allocationRequests, actor);
+        List<DeliveryOrderAllocationRequest> allocationRequests = preparePickingPlanRequests(order, orderItems,
+                request.getAllocations());
+        List<ResolvedAllocationSelection> requestedSelections = resolvePickingSelections(order, orderItems,
+                existingAllocations, allocationRequests, actor);
         validateRequestedItemTotals(orderItems, requestedSelections);
 
         OffsetDateTime now = OffsetDateTime.now();
@@ -423,8 +408,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     }
 
     private List<DeliveryOrderAllocationRequest> preparePickingPlanRequests(DeliveryOrder order,
-                                                                            List<DeliveryOrderItem> orderItems,
-                                                                            List<DeliveryOrderAllocationRequest> requests) {
+            List<DeliveryOrderItem> orderItems,
+            List<DeliveryOrderAllocationRequest> requests) {
         List<DeliveryOrderAllocationRequest> safeRequests = Optional.ofNullable(requests).orElse(List.of());
         if (!safeRequests.isEmpty()) {
             return safeRequests;
@@ -438,8 +423,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     @Override
     @Transactional
     public DeliveryOrderResponse saveDeliveryOrderPickQcResult(Long id,
-                                                               DeliveryOrderPickQcResultRequest request,
-                                                               User actor) {
+            DeliveryOrderPickQcResultRequest request,
+            User actor) {
         requireRole(actor, UserRole.WAREHOUSE_STAFF, "Only Warehouse Staff can save pick/QC results");
         DeliveryOrder order = findOrder(id);
         requireWarehouseScope(actor, order.getWarehouse().getId());
@@ -471,7 +456,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         List<OutboundQcRecord> existingRows = outboundQcRecordRepository.findByAllocationIdIn(
                 orderAllocations.stream().map(DeliveryOrderItemAllocation::getId).toList());
         Map<Long, OutboundQcRecord> qcByAllocationId = existingRows.stream()
-                .collect(Collectors.toMap(row -> row.getAllocation().getId(), Function.identity(), (left, right) -> left));
+                .collect(Collectors.toMap(row -> row.getAllocation().getId(), Function.identity(),
+                        (left, right) -> left));
 
         List<DeliveryOrderItemAllocation> activeAllocations = orderAllocations.stream()
                 .filter(allocation -> !qcByAllocationId.containsKey(allocation.getId()))
@@ -484,7 +470,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
 
         Map<Long, DeliveryOrderItemAllocation> activeAllocationById = activeAllocations.stream()
                 .collect(Collectors.toMap(DeliveryOrderItemAllocation::getId, Function.identity()));
-        validatePickQcRequest(order, orderItems, request.getResults(), activeAllocations, allocationsById, qcByAllocationId);
+        validatePickQcRequest(order, orderItems, request.getResults(), activeAllocations, allocationsById,
+                qcByAllocationId);
 
         OffsetDateTime now = OffsetDateTime.now();
         for (DeliveryOrderPickQcRowRequest row : request.getResults()) {
@@ -499,7 +486,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
             sourceInventory.setUpdatedAt(now);
             saveInventoryWithConflictHandling(sourceInventory);
 
-            WarehouseLocation stagingLocation = resolveWarehouseLocation(order, row.getStagingLocationId(), false, "staging");
+            WarehouseLocation stagingLocation = resolveWarehouseLocation(order, row.getStagingLocationId(), false,
+                    "staging");
             Inventory stagingInventory = null;
             if (value(row.getQcPassQty()).compareTo(ZERO) > 0) {
                 stagingInventory = loadOrCreateInventoryRow(order, item.getProduct(), allocation.getBatch(),
@@ -515,7 +503,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
             Adjustment adjustment = null;
             if (value(row.getQcFailQty()).compareTo(ZERO) > 0) {
                 quarantineLocation = resolveWarehouseLocation(order, row.getQuarantineLocationId(), true, "quarantine");
-                Inventory quarantineInventory = loadOrCreateInventoryRow(order, item.getProduct(), allocation.getBatch(),
+                Inventory quarantineInventory = loadOrCreateInventoryRow(order, item.getProduct(),
+                        allocation.getBatch(),
                         quarantineLocation, sourceInventory, true, now);
                 quarantineInventory.setTotalQty(value(quarantineInventory.getTotalQty()).add(row.getQcFailQty()));
                 quarantineInventory.setUpdatedAt(now);
@@ -609,15 +598,16 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         DeliveryOrder saved = deliveryOrderRepository.save(order);
 
         auditUtil.logChange(actor, AuditAction.DELIVERY_ORDER_PICK_COMPLETE, "DELIVERY_ORDER",
-                saved.getId(), saved.getDoNumber(), before, snapshot(saved, null, List.of(), orderItems, orderAllocations));
+                saved.getId(), saved.getDoNumber(), before,
+                snapshot(saved, null, List.of(), orderItems, orderAllocations));
         return deliveryOrderMapper.toResponse(saved, orderItems, allocations(saved.getId()));
     }
 
     @Override
     @Transactional
     public DeliveryOrderResponse saveDeliveryOrderReplacementPlan(Long id,
-                                                                  DeliveryOrderReplacementPlanRequest request,
-                                                                  User actor) {
+            DeliveryOrderReplacementPlanRequest request,
+            User actor) {
         requireRole(actor, UserRole.STOREKEEPER, "Only Storekeeper can save replacement plans");
         DeliveryOrder order = findOrder(id);
         requireWarehouseScope(actor, order.getWarehouse().getId());
@@ -631,17 +621,19 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         List<DeliveryOrderItemAllocation> orderAllocations = allocations(order.getId());
         Map<String, DeliveryOrderItemAllocation> allocationsByFailedInventoryKey = orderAllocations.stream()
                 .collect(Collectors.toMap(
-                        allocation -> allocationKey(allocation.getDeliveryOrderItem().getId(), allocation.getInventory().getId()),
+                        allocation -> allocationKey(allocation.getDeliveryOrderItem().getId(),
+                                allocation.getInventory().getId()),
                         Function.identity(),
                         (left, right) -> left));
         Map<Long, DeliveryOrderItem> itemById = orderItems.stream()
                 .collect(Collectors.toMap(DeliveryOrderItem::getId, Function.identity()));
         Map<String, Object> before = snapshot(order, null, List.of(), orderItems, orderAllocations);
 
-        List<Inventory> replacementInventories = inventoryRepository.findByIdInWithLock(request.getReplacements().stream()
-                .map(DeliveryOrderReplacementAllocationRequest::getReplacementInventoryId)
-                .distinct()
-                .toList());
+        List<Inventory> replacementInventories = inventoryRepository
+                .findByIdInWithLock(request.getReplacements().stream()
+                        .map(DeliveryOrderReplacementAllocationRequest::getReplacementInventoryId)
+                        .distinct()
+                        .toList());
         Map<Long, Inventory> replacementInventoryById = replacementInventories.stream()
                 .collect(Collectors.toMap(Inventory::getId, Function.identity()));
         List<DeliveryOrderItemReplacement> replacements = new ArrayList<>();
@@ -655,7 +647,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                         HttpStatus.NOT_FOUND,
                         "Delivery Order item not found: " + replacementRequest.getDoItemId());
             }
-            Inventory replacementInventory = replacementInventoryById.get(replacementRequest.getReplacementInventoryId());
+            Inventory replacementInventory = replacementInventoryById
+                    .get(replacementRequest.getReplacementInventoryId());
             if (replacementInventory == null) {
                 throw new ResourceNotFoundException("Replacement inventory not found with id: "
                         + replacementRequest.getReplacementInventoryId());
@@ -671,7 +664,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
 
             DeliveryOrderItemAllocation failedAllocation = allocationsByFailedInventoryKey.get(
                     allocationKey(item.getId(), replacementRequest.getFailedInventoryId()));
-            BigDecimal newReservedQty = value(replacementInventory.getReservedQty()).add(replacementRequest.getQuantity());
+            BigDecimal newReservedQty = value(replacementInventory.getReservedQty())
+                    .add(replacementRequest.getQuantity());
             if (value(replacementInventory.getTotalQty()).compareTo(newReservedQty) < 0) {
                 throw new OutboundDeliveryException("INVENTORY_ROW_INVALID",
                         HttpStatus.UNPROCESSABLE_ENTITY,
@@ -688,7 +682,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                     .failedBatch(reference(Batch.class, replacementRequest.getFailedBatchId()))
                     .failedLocation(reference(WarehouseLocation.class, replacementRequest.getFailedLocationId()))
                     .replacementBatch(reference(Batch.class, replacementRequest.getReplacementBatchId()))
-                    .replacementLocation(reference(WarehouseLocation.class, replacementRequest.getReplacementLocationId()))
+                    .replacementLocation(
+                            reference(WarehouseLocation.class, replacementRequest.getReplacementLocationId()))
                     .quantity(replacementRequest.getQuantity())
                     .reason(replacementRequest.getReason())
                     .createdBy(actor)
@@ -727,8 +722,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     @Override
     @Transactional
     public DeliveryOrderResponse approveDeliveryOrderQuality(Long id,
-                                                             DeliveryOrderQualityApprovalRequest request,
-                                                             User actor) {
+            DeliveryOrderQualityApprovalRequest request,
+            User actor) {
         requireRole(actor, UserRole.STOREKEEPER, "Only Storekeeper can approve outbound quality");
         DeliveryOrder order = findOrder(id);
         requireWarehouseScope(actor, order.getWarehouse().getId());
@@ -753,15 +748,16 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         order.setUpdatedAt(OffsetDateTime.now());
         DeliveryOrder saved = deliveryOrderRepository.save(order);
         auditUtil.logChange(actor, AuditAction.DELIVERY_ORDER_QC_APPROVE, "DELIVERY_ORDER",
-                saved.getId(), saved.getDoNumber(), before, snapshot(saved, null, List.of(), orderItems, orderAllocations));
+                saved.getId(), saved.getDoNumber(), before,
+                snapshot(saved, null, List.of(), orderItems, orderAllocations));
         return deliveryOrderMapper.toResponse(saved, orderItems, orderAllocations);
     }
 
     @Override
     @Transactional
     public DeliveryOrderResponse approveDeliveryOrderWarehouseRelease(Long id,
-                                                                     DeliveryOrderWarehouseApprovalRequest request,
-                                                                     User actor) {
+            DeliveryOrderWarehouseApprovalRequest request,
+            User actor) {
         requireRole(actor, UserRole.WAREHOUSE_MANAGER, "Only Warehouse Manager can approve outbound release");
         DeliveryOrder order = findOrder(id);
         requireWarehouseScope(actor, order.getWarehouse().getId());
@@ -789,15 +785,16 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         order.setUpdatedAt(now);
         DeliveryOrder saved = deliveryOrderRepository.save(order);
         auditUtil.logChange(actor, AuditAction.DELIVERY_ORDER_WAREHOUSE_APPROVE, "DELIVERY_ORDER",
-                saved.getId(), saved.getDoNumber(), before, snapshot(saved, null, List.of(), orderItems, orderAllocations));
+                saved.getId(), saved.getDoNumber(), before,
+                snapshot(saved, null, List.of(), orderItems, orderAllocations));
         return deliveryOrderMapper.toResponse(saved, orderItems, orderAllocations);
     }
 
     @Override
     @Transactional
     public DeliveryOrderResponse rejectDeliveryOrderWarehouseRelease(Long id,
-                                                                    DeliveryOrderWarehouseRejectRequest request,
-                                                                    User actor) {
+            DeliveryOrderWarehouseRejectRequest request,
+            User actor) {
         requireRole(actor, UserRole.WAREHOUSE_MANAGER, "Only Warehouse Manager can reject outbound release");
         DeliveryOrder order = findOrder(id);
         requireWarehouseScope(actor, order.getWarehouse().getId());
@@ -826,7 +823,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                 .collect(Collectors.toMap(DeliveryOrderItemAllocation::getId, Function.identity()));
         BigDecimal totalReturned = ZERO;
         OffsetDateTime now = OffsetDateTime.now();
-        for (DeliveryOrderWarehouseRejectReturnRequest row : Optional.ofNullable(request.getReturnToBinRecords()).orElse(List.of())) {
+        for (DeliveryOrderWarehouseRejectReturnRequest row : Optional.ofNullable(request.getReturnToBinRecords())
+                .orElse(List.of())) {
             DeliveryOrderItemAllocation allocation = allocationsById.get(row.getAllocationId());
             if (allocation == null || !allocation.getDeliveryOrderItem().getId().equals(row.getDoItemId())) {
                 throw new OutboundDeliveryException("INVENTORY_ROW_INVALID",
@@ -847,19 +845,21 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                         "Warehouse reject row does not match original batch/bin/zone");
             }
 
-            WarehouseLocation stagingLocation = resolveWarehouseLocation(order, row.getSourceLocationId(), false, "staging");
+            WarehouseLocation stagingLocation = resolveWarehouseLocation(order, row.getSourceLocationId(), false,
+                    "staging");
             Inventory stagingInventory = inventoryRepository.findConcreteReservationRowForUpdate(
-                            order.getWarehouse().getId(),
-                            allocation.getDeliveryOrderItem().getProduct().getId(),
-                            allocation.getBatch().getId(),
-                            stagingLocation.getId())
+                    order.getWarehouse().getId(),
+                    allocation.getDeliveryOrderItem().getProduct().getId(),
+                    allocation.getBatch().getId(),
+                    stagingLocation.getId())
                     .orElseThrow(() -> new OutboundDeliveryException("INVENTORY_ROW_INVALID",
                             HttpStatus.UNPROCESSABLE_ENTITY,
                             "Staging inventory row not found for warehouse reject"));
             stagingInventory.setTotalQty(subtractOrThrow(value(stagingInventory.getTotalQty()), row.getReturnedQty(),
                     "INVENTORY_ROW_INVALID", "Staging inventory does not have enough quantity"));
-            stagingInventory.setReservedQty(subtractOrThrow(value(stagingInventory.getReservedQty()), row.getReturnedQty(),
-                    "INVENTORY_ROW_INVALID", "Staging inventory does not have enough reserved quantity"));
+            stagingInventory
+                    .setReservedQty(subtractOrThrow(value(stagingInventory.getReservedQty()), row.getReturnedQty(),
+                            "INVENTORY_ROW_INVALID", "Staging inventory does not have enough reserved quantity"));
             stagingInventory.setUpdatedAt(now);
             saveInventoryWithConflictHandling(stagingInventory);
 
@@ -903,7 +903,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         order.setUpdatedAt(now);
         DeliveryOrder saved = deliveryOrderRepository.save(order);
         auditUtil.logChange(actor, AuditAction.DELIVERY_ORDER_WAREHOUSE_REJECT, "DELIVERY_ORDER",
-                saved.getId(), saved.getDoNumber(), before, snapshot(saved, null, List.of(), orderItems, orderAllocations));
+                saved.getId(), saved.getDoNumber(), before,
+                snapshot(saved, null, List.of(), orderItems, orderAllocations));
         return deliveryOrderMapper.toResponse(saved, orderItems, orderAllocations);
     }
 
@@ -922,7 +923,6 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         return deliveryOrderItemRepository.findByDeliveryOrderId(orderId);
     }
 
-<<<<<<< HEAD
     private List<DeliveryOrderItemAllocation> allocations(Long orderId) {
         return allocationRepository.findByDeliveryOrderItemDeliveryOrderId(orderId);
     }
@@ -942,19 +942,15 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         }
 
         List<ItemPlan> plans = new ArrayList<>();
-        LocalDate priceDate = request.getDocumentDate();
         for (DeliveryOrderItemCreateRequest item : request.getItems()) {
             Product product = productRepository.findByIdAndIsActiveTrue(item.getProductId())
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "Active product not found with id: " + item.getProductId()));
-            PriceHistory price = priceHistoryRepository.findEffectivePrices(
-                            product.getId(), PriceHistoryStatus.APPROVED, priceDate)
-                    .stream()
-                    .findFirst()
-                    .orElseThrow(() -> new OutboundDeliveryException("PRICE_NOT_FOUND",
-                            HttpStatus.UNPROCESSABLE_ENTITY,
-                            "No approved selling price found for product " + product.getId()));
-            plans.add(new ItemPlan(product, item.getRequestedQty(), price.getSellingPrice()));
+            BigDecimal unitPrice = priceHistoryService
+                    .lookupApproved(product.getId(), request.getWarehouseId(), request.getDocumentDate())
+                    .map(price -> value(price.getSellingPrice()))
+                    .orElseThrow(() -> PriceHistoryException.missingPrice(product.getId().toString()));
+            plans.add(new ItemPlan(product, item.getRequestedQty(), unitPrice));
         }
         return plans;
     }
@@ -992,8 +988,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
             throw new OutboundDeliveryException("INSUFFICIENT_STOCK",
                     HttpStatus.UNPROCESSABLE_ENTITY,
                     "Insufficient stock in selected warehouse",
-                    Map.of("availableByProduct", insufficient, "suggestedWarehouses",
-                            stockSuggestions(insufficient.keySet(), requestedByProduct)));
+                    Map.of("availableByProduct", insufficient,
+                            "suggestedWarehouses", stockSuggestions(insufficient.keySet(), requestedByProduct)));
         }
     }
 
@@ -1009,32 +1005,32 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     private List<Map<String, Object>> stockSuggestions(Set<Long> productIds, Map<Long, BigDecimal> requestedByProduct) {
         return warehouseRepository.findByIsActive(true).stream()
                 .map(warehouse -> suggestionForWarehouse(warehouse, productIds, requestedByProduct))
-                .filter(suggestion -> Boolean.TRUE.equals(suggestion.get("hasEnoughStock")))
+                .filter(suggestion -> !suggestion.isEmpty())
                 .toList();
     }
 
     private Map<String, Object> suggestionForWarehouse(Warehouse warehouse,
-                                                       Set<Long> productIds,
-                                                       Map<Long, BigDecimal> requestedByProduct) {
+            Set<Long> productIds,
+            Map<Long, BigDecimal> requestedByProduct) {
         Map<Long, BigDecimal> availableByProduct = new LinkedHashMap<>();
-        boolean hasEnoughStock = true;
         for (Long productId : productIds) {
             BigDecimal available = availableQty(warehouse.getId(), productId);
-            availableByProduct.put(productId, available);
-            if (available.compareTo(requestedByProduct.get(productId)) < 0) {
-                hasEnoughStock = false;
+            if (available.compareTo(value(requestedByProduct.get(productId))) >= 0) {
+                availableByProduct.put(productId, available);
             }
+        }
+        if (availableByProduct.isEmpty()) {
+            return Map.of();
         }
         return PartnerAuditUtil.values(
                 "warehouseId", warehouse.getId(),
                 "warehouseCode", warehouse.getCode(),
-                "availableByProduct", availableByProduct,
-                "hasEnoughStock", hasEnoughStock);
+                "availableByProduct", availableByProduct);
     }
 
     private List<Map<String, Object>> reserveWarehouseProducts(Warehouse warehouse,
-                                                               Map<Long, BigDecimal> requestedByProduct,
-                                                               OffsetDateTime now) {
+            Map<Long, BigDecimal> requestedByProduct,
+            OffsetDateTime now) {
         List<Map<String, Object>> deltas = new ArrayList<>();
         for (Map.Entry<Long, BigDecimal> entry : requestedByProduct.entrySet()) {
             WarehouseProductReservation reservation = reservationRepository
@@ -1060,9 +1056,9 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     }
 
     private List<Map<String, Object>> releaseReservations(DeliveryOrder order,
-                                                          List<DeliveryOrderItem> orderItems,
-                                                          List<DeliveryOrderItemAllocation> orderAllocations,
-                                                          OffsetDateTime now) {
+            List<DeliveryOrderItem> orderItems,
+            List<DeliveryOrderItemAllocation> orderAllocations,
+            OffsetDateTime now) {
         Map<Long, BigDecimal> concreteReservedByItemId = orderAllocations.stream()
                 .collect(Collectors.groupingBy(
                         allocation -> allocation.getDeliveryOrderItem().getId(),
@@ -1105,12 +1101,12 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     }
 
     private Map<String, Object> releaseWarehouseProduct(Long warehouseId,
-                                                        Long productId,
-                                                        BigDecimal releaseQty,
-                                                        OffsetDateTime now) {
-            WarehouseProductReservation reservation = reservationRepository
-                    .findWithWarehouseAndProductByWarehouseIdAndProductIdForUpdate(warehouseId, productId)
-                    .orElseThrow(() -> new OutboundDeliveryException("RESERVATION_NOT_FOUND",
+            Long productId,
+            BigDecimal releaseQty,
+            OffsetDateTime now) {
+        WarehouseProductReservation reservation = reservationRepository
+                .findWithWarehouseAndProductByWarehouseIdAndProductIdForUpdate(warehouseId, productId)
+                .orElseThrow(() -> new OutboundDeliveryException("RESERVATION_NOT_FOUND",
                         HttpStatus.CONFLICT,
                         "Warehouse product reservation not found for cancellation"));
         BigDecimal before = value(reservation.getReservedQty());
@@ -1135,25 +1131,6 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         item.setQcFailQty(ZERO);
         item.setIssuedQty(ZERO);
         item.setUnitPrice(plan.unitPrice());
-=======
-    private DeliveryOrderItem toEntity(DeliveryOrderItemCreateRequest request, DeliveryOrder order,
-                                       PriceHistory price) {
-        DeliveryOrderItem item = new DeliveryOrderItem();
-        item.setDeliveryOrder(order);
-        item.setProduct(reference(Product.class, request.getProductId()));
-        if (request.getBatchId() != null) {
-            item.setBatch(reference(Batch.class, request.getBatchId()));
-        }
-        if (request.getLocationId() != null) {
-            item.setLocation(reference(WarehouseLocation.class, request.getLocationId()));
-        }
-        item.setRequestedQty(request.getRequestedQty());
-        item.setReservedQty(BigDecimal.ZERO);
-        item.setIssuedQty(BigDecimal.ZERO);
-        // Snapshot from price_history, not from request (spec 007)
-        item.setUnitPrice(price.getSellingPrice());
-        item.setUnitCost(price.getCostPrice());
->>>>>>> main
         return item;
     }
 
@@ -1194,10 +1171,10 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     }
 
     private List<ResolvedAllocationSelection> resolvePickingSelections(DeliveryOrder order,
-                                                                       List<DeliveryOrderItem> items,
-                                                                       List<DeliveryOrderItemAllocation> existingAllocations,
-                                                                       List<DeliveryOrderAllocationRequest> requests,
-                                                                       User actor) {
+            List<DeliveryOrderItem> items,
+            List<DeliveryOrderItemAllocation> existingAllocations,
+            List<DeliveryOrderAllocationRequest> requests,
+            User actor) {
         Map<Long, DeliveryOrderItem> itemsById = items.stream()
                 .collect(Collectors.toMap(DeliveryOrderItem::getId, Function.identity()));
         List<Inventory> inventories = inventoryRepository.findByIdInWithLock(requests.stream()
@@ -1237,7 +1214,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     }
 
     private List<DeliveryOrderAllocationRequest> buildAutoFifoPickingPlanRequests(DeliveryOrder order,
-                                                                                  List<DeliveryOrderItem> items) {
+            List<DeliveryOrderItem> items) {
         List<DeliveryOrderAllocationRequest> requests = new ArrayList<>();
         for (DeliveryOrderItem item : items) {
             BigDecimal remainingQty = value(item.getRequestedQty());
@@ -1257,7 +1234,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                 request.setInventoryId(candidate.getId());
                 request.setBatchId(candidate.getBatch().getId());
                 request.setLocationId(candidate.getLocation().getId());
-                request.setZoneId(candidate.getLocation().getParent() == null ? null : candidate.getLocation().getParent().getId());
+                request.setZoneId(candidate.getLocation().getParent() == null ? null
+                        : candidate.getLocation().getParent().getId());
                 request.setPlannedQty(plannedQty);
                 requests.add(request);
                 remainingQty = remainingQty.subtract(plannedQty);
@@ -1265,21 +1243,25 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
             if (remainingQty.compareTo(ZERO) > 0) {
                 throw new OutboundDeliveryException("INSUFFICIENT_STOCK",
                         HttpStatus.UNPROCESSABLE_ENTITY,
-                        "Insufficient FIFO inventory to auto-build the picking plan for product " + item.getProduct().getId());
+                        "Insufficient FIFO inventory to auto-build the picking plan for product "
+                                + item.getProduct().getId());
             }
         }
         return requests;
     }
 
     /**
-     * Resolves the ZONE for a given inventory row and validates it matches the requested zoneId.
-     * If the BIN has no parent (flat warehouse without explicit zones), the BIN itself is treated
+     * Resolves the ZONE for a given inventory row and validates it matches the
+     * requested zoneId.
+     * If the BIN has no parent (flat warehouse without explicit zones), the BIN
+     * itself is treated
      * as the zone, and a null/absent zoneId from the request is accepted.
      */
     private WarehouseLocation resolveZone(Inventory inventory, Long zoneId) {
         WarehouseLocation parent = inventory.getLocation().getParent();
         if (parent == null) {
-            // Flat structure: BIN has no parent zone — accept null or the location's own id as zoneId
+            // Flat structure: BIN has no parent zone — accept null or the location's own id
+            // as zoneId
             if (zoneId != null && !zoneId.equals(inventory.getLocation().getId())) {
                 throw new OutboundDeliveryException("INVENTORY_ROW_INVALID",
                         HttpStatus.UNPROCESSABLE_ENTITY,
@@ -1297,48 +1279,37 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     }
 
     private void validateConcreteInventorySelection(DeliveryOrder order,
-                                                    DeliveryOrderItem item,
-                                                    Inventory inventory,
-                                                    WarehouseLocation zone,
-                                                    DeliveryOrderAllocationRequest request,
-                                                    boolean existingSlot) {
+            DeliveryOrderItem item,
+            Inventory inventory,
+            WarehouseLocation zone,
+            DeliveryOrderAllocationRequest request,
+            boolean existingSlot) {
         if (!inventory.getWarehouse().getId().equals(order.getWarehouse().getId())
                 || inventory.getWarehouse().getType() == WarehouseType.IN_TRANSIT) {
             throw new OutboundDeliveryException("INVENTORY_ROW_INVALID",
                     HttpStatus.UNPROCESSABLE_ENTITY,
                     "Inventory row does not belong to the delivery order warehouse");
         }
-        if (!inventory.getProduct().getId().equals(item.getProduct().getId())) {
-            throw new OutboundDeliveryException("INVENTORY_ROW_INVALID",
-                    HttpStatus.UNPROCESSABLE_ENTITY,
-                    "Inventory product does not match the delivery order item");
-        }
-        // zone is guaranteed non-null here (resolveZone falls back to the BIN itself for flat structures)
-        boolean batchMatch = inventory.getBatch().getId().equals(request.getBatchId());
-        boolean locationMatch = inventory.getLocation().getId().equals(request.getLocationId());
-        boolean zoneMatch = zone.getId().equals(request.getZoneId())
-                || (inventory.getLocation().getParent() == null && request.getZoneId() == null);
-        if (!batchMatch || !locationMatch || !zoneMatch) {
-            throw new OutboundDeliveryException("INVENTORY_ROW_INVALID",
-                    HttpStatus.UNPROCESSABLE_ENTITY,
-                    "Inventory row does not match requested batch/bin/zone");
-        }
-        if (!Boolean.TRUE.equals(inventory.getLocation().getIsActive())
+        if (!inventory.getProduct().getId().equals(item.getProduct().getId())
+                || !inventory.getBatch().getId().equals(request.getBatchId())
+                || !inventory.getLocation().getId().equals(request.getLocationId())
+                || !Boolean.TRUE.equals(inventory.getLocation().getIsActive())
                 || Boolean.TRUE.equals(inventory.getLocation().getIsQuarantine())) {
             throw new OutboundDeliveryException("INVENTORY_ROW_INVALID",
                     HttpStatus.UNPROCESSABLE_ENTITY,
-                    "Inventory row is not valid regular stock");
+                    "Inventory row does not match the requested product/batch/bin");
         }
         BigDecimal availableQty = value(inventory.getTotalQty()).subtract(value(inventory.getReservedQty()));
-        if (!existingSlot && availableQty.compareTo(ZERO) <= 0) {
+        BigDecimal existingQty = existingSlot ? value(request.getPlannedQty()) : ZERO;
+        if (availableQty.add(existingQty).compareTo(value(request.getPlannedQty())) < 0) {
             throw new OutboundDeliveryException("INVENTORY_ROW_INVALID",
                     HttpStatus.UNPROCESSABLE_ENTITY,
-                    "Inventory row does not have available quantity");
+                    "Inventory row does not have enough available quantity");
         }
     }
 
     private void validateRequestedItemTotals(List<DeliveryOrderItem> items,
-                                             List<ResolvedAllocationSelection> selections) {
+            List<ResolvedAllocationSelection> selections) {
         Map<Long, BigDecimal> totalsByItemId = selections.stream()
                 .collect(Collectors.groupingBy(selection -> selection.item().getId(),
                         Collectors.mapping(ResolvedAllocationSelection::plannedQty,
@@ -1355,8 +1326,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     }
 
     private List<Map<String, Object>> transferPlannerReservations(DeliveryOrder order,
-                                                                  List<ResolvedAllocationSelection> selections,
-                                                                  OffsetDateTime now) {
+            List<ResolvedAllocationSelection> selections,
+            OffsetDateTime now) {
         Map<Long, BigDecimal> qtyByProductId = selections.stream()
                 .collect(Collectors.groupingBy(selection -> selection.item().getProduct().getId(),
                         Collectors.mapping(ResolvedAllocationSelection::plannedQty,
@@ -1364,7 +1335,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         List<Map<String, Object>> deltas = new ArrayList<>();
         for (Map.Entry<Long, BigDecimal> entry : qtyByProductId.entrySet()) {
             WarehouseProductReservation reservation = reservationRepository
-                    .findWithWarehouseAndProductByWarehouseIdAndProductIdForUpdate(order.getWarehouse().getId(), entry.getKey())
+                    .findWithWarehouseAndProductByWarehouseIdAndProductIdForUpdate(order.getWarehouse().getId(),
+                            entry.getKey())
                     .orElseThrow(() -> new OutboundDeliveryException("RESERVATION_NOT_FOUND",
                             HttpStatus.CONFLICT,
                             "Planner reservation not found for warehouse/product"));
@@ -1381,8 +1353,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     }
 
     private List<DeliveryOrderItemAllocation> createInitialAllocations(List<ResolvedAllocationSelection> selections,
-                                                                       OffsetDateTime now,
-                                                                       User actor) {
+            OffsetDateTime now,
+            User actor) {
         List<DeliveryOrderItemAllocation> created = new ArrayList<>();
         for (ResolvedAllocationSelection selection : selections) {
             Inventory inventory = selection.inventory();
@@ -1399,8 +1371,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
             DeliveryOrderItemAllocation allocation = DeliveryOrderItemAllocation.builder()
                     .deliveryOrderItem(selection.item())
                     .inventory(inventory)
-                    .batch(selection.inventory().getBatch())
-                    .location(selection.inventory().getLocation())
+                    .batch(inventory.getBatch())
+                    .location(inventory.getLocation())
                     .zone(selection.zone())
                     .plannedQty(selection.plannedQty())
                     .pickedQty(ZERO)
@@ -1417,20 +1389,18 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     }
 
     private List<DeliveryOrderItemAllocation> reviseAllocations(DeliveryOrder order,
-                                                                List<DeliveryOrderItemAllocation> existingAllocations,
-                                                                List<ResolvedAllocationSelection> requestedSelections,
-                                                                List<DeliveryOrderReturnToBinRequest> returnRequests,
-                                                                OffsetDateTime now,
-                                                                User actor) {
+            List<DeliveryOrderItemAllocation> existingAllocations,
+            List<ResolvedAllocationSelection> requestedSelections,
+            List<DeliveryOrderReturnToBinRequest> returnRequests,
+            OffsetDateTime now,
+            User actor) {
         Map<Long, DeliveryOrderReturnToBinRequest> returnRequestByAllocationId = Optional.ofNullable(returnRequests)
                 .orElse(List.of())
                 .stream()
-                .collect(Collectors.toMap(DeliveryOrderReturnToBinRequest::getAllocationId, Function.identity(), (a, b) -> a));
+                .collect(Collectors.toMap(DeliveryOrderReturnToBinRequest::getAllocationId, Function.identity(),
+                        (left, right) -> left));
         Map<AllocationSlotKey, ResolvedAllocationSelection> requestedByKey = requestedSelections.stream()
                 .collect(Collectors.toMap(ResolvedAllocationSelection::key, Function.identity()));
-        Map<AllocationSlotKey, DeliveryOrderItemAllocation> existingByKey = existingAllocations.stream()
-                .collect(Collectors.toMap(allocation -> AllocationSlotKey.from(allocation.getDeliveryOrderItem().getId(), allocation),
-                        Function.identity()));
 
         List<DeliveryOrderItemAllocation> finalAllocations = new ArrayList<>();
         for (DeliveryOrderItemAllocation existing : existingAllocations) {
@@ -1478,80 +1448,35 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         }
 
         for (ResolvedAllocationSelection requested : requestedByKey.values()) {
-            Inventory inventory = requested.inventory();
-            BigDecimal newReservedQty = value(inventory.getReservedQty()).add(requested.plannedQty());
-            if (value(inventory.getTotalQty()).compareTo(newReservedQty) < 0) {
-                throw new OutboundDeliveryException("INVENTORY_ROW_INVALID",
-                        HttpStatus.UNPROCESSABLE_ENTITY,
-                        "Concrete inventory reservation would exceed total quantity");
-            }
-            inventory.setReservedQty(newReservedQty);
-            inventory.setUpdatedAt(now);
-            saveInventoryWithConflictHandling(inventory);
-            DeliveryOrderItemAllocation created = DeliveryOrderItemAllocation.builder()
-                    .deliveryOrderItem(requested.item())
-                    .inventory(inventory)
-                    .batch(inventory.getBatch())
-                    .location(inventory.getLocation())
-                    .zone(requested.zone())
-                    .plannedQty(requested.plannedQty())
-                    .pickedQty(ZERO)
-                    .replacement(false)
-                    .createdBy(actor)
-                    .createdAt(now)
-                    .updatedAt(now)
-                    .build();
-            finalAllocations.add(allocationRepository.save(created));
+            finalAllocations.addAll(createInitialAllocations(List.of(requested), now, actor));
         }
-
         return finalAllocations.stream()
-                .sorted(Comparator.comparing(allocation -> allocation.getDeliveryOrderItem().getId()))
+                .sorted(Comparator.comparing(DeliveryOrderItemAllocation::getId))
                 .toList();
     }
 
     private void processReturnToBin(DeliveryOrder order,
-                                    DeliveryOrderItemAllocation existing,
-                                    BigDecimal reductionQty,
-                                    DeliveryOrderReturnToBinRequest request,
-                                    OffsetDateTime now,
-                                    User actor) {
-        if (request.getReturnedQty().compareTo(reductionQty) != 0) {
+            DeliveryOrderItemAllocation existing,
+            BigDecimal reductionQty,
+            DeliveryOrderReturnToBinRequest request,
+            OffsetDateTime now,
+            User actor) {
+        if (value(request.getReturnedQty()).compareTo(reductionQty) < 0) {
             throw new OutboundDeliveryException("PICKED_GOODS_RETURN_REQUIRED",
                     HttpStatus.UNPROCESSABLE_ENTITY,
-                    "Returned quantity must equal the reduced picked quantity");
+                    "Returned quantity must cover the reduced picked allocation quantity");
         }
-        if (request.getReturnedQty().compareTo(value(existing.getPickedQty())) > 0) {
-            throw new OutboundDeliveryException("PICKED_GOODS_RETURN_REQUIRED",
-                    HttpStatus.UNPROCESSABLE_ENTITY,
-                    "Returned quantity cannot exceed picked quantity");
-        }
-        Inventory originalInventory = existing.getInventory();
-        WarehouseLocation sourceLocation = reference(WarehouseLocation.class, request.getSourceLocationId());
-        List<Inventory> sourceRows = inventoryRepository.findConcreteReservationRows(
+        WarehouseLocation sourceLocation = resolveWarehouseLocation(order, request.getSourceLocationId(), false,
+                "source");
+        if (inventoryRepository.findConcreteReservationRows(
                 order.getWarehouse().getId(),
                 existing.getDeliveryOrderItem().getProduct().getId(),
                 existing.getBatch().getId(),
-                request.getSourceLocationId());
-        if (sourceRows.isEmpty()) {
+                sourceLocation.getId()).isEmpty()) {
             throw new OutboundDeliveryException("INVENTORY_ROW_INVALID",
                     HttpStatus.UNPROCESSABLE_ENTITY,
-                    "Source inventory row does not match the requested return location");
+                    "Return source location does not contain the picked inventory row");
         }
-        Inventory sourceInventory = sourceRows.get(0);
-        sourceInventory.setTotalQty(subtractOrThrow(value(sourceInventory.getTotalQty()), request.getReturnedQty(),
-                "INVENTORY_ROW_INVALID",
-                "Source inventory does not have enough quantity to return"));
-        sourceInventory.setReservedQty(subtractOrThrow(value(sourceInventory.getReservedQty()), request.getReturnedQty(),
-                "INVENTORY_ROW_INVALID",
-                "Source inventory does not have enough reserved quantity to return"));
-        sourceInventory.setUpdatedAt(now);
-        saveInventoryWithConflictHandling(sourceInventory);
-        originalInventory.setTotalQty(value(originalInventory.getTotalQty()).add(request.getReturnedQty()));
-        originalInventory.setReservedQty(value(originalInventory.getReservedQty()).add(request.getReturnedQty()));
-        originalInventory.setUpdatedAt(now);
-        saveInventoryWithConflictHandling(originalInventory);
-
-        existing.setPickedQty(value(existing.getPickedQty()).subtract(request.getReturnedQty()));
         DeliveryOrderItemReturnToBinRecord record = DeliveryOrderItemReturnToBinRecord.builder()
                 .deliveryOrderItem(existing.getDeliveryOrderItem())
                 .allocation(existing)
@@ -1578,9 +1503,9 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     }
 
     private void validateReplacementInventory(DeliveryOrder order,
-                                              DeliveryOrderItem item,
-                                              Inventory replacementInventory,
-                                              DeliveryOrderReplacementAllocationRequest request) {
+            DeliveryOrderItem item,
+            Inventory replacementInventory,
+            DeliveryOrderReplacementAllocationRequest request) {
         if (!replacementInventory.getWarehouse().getId().equals(order.getWarehouse().getId())
                 || replacementInventory.getWarehouse().getType() == WarehouseType.IN_TRANSIT) {
             throw new OutboundDeliveryException("INVENTORY_ROW_INVALID",
@@ -1601,11 +1526,11 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     }
 
     private void validatePickQcRequest(DeliveryOrder order,
-                                       List<DeliveryOrderItem> orderItems,
-                                       List<DeliveryOrderPickQcRowRequest> results,
-                                       List<DeliveryOrderItemAllocation> activeAllocations,
-                                       Map<Long, DeliveryOrderItemAllocation> allocationsById,
-                                       Map<Long, OutboundQcRecord> qcByAllocationId) {
+            List<DeliveryOrderItem> orderItems,
+            List<DeliveryOrderPickQcRowRequest> results,
+            List<DeliveryOrderItemAllocation> activeAllocations,
+            Map<Long, DeliveryOrderItemAllocation> allocationsById,
+            Map<Long, OutboundQcRecord> qcByAllocationId) {
         Map<Long, DeliveryOrderItemAllocation> activeAllocationById = activeAllocations.stream()
                 .collect(Collectors.toMap(DeliveryOrderItemAllocation::getId, Function.identity()));
         Set<Long> seenAllocationIds = new java.util.HashSet<>();
@@ -1692,9 +1617,9 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     }
 
     private WarehouseLocation resolveWarehouseLocation(DeliveryOrder order,
-                                                       Long locationId,
-                                                       boolean quarantineRequired,
-                                                       String label) {
+            Long locationId,
+            boolean quarantineRequired,
+            String label) {
         WarehouseLocation location = entityManager.find(WarehouseLocation.class, locationId);
         if (location == null) {
             throw new ResourceNotFoundException("Warehouse location not found with id: " + locationId);
@@ -1715,12 +1640,12 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     }
 
     private Inventory loadOrCreateInventoryRow(DeliveryOrder order,
-                                               Product product,
-                                               Batch batch,
-                                               WarehouseLocation location,
-                                               Inventory sourceInventory,
-                                               boolean quarantineRow,
-                                               OffsetDateTime now) {
+            Product product,
+            Batch batch,
+            WarehouseLocation location,
+            Inventory sourceInventory,
+            boolean quarantineRow,
+            OffsetDateTime now) {
         Optional<Inventory> existingRow = inventoryRepository.findConcreteReservationRowForUpdate(
                 order.getWarehouse().getId(), product.getId(), batch.getId(), location.getId());
         if (existingRow.isPresent()) {
@@ -1732,7 +1657,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         inventory.setBatch(batch);
         inventory.setLocation(location);
         inventory.setTotalQty(ZERO);
-        inventory.setReservedQty(quarantineRow ? ZERO : ZERO);
+        inventory.setReservedQty(ZERO);
         inventory.setCostPrice(sourceInventory.getCostPrice());
         inventory.setUpdatedAt(now);
         return saveInventoryWithConflictHandling(inventory);
@@ -1784,7 +1709,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         Map<Long, List<DeliveryOrderItemAllocation>> allocationsByItemId = allocations.stream()
                 .collect(Collectors.groupingBy(allocation -> allocation.getDeliveryOrderItem().getId()));
         for (DeliveryOrderItem item : items) {
-            List<DeliveryOrderItemAllocation> itemAllocations = allocationsByItemId.getOrDefault(item.getId(), List.of());
+            List<DeliveryOrderItemAllocation> itemAllocations = allocationsByItemId.getOrDefault(item.getId(),
+                    List.of());
             BigDecimal plannedQty = itemAllocations.stream()
                     .map(DeliveryOrderItemAllocation::getPlannedQty)
                     .reduce(ZERO, this::valueAdd);
@@ -1803,9 +1729,9 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     }
 
     private Map<String, Object> delta(Long warehouseId,
-                                      Long productId,
-                                      BigDecimal before,
-                                      BigDecimal after) {
+            Long productId,
+            BigDecimal before,
+            BigDecimal after) {
         return PartnerAuditUtil.values(
                 "warehouseId", warehouseId,
                 "productId", productId,
@@ -1858,10 +1784,10 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     }
 
     private Map<String, Object> snapshot(DeliveryOrder order,
-                                         BigDecimal orderValue,
-                                         List<Map<String, Object>> reservationDeltas,
-                                         List<DeliveryOrderItem> items,
-                                         List<DeliveryOrderItemAllocation> allocations) {
+            BigDecimal orderValue,
+            List<Map<String, Object>> reservationDeltas,
+            List<DeliveryOrderItem> items,
+            List<DeliveryOrderItemAllocation> allocations) {
         Map<String, Object> values = new LinkedHashMap<>(PartnerAuditUtil.values(
                 "doNumber", order.getDoNumber(),
                 "dealerId", order.getDealer() == null ? null : order.getDealer().getId(),
@@ -1917,9 +1843,9 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     }
 
     private BigDecimal subtractOrThrow(BigDecimal base,
-                                       BigDecimal subtract,
-                                       String code,
-                                       String message) {
+            BigDecimal subtract,
+            String code,
+            String message) {
         BigDecimal result = value(base).subtract(value(subtract));
         if (result.compareTo(ZERO) < 0) {
             throw new OutboundDeliveryException(code, HttpStatus.CONFLICT, message);
@@ -1938,10 +1864,10 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     }
 
     private record ResolvedAllocationSelection(DeliveryOrderItem item,
-                                               Inventory inventory,
-                                               WarehouseLocation zone,
-                                               BigDecimal plannedQty,
-                                               User actor) {
+            Inventory inventory,
+            WarehouseLocation zone,
+            BigDecimal plannedQty,
+            User actor) {
         AllocationSlotKey key() {
             return new AllocationSlotKey(item.getId(), inventory.getId(),
                     inventory.getBatch().getId(), inventory.getLocation().getId(), zone.getId());
@@ -1949,10 +1875,10 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     }
 
     private record AllocationSlotKey(Long deliveryOrderItemId,
-                                     Long inventoryId,
-                                     Long batchId,
-                                     Long locationId,
-                                     Long zoneId) {
+            Long inventoryId,
+            Long batchId,
+            Long locationId,
+            Long zoneId) {
         static AllocationSlotKey from(Long itemId, DeliveryOrderItemAllocation allocation) {
             return new AllocationSlotKey(itemId,
                     allocation.getInventory().getId(),

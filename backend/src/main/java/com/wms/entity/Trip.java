@@ -5,6 +5,7 @@ import com.wms.enums.TripStatus;
 import com.wms.enums.TripType;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 
@@ -39,6 +40,9 @@ public class Trip {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "dispatcher_id", nullable = false)
     private User dispatcher;
+
+    @Column(name = "planned_date", nullable = false)
+    private LocalDate plannedDate;
 
     @Column(name = "planned_start_at", nullable = false)
     private LocalDateTime plannedStartAt;

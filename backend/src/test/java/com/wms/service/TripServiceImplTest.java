@@ -48,6 +48,7 @@ import com.wms.repository.WarehouseRepository;
 import com.wms.service.impl.TripServiceImpl;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -369,7 +370,8 @@ class TripServiceImplTest {
         request.setWarehouseId(20L);
         request.setVehicleId(301L);
         request.setDriverId(401L);
-        request.setPlannedDate(LocalDate.of(2026, 6, 22));
+        request.setPlannedStartAt(LocalDateTime.of(2026, 6, 22, 8, 0));
+        request.setPlannedEndAt(LocalDateTime.of(2026, 6, 22, 17, 0));
         request.setDeliveryOrders(List.of(tripRow(doId, 1)));
         return request;
     }

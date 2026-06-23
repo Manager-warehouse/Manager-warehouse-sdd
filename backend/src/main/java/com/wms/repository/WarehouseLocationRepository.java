@@ -32,6 +32,8 @@ public interface WarehouseLocationRepository extends JpaRepository<WarehouseLoca
 
     java.util.Optional<WarehouseLocation> findFirstByWarehouseIdAndIsQuarantineTrueAndIsActiveTrue(Long warehouseId);
 
+    Optional<WarehouseLocation> findFirstByWarehouseIdAndIsActiveTrue(Long warehouseId);
+
     @Query("SELECT l FROM WarehouseLocation l WHERE l.lockedByStockTakeId = :stockTakeId")
     List<WarehouseLocation> findByLockedByStockTakeId(@Param("stockTakeId") Long stockTakeId);
 
