@@ -130,7 +130,7 @@
 - [X] T045 [P] Update quickstart verification notes in `.sdd/specs/004-outbound-delivery-pod/features/feature-accountant-receivable-payment/quickstart.md` if final command names or test classes differ.
 - [X] T046 Run backend targeted tests for auto invoice and driver delivery in `backend`.
 - [X] T047 Run `mvn compile` from `backend` and fix compile errors without weakening validation or audit rules.
-- [X] T048 Confirm no TODO comments, no new user-facing invoice creation endpoint, and no payment/notification behavior was introduced for this feature.
+- [X] T048 Confirm no unresolved comments, no new user-facing invoice creation endpoint, and no payment/notification behavior was introduced for this feature.
 
 ---
 

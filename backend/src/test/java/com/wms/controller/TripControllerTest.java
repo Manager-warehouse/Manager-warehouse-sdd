@@ -200,7 +200,8 @@ class TripControllerTest {
                   "warehouseId": 20,
                   "vehicleId": 301,
                   "driverId": 401,
-                  "plannedDate": "2026-06-22",
+                  "plannedStartAt": "2026-06-22T08:00:00",
+                  "plannedEndAt": "2026-06-22T17:00:00",
                   "deliveryOrders": [
                     {"doId": 101, "stopOrder": 1}
                   ]
@@ -213,7 +214,8 @@ class TripControllerTest {
                 {
                   "vehicleId": 301,
                   "driverId": 401,
-                  "plannedDate": "2026-06-22",
+                  "plannedStartAt": "2026-06-22T08:00:00",
+                  "plannedEndAt": "2026-06-22T17:00:00",
                   "deliveryOrders": [
                     {"doId": 101, "stopOrder": 1}
                   ]
@@ -250,3 +252,4 @@ class TripControllerTest {
         return user;
     }
 }
+

@@ -18,7 +18,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.mockito.Mock;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
@@ -41,13 +41,13 @@ class SystemConfigControllerTest {
         @Autowired
         ObjectMapper objectMapper;
 
-        @Mock
+        @MockBean
         SystemConfigService systemConfigService;
-        @Mock
+        @MockBean
         CurrentUserService currentUserService;
-        @Mock
+        @MockBean
         JwtUtil jwtUtil;
-        @Mock
+        @MockBean
         UserDetailsServiceImpl userDetailsService;
 
         private User adminUser;
@@ -234,3 +234,5 @@ class SystemConfigControllerTest {
                                 .andExpect(jsonPath("$.configValue").value("25"));
         }
 }
+
+

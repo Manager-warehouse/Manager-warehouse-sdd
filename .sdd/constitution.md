@@ -7,7 +7,7 @@
   Added sections: All (initial creation)
   Removed sections: (none)
   Templates requiring updates: N/A (no .sdd/templates/ yet)
-  Follow-up TODOs: (none)
+  Follow-up actions: (none)
 -->
 
 **Phiên bản:** v1.0.0
@@ -193,7 +193,7 @@ Mọi thao tác ghi dữ liệu trên kho MUST tạo audit log với:
 
 MUST NOT:
 
-1. Lưu secrets, passwords, hoặc API keys trong source control hoặc file `.env`
+1. Lưu secrets, passwords, hoặc API keys trong source control hoặc file environment variables config
    đã commit.
 2. Bỏ qua Jakarta Validation / request DTO validation trên write endpoints.
 3. UPDATE inventory trực tiếp khi thao tác phải đi qua adjustment, receipt,
@@ -204,8 +204,8 @@ MUST NOT:
    mà không có domain constants hoặc lookup rules.
 7. Soft-delete transaction history bằng physical deletion; dùng status-based
    cancellation rules.
-8. Để TODO comments trong completed task code.
-9. Dùng `System.out` / `console.log` trong production code.
+8. Để unresolved comments trong completed task code.
+9. Dùng standard output printing hoặc frontend console logging trong production code.
 10. Commit trực tiếp vào `main` hoặc `production` branch.
 
 ---
@@ -304,7 +304,7 @@ Một task chỉ được coi là **hoàn thành** khi tất cả các điều k
 - [ ] API endpoint documented in OpenAPI/Swagger
 - [ ] Error cases handled với proper HTTP status codes
 - [ ] Audit log entry created cho warehouse operations
-- [ ] No TODO comments left in code
+- [ ] No unresolved comments left in code
 - [ ] FIFO allocation logic tested cho batch management
 
 ---

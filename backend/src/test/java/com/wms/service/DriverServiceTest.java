@@ -123,10 +123,12 @@ public class DriverServiceTest {
         DriverRequest req = new DriverRequest();
         req.setUserId(3L);
         req.setLicenseNumber("LX-99999");
+        req.setWarehouseId(2L);
 
         when(driverRepository.existsByLicenseNumber("LX-99999")).thenReturn(false);
         when(userRepository.findById(1L)).thenReturn(Optional.of(actor));
         when(userRepository.findById(3L)).thenReturn(Optional.of(driverUser));
+        when(warehouseRepository.findById(2L)).thenReturn(Optional.of(new Warehouse()));
         when(assignmentRepository.findWarehouseIdsByUserId(1L)).thenReturn(List.of(1L));
         when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(2L));
 
