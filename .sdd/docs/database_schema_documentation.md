@@ -52,7 +52,7 @@ erDiagram
   - `full_name` (VARCHAR(255), NOT NULL): Họ và tên đầy đủ.
   - `email` (VARCHAR(255), UNIQUE, NOT NULL): Địa chỉ email (dùng để đăng nhập).
   - `phone` (VARCHAR(20), Nullable): Số điện thoại liên hệ.
-  - `password_hash` (VARCHAR(255), NOT NULL): Mật khẩu đã được mã hóa bằng thuật toán `bcrypt` (cost >= 12).
+  - `password_hash` (VARCHAR(255), NOT NULL): Mật khẩu đã được mã hóa bằng thuật toán `bcrypt` (cost ≥ 12).
   - `role` (VARCHAR(50), NOT NULL): Vai trò hệ thống. Ràng buộc bởi CHECK constraint: `ADMIN`, `CEO`, `WAREHOUSE_MANAGER` (Trưởng kho), `STOREKEEPER` (Thủ kho kiêm QC), `WAREHOUSE_STAFF` (Nhân viên bốc xếp), `ACCOUNTANT` (Kế toán), `ACCOUNTANT_MANAGER` (Kế toán trưởng), `PLANNER` (Điều phối đơn), `DISPATCHER` (Điều phối xe), `DRIVER` (Tài xế).
   - `is_active` (BOOLEAN, DEFAULT true): Trạng thái hoạt động (cho phép soft-delete khóa tài khoản).
   - `refresh_token_hash` & `otp_hash` (VARCHAR(255)): Token làm mới phiên đăng nhập và mã OTP xác minh qua email.
