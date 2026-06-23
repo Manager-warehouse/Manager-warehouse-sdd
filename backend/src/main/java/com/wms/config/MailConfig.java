@@ -8,22 +8,22 @@ import org.springframework.mail.javamail.JavaMailSenderImpl;
 
 import java.util.Properties;
 
-// @Configuration // Commented out to allow Spring Boot Auto-configuration to use Gmail SMTP settings from application.yml
+@Configuration
 public class MailConfig {
 
-    @Bean
-    @ConditionalOnMissingBean(JavaMailSender.class)
-    public JavaMailSender javaMailSender() {
-        JavaMailSenderImpl mailSender = new JavaMailSenderImpl();
-        mailSender.setHost("localhost");
-        mailSender.setPort(25);
+    // @Bean
+    // @ConditionalOnMissingBean(JavaMailSender.class)
+    // public JavaMailSender javaMailSender() {
+    //     JavaMailSenderImpl mailSender = new JavaMailSenderImpl();
+    //     mailSender.setHost("localhost");
+    //     mailSender.setPort(25);
 
-        Properties props = mailSender.getJavaMailProperties();
-        props.put("mail.transport.protocol", "smtp");
-        props.put("mail.smtp.auth", "false");
-        props.put("mail.smtp.starttls.enable", "false");
-        props.put("mail.debug", "false");
+    //     Properties props = mailSender.getJavaMailProperties();
+    //     props.put("mail.transport.protocol", "smtp");
+    //     props.put("mail.smtp.auth", "false");
+    //     props.put("mail.smtp.starttls.enable", "false");
+    //     props.put("mail.debug", "false");
 
-        return mailSender;
-    }
+    //     return mailSender;
+    //}
 }

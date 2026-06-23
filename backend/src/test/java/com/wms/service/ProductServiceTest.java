@@ -10,7 +10,6 @@ import com.wms.repository.UserRepository;
 import com.wms.service.impl.ProductServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -29,11 +28,15 @@ import static org.mockito.Mockito.never;
 @ExtendWith(MockitoExtension.class)
 class ProductServiceTest {
 
-    @Mock ProductRepository productRepository;
-    @Mock UserRepository userRepository;
-    @Mock AuditLogService auditLogService;
+    @Mock
+    ProductRepository productRepository;
+    @Mock
+    UserRepository userRepository;
+    @Mock
+    AuditLogService auditLogService;
 
-    @InjectMocks ProductServiceImpl productService;
+    @InjectMocks
+    ProductServiceImpl productService;
 
     private User actor;
     private Product product;
@@ -58,7 +61,7 @@ class ProductServiceTest {
     // createProduct - 10 Test Cases (TC01-TC10)
     // =========================================================================
 
-    //TC01 (Normal / Pass)
+    // TC01 (Normal / Pass)
     @Test
     @DisplayName("[TC01][N] createProduct - SKU mới hợp lệ, user tồn tại - tạo thành công, isActive=true")
     void tc01_createProduct_validSkuAndUser_success() {
@@ -80,7 +83,7 @@ class ProductServiceTest {
         verify(productRepository).save(any(Product.class));
     }
 
-    //TC02 (Abnormal / Pass)
+    // TC02 (Abnormal / Pass)
     @Test
     @DisplayName("[TC02][A] createProduct - sku=null - service nhận null, existsBySku(null) trả false, vẫn lưu (không có check null ở service)")
     void tc02_createProduct_nullSku_serviceDoesNotThrow() {
@@ -133,7 +136,7 @@ class ProductServiceTest {
         assertThat(response).isNotNull();
     }
 
-    //TC05 (Abnormal / Pass)
+    // TC05 (Abnormal / Pass)
     @Test
     @DisplayName("[TC05][A] createProduct - userId không tồn tại - throw USER_NOT_FOUND")
     void tc05_createProduct_userNotFound_throwsUserNotFound() {
@@ -146,9 +149,9 @@ class ProductServiceTest {
                 .hasMessage("USER_NOT_FOUND");
     }
 
-        // Expiry and serial tests removed.
+    // Expiry and serial tests removed.
 
-    //TC08 (Normal / Pass)
+    // TC08 (Normal / Pass)
     @Test
     @DisplayName("[TC08][N] createProduct - unitPerPack=24 - luu dung quy doi thung sang cai")
     void tc08_createProduct_unitPerPack_savedCorrectly() {
@@ -169,7 +172,7 @@ class ProductServiceTest {
         assertThat(response.getUnitPerPack()).isEqualTo(24);
     }
 
-    //TC09 (Normal / Pass)
+    // TC09 (Normal / Pass)
     @Test
     @DisplayName("[TC09][N] createProduct - reorderPoint=50 - lưu đúng ngưỡng tồn kho")
     void tc09_createProduct_reorderPoint_savedCorrectly() {
@@ -190,7 +193,7 @@ class ProductServiceTest {
         assertThat(response.getReorderPoint()).isEqualByComparingTo(new BigDecimal("50"));
     }
 
-    //TC10(Boundary /FAILED)
+    // TC10(Boundary /FAILED)
     @Test
     @DisplayName("[TC10][B] createProduct - sku=\"\" (empty boundary) - service reject sku rỗng")
     void tc10_createProduct_emptySku_rejectedAtServiceLayer() {
@@ -206,7 +209,7 @@ class ProductServiceTest {
     // updateProduct - 4 Test Cases (TC11-TC14)
     // =========================================================================
 
-    //TC11 (Normal / Pass)
+    // TC11 (Normal / Pass)
     @Test
     @DisplayName("[TC11][N] updateProduct - cập nhật hợp lệ - trả về response với tên mới")
     void tc11_updateProduct_validRequest_success() {
@@ -227,7 +230,7 @@ class ProductServiceTest {
         verify(productRepository).save(any(Product.class));
     }
 
-    //TC12 (Abnormal / Pass)
+    // TC12 (Abnormal / Pass)
     @Test
     @DisplayName("[TC12][A] updateProduct - ID sản phẩm không tồn tại - throw PRODUCT_NOT_FOUND")
     void tc12_updateProduct_productNotFound_throwsException() {
@@ -240,7 +243,7 @@ class ProductServiceTest {
         verify(productRepository, never()).save(any());
     }
 
-    //TC13 (Normal / FAILED)
+    // TC13 (Normal / FAILED)
     @Test
     @DisplayName("[TC13][N] updateProduct - name mới - trả về name mới sau update")
     void tc13_updateProduct_namePersisted() {
@@ -264,8 +267,6 @@ class ProductServiceTest {
                 .hasMessage("INVALID_SKU");
         verify(productRepository, never()).save(any());
     }
-
-
 
     private ProductRequest buildRequest(String sku, String name) {
         ProductRequest r = new ProductRequest();

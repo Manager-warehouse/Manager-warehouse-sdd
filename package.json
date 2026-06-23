@@ -2,5 +2,8 @@
   "devDependencies": {
     "gitnexus": "^1.6.5",
     "speckit-mcp-x": "^3.2.5"
+  },
+  "dependencies": {
+    "html-to-docx": "^1.8.0"
   }
 }

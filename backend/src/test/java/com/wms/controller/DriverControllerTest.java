@@ -15,9 +15,9 @@ import com.wms.service.DriverService;
 import com.wms.util.JwtUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mock;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
@@ -35,7 +35,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(DriverController.class)
-@Import({SecurityConfig.class, JwtAuthFilter.class, GlobalExceptionHandler.class})
+@Import({ SecurityConfig.class, JwtAuthFilter.class, GlobalExceptionHandler.class })
 public class DriverControllerTest {
 
     @Autowired
@@ -43,13 +43,13 @@ public class DriverControllerTest {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @MockBean
+    @Mock
     private DriverService driverService;
-    @MockBean
+    @Mock
     private UserRepository userRepository;
-    @MockBean
+    @Mock
     private JwtUtil jwtUtil;
-    @MockBean
+    @Mock
     private UserDetailsServiceImpl userDetailsService;
 
     private User dispatcherUser;
@@ -101,8 +101,8 @@ public class DriverControllerTest {
         req.setLicenseExpiry(LocalDate.now().plusYears(5));
 
         mockMvc.perform(post("/api/v1/dispatcher/drivers")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isCreated());
     }
 
@@ -120,8 +120,8 @@ public class DriverControllerTest {
         req.setLicenseExpiry(LocalDate.now().plusYears(5));
 
         mockMvc.perform(post("/api/v1/dispatcher/drivers")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isConflict());
     }
 }

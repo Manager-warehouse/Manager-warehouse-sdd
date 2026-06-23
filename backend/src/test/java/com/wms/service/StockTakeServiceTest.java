@@ -32,32 +32,46 @@ import static org.mockito.Mockito.*;
 /**
  * Unit tests for StockTakeService — Spec 006 (US-WMS-13).
  *
- * <p>Covers: create (happy + period closed), start (happy + invalid state),
- * count validation (negative qty, employee-fault reason), complete approval-routing
- * (AUTO / MANAGER / CEO / employee-fault escalation), approve (happy, level mismatch,
- * already approved, inventory invariant), reject, and cancel.</p>
+ * <p>
+ * Covers: create (happy + period closed), start (happy + invalid state),
+ * count validation (negative qty, employee-fault reason), complete
+ * approval-routing
+ * (AUTO / MANAGER / CEO / employee-fault escalation), approve (happy, level
+ * mismatch,
+ * already approved, inventory invariant), reject, and cancel.
+ * </p>
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class StockTakeServiceTest {
 
-    @Mock private StockTakeRepository stockTakeRepository;
-    @Mock private StockTakeItemRepository stockTakeItemRepository;
-    @Mock private InventoryRepository inventoryRepository;
-    @Mock private WarehouseLocationRepository locationRepository;
-    @Mock private AdjustmentRepository adjustmentRepository;
-    @Mock private AccountingPeriodRepository accountingPeriodRepository;
-    @Mock private DocumentSequenceRepository documentSequenceRepository;
-    @Mock private WarehouseRepository warehouseRepository;
-    @Mock private UserWarehouseAssignmentRepository assignmentRepository;
-    @Mock private AuditLogService auditLogService;
+    @Mock
+    private StockTakeRepository stockTakeRepository;
+    @Mock
+    private StockTakeItemRepository stockTakeItemRepository;
+    @Mock
+    private InventoryRepository inventoryRepository;
+    @Mock
+    private WarehouseLocationRepository locationRepository;
+    @Mock
+    private AdjustmentRepository adjustmentRepository;
+    @Mock
+    private AccountingPeriodRepository accountingPeriodRepository;
+    @Mock
+    private DocumentSequenceRepository documentSequenceRepository;
+    @Mock
+    private WarehouseRepository warehouseRepository;
+    @Mock
+    private UserWarehouseAssignmentRepository assignmentRepository;
+    @Mock
+    private AuditLogService auditLogService;
 
-    @InjectMocks private StockTakeService service;
+    @InjectMocks
+    private StockTakeService service;
 
     private Warehouse warehouse;
     private User storekeeper;
     private User manager;
-    private User ceo;
     private AccountingPeriod openPeriod;
     private Product product;
     private Batch batch;
@@ -73,7 +87,6 @@ class StockTakeServiceTest {
 
         storekeeper = userWith(3L, UserRole.STOREKEEPER);
         manager = userWith(5L, UserRole.WAREHOUSE_MANAGER);
-        ceo = userWith(1L, UserRole.CEO);
 
         openPeriod = new AccountingPeriod();
         openPeriod.setId(1L);
@@ -117,7 +130,8 @@ class StockTakeServiceTest {
                 .build();
     }
 
-    private StockTakeItem item(BigDecimal systemQty, BigDecimal actualQty, BigDecimal varianceQty, BigDecimal varianceValue) {
+    private StockTakeItem item(BigDecimal systemQty, BigDecimal actualQty, BigDecimal varianceQty,
+            BigDecimal varianceValue) {
         return StockTakeItem.builder()
                 .id(50L)
                 .stockTake(stockTake(StockTakeStatus.IN_PROGRESS))
@@ -159,9 +173,9 @@ class StockTakeServiceTest {
         StockTakeResponse res = service.createStockTake(req, storekeeper);
 
         assertEquals(StockTakeStatus.DRAFT, res.getStatus());
-        verify(stockTakeItemRepository).saveAll(argThat((List<StockTakeItem> items) ->
-                items.size() == 1 && items.get(0).getSystemQty().compareTo(new BigDecimal("100")) == 0
-                        && items.get(0).getActualQty() == null));
+        verify(stockTakeItemRepository).saveAll(argThat((List<StockTakeItem> items) -> items.size() == 1
+                && items.get(0).getSystemQty().compareTo(new BigDecimal("100")) == 0
+                && items.get(0).getActualQty() == null));
         verify(auditLogService).log(eq(storekeeper), eq(AuditAction.STOCKTAKE_CREATE), eq("STOCK_TAKE"),
                 any(), any(), eq(WH_ID), any(), any());
     }
@@ -203,7 +217,8 @@ class StockTakeServiceTest {
         assertTrue(location.getIsLocked());
         assertEquals(1L, location.getLockedByStockTakeId());
         verify(locationRepository).saveAll(anyList());
-        verify(auditLogService).log(eq(storekeeper), eq(AuditAction.STOCKTAKE_START), any(), any(), any(), eq(WH_ID), any(), any());
+        verify(auditLogService).log(eq(storekeeper), eq(AuditAction.STOCKTAKE_START), any(), any(), any(), eq(WH_ID),
+                any(), any());
     }
 
     @Test
@@ -280,7 +295,8 @@ class StockTakeServiceTest {
         assertEquals(new BigDecimal("88"), item.getActualQty());
         assertEquals(0, item.getVarianceQty().compareTo(new BigDecimal("-12")));
         assertEquals(0, item.getVarianceValue().compareTo(new BigDecimal("-600000")));
-        verify(auditLogService).log(eq(storekeeper), eq(AuditAction.STOCKTAKE_COUNT_UPDATE), any(), any(), any(), eq(WH_ID), any(), any());
+        verify(auditLogService).log(eq(storekeeper), eq(AuditAction.STOCKTAKE_COUNT_UPDATE), any(), any(), any(),
+                eq(WH_ID), any(), any());
     }
 
     @Test
@@ -357,7 +373,8 @@ class StockTakeServiceTest {
 
         assertEquals(ApprovalLevel.AUTO, st.getApprovalLevel());
         assertEquals(StockTakeStatus.APPROVED, res.getStatus());
-        verify(auditLogService).log(any(), eq(AuditAction.STOCKTAKE_AUTO_APPROVE), any(), any(), any(), eq(WH_ID), any(), any());
+        verify(auditLogService).log(any(), eq(AuditAction.STOCKTAKE_AUTO_APPROVE), any(), any(), any(), eq(WH_ID),
+                any(), any());
     }
 
     @Test
@@ -375,7 +392,8 @@ class StockTakeServiceTest {
 
         assertEquals(ApprovalLevel.MANAGER, st.getApprovalLevel());
         assertEquals(StockTakeStatus.PENDING_APPROVAL, res.getStatus());
-        verify(auditLogService).log(eq(storekeeper), eq(AuditAction.STOCKTAKE_COMPLETE), any(), any(), any(), eq(WH_ID), any(), any());
+        verify(auditLogService).log(eq(storekeeper), eq(AuditAction.STOCKTAKE_COMPLETE), any(), any(), any(), eq(WH_ID),
+                any(), any());
     }
 
     @Test
@@ -448,7 +466,8 @@ class StockTakeServiceTest {
         assertEquals(StockTakeStatus.APPROVED, res.getStatus());
         assertEquals(0, inv.getTotalQty().compareTo(new BigDecimal("90"))); // set to actual
         verify(adjustmentRepository).save(any(Adjustment.class));
-        verify(auditLogService).log(eq(manager), eq(AuditAction.STOCKTAKE_APPROVE), any(), any(), any(), eq(WH_ID), any(), any());
+        verify(auditLogService).log(eq(manager), eq(AuditAction.STOCKTAKE_APPROVE), any(), any(), any(), eq(WH_ID),
+                any(), any());
     }
 
     @Test
@@ -510,7 +529,8 @@ class StockTakeServiceTest {
         assertEquals(StockTakeStatus.REJECTED, res.getStatus());
         assertEquals("Count looks wrong, recount needed", st.getRejectionReason());
         verify(locationRepository).saveAll(anyList());
-        verify(auditLogService).log(eq(manager), eq(AuditAction.STOCKTAKE_REJECT), any(), any(), any(), eq(WH_ID), any(), any());
+        verify(auditLogService).log(eq(manager), eq(AuditAction.STOCKTAKE_REJECT), any(), any(), any(), eq(WH_ID),
+                any(), any());
     }
 
     @Test
@@ -551,6 +571,7 @@ class StockTakeServiceTest {
 
         assertEquals(StockTakeStatus.CANCELLED, res.getStatus());
         verify(locationRepository).saveAll(anyList());
-        verify(auditLogService).log(eq(storekeeper), eq(AuditAction.STOCKTAKE_CANCEL), any(), any(), any(), eq(WH_ID), any(), any());
+        verify(auditLogService).log(eq(storekeeper), eq(AuditAction.STOCKTAKE_CANCEL), any(), any(), any(), eq(WH_ID),
+                any(), any());
     }
 }

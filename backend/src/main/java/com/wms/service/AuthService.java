@@ -2,7 +2,6 @@ package com.wms.service;
 
 import com.wms.dto.auth.*;
 import com.wms.entity.User;
-import com.wms.entity.UserWarehouseAssignment;
 import com.wms.entity.AuditLog;
 import com.wms.enums.AuditAction;
 import com.wms.repository.UserRepository;
@@ -154,8 +153,7 @@ public class AuthService {
         java.util.Map<String, Object> oldValue = java.util.Map.of(
                 "fullName", user.getFullName(),
                 "email", user.getEmail(),
-                "phone", user.getPhone() != null ? user.getPhone() : ""
-        );
+                "phone", user.getPhone() != null ? user.getPhone() : "");
 
         // Perform update
         user.setFullName(request.getFullName());
@@ -169,8 +167,7 @@ public class AuthService {
         java.util.Map<String, Object> newValue = java.util.Map.of(
                 "fullName", savedUser.getFullName(),
                 "email", savedUser.getEmail(),
-                "phone", savedUser.getPhone() != null ? savedUser.getPhone() : ""
-        );
+                "phone", savedUser.getPhone() != null ? savedUser.getPhone() : "");
 
         // Save audit log
         AuditLog auditLog = AuditLog.builder()
@@ -248,7 +245,8 @@ public class AuthService {
 
     private List<LoginResponse.WarehouseInfo> buildWarehouseInfoList(User user) {
         // UserWarehouseAssignment is loaded via separate query to avoid N+1
-        // For now returning empty list — will be populated when UserWarehouseAssignmentRepository is added
+        // For now returning empty list — will be populated when
+        // UserWarehouseAssignmentRepository is added
         return List.of();
     }
 

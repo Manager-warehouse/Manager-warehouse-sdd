@@ -11,8 +11,6 @@ import com.wms.entity.*;
 import com.wms.enums.*;
 import com.wms.exception.*;
 import com.wms.repository.*;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,7 +28,6 @@ import java.util.stream.Collectors;
 @Service
 public class StockTakeService {
 
-    private static final Logger log = LoggerFactory.getLogger(StockTakeService.class);
     private static final String ENTITY_TYPE = "STOCK_TAKE";
     private static final BigDecimal AUTO_THRESHOLD = new BigDecimal("5000000");
     private static final BigDecimal CEO_THRESHOLD = new BigDecimal("100000000");
@@ -47,15 +44,15 @@ public class StockTakeService {
     private final AuditLogService auditLogService;
 
     public StockTakeService(StockTakeRepository stockTakeRepository,
-                            StockTakeItemRepository stockTakeItemRepository,
-                            InventoryRepository inventoryRepository,
-                            WarehouseLocationRepository locationRepository,
-                            AdjustmentRepository adjustmentRepository,
-                            AccountingPeriodRepository accountingPeriodRepository,
-                            DocumentSequenceRepository documentSequenceRepository,
-                            WarehouseRepository warehouseRepository,
-                            UserWarehouseAssignmentRepository assignmentRepository,
-                            AuditLogService auditLogService) {
+            StockTakeItemRepository stockTakeItemRepository,
+            InventoryRepository inventoryRepository,
+            WarehouseLocationRepository locationRepository,
+            AdjustmentRepository adjustmentRepository,
+            AccountingPeriodRepository accountingPeriodRepository,
+            DocumentSequenceRepository documentSequenceRepository,
+            WarehouseRepository warehouseRepository,
+            UserWarehouseAssignmentRepository assignmentRepository,
+            AuditLogService auditLogService) {
         this.stockTakeRepository = stockTakeRepository;
         this.stockTakeItemRepository = stockTakeItemRepository;
         this.inventoryRepository = inventoryRepository;
@@ -100,7 +97,8 @@ public class StockTakeService {
                 .orElseThrow(() -> new ResourceNotFoundException("Warehouse not found: " + req.getWarehouseId()));
 
         AccountingPeriod period = accountingPeriodRepository.findById(req.getAccountingPeriodId())
-                .orElseThrow(() -> new ResourceNotFoundException("AccountingPeriod not found: " + req.getAccountingPeriodId()));
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "AccountingPeriod not found: " + req.getAccountingPeriodId()));
         assertPeriodOpen(period);
 
         String number = generateStockTakeNumber();
@@ -130,7 +128,7 @@ public class StockTakeService {
                     .batch(inv.getBatch())
                     .location(inv.getLocation())
                     .systemQty(inv.getTotalQty())
-                    .actualQty(null)       // not yet counted
+                    .actualQty(null) // not yet counted
                     .varianceQty(BigDecimal.ZERO)
                     .varianceValue(BigDecimal.ZERO)
                     .build();
@@ -181,8 +179,10 @@ public class StockTakeService {
         StockTake st = loadStockTake(id);
         requireWarehouseAccess(actor, st.getWarehouse().getId());
 
-        // After a REJECTED stocktake, the storekeeper may edit counts and re-submit (Spec 006,
-        // feature-manager EARS + Scenario 6), so REJECTED is also a valid editing state.
+        // After a REJECTED stocktake, the storekeeper may edit counts and re-submit
+        // (Spec 006,
+        // feature-manager EARS + Scenario 6), so REJECTED is also a valid editing
+        // state.
         if (st.getStatus() != StockTakeStatus.IN_PROGRESS && st.getStatus() != StockTakeStatus.REJECTED) {
             throw new StockTakeException("INVALID_STATE",
                     HttpStatus.UNPROCESSABLE_ENTITY,
@@ -202,7 +202,8 @@ public class StockTakeService {
             }
 
             StockTakeItem item = stockTakeItemRepository.findById(countReq.getItemId())
-                    .orElseThrow(() -> new ResourceNotFoundException("StockTakeItem not found: " + countReq.getItemId()));
+                    .orElseThrow(
+                            () -> new ResourceNotFoundException("StockTakeItem not found: " + countReq.getItemId()));
 
             if (!item.getStockTake().getId().equals(id)) {
                 throw new StockTakeException("INVALID_ARGUMENT", HttpStatus.BAD_REQUEST,
@@ -213,13 +214,14 @@ public class StockTakeService {
             if (countReq.getActualQty().compareTo(item.getSystemQty()) != 0
                     && (countReq.getNotes() == null || countReq.getNotes().isBlank())) {
                 throw new StockTakeException("VARIANCE_REASON_REQUIRED", HttpStatus.BAD_REQUEST,
-                        "Lý do chênh lệch (notes) bắt buộc khi số lượng thực tế khác hệ thống — item " + countReq.getItemId());
+                        "Lý do chênh lệch (notes) bắt buộc khi số lượng thực tế khác hệ thống — item "
+                                + countReq.getItemId());
             }
 
             // Load inventory to get cost price
             Inventory inv = inventoryRepository.findByWarehouseIdAndProductIdAndBatchIdAndLocationId(
-                            st.getWarehouse().getId(), item.getProduct().getId(),
-                            item.getBatch().getId(), item.getLocation().getId())
+                    st.getWarehouse().getId(), item.getProduct().getId(),
+                    item.getBatch().getId(), item.getLocation().getId())
                     .orElse(null);
             BigDecimal costPrice = (inv != null) ? inv.getCostPrice() : BigDecimal.ZERO;
 
@@ -415,10 +417,10 @@ public class StockTakeService {
                 continue;
             }
             Inventory inv = inventoryRepository.findByWarehouseProductBatchLocationForUpdate(
-                            st.getWarehouse().getId(),
-                            item.getProduct().getId(),
-                            item.getBatch().getId(),
-                            item.getLocation().getId())
+                    st.getWarehouse().getId(),
+                    item.getProduct().getId(),
+                    item.getBatch().getId(),
+                    item.getLocation().getId())
                     .orElse(null);
 
             if (inv != null) {

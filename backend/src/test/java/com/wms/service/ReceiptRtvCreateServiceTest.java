@@ -1,6 +1,5 @@
 package com.wms.service;
 
-import com.wms.dto.request.ReceiptRtvConfirmRequest;
 import com.wms.dto.request.ReceiptRtvCreateRequest;
 import com.wms.dto.response.RtvActionResponse;
 import com.wms.entity.*;
@@ -10,7 +9,6 @@ import com.wms.repository.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -27,21 +25,32 @@ import static org.mockito.Mockito.*;
 /**
  * Unit tests for ReceiptService.createRtv() — US-WMS-04.
  *
- * <p>Covers: RTV create happy path, duplicate RTV, non-QC_FAILED status,
- * missing quarantine inventory, forbidden warehouse.</p>
+ * <p>
+ * Covers: RTV create happy path, duplicate RTV, non-QC_FAILED status,
+ * missing quarantine inventory, forbidden warehouse.
+ * </p>
  */
 @ExtendWith(MockitoExtension.class)
 class ReceiptRtvCreateServiceTest {
 
-    @Mock private ReceiptRepository receiptRepository;
-    @Mock private ReceiptItemRepository receiptItemRepository;
-    @Mock private BatchRepository batchRepository;
-    @Mock private AdjustmentRepository adjustmentRepository;
-    @Mock private DebitNoteRepository debitNoteRepository;
-    @Mock private InventoryRepository inventoryRepository;
-    @Mock private WarehouseLocationRepository warehouseLocationRepository;
-    @Mock private UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
-    @Mock private AuditLogService auditLogService;
+    @Mock
+    private ReceiptRepository receiptRepository;
+    @Mock
+    private ReceiptItemRepository receiptItemRepository;
+    @Mock
+    private BatchRepository batchRepository;
+    @Mock
+    private AdjustmentRepository adjustmentRepository;
+    @Mock
+    private DebitNoteRepository debitNoteRepository;
+    @Mock
+    private InventoryRepository inventoryRepository;
+    @Mock
+    private WarehouseLocationRepository warehouseLocationRepository;
+    @Mock
+    private UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
+    @Mock
+    private AuditLogService auditLogService;
 
     private ReceiptValidationService receiptValidationService;
     private QuarantineRtvService receiptService;
@@ -94,8 +103,7 @@ class ReceiptRtvCreateServiceTest {
                 debitNoteRepository,
                 inventoryRepository,
                 receiptValidationService,
-                auditLogService
-        );
+                auditLogService);
     }
 
     // -----------------------------------------------------------------------
@@ -133,19 +141,16 @@ class ReceiptRtvCreateServiceTest {
         assertEquals(BigDecimal.valueOf(20), response.getQuarantineQty());
 
         // Verify adjustment created as pending (no approvedAt)
-        verify(adjustmentRepository).save(argThat(adj ->
-                adj.getType() == AdjustmentType.RETURN_TO_VENDOR
+        verify(adjustmentRepository).save(argThat(adj -> adj.getType() == AdjustmentType.RETURN_TO_VENDOR
                 && adj.getReferenceType().equals("RECEIPT")
                 && adj.getReferenceId().equals(1L)
                 && adj.getApprovedAt() == null // Still pending
         ));
 
         // Verify Debit Note auto-created
-        verify(debitNoteRepository).save(argThat(dn ->
-                dn.getSupplier().getId().equals(20L)
+        verify(debitNoteRepository).save(argThat(dn -> dn.getSupplier().getId().equals(20L)
                 && dn.getReceipt().getId().equals(1L)
-                && dn.getFailedQty().compareTo(BigDecimal.valueOf(20)) == 0
-        ));
+                && dn.getFailedQty().compareTo(BigDecimal.valueOf(20)) == 0));
     }
 
     @Test
@@ -158,8 +163,16 @@ class ReceiptRtvCreateServiceTest {
         when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
         when(adjustmentRepository.existsByReferenceTypeAndReferenceIdAndType(any(), any(), any())).thenReturn(false);
         when(receiptItemRepository.findByReceiptId(1L)).thenReturn(List.of(failedItem));
-        when(adjustmentRepository.save(any())).thenAnswer(i -> { Adjustment a = i.getArgument(0); a.setId(1L); return a; });
-        when(debitNoteRepository.save(any())).thenAnswer(i -> { DebitNote d = i.getArgument(0); d.setId(1L); return d; });
+        when(adjustmentRepository.save(any())).thenAnswer(i -> {
+            Adjustment a = i.getArgument(0);
+            a.setId(1L);
+            return a;
+        });
+        when(debitNoteRepository.save(any())).thenAnswer(i -> {
+            DebitNote d = i.getArgument(0);
+            d.setId(1L);
+            return d;
+        });
 
         receiptService.createRtv(1L, request, manager);
 
@@ -178,8 +191,16 @@ class ReceiptRtvCreateServiceTest {
         when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
         when(adjustmentRepository.existsByReferenceTypeAndReferenceIdAndType(any(), any(), any())).thenReturn(false);
         when(receiptItemRepository.findByReceiptId(1L)).thenReturn(List.of(failedItem));
-        when(adjustmentRepository.save(any())).thenAnswer(i -> { Adjustment a = i.getArgument(0); a.setId(1L); return a; });
-        when(debitNoteRepository.save(any())).thenAnswer(i -> { DebitNote d = i.getArgument(0); d.setId(1L); return d; });
+        when(adjustmentRepository.save(any())).thenAnswer(i -> {
+            Adjustment a = i.getArgument(0);
+            a.setId(1L);
+            return a;
+        });
+        when(debitNoteRepository.save(any())).thenAnswer(i -> {
+            DebitNote d = i.getArgument(0);
+            d.setId(1L);
+            return d;
+        });
 
         receiptService.createRtv(1L, request, manager);
 

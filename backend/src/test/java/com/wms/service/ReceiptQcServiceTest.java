@@ -14,7 +14,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -111,7 +110,8 @@ class ReceiptQcServiceTest {
 
         verify(receiptValidationService).assertWarehouseAssignment(staffActor, 100L);
         verify(receiptValidationService).assertRole(staffActor, UserRole.WAREHOUSE_STAFF, "RECEIPT_QC_SUBMIT");
-        verify(auditLogService).log(eq(staffActor), eq(AuditAction.RECEIPT_QC_SUBMIT), eq("Receipt"), eq(100L), any(), any(), any(), any());
+        verify(auditLogService).log(eq(staffActor), eq(AuditAction.RECEIPT_QC_SUBMIT), eq("Receipt"), eq(100L), any(),
+                any(), any(), any());
     }
 
     @Test
@@ -133,7 +133,8 @@ class ReceiptQcServiceTest {
         verify(receiptValidationService).assertWarehouseAssignment(storekeeperActor, 100L);
         verify(receiptValidationService).assertRole(storekeeperActor, UserRole.STOREKEEPER, "RECEIPT_QC_CONFIRM");
         verify(receiptRepository).save(receipt);
-        verify(auditLogService).log(eq(storekeeperActor), eq(AuditAction.RECEIPT_QC_CONFIRM), eq("Receipt"), eq(100L), any(), any(), any(), any());
+        verify(auditLogService).log(eq(storekeeperActor), eq(AuditAction.RECEIPT_QC_CONFIRM), eq("Receipt"), eq(100L),
+                any(), any(), any(), any());
     }
 
     @Test
@@ -153,7 +154,8 @@ class ReceiptQcServiceTest {
         assertThat(receipt.getStatus()).isEqualTo(ReceiptStatus.QC_FAILED);
 
         verify(receiptRepository).save(receipt);
-        verify(auditLogService).log(eq(storekeeperActor), eq(AuditAction.RECEIPT_QC_CONFIRM), eq("Receipt"), eq(100L), any(), any(), any(), any());
+        verify(auditLogService).log(eq(storekeeperActor), eq(AuditAction.RECEIPT_QC_CONFIRM), eq("Receipt"), eq(100L),
+                any(), any(), any(), any());
         verifyNoInteractions(locationRepository, batchRepository, inventoryRepository);
     }
 }

@@ -44,6 +44,7 @@ public class ReceiptItem {
     private Integer actualQty;
 
     @Column(name = "over_received_qty", nullable = false)
+    @Builder.Default
     private Integer overReceivedQty = 0;
 
     @Column(name = "sample_qty")

@@ -10,7 +10,6 @@ import com.wms.repository.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -26,21 +25,32 @@ import static org.mockito.Mockito.*;
 /**
  * Unit tests for ReceiptService reject and confirmReturnToSupplier — US-WMS-05.
  *
- * <p>Covers: reject happy path, missing reason, invalid status, stale version,
- * return-confirm happy path, wrong state for confirm.</p>
+ * <p>
+ * Covers: reject happy path, missing reason, invalid status, stale version,
+ * return-confirm happy path, wrong state for confirm.
+ * </p>
  */
 @ExtendWith(MockitoExtension.class)
 class ReceiptServiceReturnToSupplierTest {
 
-    @Mock private ReceiptRepository receiptRepository;
-    @Mock private ReceiptItemRepository receiptItemRepository;
-    @Mock private BatchRepository batchRepository;
-    @Mock private AdjustmentRepository adjustmentRepository;
-    @Mock private DebitNoteRepository debitNoteRepository;
-    @Mock private InventoryRepository inventoryRepository;
-    @Mock private WarehouseLocationRepository warehouseLocationRepository;
-    @Mock private UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
-    @Mock private AuditLogService auditLogService;
+    @Mock
+    private ReceiptRepository receiptRepository;
+    @Mock
+    private ReceiptItemRepository receiptItemRepository;
+    @Mock
+    private BatchRepository batchRepository;
+    @Mock
+    private AdjustmentRepository adjustmentRepository;
+    @Mock
+    private DebitNoteRepository debitNoteRepository;
+    @Mock
+    private InventoryRepository inventoryRepository;
+    @Mock
+    private WarehouseLocationRepository warehouseLocationRepository;
+    @Mock
+    private UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
+    @Mock
+    private AuditLogService auditLogService;
 
     private ReceiptValidationService receiptValidationService;
     private ReceiptApprovalService receiptService;
@@ -93,8 +103,7 @@ class ReceiptServiceReturnToSupplierTest {
                 inventoryRepository,
                 warehouseLocationRepository,
                 receiptValidationService,
-                auditLogService
-        );
+                auditLogService);
     }
 
     // -----------------------------------------------------------------------
@@ -116,8 +125,7 @@ class ReceiptServiceReturnToSupplierTest {
         assertNotNull(response);
         assertEquals(ReceiptStatus.RETURN_TO_SUPPLIER_PENDING, response.getStatus());
 
-        verify(receiptRepository).save(argThat(r ->
-                r.getStatus() == ReceiptStatus.RETURN_TO_SUPPLIER_PENDING
+        verify(receiptRepository).save(argThat(r -> r.getStatus() == ReceiptStatus.RETURN_TO_SUPPLIER_PENDING
                 && "Hàng bị ẩm, không đạt tiêu chuẩn chất lượng".equals(r.getRejectionReason())));
         verify(auditLogService).log(eq(manager), eq(AuditAction.RECEIPT_REJECT),
                 eq("RECEIPT"), eq(1L), eq("RCV-2026-002"), eq(10L), any(), any());
