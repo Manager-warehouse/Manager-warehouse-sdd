@@ -3,7 +3,7 @@ package com.wms.dto.response;
 import com.wms.enums.TripStatus;
 import com.wms.enums.TripType;
 import java.math.BigDecimal;
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.List;
 import lombok.Builder;
@@ -18,7 +18,8 @@ public class TripResponse {
     private Long vehicleId;
     private Long driverId;
     private Long dispatcherId;
-    private LocalDate plannedDate;
+    private LocalDateTime plannedStartAt;
+    private LocalDateTime plannedEndAt;
     private TripType tripType;
     private TripStatus status;
     private BigDecimal totalWeightKg;

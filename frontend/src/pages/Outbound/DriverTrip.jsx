@@ -60,6 +60,7 @@ export default function DriverTrip() {
   const { user } = useAuthStore();
 
   const [trip, setTrip] = useState(null);
+  const [trips, setTrips] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeDO, setActiveDO] = useState(null);
   const [modalType, setModalType] = useState(null);
@@ -74,11 +75,23 @@ export default function DriverTrip() {
 
   useEffect(() => {
     if (!id) {
-      setLoading(false);
+      fetchTrips();
       return;
     }
     fetchTrip(id);
   }, [id]);
+
+  const fetchTrips = async () => {
+    setLoading(true);
+    try {
+      const data = await outboundService.getMyTrips();
+      setTrips(data);
+    } catch (error) {
+      addToast(error.message || 'Lỗi khi tải danh sách chuyến xe', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchTrip = async (tripId) => {
     setLoading(true);
@@ -171,14 +184,45 @@ export default function DriverTrip() {
   };
 
   if (!id) {
-    const isDriver = user?.role === 'DRIVER';
+    if (loading) {
+      return (
+        <div className="flex items-center justify-center p-20">
+          <Loader2 className="w-8 h-8 animate-spin text-shade-50" />
+        </div>
+      );
+    }
+
+    if (!trips.length) {
+      return (
+        <div className="bg-white rounded-lg border border-hairline-light p-12 text-center shadow-sm">
+          <Truck className="w-12 h-12 text-shade-30 mx-auto mb-4" />
+          <h3 className="text-lg font-bold mb-1">Không có chuyến xe nào</h3>
+          <p className="text-sm text-shade-50">Hiện tại bạn chưa được gán chuyến xe nào.</p>
+        </div>
+      );
+    }
+
     return (
-      <div className="bg-white rounded-lg border border-hairline-light p-12 text-center shadow-sm">
-        <Truck className="w-12 h-12 text-shade-30 mx-auto mb-4" />
-        <h3 className="text-lg font-bold mb-1">{isDriver ? 'Cần mở chuyến đã được gán' : 'Không có chuyến được mở'}</h3>
-        <p className="text-sm text-shade-50">
-          Backend hiện tại chỉ hỗ trợ màn hình driver theo route có trip id. Hãy mở chuyến từ danh sách điều phối.
-        </p>
+      <div className="flex flex-col gap-6">
+        <div>
+          <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">Giao hàng</span>
+          <h1 className="text-2xl font-display font-semibold tracking-tight">Danh sách chuyến</h1>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {trips.map((tripItem) => (
+            <div key={tripItem.id} onClick={() => navigate(`/outbound/driver/trips/${tripItem.id}`)} className="bg-white rounded-lg border border-hairline-light shadow-sm hover:shadow-md transition-shadow cursor-pointer card-premium overflow-hidden">
+              <div className="p-4 border-b border-hairline-light bg-zinc-50 flex justify-between items-center">
+                <span className="text-xs font-bold text-ink">{tripItem.trip_number}</span>
+                <StatusBadge status={tripItem.status} />
+              </div>
+              <div className="p-4 space-y-2 text-xs">
+                <p className="flex items-center gap-2 text-shade-50"><Truck className="w-3.5 h-3.5 text-shade-40" /> Xe: <span className="font-semibold text-ink">{tripItem.vehicle_plate || '-'}</span></p>
+                <p className="flex items-center gap-2 text-shade-50"><Calendar className="w-3.5 h-3.5 text-shade-40" /> T.gian dự kiến: <span className="font-semibold text-ink">{tripItem.planned_start_at ? new Date(tripItem.planned_start_at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) : '-'}</span></p>
+                <p className="text-xs text-shade-50 pt-1">Tổng KL: <span className="font-semibold text-ink">{tripItem.total_weight_kg || 0} kg</span></p>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -218,7 +262,7 @@ export default function DriverTrip() {
           <div className="space-y-2 text-xs mb-4">
             <p className="flex items-center gap-2 text-shade-50"><Truck className="w-3.5 h-3.5 text-shade-40" /> Xe: <span className="font-semibold text-ink">{trip.vehicle_plate || '-'}</span></p>
             <p className="flex items-center gap-2 text-shade-50"><User className="w-3.5 h-3.5 text-shade-40" /> Tài xế: <span className="font-semibold text-ink">{trip.driver_name || trip.driver_id}</span></p>
-            <p className="flex items-center gap-2 text-shade-50"><Calendar className="w-3.5 h-3.5 text-shade-40" /> Ngày: <span className="font-semibold text-ink">{trip.planned_date ? new Date(trip.planned_date).toLocaleDateString('vi-VN') : '-'}</span></p>
+            <p className="flex items-center gap-2 text-shade-50"><Calendar className="w-3.5 h-3.5 text-shade-40" /> T.gian dự kiến: <span className="font-semibold text-ink">{trip.planned_start_at ? new Date(trip.planned_start_at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) : '-'} - {trip.planned_end_at ? new Date(trip.planned_end_at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) : '-'}</span></p>
           </div>
 
           {trip.status === 'PLANNED' && (

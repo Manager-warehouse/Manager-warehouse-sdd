@@ -4,7 +4,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import lombok.Getter;
 import lombok.Setter;
@@ -23,7 +23,10 @@ public class TripCreateRequest {
     private Long driverId;
 
     @NotNull
-    private LocalDate plannedDate;
+    private LocalDateTime plannedStartAt;
+
+    @NotNull
+    private LocalDateTime plannedEndAt;
 
     @Size(max = 1000)
     private String notes;

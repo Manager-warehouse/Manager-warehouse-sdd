@@ -149,7 +149,8 @@ public class TripServiceImpl implements TripService {
                 .vehicle(vehicle)
                 .driver(driver)
                 .dispatcher(actor)
-                .plannedDate(request.getPlannedDate())
+                .plannedStartAt(request.getPlannedStartAt())
+                .plannedEndAt(request.getPlannedEndAt())
                 .tripType(TripType.DELIVERY)
                 .status(TripStatus.PLANNED)
                 .totalWeightKg(capacity.weight())
@@ -184,8 +185,11 @@ public class TripServiceImpl implements TripService {
 
         trip.setVehicle(vehicle);
         trip.setDriver(driver);
-        if (request.getPlannedDate() != null) {
-            trip.setPlannedDate(request.getPlannedDate());
+        if (request.getPlannedStartAt() != null) {
+            trip.setPlannedStartAt(request.getPlannedStartAt());
+        }
+        if (request.getPlannedEndAt() != null) {
+            trip.setPlannedEndAt(request.getPlannedEndAt());
         }
         trip.setNotes(request.getNotes());
         trip.setTotalWeightKg(capacity.weight());
@@ -523,7 +527,8 @@ public class TripServiceImpl implements TripService {
                 .vehicleId(trip.getVehicle().getId())
                 .driverId(trip.getDriver().getId())
                 .dispatcherId(trip.getDispatcher().getId())
-                .plannedDate(trip.getPlannedDate())
+                .plannedStartAt(trip.getPlannedStartAt())
+                .plannedEndAt(trip.getPlannedEndAt())
                 .tripType(trip.getTripType())
                 .status(trip.getStatus())
                 .totalWeightKg(trip.getTotalWeightKg())

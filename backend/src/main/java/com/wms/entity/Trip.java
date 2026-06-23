@@ -5,7 +5,7 @@ import com.wms.enums.TripStatus;
 import com.wms.enums.TripType;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 
 @Entity
@@ -40,8 +40,11 @@ public class Trip {
     @JoinColumn(name = "dispatcher_id", nullable = false)
     private User dispatcher;
 
-    @Column(name = "planned_date", nullable = false)
-    private LocalDate plannedDate;
+    @Column(name = "planned_start_at", nullable = false)
+    private LocalDateTime plannedStartAt;
+
+    @Column(name = "planned_end_at", nullable = false)
+    private LocalDateTime plannedEndAt;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "trip_type", nullable = false, length = 20)

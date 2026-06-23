@@ -139,7 +139,8 @@ const INITIAL_TRIPS = [
     vehicle_plate: '15C-123.45',
     driver_id: 13,
     driver_name: 'Nguyễn Văn Tài Xế',
-    planned_date: '2026-06-13',
+    planned_start_at: '2026-06-13T08:00:00',
+    planned_end_at: '2026-06-13T17:00:00',
     status: 'PLANNED',
     total_weight_kg: 150,
     created_at: '2026-06-12T08:00:00.000Z',
@@ -441,7 +442,8 @@ const normalizeTrip = (trip = {}) => ({
   vehicle_plate: value(trip, 'vehiclePlate', 'vehicle_plate', value(trip, 'plateNumber', 'plate_number', '')),
   driver_id: value(trip, 'driverId', 'driver_id'),
   driver_name: value(trip, 'driverName', 'driver_name', ''),
-  planned_date: value(trip, 'plannedDate', 'planned_date', value(trip, 'createdAt', 'created_at')),
+  planned_start_at: value(trip, 'plannedStartAt', 'planned_start_at', value(trip, 'createdAt', 'created_at')),
+  planned_end_at: value(trip, 'plannedEndAt', 'planned_end_at', value(trip, 'createdAt', 'created_at')),
   status: value(trip, 'status', 'status'),
   total_weight_kg: Number(value(trip, 'totalWeightKg', 'total_weight_kg', 0)),
   delivery_orders: asArray(value(trip, 'deliveryOrders', 'delivery_orders', [])).map(normalizeTripStop),
@@ -466,7 +468,8 @@ const toTripCreatePayload = (data) => ({
   warehouseId: Number(data.warehouse_id),
   vehicleId: Number(data.vehicle_id),
   driverId: Number(data.driver_id),
-  plannedDate: data.planned_date,
+  plannedStartAt: data.planned_start_at,
+  plannedEndAt: data.planned_end_at,
   notes: data.notes || '',
   deliveryOrders: data.delivery_orders.map((order, index) => ({
     doId: Number(order.id || order.do_id),
@@ -956,6 +959,16 @@ export const outboundService = {
     }
     const response = await apiClient.get(`/trips/${id}`);
     return normalizeTrip(response.data);
+  },
+
+  getMyTrips: async () => {
+    if (useMock) {
+      await mockDelay(150);
+      const trips = getDb(KEYS.TRIPS, INITIAL_TRIPS).filter((trip) => trip.driver_id === 13);
+      return trips.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    }
+    const response = await apiClient.get('/trips/driver');
+    return asArray(response.data).map(normalizeTrip);
   },
 
   createTrip: async (data) => {

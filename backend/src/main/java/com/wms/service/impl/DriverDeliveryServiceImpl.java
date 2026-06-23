@@ -115,6 +115,15 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<TripDriverViewResponse> listMyTrips(User actor) {
+        return tripRepository.findAssignedDriverTrips(actor.getId())
+                .stream()
+                .map(this::toTripDriverView)
+                .toList();
+    }
+
+    @Override
     @Transactional
     public DeliveryAttemptResponse uploadPodEvidence(Long tripId, Long deliveryOrderId,
                                                      MultipartFile goodsImage,

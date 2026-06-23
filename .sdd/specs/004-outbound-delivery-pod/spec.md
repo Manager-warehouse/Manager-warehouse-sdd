@@ -1,4 +1,4 @@
-﻿# Feature Specification: Xuất hàng & Giao hàng (Outbound & Delivery)
+# Feature Specification: Xuất hàng & Giao hàng (Outbound & Delivery)
 
 **Spec ID**: 004-outbound-delivery-pod
 **Created**: 2026-05-30
@@ -230,7 +230,8 @@ _Out of scope for this feature group implementation: payment receipt, payment ap
 - `vehicle_id` (BIGINT, FK→vehicles, NOT NULL)
 - `driver_id` (BIGINT, FK→drivers, NOT NULL)
 - `dispatcher_id` (BIGINT, FK→users, NOT NULL)
-- `planned_date` (DATE, NOT NULL)
+- `planned_start_at` (TIMESTAMP, NOT NULL)
+- `planned_end_at` (TIMESTAMP, NOT NULL)
 - `trip_type` (VARCHAR(20), DEFAULT 'DELIVERY', CHECK IN ('DELIVERY','TRANSFER'), NOT NULL)
 - `status` (VARCHAR(20), DEFAULT 'PLANNED', CHECK IN ('PLANNED','IN_TRANSIT','COMPLETED','CANCELLED'))
 - `total_weight_kg` (DECIMAL(10,2))

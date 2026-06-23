@@ -14,6 +14,8 @@ import org.springframework.web.multipart.MultipartFile;
 public interface DriverDeliveryService {
     TripDriverViewResponse getAssignedTrip(Long tripId, User actor);
 
+    java.util.List<TripDriverViewResponse> listMyTrips(User actor);
+
     DeliveryAttemptResponse uploadPodEvidence(Long tripId, Long deliveryOrderId,
                                               MultipartFile goodsImage,
                                               MultipartFile signDocumentImage,

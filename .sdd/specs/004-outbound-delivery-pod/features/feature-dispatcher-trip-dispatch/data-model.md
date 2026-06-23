@@ -12,7 +12,8 @@
 - `vehicle_id`
 - `driver_id`
 - `dispatcher_id`
-- `planned_date`
+- `planned_start_at` (Thời gian dự kiến bắt đầu)
+- `planned_end_at` (Thời gian dự kiến kết thúc)
 - `trip_type`
 - `status`
 - `total_weight_kg`
