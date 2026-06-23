@@ -1,10 +1,19 @@
 package com.wms.service.impl;
 
+import com.wms.dto.request.TripCancelRequest;
+import com.wms.dto.request.TripCompleteRequest;
+import com.wms.dto.request.TripCreateRequest;
+import com.wms.dto.request.TripDeliveryOrderRequest;
+import com.wms.dto.request.TripDepartRequest;
+import com.wms.dto.request.TripUpdateRequest;
+import com.wms.dto.response.TripDeliveryOrderResponse;
+import com.wms.dto.response.TripResponse;
 import com.wms.entity.Delivery;
 import com.wms.entity.DeliveryOrder;
 import com.wms.entity.DeliveryOrderItem;
 import com.wms.entity.Driver;
 import com.wms.entity.Inventory;
+import com.wms.entity.OutboundQcRecord;
 import com.wms.entity.Trip;
 import com.wms.entity.TripDeliveryOrder;
 import com.wms.entity.User;
@@ -19,17 +28,23 @@ import com.wms.enums.TripStatus;
 import com.wms.enums.TripType;
 import com.wms.enums.VehicleStatus;
 import com.wms.enums.WarehouseType;
+import com.wms.exception.OutboundDeliveryException;
 import com.wms.exception.ResourceNotFoundException;
 import com.wms.repository.DeliveryOrderItemRepository;
 import com.wms.repository.DeliveryOrderRepository;
+import com.wms.repository.DeliveryRepository;
 import com.wms.repository.DriverRepository;
 import com.wms.repository.InventoryRepository;
+import com.wms.repository.OutboundQcRecordRepository;
+import com.wms.repository.TripDeliveryOrderRepository;
 import com.wms.repository.TripRepository;
 import com.wms.repository.UserWarehouseAssignmentRepository;
 import com.wms.repository.VehicleRepository;
 import com.wms.repository.WarehouseLocationRepository;
 import com.wms.repository.WarehouseRepository;
 import com.wms.service.AuditLogService;
+import com.wms.service.TripService;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -135,8 +150,9 @@ public class TripServiceImpl implements TripService {
                 .vehicle(vehicle)
                 .driver(driver)
                 .dispatcher(actor)
-                .plannedDate(request.getPlannedDate())
+                .plannedDate(request.getPlannedStartAt().toLocalDate())
                 .plannedStartAt(request.getPlannedStartAt())
+                .plannedEndAt(request.getPlannedEndAt())
                 .tripType(TripType.DELIVERY)
                 .status(TripStatus.PLANNED)
                 .totalWeightKg(capacity.weight())
@@ -171,8 +187,12 @@ public class TripServiceImpl implements TripService {
 
         trip.setVehicle(vehicle);
         trip.setDriver(driver);
-        if (request.getPlannedDate() != null) {
-            trip.setPlannedDate(request.getPlannedDate());
+        if (request.getPlannedStartAt() != null) {
+            trip.setPlannedDate(request.getPlannedStartAt().toLocalDate());
+            trip.setPlannedStartAt(request.getPlannedStartAt());
+        }
+        if (request.getPlannedEndAt() != null) {
+            trip.setPlannedEndAt(request.getPlannedEndAt());
         }
         trip.setNotes(request.getNotes());
         trip.setTotalWeightKg(capacity.weight());
@@ -517,6 +537,8 @@ public class TripServiceImpl implements TripService {
                 .driverId(trip.getDriver().getId())
                 .dispatcherId(trip.getDispatcher().getId())
                 .plannedDate(trip.getPlannedDate())
+                .plannedStartAt(trip.getPlannedStartAt())
+                .plannedEndAt(trip.getPlannedEndAt())
                 .tripType(trip.getTripType())
                 .status(trip.getStatus())
                 .totalWeightKg(trip.getTotalWeightKg())

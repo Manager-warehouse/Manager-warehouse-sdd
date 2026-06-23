@@ -86,6 +86,9 @@ public class MasterDataMapper {
         response.setPhone(entity.getPhone());
         response.setLicenseNumber(entity.getLicenseNumber());
         response.setLicenseExpiry(entity.getLicenseExpiry());
+        if (entity.getWarehouse() != null) {
+            response.setWarehouseId(entity.getWarehouse().getId());
+        }
         response.setStatus(entity.getStatus() != null ? entity.getStatus().name() : null);
         response.setIsActive(entity.getIsActive());
         response.setCreatedAt(entity.getCreatedAt());

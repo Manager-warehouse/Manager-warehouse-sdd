@@ -32,7 +32,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.mockito.Mock;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -55,16 +55,16 @@ class StockTakeControllerTest {
         @Autowired
         private MockMvc mockMvc;
 
-        @Mock
-        private StockTakeService stockTakeService;
-        @Mock
-        private CurrentUserService currentUserService;
-        @Mock
-        private com.wms.repository.UserRepository userRepository;
-        @Mock
-        private com.wms.util.JwtUtil jwtUtil;
-        @Mock
-        private com.wms.config.UserDetailsServiceImpl userDetailsService;
+        @MockBean
+    private StockTakeService stockTakeService;
+        @MockBean
+    private CurrentUserService currentUserService;
+        @MockBean
+    private com.wms.repository.UserRepository userRepository;
+        @MockBean
+    private com.wms.util.JwtUtil jwtUtil;
+        @MockBean
+    private com.wms.config.UserDetailsServiceImpl userDetailsService;
 
         private User manager;
 
@@ -319,3 +319,5 @@ class StockTakeControllerTest {
                 return sk;
         }
 }
+
+

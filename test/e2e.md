@@ -33,9 +33,9 @@ Planner tạo Lệnh nhập → Thủ kho nhập số lượng thực tế
 ```
 Planner tạo DO (kiểm tra credit check) → Reserve inventory
 → Thủ kho soạn hàng → QC đóng gói → Ready to Ship
-→ Dispatcher lập Trip → Tài xế xác nhận In-Transit → Trừ tồn kho
-→ Tài xế giao → Ký POD → Delivered
-→ Kế toán tạo Invoice → Cộng công nợ → Completed
+→ Dispatcher lập Trip → Tài xế xác nhận In-Transit → Trừ tồn kho và tạo delivery attempt
+→ Tài xế giao → Ký POD + OTP hợp lệ trên attempt hiện tại → Delivered
+→ Kế toán xử lý invoice candidates → Tạo Invoice → Cộng công nợ → Completed
 → Đại lý thanh toán → Cấn trừ công nợ → Closed
 ```
 

@@ -36,7 +36,7 @@ Implement supplier purchase receipt drafting for Planner users through `POST /ap
 |-----------|--------|-------|
 | Layered Architecture | PASS | Add Controller -> Service -> Repository -> Entity flow for receipt creation. |
 | Inventory Integrity | PASS | Feature creates draft receipt only and explicitly does not mutate inventory. |
-| FEFO/FIFO Batch Selection | PASS | Out of scope until approval/issue flows; no batch selection here. |
+| FIFO Batch Allocation | PASS | Out of scope until approval/issue flows; no batch selection here. |
 | QC Gate & Quarantine | PASS | Receipt remains `PENDING_RECEIPT`; QC is handled by later features. |
 | In-Transit Tracking | PASS | Not a transfer feature. |
 | Auth & RBAC | PASS | Planner must be authorized for target warehouse. |

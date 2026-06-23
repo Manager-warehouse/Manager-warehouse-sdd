@@ -24,7 +24,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.mockito.Mock;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.http.HttpStatus;
@@ -42,23 +42,23 @@ class ReceiptControllerTest {
         @Autowired
         private MockMvc mockMvc;
 
-        @Mock
-        private ReceiptService receiptService;
+        @MockBean
+    private ReceiptService receiptService;
 
-        @Mock
-        private CurrentUserService currentUserService;
+        @MockBean
+    private CurrentUserService currentUserService;
 
-        @Mock
-        private com.wms.service.ReceiptQcService receiptQcService;
+        @MockBean
+    private com.wms.service.ReceiptQcService receiptQcService;
 
-        @Mock
-        private com.wms.repository.UserRepository userRepository;
+        @MockBean
+    private com.wms.repository.UserRepository userRepository;
 
-        @Mock
-        private com.wms.util.JwtUtil jwtUtil;
+        @MockBean
+    private com.wms.util.JwtUtil jwtUtil;
 
-        @Mock
-        private com.wms.config.UserDetailsServiceImpl userDetailsService;
+        @MockBean
+    private com.wms.config.UserDetailsServiceImpl userDetailsService;
 
         private User planner;
         private User warehouseStaff;
@@ -357,3 +357,5 @@ class ReceiptControllerTest {
                                 """;
         }
 }
+
+

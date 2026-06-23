@@ -19,7 +19,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.mockito.Mock;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
@@ -43,14 +43,14 @@ class UserControllerTest {
         @Autowired
         private ObjectMapper objectMapper;
 
-        @Mock
-        private UserService userService;
-        @Mock
-        private UserRepository userRepository;
-        @Mock
-        private JwtUtil jwtUtil;
-        @Mock
-        private UserDetailsServiceImpl userDetailsService;
+        @MockBean
+    private UserService userService;
+        @MockBean
+    private UserRepository userRepository;
+        @MockBean
+    private JwtUtil jwtUtil;
+        @MockBean
+    private UserDetailsServiceImpl userDetailsService;
 
         private User adminUser;
         private UserResponse userResponse;
@@ -204,3 +204,5 @@ class UserControllerTest {
                                 .andExpect(status().isOk());
         }
 }
+
+

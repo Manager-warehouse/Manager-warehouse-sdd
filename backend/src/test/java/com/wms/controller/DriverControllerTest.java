@@ -15,7 +15,7 @@ import com.wms.service.DriverService;
 import com.wms.util.JwtUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mock;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -43,13 +43,13 @@ public class DriverControllerTest {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @Mock
+    @MockBean
     private DriverService driverService;
-    @Mock
+    @MockBean
     private UserRepository userRepository;
-    @Mock
+    @MockBean
     private JwtUtil jwtUtil;
-    @Mock
+    @MockBean
     private UserDetailsServiceImpl userDetailsService;
 
     private User dispatcherUser;
@@ -95,6 +95,7 @@ public class DriverControllerTest {
         when(driverService.createDriver(any(), eq(4L))).thenReturn(new DriverResponse());
 
         DriverRequest req = new DriverRequest();
+        req.setWarehouseId(2L);
         req.setUserId(3L);
         req.setFullName("Nguyen Van A");
         req.setLicenseNumber("LX-12345");
@@ -114,6 +115,7 @@ public class DriverControllerTest {
                 .thenThrow(new IllegalArgumentException("DUPLICATE_LICENSE_NUMBER"));
 
         DriverRequest req = new DriverRequest();
+        req.setWarehouseId(2L);
         req.setUserId(3L);
         req.setFullName("Nguyen Van A");
         req.setLicenseNumber("LX-12345");
@@ -125,3 +127,5 @@ public class DriverControllerTest {
                 .andExpect(status().isConflict());
     }
 }
+
+

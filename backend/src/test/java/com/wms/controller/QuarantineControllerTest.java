@@ -15,7 +15,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mock;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -33,19 +33,19 @@ class QuarantineControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @Mock
+    @MockBean
     private QuarantineRtvService quarantineRtvService;
 
-    @Mock
+    @MockBean
     private CurrentUserService currentUserService;
 
-    @Mock
+    @MockBean
     private com.wms.repository.UserRepository userRepository;
 
-    @Mock
+    @MockBean
     private com.wms.util.JwtUtil jwtUtil;
 
-    @Mock
+    @MockBean
     private com.wms.config.UserDetailsServiceImpl userDetailsService;
 
     private User manager;
@@ -99,3 +99,5 @@ class QuarantineControllerTest {
                 .andExpect(status().isBadRequest());
     }
 }
+
+

@@ -16,7 +16,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.mockito.Mock;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
@@ -40,13 +40,13 @@ public class WarehouseControllerTest {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @Mock
+    @MockBean
     private WarehouseService warehouseService;
-    @Mock
+    @MockBean
     private UserRepository userRepository;
-    @Mock
+    @MockBean
     private JwtUtil jwtUtil;
-    @Mock
+    @MockBean
     private UserDetailsServiceImpl userDetailsService;
 
     private User adminUser;
@@ -127,3 +127,5 @@ public class WarehouseControllerTest {
                 .andExpect(status().isConflict());
     }
 }
+
+

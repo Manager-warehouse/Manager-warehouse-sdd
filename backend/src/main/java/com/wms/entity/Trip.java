@@ -34,6 +34,10 @@ public class Trip {
     private Driver driver;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "warehouse_id", nullable = false)
+    private Warehouse warehouse;
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "dispatcher_id", nullable = false)
     private User dispatcher;
 
@@ -60,8 +64,17 @@ public class Trip {
     @Column(name = "total_volume_m3", precision = 10, scale = 3)
     private BigDecimal totalVolumeM3;
 
-    @OneToOne(mappedBy = "trip", fetch = FetchType.LAZY)
-    private InterWarehouseTransfer transfer;
+    @Column(name = "cancel_reason", columnDefinition = "TEXT")
+    private String cancelReason;
+
+    @Column(name = "departed_at")
+    private OffsetDateTime departedAt;
+
+    @Column(name = "completed_at")
+    private OffsetDateTime completedAt;
+
+    @Column(name = "notes", columnDefinition = "TEXT")
+    private String notes;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;

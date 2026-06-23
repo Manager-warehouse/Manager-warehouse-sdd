@@ -2,6 +2,7 @@ package com.wms.repository;
 
 import com.wms.entity.Driver;
 import com.wms.enums.DriverStatus;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -17,4 +18,7 @@ public interface DriverRepository extends JpaRepository<Driver, Long> {
     Optional<Driver> findByUserId(Long userId);
     boolean existsByUserId(Long userId);
     boolean existsByUserIdAndIdNot(Long userId, Long id);
+
+    @EntityGraph(attributePaths = {"warehouse", "user"})
+    Optional<Driver> findWithWarehouseAndUserById(Long id);
 }

@@ -28,6 +28,9 @@ public class Dealer {
     @Column(name = "phone", length = 20)
     private String phone;
 
+    @Column(name = "email", length = 255)
+    private String email;
+
     @Column(name = "default_delivery_address", columnDefinition = "TEXT")
     private String defaultDeliveryAddress;
 

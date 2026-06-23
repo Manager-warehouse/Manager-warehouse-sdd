@@ -148,18 +148,17 @@ class AuditLogUtilTest {
     }
 
     @Test
-    @DisplayName("toJson serialize Java time values dùng trong audit snapshot")
+    @DisplayName("toJson serialize được giá trị LocalDate và OffsetDateTime cho audit snapshot")
     void toJson_serializesJavaTimeValues() {
         Map<String, Object> input = new HashMap<>();
-        input.put("documentDate", LocalDate.of(2026, 6, 16));
-        input.put("updatedAt", OffsetDateTime.parse("2026-06-16T10:15:30+07:00"));
+        input.put("documentDate", LocalDate.of(2026, 6, 21));
+        input.put("updatedAt", OffsetDateTime.parse("2026-06-21T12:19:14+07:00"));
 
         String json = AuditLogUtil.toJson(input);
 
         assertThat(json)
-                .contains("\"documentDate\"")
-                .contains("2026-06-16")
-                .contains("\"updatedAt\"");
+                .contains("\"documentDate\":\"2026-06-21\"")
+                .contains("\"updatedAt\":\"2026-06-21T12:19:14+07:00\"");
     }
 
     @Test

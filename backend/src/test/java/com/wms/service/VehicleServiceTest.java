@@ -56,8 +56,8 @@ public class VehicleServiceTest {
 
         vehicle = new Vehicle();
         vehicle.setId(5L);
-        vehicle.setPlateNumber("29C-12345");
         vehicle.setWarehouse(warehouse);
+        vehicle.setPlateNumber("29C-12345");
         vehicle.setStatus(VehicleStatus.AVAILABLE);
         vehicle.setIsActive(true);
     }
@@ -65,6 +65,7 @@ public class VehicleServiceTest {
     @Test
     void createVehicle_Success() {
         VehicleRequest req = new VehicleRequest();
+        req.setWarehouseId(2L);
         req.setPlateNumber("29C-12345");
         req.setVehicleType("Container 40ft");
         req.setMaxWeightKg(BigDecimal.valueOf(25000.0));
@@ -78,7 +79,8 @@ public class VehicleServiceTest {
         vehicleService.createVehicle(req, 1L);
 
         verify(vehicleRepository).save(any(Vehicle.class));
-        verify(auditLogService).log(eq(actor), eq(AuditAction.CREATE), eq("Vehicle"), any(), eq("29C-12345"), any(), any(), any());
+        verify(auditLogService).log(eq(actor), eq(AuditAction.CREATE), eq("Vehicle"), any(), eq("29C-12345"), any(),
+                any(), any());
     }
 
     @Test
@@ -99,6 +101,7 @@ public class VehicleServiceTest {
         vehicleService.deactivateVehicle(5L, 1L);
 
         assertFalse(vehicle.getIsActive());
-        verify(auditLogService).log(eq(actor), eq(AuditAction.SOFT_DELETE), eq("Vehicle"), eq(5L), eq("29C-12345"), any(), any(), any());
+        verify(auditLogService).log(eq(actor), eq(AuditAction.SOFT_DELETE), eq("Vehicle"), eq(5L), eq("29C-12345"),
+                any(), any(), any());
     }
 }

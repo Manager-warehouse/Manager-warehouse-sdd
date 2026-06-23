@@ -153,7 +153,7 @@ src/
 │   │   └── Footer.jsx          # Footer thông tin hệ thống
 │   │
 │   └── warehouse/              # Component nghiệp vụ kho đặc thù
-│       ├── BatchSelector.jsx   # Chọn lô hàng (gợi ý FEFO/FIFO)
+│       ├── BatchSelector.jsx   # Chọn lô hàng (FIFO mặc định, FEFO nếu có expiry/cấu hình)
 │       ├── BinCapacityIndicator.jsx # Thanh hiển thị sức chứa Bin trước khi Putaway
 │       ├── SerialNumberList.jsx # Nhập/quản lý Serial (nếu has_serial = true)
 │       └── InTransitTracker.jsx # Theo dõi lộ trình hàng đang đi đường
@@ -177,7 +177,7 @@ src/
 │   ├── Outbound/
 │   │   ├── DeliveryOrders.jsx  # Lệnh xuất kho DO & Picking (Spec 004)
 │   │   ├── QCOutbound.jsx     # QC đầu ra trước khi giao hàng (Spec 004)
-│   │   └── TripPlanning.jsx    # Gom chuyến xe & Ký nhận POD (Spec 004)
+│   │   └── TripPlanning.jsx    # Gom chuyến xe, tạo delivery attempts, upload POD images & OTP giao hàng (Spec 004)
 │   ├── InternalTransfer/
 │   │   ├── TransferRequest.jsx # Lệnh điều chuyển giữa các kho Hải Phòng/HN/HCM (Spec 005)
 │   │   ├── InTransitStock.jsx  # Theo dõi hàng đang đi đường (Virtual location) (Spec 005)
@@ -206,7 +206,7 @@ src/
    * Không cho phép nhập số lượng âm ở bất kỳ form nghiệp vụ nào.
    * Khi thực hiện xuất/điều chuyển hàng, bắt buộc giao diện phải hiển thị cảnh báo nếu số khả dụng không đủ: `available = total - reserved < quantity_requested`.
    * Giao diện nhập kho bắt buộc phải bắt qua luồng **QC Inbound** trước khi hiển thị nút "Putaway".
-   * Giao diện chọn lô hàng xuất kho phải tự động sắp xếp và gợi ý lô theo quy tắc **FEFO** (sản phẩm có hạn dùng) hoặc **FIFO** (sản phẩm không có hạn dùng).
+   * Giao diện chọn lô hàng xuất kho phải tự động sắp xếp và gợi ý lô theo **FIFO mặc định**, chỉ dùng **FEFO** cho sản phẩm có hạn dùng hoặc được cấu hình FEFO.
 3. **Quy chuẩn đặt tên**:
    * Tên Component React: PascalCase (ví dụ: `BatchSelector.jsx`, `InTransitStock.jsx`).
    * Tên Hook / Tiện ích / File Logic: camelCase (ví dụ: `useAuth.js`, `format.js`).

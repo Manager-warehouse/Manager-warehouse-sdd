@@ -35,6 +35,10 @@ public class Driver {
     @Column(name = "license_expiry", nullable = false)
     private LocalDate licenseExpiry;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "warehouse_id", nullable = false)
+    private Warehouse warehouse;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     private DriverStatus status;
