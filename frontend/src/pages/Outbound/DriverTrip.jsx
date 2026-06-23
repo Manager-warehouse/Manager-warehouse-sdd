@@ -18,8 +18,6 @@ import { interWarehouseTransferService } from '../../services/inter-warehouse-tr
 import { useUiStore } from '../../stores/ui.store';
 import { useAuthStore } from '../../stores/auth.store';
 import OTPInput from '../../components/warehouse/OTPInput';
-import { useAuthStore } from '../../stores/auth.store';
-import { useUiStore } from '../../stores/ui.store';
 
 const DELIVERY_STATUS_MAP = {
   WAREHOUSE_APPROVED: { label: 'Chờ giao', color: 'bg-amber-50 text-amber-700 border-amber-200' },
@@ -159,8 +157,6 @@ export default function DriverTrip() {
         TRANSFER_TRIP_REQUIRED: 'Phiếu điều chuyển chưa được lập chuyến',
       };
       addToast(messages[error.message] || error.message || 'Lỗi khi xác nhận xuất phát', 'error');
-    } catch (error) {
-      addToast(error.message || 'Lỗi khi xác nhận xuất phát', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -285,7 +281,7 @@ export default function DriverTrip() {
   if (!trip) return null;
 
   const isTransferTrip = trip.type === 'TRANSFER';
-  const deliveredCount = trip.delivery_orders?.filter(d => d.delivery_status === 'DELIVERED').length ?? 0;
+  const deliveredCount = trip.delivery_orders?.filter(d => d.delivery_status === 'COMPLETED').length ?? 0;
   const totalCount = isTransferTrip ? trip.items.length : (trip.delivery_orders?.length ?? 0);
   const transferLoaded = !isTransferTrip || (
     trip.items.length > 0
@@ -294,8 +290,6 @@ export default function DriverTrip() {
       && Number(item.sentQty) === Number(item.plannedQty)
     ))
   );
-  const deliveredCount = trip.delivery_orders?.filter((item) => item.delivery_status === 'COMPLETED').length ?? 0;
-  const totalCount = trip.delivery_orders?.length ?? 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -325,9 +319,6 @@ export default function DriverTrip() {
             {trip.planned_end_at && (
               <p className="flex items-center gap-2 text-shade-50"><Calendar className="w-3.5 h-3.5 text-shade-40 shrink-0" /> Hạn giao: <span className="font-semibold text-ink">{new Date(trip.planned_end_at).toLocaleString('vi-VN')}</span></p>
             )}
-            <p className="flex items-center gap-2 text-shade-50"><Truck className="w-3.5 h-3.5 text-shade-40" /> Xe: <span className="font-semibold text-ink">{trip.vehicle_plate || '-'}</span></p>
-            <p className="flex items-center gap-2 text-shade-50"><User className="w-3.5 h-3.5 text-shade-40" /> Tài xế: <span className="font-semibold text-ink">{trip.driver_name || trip.driver_id}</span></p>
-            <p className="flex items-center gap-2 text-shade-50"><Calendar className="w-3.5 h-3.5 text-shade-40" /> T.gian dự kiến: <span className="font-semibold text-ink">{trip.planned_start_at ? new Date(trip.planned_start_at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) : '-'} - {trip.planned_end_at ? new Date(trip.planned_end_at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) : '-'}</span></p>
           </div>
           {trip.tripWarningActive && (
             <div className={`mb-4 rounded-md border px-3 py-2 text-[11px] ${
@@ -395,11 +386,6 @@ export default function DriverTrip() {
         ))}
 
         {!isTransferTrip && trip.delivery_orders?.map((doItem, index) => {
-          const isDelivered = doItem.delivery_status === 'DELIVERED';
-          const isFailed = doItem.delivery_status === 'FAILED';
-          const isPending = !isDelivered && !isFailed;
-          <h3 className="text-xs font-bold uppercase tracking-wider text-shade-40">Danh sách điểm giao ({totalCount} điểm)</h3>
-          {trip.delivery_orders?.map((doItem, index) => {
             const isDelivered = doItem.delivery_status === 'COMPLETED';
             const isFailed = doItem.delivery_status === 'FAILED';
             const isPending = !isDelivered && !isFailed;
