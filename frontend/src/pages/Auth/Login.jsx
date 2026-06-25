@@ -106,6 +106,7 @@ const Login = () => {
 
             <div className="relative">
               <Input
+                data-testid="input-login-email"
                 label="Địa chỉ Email"
                 type="email"
                 value={email}
@@ -119,6 +120,7 @@ const Login = () => {
 
              <div>
               <Input
+                data-testid="input-login-password"
                 label="Mật khẩu"
                 type="password"
                 value={password}
@@ -136,6 +138,7 @@ const Login = () => {
             </div>
 
             <Button
+              data-testid="btn-login-submit"
               type="submit"
               variant="outline-dark"
               loading={loading}

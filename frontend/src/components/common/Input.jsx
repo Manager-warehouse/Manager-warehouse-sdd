@@ -8,6 +8,7 @@ const Input = React.forwardRef(({
   className = '',
   id,
   options = [], // for type="select" or multiselect
+  'data-testid-prefix': testIdPrefix,
   ...props
 }, ref) => {
   const [showPassword, setShowPassword] = useState(false);
@@ -48,6 +49,7 @@ const Input = React.forwardRef(({
               <input
                 type="checkbox"
                 value={opt.value}
+                data-testid={testIdPrefix ? `${testIdPrefix}-${opt.value}` : undefined}
                 checked={props.value?.includes(opt.value)}
                 onChange={(e) => {
                   const val = opt.value;

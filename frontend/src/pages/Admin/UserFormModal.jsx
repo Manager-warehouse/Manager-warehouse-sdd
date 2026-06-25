@@ -164,12 +164,13 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         {error && (
-          <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-md text-xs font-medium">
+          <div data-testid="form-error" className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-md text-xs font-medium">
             {error}
           </div>
         )}
 
         <Input
+          data-testid="input-employee-code"
           label="Mã nhân viên (Employee Code)"
           type="text"
           value={code}
@@ -180,6 +181,7 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
         />
 
         <Input
+          data-testid="input-full-name"
           label="Họ và tên nhân viên"
           type="text"
           value={fullName}
@@ -190,6 +192,7 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Input
+            data-testid="input-email"
             label="Địa chỉ Email"
             type="email"
             value={email}
@@ -199,6 +202,7 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
           />
 
           <Input
+            data-testid="input-phone"
             label="Số điện thoại"
             type="text"
             value={phone}
@@ -209,6 +213,7 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
 
         {modalType === 'create' ? (
           <Input
+            data-testid="input-password"
             label="Mật khẩu khởi tạo"
             type="password"
             value={password}
@@ -218,6 +223,7 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
           />
         ) : (
           <Input
+            data-testid="input-password"
             label="Đặt lại mật khẩu (Để trống nếu không đổi)"
             type="password"
             value={password}
@@ -228,6 +234,7 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
 
         {/* Role selection dropdown */}
         <Input
+          data-testid="select-role"
           label="Gán Vai trò (Role)"
           type="select"
           options={roleOptions}
@@ -237,6 +244,7 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Input
+            data-testid="select-shift"
             label="Ca làm việc"
             type="select"
             options={[
@@ -249,6 +257,7 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
           />
           {selectedRole === ROLES.DISPATCHER && (
             <Input
+              data-testid="input-region"
               label="Khu vực phụ trách"
               type="text"
               value={region}
@@ -261,6 +270,7 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
         {/* Warehouses Checkbox group (only relevant if not Admin/CEO) */}
         {selectedRole !== ROLES.ADMIN && selectedRole !== ROLES.CEO && (
           <Input
+            data-testid-prefix="checkbox-warehouse"
             label="Phân công Kho làm việc"
             type="checkbox-group"
             options={warehouseOptions}
@@ -278,6 +288,7 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
             Hủy
           </Button>
           <Button
+            data-testid="btn-submit-form"
             type="submit"
             variant="primary"
             loading={loading}
