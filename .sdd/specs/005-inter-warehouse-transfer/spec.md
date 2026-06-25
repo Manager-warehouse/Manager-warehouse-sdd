@@ -2,8 +2,8 @@
 
 **Spec ID**: 005-inter-warehouse-transfer
 **Created**: 2026-05-30
-**Updated**: 2026-06-19
-**Status**: Implemented (Sprint 1)
+**Updated**: 2026-06-24
+**Status**: Implemented (Sprint 1 core flow); change requested for manager-initiated transfer request flow
 **Features**: US-WMS-11, US-WMS-12
 
 ---
@@ -20,8 +20,15 @@ Luot nghiep vu nay la **luong rieng** cua dieu chuyen noi bo:
 
 Moi phieu dieu chuyen gan voi dung **mot** chuyen xe noi bo rieng, gom xe, tai xe, ngay chuyen va cac buoc ship/receive theo trang thai.
 
+Bo sung luong tien xu ly cho nhu cau can bang ton kho giua cac kho:
+- Truong kho co the xem ton kho kha dung cua kho khac o che do read-only de phat hien kho khac con hang ma kho minh dang thieu.
+- Truong kho kho dang thieu co the tao **yeu cau dieu chuyen** gui CEO phe duyet, trong do kho dang thieu la kho dich va kho co hang la kho nguon du kien.
+- CEO phe duyet hoac tu choi yeu cau. Sau khi CEO phe duyet, he thong phat sinh/dua ra mau de nghi dieu chuyen cho Planner cua kho nguon de tao phieu `TRF-*` va tiep tuc luong dieu chuyen noi bo hien co.
+- Luong nay khong tu dong tao `TRF` khi chua duoc CEO duyet va khong tu dong quyet dinh so luong/nguon hang thay con nguoi.
+
 ### Features List
 - [US-WMS-11: Planner Nhap lenh dieu chuyen kho tu Cong ty me](./features/feature-planner-transfer-planning.md)
+- [US-WMS-11A: Truong kho de xuat dieu chuyen tu ton kho kho khac va CEO duyet](./features/feature-warehouse-manager-transfer-request.md)
 - [US-WMS-12: Thu kho Nguon Soan & Xuat hang Dieu chuyen](./features/feature-storekeeper-transfer-ship.md)
 - [US-WMS-12: Kho Dich Tiep nhan & Xu ly Chenh lech Dieu chuyen](./features/feature-storekeeper-transfer-receive.md)
 
@@ -44,11 +51,18 @@ Moi phieu dieu chuyen gan voi dung **mot** chuyen xe noi bo rieng, gom xe, tai x
 - Q: Should the system validate quarantine existence early (at receiveCheck) rather than at finalReceive? -> A: Yes. If qcFailedQty > 0, the system validates at receiveCheck time that the destination warehouse has at least one active quarantine bin. This prevents the storekeeper from completing the check step only to fail at the final confirmation step.
 - Q: Can the QC-passed bin selected by the storekeeper be a quarantine bin? -> A: No. The system must reject any attempt to assign a quarantine bin as the destination for QC-passed stock. The storekeeper's bin dropdown already filters out quarantine bins; the backend also enforces this as an invariant.
 
+### Session 2026-06-24
+- Q: Can a warehouse manager inspect stock in another warehouse and request transfer when their own warehouse is short? -> A: Yes. A WAREHOUSE_MANAGER may view cross-warehouse available stock read-only, create a transfer request from their own warehouse need, submit it to CEO, and wait for CEO approval before execution.
+- Q: What happens after CEO approval? -> A: The system sends/generates an approved transfer request template for the Planner of the source warehouse. The Planner uses that approved request as the source instruction to create the executable `TRF-*` transfer.
+- Q: Does manager-initiated request replace Planner-created transfers from company instructions? -> A: No. It adds a pre-approval request flow. Existing Planner `TRF` creation and source approval/ship/receive flow remain unchanged.
+
 ## 2. Actors
 
 | Actor | Vai tro | Nghiep vu lien quan |
 |-------|---------|---------------------|
 | Planner | Maker | Nhap phieu dieu chuyen kho noi bo theo lenh tu Cong ty me hoac bo phan dieu phoi trung tam |
+| Truong kho (Kho dang thieu hang / kho yeu cau) | Maker | Xem ton kho kha dung cua kho khac, tao yeu cau dieu chuyen va gui CEO phe duyet |
+| CEO | Approver | Phe duyet hoac tu choi yeu cau dieu chuyen do Truong kho de xuat truoc khi Planner kho nguon tao phieu `TRF` |
 | Truong kho (Kho nguon) | Checker | Kiem tra ton kho kha dung tai kho nguon va phe duyet/tu choi phieu dieu chuyen |
 | Dispatcher (Kho nguon) | Maker | Lap chuyen xe noi bo rieng cho phieu dieu chuyen, gan xe va tai xe trong pham vi kho nguon |
 | Thu kho (Kho nguon) | Maker | Nhan lenh xuat dieu chuyen, soan hang va xac nhan xuat hang len xe |
@@ -61,6 +75,7 @@ Moi phieu dieu chuyen gan voi dung **mot** chuyen xe noi bo rieng, gom xe, tai x
 
 *Vui long xem chi tiet yeu cau chuc nang EARS tai cac tai lieu dac ta tinh nang:*
 - [EARS - Transfer Creation](./features/feature-planner-transfer-planning.md#3-functional-requirements-ears)
+- [EARS - Manager Transfer Request and CEO Approval](./features/feature-warehouse-manager-transfer-request.md#3-functional-requirements-ears)
 - [EARS - Transfer Shipment](./features/feature-storekeeper-transfer-ship.md#3-functional-requirements-ears)
 - [EARS - Transfer Receipt](./features/feature-storekeeper-transfer-receive.md#3-functional-requirements-ears)
 
@@ -74,6 +89,7 @@ Moi phieu dieu chuyen gan voi dung **mot** chuyen xe noi bo rieng, gom xe, tai x
 | NFR-004 | Transfer dashboard for Sprint 1 | Provide role-scoped operational list and current-step panel; advanced KPI/reporting can be deferred |
 | NFR-005 | Audit traceability | Every state mutation, trip assignment mutation, and receive/QC mutation must be reconstructable from audit logs |
 | NFR-006 | End-to-end verification | Core happy-path and main blocking-path scenarios must be testable from UI through API |
+| NFR-007 | Cross-warehouse stock visibility | Read-only cross-warehouse availability lookup should return within <= 1s for normal Sprint 1 data volume |
 
 ## 5. Data Model
 
@@ -102,6 +118,36 @@ Moi phieu dieu chuyen gan voi dung **mot** chuyen xe noi bo rieng, gom xe, tai x
 - `notes` (TEXT)
 - `created_at` (TIMESTAMPTZ)
 - `updated_at` (TIMESTAMPTZ)
+- `transfer_request_id` (BIGINT, FK->transfer_requests, NULLABLE) -- present when Planner creates `TRF` from CEO-approved manager request
+
+### transfer_requests
+- `id` (BIGSERIAL, PK)
+- `request_number` (VARCHAR(50), UNIQUE, NOT NULL) -- format `TRQ-YYYYMMDD-####`
+- `requesting_warehouse_id` (BIGINT, FK->warehouses, NOT NULL) -- kho dang thieu hang, becomes transfer destination
+- `source_warehouse_id` (BIGINT, FK->warehouses, NOT NULL) -- kho co hang, becomes transfer source
+- `status` (VARCHAR(40), DEFAULT 'DRAFT', CHECK IN ('DRAFT','SUBMITTED','CEO_APPROVED','CEO_REJECTED','CONVERTED','CANCELLED'))
+- `requested_by` (BIGINT, FK->users, NOT NULL)
+- `submitted_at` (TIMESTAMPTZ)
+- `approved_by` (BIGINT, FK->users)
+- `approved_at` (TIMESTAMPTZ)
+- `rejected_by` (BIGINT, FK->users)
+- `rejected_at` (TIMESTAMPTZ)
+- `rejection_reason` (TEXT)
+- `needed_by_date` (DATE)
+- `business_reason` (TEXT, NOT NULL)
+- `planner_assignee_id` (BIGINT, FK->users) -- Planner of source warehouse or central Planner assigned after CEO approval
+- `converted_transfer_id` (BIGINT, FK->transfers)
+- `created_at` (TIMESTAMPTZ)
+- `updated_at` (TIMESTAMPTZ)
+
+### transfer_request_items
+- `id` (BIGSERIAL, PK)
+- `transfer_request_id` (BIGINT, FK->transfer_requests, NOT NULL)
+- `product_id` (BIGINT, FK->products, NOT NULL)
+- `requested_qty` (DECIMAL(10,2), NOT NULL)
+- `observed_source_available_qty` (DECIMAL(10,2), NOT NULL)
+- `observed_requesting_available_qty` (DECIMAL(10,2), NOT NULL)
+- `shortage_reason` (TEXT)
 
 ### transfer_items
 - `id` (BIGSERIAL, PK)
@@ -137,6 +183,7 @@ Moi phieu dieu chuyen gan voi dung **mot** chuyen xe noi bo rieng, gom xe, tai x
 
 *Vui long xem chi tiet API endpoints tai cac tai lieu dac ta tinh nang:*
 - [APIs - Transfer Creation](./features/feature-planner-transfer-planning.md#4-api-endpoints)
+- [APIs - Manager Transfer Request and CEO Approval](./features/feature-warehouse-manager-transfer-request.md#4-api-endpoints)
 - [APIs - Transfer Shipment](./features/feature-storekeeper-transfer-ship.md#4-api-endpoints)
 - [APIs - Transfer Receipt](./features/feature-storekeeper-transfer-receive.md#4-api-endpoints)
 
@@ -182,10 +229,29 @@ Moi phieu dieu chuyen gan voi dung **mot** chuyen xe noi bo rieng, gom xe, tai x
 | TRIP_START_IN_PAST | 422 | Trip planned_start_at is in the past |
 | TRIP_END_IN_PAST | 422 | Trip planned_end_at is in the past |
 | TRIP_RESOURCE_OVERLAP | 409 | Vehicle or driver already assigned to another overlapping trip |
+| CROSS_WAREHOUSE_STOCK_VIEW_FORBIDDEN | 403 | Actor is not allowed to view cross-warehouse stock availability |
+| TRANSFER_REQUEST_ITEMS_REQUIRED | 400 | Warehouse manager submits transfer request without item lines |
+| TRANSFER_REQUEST_QTY_EXCEEDS_SOURCE_AVAILABLE | 422 | Requested quantity is greater than observed source available quantity at submit/approval time |
+| TRANSFER_REQUEST_REASON_REQUIRED | 400 | Transfer request is missing business reason or shortage reason required for CEO review |
+| TRANSFER_REQUEST_APPROVAL_NOT_ALLOWED | 409 | CEO approval/rejection attempted in invalid request status |
+| CEO_REJECTION_REASON_REQUIRED | 400 | CEO rejects transfer request without reason |
+| TRANSFER_REQUEST_NOT_APPROVED | 409 | Planner attempts to create `TRF` from a request that is not CEO-approved |
+| TRANSFER_REQUEST_ALREADY_CONVERTED | 409 | Planner attempts to create another `TRF` from a request already converted to a transfer |
 
 ### Transfer Business Rules
 - Sprint 1 SHALL NOT generate transfer suggestions or automatically decide source/destination/quantity for inter-warehouse transfers.
-- Planner SHALL create transfers only from explicit external transfer instructions from Cong ty me or a central coordination team.
+- Planner SHALL create transfers only from explicit external transfer instructions from Cong ty me, a central coordination team, or a CEO-approved manager transfer request.
+- A WAREHOUSE_MANAGER MAY view read-only available stock in other active warehouses to support manual replenishment decisions for their assigned warehouse.
+- Cross-warehouse stock visibility SHALL expose available quantity (`total_qty - reserved_qty`) and basic product/warehouse identifiers, but SHALL NOT allow the viewing manager to mutate another warehouse's inventory.
+- A WAREHOUSE_MANAGER MAY create a transfer request only where the requesting warehouse is within their assigned warehouse scope; that requesting warehouse becomes the destination if the request is later converted to a `TRF`.
+- A transfer request SHALL identify the source warehouse, requesting/destination warehouse, product lines, requested quantity, observed source available quantity, observed requesting warehouse available quantity, needed-by date, and business reason.
+- A transfer request SHALL be submitted to CEO for approval before Planner can create an executable `TRF` from it.
+- CEO MAY approve or reject a submitted transfer request. Rejection SHALL require a reason and preserve the request for audit.
+- CEO approval SHALL NOT reserve inventory and SHALL NOT move stock. Inventory reservation remains part of source warehouse manager approval on the later `TRF`.
+- After CEO approval, the system SHALL generate or send an approved transfer request template/notification to the Planner assigned to the source warehouse so the Planner can create the executable `TRF`.
+- Planner MAY create a `TRF` from a CEO-approved transfer request. The resulting `TRF` SHALL copy source warehouse, destination warehouse, item lines, request reference, and traceability code from the approved request.
+- A CEO-approved transfer request SHALL be converted to at most one active `TRF`; duplicate conversion SHALL be rejected.
+- If source availability changes before `TRF` approval, existing source manager stock checks and `INSUFFICIENT_TRANSFER_STOCK` handling still apply.
 - Every transfer SHALL store a non-blank `external_instruction_code` for traceability.
 - Active transfers SHALL be unique by `external_instruction_code`, source warehouse, destination warehouse, and `document_date`; transfers in `REJECTED` or `CANCELLED` SHALL NOT block creating a corrected transfer.
 - Cong ty me SHALL NOT be modeled as a WMS user in Sprint 1; Planner is the system actor who enters the external instruction.
@@ -251,6 +317,11 @@ Moi phieu dieu chuyen gan voi dung **mot** chuyen xe noi bo rieng, gom xe, tai x
 ### Audit Trail
 - Every transfer mutation SHALL create an audit log with `actor`, `action`, `entity_type`, `entity_id`, `entity_code`, `timestamp`, `before`, and `after`.
 - `TRANSFER_CREATE`: Planner creates transfer with status `NEW`.
+- `TRANSFER_REQUEST_CREATE`: Warehouse manager creates transfer request from cross-warehouse stock view.
+- `TRANSFER_REQUEST_SUBMIT`: Warehouse manager submits request to CEO.
+- `TRANSFER_REQUEST_CEO_APPROVE`: CEO approves request and triggers the approved request template/notification for source Planner.
+- `TRANSFER_REQUEST_CEO_REJECT`: CEO rejects request with required reason.
+- `TRANSFER_REQUEST_CONVERT`: Planner creates a `TRF` from a CEO-approved transfer request.
 - `TRANSFER_UPDATE`: Planner edits header or item lines while transfer status is `NEW`.
 - `TRANSFER_APPROVE`: Truong kho nguon approves transfer, reserves source inventory, and changes status to `APPROVED`.
 - `TRANSFER_REJECT`: Truong kho nguon rejects a `NEW` transfer with a required reason and changes status to `REJECTED`.
@@ -304,12 +375,13 @@ Moi phieu dieu chuyen gan voi dung **mot** chuyen xe noi bo rieng, gom xe, tai x
 
 *Vui long xem chi tiet kich ban kiem thu tai cac tai lieu dac ta tinh nang:*
 - [Acceptance - Transfer Creation](./features/feature-planner-transfer-planning.md#6-acceptance-criteria)
+- [Acceptance - Manager Transfer Request and CEO Approval](./features/feature-warehouse-manager-transfer-request.md#6-acceptance-criteria)
 - [Acceptance - Transfer Shipment](./features/feature-storekeeper-transfer-ship.md#7-acceptance-criteria)
 - [Acceptance - Transfer Receipt](./features/feature-storekeeper-transfer-receive.md#6-acceptance-criteria)
 
 ## 10. Out of Scope
 
-- Automated replenishment suggestions and transfer decision algorithms
+- Automated replenishment suggestions and transfer decision algorithms beyond manager-initiated manual requests
 - Multi-warehouse transfer optimization
 - Transfer cost tracking
 - Third-party logistics (3PL) for transfer flow

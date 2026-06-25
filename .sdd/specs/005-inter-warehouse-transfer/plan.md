@@ -6,7 +6,7 @@
 
 ## Summary
 
-Implement Sprint 1 inter-warehouse transfer as a dedicated `TRF`/`TTR` workflow, separate from supplier inbound `RN` receipts. Planner manually creates transfer documents from external company instructions. Source warehouse manager approves and reserves inventory, Dispatcher at the source warehouse assigns one dedicated transfer trip, source storekeeper ships exact approved quantities, assigned driver moves goods to In-Transit, destination worker records counts, destination storekeeper checks count/QC, and destination manager final-confirms receipt. The implementation must preserve inventory invariants, warehouse-scoped RBAC, immutable audit trail, quarantine handling, and non-negative inventory.
+Implement Sprint 1 inter-warehouse transfer as a dedicated `TRF`/`TTR` workflow, separate from supplier inbound `RN` receipts. Planner manually creates transfer documents from external company instructions or from CEO-approved manager transfer requests. A warehouse manager may view read-only available stock in other warehouses, request stock for their own warehouse, and submit the request to CEO. After CEO approval, the system sends/generates the approved request template for the source Planner, who converts it into an executable `TRF`. Source warehouse manager approves and reserves inventory, Dispatcher at the source warehouse assigns one dedicated transfer trip, source storekeeper ships exact approved quantities, assigned driver moves goods to In-Transit, destination worker records counts, destination storekeeper checks count/QC, and destination manager final-confirms receipt. The implementation must preserve inventory invariants, warehouse-scoped RBAC, immutable audit trail, quarantine handling, and non-negative inventory.
 
 ## Technical Context
 
@@ -24,7 +24,7 @@ Implement Sprint 1 inter-warehouse transfer as a dedicated `TRF`/`TTR` workflow,
 
 **Performance Goals**: Transfer create/approval/depart/receive mutations should complete within 2s under normal Sprint 1 data volume; In-Transit query should be real-time enough for operations screens.
 
-**Constraints**: No negative inventory; optimistic locking/version checks on inventory updates; every transfer mutation audited; role plus warehouse scope required; no source lot allocation requirement inside spec 005 transfer implementation; no per-unit serial/expiry/grade additions for this feature.
+**Constraints**: No negative inventory; optimistic locking/version checks on inventory updates; every transfer mutation audited; role plus warehouse scope required; cross-warehouse stock visibility is read-only; CEO approval of a manager request does not reserve inventory; no source lot allocation requirement inside spec 005 transfer implementation; no per-unit serial/expiry/grade additions for this feature.
 
 **Scale/Scope**: Three physical warehouses, one In-Transit warehouse, one quarantine location per destination warehouse, multi-item transfers, one dedicated trip per transfer.
 
@@ -39,7 +39,7 @@ Implement Sprint 1 inter-warehouse transfer as a dedicated `TRF`/`TTR` workflow,
 | Inventory Selection Principle | N/A for spec 005 | Transfer spec explicitly removed source lot allocation. This feature operates on aggregate product/warehouse/location quantities. Existing broader inventory rules remain untouched. |
 | QC Gate & Quarantine | PASS | Receive-check requires QC totals and failure reason; final receive routes QC-failed stock to active quarantine location. |
 | In-Transit Tracking | PASS | Depart moves source stock to In-Transit; final receive clears In-Transit only after destination confirmation. |
-| Auth & RBAC | PASS | Tasks include role and source/destination warehouse scope checks for every mutation. |
+| Auth & RBAC | PASS | Tasks include role and source/destination warehouse scope checks for every mutation; manager cross-warehouse stock visibility is read-only and request creation is limited to the manager's assigned warehouse. |
 | Test Coverage | PASS | Tasks include unit and integration tests for all service/business rules and API endpoints. |
 
 ## Project Structure
@@ -58,6 +58,7 @@ Implement Sprint 1 inter-warehouse transfer as a dedicated `TRF`/`TTR` workflow,
 ├── tasks.md
 └── features/
     ├── feature-planner-transfer-planning.md
+    ├── feature-warehouse-manager-transfer-request.md
     ├── feature-storekeeper-transfer-ship.md
     └── feature-storekeeper-transfer-receive.md
 ```
@@ -67,17 +68,27 @@ Implement Sprint 1 inter-warehouse transfer as a dedicated `TRF`/`TTR` workflow,
 ```text
 backend/src/main/java/com/wms/
 ├── controller/TransferController.java
+├── controller/TransferRequestController.java
 ├── dto/request/transfer/*.java
+├── dto/request/transferrequest/*.java
 ├── dto/response/transfer/*.java
+├── dto/response/transferrequest/*.java
 ├── entity/Transfer.java
 ├── entity/TransferItem.java
+├── entity/TransferRequest.java
+├── entity/TransferRequestItem.java
 ├── enums/TransferStatus.java
+├── enums/TransferRequestStatus.java
 ├── enums/AuditAction.java
 ├── repository/TransferRepository.java
 ├── repository/TransferItemRepository.java
+├── repository/TransferRequestRepository.java
 ├── mapper/TransferMapper.java
+├── mapper/TransferRequestMapper.java
 ├── service/TransferService.java
+├── service/TransferRequestService.java
 └── service/impl/TransferServiceImpl.java
+└── service/impl/TransferRequestServiceImpl.java
 
 backend/src/test/java/com/wms/
 ├── controller/TransferControllerIntegrationTest.java

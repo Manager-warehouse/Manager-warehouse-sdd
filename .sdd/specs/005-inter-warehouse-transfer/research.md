@@ -35,3 +35,9 @@
 **Rationale**: Constitution and AGENTS require service coverage, endpoint integration tests, inventory invariant tests, and audit logging verification for warehouse operations.
 
 **Alternatives considered**: Generate implementation tasks first and tests later. Rejected because transfer touches inventory, reservation, authorization, and audit.
+
+## Decision: Model manager-initiated replenishment as TransferRequest before TRF
+
+**Rationale**: A warehouse manager can identify shortage by viewing read-only stock in other warehouses, but that request still needs CEO approval before warehouse execution. Keeping this as `transfer_requests` avoids overloading executable `transfers` statuses and preserves the existing `TRF` flow where inventory is reserved only after source manager approval.
+
+**Alternatives considered**: Let the warehouse manager create a `TRF` directly. Rejected because it bypasses CEO approval and Planner responsibility. Auto-create `TRF` immediately after CEO approval was also rejected because the source Planner still needs to receive the approved template and create the operational document with traceability.

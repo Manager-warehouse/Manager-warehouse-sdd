@@ -50,6 +50,7 @@ yarn-error.log*
 .env.development.local
 .env.test.local
 .env.production.local
+rest-client/*.local.http
 
 # ===== JAVA + SPRING BOOT =====
 # Compiled class files

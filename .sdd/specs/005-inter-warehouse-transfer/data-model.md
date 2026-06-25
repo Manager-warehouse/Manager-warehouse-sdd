@@ -22,6 +22,7 @@ Fields to add/verify:
 - `document_date`
 - `accounting_period_id`
 - `notes`
+- `transfer_request_id` (nullable link to CEO-approved manager request)
 - `created_at`, `updated_at`
 
 Validation:
@@ -32,6 +33,57 @@ Validation:
 - Planner can cancel only `NEW`.
 - Source manager/authorized manager can cancel only unshipped `APPROVED`.
 - No cancellation after `IN_TRANSIT`.
+- If created from a transfer request, the linked request must be `CEO_APPROVED` and not already converted.
+
+## TransferRequest
+
+**Table**: `transfer_requests`
+
+Fields to add/verify:
+- `id`
+- `request_number`
+- `requesting_warehouse_id` (warehouse that needs stock; becomes transfer destination)
+- `source_warehouse_id` (warehouse expected to send stock)
+- `status`: `DRAFT`, `SUBMITTED`, `CEO_APPROVED`, `CEO_REJECTED`, `CONVERTED`, `CANCELLED`
+- `requested_by`
+- `submitted_at`
+- `approved_by`, `approved_at`
+- `rejected_by`, `rejected_at`, `rejection_reason`
+- `needed_by_date`
+- `business_reason`
+- `planner_assignee_id`
+- `converted_transfer_id`
+- `created_at`, `updated_at`
+
+Validation:
+- Requesting and source warehouses must differ.
+- Requesting warehouse must be within the requesting warehouse manager's assigned warehouse scope.
+- Cross-warehouse stock lookup is read-only and must exclude quarantine stock from available quantity.
+- Business reason is required before submit.
+- CEO can approve or reject only `SUBMITTED` requests.
+- CEO rejection requires `rejection_reason`.
+- CEO approval does not reserve inventory.
+- Only `CEO_APPROVED` requests can be converted to `TRF`.
+- A request can be converted to at most one active transfer.
+
+## TransferRequestItem
+
+**Table**: `transfer_request_items`
+
+Fields to add/verify:
+- `id`
+- `transfer_request_id`
+- `product_id`
+- `requested_qty`
+- `observed_source_available_qty`
+- `observed_requesting_available_qty`
+- `shortage_reason`
+
+Validation:
+- `requested_qty > 0`.
+- `requested_qty` must not exceed current source available quantity at submit/approval time.
+- Source available quantity is `total_qty - reserved_qty`, excluding quarantine stock.
+- Item shortage reason is required when business reason does not explain the shortage at product level.
 
 ## TransferItem
 
@@ -102,6 +154,11 @@ Fields required:
 ## AuditLog
 
 Required transfer actions:
+- `TRANSFER_REQUEST_CREATE`
+- `TRANSFER_REQUEST_SUBMIT`
+- `TRANSFER_REQUEST_CEO_APPROVE`
+- `TRANSFER_REQUEST_CEO_REJECT`
+- `TRANSFER_REQUEST_CONVERT`
 - `TRANSFER_CREATE`
 - `TRANSFER_UPDATE`
 - `TRANSFER_APPROVE`
