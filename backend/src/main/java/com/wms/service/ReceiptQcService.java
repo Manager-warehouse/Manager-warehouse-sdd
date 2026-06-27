@@ -10,6 +10,10 @@ import com.wms.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import com.wms.exception.BusinessRuleViolationException;
 
 import java.util.List;
 import java.util.Map;
@@ -26,6 +30,9 @@ public class ReceiptQcService {
     private final ReceiptValidationService receiptValidationService;
     private final AuditLogService auditLogService;
     private final UserRepository userRepository;
+    private final BatchRepository batchRepository;
+    private final InventoryRepository inventoryRepository;
+    private final WarehouseLocationRepository warehouseLocationRepository;
 
     @Transactional
     public ReceiptQcResponse processQc(Long receiptId, ReceiptQcRequest request, String actorEmail) {
@@ -102,7 +109,7 @@ public class ReceiptQcService {
         return buildResponse(receipt);
     }
 
-    /** STOREKEEPER káº¿t luáº­n QC: chuyá»ƒn tráº¡ng thÃ¡i receipt vÃ  xá»­ lÃ½ quarantine náº¿u lá»—i. */
+    /** STOREKEEPER kết luận QC: chuyển trạng thái receipt và xử lý quarantine nếu lỗi. */
     private ReceiptQcResponse confirmQc(Receipt receipt, User actor) {
         List<ReceiptItem> items = receiptItemRepository.findByReceiptId(receipt.getId());
 
@@ -117,6 +124,74 @@ public class ReceiptQcService {
         ReceiptStatus resultStatus = anyFailed ? ReceiptStatus.QC_FAILED : ReceiptStatus.QC_COMPLETED;
         receipt.setStatus(resultStatus);
         receiptRepository.save(receipt);
+
+        if (anyFailed) {
+            boolean hasFailedQty = items.stream().anyMatch(item -> item.getSampleFailedQty() != null && item.getSampleFailedQty() > 0);
+            if (hasFailedQty) {
+                WarehouseLocation quarantineLoc = warehouseLocationRepository
+                        .findFirstByWarehouseIdAndIsQuarantineTrueAndIsActiveTrue(receipt.getWarehouse().getId())
+                        .orElseThrow(() -> new BusinessRuleViolationException(
+                                "QUARANTINE_LOCATION_NOT_CONFIGURED: Active quarantine location not found for warehouse " 
+                                + receipt.getWarehouse().getId()));
+
+            for (ReceiptItem item : items) {
+                Integer failedQtyInt = item.getSampleFailedQty();
+                if (failedQtyInt == null || failedQtyInt <= 0) {
+                    continue;
+                }
+                BigDecimal failedQty = BigDecimal.valueOf(failedQtyInt);
+
+                Batch batch = resolveOrCreateBatch(item, receipt);
+                item.setBatch(batch);
+                item.setLocation(quarantineLoc);
+                receiptItemRepository.save(item);
+
+                Inventory inventory = inventoryRepository
+                        .findByWarehouseProductBatchLocationForUpdate(
+                                receipt.getWarehouse().getId(), item.getProduct().getId(), batch.getId(), quarantineLoc.getId())
+                        .orElseGet(() -> Inventory.builder()
+                                .warehouse(receipt.getWarehouse())
+                                .product(item.getProduct())
+                                .batch(batch)
+                                .location(quarantineLoc)
+                                .totalQty(BigDecimal.ZERO)
+                                .reservedQty(BigDecimal.ZERO)
+                                .costPrice(item.getUnitCost() != null ? item.getUnitCost() : BigDecimal.ZERO)
+                                .updatedAt(OffsetDateTime.now())
+                                .build());
+
+                BigDecimal oldQty = inventory.getTotalQty();
+                inventory.setTotalQty(oldQty.add(failedQty));
+                inventory.setUpdatedAt(OffsetDateTime.now());
+                inventoryRepository.save(inventory);
+
+                BigDecimal itemVol = item.getProduct().getVolumeM3() != null ? item.getProduct().getVolumeM3() : BigDecimal.ZERO;
+                BigDecimal itemWt = item.getProduct().getWeightKg() != null ? item.getProduct().getWeightKg() : BigDecimal.ZERO;
+
+                BigDecimal addedVol = failedQty.multiply(itemVol);
+                BigDecimal addedWt = failedQty.multiply(itemWt);
+
+                BigDecimal curVol = quarantineLoc.getCurrentVolumeM3() != null ? quarantineLoc.getCurrentVolumeM3() : BigDecimal.ZERO;
+                BigDecimal curWt = quarantineLoc.getCurrentWeightKg() != null ? quarantineLoc.getCurrentWeightKg() : BigDecimal.ZERO;
+
+                quarantineLoc.setCurrentVolumeM3(curVol.add(addedVol));
+                quarantineLoc.setCurrentWeightKg(curWt.add(addedWt));
+                quarantineLoc.setUpdatedAt(OffsetDateTime.now());
+                warehouseLocationRepository.save(quarantineLoc);
+
+                auditLogService.log(
+                        actor, AuditAction.INVENTORY_UPDATE, "INVENTORY",
+                        inventory.getId(),
+                        "INV-QUARANTINE-" + receipt.getWarehouse().getId() + "-" + item.getProduct().getId(),
+                        receipt.getWarehouse().getId(),
+                        Map.of("totalQty", oldQty, "reservedQty", inventory.getReservedQty()),
+                        Map.of("totalQty", inventory.getTotalQty(), "reservedQty", inventory.getReservedQty(),
+                               "locationId", quarantineLoc.getId(), "delta", failedQty, "reason", "QC_FAILED")
+                );
+            }
+        }
+    }
+
         auditLogService.log(
                 actor, AuditAction.RECEIPT_QC_CONFIRM, "Receipt", receipt.getId(),
                 receipt.getReceiptNumber(), receipt.getWarehouse().getId(),
@@ -125,6 +200,30 @@ public class ReceiptQcService {
         );
 
         return buildResponse(receipt);
+    }
+
+    private Batch resolveOrCreateBatch(ReceiptItem item, Receipt receipt) {
+        Long productId = item.getProduct().getId();
+        Long warehouseId = receipt.getWarehouse().getId();
+        LocalDate receivedDate = receipt.getDocumentDate();
+
+        return batchRepository
+                .findByProductWarehouseAndReceivedDate(productId, warehouseId, receivedDate)
+                .orElseGet(() -> {
+                    String batchNumber = String.format("BCH-%d-%s-%s",
+                            productId,
+                            receipt.getReceiptNumber(),
+                            receivedDate.toString());
+                    Batch newBatch = Batch.builder()
+                            .batchNumber(batchNumber)
+                            .product(item.getProduct())
+                            .warehouse(receipt.getWarehouse())
+                            .receivedDate(receivedDate)
+                            .quantity(item.getActualQty() != null ? BigDecimal.valueOf(item.getActualQty()) : BigDecimal.ZERO)
+                            .createdAt(OffsetDateTime.now())
+                            .build();
+                    return batchRepository.save(newBatch);
+                });
     }
 
     private ReceiptQcResponse buildResponse(Receipt receipt) {

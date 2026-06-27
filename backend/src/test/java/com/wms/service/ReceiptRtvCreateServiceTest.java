@@ -303,4 +303,38 @@ class ReceiptRtvCreateServiceTest {
         assertThrows(ForbiddenReceiptWarehouseException.class,
                 () -> receiptService.createRtv(1L, request, manager));
     }
+
+    @Test
+    void createRtv_returnReceiptApproved_createsPendingAdjustmentAndDebitNote() {
+        qcFailedReceipt.setType(ReceiptType.RETURN);
+        qcFailedReceipt.setStatus(ReceiptStatus.APPROVED);
+
+        ReceiptRtvCreateRequest request = new ReceiptRtvCreateRequest();
+        request.setExpectedVersion(2);
+        request.setReason("Hàng lỗi trả từ đại lý — trả NCC");
+
+        when(receiptRepository.findById(1L)).thenReturn(Optional.of(qcFailedReceipt));
+        when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
+        when(adjustmentRepository.existsByReferenceTypeAndReferenceIdAndType(
+                "RECEIPT", 1L, AdjustmentType.RETURN_TO_VENDOR)).thenReturn(false);
+        when(receiptItemRepository.findByReceiptId(1L)).thenReturn(List.of(failedItem));
+        when(adjustmentRepository.save(any(Adjustment.class))).thenAnswer(i -> {
+            Adjustment adj = i.getArgument(0);
+            adj.setId(100L);
+            return adj;
+        });
+        when(debitNoteRepository.save(any(DebitNote.class))).thenAnswer(i -> {
+            DebitNote dn = i.getArgument(0);
+            dn.setId(200L);
+            return dn;
+        });
+
+        RtvActionResponse response = receiptService.createRtv(1L, request, manager);
+
+        assertNotNull(response);
+        assertFalse(response.isConfirmed());
+        assertNotNull(response.getAdjustmentNumber());
+        assertNotNull(response.getDebitNoteNumber());
+        assertEquals(BigDecimal.valueOf(20), response.getQuarantineQty());
+    }
 }

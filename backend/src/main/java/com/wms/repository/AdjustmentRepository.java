@@ -34,17 +34,19 @@ public interface AdjustmentRepository extends JpaRepository<Adjustment, Long> {
                         @Param("referenceId") Long referenceId,
                         @Param("type") AdjustmentType type);
 
-        /**
-         * Find the confirmed RTV adjustment for a receipt (approvedAt IS NOT NULL).
-         * Used to reject duplicate confirmation attempts (HTTP 409).
-         */
-        @Query("SELECT a FROM Adjustment a " +
-                        "WHERE a.referenceType = :referenceType " +
-                        "AND a.referenceId = :referenceId " +
-                        "AND a.type = :type " +
-                        "AND a.approvedAt IS NOT NULL")
-        Optional<Adjustment> findConfirmedRtvByReference(
-                        @Param("referenceType") String referenceType,
-                        @Param("referenceId") Long referenceId,
-                        @Param("type") AdjustmentType type);
+    /**
+     * Find the confirmed RTV adjustment for a receipt (approvedAt IS NOT NULL).
+     * Used to reject duplicate confirmation attempts (HTTP 409).
+     */
+    @Query("SELECT a FROM Adjustment a " +
+           "WHERE a.referenceType = :referenceType " +
+           "AND a.referenceId = :referenceId " +
+           "AND a.type = :type " +
+           "AND a.approvedAt IS NOT NULL")
+    Optional<Adjustment> findConfirmedRtvByReference(
+            @Param("referenceType") String referenceType,
+            @Param("referenceId") Long referenceId,
+            @Param("type") AdjustmentType type);
+
+    java.util.List<Adjustment> findByTypeAndApprovedAtIsNull(AdjustmentType type);
 }

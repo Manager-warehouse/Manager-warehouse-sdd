@@ -1116,11 +1116,18 @@ export const masterDataService = {
       );
       return newVh;
     }
-    const response = await apiClient.post(
-      "/dispatcher/vehicles",
-      mapToCamelCase(vhData),
-    );
-    return mapToSnakeCase(response.data);
+    try {
+      const payload = mapToCamelCase(vhData);
+      console.log('Creating vehicle with payload:', payload);
+      const response = await apiClient.post(
+        "/dispatcher/vehicles",
+        payload,
+      );
+      return mapToSnakeCase(response.data);
+    } catch (error) {
+      console.error('Create vehicle API error:', error.response?.data || error);
+      throw error;
+    }
   },
 
   updateVehicle: async (id, vhData) => {

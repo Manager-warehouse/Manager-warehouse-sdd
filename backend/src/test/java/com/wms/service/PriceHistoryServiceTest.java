@@ -177,10 +177,13 @@ class PriceHistoryServiceTest {
         PriceHistory ph = pendingPriceHistory(1L);
         User manager = new User();
         manager.setId(2L);
+        manager.setFullName("KTT");
+
         when(priceHistoryRepository.findById(1L)).thenReturn(Optional.of(ph));
         when(priceHistoryRepository.findApprovedOverlapping(eq(10L), anyLong(), any(), any(), eq(1L)))
                 .thenReturn(List.of(pendingPriceHistory(2L)));
 
+        assertThatThrownBy(() -> service.approve(1L, manager))
         assertThatThrownBy(() -> service.approve(1L, manager))
                 .isInstanceOf(PriceHistoryException.class)
                 .hasMessageContaining("APPROVED");
@@ -190,9 +193,13 @@ class PriceHistoryServiceTest {
     void approve_alreadyApproved_throws() {
         PriceHistory ph = pendingPriceHistory(1L);
         ph.setStatus(PriceHistoryStatus.APPROVED);
+        User manager = new User();
+        manager.setId(2L);
+        manager.setFullName("KTT");
+
         when(priceHistoryRepository.findById(1L)).thenReturn(Optional.of(ph));
 
-        assertThatThrownBy(() -> service.approve(1L, actor))
+        assertThatThrownBy(() -> service.approve(1L, manager))
                 .isInstanceOf(PriceHistoryException.class);
     }
 
@@ -237,6 +244,7 @@ class PriceHistoryServiceTest {
         PriceHistory ph = new PriceHistory();
         ph.setId(id);
         ph.setProduct(product);
+        ph.setWarehouse(warehouse);
         ph.setWarehouse(warehouse);
         ph.setEffectiveDate(LocalDate.of(2026, 7, 1));
         ph.setEndDate(LocalDate.of(2026, 7, 31));

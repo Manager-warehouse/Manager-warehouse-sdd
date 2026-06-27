@@ -153,8 +153,12 @@ const FleetManagement = () => {
       max_weight_kg: parseFloat(vhMaxWeight),
       max_volume_m3: parseFloat(vhMaxVolume),
       warehouse_id: Number(vhWarehouseId),
-      status: vhStatus,
     };
+
+    // Only include status when updating, not when creating
+    if (vhModalType === 'EDIT') {
+      vhData.status = vhStatus;
+    }
 
     try {
       if (vhModalType === 'ADD') {
@@ -167,10 +171,12 @@ const FleetManagement = () => {
       setIsVhModalOpen(false);
       fetchData();
     } catch (err) {
-      if (err.message === 'DUPLICATE_PLATE_NUMBER') {
+      console.error('Vehicle submit error:', err);
+      if (err.message === 'DUPLICATE_PLATE_NUMBER' || err.message?.includes('DUPLICATE_PLATE_NUMBER')) {
         setVhFormErrors({ plate_number: 'Biển số xe này đã được đăng ký' });
       } else {
-        addToast('Lỗi lưu trữ xe tải', 'error');
+        const errorMsg = err.response?.data?.message || err.message || 'Lỗi không xác định';
+        addToast(`Lỗi lưu trữ xe tải: ${errorMsg}`, 'error');
       }
     } finally {
       setVhSubmitting(false);

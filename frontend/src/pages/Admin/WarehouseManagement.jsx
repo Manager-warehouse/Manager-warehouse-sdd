@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
 import { masterDataService } from '../../services/masterData.service';
+import { adminService } from '../../services/admin.service';
 import { ROLES, MOCK_USERS } from '../../utils/constants';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
@@ -18,6 +19,10 @@ const WarehouseManagement = () => {
   const [bins, setBins] = useState([]);
   const [loadingWh, setLoadingWh] = useState(true);
   const [loadingBins, setLoadingBins] = useState(false);
+  
+  // Manager Users List
+  const [managerUsers, setManagerUsers] = useState([]);
+  const [loadingManagers, setLoadingManagers] = useState(false);
 
   // Warehouse Modal States
   const [isWhModalOpen, setIsWhModalOpen] = useState(false);
@@ -48,6 +53,7 @@ const WarehouseManagement = () => {
 
   useEffect(() => {
     fetchWarehouses();
+    fetchManagerUsers();
   }, []);
 
   useEffect(() => {
@@ -57,6 +63,24 @@ const WarehouseManagement = () => {
       setBins([]);
     }
   }, [selectedWh]);
+
+  const fetchManagerUsers = async () => {
+    setLoadingManagers(true);
+    try {
+      // Get users with WAREHOUSE_MANAGER or STOREKEEPER roles
+      const response = await adminService.getUsers();
+      const filteredUsers = (response || []).filter(
+        u => u.role === ROLES.WAREHOUSE_MANAGER || u.role === ROLES.STOREKEEPER
+      );
+      setManagerUsers(filteredUsers);
+    } catch (e) {
+      console.error('Error fetching manager users:', e);
+      // Fallback to MOCK_USERS if API fails
+      setManagerUsers(MOCK_USERS.filter(u => u.role === ROLES.WAREHOUSE_MANAGER || u.role === ROLES.STOREKEEPER));
+    } finally {
+      setLoadingManagers(false);
+    }
+  };
 
   const fetchWarehouses = async () => {
     setLoadingWh(true);
@@ -266,8 +290,9 @@ const WarehouseManagement = () => {
   };
 
   const getManagerName = (managerId) => {
-    const user = MOCK_USERS.find(u => u.id === managerId);
-    return user ? user.fullName : 'Chưa gán';
+    if (!managerId) return 'Chưa gán';
+    const user = managerUsers.find(u => u.id === managerId);
+    return user ? user.fullName || user.full_name : 'Chưa gán';
   };
 
   // Helper render progress bar
@@ -561,11 +586,12 @@ const WarehouseManagement = () => {
             type="select"
             value={whManagerId}
             onChange={(e) => setWhManagerId(e.target.value)}
+            disabled={loadingManagers}
             options={[
-              { value: '', label: 'Chưa gán quản lý' },
-              ...MOCK_USERS.filter(u => u.role === ROLES.WAREHOUSE_MANAGER || u.role === ROLES.STOREKEEPER).map(u => ({
+              { value: '', label: loadingManagers ? 'Đang tải...' : 'Chưa gán quản lý' },
+              ...managerUsers.map(u => ({
                 value: String(u.id),
-                label: `${u.fullName} (${u.jobTitle})`
+                label: `${u.fullName || u.full_name} (${u.jobTitle || u.job_title || u.role})`
               }))
             ]}
           />

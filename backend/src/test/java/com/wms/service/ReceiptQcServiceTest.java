@@ -14,6 +14,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -138,7 +140,7 @@ class ReceiptQcServiceTest {
     }
 
     @Test
-    void processQc_confirm_failed_marksReceiptWithoutInventoryMutation() {
+    void processQc_confirm_failed_noFailedQty_noInventoryMutation() {
         item.setQcResult(QcResult.FAILED);
 
         when(userRepository.findByEmail("storekeeper@wms.com")).thenReturn(Optional.of(storekeeperActor));
@@ -157,5 +159,46 @@ class ReceiptQcServiceTest {
         verify(auditLogService).log(eq(storekeeperActor), eq(AuditAction.RECEIPT_QC_CONFIRM), eq("Receipt"), eq(100L),
                 any(), any(), any(), any());
         verifyNoInteractions(locationRepository, batchRepository, inventoryRepository);
+    }
+
+    @Test
+    void processQc_confirm_failed_withFailedQty_createsQuarantineInventory() {
+        item.setQcResult(QcResult.FAILED);
+        item.setSampleFailedQty(5);
+        receipt.setDocumentDate(LocalDate.now());
+
+        WarehouseLocation quarantineLoc = WarehouseLocation.builder()
+                .id(99L)
+                .isQuarantine(true)
+                .currentVolumeM3(BigDecimal.ZERO)
+                .currentWeightKg(BigDecimal.ZERO)
+                .build();
+
+        Batch batch = Batch.builder().id(88L).build();
+
+        when(userRepository.findByEmail("storekeeper@wms.com")).thenReturn(Optional.of(storekeeperActor));
+        when(receiptValidationService.loadReceiptForUpdate(100L)).thenReturn(receipt);
+        when(receiptItemRepository.findByReceiptId(100L)).thenReturn(List.of(item));
+        when(locationRepository.findFirstByWarehouseIdAndIsQuarantineTrueAndIsActiveTrue(10L))
+                .thenReturn(Optional.of(quarantineLoc));
+        when(batchRepository.findByProductWarehouseAndReceivedDate(any(), any(), any()))
+                .thenReturn(Optional.of(batch));
+        when(inventoryRepository.findByWarehouseProductBatchLocationForUpdate(any(), any(), any(), any()))
+                .thenReturn(Optional.empty());
+
+        ReceiptQcRequest request = new ReceiptQcRequest();
+        request.setAction(ReceiptQcRequest.QcAction.CONFIRM);
+
+        ReceiptQcResponse response = receiptQcService.processQc(100L, request, "storekeeper@wms.com");
+
+        assertThat(response).isNotNull();
+        assertThat(receipt.getStatus()).isEqualTo(ReceiptStatus.QC_FAILED);
+        assertThat(item.getBatch()).isEqualTo(batch);
+        assertThat(item.getLocation()).isEqualTo(quarantineLoc);
+
+        verify(receiptItemRepository).save(item);
+        verify(inventoryRepository).save(any(Inventory.class));
+        verify(locationRepository).save(quarantineLoc);
+        verify(auditLogService).log(eq(storekeeperActor), eq(AuditAction.INVENTORY_UPDATE), eq("INVENTORY"), any(), any(), eq(10L), any(), any());
     }
 }
