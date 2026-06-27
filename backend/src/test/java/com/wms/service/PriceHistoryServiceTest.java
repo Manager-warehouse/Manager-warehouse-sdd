@@ -184,7 +184,6 @@ class PriceHistoryServiceTest {
                 .thenReturn(List.of(pendingPriceHistory(2L)));
 
         assertThatThrownBy(() -> service.approve(1L, manager))
-        assertThatThrownBy(() -> service.approve(1L, manager))
                 .isInstanceOf(PriceHistoryException.class)
                 .hasMessageContaining("APPROVED");
     }

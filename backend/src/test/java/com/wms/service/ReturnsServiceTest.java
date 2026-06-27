@@ -72,7 +72,6 @@ class ReturnsServiceTest {
                 .batch(batch)
                 .issuedQty(BigDecimal.valueOf(20))
                 .unitPrice(BigDecimal.valueOf(150000)) // Selling price 150K
-                .unitCost(BigDecimal.valueOf(100000))  // Cost price 100K
                 .build();
     }
 

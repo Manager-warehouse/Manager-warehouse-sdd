@@ -64,4 +64,13 @@ public class DeliveryOrderItem {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "picked_by")
     private User pickedBy;
+
+    // Convenience method for unit cost (alias for unitPrice)
+    public BigDecimal getUnitCost() {
+        return this.unitPrice;
+    }
+
+    public void setUnitCost(BigDecimal unitCost) {
+        this.unitPrice = unitCost;
+    }
 }

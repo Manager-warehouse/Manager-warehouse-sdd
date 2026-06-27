@@ -9,6 +9,7 @@ public enum DeliveryOrderStatus {
     QC_COMPLETED,
     WAREHOUSE_APPROVED,
     IN_TRANSIT,
+    DELIVERED,
     RETURNED,
     DELIVERY_FAILED,
     COMPLETED,

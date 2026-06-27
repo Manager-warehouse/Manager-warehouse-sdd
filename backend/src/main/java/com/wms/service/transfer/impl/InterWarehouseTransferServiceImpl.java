@@ -26,10 +26,12 @@ public class InterWarehouseTransferServiceImpl implements InterWarehouseTransfer
     @Override
     @Transactional(readOnly = true)
     public List<InterWarehouseTransferResponse> getAllTransfers(User actor) {
+        // Load warehouse assignments once to avoid N+1 queries in canViewTransfer
+        List<Long> actorWarehouseIds = helper.loadWarehouseIds(actor);
         return transferRepository.findAllByOrderByCreatedAtDesc().stream()
                 .peek(helper::applyTripDeadlineRules)
-                .filter(transfer -> helper.canViewTransfer(actor, transfer))
-                .map(helper::toResponse)
+                .filter(transfer -> helper.canViewTransfer(actor, actorWarehouseIds, transfer))
+                .map(transfer -> helper.toResponseEager(transfer))
                 .toList();
     }
 

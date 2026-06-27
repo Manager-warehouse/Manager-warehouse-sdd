@@ -173,12 +173,25 @@ public class InterWarehouseTransferHelper {
         }
     }
 
-    public boolean canViewTransfer(User actor, InterWarehouseTransfer transfer) {
+    /**
+     * Load warehouse IDs once per request to avoid N+1 queries when filtering a list.
+     * ADMIN and CEO have no warehouse restrictions, so return empty list as sentinel.
+     */
+    public List<Long> loadWarehouseIds(User actor) {
+        if (actor.getRole() == UserRole.ADMIN || actor.getRole() == UserRole.CEO) {
+            return List.of();
+        }
+        return assignmentRepository.findWarehouseIdsByUserId(actor.getId());
+    }
+
+    /**
+     * Overload that accepts pre-loaded warehouse IDs to avoid N+1 when filtering a list.
+     */
+    public boolean canViewTransfer(User actor, List<Long> warehouseIds, InterWarehouseTransfer transfer) {
         if (actor.getRole() == UserRole.ADMIN || actor.getRole() == UserRole.CEO) {
             return true;
         }
 
-        List<Long> warehouseIds = assignmentRepository.findWarehouseIdsByUserId(actor.getId());
         Long sourceWarehouseId = transfer.getSourceWarehouse().getId();
         Long destinationWarehouseId = transfer.getDestinationWarehouse().getId();
 
@@ -196,6 +209,19 @@ public class InterWarehouseTransferHelper {
                     warehouseIds.contains(sourceWarehouseId) || warehouseIds.contains(destinationWarehouseId);
             default -> false;
         };
+    }
+
+    public boolean canViewTransfer(User actor, InterWarehouseTransfer transfer) {
+        return canViewTransfer(actor, loadWarehouseIds(actor), transfer);
+    }
+
+    /**
+     * Map transfer to response using the already eager-loaded items collection
+     * (avoids redundant repository query when items were fetched via JOIN FETCH).
+     */
+    public InterWarehouseTransferResponse toResponseEager(InterWarehouseTransfer transfer) {
+        TransferTripAlert alert = summarizeTripAlert(transfer);
+        return transferMapper.toResponse(transfer, transfer.getItems(), alert.warningActive(), alert.overdue(), alert.message());
     }
 
     public InterWarehouseTransferResponse toResponse(InterWarehouseTransfer transfer) {

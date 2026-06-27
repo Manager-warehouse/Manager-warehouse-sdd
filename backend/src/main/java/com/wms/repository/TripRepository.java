@@ -16,7 +16,6 @@ import org.springframework.data.jpa.repository.EntityGraph;
 @Repository
 public interface TripRepository extends JpaRepository<Trip, Long> {
     boolean existsByTripNumber(String tripNumber);
-    long countByTransferIdAndTripType(Long transferId, TripType tripType);
 
     @Query("""
             select count(t) > 0
