@@ -1,0 +1,232 @@
+openapi: 3.0.3
+info:
+  title: Planner Delivery Order API
+  version: 1.0.0
+  description: Contracts for creating and cancelling outbound Delivery Orders in Sprint 1.
+paths:
+  /api/v1/delivery-orders:
+    post:
+      summary: Create Delivery Order after credit and warehouse stock validation
+      operationId: createDeliveryOrder
+      tags:
+        - Delivery Orders
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDeliveryOrderRequest"
+      responses:
+        "201":
+          description: Delivery Order created in NEW status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeliveryOrderResponse"
+        "400":
+          description: Invalid request payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Planner is not allowed to create for the selected warehouse
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Reservation version conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Credit, overdue invoice, or stock validation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/delivery-orders/{id}/cancel:
+    put:
+      summary: Cancel Delivery Order before warehouse approval
+      operationId: cancelDeliveryOrder
+      tags:
+        - Delivery Orders
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CancelDeliveryOrderRequest"
+      responses:
+        "200":
+          description: Delivery Order cancelled and reservations released
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeliveryOrderResponse"
+        "403":
+          description: Actor is not Warehouse Manager for the DO warehouse
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Delivery Order not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Reservation version conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Delivery Order is WAREHOUSE_APPROVED or later
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    CreateDeliveryOrderRequest:
+      type: object
+      required:
+        - dealerId
+        - warehouseId
+        - type
+        - documentDate
+        - items
+      properties:
+        dealerId:
+          type: integer
+          format: int64
+        warehouseId:
+          type: integer
+          format: int64
+        type:
+          type: string
+          example: SALES_OUTBOUND
+        expectedDeliveryDate:
+          type: string
+          format: date
+        documentDate:
+          type: string
+          format: date
+        notes:
+          type: string
+          maxLength: 1000
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/CreateDeliveryOrderItemRequest"
+    CreateDeliveryOrderItemRequest:
+      type: object
+      required:
+        - productId
+        - requestedQty
+      properties:
+        productId:
+          type: integer
+          format: int64
+        requestedQty:
+          type: number
+          minimum: 0
+          exclusiveMinimum: true
+          example: 10
+    CancelDeliveryOrderRequest:
+      type: object
+      required:
+        - cancelReason
+      properties:
+        cancelReason:
+          type: string
+          minLength: 1
+          maxLength: 500
+    DeliveryOrderResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        doNumber:
+          type: string
+        dealerId:
+          type: integer
+          format: int64
+        warehouseId:
+          type: integer
+          format: int64
+        status:
+          type: string
+          example: NEW
+        documentDate:
+          type: string
+          format: date
+        expectedDeliveryDate:
+          type: string
+          format: date
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeliveryOrderItemResponse"
+    DeliveryOrderItemResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        productId:
+          type: integer
+          format: int64
+        requestedQty:
+          type: number
+        reservedQty:
+          type: number
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: string
+          examples:
+            - WAREHOUSE_SCOPE_FORBIDDEN
+            - CREDIT_HOLD
+            - INSUFFICIENT_STOCK
+            - DELIVERY_ORDER_CANCEL_FORBIDDEN
+            - INVENTORY_VERSION_CONFLICT
+        message:
+          type: string
+        suggestedWarehouses:
+          type: array
+          items:
+            $ref: "#/components/schemas/WarehouseStockSuggestion"
+    WarehouseStockSuggestion:
+      type: object
+      properties:
+        warehouseId:
+          type: integer
+          format: int64
+        warehouseCode:
+          type: string
+        availableQty:
+          type: number

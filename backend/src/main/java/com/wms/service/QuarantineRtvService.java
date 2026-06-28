@@ -70,9 +70,11 @@ public class QuarantineRtvService {
         Receipt receipt = receiptValidationService.loadReceiptForUpdate(receiptId);
         receiptValidationService.assertVersionMatch(receipt, request.getExpectedVersion());
 
-        if (receipt.getStatus() != ReceiptStatus.QC_FAILED) {
+        boolean isValidState = receipt.getStatus() == ReceiptStatus.QC_FAILED 
+                || (receipt.getType() == ReceiptType.RETURN && receipt.getStatus() == ReceiptStatus.APPROVED);
+        if (!isValidState) {
             throw new BusinessRuleViolationException(
-                    "INVALID_STATE: RTV can only be created for QC_FAILED receipts. "
+                    "INVALID_STATE: RTV can only be created for QC_FAILED receipts or APPROVED return receipts. "
                     + "Receipt " + receiptId + " has status: " + receipt.getStatus());
         }
 

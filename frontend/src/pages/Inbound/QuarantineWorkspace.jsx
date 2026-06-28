@@ -72,12 +72,15 @@ const QuarantineWorkspace = () => {
   const submitRtv = async () => {
     setSubmitting(true);
     try {
-      await inboundService.handleRtv(selectedItem.receipt_id, selectedItem.receipt_version, actionNotes);
+      // Note: selectedItem doesn't have receipt_version, need to fetch or pass 0 as fallback
+      const receiptVersion = selectedItem.receipt_version || 0;
+      await inboundService.handleRtv(selectedItem.receipt_id, receiptVersion, actionNotes);
       addToast('Đã lập phiếu xuất trả hàng NCC thành công. Debit Note đã được khởi tạo.', 'success');
       setShowRtvModal(false);
       fetchData();
     } catch (e) {
-      addToast('Lỗi xử lý xuất trả hàng', 'error');
+      console.error('RTV error:', e);
+      addToast(`Lỗi xử lý xuất trả hàng: ${e.message || 'Không xác định'}`, 'error');
     } finally {
       setSubmitting(false);
     }
@@ -90,7 +93,7 @@ const QuarantineWorkspace = () => {
     }
     setSubmitting(true);
     try {
-      const res = await inboundService.handleDisposal(selectedItem.id, actionNotes, disposalImageUrl);
+      const res = await inboundService.handleDisposal(selectedItem.receipt_item_id, actionNotes, disposalImageUrl);
       if (res.autoApproved) {
         addToast('Đã tiêu hủy sản phẩm thành công (Tự động duyệt do giá trị thấp < 5M)', 'success');
       } else {
@@ -99,7 +102,8 @@ const QuarantineWorkspace = () => {
       setShowDisposalModal(false);
       fetchData();
     } catch (e) {
-      addToast('Lỗi xử lý yêu cầu tiêu hủy', 'error');
+      console.error('Disposal error:', e);
+      addToast(`Lỗi xử lý yêu cầu tiêu hủy: ${e.message || 'Không xác định'}`, 'error');
     } finally {
       setSubmitting(false);
     }

@@ -393,3 +393,4 @@ class AuthControllerTest {
                 .andExpect(status().isUnauthorized());
     }
 }
+

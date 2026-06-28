@@ -20,6 +20,24 @@
         <springdoc.version>2.8.5</springdoc.version>
     </properties>
 
+    <!-- Override default Maven Central to use Google Mirror to prevent 403 Forbidden on GitHub Actions -->
+    <repositories>
+        <repository>
+            <id>central</id>
+            <url>https://maven-central.storage-download.googleapis.com/maven2/</url>
+            <releases><enabled>true</enabled></releases>
+            <snapshots><enabled>false</enabled></snapshots>
+        </repository>
+    </repositories>
+    <pluginRepositories>
+        <pluginRepository>
+            <id>central</id>
+            <url>https://maven-central.storage-download.googleapis.com/maven2/</url>
+            <releases><enabled>true</enabled></releases>
+            <snapshots><enabled>false</enabled></snapshots>
+        </pluginRepository>
+    </pluginRepositories>
+
     <dependencies>
         <!-- Web & MVC -->
         <dependency>
@@ -111,6 +129,13 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+
+        <!-- Excel import (spec 007) -->
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml</artifactId>
+            <version>5.3.0</version>
         </dependency>
 
         <!-- Testing -->

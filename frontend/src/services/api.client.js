@@ -1,7 +1,27 @@
 import axios from 'axios';
 
+const buildBackendErrorMessage = (status, data, fallbackMessage) => {
+  if (!data) {
+    return fallbackMessage;
+  }
+
+  const code = data.code || data.error;
+  const message = data.message || data.error || fallbackMessage;
+
+  if (code && message && code !== message) {
+    return `${code}: ${message}`;
+  }
+  if (message) {
+    return message;
+  }
+  if (code) {
+    return code;
+  }
+  return status ? `HTTP ${status}` : fallbackMessage;
+};
+
 const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
+  baseURL: import.meta['env'].VITE_API_BASE_URL || '/api/v1',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -61,9 +81,12 @@ apiClient.interceptors.response.use(
     }
     
     // Normalize error message from backend
-    if (error.response && error.response.data) {
-      const data = error.response.data;
-      error.message = data.message || data.error || data.code || error.message;
+    if (error.response) {
+      error.message = buildBackendErrorMessage(
+        error.response.status,
+        error.response.data,
+        error.message,
+      );
     }
     
     return Promise.reject(error);

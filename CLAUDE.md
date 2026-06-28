@@ -83,7 +83,11 @@
 ┌─────────────────────────────────────────┐
 │           Service Layer                  │  @Service
 │   - Business logic                      │  - Transaction management
+<<<<<<< HEAD
+│   - FIFO allocation                     │  - Audit logging
+=======
 │   - FIFO batch selection                │  - Audit logging
+>>>>>>> main
 │   - Authorization checks                │
 └─────────────────┬─────────────────────┘
                   │
@@ -179,9 +183,15 @@ Manager-warehouse-sdd/
 
 ### LESSON-002: Batch does not classify household goods by grade
 
+<<<<<<< HEAD
+**Biến cố**: [TBD] Mixed grade trong batch → FIFO allocation confusion
+**Giải pháp**: Mỗi batch chỉ có một grade (A/B/C), không mix
+**Áp dụng**: Receipt validation, batch creation
+=======
 **Biến cố**: [TBD] Quy tắc truy vết từng cái, hạn dùng và phân cấp chất lượng làm nhập liệu quá nặng cho đơn hàng gia dụng số lượng lớn
 **Giải pháp**: Batch theo sản phẩm + nguồn nhập/ngày nhận; hàng lỗi QC đi Quarantine để RTV/disposal, không phân cấp chất lượng để bán lại
 **Áp dụng**: Receipt validation, batch creation, QC failed handling
+>>>>>>> main
 
 ### LESSON-003: Phân quyền phải check BOTH role AND warehouse
 
@@ -196,7 +206,6 @@ Manager-warehouse-sdd/
 **Áp dụng**: Receipt, Issue, Transfer screens
 
 ---
-
 
 ---
 
@@ -321,8 +330,13 @@ Types: feat, fix, docs, style, refactor, test, chore
 Scopes: inventory, receipt, issue, transfer, batch, etc.
 
 Examples:
+<<<<<<< HEAD
+feat(inventory): add FIFO batch allocation logic
+fix(batch): correct received date sorting
+=======
 feat(inventory): add FIFO batch selection logic
 fix(batch): correct received date ordering
+>>>>>>> main
 docs(api): update warehouse-stock endpoint docs
 ```
 
@@ -432,10 +446,17 @@ Semble is a semantic code search tool that finds code by **meaning**, not just t
 
 ```
 1. Semble search: Find all places with similar logic
+<<<<<<< HEAD
+   → semble.search("batch received date sorting")
+
+2. GitNexus query: Trace execution flow
+   → gitnexus_query("FIFO batch allocation validation")
+=======
    → semble.search("batch received date ordering")
 
 2. GitNexus query: Trace execution flow
    → gitnexus_query("batch received date validation")
+>>>>>>> main
 
 3. GitNexus impact: Check what depends on the buggy code
    → gitnexus_impact("BatchService.calculateExpiry")
@@ -470,7 +491,11 @@ Semble CLI is installed at `/Users/haison/.local/bin/semble` and provides direct
 ```bash
 # Search codebase with natural language
 semble search "authentication flow" .
+<<<<<<< HEAD
+semble search "FIFO batch allocation logic" .
+=======
 semble search "FIFO batch selection logic" .
+>>>>>>> main
 
 # Search for specific symbol or identifier
 semble search "InventoryService" .
@@ -498,7 +523,11 @@ semble init
 
 ```bash
 # Find all FIFO implementations
+<<<<<<< HEAD
+semble search "FIFO batch allocation" . --top-k 10
+=======
 semble search "FIFO batch selection" . --top-k 10
+>>>>>>> main
 
 # Find inventory validation patterns
 semble search "inventory quantity validation" .
@@ -542,7 +571,11 @@ semble search "database configuration" . --include-text-files
 
 ```bash
 # Find code by concept (Semble)
+<<<<<<< HEAD
+semble search "FIFO batch allocation" --limit 10
+=======
 semble search "FIFO batch selection" --limit 10
+>>>>>>> main
 
 # Understand execution flow (GitNexus)
 gitnexus query "warehouse receipt process"
@@ -665,7 +698,11 @@ Speckit works as an MCP (Model Context Protocol) server that needs to be configu
 
 ```
 1. SPEC PHASE (Speckit)
+<<<<<<< HEAD
+   → speckit_specify: Create spec for "FIFO batch allocation"
+=======
    → speckit_specify: Create spec for "FIFO batch selection"
+>>>>>>> main
    → Document business rules, edge cases
 
 2. EXPLORATION PHASE (Semble + GitNexus)
@@ -738,7 +775,11 @@ specs/
 
 # Create specification
 speckit_specify({
+<<<<<<< HEAD
+  feature: "FIFO batch allocation",
+=======
   feature: "FIFO batch selection",
+>>>>>>> main
   requirements: "...",
   acceptance_criteria: "..."
 })
@@ -782,8 +823,14 @@ Product (1000+ items)
 ├── SKU, name, unit, dimension, weight
 └── PriceHistory (cost_price, selling_price, effective_date, end_date)
 
+<<<<<<< HEAD
+Batch (Lô hàng - tied to ONE grade)
+├── batchNumber, receivedDate (domain hiện tại không quản lý expDate)
+├── grade (A/B/C)
+=======
 Batch (Lô hàng)
 ├── batchNumber, receivedDate, sourceReceipt/sourceDocument
+>>>>>>> main
 └── quantity
 
 Inventory (tồn kho)
@@ -797,7 +844,7 @@ Receipt (Lệnh nhập kho / Phiếu nhập kho)
 
 Issue (Đơn xuất hàng / Phiếu xuất kho)
 ├── issueNumber, customer/dealer, type (sale/delivery/adjustment)
-├── warehouse, status (new/picking/ready_to_ship/in_transit/delivered/completed/closed)
+├── warehouse, status (new/waiting_picking/qc_pending_approval/qc_completed/warehouse_approved/in_transit/completed/closed)
 └── items (product + quantity)
 
 Transfer (Phiếu điều chuyển kho)
@@ -822,6 +869,20 @@ DebitNote (Phiếu đòi bồi hoàn)
 
 ### Key Business Rules
 
+<<<<<<< HEAD
+| Rule                    | Implementation                                                                                                   |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| No negative inventory   | `@Column(check = "quantity >= 0")` + validation                                                                  |
+| Single grade per batch  | `grade` is immutable after creation                                                                              |
+| Household goods default | Products such as pots, pans, and plastic goods do not track expiry in the current domain                         |
+| FIFO default            | `FIFOSelector` picks batch by receivedDate ASC for the current household-goods domain                            |
+| No FEFO current scope   | FEFO, expiry date, and expired-batch handling are outside the current household-goods scope                       |
+| Quarantine excluded     | WHERE clause filters `zone != 'QUARANTINE'`                                                                      |
+| In-Transit tracking     | Virtual warehouse `IN_TRANSIT` for transfers                                                                     |
+| Credit Check Control    | Auto-block if balance + new > limit OR >30 days overdue; balance equal to limit is allowed. Buffer 20% to unlock |
+| Monthly Closing         | Lock previous monthly periods (CLOSED), only Adjustment Vouchers allowed in open period                          |
+| Phúc Anh Internal Fleet | All deliveries use internal fleet & drivers. No 3PL or delivery cost approvals                                   |
+=======
 | Rule                       | Implementation                                  |
 | -------------------------- | ----------------------------------------------- |
 | No negative inventory      | DB CHECK on `total_qty`, `reserved_qty`, and available quantity + service validation |
@@ -833,21 +894,22 @@ DebitNote (Phiếu đòi bồi hoàn)
 | Credit Check Control       | Auto-block if balance + new > limit OR >30 days overdue; balance equal to limit is allowed. Buffer 20% to unlock |
 | Monthly Closing            | Lock previous monthly periods (CLOSED), only Adjustment Vouchers allowed in open period |
 | Phúc Anh Internal Fleet    | All deliveries use internal fleet & drivers. No 3PL or delivery cost approvals |
+>>>>>>> main
 
 ### Actor Reference (10 Actors — xem chi tiết tại `Kiến trúc phân tầng các Actors.md`)
 
-| Tầng | Actor | Loại | Trách nhiệm chính |
-|---|---|---|---|
-| Quản trị | CEO | Checker | Dashboard chiến lược |
-| Quản trị | System Admin | Admin | Quản lý tài khoản, RBAC, cấu hình tham số hệ thống |
-| Quản lý | Trưởng kho | Checker | Duyệt nhập/xuất/điều chuyển, xử lý chênh lệch 5M–100M, duyệt biên bản xử lý hàng lỗi |
-| Quản lý | Kế toán trưởng | Checker | Duyệt bảng giá, thiết lập Credit Limit, chốt sổ tháng, P&L/Aging Report |
-| Nghiệp vụ | Planner | Maker | Lập lệnh nhập / đơn xuất từ Công ty mẹ, kiểm tra Credit Check + tồn kho |
-| Nghiệp vụ | Dispatcher | Maker | Lập chuyến xe nội bộ Phúc Anh, gán tài xế, tối ưu lộ trình giao hàng |
-| Nghiệp vụ | Storekeeper | Checker | Rà soát kết quả QC, xác nhận `QC_COMPLETED`/`QC_FAILED`, chỉ định putaway sau phê duyệt |
-| Nghiệp vụ | Nhân viên kho | Maker | Tiếp nhận hàng, đếm số lượng thực tế, nhập phiếu kiểm tra nhận hàng, kiểm QC inbound/outbound, soạn hàng, kiểm kê |
-| Nghiệp vụ | Kế toán viên | Maker | Lập hóa đơn, ghi nhận thanh toán, cấn trừ công nợ, quản lý bảng giá |
-| Nghiệp vụ | Tài xế | Maker | Nhận chuyến (smartphone), giao hàng, xác nhận POD, báo giao thất bại |
+| Tầng      | Actor                   | Loại    | Trách nhiệm chính                                                                           |
+| --------- | ----------------------- | ------- | ------------------------------------------------------------------------------------------- |
+| Quản trị  | CEO                     | Checker | Dashboard chiến lược                                                                        |
+| Quản trị  | System Admin            | Admin   | Quản lý tài khoản, RBAC, cấu hình tham số hệ thống                                          |
+| Quản lý   | Trưởng kho              | Checker | Duyệt nhập/xuất/điều chuyển, xử lý chênh lệch 5M–100M, duyệt biên bản xử lý hàng lỗi        |
+| Quản lý   | Kế toán trưởng          | Checker | Duyệt bảng giá, thiết lập Credit Limit, chốt sổ tháng, P&L/Aging Report                     |
+| Nghiệp vụ | Planner                 | Maker   | Lập lệnh nhập / đơn xuất từ Công ty mẹ, kiểm tra Credit Check + tồn kho                     |
+| Nghiệp vụ | Dispatcher              | Maker   | Lập chuyến xe nội bộ Phúc Anh, gán tài xế, tối ưu lộ trình giao hàng                        |
+| Nghiệp vụ | Thủ kho kiêm QC         | Maker   | Tiếp nhận hàng, kiểm QC inbound/outbound, soạn hàng, kiểm kê, cất Bin, xác nhận điều chuyển |
+| Nghiệp vụ | Nhân viên kho (Bốc xếp) | Maker   | Bốc xếp hàng hóa, hỗ trợ di chuyển hàng hóa, di chuyển hàng lỗi vào Quarantine theo chỉ dẫn |
+| Nghiệp vụ | Kế toán viên            | Maker   | Xử lý thanh toán và theo dõi công nợ trong luồng tài chính riêng, quản lý bảng giá |
+| Nghiệp vụ | Tài xế                  | Maker   | Nhận chuyến (smartphone), upload `goodsImage`/`signDocumentImage`, nhập OTP Đại lý, báo giao thất bại, xác nhận xe về kho |
 
 > **Lưu ý phân biệt Dispatcher vs Planner**: Planner = nhận đơn từ Công ty mẹ & lập DO; Dispatcher = điều phối xe & tài xế giao hàng. Hai vai trò khác nhau hoàn toàn.
 
@@ -941,21 +1003,29 @@ Quy trình xử lý đơn xuất hàng bán cho Đại lý, tích hợp kiểm t
 │             │ └── HỢP LỆ: Tạo DO [New],      │             │               │
 │             │             giữ hàng (Reserve) │             │               │
 │             │             └─────────────────►│             │               │
-│             │                                │ Soạn hàng   │               │
-│             │                                │ từ Bin, set │               │
-│             │                                │ [Picking]───►               │
+│             │                                │ Lấy hàng &  │               │
+│             │                                │ nhập QC từ  │               │
+│             │                                │ [Waiting]──►               │
 │             │                                │ Kiểm QC sản │               │
 │             │                                │ phẩm đã soạn│               │
 │             │                                │ xác nhận đạt│               │
-│             │                                │ Xác nhận    │               │
-│             │                                │ soạn xong,  │               │
-│             │                                │ set [Ready] │               │
+│             │                                │ Xác nhận QC │               │
+│             │                                │ đạt, chờ    │               │
+│             │                                │ Trưởng kho  │               │
+│             │                                │ duyệt xuất  │               │
+│             │                                │ set [Pending]               │
 │             │                                │             │               │
 └─────────────┴────────────────────────────────┴─────────────┴───────────────┘
 ```
 
 **Luồng trạng thái đơn xuất:**
-`NEW` (Planner lập đơn & System check công nợ đạt) → `PICKING` (Thủ kho bắt đầu soạn hàng từ Bin) → `READY_TO_SHIP` (Thủ kho xác nhận QC & đóng gói đạt, hoàn thành soạn hàng)
+`NEW` (Planner lập đơn & System check công nợ đạt) → `WAITING_PICKING` (Thủ kho lưu kế hoạch lấy hàng đầy đủ từ một hoặc nhiều batch/bin/zone FIFO; Nhân viên kho lấy hàng và nhập kết quả QC một lần theo item/allocation/batch/bin/zone cho toàn bộ kế hoạch hiện tại) → `QC_PENDING_APPROVAL` (Nhân viên kho ghi kết quả lấy hàng/QC; hàng fail vào Quarantine, tạo phiếu điều chỉnh tồn kho và xóa reserve allocation fail; trạng thái này vẫn dùng khi pass chưa đủ để Thủ kho chọn replacement) → `QC_COMPLETED` (Thủ kho duyệt chất lượng khi đủ hàng đạt) → `WAREHOUSE_APPROVED` (Trưởng kho phê duyệt xuất kho)
+
+**Sửa picking plan sau khi đã có kết quả lấy/QC:** Storekeeper dùng cùng endpoint `PUT /api/v1/delivery-orders/{id}/picking-plan`; `allocations[]` là kế hoạch lấy hàng đầy đủ mới, `returnToBinRecords[]` chỉ bắt buộc cho allocation đã pick và bị remove/reduce. Allocation đã pick nhưng giữ nguyên không cần return; mỗi return ghi audit `PICKED_GOODS_RETURN_TO_BIN`. Khi QC fail cần hàng thay thế, Thủ kho lưu replacement plan từ `QC_PENDING_APPROVAL` và Delivery Order quay lại `WAITING_PICKING`.
+
+**Định danh nguồn khi lấy hàng/QC:** Warehouse staff ghi nhận từng dòng theo `doItemId + allocationId + batchId + locationId + zoneId`; payload phải khớp batch/location/zone của allocation đã lập để tránh lấy nhầm lô hoặc nhầm bin/zone.
+
+**Reject sau QC:** Warehouse reject phải trả toàn bộ hàng pass đang ở outbound staging về bin gốc; tổng `returnedQty` phải bằng tổng QC-passed còn ở staging. Hệ thống cộng lại available ở bin gốc, release reservation của hàng trả và ghi `PICKED_GOODS_RETURN_TO_BIN`.
 
 ---
 
@@ -983,6 +1053,7 @@ Planner nhap phieu `TRF-*` theo lenh ngoai
 `NEW` (Planner nhap phieu nhieu dong hang theo lenh tu Cong ty me/bo phan dieu phoi trung tam; Planner duoc sua dong hang hoac huy phieu khi con `NEW`) -> `APPROVED` (Truong kho nguon duyet va giu cho hang ngay) hoac `REJECTED` (Truong kho nguon tu choi va bat buoc nhap ly do; phieu rejected khong duoc sua/gui lai, phai tao phieu moi neu can tiep tuc) -> `IN_TRANSIT` (Dispatcher da lap chuyen xe rieng, Thu kho nguon ghi so gui, Tai xe duoc gan xac nhan roi kho; he thong dich chuyen ton kho vao kho trung chuyen `IN_TRANSIT`) -> `COMPLETED` (Cong nhan kho dich nhap so nhan, Thu kho dich kiem tra + QC + chon vi tri, Truong kho dich xac nhan cuoi cung va khop so luong) / `COMPLETED_WITH_DISCREPANCY` (Nhan thieu, tao phieu dieu chinh bu tru va log audit). Sau `APPROVED` khong cho sua header/dong hang; chi Truong kho nguon/manager duoc huy truoc khi `IN_TRANSIT` va phai giai phong reserved quantity. Neu `received_qty > sent_qty` he thong chan xac nhan; neu QC loi thi phan loi vao Quarantine va khong tinh available. Khong ho tro huy phieu sau khi da `IN_TRANSIT`.
 
 **Quy tắc chuyến xe điều chuyển:**
+
 - Mỗi Phiếu điều chuyển gắn đúng một chuyến xe nội bộ riêng (`trips.trip_type = TRANSFER`).
 - Không gom nhiều Phiếu điều chuyển vào một chuyến xe trong Sprint 1.
 - Dispatcher chỉ được lập chuyến cho các phiếu có kho nguồn thuộc phạm vi kho mình phụ trách.
@@ -993,7 +1064,7 @@ Planner nhap phieu `TRF-*` theo lenh ngoai
 
 ### 4. Quy trình Giao hàng (Delivery Process)
 
-Quy trình điều phối chuyến xe, vận chuyển bằng xe nội bộ của công ty và cập nhật trạng thái đơn hàng kèm chữ ký điện tử / ảnh chụp POD của Đại lý trên thiết bị di động của Tài xế.
+Quy trình điều phối chuyến xe, vận chuyển bằng xe nội bộ của công ty và cập nhật trạng thái đơn hàng kèm ảnh hàng bàn giao, ảnh chữ ký/biên nhận POD của Đại lý, và OTP email xác nhận trên thiết bị di động của Tài xế. Mỗi bản ghi `deliveries` đại diện cho một lần giao vật lý của một Delivery Order; nếu giao lại sau thất bại thì tạo `deliveries` record mới với `attempt_number` kế tiếp. Attempt hiện tại là bản ghi mới nhất theo `trip_id + do_id + driver_id` chưa ở trạng thái terminal. Raw OTP không được lưu DB; hệ thống chỉ lưu hash/verifier, email nhận, hạn hiệu lực, số lần thử và trạng thái trong bảng `delivery_otp_attempts`.
 
 ```
 ┌───────────────┬───────────────────────────────────────────────┬────────────┐
@@ -1003,7 +1074,8 @@ Quy trình điều phối chuyến xe, vận chuyển bằng xe nội bộ của
 │ Gom đơn [Ready│                                               │            │
 │ to Ship], gán │                                               │            │
 │ xe nội bộ ───►│ Nhận chuyến qua Smartphone,                   │            │
-│               │ xác nhận bốc xếp hàng, rời kho ──────────────►│ Trừ tồn kho│
+│               │ xác nhận bốc xếp hàng, rời kho ──────────────►│ Trừ kho xuất,│
+│               │                                               │ cộng In-Transit│
 │               │                                               │ set trạng  │
 │               │                                               │ thái đơn   │
 │               │                                               │ [IN_TRANSIT]│
@@ -1011,12 +1083,15 @@ Quy trình điều phối chuyến xe, vận chuyển bằng xe nội bộ của
 │               │ Đến điểm giao, bàn giao hàng cho Đại lý       │            │
 │               │        │                                      │            │
 │               │  [GIAO THÀNH CÔNG]                            │            │
-│               │        ├─────────────────────────────────────►│ Lưu POD &  │
-│               │        │ Ký tên trên màn hình, chụp ảnh       │ set đơn    │
+│               │        ├─────────────────────────────────────►│ Gửi OTP email,│
+│               │        │ Chụp ảnh hàng, ảnh chữ ký/biên nhận  │ xác thực OTP│
+│               │        │ Đại lý đọc OTP cho Tài xế nhập       │ Trừ In-Transit,│
+│               │        │                                      │ set đơn    │
 │               │        │                                      │ [Delivered]│
 │               │  [GIAO THẤT BẠI]                              │            │
-│               │        ├─────────────────────────────────────►│ Nhập hoàn  │
-│               │        │ Ghi lý do (vắng, từ chối, sai...)     │ Quarantine,│
+│               │        ├─────────────────────────────────────►│ Ghi lý do, │
+│               │        │ Ghi lý do (vắng, từ chối, sai...)     │ giữ hàng ở │
+│               │        │                                      │ In-Transit │
 │               │        │                                      │ set trạng  │
 │               │        │                                      │ thái đơn   │
 │               │        │                                      │ [Returned] │
@@ -1025,6 +1100,17 @@ Quy trình điều phối chuyến xe, vận chuyển bằng xe nội bộ của
 ```
 
 **Luồng trạng thái đơn giao:**
+<<<<<<< HEAD
+`WAREHOUSE_APPROVED` → `IN_TRANSIT` (Dispatcher lập trip cùng kho, chọn xe/tài xế thuộc kho và kiểm tra tải trọng; Tài xế nhận hàng lên xe; hệ thống chuyển hàng từ outbound staging sang kho ảo In-Transit và tạo delivery attempt hiện tại) → `COMPLETED` (Tài xế upload `goodsImage` và `signDocumentImage` vào attempt hiện tại, Đại lý xác thực OTP email, delivery attempt chuyển `DELIVERED`, hệ thống bắt buộc giao đủ DO, chỉ trừ kho ảo In-Transit của DO đó và tự động tạo invoice/công nợ cho DO đó theo giá snapshot trên phiếu xuất tại thời điểm Thủ kho soạn/lập picking plan) / `RETURNED` (Đại lý không nhận hoặc giao thất bại; delivery attempt hiện tại đóng `FAILED`, ghi lý do; hàng vẫn ở kho ảo In-Transit cho tới khi luồng hoàn hàng riêng tiếp nhận)
+
+**Trip outbound:** Mỗi trip outbound có `trip_type = DELIVERY`, phải có ít nhất một DO `WAREHOUSE_APPROVED` cùng kho; Dispatcher, xe và tài xế phải thuộc kho đó. Trip `PLANNED` được sửa xe/tài xế/ngày/stop order hoặc danh sách DO trước khi depart; `deliveryOrders[]` khi update là danh sách cuối cùng sau chỉnh sửa và thay thế danh sách cũ. Hủy trip giữ DO ở `WAREHOUSE_APPROVED`, giữ lịch sử xe/tài xế trên trip, nhưng giải phóng xe/tài xế khỏi active assignment. Kiểm tra tải trọng luôn áp dụng theo cân nặng; thể tích chỉ kiểm tra nếu xe có `max_volume_m3`. Khi depart, hệ thống chuyển hàng từ outbound staging sang kho ảo In-Transit và tạo delivery attempt `IN_TRANSIT`; Sprint 1 không dùng `OUT_FOR_DELIVERY`. Trip chỉ `COMPLETED` khi Tài xế xác nhận xe đã quay lại kho và toàn bộ DO trong trip đã `COMPLETED` hoặc `RETURNED`.
+
+**Lưu trữ OTP giao hàng:** Backend sinh OTP ngẫu nhiên 6 chữ số. Mỗi delivery attempt chỉ có một bản ghi `delivery_otp_attempts` liên kết với `deliveries`; chỉ lưu hash/verifier của OTP, `recipient_email`, `created_at`, `expires_at`, `consumed_at`, `attempt_count`, và `status`. OTP có hiệu lực 5 phút. Nếu OTP còn hạn và Tài xế yêu cầu gửi lại, hệ thống trả lỗi và không ghi đè mã cũ. Nếu OTP quá hạn và Tài xế yêu cầu gửi lại, hệ thống dùng `UPDATE` ghi đè OTP hiện tại của delivery attempt bằng mã mới và reset thời gian/số lần thử/trạng thái. Nếu nhập sai OTP 3 lần, OTP bị khóa; Admin phải nhập lý do reset, hệ thống đánh dấu row hiện tại `EXPIRED`, reset `attempt_count = 0`, ghi audit before/after, rồi Tài xế mới được yêu cầu mã mới trên cùng row. Khi xác thực thành công, OTP chuyển `VERIFIED`, ghi `consumed_at`, và không được dùng lại. Bảng `deliveries` chỉ lưu kết quả xác thực cuối cùng như `otp_verified_at`, không lưu raw OTP.
+
+**Ý nghĩa trạng thái DO sau giao hàng:** `COMPLETED` nghĩa là Đại lý đã nhận hàng, POD + OTP hợp lệ, delivery attempt đã `DELIVERED`, và hệ thống đã tự động tạo invoice/công nợ; thông báo kế toán thuộc luồng riêng. `CLOSED` thuộc luồng tài chính/thanh toán riêng sau khi công nợ được tất toán hoặc khóa theo kỳ kế toán.
+
+**Phân quyền kho trong outbound:** Mọi API outbound phải check cả role và warehouse assignment. Planner, Thủ kho, QC, Trưởng kho, Dispatcher và Kế toán chỉ thao tác dữ liệu thuộc kho được gán; Tài xế chỉ thấy chuyến/attempt được gán cho driver profile của mình. CEO/Admin có thể xem liên kho nhưng mọi mutation vẫn phải ghi audit log.
+=======
 `READY_TO_SHIP` → `IN_TRANSIT` (Tài xế nhận hàng lên xe và đang đi giao) → `DELIVERED` (Đại lý ký nhận POD thành công, hệ thống tạo billing notification cho Kế toán viên) → `COMPLETED` (Kế toán viên lập Invoice, hệ thống cộng công nợ). Nhánh lỗi: `IN_TRANSIT` → `RETURNED` (Giao thất bại, chuyển hàng về Quarantine zone của kho gốc).
 
 Quy tắc trip giao hàng Sprint 1:
@@ -1033,6 +1119,7 @@ Quy tắc trip giao hàng Sprint 1:
 - Không hỗ trợ partial pick/partial ship; trước khi depart phải có `issued_qty = requested_qty = reserved_qty` cho mọi dòng hàng.
 - Dispatcher được thêm/gỡ/đổi thứ tự DO khi trip còn `PLANNED`; sau `IN_TRANSIT` thì không được sửa hoặc hủy trip.
 - Vehicle/driver bị chặn nếu đang nằm trong bất kỳ trip `PLANNED` hoặc `IN_TRANSIT` nào.
+>>>>>>> main
 
 ---
 
@@ -1045,8 +1132,10 @@ Chu kỳ lập Hóa đơn bán hàng, theo dõi hạn mức công nợ (Credit L
 │          KẾ TOÁN VIÊN           │             SYSTEM             │ KTT/CEO │
 ├─────────────────────────────────┼────────────────────────────────┼─────────┤
 │                                 │                                │         │
-│ Nhận đơn Delivered, lập Invoice │                                │         │
-│ (Net 30/60) ───────────────────►│ Cộng dồn current_balance,      │         │
+│ Theo dõi invoice auto-created       │                            │         │
+│ giá snapshot lúc soạn picking,  │ Cộng dồn current_balance,      │         │
+│ issue_date = ngày local,        │                            │         │
+│ due_date = issue_date + 30d ───►│                            │         │
 │                                 │ set trạng thái [Completed]     │         │
 │                                 │                                │         │
 │                                 │ [Credit Check khi tạo đơn mới] │         │
@@ -1068,6 +1157,7 @@ Chu kỳ lập Hóa đơn bán hàng, theo dõi hạn mức công nợ (Credit L
 ```
 
 **Các trạng thái kiểm soát công nợ Đại lý:**
+
 - `ACTIVE`: Hạn mức công nợ hợp lệ, không có hóa đơn quá hạn quá 30 ngày. Cho phép đặt đơn hàng mới bình thường.
 - `CREDIT_HOLD`: Khóa tín dụng khi vi phạm bất kỳ điều kiện nào (vượt hạn mức hoặc quá hạn nợ > 30 ngày). Hệ thống tự động chặn lập đơn mới.
 - **Mở khóa**: Khi Đại lý thanh toán đưa `current_balance` về mức an toàn dưới `credit_limit * 0.8` (đệm an toàn 20%) và xử lý toàn bộ hóa đơn nợ quá hạn.
@@ -1100,6 +1190,8 @@ Quy trình đối chiếu số liệu tồn kho thực tế, tính toán chênh 
 ```
 
 **Thẩm quyền duyệt chênh lệch kiểm kê & xuất hủy hàng lỗi:**
+
+- # Tất cả chênh lệch kiểm kê và phiếu xuất hủy hàng lỗi đều do Trưởng kho phê duyệt trực tiếp trên hệ thống.
 - **Từ 5 triệu đến 100 triệu VNĐ**: Trưởng kho xem xét và phê duyệt trên hệ thống.
 - **Trên 100 triệu VNĐ hoặc lỗi xác định do nhân viên**: Phải trình trực tiếp CEO phê duyệt trên hệ thống.
 
@@ -1175,6 +1267,26 @@ Quy trình đối chiếu số liệu tồn kho thực tế, tính toán chênh 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
+<<<<<<< HEAD
+This project is indexed by GitNexus as **Manager-warehouse-sdd** (4086 symbols, 9678 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+
+> Index stale? Run `node .gitnexus/run.cjs analyze` from the project root — it auto-selects an available runner. No `.gitnexus/run.cjs` yet? `npx gitnexus analyze` (npm 11 crash → `npm i -g gitnexus`; #1939).
+
+## Always Do
+
+- **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
+- **MUST run `detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows. For regression review, compare against the default branch: `detect_changes({scope: "compare", base_ref: "main"})`.
+- **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before proceeding with edits.
+- When exploring unfamiliar code, use `query({query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
+- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `context({name: "symbolName"})`.
+
+## Never Do
+
+- NEVER edit a function, class, or method without first running `impact` on it.
+- NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
+- NEVER rename symbols with find-and-replace — use `rename` which understands the call graph.
+- NEVER commit changes without running `detect_changes()` to check affected scope.
+=======
 This project is indexed by GitNexus as **Manager-warehouse-sdd** (4686 symbols, 11279 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
@@ -1193,6 +1305,7 @@ This project is indexed by GitNexus as **Manager-warehouse-sdd** (4686 symbols, 
 - NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
 - NEVER rename symbols with find-and-replace — use `gitnexus_rename` which understands the call graph.
 - NEVER commit changes without running `gitnexus_detect_changes()` to check affected scope.
+>>>>>>> main
 
 ## Resources
 

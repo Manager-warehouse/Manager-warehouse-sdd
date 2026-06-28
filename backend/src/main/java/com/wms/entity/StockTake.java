@@ -1,6 +1,7 @@
 package com.wms.entity;
 
 import lombok.*;
+import com.wms.enums.ApprovalLevel;
 import com.wms.enums.StockTakeStatus;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
@@ -41,6 +42,17 @@ public class StockTake {
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 30)
     private StockTakeStatus status;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "approval_level", length = 10)
+    private ApprovalLevel approvalLevel;
+
+    @Builder.Default
+    @Column(name = "is_employee_fault", nullable = false)
+    private Boolean isEmployeeFault = false;
+
+    @Column(name = "rejection_reason", columnDefinition = "TEXT")
+    private String rejectionReason;
 
     @Column(name = "total_variance_value", precision = 18, scale = 2)
     private BigDecimal totalVarianceValue;

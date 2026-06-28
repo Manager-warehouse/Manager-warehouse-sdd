@@ -4,7 +4,6 @@ import com.wms.dto.request.*;
 import com.wms.dto.response.InterWarehouseTransferResponse;
 import com.wms.entity.InterWarehouseTransfer;
 import com.wms.entity.User;
-import com.wms.enums.InterWarehouseTransferStatus;
 import com.wms.exception.BusinessRuleViolationException;
 import com.wms.repository.InterWarehouseTransferRepository;
 import com.wms.service.transfer.InterWarehouseTransferService;
@@ -27,10 +26,12 @@ public class InterWarehouseTransferServiceImpl implements InterWarehouseTransfer
     @Override
     @Transactional(readOnly = true)
     public List<InterWarehouseTransferResponse> getAllTransfers(User actor) {
+        // Load warehouse assignments once to avoid N+1 queries in canViewTransfer
+        List<Long> actorWarehouseIds = helper.loadWarehouseIds(actor);
         return transferRepository.findAllByOrderByCreatedAtDesc().stream()
                 .peek(helper::applyTripDeadlineRules)
-                .filter(transfer -> helper.canViewTransfer(actor, transfer))
-                .map(helper::toResponse)
+                .filter(transfer -> helper.canViewTransfer(actor, actorWarehouseIds, transfer))
+                .map(transfer -> helper.toResponseEager(transfer))
                 .toList();
     }
 
@@ -51,12 +52,14 @@ public class InterWarehouseTransferServiceImpl implements InterWarehouseTransfer
     }
 
     @Override
-    public InterWarehouseTransferResponse updateTransfer(Long id, InterWarehouseTransferUpdateRequest request, User actor) {
+    public InterWarehouseTransferResponse updateTransfer(Long id, InterWarehouseTransferUpdateRequest request,
+            User actor) {
         return planningService.updateTransfer(id, request, actor);
     }
 
     @Override
-    public InterWarehouseTransferResponse cancelTransfer(Long id, InterWarehouseTransferReasonRequest request, User actor) {
+    public InterWarehouseTransferResponse cancelTransfer(Long id, InterWarehouseTransferReasonRequest request,
+            User actor) {
         return planningService.cancelTransfer(id, request, actor);
     }
 
@@ -66,12 +69,14 @@ public class InterWarehouseTransferServiceImpl implements InterWarehouseTransfer
     }
 
     @Override
-    public InterWarehouseTransferResponse rejectTransfer(Long id, InterWarehouseTransferReasonRequest request, User actor) {
+    public InterWarehouseTransferResponse rejectTransfer(Long id, InterWarehouseTransferReasonRequest request,
+            User actor) {
         return approvalService.rejectTransfer(id, request, actor);
     }
 
     @Override
-    public InterWarehouseTransferResponse assignTrip(Long id, InterWarehouseTransferTripAssignRequest request, User actor) {
+    public InterWarehouseTransferResponse assignTrip(Long id, InterWarehouseTransferTripAssignRequest request,
+            User actor) {
         return shippingService.assignTrip(id, request, actor);
     }
 
@@ -91,17 +96,20 @@ public class InterWarehouseTransferServiceImpl implements InterWarehouseTransfer
     }
 
     @Override
-    public InterWarehouseTransferResponse receiveCount(Long id, InterWarehouseTransferReceiveCountRequest request, User actor) {
+    public InterWarehouseTransferResponse receiveCount(Long id, InterWarehouseTransferReceiveCountRequest request,
+            User actor) {
         return receivingService.receiveCount(id, request, actor);
     }
 
     @Override
-    public InterWarehouseTransferResponse receiveCheck(Long id, InterWarehouseTransferReceiveCheckRequest request, User actor) {
+    public InterWarehouseTransferResponse receiveCheck(Long id, InterWarehouseTransferReceiveCheckRequest request,
+            User actor) {
         return receivingService.receiveCheck(id, request, actor);
     }
 
     @Override
-    public InterWarehouseTransferResponse finalReceive(Long id, InterWarehouseTransferFinalReceiveRequest request, User actor) {
+    public InterWarehouseTransferResponse finalReceive(Long id, InterWarehouseTransferFinalReceiveRequest request,
+            User actor) {
         return receivingService.finalReceive(id, request, actor);
     }
 
@@ -111,7 +119,8 @@ public class InterWarehouseTransferServiceImpl implements InterWarehouseTransfer
     }
 
     @Override
-    public InterWarehouseTransferResponse quarantineReject(Long id, InterWarehouseTransferRejectRequest request, User actor) {
+    public InterWarehouseTransferResponse quarantineReject(Long id, InterWarehouseTransferRejectRequest request,
+            User actor) {
         return receivingService.quarantineReject(id, request, actor);
     }
 }

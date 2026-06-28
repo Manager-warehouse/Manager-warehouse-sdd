@@ -24,7 +24,6 @@ import com.wms.repository.WarehouseLocationRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -46,13 +45,20 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class ReceiptPutawayServiceTest {
 
-    @Mock private ReceiptRepository receiptRepository;
-    @Mock private ReceiptItemRepository receiptItemRepository;
-    @Mock private BatchRepository batchRepository;
-    @Mock private InventoryRepository inventoryRepository;
-    @Mock private WarehouseLocationRepository warehouseLocationRepository;
-    @Mock private UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
-    @Mock private AuditLogService auditLogService;
+    @Mock
+    private ReceiptRepository receiptRepository;
+    @Mock
+    private ReceiptItemRepository receiptItemRepository;
+    @Mock
+    private BatchRepository batchRepository;
+    @Mock
+    private InventoryRepository inventoryRepository;
+    @Mock
+    private WarehouseLocationRepository warehouseLocationRepository;
+    @Mock
+    private UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
+    @Mock
+    private AuditLogService auditLogService;
 
     private ReceiptValidationService receiptValidationService;
     private ReceiptApprovalService receiptService;
@@ -116,8 +122,7 @@ class ReceiptPutawayServiceTest {
                 inventoryRepository,
                 warehouseLocationRepository,
                 receiptValidationService,
-                auditLogService
-        );
+                auditLogService);
     }
 
     @Test
@@ -137,8 +142,8 @@ class ReceiptPutawayServiceTest {
 
         assertEquals(ReceiptStatus.APPROVED, response.getStatus());
         verify(inventoryRepository).save(argThat(inv -> inv.getTotalQty().compareTo(BigDecimal.TEN) == 0));
-        verify(warehouseLocationRepository).save(argThat(location ->
-                location.getCurrentVolumeM3().compareTo(BigDecimal.valueOf(6.00)) == 0
+        verify(warehouseLocationRepository)
+                .save(argThat(location -> location.getCurrentVolumeM3().compareTo(BigDecimal.valueOf(6.00)) == 0
                         && location.getCurrentWeightKg().compareTo(BigDecimal.valueOf(25.00)) == 0));
         verify(auditLogService).log(eq(storekeeper), eq(AuditAction.INVENTORY_UPDATE),
                 eq("INVENTORY"), eq(300L), any(), eq(10L), any(), any());
@@ -204,11 +209,11 @@ class ReceiptPutawayServiceTest {
     private ReceiptPutawayRequest request() {
         ReceiptPutawayRequest request = new ReceiptPutawayRequest();
         request.setExpectedVersion(5);
-        
+
         ReceiptPutawayItem putawayItem = new ReceiptPutawayItem();
         putawayItem.setReceiptItemId(11L);
         putawayItem.setLocationId(50L);
-        
+
         request.setItems(List.of(putawayItem));
         return request;
     }

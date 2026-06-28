@@ -1,0 +1,68 @@
+openapi: 3.0.3
+info:
+  title: Auto Invoice Internal Contract
+  version: 1.0.0
+  description: Internal contract for automatic invoice and receivable creation triggered by successful Driver Mobile confirm-delivery. This feature exposes no standalone user-facing endpoint.
+paths: {}
+components:
+  schemas:
+    AutoInvoiceResult:
+      type: object
+      properties:
+        invoiceId:
+          type: integer
+          format: int64
+        invoiceNumber:
+          type: string
+        deliveryOrderId:
+          type: integer
+          format: int64
+        dealerId:
+          type: integer
+          format: int64
+        totalAmount:
+          type: number
+        issueDate:
+          type: string
+          format: date
+        dueDate:
+          type: string
+          format: date
+        status:
+          type: string
+          example: UNPAID
+        idempotentReplay:
+          type: boolean
+          description: True when an existing invoice was returned and Dealer balance was not changed again.
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/AutoInvoiceLineResult"
+    AutoInvoiceLineResult:
+      type: object
+      properties:
+        doItemId:
+          type: integer
+          format: int64
+        productId:
+          type: integer
+          format: int64
+        quantity:
+          type: number
+        unitPrice:
+          type: number
+        lineAmount:
+          type: number
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: string
+          examples:
+            - INVOICE_ALREADY_EXISTS
+            - DELIVERY_ORDER_STATUS_INVALID
+            - PARTIAL_DELIVERY_NOT_ALLOWED
+            - ITEM_PRICE_MISSING
+            - INVOICE_PERSISTENCE_FAILED
+        message:
+          type: string

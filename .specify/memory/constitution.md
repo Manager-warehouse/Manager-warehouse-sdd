@@ -36,12 +36,14 @@ fleet operations for the Phuc Anh warehouses in Hai Phong, Ha Noi, and Ho Chi
 Minh.
 
 In scope:
+
 - Warehouse operations: inbound, outbound, transfer, stocktake, adjustment.
 - Internal accounting: COGS, pricing, invoices, payments, credit status.
 - Internal fleet dispatch only; no third-party logistics in Sprint 1.
 - Dealer and supplier master data.
 
 Out of scope unless explicitly specified:
+
 - Manufacturing, HR/HRM, B2B/B2C portals, external integrations, barcode/QR
   scanner automation.
 
@@ -154,6 +156,7 @@ conflicts use HTTP 409.
 
 Every feature spec, plan, and task list MUST make the following visible when
 relevant:
+
 - The affected WMS domain flow and state transitions.
 - Entity/table changes and Flyway migration impact.
 - Request/response DTO validation.
@@ -166,6 +169,7 @@ relevant:
 ## 10. Testing And Definition Of Done
 
 A task is not done until:
+
 - Service/business logic tests are written and passing with >= 80% coverage for
   the changed service surface.
 - API endpoint integration tests cover happy and error paths.
@@ -190,6 +194,7 @@ This constitution overrides conflicting project guidance. If another file
 disagrees, update that file or amend this constitution explicitly.
 
 Amendments require:
+
 1. A pull request or explicit user request describing the reason and impact.
 2. Review of dependent Speckit templates and project guidance files.
 3. Semantic versioning:

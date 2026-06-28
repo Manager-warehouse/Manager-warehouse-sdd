@@ -313,12 +313,29 @@ const addMockAuditLog = (action, entityType, entityId, details) => {
 
 export const masterDataService = {
   // --- PRODUCTS (SKU) ---
-  getProducts: async () => {
+  getProducts: async (params = {}) => {
     if (useMock) {
       await new Promise((resolve) => setTimeout(resolve, 300));
-      return getDb(KEYS.PRODUCTS, INITIAL_PRODUCTS);
+      const products = getDb(KEYS.PRODUCTS, INITIAL_PRODUCTS);
+      const normalizedSearch = params.search?.trim().toLowerCase();
+
+      if (!normalizedSearch) {
+        return products;
+      }
+
+      return products.filter(
+        (product) =>
+          product.sku?.toLowerCase().includes(normalizedSearch) ||
+          product.name?.toLowerCase().includes(normalizedSearch),
+      );
     }
-    const response = await apiClient.get("/products");
+    const response = await apiClient.get("/products", {
+      params: {
+        search: params.search?.trim() || undefined,
+        page: params.page ?? 0,
+        size: params.size ?? 200,
+      },
+    });
     const data = response.data;
     const arrayData = Array.isArray(data) ? data : (data && Array.isArray(data.content) ? data.content : []);
     return mapToSnakeCase(arrayData);
@@ -1060,7 +1077,9 @@ export const masterDataService = {
       return getDb(KEYS.VEHICLES, INITIAL_VEHICLES);
     }
     const response = await apiClient.get("/dispatcher/vehicles");
-    return mapToSnakeCase(response.data);
+    const data = response.data;
+    const arrayData = Array.isArray(data) ? data : (data && Array.isArray(data.content) ? data.content : (data && Array.isArray(data.data) ? data.data : []));
+    return mapToSnakeCase(arrayData);
   },
 
   createVehicle: async (vhData) => {
@@ -1097,11 +1116,18 @@ export const masterDataService = {
       );
       return newVh;
     }
-    const response = await apiClient.post(
-      "/dispatcher/vehicles",
-      mapToCamelCase(vhData),
-    );
-    return mapToSnakeCase(response.data);
+    try {
+      const payload = mapToCamelCase(vhData);
+      console.log('Creating vehicle with payload:', payload);
+      const response = await apiClient.post(
+        "/dispatcher/vehicles",
+        payload,
+      );
+      return mapToSnakeCase(response.data);
+    } catch (error) {
+      console.error('Create vehicle API error:', error.response?.data || error);
+      throw error;
+    }
   },
 
   updateVehicle: async (id, vhData) => {
@@ -1193,7 +1219,9 @@ export const masterDataService = {
       return drivers;
     }
     const response = await apiClient.get("/dispatcher/drivers");
-    return mapToSnakeCase(response.data);
+    const data = response.data;
+    const arrayData = Array.isArray(data) ? data : (data && Array.isArray(data.content) ? data.content : (data && Array.isArray(data.data) ? data.data : []));
+    return mapToSnakeCase(arrayData);
   },
 
   getDriverUserCandidates: async () => {

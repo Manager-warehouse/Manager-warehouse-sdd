@@ -47,6 +47,10 @@ public class DamageReport {
     @JoinColumn(name = "reported_by", nullable = false)
     private User reportedBy;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "receipt_item_id")
+    private ReceiptItem receiptItem;
+
     @Column(name = "report_date", nullable = false)
     private LocalDate reportDate;
 

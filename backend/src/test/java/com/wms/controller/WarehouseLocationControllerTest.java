@@ -14,9 +14,9 @@ import com.wms.service.WarehouseLocationService;
 import com.wms.util.JwtUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
@@ -32,7 +32,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(WarehouseLocationController.class)
-@Import({SecurityConfig.class, JwtAuthFilter.class, GlobalExceptionHandler.class})
+@Import({ SecurityConfig.class, JwtAuthFilter.class, GlobalExceptionHandler.class })
 public class WarehouseLocationControllerTest {
 
     @Autowired
@@ -62,7 +62,8 @@ public class WarehouseLocationControllerTest {
     @Test
     @WithMockUser(username = "manager@wms.com", roles = "WAREHOUSE_MANAGER")
     void getAllLocations_Manager_Returns200() throws Exception {
-        when(locationService.getAllLocations(any(), any(), any(), any())).thenReturn(List.of(new WarehouseLocationResponse()));
+        when(locationService.getAllLocations(any(), any(), any(), any()))
+                .thenReturn(List.of(new WarehouseLocationResponse()));
 
         mockMvc.perform(get("/api/v1/admin/warehouse-locations"))
                 .andExpect(status().isOk());
@@ -86,8 +87,8 @@ public class WarehouseLocationControllerTest {
         req.setType("ZONE");
 
         mockMvc.perform(post("/api/v1/admin/warehouse-locations")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isCreated());
     }
 
@@ -100,8 +101,8 @@ public class WarehouseLocationControllerTest {
         req.setType("ZONE");
 
         mockMvc.perform(post("/api/v1/admin/warehouse-locations")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isForbidden());
     }
 
@@ -119,8 +120,10 @@ public class WarehouseLocationControllerTest {
         req.setParentId(20L);
 
         mockMvc.perform(put("/api/v1/admin/warehouse-locations/30")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isUnprocessableEntity());
     }
 }
+
+

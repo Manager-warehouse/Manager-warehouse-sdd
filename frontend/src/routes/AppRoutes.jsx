@@ -17,6 +17,7 @@ import ReceiptReceive from '../pages/Inbound/ReceiptReceive';
 import QCInbound from '../pages/Inbound/QCInbound';
 import PutawayPlan from '../pages/Inbound/PutawayPlan';
 import QuarantineWorkspace from '../pages/Inbound/QuarantineWorkspace';
+import ReturnsWorkspace from '../pages/Inbound/ReturnsWorkspace';
 import InterWarehouseTransferWorkspace from '../pages/InterWarehouseTransfer/InterWarehouseTransferWorkspace';
 import SystemConfig from '../pages/Admin/SystemConfig';
 import AuditLogs from '../pages/Admin/AuditLogs';
@@ -25,6 +26,11 @@ import DeliveryOrderDetail from '../pages/Outbound/DeliveryOrderDetail';
 import QCOutbound from '../pages/Outbound/QCOutbound';
 import TripPlanning from '../pages/Outbound/TripPlanning';
 import DriverTrip from '../pages/Outbound/DriverTrip';
+import StocktakeList from '../pages/Stocktake/StocktakeList';
+import StocktakeForm from '../pages/Stocktake/StocktakeForm';
+import StocktakeDetail from '../pages/Stocktake/StocktakeDetail';
+import PriceListManagement from '../pages/Finance/PriceListManagement';
+import PriceApproval from '../pages/Finance/PriceApproval';
 import { ROLES } from '../utils/constants';
 const AppRoutes = () => {
   return (
@@ -92,13 +98,17 @@ const AppRoutes = () => {
         <Route path="/inbound/quarantine" element={<QuarantineWorkspace />} />
       </Route>
 
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.WAREHOUSE_STAFF, ROLES.STOREKEEPER, ROLES.WAREHOUSE_MANAGER, ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.CEO, ROLES.ADMIN]} />}>
+        <Route path="/inbound/returns" element={<ReturnsWorkspace />} />
+      </Route>
+
       <Route element={<ProtectedRoute allowedRoles={[ROLES.PLANNER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.WAREHOUSE_MANAGER, ROLES.DISPATCHER, ROLES.ADMIN, ROLES.CEO]} />}>
         <Route path="/transfers" element={<InterWarehouseTransferWorkspace />} />
         <Route path="/transfers/:id" element={<InterWarehouseTransferWorkspace />} />
       </Route>
 
       {/* Outbound & Delivery protected routes */}
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.PLANNER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_MANAGER, ROLES.DISPATCHER, ROLES.ACCOUNTANT, ROLES.ADMIN, ROLES.CEO]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.PLANNER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.WAREHOUSE_MANAGER, ROLES.DISPATCHER, ROLES.ACCOUNTANT, ROLES.ADMIN, ROLES.CEO]} />}>
         <Route path="/outbound/delivery-orders" element={<DeliveryOrders />} />
         <Route path="/outbound/delivery-orders/:id" element={<DeliveryOrderDetail />} />
       </Route>
@@ -115,6 +125,22 @@ const AppRoutes = () => {
       <Route element={<ProtectedRoute allowedRoles={[ROLES.DRIVER, ROLES.ADMIN]} />}>
         <Route path="/outbound/driver/trips" element={<DriverTrip />} />
         <Route path="/outbound/driver/trips/:id" element={<DriverTrip />} />
+      </Route>
+
+      {/* Stocktake protected routes */}
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.WAREHOUSE_MANAGER, ROLES.STOREKEEPER, ROLES.CEO, ROLES.ADMIN]} />}>
+        <Route path="/stocktake" element={<StocktakeList />} />
+        <Route path="/stocktake/new" element={<StocktakeForm />} />
+        <Route path="/stocktake/:id" element={<StocktakeDetail />} />
+      </Route>
+
+      {/* Finance — Pricing & COGS */}
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN, ROLES.CEO]} />}>
+        <Route path="/finance/price-list" element={<PriceListManagement />} />
+      </Route>
+
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN]} />}>
+        <Route path="/finance/price-approval" element={<PriceApproval />} />
       </Route>
 
       {/* Default Redirects */}

@@ -236,97 +236,312 @@ CREATE TABLE price_history (
     created_at     TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
--- =============================================================================
--- SECTION 6: LÔ HÀNG & TỒN KHO
--- =============================================================================
 
--- §4.1 batches
-CREATE TABLE batches (
-    id            BIGSERIAL     PRIMARY KEY,
-    batch_number  VARCHAR(100)  UNIQUE NOT NULL,
-    product_id    BIGINT        NOT NULL REFERENCES products(id),
-    warehouse_id  BIGINT        NOT NULL REFERENCES warehouses(id),
-    received_date DATE          NOT NULL,       -- Dùng cho FIFO
-    expiry_date   DATE,                         -- NULL = không có hạn; dùng cho FEFO
-    grade         VARCHAR(1)    NOT NULL
-                  CHECK (grade IN ('A','B','C')),  -- Bất biến sau khi tạo
-    quantity      DECIMAL(10,2) NOT NULL
-                  CHECK (quantity >= 0),
-    created_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+
+--
+-- Name: delivery_order_item_replacements_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.delivery_order_item_replacements_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+
+--
+-- Name: delivery_order_item_replacements_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.delivery_order_item_replacements_id_seq OWNED BY public.delivery_order_item_replacements.id;
+
+
+--
+-- Name: delivery_order_item_return_to_bin_records; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.delivery_order_item_return_to_bin_records (
+    id bigint NOT NULL,
+    do_item_id bigint NOT NULL,
+    allocation_id bigint NOT NULL,
+    product_id bigint NOT NULL,
+    batch_id bigint NOT NULL,
+    original_location_id bigint NOT NULL,
+    original_zone_id bigint NOT NULL,
+    source_location_id bigint,
+    returned_qty numeric(10,2) NOT NULL,
+    reason text,
+    created_by bigint NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT delivery_order_item_return_to_bin_records_returned_qty_check CHECK ((returned_qty > (0)::numeric))
 );
 
--- §4.2 inventories
-CREATE TABLE inventories (
-    id           BIGSERIAL     PRIMARY KEY,
-    warehouse_id BIGINT        NOT NULL REFERENCES warehouses(id),
-    product_id   BIGINT        NOT NULL REFERENCES products(id),
-    batch_id     BIGINT        NOT NULL REFERENCES batches(id),
-    location_id  BIGINT        NOT NULL REFERENCES warehouse_locations(id),
-    total_qty    DECIMAL(10,2) NOT NULL DEFAULT 0,
-    reserved_qty DECIMAL(10,2) NOT NULL DEFAULT 0,
-    cost_price   DECIMAL(18,2) NOT NULL,        -- Giá vốn tại thời điểm nhập
-    version      INTEGER       NOT NULL DEFAULT 0, -- Optimistic locking (+1 mỗi UPDATE)
-    updated_at   TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
-    UNIQUE (warehouse_id, product_id, batch_id, location_id),
-    CHECK (total_qty    >= 0),
-    CHECK (reserved_qty >= 0),
-    CHECK (total_qty - reserved_qty >= 0)        -- available_qty không bao giờ âm
+
+
+--
+-- Name: delivery_order_item_return_to_bin_records_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.delivery_order_item_return_to_bin_records_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+
+--
+-- Name: delivery_order_item_return_to_bin_records_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.delivery_order_item_return_to_bin_records_id_seq OWNED BY public.delivery_order_item_return_to_bin_records.id;
+
+
+--
+-- Name: delivery_order_items; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.delivery_order_items (
+    id bigint NOT NULL,
+    do_id bigint NOT NULL,
+    product_id bigint NOT NULL,
+    batch_id bigint,
+    location_id bigint,
+    requested_qty numeric(10,2) NOT NULL,
+    reserved_qty numeric(10,2) DEFAULT 0 NOT NULL,
+    issued_qty numeric(10,2) DEFAULT 0 NOT NULL,
+    unit_price numeric(18,2),
+    picked_by bigint,
+    unit_cost numeric(18,2),
+    zone_id bigint,
+    planned_qty numeric(10,2) DEFAULT 0 NOT NULL,
+    picked_qty numeric(10,2) DEFAULT 0 NOT NULL,
+    qc_pass_qty numeric(10,2) DEFAULT 0 NOT NULL,
+    qc_fail_qty numeric(10,2) DEFAULT 0 NOT NULL,
+    serial_number character varying(100),
+    CONSTRAINT delivery_order_items_reserved_qty_check CHECK ((reserved_qty >= (0)::numeric))
 );
--- available_qty = total_qty - reserved_qty  (computed, không lưu DB)
 
--- =============================================================================
--- SECTION 7: NHẬP KHO (INBOUND)
--- =============================================================================
 
--- §5.1 purchase_orders
-CREATE TABLE purchase_orders (
-    id                    BIGSERIAL   PRIMARY KEY,
-    po_number             VARCHAR(50) UNIQUE NOT NULL,
-    supplier_id           BIGINT      NOT NULL REFERENCES suppliers(id),
-    warehouse_id          BIGINT      NOT NULL REFERENCES warehouses(id),
-    expected_receipt_date DATE,
-    status                VARCHAR(30) NOT NULL
-                          CHECK (status IN ('OPEN','PARTIALLY_RECEIVED','COMPLETED','CANCELLED')),
-    created_by            BIGINT      NOT NULL REFERENCES users(id),
-    notes                 TEXT,
-    created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+
+--
+-- Name: delivery_order_items_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.delivery_order_items_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+
+--
+-- Name: delivery_order_items_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.delivery_order_items_id_seq OWNED BY public.delivery_order_items.id;
+
+
+--
+-- Name: delivery_order_warehouse_approvals; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.delivery_order_warehouse_approvals (
+    id bigint NOT NULL,
+    do_id bigint NOT NULL,
+    approver_id bigint NOT NULL,
+    result character varying(20) NOT NULL,
+    notes text,
+    approved_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT delivery_order_warehouse_approvals_result_check CHECK (((result)::text = ANY ((ARRAY['APPROVED'::character varying, 'REJECTED'::character varying])::text[])))
 );
 
--- §5.2 purchase_order_items
-CREATE TABLE purchase_order_items (
-    id           BIGSERIAL     PRIMARY KEY,
-    po_id        BIGINT        NOT NULL REFERENCES purchase_orders(id),
-    product_id   BIGINT        NOT NULL REFERENCES products(id),
-    expected_qty DECIMAL(10,2) NOT NULL,
-    unit_price   DECIMAL(18,2)
+
+
+--
+-- Name: delivery_order_warehouse_approvals_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.delivery_order_warehouse_approvals_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+
+--
+-- Name: delivery_order_warehouse_approvals_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.delivery_order_warehouse_approvals_id_seq OWNED BY public.delivery_order_warehouse_approvals.id;
+
+
+--
+-- Name: delivery_orders; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.delivery_orders (
+    id bigint NOT NULL,
+    do_number character varying(50) NOT NULL,
+    dealer_id bigint NOT NULL,
+    warehouse_id bigint NOT NULL,
+    type character varying(30) NOT NULL,
+    expected_delivery_date date,
+    status character varying(30) DEFAULT 'NEW'::character varying NOT NULL,
+    created_by bigint NOT NULL,
+    cancel_reason text,
+    document_date date NOT NULL,
+    accounting_period_id bigint,
+    notes text,
+    packed_by bigint,
+    qc_by bigint,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    rejection_reason text,
+    CONSTRAINT delivery_orders_status_check CHECK (((status)::text = ANY ((ARRAY['NEW'::character varying, 'WAITING_PICKING'::character varying, 'PICKING'::character varying, 'READY_TO_SHIP'::character varying, 'QC_PENDING_APPROVAL'::character varying, 'QC_COMPLETED'::character varying, 'WAREHOUSE_APPROVED'::character varying, 'IN_TRANSIT'::character varying, 'OUT_FOR_DELIVERY'::character varying, 'DELIVERED'::character varying, 'COMPLETED'::character varying, 'RETURNED'::character varying, 'CANCELLED'::character varying, 'CLOSED'::character varying])::text[]))),
+    CONSTRAINT delivery_orders_type_check CHECK (((type)::text = ANY ((ARRAY['SALE'::character varying, 'DELIVERY'::character varying, 'ADJUSTMENT'::character varying])::text[])))
 );
 
--- §5.3 receipts
-CREATE TABLE receipts (
-    id                   BIGSERIAL   PRIMARY KEY,
-    receipt_number       VARCHAR(50) UNIQUE NOT NULL,
-    source_order_code    VARCHAR(100),            -- Mã PO hoặc DO hoàn
-    type                 VARCHAR(20) NOT NULL
-                         CHECK (type IN ('PURCHASE','RETURN')),
-    warehouse_id         BIGINT      NOT NULL REFERENCES warehouses(id),
-    supplier_id          BIGINT      REFERENCES suppliers(id),
-    dealer_id            BIGINT      REFERENCES dealers(id),
-    contact_person       VARCHAR(255),
-    source_channel       VARCHAR(50),             -- Zalo / Email
-    status               VARCHAR(30) NOT NULL DEFAULT 'PENDING_RECEIPT'
-                         CHECK (status IN (
-                             'PENDING_RECEIPT','DRAFT','QC_COMPLETED','APPROVED','REJECTED'
-                         )),
-    approved_by          BIGINT      REFERENCES users(id),
-    approved_at          TIMESTAMPTZ,
-    rejection_reason     TEXT,
-    document_date        DATE        NOT NULL,
-    accounting_period_id BIGINT      REFERENCES accounting_periods(id),
-    created_by           BIGINT      NOT NULL REFERENCES users(id),
-    notes                TEXT,
-    created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+
+
+--
+-- Name: delivery_orders_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.delivery_orders_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+
+--
+-- Name: delivery_orders_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.delivery_orders_id_seq OWNED BY public.delivery_orders.id;
+
+
+--
+-- Name: delivery_otp_attempts; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.delivery_otp_attempts (
+    id bigint NOT NULL,
+    delivery_id bigint NOT NULL,
+    otp_hash character varying(255) NOT NULL,
+    recipient_email character varying(255) NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    consumed_at timestamp with time zone,
+    attempt_count integer DEFAULT 0 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    status character varying(20) DEFAULT 'ACTIVE'::character varying NOT NULL
+);
+
+
+
+--
+-- Name: delivery_otp_attempts_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.delivery_otp_attempts_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+
+--
+-- Name: delivery_otp_attempts_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.delivery_otp_attempts_id_seq OWNED BY public.delivery_otp_attempts.id;
+
+
+--
+-- Name: document_sequences; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.document_sequences (
+    sequence_key character varying(50) NOT NULL,
+    next_value bigint NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT document_sequences_next_value_check CHECK ((next_value > 0))
+);
+
+
+
+--
+-- Name: drivers; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.drivers (
+    id bigint NOT NULL,
+    user_id bigint NOT NULL,
+    full_name character varying(255) NOT NULL,
+    phone character varying(20),
+    license_number character varying(50) NOT NULL,
+    license_expiry date NOT NULL,
+    status character varying(20) DEFAULT 'AVAILABLE'::character varying NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_by bigint,
+    updated_by bigint,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    warehouse_id bigint,
+    CONSTRAINT chk_drivers_status CHECK (((status)::text = ANY ((ARRAY['AVAILABLE'::character varying, 'ON_TRIP'::character varying, 'UNAVAILABLE'::character varying])::text[])))
+);
+
+
+
+--
+-- Name: COLUMN drivers.status; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.drivers.status IS 'Driver status: AVAILABLE, ON_TRIP, UNAVAILABLE.';
+
+
+--
+-- Name: drivers_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.drivers_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+
+--
+-- Name: drivers_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.drivers_id_seq OWNED BY public.drivers.id;
+
+
+--
+-- Name: inter_warehouse_transfer_allocations; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.inter_warehouse_transfer_allocations (
+    id bigint NOT NULL,
+    transfer_item_id bigint NOT NULL,
+    inventory_id bigint NOT NULL,
+    allocated_qty numeric(10,2) NOT NULL,
+    CONSTRAINT inter_warehouse_transfer_allocations_allocated_qty_check CHECK ((allocated_qty > (0)::numeric))
 );
 
 -- §5.4 receipt_items
@@ -912,61 +1127,66 @@ CREATE VIEW v_inventory_by_batch AS
 SELECT
     w.code                                   AS warehouse_code,
     p.sku,
-    p.name                                   AS product_name,
+    p.name AS product_name,
     b.batch_number,
-    b.grade,
     b.received_date,
-    b.expiry_date,
-    wl.code                                  AS location_code,
+    wl.code AS location_code,
     i.total_qty,
     i.reserved_qty,
-    (i.total_qty - i.reserved_qty)           AS available_qty,
+    (i.total_qty - i.reserved_qty) AS available_qty,
     i.cost_price,
-    (i.total_qty * i.cost_price)             AS line_value
-FROM inventories         i
-JOIN warehouses          w  ON w.id  = i.warehouse_id
-JOIN products            p  ON p.id  = i.product_id
-JOIN batches             b  ON b.id  = i.batch_id
-JOIN warehouse_locations wl ON wl.id = i.location_id
-WHERE w.type = 'PHYSICAL'
-ORDER BY w.code, p.sku,
-         b.expiry_date   ASC NULLS LAST,
-         b.received_date ASC NULLS LAST;
+    (i.total_qty * i.cost_price) AS line_value
+   FROM ((((public.inventories i
+     JOIN public.warehouses w ON ((w.id = i.warehouse_id)))
+     JOIN public.products p ON ((p.id = i.product_id)))
+     JOIN public.batches b ON ((b.id = i.batch_id)))
+     JOIN public.warehouse_locations wl ON ((wl.id = i.location_id)))
+  WHERE ((w.type)::text = 'PHYSICAL'::text)
+  ORDER BY w.code, p.sku, b.received_date;
 
--- Đơn xuất kho đang chờ xử lý tại kho
-CREATE VIEW v_pending_delivery_orders AS
-SELECT
-    dord.do_number,
-    dord.status,
-    dord.type,
-    d.name            AS dealer_name,
-    d.phone           AS dealer_phone,
-    dord.expected_delivery_date,
-    u.full_name       AS created_by_name,
-    dord.document_date,
-    dord.created_at
-FROM delivery_orders dord
-JOIN dealers d ON d.id = dord.dealer_id
-JOIN users   u ON u.id = dord.created_by
-WHERE dord.status IN ('NEW','PICKING','READY_TO_SHIP')
-ORDER BY dord.expected_delivery_date ASC NULLS LAST, dord.created_at ASC;
 
--- Cảnh báo tồn kho thấp chưa giải quyết
-CREATE VIEW v_low_stock_alerts AS
-SELECT
-    sa.alert_type,
-    w.code    AS warehouse_code,
-    w.name    AS warehouse_name,
+
+--
+-- Name: v_inventory_summary; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW public.v_inventory_summary AS
+ SELECT w.code AS warehouse_code,
+    w.name AS warehouse_name,
     p.sku,
-    p.name    AS product_name,
+    p.name AS product_name,
+    p.unit,
+    COALESCE(sum(i.total_qty), (0)::numeric) AS total_qty,
+    COALESCE(sum(i.reserved_qty), (0)::numeric) AS reserved_qty,
+    COALESCE(sum((i.total_qty - i.reserved_qty)), (0)::numeric) AS available_qty,
+    p.reorder_point,
+    COALESCE(sum((i.total_qty * i.cost_price)), (0)::numeric) AS inventory_value
+   FROM ((public.warehouses w
+     JOIN public.inventories i ON ((i.warehouse_id = w.id)))
+     JOIN public.products p ON ((p.id = i.product_id)))
+  WHERE ((w.type)::text = 'PHYSICAL'::text)
+  GROUP BY w.id, w.code, w.name, p.id, p.sku, p.name, p.unit, p.reorder_point;
+
+
+
+--
+-- Name: v_low_stock_alerts; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW public.v_low_stock_alerts AS
+ SELECT sa.alert_type,
+    w.code AS warehouse_code,
+    w.name AS warehouse_name,
+    p.sku,
+    p.name AS product_name,
     sa.current_qty,
     sa.reorder_point,
     sa.created_at AS alerted_at
-FROM stock_alerts sa
-JOIN warehouses w ON w.id = sa.warehouse_id
-JOIN products   p ON p.id = sa.product_id
-WHERE sa.is_resolved = FALSE
-ORDER BY sa.alert_type, sa.created_at DESC;
+   FROM ((public.stock_alerts sa
+     JOIN public.warehouses w ON ((w.id = sa.warehouse_id)))
+     JOIN public.products p ON ((p.id = sa.product_id)))
+  WHERE (sa.is_resolved = false)
+  ORDER BY sa.alert_type, sa.created_at DESC;
 
 -- =============================================================================
 -- SECTION 18: SEED DATA

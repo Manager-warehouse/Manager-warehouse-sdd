@@ -55,32 +55,46 @@ public class VehicleServiceImpl implements VehicleService {
     @Override
     @Transactional
     public VehicleResponse createVehicle(VehicleRequest request, Long userId) {
-        if (vehicleRepository.existsByPlateNumber(request.getPlateNumber())) {
-            throw new IllegalArgumentException("DUPLICATE_PLATE_NUMBER");
+        try {
+            // Kiểm tra trùng lặp plate number
+            if (vehicleRepository.existsByPlateNumber(request.getPlateNumber())) {
+                throw new IllegalArgumentException("DUPLICATE_PLATE_NUMBER: Vehicle with plate number '" + 
+                    request.getPlateNumber() + "' already exists");
+            }
+
+            // Kiểm tra user tồn tại
+            User actor = userRepository.findById(userId)
+                    .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+
+            // Kiểm tra warehouse tồn tại
+            Warehouse warehouse = warehouseRepository.findById(request.getWarehouseId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Warehouse not found with id: " + request.getWarehouseId()));
+
+            Vehicle vehicle = new Vehicle();
+            vehicle.setPlateNumber(request.getPlateNumber());
+            vehicle.setVehicleType(request.getVehicleType());
+            vehicle.setMaxWeightKg(request.getMaxWeightKg());
+            vehicle.setMaxVolumeM3(request.getMaxVolumeM3());
+            vehicle.setWarehouse(warehouse);
+            vehicle.setStatus(VehicleStatus.AVAILABLE);
+            vehicle.setIsActive(true);
+            vehicle.setCreatedBy(actor);
+            vehicle.setUpdatedBy(actor);
+            vehicle.setCreatedAt(OffsetDateTime.now());
+            vehicle.setUpdatedAt(OffsetDateTime.now());
+
+            Vehicle saved = vehicleRepository.save(vehicle);
+
+            // Audit Log
+            auditLogService.log(actor, AuditAction.CREATE, "Vehicle", saved.getId(), saved.getPlateNumber(), null, null, toMap(saved));
+
+            return mapper.toResponse(saved);
+        } catch (Exception e) {
+            // Log chi tiết lỗi để debug
+            System.err.println("Error creating vehicle: " + e.getMessage());
+            e.printStackTrace();
+            throw e;
         }
-
-        User actor = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
-
-        Vehicle vehicle = new Vehicle();
-        vehicle.setPlateNumber(request.getPlateNumber());
-        vehicle.setVehicleType(request.getVehicleType());
-        vehicle.setMaxWeightKg(request.getMaxWeightKg());
-        vehicle.setMaxVolumeM3(request.getMaxVolumeM3());
-        vehicle.setWarehouse(findWarehouse(request.getWarehouseId()));
-        vehicle.setStatus(VehicleStatus.AVAILABLE);
-        vehicle.setIsActive(true);
-        vehicle.setCreatedBy(actor);
-        vehicle.setUpdatedBy(actor);
-        vehicle.setCreatedAt(OffsetDateTime.now());
-        vehicle.setUpdatedAt(OffsetDateTime.now());
-
-        Vehicle saved = vehicleRepository.save(vehicle);
-
-        // Audit Log
-        auditLogService.log(actor, AuditAction.CREATE, "Vehicle", saved.getId(), saved.getPlateNumber(), null, null, toMap(saved));
-
-        return mapper.toResponse(saved);
     }
 
     @Override
@@ -95,14 +109,16 @@ public class VehicleServiceImpl implements VehicleService {
 
         User actor = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+        Warehouse warehouse = warehouseRepository.findById(request.getWarehouseId())
+                .orElseThrow(() -> new ResourceNotFoundException("Warehouse not found with id: " + request.getWarehouseId()));
 
         Map<String, Object> oldMap = toMap(vehicle);
 
+        vehicle.setWarehouse(warehouse);
         vehicle.setPlateNumber(request.getPlateNumber());
         vehicle.setVehicleType(request.getVehicleType());
         vehicle.setMaxWeightKg(request.getMaxWeightKg());
         vehicle.setMaxVolumeM3(request.getMaxVolumeM3());
-        vehicle.setWarehouse(findWarehouse(request.getWarehouseId()));
         vehicle.setUpdatedBy(actor);
         vehicle.setUpdatedAt(OffsetDateTime.now());
 
@@ -197,18 +213,13 @@ public class VehicleServiceImpl implements VehicleService {
         if (v == null) return null;
         Map<String, Object> map = new HashMap<>();
         map.put("id", v.getId());
+        map.put("warehouseId", v.getWarehouse() != null ? v.getWarehouse().getId() : null);
         map.put("plateNumber", v.getPlateNumber());
         map.put("vehicleType", v.getVehicleType());
         map.put("maxWeightKg", v.getMaxWeightKg());
         map.put("maxVolumeM3", v.getMaxVolumeM3());
-        map.put("warehouseId", v.getWarehouse() != null ? v.getWarehouse().getId() : null);
         map.put("status", v.getStatus() != null ? v.getStatus().name() : null);
         map.put("isActive", v.getIsActive());
         return map;
-    }
-
-    private Warehouse findWarehouse(Long warehouseId) {
-        return warehouseRepository.findById(warehouseId)
-                .orElseThrow(() -> new ResourceNotFoundException("Warehouse not found with id: " + warehouseId));
     }
 }

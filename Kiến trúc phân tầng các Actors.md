@@ -237,8 +237,8 @@
 
 - Đăng nhập → Xem danh sách đơn hàng trong Chuyến xe của mình.
 - Tại điểm giao: Đại lý ký tên trực tiếp trên màn hình cảm ứng; Tài xế chụp ảnh hàng hóa bàn giao.
-- Nhấn "Xác nhận đã giao" → Hệ thống lưu POD (Hình ảnh + Chữ ký + Timestamp) và chuyển trạng thái đơn sang **Delivered**.
-- Nếu giao thất bại → Chọn lý do (Đại lý vắng mặt / Từ chối nhận / Sai địa chỉ) → Hệ thống tạo Phiếu nhập hàng hoàn vào Kho cách ly.
+- Nhấn "Xác nhận đã giao" → Hệ thống lưu POD (Hình ảnh + Chữ ký + Timestamp) trên delivery attempt hiện tại, xác thực OTP qua `delivery_otp_attempts` và chuyển trạng thái đơn sang **Delivered**.
+- Nếu giao thất bại → Chọn lý do (Đại lý vắng mặt / Từ chối nhận / Sai địa chỉ) → Hệ thống đóng delivery attempt hiện tại là **Failed** và ghi nhận DO **Returned**; hàng vẫn ở Kho ảo In-Transit cho đến khi luồng hoàn hàng riêng tiếp nhận và phân loại.
 
 **User Stories liên quan:** US-WMS-09, US-WMS-25
 
@@ -275,9 +275,9 @@ Công ty mẹ gửi yêu cầu xuất hàng
     → Thủ kho kiểm tra QC & đóng gói đạt
     → Thủ kho xác nhận xong [Ready to Ship]
     → Dispatcher lập Chuyến xe nội bộ, gán Tài xế
-    → Tài xế xác nhận nhận hàng → Xe rời kho [In-Transit] → Hệ thống trừ tồn kho
-    → Tài xế giao hàng → Đại lý ký POD [Delivered]
-    → Kế toán viên lập Hóa đơn (Invoice) → Cộng công nợ Đại lý [Completed]
+    → Tài xế xác nhận nhận hàng → Xe rời kho [In-Transit] → Hệ thống trừ tồn kho và tạo delivery attempt hiện tại
+    → Tài xế giao hàng → Đại lý ký POD + xác thực OTP [Delivered]
+    → Kế toán viên xử lý invoice candidates → Lập Hóa đơn (Invoice) → Cộng công nợ Đại lý [Completed]
     → Đại lý thanh toán → Kế toán viên tạo Phiếu thu → Cấn trừ công nợ [Closed]
 ```
 
@@ -304,7 +304,7 @@ Planner nhận lệnh điều chuyển ngoài (external instruction code)
 
 ```
 [Phát sinh nợ]
-Giao hàng Delivered → Kế toán lập Invoice (Net 30/60) → current_balance += giá trị đơn
+Giao hàng Delivered → Kế toán lấy invoice candidates → Lập Invoice (Net 30/60) → current_balance += giá trị đơn → DO [Completed]
     → IF current_balance >= credit_limit → CREDIT_HOLD (chặn đơn mới)
     → Daily Job: IF invoice quá hạn > 30 ngày → CREDIT_HOLD + cảnh báo Kế toán trưởng
 
@@ -331,8 +331,8 @@ Kế toán trưởng kiểm tra điều kiện → Chốt sổ kỳ T → CLOSED
 | **Sẵn sàng xuất (Ready to Ship)**     | Soạn xong, Thủ kho đã xác nhận đóng gói QC đạt                | Thủ kho |
 | **Đang vận chuyển (In-Transit)**      | Tài xế đã nhận hàng, xe rời kho — **Tồn kho bị trừ tại đây** | Tài xế (xác nhận nhận hàng) |
 | **Đang giao hàng (Out for Delivery)** | Tài xế đang trên đường đến địa chỉ Đại lý                    | Tài xế                      |
-| **Đã giao thành công (Delivered)**    | Đại lý đã ký POD — Kế toán nhận thông báo lập hóa đơn        | Tài xế (xác nhận POD)       |
-| **Giao thất bại (Returned)**          | Không giao được — Tạo phiếu nhập hàng hoàn Quarantine        | Tài xế (ghi lý do)          |
+| **Đã giao thành công (Delivered)**    | Đại lý đã ký POD và OTP hợp lệ — Kế toán nhận thông báo lập hóa đơn | Tài xế (xác nhận POD + OTP) |
+| **Giao thất bại (Returned)**          | Không giao được — Delivery attempt hiện tại là Failed, hàng vẫn ở In-Transit chờ luồng hoàn hàng riêng | Tài xế (ghi lý do)          |
 | **Đã hoàn thành (Completed)**         | Kế toán đã lập hóa đơn — Chờ thu tiền                        | Kế toán viên                |
 | **Đã đóng (Closed)**                  | Hóa đơn đã được thanh toán đầy đủ                            | Hệ thống (sau Phiếu thu)    |
 | **Đã hủy (Cancelled)**                | Đơn bị hủy — ghi rõ lý do                                    | Planner / Trưởng kho        |

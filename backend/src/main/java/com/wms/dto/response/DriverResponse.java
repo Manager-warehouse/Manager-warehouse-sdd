@@ -11,6 +11,7 @@ import java.util.List;
 @Setter
 public class DriverResponse {
     private Long id;
+    private Long warehouseId;
     private Long userId;
     private List<Long> warehouseIds;
     private String fullName;

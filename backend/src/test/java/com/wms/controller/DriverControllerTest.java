@@ -15,9 +15,9 @@ import com.wms.service.DriverService;
 import com.wms.util.JwtUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
@@ -35,7 +35,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(DriverController.class)
-@Import({SecurityConfig.class, JwtAuthFilter.class, GlobalExceptionHandler.class})
+@Import({ SecurityConfig.class, JwtAuthFilter.class, GlobalExceptionHandler.class })
 public class DriverControllerTest {
 
     @Autowired
@@ -95,14 +95,15 @@ public class DriverControllerTest {
         when(driverService.createDriver(any(), eq(4L))).thenReturn(new DriverResponse());
 
         DriverRequest req = new DriverRequest();
+        req.setWarehouseId(2L);
         req.setUserId(3L);
         req.setFullName("Nguyen Van A");
         req.setLicenseNumber("LX-12345");
         req.setLicenseExpiry(LocalDate.now().plusYears(5));
 
         mockMvc.perform(post("/api/v1/dispatcher/drivers")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isCreated());
     }
 
@@ -114,14 +115,17 @@ public class DriverControllerTest {
                 .thenThrow(new IllegalArgumentException("DUPLICATE_LICENSE_NUMBER"));
 
         DriverRequest req = new DriverRequest();
+        req.setWarehouseId(2L);
         req.setUserId(3L);
         req.setFullName("Nguyen Van A");
         req.setLicenseNumber("LX-12345");
         req.setLicenseExpiry(LocalDate.now().plusYears(5));
 
         mockMvc.perform(post("/api/v1/dispatcher/drivers")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isConflict());
     }
 }
+
+

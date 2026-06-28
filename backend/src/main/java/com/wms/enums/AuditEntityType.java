@@ -7,6 +7,8 @@ public enum AuditEntityType {
     ADJUSTMENT,
     STOCKTAKE,
     DELIVERY_ORDER,
+    DELIVERY,
+    DELIVERY_OTP_ATTEMPT,
     DEALER,
     SUPPLIER,
     BATCH,
@@ -14,5 +16,6 @@ public enum AuditEntityType {
     RETURN,
     SCRAP_DISPOSAL,
     TRIP,
+    INVOICE,
     RECEIPT_ITEM
 }

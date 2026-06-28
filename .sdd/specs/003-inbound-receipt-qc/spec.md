@@ -14,6 +14,7 @@ Quy trình nhập hàng là đầu vào của toàn bộ hệ thống tồn kho.
 ## Clarifications
 
 ### Session 2026-06-11
+
 - Q: Putaway should happen before or after Trưởng kho approval? -> A: After approval; approval unlocks putaway.
 - Q: Should inbound QC support PARTIAL pass/fail in Sprint 1? -> A: No PARTIAL; any failed sample makes the whole lot `QC_FAILED`.
 - Q: What happens when Trưởng kho rejects a `QC_COMPLETED` receipt? -> A: Move it to `RETURN_TO_SUPPLIER_PENDING`.
@@ -25,45 +26,50 @@ Quy trình nhập hàng là đầu vào của toàn bộ hệ thống tồn kho.
 - Q: Can Storekeeper confirm a partial RTV quantity? -> A: No; RTV confirmation must return the full quarantined quantity for the receipt.
 
 ### Features List
-* [US-WMS-02: Tiếp nhận & Lập Lệnh Nhập kho](./features/feature-planner-receipt-drafting/feature-planner-receipt-drafting.md)
-* [US-WMS-03: Nhân viên kho Tiếp nhận & Đếm số lượng hàng thực tế](./features/feature-warehouse-staff-receipt-counting/feature-warehouse-staff-receipt-counting.md)
-* [US-WMS-04: Nhân viên kho Kiểm tra Chất lượng Inbound theo Sample](./features/feature-qc-inbound-inspection.md)
-* [US-WMS-05: Xử lý Hàng lỗi trong Quarantine Zone](./features/feature-manager-quarantine-handling.md)
-* [US-WMS-06: Duyệt Nhập kho Chính thức](./features/feature-manager-receipt-approval.md)
+
+- [US-WMS-02: Tiếp nhận & Lập Lệnh Nhập kho](./features/feature-planner-receipt-drafting/feature-planner-receipt-drafting.md)
+- [US-WMS-03: Nhân viên kho Tiếp nhận & Đếm số lượng hàng thực tế](./features/feature-warehouse-staff-receipt-counting/feature-warehouse-staff-receipt-counting.md)
+- [US-WMS-04: Nhân viên kho Kiểm tra Chất lượng Inbound theo Sample](./features/feature-qc-inbound-inspection.md)
+- [US-WMS-05: Xử lý Hàng lỗi trong Quarantine Zone](./features/feature-manager-quarantine-handling.md)
+- [US-WMS-06: Duyệt Nhập kho Chính thức](./features/feature-manager-receipt-approval.md)
 
 ### Cross-Spec Mapping Notes
+
 - US-WMS-04 trong spec này chỉ bao phủ xử lý hàng lỗi inbound theo hướng Return to Vendor (RTV) và Debit Note. Feature 003 chỉ hiển thị nút "Trả NCC"; luồng tiêu hủy hàng lỗi từ Quarantine Zone được đặc tả tại [009-returns-scrap-disposal](../009-returns-scrap-disposal/spec.md) để giữ một nguồn sự thật cho disposal approval thresholds.
 
 ## 2. Actors
 
-| Actor | Vai trò | Nghiệp vụ liên quan |
-|-------|---------|---------------------|
-| Planner | Maker | Tiếp nhận thông tin hàng về từ Công ty mẹ, tạo Lệnh nhập kho |
-| Storekeeper (STOREKEEPER) | Checker nội bộ kho | Rà soát và kết luận kết quả QC do Nhân viên kho ghi nhận, xác nhận phiếu sang `QC_COMPLETED`, chỉ định putaway sau khi phiếu nhập được duyệt, xác nhận giao trả NCC cho RTV hoặc hàng bị từ chối |
-| Nhân viên kho (WAREHOUSE_STAFF) kiêm QC Staff | Maker | Tiếp nhận, kiểm đếm thực tế, tạo bản nháp `DRAFT`; bốc xếp, di chuyển hàng; kiểm tra ngoại quan/chất lượng, ghi nhận số lượng đạt/lỗi và lý do QC |
-| Trưởng kho | Checker | Đối chiếu kết quả QC và phê duyệt Phiếu nhập kho chính thức; tạo RTV request cho hàng lỗi tại Quarantine trong feature 003 |
-| Kế toán viên | Maker | Theo dõi Debit Note do hệ thống tự tạo khi hàng lỗi được lập RTV |
+| Actor                                         | Vai trò            | Nghiệp vụ liên quan                                                                                                                                                                              |
+| --------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Planner                                       | Maker              | Tiếp nhận thông tin hàng về từ Công ty mẹ, tạo Lệnh nhập kho                                                                                                                                     |
+| Storekeeper (STOREKEEPER)                     | Checker nội bộ kho | Rà soát và kết luận kết quả QC do Nhân viên kho ghi nhận, xác nhận phiếu sang `QC_COMPLETED`, chỉ định putaway sau khi phiếu nhập được duyệt, xác nhận giao trả NCC cho RTV hoặc hàng bị từ chối |
+| Nhân viên kho (WAREHOUSE_STAFF) kiêm QC Staff | Maker              | Tiếp nhận, kiểm đếm thực tế, tạo bản nháp `DRAFT`; bốc xếp, di chuyển hàng; kiểm tra ngoại quan/chất lượng, ghi nhận số lượng đạt/lỗi và lý do QC                                                |
+| Trưởng kho                                    | Checker            | Đối chiếu kết quả QC và phê duyệt Phiếu nhập kho chính thức; tạo RTV request cho hàng lỗi tại Quarantine trong feature 003                                                                       |
+| Kế toán viên                                  | Maker              | Theo dõi Debit Note do hệ thống tự tạo khi hàng lỗi được lập RTV                                                                                                                                 |
 
 ## 3. Functional Requirements (EARS)
-*Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đặc tả tính năng:*
-* [EARS - Receipt Drafting](./features/feature-planner-receipt-drafting/feature-planner-receipt-drafting.md#3-functional-requirements-ears)
-* [EARS - Receipt Counting](./features/feature-warehouse-staff-receipt-counting/feature-warehouse-staff-receipt-counting.md#3-functional-requirements-ears)
-* [EARS - Inbound QC](./features/feature-qc-inbound-inspection.md#3-functional-requirements-ears)
-* [EARS - Quarantine Handling](./features/feature-manager-quarantine-handling.md#3-functional-requirements-ears)
-* [EARS - Receipt Approval](./features/feature-manager-receipt-approval.md#3-functional-requirements-ears)
+
+_Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đặc tả tính năng:_
+
+- [EARS - Receipt Drafting](./features/feature-planner-receipt-drafting/feature-planner-receipt-drafting.md#3-functional-requirements-ears)
+- [EARS - Receipt Counting](./features/feature-warehouse-staff-receipt-counting/feature-warehouse-staff-receipt-counting.md#3-functional-requirements-ears)
+- [EARS - Inbound QC](./features/feature-qc-inbound-inspection.md#3-functional-requirements-ears)
+- [EARS - Quarantine Handling](./features/feature-manager-quarantine-handling.md#3-functional-requirements-ears)
+- [EARS - Receipt Approval](./features/feature-manager-receipt-approval.md#3-functional-requirements-ears)
 
 ## 4. Non-functional Requirements
 
-| ID | Requirement | Target |
-|----|------------|--------|
-| NFR-001 | Receipt creation -> inventory update latency | APPROVED + putaway flow: <= 2s |
-| NFR-002 | QC result save response time | <= 500ms |
-| NFR-003 | Support concurrent receipt processing at 3 warehouses | No deadlock |
-| NFR-004 | Manager quarantine intake latency | Quarantine inventory update after Trưởng kho confirmation: <= 2s |
+| ID      | Requirement                                           | Target                                                           |
+| ------- | ----------------------------------------------------- | ---------------------------------------------------------------- |
+| NFR-001 | Receipt creation -> inventory update latency          | APPROVED + putaway flow: <= 2s                                   |
+| NFR-002 | QC result save response time                          | <= 500ms                                                         |
+| NFR-003 | Support concurrent receipt processing at 3 warehouses | No deadlock                                                      |
+| NFR-004 | Manager quarantine intake latency                     | Quarantine inventory update after Trưởng kho confirmation: <= 2s |
 
 ## 5. Data Model
 
 ### purchase_orders
+
 - `id` (BIGSERIAL, PK)
 - `po_number` (VARCHAR(50), UNIQUE, NOT NULL)
 - `supplier_id` (BIGINT, FK→suppliers, NOT NULL)
@@ -76,6 +82,7 @@ Quy trình nhập hàng là đầu vào của toàn bộ hệ thống tồn kho.
 - `updated_at` (TIMESTAMPTZ)
 
 ### purchase_order_items
+
 - `id` (BIGSERIAL, PK)
 - `po_id` (BIGINT, FK→purchase_orders, NOT NULL)
 - `product_id` (BIGINT, FK→products, NOT NULL)
@@ -83,6 +90,7 @@ Quy trình nhập hàng là đầu vào của toàn bộ hệ thống tồn kho.
 - `unit_price` (DECIMAL(18,2))
 
 ### receipts
+
 - `id` (BIGSERIAL, PK)
 - `receipt_number` (VARCHAR(50), UNIQUE, NOT NULL)
 - `source_order_code` (VARCHAR(100)) -- PO number hoặc DO hoàn
@@ -104,6 +112,7 @@ Quy trình nhập hàng là đầu vào của toàn bộ hệ thống tồn kho.
 - `updated_at` (TIMESTAMPTZ)
 
 ### receipt_items
+
 - `id` (BIGSERIAL, PK)
 - `receipt_id` (BIGINT, FK→receipts, NOT NULL)
 - `product_id` (BIGINT, FK→products, NOT NULL)
@@ -120,6 +129,7 @@ Quy trình nhập hàng là đầu vào của toàn bộ hệ thống tồn kho.
 - `unit_cost` (DECIMAL(18,2))
 
 ### adjustments (RTV)
+
 - `id` (BIGSERIAL, PK)
 - `adjustment_number` (VARCHAR(50), UNIQUE, NOT NULL)
 - `warehouse_id` (BIGINT, FK→warehouses, NOT NULL)
@@ -139,6 +149,7 @@ Quy trình nhập hàng là đầu vào của toàn bộ hệ thống tồn kho.
 - `created_at` (TIMESTAMPTZ)
 
 ### debit_notes
+
 - `id` (BIGSERIAL, PK)
 - `debit_note_number` (VARCHAR(50), UNIQUE, NOT NULL)
 - `supplier_id` (BIGINT, FK→suppliers, NOT NULL)
@@ -152,34 +163,38 @@ Quy trình nhập hàng là đầu vào của toàn bộ hệ thống tồn kho.
 - `created_at` (TIMESTAMPTZ)
 
 ## 6. API Spec
-*Vui lòng xem chi tiết API endpoints tại các tài liệu đặc tả tính năng:*
-* [APIs - Receipt Drafting](./features/feature-planner-receipt-drafting/feature-planner-receipt-drafting.md#4-api-endpoints)
-* [APIs - Receipt Counting](./features/feature-warehouse-staff-receipt-counting/feature-warehouse-staff-receipt-counting.md#4-api-endpoints)
-* [APIs - Inbound QC](./features/feature-qc-inbound-inspection.md#4-api-endpoints)
-* [APIs - Quarantine Handling](./features/feature-manager-quarantine-handling.md#4-api-endpoints)
-* [APIs - Receipt Approval](./features/feature-manager-receipt-approval.md#4-api-endpoints)
+
+_Vui lòng xem chi tiết API endpoints tại các tài liệu đặc tả tính năng:_
+
+- [APIs - Receipt Drafting](./features/feature-planner-receipt-drafting/feature-planner-receipt-drafting.md#4-api-endpoints)
+- [APIs - Receipt Counting](./features/feature-warehouse-staff-receipt-counting/feature-warehouse-staff-receipt-counting.md#4-api-endpoints)
+- [APIs - Inbound QC](./features/feature-qc-inbound-inspection.md#4-api-endpoints)
+- [APIs - Quarantine Handling](./features/feature-manager-quarantine-handling.md#4-api-endpoints)
+- [APIs - Receipt Approval](./features/feature-manager-receipt-approval.md#4-api-endpoints)
 
 ## 7. Error Handling
 
-| Error | HTTP | Condition |
-|-------|------|-----------|
-| RECEIPT_ALREADY_APPROVED | 409 | Duplicate approval attempt |
-| RECEIPT_ALREADY_DECIDED | 409 | Duplicate approve/reject attempt after a final decision |
-| FORBIDDEN_RECEIPT_WAREHOUSE | 403 | Trưởng kho is not assigned to the receipt warehouse |
-| QC_SAMPLE_MISMATCH | 422 | sample_passed_qty + sample_failed_qty != sample_qty |
-| INVENTORY_VERSION_CONFLICT | 409 | Concurrent inventory update |
-| NO_QUARANTINE_ITEMS | 400 | No failed items to process |
-| RTV_ALREADY_EXISTS | 409 | Pending or confirmed RTV already exists for receipt |
-| RTV_ALREADY_CONFIRMED | 409 | Duplicate RTV confirmation attempt |
-| RTV_QUANTITY_MISMATCH | 422 | Returned quantity does not equal full quarantined quantity |
+| Error                       | HTTP | Condition                                                  |
+| --------------------------- | ---- | ---------------------------------------------------------- |
+| RECEIPT_ALREADY_APPROVED    | 409  | Duplicate approval attempt                                 |
+| RECEIPT_ALREADY_DECIDED     | 409  | Duplicate approve/reject attempt after a final decision    |
+| FORBIDDEN_RECEIPT_WAREHOUSE | 403  | Trưởng kho is not assigned to the receipt warehouse        |
+| QC_SAMPLE_MISMATCH          | 422  | sample_passed_qty + sample_failed_qty != sample_qty        |
+| INVENTORY_VERSION_CONFLICT  | 409  | Concurrent inventory update                                |
+| NO_QUARANTINE_ITEMS         | 400  | No failed items to process                                 |
+| RTV_ALREADY_EXISTS          | 409  | Pending or confirmed RTV already exists for receipt        |
+| RTV_ALREADY_CONFIRMED       | 409  | Duplicate RTV confirmation attempt                         |
+| RTV_QUANTITY_MISMATCH       | 422  | Returned quantity does not equal full quarantined quantity |
 
 ### QC Sampling Rules
+
 - Nếu supplier chưa có ít nhất 5 receipt ở trạng thái `APPROVED` trước đó, hệ thống SHALL mặc định `qc_sampling_method = FULL_INSPECTION`.
 - Nếu supplier đã có ít nhất 5 receipt ở trạng thái `APPROVED` trước đó, hệ thống SHALL mặc định `qc_sampling_method = RANDOM_SAMPLE`.
 - Đếm số receipt `APPROVED` được tính theo `supplier_id` trong lịch sử inbound receipts của hệ thống.
 - Sprint 1 SHALL NOT support `PARTIAL` QC results. If any inspected sample fails the applicable QC threshold, Storekeeper confirmation SHALL move the whole receipt to `QC_FAILED`.
 
 ### Inventory Timing Rules
+
 - Submitting QC sample results records inspection data only; it SHALL NOT update regular or quarantine inventory.
 - Confirming `QC_COMPLETED` holds the lot for Trưởng kho approval; regular and available inventory remain unchanged until approval and putaway completion.
 - Approving a `QC_COMPLETED` receipt creates/resolves the batch and unlocks putaway, but it SHALL NOT increase available stock until Storekeeper completes putaway into a regular Bin location.
@@ -194,6 +209,7 @@ Quy trình nhập hàng là đầu vào của toàn bộ hệ thống tồn kho.
 - Duplicate approve/reject attempts and concurrent stale-version updates SHALL return HTTP 409 without applying duplicate inventory changes.
 
 ### Audit Trail
+
 - Every inbound mutation SHALL create an audit log with `actor`, `action`, `entity_type`, `entity_id`, `entity_code`, `timestamp`, `before`, and `after`.
 - `RECEIPT_CREATE`: create receipt header with status `PENDING_RECEIPT`.
 - `RECEIPT_RECEIVE`: accept `counted_qty`, derive and store `actual_qty`/`over_received_qty`, and move receipt to `DRAFT` only when receiving is completed.
@@ -208,16 +224,18 @@ Quy trình nhập hàng là đầu vào của toàn bộ hệ thống tồn kho.
 - `INVENTORY_UPDATE`: record before/after values for `total_qty`, `reserved_qty`, and `location_id` on every inventory-affecting inbound transition.
 
 ## 8. Acceptance Criteria
-*Vui lòng xem chi tiết kịch bản kiểm thử tại các tài liệu đặc tả tính năng:*
-* [Acceptance - Receipt Drafting](./features/feature-planner-receipt-drafting/feature-planner-receipt-drafting.md#5-acceptance-criteria)
-* [Acceptance - Receipt Counting](./features/feature-warehouse-staff-receipt-counting/feature-warehouse-staff-receipt-counting.md#6-acceptance-criteria)
-* [Acceptance - Inbound QC](./features/feature-qc-inbound-inspection.md#5-acceptance-criteria)
-* [Acceptance - Quarantine Handling](./features/feature-manager-quarantine-handling.md#5-acceptance-criteria)
-* [Acceptance - Receipt Approval](./features/feature-manager-receipt-approval.md#5-acceptance-criteria)
+
+_Vui lòng xem chi tiết kịch bản kiểm thử tại các tài liệu đặc tả tính năng:_
+
+- [Acceptance - Receipt Drafting](./features/feature-planner-receipt-drafting/feature-planner-receipt-drafting.md#5-acceptance-criteria)
+- [Acceptance - Receipt Counting](./features/feature-warehouse-staff-receipt-counting/feature-warehouse-staff-receipt-counting.md#6-acceptance-criteria)
+- [Acceptance - Inbound QC](./features/feature-qc-inbound-inspection.md#5-acceptance-criteria)
+- [Acceptance - Quarantine Handling](./features/feature-manager-quarantine-handling.md#5-acceptance-criteria)
+- [Acceptance - Receipt Approval](./features/feature-manager-receipt-approval.md#5-acceptance-criteria)
 
 ## 9. Out of Scope
 
 - Barcode/QR scanning for receiving
 - Integration with Công ty mẹ API (Zalo/Email manual for Sprint 1)
-- Automated putaway optimization
+- Automated putaway/picking optimization beyond FIFO display order
 - Supplier quality rating tracking

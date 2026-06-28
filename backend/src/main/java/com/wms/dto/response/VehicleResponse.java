@@ -10,11 +10,11 @@ import java.time.OffsetDateTime;
 @Setter
 public class VehicleResponse {
     private Long id;
+    private Long warehouseId;
     private String plateNumber;
     private String vehicleType;
     private BigDecimal maxWeightKg;
     private BigDecimal maxVolumeM3;
-    private Long warehouseId;
     private String warehouseCode;
     private String warehouseName;
     private String status;

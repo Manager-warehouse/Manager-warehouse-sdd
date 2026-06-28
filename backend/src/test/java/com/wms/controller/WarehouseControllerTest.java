@@ -32,7 +32,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(WarehouseController.class)
-@Import({SecurityConfig.class, JwtAuthFilter.class, GlobalExceptionHandler.class})
+@Import({ SecurityConfig.class, JwtAuthFilter.class, GlobalExceptionHandler.class })
 public class WarehouseControllerTest {
 
     @Autowired
@@ -88,8 +88,8 @@ public class WarehouseControllerTest {
         req.setType("PHYSICAL");
 
         mockMvc.perform(post("/api/v1/admin/warehouses")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isCreated());
     }
 
@@ -103,8 +103,8 @@ public class WarehouseControllerTest {
         req.setType("PHYSICAL");
 
         mockMvc.perform(post("/api/v1/admin/warehouses")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isForbidden());
     }
 
@@ -122,8 +122,10 @@ public class WarehouseControllerTest {
         req.setType("PHYSICAL");
 
         mockMvc.perform(post("/api/v1/admin/warehouses")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isConflict());
     }
 }
+
+

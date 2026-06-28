@@ -12,6 +12,9 @@ import java.time.LocalDate;
 @Setter
 public class DriverRequest {
 
+    @NotNull(message = "WAREHOUSE_ID_REQUIRED")
+    private Long warehouseId;
+
     @NotNull(message = "USER_ID_REQUIRED")
     private Long userId;
 

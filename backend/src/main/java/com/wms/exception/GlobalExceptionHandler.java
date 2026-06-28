@@ -53,6 +53,10 @@ public class GlobalExceptionHandler {
                 code = "BIN_CAPACITY_EXCEEDED";
             } else if (msg.contains("INVENTORY_INVARIANT_VIOLATED")) {
                 code = "INVENTORY_INVARIANT_VIOLATED";
+            } else if (msg.contains("LOCATION_LOCKED")) {
+                code = "LOCATION_LOCKED";
+            } else if (msg.contains("ACCOUNTING_PERIOD_CLOSED")) {
+                code = "ACCOUNTING_PERIOD_CLOSED";
             }
         }
 
@@ -67,6 +71,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ReceiptCountException.class)
     public ResponseEntity<ApiErrorResponse> handleReceiptCount(ReceiptCountException ex) {
         return error(ex.getStatus(), ex.getCode(), ex.getMessage(), null, null);
+    }
+
+    @ExceptionHandler(OutboundDeliveryException.class)
+    public ResponseEntity<ApiErrorResponse> handleOutboundDelivery(OutboundDeliveryException ex) {
+        return error(ex.getStatus(), ex.getCode(), ex.getMessage(), null, ex.getDetails());
     }
 
     @ExceptionHandler(AccessDeniedException.class)
@@ -93,6 +102,16 @@ public class GlobalExceptionHandler {
             RtvAlreadyExistsException ex) {
         return error(HttpStatus.CONFLICT, "RTV_ALREADY_EXISTS",
                 ex.getMessage(), ex.getMessage(), null);
+    }
+
+    @ExceptionHandler(StockTakeException.class)
+    public ResponseEntity<ApiErrorResponse> handleStockTake(StockTakeException ex) {
+        return error(ex.getStatus(), ex.getCode(), ex.getMessage(), ex.getMessage(), null);
+    }
+
+    @ExceptionHandler(PriceHistoryException.class)
+    public ResponseEntity<ApiErrorResponse> handlePriceHistory(PriceHistoryException ex) {
+        return error(ex.getStatus(), ex.getCode(), ex.getMessage(), ex.getMessage(), null);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

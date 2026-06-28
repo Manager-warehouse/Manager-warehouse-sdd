@@ -5,6 +5,7 @@ import com.wms.dto.response.DriverResponse;
 import com.wms.dto.response.UserResponse;
 import com.wms.entity.Driver;
 import com.wms.entity.User;
+import com.wms.entity.Warehouse;
 import com.wms.enums.AuditAction;
 import com.wms.enums.DriverStatus;
 import com.wms.enums.UserRole;
@@ -12,6 +13,7 @@ import com.wms.exception.ResourceNotFoundException;
 import com.wms.mapper.MasterDataMapper;
 import com.wms.repository.DriverRepository;
 import com.wms.repository.UserRepository;
+import com.wms.repository.WarehouseRepository;
 import com.wms.repository.UserWarehouseAssignmentRepository;
 import com.wms.service.AuditLogService;
 import com.wms.service.DriverService;
@@ -32,6 +34,7 @@ public class DriverServiceImpl implements DriverService {
     private final DriverRepository driverRepository;
     private final UserRepository userRepository;
     private final UserWarehouseAssignmentRepository assignmentRepository;
+    private final WarehouseRepository warehouseRepository;
     private final MasterDataMapper mapper;
     private final AuditLogService auditLogService;
 
@@ -79,9 +82,13 @@ public class DriverServiceImpl implements DriverService {
 
         User actor = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+        Warehouse warehouse = warehouseRepository.findById(request.getWarehouseId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Warehouse not found with id: " + request.getWarehouseId()));
 
         User driverUser = userRepository.findById(request.getUserId())
-                .orElseThrow(() -> new ResourceNotFoundException("Driver user not found with id: " + request.getUserId()));
+                .orElseThrow(
+                        () -> new ResourceNotFoundException("Driver user not found with id: " + request.getUserId()));
 
         if (driverUser.getRole() != UserRole.DRIVER) {
             throw new IllegalArgumentException("USER_MUST_HAVE_DRIVER_ROLE");
@@ -98,6 +105,7 @@ public class DriverServiceImpl implements DriverService {
         }
 
         Driver driver = new Driver();
+        driver.setWarehouse(warehouse);
         driver.setUser(driverUser);
         driver.setFullName(request.getFullName());
         driver.setPhone(phone);
@@ -113,7 +121,8 @@ public class DriverServiceImpl implements DriverService {
         Driver saved = driverRepository.save(driver);
 
         // Audit Log
-        auditLogService.log(actor, AuditAction.CREATE, "Driver", saved.getId(), saved.getLicenseNumber(), null, null, toMap(saved));
+        auditLogService.log(actor, AuditAction.CREATE, "Driver", saved.getId(), saved.getLicenseNumber(), null, null,
+                toMap(saved));
 
         return toResponse(saved);
     }
@@ -124,15 +133,20 @@ public class DriverServiceImpl implements DriverService {
         Driver driver = driverRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Driver not found with id: " + id));
 
-        if (!driver.getLicenseNumber().equals(request.getLicenseNumber()) && driverRepository.existsByLicenseNumberAndIdNot(request.getLicenseNumber(), id)) {
+        if (!driver.getLicenseNumber().equals(request.getLicenseNumber())
+                && driverRepository.existsByLicenseNumberAndIdNot(request.getLicenseNumber(), id)) {
             throw new IllegalArgumentException("DUPLICATE_LICENSE_NUMBER");
         }
 
         User actor = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+        Warehouse warehouse = warehouseRepository.findById(request.getWarehouseId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Warehouse not found with id: " + request.getWarehouseId()));
 
         User driverUser = userRepository.findById(request.getUserId())
-                .orElseThrow(() -> new ResourceNotFoundException("Driver user not found with id: " + request.getUserId()));
+                .orElseThrow(
+                        () -> new ResourceNotFoundException("Driver user not found with id: " + request.getUserId()));
 
         if (driverUser.getRole() != UserRole.DRIVER) {
             throw new IllegalArgumentException("USER_MUST_HAVE_DRIVER_ROLE");
@@ -140,7 +154,8 @@ public class DriverServiceImpl implements DriverService {
         ensureDriverWithinActorScope(actor, driver);
         ensureUserWithinActorScope(actor, driverUser);
 
-        if (!driver.getUser().getId().equals(request.getUserId()) && driverRepository.existsByUserIdAndIdNot(request.getUserId(), id)) {
+        if (!driver.getUser().getId().equals(request.getUserId())
+                && driverRepository.existsByUserIdAndIdNot(request.getUserId(), id)) {
             throw new IllegalArgumentException("DUPLICATE_DRIVER_USER");
         }
 
@@ -151,6 +166,7 @@ public class DriverServiceImpl implements DriverService {
 
         Map<String, Object> oldMap = toMap(driver);
 
+        driver.setWarehouse(warehouse);
         driver.setUser(driverUser);
         driver.setFullName(request.getFullName());
         driver.setPhone(phone);
@@ -162,7 +178,8 @@ public class DriverServiceImpl implements DriverService {
         Driver saved = driverRepository.save(driver);
 
         // Audit Log
-        auditLogService.log(actor, AuditAction.UPDATE, "Driver", saved.getId(), saved.getLicenseNumber(), null, oldMap, toMap(saved));
+        auditLogService.log(actor, AuditAction.UPDATE, "Driver", saved.getId(), saved.getLicenseNumber(), null, oldMap,
+                toMap(saved));
 
         return toResponse(saved);
     }
@@ -186,7 +203,8 @@ public class DriverServiceImpl implements DriverService {
         Driver saved = driverRepository.save(driver);
 
         // Audit Log
-        auditLogService.log(actor, AuditAction.STATUS_CHANGE, "Driver", saved.getId(), saved.getLicenseNumber(), null, oldMap, toMap(saved));
+        auditLogService.log(actor, AuditAction.STATUS_CHANGE, "Driver", saved.getId(), saved.getLicenseNumber(), null,
+                oldMap, toMap(saved));
 
         return toResponse(saved);
     }
@@ -218,7 +236,8 @@ public class DriverServiceImpl implements DriverService {
         Driver saved = driverRepository.save(driver);
 
         // Audit Log
-        auditLogService.log(actor, AuditAction.SOFT_DELETE, "Driver", saved.getId(), saved.getLicenseNumber(), null, oldMap, toMap(saved));
+        auditLogService.log(actor, AuditAction.SOFT_DELETE, "Driver", saved.getId(), saved.getLicenseNumber(), null,
+                oldMap, toMap(saved));
     }
 
     @Override
@@ -244,7 +263,8 @@ public class DriverServiceImpl implements DriverService {
         Driver saved = driverRepository.save(driver);
 
         // Audit Log
-        auditLogService.log(actor, AuditAction.UPDATE, "Driver", saved.getId(), saved.getLicenseNumber(), null, oldMap, toMap(saved));
+        auditLogService.log(actor, AuditAction.UPDATE, "Driver", saved.getId(), saved.getLicenseNumber(), null, oldMap,
+                toMap(saved));
 
         return toResponse(saved);
     }
@@ -311,9 +331,11 @@ public class DriverServiceImpl implements DriverService {
     }
 
     private Map<String, Object> toMap(Driver d) {
-        if (d == null) return null;
+        if (d == null)
+            return null;
         Map<String, Object> map = new HashMap<>();
         map.put("id", d.getId());
+        map.put("warehouseId", d.getWarehouse() != null ? d.getWarehouse().getId() : null);
         map.put("userId", d.getUser() != null ? d.getUser().getId() : null);
         map.put("fullName", d.getFullName());
         map.put("phone", d.getPhone());

@@ -14,9 +14,9 @@ import com.wms.service.VehicleService;
 import com.wms.util.JwtUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
@@ -34,7 +34,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(VehicleController.class)
-@Import({SecurityConfig.class, JwtAuthFilter.class, GlobalExceptionHandler.class})
+@Import({ SecurityConfig.class, JwtAuthFilter.class, GlobalExceptionHandler.class })
 public class VehicleControllerTest {
 
     @Autowired
@@ -83,14 +83,15 @@ public class VehicleControllerTest {
         when(vehicleService.createVehicle(any(), eq(4L))).thenReturn(new VehicleResponse());
 
         VehicleRequest req = new VehicleRequest();
+        req.setWarehouseId(2L);
         req.setPlateNumber("29C-12345");
         req.setVehicleType("Container");
         req.setMaxWeightKg(BigDecimal.valueOf(10000.0));
         req.setWarehouseId(1L);
 
         mockMvc.perform(post("/api/v1/dispatcher/vehicles")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isCreated());
     }
 
@@ -98,14 +99,15 @@ public class VehicleControllerTest {
     @WithMockUser(username = "planner@wms.com", roles = "PLANNER")
     void createVehicle_Planner_Returns403() throws Exception {
         VehicleRequest req = new VehicleRequest();
+        req.setWarehouseId(2L);
         req.setPlateNumber("29C-12345");
         req.setVehicleType("Container");
         req.setMaxWeightKg(BigDecimal.valueOf(10000.0));
         req.setWarehouseId(1L);
 
         mockMvc.perform(post("/api/v1/dispatcher/vehicles")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isForbidden());
     }
 
@@ -117,14 +119,17 @@ public class VehicleControllerTest {
                 .thenThrow(new IllegalArgumentException("DUPLICATE_PLATE_NUMBER"));
 
         VehicleRequest req = new VehicleRequest();
+        req.setWarehouseId(2L);
         req.setPlateNumber("29C-12345");
         req.setVehicleType("Container");
         req.setMaxWeightKg(BigDecimal.valueOf(10000.0));
         req.setWarehouseId(1L);
 
         mockMvc.perform(post("/api/v1/dispatcher/vehicles")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isConflict());
     }
 }
+
+

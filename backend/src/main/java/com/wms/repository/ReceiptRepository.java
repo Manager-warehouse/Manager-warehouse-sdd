@@ -38,4 +38,6 @@ public interface ReceiptRepository extends JpaRepository<Receipt, Long> {
             ReceiptStatus status);
 
     boolean existsByReceiptNumber(String receiptNumber);
+
+    List<Receipt> findByDeliveryOrderIdAndType(Long deliveryOrderId, ReceiptType type);
 }

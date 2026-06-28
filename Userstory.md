@@ -93,27 +93,30 @@
      - `Đại lý có ít nhất 1 hóa đơn quá hạn > 30 ngày`
    - Nếu vi phạm → Hệ thống **chặn cứng**, hiển thị popup cảnh báo rõ lý do (công nợ hiện tại, hạn mức, số tiền vượt), không cho tạo đơn.
 3. **Kiểm tra tồn kho khả dụng (Available Quantity):** Hệ thống tính:
-   - `available_qty = total_qty - reserved_qty`
+   - `available_qty = sum(tồn hợp lệ - reserved tại bin) - reserved cấp kho`
    - Nếu `available_qty < số_lượng_yêu_cầu` → Hiển thị cảnh báo thiếu hàng và gợi ý kho khác còn hàng.
 4. Đơn hàng tạo thành công → Trạng thái: **Mới (New)**.
 5. **Hệ thống tự động giữ chỗ (Reserve):** Ngay khi đơn được tạo thành công:
-   - `reserved_qty += số_lượng_đơn` tại kho xuất → Ngăn Planner khác oversell cùng lô hàng.
+   - `reserved_qty += số_lượng_đơn` ở cấp kho/sản phẩm; Thủ kho sẽ gán sang một hoặc nhiều batch/bin cụ thể khi lập kế hoạch lấy hàng.
    - Tồn kho khả dụng hiển thị cho các đơn tiếp theo đã được trừ phần đã giữ chỗ.
 6. **Giải phóng Reserved Quantity** trong các trường hợp:
-   - Đơn chuyển sang **In-Transit** → Trừ thẳng vào `total_qty`, giải phóng `reserved_qty`.
+   - Đơn chuyển sang **In-Transit** → Trừ tồn kho kho xuất, giải phóng `reserved_qty`, và cộng số lượng đang đi đường vào Kho ảo In-Transit.
    - Đơn bị **Hủy (Cancelled)** → Giải phóng `reserved_qty` ngay lập tức.
 
 ---
 
 ### US-WMS-07: Soạn hàng & Kiểm QC đóng gói (Priority: P1)
 
-**Mô tả:** Là Thủ kho kiêm QC, tôi muốn soạn hàng từ vị trí kệ và kiểm tra chất lượng đóng gói QC trước khi xuất kho.
+**Mô tả:** Là Thủ kho, tôi muốn lập kế hoạch lấy hàng từ một hoặc nhiều batch/bin/zone FIFO trong kho được gán; sau đó Nhân viên kho lấy hàng thực tế và kiểm tra chất lượng đóng gói QC trước khi xuất kho.
 
 **Tiêu chí nghiệm thu:**
 
-1. Thủ kho nhận lệnh xuất → Đi lấy hàng từ các Bin Location → Cập nhật trạng thái đơn: **Đang soạn hàng (Picking)**.
-2. Thủ kho kiểm tra QC: đúng SKU, đúng số lượng, đóng thùng chống sốc → Xác nhận đạt trên hệ thống.
-3. Thủ kho xác nhận hoàn tất soạn hàng sau khi QC đạt → Trạng thái đơn: **Sẵn sàng xuất (Ready to Ship)**.
+1. Thủ kho nhận lệnh xuất ở trạng thái **New**, chọn hàng từ một hoặc nhiều batch/bin/zone hợp lệ trong kho được gán theo FIFO; tổng số lượng đã chọn cho từng dòng phải bằng số lượng yêu cầu trên phiếu xuất → Trạng thái đơn: **Chờ lấy hàng (Waiting Picking)**.
+2. Nhân viên kho lấy hàng theo kế hoạch và nhập kết quả lấy hàng/QC đúng 1 lần theo từng item/allocation/batch/bin/zone cho toàn bộ kế hoạch hiện tại ngay khi phiếu ở **Waiting Picking**; hệ thống không dùng trạng thái **Picking** riêng → Trạng thái đơn: **QC Pending Approval**, kể cả khi số lượng đạt QC chưa đủ.
+3. Nếu sửa kế hoạch sau khi đã có kết quả lấy/QC, hệ thống chỉ yêu cầu xác nhận trả hàng về bin gốc cho allocation đã pick và bị remove/reduce; allocation đã pick nhưng giữ nguyên không cần trả. Mỗi lần trả hàng ghi audit riêng.
+4. Nhân viên kho kiểm tra QC: đúng SKU, đúng số lượng, đóng thùng chống sốc. Hàng fail QC bắt buộc chuyển vào Quarantine, tạo phiếu điều chỉnh tồn kho, trừ khỏi tồn kho hợp lệ và xóa khỏi reserved của allocation gốc. Nếu cần hàng thay thế, Thủ kho lập lại kế hoạch từ trạng thái **QC Pending Approval** và phiếu quay về **Waiting Picking** để Nhân viên kho lấy/QC phần thay thế.
+5. Thủ kho xác nhận đủ hàng đạt QC → Trạng thái đơn: **QC Completed**.
+6. Trưởng kho phê duyệt xuất kho sau QC → Trạng thái đơn: **Warehouse Approved**.
 
 ---
 
@@ -123,40 +126,48 @@
 
 **Tiêu chí nghiệm thu:**
 
-1. Dispatcher tạo Chuyến xe (Trip Log) mới: Chọn xe nội bộ (từ danh mục xe Phúc Anh), gán Tài xế, thiết lập ngày giao dự kiến.
-2. Gom nhiều Đơn xuất hàng (Delivery Orders) ở trạng thái **Ready to Ship** vào một Chuyến xe; sắp xếp thứ tự giao hàng (Stop Order).
-3. Hệ thống kiểm tra tải trọng xe: Nếu tổng khối lượng/thể tích hàng vượt tải trọng xe → Cảnh báo Dispatcher.
-4. Tài xế xác nhận nhận hàng, xe rời kho → Trạng thái Chuyến xe: **Đang vận chuyển (In-Transit)** → Hệ thống **tự động trừ tồn kho** tại thời điểm này.
+1. Dispatcher tạo Chuyến xe (Trip Log) mới trong kho được gán: chọn xe nội bộ và Tài xế thuộc cùng kho, thiết lập ngày giao dự kiến.
+2. Gom ít nhất một Đơn xuất hàng (Delivery Orders) ở trạng thái **Warehouse Approved** và cùng kho vào một Chuyến xe `trip_type = DELIVERY`; mỗi DO chỉ được nằm trong một trip active, sắp xếp thứ tự giao hàng (Stop Order).
+3. Hệ thống kiểm tra tải trọng xe: luôn kiểm tra tổng khối lượng; chỉ kiểm tra tổng thể tích khi xe có cấu hình `max_volume_m3`.
+4. Dispatcher được sửa xe, tài xế, ngày dự kiến, stop order và danh sách DO, hoặc hủy trip nếu chuyến xe chưa xuất phát; payload sửa danh sách DO là danh sách cuối cùng sau chỉnh sửa. DO của trip bị hủy giữ trạng thái **Warehouse Approved** để xếp lại chuyến khác, còn trip giữ lịch sử xe/tài xế nhưng không chiếm dụng active assignment.
+5. Tài xế được gán xác nhận nhận hàng, xe rời kho → Trạng thái Chuyến xe: **Đang vận chuyển (In-Transit)** → Hệ thống chuyển hàng từ outbound staging sang Kho ảo In-Transit, giải phóng reserved ở staging và tạo delivery attempt hiện tại.
+6. Chuyến xe chỉ hoàn tất khi xe quay trở lại kho và mọi DO trong chuyến đã **Completed** hoặc **Returned**; hàng Returned vẫn ở Kho ảo In-Transit cho tới khi luồng hoàn hàng riêng xử lý.
 
 ---
 
 ### US-WMS-09: Giao diện Web di động cho Tài xế & POD thời gian thực (Priority: P1)
 
-**Mô tả:** Là Tài xế, tôi muốn đăng nhập bằng smartphone vào giao diện Web Responsive của WMS để xem lộ trình giao hàng và ký nhận POD trực tiếp tại điểm giao.
+**Mô tả:** Là Tài xế, tôi muốn đăng nhập bằng smartphone vào giao diện Web Responsive của WMS để chỉ xem trip được gán, upload `goodsImage`/`signDocumentImage`, yêu cầu OTP Đại lý và xác nhận giao full Delivery Order tại điểm giao.
 
 **Tiêu chí nghiệm thu:**
 
-1. Tài xế đăng nhập bằng tài khoản riêng → Xem danh sách đơn hàng cần giao trong chuyến xe của mình.
-2. Tại điểm giao: Đại lý ký tên trực tiếp trên màn hình cảm ứng; Tài xế chụp ảnh hàng hóa bàn giao → Hệ thống lưu POD gồm: Hình ảnh + Chữ ký + Timestamp.
-3. Tài xế nhấn "Xác nhận đã giao" → Trạng thái đơn: **Đã giao thành công (Delivered)**.
-4. Nếu giao thất bại (đại lý vắng mặt, từ chối nhận) → Tài xế chọn lý do → Trạng thái đơn: **Giao thất bại (Returned)** → Hệ thống tự động tạo Phiếu nhập hàng hoàn vào Kho cách ly chờ xử lý.
+1. Tài xế đăng nhập bằng tài khoản riêng → Chỉ xem được danh sách trip và delivery attempt được gán cho driver profile của mình.
+2. Tại điểm giao: Tài xế chụp ảnh hàng hóa bàn giao (`goodsImage`) và ảnh chữ ký/biên nhận của Đại lý (`signDocumentImage`); mỗi ảnh phải là file ảnh nhỏ hơn 5MB.
+3. Tài xế yêu cầu xác nhận giao hàng → Hệ thống sinh OTP ngẫu nhiên 6 chữ số, gửi qua email Đại lý, chỉ lưu hash/verifier, thời điểm tạo, thời điểm hết hạn, số lần thử và trạng thái trong `delivery_otp_attempts`; OTP có hiệu lực 5 phút và mỗi delivery attempt chỉ có một row OTP.
+4. Nếu OTP còn hạn và Tài xế yêu cầu gửi lại, hệ thống trả lỗi và không ghi đè mã cũ. Nếu OTP quá hạn và Tài xế yêu cầu gửi lại, hệ thống dùng `UPDATE` ghi đè OTP hiện tại của delivery attempt bằng mã mới. Nếu nhập sai OTP 3 lần, phải nhờ Admin reset thì mới có mã mới; nếu OTP xác thực thành công, hệ thống đánh dấu OTP đã xác thực và không cho dùng lại.
+5. Tài xế nhấn "Xác nhận đã giao" với OTP hợp lệ → Hệ thống bắt buộc giao đủ toàn bộ DO, trừ hàng khỏi Kho ảo In-Transit chỉ cho DO đó, tạo invoice/công nợ cho DO đó, đóng delivery attempt là **Delivered** và chuyển DO thành **Completed**.
+6. Nếu Đại lý không nhận hàng → Tài xế bấm chuyển DO sang **Returned**, delivery attempt hiện tại đóng là **Failed**, hàng vẫn ở Kho ảo In-Transit cho đến khi luồng hoàn hàng riêng tiếp nhận.
+7. Khi xe quay lại kho và mọi DO trong trip đã **Completed** hoặc **Returned**, Tài xế bấm xác nhận xe đã về kho → Trip chuyển **Completed**.
 
 ---
 
-### US-WMS-10: Lập Hóa đơn bán hàng & Ghi nhận Công nợ (Priority: P1)
+### US-WMS-10: Tự động tạo Hóa đơn bán hàng & Cộng công nợ Đại lý (Priority: P1)
 
-**Mô tả:** Là Kế toán viên, sau khi đơn hàng chuyển sang trạng thái Delivered, tôi muốn lập Hóa đơn bán hàng kèm kỳ hạn thanh toán để hệ thống theo dõi và tự động cảnh báo nợ quá hạn.
+**Mô tả:** Sau khi tài xế xác nhận giao thành công bằng POD + OTP hợp lệ, hệ thống tự động tạo Hóa đơn bán hàng và cộng công nợ cho Đại lý.
+
+**Tiêu chí bổ sung:** Scope của US-WMS-10 dừng ở việc tạo invoice và cộng công nợ tự động. Thông báo kế toán, ghi nhận thanh toán, phê duyệt thanh toán, cấn trừ công nợ và chuyển DO sang `CLOSED` thuộc các luồng riêng.
 
 **Tiêu chí nghiệm thu:**
 
-1. Kế toán viên nhận thông báo hệ thống: "Đơn hàng #DO-xxx đã giao thành công" → Tạo Hóa đơn bán hàng (Invoice) gồm:
-   - Mã hóa đơn (tự động sinh), Đại lý, Tổng giá trị (tính theo bảng giá hiệu lực tại ngày giao), Ngày xuất hóa đơn, **Hạn thanh toán** (Net 30 hoặc Net 60 theo hồ sơ Đại lý).
+1. Khi tài xế xác nhận giao full DO thành công bằng POD + OTP, hệ thống tự động tạo Hóa đơn bán hàng (Invoice) gồm:
+   - Mã hóa đơn (tự động sinh), Đại lý, Tổng giá trị (tính theo số lượng sản phẩm và `unit_price` đã snapshot trên phiếu xuất kho tại thời điểm Thủ kho soạn/lập picking plan), Ngày xuất hóa đơn theo ngày địa phương thực tế của backend, **Hạn thanh toán = ngày xuất hóa đơn + 30 ngày**.
    - Trạng thái hóa đơn ban đầu: **Chưa thanh toán (Unpaid)**.
 2. **Hệ thống tự động** sau khi hóa đơn được tạo:
    - Cộng dồn giá trị hóa đơn vào `current_balance` của Đại lý.
-   - Kiểm tra: `IF current_balance > credit_limit THEN customer.status = 'CREDIT_HOLD'`; nếu `current_balance = credit_limit` thì vẫn cho phép theo hạn mức.
-3. **Cảnh báo tự động quá hạn (Daily Job):** Hệ thống quét hàng ngày — nếu Hóa đơn đã quá ngày **Hạn thanh toán** mà chưa được thanh toán → Tự động gán `CREDIT_HOLD` cho Đại lý và bắn thông báo đến Kế toán trưởng.
-4. Đơn hàng chuyển trạng thái: **Đã hoàn thành (Completed)** — chờ thu tiền.
+   - Không gửi thông báo trong scope này; thông báo kế toán do luồng riêng xử lý.
+   - Chặn tạo trùng invoice cho cùng Delivery Order; retry không được cộng công nợ lần hai.
+3. Đơn hàng chuyển trạng thái: **Đã hoàn thành (Completed)**.
+4. **Ngoài scope:** Thông báo kế toán, gia hạn ngày thanh toán, xử lý thanh toán, cấn trừ công nợ, mở/khóa tín dụng do thanh toán, cảnh báo quá hạn và đóng DO sau khi thanh toán đầy đủ do các luồng riêng xử lý.
 
 ---
 

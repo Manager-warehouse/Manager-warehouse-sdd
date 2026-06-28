@@ -14,10 +14,10 @@ import java.util.Optional;
 @Repository
 public interface ReceiptItemRepository extends JpaRepository<ReceiptItem, Long> {
 
-    @EntityGraph(attributePaths = {"product", "batch", "location"})
+    @EntityGraph(attributePaths = { "product", "batch", "location" })
     List<ReceiptItem> findByReceiptId(Long receiptId);
 
-    @EntityGraph(attributePaths = {"product", "batch", "location"})
+    @EntityGraph(attributePaths = { "product", "batch", "location" })
     List<ReceiptItem> findByReceiptIdOrderByIdAsc(Long receiptId);
 
     Optional<ReceiptItem> findByIdAndReceiptId(Long id, Long receiptId);

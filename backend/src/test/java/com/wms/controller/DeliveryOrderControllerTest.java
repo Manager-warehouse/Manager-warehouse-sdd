@@ -1,0 +1,517 @@
+package com.wms.controller;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.wms.config.JwtAuthFilter;
+import com.wms.config.SecurityConfig;
+import com.wms.config.UserDetailsServiceImpl;
+import com.wms.dto.response.DeliveryOrderAllocationResponse;
+import com.wms.dto.response.DeliveryOrderItemResponse;
+import com.wms.dto.response.DeliveryOrderResponse;
+import com.wms.entity.User;
+import com.wms.enums.DeliveryOrderStatus;
+import com.wms.enums.DeliveryOrderType;
+import com.wms.enums.UserRole;
+import com.wms.exception.GlobalExceptionHandler;
+import com.wms.exception.OutboundDeliveryException;
+import com.wms.service.CurrentUserService;
+import com.wms.service.DeliveryOrderService;
+import com.wms.util.JwtUtil;
+import java.time.LocalDate;
+import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.web.servlet.MockMvc;
+
+@WebMvcTest(DeliveryOrderController.class)
+@Import({SecurityConfig.class, JwtAuthFilter.class, GlobalExceptionHandler.class})
+class DeliveryOrderControllerTest {
+
+    @Autowired private MockMvc mockMvc;
+
+    @MockBean private DeliveryOrderService deliveryOrderService;
+    @MockBean private CurrentUserService currentUserService;
+    @MockBean private JwtUtil jwtUtil;
+    @MockBean private UserDetailsServiceImpl userDetailsService;
+
+    private User planner;
+    private User manager;
+    private User storekeeper;
+    private User warehouseStaff;
+
+    @BeforeEach
+    void setUp() {
+        planner = user(1L, UserRole.PLANNER);
+        manager = user(2L, UserRole.WAREHOUSE_MANAGER);
+        storekeeper = user(3L, UserRole.STOREKEEPER);
+        warehouseStaff = user(4L, UserRole.WAREHOUSE_STAFF);
+    }
+
+    @Test
+    @WithMockUser(username = "planner@wms.com", roles = "PLANNER")
+    void createDeliveryOrder_success() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(planner);
+        when(deliveryOrderService.createDeliveryOrder(any(), eq(planner))).thenReturn(response(DeliveryOrderStatus.NEW));
+
+        mockMvc.perform(post("/api/v1/delivery-orders")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createJson()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("NEW"))
+                .andExpect(jsonPath("$.dealerId").value(10))
+                .andExpect(jsonPath("$.warehouseId").value(20));
+    }
+
+    @Test
+    @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
+    void getAllDeliveryOrders_allowsStorekeeper() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(storekeeper);
+        when(deliveryOrderService.getAllDeliveryOrders(storekeeper))
+                .thenReturn(List.of(response(DeliveryOrderStatus.NEW)));
+
+        mockMvc.perform(get("/api/v1/delivery-orders"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].status").value("NEW"));
+    }
+
+    @Test
+    @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
+    void getDeliveryOrderById_allowsStorekeeper() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(storekeeper);
+        when(deliveryOrderService.getDeliveryOrderById(100L, storekeeper))
+                .thenReturn(response(DeliveryOrderStatus.WAITING_PICKING));
+
+        mockMvc.perform(get("/api/v1/delivery-orders/100"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("WAITING_PICKING"));
+    }
+
+    @Test
+    @WithMockUser(username = "planner@wms.com", roles = "PLANNER")
+    void createDeliveryOrder_rejectsBusinessError() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(planner);
+        when(deliveryOrderService.createDeliveryOrder(any(), eq(planner)))
+                .thenThrow(new OutboundDeliveryException("INSUFFICIENT_STOCK",
+                        HttpStatus.UNPROCESSABLE_ENTITY, "Insufficient stock"));
+
+        mockMvc.perform(post("/api/v1/delivery-orders")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createJson()))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("INSUFFICIENT_STOCK"));
+    }
+
+    @Test
+    @WithMockUser(username = "manager@wms.com", roles = "WAREHOUSE_MANAGER")
+    void cancelDeliveryOrder_success() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(manager);
+        when(deliveryOrderService.cancelDeliveryOrder(eq(100L), any(), eq(manager)))
+                .thenReturn(response(DeliveryOrderStatus.CANCELLED));
+
+        mockMvc.perform(put("/api/v1/delivery-orders/100/cancel")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"cancelReason\":\"Customer changed order\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELLED"));
+    }
+
+    @Test
+    @WithMockUser(username = "planner@wms.com", roles = "PLANNER")
+    void cancelDeliveryOrder_rejectsNonManagerRole() throws Exception {
+        mockMvc.perform(put("/api/v1/delivery-orders/100/cancel")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"cancelReason\":\"Customer changed order\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
+    void savePickingPlan_success() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(storekeeper);
+        when(deliveryOrderService.saveDeliveryOrderPickingPlan(eq(100L), any(), eq(storekeeper)))
+                .thenReturn(response(DeliveryOrderStatus.WAITING_PICKING));
+
+        mockMvc.perform(put("/api/v1/delivery-orders/100/picking-plan")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(pickingPlanJson()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("WAITING_PICKING"))
+                .andExpect(jsonPath("$.items[0].plannedQty").value(10))
+                .andExpect(jsonPath("$.items[0].allocations[0].inventoryId").value(501));
+    }
+
+    @Test
+    @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
+    void savePickingPlan_rejectsBusinessError() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(storekeeper);
+        when(deliveryOrderService.saveDeliveryOrderPickingPlan(eq(100L), any(), eq(storekeeper)))
+                .thenThrow(new OutboundDeliveryException("PICKING_PLAN_QTY_MISMATCH",
+                        HttpStatus.UNPROCESSABLE_ENTITY, "Planned quantity mismatch"));
+
+        mockMvc.perform(put("/api/v1/delivery-orders/100/picking-plan")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(pickingPlanJson()))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("PICKING_PLAN_QTY_MISMATCH"));
+    }
+
+    @Test
+    @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
+    void savePickingPlan_rejectsMissingReturnToBinRecord() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(storekeeper);
+        when(deliveryOrderService.saveDeliveryOrderPickingPlan(eq(100L), any(), eq(storekeeper)))
+                .thenThrow(new OutboundDeliveryException("PICKED_GOODS_RETURN_REQUIRED",
+                        HttpStatus.UNPROCESSABLE_ENTITY, "Changing a picked allocation requires return-to-bin records"));
+
+        mockMvc.perform(put("/api/v1/delivery-orders/100/picking-plan")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(revisionPickingPlanJson()))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("PICKED_GOODS_RETURN_REQUIRED"));
+    }
+
+    @Test
+    @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
+    void saveReplacementPlan_success() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(storekeeper);
+        when(deliveryOrderService.saveDeliveryOrderReplacementPlan(eq(100L), any(), eq(storekeeper)))
+                .thenReturn(response(DeliveryOrderStatus.WAITING_PICKING));
+
+        mockMvc.perform(put("/api/v1/delivery-orders/100/replacement-plan")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(replacementPlanJson()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("WAITING_PICKING"));
+    }
+
+    @Test
+    @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
+    void saveReplacementPlan_rejectsInvalidStatus() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(storekeeper);
+        when(deliveryOrderService.saveDeliveryOrderReplacementPlan(eq(100L), any(), eq(storekeeper)))
+                .thenThrow(new OutboundDeliveryException("DELIVERY_ORDER_STATUS_INVALID",
+                        HttpStatus.UNPROCESSABLE_ENTITY, "Replacement plan can only be saved from QC_PENDING_APPROVAL status"));
+
+        mockMvc.perform(put("/api/v1/delivery-orders/100/replacement-plan")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(replacementPlanJson()))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("DELIVERY_ORDER_STATUS_INVALID"));
+    }
+
+    @Test
+    @WithMockUser(username = "warehouse@wms.com", roles = "WAREHOUSE_STAFF")
+    void savePickQcResult_success() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(warehouseStaff);
+        when(deliveryOrderService.saveDeliveryOrderPickQcResult(eq(100L), any(), eq(warehouseStaff)))
+                .thenReturn(response(DeliveryOrderStatus.QC_PENDING_APPROVAL));
+
+        mockMvc.perform(put("/api/v1/delivery-orders/100/pick-qc-result")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(pickQcResultJson()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("QC_PENDING_APPROVAL"));
+    }
+
+    @Test
+    @WithMockUser(username = "warehouse@wms.com", roles = "WAREHOUSE_STAFF")
+    void savePickQcResult_replaysSamePayload() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(warehouseStaff);
+        when(deliveryOrderService.saveDeliveryOrderPickQcResult(eq(100L), any(), eq(warehouseStaff)))
+                .thenReturn(response(DeliveryOrderStatus.QC_PENDING_APPROVAL));
+
+        mockMvc.perform(put("/api/v1/delivery-orders/100/pick-qc-result")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(pickQcResultJson()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("QC_PENDING_APPROVAL"));
+    }
+
+    @Test
+    @WithMockUser(username = "warehouse@wms.com", roles = "WAREHOUSE_STAFF")
+    void savePickQcResult_rejectsDuplicateSubmission() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(warehouseStaff);
+        when(deliveryOrderService.saveDeliveryOrderPickQcResult(eq(100L), any(), eq(warehouseStaff)))
+                .thenThrow(new OutboundDeliveryException("QC_RESULT_ALREADY_RECORDED",
+                        HttpStatus.UNPROCESSABLE_ENTITY, "Pick/QC result already recorded"));
+
+        mockMvc.perform(put("/api/v1/delivery-orders/100/pick-qc-result")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(pickQcResultJson()))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("QC_RESULT_ALREADY_RECORDED"));
+    }
+
+    @Test
+    @WithMockUser(username = "warehouse@wms.com", roles = "WAREHOUSE_STAFF")
+    void savePickQcResult_rejectsIdempotencyConflict() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(warehouseStaff);
+        when(deliveryOrderService.saveDeliveryOrderPickQcResult(eq(100L), any(), eq(warehouseStaff)))
+                .thenThrow(new OutboundDeliveryException("IDEMPOTENCY_KEY_CONFLICT",
+                        HttpStatus.CONFLICT, "Idempotency key conflict"));
+
+        mockMvc.perform(put("/api/v1/delivery-orders/100/pick-qc-result")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(pickQcResultJson()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("IDEMPOTENCY_KEY_CONFLICT"));
+    }
+
+    @Test
+    @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
+    void approveQuality_success() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(storekeeper);
+        when(deliveryOrderService.approveDeliveryOrderQuality(eq(100L), any(), eq(storekeeper)))
+                .thenReturn(response(DeliveryOrderStatus.QC_COMPLETED));
+
+        mockMvc.perform(put("/api/v1/delivery-orders/100/quality-approval")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"notes\":\"All replacement goods passed\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("QC_COMPLETED"));
+    }
+
+    @Test
+    @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
+    void approveQuality_rejectsReplacementRequired() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(storekeeper);
+        when(deliveryOrderService.approveDeliveryOrderQuality(eq(100L), any(), eq(storekeeper)))
+                .thenThrow(new OutboundDeliveryException("QC_REPLACEMENT_REQUIRED",
+                        HttpStatus.UNPROCESSABLE_ENTITY, "Replacement required"));
+
+        mockMvc.perform(put("/api/v1/delivery-orders/100/quality-approval")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"notes\":\"Try approval early\"}"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("QC_REPLACEMENT_REQUIRED"));
+    }
+
+    @Test
+    @WithMockUser(username = "manager@wms.com", roles = "WAREHOUSE_MANAGER")
+    void warehouseApproval_success() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(manager);
+        when(deliveryOrderService.approveDeliveryOrderWarehouseRelease(eq(100L), any(), eq(manager)))
+                .thenReturn(response(DeliveryOrderStatus.WAREHOUSE_APPROVED));
+
+        mockMvc.perform(put("/api/v1/delivery-orders/100/warehouse-approval")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"notes\":\"Release approved\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("WAREHOUSE_APPROVED"));
+    }
+
+    @Test
+    @WithMockUser(username = "manager@wms.com", roles = "WAREHOUSE_MANAGER")
+    void warehouseReject_success() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(manager);
+        when(deliveryOrderService.rejectDeliveryOrderWarehouseRelease(eq(100L), any(), eq(manager)))
+                .thenReturn(response(DeliveryOrderStatus.REJECTED));
+
+        mockMvc.perform(put("/api/v1/delivery-orders/100/warehouse-reject")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(warehouseRejectJson()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("REJECTED"));
+    }
+
+    private String createJson() {
+        return """
+                {
+                  "dealerId": 10,
+                  "warehouseId": 20,
+                  "type": "SALE",
+                  "documentDate": "2026-06-18",
+                  "expectedDeliveryDate": "2026-06-20",
+                  "items": [
+                    {"productId": 30, "requestedQty": 10}
+                  ]
+                }
+                """;
+    }
+
+    private String pickingPlanJson() {
+        return """
+                {
+                  "allocations": [
+                    {
+                      "doItemId": 200,
+                      "inventoryId": 501,
+                      "batchId": 71,
+                      "locationId": 801,
+                      "zoneId": 31,
+                      "plannedQty": 10
+                    }
+                  ]
+                }
+                """;
+    }
+
+    private String revisionPickingPlanJson() {
+        return """
+                {
+                  "allocations": [
+                    {
+                      "doItemId": 200,
+                      "inventoryId": 501,
+                      "batchId": 71,
+                      "locationId": 801,
+                      "zoneId": 31,
+                      "plannedQty": 6
+                    },
+                    {
+                      "doItemId": 200,
+                      "inventoryId": 502,
+                      "batchId": 72,
+                      "locationId": 802,
+                      "zoneId": 32,
+                      "plannedQty": 4
+                    }
+                  ],
+                  "returnToBinRecords": [
+                    {
+                      "allocationId": 900,
+                      "returnedQty": 4,
+                      "sourceLocationId": 880,
+                      "reason": "Rebalance after picked bin became blocked"
+                    }
+                  ]
+                }
+                """;
+    }
+
+    private String replacementPlanJson() {
+        return """
+                {
+                  "replacements": [
+                    {
+                      "doItemId": 200,
+                      "failedInventoryId": 501,
+                      "failedBatchId": 71,
+                      "failedLocationId": 801,
+                      "replacementInventoryId": 502,
+                      "replacementBatchId": 72,
+                      "replacementLocationId": 802,
+                      "replacementZoneId": 32,
+                      "quantity": 2,
+                      "reason": "QC fail scratched cookware"
+                    }
+                  ]
+                }
+                """;
+    }
+
+    private String pickQcResultJson() {
+        return """
+                {
+                  "idempotencyKey": "qc-100",
+                  "results": [
+                    {
+                      "doItemId": 200,
+                      "allocationId": 900,
+                      "batchId": 71,
+                      "locationId": 801,
+                      "zoneId": 31,
+                      "pickedQty": 10,
+                      "qcPassQty": 8,
+                      "qcFailQty": 2,
+                      "qcFailReason": "Surface scratch",
+                      "stagingLocationId": 880,
+                      "quarantineLocationId": 990,
+                      "notes": "Checked at source bin"
+                    }
+                  ]
+                }
+                """;
+    }
+
+    private String warehouseRejectJson() {
+        return """
+                {
+                  "reason": "Seal issue found before loading",
+                  "returnToBinRecords": [
+                    {
+                      "doItemId": 200,
+                      "allocationId": 900,
+                      "batchId": 71,
+                      "returnedQty": 8,
+                      "sourceLocationId": 880,
+                      "originalLocationId": 801,
+                      "originalZoneId": 31,
+                      "reason": "Return staged goods after reject"
+                    }
+                  ]
+                }
+                """;
+    }
+
+    private DeliveryOrderResponse response(DeliveryOrderStatus status) {
+        return DeliveryOrderResponse.builder()
+                .id(100L)
+                .doNumber("DO-20260618-0001")
+                .dealerId(10L)
+                .warehouseId(20L)
+                .type(DeliveryOrderType.SALE)
+                .documentDate(LocalDate.of(2026, 6, 18))
+                .expectedDeliveryDate(LocalDate.of(2026, 6, 20))
+                .status(status)
+                .items(List.of(DeliveryOrderItemResponse.builder()
+                        .id(200L)
+                        .productId(30L)
+                        .requestedQty(java.math.BigDecimal.TEN)
+                        .plannedQty(java.math.BigDecimal.TEN)
+                        .reservedQty(java.math.BigDecimal.TEN)
+                        .allocations(List.of(DeliveryOrderAllocationResponse.builder()
+                                .allocationId(900L)
+                                .inventoryId(501L)
+                                .batchId(71L)
+                                .locationId(801L)
+                                .zoneId(31L)
+                                .plannedQty(java.math.BigDecimal.TEN)
+                                .pickedQty(java.math.BigDecimal.ZERO)
+                                .replacement(false)
+                                .build()))
+                        .build()))
+                .build();
+    }
+
+    private User user(Long id, UserRole role) {
+        User user = new User();
+        user.setId(id);
+        user.setRole(role);
+        user.setFullName(role.name());
+        return user;
+    }
+}
+

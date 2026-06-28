@@ -36,7 +36,7 @@ Implement complete physical receipt counting for Warehouse Staff through `PUT /a
 |-----------|--------|-------|
 | Layered Architecture | PASS | Add Controller -> Service -> Repository -> Entity/DTO flow for receive counting. |
 | Inventory Integrity | PASS | Feature updates receipt item count fields only and explicitly does not mutate inventory. |
-| FEFO/FIFO Batch Selection | PASS | Out of scope; no batch selection or batch mutation in this feature. |
+| FIFO Batch Allocation | PASS | Out of scope; no batch selection or batch mutation in this feature. |
 | QC Gate & Quarantine | PASS | Counting moves to `DRAFT`; QC remains a later feature and prior QC data is invalidated on count correction. |
 | In-Transit Tracking | PASS | Not a transfer feature. |
 | Auth & RBAC | PASS | Warehouse Staff must be authorized for the receipt warehouse. |
@@ -98,7 +98,7 @@ See [data-model.md](./data-model.md), [quickstart.md](./quickstart.md), and [con
 |-----------|--------|-------|
 | Layered Architecture | PASS | Design keeps HTTP, business validation, persistence, and entity mapping separated. |
 | Inventory Integrity | PASS | Contract and model explicitly exclude inventory, batch, quarantine, and location writes. |
-| FEFO/FIFO Batch Selection | PASS | No batch selection occurs. |
+| FIFO Batch Allocation | PASS | No batch selection occurs. |
 | QC Gate & Quarantine | PASS | Corrections after QC clear QC data and return receipt to `DRAFT`. |
 | In-Transit Tracking | PASS | Not applicable. |
 | Auth & RBAC | PASS | Service validates Warehouse Staff role and warehouse assignment. |

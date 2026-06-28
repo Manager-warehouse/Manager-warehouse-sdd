@@ -1,0 +1,325 @@
+openapi: 3.0.3
+info:
+  title: Storekeeper Picking Plan API
+  version: 1.0.0
+  description: Contracts for saving outbound picking plans and QC-fail replacement plans in Sprint 1.
+paths:
+  /api/v1/delivery-orders/{id}/picking-plan:
+    put:
+      summary: Save or revise a Delivery Order picking plan
+      operationId: saveDeliveryOrderPickingPlan
+      tags:
+        - Delivery Orders
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PickingPlanRequest"
+      responses:
+        "200":
+          description: Picking plan saved and Delivery Order updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeliveryOrderResponse"
+        "400":
+          description: Invalid request payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Storekeeper is not assigned to the Delivery Order warehouse
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Delivery Order or referenced allocation/inventory was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Optimistic-lock conflict on reservation or inventory rows
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Business validation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/delivery-orders/{id}/replacement-plan:
+    put:
+      summary: Save replacement allocation for QC-failed outbound quantity
+      operationId: saveDeliveryOrderReplacementPlan
+      tags:
+        - Delivery Orders
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReplacementPlanRequest"
+      responses:
+        "200":
+          description: Replacement plan saved and Delivery Order moved back to WAITING_PICKING
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeliveryOrderResponse"
+        "400":
+          description: Invalid request payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Storekeeper is not assigned to the Delivery Order warehouse
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Delivery Order or referenced inventory was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Optimistic-lock conflict on replacement inventory rows
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Delivery Order status or QC-fail replacement validation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    PickingPlanRequest:
+      type: object
+      required:
+        - allocations
+      properties:
+        allocations:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/PickingAllocationRequest"
+        returnToBinRecords:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReturnToBinRecordRequest"
+    PickingAllocationRequest:
+      type: object
+      required:
+        - doItemId
+        - inventoryId
+        - batchId
+        - locationId
+        - zoneId
+        - plannedQty
+      properties:
+        doItemId:
+          type: integer
+          format: int64
+        inventoryId:
+          type: integer
+          format: int64
+        batchId:
+          type: integer
+          format: int64
+        locationId:
+          type: integer
+          format: int64
+        zoneId:
+          type: integer
+          format: int64
+        plannedQty:
+          type: number
+          minimum: 0
+          exclusiveMinimum: true
+          example: 5
+    ReturnToBinRecordRequest:
+      type: object
+      required:
+        - allocationId
+        - returnedQty
+        - sourceLocationId
+      properties:
+        allocationId:
+          type: integer
+          format: int64
+        returnedQty:
+          type: number
+          minimum: 0
+          exclusiveMinimum: true
+        sourceLocationId:
+          type: integer
+          format: int64
+        reason:
+          type: string
+          maxLength: 1000
+    ReplacementPlanRequest:
+      type: object
+      required:
+        - replacements
+      properties:
+        replacements:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/ReplacementAllocationRequest"
+    ReplacementAllocationRequest:
+      type: object
+      required:
+        - doItemId
+        - failedInventoryId
+        - failedBatchId
+        - failedLocationId
+        - replacementInventoryId
+        - replacementBatchId
+        - replacementLocationId
+        - replacementZoneId
+        - quantity
+        - reason
+      properties:
+        doItemId:
+          type: integer
+          format: int64
+        failedInventoryId:
+          type: integer
+          format: int64
+        failedBatchId:
+          type: integer
+          format: int64
+        failedLocationId:
+          type: integer
+          format: int64
+        replacementInventoryId:
+          type: integer
+          format: int64
+        replacementBatchId:
+          type: integer
+          format: int64
+        replacementLocationId:
+          type: integer
+          format: int64
+        replacementZoneId:
+          type: integer
+          format: int64
+        quantity:
+          type: number
+          minimum: 0
+          exclusiveMinimum: true
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 1000
+    DeliveryOrderResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        doNumber:
+          type: string
+        warehouseId:
+          type: integer
+          format: int64
+        status:
+          type: string
+          example: WAITING_PICKING
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeliveryOrderItemResponse"
+    DeliveryOrderItemResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        productId:
+          type: integer
+          format: int64
+        requestedQty:
+          type: number
+        plannedQty:
+          type: number
+        reservedQty:
+          type: number
+        allocations:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeliveryOrderAllocationResponse"
+    DeliveryOrderAllocationResponse:
+      type: object
+      properties:
+        allocationId:
+          type: integer
+          format: int64
+        inventoryId:
+          type: integer
+          format: int64
+        batchId:
+          type: integer
+          format: int64
+        locationId:
+          type: integer
+          format: int64
+        zoneId:
+          type: integer
+          format: int64
+        plannedQty:
+          type: number
+        pickedQty:
+          type: number
+        replacement:
+          type: boolean
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: string
+          examples:
+            - WAREHOUSE_SCOPE_FORBIDDEN
+            - PICKING_PLAN_QTY_MISMATCH
+            - PICKED_GOODS_RETURN_REQUIRED
+            - INVENTORY_ROW_INVALID
+            - INVENTORY_VERSION_CONFLICT
+            - DELIVERY_ORDER_STATUS_INVALID
+            - QC_REPLACEMENT_REQUIRED
+        message:
+          type: string

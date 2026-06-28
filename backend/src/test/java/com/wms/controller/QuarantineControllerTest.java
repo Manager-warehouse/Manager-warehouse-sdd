@@ -1,6 +1,5 @@
 package com.wms.controller;
 
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -16,9 +15,9 @@ import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
@@ -28,7 +27,7 @@ import com.wms.config.JwtAuthFilter;
 import com.wms.exception.GlobalExceptionHandler;
 
 @WebMvcTest(QuarantineController.class)
-@Import({SecurityConfig.class, JwtAuthFilter.class, GlobalExceptionHandler.class})
+@Import({ SecurityConfig.class, JwtAuthFilter.class, GlobalExceptionHandler.class })
 class QuarantineControllerTest {
 
     @Autowired
@@ -78,8 +77,8 @@ class QuarantineControllerTest {
                 .thenReturn(List.of(item));
 
         mockMvc.perform(get("/api/v1/quarantine/items")
-                        .param("warehouseId", "1")
-                        .accept(MediaType.APPLICATION_JSON))
+                .param("warehouseId", "1")
+                .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(200))
                 .andExpect(jsonPath("$[0].product_sku").value("SKU-PA-001"))
@@ -96,7 +95,9 @@ class QuarantineControllerTest {
     @WithMockUser(username = "manager@wms.com", roles = "WAREHOUSE_MANAGER")
     void getQuarantineItems_missingWarehouseId_badRequest() throws Exception {
         mockMvc.perform(get("/api/v1/quarantine/items")
-                        .accept(MediaType.APPLICATION_JSON))
+                .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isBadRequest());
     }
 }
+
+

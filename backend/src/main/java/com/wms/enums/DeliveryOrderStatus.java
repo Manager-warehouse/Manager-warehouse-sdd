@@ -2,11 +2,18 @@ package com.wms.enums;
 
 public enum DeliveryOrderStatus {
     NEW,
+    PICKING_PLANNED,
+    WAITING_PICKING,
     PICKING,
-    READY_TO_SHIP,
+    QC_PENDING_APPROVAL,
+    QC_COMPLETED,
+    WAREHOUSE_APPROVED,
     IN_TRANSIT,
     DELIVERED,
-    COMPLETED,
     RETURNED,
+    DELIVERY_FAILED,
+    COMPLETED,
+    CLOSED,
+    REJECTED,
     CANCELLED
 }

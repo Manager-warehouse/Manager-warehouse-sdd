@@ -21,7 +21,7 @@ import com.wms.repository.WarehouseLocationRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
+
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -40,21 +40,29 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class ReceiptBackendGuardTest {
 
-    @Mock private ReceiptRepository receiptRepository;
-    @Mock private ReceiptItemRepository receiptItemRepository;
-    @Mock private BatchRepository batchRepository;
-    @Mock private AdjustmentRepository adjustmentRepository;
-    @Mock private DebitNoteRepository debitNoteRepository;
-    @Mock private InventoryRepository inventoryRepository;
-    @Mock private WarehouseLocationRepository warehouseLocationRepository;
-    @Mock private UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
-    @Mock private AuditLogService auditLogService;
+    @Mock
+    private ReceiptRepository receiptRepository;
+    @Mock
+    private ReceiptItemRepository receiptItemRepository;
+    @Mock
+    private BatchRepository batchRepository;
+    @Mock
+    private AdjustmentRepository adjustmentRepository;
+    @Mock
+    private DebitNoteRepository debitNoteRepository;
+    @Mock
+    private InventoryRepository inventoryRepository;
+    @Mock
+    private WarehouseLocationRepository warehouseLocationRepository;
+    @Mock
+    private UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
+    @Mock
+    private AuditLogService auditLogService;
 
     private ReceiptValidationService receiptValidationService;
     private ReceiptApprovalService approvalService;
     private QuarantineRtvService rtvService;
 
-    private Receipt qcCompletedReceipt;
     private Receipt qcFailedReceipt;
     private User storekeeper;
     private User manager;
@@ -72,7 +80,6 @@ class ReceiptBackendGuardTest {
         manager.setId(5L);
         manager.setRole(UserRole.WAREHOUSE_MANAGER);
 
-        qcCompletedReceipt = receipt(1L, "RCV-APPROVAL", ReceiptStatus.QC_COMPLETED, warehouse, 3);
         qcFailedReceipt = receipt(2L, "RCV-QC-FAILED", ReceiptStatus.QC_FAILED, warehouse, 4);
 
         receiptValidationService = new ReceiptValidationService(receiptRepository, userWarehouseAssignmentRepository);
@@ -83,8 +90,7 @@ class ReceiptBackendGuardTest {
                 inventoryRepository,
                 warehouseLocationRepository,
                 receiptValidationService,
-                auditLogService
-        );
+                auditLogService);
         rtvService = new QuarantineRtvService(
                 receiptRepository,
                 receiptItemRepository,
@@ -92,8 +98,7 @@ class ReceiptBackendGuardTest {
                 debitNoteRepository,
                 inventoryRepository,
                 receiptValidationService,
-                auditLogService
-        );
+                auditLogService);
     }
 
     @Test

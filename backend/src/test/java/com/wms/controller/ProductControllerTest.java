@@ -36,16 +36,22 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(ProductController.class)
-@Import({SecurityConfig.class, JwtAuthFilter.class, GlobalExceptionHandler.class})
+@Import({ SecurityConfig.class, JwtAuthFilter.class, GlobalExceptionHandler.class })
 class ProductControllerTest {
 
-    @Autowired MockMvc mockMvc;
-    @Autowired ObjectMapper objectMapper;
+    @Autowired
+    MockMvc mockMvc;
+    @Autowired
+    ObjectMapper objectMapper;
 
-    @MockBean ProductService productService;
-    @MockBean UserRepository userRepository;
-    @MockBean JwtUtil jwtUtil;
-    @MockBean UserDetailsServiceImpl userDetailsService;
+    @MockBean
+    ProductService productService;
+    @MockBean
+    UserRepository userRepository;
+    @MockBean
+    JwtUtil jwtUtil;
+    @MockBean
+    UserDetailsServiceImpl userDetailsService;
 
     private ProductResponse sampleResponse;
     private User storekeepUser;
@@ -160,8 +166,8 @@ class ProductControllerTest {
         when(productService.createProduct(any(), eq(1L))).thenReturn(sampleResponse);
 
         mockMvc.perform(post("/api/v1/products")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(buildRequest("SKU-001"))))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(buildRequest("SKU-001"))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.sku").value("SKU-001"));
     }
@@ -171,8 +177,8 @@ class ProductControllerTest {
     @DisplayName("POST /products - CEO - 403")
     void createProduct_ceo_returns403() throws Exception {
         mockMvc.perform(post("/api/v1/products")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(buildRequest("SKU-001"))))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(buildRequest("SKU-001"))))
                 .andExpect(status().isForbidden());
     }
 
@@ -184,8 +190,8 @@ class ProductControllerTest {
         when(productService.createProduct(any(), any())).thenThrow(new IllegalArgumentException("DUPLICATE_SKU"));
 
         mockMvc.perform(post("/api/v1/products")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(buildRequest("SKU-001"))))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(buildRequest("SKU-001"))))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error").value("DUPLICATE_SKU"));
     }
@@ -197,8 +203,8 @@ class ProductControllerTest {
         ProductRequest request = buildRequest(null);
 
         mockMvc.perform(post("/api/v1/products")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
     }
 
@@ -210,8 +216,8 @@ class ProductControllerTest {
         request.setName(null);
 
         mockMvc.perform(post("/api/v1/products")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
     }
 
@@ -227,8 +233,8 @@ class ProductControllerTest {
         when(productService.updateProduct(eq(1L), any(), eq(1L))).thenReturn(sampleResponse);
 
         mockMvc.perform(put("/api/v1/products/1")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(buildRequest("SKU-001"))))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(buildRequest("SKU-001"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.sku").value("SKU-001"));
     }
@@ -238,8 +244,8 @@ class ProductControllerTest {
     @DisplayName("PUT /products/{id} - PLANNER - 403")
     void updateProduct_planner_returns403() throws Exception {
         mockMvc.perform(put("/api/v1/products/1")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(buildRequest("SKU-001"))))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(buildRequest("SKU-001"))))
                 .andExpect(status().isForbidden());
     }
 
@@ -252,8 +258,8 @@ class ProductControllerTest {
                 .thenThrow(new ResourceNotFoundException("PRODUCT_NOT_FOUND"));
 
         mockMvc.perform(put("/api/v1/products/99")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(buildRequest("SKU-X"))))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(buildRequest("SKU-X"))))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error").value("PRODUCT_NOT_FOUND"));
     }
@@ -320,3 +326,5 @@ class ProductControllerTest {
         return r;
     }
 }
+
+

@@ -30,29 +30,23 @@ public class AuditLogController {
     private final UserRepository userRepository;
 
     public AuditLogController(AuditLogService auditLogService,
-                              UserRepository userRepository) {
+            UserRepository userRepository) {
         this.auditLogService = auditLogService;
         this.userRepository = userRepository;
     }
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Get audit logs",
-               description = "System Admin only. Returns newest logs first with page-based pagination.")
+    @Operation(summary = "Get audit logs", description = "System Admin only. Returns newest logs first with page-based pagination.")
     @ApiResponse(responseCode = "200", description = "Successfully retrieved audit logs")
     @ApiResponse(responseCode = "400", description = "Invalid filter or page request")
     @ApiResponse(responseCode = "403", description = "FORBIDDEN_AUDIT_ACCESS")
     public AuditLogPageResponse getAuditLogs(
-            @Parameter(description = "1-based page number")
-            @RequestParam(value = "page", required = false) Integer page,
-            @Parameter(description = "Page size, max 30")
-            @RequestParam(value = "pageSize", required = false) Integer pageSize,
-            @Parameter(description = "Start date/datetime inclusive")
-            @RequestParam(value = "from", required = false) String from,
-            @Parameter(description = "End date/datetime inclusive")
-            @RequestParam(value = "to", required = false) String to,
-            @Parameter(description = "Filter by warehouse ID")
-            @RequestParam(value = "warehouseId", required = false) Long warehouseId,
+            @Parameter(description = "1-based page number") @RequestParam(value = "page", required = false) Integer page,
+            @Parameter(description = "Page size, max 30") @RequestParam(value = "pageSize", required = false) Integer pageSize,
+            @Parameter(description = "Start date/datetime inclusive") @RequestParam(value = "from", required = false) String from,
+            @Parameter(description = "End date/datetime inclusive") @RequestParam(value = "to", required = false) String to,
+            @Parameter(description = "Filter by warehouse ID") @RequestParam(value = "warehouseId", required = false) Long warehouseId,
             Authentication authentication) {
 
         ensureAdmin(authentication);
@@ -62,8 +56,7 @@ public class AuditLogController {
 
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Get audit log detail",
-               description = "System Admin only. Returns changed field before/after values.")
+    @Operation(summary = "Get audit log detail", description = "System Admin only. Returns changed field before/after values.")
     @ApiResponse(responseCode = "200", description = "Successfully retrieved audit log detail")
     @ApiResponse(responseCode = "403", description = "FORBIDDEN_AUDIT_ACCESS")
     @ApiResponse(responseCode = "404", description = "AUDIT_LOG_NOT_FOUND")

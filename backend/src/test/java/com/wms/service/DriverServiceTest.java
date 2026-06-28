@@ -4,12 +4,14 @@ import com.wms.dto.request.DriverRequest;
 import com.wms.dto.response.DriverResponse;
 import com.wms.entity.Driver;
 import com.wms.entity.User;
+import com.wms.entity.Warehouse;
 import com.wms.enums.AuditAction;
 import com.wms.enums.DriverStatus;
 import com.wms.enums.UserRole;
 import com.wms.repository.DriverRepository;
 import com.wms.repository.UserWarehouseAssignmentRepository;
 import com.wms.repository.UserRepository;
+import com.wms.repository.WarehouseRepository;
 import com.wms.service.impl.DriverServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -36,6 +38,8 @@ public class DriverServiceTest {
     @Mock
     private UserWarehouseAssignmentRepository assignmentRepository;
     @Mock
+    private WarehouseRepository warehouseRepository;
+    @Mock
     private com.wms.mapper.MasterDataMapper mapper;
     @Mock
     private AuditLogService auditLogService;
@@ -45,6 +49,7 @@ public class DriverServiceTest {
 
     private User actor;
     private User driverUser;
+    private Warehouse warehouse;
     private Driver driver;
 
     @BeforeEach
@@ -58,8 +63,12 @@ public class DriverServiceTest {
         driverUser.setRole(UserRole.DRIVER);
         driverUser.setPhone("0987654321");
 
+        warehouse = new Warehouse();
+        warehouse.setId(2L);
+
         driver = new Driver();
         driver.setId(4L);
+        driver.setWarehouse(warehouse);
         driver.setUser(driverUser);
         driver.setLicenseNumber("LX-99999");
         driver.setStatus(DriverStatus.AVAILABLE);
@@ -69,6 +78,7 @@ public class DriverServiceTest {
     @Test
     void createDriver_Success_PhoneFallback() {
         DriverRequest req = new DriverRequest();
+        req.setWarehouseId(2L);
         req.setUserId(3L);
         req.setFullName("Nguyen Van A");
         req.setLicenseNumber("LX-99999");
@@ -77,6 +87,7 @@ public class DriverServiceTest {
 
         when(driverRepository.existsByLicenseNumber("LX-99999")).thenReturn(false);
         when(userRepository.findById(1L)).thenReturn(Optional.of(actor));
+        when(warehouseRepository.findById(2L)).thenReturn(Optional.of(warehouse));
         when(userRepository.findById(3L)).thenReturn(Optional.of(driverUser));
         when(driverRepository.existsByUserId(3L)).thenReturn(false);
         when(driverRepository.save(any(Driver.class))).thenReturn(driver);
@@ -85,18 +96,22 @@ public class DriverServiceTest {
 
         driverService.createDriver(req, 1L);
 
-        verify(driverRepository).save(argThat(d -> d.getPhone().equals("0987654321"))); // Falls back to driverUser.phone
-        verify(auditLogService).log(eq(actor), eq(AuditAction.CREATE), eq("Driver"), any(), eq("LX-99999"), any(), any(), any());
+        verify(driverRepository).save(argThat(d -> d.getPhone().equals("0987654321"))); // Falls back to
+                                                                                        // driverUser.phone
+        verify(auditLogService).log(eq(actor), eq(AuditAction.CREATE), eq("Driver"), any(), eq("LX-99999"), any(),
+                any(), any());
     }
 
     @Test
     void createDriver_InvalidRole_ThrowsException() {
         DriverRequest req = new DriverRequest();
+        req.setWarehouseId(2L);
         req.setUserId(3L);
         driverUser.setRole(UserRole.STOREKEEPER); // Not DRIVER
 
         when(driverRepository.existsByLicenseNumber(any())).thenReturn(false);
         when(userRepository.findById(1L)).thenReturn(Optional.of(actor));
+        when(warehouseRepository.findById(2L)).thenReturn(Optional.of(warehouse));
         when(userRepository.findById(3L)).thenReturn(Optional.of(driverUser));
 
         assertThrows(IllegalArgumentException.class, () -> driverService.createDriver(req, 1L));
@@ -108,17 +123,18 @@ public class DriverServiceTest {
         DriverRequest req = new DriverRequest();
         req.setUserId(3L);
         req.setLicenseNumber("LX-99999");
+        req.setWarehouseId(2L);
 
         when(driverRepository.existsByLicenseNumber("LX-99999")).thenReturn(false);
         when(userRepository.findById(1L)).thenReturn(Optional.of(actor));
         when(userRepository.findById(3L)).thenReturn(Optional.of(driverUser));
+        when(warehouseRepository.findById(2L)).thenReturn(Optional.of(new Warehouse()));
         when(assignmentRepository.findWarehouseIdsByUserId(1L)).thenReturn(List.of(1L));
         when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(2L));
 
         IllegalArgumentException error = assertThrows(
                 IllegalArgumentException.class,
-                () -> driverService.createDriver(req, 1L)
-        );
+                () -> driverService.createDriver(req, 1L));
 
         assertEquals("WAREHOUSE_SCOPE_REQUIRED", error.getMessage());
         verify(driverRepository, never()).save(any());

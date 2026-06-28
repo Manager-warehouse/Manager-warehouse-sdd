@@ -21,8 +21,8 @@ public class TripDeliveryOrder {
     @JoinColumn(name = "trip_id", nullable = false)
     private Trip trip;
 
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "do_id", nullable = false, unique = true)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "do_id", nullable = false)
     private DeliveryOrder deliveryOrder;
 
     @Column(name = "stop_order", nullable = false)

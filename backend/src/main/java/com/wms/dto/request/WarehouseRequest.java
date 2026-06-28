@@ -1,7 +1,6 @@
 package com.wms.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
@@ -13,7 +12,7 @@ public class WarehouseRequest {
 
     @NotBlank(message = "CODE_REQUIRED")
     @Size(max = 20, message = "CODE_TOO_LONG")
-    @Pattern(regexp = "^[A-Z0-9_-]+$", message = "INVALID_CODE_FORMAT")
+    @Pattern(regexp = "^[\\p{Lu}\\p{Lo}0-9_-]+$", message = "INVALID_CODE_FORMAT")
     private String code;
 
     @NotBlank(message = "NAME_REQUIRED")

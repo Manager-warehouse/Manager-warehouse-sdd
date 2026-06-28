@@ -5,6 +5,8 @@ import com.wms.enums.InterWarehouseTransferStatus;
 import jakarta.persistence.*;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "inter_warehouse_transfers")
@@ -97,4 +99,8 @@ public class InterWarehouseTransfer {
 
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
+
+    @OneToMany(mappedBy = "transfer", fetch = FetchType.LAZY)
+    @Builder.Default
+    private List<InterWarehouseTransferItem> items = new ArrayList<>();
 }
