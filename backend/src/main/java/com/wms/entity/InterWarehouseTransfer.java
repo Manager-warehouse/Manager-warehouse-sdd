@@ -90,9 +90,44 @@ public class InterWarehouseTransfer {
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
 
+    @Column(name = "return_requested", nullable = false)
+    @Builder.Default
+    private boolean returnRequested = false;
+
+    @Column(name = "return_reason", columnDefinition = "TEXT")
+    private String returnReason;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "return_requested_by")
+    private User returnRequestedBy;
+
+    @Column(name = "return_requested_at")
+    private OffsetDateTime returnRequestedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "return_approved_by")
+    private User returnApprovedBy;
+
+    @Column(name = "return_approved_at")
+    private OffsetDateTime returnApprovedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "return_rejected_by")
+    private User returnRejectedBy;
+
+    @Column(name = "return_rejected_at")
+    private OffsetDateTime returnRejectedAt;
+
+    @Column(name = "return_rejection_reason", columnDefinition = "TEXT")
+    private String returnRejectionReason;
+
     @Column(name = "is_returned", nullable = false)
     @Builder.Default
     private boolean isReturned = false;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "transfer_request_id")
+    private TransferRequest transferRequest;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;

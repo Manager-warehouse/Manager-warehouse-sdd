@@ -75,7 +75,23 @@
 13. Final receive as destination manager:
     - `POST /api/v1/transfers/{id}/final-receive`
     - shortage requires `discrepancyReason` and creates `TRANSFER_DISCREPANCY`.
-    - QC failed quantity moves to quarantine.
+    - QC failed physical quantity moves to quarantine with `INTERNAL_TRANSFER` origin and is handed to spec 009 disposal.
+    - shortage quantity does not create quarantine stock.
+    - intact wrong SKU uses Return to Source rather than disposal.
+    - transfer-origin quarantine stock cannot use supplier RTV.
+
+14. Verify shortage valuation with 30 sent and 28 received:
+    - destination inventory receives and calculates value for 28 units only.
+    - `TRANSFER_DISCREPANCY` records 2 missing units as quantity only; those units carry no destination receipt amount.
+    - no invoice, revenue, receivable, payable, supplier Debit Note, or automatic driver charge is created.
+
+15. Report and approve an intact wrong-SKU return:
+    - destination Storekeeper submits `POST /api/v1/transfers/{id}/return-request` with expected SKU, actual SKU, quantity, and reason.
+    - destination Warehouse Manager approves through `POST /api/v1/transfers/{id}/return-request/approve`.
+    - expect `isReturned = true`; the same transfer/trip/vehicle/driver and In-Transit stock remain active.
+    - assigned driver returns to source.
+    - source Staff performs receive-count, source Storekeeper performs receive-check/QC, and source Warehouse Manager performs final-receive.
+    - expect terminal `COMPLETED` with UI label “Đã hoàn về kho nguồn”.
 
 ## Frontend Validation Flow
 
@@ -92,6 +108,9 @@
 11. Destination worker records initial count inside the transfer module, not inside the supplier inbound receipt list.
 12. Destination storekeeper checks count/QC and selects destination location for passed stock.
 13. Destination manager final-confirms completion/discrepancy in the same transfer module.
+14. Quarantine Workspace displays transfer origin and offers disposal only for damaged internal-transfer stock.
+15. Destination Storekeeper sees “Báo gửi nhầm SKU”; destination Manager sees approve/reject; neither action is shown outside destination warehouse scope.
+16. After approval, the driver sees the return instruction and source-side roles see the same three-step receiving workflow.
 
 ## Required Checks Before Coding Is Done
 
@@ -102,3 +121,7 @@
 - Audit log records every transfer mutation.
 - Audit log records transfer-request create/submit/CEO approval/rejection/conversion.
 - No inventory invariant can become negative.
+- Transfer shortages never become quarantine/disposal quantities.
+- Transfer-origin quarantine stock retains transfer-item traceability and cannot create RTV or supplier Debit Note.
+- Destination inventory quantity and value include only physically received and accepted goods.
+- Wrong-SKU return requires Storekeeper report, destination Manager approval, assigned-driver return, and source three-step receiving.

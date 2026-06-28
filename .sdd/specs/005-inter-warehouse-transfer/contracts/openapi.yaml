@@ -326,6 +326,51 @@ paths:
       responses:
         '200':
           description: Completed or completed with discrepancy
+  /transfers/{id}/return-request:
+    post:
+      summary: Destination storekeeper reports intact wrong SKU and requests return to source
+      tags: [Transfers]
+      parameters:
+        - $ref: '#/components/parameters/TransferId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WrongSkuReturnRequest'
+      responses:
+        '200':
+          description: Return request submitted for destination manager review
+        '409':
+          description: Return request not allowed in current state
+  /transfers/{id}/return-request/approve:
+    post:
+      summary: Destination manager approves wrong-SKU return using the same trip and driver
+      tags: [Transfers]
+      parameters:
+        - $ref: '#/components/parameters/TransferId'
+      responses:
+        '200':
+          description: Return approved; receiving scope flipped to source warehouse
+        '403':
+          description: Destination manager scope required
+        '409':
+          description: Pending return request required
+  /transfers/{id}/return-request/reject:
+    post:
+      summary: Destination manager rejects wrong-SKU return request
+      tags: [Transfers]
+      parameters:
+        - $ref: '#/components/parameters/TransferId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReturnDecisionRequest'
+      responses:
+        '200':
+          description: Return request rejected with reason
 components:
   parameters:
     TransferRequestId:
@@ -494,6 +539,27 @@ components:
       type: object
       properties:
         discrepancyReason: { type: string }
+    WrongSkuReturnRequest:
+      type: object
+      required: [reason, items]
+      properties:
+        reason: { type: string, minLength: 1 }
+        items:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [transferItemId, expectedProductId, actualProductId, quantity]
+            properties:
+              transferItemId: { type: integer, format: int64 }
+              expectedProductId: { type: integer, format: int64 }
+              actualProductId: { type: integer, format: int64 }
+              quantity: { type: number, minimum: 0, exclusiveMinimum: true }
+    ReturnDecisionRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 1 }
     TransferResponse:
       type: object
       properties:
@@ -502,6 +568,13 @@ components:
         status: { type: string }
         sourceWarehouseId: { type: integer, format: int64 }
         destinationWarehouseId: { type: integer, format: int64 }
+        isReturned: { type: boolean }
+        returnReasonCode: { type: string, nullable: true }
+        returnReason: { type: string, nullable: true }
+        returnRequestedBy: { type: integer, format: int64, nullable: true }
+        returnRequestedAt: { type: string, format: date-time, nullable: true }
+        returnApprovedBy: { type: integer, format: int64, nullable: true }
+        returnApprovedAt: { type: string, format: date-time, nullable: true }
         externalInstructionCode: { type: string }
         plannedDate: { type: string, format: date }
         documentDate: { type: string, format: date }

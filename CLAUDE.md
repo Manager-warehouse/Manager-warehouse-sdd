@@ -83,11 +83,7 @@
 ┌─────────────────────────────────────────┐
 │           Service Layer                  │  @Service
 │   - Business logic                      │  - Transaction management
-<<<<<<< HEAD
-│   - FIFO allocation                     │  - Audit logging
-=======
 │   - FIFO batch selection                │  - Audit logging
->>>>>>> main
 │   - Authorization checks                │
 └─────────────────┬─────────────────────┘
                   │
@@ -183,15 +179,9 @@ Manager-warehouse-sdd/
 
 ### LESSON-002: Batch does not classify household goods by grade
 
-<<<<<<< HEAD
-**Biến cố**: [TBD] Mixed grade trong batch → FIFO allocation confusion
-**Giải pháp**: Mỗi batch chỉ có một grade (A/B/C), không mix
-**Áp dụng**: Receipt validation, batch creation
-=======
 **Biến cố**: [TBD] Quy tắc truy vết từng cái, hạn dùng và phân cấp chất lượng làm nhập liệu quá nặng cho đơn hàng gia dụng số lượng lớn
 **Giải pháp**: Batch theo sản phẩm + nguồn nhập/ngày nhận; hàng lỗi QC đi Quarantine để RTV/disposal, không phân cấp chất lượng để bán lại
 **Áp dụng**: Receipt validation, batch creation, QC failed handling
->>>>>>> main
 
 ### LESSON-003: Phân quyền phải check BOTH role AND warehouse
 
@@ -330,13 +320,8 @@ Types: feat, fix, docs, style, refactor, test, chore
 Scopes: inventory, receipt, issue, transfer, batch, etc.
 
 Examples:
-<<<<<<< HEAD
-feat(inventory): add FIFO batch allocation logic
-fix(batch): correct received date sorting
-=======
 feat(inventory): add FIFO batch selection logic
 fix(batch): correct received date ordering
->>>>>>> main
 docs(api): update warehouse-stock endpoint docs
 ```
 
@@ -446,17 +431,10 @@ Semble is a semantic code search tool that finds code by **meaning**, not just t
 
 ```
 1. Semble search: Find all places with similar logic
-<<<<<<< HEAD
-   → semble.search("batch received date sorting")
-
-2. GitNexus query: Trace execution flow
-   → gitnexus_query("FIFO batch allocation validation")
-=======
    → semble.search("batch received date ordering")
 
 2. GitNexus query: Trace execution flow
-   → gitnexus_query("batch received date validation")
->>>>>>> main
+   → gitnexus_query("FIFO batch selection validation")
 
 3. GitNexus impact: Check what depends on the buggy code
    → gitnexus_impact("BatchService.calculateExpiry")
@@ -491,11 +469,7 @@ Semble CLI is installed at `/Users/haison/.local/bin/semble` and provides direct
 ```bash
 # Search codebase with natural language
 semble search "authentication flow" .
-<<<<<<< HEAD
-semble search "FIFO batch allocation logic" .
-=======
 semble search "FIFO batch selection logic" .
->>>>>>> main
 
 # Search for specific symbol or identifier
 semble search "InventoryService" .
@@ -523,11 +497,7 @@ semble init
 
 ```bash
 # Find all FIFO implementations
-<<<<<<< HEAD
-semble search "FIFO batch allocation" . --top-k 10
-=======
 semble search "FIFO batch selection" . --top-k 10
->>>>>>> main
 
 # Find inventory validation patterns
 semble search "inventory quantity validation" .
@@ -571,11 +541,7 @@ semble search "database configuration" . --include-text-files
 
 ```bash
 # Find code by concept (Semble)
-<<<<<<< HEAD
-semble search "FIFO batch allocation" --limit 10
-=======
 semble search "FIFO batch selection" --limit 10
->>>>>>> main
 
 # Understand execution flow (GitNexus)
 gitnexus query "warehouse receipt process"
@@ -698,11 +664,7 @@ Speckit works as an MCP (Model Context Protocol) server that needs to be configu
 
 ```
 1. SPEC PHASE (Speckit)
-<<<<<<< HEAD
-   → speckit_specify: Create spec for "FIFO batch allocation"
-=======
    → speckit_specify: Create spec for "FIFO batch selection"
->>>>>>> main
    → Document business rules, edge cases
 
 2. EXPLORATION PHASE (Semble + GitNexus)
@@ -775,11 +737,7 @@ specs/
 
 # Create specification
 speckit_specify({
-<<<<<<< HEAD
-  feature: "FIFO batch allocation",
-=======
   feature: "FIFO batch selection",
->>>>>>> main
   requirements: "...",
   acceptance_criteria: "..."
 })
@@ -823,14 +781,8 @@ Product (1000+ items)
 ├── SKU, name, unit, dimension, weight
 └── PriceHistory (cost_price, selling_price, effective_date, end_date)
 
-<<<<<<< HEAD
-Batch (Lô hàng - tied to ONE grade)
-├── batchNumber, receivedDate (domain hiện tại không quản lý expDate)
-├── grade (A/B/C)
-=======
 Batch (Lô hàng)
 ├── batchNumber, receivedDate, sourceReceipt/sourceDocument
->>>>>>> main
 └── quantity
 
 Inventory (tồn kho)
@@ -869,20 +821,6 @@ DebitNote (Phiếu đòi bồi hoàn)
 
 ### Key Business Rules
 
-<<<<<<< HEAD
-| Rule                    | Implementation                                                                                                   |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| No negative inventory   | `@Column(check = "quantity >= 0")` + validation                                                                  |
-| Single grade per batch  | `grade` is immutable after creation                                                                              |
-| Household goods default | Products such as pots, pans, and plastic goods do not track expiry in the current domain                         |
-| FIFO default            | `FIFOSelector` picks batch by receivedDate ASC for the current household-goods domain                            |
-| No FEFO current scope   | FEFO, expiry date, and expired-batch handling are outside the current household-goods scope                       |
-| Quarantine excluded     | WHERE clause filters `zone != 'QUARANTINE'`                                                                      |
-| In-Transit tracking     | Virtual warehouse `IN_TRANSIT` for transfers                                                                     |
-| Credit Check Control    | Auto-block if balance + new > limit OR >30 days overdue; balance equal to limit is allowed. Buffer 20% to unlock |
-| Monthly Closing         | Lock previous monthly periods (CLOSED), only Adjustment Vouchers allowed in open period                          |
-| Phúc Anh Internal Fleet | All deliveries use internal fleet & drivers. No 3PL or delivery cost approvals                                   |
-=======
 | Rule                       | Implementation                                  |
 | -------------------------- | ----------------------------------------------- |
 | No negative inventory      | DB CHECK on `total_qty`, `reserved_qty`, and available quantity + service validation |
@@ -894,7 +832,6 @@ DebitNote (Phiếu đòi bồi hoàn)
 | Credit Check Control       | Auto-block if balance + new > limit OR >30 days overdue; balance equal to limit is allowed. Buffer 20% to unlock |
 | Monthly Closing            | Lock previous monthly periods (CLOSED), only Adjustment Vouchers allowed in open period |
 | Phúc Anh Internal Fleet    | All deliveries use internal fleet & drivers. No 3PL or delivery cost approvals |
->>>>>>> main
 
 ### Actor Reference (10 Actors — xem chi tiết tại `Kiến trúc phân tầng các Actors.md`)
 
@@ -1100,7 +1037,6 @@ Quy trình điều phối chuyến xe, vận chuyển bằng xe nội bộ của
 ```
 
 **Luồng trạng thái đơn giao:**
-<<<<<<< HEAD
 `WAREHOUSE_APPROVED` → `IN_TRANSIT` (Dispatcher lập trip cùng kho, chọn xe/tài xế thuộc kho và kiểm tra tải trọng; Tài xế nhận hàng lên xe; hệ thống chuyển hàng từ outbound staging sang kho ảo In-Transit và tạo delivery attempt hiện tại) → `COMPLETED` (Tài xế upload `goodsImage` và `signDocumentImage` vào attempt hiện tại, Đại lý xác thực OTP email, delivery attempt chuyển `DELIVERED`, hệ thống bắt buộc giao đủ DO, chỉ trừ kho ảo In-Transit của DO đó và tự động tạo invoice/công nợ cho DO đó theo giá snapshot trên phiếu xuất tại thời điểm Thủ kho soạn/lập picking plan) / `RETURNED` (Đại lý không nhận hoặc giao thất bại; delivery attempt hiện tại đóng `FAILED`, ghi lý do; hàng vẫn ở kho ảo In-Transit cho tới khi luồng hoàn hàng riêng tiếp nhận)
 
 **Trip outbound:** Mỗi trip outbound có `trip_type = DELIVERY`, phải có ít nhất một DO `WAREHOUSE_APPROVED` cùng kho; Dispatcher, xe và tài xế phải thuộc kho đó. Trip `PLANNED` được sửa xe/tài xế/ngày/stop order hoặc danh sách DO trước khi depart; `deliveryOrders[]` khi update là danh sách cuối cùng sau chỉnh sửa và thay thế danh sách cũ. Hủy trip giữ DO ở `WAREHOUSE_APPROVED`, giữ lịch sử xe/tài xế trên trip, nhưng giải phóng xe/tài xế khỏi active assignment. Kiểm tra tải trọng luôn áp dụng theo cân nặng; thể tích chỉ kiểm tra nếu xe có `max_volume_m3`. Khi depart, hệ thống chuyển hàng từ outbound staging sang kho ảo In-Transit và tạo delivery attempt `IN_TRANSIT`; Sprint 1 không dùng `OUT_FOR_DELIVERY`. Trip chỉ `COMPLETED` khi Tài xế xác nhận xe đã quay lại kho và toàn bộ DO trong trip đã `COMPLETED` hoặc `RETURNED`.
@@ -1110,16 +1046,6 @@ Quy trình điều phối chuyến xe, vận chuyển bằng xe nội bộ của
 **Ý nghĩa trạng thái DO sau giao hàng:** `COMPLETED` nghĩa là Đại lý đã nhận hàng, POD + OTP hợp lệ, delivery attempt đã `DELIVERED`, và hệ thống đã tự động tạo invoice/công nợ; thông báo kế toán thuộc luồng riêng. `CLOSED` thuộc luồng tài chính/thanh toán riêng sau khi công nợ được tất toán hoặc khóa theo kỳ kế toán.
 
 **Phân quyền kho trong outbound:** Mọi API outbound phải check cả role và warehouse assignment. Planner, Thủ kho, QC, Trưởng kho, Dispatcher và Kế toán chỉ thao tác dữ liệu thuộc kho được gán; Tài xế chỉ thấy chuyến/attempt được gán cho driver profile của mình. CEO/Admin có thể xem liên kho nhưng mọi mutation vẫn phải ghi audit log.
-=======
-`READY_TO_SHIP` → `IN_TRANSIT` (Tài xế nhận hàng lên xe và đang đi giao) → `DELIVERED` (Đại lý ký nhận POD thành công, hệ thống tạo billing notification cho Kế toán viên) → `COMPLETED` (Kế toán viên lập Invoice, hệ thống cộng công nợ). Nhánh lỗi: `IN_TRANSIT` → `RETURNED` (Giao thất bại, chuyển hàng về Quarantine zone của kho gốc).
-
-Quy tắc trip giao hàng Sprint 1:
-- Một delivery trip chỉ gom các DO cùng một `warehouse_id`.
-- `trips.trip_type = DELIVERY`.
-- Không hỗ trợ partial pick/partial ship; trước khi depart phải có `issued_qty = requested_qty = reserved_qty` cho mọi dòng hàng.
-- Dispatcher được thêm/gỡ/đổi thứ tự DO khi trip còn `PLANNED`; sau `IN_TRANSIT` thì không được sửa hoặc hủy trip.
-- Vehicle/driver bị chặn nếu đang nằm trong bất kỳ trip `PLANNED` hoặc `IN_TRANSIT` nào.
->>>>>>> main
 
 ---
 
@@ -1267,27 +1193,7 @@ Quy trình đối chiếu số liệu tồn kho thực tế, tính toán chênh 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-<<<<<<< HEAD
-This project is indexed by GitNexus as **Manager-warehouse-sdd** (4086 symbols, 9678 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
-
-> Index stale? Run `node .gitnexus/run.cjs analyze` from the project root — it auto-selects an available runner. No `.gitnexus/run.cjs` yet? `npx gitnexus analyze` (npm 11 crash → `npm i -g gitnexus`; #1939).
-
-## Always Do
-
-- **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
-- **MUST run `detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows. For regression review, compare against the default branch: `detect_changes({scope: "compare", base_ref: "main"})`.
-- **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before proceeding with edits.
-- When exploring unfamiliar code, use `query({query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
-- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `context({name: "symbolName"})`.
-
-## Never Do
-
-- NEVER edit a function, class, or method without first running `impact` on it.
-- NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
-- NEVER rename symbols with find-and-replace — use `rename` which understands the call graph.
-- NEVER commit changes without running `detect_changes()` to check affected scope.
-=======
-This project is indexed by GitNexus as **Manager-warehouse-sdd** (4686 symbols, 11279 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **Manager-warehouse-sdd** (9030 symbols, 23832 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
@@ -1305,7 +1211,6 @@ This project is indexed by GitNexus as **Manager-warehouse-sdd** (4686 symbols, 
 - NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
 - NEVER rename symbols with find-and-replace — use `gitnexus_rename` which understands the call graph.
 - NEVER commit changes without running `gitnexus_detect_changes()` to check affected scope.
->>>>>>> main
 
 ## Resources
 

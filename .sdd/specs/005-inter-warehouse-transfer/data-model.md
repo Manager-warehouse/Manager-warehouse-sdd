@@ -117,6 +117,25 @@ Validation:
 - `confirmedReceivedQty` becomes effective `received_qty` after receive-check approval.
 - `qc_passed_qty + qc_failed_qty = confirmedReceivedQty`.
 - `receive_checker_note` is optional when checked quantity equals worker-entered quantity and required when different.
+- A physically present `qc_failed_qty` creates or updates a quarantine source record with `origin_type = INTERNAL_TRANSFER` and `origin_id = transfer_item.id`.
+- A negative `variance_qty` represents missing stock and must not create a quarantine source record.
+- An intact wrong-SKU item remains linked to the transfer return-to-source flow and is not marked for disposal unless damage/QC failure is recorded separately.
+
+## Transfer Return Decision
+
+Fields on `transfers`:
+- `is_returned`
+- `return_reason_code`: `TRIP_OVERDUE`, `WRONG_SKU`, or `OTHER_APPROVED_REASON`
+- `return_reason`
+- `return_requested_by`, `return_requested_at`
+- `return_approved_by`, `return_approved_at`
+
+Rules:
+- Destination Storekeeper creates the `WRONG_SKU` report while the transfer remains `IN_TRANSIT`.
+- Destination Warehouse Manager approves or rejects the wrong-SKU return within destination warehouse scope.
+- Approval sets `is_returned = true`; the same trip, vehicle, driver, and In-Transit inventory remain active for the return leg.
+- Source Staff records return count, source Storekeeper checks/QC, and source Warehouse Manager final-confirms.
+- Final source confirmation completes the transfer while retaining `is_returned = true` for reporting.
 
 ## Trip
 
@@ -135,6 +154,11 @@ Transfer operations:
 - Cancel unshipped approved: decrease source `reserved_qty`.
 - Depart: decrease source `total_qty`, decrease source `reserved_qty`, increase In-Transit `total_qty`.
 - Final receive: decrease In-Transit `total_qty`; increase destination regular inventory for QC-passed quantity; increase destination quarantine inventory for QC-failed quantity.
+- Final source return receive: decrease In-Transit `total_qty`; restore QC-passed quantity to source regular inventory; move QC-failed physical quantity to source Quarantine.
+- For a shortage, destination inventory quantity and value are calculated only from physically received and accepted `received_qty`.
+- Missing quantity is retained as a quantity-only `variance_qty`/`TRANSFER_DISCREPANCY` and is excluded from destination receipt value and billing totals.
+- Internal transfer valuation never creates sales revenue, invoice, dealer receivable, supplier payable, or supplier Debit Note.
+- Transfer quarantine inventory must be reconcilable to `quarantine_records.origin_type = INTERNAL_TRANSFER` before spec 009 disposal.
 - No inventory update may create negative total, negative reserved, or negative available.
 - Inventory updates must use optimistic locking/version checks.
 
@@ -171,6 +195,10 @@ Required transfer actions:
 - `TRANSFER_RECEIVE_CHECK`
 - `TRANSFER_RECEIVE_CONFIRM`
 - `TRANSFER_DISCREPANCY_CREATE`
+- `TRANSFER_RETURN_REQUEST`
+- `TRANSFER_RETURN_APPROVE`
+- `TRANSFER_RETURN_REJECT`
+- `TRANSFER_RETURN_TO_SOURCE`
 - `TRANSFER_CANCEL`
 
 Each audit entry must include actor, action, entity type, entity id/code, timestamp, before state, and after state where relevant.

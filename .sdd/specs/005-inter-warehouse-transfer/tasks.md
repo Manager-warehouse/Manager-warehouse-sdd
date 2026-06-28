@@ -206,6 +206,43 @@
 
 ---
 
+## Phase 6A: Transfer Quarantine Handoff to Spec 009 (Priority: P1)
+
+**Goal**: Classify transfer exceptions by physical condition and hand physically damaged transfer stock to the spec 009 disposal flow without enabling supplier RTV.
+
+**Independent Test**: Damaged physical stock moves to Quarantine and can be disposed with transfer traceability; shortage creates only a discrepancy adjustment; intact wrong SKU can return to source; transfer-origin quarantine stock cannot create RTV or Debit Note.
+
+### Tests for Cross-Spec Handoff
+
+- [ ] T118 [P] Add service test proving transfer shortage does not create quarantine inventory or a disposal candidate.
+- [ ] T119 [P] Add service test proving physically damaged transfer stock retains transfer-item origin when moved to Quarantine.
+- [ ] T120 [P] Add service test blocking RTV and supplier Debit Note for `INTERNAL_TRANSFER` quarantine origin.
+- [ ] T121 [P] Add integration test covering transfer quarantine → spec 009 disposal approval → exact inventory deduction and audit.
+- [ ] T122 [P] Add end-to-end service test: destination Storekeeper reports wrong SKU, destination Manager approves, assigned driver turns back, and source Staff/Storekeeper/Manager complete count/check/final-receive.
+- [ ] T128 [P] Add valuation test proving 30 sent/28 received imports and values only 28 units, keeps 2 missing units as quantity-only discrepancy, and creates no commercial billing records.
+- [ ] T129 [P] Add authorization tests blocking Storekeeper self-approval and actors outside destination warehouse scope from approving wrong-SKU return.
+- [ ] T130 [P] Add source receiving tests for returned goods: passed to regular inventory, failed to source Quarantine, shortage to `TRANSFER_DISCREPANCY`.
+
+### Implementation and Contract Mapping
+
+- [ ] T123 Generalize `quarantine_records` with origin type/id and remaining quantity; support `INTERNAL_TRANSFER` references while retaining transfer/trip/vehicle/driver traceability.
+- [ ] T124 Add transfer-item disposal endpoint/contract in spec 009 and expose the action only for physically present quarantine quantity.
+- [ ] T125 Block RTV and Debit Note creation for internal-transfer and dealer-return quarantine origins.
+- [ ] T126 Update Quarantine Workspace to display origin and route actions: supplier inbound = RTV/disposal, internal transfer = disposal only, intact wrong SKU = Return to Source in transfer workspace.
+- [ ] T127 Add audit coverage for `TRANSFER_DISPOSAL_HANDOFF`, disposal approval, inventory before/after, and warehouse scope.
+- [ ] T131 Add a new Flyway migration for return reason/request/approval fields; do not modify applied migrations.
+- [ ] T132 Add wrong-SKU return request and manager decision DTOs with Jakarta Validation.
+- [ ] T133 Implement destination Storekeeper wrong-SKU report and destination Warehouse Manager approve/reject transitions while transfer remains `IN_TRANSIT`.
+- [ ] T134 Keep the same trip/vehicle/driver active for the approved return leg and instruct only the assigned driver to turn back.
+- [ ] T135 Reuse receive-count, receive-check/QC, and final-receive with source warehouse scope when `is_returned = true`.
+- [ ] T136 Ensure shortage finalization calculates destination inventory quantity/value from received quantity only and keeps missing quantity as quantity-only discrepancy without invoice, receivable, payable, Debit Note, or automatic employee liability.
+- [ ] T137 Add `TRANSFER_RETURN_REQUEST`, `TRANSFER_RETURN_APPROVE`, and `TRANSFER_RETURN_REJECT` audit actions with before/after state.
+- [ ] T138 Add controller endpoints and OpenAPI/Swagger contract for wrong-SKU report and destination Manager decision.
+- [ ] T139 Add Storekeeper “Báo gửi nhầm SKU” form and destination Manager approval panel/button in the transfer workspace.
+- [ ] T140 Add source warehouse return-receiving guidance and terminal label “Đã hoàn về kho nguồn” for completed transfers with `is_returned = true`.
+
+---
+
 ## Phase 7: Polish, Quality Gates, and Documentation
 
 **Purpose**: Cross-cutting checks required before coding is considered complete.

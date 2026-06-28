@@ -53,6 +53,10 @@ class ReceiptRtvConfirmServiceTest {
         private UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
         @Mock
         private AuditLogService auditLogService;
+        @Mock
+        private QuarantineRecordRepository quarantineRecordRepository;
+        @Mock
+        private PriceHistoryRepository priceHistoryRepository;
 
         private ReceiptValidationService receiptValidationService;
         private QuarantineRtvService receiptService;
@@ -134,7 +138,9 @@ class ReceiptRtvConfirmServiceTest {
                                 debitNoteRepository,
                                 inventoryRepository,
                                 receiptValidationService,
-                                auditLogService);
+                                auditLogService,
+                                quarantineRecordRepository,
+                                priceHistoryRepository);
         }
 
         // -----------------------------------------------------------------------

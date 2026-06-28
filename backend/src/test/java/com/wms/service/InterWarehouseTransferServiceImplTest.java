@@ -38,6 +38,7 @@ import com.wms.exception.ResourceNotFoundException;
 import com.wms.exception.BusinessRuleViolationException;
 import com.wms.repository.AdjustmentRepository;
 import com.wms.repository.DriverRepository;
+import com.wms.repository.QuarantineRecordRepository;
 import com.wms.repository.InventoryRepository;
 import com.wms.repository.InterWarehouseTransferAllocationRepository;
 import com.wms.repository.InterWarehouseTransferItemRepository;
@@ -82,6 +83,7 @@ class InterWarehouseTransferServiceImplTest {
     private DriverRepository driverRepository;
     private TripRepository tripRepository;
     private AdjustmentRepository adjustmentRepository;
+    private QuarantineRecordRepository quarantineRecordRepository;
     private TrackingAuditUtil auditUtil;
     private EntityManager entityManager;
     private InterWarehouseTransferServiceImpl service;
@@ -163,6 +165,7 @@ class InterWarehouseTransferServiceImplTest {
         driverRepository = proxy(DriverRepository.class, new DriverRepoHandler());
         tripRepository = proxy(TripRepository.class, new TripRepoHandler());
         adjustmentRepository = proxy(AdjustmentRepository.class, new AdjustmentRepoHandler());
+        quarantineRecordRepository = proxy(QuarantineRecordRepository.class, new QuarantineRecordRepoHandler());
         auditUtil = new TrackingAuditUtil();
         entityManager = proxy(EntityManager.class, new EntityManagerHandler());
 
@@ -188,7 +191,7 @@ class InterWarehouseTransferServiceImplTest {
         InterWarehouseTransferReceivingService receivingService = new InterWarehouseTransferReceivingService(
                 transferRepository, transferItemRepository, allocationRepository,
                 inventoryRepository, warehouseRepository, locationRepository,
-                adjustmentRepository, auditUtil, helper);
+                adjustmentRepository, auditUtil, helper, quarantineRecordRepository);
 
         service = new InterWarehouseTransferServiceImpl(
                 transferRepository, helper, planningService,
@@ -925,6 +928,16 @@ class InterWarehouseTransferServiceImplTest {
     }
 
     private final class AdjustmentRepoHandler implements InvocationHandler {
+        @Override
+        public Object invoke(Object proxy, Method method, Object[] args) {
+            if ("save".equals(method.getName())) {
+                return args[0];
+            }
+            return defaultValue(method.getReturnType());
+        }
+    }
+
+    private final class QuarantineRecordRepoHandler implements InvocationHandler {
         @Override
         public Object invoke(Object proxy, Method method, Object[] args) {
             if ("save".equals(method.getName())) {

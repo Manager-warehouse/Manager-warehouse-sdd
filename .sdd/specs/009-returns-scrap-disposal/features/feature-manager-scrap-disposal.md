@@ -4,6 +4,8 @@
 
 Hàng hóa hư hỏng hoặc fail QC tích tụ trong khu cách ly (Quarantine Zone) được Trưởng kho đề xuất xuất tiêu hủy, lập Biên bản hư hỏng (Damage Report) và duyệt xuất theo hạn mức thẩm quyền. Domain hiện tại không quản lý hàng hết hạn sử dụng.
 
+Hàng có nguồn từ điều chuyển nội bộ đã được đưa vào Quarantine sẽ được xử lý bằng luồng tiêu hủy hiện có của Spec 009 và không được trả nhà cung cấp (RTV).
+
 ## 2. Actors
 
 - **Trưởng kho kiêm Trưởng QC**: Đề xuất và phê duyệt tiêu hủy.
@@ -20,6 +22,7 @@ Hàng hóa hư hỏng hoặc fail QC tích tụ trong khu cách ly (Quarantine Z
     - Create a `debit_notes` record for the supplier.
     - Create adjustments record with type = `'RETURN_TO_VENDOR'`.
     - Decrease quarantine inventories: `total_qty -= quantity`.
+  - WHEN quarantine goods originate from an internal transfer, the system SHALL allow only the existing `DISPOSAL` flow and SHALL NOT allow `RETURN_TO_VENDOR` or create a supplier Debit Note.
 - **State-driven:**
   - WHILE adjustments for disposal or return to vendor is pending approval, the system SHALL NOT deduct quarantine inventories.
 
@@ -34,3 +37,7 @@ Hàng hóa hư hỏng hoặc fail QC tích tụ trong khu cách ly (Quarantine Z
   - Given 10 units of expired product X (value 8M) are in quarantine
   - When Trưởng kho submits and approves a disposal request
   - Then the system SHALL write a `DISPOSAL` adjustment of -10 units, create a `damage_reports` entry, decrease quarantine inventory by 10, and write an audit log.
+- **Scenario: Dispose quarantined goods from an internal transfer**
+  - Given physically damaged goods originating from an internal transfer are already in Quarantine
+  - When Trưởng kho processes those goods
+  - Then the system SHALL use the existing `DISPOSAL` flow and SHALL NOT offer `RETURN_TO_VENDOR`.

@@ -350,6 +350,73 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
         </div>
       )}
 
+      {transfer.status === 'IN_TRANSIT' && !transfer.isReturned && transfer.returnRequested && (
+        <div className="rounded-md border border-red-200 bg-red-50 p-3 flex flex-col gap-2.5 mb-2">
+          <div className="text-xs text-red-700 font-bold flex items-center gap-1.5">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+            </span>
+            YÊU CẦU QUAY ĐẦU DO SAI SKU ĐANG CHỜ PHÊ DUYỆT
+          </div>
+          <div className="text-xs text-zinc-600">
+            <span className="font-semibold text-zinc-700">Lý do báo:</span> "{transfer.returnReason}"
+          </div>
+          {hasAny(hasRole, [ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && (
+            <div className="flex gap-2 mt-1">
+              <div className="flex-1 flex gap-1">
+                <input
+                  type="text"
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="Lý do từ chối..."
+                  className="w-full px-2.5 py-1 text-xs border border-zinc-300 rounded focus:outline-none focus:ring-1 focus:ring-zinc-400"
+                />
+              </div>
+              <Button loading={busy} variant="outline-light" className="text-red-600 border-red-300 hover:bg-red-50 py-1 px-3 text-xs" onClick={() => {
+                if (!reason.trim()) {
+                  alert("Vui lòng điền lý do từ chối!");
+                  return;
+                }
+                run('rejectReturn', reason);
+              }}>
+                Từ chối
+              </Button>
+              <Button loading={busy} className="bg-red-600 hover:bg-red-700 text-white font-bold py-1 px-3 text-xs" onClick={() => run('approveReturn')}>
+                Duyệt quay xe
+              </Button>
+            </div>
+          )}
+          {!(hasAny(hasRole, [ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse) && (
+            <div className="text-[10px] text-zinc-500 italic">Đang chờ Quản lý kho đích duyệt...</div>
+          )}
+        </div>
+      )}
+
+      {transfer.status === 'IN_TRANSIT' && !transfer.isReturned && !transfer.returnRequested && hasAny(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && (
+        <div className="rounded-md border border-zinc-200 bg-zinc-50 p-3 flex flex-col gap-2 mb-2">
+          <div className="text-xs text-zinc-800 font-semibold">Phát hiện gửi sai SKU, hàng hỏng hoặc sai lệch nghiêm trọng khi mở thùng?</div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Nhập lý do gửi sai SKU..."
+              className="flex-1 px-2.5 py-1.5 text-xs border border-zinc-300 rounded focus:outline-none focus:ring-1 focus:ring-zinc-400"
+            />
+            <Button variant="outline-light" icon={RotateCcw} className="text-zinc-700 border-zinc-300 hover:bg-zinc-100 py-1.5 px-3 text-xs" loading={busy} onClick={() => {
+              if (!reason.trim()) {
+                alert("Vui lòng điền lý do gửi sai SKU!");
+                return;
+              }
+              run('requestReturn', reason);
+            }}>
+              Báo sai SKU & Trả về
+            </Button>
+          </div>
+        </div>
+      )}
+
       {transfer.status === 'IN_TRANSIT' && !transfer.isReturned && (hasAny(hasRole, [ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]) && canManageSourceWarehouse) && (
         <div className="rounded-md border border-amber-200 bg-amber-50/50 p-3 flex flex-col gap-2 mb-2">
           <div className="text-xs text-amber-800 font-medium">Chuyến xe có sự cố hoặc cần quay đầu về kho nguồn?</div>

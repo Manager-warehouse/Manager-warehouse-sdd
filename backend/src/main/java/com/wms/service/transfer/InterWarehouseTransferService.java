@@ -22,4 +22,7 @@ public interface InterWarehouseTransferService {
     InterWarehouseTransferResponse finalReceive(Long id, InterWarehouseTransferFinalReceiveRequest request, User actor);
     InterWarehouseTransferResponse returnToSource(Long id, User actor);
     InterWarehouseTransferResponse quarantineReject(Long id, InterWarehouseTransferRejectRequest request, User actor);
+    InterWarehouseTransferResponse requestReturn(Long id, TransferReturnRequest request, User actor);
+    InterWarehouseTransferResponse approveReturn(Long id, User actor);
+    InterWarehouseTransferResponse rejectReturn(Long id, TransferReturnRejectRequest request, User actor);
 }
