@@ -939,7 +939,9 @@ export const outboundService = {
       return trips.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     }
     try {
-      const response = await apiClient.get('/trips', { params: { warehouseId, status: filters.status } });
+      const params = { warehouseId };
+      if (filters.status && filters.status !== 'ALL') params.status = filters.status;
+      const response = await apiClient.get('/trips', { params });
       return asArray(response.data).map(normalizeTrip);
     } catch (error) {
       if (error.response?.status === 404 || error.response?.status === 405) return [];

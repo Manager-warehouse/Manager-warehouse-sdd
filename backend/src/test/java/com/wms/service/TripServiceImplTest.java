@@ -127,6 +127,38 @@ class TripServiceImplTest {
     }
 
     @Test
+    void listTrips_adminWithoutWarehouseId_retrievesAllActiveWarehouses() {
+        User admin = user(3L, UserRole.ADMIN);
+        Trip trip = plannedTrip();
+        when(warehouseRepository.findByIsActive(true)).thenReturn(List.of(warehouse));
+        when(tripRepository.findByWarehouseIdInAndOptionalStatus(List.of(20L), TripStatus.PLANNED))
+                .thenReturn(List.of(trip));
+        when(tripDeliveryOrderRepository.findByTripIdOrderByStopOrderAsc(900L))
+                .thenReturn(List.of(member(trip, order, 1)));
+
+        var responses = service.listTrips(null, TripStatus.PLANNED, admin);
+
+        assertThat(responses).hasSize(1);
+        verify(warehouseRepository).findByIsActive(true);
+        verify(assignmentRepository, never()).findWarehouseIdsByUserId(anyLong());
+    }
+
+    @Test
+    void listTrips_adminWithWarehouseId_bypassesWarehouseScopeCheck() {
+        User admin = user(3L, UserRole.ADMIN);
+        Trip trip = plannedTrip();
+        when(tripRepository.findByWarehouseIdInAndOptionalStatus(List.of(20L), TripStatus.PLANNED))
+                .thenReturn(List.of(trip));
+        when(tripDeliveryOrderRepository.findByTripIdOrderByStopOrderAsc(900L))
+                .thenReturn(List.of(member(trip, order, 1)));
+
+        var responses = service.listTrips(20L, TripStatus.PLANNED, admin);
+
+        assertThat(responses).hasSize(1);
+        verify(assignmentRepository, never()).findWarehouseIdsByUserId(anyLong());
+    }
+
+    @Test
     void createTrip_successKeepsDeliveryOrderWarehouseApproved() {
         stubCreateHappyPath();
 

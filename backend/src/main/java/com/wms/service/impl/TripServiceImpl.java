@@ -27,6 +27,7 @@ import com.wms.enums.DriverStatus;
 import com.wms.enums.TripStatus;
 import com.wms.enums.TripType;
 import com.wms.enums.VehicleStatus;
+import com.wms.enums.UserRole;
 import com.wms.enums.WarehouseType;
 import com.wms.exception.OutboundDeliveryException;
 import com.wms.exception.ResourceNotFoundException;
@@ -118,11 +119,21 @@ public class TripServiceImpl implements TripService {
     @Transactional(readOnly = true)
     public List<TripResponse> listTrips(Long warehouseId, TripStatus status, User actor) {
         List<Long> warehouseIds;
-        if (warehouseId == null) {
-            warehouseIds = assignmentRepository.findWarehouseIdsByUserId(actor.getId());
+        if (actor.getRole() == UserRole.ADMIN || actor.getRole() == UserRole.CEO) {
+            if (warehouseId == null) {
+                warehouseIds = warehouseRepository.findByIsActive(true).stream()
+                        .map(Warehouse::getId)
+                        .toList();
+            } else {
+                warehouseIds = List.of(warehouseId);
+            }
         } else {
-            requireWarehouseScope(actor, warehouseId);
-            warehouseIds = List.of(warehouseId);
+            if (warehouseId == null) {
+                warehouseIds = assignmentRepository.findWarehouseIdsByUserId(actor.getId());
+            } else {
+                requireWarehouseScope(actor, warehouseId);
+                warehouseIds = List.of(warehouseId);
+            }
         }
         if (warehouseIds.isEmpty()) {
             return List.of();
@@ -478,6 +489,9 @@ public class TripServiceImpl implements TripService {
     }
 
     private void requireWarehouseScope(User actor, Long warehouseId) {
+        if (actor.getRole() == UserRole.ADMIN || actor.getRole() == UserRole.CEO) {
+            return;
+        }
         if (!assignmentRepository.findWarehouseIdsByUserId(actor.getId()).contains(warehouseId)) {
             throw new OutboundDeliveryException("WAREHOUSE_SCOPE_FORBIDDEN", HttpStatus.FORBIDDEN,
                     "User is not assigned to warehouse: " + warehouseId);
