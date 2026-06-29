@@ -144,10 +144,33 @@ const Sidebar = () => {
     }
   ];
 
-  // Dummy menus to show full WMS modules structure (as disabled or mocked)
-  const mockupModules = [
-    { title: 'Báo cáo & Cảnh báo', icon: BarChart3 }
+  const reportItems = [
+    {
+      title: 'Báo cáo quản trị (CEO)',
+      path: '/reports/ceo-dashboard',
+      icon: BarChart3,
+      roles: [ROLES.CEO, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN]
+    },
+    {
+      title: 'Báo cáo giá trị tồn',
+      path: '/reports/inventory-valuation',
+      icon: DollarSign,
+      roles: [ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN]
+    },
+    {
+      title: 'Cảnh báo tồn kho',
+      path: '/reports/low-stock',
+      icon: ShieldAlert,
+      roles: [ROLES.WAREHOUSE_MANAGER, ROLES.PLANNER, ROLES.ADMIN]
+    },
+    {
+      title: 'Báo cáo năng suất',
+      path: '/reports/productivity',
+      icon: ClipboardList,
+      roles: [ROLES.WAREHOUSE_MANAGER, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN]
+    }
   ];
+
 
   if (!sidebarOpen) return null;
 
@@ -349,28 +372,34 @@ const Sidebar = () => {
           </div>
         )}
 
-        <div>
-          <div className="px-3 py-1.5 text-[10px] font-bold text-shade-40 uppercase tracking-widest mb-2">
-            Nghiệp vụ WMS
+        {reportItems.filter(item => item.roles.some(role => hasRole(role))).length > 0 && (
+          <div>
+            <div className="px-3 py-1.5 text-[10px] font-bold text-shade-40 uppercase tracking-widest mb-2">
+              Báo cáo & Cảnh báo
+            </div>
+            <nav className="flex flex-col gap-1">
+              {reportItems
+                .filter(item => item.roles.some(role => hasRole(role)))
+                .map((item) => (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    className={({ isActive }) =>
+                      `flex items-center gap-3 px-3 py-2.5 rounded-pill text-xs font-semibold uppercase tracking-wider transition-colors ${
+                        isActive
+                          ? 'bg-onPrimary text-canvas-night'
+                          : 'text-shade-40 hover:text-onPrimary hover:bg-canvas-nightElevated'
+                      }`
+                    }
+                  >
+                    <item.icon className="w-4 h-4 flex-shrink-0" />
+                    <span>{item.title}</span>
+                  </NavLink>
+                ))}
+            </nav>
           </div>
-          <div className="flex flex-col gap-1">
-            {mockupModules.map((item, idx) => (
-              <div
-                key={idx}
-                className="flex items-center justify-between px-3 py-2.5 rounded-pill text-xs font-semibold uppercase tracking-wider text-shade-50 opacity-60 cursor-not-allowed hover:bg-canvas-nightElevated"
-                title="Sẽ khả dụng trong giai đoạn sau của dự án"
-              >
-                <div className="flex items-center gap-3">
-                  <item.icon className="w-4 h-4" />
-                  <span>{item.title}</span>
-                </div>
-                <span className="text-[9px] bg-shade-60 text-canvas-night px-1.5 py-0.5 rounded font-bold">
-                  Next
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
+        )}
+
       </div>
 
       {/* Sidebar Footer */}

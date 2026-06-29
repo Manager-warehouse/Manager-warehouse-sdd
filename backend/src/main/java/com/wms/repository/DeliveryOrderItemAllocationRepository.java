@@ -43,4 +43,13 @@ public interface DeliveryOrderItemAllocationRepository extends JpaRepository<Del
             where a.deliveryOrderItem.deliveryOrder.id = :deliveryOrderId
             """)
     BigDecimal sumPlannedQtyByDeliveryOrderId(@Param("deliveryOrderId") Long deliveryOrderId);
+
+    @Query("""
+            select a from DeliveryOrderItemAllocation a
+            where a.deliveryOrderItem.deliveryOrder.warehouse.id = :warehouseId
+              and a.createdAt >= :start
+              and a.createdAt <= :end
+            """)
+    List<DeliveryOrderItemAllocation> findByWarehouseIdAndCreatedAtBetween(@Param("warehouseId") Long warehouseId, @Param("start") java.time.OffsetDateTime start, @Param("end") java.time.OffsetDateTime end);
 }
+

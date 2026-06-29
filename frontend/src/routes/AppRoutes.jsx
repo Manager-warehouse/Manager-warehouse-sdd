@@ -31,7 +31,12 @@ import StocktakeForm from '../pages/Stocktake/StocktakeForm';
 import StocktakeDetail from '../pages/Stocktake/StocktakeDetail';
 import PriceListManagement from '../pages/Finance/PriceListManagement';
 import PriceApproval from '../pages/Finance/PriceApproval';
+import CeoDashboard from '../pages/Reports/CeoDashboard';
+import InventoryValuation from '../pages/Reports/InventoryValuation';
+import LowStockAlerts from '../pages/Reports/LowStockAlerts';
+import ProductivityReport from '../pages/Reports/ProductivityReport';
 import { ROLES } from '../utils/constants';
+
 const AppRoutes = () => {
   return (
     <Routes>
@@ -141,6 +146,20 @@ const AppRoutes = () => {
 
       <Route element={<ProtectedRoute allowedRoles={[ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN]} />}>
         <Route path="/finance/price-approval" element={<PriceApproval />} />
+      </Route>
+
+      {/* Reports & Alerts (Module 010) */}
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.CEO, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN]} />}>
+        <Route path="/reports/ceo-dashboard" element={<CeoDashboard />} />
+      </Route>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN]} />}>
+        <Route path="/reports/inventory-valuation" element={<InventoryValuation />} />
+      </Route>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.WAREHOUSE_MANAGER, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN]} />}>
+        <Route path="/reports/productivity" element={<ProductivityReport />} />
+      </Route>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.WAREHOUSE_MANAGER, ROLES.PLANNER, ROLES.ADMIN]} />}>
+        <Route path="/reports/low-stock" element={<LowStockAlerts />} />
       </Route>
 
       {/* Default Redirects */}

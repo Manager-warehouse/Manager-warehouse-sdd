@@ -1,6 +1,8 @@
 package com.wms.repository;
 
 import com.wms.entity.UserWarehouseAssignment;
+import com.wms.entity.User;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -20,5 +22,9 @@ public interface UserWarehouseAssignmentRepository extends JpaRepository<UserWar
     @Transactional
     @Query("DELETE FROM UserWarehouseAssignment u WHERE u.user.id = :userId")
     void deleteByUserId(@Param("userId") Long userId);
+
+    @Query("SELECT u.user FROM UserWarehouseAssignment u WHERE u.warehouse.id = :warehouseId AND u.user.role = com.wms.enums.UserRole.WAREHOUSE_MANAGER")
+    List<User> findWarehouseManagersByWarehouseId(@Param("warehouseId") Long warehouseId);
 }
+
 

@@ -91,4 +91,9 @@ public interface TripRepository extends JpaRepository<Trip, Long> {
     boolean existsActiveDriverAssignment(@Param("driverId") Long driverId,
                                          @Param("statuses") Collection<TripStatus> statuses,
                                          @Param("excludedTripId") Long excludedTripId);
+
+    java.util.List<Trip> findByStatusAndCompletedAtBetween(TripStatus status, java.time.OffsetDateTime start, java.time.OffsetDateTime end);
+
+    java.util.List<Trip> findByWarehouseIdAndStatusAndCompletedAtBetween(Long warehouseId, TripStatus status, java.time.OffsetDateTime start, java.time.OffsetDateTime end);
 }
+

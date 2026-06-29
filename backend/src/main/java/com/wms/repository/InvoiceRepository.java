@@ -19,4 +19,9 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     Optional<Invoice> findByDeliveryOrderId(Long deliveryOrderId);
 
     boolean existsByInvoiceNumber(String invoiceNumber);
+
+    java.util.List<Invoice> findByIssueDateBetween(LocalDate start, LocalDate end);
+
+    java.util.List<Invoice> findByStatusNotAndDueDateBefore(InvoiceStatus status, LocalDate date);
 }
+

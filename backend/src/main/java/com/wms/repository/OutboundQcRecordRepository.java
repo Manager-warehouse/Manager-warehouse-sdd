@@ -44,4 +44,13 @@ public interface OutboundQcRecordRepository extends JpaRepository<OutboundQcReco
             order by r.deliveryOrder.id asc, r.id asc
             """)
     List<OutboundQcRecord> findPassedRecordsByDeliveryOrderIdIn(@Param("deliveryOrderIds") Collection<Long> deliveryOrderIds);
+
+    @Query("""
+            select r from OutboundQcRecord r
+            where r.deliveryOrder.warehouse.id = :warehouseId
+              and r.createdAt >= :start
+              and r.createdAt <= :end
+            """)
+    List<OutboundQcRecord> findByWarehouseIdAndCreatedAtBetween(@Param("warehouseId") Long warehouseId, @Param("start") java.time.OffsetDateTime start, @Param("end") java.time.OffsetDateTime end);
 }
+

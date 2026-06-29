@@ -40,4 +40,13 @@ public interface DeliveryOrderItemRepository extends JpaRepository<DeliveryOrder
             order by i.deliveryOrder.id asc, i.id asc
             """)
     List<DeliveryOrderItem> findByDeliveryOrderIdIn(@Param("deliveryOrderIds") Collection<Long> deliveryOrderIds);
+
+    @Query("""
+            select i from DeliveryOrderItem i
+            where i.deliveryOrder.status in (com.wms.enums.DeliveryOrderStatus.COMPLETED, com.wms.enums.DeliveryOrderStatus.CLOSED)
+              and i.deliveryOrder.updatedAt >= :start
+              and i.deliveryOrder.updatedAt <= :end
+            """)
+    List<DeliveryOrderItem> findCompletedItemsInPeriod(@Param("start") java.time.OffsetDateTime start, @Param("end") java.time.OffsetDateTime end);
 }
+
