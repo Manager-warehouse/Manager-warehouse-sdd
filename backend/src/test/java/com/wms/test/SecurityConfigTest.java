@@ -7,11 +7,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @TestPropertySource(properties = {
-    "spring.datasource.url=jdbc:postgresql://aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=require",
-    "spring.datasource.username=postgres.jzniugklqehtghgzggiv",
-    "spring.datasource.password=Warehouse12345se12",
-    "spring.mail.username=sonnguyen556699@gmail.com",
-    "spring.mail.password=glykazcgkivznhqq",
+    "spring.datasource.url=jdbc:h2:mem:securitytestdb;DB_CLOSE_DELAY=-1;MODE=PostgreSQL",
+    "spring.datasource.username=sa",
+    "spring.datasource.password=",
+    "spring.datasource.driver-class-name=org.h2.Driver",
+    "spring.jpa.database-platform=org.hibernate.dialect.H2Dialect",
+    "spring.flyway.enabled=false",
+    "spring.mail.host=localhost",
+    "spring.mail.port=25",
     "jwt.secret=9a4f2c8d3b7a1e5f8c2d6e0b4a8f9c1d3e7b2a6f0c4d8e2f6a0b4c8d2e6f0a4b"
 })
 public class SecurityConfigTest {

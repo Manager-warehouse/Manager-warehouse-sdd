@@ -122,7 +122,6 @@ class TransferRequestServiceImplTest {
         when(warehouseRepository.findById(sourceWarehouse.getId())).thenReturn(Optional.of(sourceWarehouse));
         when(warehouseRepository.findById(destinationWarehouse.getId())).thenReturn(Optional.of(destinationWarehouse));
         when(productRepository.findById(product.getId())).thenReturn(Optional.of(product));
-        when(requestItemRepository.save(any(TransferRequestItem.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(requestRepository.save(any(TransferRequest.class))).thenReturn(request);
 
         TransferRequestResponse response = service.createRequest(createReq, manager);

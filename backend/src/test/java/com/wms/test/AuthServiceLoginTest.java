@@ -10,7 +10,6 @@ import org.springframework.test.context.TestPropertySource;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
-@TestPropertySource(locations = "classpath:application-secrets.yml")
 public class AuthServiceLoginTest {
 
     @Autowired

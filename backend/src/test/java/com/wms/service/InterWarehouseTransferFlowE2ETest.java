@@ -168,7 +168,7 @@ class InterWarehouseTransferFlowE2ETest {
         reqItem.setTransferRequest(transferRequest);
         reqItem.setProduct(product);
         reqItem.setRequestedQty(new BigDecimal("30.00"));
-        transferRequest.setItems(List.of(reqItem));
+        transferRequest.setItems(new ArrayList<>(List.of(reqItem)));
 
         transfer = new InterWarehouseTransfer();
         transfer.setId(800L);
@@ -185,7 +185,7 @@ class InterWarehouseTransferFlowE2ETest {
         transferItem.setDestinationLocation(destinationLocation);
         transferItem.setPlannedQty(new BigDecimal("30.00"));
         transferItem.setSentQty(new BigDecimal("30.00"));
-        transfer.setItems(List.of(transferItem));
+        transfer.setItems(new ArrayList<>(List.of(transferItem)));
 
         // Create Batch and Allocation link to prevent empty allocations list
         batch = new Batch();
@@ -296,7 +296,6 @@ class InterWarehouseTransferFlowE2ETest {
         when(warehouseRepository.findById(sourceWarehouse.getId())).thenReturn(Optional.of(sourceWarehouse));
         when(warehouseRepository.findById(destinationWarehouse.getId())).thenReturn(Optional.of(destinationWarehouse));
         when(productRepository.findById(product.getId())).thenReturn(Optional.of(product));
-        when(requestItemRepository.save(any(TransferRequestItem.class))).thenAnswer(i -> i.getArgument(0));
         when(requestRepository.save(any(TransferRequest.class))).thenReturn(transferRequest);
 
         TransferRequestCreateRequest createReq = new TransferRequestCreateRequest(
