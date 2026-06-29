@@ -41,23 +41,37 @@ public class QuarantineRecord {
     private WarehouseLocation location;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "delivery_order_id", nullable = false)
+    @JoinColumn(name = "delivery_order_id", nullable = true)
     private DeliveryOrder deliveryOrder;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "do_item_id", nullable = false)
+    @JoinColumn(name = "do_item_id", nullable = true)
     private DeliveryOrderItem deliveryOrderItem;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "allocation_id", nullable = false)
+    @JoinColumn(name = "allocation_id", nullable = true)
     private DeliveryOrderItemAllocation allocation;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "outbound_qc_record_id")
     private OutboundQcRecord outboundQcRecord;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "transfer_id", nullable = true)
+    private InterWarehouseTransfer transfer;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "transfer_item_id", nullable = true)
+    private InterWarehouseTransferItem transferItem;
+
+    @Column(name = "origin_type", nullable = false, length = 50)
+    private String originType = "OUTBOUND_QC";
+
     @Column(name = "quantity", nullable = false, precision = 10, scale = 2)
     private BigDecimal quantity;
+
+    @Column(name = "remaining_quantity", nullable = false, precision = 10, scale = 2)
+    private BigDecimal remainingQuantity;
 
     @Column(name = "reason", nullable = false, columnDefinition = "TEXT")
     private String reason;

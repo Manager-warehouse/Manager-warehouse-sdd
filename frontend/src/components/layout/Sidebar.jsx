@@ -92,7 +92,13 @@ const Sidebar = () => {
 
   const transferItems = [
     {
-      title: 'Điều chuyển nội bộ',
+      title: 'Yêu cầu điều chuyển',
+      path: '/transfers/requests',
+      icon: ClipboardList,
+      roles: [ROLES.PLANNER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.WAREHOUSE_MANAGER, ROLES.DISPATCHER, ROLES.ADMIN, ROLES.CEO]
+    },
+    {
+      title: 'Phiếu điều chuyển',
       path: '/transfers',
       icon: Package2,
       roles: [ROLES.PLANNER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.WAREHOUSE_MANAGER, ROLES.DISPATCHER, ROLES.ADMIN, ROLES.CEO]
@@ -192,7 +198,7 @@ const Sidebar = () => {
                   className={({ isActive }) =>
                     `flex items-center gap-3 px-3 py-2.5 rounded-pill text-xs font-semibold uppercase tracking-wider transition-colors ${
                       isActive
-                        ? 'bg-onPrimary text-canvas-night'
+                        ? 'bg-canvas-nightElevated text-onPrimary'
                         : 'text-shade-40 hover:text-onPrimary hover:bg-canvas-nightElevated'
                     }`
                   }
@@ -219,7 +225,7 @@ const Sidebar = () => {
                     className={({ isActive }) =>
                       `flex items-center gap-3 px-3 py-2.5 rounded-pill text-xs font-semibold uppercase tracking-wider transition-colors ${
                         isActive
-                          ? 'bg-onPrimary text-canvas-night'
+                          ? 'bg-canvas-nightElevated text-onPrimary'
                           : 'text-shade-40 hover:text-onPrimary hover:bg-canvas-nightElevated'
                       }`
                     }
@@ -247,7 +253,7 @@ const Sidebar = () => {
                     className={({ isActive }) =>
                       `flex items-center gap-3 px-3 py-2.5 rounded-pill text-xs font-semibold uppercase tracking-wider transition-colors ${
                         isActive
-                          ? 'bg-onPrimary text-canvas-night'
+                          ? 'bg-canvas-nightElevated text-onPrimary'
                           : 'text-shade-40 hover:text-onPrimary hover:bg-canvas-nightElevated'
                       }`
                     }
@@ -275,7 +281,7 @@ const Sidebar = () => {
                     className={({ isActive }) =>
                       `flex items-center gap-3 px-3 py-2.5 rounded-pill text-xs font-semibold uppercase tracking-wider transition-colors ${
                         isActive
-                          ? 'bg-onPrimary text-canvas-night'
+                          ? 'bg-canvas-nightElevated text-onPrimary'
                           : 'text-shade-40 hover:text-onPrimary hover:bg-canvas-nightElevated'
                       }`
                     }
@@ -303,7 +309,7 @@ const Sidebar = () => {
                     className={({ isActive }) =>
                       `flex items-center gap-3 px-3 py-2.5 rounded-pill text-xs font-semibold uppercase tracking-wider transition-colors ${
                         isActive
-                          ? 'bg-onPrimary text-canvas-night'
+                          ? 'bg-canvas-nightElevated text-onPrimary'
                           : 'text-shade-40 hover:text-onPrimary hover:bg-canvas-nightElevated'
                       }`
                     }
@@ -331,7 +337,7 @@ const Sidebar = () => {
                     className={({ isActive }) =>
                       `flex items-center gap-3 px-3 py-2.5 rounded-pill text-xs font-semibold uppercase tracking-wider transition-colors ${
                         isActive
-                          ? 'bg-onPrimary text-canvas-night'
+                          ? 'bg-canvas-nightElevated text-onPrimary'
                           : 'text-shade-40 hover:text-onPrimary hover:bg-canvas-nightElevated'
                       }`
                     }
@@ -359,7 +365,7 @@ const Sidebar = () => {
                     className={({ isActive }) =>
                       `flex items-center gap-3 px-3 py-2.5 rounded-pill text-xs font-semibold uppercase tracking-wider transition-colors ${
                         isActive
-                          ? 'bg-onPrimary text-canvas-night'
+                          ? 'bg-canvas-nightElevated text-onPrimary'
                           : 'text-shade-40 hover:text-onPrimary hover:bg-canvas-nightElevated'
                       }`
                     }

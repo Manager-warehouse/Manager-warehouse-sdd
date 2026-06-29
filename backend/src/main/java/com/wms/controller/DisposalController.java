@@ -53,6 +53,20 @@ public class DisposalController {
     }
 
     @Operation(
+            summary = "Tạo yêu cầu tiêu hủy hàng điều chuyển cách ly",
+            description = "Tạo báo cáo hỏng và Adjustment tương ứng từ QuarantineRecord. " +
+                    "Nếu giá trị < 5M VND, tự động phê duyệt và trừ tồn kho quarantine."
+    )
+    @PostMapping("/quarantine/{quarantineRecordId}/dispose")
+    public ResponseEntity<DisposalResponse> createDisposalFromQuarantine(
+            @Parameter(description = "ID của quarantine record cần tiêu hủy") @PathVariable Long quarantineRecordId,
+            @Valid @RequestBody DisposalRequest request) {
+        User actor = currentUserService.getRequiredCurrentUser();
+        DisposalResponse response = disposalService.createDisposalFromQuarantine(quarantineRecordId, request, actor);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @Operation(
             summary = "Lấy danh sách các yêu cầu tiêu hủy chờ duyệt",
             description = "Lấy toàn bộ các adjustment tiêu hủy đang ở trạng thái pending."
     )

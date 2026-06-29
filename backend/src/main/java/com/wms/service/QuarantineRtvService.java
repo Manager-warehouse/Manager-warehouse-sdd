@@ -41,6 +41,8 @@ public class QuarantineRtvService {
     private final InventoryRepository inventoryRepository;
     private final ReceiptValidationService receiptValidationService;
     private final AuditLogService auditLogService;
+    private final QuarantineRecordRepository quarantineRecordRepository;
+    private final PriceHistoryRepository priceHistoryRepository;
 
     public QuarantineRtvService(ReceiptRepository receiptRepository,
                                  ReceiptItemRepository receiptItemRepository,
@@ -48,7 +50,9 @@ public class QuarantineRtvService {
                                  DebitNoteRepository debitNoteRepository,
                                  InventoryRepository inventoryRepository,
                                  ReceiptValidationService receiptValidationService,
-                                 AuditLogService auditLogService) {
+                                 AuditLogService auditLogService,
+                                 QuarantineRecordRepository quarantineRecordRepository,
+                                 PriceHistoryRepository priceHistoryRepository) {
         this.receiptRepository = receiptRepository;
         this.receiptItemRepository = receiptItemRepository;
         this.adjustmentRepository = adjustmentRepository;
@@ -56,6 +60,8 @@ public class QuarantineRtvService {
         this.inventoryRepository = inventoryRepository;
         this.receiptValidationService = receiptValidationService;
         this.auditLogService = auditLogService;
+        this.quarantineRecordRepository = quarantineRecordRepository;
+        this.priceHistoryRepository = priceHistoryRepository;
     }
 
     /**
@@ -290,28 +296,63 @@ public class QuarantineRtvService {
         receiptValidationService.assertWarehouseAccess(actor, warehouseId);
 
         List<ReceiptItem> failedItems = receiptItemRepository.findQuarantineItemsByWarehouseId(warehouseId);
+        List<QuarantineRecord> quarantineRecords = quarantineRecordRepository
+                .findByWarehouseIdAndRemainingQuantityGreaterThanOrderByCreatedAtDesc(warehouseId, BigDecimal.ZERO);
 
-        return failedItems.stream()
-                .map(item -> {
-                    BigDecimal unitCost = item.getUnitCost() != null ? item.getUnitCost() : BigDecimal.ZERO;
-                    BigDecimal failedQty = item.getSampleFailedQty() != null ? BigDecimal.valueOf(item.getSampleFailedQty()) : BigDecimal.ZERO;
-                    BigDecimal totalValue = failedQty.multiply(unitCost);
+        List<QuarantineItemResponse> responses = new java.util.ArrayList<>();
 
-                    return QuarantineItemResponse.builder()
-                            .id(item.getId())
-                            .productSku(item.getProduct().getSku())
-                            .productName(item.getProduct().getName())
-                            .qcFailedQty(item.getSampleFailedQty())
-                            .qcFailureReason(item.getQcFailureReason())
-                            .receiptNumber(item.getReceipt().getReceiptNumber())
-                            .supplierId(item.getReceipt().getSupplier() != null ? item.getReceipt().getSupplier().getId() : null)
-                            .totalValue(totalValue)
-                            .unit("cái") // Default unit matching Sprint 1 context
-                            .receiptId(item.getReceipt().getId())
-                            .receiptVersion(item.getReceipt().getVersion())
-                            .build();
-                })
-                .collect(Collectors.toList());
+        // Map Receipt QC failed items
+        for (ReceiptItem item : failedItems) {
+            BigDecimal unitCost = item.getUnitCost() != null ? item.getUnitCost() : BigDecimal.ZERO;
+            BigDecimal failedQty = item.getSampleFailedQty() != null ? BigDecimal.valueOf(item.getSampleFailedQty()) : BigDecimal.ZERO;
+            BigDecimal totalValue = failedQty.multiply(unitCost);
+
+            responses.add(QuarantineItemResponse.builder()
+                    .id(item.getId())
+                    .productSku(item.getProduct().getSku())
+                    .productName(item.getProduct().getName())
+                    .qcFailedQty(item.getSampleFailedQty())
+                    .qcFailureReason(item.getQcFailureReason())
+                    .receiptNumber(item.getReceipt().getReceiptNumber())
+                    .supplierId(item.getReceipt().getSupplier() != null ? item.getReceipt().getSupplier().getId() : null)
+                    .totalValue(totalValue)
+                    .unit("cái")
+                    .receiptId(item.getReceipt().getId())
+                    .receiptVersion(item.getReceipt().getVersion())
+                    .originType("RECEIPT")
+                    .build());
+        }
+
+        // Map Quarantine Records (such as internal transfers)
+        for (QuarantineRecord qr : quarantineRecords) {
+            BigDecimal unitCost = BigDecimal.ZERO;
+            List<PriceHistory> prices = priceHistoryRepository.findLatestApproved(
+                    qr.getProduct().getId(), qr.getWarehouse().getId());
+            if (!prices.isEmpty()) {
+                unitCost = prices.get(0).getCostPrice();
+            }
+
+            BigDecimal failedQty = qr.getRemainingQuantity();
+            BigDecimal totalValue = failedQty.multiply(unitCost);
+
+            responses.add(QuarantineItemResponse.builder()
+                    .id(qr.getId())
+                    .productSku(qr.getProduct().getSku())
+                    .productName(qr.getProduct().getName())
+                    .qcFailedQty(failedQty.intValue())
+                    .qcFailureReason(qr.getReason())
+                    .receiptNumber(qr.getTransfer() != null ? qr.getTransfer().getTransferNumber() : "N/A")
+                    .supplierId(null)
+                    .totalValue(totalValue)
+                    .unit("cái")
+                    .receiptId(null)
+                    .receiptVersion(0)
+                    .originType(qr.getOriginType())
+                    .quarantineRecordId(qr.getId())
+                    .build());
+        }
+
+        return responses;
     }
 
     private String generateAdjustmentNumber() {

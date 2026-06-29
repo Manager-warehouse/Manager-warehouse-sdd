@@ -48,4 +48,11 @@ public class QuarantineItemResponse {
 
     @JsonProperty("receipt_version")
     private Integer receiptVersion;
+
+    @JsonProperty("origin_type")
+    @Builder.Default
+    private String originType = "RECEIPT";
+
+    @JsonProperty("quarantine_record_id")
+    private Long quarantineRecordId;
 }

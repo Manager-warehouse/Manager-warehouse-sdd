@@ -45,6 +45,7 @@ public class DisposalService {
     private final UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
     private final ReceiptValidationService receiptValidationService;
     private final AuditLogService auditLogService;
+    private final QuarantineRecordRepository quarantineRecordRepository;
 
     private static final BigDecimal AUTO_APPROVAL_THRESHOLD = new BigDecimal("5000000"); // 5,000,000 VND
     private static final BigDecimal CEO_APPROVAL_THRESHOLD = new BigDecimal("100000000"); // 100,000,000 VND
@@ -57,7 +58,8 @@ public class DisposalService {
                            PriceHistoryRepository priceHistoryRepository,
                            UserWarehouseAssignmentRepository userWarehouseAssignmentRepository,
                            ReceiptValidationService receiptValidationService,
-                           AuditLogService auditLogService) {
+                           AuditLogService auditLogService,
+                           QuarantineRecordRepository quarantineRecordRepository) {
         this.receiptItemRepository = receiptItemRepository;
         this.damageReportRepository = damageReportRepository;
         this.adjustmentRepository = adjustmentRepository;
@@ -67,6 +69,7 @@ public class DisposalService {
         this.userWarehouseAssignmentRepository = userWarehouseAssignmentRepository;
         this.receiptValidationService = receiptValidationService;
         this.auditLogService = auditLogService;
+        this.quarantineRecordRepository = quarantineRecordRepository;
     }
 
     @Transactional
@@ -192,12 +195,121 @@ public class DisposalService {
                 .build();
     }
 
+    @Transactional
+    public DisposalResponse createDisposalFromQuarantine(Long quarantineRecordId, DisposalRequest request, User actor) {
+        receiptValidationService.assertRole(actor, UserRole.WAREHOUSE_STAFF, "DISPOSAL_CREATE");
+
+        QuarantineRecord qr = quarantineRecordRepository.findById(quarantineRecordId)
+                .orElseThrow(() -> new ResourceNotFoundException("Quarantine record not found: " + quarantineRecordId));
+
+        receiptValidationService.assertWarehouseAccess(actor, qr.getWarehouse().getId());
+
+        if (qr.getRemainingQuantity() == null || qr.getRemainingQuantity().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BusinessRuleViolationException("NO_FAILED_QTY: Quarantine record has no quantity to dispose");
+        }
+
+        // Chặn không cho phép tạo RTV/Debit Note cho hàng điều chuyển
+        if ("INTERNAL_TRANSFER".equals(qr.getOriginType())) {
+            // Check report already exists
+            boolean reportExists = adjustmentRepository.existsByReferenceTypeAndReferenceIdAndType(
+                    "QUARANTINE_RECORD", quarantineRecordId, AdjustmentType.DISPOSAL);
+            if (reportExists) {
+                throw new BusinessRuleViolationException("ALREADY_DISPOSED: A disposal adjustment has already been requested or processed for this item.");
+            }
+        }
+
+        BigDecimal unitCost = BigDecimal.ZERO;
+        List<PriceHistory> prices = priceHistoryRepository.findLatestApproved(
+                qr.getProduct().getId(), qr.getWarehouse().getId());
+        if (!prices.isEmpty()) {
+            unitCost = prices.get(0).getCostPrice();
+        }
+
+        BigDecimal failedQty = qr.getRemainingQuantity();
+        BigDecimal totalValue = failedQty.multiply(unitCost);
+
+        String reportNumber = "DR-" + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))
+                + "-" + UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+
+        DamageReport damageReport = DamageReport.builder()
+                .reportNumber(reportNumber)
+                .warehouse(qr.getWarehouse())
+                .product(qr.getProduct())
+                .batch(qr.getBatch())
+                .quantity(failedQty)
+                .cause(request.getCause())
+                .imageUrl(request.getImageUrl())
+                .reportedBy(actor)
+                .reportDate(LocalDate.now())
+                .createdAt(OffsetDateTime.now())
+                .build();
+
+        damageReport = damageReportRepository.save(damageReport);
+
+        String adjNumber = "ADJ-" + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))
+                + "-" + UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+
+        Adjustment adjustment = Adjustment.builder()
+                .adjustmentNumber(adjNumber)
+                .warehouse(qr.getWarehouse())
+                .product(qr.getProduct())
+                .batch(qr.getBatch())
+                .location(qr.getLocation())
+                .quantityAdjustment(failedQty.negate())
+                .type(AdjustmentType.DISPOSAL)
+                .referenceId(quarantineRecordId)
+                .referenceType("QUARANTINE_RECORD")
+                .quarantineRecord(qr)
+                .reason(request.getCause())
+                .createdBy(actor)
+                .documentDate(LocalDate.now())
+                .createdAt(OffsetDateTime.now())
+                .build();
+
+        boolean autoApproved = totalValue.compareTo(AUTO_APPROVAL_THRESHOLD) < 0;
+        if (autoApproved) {
+            adjustment.setApprovedBy(actor);
+            adjustment.setApprovedAt(OffsetDateTime.now());
+            adjustment = adjustmentRepository.save(adjustment);
+
+            deductQuarantineInventory(adjustment, actor);
+
+            qr.setRemainingQuantity(BigDecimal.ZERO);
+            quarantineRecordRepository.save(qr);
+
+            auditLogService.log(
+                    actor, AuditAction.QUARANTINE_DISPOSAL_APPROVE, DAMAGE_REPORT_ENTITY,
+                    damageReport.getId(), reportNumber,
+                    qr.getWarehouse().getId(),
+                    Map.of(),
+                    Map.of("autoApproved", true, "totalValue", totalValue, "adjustmentId", adjustment.getId())
+            );
+        } else {
+            adjustment = adjustmentRepository.save(adjustment);
+
+            auditLogService.log(
+                    actor, AuditAction.QUARANTINE_DISPOSAL_CREATE, DAMAGE_REPORT_ENTITY,
+                    damageReport.getId(), reportNumber,
+                    qr.getWarehouse().getId(),
+                    Map.of(),
+                    Map.of("autoApproved", false, "totalValue", totalValue, "adjustmentId", adjustment.getId())
+            );
+        }
+
+        return DisposalResponse.builder()
+                .adjustmentId(adjustment.getId())
+                .adjustmentNumber(adjustment.getAdjustmentNumber())
+                .autoApproved(autoApproved)
+                .message(autoApproved 
+                        ? "Đã tạo phiếu tiêu hủy tự động duyệt (Giá trị: " + totalValue + " VND)"
+                        : "Đã tạo yêu cầu tiêu hủy chờ phê duyệt (Giá trị: " + totalValue + " VND)")
+                .build();
+    }
+
     @Transactional(readOnly = true)
     public List<PendingDisposalResponse> getPendingDisposals(User actor) {
-        // Retrieve all pending adjustments of type DISPOSAL
         List<Adjustment> pendingAdjustments = adjustmentRepository.findByTypeAndApprovedAtIsNull(AdjustmentType.DISPOSAL);
 
-        // Filter based on user warehouse assignment
         if (actor.getRole() != UserRole.ADMIN && actor.getRole() != UserRole.CEO) {
             List<Long> assignedWarehouseIds = userWarehouseAssignmentRepository.findWarehouseIdsByUserId(actor.getId());
             pendingAdjustments = pendingAdjustments.stream()
@@ -208,18 +320,20 @@ public class DisposalService {
         List<PendingDisposalResponse> responses = new ArrayList<>();
         for (Adjustment adj : pendingAdjustments) {
             BigDecimal failedQty = adj.getQuantityAdjustment().abs();
-            
-            // Try to find the associated unit cost
             BigDecimal unitCost = BigDecimal.ZERO;
+
             if (adj.getReferenceId() != null) {
-                var receiptItemOpt = receiptItemRepository.findById(adj.getReferenceId());
-                if (receiptItemOpt.isPresent()) {
-                    BigDecimal cost = receiptItemOpt.get().getUnitCost();
-                    if (cost != null) {
-                        unitCost = cost;
+                if ("RECEIPT_ITEM".equals(adj.getReferenceType())) {
+                    var receiptItemOpt = receiptItemRepository.findById(adj.getReferenceId());
+                    if (receiptItemOpt.isPresent()) {
+                        BigDecimal cost = receiptItemOpt.get().getUnitCost();
+                        if (cost != null) {
+                            unitCost = cost;
+                        }
                     }
                 }
             }
+
             if (unitCost.compareTo(BigDecimal.ZERO) == 0) {
                 List<PriceHistory> prices = priceHistoryRepository.findLatestApproved(
                         adj.getProduct().getId(), adj.getWarehouse().getId());
@@ -252,7 +366,6 @@ public class DisposalService {
 
     @Transactional
     public DisposalResponse approveDisposal(Long adjustmentId, User actor) {
-        // Assert role WAREHOUSE_MANAGER (includes CEO, ADMIN)
         receiptValidationService.assertRole(actor, UserRole.WAREHOUSE_MANAGER, "DISPOSAL_APPROVE");
 
         Adjustment adjustment = adjustmentRepository.findById(adjustmentId)
@@ -268,18 +381,21 @@ public class DisposalService {
 
         receiptValidationService.assertWarehouseAccess(actor, adjustment.getWarehouse().getId());
 
-        // Determine value for role checks
         BigDecimal failedQty = adjustment.getQuantityAdjustment().abs();
         BigDecimal unitCost = BigDecimal.ZERO;
+
         if (adjustment.getReferenceId() != null) {
-            var receiptItemOpt = receiptItemRepository.findById(adjustment.getReferenceId());
-            if (receiptItemOpt.isPresent()) {
-                BigDecimal cost = receiptItemOpt.get().getUnitCost();
-                if (cost != null) {
-                    unitCost = cost;
+            if ("RECEIPT_ITEM".equals(adjustment.getReferenceType())) {
+                var receiptItemOpt = receiptItemRepository.findById(adjustment.getReferenceId());
+                if (receiptItemOpt.isPresent()) {
+                    BigDecimal cost = receiptItemOpt.get().getUnitCost();
+                    if (cost != null) {
+                        unitCost = cost;
+                    }
                 }
             }
         }
+
         if (unitCost.compareTo(BigDecimal.ZERO) == 0) {
             List<PriceHistory> prices = priceHistoryRepository.findLatestApproved(
                     adjustment.getProduct().getId(), adjustment.getWarehouse().getId());
@@ -290,7 +406,6 @@ public class DisposalService {
 
         BigDecimal totalValue = failedQty.multiply(unitCost);
 
-        // CEO threshold validation (> 100M VND requires CEO)
         if (totalValue.compareTo(CEO_APPROVAL_THRESHOLD) > 0) {
             if (actor.getRole() != UserRole.CEO && actor.getRole() != UserRole.ADMIN) {
                 throw new ForbiddenReceiptWarehouseException(
@@ -298,13 +413,18 @@ public class DisposalService {
             }
         }
 
-        // Process approval
         adjustment.setApprovedBy(actor);
         adjustment.setApprovedAt(OffsetDateTime.now());
         adjustmentRepository.save(adjustment);
 
-        // Deduct inventory
         deductQuarantineInventory(adjustment, actor);
+
+        if ("QUARANTINE_RECORD".equals(adjustment.getReferenceType())) {
+            QuarantineRecord qr = quarantineRecordRepository.findById(adjustment.getReferenceId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Quarantine record not found"));
+            qr.setRemainingQuantity(qr.getRemainingQuantity().subtract(failedQty).max(BigDecimal.ZERO));
+            quarantineRecordRepository.save(qr);
+        }
 
         auditLogService.log(
                 actor, AuditAction.QUARANTINE_DISPOSAL_APPROVE, ADJUSTMENT_ENTITY,

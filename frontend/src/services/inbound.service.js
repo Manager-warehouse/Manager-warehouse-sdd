@@ -1242,6 +1242,15 @@ export const inboundService = {
     return response.data;
   },
 
+  handleDisposalFromQuarantine: async (quarantineRecordId, cause, imageUrl) => {
+    if (useMock) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      return { autoApproved: true };
+    }
+    const response = await apiClient.post(`/quarantine/${quarantineRecordId}/dispose`, { cause, image_url: imageUrl });
+    return response.data;
+  },
+
   getPendingDisposals: async () => {
     if (useMock) {
       await new Promise(resolve => setTimeout(resolve, 300));

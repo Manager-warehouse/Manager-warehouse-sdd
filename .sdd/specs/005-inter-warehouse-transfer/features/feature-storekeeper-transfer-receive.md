@@ -52,6 +52,7 @@ Sprint 1 gia dinh moi phieu `TRF` co mot lan ship va mot lan final receive. Cac 
       * Create an `adjustments` record for the discrepancy (`variance_qty = received_qty - sent_qty`, type = `'TRANSFER_DISCREPANCY'`).
       * Log the reason in the audit trail (`discrepancy_reason`).
       * Set status to `COMPLETED_WITH_DISCREPANCY`.
+      * SHALL NOT create quarantine inventory or a disposal candidate for the missing quantity because it is not physically present.
     * IF there is a final-level material issue unrelated to QC failure, the system SHALL require `discrepancy_reason` before confirmation.
     * IF QC failed quantity is greater than zero and no active quarantine location exists in the destination warehouse, the system SHALL reject confirmation with `QUARANTINE_LOCATION_REQUIRED`.
     * Create a `TRANSFER_RECEIVE_CONFIRM` audit log entry.
@@ -63,8 +64,23 @@ Sprint 1 gia dinh moi phieu `TRF` co mot lan ship va mot lan final receive. Cac 
     * Record the actor and timestamp under `rejectedBy` and `rejectedAt`, and store the rejection reason under `rejectionReason`.
     * Update all transfer items: set `receivedQty` to `sentQty`, `qcPassedQty` to `0`, `qcFailedQty` to `sentQty`. Set `checkerNote` and `qcFailureReason` of all items to the rejection reason.
     * Move all transit stock of this transfer from the `IN_TRANSIT` virtual location and add it to the destination warehouse's active quarantine bin (or source warehouse's active quarantine bin if `is_returned = true`).
+    * Mark the quarantined stock as `INTERNAL_TRANSFER` origin with transfer and transfer-item traceability for disposal under [spec 009](../../009-returns-scrap-disposal/features/feature-manager-scrap-disposal.md).
+    * Block supplier RTV and supplier Debit Note actions for this stock.
     * Release the vehicle, driver, and trip: set driver and vehicle status back to `AVAILABLE` and the trip status to `COMPLETED`.
     * Create a `TRANSFER_QUARANTINE_REJECT` audit log entry containing the rejection reason.
+  * WHEN destination Storekeeper identifies an intact wrong SKU, the system SHALL:
+    * Require expected SKU, actual SKU, affected quantity, and a non-blank reason.
+    * Create a `WRONG_SKU` return report while the transfer remains `IN_TRANSIT`.
+    * Keep the physical stock in In-Transit and SHALL NOT move it to regular inventory or Quarantine.
+    * Notify the destination Warehouse Manager for decision.
+    * Create a `TRANSFER_RETURN_REQUEST` audit log entry.
+  * WHEN destination Warehouse Manager approves a `WRONG_SKU` return report, the system SHALL:
+    * Require destination warehouse scope and an assigned driver/trip.
+    * Set `is_returned = true`, retain the same transfer, trip, vehicle, driver, and In-Transit stock, and direct the assigned driver back to the source warehouse.
+    * Flip receiving responsibility to source Staff, source Storekeeper, and source Warehouse Manager.
+    * Create a `TRANSFER_RETURN_APPROVE` audit log entry.
+  * WHEN returned goods arrive at the source warehouse, the system SHALL repeat receive-count, receive-check/QC, and final-receive with source-scoped actors.
+  * WHEN a transfer shortage is finalized, the system SHALL import and calculate value only for physically received and accepted quantity; missing quantity SHALL remain a quantity-only discrepancy and SHALL NOT be included in destination receipt value or billing totals.
 * **Authorization and warehouse scope:**
   * Nhân viên kho/Công nhân kho đích SHALL record initial counts only for transfers whose destination warehouse is in the actor's assigned warehouse scope.
   * When `is_returned = true` (Return to Source triggered), the receiving scope flips to the source warehouse; destination-side actors SHALL be blocked from all receive actions.
@@ -81,6 +97,9 @@ Sprint 1 gia dinh moi phieu `TRF` co mot lan ship va mot lan final receive. Cac 
 * `PUT /api/v1/transfers/{id}/receive-check` - Thủ kho đích kiểm tra lại số lượng, nhập/chốt QC, chọn vị trí nhập kho cho hàng đạt và duyệt kết quả nhận.
 * `POST /api/v1/transfers/{id}/final-receive` - Trưởng kho đích xác nhận nhận hàng tại kho đích và báo cáo chênh lệch nếu có.
 * `POST /api/v1/transfers/{id}/quarantine-reject` - Thủ kho đích hoặc Trưởng kho đích từ chối toàn bộ và đưa vào quarantine.
+* `POST /api/v1/transfers/{id}/return-request` - Thủ kho đích báo cáo gửi nhầm SKU còn nguyên.
+* `POST /api/v1/transfers/{id}/return-request/approve` - Trưởng kho đích duyệt cho tài xế quay đầu về kho nguồn.
+* `POST /api/v1/transfers/{id}/return-request/reject` - Trưởng kho đích từ chối yêu cầu quay đầu với lý do.
 
 ### `PUT /api/v1/transfers/{id}/receive-count` Request
 ```json
@@ -142,6 +161,10 @@ Sprint 1 gia dinh moi phieu `TRF` co mot lan ship va mot lan final receive. Cac 
 * `QUARANTINE_LOCATION_NOT_CONFIGURED` (HTTP 422): QC-failed quantity exists but the target warehouse has no active quarantine bin — validated at `receiveCheck` time.
 * `DISCREPANCY_REQUIRES_REASON` (HTTP 400): shortage or final-level material issue outside normal QC failure exists without a reason.
 * `TRANSFER_SPLIT_RECEIVE_NOT_SUPPORTED` (HTTP 409): actor attempts to finalize the same transfer through multiple independent receipt cycles.
+* `RETURN_REQUEST_NOT_ALLOWED` (HTTP 409): wrong-SKU report is not allowed in the current transfer state.
+* `WRONG_SKU_REASON_REQUIRED` (HTTP 400): expected/actual SKU, quantity, or reason is missing.
+* `RETURN_REQUEST_REQUIRED` (HTTP 409): manager decision attempted before a Storekeeper report.
+* `RETURN_APPROVAL_NOT_ALLOWED` (HTTP 403): actor is not the destination Warehouse Manager or lacks destination warehouse scope.
 
 ## 6. Acceptance Criteria
 * **Scenario: Receive with quantity discrepancy**
@@ -154,6 +177,8 @@ Sprint 1 gia dinh moi phieu `TRF` co mot lan ship va mot lan final receive. Cac 
     * Deduct the full 30 units from virtual In-Transit inventory (clearing it to 0).
     * Create a `TRANSFER_DISCREPANCY` adjustment for -2 units.
     * Set status to `COMPLETED_WITH_DISCREPANCY`.
+    * Calculate destination inventory quantity and value for 28 units only; the 2 missing units SHALL carry no amount in the destination receipt total.
+    * Create no invoice, revenue, dealer receivable, supplier payable, or supplier Debit Note.
 
 * **Scenario: Reject over-receipt**
   * Given a transfer of 30 units in `IN_TRANSIT` status
@@ -171,6 +196,29 @@ Sprint 1 gia dinh moi phieu `TRF` co mot lan ship va mot lan final receive. Cac 
   * And Thủ kho HN records 28 passed units and 2 failed units with a QC failure reason, then approves receive check
   * And Trưởng kho HN confirms the receipt
   * Then the system SHALL add 28 units to regular inventory, add 2 units to quarantine inventory, and exclude the failed quantity from available inventory.
+  * And the 2 quarantine units SHALL retain internal-transfer origin and be eligible only for disposal under spec 009.
+
+* **Scenario: Shortage is not quarantine stock**
+  * Given 30 units were sent and only 28 units physically arrived
+  * When the destination completes receiving with the required shortage reason
+  * Then the system SHALL create a `TRANSFER_DISCREPANCY` adjustment for -2 and SHALL NOT create two quarantine units or a disposal candidate.
+
+* **Scenario: Physically damaged transfer goods map to disposal**
+  * Given transfer goods physically arrive but are damaged and fail QC
+  * When they are moved into the destination Quarantine bin
+  * Then the system SHALL preserve transfer-item traceability, block RTV, and expose the physical damaged quantity to the spec 009 disposal workflow.
+
+* **Scenario: Intact wrong SKU may return to source**
+  * Given the wrong SKU arrives but remains intact and safe to transport
+  * When destination Storekeeper reports `WRONG_SKU` with expected/actual SKU and destination Warehouse Manager approves
+  * Then the assigned driver SHALL turn back with the same transfer/trip and the goods SHALL remain In-Transit.
+  * And source Staff SHALL count, source Storekeeper SHALL check/QC, and source Warehouse Manager SHALL final-confirm the return.
+  * And QC-passed quantity SHALL return to source regular inventory; any newly discovered damaged quantity SHALL enter source Quarantine; any shortage SHALL create a discrepancy adjustment.
+
+* **Scenario: Block Storekeeper from self-approving wrong-SKU return**
+  * Given destination Storekeeper submitted a `WRONG_SKU` return report
+  * When the same Storekeeper attempts to approve vehicle return
+  * Then the system SHALL reject the action because destination Warehouse Manager approval is required.
 
 * **Scenario: Block worker edit after receive check approval**
   * Given Nhân viên kho HN recorded initial receipt counts
@@ -218,3 +266,18 @@ Sprint 1 gia dinh moi phieu `TRF` co mot lan ship va mot lan final receive. Cac 
   * Given transfer `TRF-*` is in one active receiving cycle
   * When a user attempts to complete half of the quantity now and half later as separate final confirmations
   * Then the system SHALL reject the flow because split final receive is not supported in Sprint 1.
+
+## 7. Success Criteria
+
+- 100% finalized shortages calculate destination inventory quantity and value only from physically received and accepted quantity.
+- 0 internal-transfer shortages create invoices, receivables, payables, supplier Debit Notes, or automatic employee charges.
+- 100% wrong-SKU returns require both destination Storekeeper reporting and destination Warehouse Manager approval.
+- 100% approved wrong-SKU returns remain traceable through the original transfer, trip, vehicle, driver, and source receiving audit chain.
+- Source users can complete the returned-goods count/check/QC/final-confirm sequence without creating a second transfer document.
+
+## 8. Assumptions
+
+- Destination inventory valuation applies only to physically received and accepted quantity.
+- Employee or driver liability is decided only by a separate investigation and accounting approval process.
+- A wrong-SKU return uses the currently assigned driver and vehicle; driver replacement after departure remains out of Sprint 1 scope.
+- The wrong SKU is intact and safe to transport. Damaged goods use Quarantine and spec 009 disposal instead.

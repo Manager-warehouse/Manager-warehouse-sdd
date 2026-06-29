@@ -119,7 +119,11 @@ public class InterWarehouseTransferHelper {
         for (InterWarehouseTransferAllocation allocation : allocationRepository.findByTransferItemTransferId(transfer.getId())) {
             Inventory inventory = inventoryRepository.findByIdForUpdate(allocation.getInventory().getId())
                     .orElseThrow(() -> new ResourceNotFoundException("Inventory not found: " + allocation.getInventory().getId()));
-            inventory.setReservedQty(inventory.getReservedQty().subtract(allocation.getAllocatedQty()));
+            BigDecimal newReserved = inventory.getReservedQty().subtract(allocation.getAllocatedQty());
+            if (newReserved.compareTo(java.math.BigDecimal.ZERO) < 0) {
+                newReserved = java.math.BigDecimal.ZERO;
+            }
+            inventory.setReservedQty(newReserved);
             inventory.setUpdatedAt(OffsetDateTime.now());
             inventoryRepository.save(inventory);
         }

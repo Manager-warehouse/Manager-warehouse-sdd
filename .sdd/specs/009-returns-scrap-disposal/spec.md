@@ -11,6 +11,8 @@
 
 Đại lý có thể hoàn trả hàng (hàng lỗi, sai quy cách, tồn kho) và hàng trong Quarantine Zone cần được xử lý tiêu hủy khi không thể nhập lại kho hoặc trả NCC theo luồng inbound. Các quy trình này ảnh hưởng đến inventory và công nợ, cần kiểm soát chặt chẽ. RTV của hàng lỗi inbound được xử lý tại Spec 003.
 
+Đối với hàng có nguồn từ điều chuyển nội bộ đã vào Quarantine, Spec 009 chỉ áp dụng luồng tiêu hủy hiện có; RTV không hợp lệ.
+
 ### Features List
 * [US-WMS-24: Xử lý Hàng hoàn trả từ Đại lý](./features/feature-storekeeper-customer-returns.md)
 * [US-WMS-04 (Disposal Sub-flow): Tiêu hủy Hàng lỗi từ Quarantine](./features/feature-manager-scrap-disposal.md)

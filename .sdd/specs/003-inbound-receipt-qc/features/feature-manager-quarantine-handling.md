@@ -1,7 +1,7 @@
-# Feature: Trưởng kho Xử lý Hàng lỗi QC và Quarantine Zone (US-WMS-05)
+# Feature: Trưởng kho Xử lý Hàng lỗi trong Quarantine Zone (US-WMS-04)
 
 ## 1. Context and Goal
-Trưởng kho xử lý hàng lỗi đang nằm trong khu vực cách ly (Quarantine Zone) bằng phương án trả về nhà cung cấp (RTV) kèm Debit Note. Hàng gia dụng lỗi không được phân loại lại thành cấp chất lượng khác để bán tiếp trong Sprint 1. Feature 003 chỉ hiển thị và xử lý nút "Trả NCC"; luồng tiêu hủy hàng lỗi không hiển thị trong feature này và được đặc tả tại [009 returns & disposal](../../009-returns-scrap-disposal/spec.md).
+Trưởng kho xử lý hàng lỗi đang nằm trong khu vực cách ly (Quarantine Zone) bằng phương án trả về nhà cung cấp (RTV) kèm Debit Note. Hàng gia dụng lỗi không được phân loại lại thành cấp chất lượng khác để bán tiếp trong Sprint 1. Feature 003 chỉ hiển thị và xử lý nút "Trả NCC"; luồng tiêu hủy hàng lỗi không hiển thị trong feature này và được đặc tả tại [009 returns & disposal](../../009-returns-scrap-disposal/spec.md). 
 
 ## Clarifications
 
@@ -38,8 +38,6 @@ Trưởng kho xử lý hàng lỗi đang nằm trong khu vực cách ly (Quarant
     * Decrease quarantine inventories by the full quarantined quantity.
     * Keep the source receipt status as `QC_FAILED`.
 * **State-driven:**
-  * WHILE a receipt is `QC_FAILED` but quarantine intake has not been confirmed by Trưởng kho, the system SHALL keep inventory unchanged.
-  * WHILE quarantine inventory has not been created for the failed lot, the system SHALL reject RTV inventory deduction for that lot.
   * WHILE return-to-vendor documentation is pending, the system SHALL NOT deduct quarantine inventories.
   * WHILE the confirmed returned quantity is less than or greater than the full quarantined quantity, the system SHALL reject RTV confirmation with HTTP 422.
   * WHILE a `RETURN_TO_VENDOR` adjustment already exists for the receipt, duplicate RTV creation attempts SHALL be rejected with HTTP 409.
@@ -49,18 +47,10 @@ Trưởng kho xử lý hàng lỗi đang nằm trong khu vực cách ly (Quarant
 * `POST /api/v1/receipts/{id}/rtv` - Lập phiếu trả hàng NCC và sinh Debit Note.
 * `PUT /api/v1/receipts/{id}/rtv/confirm` - Storekeeper xác nhận đã giao trả NCC và trừ tồn Quarantine.
 
-All write requests in this feature SHALL include `expectedVersion` so stale concurrent RTV create/confirm actions return HTTP 409. RTV create is restricted to an assigned Trưởng kho, while RTV physical return confirmation is restricted to Storekeeper for the receipt warehouse. RTV confirmation SHALL provide `returnedQty`, and the backend SHALL reject any value different from the full quarantined quantity with HTTP 422.
-
 ## 5. Acceptance Criteria
 
-**Scenario: Trưởng kho xác nhận đưa hàng lỗi vào Quarantine inventory**
-* Given a receipt is in `QC_FAILED` status with `actual_qty = 20`
-* When Trưởng kho confirms quarantine intake
-* Then the system SHALL create or resolve the failed lot batch, set `receipt_items.batch_id`, assign a quarantine location, and increase quarantine `inventories.total_qty` by 20.
-* And the 20 quarantined units SHALL be excluded from available selling inventory.
-
 **Scenario: Trưởng kho trả hàng lỗi về nhà cung cấp**
-* Given 20 units of product X are already recorded in quarantine inventory after Trưởng kho confirmed quarantine intake
+* Given 20 units of product X in quarantine after `QC_FAILED`
 * When Trưởng kho selects "Trả NCC"
 * Then the system SHALL create a pending `RETURN_TO_VENDOR` adjustment, create a Debit Note, and SHALL NOT deduct quarantine stock yet.
 

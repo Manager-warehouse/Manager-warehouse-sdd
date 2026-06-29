@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Plus, RefreshCw, Search } from 'lucide-react';
+import { Plus, RefreshCw, Search, AlertCircle, Info } from 'lucide-react';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import { masterDataService } from '../../services/masterData.service';
@@ -288,6 +288,9 @@ const InterWarehouseTransferWorkspace = () => {
         finalReceive: () => interWarehouseTransferService.finalReceive(id, payload),
         returnToSource: () => interWarehouseTransferService.returnToSource(id),
         quarantineReject: () => interWarehouseTransferService.quarantineReject(id, payload),
+        requestReturn: () => interWarehouseTransferService.requestReturn(id, payload),
+        approveReturn: () => interWarehouseTransferService.approveReturn(id),
+        rejectReturn: () => interWarehouseTransferService.rejectReturn(id, payload),
       };
       const updated = await actions[name]();
       addToast('Đã cập nhật phiếu điều chuyển', 'success');
@@ -437,21 +440,42 @@ const InterWarehouseTransferWorkspace = () => {
                   {selectedTransfer.tripWarningMessage}
                 </div>
               )}
-              <div className="divide-y divide-hairline-light">
-                {selectedTransfer.items?.map((item) => (
-                  <div key={item.id} className="py-2 text-sm">
-                    <div className="font-semibold">{item.productSku} <span className="font-normal text-shade-60">{item.productName}</span></div>
-                    <div className="grid grid-cols-5 gap-2 text-xs text-shade-60 mt-1">
-                      <span>Kế hoạch: {item.plannedQty}</span>
-                      <span className={Number(item.plannedQty) > Number(selectedAvailabilityByItem[item.id]?.availableQty ?? 0) ? 'text-red-600 font-semibold' : ''}>
-                        Khả dụng: {selectedAvailabilityByItem[item.id]?.error ? 'Lỗi tải' : (selectedAvailabilityByItem[item.id]?.availableQty ?? '-')}
-                      </span>
-                      <span>Xuất: {item.sentQty ?? '-'}</span>
-                      <span>Công nhân: {item.workerReceivedQty ?? '-'}</span>
-                      <span>QC đạt/lỗi: {item.qcPassedQty ?? '-'} / {item.qcFailedQty ?? '-'}</span>
-                    </div>
+              {selectedTransfer.status === 'COMPLETED_WITH_DISCREPANCY' && selectedTransfer.discrepancyReason && (
+                <div className="mb-3 rounded-md border border-red-200 bg-red-50/80 backdrop-blur-sm px-3.5 py-2.5 text-xs text-red-700 shadow-sm flex items-start gap-2 animate-in fade-in duration-200">
+                  <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold block mb-0.5">Phát hiện chênh lệch thiếu hàng</span>
+                    <span className="font-normal text-red-600">Lý do: "{selectedTransfer.discrepancyReason}"</span>
                   </div>
-                ))}
+                </div>
+              )}
+              <div className="divide-y divide-hairline-light">
+                {selectedTransfer.items?.map((item) => {
+                  const sent = item.sentQty !== null ? Number(item.sentQty) : null;
+                  const received = item.receivedQty !== null ? Number(item.receivedQty) : null;
+                  const hasDiscrepancy = sent !== null && received !== null && (received - sent !== 0);
+                  const diff = sent !== null && received !== null ? received - sent : 0;
+
+                  return (
+                    <div key={item.id} className="py-2.5 text-xs">
+                      <div className="font-semibold text-sm">{item.productSku} <span className="font-normal text-shade-60">{item.productName}</span></div>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2 bg-zinc-50 p-2 rounded border border-hairline-light">
+                        <div><span className="text-shade-50">Kế hoạch:</span> <strong>{item.plannedQty}</strong></div>
+                        <div className={Number(item.plannedQty) > Number(selectedAvailabilityByItem[item.id]?.availableQty ?? 0) ? 'text-red-600 font-semibold' : ''}>
+                          <span className="text-shade-50">Khả dụng nguồn:</span> <strong>{selectedAvailabilityByItem[item.id]?.error ? 'Lỗi tải' : (selectedAvailabilityByItem[item.id]?.availableQty ?? '-')}</strong>
+                        </div>
+                        <div><span className="text-shade-50">Đã xuất đi:</span> <strong className="text-ink">{item.sentQty ?? '-'}</strong></div>
+                        <div><span className="text-shade-50">Thực tế nhận:</span> <strong className="text-emerald-700">{item.receivedQty ?? '-'}</strong></div>
+                        <div><span className="text-shade-50">QC đạt/lỗi:</span> <strong>{item.qcPassedQty ?? '0'} / {item.qcFailedQty ?? '0'}</strong></div>
+                        {hasDiscrepancy && (
+                          <div className="text-red-600 font-bold bg-red-100/50 px-1.5 py-0.5 rounded border border-red-250 w-fit">
+                            Chênh lệch: {diff > 0 ? `+${diff}` : diff} cái
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

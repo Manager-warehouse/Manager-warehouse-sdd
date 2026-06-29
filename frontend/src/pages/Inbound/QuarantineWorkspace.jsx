@@ -93,7 +93,9 @@ const QuarantineWorkspace = () => {
     }
     setSubmitting(true);
     try {
-      const res = await inboundService.handleDisposal(selectedItem.receipt_item_id, actionNotes, disposalImageUrl);
+      const res = selectedItem.origin_type === 'RECEIPT'
+        ? await inboundService.handleDisposal(selectedItem.id, actionNotes, disposalImageUrl)
+        : await inboundService.handleDisposalFromQuarantine(selectedItem.id, actionNotes, disposalImageUrl);
       if (res.autoApproved) {
         addToast('Đã tiêu hủy sản phẩm thành công (Tự động duyệt do giá trị thấp < 5M)', 'success');
       } else {
@@ -222,7 +224,16 @@ const QuarantineWorkspace = () => {
 
                   <div className="flex flex-col gap-1.5 text-xs text-shade-60 mb-5">
                     <div>
-                      <span className="font-semibold text-shade-50">Phiếu nhập gốc:</span> {item.receipt_number}
+                      <span className="font-semibold text-shade-50">Nguồn gốc cách ly:</span>{' '}
+                      {item.origin_type === 'INTERNAL_TRANSFER' ? (
+                        <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 px-1.5 py-0.5 rounded font-mono font-bold text-[10px]">
+                          Điều chuyển: {item.receipt_number}
+                        </span>
+                      ) : (
+                        <span className="bg-zinc-50 text-zinc-700 border border-zinc-200 px-1.5 py-0.5 rounded font-mono font-bold text-[10px]">
+                          Phiếu nhập: {item.receipt_number}
+                        </span>
+                      )}
                     </div>
                     <div>
                       <span className="font-semibold text-shade-50">Nhà cung cấp:</span> {getSupplierName(item.supplier_id)}
@@ -237,13 +248,15 @@ const QuarantineWorkspace = () => {
                 </div>
 
                 <div className="flex gap-2 border-t border-zinc-100 pt-4 justify-end">
-                  <button
-                    onClick={() => handleRtvClick(item)}
-                    className="btn-pill btn-pill-outline-light text-xs flex items-center gap-1.5 py-1.5"
-                  >
-                    <ArrowRightLeft className="w-3.5 h-3.5" />
-                    <span>Trả hàng NCC (RTV)</span>
-                  </button>
+                  {(!item.origin_type || item.origin_type === 'RECEIPT') && (
+                    <button
+                      onClick={() => handleRtvClick(item)}
+                      className="btn-pill btn-pill-outline-light text-xs flex items-center gap-1.5 py-1.5"
+                    >
+                      <ArrowRightLeft className="w-3.5 h-3.5" />
+                      <span>Trả hàng NCC (RTV)</span>
+                    </button>
+                  )}
                   <button
                     onClick={() => handleDisposalClick(item)}
                     className="btn-pill bg-zinc-900 hover:bg-zinc-800 text-white text-xs flex items-center gap-1.5 py-1.5"

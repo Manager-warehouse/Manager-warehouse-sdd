@@ -353,4 +353,183 @@ export const interWarehouseTransferService = {
     const response = await apiClient.post(`/inter-warehouse-transfers/${id}/quarantine-reject`, { rejectionReason: reason });
     return response.data;
   },
+
+  requestReturn: async (id, reason) => {
+    if (useMock) {
+      const transfers = readMockTransfers();
+      const index = transfers.findIndex((t) => t.id === Number(id));
+      if (index !== -1) {
+        transfers[index].returnRequested = true;
+        transfers[index].returnReason = reason;
+        writeMockTransfers(transfers);
+        return transfers[index];
+      }
+    }
+    const response = await apiClient.post(`/inter-warehouse-transfers/${id}/request-return`, { reason });
+    return response.data;
+  },
+
+  approveReturn: async (id) => {
+    if (useMock) {
+      const transfers = readMockTransfers();
+      const index = transfers.findIndex((t) => t.id === Number(id));
+      if (index !== -1) {
+        transfers[index].returnRequested = false;
+        transfers[index].isReturned = true;
+        writeMockTransfers(transfers);
+        return transfers[index];
+      }
+    }
+    const response = await apiClient.post(`/inter-warehouse-transfers/${id}/approve-return`);
+    return response.data;
+  },
+
+  rejectReturn: async (id, reason) => {
+    if (useMock) {
+      const transfers = readMockTransfers();
+      const index = transfers.findIndex((t) => t.id === Number(id));
+      if (index !== -1) {
+        transfers[index].returnRequested = false;
+        transfers[index].returnRejectionReason = reason;
+        writeMockTransfers(transfers);
+        return transfers[index];
+      }
+    }
+    const response = await apiClient.post(`/inter-warehouse-transfers/${id}/reject-return`, { reason });
+    return response.data;
+  },
+
+  // --- TRANSFER REQUESTS (US4) ---
+  getTransferRequests: async () => {
+    if (useMock) {
+      const raw = localStorage.getItem('wms_db_transfer_requests');
+      return raw ? JSON.parse(raw) : [];
+    }
+    const response = await apiClient.get('/transfer-requests');
+    return response.data;
+  },
+
+  getTransferRequestById: async (id) => {
+    if (useMock) {
+      const requests = JSON.parse(localStorage.getItem('wms_db_transfer_requests') || '[]');
+      return requests.find(r => r.id === Number(id));
+    }
+    const response = await apiClient.get(`/transfer-requests/${id}`);
+    return response.data;
+  },
+
+  createTransferRequest: async (payload) => {
+    if (useMock) {
+      const requests = JSON.parse(localStorage.getItem('wms_db_transfer_requests') || '[]');
+      const id = nextId(requests);
+      const newRequest = {
+        ...payload,
+        id,
+        requestNumber: `TRQ-${today().replaceAll('-', '')}-${String(id).padStart(4, '0')}`,
+        status: 'DRAFT',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      requests.push(newRequest);
+      localStorage.setItem('wms_db_transfer_requests', JSON.stringify(requests));
+      return newRequest;
+    }
+    const response = await apiClient.post('/transfer-requests', payload);
+    return response.data;
+  },
+
+  updateTransferRequest: async (id, payload) => {
+    if (useMock) {
+      const requests = JSON.parse(localStorage.getItem('wms_db_transfer_requests') || '[]');
+      const idx = requests.findIndex(r => r.id === Number(id));
+      if (idx !== -1) {
+        requests[idx] = { ...requests[idx], ...payload, updatedAt: new Date().toISOString() };
+        localStorage.setItem('wms_db_transfer_requests', JSON.stringify(requests));
+        return requests[idx];
+      }
+    }
+    const response = await apiClient.put(`/transfer-requests/${id}`, payload);
+    return response.data;
+  },
+
+  submitTransferRequest: async (id) => {
+    if (useMock) {
+      const requests = JSON.parse(localStorage.getItem('wms_db_transfer_requests') || '[]');
+      const idx = requests.findIndex(r => r.id === Number(id));
+      if (idx !== -1) {
+        requests[idx].status = 'SUBMITTED';
+        requests[idx].submittedAt = new Date().toISOString();
+        localStorage.setItem('wms_db_transfer_requests', JSON.stringify(requests));
+        return requests[idx];
+      }
+    }
+    const response = await apiClient.post(`/transfer-requests/${id}/submit`);
+    return response.data;
+  },
+
+  approveTransferRequest: async (id) => {
+    if (useMock) {
+      const requests = JSON.parse(localStorage.getItem('wms_db_transfer_requests') || '[]');
+      const idx = requests.findIndex(r => r.id === Number(id));
+      if (idx !== -1) {
+        requests[idx].status = 'APPROVED';
+        requests[idx].approvedAt = new Date().toISOString();
+        localStorage.setItem('wms_db_transfer_requests', JSON.stringify(requests));
+        return requests[idx];
+      }
+    }
+    const response = await apiClient.post(`/transfer-requests/${id}/approve`);
+    return response.data;
+  },
+
+  rejectTransferRequest: async (id, reason) => {
+    if (useMock) {
+      const requests = JSON.parse(localStorage.getItem('wms_db_transfer_requests') || '[]');
+      const idx = requests.findIndex(r => r.id === Number(id));
+      if (idx !== -1) {
+        requests[idx].status = 'REJECTED';
+        requests[idx].rejectionReason = reason;
+        requests[idx].rejectedAt = new Date().toISOString();
+        localStorage.setItem('wms_db_transfer_requests', JSON.stringify(requests));
+        return requests[idx];
+      }
+    }
+    const response = await apiClient.post(`/transfer-requests/${id}/reject`, { reason });
+    return response.data;
+  },
+
+  convertTransferRequest: async (id) => {
+    if (useMock) {
+      const requests = JSON.parse(localStorage.getItem('wms_db_transfer_requests') || '[]');
+      const idx = requests.findIndex(r => r.id === Number(id));
+      if (idx !== -1) {
+        requests[idx].status = 'CONVERTED';
+        localStorage.setItem('wms_db_transfer_requests', JSON.stringify(requests));
+        return requests[idx];
+      }
+    }
+    const response = await apiClient.post(`/transfer-requests/${id}/convert`);
+    return response.data;
+  },
+
+  stockLookup: async (productId) => {
+    if (useMock) {
+      const inventories = readMockInventories();
+      // Group available qty by warehouse
+      const warehouses = JSON.parse(localStorage.getItem('wms_db_warehouses') || '[]');
+      return warehouses
+        .filter(w => w.type !== 'IN_TRANSIT')
+        .map(w => {
+          const rows = inventories.filter(i => Number(i.warehouse_id) === Number(w.id) && Number(i.product_id) === Number(productId));
+          const available = rows.reduce((sum, item) => sum + (Number(item.total_qty) - Number(item.reserved_qty)), 0);
+          return {
+            warehouseId: w.id,
+            warehouseName: w.name,
+            availableQty: available,
+          };
+        });
+    }
+    const response = await apiClient.get('/transfer-requests/stock-lookup', { params: { productId } });
+    return response.data;
+  },
 };

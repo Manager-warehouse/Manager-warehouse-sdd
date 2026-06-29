@@ -44,8 +44,9 @@ class AuditLogServiceTest {
     private UserRepository userRepository;
     @Mock
     private HttpServletRequest httpServletRequest;
+    @Mock
+    private org.springframework.beans.factory.ObjectProvider<HttpServletRequest> httpServletRequestProvider;
 
-    @InjectMocks
     private AuditLogService auditLogService;
 
     private User adminActor;
@@ -58,6 +59,7 @@ class AuditLogServiceTest {
         adminActor.setEmail("admin@wms.com");
         adminActor.setRole(UserRole.ADMIN);
         SecurityContextHolder.clearContext();
+        auditLogService = new AuditLogService(auditLogRepository, userRepository, httpServletRequestProvider);
     }
 
     // ─── LOG CREATION ────────────────────────────────────────────────────────
@@ -65,6 +67,7 @@ class AuditLogServiceTest {
     @Test
     @DisplayName("Ghi audit log đầy đủ các field khi có actor rõ ràng")
     void log_withExplicitActor_savesAllFields() {
+        when(httpServletRequestProvider.getIfAvailable()).thenReturn(httpServletRequest);
         when(httpServletRequest.getRemoteAddr()).thenReturn("127.0.0.1");
 
         auditLogService.log(
@@ -92,6 +95,7 @@ class AuditLogServiceTest {
     @Test
     @DisplayName("Ghi audit log từ SecurityContext khi không truyền actor")
     void log_withSecurityContext_resolvesActorFromContext() {
+        when(httpServletRequestProvider.getIfAvailable()).thenReturn(httpServletRequest);
         when(httpServletRequest.getRemoteAddr()).thenReturn("10.0.0.1");
         when(userRepository.findByEmail("admin@wms.com")).thenReturn(Optional.of(adminActor));
 
@@ -165,6 +169,7 @@ class AuditLogServiceTest {
     @Test
     @DisplayName("Ghi IP từ X-Forwarded-For header khi có proxy")
     void log_xForwardedFor_usesFirstIp() {
+        when(httpServletRequestProvider.getIfAvailable()).thenReturn(httpServletRequest);
         when(httpServletRequest.getHeader("X-Forwarded-For")).thenReturn("203.0.113.5, 10.0.0.1");
 
         auditLogService.log(

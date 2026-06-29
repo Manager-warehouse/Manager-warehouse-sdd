@@ -24,7 +24,7 @@ public class InterWarehouseTransferServiceImpl implements InterWarehouseTransfer
     private final InterWarehouseTransferReceivingService receivingService;
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public List<InterWarehouseTransferResponse> getAllTransfers(User actor) {
         // Load warehouse assignments once to avoid N+1 queries in canViewTransfer
         List<Long> actorWarehouseIds = helper.loadWarehouseIds(actor);
@@ -36,7 +36,7 @@ public class InterWarehouseTransferServiceImpl implements InterWarehouseTransfer
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public InterWarehouseTransferResponse getTransferById(Long id, User actor) {
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.applyTripDeadlineRules(transfer);
@@ -122,5 +122,20 @@ public class InterWarehouseTransferServiceImpl implements InterWarehouseTransfer
     public InterWarehouseTransferResponse quarantineReject(Long id, InterWarehouseTransferRejectRequest request,
             User actor) {
         return receivingService.quarantineReject(id, request, actor);
+    }
+
+    @Override
+    public InterWarehouseTransferResponse requestReturn(Long id, TransferReturnRequest request, User actor) {
+        return receivingService.requestReturn(id, request, actor);
+    }
+
+    @Override
+    public InterWarehouseTransferResponse approveReturn(Long id, User actor) {
+        return receivingService.approveReturn(id, actor);
+    }
+
+    @Override
+    public InterWarehouseTransferResponse rejectReturn(Long id, TransferReturnRejectRequest request, User actor) {
+        return receivingService.rejectReturn(id, request, actor);
     }
 }
