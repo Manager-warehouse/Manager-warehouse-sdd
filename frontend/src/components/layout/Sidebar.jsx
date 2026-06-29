@@ -83,7 +83,7 @@ const Sidebar = () => {
       roles: [ROLES.STOREKEEPER, ROLES.WAREHOUSE_MANAGER, ROLES.CEO, ROLES.ADMIN]
     },
     {
-      title: 'Trả hàng đại lý',
+      title: 'Đại lý trả hàng',
       path: '/inbound/returns',
       icon: ArrowRightLeft,
       roles: [ROLES.WAREHOUSE_STAFF, ROLES.STOREKEEPER, ROLES.WAREHOUSE_MANAGER, ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.CEO, ROLES.ADMIN]

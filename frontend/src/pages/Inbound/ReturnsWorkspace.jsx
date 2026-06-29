@@ -281,8 +281,8 @@ const ReturnsWorkspace = () => {
             onClick={() => setActiveTab(activeTab === 'LIST' ? 'CREATE' : 'LIST')}
             className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
               activeTab === 'CREATE'
-                ? 'bg-canvas-light border border-hairline hover:bg-shade-20 text-ink'
-                : 'bg-primary hover:bg-primary-hover text-white shadow-lg shadow-primary/20'
+                ? 'bg-canvas-light border border-hairline hover:bg-shade-20 text-black'
+                : 'bg-canvas-night hover:bg-canvas-nightElevated text-onPrimary shadow-lg shadow-black/10'
             }`}
           >
             {activeTab === 'CREATE' ? (
@@ -359,7 +359,7 @@ const ReturnsWorkspace = () => {
                           {ret.status === 'DRAFT' && (
                             <button
                               onClick={() => openQcSplit(ret)}
-                              className="px-3 py-1.5 bg-primary hover:bg-primary-hover text-white text-xs font-semibold rounded flex items-center gap-1 transition-colors"
+                              className="px-3 py-1.5 bg-canvas-night hover:bg-canvas-nightElevated text-onPrimary text-xs font-semibold rounded flex items-center gap-1 transition-colors"
                             >
                               <ShieldAlert className="w-3.5 h-3.5" />
                               QC Phân tách & Nhập kho
@@ -476,7 +476,7 @@ const ReturnsWorkspace = () => {
               <button
                 type="submit"
                 disabled={submitting}
-                className="px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg font-medium shadow-lg shadow-primary/20 transition-all flex items-center gap-2"
+                className="px-4 py-2 bg-canvas-night hover:bg-canvas-nightElevated text-onPrimary rounded-lg font-medium shadow-lg shadow-black/10 transition-all flex items-center gap-2"
               >
                 {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
                 Lập phiếu trả hàng
@@ -591,7 +591,7 @@ const ReturnsWorkspace = () => {
               <button
                 onClick={submitQcSplit}
                 disabled={submitting}
-                className="px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg font-medium shadow-lg shadow-primary/20 transition-all flex items-center gap-2"
+                className="px-4 py-2 bg-canvas-night hover:bg-canvas-nightElevated text-onPrimary rounded-lg font-medium shadow-lg shadow-black/10 transition-all flex items-center gap-2"
               >
                 {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
                 Xác nhận QC & Nhập kho
