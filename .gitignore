@@ -139,7 +139,10 @@ credentials.json
 *.key
 id_rsa*
 id_ed25519*
-backend/src/main/resources/application.yml
+backend/src/main/resources/application-secrets.yml
+docker.env
+docker.env.*
+!docker.env.example
 
 
 # ===== OS =====
