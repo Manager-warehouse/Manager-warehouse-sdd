@@ -296,7 +296,7 @@ class InterWarehouseTransferFlowE2ETest {
         when(warehouseRepository.findById(sourceWarehouse.getId())).thenReturn(Optional.of(sourceWarehouse));
         when(warehouseRepository.findById(destinationWarehouse.getId())).thenReturn(Optional.of(destinationWarehouse));
         when(productRepository.findById(product.getId())).thenReturn(Optional.of(product));
-        when(requestRepository.save(any(TransferRequest.class))).thenReturn(transferRequest);
+        lenient().when(requestRepository.save(any(TransferRequest.class))).thenReturn(transferRequest);
 
         TransferRequestCreateRequest createReq = new TransferRequestCreateRequest(
                 sourceWarehouse.getId(),

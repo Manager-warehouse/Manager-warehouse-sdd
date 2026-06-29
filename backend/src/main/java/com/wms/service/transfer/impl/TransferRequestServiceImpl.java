@@ -291,7 +291,18 @@ public class TransferRequestServiceImpl implements TransferRequestService {
     }
 
     private void saveItems(TransferRequest req, List<TransferRequestItemRequest> items) {
-        req.getItems().clear();
+        List<TransferRequestItem> currentItems = req.getItems();
+        if (currentItems == null) {
+            currentItems = new ArrayList<>();
+            req.setItems(currentItems);
+        } else {
+            try {
+                currentItems.clear();
+            } catch (UnsupportedOperationException e) {
+                currentItems = new ArrayList<>();
+                req.setItems(currentItems);
+            }
+        }
         for (TransferRequestItemRequest line : items) {
             Product p = productRepository.findById(line.productId())
                     .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + line.productId()));
@@ -300,7 +311,7 @@ public class TransferRequestServiceImpl implements TransferRequestService {
                     .product(p)
                     .requestedQty(line.requestedQty())
                     .build();
-            req.getItems().add(item);
+            currentItems.add(item);
         }
     }
 

@@ -15,7 +15,9 @@ import static org.assertj.core.api.Assertions.assertThat;
     "spring.flyway.enabled=false",
     "spring.mail.host=localhost",
     "spring.mail.port=25",
-    "jwt.secret=9a4f2c8d3b7a1e5f8c2d6e0b4a8f9c1d3e7b2a6f0c4d8e2f6a0b4c8d2e6f0a4b"
+    "jwt.secret=9a4f2c8d3b7a1e5f8c2d6e0b4a8f9c1d3e7b2a6f0c4d8e2f6a0b4c8d2e6f0a4b",
+    "jwt.access-token-expiry=900",
+    "jwt.refresh-token-expiry=604800"
 })
 public class SecurityConfigTest {
 
