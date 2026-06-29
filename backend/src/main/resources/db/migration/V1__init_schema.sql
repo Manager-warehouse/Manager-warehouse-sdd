@@ -904,7 +904,7 @@ CREATE TABLE audit_logs (
     actor_id      BIGINT       NOT NULL REFERENCES users(id),
     actor_role    VARCHAR(50)  NOT NULL,              -- Snapshot role tại thời điểm thực hiện
     action        VARCHAR(50)  NOT NULL
-                  CHECK (action IN ('LOGIN','LOGOUT','CREATE','UPDATE','STATUS_CHANGE','APPROVE','REJECT','CANCEL','SOFT_DELETE','ASSIGN','UNASSIGN')),
+                  CHECK (action IN ('LOGIN','LOGOUT','CREATE','UPDATE','STATUS_CHANGE','APPROVE','REJECT','CANCEL','SOFT_DELETE','ASSIGN','UNASSIGN','VIEW_REPORT','TRANSFER_REQUEST_CREATE','TRANSFER_REQUEST_UPDATE','TRANSFER_REQUEST_SUBMIT','TRANSFER_REQUEST_CEO_APPROVE','TRANSFER_REQUEST_CEO_REJECT','TRANSFER_REQUEST_CONVERT')),
     entity_type   VARCHAR(100) NOT NULL,
     entity_id     BIGINT       NOT NULL,
     description   TEXT         NOT NULL,              -- Auto-generated: "{ACTION} {ENTITY_TYPE} {ENTITY_CODE}"
