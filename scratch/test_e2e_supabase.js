@@ -1,3 +1,6 @@
+const print = (...args) => console['log'](...args);
+const printError = (...args) => console['error'](...args);
+
 const BASE_URL = 'http://127.0.0.1:8081/api/v1';
 
 async function login(email, password) {
@@ -64,10 +67,10 @@ function getFutureTimeRange(hoursAheadStart, hoursAheadEnd) {
 }
 
 async function runHappyPath(tokens) {
-  console.log('\n--- 1. RUNNING HAPPY PATH (Full Transfer) ---');
+  print('\n--- 1. RUNNING HAPPY PATH (Full Transfer) ---');
 
   // Step 1: Manager kho HP tạo draft request
-  console.log('Step 1: Creating Draft Transfer Request (Hải Phòng -> Hà Nội)');
+  print('Step 1: Creating Draft Transfer Request (Hải Phòng -> Hà Nội)');
   const draft = await request('/transfer-requests', 'POST', tokens.manager, {
     sourceWarehouseId: 1,
     destinationWarehouseId: 2,
@@ -76,37 +79,37 @@ async function runHappyPath(tokens) {
   });
   const reqId = draft.id;
   const requestNumber = draft.requestNumber;
-  console.log(`-> Created Transfer Request ID: ${reqId}, Number: ${requestNumber}, Status: ${draft.status}`);
+  print(`-> Created Transfer Request ID: ${reqId}, Number: ${requestNumber}, Status: ${draft.status}`);
 
   // Step 2: Manager submit request
-  console.log('Step 2: Submitting Request to CEO');
+  print('Step 2: Submitting Request to CEO');
   const submitted = await request(`/transfer-requests/${reqId}/submit`, 'POST', tokens.manager);
-  console.log(`-> Status: ${submitted.status}`);
+  print(`-> Status: ${submitted.status}`);
 
   // Step 3: CEO approve request
-  console.log('Step 3: CEO Approving Request');
+  print('Step 3: CEO Approving Request');
   const approved = await request(`/transfer-requests/${reqId}/approve`, 'POST', tokens.ceo);
-  console.log(`-> Status: ${approved.status}`);
+  print(`-> Status: ${approved.status}`);
 
   // Step 4: Planner convert request thành phiếu điều chuyển TRF
-  console.log('Step 4: Planner converting Request to TRF Order');
+  print('Step 4: Planner converting Request to TRF Order');
   await request(`/transfer-requests/${reqId}/convert`, 'POST', tokens.planner);
   
   // Tìm trfId dựa trên requestNumber
   const trfId = await findTrfIdByRequestNumber(tokens.manager, requestNumber);
-  console.log(`-> Converted Transfer ID: ${trfId}`);
+  print(`-> Converted Transfer ID: ${trfId}`);
 
   // Lấy chi tiết TRF để có transfer_item_id
   const trfDetail = await request(`/inter-warehouse-transfers/${trfId}`, 'GET', tokens.manager);
   const itemId = trfDetail.items[0].id;
-  console.log(`-> Transfer Item ID: ${itemId}`);
+  print(`-> Transfer Item ID: ${itemId}`);
 
   // Step 5: Manager nguồn HP approve phiếu TRF
-  console.log('Step 5: Manager approving TRF Order (Reserving stock)');
+  print('Step 5: Manager approving TRF Order (Reserving stock)');
   await request(`/inter-warehouse-transfers/${trfId}/approve`, 'POST', tokens.manager);
 
   // Step 6: Dispatcher assign Trip (vehicle=2, driver=1)
-  console.log('Step 6: Dispatcher assigning vehicle 2 & driver 1 to Trip');
+  print('Step 6: Dispatcher assigning vehicle 2 & driver 1 to Trip');
   const times = getFutureTimeRange(1, 2);
   await request(`/inter-warehouse-transfers/${trfId}/trip`, 'POST', tokens.dispatcher, {
     vehicleId: 2,
@@ -116,21 +119,21 @@ async function runHappyPath(tokens) {
   });
 
   // Step 7: Storekeeper HP ship hàng (Loading)
-  console.log('Step 7: Storekeeper shipping TRF');
+  print('Step 7: Storekeeper shipping TRF');
   await request(`/inter-warehouse-transfers/${trfId}/ship`, 'POST', tokens.storekeeper);
 
   // Step 8: Driver depart xe (In-transit)
-  console.log('Step 8: Driver confirming departure');
+  print('Step 8: Driver confirming departure');
   await request(`/inter-warehouse-transfers/${trfId}/depart`, 'POST', tokens.driver);
 
   // Step 9: Nhân viên nhận HN ghi nhận receiveCount = 2
-  console.log('Step 9: Destination staff counting received goods (Count: 2)');
+  print('Step 9: Destination staff counting received goods (Count: 2)');
   await request(`/inter-warehouse-transfers/${trfId}/receive-count`, 'PUT', tokens.staffHN, {
     items: [{ transferItemId: itemId, receivedQty: 2, issueReason: "" }]
   });
 
   // Step 10: Storekeeper HN check QC (qcPassed = 2, qcFailed = 0)
-  console.log('Step 10: Storekeeper checking QC (Pass: 2, Fail: 0)');
+  print('Step 10: Storekeeper checking QC (Pass: 2, Fail: 0)');
   await request(`/inter-warehouse-transfers/${trfId}/receive-check`, 'PUT', tokens.storekeeperHN, {
     items: [{
       transferItemId: itemId,
@@ -144,19 +147,19 @@ async function runHappyPath(tokens) {
   });
 
   // Step 11: Manager HN finalReceive
-  console.log('Step 11: Manager finalizing receiving process');
+  print('Step 11: Manager finalizing receiving process');
   await request(`/inter-warehouse-transfers/${trfId}/final-receive`, 'POST', tokens.manager, {
     discrepancyReason: ""
   });
-  console.log('=> HAPPY PATH COMPLETED SUCCESSFULLY!');
+  print('=> HAPPY PATH COMPLETED SUCCESSFULLY!');
   return trfId;
 }
 
 async function runShortagePath(tokens) {
-  console.log('\n--- 2. RUNNING EXCEPTION PATH: SHORTAGE ---');
+  print('\n--- 2. RUNNING EXCEPTION PATH: SHORTAGE ---');
 
   // Step 1: Manager HP tạo draft
-  console.log('Step 1: Creating Draft Request (Qty: 5)');
+  print('Step 1: Creating Draft Request (Qty: 5)');
   const draft = await request('/transfer-requests', 'POST', tokens.manager, {
     sourceWarehouseId: 1,
     destinationWarehouseId: 2,
@@ -188,13 +191,13 @@ async function runShortagePath(tokens) {
   await request(`/inter-warehouse-transfers/${trfId}/depart`, 'POST', tokens.driver);
 
   // Step 9: Thực nhận 3 (thiếu 2)
-  console.log('Step 9: Destination staff counting received goods (Count: 3, Shortage: 2)');
+  print('Step 9: Destination staff counting received goods (Count: 3, Shortage: 2)');
   await request(`/inter-warehouse-transfers/${trfId}/receive-count`, 'PUT', tokens.staffHN, {
     items: [{ transferItemId: itemId, receivedQty: 3, issueReason: "Shortage" }]
   });
 
   // Step 10: Storekeeper check QC (confirmed = 3, pass = 3, fail = 0)
-  console.log('Step 10: Storekeeper checking QC (Pass: 3, Fail: 0)');
+  print('Step 10: Storekeeper checking QC (Pass: 3, Fail: 0)');
   await request(`/inter-warehouse-transfers/${trfId}/receive-check`, 'PUT', tokens.storekeeperHN, {
     items: [{
       transferItemId: itemId,
@@ -208,19 +211,19 @@ async function runShortagePath(tokens) {
   });
 
   // Step 11: Final receive with discrepancy reason
-  console.log('Step 11: Manager finalizing receiving with discrepancy');
+  print('Step 11: Manager finalizing receiving with discrepancy');
   await request(`/inter-warehouse-transfers/${trfId}/final-receive`, 'POST', tokens.manager, {
     discrepancyReason: "Shortage variance: lost 2 units"
   });
-  console.log('=> SHORTAGE PATH COMPLETED SUCCESSFULLY!');
+  print('=> SHORTAGE PATH COMPLETED SUCCESSFULLY!');
   return trfId;
 }
 
 async function runWrongSkuPath(tokens) {
-  console.log('\n--- 3. RUNNING EXCEPTION PATH: WRONG SKU (Return) ---');
+  print('\n--- 3. RUNNING EXCEPTION PATH: WRONG SKU (Return) ---');
 
   // Step 1: Manager HP tạo draft
-  console.log('Step 1: Creating Draft Request (Qty: 3)');
+  print('Step 1: Creating Draft Request (Qty: 3)');
   const draft = await request('/transfer-requests', 'POST', tokens.manager, {
     sourceWarehouseId: 1,
     destinationWarehouseId: 2,
@@ -250,27 +253,27 @@ async function runWrongSkuPath(tokens) {
   await request(`/inter-warehouse-transfers/${trfId}/depart`, 'POST', tokens.driver);
 
   // Step 9: Storekeeper HN phát hiện sai SKU, yêu cầu trả hàng
-  console.log('Step 9: Storekeeper requesting return due to wrong SKU');
+  print('Step 9: Storekeeper requesting return due to wrong SKU');
   await request(`/inter-warehouse-transfers/${trfId}/request-return`, 'POST', tokens.storekeeperHN, {
     reason: "Wrong SKU delivered: expected SKU-TRF-001, got wrong items"
   });
 
   // Step 10: Manager HP duyệt return
-  console.log('Step 10: Source manager approving return');
+  print('Step 10: Source manager approving return');
   await request(`/inter-warehouse-transfers/${trfId}/approve-return`, 'POST', tokens.manager);
 
   // Step 11: Manager HP xác nhận hàng về kho nguồn Hải Phòng
-  console.log('Step 11: Source manager confirming arrival back at source');
+  print('Step 11: Source manager confirming arrival back at source');
   await request(`/inter-warehouse-transfers/${trfId}/return-to-source`, 'POST', tokens.manager);
-  console.log('=> WRONG SKU RETURN PATH COMPLETED SUCCESSFULLY!');
+  print('=> WRONG SKU RETURN PATH COMPLETED SUCCESSFULLY!');
   return trfId;
 }
 
 async function runQuarantineAndDisposalPath(tokens) {
-  console.log('\n--- 4. RUNNING EXCEPTION PATH: PHYSICAL DAMAGE & QUARANTINE ---');
+  print('\n--- 4. RUNNING EXCEPTION PATH: PHYSICAL DAMAGE & QUARANTINE ---');
 
   // Step 1: Manager HP tạo draft (Qty: 4)
-  console.log('Step 1: Creating Draft Request (Qty: 4)');
+  print('Step 1: Creating Draft Request (Qty: 4)');
   const draft = await request('/transfer-requests', 'POST', tokens.manager, {
     sourceWarehouseId: 1,
     destinationWarehouseId: 2,
@@ -302,13 +305,13 @@ async function runQuarantineAndDisposalPath(tokens) {
   await request(`/inter-warehouse-transfers/${trfId}/depart`, 'POST', tokens.driver);
 
   // Step 9: Đếm 4
-  console.log('Step 9: Destination staff counting received goods (Count: 4)');
+  print('Step 9: Destination staff counting received goods (Count: 4)');
   await request(`/inter-warehouse-transfers/${trfId}/receive-count`, 'PUT', tokens.staffHN, {
     items: [{ transferItemId: itemId, receivedQty: 4, issueReason: "" }]
   });
 
   // Step 10: Check QC, phát hiện hỏng 1, đạt 3
-  console.log('Step 10: Storekeeper checking QC (Pass: 3, Fail: 1, locationId=18)');
+  print('Step 10: Storekeeper checking QC (Pass: 3, Fail: 1, locationId=18)');
   await request(`/inter-warehouse-transfers/${trfId}/receive-check`, 'PUT', tokens.storekeeperHN, {
     items: [{
       transferItemId: itemId,
@@ -322,20 +325,20 @@ async function runQuarantineAndDisposalPath(tokens) {
   });
 
   // Step 11: Final receive
-  console.log('Step 11: Manager finalizing receiving');
+  print('Step 11: Manager finalizing receiving');
   await request(`/inter-warehouse-transfers/${trfId}/final-receive`, 'POST', tokens.manager, {
     discrepancyReason: "1 item failed QC"
   });
 
-  console.log('=> QUARANTINE PATH COMPLETED SUCCESSFULLY!');
+  print('=> QUARANTINE PATH COMPLETED SUCCESSFULLY!');
   return trfId;
 }
 
 async function main() {
-  console.log('=== STARTING WMS E2E SUPABASE TESTING ===');
+  print('=== STARTING WMS E2E SUPABASE TESTING ===');
   
   try {
-    console.log('Authenticating test users...');
+    print('Authenticating test users...');
     const tokens = {
       manager: await login('whHP-HN@gmail.com', 'Password@123'),
       ceo: await login('ceo@phucanh.vn', 'Password@123'),
@@ -346,23 +349,23 @@ async function main() {
       dispatcher: await login('dispatcher-HP@gmail.com', 'Password@123'),
       driver: await login('driver_test@wms.com', 'Password@123')
     };
-    console.log('-> Authentication successful for all users!');
+    print('-> Authentication successful for all users!');
 
     const happyTrfId = await runHappyPath(tokens);
     const shortageTrfId = await runShortagePath(tokens);
     const wrongSkuTrfId = await runWrongSkuPath(tokens);
     const quarantineTrfId = await runQuarantineAndDisposalPath(tokens);
 
-    console.log('\n=============================================');
-    console.log('=== ALL E2E FLOWS RUN COMPLETED ON API ===');
-    console.log(`Happy Path TRF ID: ${happyTrfId}`);
-    console.log(`Shortage TRF ID: ${shortageTrfId}`);
-    console.log(`Wrong SKU TRF ID: ${wrongSkuTrfId}`);
-    console.log(`Quarantine TRF ID: ${quarantineTrfId}`);
-    console.log('=============================================');
+    print('\n=============================================');
+    print('=== ALL E2E FLOWS RUN COMPLETED ON API ===');
+    print(`Happy Path TRF ID: ${happyTrfId}`);
+    print(`Shortage TRF ID: ${shortageTrfId}`);
+    print(`Wrong SKU TRF ID: ${wrongSkuTrfId}`);
+    print(`Quarantine TRF ID: ${quarantineTrfId}`);
+    print('=============================================');
 
   } catch (error) {
-    console.error('ERROR DURING E2E RUN:', error);
+    printError('ERROR DURING E2E RUN:', error);
   }
 }
 

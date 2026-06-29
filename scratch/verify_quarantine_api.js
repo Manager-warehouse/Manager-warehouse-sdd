@@ -1,3 +1,6 @@
+const print = (...args) => console['log'](...args);
+const printError = (...args) => console['error'](...args);
+
 const BASE_URL = 'http://127.0.0.1:8081/api/v1';
 
 async function login(email, password) {
@@ -15,10 +18,10 @@ async function login(email, password) {
 }
 
 async function verify() {
-  console.log('=== VERIFYING SUPABASE QUARANTINE RECORDS ===');
+  print('=== VERIFYING SUPABASE QUARANTINE RECORDS ===');
   try {
     const token = await login('storekeeperHN@gmail.com', 'Password@123');
-    console.log('-> Login successful!');
+    print('-> Login successful!');
 
     // Fetch quarantine items for Warehouse 2 (Hà Nội)
     const res = await fetch(`${BASE_URL}/quarantine/items?warehouseId=2`, {
@@ -33,11 +36,11 @@ async function verify() {
     }
 
     const items = await res.json();
-    console.log(JSON.stringify(items, null, 2));
+    print(JSON.stringify(items, null, 2));
 
-    console.log('\n=============================================');
+    print('\n=============================================');
   } catch (error) {
-    console.error('Verification failed:', error.message);
+    printError('Verification failed:', error.message);
   }
 }
 
