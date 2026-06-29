@@ -40,6 +40,7 @@ class DisposalServiceTest {
     @Mock private UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
     @Mock private ReceiptValidationService receiptValidationService;
     @Mock private AuditLogService auditLogService;
+    @Mock private QuarantineRecordRepository quarantineRecordRepository;
 
     @InjectMocks
     private DisposalService disposalService;
@@ -151,6 +152,7 @@ class DisposalServiceTest {
                 .quantityAdjustment(BigDecimal.valueOf(-10))
                 .type(AdjustmentType.DISPOSAL)
                 .referenceId(200L)
+                .referenceType("RECEIPT_ITEM")
                 .reason("Hỏng")
                 .build();
 
@@ -189,6 +191,7 @@ class DisposalServiceTest {
                 .quantityAdjustment(BigDecimal.valueOf(-10))
                 .type(AdjustmentType.DISPOSAL)
                 .referenceId(200L)
+                .referenceType("RECEIPT_ITEM")
                 .build();
 
         User manager = User.builder().id(2L).role(UserRole.WAREHOUSE_MANAGER).build();
@@ -235,5 +238,98 @@ class DisposalServiceTest {
         assertThat(response).isNotNull();
         assertThat(response.isAutoApproved()).isTrue();
         assertThat(inventory.getTotalQty()).isEqualByComparingTo(BigDecimal.valueOf(5));
+    }
+
+    @Test
+    void createDisposalFromQuarantine_success() {
+        QuarantineRecord qr = new QuarantineRecord();
+        qr.setId(900L);
+        qr.setWarehouse(warehouse);
+        qr.setProduct(product);
+        qr.setBatch(batch);
+        qr.setLocation(location);
+        qr.setRemainingQuantity(BigDecimal.valueOf(10));
+        qr.setOriginType("INTERNAL_TRANSFER");
+        qr.setReason("Bể vỡ khi chuyển kho");
+
+        when(quarantineRecordRepository.findById(900L)).thenReturn(Optional.of(qr));
+        when(adjustmentRepository.existsByReferenceTypeAndReferenceIdAndType(any(), any(), any())).thenReturn(false);
+        when(damageReportRepository.save(any(DamageReport.class))).thenAnswer(invocation -> {
+            DamageReport dr = invocation.getArgument(0);
+            dr.setId(401L);
+            return dr;
+        });
+        when(adjustmentRepository.save(any(Adjustment.class))).thenAnswer(invocation -> {
+            Adjustment adj = invocation.getArgument(0);
+            adj.setId(501L);
+            return adj;
+        });
+
+        Inventory inventory = Inventory.builder()
+                .warehouse(warehouse)
+                .product(product)
+                .batch(batch)
+                .location(location)
+                .totalQty(BigDecimal.valueOf(15))
+                .reservedQty(BigDecimal.ZERO)
+                .build();
+        when(inventoryRepository.findByWarehouseProductBatchLocationForUpdate(any(), any(), any(), any()))
+                .thenReturn(Optional.of(inventory));
+
+        DisposalRequest req = DisposalRequest.builder().cause("Tiêu hủy hàng bể vỡ").imageUrl("http://img").build();
+        DisposalResponse response = disposalService.createDisposalFromQuarantine(900L, req, actor);
+
+        assertThat(response).isNotNull();
+        assertThat(response.isAutoApproved()).isTrue();
+        assertThat(qr.getRemainingQuantity()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(inventory.getTotalQty()).isEqualByComparingTo(BigDecimal.valueOf(5));
+    }
+
+    @Test
+    void approveDisposal_quarantineRecord_success() {
+        QuarantineRecord qr = new QuarantineRecord();
+        qr.setId(900L);
+        qr.setWarehouse(warehouse);
+        qr.setProduct(product);
+        qr.setBatch(batch);
+        qr.setLocation(location);
+        qr.setRemainingQuantity(BigDecimal.valueOf(10));
+        qr.setOriginType("INTERNAL_TRANSFER");
+
+        Adjustment adjustment = Adjustment.builder()
+                .id(501L)
+                .adjustmentNumber("ADJ-002")
+                .warehouse(warehouse)
+                .product(product)
+                .batch(batch)
+                .location(location)
+                .quantityAdjustment(BigDecimal.valueOf(-10))
+                .type(AdjustmentType.DISPOSAL)
+                .referenceId(900L)
+                .referenceType("QUARANTINE_RECORD")
+                .reason("Bể vỡ")
+                .build();
+
+        User manager = User.builder().id(2L).role(UserRole.WAREHOUSE_MANAGER).build();
+        when(adjustmentRepository.findById(501L)).thenReturn(Optional.of(adjustment));
+        when(quarantineRecordRepository.findById(900L)).thenReturn(Optional.of(qr));
+
+        Inventory inventory = Inventory.builder()
+                .warehouse(warehouse)
+                .product(product)
+                .batch(batch)
+                .location(location)
+                .totalQty(BigDecimal.valueOf(10))
+                .reservedQty(BigDecimal.ZERO)
+                .build();
+        when(inventoryRepository.findByWarehouseProductBatchLocationForUpdate(any(), any(), any(), any()))
+                .thenReturn(Optional.of(inventory));
+
+        DisposalResponse response = disposalService.approveDisposal(501L, manager);
+
+        assertThat(response).isNotNull();
+        assertThat(adjustment.getApprovedBy()).isEqualTo(manager);
+        assertThat(qr.getRemainingQuantity()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(inventory.getTotalQty()).isEqualByComparingTo(BigDecimal.ZERO);
     }
 }

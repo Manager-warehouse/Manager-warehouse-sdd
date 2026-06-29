@@ -46,14 +46,14 @@ public class AuditLogService {
 
     private final AuditLogRepository auditLogRepository;
     private final UserRepository userRepository;
-    private final HttpServletRequest httpServletRequest;
+    private final org.springframework.beans.factory.ObjectProvider<HttpServletRequest> httpServletRequestProvider;
 
     public AuditLogService(AuditLogRepository auditLogRepository,
                            UserRepository userRepository,
-                           HttpServletRequest httpServletRequest) {
+                           org.springframework.beans.factory.ObjectProvider<HttpServletRequest> httpServletRequestProvider) {
         this.auditLogRepository = auditLogRepository;
         this.userRepository = userRepository;
-        this.httpServletRequest = httpServletRequest;
+        this.httpServletRequestProvider = httpServletRequestProvider;
     }
 
     @Transactional
@@ -261,12 +261,15 @@ public class AuditLogService {
 
     private String resolveClientIp() {
         try {
-            String xForwardedFor =
-                    httpServletRequest.getHeader("X-Forwarded-For");
+            HttpServletRequest request = httpServletRequestProvider.getIfAvailable();
+            if (request == null) {
+                return null;
+            }
+            String xForwardedFor = request.getHeader("X-Forwarded-For");
             if (xForwardedFor != null && !xForwardedFor.isBlank()) {
                 return xForwardedFor.split(",")[0].trim();
             }
-            return httpServletRequest.getRemoteAddr();
+            return request.getRemoteAddr();
         } catch (Exception e) {
             log.warn("Could not resolve client IP", e);
             return null;

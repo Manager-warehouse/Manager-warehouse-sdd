@@ -2,8 +2,8 @@
 
 **Spec ID**: 005-inter-warehouse-transfer
 **Created**: 2026-05-30
-**Updated**: 2026-06-19
-**Status**: Implemented (Sprint 1)
+**Updated**: 2026-06-24
+**Status**: Implemented (Sprint 1 core flow); change requested for manager-initiated transfer request flow
 **Features**: US-WMS-11, US-WMS-12
 
 ---
@@ -20,8 +20,15 @@ Luot nghiep vu nay la **luong rieng** cua dieu chuyen noi bo:
 
 Moi phieu dieu chuyen gan voi dung **mot** chuyen xe noi bo rieng, gom xe, tai xe, ngay chuyen va cac buoc ship/receive theo trang thai.
 
+Bo sung luong tien xu ly cho nhu cau can bang ton kho giua cac kho:
+- Truong kho co the xem ton kho kha dung cua kho khac o che do read-only de phat hien kho khac con hang ma kho minh dang thieu.
+- Truong kho kho dang thieu co the tao **yeu cau dieu chuyen** gui CEO phe duyet, trong do kho dang thieu la kho dich va kho co hang la kho nguon du kien.
+- CEO phe duyet hoac tu choi yeu cau. Sau khi CEO phe duyet, he thong phat sinh/dua ra mau de nghi dieu chuyen cho Planner cua kho nguon de tao phieu `TRF-*` va tiep tuc luong dieu chuyen noi bo hien co.
+- Luong nay khong tu dong tao `TRF` khi chua duoc CEO duyet va khong tu dong quyet dinh so luong/nguon hang thay con nguoi.
+
 ### Features List
 - [US-WMS-11: Planner Nhap lenh dieu chuyen kho tu Cong ty me](./features/feature-planner-transfer-planning.md)
+- [US-WMS-11A: Truong kho de xuat dieu chuyen tu ton kho kho khac va CEO duyet](./features/feature-warehouse-manager-transfer-request.md)
 - [US-WMS-12: Thu kho Nguon Soan & Xuat hang Dieu chuyen](./features/feature-storekeeper-transfer-ship.md)
 - [US-WMS-12: Kho Dich Tiep nhan & Xu ly Chenh lech Dieu chuyen](./features/feature-storekeeper-transfer-receive.md)
 
@@ -43,12 +50,24 @@ Moi phieu dieu chuyen gan voi dung **mot** chuyen xe noi bo rieng, gom xe, tai x
 - Q: What happens to QC-failed items in internal transfer receiving? -> A: QC-failed quantity is automatically routed to the destination warehouse quarantine bin (is_quarantine = true) at finalReceive. The storekeeper does NOT manually select the quarantine bin; the system selects it automatically. QC-failed items are excluded from available inventory.
 - Q: Should the system validate quarantine existence early (at receiveCheck) rather than at finalReceive? -> A: Yes. If qcFailedQty > 0, the system validates at receiveCheck time that the destination warehouse has at least one active quarantine bin. This prevents the storekeeper from completing the check step only to fail at the final confirmation step.
 - Q: Can the QC-passed bin selected by the storekeeper be a quarantine bin? -> A: No. The system must reject any attempt to assign a quarantine bin as the destination for QC-passed stock. The storekeeper's bin dropdown already filters out quarantine bins; the backend also enforces this as an invariant.
+- Q: What happens after physically damaged internal-transfer goods enter Quarantine? -> A: Spec 005 owns the transfer-to-quarantine handoff; Spec 009 owns the downstream disposal. Transfer-origin quarantine goods cannot use supplier RTV and are not returned to source merely because they are damaged.
+- Q: Does a transfer shortage create quarantine stock? -> A: No. Missing quantity is not physically present. It creates a `TRANSFER_DISCREPANCY` adjustment and never becomes a quarantine/disposal quantity.
+- Q: What happens when the wrong SKU arrives but remains intact? -> A: It may use Return to Source because the goods still physically exist and can be transported safely. It is not a disposal candidate unless separately confirmed damaged or QC-failed.
+- Q: If 30 units are sent and only 28 are received, how much is recognized? -> A: The destination imports and calculates value for exactly 28 physically received units. The missing 2 units are recorded only as a quantity `TRANSFER_DISCREPANCY`; they are excluded from the destination receipt value and all billing totals. Internal transfer creates no sale invoice, revenue, dealer receivable, supplier payable, or supplier Debit Note.
+- Q: Who may send an intact wrong-SKU shipment back? -> A: Destination Storekeeper reports `WRONG_SKU`; destination Warehouse Manager approves the return; the assigned driver turns back while stock remains In-Transit. Source Staff then counts, source Storekeeper checks/QC, and source Warehouse Manager final-confirms the same return receiving flow.
+
+### Session 2026-06-24
+- Q: Can a warehouse manager inspect stock in another warehouse and request transfer when their own warehouse is short? -> A: Yes. A WAREHOUSE_MANAGER may view cross-warehouse available stock read-only, create a transfer request from their own warehouse need, submit it to CEO, and wait for CEO approval before execution.
+- Q: What happens after CEO approval? -> A: The system sends/generates an approved transfer request template for the Planner of the source warehouse. The Planner uses that approved request as the source instruction to create the executable `TRF-*` transfer.
+- Q: Does manager-initiated request replace Planner-created transfers from company instructions? -> A: No. It adds a pre-approval request flow. Existing Planner `TRF` creation and source approval/ship/receive flow remain unchanged.
 
 ## 2. Actors
 
 | Actor | Vai tro | Nghiep vu lien quan |
 |-------|---------|---------------------|
 | Planner | Maker | Nhap phieu dieu chuyen kho noi bo theo lenh tu Cong ty me hoac bo phan dieu phoi trung tam |
+| Truong kho (Kho dang thieu hang / kho yeu cau) | Maker | Xem ton kho kha dung cua kho khac, tao yeu cau dieu chuyen va gui CEO phe duyet |
+| CEO | Approver | Phe duyet hoac tu choi yeu cau dieu chuyen do Truong kho de xuat truoc khi Planner kho nguon tao phieu `TRF` |
 | Truong kho (Kho nguon) | Checker | Kiem tra ton kho kha dung tai kho nguon va phe duyet/tu choi phieu dieu chuyen |
 | Dispatcher (Kho nguon) | Maker | Lap chuyen xe noi bo rieng cho phieu dieu chuyen, gan xe va tai xe trong pham vi kho nguon |
 | Thu kho (Kho nguon) | Maker | Nhan lenh xuat dieu chuyen, soan hang va xac nhan xuat hang len xe |
@@ -61,6 +80,7 @@ Moi phieu dieu chuyen gan voi dung **mot** chuyen xe noi bo rieng, gom xe, tai x
 
 *Vui long xem chi tiet yeu cau chuc nang EARS tai cac tai lieu dac ta tinh nang:*
 - [EARS - Transfer Creation](./features/feature-planner-transfer-planning.md#3-functional-requirements-ears)
+- [EARS - Manager Transfer Request and CEO Approval](./features/feature-warehouse-manager-transfer-request.md#3-functional-requirements-ears)
 - [EARS - Transfer Shipment](./features/feature-storekeeper-transfer-ship.md#3-functional-requirements-ears)
 - [EARS - Transfer Receipt](./features/feature-storekeeper-transfer-receive.md#3-functional-requirements-ears)
 
@@ -74,6 +94,8 @@ Moi phieu dieu chuyen gan voi dung **mot** chuyen xe noi bo rieng, gom xe, tai x
 | NFR-004 | Transfer dashboard for Sprint 1 | Provide role-scoped operational list and current-step panel; advanced KPI/reporting can be deferred |
 | NFR-005 | Audit traceability | Every state mutation, trip assignment mutation, and receive/QC mutation must be reconstructable from audit logs |
 | NFR-006 | End-to-end verification | Core happy-path and main blocking-path scenarios must be testable from UI through API |
+| NFR-007 | Cross-warehouse stock visibility | Read-only cross-warehouse availability lookup should return within <= 1s for normal Sprint 1 data volume |
+| NFR-008 | Actual-receipt valuation | Destination inventory quantity and value must be calculated only from physically received and accepted quantity |
 
 ## 5. Data Model
 
@@ -83,7 +105,13 @@ Moi phieu dieu chuyen gan voi dung **mot** chuyen xe noi bo rieng, gom xe, tai x
 - `source_warehouse_id` (BIGINT, FK->warehouses, NOT NULL)
 - `destination_warehouse_id` (BIGINT, FK->warehouses, NOT NULL)
 - `status` (VARCHAR(40), DEFAULT 'NEW', CHECK IN ('NEW','APPROVED','REJECTED','IN_TRANSIT','COMPLETED','COMPLETED_WITH_DISCREPANCY','CANCELLED','QUARANTINED'))
-- `is_returned` (BOOLEAN, DEFAULT false) -- true when source manager triggers Return to Source; flips receiving scope back to source warehouse
+- `is_returned` (BOOLEAN, DEFAULT false) -- true after an approved Return to Source; flips receiving scope back to source warehouse
+- `return_reason_code` (VARCHAR(30), CHECK IN ('TRIP_OVERDUE','WRONG_SKU','OTHER_APPROVED_REASON'))
+- `return_reason` (TEXT)
+- `return_requested_by` (BIGINT, FK->users)
+- `return_requested_at` (TIMESTAMPTZ)
+- `return_approved_by` (BIGINT, FK->users)
+- `return_approved_at` (TIMESTAMPTZ)
 - `created_by` (BIGINT, FK->users, NOT NULL)
 - `external_instruction_code` (VARCHAR(80), NOT NULL)
 - `approved_by` (BIGINT, FK->users)
@@ -102,6 +130,36 @@ Moi phieu dieu chuyen gan voi dung **mot** chuyen xe noi bo rieng, gom xe, tai x
 - `notes` (TEXT)
 - `created_at` (TIMESTAMPTZ)
 - `updated_at` (TIMESTAMPTZ)
+- `transfer_request_id` (BIGINT, FK->transfer_requests, NULLABLE) -- present when Planner creates `TRF` from CEO-approved manager request
+
+### transfer_requests
+- `id` (BIGSERIAL, PK)
+- `request_number` (VARCHAR(50), UNIQUE, NOT NULL) -- format `TRQ-YYYYMMDD-####`
+- `requesting_warehouse_id` (BIGINT, FK->warehouses, NOT NULL) -- kho dang thieu hang, becomes transfer destination
+- `source_warehouse_id` (BIGINT, FK->warehouses, NOT NULL) -- kho co hang, becomes transfer source
+- `status` (VARCHAR(40), DEFAULT 'DRAFT', CHECK IN ('DRAFT','SUBMITTED','CEO_APPROVED','CEO_REJECTED','CONVERTED','CANCELLED'))
+- `requested_by` (BIGINT, FK->users, NOT NULL)
+- `submitted_at` (TIMESTAMPTZ)
+- `approved_by` (BIGINT, FK->users)
+- `approved_at` (TIMESTAMPTZ)
+- `rejected_by` (BIGINT, FK->users)
+- `rejected_at` (TIMESTAMPTZ)
+- `rejection_reason` (TEXT)
+- `needed_by_date` (DATE)
+- `business_reason` (TEXT, NOT NULL)
+- `planner_assignee_id` (BIGINT, FK->users) -- Planner of source warehouse or central Planner assigned after CEO approval
+- `converted_transfer_id` (BIGINT, FK->transfers)
+- `created_at` (TIMESTAMPTZ)
+- `updated_at` (TIMESTAMPTZ)
+
+### transfer_request_items
+- `id` (BIGSERIAL, PK)
+- `transfer_request_id` (BIGINT, FK->transfer_requests, NOT NULL)
+- `product_id` (BIGINT, FK->products, NOT NULL)
+- `requested_qty` (DECIMAL(10,2), NOT NULL)
+- `observed_source_available_qty` (DECIMAL(10,2), NOT NULL)
+- `observed_requesting_available_qty` (DECIMAL(10,2), NOT NULL)
+- `shortage_reason` (TEXT)
 
 ### transfer_items
 - `id` (BIGSERIAL, PK)
@@ -137,6 +195,7 @@ Moi phieu dieu chuyen gan voi dung **mot** chuyen xe noi bo rieng, gom xe, tai x
 
 *Vui long xem chi tiet API endpoints tai cac tai lieu dac ta tinh nang:*
 - [APIs - Transfer Creation](./features/feature-planner-transfer-planning.md#4-api-endpoints)
+- [APIs - Manager Transfer Request and CEO Approval](./features/feature-warehouse-manager-transfer-request.md#4-api-endpoints)
 - [APIs - Transfer Shipment](./features/feature-storekeeper-transfer-ship.md#4-api-endpoints)
 - [APIs - Transfer Receipt](./features/feature-storekeeper-transfer-receive.md#4-api-endpoints)
 
@@ -178,14 +237,37 @@ Moi phieu dieu chuyen gan voi dung **mot** chuyen xe noi bo rieng, gom xe, tai x
 | TRANSFER_CANCEL_NOT_ALLOWED | 409 | Actor or current status is not allowed to cancel the transfer |
 | INVENTORY_VERSION_CONFLICT | 409 | Concurrent inventory update |
 | WAREHOUSE_MANAGER_ROLE_REQUIRED | 403 | Return-to-source action attempted by a non-manager actor without authorized override role |
+| RETURN_REQUEST_NOT_ALLOWED | 409 | Return report attempted outside `IN_TRANSIT` or after an existing decision |
+| WRONG_SKU_REASON_REQUIRED | 400 | Storekeeper reports wrong SKU without item details/reason |
+| RETURN_APPROVAL_NOT_ALLOWED | 403 | Actor is not destination manager for wrong-SKU return approval |
+| RETURN_REQUEST_REQUIRED | 409 | Manager attempts wrong-SKU return approval before Storekeeper report |
 | TRIP_SCHEDULE_INVALID | 422 | Trip planned_end_at is not after planned_start_at |
 | TRIP_START_IN_PAST | 422 | Trip planned_start_at is in the past |
 | TRIP_END_IN_PAST | 422 | Trip planned_end_at is in the past |
 | TRIP_RESOURCE_OVERLAP | 409 | Vehicle or driver already assigned to another overlapping trip |
+| CROSS_WAREHOUSE_STOCK_VIEW_FORBIDDEN | 403 | Actor is not allowed to view cross-warehouse stock availability |
+| TRANSFER_REQUEST_ITEMS_REQUIRED | 400 | Warehouse manager submits transfer request without item lines |
+| TRANSFER_REQUEST_QTY_EXCEEDS_SOURCE_AVAILABLE | 422 | Requested quantity is greater than observed source available quantity at submit/approval time |
+| TRANSFER_REQUEST_REASON_REQUIRED | 400 | Transfer request is missing business reason or shortage reason required for CEO review |
+| TRANSFER_REQUEST_APPROVAL_NOT_ALLOWED | 409 | CEO approval/rejection attempted in invalid request status |
+| CEO_REJECTION_REASON_REQUIRED | 400 | CEO rejects transfer request without reason |
+| TRANSFER_REQUEST_NOT_APPROVED | 409 | Planner attempts to create `TRF` from a request that is not CEO-approved |
+| TRANSFER_REQUEST_ALREADY_CONVERTED | 409 | Planner attempts to create another `TRF` from a request already converted to a transfer |
 
 ### Transfer Business Rules
 - Sprint 1 SHALL NOT generate transfer suggestions or automatically decide source/destination/quantity for inter-warehouse transfers.
-- Planner SHALL create transfers only from explicit external transfer instructions from Cong ty me or a central coordination team.
+- Planner SHALL create transfers only from explicit external transfer instructions from Cong ty me, a central coordination team, or a CEO-approved manager transfer request.
+- A WAREHOUSE_MANAGER MAY view read-only available stock in other active warehouses to support manual replenishment decisions for their assigned warehouse.
+- Cross-warehouse stock visibility SHALL expose available quantity (`total_qty - reserved_qty`) and basic product/warehouse identifiers, but SHALL NOT allow the viewing manager to mutate another warehouse's inventory.
+- A WAREHOUSE_MANAGER MAY create a transfer request only where the requesting warehouse is within their assigned warehouse scope; that requesting warehouse becomes the destination if the request is later converted to a `TRF`.
+- A transfer request SHALL identify the source warehouse, requesting/destination warehouse, product lines, requested quantity, observed source available quantity, observed requesting warehouse available quantity, needed-by date, and business reason.
+- A transfer request SHALL be submitted to CEO for approval before Planner can create an executable `TRF` from it.
+- CEO MAY approve or reject a submitted transfer request. Rejection SHALL require a reason and preserve the request for audit.
+- CEO approval SHALL NOT reserve inventory and SHALL NOT move stock. Inventory reservation remains part of source warehouse manager approval on the later `TRF`.
+- After CEO approval, the system SHALL generate or send an approved transfer request template/notification to the Planner assigned to the source warehouse so the Planner can create the executable `TRF`.
+- Planner MAY create a `TRF` from a CEO-approved transfer request. The resulting `TRF` SHALL copy source warehouse, destination warehouse, item lines, request reference, and traceability code from the approved request.
+- A CEO-approved transfer request SHALL be converted to at most one active `TRF`; duplicate conversion SHALL be rejected.
+- If source availability changes before `TRF` approval, existing source manager stock checks and `INSUFFICIENT_TRANSFER_STOCK` handling still apply.
 - Every transfer SHALL store a non-blank `external_instruction_code` for traceability.
 - Active transfers SHALL be unique by `external_instruction_code`, source warehouse, destination warehouse, and `document_date`; transfers in `REJECTED` or `CANCELLED` SHALL NOT block creating a corrected transfer.
 - Cong ty me SHALL NOT be modeled as a WMS user in Sprint 1; Planner is the system actor who enters the external instruction.
@@ -220,6 +302,17 @@ Moi phieu dieu chuyen gan voi dung **mot** chuyen xe noi bo rieng, gom xe, tai x
 - Destination QC SHALL check both received quantity and product quality. QC-failed quantities SHALL be moved to quarantine inventory and excluded from available inventory.
 - Thu kho dich SHALL select `destination_location_id` for QC-passed quantity only. The `destination_location_id` SHALL NOT be a quarantine bin; the system enforces this as an invariant.
 - QC-failed quantity SHALL be automatically routed to the destination warehouse quarantine location (`is_quarantine = true`) by the system at finalReceive; Thu kho dich does NOT manually select the quarantine bin.
+- QC-failed transfer quantity placed in Quarantine SHALL retain its `transfer_id` and `transfer_item_id` origin and SHALL be handed off to the Spec 009 disposal flow.
+- Transfer-origin quarantine goods SHALL NOT be eligible for supplier RTV or supplier Debit Note creation.
+- A physical transfer shortage SHALL create only a `TRANSFER_DISCREPANCY` adjustment; the missing quantity SHALL NOT increase quarantine inventory or create a disposal candidate.
+- An intact wrong-SKU shipment MAY use Return to Source. Return to Source SHALL NOT be used as the terminal treatment for goods already confirmed physically damaged; those goods SHALL follow Spec 009 disposal.
+- Destination Storekeeper SHALL report an intact wrong-SKU shipment with item-level expected SKU, actual SKU, quantity, and reason while the transfer remains `IN_TRANSIT`.
+- Destination Warehouse Manager SHALL approve or reject a `WRONG_SKU` return request within destination warehouse scope. Approval SHALL set `is_returned = true`, preserve the same transfer/trip/driver assignment, and flip receiving scope to the source warehouse.
+- The assigned driver SHALL turn back with the same physical stock after wrong-SKU return approval. The vehicle, driver, and trip SHALL remain active until source final confirmation.
+- Source return receiving SHALL repeat the controlled three-step flow: source Staff records count; source Storekeeper checks quantity/QC; source Warehouse Manager final-confirms receipt.
+- On source final confirmation, QC-passed returned quantity SHALL increase source regular inventory, damaged quantity SHALL enter source Quarantine, shortages SHALL create `TRANSFER_DISCREPANCY`, In-Transit SHALL be cleared, and the transfer SHALL finish as `COMPLETED` with `is_returned = true`.
+- A finalized transfer shortage SHALL calculate destination inventory quantity and value only from `received_qty`. Missing quantity SHALL remain a quantity-only `TRANSFER_DISCREPANCY` and SHALL NOT be included in destination receipt value, invoice, revenue, dealer receivable, supplier payable, or supplier Debit Note.
+- The system SHALL NOT automatically charge a driver, employee, or warehouse for transfer loss. Liability/recovery requires a separate approved investigation/accounting process.
 - When `qcFailedQty > 0`, the system SHALL validate at receiveCheck time that the destination warehouse has at least one active quarantine bin (`QUARANTINE_LOCATION_NOT_CONFIGURED`); this prevents receiving being blocked at the finalReceive step.
 - The system SHALL surface a quarantine destination hint in the UI (e.g., "2 sp lỗi → WH-HCM-Q01 (tự động)") when the storekeeper enters QC-failed quantity greater than zero.
 - `received_qty > sent_qty` SHALL be blocked.
@@ -227,7 +320,11 @@ Moi phieu dieu chuyen gan voi dung **mot** chuyen xe noi bo rieng, gom xe, tai x
 - QC failure alone SHALL require `qc_failure_reason` during receive-check and SHALL NOT require duplicate `discrepancy_reason` unless another final-level issue exists.
 - If `received_qty < sent_qty`, the system SHALL create a `TRANSFER_DISCREPANCY` adjustment and set status to `COMPLETED_WITH_DISCREPANCY`.
 - Transfer cancellation SHALL be rejected for `REJECTED`, `IN_TRANSIT`, `COMPLETED`, `COMPLETED_WITH_DISCREPANCY`, `CANCELLED`, or `QUARANTINED` transfers.
-- **Return to Source**: When a transfer trip's `planned_end_at` has passed and the transfer is still `IN_TRANSIT`, the system marks `tripOverdue = true` on the transfer response. The source manager (WAREHOUSE_MANAGER scoped to the source warehouse, ADMIN, CEO, or PLANNER) MAY trigger Return to Source, which sets `is_returned = true`. When `is_returned = true`, receiving scope flips to the source warehouse; destination storekeeper and manager of the destination warehouse SHALL NOT be able to receive the goods. The source manager is solely responsible for this decision.
+- **Return to Source**:
+  - For `TRIP_OVERDUE`, the source manager (WAREHOUSE_MANAGER scoped to the source warehouse, ADMIN, CEO, or PLANNER) MAY approve return while the transfer remains `IN_TRANSIT`.
+  - For `WRONG_SKU`, destination Storekeeper SHALL submit a return report and destination Warehouse Manager SHALL approve or reject it. Destination Staff/Storekeeper SHALL NOT final-receive the wrong SKU into regular inventory before the decision.
+  - After approval, `is_returned = true`; the same driver turns back and receiving scope flips to the source warehouse.
+  - Source Staff, source Storekeeper, and source Warehouse Manager SHALL execute receive-count, receive-check/QC, and final-receive respectively.
 - **Quarantine Rejection**:
   - WHEN a Storekeeper (at receive check stage) or a Warehouse Manager (at final confirmation stage) decides to reject the entire shipment due to severe damage or discrepancy, they SHALL trigger a quarantine rejection.
   - The rejection SHALL require a `rejection_reason`.
@@ -236,6 +333,7 @@ Moi phieu dieu chuyen gan voi dung **mot** chuyen xe noi bo rieng, gom xe, tai x
   - The system SHALL deduct all transit stock of this transfer from the `IN_TRANSIT` virtual location and add it to the destination warehouse's active quarantine bin (or source warehouse's active quarantine bin if `is_returned = true`). If no quarantine bin exists, the operation SHALL fail with `QUARANTINE_LOCATION_NOT_CONFIGURED`.
   - The system SHALL release the vehicle, driver, and trip, setting the vehicle and driver back to `AVAILABLE` and the trip status to `COMPLETED`.
   - The system SHALL write a `TRANSFER_QUARANTINE_REJECT` audit log containing the rejection reason.
+  - The resulting quarantine stock SHALL be marked as internal-transfer origin and made available to the Spec 009 disposal workflow only; RTV SHALL be blocked.
 - **Trip date validation**: When assigning a trip, `planned_start_at` SHALL NOT be in the past, `planned_end_at` SHALL NOT be in the past, and `planned_end_at` SHALL be after `planned_start_at`. If any condition is violated, the assignment SHALL be rejected with the appropriate error code (`TRIP_START_IN_PAST`, `TRIP_END_IN_PAST`, `TRIP_SCHEDULE_INVALID`).
 - If an item's initial `received_qty` is different from `sent_qty`, the worker SHALL provide item-level `receive_issue_reason`.
 - Thu kho dich MAY correct the worker-entered received quantity during receive check; if the checked quantity differs, `receive_checker_note` SHALL be required.
@@ -251,6 +349,11 @@ Moi phieu dieu chuyen gan voi dung **mot** chuyen xe noi bo rieng, gom xe, tai x
 ### Audit Trail
 - Every transfer mutation SHALL create an audit log with `actor`, `action`, `entity_type`, `entity_id`, `entity_code`, `timestamp`, `before`, and `after`.
 - `TRANSFER_CREATE`: Planner creates transfer with status `NEW`.
+- `TRANSFER_REQUEST_CREATE`: Warehouse manager creates transfer request from cross-warehouse stock view.
+- `TRANSFER_REQUEST_SUBMIT`: Warehouse manager submits request to CEO.
+- `TRANSFER_REQUEST_CEO_APPROVE`: CEO approves request and triggers the approved request template/notification for source Planner.
+- `TRANSFER_REQUEST_CEO_REJECT`: CEO rejects request with required reason.
+- `TRANSFER_REQUEST_CONVERT`: Planner creates a `TRF` from a CEO-approved transfer request.
 - `TRANSFER_UPDATE`: Planner edits header or item lines while transfer status is `NEW`.
 - `TRANSFER_APPROVE`: Truong kho nguon approves transfer, reserves source inventory, and changes status to `APPROVED`.
 - `TRANSFER_REJECT`: Truong kho nguon rejects a `NEW` transfer with a required reason and changes status to `REJECTED`.
@@ -263,7 +366,11 @@ Moi phieu dieu chuyen gan voi dung **mot** chuyen xe noi bo rieng, gom xe, tai x
 - `TRANSFER_RECEIVE_CONFIRM`: Truong kho dich confirms receipt, moves passed quantity to destination inventory, failed quantity to quarantine inventory, clears In-Transit, and completes the transfer.
 - `TRANSFER_DISCREPANCY_CREATE`: System creates shortage adjustment when received quantity is lower than sent quantity.
 - `TRANSFER_RETURN_TO_SOURCE`: Source warehouse manager or authorized role triggers return-to-source on an overdue IN_TRANSIT transfer; sets `is_returned = true` and flips receiving scope to source warehouse.
+- `TRANSFER_RETURN_REQUEST`: Destination Storekeeper reports intact wrong SKU with item detail and reason.
+- `TRANSFER_RETURN_APPROVE`: Destination Warehouse Manager approves wrong-SKU return, keeps stock In-Transit, and flips receiving scope to source warehouse.
+- `TRANSFER_RETURN_REJECT`: Destination Warehouse Manager rejects the return request with reason and leaves destination receiving unresolved for corrective action.
 - `TRANSFER_QUARANTINE_REJECT`: Storekeeper or Warehouse Manager rejects the entire transfer order, moving all stock to the target warehouse quarantine location and setting status to `QUARANTINED`.
+- `TRANSFER_DISPOSAL_HANDOFF`: Transfer-origin quarantine stock is linked to the Spec 009 disposal workflow without changing inventory until disposal approval.
 - `TRANSFER_CANCEL`: Planner cancels a `NEW` transfer without inventory changes, or Truong kho nguon/manager cancels an unshipped `APPROVED` transfer and releases reserved quantity.
 - If driver reassignment or trip reschedule is later supported before departure, those changes SHALL also require dedicated audit actions such as `TRANSFER_TRIP_REASSIGN` or `TRANSFER_TRIP_RESCHEDULE`.
 
@@ -304,12 +411,13 @@ Moi phieu dieu chuyen gan voi dung **mot** chuyen xe noi bo rieng, gom xe, tai x
 
 *Vui long xem chi tiet kich ban kiem thu tai cac tai lieu dac ta tinh nang:*
 - [Acceptance - Transfer Creation](./features/feature-planner-transfer-planning.md#6-acceptance-criteria)
+- [Acceptance - Manager Transfer Request and CEO Approval](./features/feature-warehouse-manager-transfer-request.md#6-acceptance-criteria)
 - [Acceptance - Transfer Shipment](./features/feature-storekeeper-transfer-ship.md#7-acceptance-criteria)
 - [Acceptance - Transfer Receipt](./features/feature-storekeeper-transfer-receive.md#6-acceptance-criteria)
 
 ## 10. Out of Scope
 
-- Automated replenishment suggestions and transfer decision algorithms
+- Automated replenishment suggestions and transfer decision algorithms beyond manager-initiated manual requests
 - Multi-warehouse transfer optimization
 - Transfer cost tracking
 - Third-party logistics (3PL) for transfer flow
@@ -320,7 +428,7 @@ Moi phieu dieu chuyen gan voi dung **mot** chuyen xe noi bo rieng, gom xe, tai x
 - Rescheduling an in-progress trip
 - Split shipment from one transfer into multiple departure events
 - Split receive from one transfer into multiple final receipt events
-- Return of QC-failed transfer goods back to source warehouse (deferred to spec 009 Returns & Disposal)
+- Execution and approval of disposal for transfer-origin quarantine goods (owned by Spec 009; Spec 005 owns classification, traceability, and handoff)
 - QC grade classification for internally transferred goods (household goods domain has no quality tiers)
 
 ---
@@ -332,8 +440,9 @@ Moi phieu dieu chuyen gan voi dung **mot** chuyen xe noi bo rieng, gom xe, tai x
 ### 11.1 is_returned field and Return-to-Source flow
 - Field `is_returned BOOLEAN DEFAULT false` was added to `transfers` table.
 - When `is_returned = true`, all receive scope checks use `sourceWarehouseId` instead of `destinationWarehouseId`.
-- Return to Source may only be triggered by: WAREHOUSE_MANAGER scoped to **source** warehouse, ADMIN, CEO, or PLANNER.
-- Destination-side roles (storekeeper, manager of destination) are explicitly blocked from triggering Return to Source.
+- Overdue Return to Source may be triggered by WAREHOUSE_MANAGER scoped to **source** warehouse, ADMIN, CEO, or PLANNER.
+- Wrong-SKU Return to Source requires a destination Storekeeper report followed by destination Warehouse Manager approval.
+- After either approval path, the assigned driver returns the goods and the source warehouse repeats count, check/QC, and final confirmation.
 - API: `POST /api/v1/transfers/{id}/return-to-source`
 
 ### 11.2 Trip date validation at assign time

@@ -58,6 +58,10 @@ class ReceiptBackendGuardTest {
     private UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
     @Mock
     private AuditLogService auditLogService;
+    @Mock
+    private com.wms.repository.QuarantineRecordRepository quarantineRecordRepository;
+    @Mock
+    private com.wms.repository.PriceHistoryRepository priceHistoryRepository;
 
     private ReceiptValidationService receiptValidationService;
     private ReceiptApprovalService approvalService;
@@ -98,7 +102,9 @@ class ReceiptBackendGuardTest {
                 debitNoteRepository,
                 inventoryRepository,
                 receiptValidationService,
-                auditLogService);
+                auditLogService,
+                quarantineRecordRepository,
+                priceHistoryRepository);
     }
 
     @Test

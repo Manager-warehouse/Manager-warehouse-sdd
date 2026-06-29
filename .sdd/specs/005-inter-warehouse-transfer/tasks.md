@@ -4,7 +4,7 @@
 
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/openapi.yaml, quickstart.md
 
-**Last updated**: 2026-06-19 — Sprint 1 implementation complete for all core flows.
+**Last updated**: 2026-06-24 — Sprint 1 core transfer flow implemented; added manager-initiated transfer request and CEO approval scope.
 
 **Organization**: Tasks are grouped by user story and implementation layer. Backend and frontend work is split into dedicated files.
 
@@ -164,7 +164,86 @@
 
 ---
 
-## Phase 6: Polish, Quality Gates, and Documentation
+## Phase 6: US4 - Manager Transfer Request and CEO Approval (Priority: P1)
+
+**Goal**: Warehouse manager views other warehouses' available stock read-only, creates a transfer request for their own shortage, submits it to CEO, and after CEO approval the source Planner receives an approved template to create the executable `TRF`.
+
+**Independent Test**: HP warehouse manager can see HCM available stock, create/submit a request, CEO can approve/reject, Planner can convert only an approved request to one `TRF`, and conversion is blocked before approval or after prior conversion.
+
+### Tests for US4
+
+- [ ] T093 [P] [US4] Add service tests for cross-warehouse stock lookup authorization and quarantine-excluded availability in backend/src/test/java/com/wms/service/TransferRequestServiceImplTest.java
+- [ ] T094 [P] [US4] Add service tests for create/update/submit manager transfer request in backend/src/test/java/com/wms/service/TransferRequestServiceImplTest.java
+- [ ] T095 [P] [US4] Add service tests for CEO approve/reject and required rejection reason in backend/src/test/java/com/wms/service/TransferRequestServiceImplTest.java
+- [ ] T096 [P] [US4] Add service tests for Planner convert-to-transfer, one-time conversion, and request-to-TRF field copy in backend/src/test/java/com/wms/service/TransferRequestServiceImplTest.java
+- [ ] T097 [P] [US4] Add controller integration tests for transfer-request endpoints in backend/src/test/java/com/wms/controller/TransferRequestControllerIntegrationTest.java
+- [ ] T098 [P] [US4] Add frontend tests for transfer request API methods and manager request form in frontend/src/services/transferRequest.service.test.js
+
+### Backend Implementation for US4
+
+- [ ] T099 [P] [US4] Create TransferRequestStatus enum in backend/src/main/java/com/wms/enums/TransferRequestStatus.java
+- [ ] T100 [P] [US4] Extend AuditAction with TRANSFER_REQUEST_CREATE/SUBMIT/CEO_APPROVE/CEO_REJECT/CONVERT in backend/src/main/java/com/wms/enums/AuditAction.java
+- [ ] T101 [P] [US4] Create TransferRequest and TransferRequestItem entities in backend/src/main/java/com/wms/entity/
+- [ ] T102 [P] [US4] Create TransferRequestRepository in backend/src/main/java/com/wms/repository/TransferRequestRepository.java
+- [ ] T103 [P] [US4] Create request/response DTOs in backend/src/main/java/com/wms/dto/request/transferrequest/ and backend/src/main/java/com/wms/dto/response/transferrequest/
+- [ ] T104 [P] [US4] Create TransferRequestMapper in backend/src/main/java/com/wms/mapper/TransferRequestMapper.java
+- [ ] T105 [US4] Create Flyway migration for transfer_requests, transfer_request_items, and transfers.transfer_request_id in backend/src/main/resources/db/migration/
+- [ ] T106 [US4] Implement cross-warehouse available stock lookup excluding quarantine inventory in the appropriate stock service/repository layer
+- [ ] T107 [US4] Implement TransferRequestService create/update/submit with warehouse-scope authorization in backend/src/main/java/com/wms/service/impl/TransferRequestServiceImpl.java
+- [ ] T108 [US4] Implement CEO approve/reject and approved template/notification assignment to source Planner in backend/src/main/java/com/wms/service/impl/TransferRequestServiceImpl.java
+- [ ] T109 [US4] Implement Planner convert-to-transfer by delegating to existing TransferService create flow and linking request to transfer
+- [ ] T110 [US4] Add TransferRequestController endpoints in backend/src/main/java/com/wms/controller/TransferRequestController.java
+- [ ] T111 [US4] Add OpenAPI/Swagger annotations for transfer-request endpoints
+
+### Frontend Implementation for US4
+
+- [ ] T112 [P] [US4] Create frontend transfer request service in frontend/src/services/transferRequest.service.js
+- [ ] T113 [P] [US4] Add cross-warehouse stock search UI for Warehouse Manager in frontend/src/pages/Transfer/TransferWorkspace.jsx or a dedicated transfer request page
+- [ ] T114 [P] [US4] Create TransferRequestForm component for manager request creation and submission
+- [ ] T115 [P] [US4] Create CEO approval panel/list for submitted transfer requests
+- [ ] T116 [P] [US4] Add Planner approved-request inbox/template view and convert-to-TRF action
+- [ ] T117 [US4] Wire role-scoped action visibility for Warehouse Manager, CEO, and Planner
+
+---
+
+## Phase 6A: Transfer Quarantine Handoff to Spec 009 (Priority: P1)
+
+**Goal**: Classify transfer exceptions by physical condition and hand physically damaged transfer stock to the spec 009 disposal flow without enabling supplier RTV.
+
+**Independent Test**: Damaged physical stock moves to Quarantine and can be disposed with transfer traceability; shortage creates only a discrepancy adjustment; intact wrong SKU can return to source; transfer-origin quarantine stock cannot create RTV or Debit Note.
+
+### Tests for Cross-Spec Handoff
+
+- [ ] T118 [P] Add service test proving transfer shortage does not create quarantine inventory or a disposal candidate.
+- [ ] T119 [P] Add service test proving physically damaged transfer stock retains transfer-item origin when moved to Quarantine.
+- [ ] T120 [P] Add service test blocking RTV and supplier Debit Note for `INTERNAL_TRANSFER` quarantine origin.
+- [ ] T121 [P] Add integration test covering transfer quarantine → spec 009 disposal approval → exact inventory deduction and audit.
+- [ ] T122 [P] Add end-to-end service test: destination Storekeeper reports wrong SKU, destination Manager approves, assigned driver turns back, and source Staff/Storekeeper/Manager complete count/check/final-receive.
+- [ ] T128 [P] Add valuation test proving 30 sent/28 received imports and values only 28 units, keeps 2 missing units as quantity-only discrepancy, and creates no commercial billing records.
+- [ ] T129 [P] Add authorization tests blocking Storekeeper self-approval and actors outside destination warehouse scope from approving wrong-SKU return.
+- [ ] T130 [P] Add source receiving tests for returned goods: passed to regular inventory, failed to source Quarantine, shortage to `TRANSFER_DISCREPANCY`.
+
+### Implementation and Contract Mapping
+
+- [ ] T123 Generalize `quarantine_records` with origin type/id and remaining quantity; support `INTERNAL_TRANSFER` references while retaining transfer/trip/vehicle/driver traceability.
+- [ ] T124 Add transfer-item disposal endpoint/contract in spec 009 and expose the action only for physically present quarantine quantity.
+- [ ] T125 Block RTV and Debit Note creation for internal-transfer and dealer-return quarantine origins.
+- [ ] T126 Update Quarantine Workspace to display origin and route actions: supplier inbound = RTV/disposal, internal transfer = disposal only, intact wrong SKU = Return to Source in transfer workspace.
+- [ ] T127 Add audit coverage for `TRANSFER_DISPOSAL_HANDOFF`, disposal approval, inventory before/after, and warehouse scope.
+- [ ] T131 Add a new Flyway migration for return reason/request/approval fields; do not modify applied migrations.
+- [ ] T132 Add wrong-SKU return request and manager decision DTOs with Jakarta Validation.
+- [ ] T133 Implement destination Storekeeper wrong-SKU report and destination Warehouse Manager approve/reject transitions while transfer remains `IN_TRANSIT`.
+- [ ] T134 Keep the same trip/vehicle/driver active for the approved return leg and instruct only the assigned driver to turn back.
+- [ ] T135 Reuse receive-count, receive-check/QC, and final-receive with source warehouse scope when `is_returned = true`.
+- [ ] T136 Ensure shortage finalization calculates destination inventory quantity/value from received quantity only and keeps missing quantity as quantity-only discrepancy without invoice, receivable, payable, Debit Note, or automatic employee liability.
+- [ ] T137 Add `TRANSFER_RETURN_REQUEST`, `TRANSFER_RETURN_APPROVE`, and `TRANSFER_RETURN_REJECT` audit actions with before/after state.
+- [ ] T138 Add controller endpoints and OpenAPI/Swagger contract for wrong-SKU report and destination Manager decision.
+- [ ] T139 Add Storekeeper “Báo gửi nhầm SKU” form and destination Manager approval panel/button in the transfer workspace.
+- [ ] T140 Add source warehouse return-receiving guidance and terminal label “Đã hoàn về kho nguồn” for completed transfers with `is_returned = true`.
+
+---
+
+## Phase 7: Polish, Quality Gates, and Documentation
 
 **Purpose**: Cross-cutting checks required before coding is considered complete.
 
@@ -185,13 +264,16 @@
 
 - Phase 1 must complete first.
 - Phase 2 blocks all user story implementation.
+- US4 manager request can be implemented after Phase 2 and can run before or alongside US1 UI polish because it converts into the existing Planner create flow.
 - US2 and US3 are P1 operational flow and should be implemented before US1 UI polish if delivery pressure exists.
 - US3 depends on US2 depart behavior for an `IN_TRANSIT` transfer.
-- Phase 6 depends on selected user stories being implemented.
+- US4 convert-to-transfer depends on US1 backend transfer creation behavior.
+- Phase 7 depends on selected user stories being implemented.
 
 ### User Story Dependencies
 
 - **US1 Planner Creation**: Can be tested independently through `NEW` transfer lifecycle.
+- **US4 Manager Request + CEO Approval**: Can be tested independently until CEO approval; conversion requires US1 create behavior.
 - **US2 Source Shipment**: Requires US1 create behavior and foundational inventory helpers.
 - **US3 Destination Receive**: Requires US2 depart behavior to create In-Transit state.
 
@@ -199,6 +281,7 @@
 
 - DTO creation tasks can run in parallel with frontend component skeletons.
 - Controller integration tests and service tests can be written in parallel.
+- US4 transfer-request backend can be developed in parallel with remaining transfer receive UI because it does not change `IN_TRANSIT` inventory movement.
 - Frontend pages/components for US2 and US3 can be built in parallel after `transfer.service.js` is stable.
 
 ## Implementation Strategy
@@ -209,7 +292,8 @@
 2. Implement US1 backend create/detail/update/cancel enough to create `NEW` transfers.
 3. Implement US2 backend source flow to reach `IN_TRANSIT`.
 4. Implement US3 backend receive flow to complete the transfer.
-5. Add frontend screens incrementally after API contracts are stable.
+5. Implement US4 manager request/CEO approval if manager-initiated replenishment is in the Sprint 1 release cut.
+6. Add frontend screens incrementally after API contracts are stable.
 
 ### Split Work Safely
 

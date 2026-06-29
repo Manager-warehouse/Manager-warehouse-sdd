@@ -29,6 +29,7 @@ public class InterWarehouseTransferReceivingService {
     private final AdjustmentRepository adjustmentRepository;
     private final PartnerAuditUtil auditUtil;
     private final InterWarehouseTransferHelper helper;
+    private final QuarantineRecordRepository quarantineRecordRepository;
 
     @Transactional
     public InterWarehouseTransferResponse receiveCount(Long id, InterWarehouseTransferReceiveCountRequest request, User actor) {
@@ -249,6 +250,22 @@ public class InterWarehouseTransferReceivingService {
                     helper.upsertInventory(targetWarehouse, item.getProduct(), transit.getBatch(),
                             quarantineLocation, failQty, transit.getCostPrice());
                     remainingFailed = remainingFailed.subtract(failQty);
+
+                    // Lưu bản ghi vào quarantine_records cho hàng điều chuyển hỏng
+                    QuarantineRecord qr = new QuarantineRecord();
+                    qr.setWarehouse(targetWarehouse);
+                    qr.setProduct(item.getProduct());
+                    qr.setBatch(transit.getBatch());
+                    qr.setLocation(quarantineLocation);
+                    qr.setTransfer(transfer);
+                    qr.setTransferItem(item);
+                    qr.setOriginType("INTERNAL_TRANSFER");
+                    qr.setQuantity(failQty);
+                    qr.setRemainingQuantity(failQty);
+                    qr.setReason(item.getQcFailureReason() != null ? item.getQcFailureReason() : "Hàng điều chuyển hỏng vật lý");
+                    qr.setCreatedBy(actor);
+                    qr.setCreatedAt(OffsetDateTime.now());
+                    quarantineRecordRepository.save(qr);
                 }
                 BigDecimal shortageQty = qty.subtract(passQty).subtract(failQty);
                 if (shortageQty.signum() > 0) {
@@ -296,8 +313,90 @@ public class InterWarehouseTransferReceivingService {
 
                 helper.upsertInventory(targetWarehouse, item.getProduct(), transit.getBatch(),
                         quarantineLocation, qty, transit.getCostPrice());
+
+                // Lưu bản ghi vào quarantine_records khi từ chối nhận toàn bộ (bị chuyển vào quarantine)
+                QuarantineRecord qr = new QuarantineRecord();
+                qr.setWarehouse(targetWarehouse);
+                qr.setProduct(item.getProduct());
+                qr.setBatch(transit.getBatch());
+                qr.setLocation(quarantineLocation);
+                qr.setTransfer(transfer);
+                qr.setTransferItem(item);
+                qr.setOriginType("INTERNAL_TRANSFER");
+                qr.setQuantity(qty);
+                qr.setRemainingQuantity(qty);
+                qr.setReason(transfer.getRejectionReason() != null ? transfer.getRejectionReason() : "Từ chối và cách ly toàn bộ hàng điều chuyển");
+                qr.setCreatedBy(actor);
+                qr.setCreatedAt(OffsetDateTime.now());
+                quarantineRecordRepository.save(qr);
             }
         }
+    }
+
+    @Transactional
+    public InterWarehouseTransferResponse requestReturn(Long id, TransferReturnRequest request, User actor) {
+        InterWarehouseTransfer transfer = helper.findTransfer(id);
+        helper.requireStatus(transfer, InterWarehouseTransferStatus.IN_TRANSIT);
+        helper.ensureWarehouseScope(actor, transfer.getDestinationWarehouse().getId());
+
+        Map<String, Object> before = helper.snapshot(transfer);
+        transfer.setReturnRequested(true);
+        transfer.setReturnReason(request.reason());
+        transfer.setReturnRequestedBy(actor);
+        transfer.setReturnRequestedAt(OffsetDateTime.now());
+        transfer.setUpdatedAt(OffsetDateTime.now());
+
+        InterWarehouseTransfer saved = transferRepository.save(transfer);
+        helper.audit(saved, actor, AuditAction.UPDATE, before, helper.snapshot(saved));
+        return helper.toResponse(saved);
+    }
+
+    @Transactional
+    public InterWarehouseTransferResponse approveReturn(Long id, User actor) {
+        InterWarehouseTransfer transfer = helper.findTransfer(id);
+        helper.requireStatus(transfer, InterWarehouseTransferStatus.IN_TRANSIT);
+        if (!transfer.isReturnRequested()) {
+            throw new BusinessRuleViolationException("NO_RETURN_REQUESTED");
+        }
+        helper.ensureWarehouseScope(actor, transfer.getDestinationWarehouse().getId());
+        if (actor.getRole() != UserRole.WAREHOUSE_MANAGER && actor.getRole() != UserRole.ADMIN && actor.getRole() != UserRole.CEO) {
+            throw new BusinessRuleViolationException("WAREHOUSE_MANAGER_ROLE_REQUIRED");
+        }
+
+        Map<String, Object> before = helper.snapshot(transfer);
+        transfer.setReturnApprovedBy(actor);
+        transfer.setReturnApprovedAt(OffsetDateTime.now());
+        transfer.setReturned(true);
+        transfer.setReturnRequested(false);
+        transfer.setUpdatedAt(OffsetDateTime.now());
+
+        InterWarehouseTransfer saved = transferRepository.save(transfer);
+        helper.audit(saved, actor, AuditAction.TRANSFER_RETURN_TO_SOURCE, before, helper.snapshot(saved));
+        return helper.toResponse(saved);
+    }
+
+    @Transactional
+    public InterWarehouseTransferResponse rejectReturn(Long id, TransferReturnRejectRequest request, User actor) {
+        InterWarehouseTransfer transfer = helper.findTransfer(id);
+        helper.requireStatus(transfer, InterWarehouseTransferStatus.IN_TRANSIT);
+        if (!transfer.isReturnRequested()) {
+            throw new BusinessRuleViolationException("NO_RETURN_REQUESTED");
+        }
+        helper.ensureWarehouseScope(actor, transfer.getDestinationWarehouse().getId());
+        if (actor.getRole() != UserRole.WAREHOUSE_MANAGER && actor.getRole() != UserRole.ADMIN && actor.getRole() != UserRole.CEO) {
+            throw new BusinessRuleViolationException("WAREHOUSE_MANAGER_ROLE_REQUIRED");
+        }
+
+        Map<String, Object> before = helper.snapshot(transfer);
+        transfer.setReturnRejectedBy(actor);
+        transfer.setReturnRejectedAt(OffsetDateTime.now());
+        transfer.setReturnRejectionReason(request.reason());
+        transfer.setReturnRequested(false);
+        transfer.setUpdatedAt(OffsetDateTime.now());
+
+        InterWarehouseTransfer saved = transferRepository.save(transfer);
+        helper.audit(saved, actor, AuditAction.UPDATE, before, helper.snapshot(saved));
+        return helper.toResponse(saved);
     }
 
     private String generateAdjustmentNumber() {

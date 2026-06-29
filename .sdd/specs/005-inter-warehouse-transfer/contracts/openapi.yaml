@@ -5,6 +5,141 @@ info:
 servers:
   - url: /api/v1
 paths:
+  /warehouse-stock/cross-warehouse:
+    get:
+      summary: Search read-only cross-warehouse stock availability
+      tags: [Warehouse Stock]
+      parameters:
+        - name: productId
+          in: query
+          schema:
+            type: integer
+            format: int64
+        - name: sku
+          in: query
+          schema:
+            type: string
+        - name: excludeWarehouseId
+          in: query
+          description: Optional requesting warehouse to exclude from other-warehouse results
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Cross-warehouse availability results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CrossWarehouseStockResponse'
+        '403':
+          description: Cross-warehouse stock view forbidden
+  /transfer-requests:
+    post:
+      summary: Warehouse manager creates transfer request from other-warehouse stock
+      tags: [Transfer Requests]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransferRequestCreateRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransferRequestResponse'
+        '400':
+          description: Validation error
+        '403':
+          description: Requesting warehouse outside manager scope
+        '422':
+          description: Invalid warehouse/product or requested quantity exceeds source availability
+  /transfer-requests/{id}:
+    put:
+      summary: Warehouse manager updates DRAFT transfer request
+      tags: [Transfer Requests]
+      parameters:
+        - $ref: '#/components/parameters/TransferRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransferRequestCreateRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransferRequestResponse'
+        '409':
+          description: Request update not allowed
+  /transfer-requests/{id}/submit:
+    post:
+      summary: Submit transfer request to CEO
+      tags: [Transfer Requests]
+      parameters:
+        - $ref: '#/components/parameters/TransferRequestId'
+      responses:
+        '200':
+          description: Submitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransferRequestResponse'
+  /transfer-requests/{id}/ceo-approve:
+    post:
+      summary: CEO approves transfer request and sends template to source Planner
+      tags: [Transfer Requests]
+      parameters:
+        - $ref: '#/components/parameters/TransferRequestId'
+      responses:
+        '200':
+          description: Approved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransferRequestResponse'
+        '409':
+          description: Approval not allowed
+  /transfer-requests/{id}/ceo-reject:
+    post:
+      summary: CEO rejects transfer request
+      tags: [Transfer Requests]
+      parameters:
+        - $ref: '#/components/parameters/TransferRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CeoRejectTransferRequest'
+      responses:
+        '200':
+          description: Rejected
+        '400':
+          description: Rejection reason required
+  /transfer-requests/{id}/convert-to-transfer:
+    post:
+      summary: Planner converts CEO-approved transfer request into TRF
+      tags: [Transfer Requests]
+      parameters:
+        - $ref: '#/components/parameters/TransferRequestId'
+      responses:
+        '201':
+          description: Transfer created from approved request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransferResponse'
+        '409':
+          description: Request not approved or already converted
   /transfers:
     post:
       summary: Create transfer from external instruction
@@ -191,8 +326,60 @@ paths:
       responses:
         '200':
           description: Completed or completed with discrepancy
+  /transfers/{id}/return-request:
+    post:
+      summary: Destination storekeeper reports intact wrong SKU and requests return to source
+      tags: [Transfers]
+      parameters:
+        - $ref: '#/components/parameters/TransferId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WrongSkuReturnRequest'
+      responses:
+        '200':
+          description: Return request submitted for destination manager review
+        '409':
+          description: Return request not allowed in current state
+  /transfers/{id}/return-request/approve:
+    post:
+      summary: Destination manager approves wrong-SKU return using the same trip and driver
+      tags: [Transfers]
+      parameters:
+        - $ref: '#/components/parameters/TransferId'
+      responses:
+        '200':
+          description: Return approved; receiving scope flipped to source warehouse
+        '403':
+          description: Destination manager scope required
+        '409':
+          description: Pending return request required
+  /transfers/{id}/return-request/reject:
+    post:
+      summary: Destination manager rejects wrong-SKU return request
+      tags: [Transfers]
+      parameters:
+        - $ref: '#/components/parameters/TransferId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReturnDecisionRequest'
+      responses:
+        '200':
+          description: Return request rejected with reason
 components:
   parameters:
+    TransferRequestId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
     TransferId:
       name: id
       in: path
@@ -201,6 +388,71 @@ components:
         type: integer
         format: int64
   schemas:
+    CrossWarehouseStockResponse:
+      type: object
+      properties:
+        productId: { type: integer, format: int64 }
+        warehouseId: { type: integer, format: int64 }
+        warehouseCode: { type: string }
+        totalQty: { type: number }
+        reservedQty: { type: number }
+        availableQty: { type: number }
+        quarantineExcluded: { type: boolean }
+    TransferRequestCreateRequest:
+      type: object
+      required: [requestingWarehouseId, sourceWarehouseId, neededByDate, businessReason, items]
+      properties:
+        requestingWarehouseId: { type: integer, format: int64 }
+        sourceWarehouseId: { type: integer, format: int64 }
+        neededByDate: { type: string, format: date }
+        businessReason: { type: string, minLength: 1 }
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/TransferRequestItemInput'
+    TransferRequestItemInput:
+      type: object
+      required: [productId, requestedQty, observedSourceAvailableQty, observedRequestingAvailableQty]
+      properties:
+        id: { type: integer, format: int64, nullable: true }
+        productId: { type: integer, format: int64 }
+        requestedQty: { type: number, minimum: 0, exclusiveMinimum: true }
+        observedSourceAvailableQty: { type: number }
+        observedRequestingAvailableQty: { type: number }
+        shortageReason: { type: string }
+    CeoRejectTransferRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 1 }
+    TransferRequestResponse:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        requestNumber: { type: string }
+        status: { type: string }
+        requestingWarehouseId: { type: integer, format: int64 }
+        sourceWarehouseId: { type: integer, format: int64 }
+        neededByDate: { type: string, format: date }
+        businessReason: { type: string }
+        plannerAssigneeId: { type: integer, format: int64, nullable: true }
+        convertedTransferId: { type: integer, format: int64, nullable: true }
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TransferRequestItemResponse'
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    TransferRequestItemResponse:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        productId: { type: integer, format: int64 }
+        requestedQty: { type: number }
+        observedSourceAvailableQty: { type: number }
+        observedRequestingAvailableQty: { type: number }
+        shortageReason: { type: string, nullable: true }
     TransferCreateRequest:
       type: object
       required: [sourceWarehouseId, destinationWarehouseId, plannedDate, documentDate, externalInstructionCode, items]
@@ -287,6 +539,27 @@ components:
       type: object
       properties:
         discrepancyReason: { type: string }
+    WrongSkuReturnRequest:
+      type: object
+      required: [reason, items]
+      properties:
+        reason: { type: string, minLength: 1 }
+        items:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [transferItemId, expectedProductId, actualProductId, quantity]
+            properties:
+              transferItemId: { type: integer, format: int64 }
+              expectedProductId: { type: integer, format: int64 }
+              actualProductId: { type: integer, format: int64 }
+              quantity: { type: number, minimum: 0, exclusiveMinimum: true }
+    ReturnDecisionRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 1 }
     TransferResponse:
       type: object
       properties:
@@ -295,6 +568,13 @@ components:
         status: { type: string }
         sourceWarehouseId: { type: integer, format: int64 }
         destinationWarehouseId: { type: integer, format: int64 }
+        isReturned: { type: boolean }
+        returnReasonCode: { type: string, nullable: true }
+        returnReason: { type: string, nullable: true }
+        returnRequestedBy: { type: integer, format: int64, nullable: true }
+        returnRequestedAt: { type: string, format: date-time, nullable: true }
+        returnApprovedBy: { type: integer, format: int64, nullable: true }
+        returnApprovedAt: { type: string, format: date-time, nullable: true }
         externalInstructionCode: { type: string }
         plannedDate: { type: string, format: date }
         documentDate: { type: string, format: date }

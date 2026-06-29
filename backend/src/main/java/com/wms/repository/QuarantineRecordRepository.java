@@ -16,4 +16,7 @@ public interface QuarantineRecordRepository extends JpaRepository<QuarantineReco
             order by q.id asc
             """)
     List<QuarantineRecord> findByDeliveryOrderId(@Param("deliveryOrderId") Long deliveryOrderId);
+
+    List<QuarantineRecord> findByWarehouseIdAndRemainingQuantityGreaterThanOrderByCreatedAtDesc(
+            Long warehouseId, java.math.BigDecimal remainingQuantity);
 }

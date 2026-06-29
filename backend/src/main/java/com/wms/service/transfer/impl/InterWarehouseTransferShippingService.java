@@ -198,7 +198,11 @@ public class InterWarehouseTransferShippingService {
             Inventory source = inventoryRepository.findByIdForUpdate(allocation.getInventory().getId())
                     .orElseThrow(() -> new ResourceNotFoundException("Inventory not found: " + allocation.getInventory().getId()));
             source.setTotalQty(source.getTotalQty().subtract(allocation.getAllocatedQty()));
-            source.setReservedQty(source.getReservedQty().subtract(allocation.getAllocatedQty()));
+            BigDecimal newReserved = source.getReservedQty().subtract(allocation.getAllocatedQty());
+            if (newReserved.compareTo(BigDecimal.ZERO) < 0) {
+                newReserved = BigDecimal.ZERO;
+            }
+            source.setReservedQty(newReserved);
             source.setUpdatedAt(OffsetDateTime.now());
             inventoryRepository.save(source);
             helper.upsertInventory(transitWarehouse, allocation.getTransferItem().getProduct(), source.getBatch(),

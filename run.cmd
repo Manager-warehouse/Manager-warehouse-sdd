@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 @echo off
 setlocal
 
@@ -6,16 +5,13 @@ set "ROOT_DIR=%~dp0"
 set "BACKEND_DIR=%ROOT_DIR%backend"
 set "FRONTEND_DIR=%ROOT_DIR%frontend"
 
-=======
-x`@echo off
->>>>>>> main
 echo ========================================
 echo   WMS Phuc Anh - Khoi dong he thong
 echo ========================================
 
 echo.
 echo [1/2] Dang khoi dong Backend (port 8080)...
-start "WMS Backend" cmd /k "pushd ""%BACKEND_DIR%"" && mvn spring-boot:run"
+start "WMS Backend" cmd /k "pushd ""%BACKEND_DIR%"" && mvnw.cmd spring-boot:run"
 
 echo.
 echo [2/2] Dang khoi dong Frontend (port 3000)...
