@@ -143,7 +143,7 @@ const CeoDashboard = () => {
             <h3 className="text-sm font-bold text-shade-70 uppercase tracking-wider">
               Báo cáo Lãi/Lỗ tóm tắt (Kỳ: {kpis.p_and_l.period})
             </h3>
-            <span className="text-xs bg-canvas-cream border border-hairline-light text-shade-70 px-2 py-0.5 rounded font-bold">
+            <span className="text-[10px] bg-canvas-cream border border-hairline-light text-shade-70 px-2 py-0.5 rounded-pill font-semibold">
               VNĐ
             </span>
           </div>
@@ -196,7 +196,7 @@ const CeoDashboard = () => {
                   {formatCurrency(kpis.p_and_l.net_profit)}
                 </span>
               </div>
-              <div className={`px-3 py-1 rounded text-xs font-semibold ${kpis.p_and_l.net_profit >= 0 ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+              <div className={`px-3 py-1 rounded-pill text-[10px] font-semibold ${kpis.p_and_l.net_profit >= 0 ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
                 {kpis.p_and_l.revenue > 0 ? ((kpis.p_and_l.net_profit / kpis.p_and_l.revenue) * 100).toFixed(1) : 0}% Biên LN
               </div>
             </div>
@@ -209,7 +209,7 @@ const CeoDashboard = () => {
             <h3 className="text-sm font-bold text-shade-70 uppercase tracking-wider">
               Top 5 Đại lý nợ quá hạn cao nhất
             </h3>
-            <span className="text-[10px] text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded font-bold">
+            <span className="text-[10px] text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-pill font-semibold">
               Cảnh báo công nợ
             </span>
           </div>

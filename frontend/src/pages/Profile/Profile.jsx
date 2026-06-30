@@ -305,7 +305,7 @@ const Profile = () => {
             </div>
 
             {passError && (
-              <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-md text-xs font-medium">
+              <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs font-medium">
                 {passError}
               </div>
             )}

@@ -216,13 +216,13 @@ const ReceiptForm = () => {
 
       <form onSubmit={handleSubmit} className="flex flex-col lg:flex-row gap-6 items-start">
         {/* Left column - Metadata */}
-        <div className="w-full lg:w-1/3 bg-white border border-hairline-light rounded-lg p-6 shadow-sm card-premium flex flex-col gap-5">
+        <div className="w-full lg:w-1/3 bg-canvas-light border border-hairline-light rounded-lg p-6 shadow-level-3 card-premium flex flex-col gap-5">
           <h3 className="text-xs font-bold uppercase tracking-widest text-shade-40 border-b border-hairline-light pb-2 mb-2">
             Thông tin chung
           </h3>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold">Loại nhập kho</label>
+            <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Loại nhập kho</label>
             <select
               value={type}
               onChange={(e) => {
@@ -237,7 +237,7 @@ const ReceiptForm = () => {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold">Kho đích nhận</label>
+            <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Kho đích nhận</label>
             <input
               type="text"
               value={activeWarehouse?.name || ''}
@@ -247,7 +247,7 @@ const ReceiptForm = () => {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold">
+            <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">
               {type === 'PURCHASE' ? 'Nhà cung cấp' : 'Đại lý trả hàng'}
             </label>
             <select
@@ -265,7 +265,7 @@ const ReceiptForm = () => {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold">Người liên hệ <span className="text-red-500">*</span></label>
+            <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Người liên hệ <span className="text-red-500">*</span></label>
             <input
               type="text"
               placeholder="VD: Nguyễn Văn A"
@@ -277,7 +277,7 @@ const ReceiptForm = () => {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold">Mã chứng từ nguồn (PO/DO hoàn) <span className="text-red-500">*</span></label>
+            <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Mã chứng từ nguồn (PO/DO hoàn) <span className="text-red-500">*</span></label>
             <input
               type="text"
               placeholder="VD: PO-2026-0005"
@@ -289,7 +289,7 @@ const ReceiptForm = () => {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold">Kênh thông tin</label>
+            <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Kênh thông tin</label>
             <select
               value={sourceChannel}
               onChange={(e) => setSourceChannel(e.target.value)}
@@ -301,7 +301,7 @@ const ReceiptForm = () => {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold">Ngày chứng từ</label>
+            <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Ngày chứng từ</label>
             <input
               type="date"
               value={documentDate}
@@ -312,7 +312,7 @@ const ReceiptForm = () => {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold">Ghi chú</label>
+            <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Ghi chú</label>
             <textarea
               placeholder="Nhập ghi chú thêm..."
               value={notes}
@@ -325,7 +325,7 @@ const ReceiptForm = () => {
         {/* Right column - Products list & selection */}
         <div className="w-full lg:w-2/3 flex flex-col gap-6">
           {/* Product Search & Selector */}
-          <div className="bg-white border border-hairline-light rounded-lg p-6 shadow-sm card-premium relative">
+          <div className="bg-canvas-light border border-hairline-light rounded-lg p-6 shadow-level-3 card-premium relative">
             <h3 className="text-xs font-bold uppercase tracking-widest text-shade-40 mb-4 border-b border-hairline-light pb-2">
               Thêm sản phẩm
             </h3>
@@ -346,7 +346,7 @@ const ReceiptForm = () => {
 
               {/* Search results dropdown */}
               {showSearchResults && searchQuery.trim() !== '' && (
-                <div className="absolute left-0 right-0 mt-1.5 bg-white border border-hairline-light rounded-lg shadow-xl max-h-60 overflow-y-auto z-40">
+                <div className="absolute left-0 right-0 mt-1.5 bg-canvas-light border border-hairline-light rounded-lg shadow-xl max-h-60 overflow-y-auto z-40">
                   {searchResults.length === 0 ? (
                     <div className="p-4 text-xs text-shade-50 text-center">Không tìm thấy sản phẩm hợp lệ</div>
                   ) : (
@@ -354,7 +354,7 @@ const ReceiptForm = () => {
                       <div
                         key={prod.id}
                         onClick={() => handleAddItem(prod)}
-                        className="p-3 hover:bg-zinc-50 cursor-pointer transition-colors border-b border-hairline-light last:border-0 flex items-center justify-between text-xs"
+                        className="p-3 hover:bg-canvas-cream cursor-pointer transition-colors border-b border-hairline-light last:border-0 flex items-center justify-between text-xs"
                       >
                         <div>
                           <span className="font-bold block">{prod.sku}</span>
@@ -370,8 +370,8 @@ const ReceiptForm = () => {
           </div>
 
           {/* Selected Items Table */}
-          <div className="bg-white border border-hairline-light rounded-lg shadow-sm card-premium overflow-hidden">
-            <div className="p-4 border-b border-hairline-light bg-zinc-50">
+          <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 card-premium overflow-hidden">
+            <div className="p-4 border-b border-hairline-light bg-canvas-cream">
               <h3 className="text-xs font-bold uppercase tracking-widest text-shade-40">
                 Chi tiết sản phẩm lập lệnh
               </h3>
@@ -385,16 +385,16 @@ const ReceiptForm = () => {
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className="bg-zinc-50 border-b border-hairline-light">
-                      <th className="px-6 py-3 font-bold text-shade-60">Sản phẩm</th>
-                      <th className="px-6 py-3 font-bold text-shade-60 text-right w-24">Số lượng dự kiến</th>
-                      <th className="px-6 py-3 font-bold text-shade-60 text-right w-36">Đơn giá nhập (VND)</th>
-                      <th className="px-6 py-3 font-bold text-shade-60 text-right w-20">Hành động</th>
+                    <tr className="bg-canvas-cream border-b border-hairline-light">
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Sản phẩm</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right w-24">Số lượng dự kiến</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right w-36">Đơn giá nhập (VND)</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right w-20">Hành động</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-hairline-light">
                     {selectedItems.map((item, index) => (
-                      <tr key={item.product_id} className="hover:bg-zinc-50/50">
+                      <tr key={item.product_id} className="hover:bg-canvas-cream">
                         <td className="px-6 py-4">
                           <span className="font-bold block">{item.sku}</span>
                           <span className="text-shade-50 block">{item.name}</span>

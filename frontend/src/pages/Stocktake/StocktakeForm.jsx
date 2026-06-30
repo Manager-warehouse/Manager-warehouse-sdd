@@ -4,6 +4,7 @@ import { ClipboardList, ArrowLeft } from 'lucide-react';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
 import { stocktakeService } from '../../services/stocktake.service';
+import Button from '../../components/common/Button';
 
 const StocktakeForm = () => {
   const navigate = useNavigate();
@@ -62,32 +63,32 @@ const StocktakeForm = () => {
   };
 
   return (
-    <div className="p-6 w-full space-y-6">
+    <div className="flex flex-col gap-6">
       {/* Header */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-start gap-3">
         <button
           onClick={() => navigate('/stocktake')}
-          className="p-2 rounded-xl text-shade-50 hover:bg-canvas-cream transition-colors"
+          className="p-2 rounded-pill text-shade-50 hover:bg-canvas-cream transition-colors mt-1 shrink-0"
         >
           <ArrowLeft className="w-4 h-4" />
         </button>
-        <ClipboardList className="w-6 h-6 text-aloe-40" />
         <div>
-          <h1 className="text-xl font-bold text-canvas-night">Tạo phiếu kiểm kê</h1>
+          <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">Vận hành / Kiểm kê</span>
+          <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">Tạo phiếu kiểm kê</h1>
           {activeWarehouse && (
-            <p className="text-xs text-shade-50">{activeWarehouse.name}</p>
+            <p className="text-xs text-shade-50 font-light mt-1">{activeWarehouse.name}</p>
           )}
         </div>
       </div>
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-hairline shadow-xs p-6 space-y-5">
+      <form onSubmit={handleSubmit} className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 p-6 flex flex-col gap-5">
         {/* Grid 2 cột */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {/* Warehouse (read-only) */}
           <div className="space-y-1.5">
             <label className="block text-xs font-semibold text-shade-40 uppercase tracking-wider">Kho kiểm kê</label>
-            <div className="px-3 py-2.5 rounded-xl bg-canvas-cream border border-hairline text-sm text-shade-30">
+            <div className="px-3 py-2.5 rounded-xl bg-canvas-cream border border-hairline-light text-sm text-shade-30">
               {activeWarehouse?.name || '(Chưa chọn kho)'}
             </div>
           </div>
@@ -101,7 +102,7 @@ const StocktakeForm = () => {
               value={form.accounting_period_id}
               onChange={(e) => set('accounting_period_id', e.target.value)}
               className={`w-full px-3 py-2.5 rounded-xl border text-sm outline-none transition-colors ${
-                errors.accounting_period_id ? 'border-red-400 bg-red-50' : 'border-hairline focus:border-zinc-400'
+                errors.accounting_period_id ? 'border-red-400 bg-red-50' : 'border-hairline-light focus:border-zinc-400'
               }`}
             >
               <option value={1}>T06/2026 (đang mở)</option>
@@ -121,7 +122,7 @@ const StocktakeForm = () => {
               value={form.stock_take_date}
               onChange={(e) => set('stock_take_date', e.target.value)}
               className={`w-full px-3 py-2.5 rounded-xl border text-sm outline-none transition-colors ${
-                errors.stock_take_date ? 'border-red-400 bg-red-50' : 'border-hairline focus:border-zinc-400'
+                errors.stock_take_date ? 'border-red-400 bg-red-50' : 'border-hairline-light focus:border-zinc-400'
               }`}
             />
             {errors.stock_take_date && (
@@ -139,7 +140,7 @@ const StocktakeForm = () => {
               value={form.document_date}
               onChange={(e) => set('document_date', e.target.value)}
               className={`w-full px-3 py-2.5 rounded-xl border text-sm outline-none transition-colors ${
-                errors.document_date ? 'border-red-400 bg-red-50' : 'border-hairline focus:border-zinc-400'
+                errors.document_date ? 'border-red-400 bg-red-50' : 'border-hairline-light focus:border-zinc-400'
               }`}
             />
             {errors.document_date && (
@@ -156,7 +157,7 @@ const StocktakeForm = () => {
             value={form.notes}
             onChange={(e) => set('notes', e.target.value)}
             placeholder="Ghi chú thêm (tuỳ chọn)"
-            className="w-full px-3 py-2.5 rounded-xl border border-hairline focus:border-zinc-400 text-sm outline-none transition-colors resize-none"
+            className="w-full px-3 py-2.5 rounded-xl border border-hairline-light focus:border-zinc-400 text-sm outline-none transition-colors resize-none"
           />
         </div>
 
@@ -165,17 +166,18 @@ const StocktakeForm = () => {
           <button
             type="button"
             onClick={() => navigate('/stocktake')}
-            className="px-5 py-2.5 rounded-pill text-xs font-semibold border border-hairline text-shade-50 hover:bg-canvas-cream transition-colors"
+            className="px-5 py-2.5 rounded-pill text-xs font-semibold border border-hairline-light text-shade-50 hover:bg-canvas-cream transition-colors"
           >
             Hủy
           </button>
-          <button
+          <Button
             type="submit"
+            variant="primary"
             disabled={submitting || !activeWarehouse}
-            className="px-5 py-2.5 rounded-pill text-xs font-semibold bg-black text-white hover:bg-zinc-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            loading={submitting}
           >
             {submitting ? 'Đang tạo...' : 'Tạo phiếu kiểm kê'}
-          </button>
+          </Button>
         </div>
       </form>
     </div>

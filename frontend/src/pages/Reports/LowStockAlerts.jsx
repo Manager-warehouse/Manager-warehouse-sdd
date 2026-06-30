@@ -69,7 +69,7 @@ const LowStockAlerts = () => {
           <select
             value={warehouseId}
             onChange={(e) => { setWarehouseId(e.target.value); setPage(0); }}
-            className="input-select text-xs font-semibold py-1.5 px-3 border border-hairline-light rounded bg-canvas-light text-ink"
+            className="bg-canvas-light text-ink text-xs font-semibold px-3 py-1.5 rounded-md border border-hairline-light focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink transition-all min-h-[36px]"
           >
             <option value="">Tất cả kho vật lý</option>
             <option value="1">Kho Hải Phòng</option>
@@ -81,7 +81,7 @@ const LowStockAlerts = () => {
           <select
             value={isResolved}
             onChange={(e) => { setIsResolved(e.target.value); setPage(0); }}
-            className="input-select text-xs font-semibold py-1.5 px-3 border border-hairline-light rounded bg-canvas-light text-ink"
+            className="bg-canvas-light text-ink text-xs font-semibold px-3 py-1.5 rounded-md border border-hairline-light focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink transition-all min-h-[36px]"
           >
             <option value="false">Đang cảnh báo (Chưa xử lý)</option>
             <option value="true">Đã bổ sung (Đã xử lý)</option>
@@ -155,12 +155,12 @@ const LowStockAlerts = () => {
                         </td>
                         <td className="py-3.5 px-4 text-center">
                           {alert.is_resolved ? (
-                            <span className="flex items-center justify-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-pill">
+                            <span className="flex items-center justify-center gap-1 text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-pill">
                               <CheckCircle className="w-3 h-3" />
                               <span>Đã bổ sung</span>
                             </span>
                           ) : (
-                            <span className="flex items-center justify-center gap-1 text-[10px] font-bold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-pill animate-pulse">
+                            <span className="flex items-center justify-center gap-1 text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-pill animate-pulse">
                               <AlertTriangle className="w-3 h-3" />
                               <span>Cần bổ sung</span>
                             </span>

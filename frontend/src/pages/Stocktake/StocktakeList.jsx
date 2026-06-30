@@ -5,6 +5,7 @@ import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
 import { stocktakeService } from '../../services/stocktake.service';
 import { ROLES } from '../../utils/constants';
+import Button from '../../components/common/Button';
 
 const STATUS_LABELS = {
   DRAFT: 'Nháp',
@@ -105,38 +106,33 @@ const StocktakeList = () => {
   }
 
   return (
-    <div className="p-6 w-full space-y-6">
+    <div className="flex flex-col gap-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <ClipboardList className="w-6 h-6 text-aloe-40" />
-          <div>
-            <h1 className="text-xl font-bold text-canvas-night">Kiểm kê hàng hóa</h1>
-            <p className="text-xs text-shade-50">{activeWarehouse.name}</p>
-          </div>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">Vận hành / Kiểm kê</span>
+          <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">Kiểm kê hàng hóa</h1>
+          <p className="text-xs text-shade-50 font-light mt-1">{activeWarehouse.name}</p>
         </div>
         {canCreate && (
-          <button
-            onClick={() => navigate('/stocktake/new')}
-            className="flex items-center gap-2 px-4 py-2 rounded-pill bg-black text-white text-xs font-semibold hover:bg-zinc-800 transition-colors"
-          >
+          <Button variant="primary" onClick={() => navigate('/stocktake/new')}>
             <Plus className="w-4 h-4" />
             Tạo phiếu kiểm kê
-          </button>
+          </Button>
         )}
       </div>
 
       {/* Filters */}
       <div className="flex items-center gap-3 flex-wrap">
-        <span className="text-xs font-semibold text-shade-50 uppercase tracking-wider">Lọc:</span>
+        <span className="text-xs font-semibold text-shade-60 uppercase tracking-wider">Lọc:</span>
         {['', 'DRAFT', 'IN_PROGRESS', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'CANCELLED'].map((s) => (
           <button
             key={s}
             onClick={() => setStatusFilter(s)}
             className={`px-3 py-1.5 rounded-pill text-xs font-semibold transition-colors border ${
               statusFilter === s
-                ? 'bg-black text-white border-black'
-                : 'border-hairline text-shade-50 hover:border-black hover:text-black'
+                ? 'bg-ink text-onPrimary border-ink'
+                : 'border-hairline-light text-shade-50 hover:border-black hover:text-black'
             }`}
           >
             {s ? STATUS_LABELS[s] : 'Tất cả'}
@@ -145,7 +141,7 @@ const StocktakeList = () => {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-2xl border border-hairline shadow-xs overflow-hidden">
+      <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden">
         {loading ? (
           <div className="p-12 text-center text-shade-50 text-sm">Đang tải...</div>
         ) : stocktakes.length === 0 ? (
@@ -153,17 +149,17 @@ const StocktakeList = () => {
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-canvas-cream border-b border-hairline">
-                <th className="px-4 py-3 text-left text-xs font-bold text-shade-50 uppercase tracking-wider">Số phiếu</th>
-                <th className="px-4 py-3 text-left text-xs font-bold text-shade-50 uppercase tracking-wider">Ngày kiểm</th>
-                <th className="px-4 py-3 text-left text-xs font-bold text-shade-50 uppercase tracking-wider">Người kiểm</th>
-                <th className="px-4 py-3 text-left text-xs font-bold text-shade-50 uppercase tracking-wider">Trạng thái</th>
-                <th className="px-4 py-3 text-left text-xs font-bold text-shade-50 uppercase tracking-wider">Cấp duyệt</th>
-                <th className="px-4 py-3 text-right text-xs font-bold text-shade-50 uppercase tracking-wider">Chênh lệch</th>
-                <th className="px-4 py-3 text-center text-xs font-bold text-shade-50 uppercase tracking-wider">Thao tác</th>
+              <tr className="bg-canvas-cream border-b border-hairline-light">
+                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-shade-60">Số phiếu</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-shade-60">Ngày kiểm</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-shade-60">Người kiểm</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-shade-60">Trạng thái</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-shade-60">Cấp duyệt</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-shade-60">Chênh lệch</th>
+                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-shade-60">Thao tác</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-hairline">
+            <tbody className="divide-y divide-hairline-light">
               {stocktakes.map((st) => (
                 <tr key={st.id} className="hover:bg-canvas-cream/50 transition-colors">
                   <td className="px-4 py-3 font-mono text-xs text-aloe-50 font-semibold">
@@ -233,14 +229,14 @@ const StocktakeList = () => {
 
       {/* Confirm Modal */}
       {confirmModal && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full space-y-4">
+        <div className="fixed inset-0 bg-canvas-night/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-canvas-light rounded-lg shadow-level-3 p-6 max-w-sm w-full flex flex-col gap-4">
             <h3 className="text-base font-bold text-canvas-night capitalize">Xác nhận</h3>
             <p className="text-sm text-shade-40">Bạn có chắc muốn <strong>{confirmModal.label}</strong>?</p>
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setConfirmModal(null)}
-                className="px-4 py-2 rounded-pill text-xs font-semibold border border-hairline text-shade-50 hover:bg-canvas-cream transition-colors"
+                className="px-4 py-2 rounded-pill text-xs font-semibold border border-hairline-light text-shade-50 hover:bg-canvas-cream transition-colors"
               >
                 Hủy
               </button>

@@ -263,15 +263,16 @@ const ReturnsWorkspace = () => {
   };
 
   return (
-    <div className="p-6 bg-canvas-dark text-ink-light min-h-[calc(100vh-4rem)] flex flex-col gap-6">
+    <div className="flex flex-col gap-6">
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-ink-primary flex items-center gap-2">
-            <ArrowRightLeft className="w-7 h-7 text-primary" />
+          <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">Vận hành / Inbound</span>
+          <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight flex items-center gap-2">
+            <ArrowRightLeft className="w-7 h-7" />
             Nhận hàng hoàn trả & Khấu trừ công nợ
           </h1>
-          <p className="text-shade-60 text-sm mt-1">
+          <p className="text-xs text-shade-50 font-light mt-1">
             Xử lý hàng đại lý trả lại, phân tách QC (regular/quarantine) và sinh Credit Note khấu trừ công nợ.
           </p>
         </div>
@@ -298,7 +299,7 @@ const ReturnsWorkspace = () => {
       </div>
 
       {activeTab === 'LIST' ? (
-        <div className="bg-canvas-light rounded-xl border border-hairline shadow-sm overflow-hidden flex-1 flex flex-col">
+        <div className="bg-canvas-light rounded-xl border border-hairline shadow-level-3 overflow-hidden flex-1 flex flex-col">
           {loading ? (
             <div className="flex-1 flex flex-col items-center justify-center py-20 gap-3">
               <Loader2 className="w-10 h-10 animate-spin text-primary" />
@@ -316,7 +317,7 @@ const ReturnsWorkspace = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-sm">
                 <thead>
-                  <tr className="bg-canvas-cream text-shade-70 font-semibold border-b border-hairline">
+                  <tr className="bg-canvas-cream text-shade-60 font-semibold border-b border-hairline">
                     <th className="px-6 py-4">Mã phiếu trả</th>
                     <th className="px-6 py-4">DO gốc</th>
                     <th className="px-6 py-4">Đại lý</th>
@@ -333,8 +334,8 @@ const ReturnsWorkspace = () => {
                         <FileText className="w-4 h-4 text-primary" />
                         {ret.receipt_number}
                       </td>
-                      <td className="px-6 py-4 text-shade-80 font-mono text-xs">{ret.source_order_code}</td>
-                      <td className="px-6 py-4 text-shade-80">{getDealerName(ret.dealer_id)}</td>
+                      <td className="px-6 py-4 text-shade-60 font-mono text-xs">{ret.source_order_code}</td>
+                      <td className="px-6 py-4 text-shade-60">{getDealerName(ret.dealer_id)}</td>
                       <td className="px-6 py-4 text-shade-60">{ret.document_date}</td>
                       <td className="px-6 py-4">
                         <span className={`inline-flex px-2 py-1 rounded text-xs font-semibold ${
@@ -384,18 +385,18 @@ const ReturnsWorkspace = () => {
           )}
         </div>
       ) : (
-        <div className="bg-canvas-light rounded-xl border border-hairline shadow-sm p-6 max-w-4xl">
+        <div className="bg-canvas-light rounded-xl border border-hairline shadow-level-3 p-6 max-w-4xl">
           <h2 className="text-lg font-bold text-ink mb-4 pb-2 border-b border-hairline">Tạo phiếu trả hàng mới</h2>
           
           <form onSubmit={handleCreateReturnReceipt} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-semibold text-shade-80 mb-2">Chọn đơn xuất hàng (DO) gốc</label>
+                <label className="block text-sm font-semibold text-shade-60 mb-2">Chọn đơn xuất hàng (DO) gốc</label>
                 <select
                   required
                   value={selectedDoId}
                   onChange={(e) => handleDoChange(e.target.value)}
-                  className="w-full px-3 py-2 bg-canvas border border-hairline rounded-lg text-ink focus:outline-none focus:border-primary text-sm"
+                  className="text-input text-sm"
                 >
                   <option value="">-- Chọn DO đã giao thành công --</option>
                   {deliveryOrders.map(d => (
@@ -405,7 +406,7 @@ const ReturnsWorkspace = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-shade-80 mb-2">Đại lý nhận hoàn trả</label>
+                <label className="block text-sm font-semibold text-shade-60 mb-2">Đại lý nhận hoàn trả</label>
                 <input
                   type="text"
                   disabled
@@ -422,7 +423,7 @@ const ReturnsWorkspace = () => {
                 <div className="border border-hairline rounded-lg overflow-hidden bg-canvas">
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
-                      <tr className="bg-canvas-cream text-shade-70 font-semibold border-b border-hairline">
+                      <tr className="bg-canvas-cream text-shade-60 font-semibold border-b border-hairline">
                         <th className="px-4 py-3">Sản phẩm</th>
                         <th className="px-4 py-3">Số lượng đã xuất</th>
                         <th className="px-4 py-3 w-40">Số lượng hoàn trả</th>
@@ -435,7 +436,7 @@ const ReturnsWorkspace = () => {
                             <div className="font-semibold text-ink">{item.name}</div>
                             <div className="text-shade-60 font-mono text-[10px] mt-0.5">{item.sku}</div>
                           </td>
-                          <td className="px-4 py-3 text-shade-80 font-semibold">{item.maxQty}</td>
+                          <td className="px-4 py-3 text-shade-60 font-semibold">{item.maxQty}</td>
                           <td className="px-4 py-3">
                             <input
                               type="number"
@@ -455,7 +456,7 @@ const ReturnsWorkspace = () => {
             )}
 
             <div>
-              <label className="block text-sm font-semibold text-shade-80 mb-2">Ghi chú hoàn trả</label>
+              <label className="block text-sm font-semibold text-shade-60 mb-2">Ghi chú hoàn trả</label>
               <textarea
                 value={returnNotes}
                 onChange={(e) => setReturnNotes(e.target.value)}
@@ -503,7 +504,7 @@ const ReturnsWorkspace = () => {
             <div className="border border-hairline rounded-lg overflow-hidden bg-canvas">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="bg-canvas-cream text-shade-70 font-semibold border-b border-hairline">
+                  <tr className="bg-canvas-cream text-shade-60 font-semibold border-b border-hairline">
                     <th className="px-4 py-3">Sản phẩm</th>
                     <th className="px-4 py-3 w-28 text-center">Yêu cầu trả</th>
                     <th className="px-4 py-3 w-28 text-center">Thực tế nhận</th>
@@ -519,7 +520,7 @@ const ReturnsWorkspace = () => {
                         <div className="font-semibold text-ink">{item.name}</div>
                         <div className="text-shade-60 font-mono text-[10px] mt-0.5">{item.sku}</div>
                       </td>
-                      <td className="px-4 py-3 text-center font-bold text-shade-80">{item.expectedQty}</td>
+                      <td className="px-4 py-3 text-center font-bold text-shade-60">{item.expectedQty}</td>
                       <td className="px-4 py-3">
                         <input
                           type="number"
@@ -609,13 +610,13 @@ const ReturnsWorkspace = () => {
       >
         {selectedReceipt && (
           <div className="space-y-4">
-            <div className="bg-canvas-cream p-4 rounded-lg border border-hairline text-sm text-shade-80 space-y-2">
+            <div className="bg-canvas-cream p-4 rounded-lg border border-hairline text-sm text-shade-60 space-y-2">
               <div>Đại lý thụ hưởng: <span className="font-semibold text-ink">{getDealerName(selectedReceipt.dealer_id)}</span></div>
               <div>Phiếu nhập hàng trả: <span className="font-semibold text-ink">{selectedReceipt.receipt_number}</span></div>
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-shade-80 mb-2">Lý do tạo Credit Note</label>
+              <label className="block text-sm font-semibold text-shade-60 mb-2">Lý do tạo Credit Note</label>
               <textarea
                 value={creditReason}
                 onChange={(e) => setCreditReason(e.target.value)}

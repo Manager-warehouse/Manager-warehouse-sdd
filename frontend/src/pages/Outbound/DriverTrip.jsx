@@ -18,6 +18,7 @@ import { interWarehouseTransferService } from '../../services/inter-warehouse-tr
 import { useUiStore } from '../../stores/ui.store';
 import { useAuthStore } from '../../stores/auth.store';
 import OTPInput from '../../components/warehouse/OTPInput';
+import Button from '../../components/common/Button';
 
 const DELIVERY_STATUS_MAP = {
   WAREHOUSE_APPROVED: { label: 'Chờ giao', color: 'bg-amber-50 text-amber-700 border-amber-200' },
@@ -237,7 +238,7 @@ export default function DriverTrip() {
 
     if (!trips.length) {
       return (
-        <div className="bg-white rounded-lg border border-hairline-light p-12 text-center shadow-sm">
+        <div className="bg-canvas-light rounded-lg border border-hairline-light p-12 text-center shadow-level-3">
           <Truck className="w-12 h-12 text-shade-30 mx-auto mb-4" />
           <h3 className="text-lg font-bold mb-1">Không có chuyến xe nào</h3>
           <p className="text-sm text-shade-50">Hiện tại bạn chưa được gán chuyến xe nào.</p>
@@ -253,8 +254,8 @@ export default function DriverTrip() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {trips.map((tripItem) => (
-            <div key={tripItem.id} onClick={() => navigate(`/outbound/driver/trips/${tripItem.id}`)} className="bg-white rounded-lg border border-hairline-light shadow-sm hover:shadow-md transition-shadow cursor-pointer card-premium overflow-hidden">
-              <div className="p-4 border-b border-hairline-light bg-zinc-50 flex justify-between items-center">
+            <div key={tripItem.id} onClick={() => navigate(`/outbound/driver/trips/${tripItem.id}`)} className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 hover:shadow-md transition-shadow cursor-pointer card-premium overflow-hidden">
+              <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center">
                 <span className="text-xs font-bold text-ink">{tripItem.trip_number}</span>
                 <StatusBadge status={tripItem.status} />
               </div>
@@ -307,7 +308,7 @@ export default function DriverTrip() {
       </div>
 
       <div className="flex flex-col lg:flex-row gap-6 items-start">
-        <div className="w-full lg:w-80 shrink-0 bg-white rounded-lg border border-hairline-light shadow-sm p-5 card-premium">
+        <div className="w-full lg:w-80 shrink-0 p-5 card-premium rounded-lg">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xs font-bold uppercase tracking-wider text-shade-40">Thông tin chuyến</h2>
             <StatusBadge status={trip.status} />
@@ -372,7 +373,7 @@ export default function DriverTrip() {
         </h3>
 
         {isTransferTrip && trip.items.map((item) => (
-          <div key={item.id} className="rounded-lg border border-hairline-light bg-white shadow-sm p-4">
+          <div key={item.id} className="rounded-lg border border-hairline-light bg-canvas-light shadow-level-3 p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h4 className="text-sm font-bold text-ink leading-tight">{item.productSku} <span className="font-normal text-shade-50">{item.productName}</span></h4>
@@ -391,7 +392,7 @@ export default function DriverTrip() {
             const isPending = !isDelivered && !isFailed;
 
             return (
-              <div key={`${doItem.do_id}-${index}`} className={`rounded-lg border overflow-hidden ${isDelivered ? 'bg-emerald-50 border-emerald-300' : isFailed ? 'bg-red-50 border-red-200' : 'bg-white border-hairline-light shadow-sm'}`}>
+              <div key={`${doItem.do_id}-${index}`} className={`rounded-lg border overflow-hidden ${isDelivered ? 'bg-emerald-50 border-emerald-300' : isFailed ? 'bg-red-50 border-red-200' : 'bg-canvas-light border-hairline-light shadow-level-3'}`}>
                 <div className="p-4 flex gap-3">
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 font-bold text-sm ${isDelivered ? 'bg-emerald-600 text-white' : isFailed ? 'bg-red-500 text-white' : 'bg-ink text-white'}`}>
                     {isDelivered ? <CheckCircle2 className="w-4 h-4" /> : index + 1}
@@ -406,10 +407,10 @@ export default function DriverTrip() {
 
                     {isPending && trip.status === 'IN_TRANSIT' && (
                       <div className="flex gap-2 mt-4">
-                        <button onClick={() => { setActiveDO(doItem); setModalType('DELIVER'); }} className="flex-1 py-2.5 bg-ink text-white rounded-full text-sm font-semibold hover:bg-shade-70 active:scale-95 transition-all">
+                        <Button variant="primary" className="flex-1" onClick={() => { setActiveDO(doItem); setModalType('DELIVER'); }}>
                           Giao hàng (OTP)
-                        </button>
-                        <button onClick={() => { setActiveDO(doItem); setModalType('FAIL'); }} className="px-3.5 py-2.5 bg-red-50 text-red-700 border border-red-200 rounded-full hover:bg-red-100 active:scale-95 transition-all" title="Báo giao thất bại">
+                        </Button>
+                        <button onClick={() => { setActiveDO(doItem); setModalType('FAIL'); }} className="px-3.5 py-2.5 rounded-pill bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 active:scale-95 transition-all" title="Báo giao thất bại">
                           <AlertTriangle className="w-4 h-4" />
                         </button>
                       </div>
@@ -425,11 +426,11 @@ export default function DriverTrip() {
       </div>
 
       {activeDO && modalType === 'DELIVER' && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-xl max-h-[90vh] flex flex-col shadow-2xl">
+        <div className="fixed inset-0 bg-canvas-night/60 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-canvas-light w-full sm:max-w-md rounded-t-2xl sm:rounded-xl max-h-[90vh] flex flex-col shadow-2xl">
             <div className="px-5 py-4 border-b border-hairline-light flex items-center justify-between">
               <h3 className="text-base font-bold text-ink">Xác nhận giao hàng</h3>
-              <button onClick={closeModal} className="p-1.5 hover:bg-zinc-100 rounded-full text-shade-50 hover:text-ink transition-colors"><X className="w-5 h-5" /></button>
+              <button onClick={closeModal} className="p-1.5 hover:bg-canvas-cream rounded-full text-shade-50 hover:text-ink transition-colors"><X className="w-5 h-5" /></button>
             </div>
 
             <div className="p-5 overflow-y-auto flex-1 flex flex-col gap-5">
@@ -454,9 +455,9 @@ export default function DriverTrip() {
               <div className="border-t border-hairline-light pt-5">
                 <label className="block text-xs font-bold text-shade-60 mb-3 uppercase tracking-wider">Xác thực OTP từ đại lý</label>
                 {!otpSent ? (
-                  <button onClick={handleUploadPodAndRequestOTP} disabled={submitting} className="w-full py-3.5 bg-ink text-white font-bold rounded-full text-sm hover:bg-shade-70 disabled:opacity-50 active:scale-95 transition-all">
-                    {submitting ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Tải POD và gửi mã OTP'}
-                  </button>
+                  <Button variant="primary" className="w-full py-3.5" onClick={handleUploadPodAndRequestOTP} disabled={submitting} loading={submitting}>
+                    Tải POD và gửi mã OTP
+                  </Button>
                 ) : (
                   <div className="flex flex-col gap-4">
                     <div className="flex justify-between items-center">
@@ -477,11 +478,11 @@ export default function DriverTrip() {
       )}
 
       {activeDO && modalType === 'FAIL' && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-xl max-h-[90vh] flex flex-col shadow-2xl">
+        <div className="fixed inset-0 bg-canvas-night/60 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-canvas-light w-full sm:max-w-md rounded-t-2xl sm:rounded-xl max-h-[90vh] flex flex-col shadow-2xl">
             <div className="px-5 py-4 border-b border-hairline-light flex items-center justify-between">
               <h3 className="text-base font-bold text-red-600 flex items-center gap-2"><AlertTriangle className="w-5 h-5" /> Báo giao thất bại</h3>
-              <button onClick={closeModal} className="p-1.5 hover:bg-zinc-100 rounded-full text-shade-50 hover:text-ink transition-colors"><X className="w-5 h-5" /></button>
+              <button onClick={closeModal} className="p-1.5 hover:bg-canvas-cream rounded-full text-shade-50 hover:text-ink transition-colors"><X className="w-5 h-5" /></button>
             </div>
 
             <div className="p-5 overflow-y-auto flex-1 flex flex-col gap-5">
@@ -491,7 +492,7 @@ export default function DriverTrip() {
                 <textarea className="w-full text-input text-sm h-28 resize-none" placeholder="Đại lý đóng cửa, từ chối nhận..." value={failureReason} onChange={(event) => setFailureReason(event.target.value)} />
               </div>
               <textarea className="text-input text-sm h-20 resize-none" placeholder="Ghi chú bổ sung..." value={notes} onChange={(event) => setNotes(event.target.value)} />
-              <button onClick={handleFailDelivery} disabled={!failureReason.trim() || submitting} className="w-full py-3.5 bg-red-600 text-white font-bold rounded-full text-sm hover:bg-red-700 disabled:opacity-50 active:scale-95 transition-all">
+              <button onClick={handleFailDelivery} disabled={!failureReason.trim() || submitting} className="w-full py-3.5 bg-red-600 text-white font-bold rounded-pill text-sm hover:bg-red-700 disabled:opacity-50 active:scale-95 transition-all">
                 {submitting ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Xác nhận thất bại'}
               </button>
             </div>

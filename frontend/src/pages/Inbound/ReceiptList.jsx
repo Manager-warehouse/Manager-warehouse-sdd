@@ -211,7 +211,7 @@ const ReceiptList = () => {
       </div>
 
       {/* Filters & search */}
-      <div className="bg-white rounded-lg border border-hairline-light p-4 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between mb-6">
+      <div className="bg-canvas-light rounded-lg border border-hairline-light p-4 shadow-level-3 flex flex-col md:flex-row gap-4 items-center justify-between mb-6">
         <div className="relative w-full md:w-80">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-shade-40" />
           <input
@@ -263,29 +263,29 @@ const ReceiptList = () => {
       ) : (
         <>
           {filteredReceipts.length === 0 ? (
-        <div className="bg-white rounded-lg border border-hairline-light p-12 text-center shadow-sm">
+        <div className="bg-canvas-light rounded-lg border border-hairline-light p-12 text-center shadow-level-3">
           <FileText className="w-12 h-12 text-shade-30 mx-auto mb-4" />
           <h3 className="text-lg font-bold mb-1">Không tìm thấy phiếu nhập kho nào</h3>
           <p className="text-sm text-shade-50">Thử đổi bộ lọc để xem phiếu nhập mua hoặc phiếu nhập trả.</p>
         </div>
           ) : (
-        <div className="bg-white rounded-lg border border-hairline-light shadow-sm overflow-hidden card-premium">
+        <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden card-premium">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-zinc-50 border-b border-hairline-light">
-                  <th className="px-6 py-3.5 text-xs font-bold text-shade-60 uppercase tracking-wider">Mã phiếu</th>
-                  <th className="px-6 py-3.5 text-xs font-bold text-shade-60 uppercase tracking-wider">Loại</th>
-                  <th className="px-6 py-3.5 text-xs font-bold text-shade-60 uppercase tracking-wider">Chứng từ gốc</th>
-                  <th className="px-6 py-3.5 text-xs font-bold text-shade-60 uppercase tracking-wider">Đối tác</th>
-                  <th className="px-6 py-3.5 text-xs font-bold text-shade-60 uppercase tracking-wider">Ngày chứng từ</th>
-                  <th className="px-6 py-3.5 text-xs font-bold text-shade-60 uppercase tracking-wider">Trạng thái</th>
-                  <th className="px-6 py-3.5 text-xs font-bold text-shade-60 uppercase tracking-wider text-right">Thao tác</th>
+                <tr className="bg-canvas-cream border-b border-hairline-light">
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã phiếu</th>
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Loại</th>
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Chứng từ gốc</th>
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Đối tác</th>
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Ngày chứng từ</th>
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Trạng thái</th>
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-hairline-light">
                 {filteredReceipts.map((receipt) => (
-                  <tr key={receipt.id} className="hover:bg-zinc-50 transition-colors">
+                  <tr key={receipt.id} className="hover:bg-canvas-cream transition-colors">
                     <td className="px-6 py-4 text-xs font-bold">{receipt.receipt_number}</td>
                     <td className="px-6 py-4 text-xs font-semibold">
                       {receipt.type === 'PURCHASE' ? (
@@ -305,7 +305,7 @@ const ReceiptList = () => {
                         {receipt.status === 'PENDING_RECEIPT' && (hasRole(ROLES.WAREHOUSE_STAFF) || hasRole(ROLES.ADMIN)) && (
                           <button
                             onClick={() => navigate(`/inbound/receive/${receipt.id}`)}
-                            className="inline-flex items-center justify-center rounded-full border border-ink bg-canvas-light text-ink hover:bg-zinc-100 px-3 py-1 text-xs font-semibold whitespace-nowrap transition-colors duration-150"
+                            className="inline-flex items-center justify-center rounded-full border border-ink bg-canvas-light text-ink hover:bg-canvas-cream px-3 py-1 text-xs font-semibold whitespace-nowrap transition-colors duration-150"
                           >
                             Đếm thực tế
                           </button>
@@ -319,7 +319,7 @@ const ReceiptList = () => {
                         ) && (
                           <button
                             onClick={() => navigate(`/inbound/qc/${receipt.id}`)}
-                            className="inline-flex items-center justify-center rounded-full border border-ink bg-canvas-light text-ink hover:bg-zinc-100 px-3 py-1 text-xs font-semibold whitespace-nowrap transition-colors duration-150"
+                            className="inline-flex items-center justify-center rounded-full border border-ink bg-canvas-light text-ink hover:bg-canvas-cream px-3 py-1 text-xs font-semibold whitespace-nowrap transition-colors duration-150"
                           >
                             Kiểm QC
                           </button>
@@ -394,9 +394,9 @@ const ReceiptList = () => {
 
       {/* Approval & View Detail Modal */}
       {showApprovalModal && selectedReceipt && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-canvas-night/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-canvas-cream rounded-lg max-w-3xl w-full border border-hairline-light shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
-            <div className="p-6 border-b border-hairline-light flex items-center justify-between bg-white">
+            <div className="p-6 border-b border-hairline-light flex items-center justify-between bg-canvas-cream">
               <div>
                 <span className="text-[10px] font-bold text-shade-40 uppercase tracking-widest block mb-1">Chi tiết phiếu</span>
                 <h3 className="text-xl font-bold flex items-center gap-3">
@@ -406,7 +406,7 @@ const ReceiptList = () => {
               </div>
               <button
                 onClick={() => setShowApprovalModal(false)}
-                className="p-1 hover:bg-zinc-100 rounded-full transition-colors text-shade-50 hover:text-ink"
+                className="p-1 hover:bg-canvas-cream rounded-full transition-colors text-shade-50 hover:text-ink"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -449,21 +449,21 @@ const ReceiptList = () => {
               {/* Items List */}
               <div>
                 <h4 className="text-xs font-bold uppercase tracking-widest text-shade-40 mb-3">Danh sách sản phẩm kiểm định</h4>
-                <div className="border border-hairline-light rounded-lg overflow-hidden bg-white shadow-inner">
+                <div className="border border-hairline-light rounded-lg overflow-hidden bg-canvas-light shadow-inner">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
-                      <tr className="bg-zinc-50 border-b border-hairline-light">
-                        <th className="px-4 py-2.5 font-bold text-shade-60">Sản phẩm</th>
-                        <th className="px-4 py-2.5 font-bold text-shade-60 text-right">Dự kiến</th>
-                        <th className="px-4 py-2.5 font-bold text-shade-60 text-right">Đếm thực tế</th>
-                        <th className="px-4 py-2.5 font-bold text-shade-60 text-right">Đạt QC</th>
-                        <th className="px-4 py-2.5 font-bold text-shade-60 text-right">Lỗi QC</th>
-                        <th className="px-4 py-2.5 font-bold text-shade-60">Chi tiết QC</th>
+                      <tr className="bg-canvas-cream border-b border-hairline-light">
+                        <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Sản phẩm</th>
+                        <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Dự kiến</th>
+                        <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Đếm thực tế</th>
+                        <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Đạt QC</th>
+                        <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Lỗi QC</th>
+                        <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Chi tiết QC</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-hairline-light">
                       {selectedReceipt.items.map((item) => (
-                        <tr key={item.id} className="hover:bg-zinc-50/50">
+                        <tr key={item.id} className="hover:bg-canvas-cream">
                           <td className="px-4 py-3">
                             <span className="font-semibold block">{getProductName(item)}</span>
                             <span className="text-[10px] text-shade-40 font-mono block">{getProductSku(item)}</span>
@@ -497,7 +497,7 @@ const ReceiptList = () => {
 
               {/* Form Input for approval notes / rejection reason */}
               {selectedReceipt.status === 'QC_COMPLETED' && (hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.ADMIN)) && (
-                <div className="bg-white p-4 border border-hairline-light rounded-lg shadow-sm">
+                <div className="bg-canvas-light p-4 border border-hairline-light rounded-lg shadow-level-3">
                   {isRejecting ? (
                     <div className="flex flex-col gap-2">
                       <label className="text-xs font-bold text-red-700 flex items-center gap-1.5">
@@ -528,7 +528,7 @@ const ReceiptList = () => {
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 border-t border-hairline-light bg-zinc-50 flex justify-between gap-3">
+            <div className="p-4 border-t border-hairline-light bg-canvas-cream flex justify-between gap-3">
               <button
                 onClick={() => setShowApprovalModal(false)}
                 className="btn-pill btn-pill-outline-light text-xs"

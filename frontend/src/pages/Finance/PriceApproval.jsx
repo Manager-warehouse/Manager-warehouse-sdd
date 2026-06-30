@@ -71,7 +71,7 @@ export default function PriceApproval() {
           <Loader2 className="w-8 h-8 animate-spin text-shade-50" />
         </div>
       ) : entries.length === 0 ? (
-        <div className="bg-white rounded-lg border border-hairline-light p-12 text-center shadow-sm">
+        <div className="bg-canvas-light rounded-lg border border-hairline-light p-12 text-center shadow-level-3">
           <CheckCircle className="w-12 h-12 text-emerald-400 mx-auto mb-4" />
           <h3 className="text-lg font-bold mb-1">Không có bản giá nào chờ duyệt</h3>
           <p className="text-sm text-shade-50">Tất cả bản giá đã được xử lý.</p>
@@ -92,7 +92,7 @@ export default function PriceApproval() {
                 />
               ))}
           </div>
-          <div className="bg-white rounded-lg border border-hairline-light shadow-sm overflow-hidden">
+          <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden">
             <Pagination
               currentPage={currentPage}
               totalPages={Math.max(1, Math.ceil(entries.length / pageSize))}
@@ -112,7 +112,7 @@ function PriceCard({ entry, expanded, onToggle, onApprove, approving }) {
   const prev = entry.previous_approved;
 
   return (
-    <div className="bg-white rounded-lg border border-hairline-light shadow-sm overflow-hidden">
+    <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden">
       {/* Header row */}
       <div className="flex items-center gap-4 px-6 py-4">
         <div className="flex-1 min-w-0">
@@ -143,7 +143,7 @@ function PriceCard({ entry, expanded, onToggle, onApprove, approving }) {
         <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={onToggle}
-            className="p-2 rounded-full hover:bg-zinc-100 text-shade-50 transition-colors"
+            className="p-2 rounded-pill hover:bg-canvas-cream text-shade-50 transition-colors"
             title={expanded ? 'Thu gọn' : 'Xem chi tiết so sánh'}
           >
             {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -151,7 +151,7 @@ function PriceCard({ entry, expanded, onToggle, onApprove, approving }) {
           <button
             onClick={onApprove}
             disabled={approving}
-            className="btn-pill btn-pill-aloe text-xs py-1.5 px-4 font-bold disabled:opacity-50 flex items-center gap-1.5"
+            className="btn-pill btn-pill-aloe text-xs py-1.5 px-4 font-semibold disabled:opacity-50 flex items-center gap-1.5"
           >
             {approving ? (
               <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Đang duyệt...</>
@@ -164,7 +164,7 @@ function PriceCard({ entry, expanded, onToggle, onApprove, approving }) {
 
       {/* Delta comparison section */}
       {expanded && (
-        <div className="border-t border-hairline-light bg-zinc-50 px-6 py-4">
+        <div className="border-t border-hairline-light bg-canvas-cream px-6 py-4">
           {prev ? (
             <div className="flex flex-col gap-3">
               <p className="text-xs font-bold text-shade-60 uppercase tracking-widest">
@@ -212,7 +212,7 @@ function DeltaRow({ label, prev, curr, delta, deltaPct }) {
   const isDecrease = delta < 0;
 
   return (
-    <div className="bg-white rounded-lg border border-hairline-light p-3 space-y-1 shadow-sm">
+    <div className="bg-canvas-light rounded-lg border border-hairline-light p-3 space-y-1 shadow-level-3">
       <div className="text-xs font-bold text-shade-60 uppercase tracking-wider">{label}</div>
       <div className="flex items-end gap-2">
         <span className="text-lg font-bold tabular-nums">{formatVND(curr)}</span>

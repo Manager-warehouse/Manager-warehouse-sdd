@@ -81,7 +81,7 @@ const ProductivityReport = () => {
           <select
             value={warehouseId}
             onChange={(e) => setWarehouseId(e.target.value)}
-            className="input-select text-xs font-semibold py-1.5 px-3 border border-hairline-light rounded bg-canvas-light text-ink"
+            className="bg-canvas-light text-ink text-xs font-semibold px-3 py-1.5 rounded-md border border-hairline-light focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink transition-all min-h-[36px]"
           >
             <option value="1">Kho Hải Phòng</option>
             <option value="2">Kho Hà Nội</option>
@@ -111,7 +111,7 @@ const ProductivityReport = () => {
             <span>Lọc</span>
           </button>
 
-          <button onClick={handleExport} className="btn-primary flex items-center gap-1.5 text-xs py-1.5 px-3.5 bg-canvas-night text-onPrimary hover:bg-canvas-nightElevated">
+          <button onClick={handleExport} className="btn-pill btn-pill-primary flex items-center gap-1.5 text-xs">
             <FileSpreadsheet className="w-3.5 h-3.5 text-aloe-10" />
             <span>Xuất Excel</span>
           </button>

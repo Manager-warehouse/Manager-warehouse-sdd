@@ -196,7 +196,7 @@ export default function TripPlanning() {
         )}
       </div>
 
-      <div className="bg-white rounded-lg border border-hairline-light p-4 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
+      <div className="bg-canvas-light rounded-lg border border-hairline-light p-4 shadow-level-3 flex flex-col md:flex-row gap-4 items-center justify-between">
         <div className="relative w-full md:w-80">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-shade-40" />
           <input
@@ -224,7 +224,7 @@ export default function TripPlanning() {
           <Loader2 className="w-8 h-8 animate-spin text-shade-50" />
         </div>
       ) : filteredTrips.length === 0 ? (
-        <div className="bg-white rounded-lg border border-hairline-light p-12 text-center shadow-sm">
+        <div className="bg-canvas-light rounded-lg border border-hairline-light p-12 text-center shadow-level-3">
           <Truck className="w-12 h-12 text-shade-30 mx-auto mb-4" />
           <h3 className="text-lg font-bold mb-1">Không tìm thấy chuyến xe nào</h3>
           <p className="text-sm text-shade-50">Thử đổi bộ lọc hoặc tạo chuyến mới để bắt đầu.</p>
@@ -232,8 +232,8 @@ export default function TripPlanning() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredTrips.map((trip) => (
-            <div key={trip.id} className="bg-white rounded-lg border border-hairline-light shadow-sm hover:shadow-md transition-shadow card-premium overflow-hidden">
-              <div className="p-4 border-b border-hairline-light bg-zinc-50 flex justify-between items-center">
+            <div key={trip.id} className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 hover:shadow-md transition-shadow card-premium overflow-hidden">
+              <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center">
                 <span className="text-xs font-bold text-ink">{trip.trip_number}</span>
                 {getTripStatusBadge(trip.status)}
               </div>
@@ -244,7 +244,7 @@ export default function TripPlanning() {
                 <p className="text-xs"><span className="text-shade-50">Tổng KL:</span> <span className="font-semibold text-ink">{trip.total_weight_kg} kg</span></p>
               </div>
               <div className="p-4 border-t border-hairline-light flex gap-2">
-                <button onClick={() => openDetailModal(trip)} className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-full border border-hairline-light bg-white text-ink hover:bg-zinc-50 px-3 py-1.5 text-xs font-semibold transition-colors">
+                <button onClick={() => openDetailModal(trip)} className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-full border border-hairline-light bg-canvas-light text-ink hover:bg-canvas-cream px-3 py-1.5 text-xs font-semibold transition-colors">
                   <Eye className="w-3.5 h-3.5" /> Chi tiết
                 </button>
               </div>
@@ -364,7 +364,7 @@ export default function TripPlanning() {
                         type="button"
                         key={order.id}
                         className={`w-full text-left px-4 py-3 border-b border-hairline-light flex items-center justify-between transition-colors ${
-                          isSelected ? 'bg-emerald-50 border-l-2 border-l-emerald-500' : 'hover:bg-zinc-50'
+                          isSelected ? 'bg-emerald-50 border-l-2 border-l-emerald-500' : 'hover:bg-canvas-cream'
                         }`}
                         onClick={() => toggleDOSelection(order)}
                       >

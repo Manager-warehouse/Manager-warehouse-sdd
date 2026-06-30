@@ -208,7 +208,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
   };
 
   return (
-    <div className="border border-hairline-light rounded-lg bg-white p-4 flex flex-col gap-4">
+    <div className="border border-hairline-light rounded-lg bg-canvas-light p-4 flex flex-col gap-4">
       <div>
         <div className="text-xs font-bold uppercase tracking-wider text-shade-60">Thao tác phiếu</div>
         <div className="text-lg font-semibold">{transfer.transferNumber}</div>
@@ -365,12 +365,10 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
           {hasAny(hasRole, [ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && (
             <div className="flex gap-2 mt-1">
               <div className="flex-1 flex gap-1">
-                <input
-                  type="text"
+                <Input
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                   placeholder="Lý do từ chối..."
-                  className="w-full px-2.5 py-1 text-xs border border-zinc-300 rounded focus:outline-none focus:ring-1 focus:ring-zinc-400"
                 />
               </div>
               <Button loading={busy} variant="outline-light" className="text-red-600 border-red-300 hover:bg-red-50 py-1 px-3 text-xs" onClick={() => {
@@ -394,17 +392,16 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
       )}
 
       {transfer.status === 'IN_TRANSIT' && !transfer.isReturned && !transfer.returnRequested && hasAny(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && (
-        <div className="rounded-md border border-zinc-200 bg-zinc-50 p-3 flex flex-col gap-2 mb-2">
+        <div className="rounded-lg border border-hairline-light bg-canvas-cream p-4 text-sm flex flex-col gap-2 mb-2">
           <div className="text-xs text-zinc-800 font-semibold">Phát hiện gửi sai SKU, hàng hỏng hoặc sai lệch nghiêm trọng khi mở thùng?</div>
           <div className="flex gap-2">
-            <input
-              type="text"
+            <Input
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="Nhập lý do gửi sai SKU..."
-              className="flex-1 px-2.5 py-1.5 text-xs border border-zinc-300 rounded focus:outline-none focus:ring-1 focus:ring-zinc-400"
+              className="flex-1"
             />
-            <Button variant="outline-light" icon={RotateCcw} className="text-zinc-700 border-zinc-300 hover:bg-zinc-100 py-1.5 px-3 text-xs" loading={busy} onClick={() => {
+            <Button variant="outline-light" icon={RotateCcw} className="text-zinc-700 border-hairline-light hover:bg-canvas-cream py-1.5 px-3 text-xs" loading={busy} onClick={() => {
               if (!reason.trim()) {
                 alert("Vui lòng điền lý do gửi sai SKU!");
                 return;

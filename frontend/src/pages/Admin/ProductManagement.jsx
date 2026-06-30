@@ -206,11 +206,11 @@ const ProductManagement = () => {
       </div>
 
       {/* Search & Filters */}
-      <div className="bg-white border border-hairline-light rounded-lg p-5 mb-6 shadow-sm flex flex-col md:flex-row gap-4 items-center">
+      <div className="bg-canvas-light border border-hairline-light rounded-lg p-5 mb-6 shadow-level-3 flex flex-col md:flex-row gap-4 items-center">
         {/* Search */}
         <div className="relative flex-1 w-full">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-shade-40" />
-          <input
+          <Input
             type="text"
             placeholder="Tìm theo mã SKU hoặc tên sản phẩm..."
             value={searchTerm}
@@ -222,16 +222,17 @@ const ProductManagement = () => {
         {/* Filter controls */}
         <div className="flex gap-4 w-full md:w-auto">
           <div className="w-full md:w-44">
-            <label className="block text-[10px] font-bold text-shade-50 uppercase mb-1 tracking-wider">Trạng thái</label>
-            <select
+            <label className="block text-[10px] font-bold text-shade-60 uppercase mb-1 tracking-wider">Trạng thái</label>
+            <Input
+              type="select"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full bg-canvas-light text-ink text-sm px-3 py-2 rounded-md border border-hairline-light focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink min-h-[38px]"
-            >
-              <option value="ALL">Tất cả trạng thái</option>
-              <option value="ACTIVE">Đang hoạt động</option>
-              <option value="INACTIVE">Đang khóa</option>
-            </select>
+              options={[
+                { value: 'ALL', label: 'Tất cả trạng thái' },
+                { value: 'ACTIVE', label: 'Đang hoạt động' },
+                { value: 'INACTIVE', label: 'Đang khóa' },
+              ]}
+            />
           </div>
         </div>
       </div>
@@ -242,33 +243,33 @@ const ProductManagement = () => {
           <Loader2 className="w-8 h-8 animate-spin text-shade-50" />
         </div>
       ) : filteredProducts.length === 0 ? (
-        <div className="bg-white rounded-lg border border-hairline-light p-12 text-center shadow-sm card-premium">
+        <div className="bg-canvas-light rounded-lg border border-hairline-light p-12 text-center shadow-level-3 card-premium">
           <AlertCircle className="w-12 h-12 text-shade-30 mx-auto mb-4" />
           <h3 className="text-lg font-bold mb-1">Không tìm thấy sản phẩm</h3>
           <p className="text-sm text-shade-50">Thử thay đổi bộ lọc tìm kiếm hoặc thêm mới sản phẩm.</p>
         </div>
       ) : (
-        <div className="bg-white rounded-lg border border-hairline-light shadow-sm overflow-hidden card-premium">
+        <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden card-premium">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-zinc-50 border-b border-hairline-light">
-                  <th className="px-6 py-4 font-bold text-shade-60">SKU</th>
-                  <th className="px-6 py-4 font-bold text-shade-60">Tên sản phẩm</th>
-                  <th className="px-6 py-4 font-bold text-shade-60">Đơn vị</th>
-                  <th className="px-6 py-4 font-bold text-shade-60 text-right">Quy đổi đóng gói</th>
-                  <th className="px-6 py-4 font-bold text-shade-60 text-right">Trọng lượng (kg)</th>
-                  <th className="px-6 py-4 font-bold text-shade-60 text-right">Thể tích (m³)</th>
-                  <th className="px-6 py-4 font-bold text-shade-60 text-right">Mức tối thiểu</th>
-                  <th className="px-6 py-4 font-bold text-shade-60 text-center">Trạng thái</th>
-                  <th className="px-6 py-4 font-bold text-shade-60 text-right">Hành động</th>
+                <tr className="bg-canvas-cream border-b border-hairline-light">
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">SKU</th>
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Tên sản phẩm</th>
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Đơn vị</th>
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Quy đổi đóng gói</th>
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Trọng lượng (kg)</th>
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Thể tích (m³)</th>
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Mức tối thiểu</th>
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center">Trạng thái</th>
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Hành động</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-hairline-light">
                 {filteredProducts.map((prod) => (
-                  <tr key={prod.id} className={`hover:bg-zinc-50/50 transition-colors ${!prod.is_active ? 'opacity-60 bg-zinc-50/20' : ''}`}>
+                  <tr key={prod.id} className={`hover:bg-canvas-cream/50 transition-colors ${!prod.is_active ? 'opacity-60 bg-canvas-cream/20' : ''}`}>
                     <td className="px-6 py-4">
-                      <span className="font-mono font-bold text-ink bg-zinc-100 px-2 py-1 rounded text-xs border border-zinc-200">
+                      <span className="font-mono font-bold text-ink bg-canvas-cream px-2 py-1 rounded text-xs border border-hairline-light">
                         {prod.sku}
                       </span>
                     </td>
@@ -290,7 +291,7 @@ const ProductManagement = () => {
                         {hasRole(ROLES.STOREKEEPER) || hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.ADMIN) ? (
                           <button
                             onClick={() => handleOpenEditModal(prod)}
-                            className="p-1 hover:bg-zinc-100 rounded-full transition-colors shrink-0"
+                            className="p-1 hover:bg-canvas-cream rounded-full transition-colors shrink-0"
                             title="Sửa thông tin"
                           >
                             <Edit className="w-4 h-4 text-shade-60 hover:text-ink" />
@@ -298,7 +299,7 @@ const ProductManagement = () => {
                         ) : null}
                         <button
                           onClick={() => handleToggleStatus(prod.id, prod.is_active)}
-                          className="p-1 hover:bg-zinc-100 rounded-full transition-colors shrink-0"
+                          className="p-1 hover:bg-canvas-cream rounded-full transition-colors shrink-0"
                           title={prod.is_active ? 'Khóa sản phẩm' : 'Kích hoạt sản phẩm'}
                         >
                           {prod.is_active ? (
@@ -392,7 +393,7 @@ const ProductManagement = () => {
             />
           </div>
 
-          <div className="bg-zinc-50 p-3.5 rounded border border-hairline-light">
+          <div className="bg-canvas-cream p-3.5 rounded border border-hairline-light">
             <Input
               label="Mức Stock cảnh báo"
               type="number"

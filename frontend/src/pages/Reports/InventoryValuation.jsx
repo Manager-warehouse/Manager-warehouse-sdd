@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import reportService from '../../services/report.service';
-import { DollarSign, RefreshCw, Warehouse, FileSpreadsheet, AlertCircle } from 'lucide-react';
+import { DollarSign, RefreshCw, Warehouse, FileSpreadsheet, AlertCircle, Loader2 } from 'lucide-react';
 import { WAREHOUSES } from '../../utils/constants';
 
 const InventoryValuation = () => {
@@ -56,7 +56,7 @@ const InventoryValuation = () => {
           <select
             value={selectedWarehouse}
             onChange={(e) => setSelectedWarehouse(e.target.value)}
-            className="input-select text-xs font-semibold py-1.5 px-3 border border-hairline-light rounded bg-canvas-light text-ink"
+            className="bg-canvas-light text-ink text-xs font-semibold px-3 py-1.5 rounded-md border border-hairline-light focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink transition-all min-h-[36px]"
           >
             <option value="">Tất cả kho vật lý</option>
             {/* Vì dữ liệu seed có HP (1), HN (2), HCM (3) */}
@@ -65,7 +65,7 @@ const InventoryValuation = () => {
             <option value="3">Kho Hồ Chí Minh</option>
           </select>
 
-          <button onClick={fetchData} className="btn-secondary flex items-center gap-1 text-xs py-1.5 px-3">
+          <button onClick={fetchData} className="btn-pill btn-pill-outline-light flex items-center gap-1 text-xs py-1.5 px-3">
             <RefreshCw className="w-3.5 h-3.5" />
             <span>Làm mới</span>
           </button>
@@ -74,7 +74,7 @@ const InventoryValuation = () => {
 
       {loading ? (
         <div className="flex items-center justify-center min-h-[300px]">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-canvas-night"></div>
+          <Loader2 className="w-8 h-8 animate-spin text-ink" />
           <span className="ml-3 text-sm text-shade-60">Đang tổng hợp dữ liệu tồn kho...</span>
         </div>
       ) : error ? (
@@ -92,8 +92,8 @@ const InventoryValuation = () => {
                 <Warehouse className="w-6 h-6" />
               </div>
               <div>
-                <span className="text-[10px] font-bold text-shade-50 uppercase block">Tổng số SKU/Lô hàng</span>
-                <span className="text-xl font-bold text-ink block mt-1">{data.summary.total_items} dòng</span>
+                <span className="text-[10px] font-semibold text-shade-60 uppercase block">Tổng số SKU/Lô hàng</span>
+                <span className="text-xl font-semibold text-ink block mt-1">{data.summary.total_items} dòng</span>
               </div>
             </div>
 
@@ -102,20 +102,20 @@ const InventoryValuation = () => {
                 <RefreshCw className="w-6 h-6" />
               </div>
               <div>
-                <span className="text-[10px] font-bold text-shade-50 uppercase block">Tổng sản lượng tồn kho</span>
-                <span className="text-xl font-bold text-ink block mt-1">
+                <span className="text-[10px] font-semibold text-shade-60 uppercase block">Tổng sản lượng tồn kho</span>
+                <span className="text-xl font-semibold text-ink block mt-1">
                   {new Intl.NumberFormat('vi-VN').format(data.summary.total_qty)} cái
                 </span>
               </div>
             </div>
 
-            <div className="card-premium p-6 flex items-center gap-4 bg-canvas-night text-onPrimary">
+            <div className="bg-canvas-night text-onPrimary rounded-lg border border-hairline-dark p-6 shadow-level-3 hover:shadow-lg transition-all duration-200 flex items-center gap-4">
               <div className="p-3 bg-canvas-nightElevated text-onPrimary rounded-full">
                 <DollarSign className="w-6 h-6 text-aloe-10" />
               </div>
               <div>
-                <span className="text-[10px] font-bold text-shade-40 uppercase block">Tổng giá trị định giá</span>
-                <span className="text-xl font-bold block mt-1 text-onPrimary">
+                <span className="text-[10px] font-semibold text-shade-30 uppercase block">Tổng giá trị định giá</span>
+                <span className="text-xl font-semibold block mt-1 text-onPrimary">
                   {formatCurrency(data.summary.total_valuation)}
                 </span>
               </div>
@@ -125,7 +125,7 @@ const InventoryValuation = () => {
           {/* Details Table */}
           <div className="card-premium flex flex-col gap-4 overflow-hidden">
             <div className="flex items-center justify-between border-b border-hairline-light pb-3">
-              <h3 className="text-sm font-bold text-shade-70 uppercase tracking-wider">
+              <h3 className="text-sm font-semibold text-shade-60 uppercase tracking-wider">
                 Bảng phân tích định giá chi tiết
               </h3>
             </div>
@@ -134,16 +134,16 @@ const InventoryValuation = () => {
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="border-b border-hairline-light bg-canvas-cream text-shade-60 font-semibold uppercase tracking-wider">
-                    <th className="py-3 px-4">Kho vật lý</th>
-                    <th className="py-3 px-4">Mã SKU</th>
-                    <th className="py-3 px-4">Tên sản phẩm</th>
-                    <th className="py-3 px-4">Số lô hàng</th>
-                    <th className="py-3 px-4 text-right">Tồn thực tế</th>
-                    <th className="py-3 px-4 text-right">Đơn giá vốn</th>
-                    <th className="py-3 px-4 text-right">Tổng giá trị</th>
+                    <th className="px-6 py-4">Kho vật lý</th>
+                    <th className="px-6 py-4">Mã SKU</th>
+                    <th className="px-6 py-4">Tên sản phẩm</th>
+                    <th className="px-6 py-4">Số lô hàng</th>
+                    <th className="px-6 py-4 text-right">Tồn thực tế</th>
+                    <th className="px-6 py-4 text-right">Đơn giá vốn</th>
+                    <th className="px-6 py-4 text-right">Tổng giá trị</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-hairline-light font-light text-shade-80">
+                <tbody className="divide-y divide-hairline-light font-light text-shade-60">
                   {data.records.length === 0 ? (
                     <tr>
                       <td colSpan="7" className="py-8 text-center text-shade-50">
@@ -153,17 +153,17 @@ const InventoryValuation = () => {
                   ) : (
                     data.records.map((r, idx) => (
                       <tr key={idx} className="hover:bg-canvas-cream/50 transition-colors">
-                        <td className="py-3.5 px-4 font-semibold text-ink">{r.warehouse_name}</td>
-                        <td className="py-3.5 px-4 font-mono font-medium">{r.product_sku}</td>
-                        <td className="py-3.5 px-4">{r.product_name}</td>
-                        <td className="py-3.5 px-4 font-mono text-[11px] text-shade-60">{r.batch_number}</td>
-                        <td className="py-3.5 px-4 text-right font-medium">
+                        <td className="px-6 py-3 font-semibold text-ink">{r.warehouse_name}</td>
+                        <td className="px-6 py-3 font-mono font-medium">{r.product_sku}</td>
+                        <td className="px-6 py-3">{r.product_name}</td>
+                        <td className="px-6 py-3 font-mono text-[11px] text-shade-60">{r.batch_number}</td>
+                        <td className="px-6 py-3 text-right font-medium">
                           {new Intl.NumberFormat('vi-VN').format(r.total_qty)}
                         </td>
-                        <td className="py-3.5 px-4 text-right text-shade-60">
+                        <td className="px-6 py-3 text-right text-shade-60">
                           {formatCurrency(r.unit_cost)}
                         </td>
-                        <td className="py-3.5 px-4 text-right font-semibold text-ink">
+                        <td className="px-6 py-3 text-right font-semibold text-ink">
                           {formatCurrency(r.valuation_amount)}
                         </td>
                       </tr>

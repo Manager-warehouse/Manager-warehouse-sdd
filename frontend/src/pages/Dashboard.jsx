@@ -189,7 +189,7 @@ const Dashboard = () => {
             descStyle = 'text-shade-40';
             iconStyle = 'text-onPrimary bg-canvas-nightElevated';
           } else if (isDanger) {
-            cardStyle = 'bg-red-50/50 rounded-lg p-6 border border-red-150 shadow-level-3 hover:shadow-lg transition-all duration-200';
+            cardStyle = 'bg-red-50/50 rounded-lg p-6 border border-red-200 shadow-level-3 hover:shadow-lg transition-all duration-200';
             titleStyle = 'text-red-700/80';
             valStyle = 'text-red-700';
             descStyle = 'text-red-600/60';
@@ -265,7 +265,7 @@ const Dashboard = () => {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="table-premium w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-hairline-light bg-canvas-cream/50 text-[10px] uppercase font-bold text-shade-60 tracking-wider">
                   <th className="py-3 px-4">Mã SKU</th>
@@ -340,8 +340,8 @@ const Dashboard = () => {
 
       {/* Quick Transfer Request Modal */}
       {showModal && selectedProduct && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-canvas-cream border border-hairline-light rounded-lg shadow-level-4 max-w-md w-full overflow-hidden flex flex-col">
+        <div className="fixed inset-0 bg-canvas-night/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-canvas-cream border border-hairline-light rounded-lg shadow-level-3 max-w-md w-full overflow-hidden flex flex-col">
             {/* Modal Header */}
             <div className="bg-canvas-night text-onPrimary p-4 flex justify-between items-center border-b border-hairline-dark">
               <div className="flex items-center gap-2">
@@ -364,7 +364,7 @@ const Dashboard = () => {
                 <span className="text-[10px] font-bold text-shade-50 uppercase tracking-wider block mb-1">
                   Sản phẩm yêu cầu
                 </span>
-                <div className="bg-white p-3 rounded border border-hairline-light flex flex-col gap-1">
+                <div className="bg-canvas-light p-3 rounded border border-hairline-light flex flex-col gap-1">
                   <span className="font-mono font-bold text-xs text-shade-70">{selectedProduct.sku}</span>
                   <span className="text-xs text-ink font-semibold">{selectedProduct.name}</span>
                 </div>
@@ -388,7 +388,7 @@ const Dashboard = () => {
                     value={selectedSourceWhId}
                     onChange={(e) => setSelectedSourceWhId(e.target.value)}
                     required
-                    className="w-full bg-white border border-hairline-light rounded p-2 text-xs focus:outline-none focus:border-ink font-semibold"
+                    className="w-full bg-canvas-light border border-hairline-light rounded p-2 text-xs focus:outline-none focus:border-ink font-semibold"
                   >
                     <option value="">-- Chọn kho gửi --</option>
                     {physicalWarehouses
@@ -416,7 +416,7 @@ const Dashboard = () => {
                   value={requestedQty}
                   onChange={(e) => setRequestedQty(Math.max(1, Number(e.target.value)))}
                   required
-                  className="w-full bg-white border border-hairline-light rounded p-2 text-xs focus:outline-none focus:border-ink font-semibold"
+                  className="w-full bg-canvas-light border border-hairline-light rounded p-2 text-xs focus:outline-none focus:border-ink font-semibold"
                 />
               </div>
 
@@ -428,7 +428,7 @@ const Dashboard = () => {
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   rows="2"
-                  className="w-full bg-white border border-hairline-light rounded p-2 text-xs focus:outline-none focus:border-ink font-light"
+                  className="w-full bg-canvas-light border border-hairline-light rounded p-2 text-xs focus:outline-none focus:border-ink font-light"
                   placeholder="Lý do xin điều chuyển..."
                 />
               </div>
@@ -438,7 +438,7 @@ const Dashboard = () => {
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="bg-white border border-hairline-light hover:bg-canvas-cream text-ink px-4 py-2 rounded text-xs font-semibold uppercase tracking-wider transition-colors"
+                  className="bg-canvas-light border border-hairline-light hover:bg-canvas-cream text-ink px-4 py-2 rounded text-xs font-semibold uppercase tracking-wider transition-colors"
                 >
                   Hủy
                 </button>

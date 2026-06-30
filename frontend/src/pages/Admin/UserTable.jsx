@@ -52,14 +52,14 @@ const UserTable = ({ users, loading, onEdit, onToggleStatus }) => {
               <div className="flex justify-end items-center gap-3 whitespace-nowrap">
                 <button
                   onClick={() => onEdit(user)}
-                  className="p-1 text-shade-60 hover:text-ink hover:bg-zinc-100 rounded-full transition-colors shrink-0"
+                  className="p-1 text-shade-60 hover:text-ink hover:bg-canvas-cream rounded-full transition-colors shrink-0"
                   title="Chỉnh sửa tài khoản"
                 >
                   <Edit className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => onToggleStatus(user)}
-                  className={`p-1 rounded-full transition-colors shrink-0 ${user.isActive ? 'text-emerald-600 hover:bg-zinc-100' : 'text-shade-40 hover:bg-zinc-100'}`}
+                  className={`p-1 rounded-full transition-colors shrink-0 ${user.isActive ? 'text-emerald-600 hover:bg-canvas-cream' : 'text-shade-40 hover:bg-canvas-cream'}`}
                   title={user.isActive ? 'Khóa tài khoản' : 'Kích hoạt tài khoản'}
                 >
                   {user.isActive ? (

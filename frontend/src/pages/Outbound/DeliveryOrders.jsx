@@ -270,7 +270,7 @@ export default function DeliveryOrders() {
           { label: 'Chờ duyệt QC', value: qcPendingDO, icon: <PackageCheck className="h-5 w-5" />, accent: 'text-violet-600 bg-violet-50' },
           { label: 'Chờ vận chuyển', value: approvedDO, icon: <Truck className="h-5 w-5" />, accent: 'text-amber-600 bg-amber-50' },
         ].map(({ label, value, icon, accent }) => (
-          <div key={label} className="flex items-center gap-3 rounded-lg border border-hairline-light bg-white p-4 shadow-sm">
+          <div key={label} className="flex items-center gap-3 rounded-lg border border-hairline-light bg-canvas-light p-4 shadow-level-3">
             <div className={`rounded-full p-2.5 ${accent}`}>{icon}</div>
             <div>
               <p className="text-xs font-medium text-shade-50">{label}</p>
@@ -280,7 +280,7 @@ export default function DeliveryOrders() {
         ))}
       </div>
 
-      <div className="flex flex-col items-center justify-between gap-4 rounded-lg border border-hairline-light bg-white p-4 shadow-sm md:flex-row">
+      <div className="flex flex-col items-center justify-between gap-4 rounded-lg border border-hairline-light bg-canvas-light p-4 shadow-level-3 md:flex-row">
         <div className="relative w-full md:w-80">
           <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-shade-40" />
           <input
@@ -306,23 +306,23 @@ export default function DeliveryOrders() {
           <Loader2 className="h-8 w-8 animate-spin text-shade-50" />
         </div>
       ) : orders.length === 0 ? (
-        <div className="rounded-lg border border-hairline-light bg-white p-12 text-center shadow-sm">
+        <div className="rounded-lg border border-hairline-light bg-canvas-light p-12 text-center shadow-level-3">
           <PackageCheck className="mx-auto mb-4 h-12 w-12 text-shade-30" />
           <h3 className="mb-1 text-lg font-bold">Không tìm thấy đơn xuất hàng nào</h3>
           <p className="text-sm text-shade-50">Thử đổi bộ lọc hoặc tạo một đơn mới để bắt đầu.</p>
         </div>
       ) : (
-        <div className="card-premium overflow-hidden rounded-lg border border-hairline-light bg-white shadow-sm">
+        <div className="card-premium overflow-hidden rounded-lg border border-hairline-light bg-canvas-light shadow-level-3">
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-left">
               <thead>
-                <tr className="border-b border-hairline-light bg-zinc-50">
-                  <th className="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-shade-60">Mã DO</th>
-                  <th className="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-shade-60">Đại lý</th>
-                  <th className="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-shade-60">Ngày lập</th>
-                  <th className="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-shade-60">Ngày giao dự kiến</th>
-                  <th className="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-shade-60">Trạng thái</th>
-                  <th className="px-6 py-3.5 text-right text-xs font-bold uppercase tracking-wider text-shade-60">Thao tác</th>
+                <tr className="border-b border-hairline-light bg-canvas-cream">
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã DO</th>
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Đại lý</th>
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Ngày lập</th>
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Ngày giao dự kiến</th>
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Trạng thái</th>
+                  <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-shade-60">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-hairline-light">
@@ -335,7 +335,7 @@ export default function DeliveryOrders() {
                     && order.status === 'WAITING_PICKING';
 
                   return (
-                    <tr key={order.id} className="hover:bg-zinc-50 transition-colors">
+                    <tr key={order.id} className="hover:bg-canvas-cream transition-colors">
                       <td className="px-6 py-4 text-xs font-bold">{order.do_number}</td>
                       <td className="px-6 py-4">
                         <p className="text-xs font-semibold">{order.dealer_name}</p>
@@ -349,7 +349,7 @@ export default function DeliveryOrders() {
                           {canCancel && (
                             <button
                               onClick={() => setCancelModal({ show: true, orderId: order.id, reason: '' })}
-                              className="inline-flex items-center justify-center rounded-full border border-red-300 px-3 py-1 text-xs font-semibold text-red-600 transition-colors hover:bg-red-50"
+                              className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-pill border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
                             >
                               Hủy đơn
                             </button>
@@ -357,7 +357,7 @@ export default function DeliveryOrders() {
                           {canOpenPicking && (
                             <button
                               onClick={() => navigate(`/outbound/delivery-orders/${order.id}`)}
-                              className="inline-flex items-center justify-center rounded-full border border-ink bg-canvas-light px-3 py-1 text-xs font-semibold text-ink transition-colors hover:bg-zinc-100"
+                              className="inline-flex items-center justify-center rounded-full border border-ink bg-canvas-light px-3 py-1 text-xs font-semibold text-ink transition-colors hover:bg-canvas-cream"
                             >
                               {order.status === 'NEW' ? 'Lập kế hoạch lấy hàng' : 'Duyệt xử lý kho'}
                             </button>
@@ -460,11 +460,11 @@ export default function DeliveryOrders() {
             <div className="overflow-hidden rounded-lg border border-hairline-light bg-canvas-light">
               <table className="w-full border-collapse text-left text-xs">
                 <thead>
-                  <tr className="border-b border-hairline-light bg-zinc-50">
-                    <th className="px-4 py-3 font-bold uppercase tracking-wider text-shade-60">Sản phẩm</th>
-                    <th className="w-28 px-4 py-3 font-bold uppercase tracking-wider text-shade-60">Số lượng</th>
-                    <th className="w-36 px-4 py-3 font-bold uppercase tracking-wider text-shade-60">Đơn giá</th>
-                    <th className="w-10 px-4 py-3" />
+                  <tr className="border-b border-hairline-light bg-canvas-cream">
+                    <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Sản phẩm</th>
+                    <th className="w-28 px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Số lượng</th>
+                    <th className="w-36 px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Đơn giá</th>
+                    <th className="w-10 px-4 py-4" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-hairline-light">
@@ -477,40 +477,37 @@ export default function DeliveryOrders() {
                   )}
 
                   {formData.items.map((item, index) => (
-                    <tr key={`${item.product_id || 'new'}-${index}`} className="hover:bg-zinc-50/50">
-                      <td className="px-4 py-2.5">
-                        <select
+                    <tr key={`${item.product_id || 'new'}-${index}`} className="hover:bg-canvas-cream/50">
+                      <td className="px-4 py-3">
+                        <Input
+                          type="select"
                           disabled={masterDataLoading}
-                          className="w-full rounded-md border border-hairline-light bg-canvas-light px-3 py-2.5 text-sm text-ink transition-all focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
                           value={item.product_id}
                           onChange={(event) => updateItemRow(index, 'product_id', event.target.value)}
-                        >
-                          <option value="">{masterDataLoading ? '-- Đang tải sản phẩm --' : '-- Chọn sản phẩm --'}</option>
-                          {products.map((product) => (
-                            <option key={product.id} value={product.id}>[{product.sku}] {product.name}</option>
-                          ))}
-                        </select>
+                          options={[
+                            { value: '', label: masterDataLoading ? '-- Đang tải sản phẩm --' : '-- Chọn sản phẩm --' },
+                            ...products.map((product) => ({ value: product.id, label: `[${product.sku}] ${product.name}` })),
+                          ]}
+                        />
                       </td>
-                      <td className="px-4 py-2.5">
-                        <input
+                      <td className="px-4 py-3">
+                        <Input
                           type="number"
                           min="1"
-                          className="w-full rounded-md border border-hairline-light bg-canvas-light px-3 py-2.5 text-sm text-ink transition-all focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
                           value={item.requested_qty}
                           onChange={(event) => updateItemRow(index, 'requested_qty', Number(event.target.value))}
                         />
                       </td>
-                      <td className="px-4 py-2.5">
-                        <input
+                      <td className="px-4 py-3">
+                        <Input
                           type="number"
                           min="0"
-                          className="w-full rounded-md border border-hairline-light bg-canvas-light px-3 py-2.5 text-sm text-ink transition-all focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
                           value={item.unit_price}
                           onChange={(event) => updateItemRow(index, 'unit_price', Number(event.target.value))}
                         />
                       </td>
-                      <td className="px-4 py-2.5 text-center">
-                        <button type="button" onClick={() => removeItemRow(index)} className="rounded-full p-1 text-shade-40 transition-colors hover:bg-zinc-100 hover:text-red-600">
+                      <td className="px-4 py-3 text-center">
+                        <button type="button" onClick={() => removeItemRow(index)} className="rounded-full p-1 text-shade-40 transition-colors hover:bg-canvas-cream hover:text-red-600">
                           <X className="h-4 w-4" />
                         </button>
                       </td>

@@ -334,7 +334,7 @@ export default function DeliveryOrderDetail() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white rounded-lg border border-hairline-light p-5 shadow-sm">
+        <div className="bg-canvas-light rounded-lg border border-hairline-light p-5 shadow-level-3">
           <h3 className="text-xs font-bold uppercase tracking-widest text-shade-40 mb-3 flex items-center gap-2">
             <MapPin className="w-3.5 h-3.5" /> Thông tin đại lý
           </h3>
@@ -344,7 +344,7 @@ export default function DeliveryOrderDetail() {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg border border-hairline-light p-5 shadow-sm">
+        <div className="bg-canvas-light rounded-lg border border-hairline-light p-5 shadow-level-3">
           <h3 className="text-xs font-bold uppercase tracking-widest text-shade-40 mb-3 flex items-center gap-2">
             <Clock className="w-3.5 h-3.5" /> Tiến độ giao hàng
           </h3>
@@ -357,11 +357,11 @@ export default function DeliveryOrderDetail() {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg border border-hairline-light p-5 shadow-sm">
+        <div className="bg-canvas-light rounded-lg border border-hairline-light p-5 shadow-level-3">
           <h3 className="text-xs font-bold uppercase tracking-widest text-shade-40 mb-3 flex items-center gap-2">
             <FileText className="w-3.5 h-3.5" /> Ghi chú
           </h3>
-          <p className="text-xs text-shade-60 italic bg-zinc-50 p-3 rounded border border-hairline-light min-h-[48px]">
+          <p className="text-xs text-shade-60 italic bg-canvas-cream p-3 rounded border border-hairline-light min-h-[48px]">
             {order.notes || 'Không có ghi chú'}
           </p>
         </div>
