@@ -14,6 +14,7 @@ public class DealerUpdateRequest {
     @Size(max = 20)
     private String phone;
 
+    @Size(max = 1000)
     private String defaultDeliveryAddress;
 
     @Size(max = 100)

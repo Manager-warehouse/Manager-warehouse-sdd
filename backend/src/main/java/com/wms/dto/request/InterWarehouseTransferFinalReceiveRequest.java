@@ -1,3 +1,7 @@
 package com.wms.dto.request;
 
-public record InterWarehouseTransferFinalReceiveRequest(String discrepancyReason) {}
+import jakarta.validation.constraints.Size;
+
+public record InterWarehouseTransferFinalReceiveRequest(
+        @Size(max = 1000)
+        String discrepancyReason) {}

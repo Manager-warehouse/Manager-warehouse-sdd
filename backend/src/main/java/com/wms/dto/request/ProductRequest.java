@@ -2,7 +2,8 @@ package com.wms.dto.request;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
@@ -26,13 +27,18 @@ public class ProductRequest {
     @Size(max = 30)
     private String unit;
 
+    @Positive
     private Integer unitPerPack;
 
+    @Size(max = 1000)
     private String description;
 
+    @PositiveOrZero
     private BigDecimal weightKg;
 
+    @PositiveOrZero
     private BigDecimal volumeM3;
 
+    @PositiveOrZero
     private BigDecimal reorderPoint;
 }

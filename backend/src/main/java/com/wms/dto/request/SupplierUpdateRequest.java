@@ -20,5 +20,6 @@ public class SupplierUpdateRequest {
     @Size(max = 255)
     private String contactPerson;
 
+    @Size(max = 1000)
     private String address;
 }
