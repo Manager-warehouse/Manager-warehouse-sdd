@@ -436,7 +436,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                     order.getId(), request.getIdempotencyKey());
             if (!replayRows.isEmpty()) {
                 String existingHash = replayRows.get(0).getRequestHash();
-                if (false && !Objects.equals(existingHash, requestHash)) {
+                if (!Objects.equals(existingHash, requestHash)) {
                     throw new OutboundDeliveryException("IDEMPOTENCY_KEY_CONFLICT",
                             HttpStatus.CONFLICT,
                             "Idempotency key was already used with a different payload");
