@@ -30,6 +30,7 @@ const PartnerManagement = () => {
   const [dlCode, setDlCode] = useState('');
   const [dlName, setDlName] = useState('');
   const [dlPhone, setDlPhone] = useState('');
+  const [dlEmail, setDlEmail] = useState('');
   const [dlAddress, setDlAddress] = useState('');
   const [dlRegion, setDlRegion] = useState('');
   const [dlPaymentTerms, setDlPaymentTerms] = useState('30');
@@ -80,6 +81,7 @@ const PartnerManagement = () => {
     setDlCode('');
     setDlName('');
     setDlPhone('');
+    setDlEmail('');
     setDlAddress('');
     setDlRegion('');
     setDlPaymentTerms('30');
@@ -96,6 +98,7 @@ const PartnerManagement = () => {
     setDlCode(dealer.code);
     setDlName(dealer.name);
     setDlPhone(dealer.phone || '');
+    setDlEmail(dealer.email || '');
     setDlAddress(dealer.default_delivery_address || '');
     setDlRegion(dealer.region || '');
     setDlPaymentTerms(String(dealer.payment_term_days || 30));
@@ -128,6 +131,9 @@ const PartnerManagement = () => {
       if (!dlCode.trim()) errors.code = 'Mã đại lý bắt buộc';
     }
     if (!dlName.trim()) errors.name = 'Tên đại lý bắt buộc';
+    if (dlEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(dlEmail.trim())) {
+      errors.email = 'Email không hợp lệ';
+    }
     if (dealerModalType === 'ADD' || canEditCredit) {
       if (Number(dlPaymentTerms) < 0) errors.payment_terms = 'Kỳ hạn thanh toán không hợp lệ';
       if (Number(dlCreditLimit) < 0) errors.credit_limit = 'Hạn mức tín dụng không được âm';
@@ -153,6 +159,7 @@ const PartnerManagement = () => {
           code: dlCode.trim(),
           name: dlName.trim(),
           phone: dlPhone.trim(),
+          email: dlEmail.trim(),
           default_delivery_address: dlAddress.trim(),
           region: dlRegion.trim(),
           payment_term_days: Number(dlPaymentTerms),
@@ -165,6 +172,7 @@ const PartnerManagement = () => {
         const dlData = {
           name: dlName.trim(),
           phone: dlPhone.trim(),
+          email: dlEmail.trim(),
           default_delivery_address: dlAddress.trim(),
           region: dlRegion.trim(),
         };
@@ -412,7 +420,10 @@ const PartnerManagement = () => {
                     return (
                       <tr key={dl.id} className={`hover:bg-zinc-50/50 transition-colors ${!dl.is_active ? 'opacity-50' : ''}`}>
                         <td className="px-6 py-4 font-mono font-bold text-ink">{dl.code}</td>
-                        <td className="px-6 py-4 font-semibold text-ink">{dl.name}</td>
+                        <td className="px-6 py-4">
+                          <div className="font-semibold text-ink">{dl.name}</div>
+                          {dl.email && <div className="text-[11px] text-shade-50 font-normal">{dl.email}</div>}
+                        </td>
                         <td className="px-6 py-4 text-shade-60">{dl.region || 'N/A'}</td>
                         <td className="px-6 py-4 text-shade-60 font-mono">{dl.phone || 'N/A'}</td>
                         <td className="px-6 py-4 text-right font-medium">{dl.payment_term_days} ngày</td>
@@ -589,6 +600,17 @@ const PartnerManagement = () => {
                 onChange={(e) => setDlPhone(e.target.value)}
                 placeholder="VD: 0912 345 678"
               />
+              <Input
+                label="Email liên hệ"
+                type="email"
+                value={dlEmail}
+                onChange={(e) => setDlEmail(e.target.value)}
+                error={dlFormErrors.email}
+                placeholder="VD: daily@example.com"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 gap-4">
               <Input
                 label="Địa chỉ giao hàng mặc định"
                 value={dlAddress}

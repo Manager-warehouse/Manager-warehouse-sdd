@@ -74,6 +74,7 @@ public class DealerServiceImpl implements DealerService {
         dealer.setCode(request.getCode());
         dealer.setName(request.getName());
         dealer.setPhone(request.getPhone());
+        dealer.setEmail(request.getEmail());
         dealer.setDefaultDeliveryAddress(request.getDefaultDeliveryAddress());
         dealer.setRegion(request.getRegion());
         dealer.setPaymentTermDays(resolveIntConfig(SystemConfigKey.DEFAULT_PAYMENT_TERM_DAYS, NET_30));
@@ -102,6 +103,9 @@ public class DealerServiceImpl implements DealerService {
         }
         if (request.getPhone() != null) {
             dealer.setPhone(request.getPhone());
+        }
+        if (request.getEmail() != null) {
+            dealer.setEmail(request.getEmail());
         }
         if (request.getDefaultDeliveryAddress() != null) {
             dealer.setDefaultDeliveryAddress(request.getDefaultDeliveryAddress());
@@ -241,6 +245,7 @@ public class DealerServiceImpl implements DealerService {
                 "code", dealer.getCode(),
                 "name", dealer.getName(),
                 "phone", dealer.getPhone(),
+                "email", dealer.getEmail(),
                 "defaultDeliveryAddress", dealer.getDefaultDeliveryAddress(),
                 "region", dealer.getRegion(),
                 "paymentTermDays", dealer.getPaymentTermDays(),
