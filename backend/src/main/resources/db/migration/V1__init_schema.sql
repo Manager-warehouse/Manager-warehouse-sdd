@@ -236,312 +236,127 @@ CREATE TABLE price_history (
     created_at     TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
+-- =============================================================================
+-- SECTION 6: THÔNG BÁO & CẤU HÌNH PHỤ TRỢ
+-- =============================================================================
 
-
---
--- Name: delivery_order_item_replacements_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE public.delivery_order_item_replacements_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-
---
--- Name: delivery_order_item_replacements_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE public.delivery_order_item_replacements_id_seq OWNED BY public.delivery_order_item_replacements.id;
-
-
---
--- Name: delivery_order_item_return_to_bin_records; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.delivery_order_item_return_to_bin_records (
-    id bigint NOT NULL,
-    do_item_id bigint NOT NULL,
-    allocation_id bigint NOT NULL,
-    product_id bigint NOT NULL,
-    batch_id bigint NOT NULL,
-    original_location_id bigint NOT NULL,
-    original_zone_id bigint NOT NULL,
-    source_location_id bigint,
-    returned_qty numeric(10,2) NOT NULL,
-    reason text,
-    created_by bigint NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT delivery_order_item_return_to_bin_records_returned_qty_check CHECK ((returned_qty > (0)::numeric))
+-- §14.1 notifications
+CREATE TABLE notifications (
+    id           BIGSERIAL PRIMARY KEY,
+    recipient_id BIGINT NOT NULL REFERENCES users(id),
+    type         VARCHAR(50) NOT NULL,
+    reference_type VARCHAR(50),
+    reference_id BIGINT,
+    message      TEXT,
+    is_read      BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-
-
---
--- Name: delivery_order_item_return_to_bin_records_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE public.delivery_order_item_return_to_bin_records_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-
---
--- Name: delivery_order_item_return_to_bin_records_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE public.delivery_order_item_return_to_bin_records_id_seq OWNED BY public.delivery_order_item_return_to_bin_records.id;
-
-
---
--- Name: delivery_order_items; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.delivery_order_items (
-    id bigint NOT NULL,
-    do_id bigint NOT NULL,
-    product_id bigint NOT NULL,
-    batch_id bigint,
-    location_id bigint,
-    requested_qty numeric(10,2) NOT NULL,
-    reserved_qty numeric(10,2) DEFAULT 0 NOT NULL,
-    issued_qty numeric(10,2) DEFAULT 0 NOT NULL,
-    unit_price numeric(18,2),
-    picked_by bigint,
-    unit_cost numeric(18,2),
-    zone_id bigint,
-    planned_qty numeric(10,2) DEFAULT 0 NOT NULL,
-    picked_qty numeric(10,2) DEFAULT 0 NOT NULL,
-    qc_pass_qty numeric(10,2) DEFAULT 0 NOT NULL,
-    qc_fail_qty numeric(10,2) DEFAULT 0 NOT NULL,
-    serial_number character varying(100),
-    CONSTRAINT delivery_order_items_reserved_qty_check CHECK ((reserved_qty >= (0)::numeric))
+-- §2.8 warehouse_product_reservations
+CREATE TABLE warehouse_product_reservations (
+    id           BIGSERIAL PRIMARY KEY,
+    warehouse_id BIGINT NOT NULL REFERENCES warehouses(id),
+    product_id   BIGINT NOT NULL REFERENCES products(id),
+    reserved_qty DECIMAL(10,2) NOT NULL DEFAULT 0 CHECK (reserved_qty >= 0),
+    version      INTEGER NOT NULL DEFAULT 0,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (warehouse_id, product_id)
 );
 
+-- =============================================================================
+-- SECTION 7: QUẢN LÝ LÔ HÀNG & TỒN KHO
+-- =============================================================================
 
-
---
--- Name: delivery_order_items_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE public.delivery_order_items_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-
---
--- Name: delivery_order_items_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE public.delivery_order_items_id_seq OWNED BY public.delivery_order_items.id;
-
-
---
--- Name: delivery_order_warehouse_approvals; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.delivery_order_warehouse_approvals (
-    id bigint NOT NULL,
-    do_id bigint NOT NULL,
-    approver_id bigint NOT NULL,
-    result character varying(20) NOT NULL,
-    notes text,
-    approved_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT delivery_order_warehouse_approvals_result_check CHECK (((result)::text = ANY ((ARRAY['APPROVED'::character varying, 'REJECTED'::character varying])::text[])))
+-- §5.1 batches
+CREATE TABLE batches (
+    id            BIGSERIAL PRIMARY KEY,
+    batch_number  VARCHAR(100) UNIQUE NOT NULL,
+    product_id    BIGINT NOT NULL REFERENCES products(id),
+    warehouse_id  BIGINT NOT NULL REFERENCES warehouses(id),
+    received_date DATE NOT NULL,
+    quantity      DECIMAL(10,2) NOT NULL CHECK (quantity >= 0),
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expiry_date   DATE,
+    grade         VARCHAR(1) NOT NULL DEFAULT 'A' CHECK (grade IN ('A', 'B', 'C'))
 );
 
-
-
---
--- Name: delivery_order_warehouse_approvals_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE public.delivery_order_warehouse_approvals_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-
---
--- Name: delivery_order_warehouse_approvals_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE public.delivery_order_warehouse_approvals_id_seq OWNED BY public.delivery_order_warehouse_approvals.id;
-
-
---
--- Name: delivery_orders; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.delivery_orders (
-    id bigint NOT NULL,
-    do_number character varying(50) NOT NULL,
-    dealer_id bigint NOT NULL,
-    warehouse_id bigint NOT NULL,
-    type character varying(30) NOT NULL,
-    expected_delivery_date date,
-    status character varying(30) DEFAULT 'NEW'::character varying NOT NULL,
-    created_by bigint NOT NULL,
-    cancel_reason text,
-    document_date date NOT NULL,
-    accounting_period_id bigint,
-    notes text,
-    packed_by bigint,
-    qc_by bigint,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    rejection_reason text,
-    CONSTRAINT delivery_orders_status_check CHECK (((status)::text = ANY ((ARRAY['NEW'::character varying, 'WAITING_PICKING'::character varying, 'PICKING'::character varying, 'READY_TO_SHIP'::character varying, 'QC_PENDING_APPROVAL'::character varying, 'QC_COMPLETED'::character varying, 'WAREHOUSE_APPROVED'::character varying, 'IN_TRANSIT'::character varying, 'OUT_FOR_DELIVERY'::character varying, 'DELIVERED'::character varying, 'COMPLETED'::character varying, 'RETURNED'::character varying, 'CANCELLED'::character varying, 'CLOSED'::character varying])::text[]))),
-    CONSTRAINT delivery_orders_type_check CHECK (((type)::text = ANY ((ARRAY['SALE'::character varying, 'DELIVERY'::character varying, 'ADJUSTMENT'::character varying])::text[])))
+-- §5.2 inventories
+CREATE TABLE inventories (
+    id           BIGSERIAL PRIMARY KEY,
+    warehouse_id BIGINT NOT NULL REFERENCES warehouses(id),
+    product_id   BIGINT NOT NULL REFERENCES products(id),
+    batch_id     BIGINT NOT NULL REFERENCES batches(id),
+    location_id  BIGINT NOT NULL REFERENCES warehouse_locations(id),
+    total_qty    DECIMAL(10,2) NOT NULL DEFAULT 0 CHECK (total_qty >= 0),
+    reserved_qty DECIMAL(10,2) NOT NULL DEFAULT 0 CHECK (reserved_qty >= 0),
+    cost_price   DECIMAL(18,2) NOT NULL,
+    version      INTEGER NOT NULL DEFAULT 0,
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (warehouse_id, product_id, batch_id, location_id),
+    CHECK (total_qty >= reserved_qty)
 );
 
+-- =============================================================================
+-- SECTION 7.1: MUA HÀNG (PURCHASE ORDER)
+-- =============================================================================
 
-
---
--- Name: delivery_orders_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE public.delivery_orders_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-
---
--- Name: delivery_orders_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE public.delivery_orders_id_seq OWNED BY public.delivery_orders.id;
-
-
---
--- Name: delivery_otp_attempts; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.delivery_otp_attempts (
-    id bigint NOT NULL,
-    delivery_id bigint NOT NULL,
-    otp_hash character varying(255) NOT NULL,
-    recipient_email character varying(255) NOT NULL,
-    expires_at timestamp with time zone NOT NULL,
-    consumed_at timestamp with time zone,
-    attempt_count integer DEFAULT 0 NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    status character varying(20) DEFAULT 'ACTIVE'::character varying NOT NULL
+-- §5.3 purchase_orders
+CREATE TABLE purchase_orders (
+    id                    BIGSERIAL PRIMARY KEY,
+    po_number             VARCHAR(50) UNIQUE NOT NULL,
+    supplier_id           BIGINT NOT NULL REFERENCES suppliers(id),
+    warehouse_id          BIGINT NOT NULL REFERENCES warehouses(id),
+    expected_receipt_date DATE,
+    status                VARCHAR(30) NOT NULL CHECK (status IN ('OPEN', 'PARTIALLY_RECEIVED', 'COMPLETED', 'CANCELLED')),
+    created_by            BIGINT NOT NULL REFERENCES users(id),
+    notes                 TEXT,
+    created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-
-
---
--- Name: delivery_otp_attempts_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE public.delivery_otp_attempts_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-
---
--- Name: delivery_otp_attempts_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE public.delivery_otp_attempts_id_seq OWNED BY public.delivery_otp_attempts.id;
-
-
---
--- Name: document_sequences; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.document_sequences (
-    sequence_key character varying(50) NOT NULL,
-    next_value bigint NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT document_sequences_next_value_check CHECK ((next_value > 0))
+-- §5.3.1 purchase_order_items
+CREATE TABLE purchase_order_items (
+    id           BIGSERIAL PRIMARY KEY,
+    po_id        BIGINT NOT NULL REFERENCES purchase_orders(id) ON DELETE CASCADE,
+    product_id   BIGINT NOT NULL REFERENCES products(id),
+    expected_qty DECIMAL(10,2) NOT NULL CHECK (expected_qty > 0),
+    unit_price   DECIMAL(18,2)
 );
 
-
-
---
--- Name: drivers; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.drivers (
-    id bigint NOT NULL,
-    user_id bigint NOT NULL,
-    full_name character varying(255) NOT NULL,
-    phone character varying(20),
-    license_number character varying(50) NOT NULL,
-    license_expiry date NOT NULL,
-    status character varying(20) DEFAULT 'AVAILABLE'::character varying NOT NULL,
-    is_active boolean DEFAULT true NOT NULL,
-    created_by bigint,
-    updated_by bigint,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    warehouse_id bigint,
-    CONSTRAINT chk_drivers_status CHECK (((status)::text = ANY ((ARRAY['AVAILABLE'::character varying, 'ON_TRIP'::character varying, 'UNAVAILABLE'::character varying])::text[])))
+-- §5.3.2 receipts
+CREATE TABLE receipts (
+    id                   BIGSERIAL PRIMARY KEY,
+    receipt_number       VARCHAR(50) UNIQUE NOT NULL,
+    source_order_code    VARCHAR(100),
+    type                 VARCHAR(20) NOT NULL CHECK (type IN ('PURCHASE', 'RETURN')),
+    warehouse_id         BIGINT NOT NULL REFERENCES warehouses(id),
+    supplier_id          BIGINT REFERENCES suppliers(id),
+    dealer_id            BIGINT REFERENCES dealers(id),
+    contact_person       VARCHAR(255),
+    source_channel       VARCHAR(50) CHECK (source_channel IS NULL OR source_channel IN ('ZALO', 'EMAIL')),
+    status               VARCHAR(30) NOT NULL DEFAULT 'PENDING_RECEIPT' CHECK (status IN ('PENDING_RECEIPT', 'DRAFT', 'QC_COMPLETED', 'QC_FAILED', 'APPROVED', 'RETURN_TO_SUPPLIER_PENDING', 'RETURNED_TO_SUPPLIER')),
+    approved_by          BIGINT REFERENCES users(id),
+    approved_at          TIMESTAMPTZ,
+    rejection_reason     TEXT,
+    document_date        DATE NOT NULL,
+    accounting_period_id BIGINT REFERENCES accounting_periods(id),
+    created_by           BIGINT NOT NULL REFERENCES users(id),
+    notes                TEXT,
+    created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    version              INTEGER NOT NULL DEFAULT 0
 );
 
+-- =============================================================================
+-- SECTION 7.2: TÀI LIỆU & CHỨNG TỪ HỆ THỐNG
+-- =============================================================================
 
-
---
--- Name: COLUMN drivers.status; Type: COMMENT; Schema: public; Owner: postgres
---
-
-COMMENT ON COLUMN public.drivers.status IS 'Driver status: AVAILABLE, ON_TRIP, UNAVAILABLE.';
-
-
---
--- Name: drivers_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE public.drivers_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-
---
--- Name: drivers_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE public.drivers_id_seq OWNED BY public.drivers.id;
-
-
---
--- Name: inter_warehouse_transfer_allocations; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.inter_warehouse_transfer_allocations (
-    id bigint NOT NULL,
-    transfer_item_id bigint NOT NULL,
-    inventory_id bigint NOT NULL,
-    allocated_qty numeric(10,2) NOT NULL,
-    CONSTRAINT inter_warehouse_transfer_allocations_allocated_qty_check CHECK ((allocated_qty > (0)::numeric))
+-- §14.2 document_sequences
+CREATE TABLE document_sequences (
+    sequence_key VARCHAR(50) PRIMARY KEY,
+    next_value   BIGINT NOT NULL CHECK (next_value > 0),
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- §5.4 receipt_items
@@ -593,6 +408,23 @@ CREATE TABLE delivery_orders (
     updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- §6.1.1 billing_notifications
+CREATE TABLE billing_notifications (
+    id                    BIGSERIAL PRIMARY KEY,
+    do_id                 BIGINT NOT NULL REFERENCES delivery_orders(id) ON DELETE CASCADE,
+    do_number             VARCHAR(50) NOT NULL,
+    dealer_id             BIGINT NOT NULL REFERENCES dealers(id),
+    dealer_name           VARCHAR(255) NOT NULL,
+    warehouse_id          BIGINT NOT NULL REFERENCES warehouses(id),
+    delivered_at          TIMESTAMPTZ NOT NULL,
+    total_amount_estimate DECIMAL(18,2) NOT NULL,
+    invoice_status        VARCHAR(30) NOT NULL DEFAULT 'NOT_INVOICED' CHECK (invoice_status IN ('NOT_INVOICED', 'INVOICED')),
+    status                VARCHAR(20) NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'READ', 'ARCHIVED')),
+    recipient_role        VARCHAR(50) NOT NULL DEFAULT 'ACCOUNTANT',
+    read_at               TIMESTAMPTZ,
+    created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- FK thêm sau khi delivery_orders đã tạo (tránh forward reference từ receipts)
 ALTER TABLE receipts
     ADD COLUMN delivery_order_id BIGINT REFERENCES delivery_orders(id) ON DELETE SET NULL;
@@ -611,6 +443,55 @@ CREATE TABLE delivery_order_items (
     unit_price    DECIMAL(18,2),               -- Từ price_history tại ngày giao
     serial_number VARCHAR(100),
     picked_by     BIGINT        REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- §6.2.1 delivery_order_item_allocations
+CREATE TABLE delivery_order_item_allocations (
+    id                     BIGSERIAL PRIMARY KEY,
+    do_item_id             BIGINT NOT NULL REFERENCES delivery_order_items(id) ON DELETE CASCADE,
+    inventory_id           BIGINT NOT NULL REFERENCES inventories(id),
+    batch_id               BIGINT NOT NULL REFERENCES batches(id),
+    location_id            BIGINT NOT NULL REFERENCES warehouse_locations(id),
+    zone_id                BIGINT NOT NULL REFERENCES warehouse_locations(id),
+    planned_qty            DECIMAL(10,2) NOT NULL CHECK (planned_qty > 0),
+    picked_qty             DECIMAL(10,2) NOT NULL DEFAULT 0 CHECK (picked_qty >= 0),
+    is_replacement         BOOLEAN NOT NULL DEFAULT FALSE,
+    replaced_allocation_id BIGINT REFERENCES delivery_order_item_allocations(id),
+    created_by             BIGINT NOT NULL REFERENCES users(id),
+    created_at             TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at             TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- §6.2.2 delivery_order_item_replacements
+CREATE TABLE delivery_order_item_replacements (
+    id                       BIGSERIAL PRIMARY KEY,
+    do_item_id               BIGINT NOT NULL REFERENCES delivery_order_items(id) ON DELETE CASCADE,
+    failed_inventory_id      BIGINT NOT NULL REFERENCES inventories(id),
+    replacement_inventory_id BIGINT NOT NULL REFERENCES inventories(id),
+    failed_batch_id          BIGINT NOT NULL REFERENCES batches(id),
+    failed_location_id       BIGINT NOT NULL REFERENCES warehouse_locations(id),
+    replacement_batch_id     BIGINT NOT NULL REFERENCES batches(id),
+    replacement_location_id  BIGINT NOT NULL REFERENCES warehouse_locations(id),
+    quantity                 DECIMAL(10,2) NOT NULL CHECK (quantity > 0),
+    reason                   TEXT NOT NULL,
+    created_by               BIGINT NOT NULL REFERENCES users(id),
+    created_at               TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- §6.2.3 delivery_order_item_return_to_bin_records
+CREATE TABLE delivery_order_item_return_to_bin_records (
+    id                   BIGSERIAL PRIMARY KEY,
+    do_item_id           BIGINT NOT NULL REFERENCES delivery_order_items(id) ON DELETE CASCADE,
+    allocation_id        BIGINT NOT NULL REFERENCES delivery_order_item_allocations(id) ON DELETE CASCADE,
+    product_id           BIGINT NOT NULL REFERENCES products(id),
+    batch_id             BIGINT NOT NULL REFERENCES batches(id),
+    original_location_id BIGINT NOT NULL REFERENCES warehouse_locations(id),
+    original_zone_id     BIGINT NOT NULL REFERENCES warehouse_locations(id),
+    source_location_id   BIGINT REFERENCES warehouse_locations(id),
+    returned_qty         DECIMAL(10,2) NOT NULL CHECK (returned_qty > 0),
+    reason               TEXT,
+    created_by           BIGINT NOT NULL REFERENCES users(id),
+    created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- §6.3 delivery_order_approvals  (Kế toán duyệt)
@@ -691,6 +572,19 @@ CREATE TABLE deliveries (
     updated_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
+-- §7.4 delivery_otp_attempts
+CREATE TABLE delivery_otp_attempts (
+    id              BIGSERIAL PRIMARY KEY,
+    delivery_id     BIGINT NOT NULL REFERENCES deliveries(id) ON DELETE CASCADE,
+    otp_hash        VARCHAR(255) NOT NULL,
+    recipient_email VARCHAR(255) NOT NULL,
+    expires_at      TIMESTAMPTZ NOT NULL,
+    consumed_at     TIMESTAMPTZ,
+    attempt_count   INTEGER NOT NULL DEFAULT 0,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    status          VARCHAR(20) NOT NULL DEFAULT 'ACTIVE'
+);
+
 -- =============================================================================
 -- SECTION 10: ĐIỀU CHUYỂN NỘI BỘ
 -- =============================================================================
@@ -732,6 +626,14 @@ CREATE TABLE transfer_items (
     sent_qty                DECIMAL(10,2),
     received_qty            DECIMAL(10,2),
     variance_qty            DECIMAL(10,2)  -- received_qty - sent_qty  (âm = thiếu)
+);
+
+-- §8.3 inter_warehouse_transfer_allocations
+CREATE TABLE inter_warehouse_transfer_allocations (
+    id               BIGSERIAL PRIMARY KEY,
+    transfer_item_id BIGINT NOT NULL REFERENCES transfer_items(id) ON DELETE CASCADE,
+    inventory_id     BIGINT NOT NULL REFERENCES inventories(id),
+    allocated_qty    DECIMAL(10,2) NOT NULL CHECK (allocated_qty > 0)
 );
 
 -- =============================================================================
@@ -835,6 +737,18 @@ CREATE TABLE invoices (
     accounting_period_id BIGINT        REFERENCES accounting_periods(id),
     created_at           TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
     updated_at           TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+);
+
+-- §10.1.1 invoice_lines
+CREATE TABLE invoice_lines (
+    id          BIGSERIAL PRIMARY KEY,
+    invoice_id  BIGINT NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+    do_item_id  BIGINT NOT NULL REFERENCES delivery_order_items(id),
+    product_id  BIGINT NOT NULL REFERENCES products(id),
+    quantity    DECIMAL(10,2) NOT NULL CHECK (quantity > 0),
+    unit_price  DECIMAL(18,2) NOT NULL CHECK (unit_price >= 0),
+    line_amount DECIMAL(18,2) NOT NULL CHECK (line_amount >= 0),
+    CONSTRAINT ux_invoice_lines_invoice_do_item UNIQUE (invoice_id, do_item_id)
 );
 
 -- §10.2 payment_receipts  (Critical 3)
