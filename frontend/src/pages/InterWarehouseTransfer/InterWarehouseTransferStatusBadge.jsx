@@ -8,7 +8,7 @@ const statusMap = {
   COMPLETED: 'bg-emerald-50 text-emerald-800 border-emerald-200',
   COMPLETED_WITH_DISCREPANCY: 'bg-orange-50 text-orange-800 border-orange-200',
   REJECTED: 'bg-red-50 text-red-700 border-red-200',
-  CANCELLED: 'bg-stone-100 text-stone-700 border-stone-200',
+  CANCELLED: 'bg-shade-30 text-shade-70 border-hairline-light',
   QUARANTINED: 'bg-red-100 text-red-900 border-red-300',
 };
 

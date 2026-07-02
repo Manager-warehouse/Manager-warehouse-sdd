@@ -7,7 +7,7 @@ import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import Modal from '../../components/common/Modal';
 import Badge from '../../components/common/Badge';
-import { Plus, Search, Edit, ToggleLeft, ToggleRight, AlertCircle, Filter, Loader2 } from 'lucide-react';
+import { Plus, Search, Edit, ToggleLeft, ToggleRight, AlertCircle, Loader2 } from 'lucide-react';
 
 const ProductManagement = () => {
   const { hasRole } = useAuthStore();

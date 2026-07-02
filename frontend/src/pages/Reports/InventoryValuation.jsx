@@ -56,7 +56,7 @@ const InventoryValuation = () => {
           <select
             value={selectedWarehouse}
             onChange={(e) => setSelectedWarehouse(e.target.value)}
-            className="bg-canvas-light text-ink text-xs font-semibold px-3 py-1.5 rounded-md border border-hairline-light focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink transition-all min-h-[36px]"
+            className="bg-canvas-light text-ink text-xs font-semibold px-3 py-1.5 rounded-md border border-hairline-light focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink transition-all min-h-[44px]"
           >
             <option value="">Tất cả kho vật lý</option>
             {/* Vì dữ liệu seed có HP (1), HN (2), HCM (3) */}
@@ -111,7 +111,7 @@ const InventoryValuation = () => {
 
             <div className="bg-canvas-night text-onPrimary rounded-lg border border-hairline-dark p-6 shadow-level-3 hover:shadow-lg transition-all duration-200 flex items-center gap-4">
               <div className="p-3 bg-canvas-nightElevated text-onPrimary rounded-full">
-                <DollarSign className="w-6 h-6 text-aloe-10" />
+                <DollarSign className="w-6 h-6 text-onPrimary" />
               </div>
               <div>
                 <span className="text-[10px] font-semibold text-shade-30 uppercase block">Tổng giá trị định giá</span>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ClipboardList, ArrowLeft } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
 import { stocktakeService } from '../../services/stocktake.service';
@@ -88,7 +88,7 @@ const StocktakeForm = () => {
           {/* Warehouse (read-only) */}
           <div className="space-y-1.5">
             <label className="block text-xs font-semibold text-shade-40 uppercase tracking-wider">Kho kiểm kê</label>
-            <div className="px-3 py-2.5 rounded-xl bg-canvas-cream border border-hairline-light text-sm text-shade-30">
+            <div className="px-3 py-2.5 rounded-md bg-canvas-cream border border-hairline-light text-sm text-shade-30">
               {activeWarehouse?.name || '(Chưa chọn kho)'}
             </div>
           </div>
@@ -101,8 +101,8 @@ const StocktakeForm = () => {
             <select
               value={form.accounting_period_id}
               onChange={(e) => set('accounting_period_id', e.target.value)}
-              className={`w-full px-3 py-2.5 rounded-xl border text-sm outline-none transition-colors ${
-                errors.accounting_period_id ? 'border-red-400 bg-red-50' : 'border-hairline-light focus:border-zinc-400'
+              className={`w-full px-3 py-2.5 rounded-md border text-sm outline-none transition-colors ${
+                errors.accounting_period_id ? 'border-red-400 bg-red-50' : 'border-hairline-light focus:border-ink'
               }`}
             >
               <option value={1}>T06/2026 (đang mở)</option>
@@ -121,8 +121,8 @@ const StocktakeForm = () => {
               type="date"
               value={form.stock_take_date}
               onChange={(e) => set('stock_take_date', e.target.value)}
-              className={`w-full px-3 py-2.5 rounded-xl border text-sm outline-none transition-colors ${
-                errors.stock_take_date ? 'border-red-400 bg-red-50' : 'border-hairline-light focus:border-zinc-400'
+              className={`w-full px-3 py-2.5 rounded-md border text-sm outline-none transition-colors ${
+                errors.stock_take_date ? 'border-red-400 bg-red-50' : 'border-hairline-light focus:border-ink'
               }`}
             />
             {errors.stock_take_date && (
@@ -139,8 +139,8 @@ const StocktakeForm = () => {
               type="date"
               value={form.document_date}
               onChange={(e) => set('document_date', e.target.value)}
-              className={`w-full px-3 py-2.5 rounded-xl border text-sm outline-none transition-colors ${
-                errors.document_date ? 'border-red-400 bg-red-50' : 'border-hairline-light focus:border-zinc-400'
+              className={`w-full px-3 py-2.5 rounded-md border text-sm outline-none transition-colors ${
+                errors.document_date ? 'border-red-400 bg-red-50' : 'border-hairline-light focus:border-ink'
               }`}
             />
             {errors.document_date && (
@@ -157,7 +157,7 @@ const StocktakeForm = () => {
             value={form.notes}
             onChange={(e) => set('notes', e.target.value)}
             placeholder="Ghi chú thêm (tuỳ chọn)"
-            className="w-full px-3 py-2.5 rounded-xl border border-hairline-light focus:border-zinc-400 text-sm outline-none transition-colors resize-none"
+            className="w-full px-3 py-2.5 rounded-md border border-hairline-light focus:border-ink text-sm outline-none transition-colors resize-none"
           />
         </div>
 

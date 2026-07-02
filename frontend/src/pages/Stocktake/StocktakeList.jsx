@@ -162,7 +162,7 @@ const StocktakeList = () => {
             <tbody className="divide-y divide-hairline-light">
               {stocktakes.map((st) => (
                 <tr key={st.id} className="hover:bg-canvas-cream/50 transition-colors">
-                  <td className="px-6 py-3 font-mono text-xs text-aloe-50 font-semibold">
+                  <td className="px-6 py-3 font-mono text-xs text-[#127a3c] font-semibold">
                     {st.stock_take_number}
                   </td>
                   <td className="px-6 py-3 text-xs text-shade-50">{st.stock_take_date}</td>
@@ -186,7 +186,7 @@ const StocktakeList = () => {
                     <div className="flex items-center justify-center gap-1.5">
                       <button
                         onClick={() => navigate(`/stocktake/${st.id}`)}
-                        className="p-1.5 rounded-lg text-shade-50 hover:text-aloe-50 hover:bg-aloe-10 transition-colors"
+                        className="p-1.5 rounded-lg text-shade-50 hover:text-[#127a3c] hover:bg-aloe-10 transition-colors"
                         title="Xem chi tiết"
                       >
                         <Eye className="w-3.5 h-3.5" />
@@ -242,8 +242,8 @@ const StocktakeList = () => {
               </button>
               <button
                 onClick={() => confirmModal.action === 'cancel' ? handleCancel(confirmModal.id) : handleApprove(confirmModal.id)}
-                className={`px-4 py-2 rounded-pill text-xs font-semibold text-white transition-colors ${
-                  confirmModal.action === 'cancel' ? 'bg-red-500 hover:bg-red-600' : 'bg-aloe-40 hover:bg-aloe-50'
+                className={`px-4 py-2 rounded-pill text-xs font-semibold transition-colors ${
+                  confirmModal.action === 'cancel' ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-aloe-10 hover:opacity-90 text-ink'
                 }`}
               >
                 Xác nhận

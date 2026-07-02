@@ -202,9 +202,9 @@ const TransferRequestWorkspace = () => {
       SUBMITTED: { text: 'Chờ CEO Duyệt', class: 'bg-amber-50 text-amber-700 border-amber-200 animate-pulse' },
       APPROVED: { text: 'Đã Duyệt', class: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
       REJECTED: { text: 'Bị Từ Chối', class: 'bg-red-50 text-red-700 border-red-200' },
-      CONVERTED: { text: 'Đã Chuyển TRF', class: 'bg-indigo-50 text-indigo-700 border-indigo-200' }
+      CONVERTED: { text: 'Đã Chuyển TRF', class: 'bg-shade-30 text-ink border-hairline-light' }
     };
-    const c = maps[status] || { text: status, class: 'bg-gray-100 text-gray-700' };
+    const c = maps[status] || { text: status, class: 'bg-shade-30 text-ink' };
     return <span className={`text-[10px] font-semibold px-2 py-0.5 border rounded-pill uppercase tracking-wider whitespace-nowrap ${c.class}`}>{c.text}</span>;
   };
 
@@ -270,7 +270,7 @@ const TransferRequestWorkspace = () => {
                   <div>
                     <span className="text-[10px] font-bold text-shade-50 uppercase font-mono block">{req.requestNumber}</span>
                     <h4 className="font-bold text-xs text-ink mt-0.5">
-                      Từ: <span className="text-blue-600 font-bold">{req.sourceWarehouseName}</span> → Đến: <span className="text-ink font-bold">{req.destinationWarehouseName}</span>
+                      Từ: <span className="text-blue-700 font-bold">{req.sourceWarehouseName}</span> → Đến: <span className="text-ink font-bold">{req.destinationWarehouseName}</span>
                     </h4>
                   </div>
                   {getStatusBadge(req.status)}
@@ -322,10 +322,10 @@ const TransferRequestWorkspace = () => {
       {/* Creation Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-canvas-night/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-          <div className="bg-canvas-cream border border-hairline-light rounded-lg max-w-2xl w-full shadow-2xl overflow-hidden">
-            <div className="p-5 border-b border-hairline-light bg-canvas-light flex justify-between items-center">
+          <div className="bg-canvas-light border border-hairline-light rounded-lg max-w-2xl w-full shadow-2xl overflow-hidden">
+            <div className="p-5 border-b border-hairline-light bg-canvas-cream flex justify-between items-center">
               <h3 className="font-bold text-base flex items-center gap-2">
-                <FileText className="w-5 h-5 text-blue-600" />
+                <FileText className="w-5 h-5 text-blue-700" />
                 Tạo yêu cầu điều chuyển mới về kho {activeWarehouse?.name}
               </h3>
               <button onClick={() => setShowCreateModal(false)} className="p-1 hover:bg-canvas-cream rounded-full">
@@ -399,7 +399,7 @@ const TransferRequestWorkspace = () => {
                       {item.productId && stockLookupResult[item.productId] && (
                         <div className="bg-canvas-cream p-2.5 rounded border border-hairline-light flex flex-col gap-1">
                           <div className="text-[10px] font-bold text-shade-50 uppercase flex items-center gap-1">
-                            <Info className="w-3 h-3 text-blue-500" />
+                            <Info className="w-3 h-3 text-blue-700" />
                             Tồn khả dụng tại các kho khác (không tính hàng cách ly):
                           </div>
                           <div className="grid grid-cols-3 gap-2 mt-1">
@@ -443,8 +443,8 @@ const TransferRequestWorkspace = () => {
       {/* Details & Approval Modal */}
       {showDetailModal && selectedRequest && (
         <div className="fixed inset-0 bg-canvas-night/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-canvas-cream border border-hairline-light rounded-lg max-w-xl w-full shadow-2xl overflow-hidden">
-            <div className="p-5 border-b border-hairline-light bg-canvas-light flex justify-between items-center">
+          <div className="bg-canvas-light border border-hairline-light rounded-lg max-w-xl w-full shadow-2xl overflow-hidden">
+            <div className="p-5 border-b border-hairline-light bg-canvas-cream flex justify-between items-center">
               <h3 className="font-bold text-base flex flex-col">
                 <span className="text-[10px] font-bold text-shade-50 uppercase font-mono">{selectedRequest.requestNumber}</span>
                 Chi tiết yêu cầu điều phối hàng

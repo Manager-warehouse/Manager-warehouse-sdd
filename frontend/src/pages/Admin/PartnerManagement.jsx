@@ -424,11 +424,11 @@ const PartnerManagement = () => {
                         </td>
                         <td className="px-6 py-4 text-center">
                           {isCreditHold ? (
-                            <span className="text-[10px] font-bold bg-red-50 text-red-700 border border-red-200 px-2 py-0.5 rounded-pill inline-flex items-center gap-1 whitespace-nowrap">
+                            <span className="text-xs font-semibold uppercase tracking-wider bg-red-50 text-red-700 border border-red-200 px-2.5 py-0.5 rounded-pill inline-flex items-center gap-1 whitespace-nowrap">
                               <ShieldAlert className="w-3 h-3 shrink-0" /> HOLD (Vượt nợ)
                             </span>
                           ) : (
-                            <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-pill inline-flex items-center whitespace-nowrap">
+                            <span className="text-xs font-semibold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-0.5 rounded-pill inline-flex items-center whitespace-nowrap">
                               ACTIVE (Tốt)
                             </span>
                           )}

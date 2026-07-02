@@ -242,7 +242,7 @@ const ReceiptForm = () => {
               type="text"
               value={activeWarehouse?.name || ''}
               disabled
-              className="text-input bg-zinc-50 text-shade-50 cursor-not-allowed font-semibold"
+              className="text-input bg-canvas-cream text-shade-50 cursor-not-allowed font-semibold"
             />
           </div>
 

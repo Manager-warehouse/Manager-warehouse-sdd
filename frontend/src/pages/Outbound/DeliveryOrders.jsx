@@ -355,7 +355,7 @@ export default function DeliveryOrders() {
                           {canOpenPicking && (
                             <button
                               onClick={() => navigate(`/outbound/delivery-orders/${order.id}`)}
-                              className="inline-flex items-center justify-center rounded-full border border-ink bg-canvas-light px-3 py-1 text-xs font-semibold text-ink transition-colors hover:bg-canvas-cream"
+                              className="inline-flex items-center justify-center rounded-pill border border-ink bg-canvas-light px-3 py-1 text-xs font-semibold text-ink transition-colors hover:bg-canvas-cream"
                             >
                               {order.status === 'NEW' ? 'Lập kế hoạch lấy hàng' : 'Duyệt xử lý kho'}
                             </button>
@@ -363,14 +363,14 @@ export default function DeliveryOrders() {
                           {canOpenQcEntry && (
                             <button
                               onClick={() => navigate(`/outbound/delivery-orders/${order.id}`)}
-                              className="inline-flex items-center justify-center rounded-full border border-blue-300 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+                              className="inline-flex items-center justify-center rounded-pill border border-blue-300 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
                             >
                               Nhập kết quả lấy hàng/QC
                             </button>
                           )}
                           <button
                             onClick={() => navigate(`/outbound/delivery-orders/${order.id}`)}
-                            className="flex items-center justify-center rounded-full p-1.5 text-shade-50 transition-colors hover:bg-canvas-cream hover:text-ink"
+                            className="flex items-center justify-center rounded-pill p-1.5 text-shade-50 transition-colors hover:bg-canvas-cream hover:text-ink"
                             title="Xem chi tiết"
                           >
                             <Eye className="h-4 w-4" />

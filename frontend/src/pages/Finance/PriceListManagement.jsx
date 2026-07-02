@@ -15,7 +15,7 @@ const STATUS_STYLE = {
   APPROVED:  'bg-aloe-10 text-emerald-900 border-emerald-300',
   CANCELLED: 'bg-canvas-cream text-shade-50 border-hairline-light',
 };
-const BADGE = 'text-[10px] font-semibold px-2 py-0.5 rounded-pill border uppercase tracking-wider whitespace-nowrap';
+const BADGE = 'text-xs font-semibold px-2.5 py-0.5 rounded-pill border uppercase tracking-wider whitespace-nowrap';
 
 export default function PriceListManagement() {
   const { user, hasRole, activeWarehouse } = useAuthStore();
@@ -599,7 +599,7 @@ function ImportModal({ onClose, onDone }) {
           {!result ? (
             <>
               <p className="text-sm text-shade-50">
-                Chọn file <span className="font-mono text-xs bg-zinc-100 px-1.5 py-0.5 rounded">.xlsx</span> đúng
+                Chọn file <span className="font-mono text-xs bg-canvas-cream px-1.5 py-0.5 rounded-pill">.xlsx</span> đúng
                 cột: <span className="font-mono text-xs">product_sku, effective_date, end_date, cost_price, selling_price, notes</span>.
                 Tối đa 1.000 dòng.
               </p>

@@ -12,8 +12,8 @@ const formatAllocation = (allocation) => {
 
 const PickingListTable = ({ items = [] }) => {
   return (
-    <div className="bg-white rounded-lg border border-hairline-light shadow-sm overflow-hidden card-premium">
-      <div className="px-6 py-3.5 bg-zinc-50 border-b border-hairline-light">
+    <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-sm overflow-hidden card-premium">
+      <div className="px-6 py-3.5 bg-canvas-cream border-b border-hairline-light">
         <h3 className="text-xs font-bold uppercase tracking-wider text-shade-60">
           Kế hoạch lấy hàng theo phân bổ
         </h3>
@@ -22,7 +22,7 @@ const PickingListTable = ({ items = [] }) => {
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="bg-zinc-50 border-b border-hairline-light">
+            <tr className="bg-canvas-cream border-b border-hairline-light">
               <th className="px-6 py-3.5 text-xs font-bold text-shade-60 uppercase tracking-wider">Sản phẩm</th>
               <th className="px-6 py-3.5 text-xs font-bold text-shade-60 uppercase tracking-wider">SKU</th>
               <th className="px-6 py-3.5 text-xs font-bold text-shade-60 uppercase tracking-wider">Phân bổ lấy hàng</th>
@@ -42,7 +42,7 @@ const PickingListTable = ({ items = [] }) => {
                   }];
 
               return allocations.map((allocation, index) => (
-                <tr key={`${item.id}-${allocation.allocation_id || index}`} className="hover:bg-zinc-50 transition-colors">
+                <tr key={`${item.id}-${allocation.allocation_id || index}`} className="hover:bg-canvas-cream transition-colors">
                   <td className="px-6 py-4 text-xs font-semibold text-ink">{item.product_name}</td>
                   <td className="px-6 py-4 text-xs text-shade-50 font-mono">{item.sku || '-'}</td>
                   <td className="px-6 py-4 text-xs text-shade-60">{formatAllocation(allocation)}</td>

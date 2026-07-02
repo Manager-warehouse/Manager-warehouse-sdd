@@ -211,7 +211,7 @@ const StocktakeDetail = () => {
           {isDraft && canCount && (
             <button
               onClick={handleStart}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-pill bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-pill bg-blue-600 text-onPrimary text-xs font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50"
             >
               <Play className="w-3.5 h-3.5" />
               Bắt đầu kiểm kê
@@ -230,7 +230,7 @@ const StocktakeDetail = () => {
               </Button>
               <button
                 onClick={handleComplete}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-pill bg-amber-500 text-white text-xs font-semibold hover:bg-amber-600 transition-colors disabled:opacity-50"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-pill bg-amber-500 text-onPrimary text-xs font-semibold hover:bg-amber-600 transition-colors disabled:opacity-50"
               >
                 <CheckCircle className="w-3.5 h-3.5" />
                 Hoàn tất & trình duyệt
@@ -248,7 +248,7 @@ const StocktakeDetail = () => {
               </Button>
               <button
                 onClick={() => setRejectModal(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-pill bg-red-600 text-white text-xs font-semibold hover:bg-red-700 transition-colors disabled:opacity-50"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-pill bg-red-600 text-onPrimary text-xs font-semibold hover:bg-red-700 transition-colors disabled:opacity-50"
               >
                 <XCircle className="w-3.5 h-3.5" />
                 Từ chối
@@ -498,7 +498,7 @@ const StocktakeDetail = () => {
                 value={rejectionReason}
                 onChange={(e) => setRejectionReason(e.target.value)}
                 placeholder="Nhập lý do từ chối..."
-                className="w-full px-3 py-2 rounded-xl border border-hairline-light focus:border-red-400 text-sm outline-none resize-none"
+                className="w-full px-3 py-2 rounded-md border border-hairline-light focus:border-red-400 text-sm outline-none resize-none"
               />
             </div>
             <div className="flex justify-end gap-3">

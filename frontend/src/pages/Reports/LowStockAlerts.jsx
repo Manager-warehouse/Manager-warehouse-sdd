@@ -154,12 +154,12 @@ const LowStockAlerts = () => {
                         </td>
                         <td className="py-3.5 px-6 text-center">
                           {alert.is_resolved ? (
-                            <span className="flex items-center justify-center gap-1 text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-pill">
+                            <span className="flex items-center justify-center gap-1 text-xs font-semibold uppercase tracking-wider whitespace-nowrap text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-pill">
                               <CheckCircle className="w-3 h-3" />
                               <span>Đã bổ sung</span>
                             </span>
                           ) : (
-                            <span className="flex items-center justify-center gap-1 text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-pill animate-pulse">
+                            <span className="flex items-center justify-center gap-1 text-xs font-semibold uppercase tracking-wider whitespace-nowrap text-red-700 bg-red-50 border border-red-200 px-2.5 py-0.5 rounded-pill animate-pulse">
                               <AlertTriangle className="w-3 h-3" />
                               <span>Cần bổ sung</span>
                             </span>

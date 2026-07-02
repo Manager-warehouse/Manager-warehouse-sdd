@@ -177,7 +177,7 @@ const QCInbound = () => {
     const failed = parseFloat(item.qc_failed_qty) || 0;
     const actual = parseFloat(item.actual_qty) || 0;
 
-    const baseStyle = "text-[9px] font-bold px-1.5 py-0.2 rounded border uppercase";
+    const baseStyle = "text-[9px] font-bold px-1.5 py-0.5 rounded-pill border uppercase";
 
     if (passed + failed !== actual) {
       return <span className={`${baseStyle} bg-red-100 text-red-800 border-red-200`}>Lỗi lệch</span>;
@@ -240,7 +240,7 @@ const QCInbound = () => {
             </div>
             <div>
               <span className="text-shade-50 block mb-0.5 font-normal">Trạng thái kiểm đếm:</span>
-              <span className="text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">Đã đếm xong</span>
+              <span className="text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-pill border border-blue-200">Đã đếm xong</span>
             </div>
           </div>
         </div>

@@ -8,7 +8,7 @@ import Modal from '../../components/common/Modal';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import { formatDate } from '../../utils/format';
-import { Search, RotateCcw, Filter, Eye } from 'lucide-react';
+import { Search, RotateCcw, Eye } from 'lucide-react';
 
 const AuditLogs = () => {
   const { addToast } = useUiStore();

@@ -117,14 +117,14 @@ function PriceCard({ entry, expanded, onToggle, onApprove, approving }) {
       <div className="flex items-center gap-4 px-6 py-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="font-mono text-[10px] text-shade-50 bg-zinc-100 px-1.5 py-0.5 rounded border border-zinc-200">
+            <span className="font-mono text-[10px] text-shade-50 bg-canvas-cream px-1.5 py-0.5 rounded-pill border border-hairline-light">
               {entry.product_sku}
             </span>
             <span className="font-semibold text-sm text-ink truncate">{entry.product_name}</span>
           </div>
           <div className="text-xs text-shade-50 mt-1">
             {entry.warehouse_name && (
-              <span className="inline-block bg-blue-50 text-blue-700 border border-blue-200 rounded px-1.5 py-0.5 text-[10px] font-semibold mr-2">
+              <span className="inline-block bg-blue-50 text-blue-700 border border-blue-200 rounded-pill px-1.5 py-0.5 text-[10px] font-semibold mr-2">
                 {entry.warehouse_name}
               </span>
             )}

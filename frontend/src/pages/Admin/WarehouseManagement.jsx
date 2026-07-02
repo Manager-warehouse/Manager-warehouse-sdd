@@ -355,9 +355,9 @@ const WarehouseManagement = () => {
               Danh sách Kho
             </h3>
             {hasRole(ROLES.ADMIN) || hasRole(ROLES.CEO) ? (
-              <button 
+              <button
                 onClick={handleOpenAddWh}
-                className="text-xs font-bold text-ink hover:underline flex items-center gap-0.5"
+                className="bg-ink text-onPrimary rounded-pill px-4 py-2 text-xs font-semibold hover:bg-shade-70 transition-colors flex items-center gap-0.5"
               >
                 <Plus className="w-3.5 h-3.5" /> Thêm kho
               </button>
@@ -381,7 +381,7 @@ const WarehouseManagement = () => {
                   } ${!wh.is_active ? 'opacity-50' : ''}`}
                 >
                   <div className="flex justify-between items-start mb-1">
-                    <span className="font-mono font-bold text-xs bg-ink text-onPrimary px-2 py-0.5 rounded">
+                    <span className="font-mono font-bold text-xs bg-ink text-onPrimary px-2 py-0.5 rounded-xs">
                       {wh.code}
                     </span>
                     <Badge type={wh.is_active ? 'success' : 'neutral'} className="text-[9px] py-0">
@@ -479,11 +479,11 @@ const WarehouseManagement = () => {
                       </td>
                       <td className="px-6 py-3 text-center">
                         {bin.is_quarantine ? (
-                          <span className="text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-pill whitespace-nowrap inline-flex items-center gap-1">
+                          <span className="text-xs font-semibold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200 px-2.5 py-0.5 rounded-pill whitespace-nowrap inline-flex items-center gap-1">
                             <ShieldAlert className="w-2.5 h-2.5" /> Quarantine
                           </span>
                         ) : (
-                          <span className="text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-pill whitespace-nowrap inline-flex items-center gap-1">
+                          <span className="text-xs font-semibold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-0.5 rounded-pill whitespace-nowrap inline-flex items-center gap-1">
                             Storage Bin
                           </span>
                         )}

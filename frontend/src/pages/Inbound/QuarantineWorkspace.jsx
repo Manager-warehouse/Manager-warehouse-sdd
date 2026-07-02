@@ -227,11 +227,11 @@ const QuarantineWorkspace = () => {
                     <div>
                       <span className="font-semibold text-shade-50">Nguồn gốc cách ly:</span>{' '}
                       {item.origin_type === 'INTERNAL_TRANSFER' ? (
-                        <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 px-1.5 py-0.5 rounded font-mono font-bold text-[10px]">
+                        <span className="bg-shade-30 text-ink border border-hairline-light px-1.5 py-0.5 rounded font-mono font-bold text-[10px]">
                           Điều chuyển: {item.receipt_number}
                         </span>
                       ) : (
-                        <span className="bg-zinc-50 text-zinc-700 border border-zinc-200 px-1.5 py-0.5 rounded font-mono font-bold text-[10px]">
+                        <span className="bg-canvas-cream text-shade-70 border border-hairline-light px-1.5 py-0.5 rounded font-mono font-bold text-[10px]">
                           Phiếu nhập: {item.receipt_number}
                         </span>
                       )}
@@ -248,7 +248,7 @@ const QuarantineWorkspace = () => {
                   </div>
                 </div>
 
-                <div className="flex gap-2 border-t border-zinc-100 pt-4 justify-end">
+                <div className="flex gap-2 border-t border-hairline-light pt-4 justify-end">
                   {(!item.origin_type || item.origin_type === 'RECEIPT') && (
                     <button
                       onClick={() => handleRtvClick(item)}
@@ -335,7 +335,7 @@ const QuarantineWorkspace = () => {
           <div className="bg-canvas-cream border border-hairline-light rounded-lg max-w-md w-full shadow-2xl overflow-hidden">
             <div className="p-5 border-b border-hairline-light bg-canvas-cream flex justify-between items-center">
               <h3 className="font-bold text-base flex items-center gap-2">
-                <ArrowRightLeft className="w-5 h-5 text-indigo-600" />
+                <ArrowRightLeft className="w-5 h-5 text-shade-70" />
                 Xác nhận xuất trả hàng lỗi NCC
               </h3>
               <button onClick={() => setShowRtvModal(false)} className="p-1 hover:bg-canvas-cream rounded-full">

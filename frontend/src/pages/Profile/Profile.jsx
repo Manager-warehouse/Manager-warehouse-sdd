@@ -218,7 +218,7 @@ const Profile = () => {
                       <div className="text-xs font-semibold text-ink">{wh.name}</div>
                       <div className="text-[10px] text-shade-50 mt-0.5">{wh.address}</div>
                     </div>
-                    <span className="text-[10px] font-bold text-shade-60 border border-shade-30 px-2 py-0.5 rounded bg-canvas-light font-mono">
+                    <span className="text-[10px] font-bold text-shade-60 border border-shade-30 px-2 py-0.5 rounded-pill bg-canvas-light font-mono">
                       {wh.code}
                     </span>
                   </div>

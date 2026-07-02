@@ -46,7 +46,7 @@ const CeoDashboard = () => {
         <AlertCircle className="w-12 h-12 text-red-600 mx-auto mb-4" />
         <h3 className="text-lg font-bold text-red-800">Lỗi Truy Cập Báo Cáo</h3>
         <p className="text-sm text-red-600 mt-2">{error}</p>
-        <button onClick={fetchData} className="mt-4 px-4 py-2 bg-red-600 text-white rounded text-xs font-semibold hover:bg-red-700 transition-colors">
+        <button onClick={fetchData} className="mt-4 px-4 py-2 bg-red-600 text-onPrimary rounded-pill text-xs font-semibold hover:bg-red-700 transition-colors">
           Thử lại
         </button>
       </div>
@@ -95,7 +95,7 @@ const CeoDashboard = () => {
         </div>
 
         {/* Card 2: QC failure rate */}
-        <div className="bg-orange-50/50 rounded-lg p-6 border border-orange-200 flex flex-col justify-between h-40">
+        <div className="bg-orange-50/50 rounded-lg p-6 border border-orange-200 shadow-level-3 flex flex-col justify-between h-40">
           <div className="flex justify-between items-start">
             <div>
               <span className="text-[10px] font-bold uppercase tracking-wider block text-orange-800/80">
@@ -115,7 +115,7 @@ const CeoDashboard = () => {
         </div>
 
         {/* Card 3: OTD rate */}
-        <div className="bg-blue-50/50 rounded-lg p-6 border border-blue-200 flex flex-col justify-between h-40">
+        <div className="bg-blue-50/50 rounded-lg p-6 border border-blue-200 shadow-level-3 flex flex-col justify-between h-40">
           <div className="flex justify-between items-start">
             <div>
               <span className="text-[10px] font-bold uppercase tracking-wider block text-blue-800/80">
@@ -143,7 +143,7 @@ const CeoDashboard = () => {
             <h3 className="text-sm font-bold text-shade-70 uppercase tracking-wider">
               Báo cáo Lãi/Lỗ tóm tắt (Kỳ: {kpis.p_and_l.period})
             </h3>
-            <span className="text-[10px] bg-canvas-cream border border-hairline-light text-shade-70 px-2 py-0.5 rounded-pill font-semibold">
+            <span className="bg-canvas-cream border border-hairline-light text-shade-70 px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wider rounded-pill">
               VNĐ
             </span>
           </div>
@@ -196,7 +196,7 @@ const CeoDashboard = () => {
                   {formatCurrency(kpis.p_and_l.net_profit)}
                 </span>
               </div>
-              <div className={`px-3 py-1 rounded-pill text-[10px] font-semibold ${kpis.p_and_l.net_profit >= 0 ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+              <div className={`px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wider rounded-pill ${kpis.p_and_l.net_profit >= 0 ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
                 {kpis.p_and_l.revenue > 0 ? ((kpis.p_and_l.net_profit / kpis.p_and_l.revenue) * 100).toFixed(1) : 0}% Biên LN
               </div>
             </div>
@@ -209,7 +209,7 @@ const CeoDashboard = () => {
             <h3 className="text-sm font-bold text-shade-70 uppercase tracking-wider">
               Top 5 Đại lý nợ quá hạn cao nhất
             </h3>
-            <span className="text-[10px] text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-pill font-semibold">
+            <span className="text-red-600 bg-red-50 border border-red-200 px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wider rounded-pill">
               Cảnh báo công nợ
             </span>
           </div>

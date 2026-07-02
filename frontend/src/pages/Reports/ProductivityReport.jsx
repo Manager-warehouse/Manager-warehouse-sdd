@@ -82,7 +82,7 @@ const ProductivityReport = () => {
           <select
             value={warehouseId}
             onChange={(e) => setWarehouseId(e.target.value)}
-            className="bg-canvas-light text-ink text-xs font-semibold px-3 py-1.5 rounded-md border border-hairline-light focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink transition-all min-h-[36px]"
+            className="bg-canvas-light text-ink text-xs font-semibold px-3 py-1.5 rounded-md border border-hairline-light focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink transition-all min-h-[44px]"
           >
             <option value="1">Kho Hải Phòng</option>
             <option value="2">Kho Hà Nội</option>
@@ -90,7 +90,7 @@ const ProductivityReport = () => {
           </select>
 
           {/* Date range */}
-          <div className="flex items-center gap-1.5 bg-canvas-light border border-hairline-light rounded px-2.5 py-1.5">
+          <div className="flex items-center gap-1.5 bg-canvas-light border border-hairline-light rounded-md px-2.5 py-1.5">
             <Calendar className="w-3.5 h-3.5 text-shade-50" />
             <input
               type="date"
@@ -110,7 +110,7 @@ const ProductivityReport = () => {
           <Button variant="outline-light" icon={RefreshCw} onClick={fetchData}>Lọc</Button>
 
           <button onClick={handleExport} className="btn-pill btn-pill-primary flex items-center gap-1.5 text-xs">
-            <FileSpreadsheet className="w-3.5 h-3.5 text-aloe-10" />
+            <FileSpreadsheet className="w-3.5 h-3.5 text-onPrimary" />
             <span>Xuất Excel</span>
           </button>
         </div>

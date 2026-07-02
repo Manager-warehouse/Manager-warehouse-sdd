@@ -213,8 +213,8 @@ const PutawayPlan = () => {
             <span>Thể tích: {check.volPct}%</span>
             <span className="text-shade-40">{check.currentVol.toFixed(2)}m3</span>
           </div>
-          <div className="w-full bg-zinc-200 h-1.5 rounded-full overflow-hidden">
-            <div 
+          <div className="w-full bg-shade-30 h-1.5 rounded-full overflow-hidden">
+            <div
               className={`h-full rounded-full ${check.volPct > 80 ? 'bg-amber-500' : 'bg-emerald-500'}`}
               style={{ width: `${Math.min(100, check.volPct)}%` }}
             />
@@ -224,8 +224,8 @@ const PutawayPlan = () => {
             <span>Tải trọng: {check.wtPct}%</span>
             <span className="text-shade-40">{check.currentWt}kg</span>
           </div>
-          <div className="w-full bg-zinc-200 h-1.5 rounded-full overflow-hidden">
-            <div 
+          <div className="w-full bg-shade-30 h-1.5 rounded-full overflow-hidden">
+            <div
               className={`h-full rounded-full ${check.wtPct > 80 ? 'bg-amber-500' : 'bg-emerald-500'}`}
               style={{ width: `${Math.min(100, check.wtPct)}%` }}
             />
@@ -370,7 +370,7 @@ const PutawayPlan = () => {
               </div>
               <div>
                 <span className="text-shade-50 block mb-0.5 font-normal">Trạng thái:</span>
-                <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100 uppercase font-semibold text-[10px] tracking-wider whitespace-nowrap">Đã Duyệt</span>
+                <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-pill border border-emerald-200 uppercase font-semibold text-[10px] tracking-wider whitespace-nowrap">Đã Duyệt</span>
               </div>
               <div>
                 <span className="text-shade-50 block mb-0.5 font-normal">Ngày duyệt:</span>

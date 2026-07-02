@@ -285,9 +285,9 @@ const ReceiptList = () => {
                     <td className="px-6 py-4 text-xs font-bold">{receipt.receipt_number}</td>
                     <td className="px-6 py-4 text-xs font-semibold">
                       {receipt.type === 'PURCHASE' ? (
-                        <span className="text-indigo-600">Nhập mua (PO)</span>
+                        <span className="text-shade-70">Nhập mua (PO)</span>
                       ) : receipt.type === 'RETURN' ? (
-                        <span className="text-teal-600">Nhập trả (DO hoàn)</span>
+                        <span className="text-shade-70">Nhập trả (DO hoàn)</span>
                       ) : (
                         <span>-</span>
                       )}

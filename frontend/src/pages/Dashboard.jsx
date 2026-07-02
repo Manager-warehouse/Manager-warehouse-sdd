@@ -183,7 +183,7 @@ const Dashboard = () => {
             descStyle = 'text-ink/60';
             iconStyle = 'text-ink bg-canvas-light/50';
           } else if (isPremium) {
-            cardStyle = 'bg-canvas-night text-onPrimary rounded-lg p-6 hover:shadow-lg transition-all duration-200 border border-hairline-dark';
+            cardStyle = 'bg-canvas-night text-onPrimary rounded-lg p-6 shadow-level-3 transition-all duration-200 border border-hairline-dark';
             titleStyle = 'text-shade-40';
             valStyle = 'text-onPrimary';
             descStyle = 'text-shade-40';
@@ -240,7 +240,7 @@ const Dashboard = () => {
                 placeholder="Tìm SKU hoặc tên..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8 pr-3 py-1.5 bg-canvas-cream border border-hairline-light rounded-pill text-xs focus:outline-none focus:border-shade-40 w-48 sm:w-60 font-light"
+                className="pl-8 pr-3 py-1.5 bg-canvas-cream border border-hairline-light rounded-md text-xs focus:outline-none focus:border-shade-40 w-48 sm:w-60 font-light"
               />
             </div>
             
@@ -309,7 +309,7 @@ const Dashboard = () => {
                             className={`py-3 px-4 text-center font-semibold ${
                               isActiveWh 
                                 ? 'bg-canvas-cream/40 border-x border-hairline-light text-ink'
-                                : qty > 0 ? 'text-aloe-70' : 'text-shade-40'
+                                : qty > 0 ? 'text-[#127a3c]' : 'text-shade-40'
                             }`}
                           >
                             {qty} {prod.unit.toLowerCase()}
@@ -320,7 +320,7 @@ const Dashboard = () => {
                         {hasStockElsewhere ? (
                           <button
                             onClick={() => handleOpenTransferModal(prod)}
-                            className="bg-aloe-10 hover:bg-aloe-20 text-aloe-90 border border-aloe-30 px-3 py-1 rounded-pill text-[10px] font-bold uppercase tracking-wider transition-colors inline-flex items-center gap-1.5"
+                            className="bg-aloe-10 hover:opacity-90 text-ink border border-aloe-10 px-3 py-1 rounded-pill text-[10px] font-bold uppercase tracking-wider transition-colors inline-flex items-center gap-1.5"
                           >
                             <ArrowRightLeft className="w-3 h-3" />
                             <span>Xin điều chuyển</span>
@@ -345,7 +345,7 @@ const Dashboard = () => {
             {/* Modal Header */}
             <div className="bg-canvas-night text-onPrimary p-4 flex justify-between items-center border-b border-hairline-dark">
               <div className="flex items-center gap-2">
-                <ArrowRightLeft className="w-4 h-4 text-aloe-20" />
+                <ArrowRightLeft className="w-4 h-4 text-[#127a3c]" />
                 <h4 className="text-sm font-bold uppercase tracking-wider">
                   Xin điều chuyển nhanh
                 </h4>
@@ -361,10 +361,10 @@ const Dashboard = () => {
             {/* Modal Body */}
             <form onSubmit={handleCreateTransferRequest} className="p-5 flex flex-col gap-4">
               <div>
-                <span className="text-[10px] font-bold text-shade-50 uppercase tracking-wider block mb-1">
+                <span className="text-xs font-semibold uppercase tracking-wider text-shade-60 block mb-1">
                   Sản phẩm yêu cầu
                 </span>
-                <div className="bg-canvas-light p-3 rounded border border-hairline-light flex flex-col gap-1">
+                <div className="bg-canvas-light p-3 rounded-md border border-hairline-light flex flex-col gap-1">
                   <span className="font-mono font-bold text-xs text-shade-70">{selectedProduct.sku}</span>
                   <span className="text-xs text-ink font-semibold">{selectedProduct.name}</span>
                 </div>
@@ -372,23 +372,23 @@ const Dashboard = () => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <span className="text-[10px] font-bold text-shade-50 uppercase tracking-wider block mb-1">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-shade-60 block mb-1">
                     Kho nhận (Kho đích)
                   </span>
-                  <div className="bg-canvas-cream/50 p-2.5 rounded border border-hairline-light text-xs font-semibold text-shade-70">
+                  <div className="bg-canvas-cream/50 p-2.5 rounded-md border border-hairline-light text-xs font-semibold text-shade-70">
                     {activeWarehouse?.name || 'Kho hiện tại'}
                   </div>
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-bold text-shade-50 uppercase tracking-wider block mb-1">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-shade-60 block mb-1">
                     Kho gửi (Kho nguồn)
                   </label>
                   <select
                     value={selectedSourceWhId}
                     onChange={(e) => setSelectedSourceWhId(e.target.value)}
                     required
-                    className="w-full bg-canvas-light border border-hairline-light rounded p-2 text-xs focus:outline-none focus:border-ink font-semibold"
+                    className="w-full bg-canvas-light border border-hairline-light rounded-md p-2 text-xs focus:outline-none focus:border-ink font-semibold"
                   >
                     <option value="">-- Chọn kho gửi --</option>
                     {physicalWarehouses
@@ -406,7 +406,7 @@ const Dashboard = () => {
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-shade-50 uppercase tracking-wider block mb-1">
+                <label className="text-xs font-semibold uppercase tracking-wider text-shade-60 block mb-1">
                   Số lượng yêu cầu (Tối đa: {selectedSourceWhId ? selectedProduct.stockMap?.[selectedSourceWhId] || 0 : 0})
                 </label>
                 <input
@@ -416,19 +416,19 @@ const Dashboard = () => {
                   value={requestedQty}
                   onChange={(e) => setRequestedQty(Math.max(1, Number(e.target.value)))}
                   required
-                  className="w-full bg-canvas-light border border-hairline-light rounded p-2 text-xs focus:outline-none focus:border-ink font-semibold"
+                  className="w-full bg-canvas-light border border-hairline-light rounded-md p-2 text-xs focus:outline-none focus:border-ink font-semibold"
                 />
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-shade-50 uppercase tracking-wider block mb-1">
+                <label className="text-xs font-semibold uppercase tracking-wider text-shade-60 block mb-1">
                   Ghi chú yêu cầu
                 </label>
                 <textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   rows="2"
-                  className="w-full bg-canvas-light border border-hairline-light rounded p-2 text-xs focus:outline-none focus:border-ink font-light"
+                  className="w-full bg-canvas-light border border-hairline-light rounded-md p-2 text-xs focus:outline-none focus:border-ink font-light"
                   placeholder="Lý do xin điều chuyển..."
                 />
               </div>
@@ -438,14 +438,14 @@ const Dashboard = () => {
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="bg-canvas-light border border-hairline-light hover:bg-canvas-cream text-ink px-4 py-2 rounded text-xs font-semibold uppercase tracking-wider transition-colors"
+                  className="bg-canvas-light border border-hairline-light hover:bg-canvas-cream text-ink px-4 py-2 rounded-pill text-xs font-semibold uppercase tracking-wider transition-colors"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="bg-canvas-night hover:bg-canvas-nightElevated text-onPrimary px-4 py-2 rounded text-xs font-semibold uppercase tracking-wider transition-colors inline-flex items-center gap-1.5 disabled:opacity-50"
+                  className="bg-canvas-night hover:bg-canvas-nightElevated text-onPrimary px-4 py-2 rounded-pill text-xs font-semibold uppercase tracking-wider transition-colors inline-flex items-center gap-1.5 disabled:opacity-50"
                 >
                   <Send className="w-3.5 h-3.5" />
                   <span>{submitting ? 'Đang gửi...' : 'Gửi yêu cầu nháp'}</span>
