@@ -7,6 +7,7 @@ import { ROLES } from '../../utils/constants';
 import { Loader2, Plus, Send, Check, X, Eye, FileText, RefreshCw, AlertCircle, Inbox, Info } from 'lucide-react';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
+import Badge from '../../components/common/Badge';
 
 const TransferRequestWorkspace = () => {
   const activeWarehouse = useAuthStore((state) => state.activeWarehouse);
@@ -205,7 +206,7 @@ const TransferRequestWorkspace = () => {
       CONVERTED: { text: 'Đã Chuyển TRF', class: 'bg-shade-30 text-ink border-hairline-light' }
     };
     const c = maps[status] || { text: status, class: 'bg-shade-30 text-ink' };
-    return <span className={`text-[10px] font-semibold px-2 py-0.5 border rounded-pill uppercase tracking-wider whitespace-nowrap ${c.class}`}>{c.text}</span>;
+    return <Badge size="sm" colorClassName={c.class}>{c.text}</Badge>;
   };
 
   return (

@@ -366,9 +366,8 @@ const InterWarehouseTransferWorkspace = () => {
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.8fr)] gap-4">
         <div className="border border-hairline-light rounded-lg bg-canvas-light overflow-hidden">
           <div className="p-4 flex flex-col md:flex-row gap-3 md:items-center justify-between border-b border-hairline-light">
-            <div className="relative w-full md:w-80">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-shade-40" />
-              <input className="w-full text-input pl-10" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Tìm mã phiếu, mã lệnh..." />
+            <div className="w-full md:w-80">
+              <Input type="text" leftIcon={Search} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Tìm mã phiếu, mã lệnh..." />
             </div>
             <Input
               type="select"

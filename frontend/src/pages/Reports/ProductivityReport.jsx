@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import reportService from '../../services/report.service';
 import { ClipboardList, Users, Truck, CheckSquare, Calendar, RefreshCw, FileSpreadsheet, AlertCircle } from 'lucide-react';
 import Button from '../../components/common/Button';
+import Input from '../../components/common/Input';
 
 const ProductivityReport = () => {
   const [data, setData] = useState(null);
@@ -79,18 +80,21 @@ const ProductivityReport = () => {
         {/* Filters */}
         <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
           {/* Warehouse */}
-          <select
-            value={warehouseId}
-            onChange={(e) => setWarehouseId(e.target.value)}
-            className="bg-canvas-light text-ink text-xs font-semibold px-3 py-1.5 rounded-md border border-hairline-light focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink transition-all min-h-[44px]"
-          >
-            <option value="1">Kho Hải Phòng</option>
-            <option value="2">Kho Hà Nội</option>
-            <option value="3">Kho Hồ Chí Minh</option>
-          </select>
+          <div className="w-48">
+            <Input
+              type="select"
+              value={warehouseId}
+              onChange={(e) => setWarehouseId(e.target.value)}
+              options={[
+                { value: '1', label: 'Kho Hải Phòng' },
+                { value: '2', label: 'Kho Hà Nội' },
+                { value: '3', label: 'Kho Hồ Chí Minh' },
+              ]}
+            />
+          </div>
 
           {/* Date range */}
-          <div className="flex items-center gap-1.5 bg-canvas-light border border-hairline-light rounded-md px-2.5 py-1.5">
+          <div className="flex items-center gap-1.5 bg-canvas-light border border-hairline-light rounded-md px-3 py-2.5 min-h-[44px]">
             <Calendar className="w-3.5 h-3.5 text-shade-50" />
             <input
               type="date"
@@ -109,10 +113,7 @@ const ProductivityReport = () => {
 
           <Button variant="outline-light" icon={RefreshCw} onClick={fetchData}>Lọc</Button>
 
-          <button onClick={handleExport} className="btn-pill btn-pill-primary flex items-center gap-1.5 text-xs">
-            <FileSpreadsheet className="w-3.5 h-3.5 text-onPrimary" />
-            <span>Xuất Excel</span>
-          </button>
+          <Button variant="primary" icon={FileSpreadsheet} onClick={handleExport}>Xuất Excel</Button>
         </div>
       </div>
 

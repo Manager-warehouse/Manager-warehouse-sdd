@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../stores/auth.store';
 import Badge from '../components/common/Badge';
+import Input from '../components/common/Input';
 import { Package, TrendingUp, AlertCircle, RefreshCw, Search, ArrowRightLeft, X, Send } from 'lucide-react';
 import { masterDataService } from '../services/masterData.service';
 import { interWarehouseTransferService } from '../services/inter-warehouse-transfer.service';
 import { useUiStore } from '../stores/ui.store';
+import { useDebounce } from '../hooks/useDebounce';
 
 const Dashboard = () => {
   const { user, activeWarehouse } = useAuthStore();
@@ -47,6 +49,8 @@ const Dashboard = () => {
     }
   ];
 
+  const debouncedSearchQuery = useDebounce(searchQuery);
+
   const loadCrossWarehouseStock = async () => {
     setLoadingStock(true);
     try {
@@ -56,7 +60,7 @@ const Dashboard = () => {
       setPhysicalWarehouses(physicals);
 
       // 2. Load products list
-      const products = await masterDataService.getProducts({ search: searchQuery });
+      const products = await masterDataService.getProducts({ search: debouncedSearchQuery });
       const list = products.slice(0, 10); // Limit to 10 for performance
 
       // 3. For each product, lookup stock in all warehouses
@@ -89,7 +93,7 @@ const Dashboard = () => {
 
   useEffect(() => {
     loadCrossWarehouseStock();
-  }, [searchQuery]);
+  }, [debouncedSearchQuery]);
 
   const handleOpenTransferModal = (product) => {
     setSelectedProduct(product);
@@ -233,14 +237,13 @@ const Dashboard = () => {
           
           <div className="flex items-center gap-3">
             {/* Search Input */}
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 text-shade-40 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
+            <div className="w-48 sm:w-60">
+              <Input
                 type="text"
+                leftIcon={Search}
                 placeholder="Tìm SKU hoặc tên..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8 pr-3 py-1.5 bg-canvas-cream border border-hairline-light rounded-md text-xs focus:outline-none focus:border-shade-40 w-48 sm:w-60 font-light"
               />
             </div>
             

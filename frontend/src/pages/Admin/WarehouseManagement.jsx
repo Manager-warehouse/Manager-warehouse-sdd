@@ -374,10 +374,10 @@ const WarehouseManagement = () => {
                 <div
                   key={wh.id}
                   onClick={() => setSelectedWh(wh)}
-                  className={`p-4 rounded-lg border text-left cursor-pointer transition-all ${
+                  className={`p-4 rounded-lg border border-hairline-light text-left cursor-pointer transition-all ${
                     selectedWh?.id === wh.id
-                      ? 'bg-canvas-cream border-ink shadow-level-3'
-                      : 'bg-canvas-light border-hairline-light hover:bg-canvas-cream/50'
+                      ? 'bg-aloe-10/30 shadow-level-3'
+                      : 'bg-canvas-light hover:bg-canvas-cream/50'
                   } ${!wh.is_active ? 'opacity-50' : ''}`}
                 >
                   <div className="flex justify-between items-start mb-1">

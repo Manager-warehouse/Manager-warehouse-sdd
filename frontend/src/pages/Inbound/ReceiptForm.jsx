@@ -2,9 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
+import { useDebounce } from '../../hooks/useDebounce';
 import { inboundService } from '../../services/inbound.service';
 import { masterDataService } from '../../services/masterData.service';
 import { ArrowLeft, Trash2, Plus, Search, Loader2 } from 'lucide-react';
+import Input from '../../components/common/Input';
 
 const ReceiptForm = () => {
   const navigate = useNavigate();
@@ -65,21 +67,19 @@ const ReceiptForm = () => {
 
 
   // Simple product search debounce
+  const debouncedSearchQuery = useDebounce(searchQuery, 250);
+
   useEffect(() => {
-    if (!searchQuery.trim()) {
+    if (!debouncedSearchQuery.trim()) {
       setSearchResults([]);
       return;
     }
-    const delayDebounce = setTimeout(() => {
-      const filtered = products.filter(p =>
-        p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.name.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-      setSearchResults(filtered);
-    }, 250);
-
-    return () => clearTimeout(delayDebounce);
-  }, [searchQuery, products]);
+    const filtered = products.filter(p =>
+      p.sku.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+      p.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
+    );
+    setSearchResults(filtered);
+  }, [debouncedSearchQuery, products]);
 
   const handleAddItem = (product) => {
     // Check if duplicate
@@ -331,9 +331,9 @@ const ReceiptForm = () => {
             </h3>
 
             <div className="relative">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-shade-40" />
-              <input
+              <Input
                 type="text"
+                leftIcon={Search}
                 placeholder="Tìm kiếm sản phẩm theo tên, SKU..."
                 value={searchQuery}
                 onChange={(e) => {
@@ -341,7 +341,6 @@ const ReceiptForm = () => {
                   setShowSearchResults(true);
                 }}
                 onFocus={() => setShowSearchResults(true)}
-                className="w-full text-input pl-10"
               />
 
               {/* Search results dropdown */}

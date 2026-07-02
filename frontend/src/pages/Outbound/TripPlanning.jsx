@@ -8,6 +8,7 @@ import { useUiStore } from '../../stores/ui.store';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import Modal from '../../components/common/Modal';
+import Badge from '../../components/common/Badge';
 import TripCapacityBar from '../../components/warehouse/TripCapacityBar';
 import { ROLES } from '../../utils/constants';
 
@@ -21,9 +22,8 @@ const TRIP_STATUS_MAP = {
 const emptyForm = { vehicle_id: '', driver_id: '', planned_start_at: '', planned_end_at: '', notes: '', delivery_orders: [] };
 
 const getTripStatusBadge = (status) => {
-  const base = 'text-[10px] font-semibold px-2 py-0.5 rounded-pill border uppercase tracking-wider whitespace-nowrap';
   const { label, color } = TRIP_STATUS_MAP[status] ?? { label: status, color: 'bg-canvas-cream text-shade-70 border-hairline-light' };
-  return <span className={`${base} ${color}`}>{label}</span>;
+  return <Badge size="sm" colorClassName={color}>{label}</Badge>;
 };
 
 export default function TripPlanning() {
@@ -197,14 +197,13 @@ export default function TripPlanning() {
       </div>
 
       <div className="bg-canvas-light rounded-lg border border-hairline-light p-4 shadow-level-3 flex flex-col md:flex-row gap-4 items-center justify-between">
-        <div className="relative w-full md:w-80">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-shade-40" />
-          <input
+        <div className="w-full md:w-80">
+          <Input
             type="text"
+            leftIcon={Search}
             placeholder="Tìm mã chuyến, xe, tài xế..."
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            className="w-full text-input pl-10"
           />
         </div>
         <Input

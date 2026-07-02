@@ -470,14 +470,13 @@ const FleetManagement = () => {
 
       {/* Search Bar */}
       <div className="bg-canvas-light border border-hairline-light rounded-lg p-4 mb-6 shadow-level-3">
-        <div className="relative flex-1 w-full max-w-md">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-shade-40" />
+        <div className="flex-1 w-full max-w-md">
           <Input
             type="text"
+            leftIcon={Search}
             placeholder={activeTab === 'VEHICLES' ? 'Tìm theo biển số hoặc loại xe...' : 'Tìm theo tên hoặc số bằng lái tài xế...'}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-canvas-light text-ink text-sm pl-10 pr-4 py-2.5 rounded-md border border-hairline-light focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink min-h-[44px]"
           />
         </div>
       </div>
@@ -514,7 +513,7 @@ const FleetManagement = () => {
                   {filteredVehicles.map((vh) => (
                     <tr key={vh.id} className={`hover:bg-canvas-cream/50 transition-colors ${!vh.is_active ? 'opacity-50' : ''}`}>
                       <td className="px-6 py-4">
-                        <span className="font-mono font-bold text-ink bg-canvas-cream border border-hairline-light px-2 py-1 rounded">
+                        <span className="font-mono font-bold text-ink bg-canvas-cream border border-hairline-light px-2 py-1 rounded whitespace-nowrap">
                           {vh.plate_number}
                         </span>
                       </td>

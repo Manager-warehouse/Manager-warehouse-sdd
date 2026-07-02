@@ -3,8 +3,10 @@ import { Plus, Upload, Download, Search, X, Edit2, Ban, DollarSign, Loader2, War
 import Pagination from '../../components/common/Pagination';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
+import Badge from '../../components/common/Badge';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
+import { useDebounce } from '../../hooks/useDebounce';
 import pricingService from '../../services/pricing.service';
 import { masterDataService } from '../../services/masterData.service';
 import { ROLES } from '../../utils/constants';
@@ -15,7 +17,6 @@ const STATUS_STYLE = {
   APPROVED:  'bg-aloe-10 text-emerald-900 border-emerald-300',
   CANCELLED: 'bg-canvas-cream text-shade-50 border-hairline-light',
 };
-const BADGE = 'text-xs font-semibold px-2.5 py-0.5 rounded-pill border uppercase tracking-wider whitespace-nowrap';
 
 export default function PriceListManagement() {
   const { user, hasRole, activeWarehouse } = useAuthStore();
@@ -151,14 +152,13 @@ export default function PriceListManagement() {
 
       {/* Filters */}
       <div className="bg-canvas-light rounded-lg border border-hairline-light p-4 shadow-level-3 flex flex-col md:flex-row gap-4 items-center justify-between">
-        <div className="relative w-full md:w-80">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-shade-60" />
-          <input
+        <div className="w-full md:w-80">
+          <Input
             type="text"
+            leftIcon={Search}
             placeholder="Tìm SKU hoặc tên sản phẩm..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full text-input pl-10"
           />
         </div>
         <Input
@@ -216,9 +216,9 @@ export default function PriceListManagement() {
                       {formatVND(entry.selling_price)}
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`${BADGE} ${STATUS_STYLE[entry.status]}`}>
+                      <Badge colorClassName={STATUS_STYLE[entry.status]}>
                         {STATUS_LABEL[entry.status]}
-                      </span>
+                      </Badge>
                     </td>
                     <td className="px-6 py-4 text-xs text-shade-50 max-w-[140px] truncate">
                       {entry.notes || '—'}
@@ -326,21 +326,19 @@ function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }
     fetchProducts();
   }, [isEdit, entry, addToast]);
 
+  const debouncedSearchQuery = useDebounce(searchQuery, 250);
+
   useEffect(() => {
-    if (!searchQuery.trim()) {
+    if (!debouncedSearchQuery.trim()) {
       setSearchResults([]);
       return;
     }
-    const delayDebounce = setTimeout(() => {
-      const filtered = products.filter(p =>
-        p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.name.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-      setSearchResults(filtered);
-    }, 250);
-
-    return () => clearTimeout(delayDebounce);
-  }, [searchQuery, products]);
+    const filtered = products.filter(p =>
+      p.sku.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+      p.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
+    );
+    setSearchResults(filtered);
+  }, [debouncedSearchQuery, products]);
 
   // Đóng dropdown khi click ngoài
   useEffect(() => {

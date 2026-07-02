@@ -6,6 +6,7 @@ import { useUiStore } from '../../stores/ui.store';
 import { stocktakeService } from '../../services/stocktake.service';
 import { ROLES } from '../../utils/constants';
 import Button from '../../components/common/Button';
+import Badge from '../../components/common/Badge';
 
 const STATUS_LABELS = {
   DRAFT: 'Nháp',
@@ -123,16 +124,15 @@ const StocktakeList = () => {
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <span className="text-xs font-semibold text-shade-60 uppercase tracking-wider">Lọc:</span>
+      <div className="flex border-b border-hairline-light overflow-x-auto whitespace-nowrap scrollbar-none mb-2">
         {['', 'DRAFT', 'IN_PROGRESS', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'CANCELLED'].map((s) => (
           <button
             key={s}
             onClick={() => setStatusFilter(s)}
-            className={`px-3 py-1.5 rounded-pill text-xs font-semibold transition-colors border ${
+            className={`px-4 py-2.5 font-semibold text-xs transition-colors border-b-2 uppercase tracking-wide ${
               statusFilter === s
-                ? 'bg-ink text-onPrimary border-ink'
-                : 'border-hairline-light text-shade-50 hover:border-black hover:text-black'
+                ? 'border-ink text-ink'
+                : 'border-transparent text-shade-50 hover:text-ink'
             }`}
           >
             {s ? STATUS_LABELS[s] : 'Tất cả'}
@@ -168,9 +168,9 @@ const StocktakeList = () => {
                   <td className="px-6 py-3 text-xs text-shade-50">{st.stock_take_date}</td>
                   <td className="px-6 py-3 text-xs text-shade-50">{st.conducted_by_name}</td>
                   <td className="px-6 py-3">
-                    <span className={`px-2 py-0.5 rounded-pill border text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap ${STATUS_STYLES[st.status] || 'bg-canvas-cream text-shade-50 border-hairline-light'}`}>
+                    <Badge size="sm" colorClassName={STATUS_STYLES[st.status] || 'bg-canvas-cream text-shade-50 border-hairline-light'}>
                       {STATUS_LABELS[st.status] || st.status}
-                    </span>
+                    </Badge>
                   </td>
                   <td className="px-6 py-3 text-xs text-shade-50">
                     {st.approval_level ? APPROVAL_LABELS[st.approval_level] || st.approval_level : '—'}

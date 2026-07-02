@@ -7,6 +7,7 @@ import { masterDataService } from '../../services/masterData.service';
 import { ROLES } from '../../utils/constants';
 import { Plus, Search, FileText, CheckCircle2, AlertTriangle, Eye, Check, X, Loader2 } from 'lucide-react';
 import Input from '../../components/common/Input';
+import Badge from '../../components/common/Badge';
 
 const ReceiptList = () => {
   const navigate = useNavigate();
@@ -86,29 +87,28 @@ const ReceiptList = () => {
 
   const getStatusBadge = (receipt) => {
     if (!receipt) return null;
-    const baseStyle = "text-[10px] font-semibold px-2 py-0.5 rounded-pill border uppercase tracking-wider whitespace-nowrap";
     if (receipt.status === 'APPROVED' && isPutawayCompleted(receipt)) {
-      return <span className={`${baseStyle} bg-emerald-100 text-emerald-800 border-emerald-300`}>Đã cất kệ</span>;
+      return <Badge size="sm" colorClassName="bg-emerald-100 text-emerald-800 border-emerald-300">Đã cất kệ</Badge>;
     }
     switch (receipt.status) {
       case 'PENDING_RECEIPT':
-        return <span className={`${baseStyle} bg-canvas-cream text-shade-70 border-hairline-light`}>Chờ nhận</span>;
+        return <Badge size="sm" colorClassName="bg-canvas-cream text-shade-70 border-hairline-light">Chờ nhận</Badge>;
       case 'DRAFT':
-        return <span className={`${baseStyle} bg-blue-50 text-blue-700 border-blue-200`}>Đã đếm (nháp)</span>;
+        return <Badge size="sm" colorClassName="bg-blue-50 text-blue-700 border-blue-200">Đã đếm (nháp)</Badge>;
       case 'QC_COMPLETED':
-        return <span className={`${baseStyle} bg-amber-50 text-amber-700 border-amber-200`}>Đã QC</span>;
+        return <Badge size="sm" colorClassName="bg-amber-50 text-amber-700 border-amber-200">Đã QC</Badge>;
       case 'APPROVED':
-        return <span className={`${baseStyle} bg-aloe-10 text-emerald-900 border-emerald-300`}>Đã duyệt</span>;
+        return <Badge size="sm" colorClassName="bg-aloe-10 text-emerald-900 border-emerald-300">Đã duyệt</Badge>;
       case 'REJECTED':
-        return <span className={`${baseStyle} bg-red-50 text-red-700 border-red-200`}>Từ chối</span>;
+        return <Badge size="sm" colorClassName="bg-red-50 text-red-700 border-red-200">Từ chối</Badge>;
       case 'IN_TRANSIT':
-        return <span className={`${baseStyle} bg-amber-50 text-amber-700 border-amber-200`}>Chờ nhận nội bộ</span>;
+        return <Badge size="sm" colorClassName="bg-amber-50 text-amber-700 border-amber-200">Chờ nhận nội bộ</Badge>;
       case 'COMPLETED':
-        return <span className={`${baseStyle} bg-aloe-10 text-emerald-900 border-emerald-300`}>Đã nhập kho</span>;
+        return <Badge size="sm" colorClassName="bg-aloe-10 text-emerald-900 border-emerald-300">Đã nhập kho</Badge>;
       case 'COMPLETED_WITH_DISCREPANCY':
-        return <span className={`${baseStyle} bg-amber-50 text-amber-700 border-amber-200`}>Đã nhập có lệch</span>;
+        return <Badge size="sm" colorClassName="bg-amber-50 text-amber-700 border-amber-200">Đã nhập có lệch</Badge>;
       default:
-        return <span className={`${baseStyle} bg-canvas-cream text-shade-70 border-hairline-light`}>{receipt.status}</span>;
+        return <Badge size="sm" colorClassName="bg-canvas-cream text-shade-70 border-hairline-light">{receipt.status}</Badge>;
     }
   };
 
@@ -213,41 +213,44 @@ const ReceiptList = () => {
 
       {/* Filters & search */}
       <div className="bg-canvas-light rounded-lg border border-hairline-light p-4 shadow-level-3 flex flex-col md:flex-row gap-4 items-center justify-between mb-6">
-        <div className="relative w-full md:w-80">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-shade-40" />
-          <input
+        <div className="w-full md:w-80">
+          <Input
             type="text"
+            leftIcon={Search}
             placeholder="Tìm mã phiếu, số PO..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full text-input pl-10"
           />
         </div>
 
         <div className="flex flex-wrap gap-3 w-full md:w-auto justify-end">
-          <Input
-            type="select"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            options={[
-              { value: 'ALL', label: 'Tất cả trạng thái' },
-              { value: 'PENDING_RECEIPT', label: 'Chờ nhận' },
-              { value: 'DRAFT', label: 'Đã đếm (Nháp)' },
-              { value: 'QC_COMPLETED', label: 'Đã QC' },
-              { value: 'APPROVED', label: 'Đã duyệt' },
-              { value: 'REJECTED', label: 'Từ chối' },
-            ]}
-          />
-          <Input
-            type="select"
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
-            options={[
-              { value: 'ALL', label: 'Tất cả loại' },
-              { value: 'PURCHASE', label: 'Nhập mua (PO)' },
-              { value: 'RETURN', label: 'Nhập trả (DO hoàn)' },
-            ]}
-          />
+          <div className="w-full sm:w-48">
+            <Input
+              type="select"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              options={[
+                { value: 'ALL', label: 'Tất cả trạng thái' },
+                { value: 'PENDING_RECEIPT', label: 'Chờ nhận' },
+                { value: 'DRAFT', label: 'Đã đếm (Nháp)' },
+                { value: 'QC_COMPLETED', label: 'Đã QC' },
+                { value: 'APPROVED', label: 'Đã duyệt' },
+                { value: 'REJECTED', label: 'Từ chối' },
+              ]}
+            />
+          </div>
+          <div className="w-full sm:w-44">
+            <Input
+              type="select"
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              options={[
+                { value: 'ALL', label: 'Tất cả loại' },
+                { value: 'PURCHASE', label: 'Nhập mua (PO)' },
+                { value: 'RETURN', label: 'Nhập trả (DO hoàn)' },
+              ]}
+            />
+          </div>
         </div>
       </div>
 

@@ -164,14 +164,13 @@ const AuditLogs = () => {
       <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 p-4 flex flex-col md:flex-row gap-4 items-center justify-between">
         <div className="flex flex-col md:flex-row gap-4 items-center w-full md:w-auto">
           {/* Search Input */}
-          <div className="relative w-full md:w-72">
-            <Search className="absolute left-3 top-3 w-4 h-4 text-shade-50" />
+          <div className="w-full md:w-72">
             <Input
               type="text"
+              leftIcon={Search}
               placeholder="Tìm theo người dùng, nội dung..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-canvas-light text-xs pl-9 pr-4 py-2 rounded-md border border-hairline-light focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink transition-all min-h-[38px]"
             />
           </div>
 

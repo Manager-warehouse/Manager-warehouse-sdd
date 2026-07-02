@@ -364,14 +364,13 @@ const PartnerManagement = () => {
 
       {/* Search Input */}
       <div className="bg-canvas-light border border-hairline-light rounded-lg p-4 mb-6 shadow-level-3">
-        <div className="relative flex-1 w-full max-w-md">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-shade-40" />
+        <div className="flex-1 w-full max-w-md">
           <Input
             type="text"
+            leftIcon={Search}
             placeholder={activeTab === 'DEALERS' ? 'Tìm theo mã hoặc tên Đại lý...' : 'Tìm theo mã hoặc tên Nhà cung cấp...'}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-canvas-light text-ink text-sm pl-10 pr-4 py-2.5 rounded-md border border-hairline-light focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink min-h-[44px]"
           />
         </div>
       </div>

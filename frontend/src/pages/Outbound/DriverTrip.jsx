@@ -19,6 +19,7 @@ import { useUiStore } from '../../stores/ui.store';
 import { useAuthStore } from '../../stores/auth.store';
 import OTPInput from '../../components/warehouse/OTPInput';
 import Button from '../../components/common/Button';
+import Badge from '../../components/common/Badge';
 
 const DELIVERY_STATUS_MAP = {
   WAREHOUSE_APPROVED: { label: 'Chờ giao', color: 'bg-amber-50 text-amber-700 border-amber-200' },
@@ -29,9 +30,8 @@ const DELIVERY_STATUS_MAP = {
 };
 
 const StatusBadge = ({ status }) => {
-  const base = 'text-[10px] font-semibold px-2 py-0.5 rounded-pill border uppercase tracking-wider whitespace-nowrap';
   const { label, color } = DELIVERY_STATUS_MAP[status] ?? { label: status, color: 'bg-canvas-cream text-shade-70 border-hairline-light' };
-  return <span className={`${base} ${color}`}>{label}</span>;
+  return <Badge size="sm" colorClassName={color}>{label}</Badge>;
 };
 
 function OTPCountdown({ expiresAt, onExpired }) {

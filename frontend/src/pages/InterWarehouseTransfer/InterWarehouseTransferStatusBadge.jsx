@@ -1,4 +1,5 @@
 import React from 'react';
+import Badge from '../../components/common/Badge';
 import { interWarehouseTransferStatusLabel } from '../../utils/interWarehouseTransferStatus';
 
 const statusMap = {
@@ -13,9 +14,9 @@ const statusMap = {
 };
 
 const InterWarehouseTransferStatusBadge = ({ status }) => (
-  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-pill border uppercase tracking-wider whitespace-nowrap ${statusMap[status] || statusMap.NEW}`}>
+  <Badge size="sm" colorClassName={statusMap[status] || statusMap.NEW}>
     {interWarehouseTransferStatusLabel(status)}
-  </span>
+  </Badge>
 );
 
 export default InterWarehouseTransferStatusBadge;

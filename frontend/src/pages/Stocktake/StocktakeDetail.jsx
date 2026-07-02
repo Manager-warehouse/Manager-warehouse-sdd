@@ -6,6 +6,7 @@ import { useUiStore } from '../../stores/ui.store';
 import { stocktakeService } from '../../services/stocktake.service';
 import { ROLES } from '../../utils/constants';
 import Button from '../../components/common/Button';
+import Badge from '../../components/common/Badge';
 
 const STATUS_LABELS = {
   DRAFT: 'Nháp',
@@ -198,9 +199,9 @@ const StocktakeDetail = () => {
             <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">Vận hành / Kiểm kê</span>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight font-mono">{stocktake.stock_take_number}</h1>
-              <span className={`px-2.5 py-0.5 rounded-pill text-[10px] font-semibold border uppercase tracking-wider whitespace-nowrap ${STATUS_STYLES[stocktake.status]}`}>
+              <Badge size="sm" colorClassName={STATUS_STYLES[stocktake.status]}>
                 {STATUS_LABELS[stocktake.status]}
-              </span>
+              </Badge>
             </div>
             <p className="text-xs text-shade-50 font-light mt-1">{stocktake.warehouse_name}</p>
           </div>

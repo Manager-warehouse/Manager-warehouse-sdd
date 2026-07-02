@@ -8,6 +8,7 @@ const Input = React.forwardRef(({
   className = '',
   id,
   options = [], // for type="select" or multiselect
+  leftIcon: LeftIcon,
   ...props
 }, ref) => {
   const [showPassword, setShowPassword] = useState(false);
@@ -66,11 +67,14 @@ const Input = React.forwardRef(({
         </div>
       ) : (
         <div className="relative w-full">
+          {LeftIcon && (
+            <LeftIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-shade-40 pointer-events-none" />
+          )}
           <input
             id={inputId}
             type={type === 'password' ? (showPassword ? 'text' : 'password') : type}
             ref={ref}
-            className={`${baseInputStyle} ${error ? errorInputStyle : ''} ${type === 'password' ? 'pr-10' : ''}`}
+            className={`${baseInputStyle} ${error ? errorInputStyle : ''} ${type === 'password' ? 'pr-10' : ''} ${LeftIcon ? 'pl-10' : ''}`}
             {...props}
           />
           {type === 'password' && (

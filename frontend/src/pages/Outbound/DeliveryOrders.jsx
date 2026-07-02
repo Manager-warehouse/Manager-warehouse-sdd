@@ -15,10 +15,12 @@ import { outboundService } from '../../services/outbound.service';
 import { masterDataService } from '../../services/masterData.service';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
+import { useDebounce } from '../../hooks/useDebounce';
 import CreditCheckBanner from '../../components/warehouse/CreditCheckBanner';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import Modal from '../../components/common/Modal';
+import Badge from '../../components/common/Badge';
 import { ROLES } from '../../utils/constants';
 
 const DO_STATUS_MAP = {
@@ -51,13 +53,12 @@ const STATUS_OPTIONS = [
 const emptyForm = { dealer_id: '', expected_delivery_date: '', notes: '', items: [] };
 
 const getStatusBadge = (status) => {
-  const base = 'text-[10px] font-semibold px-2 py-0.5 rounded-pill border uppercase tracking-wider whitespace-nowrap';
   const { label, color } = DO_STATUS_MAP[status] ?? {
     label: status,
     color: 'bg-canvas-cream text-shade-70 border-hairline-light',
   };
 
-  return <span className={`${base} ${color}`}>{label}</span>;
+  return <Badge size="sm" colorClassName={color}>{label}</Badge>;
 };
 
 const getRoleHint = (order, hasRole) => {
@@ -96,24 +97,27 @@ export default function DeliveryOrders() {
   const [submitting, setSubmitting] = useState(false);
   const [cancelModal, setCancelModal] = useState({ show: false, orderId: null, reason: '' });
 
+  const debouncedSearch = useDebounce(search);
+  const debouncedProductSearch = useDebounce(productSearch);
+
   useEffect(() => {
     fetchOrders();
-  }, [activeWarehouse?.id, statusFilter, search]);
+  }, [activeWarehouse?.id, statusFilter, debouncedSearch]);
 
   useEffect(() => {
     if (!showCreateModal) {
       return;
     }
 
-    fetchMasterData(productSearch);
-  }, [showCreateModal, productSearch]);
+    fetchMasterData(debouncedProductSearch);
+  }, [showCreateModal, debouncedProductSearch]);
 
   const fetchOrders = async () => {
     setLoading(true);
     try {
       const data = await outboundService.getDeliveryOrders(activeWarehouse?.id, {
         status: statusFilter,
-        search,
+        search: debouncedSearch,
       });
       setOrders(data);
     } catch (error) {
@@ -281,14 +285,13 @@ export default function DeliveryOrders() {
       </div>
 
       <div className="flex flex-col items-center justify-between gap-4 rounded-lg border border-hairline-light bg-canvas-light p-4 shadow-level-3 md:flex-row">
-        <div className="relative w-full md:w-80">
-          <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-shade-40" />
-          <input
+        <div className="w-full md:w-80">
+          <Input
             type="text"
+            leftIcon={Search}
             placeholder="Tìm mã DO, tên đại lý..."
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            className="w-full text-input pl-10"
           />
         </div>
         <Input

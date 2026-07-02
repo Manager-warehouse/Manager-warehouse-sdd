@@ -18,6 +18,7 @@ import PickingListTable from '../../components/warehouse/PickingListTable';
 import DeliveryOrderPickingPlanEditor from '../../components/warehouse/DeliveryOrderPickingPlanEditor';
 import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
+import Badge from '../../components/common/Badge';
 import { ROLES } from '../../utils/constants';
 
 const DO_STATUS_MAP = {
@@ -34,9 +35,8 @@ const DO_STATUS_MAP = {
 };
 
 const getStatusBadge = (status) => {
-  const base = 'text-[10px] font-semibold px-2 py-0.5 rounded-pill border uppercase tracking-wider whitespace-nowrap';
   const { label, color } = DO_STATUS_MAP[status] ?? { label: status, color: 'bg-canvas-cream text-shade-70 border-hairline-light' };
-  return <span className={`${base} ${color}`}>{label}</span>;
+  return <Badge size="sm" colorClassName={color}>{label}</Badge>;
 };
 
 export default function DeliveryOrderDetail() {

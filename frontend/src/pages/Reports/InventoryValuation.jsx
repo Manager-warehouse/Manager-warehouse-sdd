@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import reportService from '../../services/report.service';
 import { DollarSign, RefreshCw, Warehouse, FileSpreadsheet, AlertCircle, Loader2 } from 'lucide-react';
 import { WAREHOUSES } from '../../utils/constants';
+import Input from '../../components/common/Input';
+import Button from '../../components/common/Button';
 
 const InventoryValuation = () => {
   const [data, setData] = useState(null);
@@ -51,24 +53,23 @@ const InventoryValuation = () => {
           </p>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-start">
           {/* Warehouse Filter */}
-          <select
-            value={selectedWarehouse}
-            onChange={(e) => setSelectedWarehouse(e.target.value)}
-            className="bg-canvas-light text-ink text-xs font-semibold px-3 py-1.5 rounded-md border border-hairline-light focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink transition-all min-h-[44px]"
-          >
-            <option value="">Tất cả kho vật lý</option>
-            {/* Vì dữ liệu seed có HP (1), HN (2), HCM (3) */}
-            <option value="1">Kho Hải Phòng</option>
-            <option value="2">Kho Hà Nội</option>
-            <option value="3">Kho Hồ Chí Minh</option>
-          </select>
+          <div className="w-48">
+            <Input
+              type="select"
+              value={selectedWarehouse}
+              onChange={(e) => setSelectedWarehouse(e.target.value)}
+              options={[
+                { value: '', label: 'Tất cả kho vật lý' },
+                { value: '1', label: 'Kho Hải Phòng' },
+                { value: '2', label: 'Kho Hà Nội' },
+                { value: '3', label: 'Kho Hồ Chí Minh' },
+              ]}
+            />
+          </div>
 
-          <button onClick={fetchData} className="btn-pill btn-pill-outline-light flex items-center gap-1 text-xs py-1.5 px-3">
-            <RefreshCw className="w-3.5 h-3.5" />
-            <span>Làm mới</span>
-          </button>
+          <Button variant="outline-light" icon={RefreshCw} onClick={fetchData}>Làm mới</Button>
         </div>
       </div>
 
