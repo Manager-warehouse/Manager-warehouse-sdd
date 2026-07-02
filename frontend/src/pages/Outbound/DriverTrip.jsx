@@ -29,8 +29,8 @@ const DELIVERY_STATUS_MAP = {
 };
 
 const StatusBadge = ({ status }) => {
-  const base = 'text-[10px] font-semibold px-2 py-0.5 rounded-full border uppercase tracking-wider whitespace-nowrap';
-  const { label, color } = DELIVERY_STATUS_MAP[status] ?? { label: status, color: 'bg-zinc-100 text-zinc-800 border-zinc-200' };
+  const base = 'text-[10px] font-semibold px-2 py-0.5 rounded-pill border uppercase tracking-wider whitespace-nowrap';
+  const { label, color } = DELIVERY_STATUS_MAP[status] ?? { label: status, color: 'bg-canvas-cream text-shade-70 border-hairline-light' };
   return <span className={`${base} ${color}`}>{label}</span>;
 };
 
@@ -259,7 +259,7 @@ export default function DriverTrip() {
                 <span className="text-xs font-bold text-ink">{tripItem.trip_number}</span>
                 <StatusBadge status={tripItem.status} />
               </div>
-              <div className="p-4 space-y-2 text-xs">
+              <div className="p-4 flex flex-col gap-2 text-xs">
                 <p className="flex items-center gap-2 text-shade-50"><Truck className="w-3.5 h-3.5 text-shade-40" /> Xe: <span className="font-semibold text-ink">{tripItem.vehicle_plate || '-'}</span></p>
                 <p className="flex items-center gap-2 text-shade-50"><Calendar className="w-3.5 h-3.5 text-shade-40" /> T.gian dự kiến: <span className="font-semibold text-ink">{tripItem.planned_start_at ? new Date(tripItem.planned_start_at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) : '-'}</span></p>
                 <p className="text-xs text-shade-50 pt-1">Tổng KL: <span className="font-semibold text-ink">{tripItem.total_weight_kg || 0} kg</span></p>
@@ -295,7 +295,7 @@ export default function DriverTrip() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-start gap-3 pt-1">
-        <button onClick={() => navigate('/outbound/driver/trips')} className="mt-0.5 p-1.5 hover:bg-zinc-200 rounded-full transition-colors text-shade-50 hover:text-ink shrink-0">
+        <button onClick={() => navigate('/outbound/driver/trips')} className="mt-0.5 p-1.5 hover:bg-canvas-cream rounded-full transition-colors text-shade-50 hover:text-ink shrink-0">
           <ArrowLeft className="w-4 h-4" />
         </button>
         <div>
@@ -313,7 +313,7 @@ export default function DriverTrip() {
             <h2 className="text-xs font-bold uppercase tracking-wider text-shade-40">Thông tin chuyến</h2>
             <StatusBadge status={trip.status} />
           </div>
-          <div className="space-y-2 text-xs mb-4">
+          <div className="flex flex-col gap-2 text-xs mb-4">
             <p className="flex items-center gap-2 text-shade-50"><Truck className="w-3.5 h-3.5 text-shade-40 shrink-0" /> Xe: <span className="font-semibold text-ink">{trip.vehicle_plate}</span></p>
             <p className="flex items-center gap-2 text-shade-50"><User className="w-3.5 h-3.5 text-shade-40 shrink-0" /> Tài xế: <span className="font-semibold text-ink">{trip.driver_name}</span></p>
             <p className="flex items-center gap-2 text-shade-50"><Calendar className="w-3.5 h-3.5 text-shade-40 shrink-0" /> Khởi hành: <span className="font-semibold text-ink">{new Date(trip.planned_date).toLocaleString('vi-VN')}</span></p>
@@ -356,7 +356,7 @@ export default function DriverTrip() {
                 <span>Tiến độ giao hàng</span>
                 <span className="font-semibold text-ink">{deliveredCount}/{totalCount}</span>
               </div>
-              <div className="w-full bg-zinc-100 rounded-full h-2">
+              <div className="w-full bg-canvas-cream rounded-full h-2">
                 <div
                   className="bg-emerald-500 h-2 rounded-full transition-all duration-500"
                   style={{ width: `${totalCount > 0 ? (deliveredCount / totalCount) * 100 : 0}%` }}

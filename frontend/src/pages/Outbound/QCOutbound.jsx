@@ -5,6 +5,7 @@ import { outboundService } from '../../services/outbound.service';
 import { masterDataService } from '../../services/masterData.service';
 import { useUiStore } from '../../stores/ui.store';
 import Button from '../../components/common/Button';
+import Input from '../../components/common/Input';
 
 const buildAllocationRows = (order, locations) => {
   const stagingLocations = locations.filter((location) => location.is_quarantine !== true);
@@ -131,7 +132,7 @@ export default function QCOutbound() {
       <div className="flex items-start gap-4">
         <button
           onClick={() => navigate(`/outbound/delivery-orders/${id}`)}
-          className="mt-1 p-1.5 hover:bg-zinc-200 rounded-full transition-colors text-shade-50 hover:text-ink shrink-0"
+          className="mt-1 p-1.5 hover:bg-canvas-cream rounded-full transition-colors text-shade-50 hover:text-ink shrink-0"
         >
           <ArrowLeft className="w-4 h-4" />
         </button>
@@ -228,18 +229,15 @@ export default function QCOutbound() {
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-shade-60 mb-1.5">Vị trí trung chuyển *</label>
-                        <select
+                        <Input
+                          type="select"
                           value={row.staging_location_id}
                           onChange={(event) => updateRow(row.id, 'staging_location_id', event.target.value)}
-                          className="w-full text-input text-xs"
-                        >
-                          <option value="">-- Chọn vị trí trung chuyển --</option>
-                          {stagingOptions.map((location) => (
-                            <option key={location.id} value={location.id}>
-                              {location.code || `Location #${location.id}`}
-                            </option>
-                          ))}
-                        </select>
+                          options={[
+                            { value: '', label: '-- Chọn vị trí trung chuyển --' },
+                            ...stagingOptions.map((location) => ({ value: location.id, label: location.code || `Location #${location.id}` })),
+                          ]}
+                        />
                       </div>
                     </div>
 
@@ -257,18 +255,15 @@ export default function QCOutbound() {
                         </div>
                         <div>
                           <label className="block text-xs font-semibold text-red-700 mb-1.5">Vị trí cách ly *</label>
-                          <select
+                          <Input
+                            type="select"
                             value={row.quarantine_location_id}
                             onChange={(event) => updateRow(row.id, 'quarantine_location_id', event.target.value)}
-                            className="w-full text-input text-xs border-red-300 focus:border-red-500"
-                          >
-                            <option value="">-- Chọn vị trí cách ly --</option>
-                            {quarantineOptions.map((location) => (
-                              <option key={location.id} value={location.id}>
-                                {location.code || `Location #${location.id}`}
-                              </option>
-                            ))}
-                          </select>
+                            options={[
+                              { value: '', label: '-- Chọn vị trí cách ly --' },
+                              ...quarantineOptions.map((location) => ({ value: location.id, label: location.code || `Location #${location.id}` })),
+                            ]}
+                          />
                         </div>
                       </div>
                     )}

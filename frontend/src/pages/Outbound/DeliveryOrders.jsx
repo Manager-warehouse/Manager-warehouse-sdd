@@ -22,7 +22,7 @@ import Modal from '../../components/common/Modal';
 import { ROLES } from '../../utils/constants';
 
 const DO_STATUS_MAP = {
-  NEW: { label: 'Mới', color: 'bg-zinc-100 text-zinc-800 border-zinc-200' },
+  NEW: { label: 'Mới', color: 'bg-canvas-cream text-shade-70 border-hairline-light' },
   WAITING_PICKING: { label: 'Chờ lấy hàng/QC', color: 'bg-blue-50 text-blue-700 border-blue-200' },
   QC_PENDING_APPROVAL: { label: 'Chờ duyệt QC', color: 'bg-violet-50 text-violet-700 border-violet-200' },
   QC_COMPLETED: { label: 'QC xong', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
@@ -54,7 +54,7 @@ const getStatusBadge = (status) => {
   const base = 'text-[10px] font-semibold px-2 py-0.5 rounded-pill border uppercase tracking-wider whitespace-nowrap';
   const { label, color } = DO_STATUS_MAP[status] ?? {
     label: status,
-    color: 'bg-zinc-100 text-zinc-800 border-zinc-200',
+    color: 'bg-canvas-cream text-shade-70 border-hairline-light',
   };
 
   return <span className={`${base} ${color}`}>{label}</span>;
@@ -265,7 +265,7 @@ export default function DeliveryOrders() {
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         {[
-          { label: 'Tổng đơn', value: totalDO, icon: <PackageCheck className="h-5 w-5" />, accent: 'text-zinc-600 bg-zinc-100' },
+          { label: 'Tổng đơn', value: totalDO, icon: <PackageCheck className="h-5 w-5" />, accent: 'text-shade-60 bg-canvas-cream' },
           { label: 'Chờ lấy hàng/QC', value: waitingPickingDO, icon: <Clock className="h-5 w-5" />, accent: 'text-blue-600 bg-blue-50' },
           { label: 'Chờ duyệt QC', value: qcPendingDO, icon: <PackageCheck className="h-5 w-5" />, accent: 'text-violet-600 bg-violet-50' },
           { label: 'Chờ vận chuyển', value: approvedDO, icon: <Truck className="h-5 w-5" />, accent: 'text-amber-600 bg-amber-50' },
@@ -291,14 +291,12 @@ export default function DeliveryOrders() {
             className="w-full text-input pl-10"
           />
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-shade-50">Trạng thái:</span>
-          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="text-input py-1.5 text-xs">
-            {STATUS_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
-        </div>
+        <Input
+          type="select"
+          value={statusFilter}
+          onChange={(event) => setStatusFilter(event.target.value)}
+          options={STATUS_OPTIONS}
+        />
       </div>
 
       {loading ? (
@@ -339,7 +337,7 @@ export default function DeliveryOrders() {
                       <td className="px-6 py-4 text-xs font-bold">{order.do_number}</td>
                       <td className="px-6 py-4">
                         <p className="text-xs font-semibold">{order.dealer_name}</p>
-                        <p className="mt-1 text-[11px] text-shade-40">{getRoleHint(order, hasRole)}</p>
+                        <p className="mt-1 text-[11px] text-shade-50">{getRoleHint(order, hasRole)}</p>
                       </td>
                       <td className="px-6 py-4 text-xs text-shade-50">{order.document_date ? new Date(order.document_date).toLocaleDateString('vi-VN') : '-'}</td>
                       <td className="px-6 py-4 text-xs text-shade-50">{order.expected_delivery_date ? new Date(order.expected_delivery_date).toLocaleDateString('vi-VN') : '-'}</td>
@@ -372,7 +370,7 @@ export default function DeliveryOrders() {
                           )}
                           <button
                             onClick={() => navigate(`/outbound/delivery-orders/${order.id}`)}
-                            className="flex items-center justify-center rounded-full p-1.5 text-shade-50 transition-colors hover:bg-zinc-200 hover:text-ink"
+                            className="flex items-center justify-center rounded-full p-1.5 text-shade-50 transition-colors hover:bg-canvas-cream hover:text-ink"
                             title="Xem chi tiết"
                           >
                             <Eye className="h-4 w-4" />

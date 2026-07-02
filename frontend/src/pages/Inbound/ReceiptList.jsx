@@ -6,6 +6,7 @@ import { inboundService } from '../../services/inbound.service';
 import { masterDataService } from '../../services/masterData.service';
 import { ROLES } from '../../utils/constants';
 import { Plus, Search, FileText, CheckCircle2, AlertTriangle, Eye, Check, X, Loader2 } from 'lucide-react';
+import Input from '../../components/common/Input';
 
 const ReceiptList = () => {
   const navigate = useNavigate();
@@ -91,7 +92,7 @@ const ReceiptList = () => {
     }
     switch (receipt.status) {
       case 'PENDING_RECEIPT':
-        return <span className={`${baseStyle} bg-zinc-100 text-zinc-800 border-zinc-200`}>Chờ nhận</span>;
+        return <span className={`${baseStyle} bg-canvas-cream text-shade-70 border-hairline-light`}>Chờ nhận</span>;
       case 'DRAFT':
         return <span className={`${baseStyle} bg-blue-50 text-blue-700 border-blue-200`}>Đã đếm (nháp)</span>;
       case 'QC_COMPLETED':
@@ -107,7 +108,7 @@ const ReceiptList = () => {
       case 'COMPLETED_WITH_DISCREPANCY':
         return <span className={`${baseStyle} bg-amber-50 text-amber-700 border-amber-200`}>Đã nhập có lệch</span>;
       default:
-        return <span className={`${baseStyle} bg-zinc-100 text-zinc-800 border-zinc-200`}>{receipt.status}</span>;
+        return <span className={`${baseStyle} bg-canvas-cream text-shade-70 border-hairline-light`}>{receipt.status}</span>;
     }
   };
 
@@ -224,34 +225,29 @@ const ReceiptList = () => {
         </div>
 
         <div className="flex flex-wrap gap-3 w-full md:w-auto justify-end">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-shade-50">Trạng thái:</span>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="text-input text-xs py-1.5"
-            >
-              <option value="ALL">Tất cả</option>
-              <option value="PENDING_RECEIPT">Chờ nhận</option>
-              <option value="DRAFT">Đã đếm (Nháp)</option>
-              <option value="QC_COMPLETED">Đã QC</option>
-              <option value="APPROVED">Đã duyệt</option>
-              <option value="REJECTED">Từ chối</option>
-            </select>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-shade-50">Phân loại:</span>
-            <select
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-              className="text-input text-xs py-1.5"
-            >
-              <option value="ALL">Tất cả</option>
-              <option value="PURCHASE">Nhập mua (PO)</option>
-              <option value="RETURN">Nhập trả (DO hoàn)</option>
-            </select>
-          </div>
+          <Input
+            type="select"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            options={[
+              { value: 'ALL', label: 'Tất cả trạng thái' },
+              { value: 'PENDING_RECEIPT', label: 'Chờ nhận' },
+              { value: 'DRAFT', label: 'Đã đếm (Nháp)' },
+              { value: 'QC_COMPLETED', label: 'Đã QC' },
+              { value: 'APPROVED', label: 'Đã duyệt' },
+              { value: 'REJECTED', label: 'Từ chối' },
+            ]}
+          />
+          <Input
+            type="select"
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            options={[
+              { value: 'ALL', label: 'Tất cả loại' },
+              { value: 'PURCHASE', label: 'Nhập mua (PO)' },
+              { value: 'RETURN', label: 'Nhập trả (DO hoàn)' },
+            ]}
+          />
         </div>
       </div>
 
@@ -375,7 +371,7 @@ const ReceiptList = () => {
                               addToast('Lỗi xem chi tiết', 'error');
                             }
                           }}
-                          className="p-1.5 hover:bg-zinc-200 rounded-full text-shade-50 hover:text-ink transition-colors flex items-center justify-center"
+                          className="p-1.5 hover:bg-canvas-cream rounded-full text-shade-50 hover:text-ink transition-colors flex items-center justify-center"
                           title="Xem chi tiết"
                         >
                           <Eye className="w-4 h-4" />

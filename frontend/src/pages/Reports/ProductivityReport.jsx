@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import reportService from '../../services/report.service';
 import { ClipboardList, Users, Truck, CheckSquare, Calendar, RefreshCw, FileSpreadsheet, AlertCircle } from 'lucide-react';
+import Button from '../../components/common/Button';
 
 const ProductivityReport = () => {
   const [data, setData] = useState(null);
@@ -106,10 +107,7 @@ const ProductivityReport = () => {
             />
           </div>
 
-          <button onClick={fetchData} className="btn-secondary flex items-center gap-1 text-xs py-1.5 px-3">
-            <RefreshCw className="w-3.5 h-3.5" />
-            <span>Lọc</span>
-          </button>
+          <Button variant="outline-light" icon={RefreshCw} onClick={fetchData}>Lọc</Button>
 
           <button onClick={handleExport} className="btn-pill btn-pill-primary flex items-center gap-1.5 text-xs">
             <FileSpreadsheet className="w-3.5 h-3.5 text-aloe-10" />

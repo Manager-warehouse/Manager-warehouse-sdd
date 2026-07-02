@@ -57,7 +57,7 @@ const Section = ({ icon: Icon, title, children }) => (
 );
 
 const Hint = ({ children }) => (
-  <span className="text-[11px] text-shade-40 italic mt-1">{children}</span>
+  <span className="text-[11px] text-shade-50 italic mt-1">{children}</span>
 );
 
 const DEFAULTS = {
@@ -146,7 +146,7 @@ const SystemConfig = () => {
   }
 
   return (
-    <div className="flex flex-col gap-6 max-w-4xl">
+    <div className="flex flex-col gap-6">
       <div>
         <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
           Hệ thống / Admin

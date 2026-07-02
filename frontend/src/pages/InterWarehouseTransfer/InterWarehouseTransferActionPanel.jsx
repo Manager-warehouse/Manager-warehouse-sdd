@@ -359,8 +359,8 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
             </span>
             YÊU CẦU QUAY ĐẦU DO SAI SKU ĐANG CHỜ PHÊ DUYỆT
           </div>
-          <div className="text-xs text-zinc-600">
-            <span className="font-semibold text-zinc-700">Lý do báo:</span> "{transfer.returnReason}"
+          <div className="text-xs text-shade-60">
+            <span className="font-semibold text-shade-50">Lý do báo:</span> "{transfer.returnReason}"
           </div>
           {hasAny(hasRole, [ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && (
             <div className="flex gap-2 mt-1">
@@ -386,14 +386,14 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
             </div>
           )}
           {!(hasAny(hasRole, [ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse) && (
-            <div className="text-[10px] text-zinc-500 italic">Đang chờ Quản lý kho đích duyệt...</div>
+            <div className="text-[10px] text-shade-50 italic">Đang chờ Quản lý kho đích duyệt...</div>
           )}
         </div>
       )}
 
       {transfer.status === 'IN_TRANSIT' && !transfer.isReturned && !transfer.returnRequested && hasAny(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && (
         <div className="rounded-lg border border-hairline-light bg-canvas-cream p-4 text-sm flex flex-col gap-2 mb-2">
-          <div className="text-xs text-zinc-800 font-semibold">Phát hiện gửi sai SKU, hàng hỏng hoặc sai lệch nghiêm trọng khi mở thùng?</div>
+          <div className="text-xs text-ink font-semibold">Phát hiện gửi sai SKU, hàng hỏng hoặc sai lệch nghiêm trọng khi mở thùng?</div>
           <div className="flex gap-2">
             <Input
               value={reason}
@@ -401,7 +401,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
               placeholder="Nhập lý do gửi sai SKU..."
               className="flex-1"
             />
-            <Button variant="outline-light" icon={RotateCcw} className="text-zinc-700 border-hairline-light hover:bg-canvas-cream py-1.5 px-3 text-xs" loading={busy} onClick={() => {
+            <Button variant="outline-light" icon={RotateCcw} className="text-shade-50 border-hairline-light hover:bg-canvas-cream py-1.5 px-3 text-xs" loading={busy} onClick={() => {
               if (!reason.trim()) {
                 alert("Vui lòng điền lý do gửi sai SKU!");
                 return;

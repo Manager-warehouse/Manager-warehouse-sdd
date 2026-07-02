@@ -17,12 +17,12 @@ const STATUS_LABELS = {
 };
 
 const STATUS_STYLES = {
-  DRAFT: 'bg-zinc-100 text-zinc-600',
-  IN_PROGRESS: 'bg-blue-100 text-blue-700',
-  PENDING_APPROVAL: 'bg-amber-100 text-amber-700',
-  APPROVED: 'bg-green-100 text-green-700',
-  REJECTED: 'bg-red-100 text-red-700',
-  CANCELLED: 'bg-zinc-100 text-zinc-400',
+  DRAFT: 'bg-canvas-cream text-shade-60 border-hairline-light',
+  IN_PROGRESS: 'bg-blue-50 text-blue-700 border-blue-200',
+  PENDING_APPROVAL: 'bg-amber-50 text-amber-700 border-amber-200',
+  APPROVED: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  REJECTED: 'bg-red-50 text-red-700 border-red-200',
+  CANCELLED: 'bg-canvas-cream text-shade-50 border-hairline-light',
 };
 
 const APPROVAL_LABELS = {
@@ -155,34 +155,34 @@ const StocktakeList = () => {
                 <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-shade-60">Người kiểm</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-shade-60">Trạng thái</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-shade-60">Cấp duyệt</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-shade-60">Chênh lệch</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-shade-60">Thao tác</th>
+                <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-shade-60">Chênh lệch</th>
+                <th className="px-6 py-4 text-center text-xs font-semibold uppercase tracking-wider text-shade-60">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-hairline-light">
               {stocktakes.map((st) => (
                 <tr key={st.id} className="hover:bg-canvas-cream/50 transition-colors">
-                  <td className="px-4 py-3 font-mono text-xs text-aloe-50 font-semibold">
+                  <td className="px-6 py-3 font-mono text-xs text-aloe-50 font-semibold">
                     {st.stock_take_number}
                   </td>
-                  <td className="px-4 py-3 text-xs text-shade-30">{st.stock_take_date}</td>
-                  <td className="px-4 py-3 text-xs text-shade-30">{st.conducted_by_name}</td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${STATUS_STYLES[st.status] || 'bg-zinc-100 text-zinc-500'}`}>
+                  <td className="px-6 py-3 text-xs text-shade-50">{st.stock_take_date}</td>
+                  <td className="px-6 py-3 text-xs text-shade-50">{st.conducted_by_name}</td>
+                  <td className="px-6 py-3">
+                    <span className={`px-2 py-0.5 rounded-pill border text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap ${STATUS_STYLES[st.status] || 'bg-canvas-cream text-shade-50 border-hairline-light'}`}>
                       {STATUS_LABELS[st.status] || st.status}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-xs text-shade-50">
+                  <td className="px-6 py-3 text-xs text-shade-50">
                     {st.approval_level ? APPROVAL_LABELS[st.approval_level] || st.approval_level : '—'}
                   </td>
-                  <td className="px-4 py-3 text-xs text-right font-mono">
+                  <td className="px-6 py-3 text-xs text-right font-mono">
                     {st.total_variance_value !== 0 && st.total_variance_value !== null ? (
                       <span className={st.total_variance_value < 0 ? 'text-red-600' : 'text-green-600'}>
                         {st.total_variance_value.toLocaleString('vi-VN')}₫
                       </span>
                     ) : '—'}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-6 py-3">
                     <div className="flex items-center justify-center gap-1.5">
                       <button
                         onClick={() => navigate(`/stocktake/${st.id}`)}

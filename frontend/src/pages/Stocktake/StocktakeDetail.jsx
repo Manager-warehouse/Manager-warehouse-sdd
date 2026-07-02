@@ -17,12 +17,12 @@ const STATUS_LABELS = {
 };
 
 const STATUS_STYLES = {
-  DRAFT: 'bg-zinc-100 text-zinc-600',
-  IN_PROGRESS: 'bg-blue-100 text-blue-700',
-  PENDING_APPROVAL: 'bg-amber-100 text-amber-700',
-  APPROVED: 'bg-green-100 text-green-700',
-  REJECTED: 'bg-red-100 text-red-700',
-  CANCELLED: 'bg-zinc-100 text-zinc-400',
+  DRAFT: 'bg-canvas-cream text-shade-60 border-hairline-light',
+  IN_PROGRESS: 'bg-blue-50 text-blue-700 border-blue-200',
+  PENDING_APPROVAL: 'bg-amber-50 text-amber-700 border-amber-200',
+  APPROVED: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  REJECTED: 'bg-red-50 text-red-700 border-red-200',
+  CANCELLED: 'bg-canvas-cream text-shade-50 border-hairline-light',
 };
 
 const StocktakeDetail = () => {

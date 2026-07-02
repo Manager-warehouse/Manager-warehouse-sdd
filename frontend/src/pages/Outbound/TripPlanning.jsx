@@ -12,7 +12,7 @@ import TripCapacityBar from '../../components/warehouse/TripCapacityBar';
 import { ROLES } from '../../utils/constants';
 
 const TRIP_STATUS_MAP = {
-  PLANNED: { label: 'Lên kế hoạch', color: 'bg-zinc-100 text-zinc-800 border-zinc-200' },
+  PLANNED: { label: 'Lên kế hoạch', color: 'bg-canvas-cream text-shade-70 border-hairline-light' },
   IN_TRANSIT: { label: 'Đang giao', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
   COMPLETED: { label: 'Hoàn thành', color: 'bg-emerald-50 text-emerald-900 border-emerald-300' },
   CANCELLED: { label: 'Đã hủy', color: 'bg-red-50 text-red-700 border-red-200' },
@@ -22,7 +22,7 @@ const emptyForm = { vehicle_id: '', driver_id: '', planned_start_at: '', planned
 
 const getTripStatusBadge = (status) => {
   const base = 'text-[10px] font-semibold px-2 py-0.5 rounded-pill border uppercase tracking-wider whitespace-nowrap';
-  const { label, color } = TRIP_STATUS_MAP[status] ?? { label: status, color: 'bg-zinc-100 text-zinc-800 border-zinc-200' };
+  const { label, color } = TRIP_STATUS_MAP[status] ?? { label: status, color: 'bg-canvas-cream text-shade-70 border-hairline-light' };
   return <span className={`${base} ${color}`}>{label}</span>;
 };
 
@@ -207,16 +207,18 @@ export default function TripPlanning() {
             className="w-full text-input pl-10"
           />
         </div>
-        <div className="flex items-center gap-2 w-full md:w-auto justify-end">
-          <span className="text-xs font-semibold text-shade-50">Trạng thái:</span>
-          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="text-input text-xs py-1.5">
-            <option value="ALL">Tất cả</option>
-            <option value="PLANNED">Lên kế hoạch</option>
-            <option value="IN_TRANSIT">Đang giao</option>
-            <option value="COMPLETED">Hoàn thành</option>
-            <option value="CANCELLED">Đã hủy</option>
-          </select>
-        </div>
+        <Input
+          type="select"
+          value={statusFilter}
+          onChange={(event) => setStatusFilter(event.target.value)}
+          options={[
+            { value: 'ALL', label: 'Tất cả' },
+            { value: 'PLANNED', label: 'Lên kế hoạch' },
+            { value: 'IN_TRANSIT', label: 'Đang giao' },
+            { value: 'COMPLETED', label: 'Hoàn thành' },
+            { value: 'CANCELLED', label: 'Đã hủy' },
+          ]}
+        />
       </div>
 
       {loading ? (
@@ -237,7 +239,7 @@ export default function TripPlanning() {
                 <span className="text-xs font-bold text-ink">{trip.trip_number}</span>
                 {getTripStatusBadge(trip.status)}
               </div>
-              <div className="p-4 space-y-2">
+              <div className="p-4 flex flex-col gap-2">
                 <p className="flex items-center gap-2 text-xs"><Truck className="w-3.5 h-3.5 text-shade-40" /><span className="text-shade-50">Xe:</span><span className="font-semibold text-ink">{trip.vehicle_plate || '-'}</span></p>
                 <p className="flex items-center gap-2 text-xs"><User className="w-3.5 h-3.5 text-shade-40" /><span className="text-shade-50">Tài xế:</span><span className="font-semibold text-ink">{trip.driver_name || trip.driver_id}</span></p>
                 <p className="flex items-center gap-2 text-xs"><Calendar className="w-3.5 h-3.5 text-shade-40" /><span className="text-shade-50">TG dự kiến:</span><span className="font-semibold text-ink">{trip.planned_start_at ? new Date(trip.planned_start_at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) : '-'} - {trip.planned_end_at ? new Date(trip.planned_end_at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) : '-'}</span></p>
@@ -277,7 +279,7 @@ export default function TripPlanning() {
               {!detailTrip.delivery_orders?.length ? (
                 <p className="text-xs text-shade-40 italic text-center py-4">Chưa có điểm giao nào</p>
               ) : (
-                <div className="space-y-3">
+                <div className="flex flex-col gap-3">
                   {detailTrip.delivery_orders.map((stop, index) => (
                     <div key={`${stop.do_id}-${index}`} className="rounded-lg border p-4 flex gap-3 bg-canvas-cream border-hairline-light">
                       <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 bg-ink text-white">
@@ -393,7 +395,7 @@ export default function TripPlanning() {
               {!formData.delivery_orders.length ? (
                 <div className="p-4 border-2 border-dashed border-shade-30 rounded-lg text-center text-shade-40 text-xs">Chưa chọn đơn hàng nào</div>
               ) : (
-                <div className="space-y-2">
+                <div className="flex flex-col gap-2">
                   {formData.delivery_orders.map((order, index) => (
                     <div key={order.id} className="bg-canvas-light rounded-lg border border-hairline-light p-2.5 flex items-center gap-2">
                       <div className="w-6 h-6 rounded-full bg-ink text-white flex items-center justify-center text-[10px] font-bold shrink-0">{index + 1}</div>

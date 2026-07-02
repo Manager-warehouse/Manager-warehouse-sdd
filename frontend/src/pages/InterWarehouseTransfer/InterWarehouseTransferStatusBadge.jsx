@@ -2,7 +2,7 @@ import React from 'react';
 import { interWarehouseTransferStatusLabel } from '../../utils/interWarehouseTransferStatus';
 
 const statusMap = {
-  NEW: 'bg-zinc-100 text-zinc-800 border-zinc-200',
+  NEW: 'bg-canvas-cream text-shade-70 border-hairline-light',
   APPROVED: 'bg-blue-50 text-blue-700 border-blue-200',
   IN_TRANSIT: 'bg-amber-50 text-amber-800 border-amber-200',
   COMPLETED: 'bg-emerald-50 text-emerald-800 border-emerald-200',

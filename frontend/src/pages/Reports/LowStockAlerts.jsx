@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import reportService from '../../services/report.service';
-import { AlertTriangle, CheckCircle, RefreshCw, Warehouse, HelpCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { AlertTriangle, CheckCircle, RefreshCw, Warehouse, HelpCircle, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import Badge from '../../components/common/Badge';
+import Button from '../../components/common/Button';
+import Input from '../../components/common/Input';
 
 const LowStockAlerts = () => {
   const [alerts, setAlerts] = useState([]);
@@ -65,40 +67,37 @@ const LowStockAlerts = () => {
         </div>
 
         <div className="flex gap-2 flex-wrap">
-          {/* Warehouse Filter */}
-          <select
+          <Input
+            type="select"
             value={warehouseId}
             onChange={(e) => { setWarehouseId(e.target.value); setPage(0); }}
-            className="bg-canvas-light text-ink text-xs font-semibold px-3 py-1.5 rounded-md border border-hairline-light focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink transition-all min-h-[36px]"
-          >
-            <option value="">Tất cả kho vật lý</option>
-            <option value="1">Kho Hải Phòng</option>
-            <option value="2">Kho Hà Nội</option>
-            <option value="3">Kho Hồ Chí Minh</option>
-          </select>
-
-          {/* Status Filter */}
-          <select
+            options={[
+              { value: '', label: 'Tất cả kho vật lý' },
+              { value: '1', label: 'Kho Hải Phòng' },
+              { value: '2', label: 'Kho Hà Nội' },
+              { value: '3', label: 'Kho Hồ Chí Minh' },
+            ]}
+          />
+          <Input
+            type="select"
             value={isResolved}
             onChange={(e) => { setIsResolved(e.target.value); setPage(0); }}
-            className="bg-canvas-light text-ink text-xs font-semibold px-3 py-1.5 rounded-md border border-hairline-light focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink transition-all min-h-[36px]"
-          >
-            <option value="false">Đang cảnh báo (Chưa xử lý)</option>
-            <option value="true">Đã bổ sung (Đã xử lý)</option>
-            <option value="all">Tất cả lịch sử</option>
-          </select>
-
-          <button onClick={fetchAlerts} className="btn-secondary flex items-center gap-1 text-xs py-1.5 px-3">
-            <RefreshCw className="w-3.5 h-3.5" />
-            <span>Làm mới</span>
-          </button>
+            options={[
+              { value: 'false', label: 'Đang cảnh báo (Chưa xử lý)' },
+              { value: 'true', label: 'Đã bổ sung (Đã xử lý)' },
+              { value: 'all', label: 'Tất cả lịch sử' },
+            ]}
+          />
+          <Button variant="outline-light" icon={RefreshCw} onClick={fetchAlerts}>
+            Làm mới
+          </Button>
         </div>
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center min-h-[300px]">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-canvas-night"></div>
-          <span className="ml-3 text-sm text-shade-60">Đang quét dữ liệu tồn kho dưới định mức...</span>
+        <div className="flex items-center justify-center min-h-[300px] gap-3">
+          <Loader2 className="w-8 h-8 animate-spin text-shade-50" />
+          <span className="text-sm text-shade-60">Đang quét dữ liệu tồn kho dưới định mức...</span>
         </div>
       ) : error ? (
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-2xl mx-auto my-12 text-center">
@@ -120,14 +119,14 @@ const LowStockAlerts = () => {
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="border-b border-hairline-light bg-canvas-cream text-shade-60 font-semibold uppercase tracking-wider">
-                    <th className="py-3 px-4">Kho vật lý</th>
-                    <th className="py-3 px-4">Mã SKU</th>
-                    <th className="py-3 px-4">Tên sản phẩm</th>
-                    <th className="py-3 px-4 text-center">Loại cảnh báo</th>
-                    <th className="py-3 px-4 text-right">Tồn khả dụng</th>
-                    <th className="py-3 px-4 text-right">Định mức tối thiểu</th>
-                    <th className="py-3 px-4 text-center">Trạng thái</th>
-                    <th className="py-3 px-4">Thời gian cảnh báo</th>
+                    <th className="py-4 px-6">Kho vật lý</th>
+                    <th className="py-4 px-6">Mã SKU</th>
+                    <th className="py-4 px-6">Tên sản phẩm</th>
+                    <th className="py-4 px-6 text-center">Loại cảnh báo</th>
+                    <th className="py-4 px-6 text-right">Tồn khả dụng</th>
+                    <th className="py-4 px-6 text-right">Định mức tối thiểu</th>
+                    <th className="py-4 px-6 text-center">Trạng thái</th>
+                    <th className="py-4 px-6">Thời gian cảnh báo</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-hairline-light font-light text-shade-80">
@@ -143,17 +142,17 @@ const LowStockAlerts = () => {
                         key={alert.id} 
                         className={`hover:bg-canvas-cream/50 transition-colors ${!alert.is_resolved ? 'bg-red-50/20' : ''}`}
                       >
-                        <td className="py-3.5 px-4 font-semibold text-ink">{alert.warehouse_name}</td>
-                        <td className="py-3.5 px-4 font-mono font-medium">{alert.product_sku}</td>
-                        <td className="py-3.5 px-4 font-medium">{alert.product_name}</td>
-                        <td className="py-3.5 px-4 text-center">{getAlertTag(alert.alert_type)}</td>
-                        <td className={`py-3.5 px-4 text-right font-bold ${alert.current_qty === 0 ? 'text-red-600' : 'text-orange-600'}`}>
+                        <td className="py-3.5 px-6 font-semibold text-ink">{alert.warehouse_name}</td>
+                        <td className="py-3.5 px-6 font-mono font-medium">{alert.product_sku}</td>
+                        <td className="py-3.5 px-6 font-medium">{alert.product_name}</td>
+                        <td className="py-3.5 px-6 text-center">{getAlertTag(alert.alert_type)}</td>
+                        <td className={`py-3.5 px-6 text-right font-bold ${alert.current_qty === 0 ? 'text-red-600' : 'text-orange-600'}`}>
                           {new Intl.NumberFormat('vi-VN').format(alert.current_qty)}
                         </td>
-                        <td className="py-3.5 px-4 text-right text-shade-60">
+                        <td className="py-3.5 px-6 text-right text-shade-60">
                           {new Intl.NumberFormat('vi-VN').format(alert.reorder_point)}
                         </td>
-                        <td className="py-3.5 px-4 text-center">
+                        <td className="py-3.5 px-6 text-center">
                           {alert.is_resolved ? (
                             <span className="flex items-center justify-center gap-1 text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-pill">
                               <CheckCircle className="w-3 h-3" />
@@ -166,7 +165,7 @@ const LowStockAlerts = () => {
                             </span>
                           )}
                         </td>
-                        <td className="py-3.5 px-4 text-shade-60 font-light">
+                        <td className="py-3.5 px-6 text-shade-60 font-light">
                           {new Date(alert.created_at).toLocaleString('vi-VN')}
                           {alert.is_resolved && alert.resolved_at && (
                             <span className="block text-[10px] text-emerald-600">
@@ -188,20 +187,18 @@ const LowStockAlerts = () => {
                   Trang {page + 1} / {totalPages}
                 </span>
                 <div className="flex gap-2">
-                  <button
+                  <Button
+                    variant="outline-light"
+                    icon={ChevronLeft}
                     onClick={() => setPage(p => Math.max(0, p - 1))}
                     disabled={page === 0}
-                    className="btn-secondary py-1 px-2.5 disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
-                  <button
+                  />
+                  <Button
+                    variant="outline-light"
+                    icon={ChevronRight}
                     onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
                     disabled={page === totalPages - 1}
-                    className="btn-secondary py-1 px-2.5 disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
+                  />
                 </div>
               </div>
             )}

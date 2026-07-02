@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Upload, Download, Search, X, Edit2, Ban, DollarSign, Loader2, Warehouse } from 'lucide-react';
 import Pagination from '../../components/common/Pagination';
+import Input from '../../components/common/Input';
+import Button from '../../components/common/Button';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
 import pricingService from '../../services/pricing.service';
@@ -11,7 +13,7 @@ const STATUS_LABEL = { PENDING: 'Chờ duyệt', APPROVED: 'Đã duyệt', CANCE
 const STATUS_STYLE = {
   PENDING:   'bg-amber-50 text-amber-800 border-amber-300',
   APPROVED:  'bg-aloe-10 text-emerald-900 border-emerald-300',
-  CANCELLED: 'bg-zinc-100 text-zinc-500 border-zinc-300',
+  CANCELLED: 'bg-canvas-cream text-shade-50 border-hairline-light',
 };
 const BADGE = 'text-[10px] font-semibold px-2 py-0.5 rounded-pill border uppercase tracking-wider whitespace-nowrap';
 
@@ -133,7 +135,7 @@ export default function PriceListManagement() {
       {/* KPI Summary */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         {[
-          { label: 'Tổng bản giá', value: totalEntries, icon: <DollarSign className="w-5 h-5" />, accent: 'text-zinc-600 bg-zinc-100' },
+          { label: 'Tổng bản giá', value: totalEntries, icon: <DollarSign className="w-5 h-5" />, accent: 'text-shade-60 bg-canvas-cream' },
           { label: 'Chờ duyệt', value: pendingCount, icon: <DollarSign className="w-5 h-5" />, accent: 'text-amber-600 bg-amber-50' },
           { label: 'Đã duyệt', value: approvedCount, icon: <DollarSign className="w-5 h-5" />, accent: 'text-emerald-600 bg-emerald-50' },
         ].map(({ label, value, icon, accent }) => (
@@ -150,7 +152,7 @@ export default function PriceListManagement() {
       {/* Filters */}
       <div className="bg-canvas-light rounded-lg border border-hairline-light p-4 shadow-level-3 flex flex-col md:flex-row gap-4 items-center justify-between">
         <div className="relative w-full md:w-80">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-shade-40" />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-shade-60" />
           <input
             type="text"
             placeholder="Tìm SKU hoặc tên sản phẩm..."
@@ -159,15 +161,17 @@ export default function PriceListManagement() {
             className="w-full text-input pl-10"
           />
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-shade-50">Trạng thái:</span>
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="text-input text-xs py-1.5">
-            <option value="ALL">Tất cả</option>
-            <option value="PENDING">Chờ duyệt</option>
-            <option value="APPROVED">Đã duyệt</option>
-            <option value="CANCELLED">Đã hủy</option>
-          </select>
-        </div>
+        <Input
+          type="select"
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          options={[
+            { value: 'ALL', label: 'Tất cả' },
+            { value: 'PENDING', label: 'Chờ duyệt' },
+            { value: 'APPROVED', label: 'Đã duyệt' },
+            { value: 'CANCELLED', label: 'Đã hủy' },
+          ]}
+        />
       </div>
 
       {/* Table */}
@@ -187,14 +191,14 @@ export default function PriceListManagement() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-canvas-cream border-b border-hairline-light">
-                  <th className="px-6 py-3.5 text-xs font-semibold text-shade-60 uppercase tracking-wider">SKU</th>
-                  <th className="px-6 py-3.5 text-xs font-semibold text-shade-60 uppercase tracking-wider">Sản phẩm</th>
-                  <th className="px-6 py-3.5 text-xs font-semibold text-shade-60 uppercase tracking-wider">Kỳ hiệu lực</th>
-                  <th className="px-6 py-3.5 text-xs font-semibold text-shade-60 uppercase tracking-wider text-right">Giá vốn</th>
-                  <th className="px-6 py-3.5 text-xs font-semibold text-shade-60 uppercase tracking-wider text-right">Giá bán</th>
-                  <th className="px-6 py-3.5 text-xs font-semibold text-shade-60 uppercase tracking-wider">Trạng thái</th>
-                  <th className="px-6 py-3.5 text-xs font-semibold text-shade-60 uppercase tracking-wider">Ghi chú</th>
-                  <th className="px-6 py-3.5 text-xs font-semibold text-shade-60 uppercase tracking-wider text-right">Thao tác</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-shade-60 uppercase tracking-wider">SKU</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-shade-60 uppercase tracking-wider">Sản phẩm</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-shade-60 uppercase tracking-wider">Kỳ hiệu lực</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-shade-60 uppercase tracking-wider text-right">Giá vốn</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-shade-60 uppercase tracking-wider text-right">Giá bán</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-shade-60 uppercase tracking-wider">Trạng thái</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-shade-60 uppercase tracking-wider">Ghi chú</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-shade-60 uppercase tracking-wider text-right">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-hairline-light">
@@ -222,18 +226,12 @@ export default function PriceListManagement() {
                     <td className="px-6 py-4 text-right whitespace-nowrap">
                       {canWrite && entry.status === 'PENDING' && entry.created_by?.id === user?.id && (
                         <div className="flex gap-2 justify-end items-center">
-                          <button
-                            onClick={() => { setEditTarget(entry); setShowForm(true); }}
-                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill border border-ink bg-canvas-light text-ink hover:bg-canvas-cream text-xs font-semibold transition-colors"
-                          >
-                            <Edit2 className="w-3 h-3 mr-1" /> Sửa
-                          </button>
-                          <button
-                            onClick={() => handleCancel(entry.id)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold transition-colors"
-                          >
-                            <Ban className="w-3 h-3 mr-1" /> Hủy
-                          </button>
+                          <Button variant="outline-light" icon={Edit2} onClick={() => { setEditTarget(entry); setShowForm(true); }}>
+                            Sửa
+                          </Button>
+                          <Button variant="outline-light" icon={Ban} onClick={() => handleCancel(entry.id)} className="text-red-600 border-red-200 hover:bg-red-50">
+                            Hủy
+                          </Button>
                         </div>
                       )}
                     </td>
@@ -396,7 +394,7 @@ function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }
       <div className="bg-canvas-cream rounded-lg max-w-lg w-full border border-hairline-light shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
         <div className="p-6 border-b border-hairline-light flex items-center justify-between bg-canvas-light">
           <div>
-            <span className="text-[10px] font-bold text-shade-40 uppercase tracking-widest block mb-1">
+            <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
               Tài chính / Bảng giá
             </span>
             <h3 className="text-xl font-bold">{isEdit ? 'Sửa bản giá' : 'Thêm bản giá mới'}</h3>
@@ -449,7 +447,7 @@ function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }
                 Tìm kiếm sản phẩm <span className="text-red-500">*</span>
               </label>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-shade-40" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-shade-60" />
                 <input
                   type="text"
                   placeholder="Nhập tên sản phẩm hoặc SKU..."
@@ -463,7 +461,7 @@ function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }
                 />
                 {loadingProducts && (
                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    <Loader2 className="w-4 h-4 animate-spin text-shade-40" />
+                    <Loader2 className="w-4 h-4 animate-spin text-shade-60" />
                   </div>
                 )}
               </div>
@@ -587,7 +585,7 @@ function ImportModal({ onClose, onDone }) {
       <div className="bg-canvas-cream rounded-lg max-w-lg w-full border border-hairline-light shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
         <div className="p-6 border-b border-hairline-light flex items-center justify-between bg-canvas-light">
           <div>
-            <span className="text-[10px] font-bold text-shade-40 uppercase tracking-widest block mb-1">
+            <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
               Tài chính / Bảng giá
             </span>
             <h3 className="text-xl font-bold">Import bảng giá từ Excel</h3>

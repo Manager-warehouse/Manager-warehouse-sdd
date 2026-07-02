@@ -311,7 +311,7 @@ const InterWarehouseTransferWorkspace = () => {
           <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">
             Điều chuyển nội bộ
           </h1>
-          <p className="text-xs text-shade-50 mt-1">
+          <p className="text-xs text-shade-50 font-light mt-1">
             Lập phiếu thủ công từ lệnh Công ty mẹ, giữ chỗ, xuất hàng, vận chuyển và xác nhận nhận hàng.
           </p>
         </div>
@@ -390,23 +390,23 @@ const InterWarehouseTransferWorkspace = () => {
             <table className="min-w-full text-sm">
               <thead className="bg-canvas-cream text-xs uppercase tracking-wider text-shade-60">
                 <tr>
-                  <th className="text-left px-4 py-3">Phiếu</th>
-                  <th className="text-left px-4 py-3">Tuyến</th>
-                  <th className="text-left px-4 py-3">Trạng thái</th>
-                  <th className="text-right px-4 py-3">Dòng hàng</th>
+                  <th className="text-left px-6 py-4 font-semibold">Phiếu</th>
+                  <th className="text-left px-6 py-4 font-semibold">Tuyến</th>
+                  <th className="text-left px-6 py-4 font-semibold">Trạng thái</th>
+                  <th className="text-right px-6 py-4 font-semibold">Dòng hàng</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-hairline-light">
                 {filteredTransfers.map((transfer) => (
                   <tr key={transfer.id} onClick={() => setSelectedId(transfer.id)}
                     className={`cursor-pointer hover:bg-canvas-cream/60 ${selectedId === transfer.id ? 'bg-aloe-10/30' : ''}`}>
-                    <td className="px-4 py-3">
+                    <td className="px-6 py-3">
                       <div className="font-semibold">{transfer.transferNumber}</div>
                       <div className="text-xs text-shade-50">{transfer.externalInstructionCode}</div>
                     </td>
-                    <td className="px-4 py-3 text-xs">{transfer.sourceWarehouseCode} → {transfer.destinationWarehouseCode}</td>
-                    <td className="px-4 py-3"><InterWarehouseTransferStatusBadge status={transfer.status} /></td>
-                    <td className="px-4 py-3 text-right">{transfer.items?.length || 0}</td>
+                    <td className="px-6 py-3 text-xs">{transfer.sourceWarehouseCode} → {transfer.destinationWarehouseCode}</td>
+                    <td className="px-6 py-3"><InterWarehouseTransferStatusBadge status={transfer.status} /></td>
+                    <td className="px-6 py-3 text-right">{transfer.items?.length || 0}</td>
                   </tr>
                 ))}
                 {!filteredTransfers.length && (
