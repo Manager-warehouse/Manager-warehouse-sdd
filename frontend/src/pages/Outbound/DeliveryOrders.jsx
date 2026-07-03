@@ -48,7 +48,14 @@ const STATUS_OPTIONS = [
   { value: 'CANCELLED', label: 'Đã hủy' },
 ];
 
-const emptyForm = { dealer_id: '', expected_delivery_date: '', notes: '', items: [] };
+const createEmptyItemRow = () => ({ product_id: '', requested_qty: 1, unit_price: 0 });
+
+const createEmptyForm = () => ({
+  dealer_id: '',
+  expected_delivery_date: '',
+  notes: '',
+  items: [createEmptyItemRow()],
+});
 
 const getStatusBadge = (status) => {
   const base = 'text-[10px] font-semibold px-2 py-0.5 rounded-pill border uppercase tracking-wider whitespace-nowrap';
@@ -89,7 +96,7 @@ export default function DeliveryOrders() {
   const [products, setProducts] = useState([]);
   const [masterDataLoading, setMasterDataLoading] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [formData, setFormData] = useState(emptyForm);
+  const [formData, setFormData] = useState(createEmptyForm);
   const [selectedDealerObj, setSelectedDealerObj] = useState(null);
   const [dealerSearch, setDealerSearch] = useState('');
   const [productSearch, setProductSearch] = useState('');
@@ -105,8 +112,8 @@ export default function DeliveryOrders() {
       return;
     }
 
-    fetchMasterData(productSearch);
-  }, [showCreateModal, productSearch]);
+    fetchMasterData();
+  }, [showCreateModal]);
 
   const fetchOrders = async () => {
     setLoading(true);
@@ -123,12 +130,12 @@ export default function DeliveryOrders() {
     }
   };
 
-  const fetchMasterData = async (searchTerm = '') => {
+  const fetchMasterData = async () => {
     setMasterDataLoading(true);
     try {
       const [dealersData, productsData] = await Promise.all([
         masterDataService.getDealers(),
-        masterDataService.getProducts({ search: searchTerm, size: 100 }),
+        masterDataService.getProducts({ size: 200 }),
       ]);
       setDealers(dealersData.filter((dealer) => dealer.is_active !== false));
       setProducts(productsData.filter((product) => product.is_active !== false));
@@ -140,7 +147,7 @@ export default function DeliveryOrders() {
   };
 
   const handleOpenCreateModal = () => {
-    setFormData(emptyForm);
+    setFormData(createEmptyForm());
     setSelectedDealerObj(null);
     setDealerSearch('');
     setProductSearch('');
@@ -149,7 +156,7 @@ export default function DeliveryOrders() {
 
   const handleCloseCreateModal = () => {
     setShowCreateModal(false);
-    setFormData(emptyForm);
+    setFormData(createEmptyForm());
     setSelectedDealerObj(null);
     setDealerSearch('');
     setProductSearch('');
@@ -158,7 +165,7 @@ export default function DeliveryOrders() {
   const addItemRow = () => {
     setFormData((prev) => ({
       ...prev,
-      items: [...prev.items, { product_id: '', requested_qty: 1, unit_price: 0 }],
+      items: [...prev.items, createEmptyItemRow()],
     }));
   };
 
@@ -181,7 +188,7 @@ export default function DeliveryOrders() {
   const removeItemRow = (index) => {
     const items = [...formData.items];
     items.splice(index, 1);
-    setFormData((prev) => ({ ...prev, items }));
+    setFormData((prev) => ({ ...prev, items: items.length ? items : [createEmptyItemRow()] }));
   };
 
   const handleCreateSubmit = async () => {
@@ -244,6 +251,27 @@ export default function DeliveryOrders() {
 
     return `${dealer.code || ''} ${dealer.name || dealer.company_name || ''}`.toLowerCase().includes(keyword);
   });
+  const filteredProducts = products.filter((product) => {
+    const keyword = productSearch.trim().toLowerCase();
+    if (!keyword) {
+      return true;
+    }
+
+    return `${product.sku || ''} ${product.name || ''}`.toLowerCase().includes(keyword);
+  });
+
+  const productOptionsFor = (selectedProductId) => {
+    if (!selectedProductId) {
+      return filteredProducts;
+    }
+
+    const selectedProduct = products.find((product) => Number(product.id) === Number(selectedProductId));
+    if (!selectedProduct || filteredProducts.some((product) => Number(product.id) === Number(selectedProductId))) {
+      return filteredProducts;
+    }
+
+    return [selectedProduct, ...filteredProducts];
+  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -446,14 +474,14 @@ export default function DeliveryOrders() {
 
             <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
               <Input
-                label="Tìm sản phẩm từ API"
+                label="Tìm sản phẩm trong danh sách"
                 value={productSearch}
                 onChange={(event) => setProductSearch(event.target.value)}
                 placeholder="Nhập SKU hoặc tên sản phẩm"
               />
               <div className="flex items-center gap-2 text-xs text-shade-50">
                 {masterDataLoading && <Loader2 className="h-4 w-4 animate-spin" />}
-                <span>{masterDataLoading ? 'Đang tải danh mục sản phẩm...' : `Đang hiển thị ${products.length} sản phẩm`}</span>
+                <span>{masterDataLoading ? 'Đang tải danh mục sản phẩm...' : `Đang hiển thị ${filteredProducts.length}/${products.length} sản phẩm`}</span>
               </div>
             </div>
 
@@ -486,7 +514,7 @@ export default function DeliveryOrders() {
                           onChange={(event) => updateItemRow(index, 'product_id', event.target.value)}
                         >
                           <option value="">{masterDataLoading ? '-- Đang tải sản phẩm --' : '-- Chọn sản phẩm --'}</option>
-                          {products.map((product) => (
+                          {productOptionsFor(item.product_id).map((product) => (
                             <option key={product.id} value={product.id}>[{product.sku}] {product.name}</option>
                           ))}
                         </select>

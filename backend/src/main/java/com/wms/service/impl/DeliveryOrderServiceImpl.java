@@ -222,6 +222,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
             List<Inventory> candidates = inventoryRepository.findValidFifoCandidates(warehouseId, productId);
             List<PickingCandidateResponse> candidateResponses = candidates.stream()
                     .map(inv -> toPickingCandidate(inv, item))
+                    .sorted(Comparator.comparing(PickingCandidateResponse::getReceivedDate,
+                            Comparator.nullsLast(Comparator.reverseOrder())))
                     .toList();
             result.put(item.getId(), candidateResponses);
         }
@@ -964,7 +966,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         if (currentBalance.add(orderValue).compareTo(creditLimit) > 0) {
             throw creditHold("Dealer credit limit exceeded");
         }
-        LocalDate overdueThreshold = LocalDate.now().minusDays(30);
+        LocalDate overdueThreshold = LocalDate.now().minusDays(45);
         boolean hasOverdue = invoiceRepository.existsByDealerIdAndStatusInAndDueDateBefore(
                 dealer.getId(), List.of(InvoiceStatus.UNPAID, InvoiceStatus.PARTIALLY_PAID), overdueThreshold);
         if (hasOverdue) {
@@ -980,7 +982,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         Map<Long, BigDecimal> insufficient = new LinkedHashMap<>();
         for (Map.Entry<Long, BigDecimal> entry : requestedByProduct.entrySet()) {
             BigDecimal available = availableQty(warehouse.getId(), entry.getKey());
-            if (available.compareTo(entry.getValue()) < 0) {
+            if (available.compareTo(entry.getValue()) <= 0) {
                 insufficient.put(entry.getKey(), available);
             }
         }
@@ -1608,7 +1610,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                         "Total picked quantity must equal the active planned quantity for each delivery order item");
             }
             BigDecimal cumulativePass = value(item.getQcPassQty()).add(value(passByItemId.get(item.getId())));
-            if (cumulativePass.compareTo(value(item.getRequestedQty())) > 0) {
+            if (cumulativePass.compareTo(value(item.getRequestedQty())) > 0
+                    && cumulativePass.subtract(value(item.getRequestedQty())).compareTo(BigDecimal.ONE) > 0) {
                 throw new OutboundDeliveryException("PICK_QC_RESULT_INVALID",
                         HttpStatus.UNPROCESSABLE_ENTITY,
                         "Cumulative QC-passed quantity cannot exceed requested quantity");

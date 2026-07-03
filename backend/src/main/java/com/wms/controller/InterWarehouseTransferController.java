@@ -68,7 +68,7 @@ public class InterWarehouseTransferController {
     @PreAuthorize("hasAnyRole('PLANNER','WAREHOUSE_MANAGER')")
     @Operation(summary = "Cancel NEW or unshipped APPROVED transfer")
     public InterWarehouseTransferResponse cancelTransfer(@PathVariable Long id,
-                                                         @RequestBody InterWarehouseTransferReasonRequest request) {
+                                                         @Valid @RequestBody InterWarehouseTransferReasonRequest request) {
         return transferService.cancelTransfer(id, request, currentUser());
     }
 
@@ -83,7 +83,7 @@ public class InterWarehouseTransferController {
     @PreAuthorize("hasRole('WAREHOUSE_MANAGER')")
     @Operation(summary = "Source warehouse manager rejects NEW transfer")
     public InterWarehouseTransferResponse rejectTransfer(@PathVariable Long id,
-                                                         @RequestBody InterWarehouseTransferReasonRequest request) {
+                                                         @Valid @RequestBody InterWarehouseTransferReasonRequest request) {
         return transferService.rejectTransfer(id, request, currentUser());
     }
 
@@ -136,7 +136,7 @@ public class InterWarehouseTransferController {
     @PreAuthorize("hasAnyRole('WAREHOUSE_MANAGER','ADMIN','CEO')")
     @Operation(summary = "Destination warehouse manager finalizes transfer")
     public InterWarehouseTransferResponse finalReceive(@PathVariable Long id,
-                                                       @RequestBody InterWarehouseTransferFinalReceiveRequest request) {
+                                                       @Valid @RequestBody InterWarehouseTransferFinalReceiveRequest request) {
         return transferService.finalReceive(id, request, currentUser());
     }
 
