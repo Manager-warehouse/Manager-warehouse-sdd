@@ -42,12 +42,15 @@ jobs:
           status=$?
           if [ "$status" -ne 0 ]; then
             echo "::group::Surefire error reports"
-            find target/surefire-reports -type f -name '*.txt' -exec \
-              grep -l '<<< ERROR!' {} + 2>/dev/null \
+            grep -lE 'errors="[1-9][0-9]*"' target/surefire-reports/TEST-*.xml 2>/dev/null \
               | while IFS= read -r report; do
                   echo "===== $report ====="
-                  cat "$report"
+                  perl -0777 -ne \
+                    'while (/<testcase\b.*?<error\b.*?<\/testcase>/sg) { print "$&\n" }' \
+                    "$report"
                 done
+            find target/surefire-reports -maxdepth 1 -type f \
+              \( -name '*.dump' -o -name '*.dumpstream' \) -print -exec cat {} \;
             echo "::endgroup::"
           fi
           exit "$status"
