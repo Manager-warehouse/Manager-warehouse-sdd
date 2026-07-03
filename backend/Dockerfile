@@ -8,7 +8,8 @@ RUN --mount=type=cache,target=/root/.m2 mvn -B -DskipTests clean package
 
 FROM eclipse-temurin:21-jre-alpine
 
-RUN apk add --no-cache curl \
+RUN apk upgrade --no-cache \
+    && apk add --no-cache curl \
     && addgroup -S wms \
     && adduser -S wms -G wms
 

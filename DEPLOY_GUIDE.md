@@ -112,19 +112,28 @@ Như trạng thái hiện tại trên tài khoản Cloudflare của anh:
 
 ---
 
-### Bước 4: Khởi Chạy Ứng Dụng Bằng Docker Compose
+### Bước 4: Chuẩn Bị Thư Mục Release Và Backup
 
-Sử dụng file cấu hình sản xuất `compose.prod.yaml` đã tích hợp sẵn PostgreSQL để build và chạy ứng dụng ở chế độ nền (daemon):
+Production không build source trên VPS. Workflow GitHub Actions sẽ publish image
+đã kiểm tra lên GHCR rồi truyền đúng image digest cho VPS. Chuẩn bị các thư mục
+bền vững trước lần deploy đầu tiên:
 
 ```bash
-# Build và khởi chạy tất cả services (frontend, backend, postgres database)
-docker compose -f compose.prod.yaml up -d --build
+sudo mkdir -p /app/backups/manager-warehouse /app/manager-warehouse/.release
+sudo chown -R "$USER":"$USER" /app/backups/manager-warehouse /app/manager-warehouse/.release
+chmod 700 /app/backups/manager-warehouse /app/manager-warehouse/.release
 ```
 
-**Cách kiểm tra trạng thái hoạt động:**
-* Xem các container đang chạy: `docker compose -f compose.prod.yaml ps`
-* Xem log của backend: `docker compose -f compose.prod.yaml logs -f backend`
-* Xem log của frontend (Nginx): `docker compose -f compose.prod.yaml logs -f frontend`
+Đăng nhập GHCR một lần để xác nhận PAT có quyền đọc package. Không ghi PAT vào
+shell history; workflow sẽ đăng nhập lại bằng secret được mask:
+
+```bash
+printf '%s' '<GHCR_READ_PACKAGES_PAT>' | docker login ghcr.io -u '<GITHUB_USERNAME>' --password-stdin
+docker logout ghcr.io
+```
+
+`compose.prod.yaml` bắt buộc `BACKEND_IMAGE` và `FRONTEND_IMAGE` dạng
+`ghcr.io/...@sha256:...`; không dùng mutable tag như `latest`.
 
 ---
 
@@ -137,6 +146,19 @@ tạo các repository/environment secrets sau:
 * `VPS_USERNAME`: user SSH có quyền chạy Docker.
 * `VPS_SSH_KEY`: nội dung private key SSH.
 * `VPS_SSH_FINGERPRINT`: fingerprint SHA256 của SSH host key.
+* `GHCR_USERNAME`: GitHub user hoặc machine user có quyền đọc package.
+* `GHCR_TOKEN`: fine-grained PAT chỉ có quyền tối thiểu để đọc GHCR package.
+
+Tạo GitHub Environment tên `production`, cấu hình **Required reviewers** và bật
+**Prevent self-review**. Đặt
+các secrets trên ở environment scope khi có thể. Người phê duyệt production phải
+khác người tạo thay đổi để giữ maker/checker separation.
+
+Tạo các environment variables:
+
+* `VPS_APP_DIR`: mặc định `/app/manager-warehouse`.
+* `VPS_BACKUP_DIR`: mặc định `/app/backups/manager-warehouse`.
+* `PRODUCTION_URL`: ví dụ `https://manager-warehouse.online`, dùng cho public smoke test.
 
 Lấy fingerprint trực tiếp từ VPS bằng lệnh:
 
@@ -145,9 +167,33 @@ sudo ssh-keygen -l -f /etc/ssh/ssh_host_ed25519_key.pub | awk '{print $2}'
 ```
 
 Workflow `.github/workflows/deploy.yml` chạy khi code được push/merge vào `main`
-hoặc khi bấm **Run workflow**. Nó chỉ deploy sau khi backend test, frontend
-test/build và Docker image build đều thành công. VPS phải có file `.env`; workflow
-không truyền mật khẩu ứng dụng từ GitHub xuống VPS.
+hoặc khi bấm **Run workflow**. Quy trình bắt buộc:
+
+1. Backend tests và frontend lint/test/build.
+2. Build backend/frontend images một lần và publish lên GHCR theo commit SHA.
+3. Scan image; lỗ hổng HIGH/CRITICAL chưa có bản sửa sẽ chặn deploy.
+4. Chờ required reviewer phê duyệt GitHub Environment `production`.
+5. VPS tạo backup PostgreSQL có checksum trước khi thay đổi containers.
+6. Pull đúng image digest, deploy, kiểm tra container health và domain public.
+7. Nếu kiểm tra thất bại, rollback application images về release trước; workflow
+   không tự động downgrade Flyway hoặc restore database.
+
+VPS phải có file `.env`; workflow không truyền database/JWT/mail secrets từ
+GitHub xuống VPS. `GHCR_TOKEN` chỉ được dùng để pull image và không được ghi log.
+
+### Ngoại Lệ Bảo Mật Có Thời Hạn
+
+Các CVE tồn tại do constitution khóa Spring Boot 3.4.5 được ghi tại
+`.trivyignore.yaml` theo quyết định chấp nhận rủi ro ngày 2026-07-03. Ngoại lệ:
+
+* hết hạn ngày **2026-08-02**;
+* chỉ áp dụng cho CVE và target đã liệt kê;
+* vẫn hiển thị trong output scan dưới dạng suppressed;
+* không bỏ qua HIGH/CRITICAL mới;
+* phải được xóa khi stack được nâng cấp hoặc trước ngày hết hạn.
+
+Không gia hạn bằng cách đổi ngày đơn thuần. Mọi gia hạn cần Release Approver đánh
+giá lại CVE, ghi lý do và tạo PR review riêng.
 
 ---
 
@@ -190,4 +236,30 @@ Thay vì mở cổng 3000 trên Azure firewall, chúng ta sẽ cài đặt tác 
 1. Truy cập thử tên miền: `https://manager-warehouse.online`
 2. Kiểm tra chứng chỉ bảo mật SSL (Xem có biểu tượng ổ khóa xanh trên trình duyệt).
 3. Đăng nhập thử vào hệ thống WMS để kiểm tra xem Nginx proxy các API request tới Backend và Database có thông suốt hay không.
-4. Chạy lệnh `/save-brain` trên AI chat này sau khi hoàn tất để ghi nhớ trạng thái deploy.
+4. Đối chiếu image đang chạy với release digest:
+   ```bash
+   docker inspect --format '{{.Config.Image}}' \
+     "$(docker compose --env-file .env --env-file .release/current.env -f compose.prod.yaml ps -q backend)"
+   docker inspect --format '{{.Config.Image}}' \
+     "$(docker compose --env-file .env --env-file .release/current.env -f compose.prod.yaml ps -q frontend)"
+   ```
+5. Kiểm tra backup mới nhất có file `.dump` khác rỗng và file checksum `.sha256`.
+
+### Rollback Và Sự Cố
+
+Script deploy tự rollback application khi health/smoke test thất bại và
+`.release/previous.env` tồn tại. Để chạy lại rollback ứng dụng có kiểm soát:
+
+```bash
+cd /app/manager-warehouse
+APP_DIR="$PWD" \
+BACKUP_DIR=/app/backups/manager-warehouse \
+PREVIOUS_RELEASE_ENV="$PWD/.release/previous.env" \
+PUBLIC_URL=https://manager-warehouse.online \
+scripts/deploy/rollback-release.sh
+```
+
+Rollback không đổi migration history. Nếu previous application không tương thích
+với schema hiện tại hoặc rollback vẫn unhealthy, dừng thao tác và mở incident.
+Database restore chỉ được thực hiện sau khi đánh giá dữ liệu phát sinh kể từ
+backup và có phê duyệt riêng; không chạy restore tự động từ workflow.
