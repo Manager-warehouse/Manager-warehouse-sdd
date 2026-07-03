@@ -1,0 +1,178 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  verify-backend:
+    name: Verify backend
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: wms_test
+          POSTGRES_USER: wms
+          POSTGRES_PASSWORD: wms_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: temurin
+          cache: maven
+      - name: Run backend tests
+        working-directory: backend
+        run: |
+          set +e
+          mvn -B test --no-transfer-progress
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            echo "::group::Surefire error reports"
+            grep -lE 'errors="[1-9][0-9]*"' target/surefire-reports/TEST-*.xml 2>/dev/null \
+              | while IFS= read -r report; do
+                  echo "===== $report ====="
+                  perl -0777 -ne \
+                    'while (/<testcase\b.*?<error\b.*?<\/testcase>/sg) { print "$&\n" }' \
+                    "$report"
+                done
+            find target/surefire-reports -maxdepth 1 -type f \
+              \( -name '*.dump' -o -name '*.dumpstream' \) -print -exec cat {} \;
+            echo "::endgroup::"
+          fi
+          exit "$status"
+        env:
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/wms_test
+          SPRING_DATASOURCE_USERNAME: wms
+          SPRING_DATASOURCE_PASSWORD: wms_test
+
+      - name: Upload backend test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-backend-surefire-reports
+          path: backend/target/surefire-reports/
+          if-no-files-found: ignore
+
+  verify-frontend:
+    name: Verify frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Run frontend tests
+        working-directory: frontend
+        run: npm test --if-present
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+  verify-images:
+    name: Verify production images
+    needs: [verify-backend, verify-frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Compose and build images
+        run: docker compose -f compose.prod.yaml config --quiet && docker compose -f compose.prod.yaml build
+        env:
+          DB_PASSWORD: ci-only-password
+          JWT_SECRET: ci-only-secret-with-at-least-sixty-four-characters-0123456789abcdef
+          MAIL_USERNAME: ci@example.invalid
+          MAIL_PASSWORD: ci-only-password
+
+  deploy:
+    name: Deploy production
+    needs: verify-images
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Deploy through SSH
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          APP_DIR: ${{ vars.VPS_APP_DIR || '/app/manager-warehouse' }}
+          DEPLOY_SHA: ${{ github.sha }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          fingerprint: ${{ secrets.VPS_SSH_FINGERPRINT }}
+          port: 22
+          command_timeout: 20m
+          envs: APP_DIR,DEPLOY_SHA
+          script: |
+            set -Eeuo pipefail
+
+            cd "$APP_DIR"
+            test -f compose.prod.yaml
+            test -f .env
+
+            if ! git diff --quiet || ! git diff --cached --quiet; then
+              echo "Deployment aborted: tracked files on the VPS have local changes."
+              exit 1
+            fi
+
+            git fetch origin main
+            git checkout main
+            git pull --ff-only origin main
+
+            if [ "$(git rev-parse HEAD)" != "$DEPLOY_SHA" ]; then
+              echo "Deployment aborted: VPS checkout does not match $DEPLOY_SHA."
+              exit 1
+            fi
+
+            docker compose -f compose.prod.yaml config --quiet
+            docker compose -f compose.prod.yaml build --pull
+            docker compose -f compose.prod.yaml up -d --remove-orphans
+
+            healthy=false
+            for attempt in $(seq 1 24); do
+              healthy=true
+              for service in db backend frontend; do
+                container_id="$(docker compose -f compose.prod.yaml ps -q "$service")"
+                if [ -z "$container_id" ]; then
+                  healthy=false
+                  break
+                fi
+                status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container_id")"
+                if [ "$status" != "healthy" ]; then
+                  healthy=false
+                  break
+                fi
+              done
+              [ "$healthy" = true ] && break
+              sleep 5
+            done
+
+            if [ "$healthy" != true ]; then
+              docker compose -f compose.prod.yaml ps
+              docker compose -f compose.prod.yaml logs --tail=200
+              exit 1
+            fi
+
+            docker compose -f compose.prod.yaml ps
+            docker image prune -f

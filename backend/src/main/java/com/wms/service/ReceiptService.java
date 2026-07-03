@@ -84,9 +84,15 @@ public class ReceiptService {
 
     @Transactional(readOnly = true)
     public List<ReceiptResponse> getReceiptsByWarehouse(Long warehouseId, User actor) {
+        return getReceiptsByWarehouseAndType(warehouseId, null, actor);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ReceiptResponse> getReceiptsByWarehouseAndType(Long warehouseId, ReceiptType type, User actor) {
         requireWarehouseAccess(actor, warehouseId);
-        List<Receipt> receipts = receiptRepository
-                .findByWarehouseIdOrderByDocumentDateDescCreatedAtDesc(warehouseId);
+        List<Receipt> receipts = type != null 
+                ? receiptRepository.findByWarehouseIdAndTypeOrderByDocumentDateDescCreatedAtDesc(warehouseId, type)
+                : receiptRepository.findByWarehouseIdOrderByDocumentDateDescCreatedAtDesc(warehouseId);
         return receipts.stream()
                 .map(r -> receiptMapper.toResponse(r,
                         receiptItemRepository.findByReceiptIdOrderByIdAsc(r.getId())))

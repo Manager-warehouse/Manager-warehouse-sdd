@@ -129,6 +129,7 @@ ALTER TABLE inter_warehouse_transfers ADD COLUMN IF NOT EXISTS transfer_request_
 -- =============================================================================
 
 ALTER TABLE adjustments ADD COLUMN IF NOT EXISTS quarantine_record_id BIGINT REFERENCES quarantine_records(id);
+ALTER TABLE adjustments ADD COLUMN IF NOT EXISTS outbound_qc_record_id BIGINT REFERENCES outbound_qc_records(id);
 
 -- =============================================================================
 -- 5. CẬP NHẬT AUDIT LOG ACTIONS
