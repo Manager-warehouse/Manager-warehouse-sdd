@@ -35,15 +35,26 @@ jobs:
           cache: 'maven'
 
       - name: Run backend tests
-        run: cd backend && mvn test --no-transfer-progress
+        run: |
+          cd backend
+          set +e
+          mvn -B test --no-transfer-progress
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            echo "::group::Surefire error reports"
+            find target/surefire-reports -type f -name '*.txt' -exec \
+              grep -l '<<< ERROR!' {} + 2>/dev/null \
+              | while IFS= read -r report; do
+                  echo "===== $report ====="
+                  cat "$report"
+                done
+            echo "::endgroup::"
+          fi
+          exit "$status"
         env:
           SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/wms_test
           SPRING_DATASOURCE_USERNAME: wms
           SPRING_DATASOURCE_PASSWORD: wms_test
-
-      - name: Print backend test errors
-        if: failure()
-        run: grep -R -n -A 80 '<<< ERROR!' backend/target/surefire-reports || true
 
       - name: Upload backend test reports
         if: always()
