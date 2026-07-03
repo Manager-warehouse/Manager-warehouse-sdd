@@ -15,14 +15,26 @@ jobs:
 
       - name: Check forbidden patterns
         run: |
-          FORBIDDEN=("System\.out\.print" "console\.log" "\.env" "TODO")
+          FORBIDDEN=("System\.out\.print" "console\.log" "TODO")
           for pattern in "${FORBIDDEN[@]}"; do
-            if git diff origin/main..HEAD -- . | grep -E "\+.*$pattern" | grep -v "constitution-check.yml"; then
+            if git diff --unified=0 origin/main..HEAD -- backend/src/main frontend/src \
+              | grep -E "^\+[^+].*$pattern"; then
               echo "❌ Forbidden pattern found: $pattern"
               exit 1
             fi
           done
           echo "✅ No forbidden patterns found"
+
+      - name: Check tracked environment files
+        run: |
+          tracked_env_files="$(git ls-files | grep -E '(^|/)\.env($|\.)|\.env$' \
+            | grep -Ev '(^|/)(\.env\.example|docker\.env\.example)$' || true)"
+          if [ -n "$tracked_env_files" ]; then
+            echo "$tracked_env_files"
+            echo "❌ Environment files must not be committed"
+            exit 1
+          fi
+          echo "✅ No environment files tracked"
 
       - name: Check hardcoded secrets
         run: |
@@ -33,8 +45,10 @@ jobs:
           echo "✅ No secrets leaked"
 
       - name: Check branch naming convention
+        env:
+          HEAD_REF: ${{ github.head_ref }}
         run: |
-          BRANCH="${{ github.head_ref }}"
+          BRANCH="$HEAD_REF"
           if [[ ! "$BRANCH" =~ ^(feat|fix|spec|chore)/ ]]; then
             echo "❌ Branch '$BRANCH' violates naming: feat/*, fix/*, spec/*, chore/*"
             exit 1

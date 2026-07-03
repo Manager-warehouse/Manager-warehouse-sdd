@@ -41,6 +41,18 @@ jobs:
           SPRING_DATASOURCE_USERNAME: wms
           SPRING_DATASOURCE_PASSWORD: wms_test
 
+      - name: Print backend test errors
+        if: failure()
+        run: grep -R -n -A 80 '<<< ERROR!' backend/target/surefire-reports || true
+
+      - name: Upload backend test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-surefire-reports
+          path: backend/target/surefire-reports/
+          if-no-files-found: ignore
+
   test-frontend:
     name: Frontend Tests (Jest)
     runs-on: ubuntu-latest
