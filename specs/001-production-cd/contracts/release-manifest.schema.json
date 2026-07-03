@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WMS Production Release Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "releaseId",
+    "sourceSha",
+    "createdAt",
+    "requestedBy",
+    "approvedBy",
+    "backendImage",
+    "frontendImage",
+    "gateResults",
+    "approvedAt",
+    "status"
+  ],
+  "properties": {
+    "releaseId": { "type": "string", "minLength": 1 },
+    "sourceSha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "requestedBy": { "type": "string", "minLength": 1 },
+    "approvedBy": { "type": "string", "minLength": 1 },
+    "backendImage": { "type": "string", "pattern": "^.+@sha256:[0-9a-f]{64}$" },
+    "frontendImage": { "type": "string", "pattern": "^.+@sha256:[0-9a-f]{64}$" },
+    "previousReleaseId": { "type": "string", "minLength": 1 },
+    "backupId": { "type": "string", "minLength": 1 },
+    "gateResults": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["backendTests", "frontendLint", "frontendTests", "frontendBuild", "productionConfig", "imageBuild", "vulnerabilityPolicy", "manifestValidation"],
+      "properties": {
+        "backendTests": { "const": "PASSED" },
+        "frontendLint": { "const": "PASSED" },
+        "frontendTests": { "const": "PASSED" },
+        "frontendBuild": { "const": "PASSED" },
+        "productionConfig": { "const": "PASSED" },
+        "imageBuild": { "const": "PASSED" },
+        "vulnerabilityPolicy": { "const": "PASSED" },
+        "manifestValidation": { "const": "PASSED" }
+      }
+    },
+    "approvedAt": { "type": "string", "format": "date-time" },
+    "verificationStartedAt": { "type": "string", "format": "date-time" },
+    "verificationCompletedAt": { "type": "string", "format": "date-time" },
+    "status": {
+      "enum": [
+        "REQUESTED",
+        "VERIFIED",
+        "APPROVED",
+        "DEPLOYING",
+        "HEALTHY",
+        "BLOCKED",
+        "ROLLED_BACK",
+        "INCIDENT"
+      ]
+    }
+  }
+}

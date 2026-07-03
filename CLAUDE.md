@@ -1193,7 +1193,7 @@ Quy trình đối chiếu số liệu tồn kho thực tế, tính toán chênh 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **Manager-warehouse-sdd** (9030 symbols, 23832 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **Manager-warehouse-sdd** (10108 symbols, 26153 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
