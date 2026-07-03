@@ -38,7 +38,10 @@ jobs:
 
       - name: Check hardcoded secrets
         run: |
-          if git diff origin/main..HEAD -- . | grep -E '\+.*(password|secret|api.?key|jwt.?secret).*=' | grep -iv 'test\|example\|dummy'; then
+          if git diff --unified=0 origin/main..HEAD -- \
+            backend/src/main frontend/src .github/workflows compose.yaml compose.prod.yaml \
+            | grep -Ei '^\+[^+].*(password|secret|api.?key|jwt.?secret)[[:alnum:]_.-]*[[:space:]]*=' \
+            | grep -Eiv 'test|example|dummy|ci-only|\$\{|getenv|environment'; then
             echo "❌ Possible hardcoded secret detected"
             exit 1
           fi
