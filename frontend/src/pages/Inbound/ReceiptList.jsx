@@ -8,6 +8,7 @@ import { ROLES } from '../../utils/constants';
 import { Plus, Search, FileText, CheckCircle2, AlertTriangle, Eye, Check, X, Loader2 } from 'lucide-react';
 import Input from '../../components/common/Input';
 import Badge from '../../components/common/Badge';
+import Button from '../../components/common/Button';
 
 const ReceiptList = () => {
   const navigate = useNavigate();
@@ -201,13 +202,13 @@ const ReceiptList = () => {
         </div>
 
         {(hasRole(ROLES.PLANNER) || hasRole(ROLES.ADMIN)) && (
-          <button
+          <Button
             onClick={() => navigate('/inbound/create')}
-            className="btn-pill btn-pill-primary flex items-center gap-2"
+            variant="primary"
+            icon={Plus}
           >
-            <Plus className="w-4 h-4" />
-            <span>Lập lệnh nhập kho</span>
-          </button>
+            Lập lệnh nhập kho
+          </Button>
         )}
       </div>
 
@@ -268,7 +269,7 @@ const ReceiptList = () => {
           <p className="text-sm text-shade-50">Thử đổi bộ lọc để xem phiếu nhập mua hoặc phiếu nhập trả.</p>
         </div>
           ) : (
-        <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden card-premium">
+        <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
@@ -284,7 +285,7 @@ const ReceiptList = () => {
               </thead>
               <tbody className="divide-y divide-hairline-light">
                 {filteredReceipts.map((receipt) => (
-                  <tr key={receipt.id} className="hover:bg-canvas-cream transition-colors">
+                  <tr key={receipt.id} className="hover:bg-canvas-cream/50 transition-colors">
                     <td className="px-6 py-4 text-xs font-bold">{receipt.receipt_number}</td>
                     <td className="px-6 py-4 text-xs font-semibold">
                       {receipt.type === 'PURCHASE' ? (
@@ -462,7 +463,7 @@ const ReceiptList = () => {
                     </thead>
                     <tbody className="divide-y divide-hairline-light">
                       {selectedReceipt.items.map((item) => (
-                        <tr key={item.id} className="hover:bg-canvas-cream">
+                        <tr key={item.id} className="hover:bg-canvas-cream/50 transition-colors">
                           <td className="px-4 py-3">
                             <span className="font-semibold block">{getProductName(item)}</span>
                             <span className="text-[10px] text-shade-40 font-mono block">{getProductSku(item)}</span>

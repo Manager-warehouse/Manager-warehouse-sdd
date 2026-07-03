@@ -388,7 +388,7 @@ const PartnerManagement = () => {
             <p className="text-sm text-shade-50">Thử thay đổi bộ lọc tìm kiếm hoặc thêm mới đại lý.</p>
           </div>
         ) : (
-          <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden card-premium">
+          <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
@@ -423,13 +423,13 @@ const PartnerManagement = () => {
                         </td>
                         <td className="px-6 py-4 text-center">
                           {isCreditHold ? (
-                            <span className="text-xs font-semibold uppercase tracking-wider bg-red-50 text-red-700 border border-red-200 px-2.5 py-0.5 rounded-pill inline-flex items-center gap-1 whitespace-nowrap">
-                              <ShieldAlert className="w-3 h-3 shrink-0" /> HOLD (Vượt nợ)
-                            </span>
+                            <Badge type="danger">
+                              <span className="inline-flex items-center gap-1">
+                                <ShieldAlert className="w-3 h-3 shrink-0" /> HOLD (Vượt nợ)
+                              </span>
+                            </Badge>
                           ) : (
-                            <span className="text-xs font-semibold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-0.5 rounded-pill inline-flex items-center whitespace-nowrap">
-                              ACTIVE (Tốt)
-                            </span>
+                            <Badge type="success">ACTIVE (Tốt)</Badge>
                           )}
                         </td>
                         <td className="px-6 py-4 text-center">
@@ -480,7 +480,7 @@ const PartnerManagement = () => {
             <p className="text-sm text-shade-50">Thử thay đổi bộ lọc tìm kiếm hoặc thêm mới nhà cung cấp.</p>
           </div>
         ) : (
-          <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden card-premium">
+          <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>

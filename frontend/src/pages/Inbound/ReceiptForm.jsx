@@ -369,7 +369,7 @@ const ReceiptForm = () => {
           </div>
 
           {/* Selected Items Table */}
-          <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 card-premium overflow-hidden">
+          <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 overflow-hidden">
             <div className="p-4 border-b border-hairline-light bg-canvas-cream">
               <h3 className="text-xs font-bold uppercase tracking-widest text-shade-40">
                 Chi tiết sản phẩm lập lệnh
@@ -393,7 +393,7 @@ const ReceiptForm = () => {
                   </thead>
                   <tbody className="divide-y divide-hairline-light">
                     {selectedItems.map((item, index) => (
-                      <tr key={item.product_id} className="hover:bg-canvas-cream">
+                      <tr key={item.product_id} className="hover:bg-canvas-cream/50 transition-colors">
                         <td className="px-6 py-4">
                           <span className="font-bold block">{item.sku}</span>
                           <span className="text-shade-50 block">{item.name}</span>

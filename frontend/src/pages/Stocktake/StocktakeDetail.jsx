@@ -317,15 +317,15 @@ const StocktakeDetail = () => {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-hairline-light">
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-shade-60">SKU / Tên</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-shade-60">Lô</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-shade-60">Vị trí</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-shade-60">Hệ thống</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-shade-60">Thực tế</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-shade-60">Chênh lệch</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-shade-60">Lỗi NV</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-shade-60">
+                <tr className="bg-canvas-cream border-b border-hairline-light">
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-shade-60">SKU / Tên</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-shade-60">Lô</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-shade-60">Vị trí</th>
+                  <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-shade-60">Hệ thống</th>
+                  <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-shade-60">Thực tế</th>
+                  <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-shade-60">Chênh lệch</th>
+                  <th className="px-6 py-4 text-center text-xs font-semibold uppercase tracking-wider text-shade-60">Lỗi NV</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-shade-60">
                     Lý do chênh lệch {isInProgress && <span className="text-red-500">*</span>}
                   </th>
                 </tr>
@@ -337,17 +337,17 @@ const StocktakeDetail = () => {
                   const variance = actualNum !== null ? actualNum - item.system_qty : item.variance_qty;
 
                   return (
-                    <tr key={item.id} className="hover:bg-canvas-cream/40">
-                      <td className="px-4 py-3">
+                    <tr key={item.id} className="hover:bg-canvas-cream/50 transition-colors">
+                      <td className="px-6 py-4">
                         <p className="text-xs font-mono text-shade-50">{item.product_sku}</p>
                         <p className="text-sm font-semibold text-canvas-night">{item.product_name}</p>
                       </td>
-                      <td className="px-4 py-3 text-xs font-mono text-shade-50">{item.batch_number}</td>
-                      <td className="px-4 py-3 text-xs font-mono text-shade-50">{item.location_code}</td>
-                      <td className="px-4 py-3 text-right text-sm font-semibold text-canvas-night">
+                      <td className="px-6 py-4 text-xs font-mono text-shade-50">{item.batch_number}</td>
+                      <td className="px-6 py-4 text-xs font-mono text-shade-50">{item.location_code}</td>
+                      <td className="px-6 py-4 text-right text-sm font-semibold text-canvas-night">
                         {item.system_qty.toLocaleString('vi-VN')}
                       </td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-6 py-4 text-right">
                         {isInProgress ? (
                           <input
                             type="number"
@@ -364,7 +364,7 @@ const StocktakeDetail = () => {
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-6 py-4 text-right">
                         {variance !== null && variance !== undefined && variance !== 0 ? (
                           <span className={`text-sm font-bold ${variance < 0 ? 'text-red-600' : 'text-green-600'}`}>
                             {variance > 0 ? '+' : ''}{variance.toLocaleString('vi-VN')}
@@ -373,7 +373,7 @@ const StocktakeDetail = () => {
                           <span className="text-sm text-shade-50">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-center">
+                      <td className="px-6 py-4 text-center">
                         {isInProgress ? (
                           <input
                             type="checkbox"
@@ -389,7 +389,7 @@ const StocktakeDetail = () => {
                           )
                         )}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-6 py-4">
                         {isInProgress ? (
                           <input
                             type="text"

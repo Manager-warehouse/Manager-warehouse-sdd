@@ -124,47 +124,47 @@ const InventoryValuation = () => {
           </div>
 
           {/* Details Table */}
-          <div className="card-premium flex flex-col gap-4 overflow-hidden">
-            <div className="flex items-center justify-between border-b border-hairline-light pb-3">
+          <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between border-b border-hairline-light px-6 py-4">
               <h3 className="text-sm font-semibold text-shade-60 uppercase tracking-wider">
                 Bảng phân tích định giá chi tiết
               </h3>
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
+              <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="border-b border-hairline-light bg-canvas-cream text-shade-60 font-semibold uppercase tracking-wider">
-                    <th className="px-6 py-4">Kho vật lý</th>
-                    <th className="px-6 py-4">Mã SKU</th>
-                    <th className="px-6 py-4">Tên sản phẩm</th>
-                    <th className="px-6 py-4">Số lô hàng</th>
-                    <th className="px-6 py-4 text-right">Tồn thực tế</th>
-                    <th className="px-6 py-4 text-right">Đơn giá vốn</th>
-                    <th className="px-6 py-4 text-right">Tổng giá trị</th>
+                  <tr className="bg-canvas-cream border-b border-hairline-light">
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Kho vật lý</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã SKU</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Tên sản phẩm</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Số lô hàng</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Tồn thực tế</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Đơn giá vốn</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Tổng giá trị</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-hairline-light font-light text-shade-60">
+                <tbody className="divide-y divide-hairline-light">
                   {data.records.length === 0 ? (
                     <tr>
-                      <td colSpan="7" className="py-8 text-center text-shade-50">
+                      <td colSpan="7" className="px-6 py-8 text-center text-shade-50">
                         Không có sản phẩm nào có số dư tồn kho khả dụng lớn hơn 0.
                       </td>
                     </tr>
                   ) : (
                     data.records.map((r, idx) => (
                       <tr key={idx} className="hover:bg-canvas-cream/50 transition-colors">
-                        <td className="px-6 py-3 font-semibold text-ink">{r.warehouse_name}</td>
-                        <td className="px-6 py-3 font-mono font-medium">{r.product_sku}</td>
-                        <td className="px-6 py-3">{r.product_name}</td>
-                        <td className="px-6 py-3 font-mono text-[11px] text-shade-60">{r.batch_number}</td>
-                        <td className="px-6 py-3 text-right font-medium">
+                        <td className="px-6 py-4 text-xs font-semibold text-ink">{r.warehouse_name}</td>
+                        <td className="px-6 py-4 text-xs font-mono font-medium">{r.product_sku}</td>
+                        <td className="px-6 py-4 text-xs">{r.product_name}</td>
+                        <td className="px-6 py-4 text-xs font-mono text-[11px] text-shade-60">{r.batch_number}</td>
+                        <td className="px-6 py-4 text-xs text-right font-medium">
                           {new Intl.NumberFormat('vi-VN').format(r.total_qty)}
                         </td>
-                        <td className="px-6 py-3 text-right text-shade-60">
+                        <td className="px-6 py-4 text-xs text-right text-shade-60">
                           {formatCurrency(r.unit_cost)}
                         </td>
-                        <td className="px-6 py-3 text-right font-semibold text-ink">
+                        <td className="px-6 py-4 text-xs text-right font-semibold text-ink">
                           {formatCurrency(r.valuation_amount)}
                         </td>
                       </tr>

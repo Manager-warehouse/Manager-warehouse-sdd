@@ -142,7 +142,7 @@ const ReceiptReceive = () => {
         </div>
 
         {/* Items Table */}
-        <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 card-premium overflow-hidden">
+        <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 overflow-hidden">
           <div className="p-4 border-b border-hairline-light bg-canvas-cream">
             <h3 className="text-xs font-bold uppercase tracking-widest text-shade-40">
               Danh sách sản phẩm kiểm đếm
@@ -163,7 +163,7 @@ const ReceiptReceive = () => {
                   const sku = getProductSku(item);
                   
                   return (
-                    <tr key={item.receipt_item_id} className="hover:bg-canvas-cream">
+                    <tr key={item.receipt_item_id} className="hover:bg-canvas-cream/50 transition-colors">
                       <td className="px-6 py-4">
                         <span className="font-bold block">{sku}</span>
                         <span className="text-shade-50 block">{getProductName(item)}</span>

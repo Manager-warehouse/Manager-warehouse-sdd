@@ -189,10 +189,9 @@ export default function TripPlanning() {
           </p>
         </div>
         {hasRole(ROLES.DISPATCHER) && (
-          <button onClick={openCreateModal} className="btn-pill btn-pill-primary flex items-center gap-2">
-            <Plus className="w-4 h-4" />
-            <span>Lập chuyến mới</span>
-          </button>
+          <Button onClick={openCreateModal} variant="primary" icon={Plus}>
+            Lập chuyến mới
+          </Button>
         )}
       </div>
 
@@ -233,12 +232,12 @@ export default function TripPlanning() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredTrips.map((trip) => (
-            <div key={trip.id} className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 hover:shadow-md transition-shadow card-premium overflow-hidden">
+            <div key={trip.id} className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 hover:shadow-md transition-shadow overflow-hidden flex flex-col h-full">
               <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center">
                 <span className="text-xs font-bold text-ink">{trip.trip_number}</span>
                 {getTripStatusBadge(trip.status)}
               </div>
-              <div className="p-4 flex flex-col gap-2">
+              <div className="p-4 flex flex-col gap-2 flex-1">
                 <p className="flex items-center gap-2 text-xs"><Truck className="w-3.5 h-3.5 text-shade-40" /><span className="text-shade-50">Xe:</span><span className="font-semibold text-ink">{trip.vehicle_plate || '-'}</span></p>
                 <p className="flex items-center gap-2 text-xs"><User className="w-3.5 h-3.5 text-shade-40" /><span className="text-shade-50">Tài xế:</span><span className="font-semibold text-ink">{trip.driver_name || trip.driver_id}</span></p>
                 <p className="flex items-center gap-2 text-xs"><Calendar className="w-3.5 h-3.5 text-shade-40" /><span className="text-shade-50">TG dự kiến:</span><span className="font-semibold text-ink">{trip.planned_start_at ? new Date(trip.planned_start_at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) : '-'} - {trip.planned_end_at ? new Date(trip.planned_end_at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) : '-'}</span></p>

@@ -116,8 +116,7 @@ const StocktakeList = () => {
           <p className="text-xs text-shade-50 font-light mt-1">{activeWarehouse.name}</p>
         </div>
         {canCreate && (
-          <Button variant="primary" onClick={() => navigate('/stocktake/new')}>
-            <Plus className="w-4 h-4" />
+          <Button variant="primary" icon={Plus} onClick={() => navigate('/stocktake/new')}>
             Tạo phiếu kiểm kê
           </Button>
         )}
@@ -162,27 +161,27 @@ const StocktakeList = () => {
             <tbody className="divide-y divide-hairline-light">
               {stocktakes.map((st) => (
                 <tr key={st.id} className="hover:bg-canvas-cream/50 transition-colors">
-                  <td className="px-6 py-3 font-mono text-xs text-[#127a3c] font-semibold">
+                  <td className="px-6 py-4 font-mono text-xs text-[#127a3c] font-semibold">
                     {st.stock_take_number}
                   </td>
-                  <td className="px-6 py-3 text-xs text-shade-50">{st.stock_take_date}</td>
-                  <td className="px-6 py-3 text-xs text-shade-50">{st.conducted_by_name}</td>
-                  <td className="px-6 py-3">
+                  <td className="px-6 py-4 text-xs text-shade-50">{st.stock_take_date}</td>
+                  <td className="px-6 py-4 text-xs text-shade-50">{st.conducted_by_name}</td>
+                  <td className="px-6 py-4">
                     <Badge size="sm" colorClassName={STATUS_STYLES[st.status] || 'bg-canvas-cream text-shade-50 border-hairline-light'}>
                       {STATUS_LABELS[st.status] || st.status}
                     </Badge>
                   </td>
-                  <td className="px-6 py-3 text-xs text-shade-50">
+                  <td className="px-6 py-4 text-xs text-shade-50">
                     {st.approval_level ? APPROVAL_LABELS[st.approval_level] || st.approval_level : '—'}
                   </td>
-                  <td className="px-6 py-3 text-xs text-right font-mono">
+                  <td className="px-6 py-4 text-xs text-right font-mono">
                     {st.total_variance_value !== 0 && st.total_variance_value !== null ? (
                       <span className={st.total_variance_value < 0 ? 'text-red-600' : 'text-green-600'}>
                         {st.total_variance_value.toLocaleString('vi-VN')}₫
                       </span>
                     ) : '—'}
                   </td>
-                  <td className="px-6 py-3">
+                  <td className="px-6 py-4">
                     <div className="flex items-center justify-center gap-1.5">
                       <button
                         onClick={() => navigate(`/stocktake/${st.id}`)}

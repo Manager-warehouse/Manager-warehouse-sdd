@@ -224,8 +224,8 @@ const Dashboard = () => {
       </div>
 
       {/* Cross-Warehouse Stock Management Section */}
-      <div className="card-premium flex flex-col gap-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-hairline-light pb-3 gap-3">
+      <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden flex flex-col">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-hairline-light px-6 py-4 gap-3">
           <div>
             <h3 className="text-sm font-bold text-shade-70 uppercase tracking-wider">
               Tồn kho hệ thống & Xin điều chuyển nhanh
@@ -259,30 +259,30 @@ const Dashboard = () => {
         </div>
 
         {loadingStock && productsStock.length === 0 ? (
-          <div className="py-12 text-center text-shade-50 text-xs font-light">
+          <div className="px-6 py-12 text-center text-shade-50 text-xs font-light">
             Đang truy vấn tồn kho hệ thống...
           </div>
         ) : productsStock.length === 0 ? (
-          <div className="py-12 text-center text-shade-50 text-xs font-light">
+          <div className="px-6 py-12 text-center text-shade-50 text-xs font-light">
             Không tìm thấy sản phẩm nào phù hợp.
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-hairline-light bg-canvas-cream/50 text-[10px] uppercase font-bold text-shade-60 tracking-wider">
-                  <th className="py-3 px-4">Mã SKU</th>
-                  <th className="py-3 px-4">Tên Sản Phẩm</th>
-                  <th className="py-3 px-4">Đơn vị</th>
+                <tr className="bg-canvas-cream border-b border-hairline-light">
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã SKU</th>
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Tên Sản Phẩm</th>
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Đơn vị</th>
                   {physicalWarehouses.map((wh) => (
-                    <th key={wh.id} className="py-3 px-4 text-center">
+                    <th key={wh.id} className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center">
                       {wh.name}
                     </th>
                   ))}
-                  <th className="py-3 px-4 text-right">Hành động</th>
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Hành động</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-hairline-light">
                 {productsStock.map((prod) => {
                   // Check if any other warehouse has stock > 0
                   const hasStockElsewhere = physicalWarehouses.some(
@@ -292,15 +292,15 @@ const Dashboard = () => {
                   return (
                     <tr
                       key={prod.id}
-                      className="border-b border-hairline-light hover:bg-canvas-cream/30 transition-colors text-xs font-light text-ink"
+                      className="hover:bg-canvas-cream/50 transition-colors text-xs font-light text-ink"
                     >
-                      <td className="py-3 px-4 font-mono font-semibold text-shade-70">
+                      <td className="px-6 py-4 font-mono font-semibold text-shade-70">
                         {prod.sku}
                       </td>
-                      <td className="py-3 px-4 font-normal">
+                      <td className="px-6 py-4 font-normal">
                         {prod.name}
                       </td>
-                      <td className="py-3 px-4 text-shade-50">
+                      <td className="px-6 py-4 text-shade-50">
                         {prod.unit}
                       </td>
                       {physicalWarehouses.map((wh) => {
@@ -309,8 +309,8 @@ const Dashboard = () => {
                         return (
                           <td
                             key={wh.id}
-                            className={`py-3 px-4 text-center font-semibold ${
-                              isActiveWh 
+                            className={`px-6 py-4 text-center font-semibold ${
+                              isActiveWh
                                 ? 'bg-canvas-cream/40 border-x border-hairline-light text-ink'
                                 : qty > 0 ? 'text-[#127a3c]' : 'text-shade-40'
                             }`}
@@ -319,7 +319,7 @@ const Dashboard = () => {
                           </td>
                         );
                       })}
-                      <td className="py-3 px-4 text-right">
+                      <td className="px-6 py-4 text-right">
                         {hasStockElsewhere ? (
                           <button
                             onClick={() => handleOpenTransferModal(prod)}

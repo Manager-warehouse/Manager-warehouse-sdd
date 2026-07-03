@@ -6,6 +6,7 @@ import { masterDataService } from '../../services/masterData.service';
 import { ROLES } from '../../utils/constants';
 import { Loader2, ArrowRightLeft, Trash2, ShieldAlert, Check, X } from 'lucide-react';
 import Button from '../../components/common/Button';
+import Badge from '../../components/common/Badge';
 
 const QuarantineWorkspace = () => {
   const activeWarehouse = useAuthStore((state) => state.activeWarehouse);
@@ -134,12 +135,12 @@ const QuarantineWorkspace = () => {
   // Finance Threshold Badge Renderer
   const getDisposalThresholdBadge = (value) => {
     if (value < 5000000) {
-      return <span className="text-[10px] font-semibold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-pill whitespace-nowrap">Tự động duyệt (&lt; 5M)</span>;
+      return <Badge size="sm" type="success">Tự động duyệt (&lt; 5M)</Badge>;
     }
     if (value <= 100000000) {
-      return <span className="text-[10px] font-semibold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-pill whitespace-nowrap">Trưởng kho duyệt (5M - 100M)</span>;
+      return <Badge size="sm" type="warning">Trưởng kho duyệt (5M - 100M)</Badge>;
     }
-    return <span className="text-[10px] font-semibold uppercase tracking-wider bg-red-50 text-red-700 border border-red-200 px-2 py-0.5 rounded-pill whitespace-nowrap">Bắt buộc CEO duyệt (&gt; 100M)</span>;
+    return <Badge size="sm" type="danger">Bắt buộc CEO duyệt (&gt; 100M)</Badge>;
   };
 
   const getDisposalApprovalAuthority = (value) => {
@@ -280,7 +281,7 @@ const QuarantineWorkspace = () => {
             <p className="text-sm text-shade-50">Mọi yêu cầu tiêu hủy hàng hỏng đã được xử lý xong.</p>
           </div>
         ) : (
-          <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden card-premium">
+          <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-canvas-cream border-b border-hairline-light">
@@ -296,7 +297,7 @@ const QuarantineWorkspace = () => {
                 {pendingDisposals.map((adj) => {
                   const isAuthorized = getDisposalApprovalAuthority(adj.total_value);
                   return (
-                    <tr key={adj.id} className="hover:bg-canvas-cream">
+                    <tr key={adj.id} className="hover:bg-canvas-cream/50 transition-colors">
                       <td className="px-6 py-4">
                         <span className="font-bold block">{adj.product_sku}</span>
                         <span className="text-shade-50 block">{adj.product_name}</span>

@@ -4,6 +4,7 @@ import { useUiStore } from '../../stores/ui.store';
 import { inboundService } from '../../services/inbound.service';
 import { masterDataService } from '../../services/masterData.service';
 import { ArrowLeft, Loader2, Warehouse, AlertTriangle, CheckCircle, Check, PackageCheck } from 'lucide-react';
+import Badge from '../../components/common/Badge';
 
 const PutawayPlan = () => {
   const { id } = useParams();
@@ -294,7 +295,7 @@ const PutawayPlan = () => {
                   const prod = getProduct(item.product_id);
                   const bin = bins.find(b => Number(b.id) === Number(item.location_id));
                   return (
-                    <tr key={item.id} className="hover:bg-canvas-cream">
+                    <tr key={item.id} className="hover:bg-canvas-cream/50 transition-colors">
                       <td className="px-6 py-4">
                         <span className="font-bold block">{prod.sku}</span>
                         <span className="text-shade-50 block">{prod.name}</span>
@@ -306,11 +307,13 @@ const PutawayPlan = () => {
                           <span className="font-semibold text-ink">{bin ? bin.code : `Bin #${item.location_id}`}</span>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-center">
-                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-pill">
-                          <CheckCircle className="w-3 h-3" />
-                          Đã cất
-                        </span>
+                      <td className="px-4 py-4 text-center">
+                        <Badge size="sm" type="success">
+                          <span className="inline-flex items-center gap-1">
+                            <CheckCircle className="w-3 h-3" />
+                            Đã cất
+                          </span>
+                        </Badge>
                       </td>
                     </tr>
                   );
@@ -380,7 +383,7 @@ const PutawayPlan = () => {
           </div>
 
           {/* Putaway Table */}
-          <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 card-premium overflow-hidden">
+          <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 overflow-hidden">
             <div className="p-4 border-b border-hairline-light bg-canvas-cream flex items-center justify-between">
               <h3 className="text-xs font-bold uppercase tracking-widest text-shade-40">
                 Chi tiết phân vị trí cất hàng đạt QC
@@ -406,7 +409,7 @@ const PutawayPlan = () => {
                     const binId = selectedBins[item.id];
                     
                     return (
-                      <tr key={item.id} className="hover:bg-canvas-cream">
+                      <tr key={item.id} className="hover:bg-canvas-cream/50 transition-colors">
                         <td className="px-6 py-4">
                           <span className="font-bold block">{prod.sku}</span>
                           <span className="text-shade-50 block mb-1">{prod.name}</span>

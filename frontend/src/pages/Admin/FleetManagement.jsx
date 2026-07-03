@@ -294,15 +294,21 @@ const FleetManagement = () => {
 
     if (diffDays < 0) {
       return (
-        <span className="text-xs font-semibold uppercase tracking-wider bg-red-50 text-red-700 border border-red-200 px-2.5 py-0.5 rounded-pill whitespace-nowrap inline-flex items-center gap-1">
-          <ShieldAlert className="w-3 h-3" /> ĐÃ HẾT HẠN
-        </span>
+        <Badge type="danger">
+          <span className="inline-flex items-center gap-1">
+            <ShieldAlert className="w-3 h-3" /> ĐÃ HẾT HẠN
+          </span>
+        </Badge>
       );
     }
     if (diffDays <= 30) {
       return (
-        <span className="text-xs font-semibold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200 px-2.5 py-0.5 rounded-pill whitespace-nowrap inline-flex items-center gap-1" title={`Bằng lái sẽ hết hạn vào ngày ${dateStr}`}>
-          <Calendar className="w-3 h-3" /> Hạn còn {diffDays} ngày
+        <span title={`Bằng lái sẽ hết hạn vào ngày ${dateStr}`}>
+          <Badge type="warning">
+            <span className="inline-flex items-center gap-1">
+              <Calendar className="w-3 h-3" /> Hạn còn {diffDays} ngày
+            </span>
+          </Badge>
         </span>
       );
     }
@@ -321,9 +327,9 @@ const FleetManagement = () => {
       MAINTENANCE: 'Bảo dưỡng',
     };
     return (
-      <span className={`text-xs font-semibold uppercase tracking-wider border px-2.5 py-0.5 rounded-pill whitespace-nowrap ${styles[status] || styles.AVAILABLE}`}>
+      <Badge colorClassName={styles[status] || styles.AVAILABLE}>
         {labels[status] || status}
-      </span>
+      </Badge>
     );
   };
 
@@ -339,9 +345,9 @@ const FleetManagement = () => {
       UNAVAILABLE: 'Không khả dụng',
     };
     return (
-      <span className={`text-xs font-semibold uppercase tracking-wider border px-2.5 py-0.5 rounded-pill whitespace-nowrap ${styles[status] || styles.AVAILABLE}`}>
+      <Badge colorClassName={styles[status] || styles.AVAILABLE}>
         {labels[status] || status}
-      </span>
+      </Badge>
     );
   };
 
@@ -494,7 +500,7 @@ const FleetManagement = () => {
             <p className="text-sm text-shade-50">Thử thay đổi bộ lọc tìm kiếm hoặc đăng ký xe mới.</p>
           </div>
         ) : (
-          <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden card-premium">
+          <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
@@ -575,7 +581,7 @@ const FleetManagement = () => {
             <p className="text-sm text-shade-50">Thử thay đổi bộ lọc tìm kiếm hoặc thêm mới tài xế.</p>
           </div>
         ) : (
-          <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden card-premium">
+          <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
@@ -606,9 +612,7 @@ const FleetManagement = () => {
                       </td>
                       <td className="px-6 py-4 text-center">
                         {dr.rowType === 'ACCOUNT_ONLY' ? (
-                          <span className="text-xs font-semibold uppercase tracking-wider border px-2.5 py-0.5 rounded-pill whitespace-nowrap bg-amber-50 text-amber-700 border-amber-200">
-                            Chưa có hồ sơ
-                          </span>
+                          <Badge type="warning">Chưa có hồ sơ</Badge>
                         ) : getDriverStatusBadge(dr.status)}
                       </td>
                       <td className="px-6 py-4 text-center">

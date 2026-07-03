@@ -7,6 +7,7 @@ import { masterDataService } from '../../services/masterData.service';
 import Modal from '../../components/common/Modal';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
+import Badge from '../../components/common/Badge';
 import { Loader2, Plus, Receipt, ShieldAlert, Check, Coins, FileText, ArrowRightLeft } from 'lucide-react';
 
 const ReturnsWorkspace = () => {
@@ -259,21 +260,15 @@ const ReturnsWorkspace = () => {
         </div>
         <Button
           variant={activeTab === 'CREATE' ? 'outline-light' : 'primary'}
+          icon={activeTab === 'CREATE' ? null : Plus}
           onClick={() => setActiveTab(activeTab === 'LIST' ? 'CREATE' : 'LIST')}
         >
-          {activeTab === 'CREATE' ? (
-            'Quay lại danh sách'
-          ) : (
-            <>
-              <Plus className="w-4 h-4" />
-              Lập phiếu trả hàng mới
-            </>
-          )}
+          {activeTab === 'CREATE' ? 'Quay lại danh sách' : 'Lập phiếu trả hàng mới'}
         </Button>
       </div>
 
       {activeTab === 'LIST' ? (
-        <div className="card-premium overflow-hidden flex flex-col">
+        <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden flex flex-col">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
               <Loader2 className="w-8 h-8 animate-spin text-ink" />
@@ -304,25 +299,21 @@ const ReturnsWorkspace = () => {
                 <tbody className="divide-y divide-hairline-light">
                   {returns.map((ret) => (
                     <tr key={ret.id} className="hover:bg-canvas-cream/50 transition-colors">
-                      <td className="px-6 py-3 font-medium text-ink">
+                      <td className="px-6 py-4 font-medium text-ink">
                         <div className="flex items-center gap-2">
                           <FileText className="w-4 h-4 text-shade-40 shrink-0" />
                           {ret.receipt_number}
                         </div>
                       </td>
-                      <td className="px-6 py-3 text-shade-60 font-mono text-xs">{ret.source_order_code}</td>
-                      <td className="px-6 py-3 text-shade-60 text-xs">{getDealerName(ret.dealer_id)}</td>
-                      <td className="px-6 py-3 text-shade-60 text-xs">{ret.document_date}</td>
-                      <td className="px-6 py-3">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-pill text-[10px] font-semibold border uppercase tracking-wider whitespace-nowrap ${
-                          ret.status === 'APPROVED'
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            : 'bg-amber-50 text-amber-700 border-amber-200'
-                        }`}>
+                      <td className="px-6 py-4 text-shade-60 font-mono text-xs">{ret.source_order_code}</td>
+                      <td className="px-6 py-4 text-shade-60 text-xs">{getDealerName(ret.dealer_id)}</td>
+                      <td className="px-6 py-4 text-shade-60 text-xs">{ret.document_date}</td>
+                      <td className="px-6 py-4">
+                        <Badge size="sm" type={ret.status === 'APPROVED' ? 'success' : 'warning'}>
                           {ret.status === 'APPROVED' ? 'Đã duyệt nhập kho' : 'Nháp / Chờ QC'}
-                        </span>
+                        </Badge>
                       </td>
-                      <td className="px-6 py-3">
+                      <td className="px-6 py-4">
                         {ret.credit_note_generated ? (
                           <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700">
                             <Check className="w-3.5 h-3.5" /> Đã hoàn công nợ
@@ -331,7 +322,7 @@ const ReturnsWorkspace = () => {
                           <span className="text-shade-50 text-[10px] font-medium">Chưa hoàn</span>
                         )}
                       </td>
-                      <td className="px-6 py-3 text-right">
+                      <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-2">
                           {ret.status === 'DRAFT' && (
                             <button
@@ -409,12 +400,12 @@ const ReturnsWorkspace = () => {
                     <tbody className="divide-y divide-hairline-light">
                       {returnItems.map(item => (
                         <tr key={item.productId} className="hover:bg-canvas-cream/50 transition-colors">
-                          <td className="px-6 py-3">
+                          <td className="px-6 py-4">
                             <div className="font-semibold text-ink text-sm">{item.name}</div>
                             <div className="text-shade-60 font-mono text-[10px] mt-0.5">{item.sku}</div>
                           </td>
-                          <td className="px-6 py-3 text-shade-60 font-semibold text-sm">{item.maxQty}</td>
-                          <td className="px-6 py-3">
+                          <td className="px-6 py-4 text-shade-60 font-semibold text-sm">{item.maxQty}</td>
+                          <td className="px-6 py-4">
                             <input
                               type="number"
                               min="0"
@@ -484,12 +475,12 @@ const ReturnsWorkspace = () => {
                 <tbody className="divide-y divide-hairline-light">
                   {qcItems.map(item => (
                     <tr key={item.receiptItemId} className="hover:bg-canvas-cream/50 transition-colors">
-                      <td className="px-6 py-3">
+                      <td className="px-6 py-4">
                         <div className="font-semibold text-ink text-sm">{item.name}</div>
                         <div className="text-shade-60 font-mono text-[10px] mt-0.5">{item.sku}</div>
                       </td>
-                      <td className="px-6 py-3 text-center font-semibold text-shade-60 text-sm">{item.expectedQty}</td>
-                      <td className="px-6 py-3">
+                      <td className="px-6 py-4 text-center font-semibold text-shade-60 text-sm">{item.expectedQty}</td>
+                      <td className="px-6 py-4">
                         <input
                           type="number"
                           min="0"
@@ -498,7 +489,7 @@ const ReturnsWorkspace = () => {
                           className="w-full px-2 py-1.5 bg-canvas-light border border-hairline-light rounded-md text-ink focus:outline-none focus:ring-1 focus:ring-ink text-center font-semibold text-sm transition-all"
                         />
                       </td>
-                      <td className="px-6 py-3">
+                      <td className="px-6 py-4">
                         <input
                           type="number"
                           min="0"
@@ -508,10 +499,10 @@ const ReturnsWorkspace = () => {
                           className="w-full px-2 py-1.5 bg-canvas-light border border-hairline-light rounded-md text-emerald-700 focus:outline-none focus:ring-1 focus:ring-ink text-center font-semibold text-sm transition-all"
                         />
                       </td>
-                      <td className="px-6 py-3 text-center font-semibold text-red-600 text-sm">
+                      <td className="px-6 py-4 text-center font-semibold text-red-600 text-sm">
                         {item.failedQty}
                       </td>
-                      <td className="px-6 py-3 flex flex-col gap-2">
+                      <td className="px-6 py-4 flex flex-col gap-2">
                         {item.passedQty > 0 && (
                           <div className="flex flex-col gap-1">
                             <span className="text-[10px] font-semibold uppercase tracking-wider text-shade-60">Vị trí đạt chuẩn</span>

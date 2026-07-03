@@ -78,7 +78,7 @@ const ProductivityReport = () => {
         </div>
 
         {/* Filters */}
-        <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+        <div className="flex gap-2 flex-nowrap items-center w-full lg:w-auto">
           {/* Warehouse */}
           <div className="w-48">
             <Input
@@ -171,32 +171,32 @@ const ProductivityReport = () => {
           </div>
 
           {/* Tabs Content */}
-          <div className="card-premium overflow-hidden">
+          <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden">
             {activeTab === 'staff' && (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className="border-b border-hairline-light bg-canvas-cream text-shade-60 font-semibold uppercase tracking-wider">
-                      <th className="py-3 px-4">Mã nhân viên</th>
-                      <th className="py-3 px-4">Tên nhân viên</th>
-                      <th className="py-3 px-4">Vai trò</th>
-                      <th className="py-3 px-4 text-right">Số lượt soạn hàng (Picking runs)</th>
-                      <th className="py-3 px-4 text-right">Tổng sản lượng soạn (Qty)</th>
+                    <tr className="bg-canvas-cream border-b border-hairline-light">
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã nhân viên</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Tên nhân viên</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Vai trò</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Số lượt soạn hàng (Picking runs)</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Tổng sản lượng soạn (Qty)</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-hairline-light font-light text-shade-80">
+                  <tbody className="divide-y divide-hairline-light">
                     {data.staff_productivity.length === 0 ? (
                       <tr>
-                        <td colSpan="5" className="py-8 text-center text-shade-50">Không có dữ liệu bốc xếp trong dải ngày này.</td>
+                        <td colSpan="5" className="px-6 py-8 text-center text-shade-50">Không có dữ liệu bốc xếp trong dải ngày này.</td>
                       </tr>
                     ) : (
                       data.staff_productivity.map((p, idx) => (
                         <tr key={idx} className="hover:bg-canvas-cream/50 transition-colors">
-                          <td className="py-3.5 px-4 font-mono font-medium">{p.employee_code}</td>
-                          <td className="py-3.5 px-4 font-semibold text-ink">{p.full_name}</td>
-                          <td className="py-3.5 px-4 text-shade-50 text-[10px] uppercase font-bold">{p.role}</td>
-                          <td className="py-3.5 px-4 text-right font-medium">{p.picking_runs_count} lượt</td>
-                          <td className="py-3.5 px-4 text-right font-bold text-ink">
+                          <td className="px-6 py-4 text-xs font-mono font-medium">{p.employee_code}</td>
+                          <td className="px-6 py-4 text-xs font-semibold text-ink">{p.full_name}</td>
+                          <td className="px-6 py-4 text-xs text-shade-50 text-[10px] uppercase font-bold">{p.role}</td>
+                          <td className="px-6 py-4 text-xs text-right font-medium">{p.picking_runs_count} lượt</td>
+                          <td className="px-6 py-4 text-xs text-right font-bold text-ink">
                             {new Intl.NumberFormat('vi-VN').format(p.total_picked_qty)} cái
                           </td>
                         </tr>
@@ -211,27 +211,27 @@ const ProductivityReport = () => {
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className="border-b border-hairline-light bg-canvas-cream text-shade-60 font-semibold uppercase tracking-wider">
-                      <th className="py-3 px-4">Mã thủ kho</th>
-                      <th className="py-3 px-4">Tên thủ kho</th>
-                      <th className="py-3 px-4">Vai trò</th>
-                      <th className="py-3 px-4 text-right">Số picking plans lập</th>
-                      <th className="py-3 px-4 text-right">Tổng số lượng QC checked</th>
+                    <tr className="bg-canvas-cream border-b border-hairline-light">
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã thủ kho</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Tên thủ kho</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Vai trò</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Số picking plans lập</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Tổng số lượng QC checked</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-hairline-light font-light text-shade-80">
+                  <tbody className="divide-y divide-hairline-light">
                     {data.storekeeper_productivity.length === 0 ? (
                       <tr>
-                        <td colSpan="5" className="py-8 text-center text-shade-50">Không có dữ liệu QC trong dải ngày này.</td>
+                        <td colSpan="5" className="px-6 py-8 text-center text-shade-50">Không có dữ liệu QC trong dải ngày này.</td>
                       </tr>
                     ) : (
                       data.storekeeper_productivity.map((p, idx) => (
                         <tr key={idx} className="hover:bg-canvas-cream/50 transition-colors">
-                          <td className="py-3.5 px-4 font-mono font-medium">{p.employee_code}</td>
-                          <td className="py-3.5 px-4 font-semibold text-ink">{p.full_name}</td>
-                          <td className="py-3.5 px-4 text-shade-50 text-[10px] uppercase font-bold">{p.role}</td>
-                          <td className="py-3.5 px-4 text-right font-medium">{p.picking_plans_created} kế hoạch</td>
-                          <td className="py-3.5 px-4 text-right font-bold text-ink">
+                          <td className="px-6 py-4 text-xs font-mono font-medium">{p.employee_code}</td>
+                          <td className="px-6 py-4 text-xs font-semibold text-ink">{p.full_name}</td>
+                          <td className="px-6 py-4 text-xs text-shade-50 text-[10px] uppercase font-bold">{p.role}</td>
+                          <td className="px-6 py-4 text-xs text-right font-medium">{p.picking_plans_created} kế hoạch</td>
+                          <td className="px-6 py-4 text-xs text-right font-bold text-ink">
                             {new Intl.NumberFormat('vi-VN').format(p.total_qc_checked_qty)} cái
                           </td>
                         </tr>
@@ -246,27 +246,27 @@ const ProductivityReport = () => {
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className="border-b border-hairline-light bg-canvas-cream text-shade-60 font-semibold uppercase tracking-wider">
-                      <th className="py-3 px-4">Mã tài xế</th>
-                      <th className="py-3 px-4">Tên tài xế</th>
-                      <th className="py-3 px-4">Vai trò</th>
-                      <th className="py-3 px-4 text-right">Số chuyến hoàn thành</th>
-                      <th className="py-3 px-4 text-right">Số đơn giao thành công</th>
+                    <tr className="bg-canvas-cream border-b border-hairline-light">
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã tài xế</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Tên tài xế</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Vai trò</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Số chuyến hoàn thành</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Số đơn giao thành công</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-hairline-light font-light text-shade-80">
+                  <tbody className="divide-y divide-hairline-light">
                     {data.driver_productivity.length === 0 ? (
                       <tr>
-                        <td colSpan="5" className="py-8 text-center text-shade-50">Không có dữ liệu giao vận trong dải ngày này.</td>
+                        <td colSpan="5" className="px-6 py-8 text-center text-shade-50">Không có dữ liệu giao vận trong dải ngày này.</td>
                       </tr>
                     ) : (
                       data.driver_productivity.map((p, idx) => (
                         <tr key={idx} className="hover:bg-canvas-cream/50 transition-colors">
-                          <td className="py-3.5 px-4 font-mono font-medium">{p.employee_code}</td>
-                          <td className="py-3.5 px-4 font-semibold text-ink">{p.full_name}</td>
-                          <td className="py-3.5 px-4 text-shade-50 text-[10px] uppercase font-bold">{p.role}</td>
-                          <td className="py-3.5 px-4 text-right font-medium">{p.trips_completed} chuyến</td>
-                          <td className="py-3.5 px-4 text-right font-bold text-ink">{p.successful_deliveries} đơn</td>
+                          <td className="px-6 py-4 text-xs font-mono font-medium">{p.employee_code}</td>
+                          <td className="px-6 py-4 text-xs font-semibold text-ink">{p.full_name}</td>
+                          <td className="px-6 py-4 text-xs text-shade-50 text-[10px] uppercase font-bold">{p.role}</td>
+                          <td className="px-6 py-4 text-xs text-right font-medium">{p.trips_completed} chuyến</td>
+                          <td className="px-6 py-4 text-xs text-right font-bold text-ink">{p.successful_deliveries} đơn</td>
                         </tr>
                       ))
                     )}

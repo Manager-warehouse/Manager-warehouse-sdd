@@ -303,8 +303,8 @@ const InterWarehouseTransferWorkspace = () => {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 flex-wrap">
+        <div className="flex-1 min-w-0">
           <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
             Vận hành / Transfer
           </span>
@@ -315,7 +315,7 @@ const InterWarehouseTransferWorkspace = () => {
             Lập phiếu thủ công từ lệnh Công ty mẹ, giữ chỗ, xuất hàng, vận chuyển và xác nhận nhận hàng.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-shrink-0">
           <Button icon={RefreshCw} variant="outline-light" onClick={loadData} loading={loading}>Tải lại</Button>
           {canCreateTransfer && (
             <Button icon={Plus} onClick={() => setFormOpen((value) => !value)}>Tạo phiếu</Button>
@@ -364,52 +364,54 @@ const InterWarehouseTransferWorkspace = () => {
       )}
 
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.8fr)] gap-4">
-        <div className="border border-hairline-light rounded-lg bg-canvas-light overflow-hidden">
-          <div className="p-4 flex flex-col md:flex-row gap-3 md:items-center justify-between border-b border-hairline-light">
-            <div className="w-full md:w-80">
-              <Input type="text" leftIcon={Search} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Tìm mã phiếu, mã lệnh..." />
+        <div className="border border-hairline-light rounded-lg bg-canvas-light shadow-level-3 overflow-hidden">
+          <div className="p-4 flex flex-col md:flex-row gap-4 items-center justify-between border-b border-hairline-light">
+            <div className="flex flex-col md:flex-row gap-4 items-center w-full md:w-auto">
+              <div className="w-full md:w-80">
+                <Input type="text" leftIcon={Search} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Tìm mã phiếu, mã lệnh..." />
+              </div>
+              <Input
+                type="select"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                options={[
+                  { value: 'ALL', label: 'Tất cả trạng thái' },
+                  { value: 'NEW', label: 'NEW' },
+                  { value: 'APPROVED', label: 'APPROVED' },
+                  { value: 'IN_TRANSIT', label: 'IN_TRANSIT' },
+                  { value: 'COMPLETED', label: 'COMPLETED' },
+                  { value: 'COMPLETED_WITH_DISCREPANCY', label: 'COMPLETED_WITH_DISCREPANCY' },
+                  { value: 'REJECTED', label: 'REJECTED' },
+                  { value: 'CANCELLED', label: 'CANCELLED' },
+                ]}
+              />
             </div>
-            <Input
-              type="select"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              options={[
-                { value: 'ALL', label: 'Tất cả trạng thái' },
-                { value: 'NEW', label: 'NEW' },
-                { value: 'APPROVED', label: 'APPROVED' },
-                { value: 'IN_TRANSIT', label: 'IN_TRANSIT' },
-                { value: 'COMPLETED', label: 'COMPLETED' },
-                { value: 'COMPLETED_WITH_DISCREPANCY', label: 'COMPLETED_WITH_DISCREPANCY' },
-                { value: 'REJECTED', label: 'REJECTED' },
-                { value: 'CANCELLED', label: 'CANCELLED' },
-              ]}
-            />
           </div>
           <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="bg-canvas-cream text-xs uppercase tracking-wider text-shade-60">
-                <tr>
-                  <th className="text-left px-6 py-4 font-semibold">Phiếu</th>
-                  <th className="text-left px-6 py-4 font-semibold">Tuyến</th>
-                  <th className="text-left px-6 py-4 font-semibold">Trạng thái</th>
-                  <th className="text-right px-6 py-4 font-semibold">Dòng hàng</th>
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-canvas-cream border-b border-hairline-light">
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Phiếu</th>
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Tuyến</th>
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Trạng thái</th>
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Dòng hàng</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-hairline-light">
                 {filteredTransfers.map((transfer) => (
                   <tr key={transfer.id} onClick={() => setSelectedId(transfer.id)}
-                    className={`cursor-pointer hover:bg-canvas-cream/60 ${selectedId === transfer.id ? 'bg-aloe-10/30' : ''}`}>
-                    <td className="px-6 py-3">
+                    className={`cursor-pointer hover:bg-canvas-cream/50 transition-colors ${selectedId === transfer.id ? 'bg-aloe-10/30' : ''}`}>
+                    <td className="px-6 py-4">
                       <div className="font-semibold">{transfer.transferNumber}</div>
                       <div className="text-xs text-shade-50">{transfer.externalInstructionCode}</div>
                     </td>
-                    <td className="px-6 py-3 text-xs">{transfer.sourceWarehouseCode} → {transfer.destinationWarehouseCode}</td>
-                    <td className="px-6 py-3"><InterWarehouseTransferStatusBadge status={transfer.status} /></td>
-                    <td className="px-6 py-3 text-right">{transfer.items?.length || 0}</td>
+                    <td className="px-6 py-4 text-xs">{transfer.sourceWarehouseCode} → {transfer.destinationWarehouseCode}</td>
+                    <td className="px-6 py-4"><InterWarehouseTransferStatusBadge status={transfer.status} /></td>
+                    <td className="px-6 py-4 text-right">{transfer.items?.length || 0}</td>
                   </tr>
                 ))}
                 {!filteredTransfers.length && (
-                  <tr><td className="px-4 py-8 text-center text-shade-50" colSpan="4">Không có phiếu điều chuyển phù hợp.</td></tr>
+                  <tr><td className="px-6 py-8 text-center text-shade-50" colSpan="4">Không có phiếu điều chuyển phù hợp.</td></tr>
                 )}
               </tbody>
             </table>

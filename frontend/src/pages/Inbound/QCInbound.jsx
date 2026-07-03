@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useUiStore } from '../../stores/ui.store';
 import { inboundService } from '../../services/inbound.service';
 import { ArrowLeft, Loader2, ShieldCheck, ShieldAlert } from 'lucide-react';
+import Badge from '../../components/common/Badge';
 
 const QCInbound = () => {
   const { id } = useParams();
@@ -177,18 +178,16 @@ const QCInbound = () => {
     const failed = parseFloat(item.qc_failed_qty) || 0;
     const actual = parseFloat(item.actual_qty) || 0;
 
-    const baseStyle = "text-[9px] font-bold px-1.5 py-0.5 rounded-pill border uppercase";
-
     if (passed + failed !== actual) {
-      return <span className={`${baseStyle} bg-red-100 text-red-800 border-red-200`}>Lỗi lệch</span>;
+      return <Badge size="sm" type="danger">Lỗi lệch</Badge>;
     }
     if (passed === actual) {
-      return <span className={`${baseStyle} bg-emerald-50 text-emerald-700 border-emerald-200`}>Đạt 100%</span>;
+      return <Badge size="sm" type="success">Đạt 100%</Badge>;
     }
     if (failed === actual) {
-      return <span className={`${baseStyle} bg-red-50 text-red-700 border-red-200`}>Lỗi 100%</span>;
+      return <Badge size="sm" type="danger">Lỗi 100%</Badge>;
     }
-    return <span className={`${baseStyle} bg-amber-50 text-amber-700 border-amber-200`}>Một phần</span>;
+    return <Badge size="sm" type="warning">Một phần</Badge>;
   };
 
   if (loading) {
@@ -245,7 +244,7 @@ const QCInbound = () => {
           </div>
         </div>
 
-        <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 card-premium overflow-hidden">
+        <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 overflow-hidden">
           <div className="p-4 border-b border-hairline-light bg-canvas-cream flex items-center justify-between">
             <h3 className="text-xs font-bold uppercase tracking-widest text-shade-40">
               Biên bản phân loại chất lượng
@@ -275,7 +274,7 @@ const QCInbound = () => {
                   const isMismatch = passed + failed !== actual;
 
                   return (
-                    <tr key={item.id} className={`hover:bg-canvas-cream ${isMismatch ? 'bg-red-50/30' : ''}`}>
+                    <tr key={item.id} className={`hover:bg-canvas-cream/50 transition-colors ${isMismatch ? 'bg-red-50/30' : ''}`}>
                       <td className="px-6 py-4">
                         <span className="font-bold block">{getProductSku(item)}</span>
                         <span className="text-shade-50 block">{getProductName(item)}</span>

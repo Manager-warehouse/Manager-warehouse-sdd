@@ -475,21 +475,21 @@ const TransferRequestWorkspace = () => {
               {/* Items list */}
               <div>
                 <label className="text-xs font-semibold uppercase tracking-wider text-shade-60 block mb-2">Danh sách sản phẩm ({selectedRequest.items?.length || 0})</label>
-                <div className="border border-hairline-light rounded overflow-hidden">
-                  <table className="w-full text-left text-xs">
+                <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 overflow-hidden">
+                  <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr className="bg-canvas-cream border-b border-hairline-light text-shade-60">
-                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider">Mã SKU</th>
-                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider">Tên sản phẩm</th>
-                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-right">Số lượng yêu cầu</th>
+                      <tr className="bg-canvas-cream border-b border-hairline-light">
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã SKU</th>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Tên sản phẩm</th>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Số lượng yêu cầu</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-hairline-light bg-canvas-light">
+                    <tbody className="divide-y divide-hairline-light">
                       {selectedRequest.items?.map(item => (
-                        <tr key={item.id} className="hover:bg-canvas-cream/50">
-                          <td className="px-6 py-3 font-mono font-semibold text-[11px]">{item.productSku}</td>
-                          <td className="px-6 py-3 text-shade-60">{item.productName}</td>
-                          <td className="px-6 py-3 text-right font-semibold">{item.requestedQty} {item.productUnit}</td>
+                        <tr key={item.id} className="hover:bg-canvas-cream/50 transition-colors">
+                          <td className="px-6 py-4 text-xs font-mono font-semibold">{item.productSku}</td>
+                          <td className="px-6 py-4 text-xs text-shade-60">{item.productName}</td>
+                          <td className="px-6 py-4 text-xs text-right font-semibold">{item.requestedQty} {item.productUnit}</td>
                         </tr>
                       ))}
                     </tbody>

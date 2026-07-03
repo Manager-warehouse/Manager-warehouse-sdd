@@ -260,10 +260,9 @@ export default function DeliveryOrders() {
           </p>
         </div>
         {hasRole(ROLES.PLANNER) && (
-          <button onClick={handleOpenCreateModal} className="btn-pill btn-pill-primary flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            <span>Lập đơn xuất mới</span>
-          </button>
+          <Button onClick={handleOpenCreateModal} variant="primary" icon={Plus}>
+            Lập đơn xuất mới
+          </Button>
         )}
       </div>
 
@@ -313,7 +312,7 @@ export default function DeliveryOrders() {
           <p className="text-sm text-shade-50">Thử đổi bộ lọc hoặc tạo một đơn mới để bắt đầu.</p>
         </div>
       ) : (
-        <div className="card-premium overflow-hidden rounded-lg border border-hairline-light bg-canvas-light shadow-level-3">
+        <div className="overflow-hidden rounded-lg border border-hairline-light bg-canvas-light shadow-level-3">
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-left">
               <thead>
@@ -336,7 +335,7 @@ export default function DeliveryOrders() {
                     && order.status === 'WAITING_PICKING';
 
                   return (
-                    <tr key={order.id} className="hover:bg-canvas-cream transition-colors">
+                    <tr key={order.id} className="hover:bg-canvas-cream/50 transition-colors">
                       <td className="px-6 py-4 text-xs font-bold">{order.do_number}</td>
                       <td className="px-6 py-4">
                         <p className="text-xs font-semibold">{order.dealer_name}</p>
@@ -478,7 +477,7 @@ export default function DeliveryOrders() {
                   )}
 
                   {formData.items.map((item, index) => (
-                    <tr key={`${item.product_id || 'new'}-${index}`} className="hover:bg-canvas-cream/50">
+                    <tr key={`${item.product_id || 'new'}-${index}`} className="hover:bg-canvas-cream/50 transition-colors">
                       <td className="px-4 py-3">
                         <Input
                           type="select"

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, Upload, Download, Search, X, Edit2, Ban, DollarSign, Loader2, Warehouse } from 'lucide-react';
+import { Plus, Upload, Download, FileSpreadsheet, Search, X, Edit2, Ban, DollarSign, Loader2, Warehouse } from 'lucide-react';
 import Pagination from '../../components/common/Pagination';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
@@ -96,8 +96,8 @@ export default function PriceListManagement() {
   return (
     <div className="flex flex-col gap-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 flex-wrap">
+        <div className="flex-1 min-w-0">
           <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
             Tài chính / Bảng giá
           </span>
@@ -108,26 +108,21 @@ export default function PriceListManagement() {
             Quản lý giá vốn & giá bán theo kỳ hiệu lực tại <span className="font-semibold text-ink">{activeWarehouse?.name ?? '—'}</span>. Bản giá mới cần được Kế toán trưởng phê duyệt trước khi có hiệu lực.
           </p>
         </div>
-        <div className="flex gap-2 flex-wrap justify-end">
-          <button onClick={handleExportXlsx}
-            className="btn-pill btn-pill-outline-light flex items-center gap-2 text-sm">
-            <Upload className="w-4 h-4" /> Xuất Excel
-          </button>
+        <div className="flex gap-2 flex-nowrap items-center w-full lg:w-auto flex-shrink-0">
+          <Button onClick={handleExportXlsx} variant="primary" icon={FileSpreadsheet} className="flex-none">
+            Xuất Excel
+          </Button>
           {canWrite && (
             <>
-              <button onClick={() => setShowImport(true)}
-                className="btn-pill btn-pill-outline-light flex items-center gap-2 text-sm">
-                <Download className="w-4 h-4" /> Nhập Excel
-              </button>
-              <button onClick={() => pricingService.downloadTemplate().catch(() => addToast('Không tải được file mẫu', 'error'))}
-                className="btn-pill btn-pill-outline-light flex items-center gap-2 text-sm">
-                <Upload className="w-4 h-4" /> Tải mẫu
-              </button>
-              <button onClick={() => { setEditTarget(null); setShowForm(true); }}
-                className="btn-pill btn-pill-primary flex items-center gap-2">
-                <Plus className="w-4 h-4" />
-                <span>Thêm bản giá</span>
-              </button>
+              <Button onClick={() => setShowImport(true)} variant="outline-light" icon={Download} className="flex-none">
+                Nhập Excel
+              </Button>
+              <Button onClick={() => pricingService.downloadTemplate().catch(() => addToast('Không tải được file mẫu', 'error'))} variant="outline-light" icon={Upload} className="flex-none">
+                Tải mẫu
+              </Button>
+              <Button onClick={() => { setEditTarget(null); setShowForm(true); }} variant="primary" icon={Plus} className="flex-none">
+                Thêm bản giá
+              </Button>
             </>
           )}
         </div>
@@ -203,7 +198,7 @@ export default function PriceListManagement() {
               </thead>
               <tbody className="divide-y divide-hairline-light">
                 {paginated.map((entry) => (
-                  <tr key={entry.id} className="hover:bg-canvas-cream transition-colors">
+                  <tr key={entry.id} className="hover:bg-canvas-cream/50 transition-colors">
                     <td className="px-6 py-4 font-mono text-xs text-shade-60">{entry.product_sku}</td>
                     <td className="px-6 py-4 text-xs font-semibold">{entry.product_name}</td>
                     <td className="px-6 py-4 text-xs text-shade-50 whitespace-nowrap">
