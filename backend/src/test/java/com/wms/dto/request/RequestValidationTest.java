@@ -76,6 +76,24 @@ class RequestValidationTest {
                 .contains("address");
     }
 
+    @Test
+    void dealerRequests_rejectInvalidEmail() {
+        DealerCreateRequest createRequest = new DealerCreateRequest();
+        createRequest.setCode("DL-HN-01");
+        createRequest.setName("Dealer Ha Noi");
+        createRequest.setEmail("not-an-email");
+
+        DealerUpdateRequest updateRequest = new DealerUpdateRequest();
+        updateRequest.setEmail("not-an-email");
+
+        assertThat(validator.validate(createRequest))
+                .extracting(violation -> violation.getPropertyPath().toString())
+                .contains("email");
+        assertThat(validator.validate(updateRequest))
+                .extracting(violation -> violation.getPropertyPath().toString())
+                .contains("email");
+    }
+
     private ProductRequest validProductRequest() {
         ProductRequest request = new ProductRequest();
         request.setSku("SKU-001");

@@ -20,7 +20,7 @@ public class FlywayConfig {
             } catch (Exception e) {
                 log.error("FlywayConfig: Flyway migration failed: {}", e.getMessage(), e);
                 throw e;
-            }
+            }   
         };
     }
 }
