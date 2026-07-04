@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useUiStore } from '../../stores/ui.store';
 import { inboundService } from '../../services/inbound.service';
 import { ArrowLeft, Loader2, ShieldCheck, ShieldAlert } from 'lucide-react';
+import Badge from '../../components/common/Badge';
 
 const QCInbound = () => {
   const { id } = useParams();
@@ -177,18 +178,16 @@ const QCInbound = () => {
     const failed = parseFloat(item.qc_failed_qty) || 0;
     const actual = parseFloat(item.actual_qty) || 0;
 
-    const baseStyle = "text-[9px] font-bold px-1.5 py-0.2 rounded border uppercase";
-
     if (passed + failed !== actual) {
-      return <span className={`${baseStyle} bg-red-100 text-red-800 border-red-200`}>Lỗi lệch</span>;
+      return <Badge size="sm" type="danger">Lỗi lệch</Badge>;
     }
     if (passed === actual) {
-      return <span className={`${baseStyle} bg-emerald-50 text-emerald-700 border-emerald-200`}>Đạt 100%</span>;
+      return <Badge size="sm" type="success">Đạt 100%</Badge>;
     }
     if (failed === actual) {
-      return <span className={`${baseStyle} bg-red-50 text-red-700 border-red-200`}>Lỗi 100%</span>;
+      return <Badge size="sm" type="danger">Lỗi 100%</Badge>;
     }
-    return <span className={`${baseStyle} bg-amber-50 text-amber-700 border-amber-200`}>Một phần</span>;
+    return <Badge size="sm" type="warning">Một phần</Badge>;
   };
 
   if (loading) {
@@ -221,7 +220,7 @@ const QCInbound = () => {
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
         {/* Receipt header card */}
-        <div className="bg-white border border-hairline-light rounded-lg p-6 shadow-sm card-premium">
+        <div className="bg-canvas-light border border-hairline-light rounded-lg p-6 shadow-level-3 card-premium">
           <h3 className="text-xs font-bold uppercase tracking-widest text-shade-40 border-b border-hairline-light pb-2 mb-4">
             Thông tin chứng từ nhận hàng
           </h3>
@@ -240,13 +239,13 @@ const QCInbound = () => {
             </div>
             <div>
               <span className="text-shade-50 block mb-0.5 font-normal">Trạng thái kiểm đếm:</span>
-              <span className="text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">Đã đếm xong</span>
+              <span className="text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-pill border border-blue-200">Đã đếm xong</span>
             </div>
           </div>
         </div>
 
-        <div className="bg-white border border-hairline-light rounded-lg shadow-sm card-premium overflow-hidden">
-          <div className="p-4 border-b border-hairline-light bg-zinc-50 flex items-center justify-between">
+        <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 overflow-hidden">
+          <div className="p-4 border-b border-hairline-light bg-canvas-cream flex items-center justify-between">
             <h3 className="text-xs font-bold uppercase tracking-widest text-shade-40">
               Biên bản phân loại chất lượng
             </h3>
@@ -258,13 +257,13 @@ const QCInbound = () => {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-zinc-50 border-b border-hairline-light">
-                  <th className="px-6 py-3 font-bold text-shade-60">Sản phẩm</th>
-                  <th className="px-4 py-3 font-bold text-shade-60 text-right w-24">Thực nhận</th>
-                  <th className="px-4 py-3 font-bold text-shade-60 text-right w-24">Đạt QC</th>
-                  <th className="px-4 py-3 font-bold text-shade-60 text-right w-24">Lỗi QC</th>
-                  <th className="px-4 py-3 font-bold text-shade-60 w-44">Chi tiết lỗi (Nếu hỏng)</th>
-                  <th className="px-4 py-3 font-bold text-shade-60 text-center w-24">Kết quả</th>
+                <tr className="bg-canvas-cream border-b border-hairline-light">
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Sản phẩm</th>
+                  <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right w-24">Thực nhận</th>
+                  <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right w-24">Đạt QC</th>
+                  <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right w-24">Lỗi QC</th>
+                  <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 w-44">Chi tiết lỗi (Nếu hỏng)</th>
+                  <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center w-24">Kết quả</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-hairline-light">
@@ -275,7 +274,7 @@ const QCInbound = () => {
                   const isMismatch = passed + failed !== actual;
 
                   return (
-                    <tr key={item.id} className={`hover:bg-zinc-50/50 ${isMismatch ? 'bg-red-50/30' : ''}`}>
+                    <tr key={item.id} className={`hover:bg-canvas-cream/50 transition-colors ${isMismatch ? 'bg-red-50/30' : ''}`}>
                       <td className="px-6 py-4">
                         <span className="font-bold block">{getProductSku(item)}</span>
                         <span className="text-shade-50 block">{getProductName(item)}</span>

@@ -6,8 +6,9 @@ import Pagination from '../../components/common/Pagination';
 import Badge from '../../components/common/Badge';
 import Modal from '../../components/common/Modal';
 import Button from '../../components/common/Button';
+import Input from '../../components/common/Input';
 import { formatDate } from '../../utils/format';
-import { Search, RotateCcw, Filter, Eye } from 'lucide-react';
+import { Search, RotateCcw, Eye } from 'lucide-react';
 
 const AuditLogs = () => {
   const { addToast } = useUiStore();
@@ -112,7 +113,7 @@ const AuditLogs = () => {
     if (fields.length === 0) {
       return (
         <tr>
-          <td colSpan={3} className="px-3 py-4 text-center text-xs text-shade-50 italic">
+          <td colSpan={3} className="px-6 py-3 text-center text-xs text-shade-50 italic">
             Không có thông tin chi tiết thay đổi hoặc đối tượng mới được khởi tạo
           </td>
         </tr>
@@ -132,11 +133,11 @@ const AuditLogs = () => {
       
       return (
         <tr key={field} className="border-t border-hairline-light">
-          <td className="px-3 py-2 text-xs font-semibold text-ink font-mono">{field}</td>
-          <td className="px-3 py-2 text-xs text-shade-60 break-all max-w-[200px]">
+          <td className="px-6 py-3 text-xs font-semibold text-ink font-mono">{field}</td>
+          <td className="px-6 py-3 text-xs text-shade-60 break-all max-w-[200px]">
             {oldValStr !== undefined && oldValStr !== null ? String(oldValStr) : '-'}
           </td>
-          <td className="px-3 py-2 text-xs text-shade-60 break-all max-w-[200px]">
+          <td className="px-6 py-3 text-xs text-shade-60 break-all max-w-[200px]">
             {newValStr !== undefined && newValStr !== null ? String(newValStr) : '-'}
           </td>
         </tr>
@@ -163,58 +164,51 @@ const AuditLogs = () => {
       <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 p-4 flex flex-col md:flex-row gap-4 items-center justify-between">
         <div className="flex flex-col md:flex-row gap-4 items-center w-full md:w-auto">
           {/* Search Input */}
-          <div className="relative w-full md:w-72">
-            <Search className="absolute left-3 top-3 w-4 h-4 text-shade-50" />
-            <input
+          <div className="w-full md:w-72">
+            <Input
               type="text"
+              leftIcon={Search}
               placeholder="Tìm theo người dùng, nội dung..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-canvas-light text-xs pl-9 pr-4 py-2 rounded-md border border-hairline-light focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink transition-all min-h-[38px]"
             />
           </div>
 
           {/* Action Filter */}
           <div className="flex flex-col gap-1 w-full md:w-48">
-            <select
+            <Input
+              type="select"
               value={selectedAction}
               onChange={(e) => setSelectedAction(e.target.value)}
-              className="w-full bg-canvas-light text-xs px-3 py-2 rounded-md border border-hairline-light focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink transition-all min-h-[38px]"
-            >
-              <option value="ALL">Tất cả thao tác</option>
-              {uniqueActions.filter(a => a !== 'ALL').map((act) => (
-                <option key={act} value={act}>
-                  {act}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: 'ALL', label: 'Tất cả thao tác' },
+                ...uniqueActions.filter(a => a !== 'ALL').map((act) => ({ value: act, label: act }))
+              ]}
+            />
           </div>
 
           {/* Entity Type Filter */}
           <div className="flex flex-col gap-1 w-full md:w-48">
-            <select
+            <Input
+              type="select"
               value={selectedEntity}
               onChange={(e) => setSelectedEntity(e.target.value)}
-              className="w-full bg-canvas-light text-xs px-3 py-2 rounded-md border border-hairline-light focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink transition-all min-h-[38px]"
-            >
-              <option value="ALL">Tất cả đối tượng</option>
-              {uniqueEntities.filter(e => e !== 'ALL').map((ent) => (
-                <option key={ent} value={ent}>
-                  {ent}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: 'ALL', label: 'Tất cả đối tượng' },
+                ...uniqueEntities.filter(e => e !== 'ALL').map((ent) => ({ value: ent, label: ent }))
+              ]}
+            />
           </div>
         </div>
 
         {/* Reset button */}
-        <button
+        <Button
+          variant="outline-light"
           onClick={handleResetFilters}
-          className="text-xs font-semibold flex items-center gap-1.5 px-4 py-2 hover:bg-canvas-cream rounded-pill border border-hairline-light transition-colors text-shade-70 w-full md:w-auto justify-center"
+          icon={RotateCcw}
         >
-          <RotateCcw className="w-3.5 h-3.5" />
-          <span>Đặt lại bộ lọc</span>
-        </button>
+          Đặt lại bộ lọc
+        </Button>
       </div>
 
       {/* Logs Table */}
@@ -310,9 +304,9 @@ const AuditLogs = () => {
               <table className="w-full text-left">
                 <thead className="bg-canvas-cream">
                   <tr>
-                    <th className="px-3 py-2 text-xs font-semibold text-shade-70">Trường dữ liệu</th>
-                    <th className="px-3 py-2 text-xs font-semibold text-shade-70">Giá trị cũ</th>
-                    <th className="px-3 py-2 text-xs font-semibold text-shade-70">Giá trị mới</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Trường dữ liệu</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Giá trị cũ</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Giá trị mới</th>
                   </tr>
                 </thead>
                 <tbody>{renderChangedFields()}</tbody>

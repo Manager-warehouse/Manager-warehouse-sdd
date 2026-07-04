@@ -5,6 +5,8 @@ import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
 import { stocktakeService } from '../../services/stocktake.service';
 import { ROLES } from '../../utils/constants';
+import Button from '../../components/common/Button';
+import Badge from '../../components/common/Badge';
 
 const STATUS_LABELS = {
   DRAFT: 'Nháp',
@@ -16,12 +18,12 @@ const STATUS_LABELS = {
 };
 
 const STATUS_STYLES = {
-  DRAFT: 'bg-zinc-100 text-zinc-600',
-  IN_PROGRESS: 'bg-blue-100 text-blue-700',
-  PENDING_APPROVAL: 'bg-amber-100 text-amber-700',
-  APPROVED: 'bg-green-100 text-green-700',
-  REJECTED: 'bg-red-100 text-red-700',
-  CANCELLED: 'bg-zinc-100 text-zinc-400',
+  DRAFT: 'bg-canvas-cream text-shade-60 border-hairline-light',
+  IN_PROGRESS: 'bg-blue-50 text-blue-700 border-blue-200',
+  PENDING_APPROVAL: 'bg-amber-50 text-amber-700 border-amber-200',
+  APPROVED: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  REJECTED: 'bg-red-50 text-red-700 border-red-200',
+  CANCELLED: 'bg-canvas-cream text-shade-50 border-hairline-light',
 };
 
 const StocktakeDetail = () => {
@@ -183,24 +185,26 @@ const StocktakeDetail = () => {
   const isDraft = stocktake.status === 'DRAFT';
 
   return (
-    <div className="p-6 w-full space-y-6">
+    <div className="flex flex-col gap-6">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-3">
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div className="flex items-start gap-3">
           <button
             onClick={() => navigate('/stocktake')}
-            className="p-2 rounded-xl text-shade-50 hover:bg-canvas-cream transition-colors"
+            className="p-2 rounded-pill text-shade-50 hover:bg-canvas-cream transition-colors mt-1 shrink-0"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <ClipboardList className="w-6 h-6 text-aloe-40" />
           <div>
-            <h1 className="text-xl font-bold text-canvas-night font-mono">{stocktake.stock_take_number}</h1>
-            <p className="text-xs text-shade-50">{stocktake.warehouse_name}</p>
+            <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">Vận hành / Kiểm kê</span>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight font-mono">{stocktake.stock_take_number}</h1>
+              <Badge size="sm" colorClassName={STATUS_STYLES[stocktake.status]}>
+                {STATUS_LABELS[stocktake.status]}
+              </Badge>
+            </div>
+            <p className="text-xs text-shade-50 font-light mt-1">{stocktake.warehouse_name}</p>
           </div>
-          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${STATUS_STYLES[stocktake.status]}`}>
-            {STATUS_LABELS[stocktake.status]}
-          </span>
         </div>
 
         {/* Action buttons */}
@@ -208,7 +212,7 @@ const StocktakeDetail = () => {
           {isDraft && canCount && (
             <button
               onClick={handleStart}
-              className="flex items-center gap-2 px-4 py-2 rounded-pill bg-blue-500 text-white text-xs font-semibold hover:bg-blue-600 transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-pill bg-blue-600 text-onPrimary text-xs font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50"
             >
               <Play className="w-3.5 h-3.5" />
               Bắt đầu kiểm kê
@@ -216,17 +220,18 @@ const StocktakeDetail = () => {
           )}
           {isInProgress && canCount && (
             <>
-              <button
+              <Button
+                variant="outline-light"
                 onClick={handleSaveCount}
                 disabled={saving}
-                className="flex items-center gap-2 px-4 py-2 rounded-pill bg-zinc-700 text-white text-xs font-semibold hover:bg-zinc-800 transition-colors disabled:opacity-50"
+                loading={saving}
               >
                 <Save className="w-3.5 h-3.5" />
                 {saving ? 'Đang lưu...' : 'Lưu số liệu'}
-              </button>
+              </Button>
               <button
                 onClick={handleComplete}
-                className="flex items-center gap-2 px-4 py-2 rounded-pill bg-amber-500 text-white text-xs font-semibold hover:bg-amber-600 transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-pill bg-amber-500 text-onPrimary text-xs font-semibold hover:bg-amber-600 transition-colors disabled:opacity-50"
               >
                 <CheckCircle className="w-3.5 h-3.5" />
                 Hoàn tất & trình duyệt
@@ -235,16 +240,16 @@ const StocktakeDetail = () => {
           )}
           {isPendingApproval && canApprove(stocktake) && (
             <>
-              <button
+              <Button
+                variant="aloe"
                 onClick={handleApprove}
-                className="flex items-center gap-2 px-4 py-2 rounded-pill bg-green-500 text-white text-xs font-semibold hover:bg-green-600 transition-colors"
               >
                 <CheckCircle className="w-3.5 h-3.5" />
                 Phê duyệt
-              </button>
+              </Button>
               <button
                 onClick={() => setRejectModal(true)}
-                className="flex items-center gap-2 px-4 py-2 rounded-pill bg-red-500 text-white text-xs font-semibold hover:bg-red-600 transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-pill bg-red-600 text-onPrimary text-xs font-semibold hover:bg-red-700 transition-colors disabled:opacity-50"
               >
                 <XCircle className="w-3.5 h-3.5" />
                 Từ chối
@@ -260,7 +265,7 @@ const StocktakeDetail = () => {
       </div>
 
       {/* Info card */}
-      <div className="bg-white rounded-2xl border border-hairline shadow-xs p-5">
+      <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 p-5">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
           <div>
             <p className="text-[10px] font-bold text-shade-50 uppercase tracking-wider mb-1">Ngày kiểm kê</p>
@@ -305,44 +310,44 @@ const StocktakeDetail = () => {
 
       {/* Items table */}
       {stocktake.items && stocktake.items.length > 0 && (
-        <div className="bg-white rounded-2xl border border-hairline shadow-xs overflow-hidden">
-          <div className="px-5 py-3 border-b border-hairline bg-canvas-cream">
+        <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden">
+          <div className="px-5 py-3 border-b border-hairline-light bg-canvas-cream">
             <h2 className="text-xs font-bold text-shade-50 uppercase tracking-wider">Dòng hàng kiểm kê</h2>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-hairline">
-                  <th className="px-4 py-3 text-left text-xs font-bold text-shade-50 uppercase tracking-wider">SKU / Tên</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-shade-50 uppercase tracking-wider">Lô</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-shade-50 uppercase tracking-wider">Vị trí</th>
-                  <th className="px-4 py-3 text-right text-xs font-bold text-shade-50 uppercase tracking-wider">Hệ thống</th>
-                  <th className="px-4 py-3 text-right text-xs font-bold text-shade-50 uppercase tracking-wider">Thực tế</th>
-                  <th className="px-4 py-3 text-right text-xs font-bold text-shade-50 uppercase tracking-wider">Chênh lệch</th>
-                  <th className="px-4 py-3 text-center text-xs font-bold text-shade-50 uppercase tracking-wider">Lỗi NV</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-shade-50 uppercase tracking-wider">
+                <tr className="bg-canvas-cream border-b border-hairline-light">
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-shade-60">SKU / Tên</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-shade-60">Lô</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-shade-60">Vị trí</th>
+                  <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-shade-60">Hệ thống</th>
+                  <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-shade-60">Thực tế</th>
+                  <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-shade-60">Chênh lệch</th>
+                  <th className="px-6 py-4 text-center text-xs font-semibold uppercase tracking-wider text-shade-60">Lỗi NV</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-shade-60">
                     Lý do chênh lệch {isInProgress && <span className="text-red-500">*</span>}
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-hairline">
+              <tbody className="divide-y divide-hairline-light">
                 {stocktake.items.map((item) => {
                   const edit = countEdits[item.id] || {};
                   const actualNum = edit.actual_qty !== '' && edit.actual_qty !== undefined ? Number(edit.actual_qty) : null;
                   const variance = actualNum !== null ? actualNum - item.system_qty : item.variance_qty;
 
                   return (
-                    <tr key={item.id} className="hover:bg-canvas-cream/40">
-                      <td className="px-4 py-3">
+                    <tr key={item.id} className="hover:bg-canvas-cream/50 transition-colors">
+                      <td className="px-6 py-4">
                         <p className="text-xs font-mono text-shade-50">{item.product_sku}</p>
                         <p className="text-sm font-semibold text-canvas-night">{item.product_name}</p>
                       </td>
-                      <td className="px-4 py-3 text-xs font-mono text-shade-50">{item.batch_number}</td>
-                      <td className="px-4 py-3 text-xs font-mono text-shade-50">{item.location_code}</td>
-                      <td className="px-4 py-3 text-right text-sm font-semibold text-canvas-night">
+                      <td className="px-6 py-4 text-xs font-mono text-shade-50">{item.batch_number}</td>
+                      <td className="px-6 py-4 text-xs font-mono text-shade-50">{item.location_code}</td>
+                      <td className="px-6 py-4 text-right text-sm font-semibold text-canvas-night">
                         {item.system_qty.toLocaleString('vi-VN')}
                       </td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-6 py-4 text-right">
                         {isInProgress ? (
                           <input
                             type="number"
@@ -351,7 +356,7 @@ const StocktakeDetail = () => {
                             value={edit.actual_qty ?? ''}
                             onChange={(e) => updateEdit(item.id, 'actual_qty', e.target.value)}
                             placeholder="0"
-                            className="w-20 px-2 py-1 rounded-lg border border-hairline focus:border-aloe-40 text-sm text-right outline-none"
+                            className="w-20 px-2 py-1 rounded-lg border border-hairline-light focus:border-aloe-40 text-sm text-right outline-none"
                           />
                         ) : (
                           <span className={`text-sm font-semibold ${item.actual_qty === null ? 'text-shade-50 italic' : 'text-canvas-night'}`}>
@@ -359,7 +364,7 @@ const StocktakeDetail = () => {
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-6 py-4 text-right">
                         {variance !== null && variance !== undefined && variance !== 0 ? (
                           <span className={`text-sm font-bold ${variance < 0 ? 'text-red-600' : 'text-green-600'}`}>
                             {variance > 0 ? '+' : ''}{variance.toLocaleString('vi-VN')}
@@ -368,7 +373,7 @@ const StocktakeDetail = () => {
                           <span className="text-sm text-shade-50">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-center">
+                      <td className="px-6 py-4 text-center">
                         {isInProgress ? (
                           <input
                             type="checkbox"
@@ -384,7 +389,7 @@ const StocktakeDetail = () => {
                           )
                         )}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-6 py-4">
                         {isInProgress ? (
                           <input
                             type="text"
@@ -394,7 +399,7 @@ const StocktakeDetail = () => {
                             className={`w-full px-2 py-1 rounded-lg border text-xs outline-none ${
                               variance !== null && variance !== 0 && !edit.notes?.trim()
                                 ? 'border-red-300 bg-red-50 focus:border-red-400'
-                                : 'border-hairline focus:border-aloe-40'
+                                : 'border-hairline-light focus:border-aloe-40'
                             }`}
                           />
                         ) : (
@@ -419,7 +424,7 @@ const StocktakeDetail = () => {
         );
         if (variantItems.length === 0) return null;
         return (
-          <div className="bg-amber-50 border border-amber-200 rounded-2xl overflow-hidden">
+          <div className="bg-amber-50 border border-amber-200 rounded-lg overflow-hidden">
             <div className="px-5 py-3 border-b border-amber-200 bg-amber-100 flex items-center justify-between">
               <h2 className="text-xs font-bold text-amber-800 uppercase tracking-wider">
                 Báo cáo chênh lệch — {variantItems.length} dòng hàng cần phê duyệt
@@ -482,8 +487,8 @@ const StocktakeDetail = () => {
 
       {/* Reject Modal */}
       {rejectModal && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full space-y-4">
+        <div className="fixed inset-0 bg-canvas-night/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-canvas-light rounded-lg shadow-level-3 p-6 max-w-sm w-full flex flex-col gap-4">
             <h3 className="text-base font-bold text-canvas-night">Từ chối phiếu kiểm kê</h3>
             <div className="space-y-1.5">
               <label className="block text-xs font-semibold text-shade-40 uppercase tracking-wider">
@@ -494,13 +499,13 @@ const StocktakeDetail = () => {
                 value={rejectionReason}
                 onChange={(e) => setRejectionReason(e.target.value)}
                 placeholder="Nhập lý do từ chối..."
-                className="w-full px-3 py-2 rounded-xl border border-hairline focus:border-red-400 text-sm outline-none resize-none"
+                className="w-full px-3 py-2 rounded-md border border-hairline-light focus:border-red-400 text-sm outline-none resize-none"
               />
             </div>
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => { setRejectModal(false); setRejectionReason(''); }}
-                className="px-4 py-2 rounded-pill text-xs font-semibold border border-hairline text-shade-50 hover:bg-canvas-cream transition-colors"
+                className="px-4 py-2 rounded-pill text-xs font-semibold border border-hairline-light text-shade-50 hover:bg-canvas-cream transition-colors"
               >
                 Hủy
               </button>

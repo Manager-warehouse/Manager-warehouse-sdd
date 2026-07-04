@@ -15,14 +15,16 @@ import { outboundService } from '../../services/outbound.service';
 import { masterDataService } from '../../services/masterData.service';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
+import { useDebounce } from '../../hooks/useDebounce';
 import CreditCheckBanner from '../../components/warehouse/CreditCheckBanner';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import Modal from '../../components/common/Modal';
+import Badge from '../../components/common/Badge';
 import { ROLES } from '../../utils/constants';
 
 const DO_STATUS_MAP = {
-  NEW: { label: 'Mới', color: 'bg-zinc-100 text-zinc-800 border-zinc-200' },
+  NEW: { label: 'Mới', color: 'bg-canvas-cream text-shade-70 border-hairline-light' },
   WAITING_PICKING: { label: 'Chờ lấy hàng/QC', color: 'bg-blue-50 text-blue-700 border-blue-200' },
   QC_PENDING_APPROVAL: { label: 'Chờ duyệt QC', color: 'bg-violet-50 text-violet-700 border-violet-200' },
   QC_COMPLETED: { label: 'QC xong', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
@@ -58,13 +60,12 @@ const createEmptyForm = () => ({
 });
 
 const getStatusBadge = (status) => {
-  const base = 'text-[10px] font-semibold px-2 py-0.5 rounded-pill border uppercase tracking-wider whitespace-nowrap';
   const { label, color } = DO_STATUS_MAP[status] ?? {
     label: status,
-    color: 'bg-zinc-100 text-zinc-800 border-zinc-200',
+    color: 'bg-canvas-cream text-shade-70 border-hairline-light',
   };
 
-  return <span className={`${base} ${color}`}>{label}</span>;
+  return <Badge size="sm" colorClassName={color}>{label}</Badge>;
 };
 
 const getRoleHint = (order, hasRole) => {
@@ -103,9 +104,12 @@ export default function DeliveryOrders() {
   const [submitting, setSubmitting] = useState(false);
   const [cancelModal, setCancelModal] = useState({ show: false, orderId: null, reason: '' });
 
+  const debouncedSearch = useDebounce(search);
+  const debouncedProductSearch = useDebounce(productSearch);
+
   useEffect(() => {
     fetchOrders();
-  }, [activeWarehouse?.id, statusFilter, search]);
+  }, [activeWarehouse?.id, statusFilter, debouncedSearch]);
 
   useEffect(() => {
     if (!showCreateModal) {
@@ -120,7 +124,7 @@ export default function DeliveryOrders() {
     try {
       const data = await outboundService.getDeliveryOrders(activeWarehouse?.id, {
         status: statusFilter,
-        search,
+        search: debouncedSearch,
       });
       setOrders(data);
     } catch (error) {
@@ -284,21 +288,20 @@ export default function DeliveryOrders() {
           </p>
         </div>
         {hasRole(ROLES.PLANNER) && (
-          <button onClick={handleOpenCreateModal} className="btn-pill btn-pill-primary flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            <span>Lập đơn xuất mới</span>
-          </button>
+          <Button onClick={handleOpenCreateModal} variant="primary" icon={Plus}>
+            Lập đơn xuất mới
+          </Button>
         )}
       </div>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         {[
-          { label: 'Tổng đơn', value: totalDO, icon: <PackageCheck className="h-5 w-5" />, accent: 'text-zinc-600 bg-zinc-100' },
+          { label: 'Tổng đơn', value: totalDO, icon: <PackageCheck className="h-5 w-5" />, accent: 'text-shade-60 bg-canvas-cream' },
           { label: 'Chờ lấy hàng/QC', value: waitingPickingDO, icon: <Clock className="h-5 w-5" />, accent: 'text-blue-600 bg-blue-50' },
           { label: 'Chờ duyệt QC', value: qcPendingDO, icon: <PackageCheck className="h-5 w-5" />, accent: 'text-violet-600 bg-violet-50' },
           { label: 'Chờ vận chuyển', value: approvedDO, icon: <Truck className="h-5 w-5" />, accent: 'text-amber-600 bg-amber-50' },
         ].map(({ label, value, icon, accent }) => (
-          <div key={label} className="flex items-center gap-3 rounded-lg border border-hairline-light bg-white p-4 shadow-sm">
+          <div key={label} className="flex items-center gap-3 rounded-lg border border-hairline-light bg-canvas-light p-4 shadow-level-3">
             <div className={`rounded-full p-2.5 ${accent}`}>{icon}</div>
             <div>
               <p className="text-xs font-medium text-shade-50">{label}</p>
@@ -308,25 +311,22 @@ export default function DeliveryOrders() {
         ))}
       </div>
 
-      <div className="flex flex-col items-center justify-between gap-4 rounded-lg border border-hairline-light bg-white p-4 shadow-sm md:flex-row">
-        <div className="relative w-full md:w-80">
-          <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-shade-40" />
-          <input
+      <div className="flex flex-col items-center justify-between gap-4 rounded-lg border border-hairline-light bg-canvas-light p-4 shadow-level-3 md:flex-row">
+        <div className="w-full md:w-80">
+          <Input
             type="text"
+            leftIcon={Search}
             placeholder="Tìm mã DO, tên đại lý..."
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            className="w-full text-input pl-10"
           />
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-shade-50">Trạng thái:</span>
-          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="text-input py-1.5 text-xs">
-            {STATUS_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
-        </div>
+        <Input
+          type="select"
+          value={statusFilter}
+          onChange={(event) => setStatusFilter(event.target.value)}
+          options={STATUS_OPTIONS}
+        />
       </div>
 
       {loading ? (
@@ -334,23 +334,23 @@ export default function DeliveryOrders() {
           <Loader2 className="h-8 w-8 animate-spin text-shade-50" />
         </div>
       ) : orders.length === 0 ? (
-        <div className="rounded-lg border border-hairline-light bg-white p-12 text-center shadow-sm">
+        <div className="rounded-lg border border-hairline-light bg-canvas-light p-12 text-center shadow-level-3">
           <PackageCheck className="mx-auto mb-4 h-12 w-12 text-shade-30" />
           <h3 className="mb-1 text-lg font-bold">Không tìm thấy đơn xuất hàng nào</h3>
           <p className="text-sm text-shade-50">Thử đổi bộ lọc hoặc tạo một đơn mới để bắt đầu.</p>
         </div>
       ) : (
-        <div className="card-premium overflow-hidden rounded-lg border border-hairline-light bg-white shadow-sm">
+        <div className="overflow-hidden rounded-lg border border-hairline-light bg-canvas-light shadow-level-3">
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-left">
               <thead>
-                <tr className="border-b border-hairline-light bg-zinc-50">
-                  <th className="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-shade-60">Mã DO</th>
-                  <th className="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-shade-60">Đại lý</th>
-                  <th className="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-shade-60">Ngày lập</th>
-                  <th className="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-shade-60">Ngày giao dự kiến</th>
-                  <th className="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-shade-60">Trạng thái</th>
-                  <th className="px-6 py-3.5 text-right text-xs font-bold uppercase tracking-wider text-shade-60">Thao tác</th>
+                <tr className="border-b border-hairline-light bg-canvas-cream">
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã DO</th>
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Đại lý</th>
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Ngày lập</th>
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Ngày giao dự kiến</th>
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Trạng thái</th>
+                  <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-shade-60">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-hairline-light">
@@ -363,11 +363,11 @@ export default function DeliveryOrders() {
                     && order.status === 'WAITING_PICKING';
 
                   return (
-                    <tr key={order.id} className="hover:bg-zinc-50 transition-colors">
+                    <tr key={order.id} className="hover:bg-canvas-cream/50 transition-colors">
                       <td className="px-6 py-4 text-xs font-bold">{order.do_number}</td>
                       <td className="px-6 py-4">
                         <p className="text-xs font-semibold">{order.dealer_name}</p>
-                        <p className="mt-1 text-[11px] text-shade-40">{getRoleHint(order, hasRole)}</p>
+                        <p className="mt-1 text-[11px] text-shade-50">{getRoleHint(order, hasRole)}</p>
                       </td>
                       <td className="px-6 py-4 text-xs text-shade-50">{order.document_date ? new Date(order.document_date).toLocaleDateString('vi-VN') : '-'}</td>
                       <td className="px-6 py-4 text-xs text-shade-50">{order.expected_delivery_date ? new Date(order.expected_delivery_date).toLocaleDateString('vi-VN') : '-'}</td>
@@ -377,7 +377,7 @@ export default function DeliveryOrders() {
                           {canCancel && (
                             <button
                               onClick={() => setCancelModal({ show: true, orderId: order.id, reason: '' })}
-                              className="inline-flex items-center justify-center rounded-full border border-red-300 px-3 py-1 text-xs font-semibold text-red-600 transition-colors hover:bg-red-50"
+                              className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-pill border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
                             >
                               Hủy đơn
                             </button>
@@ -385,7 +385,7 @@ export default function DeliveryOrders() {
                           {canOpenPicking && (
                             <button
                               onClick={() => navigate(`/outbound/delivery-orders/${order.id}`)}
-                              className="inline-flex items-center justify-center rounded-full border border-ink bg-canvas-light px-3 py-1 text-xs font-semibold text-ink transition-colors hover:bg-zinc-100"
+                              className="inline-flex items-center justify-center rounded-pill border border-ink bg-canvas-light px-3 py-1 text-xs font-semibold text-ink transition-colors hover:bg-canvas-cream"
                             >
                               {order.status === 'NEW' ? 'Lập kế hoạch lấy hàng' : 'Duyệt xử lý kho'}
                             </button>
@@ -393,14 +393,14 @@ export default function DeliveryOrders() {
                           {canOpenQcEntry && (
                             <button
                               onClick={() => navigate(`/outbound/delivery-orders/${order.id}`)}
-                              className="inline-flex items-center justify-center rounded-full border border-blue-300 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+                              className="inline-flex items-center justify-center rounded-pill border border-blue-300 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
                             >
                               Nhập kết quả lấy hàng/QC
                             </button>
                           )}
                           <button
                             onClick={() => navigate(`/outbound/delivery-orders/${order.id}`)}
-                            className="flex items-center justify-center rounded-full p-1.5 text-shade-50 transition-colors hover:bg-zinc-200 hover:text-ink"
+                            className="flex items-center justify-center rounded-pill p-1.5 text-shade-50 transition-colors hover:bg-canvas-cream hover:text-ink"
                             title="Xem chi tiết"
                           >
                             <Eye className="h-4 w-4" />
@@ -488,11 +488,11 @@ export default function DeliveryOrders() {
             <div className="overflow-hidden rounded-lg border border-hairline-light bg-canvas-light">
               <table className="w-full border-collapse text-left text-xs">
                 <thead>
-                  <tr className="border-b border-hairline-light bg-zinc-50">
-                    <th className="px-4 py-3 font-bold uppercase tracking-wider text-shade-60">Sản phẩm</th>
-                    <th className="w-28 px-4 py-3 font-bold uppercase tracking-wider text-shade-60">Số lượng</th>
-                    <th className="w-36 px-4 py-3 font-bold uppercase tracking-wider text-shade-60">Đơn giá</th>
-                    <th className="w-10 px-4 py-3" />
+                  <tr className="border-b border-hairline-light bg-canvas-cream">
+                    <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Sản phẩm</th>
+                    <th className="w-28 px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Số lượng</th>
+                    <th className="w-36 px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Đơn giá</th>
+                    <th className="w-10 px-4 py-4" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-hairline-light">
@@ -505,40 +505,37 @@ export default function DeliveryOrders() {
                   )}
 
                   {formData.items.map((item, index) => (
-                    <tr key={`${item.product_id || 'new'}-${index}`} className="hover:bg-zinc-50/50">
-                      <td className="px-4 py-2.5">
-                        <select
+                    <tr key={`${item.product_id || 'new'}-${index}`} className="hover:bg-canvas-cream/50 transition-colors">
+                      <td className="px-4 py-3">
+                        <Input
+                          type="select"
                           disabled={masterDataLoading}
-                          className="w-full rounded-md border border-hairline-light bg-canvas-light px-3 py-2.5 text-sm text-ink transition-all focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
                           value={item.product_id}
                           onChange={(event) => updateItemRow(index, 'product_id', event.target.value)}
-                        >
-                          <option value="">{masterDataLoading ? '-- Đang tải sản phẩm --' : '-- Chọn sản phẩm --'}</option>
-                          {productOptionsFor(item.product_id).map((product) => (
-                            <option key={product.id} value={product.id}>[{product.sku}] {product.name}</option>
-                          ))}
-                        </select>
+                          options={[
+                            { value: '', label: masterDataLoading ? '-- Đang tải sản phẩm --' : '-- Chọn sản phẩm --' },
+                            ...productOptionsFor(item.product_id).map((product) => ({ value: product.id, label: `[${product.sku}] ${product.name}` })),
+                          ]}
+                        />
                       </td>
-                      <td className="px-4 py-2.5">
-                        <input
+                      <td className="px-4 py-3">
+                        <Input
                           type="number"
                           min="1"
-                          className="w-full rounded-md border border-hairline-light bg-canvas-light px-3 py-2.5 text-sm text-ink transition-all focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
                           value={item.requested_qty}
                           onChange={(event) => updateItemRow(index, 'requested_qty', Number(event.target.value))}
                         />
                       </td>
-                      <td className="px-4 py-2.5">
-                        <input
+                      <td className="px-4 py-3">
+                        <Input
                           type="number"
                           min="0"
-                          className="w-full rounded-md border border-hairline-light bg-canvas-light px-3 py-2.5 text-sm text-ink transition-all focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
                           value={item.unit_price}
                           onChange={(event) => updateItemRow(index, 'unit_price', Number(event.target.value))}
                         />
                       </td>
-                      <td className="px-4 py-2.5 text-center">
-                        <button type="button" onClick={() => removeItemRow(index)} className="rounded-full p-1 text-shade-40 transition-colors hover:bg-zinc-100 hover:text-red-600">
+                      <td className="px-4 py-3 text-center">
+                        <button type="button" onClick={() => removeItemRow(index)} className="rounded-full p-1 text-shade-40 transition-colors hover:bg-canvas-cream hover:text-red-600">
                           <X className="h-4 w-4" />
                         </button>
                       </td>

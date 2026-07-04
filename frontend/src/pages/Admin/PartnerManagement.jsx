@@ -350,7 +350,7 @@ const PartnerManagement = () => {
           onClick={() => { setActiveTab('DEALERS'); setSearchTerm(''); }}
           className={`px-5 py-3 font-semibold text-sm transition-all border-b-2 flex items-center gap-2 ${
             activeTab === 'DEALERS'
-              ? 'border-ink text-ink bg-white/50 rounded-t-lg'
+              ? 'border-ink text-ink bg-canvas-light/50 rounded-t-lg'
               : 'border-transparent text-shade-50 hover:text-ink'
           }`}
         >
@@ -361,7 +361,7 @@ const PartnerManagement = () => {
           onClick={() => { setActiveTab('SUPPLIERS'); setSearchTerm(''); }}
           className={`px-5 py-3 font-semibold text-sm transition-all border-b-2 flex items-center gap-2 ${
             activeTab === 'SUPPLIERS'
-              ? 'border-ink text-ink bg-white/50 rounded-t-lg'
+              ? 'border-ink text-ink bg-canvas-light/50 rounded-t-lg'
               : 'border-transparent text-shade-50 hover:text-ink'
           }`}
         >
@@ -371,15 +371,14 @@ const PartnerManagement = () => {
       </div>
 
       {/* Search Input */}
-      <div className="bg-white border border-hairline-light rounded-lg p-4 mb-6 shadow-sm">
-        <div className="relative flex-1 w-full max-w-md">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-shade-40" />
-          <input
+      <div className="bg-canvas-light border border-hairline-light rounded-lg p-4 mb-6 shadow-level-3">
+        <div className="flex-1 w-full max-w-md">
+          <Input
             type="text"
+            leftIcon={Search}
             placeholder={activeTab === 'DEALERS' ? 'Tìm theo mã hoặc tên Đại lý...' : 'Tìm theo mã hoặc tên Nhà cung cấp...'}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-canvas-light text-ink text-sm pl-10 pr-4 py-2.5 rounded-md border border-hairline-light focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink min-h-[44px]"
           />
         </div>
       </div>
@@ -391,34 +390,34 @@ const PartnerManagement = () => {
         </div>
       ) : activeTab === 'DEALERS' ? (
         filteredDealers.length === 0 ? (
-          <div className="bg-white rounded-lg border border-hairline-light p-12 text-center shadow-sm">
+          <div className="bg-canvas-light rounded-lg border border-hairline-light p-12 text-center shadow-level-3">
             <AlertCircle className="w-12 h-12 text-shade-30 mx-auto mb-4" />
             <h3 className="text-lg font-bold mb-1">Không tìm thấy Đại lý</h3>
             <p className="text-sm text-shade-50">Thử thay đổi bộ lọc tìm kiếm hoặc thêm mới đại lý.</p>
           </div>
         ) : (
-          <div className="bg-white rounded-lg border border-hairline-light shadow-sm overflow-hidden card-premium">
+          <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="bg-zinc-50 border-b border-hairline-light">
-                    <th className="px-6 py-4 font-bold text-shade-60">Mã Đại lý</th>
-                    <th className="px-6 py-4 font-bold text-shade-60">Tên Đại lý</th>
-                    <th className="px-6 py-4 font-bold text-shade-60">Vùng miền</th>
-                    <th className="px-6 py-4 font-bold text-shade-60">Điện thoại</th>
-                    <th className="px-6 py-4 font-bold text-shade-60 text-right">Hạn thanh toán</th>
-                    <th className="px-6 py-4 font-bold text-shade-60 text-right">Dư nợ hiện tại</th>
-                    <th className="px-6 py-4 font-bold text-shade-60 text-right">Hạn mức tín dụng</th>
-                    <th className="px-6 py-4 font-bold text-shade-60 text-center">Trạng thái nợ</th>
-                    <th className="px-6 py-4 font-bold text-shade-60 text-center">Hoạt động</th>
-                    <th className="px-6 py-4 font-bold text-shade-60 text-right">Hành động</th>
+                  <tr className="bg-canvas-cream border-b border-hairline-light">
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã Đại lý</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Tên Đại lý</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Vùng miền</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Điện thoại</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Hạn thanh toán</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Dư nợ hiện tại</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Hạn mức tín dụng</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center">Trạng thái nợ</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center">Hoạt động</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Hành động</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-hairline-light">
                   {filteredDealers.map((dl) => {
                     const isCreditHold = dl.credit_status === 'CREDIT_HOLD' || dl.current_balance > dl.credit_limit;
                     return (
-                      <tr key={dl.id} className={`hover:bg-zinc-50/50 transition-colors ${!dl.is_active ? 'opacity-50' : ''}`}>
+                      <tr key={dl.id} className={`hover:bg-canvas-cream/50 transition-colors ${!dl.is_active ? 'opacity-50' : ''}`}>
                         <td className="px-6 py-4 font-mono font-bold text-ink">{dl.code}</td>
                         <td className="px-6 py-4">
                           <div className="font-semibold text-ink">{dl.name}</div>
@@ -435,13 +434,13 @@ const PartnerManagement = () => {
                         </td>
                         <td className="px-6 py-4 text-center">
                           {isCreditHold ? (
-                            <span className="text-[10px] font-bold bg-red-50 text-red-700 border border-red-200 px-2 py-0.5 rounded-pill inline-flex items-center gap-1 whitespace-nowrap">
-                              <ShieldAlert className="w-3 h-3 shrink-0" /> HOLD (Vượt nợ)
-                            </span>
+                            <Badge type="danger">
+                              <span className="inline-flex items-center gap-1">
+                                <ShieldAlert className="w-3 h-3 shrink-0" /> HOLD (Vượt nợ)
+                              </span>
+                            </Badge>
                           ) : (
-                            <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-pill inline-flex items-center whitespace-nowrap">
-                              ACTIVE (Tốt)
-                            </span>
+                            <Badge type="success">ACTIVE (Tốt)</Badge>
                           )}
                         </td>
                         <td className="px-6 py-4 text-center">
@@ -454,7 +453,7 @@ const PartnerManagement = () => {
                             {(hasRole(ROLES.ACCOUNTANT) || hasRole(ROLES.ACCOUNTANT_MANAGER)) && (
                               <button
                                 onClick={() => handleOpenEditDealer(dl)}
-                                className="p-1 hover:bg-zinc-100 rounded-full transition-colors shrink-0 text-shade-60 hover:text-ink"
+                                className="p-1 hover:bg-canvas-cream rounded-full transition-colors shrink-0 text-shade-60 hover:text-ink"
                                 title="Sửa thông tin & Hạn mức"
                               >
                                 <Edit className="w-4 h-4" />
@@ -463,7 +462,7 @@ const PartnerManagement = () => {
                             {(hasRole(ROLES.ACCOUNTANT) || hasRole(ROLES.ACCOUNTANT_MANAGER)) && (
                               <button
                                 onClick={() => handleToggleDlStatus(dl)}
-                                className="p-1 hover:bg-zinc-100 rounded-full transition-colors shrink-0"
+                                className="p-1 hover:bg-canvas-cream rounded-full transition-colors shrink-0"
                                 title={dl.is_active ? 'Khóa đại lý' : 'Kích hoạt đại lý'}
                               >
                                 {dl.is_active ? (
@@ -486,30 +485,30 @@ const PartnerManagement = () => {
       ) : (
         // SUPPLIERS TAB
         filteredSuppliers.length === 0 ? (
-          <div className="bg-white rounded-lg border border-hairline-light p-12 text-center shadow-sm">
+          <div className="bg-canvas-light rounded-lg border border-hairline-light p-12 text-center shadow-level-3">
             <AlertCircle className="w-12 h-12 text-shade-30 mx-auto mb-4" />
             <h3 className="text-lg font-bold mb-1">Không tìm thấy Nhà cung cấp</h3>
             <p className="text-sm text-shade-50">Thử thay đổi bộ lọc tìm kiếm hoặc thêm mới nhà cung cấp.</p>
           </div>
         ) : (
-          <div className="bg-white rounded-lg border border-hairline-light shadow-sm overflow-hidden card-premium">
+          <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="bg-zinc-50 border-b border-hairline-light">
-                    <th className="px-6 py-4 font-bold text-shade-60">Mã Nhà CC</th>
-                    <th className="px-6 py-4 font-bold text-shade-60">Tên doanh nghiệp</th>
-                    <th className="px-6 py-4 font-bold text-shade-60">Mã số thuế</th>
-                    <th className="px-6 py-4 font-bold text-shade-60">Người liên hệ</th>
-                    <th className="px-6 py-4 font-bold text-shade-60">Điện thoại</th>
-                    <th className="px-6 py-4 font-bold text-shade-60">Địa chỉ văn phòng</th>
-                    <th className="px-6 py-4 font-bold text-shade-60 text-center">Trạng thái</th>
-                    <th className="px-6 py-4 font-bold text-shade-60 text-right">Hành động</th>
+                  <tr className="bg-canvas-cream border-b border-hairline-light">
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã Nhà CC</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Tên doanh nghiệp</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã số thuế</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Người liên hệ</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Điện thoại</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Địa chỉ văn phòng</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center">Trạng thái</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Hành động</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-hairline-light">
                   {filteredSuppliers.map((spl) => (
-                    <tr key={spl.id} className={`hover:bg-zinc-50/50 transition-colors ${!spl.is_active ? 'opacity-50' : ''}`}>
+                    <tr key={spl.id} className={`hover:bg-canvas-cream/50 transition-colors ${!spl.is_active ? 'opacity-50' : ''}`}>
                       <td className="px-6 py-4 font-mono font-bold text-ink">{spl.code}</td>
                       <td className="px-6 py-4 font-semibold text-ink">{spl.company_name}</td>
                       <td className="px-6 py-4 font-mono text-shade-60">{spl.tax_code || 'N/A'}</td>
@@ -526,7 +525,7 @@ const PartnerManagement = () => {
                           {(hasRole(ROLES.ACCOUNTANT) || hasRole(ROLES.ACCOUNTANT_MANAGER)) ? (
                             <button
                               onClick={() => handleOpenEditSupplier(spl)}
-                              className="p-1 hover:bg-zinc-100 rounded-full transition-colors shrink-0 text-shade-60 hover:text-ink"
+                              className="p-1 hover:bg-canvas-cream rounded-full transition-colors shrink-0 text-shade-60 hover:text-ink"
                               title="Sửa nhà cung cấp"
                             >
                               <Edit className="w-4 h-4" />
@@ -535,7 +534,7 @@ const PartnerManagement = () => {
                           {(hasRole(ROLES.ACCOUNTANT) || hasRole(ROLES.ACCOUNTANT_MANAGER)) && (
                             <button
                               onClick={() => handleToggleSplStatus(spl)}
-                              className="p-1 hover:bg-zinc-100 rounded-full transition-colors shrink-0"
+                              className="p-1 hover:bg-canvas-cream rounded-full transition-colors shrink-0"
                               title={spl.is_active ? 'Khóa nhà cung cấp' : 'Kích hoạt nhà cung cấp'}
                             >
                               {spl.is_active ? (
@@ -666,11 +665,11 @@ const PartnerManagement = () => {
           {dealerModalType === 'EDIT' && !hasRole(ROLES.ACCOUNTANT_MANAGER) && (
             <div className="border-t border-hairline-light pt-4">
               <div className="flex gap-4 text-xs">
-                <div className="flex-1 bg-zinc-50 rounded px-3 py-2">
+                <div className="flex-1 bg-canvas-cream rounded px-3 py-2">
                   <div className="text-shade-50 mb-0.5">Hạn mức tín dụng</div>
                   <div className="font-bold text-ink">{selectedDealer?.credit_limit?.toLocaleString('vi-VN')} VND</div>
                 </div>
-                <div className="flex-1 bg-zinc-50 rounded px-3 py-2">
+                <div className="flex-1 bg-canvas-cream rounded px-3 py-2">
                   <div className="text-shade-50 mb-0.5">Kỳ hạn thanh toán</div>
                   <div className="font-bold text-ink">{selectedDealer?.payment_term_days} ngày</div>
                 </div>

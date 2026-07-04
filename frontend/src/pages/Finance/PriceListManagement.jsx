@@ -1,8 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, Upload, Download, Search, X, Edit2, Ban, DollarSign, Loader2, Warehouse } from 'lucide-react';
+import { Plus, Upload, Download, FileSpreadsheet, Search, X, Edit2, Ban, DollarSign, Loader2, Warehouse } from 'lucide-react';
 import Pagination from '../../components/common/Pagination';
+import Input from '../../components/common/Input';
+import Button from '../../components/common/Button';
+import Badge from '../../components/common/Badge';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
+import { useDebounce } from '../../hooks/useDebounce';
 import pricingService from '../../services/pricing.service';
 import { masterDataService } from '../../services/masterData.service';
 import { ROLES } from '../../utils/constants';
@@ -11,9 +15,8 @@ const STATUS_LABEL = { PENDING: 'Chờ duyệt', APPROVED: 'Đã duyệt', CANCE
 const STATUS_STYLE = {
   PENDING:   'bg-amber-50 text-amber-800 border-amber-300',
   APPROVED:  'bg-aloe-10 text-emerald-900 border-emerald-300',
-  CANCELLED: 'bg-zinc-100 text-zinc-500 border-zinc-300',
+  CANCELLED: 'bg-canvas-cream text-shade-50 border-hairline-light',
 };
-const BADGE = 'text-[10px] font-semibold px-2 py-0.5 rounded-pill border uppercase tracking-wider whitespace-nowrap';
 
 export default function PriceListManagement() {
   const { user, hasRole, activeWarehouse } = useAuthStore();
@@ -93,8 +96,8 @@ export default function PriceListManagement() {
   return (
     <div className="flex flex-col gap-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 flex-wrap">
+        <div className="flex-1 min-w-0">
           <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
             Tài chính / Bảng giá
           </span>
@@ -105,26 +108,21 @@ export default function PriceListManagement() {
             Quản lý giá vốn & giá bán theo kỳ hiệu lực tại <span className="font-semibold text-ink">{activeWarehouse?.name ?? '—'}</span>. Bản giá mới cần được Kế toán trưởng phê duyệt trước khi có hiệu lực.
           </p>
         </div>
-        <div className="flex gap-2 flex-wrap justify-end">
-          <button onClick={handleExportXlsx}
-            className="btn-pill btn-pill-outline-light flex items-center gap-2 text-sm">
-            <Upload className="w-4 h-4" /> Xuất Excel
-          </button>
+        <div className="flex gap-2 flex-nowrap items-center w-full lg:w-auto flex-shrink-0">
+          <Button onClick={handleExportXlsx} variant="primary" icon={FileSpreadsheet} className="flex-none">
+            Xuất Excel
+          </Button>
           {canWrite && (
             <>
-              <button onClick={() => setShowImport(true)}
-                className="btn-pill btn-pill-outline-light flex items-center gap-2 text-sm">
-                <Download className="w-4 h-4" /> Nhập Excel
-              </button>
-              <button onClick={() => pricingService.downloadTemplate().catch(() => addToast('Không tải được file mẫu', 'error'))}
-                className="btn-pill btn-pill-outline-light flex items-center gap-2 text-sm">
-                <Upload className="w-4 h-4" /> Tải mẫu
-              </button>
-              <button onClick={() => { setEditTarget(null); setShowForm(true); }}
-                className="btn-pill btn-pill-primary flex items-center gap-2">
-                <Plus className="w-4 h-4" />
-                <span>Thêm bản giá</span>
-              </button>
+              <Button onClick={() => setShowImport(true)} variant="outline-light" icon={Download} className="flex-none">
+                Nhập Excel
+              </Button>
+              <Button onClick={() => pricingService.downloadTemplate().catch(() => addToast('Không tải được file mẫu', 'error'))} variant="outline-light" icon={Upload} className="flex-none">
+                Tải mẫu
+              </Button>
+              <Button onClick={() => { setEditTarget(null); setShowForm(true); }} variant="primary" icon={Plus} className="flex-none">
+                Thêm bản giá
+              </Button>
             </>
           )}
         </div>
@@ -133,11 +131,11 @@ export default function PriceListManagement() {
       {/* KPI Summary */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         {[
-          { label: 'Tổng bản giá', value: totalEntries, icon: <DollarSign className="w-5 h-5" />, accent: 'text-zinc-600 bg-zinc-100' },
+          { label: 'Tổng bản giá', value: totalEntries, icon: <DollarSign className="w-5 h-5" />, accent: 'text-shade-60 bg-canvas-cream' },
           { label: 'Chờ duyệt', value: pendingCount, icon: <DollarSign className="w-5 h-5" />, accent: 'text-amber-600 bg-amber-50' },
           { label: 'Đã duyệt', value: approvedCount, icon: <DollarSign className="w-5 h-5" />, accent: 'text-emerald-600 bg-emerald-50' },
         ].map(({ label, value, icon, accent }) => (
-          <div key={label} className="bg-white rounded-lg border border-hairline-light p-4 shadow-sm flex items-center gap-3">
+          <div key={label} className="bg-canvas-light rounded-lg border border-hairline-light p-4 shadow-level-3 flex items-center gap-3">
             <div className={`p-2.5 rounded-full ${accent}`}>{icon}</div>
             <div>
               <p className="text-xs text-shade-50 font-medium">{label}</p>
@@ -148,26 +146,27 @@ export default function PriceListManagement() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-lg border border-hairline-light p-4 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
-        <div className="relative w-full md:w-80">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-shade-40" />
-          <input
+      <div className="bg-canvas-light rounded-lg border border-hairline-light p-4 shadow-level-3 flex flex-col md:flex-row gap-4 items-center justify-between">
+        <div className="w-full md:w-80">
+          <Input
             type="text"
+            leftIcon={Search}
             placeholder="Tìm SKU hoặc tên sản phẩm..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full text-input pl-10"
           />
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-shade-50">Trạng thái:</span>
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="text-input text-xs py-1.5">
-            <option value="ALL">Tất cả</option>
-            <option value="PENDING">Chờ duyệt</option>
-            <option value="APPROVED">Đã duyệt</option>
-            <option value="CANCELLED">Đã hủy</option>
-          </select>
-        </div>
+        <Input
+          type="select"
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          options={[
+            { value: 'ALL', label: 'Tất cả' },
+            { value: 'PENDING', label: 'Chờ duyệt' },
+            { value: 'APPROVED', label: 'Đã duyệt' },
+            { value: 'CANCELLED', label: 'Đã hủy' },
+          ]}
+        />
       </div>
 
       {/* Table */}
@@ -176,30 +175,30 @@ export default function PriceListManagement() {
           <Loader2 className="w-8 h-8 animate-spin text-shade-50" />
         </div>
       ) : filtered.length === 0 ? (
-        <div className="bg-white rounded-lg border border-hairline-light p-12 text-center shadow-sm">
+        <div className="bg-canvas-light rounded-lg border border-hairline-light p-12 text-center shadow-level-3">
           <DollarSign className="w-12 h-12 text-shade-30 mx-auto mb-4" />
           <h3 className="text-lg font-bold mb-1">Không tìm thấy bản giá nào</h3>
           <p className="text-sm text-shade-50">Thay đổi bộ lọc hoặc thêm bản giá mới để bắt đầu.</p>
         </div>
       ) : (
-        <div className="bg-white rounded-lg border border-hairline-light shadow-sm overflow-hidden card-premium">
+        <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-zinc-50 border-b border-hairline-light">
-                  <th className="px-6 py-3.5 text-xs font-bold text-shade-60 uppercase tracking-wider">SKU</th>
-                  <th className="px-6 py-3.5 text-xs font-bold text-shade-60 uppercase tracking-wider">Sản phẩm</th>
-                  <th className="px-6 py-3.5 text-xs font-bold text-shade-60 uppercase tracking-wider">Kỳ hiệu lực</th>
-                  <th className="px-6 py-3.5 text-xs font-bold text-shade-60 uppercase tracking-wider text-right">Giá vốn</th>
-                  <th className="px-6 py-3.5 text-xs font-bold text-shade-60 uppercase tracking-wider text-right">Giá bán</th>
-                  <th className="px-6 py-3.5 text-xs font-bold text-shade-60 uppercase tracking-wider">Trạng thái</th>
-                  <th className="px-6 py-3.5 text-xs font-bold text-shade-60 uppercase tracking-wider">Ghi chú</th>
-                  <th className="px-6 py-3.5 text-xs font-bold text-shade-60 uppercase tracking-wider text-right">Thao tác</th>
+                <tr className="bg-canvas-cream border-b border-hairline-light">
+                  <th className="px-6 py-4 text-xs font-semibold text-shade-60 uppercase tracking-wider">SKU</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-shade-60 uppercase tracking-wider">Sản phẩm</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-shade-60 uppercase tracking-wider">Kỳ hiệu lực</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-shade-60 uppercase tracking-wider text-right">Giá vốn</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-shade-60 uppercase tracking-wider text-right">Giá bán</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-shade-60 uppercase tracking-wider">Trạng thái</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-shade-60 uppercase tracking-wider">Ghi chú</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-shade-60 uppercase tracking-wider text-right">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-hairline-light">
                 {paginated.map((entry) => (
-                  <tr key={entry.id} className="hover:bg-zinc-50 transition-colors">
+                  <tr key={entry.id} className="hover:bg-canvas-cream/50 transition-colors">
                     <td className="px-6 py-4 font-mono text-xs text-shade-60">{entry.product_sku}</td>
                     <td className="px-6 py-4 text-xs font-semibold">{entry.product_name}</td>
                     <td className="px-6 py-4 text-xs text-shade-50 whitespace-nowrap">
@@ -212,9 +211,9 @@ export default function PriceListManagement() {
                       {formatVND(entry.selling_price)}
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`${BADGE} ${STATUS_STYLE[entry.status]}`}>
+                      <Badge colorClassName={STATUS_STYLE[entry.status]}>
                         {STATUS_LABEL[entry.status]}
-                      </span>
+                      </Badge>
                     </td>
                     <td className="px-6 py-4 text-xs text-shade-50 max-w-[140px] truncate">
                       {entry.notes || '—'}
@@ -222,18 +221,12 @@ export default function PriceListManagement() {
                     <td className="px-6 py-4 text-right whitespace-nowrap">
                       {canWrite && entry.status === 'PENDING' && entry.created_by?.id === user?.id && (
                         <div className="flex gap-2 justify-end items-center">
-                          <button
-                            onClick={() => { setEditTarget(entry); setShowForm(true); }}
-                            className="inline-flex items-center justify-center rounded-full border border-ink bg-canvas-light text-ink hover:bg-zinc-100 px-3 py-1 text-xs font-semibold whitespace-nowrap transition-colors duration-150"
-                          >
-                            <Edit2 className="w-3 h-3 mr-1" /> Sửa
-                          </button>
-                          <button
-                            onClick={() => handleCancel(entry.id)}
-                            className="inline-flex items-center justify-center rounded-full border border-red-300 text-red-600 hover:bg-red-50 px-3 py-1 text-xs font-semibold whitespace-nowrap transition-colors duration-150"
-                          >
-                            <Ban className="w-3 h-3 mr-1" /> Hủy
-                          </button>
+                          <Button variant="outline-light" icon={Edit2} onClick={() => { setEditTarget(entry); setShowForm(true); }}>
+                            Sửa
+                          </Button>
+                          <Button variant="outline-light" icon={Ban} onClick={() => handleCancel(entry.id)} className="text-red-600 border-red-200 hover:bg-red-50">
+                            Hủy
+                          </Button>
                         </div>
                       )}
                     </td>
@@ -328,21 +321,19 @@ function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }
     fetchProducts();
   }, [isEdit, entry, addToast]);
 
+  const debouncedSearchQuery = useDebounce(searchQuery, 250);
+
   useEffect(() => {
-    if (!searchQuery.trim()) {
+    if (!debouncedSearchQuery.trim()) {
       setSearchResults([]);
       return;
     }
-    const delayDebounce = setTimeout(() => {
-      const filtered = products.filter(p =>
-        p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.name.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-      setSearchResults(filtered);
-    }, 250);
-
-    return () => clearTimeout(delayDebounce);
-  }, [searchQuery, products]);
+    const filtered = products.filter(p =>
+      p.sku.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+      p.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
+    );
+    setSearchResults(filtered);
+  }, [debouncedSearchQuery, products]);
 
   // Đóng dropdown khi click ngoài
   useEffect(() => {
@@ -392,16 +383,16 @@ function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-canvas-night/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-canvas-cream rounded-lg max-w-lg w-full border border-hairline-light shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
-        <div className="p-6 border-b border-hairline-light flex items-center justify-between bg-white">
+        <div className="p-6 border-b border-hairline-light flex items-center justify-between bg-canvas-light">
           <div>
-            <span className="text-[10px] font-bold text-shade-40 uppercase tracking-widest block mb-1">
+            <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
               Tài chính / Bảng giá
             </span>
             <h3 className="text-xl font-bold">{isEdit ? 'Sửa bản giá' : 'Thêm bản giá mới'}</h3>
           </div>
-          <button onClick={onClose} className="p-1 hover:bg-zinc-100 rounded-full transition-colors text-shade-50 hover:text-ink">
+          <button onClick={onClose} className="p-1 hover:bg-canvas-cream rounded-pill transition-colors text-shade-50 hover:text-ink">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -416,7 +407,7 @@ function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }
                 type="text"
                 value={selectedProduct ? `${selectedProduct.sku} - ${selectedProduct.name}` : (entry?.product_name || `ID: ${form.product_id}`)}
                 disabled
-                className="text-input w-full bg-zinc-50 text-shade-50 cursor-not-allowed font-semibold"
+                className="text-input w-full bg-canvas-cream text-shade-50 cursor-not-allowed font-semibold"
               />
             </div>
           ) : selectedProduct ? (
@@ -429,7 +420,7 @@ function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }
                   type="text"
                   value={`${selectedProduct.sku} - ${selectedProduct.name}`}
                   disabled
-                  className="text-input flex-1 bg-zinc-50 text-shade-60 font-semibold"
+                  className="text-input flex-1 bg-canvas-cream text-shade-60 font-semibold"
                 />
                 <button
                   type="button"
@@ -449,7 +440,7 @@ function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }
                 Tìm kiếm sản phẩm <span className="text-red-500">*</span>
               </label>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-shade-40" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-shade-60" />
                 <input
                   type="text"
                   placeholder="Nhập tên sản phẩm hoặc SKU..."
@@ -463,13 +454,13 @@ function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }
                 />
                 {loadingProducts && (
                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    <Loader2 className="w-4 h-4 animate-spin text-shade-40" />
+                    <Loader2 className="w-4 h-4 animate-spin text-shade-60" />
                   </div>
                 )}
               </div>
 
               {showSearchResults && searchQuery.trim() !== '' && (
-                <div className="absolute left-0 right-0 mt-1 bg-white border border-hairline-light rounded-lg shadow-xl max-h-60 overflow-y-auto z-50">
+                <div className="absolute left-0 right-0 mt-1 bg-canvas-light border border-hairline-light rounded-lg shadow-xl max-h-60 overflow-y-auto z-50">
                   {searchResults.length === 0 ? (
                     <div className="p-3 text-xs text-shade-50 text-center">Không tìm thấy sản phẩm</div>
                   ) : (
@@ -477,7 +468,7 @@ function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }
                       <div
                         key={prod.id}
                         onClick={() => handleSelectProduct(prod)}
-                        className="p-2.5 hover:bg-zinc-50 cursor-pointer transition-colors border-b border-hairline-light last:border-0 flex items-center justify-between text-xs"
+                        className="p-2.5 hover:bg-canvas-cream cursor-pointer transition-colors border-b border-hairline-light last:border-0 flex items-center justify-between text-xs"
                       >
                         <div>
                           <span className="font-bold block text-ink">{prod.sku}</span>
@@ -499,7 +490,7 @@ function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }
               type="text"
               value={entry?.warehouse_name ?? warehouseName ?? '—'}
               disabled
-              className="text-input w-full bg-zinc-50 text-shade-50 cursor-not-allowed font-semibold"
+              className="text-input w-full bg-canvas-cream text-shade-50 cursor-not-allowed font-semibold"
             />
           </div>
 
@@ -544,7 +535,7 @@ function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }
           </div>
         </form>
 
-        <div className="p-4 border-t border-hairline-light bg-zinc-50 flex justify-between gap-3">
+        <div className="p-4 border-t border-hairline-light bg-canvas-cream flex justify-between gap-3">
           <button type="button" onClick={onClose} className="btn-pill btn-pill-outline-light text-xs">Đóng</button>
           <button onClick={handleSubmit} disabled={submitting}
             className="btn-pill btn-pill-primary text-xs py-1.5 px-5 disabled:opacity-50 flex items-center gap-1.5">
@@ -583,16 +574,16 @@ function ImportModal({ onClose, onDone }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-canvas-night/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-canvas-cream rounded-lg max-w-lg w-full border border-hairline-light shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
-        <div className="p-6 border-b border-hairline-light flex items-center justify-between bg-white">
+        <div className="p-6 border-b border-hairline-light flex items-center justify-between bg-canvas-light">
           <div>
-            <span className="text-[10px] font-bold text-shade-40 uppercase tracking-widest block mb-1">
+            <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
               Tài chính / Bảng giá
             </span>
             <h3 className="text-xl font-bold">Import bảng giá từ Excel</h3>
           </div>
-          <button onClick={onClose} className="p-1 hover:bg-zinc-100 rounded-full transition-colors text-shade-50 hover:text-ink">
+          <button onClick={onClose} className="p-1 hover:bg-canvas-cream rounded-pill transition-colors text-shade-50 hover:text-ink">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -601,7 +592,7 @@ function ImportModal({ onClose, onDone }) {
           {!result ? (
             <>
               <p className="text-sm text-shade-50">
-                Chọn file <span className="font-mono text-xs bg-zinc-100 px-1.5 py-0.5 rounded">.xlsx</span> đúng
+                Chọn file <span className="font-mono text-xs bg-canvas-cream px-1.5 py-0.5 rounded-pill">.xlsx</span> đúng
                 cột: <span className="font-mono text-xs">product_sku, effective_date, end_date, cost_price, selling_price, notes</span>.
                 Tối đa 1.000 dòng.
               </p>
@@ -625,7 +616,7 @@ function ImportModal({ onClose, onDone }) {
               {result.failed?.length > 0 && (
                 <div className="max-h-48 overflow-y-auto rounded-lg border border-hairline-light">
                   <table className="w-full text-xs">
-                    <thead className="bg-zinc-50 sticky top-0">
+                    <thead className="bg-canvas-cream sticky top-0">
                       <tr>
                         <th className="px-3 py-2 text-left font-bold text-shade-60">Dòng</th>
                         <th className="px-3 py-2 text-left font-bold text-shade-60">SKU</th>
@@ -648,7 +639,7 @@ function ImportModal({ onClose, onDone }) {
           )}
         </div>
 
-        <div className="p-4 border-t border-hairline-light bg-zinc-50 flex justify-between gap-3">
+        <div className="p-4 border-t border-hairline-light bg-canvas-cream flex justify-between gap-3">
           <button onClick={onClose} className="btn-pill btn-pill-outline-light text-xs">Đóng</button>
           {!result ? (
             <button onClick={handleUpload} disabled={submitting || !file}
@@ -668,7 +659,7 @@ function ImportModal({ onClose, onDone }) {
 
 function StatBox({ label, value, color = 'text-ink' }) {
   return (
-    <div className="bg-zinc-50 rounded-lg p-3 border border-hairline-light">
+    <div className="bg-canvas-cream rounded-lg p-3 border border-hairline-light">
       <div className={`text-2xl font-bold ${color}`}>{value}</div>
       <div className="text-xs text-shade-50 mt-0.5">{label}</div>
     </div>

@@ -3,6 +3,7 @@ import { Plus, Search } from 'lucide-react';
 import { adminService } from '../../services/admin.service';
 import { useUiStore } from '../../stores/ui.store';
 import Button from '../../components/common/Button';
+import Input from '../../components/common/Input';
 import Pagination from '../../components/common/Pagination';
 import UserTable from './UserTable';
 import UserFormModal from './UserFormModal';
@@ -139,14 +140,13 @@ const UserManagement = () => {
 
       <div className="flex flex-col gap-4">
         {/* Search bar */}
-        <div className="relative w-full max-w-md">
-          <Search className="absolute left-3 top-3.5 w-4 h-4 text-shade-50" />
-          <input
+        <div className="w-full max-w-md">
+          <Input
             type="text"
+            leftIcon={Search}
             placeholder="Tìm theo tài khoản, tên hoặc email..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-canvas-light text-sm pl-9 pr-4 py-2.5 rounded-md border border-hairline-light focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink transition-all min-h-[44px]"
           />
         </div>
 

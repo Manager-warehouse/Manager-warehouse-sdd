@@ -6,6 +6,9 @@ import { inboundService } from '../../services/inbound.service';
 import { masterDataService } from '../../services/masterData.service';
 import { ROLES } from '../../utils/constants';
 import { Plus, Search, FileText, CheckCircle2, AlertTriangle, Eye, Check, X, Loader2 } from 'lucide-react';
+import Input from '../../components/common/Input';
+import Badge from '../../components/common/Badge';
+import Button from '../../components/common/Button';
 
 const ReceiptList = () => {
   const navigate = useNavigate();
@@ -85,29 +88,28 @@ const ReceiptList = () => {
 
   const getStatusBadge = (receipt) => {
     if (!receipt) return null;
-    const baseStyle = "text-[10px] font-semibold px-2 py-0.5 rounded-pill border uppercase tracking-wider whitespace-nowrap";
     if (receipt.status === 'APPROVED' && isPutawayCompleted(receipt)) {
-      return <span className={`${baseStyle} bg-emerald-100 text-emerald-800 border-emerald-300`}>Đã cất kệ</span>;
+      return <Badge size="sm" colorClassName="bg-emerald-100 text-emerald-800 border-emerald-300">Đã cất kệ</Badge>;
     }
     switch (receipt.status) {
       case 'PENDING_RECEIPT':
-        return <span className={`${baseStyle} bg-zinc-100 text-zinc-800 border-zinc-200`}>Chờ nhận</span>;
+        return <Badge size="sm" colorClassName="bg-canvas-cream text-shade-70 border-hairline-light">Chờ nhận</Badge>;
       case 'DRAFT':
-        return <span className={`${baseStyle} bg-blue-50 text-blue-700 border-blue-200`}>Đã đếm (nháp)</span>;
+        return <Badge size="sm" colorClassName="bg-blue-50 text-blue-700 border-blue-200">Đã đếm (nháp)</Badge>;
       case 'QC_COMPLETED':
-        return <span className={`${baseStyle} bg-amber-50 text-amber-700 border-amber-200`}>Đã QC</span>;
+        return <Badge size="sm" colorClassName="bg-amber-50 text-amber-700 border-amber-200">Đã QC</Badge>;
       case 'APPROVED':
-        return <span className={`${baseStyle} bg-aloe-10 text-emerald-900 border-emerald-300`}>Đã duyệt</span>;
+        return <Badge size="sm" colorClassName="bg-aloe-10 text-emerald-900 border-emerald-300">Đã duyệt</Badge>;
       case 'REJECTED':
-        return <span className={`${baseStyle} bg-red-50 text-red-700 border-red-200`}>Từ chối</span>;
+        return <Badge size="sm" colorClassName="bg-red-50 text-red-700 border-red-200">Từ chối</Badge>;
       case 'IN_TRANSIT':
-        return <span className={`${baseStyle} bg-amber-50 text-amber-700 border-amber-200`}>Chờ nhận nội bộ</span>;
+        return <Badge size="sm" colorClassName="bg-amber-50 text-amber-700 border-amber-200">Chờ nhận nội bộ</Badge>;
       case 'COMPLETED':
-        return <span className={`${baseStyle} bg-aloe-10 text-emerald-900 border-emerald-300`}>Đã nhập kho</span>;
+        return <Badge size="sm" colorClassName="bg-aloe-10 text-emerald-900 border-emerald-300">Đã nhập kho</Badge>;
       case 'COMPLETED_WITH_DISCREPANCY':
-        return <span className={`${baseStyle} bg-amber-50 text-amber-700 border-amber-200`}>Đã nhập có lệch</span>;
+        return <Badge size="sm" colorClassName="bg-amber-50 text-amber-700 border-amber-200">Đã nhập có lệch</Badge>;
       default:
-        return <span className={`${baseStyle} bg-zinc-100 text-zinc-800 border-zinc-200`}>{receipt.status}</span>;
+        return <Badge size="sm" colorClassName="bg-canvas-cream text-shade-70 border-hairline-light">{receipt.status}</Badge>;
     }
   };
 
@@ -200,57 +202,55 @@ const ReceiptList = () => {
         </div>
 
         {(hasRole(ROLES.PLANNER) || hasRole(ROLES.ADMIN)) && (
-          <button
+          <Button
             onClick={() => navigate('/inbound/create')}
-            className="btn-pill btn-pill-primary flex items-center gap-2"
+            variant="primary"
+            icon={Plus}
           >
-            <Plus className="w-4 h-4" />
-            <span>Lập lệnh nhập kho</span>
-          </button>
+            Lập lệnh nhập kho
+          </Button>
         )}
       </div>
 
       {/* Filters & search */}
-      <div className="bg-white rounded-lg border border-hairline-light p-4 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between mb-6">
-        <div className="relative w-full md:w-80">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-shade-40" />
-          <input
+      <div className="bg-canvas-light rounded-lg border border-hairline-light p-4 shadow-level-3 flex flex-col md:flex-row gap-4 items-center justify-between mb-6">
+        <div className="w-full md:w-80">
+          <Input
             type="text"
+            leftIcon={Search}
             placeholder="Tìm mã phiếu, số PO..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full text-input pl-10"
           />
         </div>
 
         <div className="flex flex-wrap gap-3 w-full md:w-auto justify-end">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-shade-50">Trạng thái:</span>
-            <select
+          <div className="w-full sm:w-48">
+            <Input
+              type="select"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="text-input text-xs py-1.5"
-            >
-              <option value="ALL">Tất cả</option>
-              <option value="PENDING_RECEIPT">Chờ nhận</option>
-              <option value="DRAFT">Đã đếm (Nháp)</option>
-              <option value="QC_COMPLETED">Đã QC</option>
-              <option value="APPROVED">Đã duyệt</option>
-              <option value="REJECTED">Từ chối</option>
-            </select>
+              options={[
+                { value: 'ALL', label: 'Tất cả trạng thái' },
+                { value: 'PENDING_RECEIPT', label: 'Chờ nhận' },
+                { value: 'DRAFT', label: 'Đã đếm (Nháp)' },
+                { value: 'QC_COMPLETED', label: 'Đã QC' },
+                { value: 'APPROVED', label: 'Đã duyệt' },
+                { value: 'REJECTED', label: 'Từ chối' },
+              ]}
+            />
           </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-shade-50">Phân loại:</span>
-            <select
+          <div className="w-full sm:w-44">
+            <Input
+              type="select"
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
-              className="text-input text-xs py-1.5"
-            >
-              <option value="ALL">Tất cả</option>
-              <option value="PURCHASE">Nhập mua (PO)</option>
-              <option value="RETURN">Nhập trả (DO hoàn)</option>
-            </select>
+              options={[
+                { value: 'ALL', label: 'Tất cả loại' },
+                { value: 'PURCHASE', label: 'Nhập mua (PO)' },
+                { value: 'RETURN', label: 'Nhập trả (DO hoàn)' },
+              ]}
+            />
           </div>
         </div>
       </div>
@@ -263,35 +263,35 @@ const ReceiptList = () => {
       ) : (
         <>
           {filteredReceipts.length === 0 ? (
-        <div className="bg-white rounded-lg border border-hairline-light p-12 text-center shadow-sm">
+        <div className="bg-canvas-light rounded-lg border border-hairline-light p-12 text-center shadow-level-3">
           <FileText className="w-12 h-12 text-shade-30 mx-auto mb-4" />
           <h3 className="text-lg font-bold mb-1">Không tìm thấy phiếu nhập kho nào</h3>
           <p className="text-sm text-shade-50">Thử đổi bộ lọc để xem phiếu nhập mua hoặc phiếu nhập trả.</p>
         </div>
           ) : (
-        <div className="bg-white rounded-lg border border-hairline-light shadow-sm overflow-hidden card-premium">
+        <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-zinc-50 border-b border-hairline-light">
-                  <th className="px-6 py-3.5 text-xs font-bold text-shade-60 uppercase tracking-wider">Mã phiếu</th>
-                  <th className="px-6 py-3.5 text-xs font-bold text-shade-60 uppercase tracking-wider">Loại</th>
-                  <th className="px-6 py-3.5 text-xs font-bold text-shade-60 uppercase tracking-wider">Chứng từ gốc</th>
-                  <th className="px-6 py-3.5 text-xs font-bold text-shade-60 uppercase tracking-wider">Đối tác</th>
-                  <th className="px-6 py-3.5 text-xs font-bold text-shade-60 uppercase tracking-wider">Ngày chứng từ</th>
-                  <th className="px-6 py-3.5 text-xs font-bold text-shade-60 uppercase tracking-wider">Trạng thái</th>
-                  <th className="px-6 py-3.5 text-xs font-bold text-shade-60 uppercase tracking-wider text-right">Thao tác</th>
+                <tr className="bg-canvas-cream border-b border-hairline-light">
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã phiếu</th>
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Loại</th>
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Chứng từ gốc</th>
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Đối tác</th>
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Ngày chứng từ</th>
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Trạng thái</th>
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-hairline-light">
                 {filteredReceipts.map((receipt) => (
-                  <tr key={receipt.id} className="hover:bg-zinc-50 transition-colors">
+                  <tr key={receipt.id} className="hover:bg-canvas-cream/50 transition-colors">
                     <td className="px-6 py-4 text-xs font-bold">{receipt.receipt_number}</td>
                     <td className="px-6 py-4 text-xs font-semibold">
                       {receipt.type === 'PURCHASE' ? (
-                        <span className="text-indigo-600">Nhập mua (PO)</span>
+                        <span className="text-shade-70">Nhập mua (PO)</span>
                       ) : receipt.type === 'RETURN' ? (
-                        <span className="text-teal-600">Nhập trả (DO hoàn)</span>
+                        <span className="text-shade-70">Nhập trả (DO hoàn)</span>
                       ) : (
                         <span>-</span>
                       )}
@@ -305,7 +305,7 @@ const ReceiptList = () => {
                         {receipt.status === 'PENDING_RECEIPT' && (hasRole(ROLES.WAREHOUSE_STAFF) || hasRole(ROLES.ADMIN)) && (
                           <button
                             onClick={() => navigate(`/inbound/receive/${receipt.id}`)}
-                            className="inline-flex items-center justify-center rounded-full border border-ink bg-canvas-light text-ink hover:bg-zinc-100 px-3 py-1 text-xs font-semibold whitespace-nowrap transition-colors duration-150"
+                            className="inline-flex items-center justify-center rounded-full border border-ink bg-canvas-light text-ink hover:bg-canvas-cream px-3 py-1 text-xs font-semibold whitespace-nowrap transition-colors duration-150"
                           >
                             Đếm thực tế
                           </button>
@@ -319,7 +319,7 @@ const ReceiptList = () => {
                         ) && (
                           <button
                             onClick={() => navigate(`/inbound/qc/${receipt.id}`)}
-                            className="inline-flex items-center justify-center rounded-full border border-ink bg-canvas-light text-ink hover:bg-zinc-100 px-3 py-1 text-xs font-semibold whitespace-nowrap transition-colors duration-150"
+                            className="inline-flex items-center justify-center rounded-full border border-ink bg-canvas-light text-ink hover:bg-canvas-cream px-3 py-1 text-xs font-semibold whitespace-nowrap transition-colors duration-150"
                           >
                             Kiểm QC
                           </button>
@@ -375,7 +375,7 @@ const ReceiptList = () => {
                               addToast('Lỗi xem chi tiết', 'error');
                             }
                           }}
-                          className="p-1.5 hover:bg-zinc-200 rounded-full text-shade-50 hover:text-ink transition-colors flex items-center justify-center"
+                          className="p-1.5 hover:bg-canvas-cream rounded-full text-shade-50 hover:text-ink transition-colors flex items-center justify-center"
                           title="Xem chi tiết"
                         >
                           <Eye className="w-4 h-4" />
@@ -394,9 +394,9 @@ const ReceiptList = () => {
 
       {/* Approval & View Detail Modal */}
       {showApprovalModal && selectedReceipt && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-canvas-night/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-canvas-cream rounded-lg max-w-3xl w-full border border-hairline-light shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
-            <div className="p-6 border-b border-hairline-light flex items-center justify-between bg-white">
+            <div className="p-6 border-b border-hairline-light flex items-center justify-between bg-canvas-cream">
               <div>
                 <span className="text-[10px] font-bold text-shade-40 uppercase tracking-widest block mb-1">Chi tiết phiếu</span>
                 <h3 className="text-xl font-bold flex items-center gap-3">
@@ -406,7 +406,7 @@ const ReceiptList = () => {
               </div>
               <button
                 onClick={() => setShowApprovalModal(false)}
-                className="p-1 hover:bg-zinc-100 rounded-full transition-colors text-shade-50 hover:text-ink"
+                className="p-1 hover:bg-canvas-cream rounded-full transition-colors text-shade-50 hover:text-ink"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -449,21 +449,21 @@ const ReceiptList = () => {
               {/* Items List */}
               <div>
                 <h4 className="text-xs font-bold uppercase tracking-widest text-shade-40 mb-3">Danh sách sản phẩm kiểm định</h4>
-                <div className="border border-hairline-light rounded-lg overflow-hidden bg-white shadow-inner">
+                <div className="border border-hairline-light rounded-lg overflow-hidden bg-canvas-light shadow-inner">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
-                      <tr className="bg-zinc-50 border-b border-hairline-light">
-                        <th className="px-4 py-2.5 font-bold text-shade-60">Sản phẩm</th>
-                        <th className="px-4 py-2.5 font-bold text-shade-60 text-right">Dự kiến</th>
-                        <th className="px-4 py-2.5 font-bold text-shade-60 text-right">Đếm thực tế</th>
-                        <th className="px-4 py-2.5 font-bold text-shade-60 text-right">Đạt QC</th>
-                        <th className="px-4 py-2.5 font-bold text-shade-60 text-right">Lỗi QC</th>
-                        <th className="px-4 py-2.5 font-bold text-shade-60">Chi tiết QC</th>
+                      <tr className="bg-canvas-cream border-b border-hairline-light">
+                        <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Sản phẩm</th>
+                        <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Dự kiến</th>
+                        <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Đếm thực tế</th>
+                        <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Đạt QC</th>
+                        <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Lỗi QC</th>
+                        <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Chi tiết QC</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-hairline-light">
                       {selectedReceipt.items.map((item) => (
-                        <tr key={item.id} className="hover:bg-zinc-50/50">
+                        <tr key={item.id} className="hover:bg-canvas-cream/50 transition-colors">
                           <td className="px-4 py-3">
                             <span className="font-semibold block">{getProductName(item)}</span>
                             <span className="text-[10px] text-shade-40 font-mono block">{getProductSku(item)}</span>
@@ -497,7 +497,7 @@ const ReceiptList = () => {
 
               {/* Form Input for approval notes / rejection reason */}
               {selectedReceipt.status === 'QC_COMPLETED' && (hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.ADMIN)) && (
-                <div className="bg-white p-4 border border-hairline-light rounded-lg shadow-sm">
+                <div className="bg-canvas-light p-4 border border-hairline-light rounded-lg shadow-level-3">
                   {isRejecting ? (
                     <div className="flex flex-col gap-2">
                       <label className="text-xs font-bold text-red-700 flex items-center gap-1.5">
@@ -528,7 +528,7 @@ const ReceiptList = () => {
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 border-t border-hairline-light bg-zinc-50 flex justify-between gap-3">
+            <div className="p-4 border-t border-hairline-light bg-canvas-cream flex justify-between gap-3">
               <button
                 onClick={() => setShowApprovalModal(false)}
                 className="btn-pill btn-pill-outline-light text-xs"

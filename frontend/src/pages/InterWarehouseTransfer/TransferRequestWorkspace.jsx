@@ -5,6 +5,9 @@ import { interWarehouseTransferService } from '../../services/inter-warehouse-tr
 import { masterDataService } from '../../services/masterData.service';
 import { ROLES } from '../../utils/constants';
 import { Loader2, Plus, Send, Check, X, Eye, FileText, RefreshCw, AlertCircle, Inbox, Info } from 'lucide-react';
+import Button from '../../components/common/Button';
+import Input from '../../components/common/Input';
+import Badge from '../../components/common/Badge';
 
 const TransferRequestWorkspace = () => {
   const activeWarehouse = useAuthStore((state) => state.activeWarehouse);
@@ -196,41 +199,35 @@ const TransferRequestWorkspace = () => {
 
   const getStatusBadge = (status) => {
     const maps = {
-      DRAFT: { text: 'Bản thô (DRAFT)', class: 'bg-zinc-100 text-zinc-700 border-zinc-200' },
+      DRAFT: { text: 'Bản thô (DRAFT)', class: 'bg-canvas-cream text-shade-60 border-hairline-light' },
       SUBMITTED: { text: 'Chờ CEO Duyệt', class: 'bg-amber-50 text-amber-700 border-amber-200 animate-pulse' },
       APPROVED: { text: 'Đã Duyệt', class: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
       REJECTED: { text: 'Bị Từ Chối', class: 'bg-red-50 text-red-700 border-red-200' },
-      CONVERTED: { text: 'Đã Chuyển TRF', class: 'bg-indigo-50 text-indigo-700 border-indigo-200' }
+      CONVERTED: { text: 'Đã Chuyển TRF', class: 'bg-shade-30 text-ink border-hairline-light' }
     };
-    const c = maps[status] || { text: status, class: 'bg-gray-100 text-gray-700' };
-    return <span className={`text-[10px] font-bold px-2 py-0.5 border rounded-pill whitespace-nowrap ${c.class}`}>{c.text}</span>;
+    const c = maps[status] || { text: status, class: 'bg-shade-30 text-ink' };
+    return <Badge size="sm" colorClassName={c.class}>{c.text}</Badge>;
   };
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Upper Panel */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gradient-to-r from-zinc-900 via-zinc-800 to-black text-white p-6 rounded-lg shadow-xl relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(59,130,246,0.1),transparent_40%)]" />
-        <div className="relative z-10">
-          <span className="text-[10px] font-bold text-blue-400 uppercase tracking-widest block mb-1">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
             Điều phối nội bộ / Spec 005
           </span>
-          <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight text-white">
+          <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">
             Yêu cầu điều chuyển kho
           </h1>
-          <p className="text-xs text-zinc-300 font-light mt-1 max-w-xl">
+          <p className="text-xs text-shade-50 font-light mt-1">
             Tạo đề xuất điều phối hàng hóa từ các kho khác về kho đích hiện tại. Hỗ trợ xem tồn kho khả dụng tức thời, luồng CEO duyệt và Planner lập phiếu TRF tự động.
           </p>
         </div>
-
         {hasRole(ROLES.WAREHOUSE_MANAGER) && (
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="btn bg-white hover:bg-zinc-100 text-zinc-950 font-bold text-xs flex items-center gap-1.5 px-4 py-2.5 rounded-lg shadow-lg relative z-10 transition-transform hover:-translate-y-0.5 active:translate-y-0 duration-150"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Tạo yêu cầu</span>
-          </button>
+          <Button variant="primary" icon={Plus} onClick={() => setShowCreateModal(true)}>
+            Tạo yêu cầu
+          </Button>
         )}
       </div>
 
@@ -240,10 +237,10 @@ const TransferRequestWorkspace = () => {
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2.5 font-bold text-xs transition-colors border-b-2 uppercase tracking-wide ${
+            className={`px-4 py-2.5 font-semibold text-xs transition-colors border-b-2 uppercase tracking-wide ${
               activeTab === tab
-                ? 'border-zinc-950 text-zinc-950'
-                : 'border-transparent text-shade-50 hover:text-zinc-950'
+                ? 'border-ink text-ink'
+                : 'border-transparent text-shade-50 hover:text-ink'
             }`}
           >
             {tab === 'ALL' ? 'Tất cả' : tab}
@@ -254,27 +251,27 @@ const TransferRequestWorkspace = () => {
       {/* Requests Grid */}
       {loading ? (
         <div className="flex items-center justify-center p-20">
-          <Loader2 className="w-8 h-8 animate-spin text-shade-40" />
+          <Loader2 className="w-8 h-8 animate-spin text-shade-50" />
         </div>
       ) : filteredRequests.length === 0 ? (
-        <div className="bg-white rounded-lg border border-hairline-light p-16 text-center shadow-sm">
-          <Inbox className="w-12 h-12 text-shade-30 mx-auto mb-4" />
-          <h3 className="text-lg font-bold mb-1">Không tìm thấy yêu cầu nào</h3>
-          <p className="text-sm text-shade-50 font-light">Không có yêu cầu điều chuyển nào ở trạng thái này.</p>
+        <div className="bg-canvas-light rounded-lg border border-hairline-light p-16 text-center shadow-level-3">
+          <Inbox className="w-12 h-12 text-shade-50 mx-auto mb-4" />
+          <h3 className="text-sm font-semibold text-ink mb-1">Không tìm thấy yêu cầu nào</h3>
+          <p className="text-xs text-shade-50 font-light">Không có yêu cầu điều chuyển nào ở trạng thái này.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {filteredRequests.map((req) => (
-            <div 
-              key={req.id} 
-              className="bg-white border border-hairline-light rounded-lg p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between"
+            <div
+              key={req.id}
+              className="bg-canvas-light border border-hairline-light rounded-lg p-5 shadow-level-3 hover:shadow-md transition-shadow flex flex-col justify-between"
             >
               <div>
                 <div className="flex justify-between items-start gap-4 mb-3 pb-3 border-b border-hairline-light">
                   <div>
-                    <span className="text-[10px] font-bold text-shade-40 uppercase font-mono block">{req.requestNumber}</span>
+                    <span className="text-[10px] font-bold text-shade-50 uppercase font-mono block">{req.requestNumber}</span>
                     <h4 className="font-bold text-xs text-ink mt-0.5">
-                      Từ: <span className="text-blue-600 font-bold">{req.sourceWarehouseName}</span> → Đến: <span className="text-zinc-950 font-bold">{req.destinationWarehouseName}</span>
+                      Từ: <span className="text-blue-700 font-bold">{req.sourceWarehouseName}</span> → Đến: <span className="text-ink font-bold">{req.destinationWarehouseName}</span>
                     </h4>
                   </div>
                   {getStatusBadge(req.status)}
@@ -297,33 +294,25 @@ const TransferRequestWorkspace = () => {
                 </div>
               </div>
 
-              <div className="flex gap-2 border-t border-zinc-100 pt-3 justify-end items-center">
-                <button
-                  onClick={() => handleViewDetails(req)}
-                  className="btn-pill btn-pill-outline-light text-[11px] flex items-center gap-1 py-1 px-3"
-                >
-                  <Eye className="w-3.5 h-3.5" />
-                  <span>Chi tiết</span>
-                </button>
+              <div className="flex gap-2 border-t border-hairline-light pt-3 justify-end items-center">
+                <Button variant="outline-light" icon={Eye} onClick={() => handleViewDetails(req)}>
+                  Chi tiết
+                </Button>
 
                 {req.status === 'DRAFT' && hasRole(ROLES.WAREHOUSE_MANAGER) && (
-                  <button
+                  <Button
+                    variant="primary"
                     onClick={() => handleSubmitRequest(req.id)}
-                    className="btn-pill bg-zinc-900 hover:bg-zinc-800 text-white text-[11px] flex items-center gap-1 py-1 px-3"
+                    icon={Send}
                   >
-                    <Send className="w-3.5 h-3.5" />
-                    <span>Gửi CEO duyệt</span>
-                  </button>
+                    Gửi CEO duyệt
+                  </Button>
                 )}
 
                 {req.status === 'APPROVED' && (hasRole(ROLES.PLANNER) || hasRole(ROLES.ADMIN)) && (
-                  <button
-                    onClick={() => handleConvertRequest(req.id)}
-                    className="btn-pill bg-indigo-650 hover:bg-indigo-750 text-white text-[11px] flex items-center gap-1 py-1 px-3 font-semibold"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                    <span>Tạo phiếu TRF</span>
-                  </button>
+                  <Button variant="primary" icon={RefreshCw} onClick={() => handleConvertRequest(req.id)}>
+                    Tạo phiếu TRF
+                  </Button>
                 )}
               </div>
             </div>
@@ -333,75 +322,68 @@ const TransferRequestWorkspace = () => {
 
       {/* Creation Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-          <div className="bg-canvas-cream border border-hairline-light rounded-lg max-w-2xl w-full shadow-2xl overflow-hidden">
-            <div className="p-5 border-b border-hairline-light bg-white flex justify-between items-center">
+        <div className="fixed inset-0 bg-canvas-night/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-canvas-light border border-hairline-light rounded-lg max-w-2xl w-full shadow-2xl overflow-hidden">
+            <div className="p-5 border-b border-hairline-light bg-canvas-cream flex justify-between items-center">
               <h3 className="font-bold text-base flex items-center gap-2">
-                <FileText className="w-5 h-5 text-blue-600" />
+                <FileText className="w-5 h-5 text-blue-700" />
                 Tạo yêu cầu điều chuyển mới về kho {activeWarehouse?.name}
               </h3>
-              <button onClick={() => setShowCreateModal(false)} className="p-1 hover:bg-zinc-100 rounded-full">
+              <button onClick={() => setShowCreateModal(false)} className="p-1 hover:bg-canvas-cream rounded-full">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="p-5 text-xs flex flex-col gap-4 max-h-[70vh] overflow-y-auto scrollbar-thin">
               <div className="grid grid-cols-2 gap-4">
-                <div className="flex flex-col gap-1.5">
-                  <label className="font-bold text-shade-60">Kho nguồn (Nơi xuất hàng đi)</label>
-                  <select
-                    value={sourceWhId}
-                    onChange={(e) => setSourceWhId(e.target.value)}
-                    className="text-input"
-                  >
-                    <option value="">-- Chọn kho nguồn --</option>
-                    {warehouses.filter(w => w.id !== activeWarehouse?.id).map(w => (
-                      <option key={w.id} value={w.id}>{w.name} ({w.code})</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="font-bold text-shade-60">Kho đích (Nhận hàng về)</label>
-                  <input type="text" value={activeWarehouse?.name} disabled className="text-input bg-zinc-50 opacity-75" />
-                </div>
+                <Input
+                  label="Kho nguồn (Nơi xuất hàng đi)"
+                  type="select"
+                  value={sourceWhId}
+                  onChange={(e) => setSourceWhId(e.target.value)}
+                  options={[
+                    { value: '', label: '-- Chọn kho nguồn --' },
+                    ...warehouses.filter(w => w.id !== activeWarehouse?.id).map(w => ({ value: w.id, label: `${w.name} (${w.code})` })),
+                  ]}
+                />
+                <Input
+                  label="Kho đích (Nhận hàng về)"
+                  value={activeWarehouse?.name}
+                  disabled
+                  className="bg-canvas-cream opacity-75"
+                />
               </div>
 
               {/* Items List */}
               <div className="flex flex-col gap-3">
                 <div className="flex justify-between items-center">
-                  <label className="font-bold text-zinc-800 text-sm">Danh sách sản phẩm yêu cầu</label>
-                  <button
-                    onClick={handleAddItem}
-                    className="text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
+                  <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Danh sách sản phẩm yêu cầu</label>
+                  <Button variant="outline-light" icon={Plus} onClick={handleAddItem}>
                     Thêm dòng
-                  </button>
+                  </Button>
                 </div>
 
                 <div className="flex flex-col gap-3">
                   {items.map((item, idx) => (
-                    <div key={idx} className="bg-white border border-hairline-light p-3.5 rounded flex flex-col gap-3">
+                    <div key={idx} className="bg-canvas-light border border-hairline-light p-3.5 rounded flex flex-col gap-3">
                       <div className="flex items-center gap-3">
                         <div className="flex-1">
-                          <select
+                          <Input
+                            type="select"
                             value={item.productId}
                             onChange={(e) => handleItemChange(idx, 'productId', e.target.value)}
-                            className="text-input"
-                          >
-                            <option value="">-- Chọn sản phẩm --</option>
-                            {products.map(p => (
-                              <option key={p.id} value={p.id}>{p.sku} - {p.name}</option>
-                            ))}
-                          </select>
+                            options={[
+                              { value: '', label: '-- Chọn sản phẩm --' },
+                              ...products.map(p => ({ value: p.id, label: `${p.sku} - ${p.name}` })),
+                            ]}
+                          />
                         </div>
                         <div className="w-28">
-                          <input
+                          <Input
                             type="number"
                             placeholder="Số lượng"
                             value={item.requestedQty}
                             onChange={(e) => handleItemChange(idx, 'requestedQty', e.target.value)}
-                            className="text-input"
                           />
                         </div>
                         {items.length > 1 && (
@@ -416,16 +398,16 @@ const TransferRequestWorkspace = () => {
 
                       {/* Stock Lookup display */}
                       {item.productId && stockLookupResult[item.productId] && (
-                        <div className="bg-zinc-50 p-2.5 rounded border border-hairline-light flex flex-col gap-1">
-                          <div className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-1">
-                            <Info className="w-3 h-3 text-blue-500" />
+                        <div className="bg-canvas-cream p-2.5 rounded border border-hairline-light flex flex-col gap-1">
+                          <div className="text-[10px] font-bold text-shade-50 uppercase flex items-center gap-1">
+                            <Info className="w-3 h-3 text-blue-700" />
                             Tồn khả dụng tại các kho khác (không tính hàng cách ly):
                           </div>
                           <div className="grid grid-cols-3 gap-2 mt-1">
                             {stockLookupResult[item.productId].map(stock => (
-                              <div key={stock.warehouseId} className="bg-white px-2 py-1 rounded border border-zinc-200">
+                              <div key={stock.warehouseId} className="bg-canvas-light px-2 py-1 rounded border border-hairline-light">
                                 <span className="font-semibold block text-[10px] text-shade-50 truncate">{stock.warehouseName}</span>
-                                <span className={`font-bold text-xs ${stock.availableQty > 0 ? 'text-emerald-700' : 'text-shade-40'}`}>
+                                <span className={`font-bold text-xs ${stock.availableQty > 0 ? 'text-emerald-700' : 'text-shade-50'}`}>
                                   {stock.availableQty} cái
                                 </span>
                               </div>
@@ -439,7 +421,7 @@ const TransferRequestWorkspace = () => {
               </div>
 
               <div className="flex flex-col gap-1.5 mt-2">
-                <label className="font-bold text-shade-60">Ghi chú lý do điều chuyển</label>
+                <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Ghi chú lý do điều chuyển</label>
                 <textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
@@ -449,17 +431,11 @@ const TransferRequestWorkspace = () => {
               </div>
             </div>
 
-            <div className="p-4 border-t border-hairline-light bg-zinc-50 flex justify-end gap-2">
-              <button onClick={() => setShowCreateModal(false)} className="btn-pill btn-pill-outline-light text-xs py-1.5 px-4">
-                Hủy
-              </button>
-              <button
-                onClick={submitCreateRequest}
-                disabled={submitting}
-                className="btn-pill bg-zinc-950 hover:bg-zinc-800 text-white text-xs py-1.5 px-4 font-bold disabled:opacity-50"
-              >
-                {submitting ? 'Đang tạo...' : 'Tạo DRAFT'}
-              </button>
+            <div className="p-4 border-t border-hairline-light bg-canvas-cream flex justify-end gap-2">
+              <Button variant="outline-light" onClick={() => setShowCreateModal(false)}>Hủy</Button>
+              <Button variant="primary" onClick={submitCreateRequest} disabled={submitting} loading={submitting}>
+                Tạo DRAFT
+              </Button>
             </div>
           </div>
         </div>
@@ -467,30 +443,30 @@ const TransferRequestWorkspace = () => {
 
       {/* Details & Approval Modal */}
       {showDetailModal && selectedRequest && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-canvas-cream border border-hairline-light rounded-lg max-w-xl w-full shadow-2xl overflow-hidden">
-            <div className="p-5 border-b border-hairline-light bg-white flex justify-between items-center">
+        <div className="fixed inset-0 bg-canvas-night/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-canvas-light border border-hairline-light rounded-lg max-w-xl w-full shadow-2xl overflow-hidden">
+            <div className="p-5 border-b border-hairline-light bg-canvas-cream flex justify-between items-center">
               <h3 className="font-bold text-base flex flex-col">
-                <span className="text-[10px] font-bold text-shade-40 uppercase font-mono">{selectedRequest.requestNumber}</span>
+                <span className="text-[10px] font-bold text-shade-50 uppercase font-mono">{selectedRequest.requestNumber}</span>
                 Chi tiết yêu cầu điều phối hàng
               </h3>
-              <button onClick={() => setShowDetailModal(false)} className="p-1 hover:bg-zinc-100 rounded-full">
+              <button onClick={() => setShowDetailModal(false)} className="p-1 hover:bg-canvas-cream rounded-full">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="p-5 text-xs flex flex-col gap-4 max-h-[60vh] overflow-y-auto">
-              <div className="bg-white p-3.5 rounded border border-hairline-light shadow-sm flex flex-col gap-2.5">
+              <div className="bg-canvas-light p-3.5 rounded border border-hairline-light shadow-level-3 flex flex-col gap-2.5">
                 <div className="grid grid-cols-2 gap-2">
                   <div><span className="text-shade-50">Kho nguồn xuất:</span> <strong className="text-ink text-xs">{selectedRequest.sourceWarehouseName}</strong></div>
                   <div><span className="text-shade-50">Kho đích nhận:</span> <strong className="text-ink text-xs">{selectedRequest.destinationWarehouseName}</strong></div>
                 </div>
-                <div className="grid grid-cols-2 gap-2 border-t border-zinc-100 pt-2 text-[11px]">
+                <div className="grid grid-cols-2 gap-2 border-t border-hairline-light pt-2 text-[11px]">
                   <div><span className="text-shade-50">Người đề xuất:</span> <span className="font-semibold">{selectedRequest.createdByName}</span></div>
                   <div><span className="text-shade-50">Trạng thái:</span> {getStatusBadge(selectedRequest.status)}</div>
                 </div>
                 {selectedRequest.notes && (
-                  <div className="border-t border-zinc-100 pt-2">
+                  <div className="border-t border-hairline-light pt-2">
                     <span className="text-shade-50">Ghi chú:</span> <span className="italic">"{selectedRequest.notes}"</span>
                   </div>
                 )}
@@ -498,22 +474,22 @@ const TransferRequestWorkspace = () => {
 
               {/* Items list */}
               <div>
-                <label className="font-bold text-zinc-800 text-xs block mb-2">Danh sách sản phẩm ({selectedRequest.items?.length || 0})</label>
-                <div className="border border-hairline-light rounded overflow-hidden">
-                  <table className="w-full text-left text-xs">
+                <label className="text-xs font-semibold uppercase tracking-wider text-shade-60 block mb-2">Danh sách sản phẩm ({selectedRequest.items?.length || 0})</label>
+                <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 overflow-hidden">
+                  <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr className="bg-zinc-50 border-b border-hairline-light font-bold text-shade-60">
-                        <th className="px-4 py-2">Mã SKU</th>
-                        <th className="px-4 py-2">Tên sản phẩm</th>
-                        <th className="px-4 py-2 text-right">Số lượng yêu cầu</th>
+                      <tr className="bg-canvas-cream border-b border-hairline-light">
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã SKU</th>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Tên sản phẩm</th>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Số lượng yêu cầu</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-hairline-light bg-white">
+                    <tbody className="divide-y divide-hairline-light">
                       {selectedRequest.items?.map(item => (
-                        <tr key={item.id} className="hover:bg-zinc-50/50">
-                          <td className="px-4 py-2 font-mono font-bold text-[11px]">{item.productSku}</td>
-                          <td className="px-4 py-2 text-shade-60">{item.productName}</td>
-                          <td className="px-4 py-2 text-right font-bold">{item.requestedQty} {item.productUnit}</td>
+                        <tr key={item.id} className="hover:bg-canvas-cream/50 transition-colors">
+                          <td className="px-6 py-4 text-xs font-mono font-semibold">{item.productSku}</td>
+                          <td className="px-6 py-4 text-xs text-shade-60">{item.productName}</td>
+                          <td className="px-6 py-4 text-xs text-right font-semibold">{item.requestedQty} {item.productUnit}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -532,46 +508,43 @@ const TransferRequestWorkspace = () => {
                     value={rejectionReason}
                     onChange={(e) => setRejectionReason(e.target.value)}
                     placeholder="Nhập nguyên nhân không duyệt yêu cầu..."
-                    className="text-input h-16 resize-none bg-white border-red-300"
+                    className="text-input h-16 resize-none bg-canvas-light border-red-300"
                   />
                 </div>
               )}
             </div>
 
-            <div className="p-4 border-t border-hairline-light bg-zinc-50 flex justify-end gap-2">
-              <button onClick={() => setShowDetailModal(false)} className="btn-pill btn-pill-outline-light text-xs py-1.5 px-4">
-                Đóng
-              </button>
+            <div className="p-4 border-t border-hairline-light bg-canvas-cream flex justify-end gap-2">
+              <Button variant="outline-light" onClick={() => setShowDetailModal(false)}>Đóng</Button>
 
               {/* CEO Actions */}
               {selectedRequest.status === 'SUBMITTED' && (hasRole(ROLES.CEO) || hasRole(ROLES.ADMIN)) && (
                 <>
-                  <button
+                  <Button
+                    variant="outline-light"
                     onClick={() => handleRejectRequest(selectedRequest.id)}
                     disabled={submitting || !rejectionReason.trim()}
-                    className="btn-pill bg-red-600 hover:bg-red-700 text-white text-xs py-1.5 px-4 font-bold disabled:opacity-50"
+                    loading={submitting}
                   >
                     Từ chối
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="primary"
                     onClick={() => handleApproveRequest(selectedRequest.id)}
                     disabled={submitting}
-                    className="btn-pill bg-emerald-650 hover:bg-emerald-700 text-white text-xs py-1.5 px-4 font-bold"
+                    loading={submitting}
+                    icon={Check}
                   >
                     Phê duyệt
-                  </button>
+                  </Button>
                 </>
               )}
 
               {/* Planner Actions */}
               {selectedRequest.status === 'APPROVED' && (hasRole(ROLES.PLANNER) || hasRole(ROLES.ADMIN)) && (
-                <button
-                  onClick={() => handleConvertRequest(selectedRequest.id)}
-                  className="btn-pill bg-indigo-650 hover:bg-indigo-750 text-white text-xs py-1.5 px-4 font-bold flex items-center gap-1"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  <span>Chuyển đổi thành phiếu TRF</span>
-                </button>
+                <Button variant="primary" icon={RefreshCw} onClick={() => handleConvertRequest(selectedRequest.id)}>
+                  Chuyển đổi thành phiếu TRF
+                </Button>
               )}
             </div>
           </div>

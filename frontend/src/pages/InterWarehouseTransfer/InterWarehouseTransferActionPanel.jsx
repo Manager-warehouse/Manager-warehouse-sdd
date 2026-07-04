@@ -208,7 +208,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
   };
 
   return (
-    <div className="border border-hairline-light rounded-lg bg-white p-4 flex flex-col gap-4">
+    <div className="border border-hairline-light rounded-lg bg-canvas-light p-4 flex flex-col gap-4">
       <div>
         <div className="text-xs font-bold uppercase tracking-wider text-shade-60">Thao tác phiếu</div>
         <div className="text-lg font-semibold">{transfer.transferNumber}</div>
@@ -232,10 +232,10 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
 
       {transfer.status === 'NEW' && hasAny(hasRole, [ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]) && canManageSourceWarehouse && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          <Button loading={busy} icon={Check} onClick={() => run('approve')}>Duyệt giữ chỗ</Button>
+          <Button loading={busy} icon={Check} className="py-2.5 px-4 text-xs flex-none" onClick={() => run('approve')}>Duyệt giữ chỗ</Button>
           <div className="flex gap-2">
             <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Lý do từ chối/hủy" />
-            <Button loading={busy} icon={X} variant="outline-light" onClick={() => run('reject', reason)}>Từ chối</Button>
+            <Button loading={busy} icon={X} variant="outline-light" className="py-2.5 px-4 text-xs" onClick={() => run('reject', reason)}>Từ chối</Button>
           </div>
         </div>
       )}
@@ -295,7 +295,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
             ]} />
           <Input type="datetime-local" label="Bắt đầu chuyến" value={trip.plannedStartAt} onChange={(e) => setTrip({ ...trip, plannedStartAt: e.target.value })} />
           <Input type="datetime-local" label="Kết thúc dự kiến" value={trip.plannedEndAt} onChange={(e) => setTrip({ ...trip, plannedEndAt: e.target.value })} />
-          <Button loading={busy} disabled={!canAssignTrip} icon={Truck} onClick={() => run('assignTrip', {
+          <Button loading={busy} disabled={!canAssignTrip} icon={Truck} className="py-2.5 px-4 text-xs" onClick={() => run('assignTrip', {
             vehicleId: Number(trip.vehicleId),
             driverId: Number(trip.driverId),
             plannedStartAt: trip.plannedStartAt,
@@ -359,18 +359,16 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
             </span>
             YÊU CẦU QUAY ĐẦU DO SAI SKU ĐANG CHỜ PHÊ DUYỆT
           </div>
-          <div className="text-xs text-zinc-600">
-            <span className="font-semibold text-zinc-700">Lý do báo:</span> "{transfer.returnReason}"
+          <div className="text-xs text-shade-60">
+            <span className="font-semibold text-shade-50">Lý do báo:</span> "{transfer.returnReason}"
           </div>
           {hasAny(hasRole, [ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && (
             <div className="flex gap-2 mt-1">
               <div className="flex-1 flex gap-1">
-                <input
-                  type="text"
+                <Input
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                   placeholder="Lý do từ chối..."
-                  className="w-full px-2.5 py-1 text-xs border border-zinc-300 rounded focus:outline-none focus:ring-1 focus:ring-zinc-400"
                 />
               </div>
               <Button loading={busy} variant="outline-light" className="text-red-600 border-red-300 hover:bg-red-50 py-1 px-3 text-xs" onClick={() => {
@@ -388,23 +386,22 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
             </div>
           )}
           {!(hasAny(hasRole, [ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse) && (
-            <div className="text-[10px] text-zinc-500 italic">Đang chờ Quản lý kho đích duyệt...</div>
+            <div className="text-[10px] text-shade-50 italic">Đang chờ Quản lý kho đích duyệt...</div>
           )}
         </div>
       )}
 
       {transfer.status === 'IN_TRANSIT' && !transfer.isReturned && !transfer.returnRequested && hasAny(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && (
-        <div className="rounded-md border border-zinc-200 bg-zinc-50 p-3 flex flex-col gap-2 mb-2">
-          <div className="text-xs text-zinc-800 font-semibold">Phát hiện gửi sai SKU, hàng hỏng hoặc sai lệch nghiêm trọng khi mở thùng?</div>
+        <div className="rounded-lg border border-hairline-light bg-canvas-cream p-4 text-sm flex flex-col gap-2 mb-2">
+          <div className="text-xs text-ink font-semibold">Phát hiện gửi sai SKU, hàng hỏng hoặc sai lệch nghiêm trọng khi mở thùng?</div>
           <div className="flex gap-2">
-            <input
-              type="text"
+            <Input
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="Nhập lý do gửi sai SKU..."
-              className="flex-1 px-2.5 py-1.5 text-xs border border-zinc-300 rounded focus:outline-none focus:ring-1 focus:ring-zinc-400"
+              className="flex-1"
             />
-            <Button variant="outline-light" icon={RotateCcw} className="text-zinc-700 border-zinc-300 hover:bg-zinc-100 py-1.5 px-3 text-xs" loading={busy} onClick={() => {
+            <Button variant="outline-light" icon={RotateCcw} className="text-shade-50 border-hairline-light hover:bg-canvas-cream py-1.5 px-3 text-xs" loading={busy} onClick={() => {
               if (!reason.trim()) {
                 alert("Vui lòng điền lý do gửi sai SKU!");
                 return;
@@ -442,7 +439,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
                     <div className="text-xs font-semibold">{item.productSku}<br /><span className="text-shade-50">Gửi: {item.sentQty}</span></div>
                     <Input label="Số lượng nhận" type="number" value={row.receivedQty} onChange={(e) => setRow(countRows, setCountRows, row.transferItemId, { receivedQty: Number(e.target.value) })} />
                     <Input label="Lý do nếu lệch" value={row.issueReason} onChange={(e) => setRow(countRows, setCountRows, row.transferItemId, { issueReason: e.target.value })} />
-                    <Button loading={busy} onClick={() => run('receiveCount', countRows)}>Lưu count</Button>
+                    <Button loading={busy} className="py-2.5 px-4 text-xs" onClick={() => run('receiveCount', countRows)}>Lưu count</Button>
                   </div>
                 );
               })}
@@ -502,7 +499,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
                        </div>
                        <Input type="select" label="Bin đạt QC" value={row.destinationLocationId} onChange={(e) => setRow(checkRows, setCheckRows, row.transferItemId, { destinationLocationId: e.target.value })}
                          options={[{ value: '', label: 'Chọn bin' }, ...destinationBins.map((loc) => ({ value: loc.id, label: loc.code }))]} />
-                       <Button loading={busy} onClick={() => run('receiveCheck', checkRows.map((line) => ({ ...line, destinationLocationId: Number(line.destinationLocationId) })))}>Duyệt QC</Button>
+                       <Button loading={busy} className="py-2.5 px-4 text-xs" onClick={() => run('receiveCheck', checkRows.map((line) => ({ ...line, destinationLocationId: Number(line.destinationLocationId) })))}>Duyệt QC</Button>
                      </div>
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                        <Input label="Checker note nếu sửa count" value={row.checkerNote} onChange={(e) => setRow(checkRows, setCheckRows, row.transferItemId, { checkerNote: e.target.value })} />

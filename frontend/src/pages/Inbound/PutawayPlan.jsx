@@ -4,6 +4,7 @@ import { useUiStore } from '../../stores/ui.store';
 import { inboundService } from '../../services/inbound.service';
 import { masterDataService } from '../../services/masterData.service';
 import { ArrowLeft, Loader2, Warehouse, AlertTriangle, CheckCircle, Check, PackageCheck } from 'lucide-react';
+import Badge from '../../components/common/Badge';
 
 const PutawayPlan = () => {
   const { id } = useParams();
@@ -213,8 +214,8 @@ const PutawayPlan = () => {
             <span>Thể tích: {check.volPct}%</span>
             <span className="text-shade-40">{check.currentVol.toFixed(2)}m3</span>
           </div>
-          <div className="w-full bg-zinc-200 h-1.5 rounded-full overflow-hidden">
-            <div 
+          <div className="w-full bg-shade-30 h-1.5 rounded-full overflow-hidden">
+            <div
               className={`h-full rounded-full ${check.volPct > 80 ? 'bg-amber-500' : 'bg-emerald-500'}`}
               style={{ width: `${Math.min(100, check.volPct)}%` }}
             />
@@ -224,8 +225,8 @@ const PutawayPlan = () => {
             <span>Tải trọng: {check.wtPct}%</span>
             <span className="text-shade-40">{check.currentWt}kg</span>
           </div>
-          <div className="w-full bg-zinc-200 h-1.5 rounded-full overflow-hidden">
-            <div 
+          <div className="w-full bg-shade-30 h-1.5 rounded-full overflow-hidden">
+            <div
               className={`h-full rounded-full ${check.wtPct > 80 ? 'bg-amber-500' : 'bg-emerald-500'}`}
               style={{ width: `${Math.min(100, check.wtPct)}%` }}
             />
@@ -277,16 +278,16 @@ const PutawayPlan = () => {
         </div>
 
         {/* Summary info */}
-        <div className="bg-white border border-hairline-light rounded-lg p-6 shadow-sm card-premium">
+        <div className="bg-canvas-light border border-hairline-light rounded-lg p-6 shadow-level-3 card-premium">
           <h3 className="text-xs font-bold uppercase tracking-widest text-shade-40 border-b border-hairline-light pb-2 mb-4">Tóm tắt cất kệ</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-zinc-50 border-b border-hairline-light">
-                  <th className="px-6 py-3 font-bold text-shade-60">Sản phẩm</th>
-                  <th className="px-4 py-3 font-bold text-shade-60 text-right w-28">Số lượng đạt</th>
-                  <th className="px-6 py-3 font-bold text-shade-60">Vị trí ô kệ đã cất</th>
-                  <th className="px-4 py-3 font-bold text-shade-60 text-center w-24">Trạng thái</th>
+                <tr className="bg-canvas-cream border-b border-hairline-light">
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Sản phẩm</th>
+                  <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right w-28">Số lượng đạt</th>
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Vị trí ô kệ đã cất</th>
+                  <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center w-24">Trạng thái</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-hairline-light">
@@ -294,7 +295,7 @@ const PutawayPlan = () => {
                   const prod = getProduct(item.product_id);
                   const bin = bins.find(b => Number(b.id) === Number(item.location_id));
                   return (
-                    <tr key={item.id} className="hover:bg-zinc-50/50">
+                    <tr key={item.id} className="hover:bg-canvas-cream/50 transition-colors">
                       <td className="px-6 py-4">
                         <span className="font-bold block">{prod.sku}</span>
                         <span className="text-shade-50 block">{prod.name}</span>
@@ -307,10 +308,12 @@ const PutawayPlan = () => {
                         </div>
                       </td>
                       <td className="px-4 py-4 text-center">
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                          <CheckCircle className="w-3 h-3" />
-                          Đã cất
-                        </span>
+                        <Badge size="sm" type="success">
+                          <span className="inline-flex items-center gap-1">
+                            <CheckCircle className="w-3 h-3" />
+                            Đã cất
+                          </span>
+                        </Badge>
                       </td>
                     </tr>
                   );
@@ -355,7 +358,7 @@ const PutawayPlan = () => {
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-6">
           {/* Header summary info card */}
-          <div className="bg-white border border-hairline-light rounded-lg p-6 shadow-sm card-premium">
+          <div className="bg-canvas-light border border-hairline-light rounded-lg p-6 shadow-level-3 card-premium">
             <h3 className="text-xs font-bold uppercase tracking-widest text-shade-40 border-b border-hairline-light pb-2 mb-4">
               Chứng từ nhập phê duyệt
             </h3>
@@ -370,7 +373,7 @@ const PutawayPlan = () => {
               </div>
               <div>
                 <span className="text-shade-50 block mb-0.5 font-normal">Trạng thái:</span>
-                <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100 uppercase font-bold text-[10px]">Đã Duyệt</span>
+                <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-pill border border-emerald-200 uppercase font-semibold text-[10px] tracking-wider whitespace-nowrap">Đã Duyệt</span>
               </div>
               <div>
                 <span className="text-shade-50 block mb-0.5 font-normal">Ngày duyệt:</span>
@@ -380,8 +383,8 @@ const PutawayPlan = () => {
           </div>
 
           {/* Putaway Table */}
-          <div className="bg-white border border-hairline-light rounded-lg shadow-sm card-premium overflow-hidden">
-            <div className="p-4 border-b border-hairline-light bg-zinc-50 flex items-center justify-between">
+          <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 overflow-hidden">
+            <div className="p-4 border-b border-hairline-light bg-canvas-cream flex items-center justify-between">
               <h3 className="text-xs font-bold uppercase tracking-widest text-shade-40">
                 Chi tiết phân vị trí cất hàng đạt QC
               </h3>
@@ -393,11 +396,11 @@ const PutawayPlan = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="bg-zinc-50 border-b border-hairline-light">
-                    <th className="px-6 py-3 font-bold text-shade-60">Sản phẩm</th>
-                    <th className="px-4 py-3 font-bold text-shade-60 text-right w-24">Số lượng đạt</th>
-                    <th className="px-6 py-3 font-bold text-shade-60 w-56">Chọn ô kệ cất hàng (Bin)</th>
-                    <th className="px-6 py-3 font-bold text-shade-60 w-72">Sức chứa ô kệ dự kiến</th>
+                  <tr className="bg-canvas-cream border-b border-hairline-light">
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Sản phẩm</th>
+                    <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right w-24">Số lượng đạt</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 w-56">Chọn ô kệ cất hàng (Bin)</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 w-72">Sức chứa ô kệ dự kiến</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-hairline-light">
@@ -406,7 +409,7 @@ const PutawayPlan = () => {
                     const binId = selectedBins[item.id];
                     
                     return (
-                      <tr key={item.id} className="hover:bg-zinc-50/50">
+                      <tr key={item.id} className="hover:bg-canvas-cream/50 transition-colors">
                         <td className="px-6 py-4">
                           <span className="font-bold block">{prod.sku}</span>
                           <span className="text-shade-50 block mb-1">{prod.name}</span>

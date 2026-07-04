@@ -59,7 +59,7 @@ const Login = () => {
           <div className="p-2 bg-onPrimary rounded-lg text-canvas-night">
             <Shield className="w-6 h-6 stroke-[2.5]" />
           </div>
-          <span className="font-display font-bold text-xl tracking-tight uppercase">
+          <span className="font-display font-semibold text-xl tracking-tight uppercase">
             Phúc Anh WMS
           </span>
         </div>

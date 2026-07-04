@@ -56,6 +56,11 @@
     @apply bg-aloe-10 rounded-lg p-6 hover:shadow-lg transition-all duration-200 text-ink border border-[#a2f7c0];
   }
 
+  /* Standard text input styling (matches Input.jsx baseInputStyle) — used by pages that render raw <input>/<select>/<textarea> elements */
+  .text-input {
+    @apply w-full bg-canvas-light text-ink text-sm px-3 py-2.5 rounded-md border border-hairline-light focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink transition-all min-h-[44px] disabled:bg-canvas-cream/60 disabled:text-shade-50 disabled:cursor-not-allowed disabled:opacity-70;
+  }
+
   /* Custom scrollbar */
   ::-webkit-scrollbar {
     width: 6px;

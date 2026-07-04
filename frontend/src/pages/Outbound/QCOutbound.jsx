@@ -4,6 +4,8 @@ import { AlertCircle, ArrowLeft, Check, Loader2, PackageSearch } from 'lucide-re
 import { outboundService } from '../../services/outbound.service';
 import { masterDataService } from '../../services/masterData.service';
 import { useUiStore } from '../../stores/ui.store';
+import Button from '../../components/common/Button';
+import Input from '../../components/common/Input';
 
 const buildAllocationRows = (order, locations) => {
   const stagingLocations = locations.filter((location) => location.is_quarantine !== true);
@@ -130,7 +132,7 @@ export default function QCOutbound() {
       <div className="flex items-start gap-4">
         <button
           onClick={() => navigate(`/outbound/delivery-orders/${id}`)}
-          className="mt-1 p-1.5 hover:bg-zinc-200 rounded-full transition-colors text-shade-50 hover:text-ink shrink-0"
+          className="mt-1 p-1.5 hover:bg-canvas-cream rounded-full transition-colors text-shade-50 hover:text-ink shrink-0"
         >
           <ArrowLeft className="w-4 h-4" />
         </button>
@@ -157,8 +159,8 @@ export default function QCOutbound() {
         </div>
       )}
 
-      <div className="bg-white rounded-lg border border-hairline-light shadow-sm overflow-hidden card-premium">
-        <div className="px-6 py-4 bg-zinc-50 border-b border-hairline-light flex items-center gap-2">
+      <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden card-premium">
+        <div className="px-6 py-4 bg-canvas-cream border-b border-hairline-light flex items-center gap-2">
           <PackageSearch className="w-4 h-4 text-shade-50" />
           <h3 className="text-xs font-bold uppercase tracking-wider text-shade-60">
             Danh sách phân bổ lấy hàng ({qcRows.length} dòng)
@@ -174,7 +176,7 @@ export default function QCOutbound() {
             {qcRows.map((row) => {
               const isFailed = row.result === 'FAILED';
               return (
-                <div key={row.id} className={`p-6 transition-colors ${isFailed ? 'bg-red-50/40' : 'bg-white'}`}>
+                <div key={row.id} className={`p-6 transition-colors ${isFailed ? 'bg-red-50/30' : 'bg-canvas-light'}`}>
                   <div className="flex flex-col gap-4">
                     <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                       <div>
@@ -191,7 +193,7 @@ export default function QCOutbound() {
                           className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill border text-xs font-semibold transition-colors ${
                             !isFailed
                               ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
-                              : 'bg-white border-hairline-light text-shade-50 hover:bg-zinc-50'
+                              : 'bg-canvas-light border-hairline-light text-shade-50 hover:bg-canvas-cream'
                           }`}
                         >
                           Đạt QC
@@ -201,7 +203,7 @@ export default function QCOutbound() {
                           className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill border text-xs font-semibold transition-colors ${
                             isFailed
                               ? 'bg-red-50 border-red-300 text-red-700'
-                              : 'bg-white border-hairline-light text-shade-50 hover:bg-zinc-50'
+                              : 'bg-canvas-light border-hairline-light text-shade-50 hover:bg-canvas-cream'
                           }`}
                         >
                           Không đạt QC
@@ -212,7 +214,7 @@ export default function QCOutbound() {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
                         <label className="block text-xs font-semibold text-shade-60 mb-1.5">SL kế hoạch</label>
-                        <input disabled value={row.planned_qty} className="w-full text-input bg-zinc-50 text-xs" />
+                        <input disabled value={row.planned_qty} className="w-full text-input bg-canvas-cream text-xs" />
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-shade-60 mb-1.5">SL thực lấy</label>
@@ -227,18 +229,15 @@ export default function QCOutbound() {
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-shade-60 mb-1.5">Vị trí trung chuyển *</label>
-                        <select
+                        <Input
+                          type="select"
                           value={row.staging_location_id}
                           onChange={(event) => updateRow(row.id, 'staging_location_id', event.target.value)}
-                          className="w-full text-input text-xs"
-                        >
-                          <option value="">-- Chọn vị trí trung chuyển --</option>
-                          {stagingOptions.map((location) => (
-                            <option key={location.id} value={location.id}>
-                              {location.code || `Location #${location.id}`}
-                            </option>
-                          ))}
-                        </select>
+                          options={[
+                            { value: '', label: '-- Chọn vị trí trung chuyển --' },
+                            ...stagingOptions.map((location) => ({ value: location.id, label: location.code || `Location #${location.id}` })),
+                          ]}
+                        />
                       </div>
                     </div>
 
@@ -256,18 +255,15 @@ export default function QCOutbound() {
                         </div>
                         <div>
                           <label className="block text-xs font-semibold text-red-700 mb-1.5">Vị trí cách ly *</label>
-                          <select
+                          <Input
+                            type="select"
                             value={row.quarantine_location_id}
                             onChange={(event) => updateRow(row.id, 'quarantine_location_id', event.target.value)}
-                            className="w-full text-input text-xs border-red-300 focus:border-red-500"
-                          >
-                            <option value="">-- Chọn vị trí cách ly --</option>
-                            {quarantineOptions.map((location) => (
-                              <option key={location.id} value={location.id}>
-                                {location.code || `Location #${location.id}`}
-                              </option>
-                            ))}
-                          </select>
+                            options={[
+                              { value: '', label: '-- Chọn vị trí cách ly --' },
+                              ...quarantineOptions.map((location) => ({ value: location.id, label: location.code || `Location #${location.id}` })),
+                            ]}
+                          />
                         </div>
                       </div>
                     )}
@@ -278,10 +274,10 @@ export default function QCOutbound() {
           </div>
         )}
 
-        <div className="px-6 py-4 border-t border-hairline-light bg-zinc-50 flex justify-between items-center gap-3">
-          <button onClick={() => navigate(`/outbound/delivery-orders/${id}`)} className="btn-pill btn-pill-outline-light text-xs">
+        <div className="px-6 py-4 border-t border-hairline-light bg-canvas-cream flex justify-between items-center gap-3">
+          <Button variant="outline-light" onClick={() => navigate(`/outbound/delivery-orders/${id}`)}>
             Hủy bỏ
-          </button>
+          </Button>
           <button
             onClick={handleConfirmQC}
             disabled={!qcRows.length || submitting}

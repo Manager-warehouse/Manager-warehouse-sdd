@@ -20,7 +20,7 @@ const MobileLayout = ({ children, title, backTo }) => {
           <h1 className="text-base font-semibold tracking-tight flex-1 truncate">{title}</h1>
         </div>
       )}
-      <div className="flex-1 bg-zinc-100 overflow-y-auto pb-6">
+      <div className="flex-1 bg-canvas-cream overflow-y-auto pb-6">
         {children}
       </div>
     </div>

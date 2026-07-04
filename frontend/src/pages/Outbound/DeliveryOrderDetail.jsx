@@ -18,10 +18,11 @@ import PickingListTable from '../../components/warehouse/PickingListTable';
 import DeliveryOrderPickingPlanEditor from '../../components/warehouse/DeliveryOrderPickingPlanEditor';
 import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
+import Badge from '../../components/common/Badge';
 import { ROLES } from '../../utils/constants';
 
 const DO_STATUS_MAP = {
-  NEW: { label: 'Mới', color: 'bg-zinc-100 text-zinc-800 border-zinc-200' },
+  NEW: { label: 'Mới', color: 'bg-canvas-cream text-shade-70 border-hairline-light' },
   WAITING_PICKING: { label: 'Chờ lấy hàng/QC', color: 'bg-blue-50 text-blue-700 border-blue-200' },
   QC_PENDING_APPROVAL: { label: 'Chờ duyệt QC', color: 'bg-violet-50 text-violet-700 border-violet-200' },
   QC_COMPLETED: { label: 'QC xong', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
@@ -34,9 +35,8 @@ const DO_STATUS_MAP = {
 };
 
 const getStatusBadge = (status) => {
-  const base = 'text-[10px] font-semibold px-2 py-0.5 rounded-pill border uppercase tracking-wider whitespace-nowrap';
-  const { label, color } = DO_STATUS_MAP[status] ?? { label: status, color: 'bg-zinc-100 text-zinc-800 border-zinc-200' };
-  return <span className={`${base} ${color}`}>{label}</span>;
+  const { label, color } = DO_STATUS_MAP[status] ?? { label: status, color: 'bg-canvas-cream text-shade-70 border-hairline-light' };
+  return <Badge size="sm" colorClassName={color}>{label}</Badge>;
 };
 
 export default function DeliveryOrderDetail() {
@@ -259,7 +259,7 @@ export default function DeliveryOrderDetail() {
         <div className="flex items-start gap-4">
           <button
             onClick={() => navigate('/outbound/delivery-orders')}
-            className="mt-1 p-1.5 hover:bg-zinc-200 rounded-full transition-colors text-shade-50 hover:text-ink shrink-0"
+            className="mt-1 p-1.5 hover:bg-canvas-cream rounded-full transition-colors text-shade-50 hover:text-ink shrink-0"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
@@ -334,21 +334,21 @@ export default function DeliveryOrderDetail() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white rounded-lg border border-hairline-light p-5 shadow-sm">
+        <div className="bg-canvas-light rounded-lg border border-hairline-light p-5 shadow-level-3">
           <h3 className="text-xs font-bold uppercase tracking-widest text-shade-40 mb-3 flex items-center gap-2">
             <MapPin className="w-3.5 h-3.5" /> Thông tin đại lý
           </h3>
-          <div className="space-y-1.5 text-xs">
+          <div className="flex flex-col gap-1.5 text-xs">
             <p><span className="text-shade-50">Tên đại lý:</span> <span className="font-semibold text-ink">{order.dealer_name}</span></p>
             <p><span className="text-shade-50">Mã đại lý:</span> <span className="font-mono text-ink">{order.dealer_id}</span></p>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg border border-hairline-light p-5 shadow-sm">
+        <div className="bg-canvas-light rounded-lg border border-hairline-light p-5 shadow-level-3">
           <h3 className="text-xs font-bold uppercase tracking-widest text-shade-40 mb-3 flex items-center gap-2">
             <Clock className="w-3.5 h-3.5" /> Tiến độ giao hàng
           </h3>
-          <div className="space-y-1.5 text-xs">
+          <div className="flex flex-col gap-1.5 text-xs">
             <p>
               <span className="text-shade-50">Ngày giao dự kiến:</span>{' '}
               <span className="font-semibold text-ink">{order.expected_delivery_date ? new Date(order.expected_delivery_date).toLocaleDateString('vi-VN') : '-'}</span>
@@ -357,11 +357,11 @@ export default function DeliveryOrderDetail() {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg border border-hairline-light p-5 shadow-sm">
+        <div className="bg-canvas-light rounded-lg border border-hairline-light p-5 shadow-level-3">
           <h3 className="text-xs font-bold uppercase tracking-widest text-shade-40 mb-3 flex items-center gap-2">
             <FileText className="w-3.5 h-3.5" /> Ghi chú
           </h3>
-          <p className="text-xs text-shade-60 italic bg-zinc-50 p-3 rounded border border-hairline-light min-h-[48px]">
+          <p className="text-xs text-shade-60 italic bg-canvas-cream p-3 rounded border border-hairline-light min-h-[48px]">
             {order.notes || 'Không có ghi chú'}
           </p>
         </div>

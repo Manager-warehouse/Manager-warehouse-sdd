@@ -11,9 +11,9 @@ const Button = ({
   icon: Icon,
   ...props
 }) => {
-  const baseStyle = 'rounded-pill font-medium transition-all duration-150 inline-flex items-center justify-center gap-2 text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 active:scale-98 disabled:opacity-50 disabled:pointer-events-none disabled:active:scale-100';
+  const baseStyle = 'rounded-pill font-medium transition-all duration-150 inline-flex items-center justify-center gap-2 text-sm leading-none box-border h-10 focus:outline-none focus:ring-2 focus:ring-offset-2 active:scale-98 disabled:opacity-50 disabled:pointer-events-none disabled:active:scale-100';
   
-  const sizeStyle = 'px-6 py-2.5';
+  const sizeStyle = 'px-6 h-10';
   
   const variants = {
     primary: 'bg-ink text-onPrimary hover:bg-shade-70 focus:ring-shade-70',
