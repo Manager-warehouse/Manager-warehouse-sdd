@@ -324,7 +324,7 @@ const ProductManagement = () => {
         maxWidth="max-w-lg"
       >
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label="Mã SKU (Duy nhất)"
               value={formSku}
@@ -358,7 +358,7 @@ const ProductManagement = () => {
             required
           />
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Input
               label="Quy đổi đóng gói"
               type="number"

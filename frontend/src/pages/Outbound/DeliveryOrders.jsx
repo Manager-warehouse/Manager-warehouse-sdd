@@ -277,6 +277,51 @@ export default function DeliveryOrders() {
     return [selectedProduct, ...filteredProducts];
   };
 
+  const renderDoActions = (order) => {
+    const canCancel = hasRole(ROLES.WAREHOUSE_MANAGER)
+      && ['NEW', 'WAITING_PICKING', 'QC_PENDING_APPROVAL', 'QC_COMPLETED'].includes(order.status);
+    const canOpenPicking = hasRole(ROLES.STOREKEEPER)
+      && ['NEW', 'WAITING_PICKING', 'QC_PENDING_APPROVAL', 'QC_COMPLETED'].includes(order.status);
+    const canOpenQcEntry = hasRole(ROLES.WAREHOUSE_STAFF)
+      && order.status === 'WAITING_PICKING';
+
+    return (
+      <>
+        {canCancel && (
+          <button
+            onClick={() => setCancelModal({ show: true, orderId: order.id, reason: '' })}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-pill border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
+          >
+            Hủy đơn
+          </button>
+        )}
+        {canOpenPicking && (
+          <button
+            onClick={() => navigate(`/outbound/delivery-orders/${order.id}`)}
+            className="inline-flex items-center justify-center rounded-pill border border-ink bg-canvas-light px-3 py-1 text-xs font-semibold text-ink transition-colors hover:bg-canvas-cream"
+          >
+            {order.status === 'NEW' ? 'Lập kế hoạch lấy hàng' : 'Duyệt xử lý kho'}
+          </button>
+        )}
+        {canOpenQcEntry && (
+          <button
+            onClick={() => navigate(`/outbound/delivery-orders/${order.id}`)}
+            className="inline-flex items-center justify-center rounded-pill border border-blue-300 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+          >
+            Nhập kết quả lấy hàng/QC
+          </button>
+        )}
+        <button
+          onClick={() => navigate(`/outbound/delivery-orders/${order.id}`)}
+          className="flex items-center justify-center rounded-pill p-1.5 text-shade-50 transition-colors hover:bg-canvas-cream hover:text-ink"
+          title="Xem chi tiết"
+        >
+          <Eye className="h-4 w-4" />
+        </button>
+      </>
+    );
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
@@ -340,29 +385,23 @@ export default function DeliveryOrders() {
           <p className="text-sm text-shade-50">Thử đổi bộ lọc hoặc tạo một đơn mới để bắt đầu.</p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-lg border border-hairline-light bg-canvas-light shadow-level-3">
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-left">
-              <thead>
-                <tr className="border-b border-hairline-light bg-canvas-cream">
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã DO</th>
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Đại lý</th>
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Ngày lập</th>
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Ngày giao dự kiến</th>
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Trạng thái</th>
-                  <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-shade-60">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-hairline-light">
-                {orders.map((order) => {
-                  const canCancel = hasRole(ROLES.WAREHOUSE_MANAGER)
-                    && ['NEW', 'WAITING_PICKING', 'QC_PENDING_APPROVAL', 'QC_COMPLETED'].includes(order.status);
-                  const canOpenPicking = hasRole(ROLES.STOREKEEPER)
-                    && ['NEW', 'WAITING_PICKING', 'QC_PENDING_APPROVAL', 'QC_COMPLETED'].includes(order.status);
-                  const canOpenQcEntry = hasRole(ROLES.WAREHOUSE_STAFF)
-                    && order.status === 'WAITING_PICKING';
-
-                  return (
+        <>
+          {/* Desktop/tablet: table view */}
+          <div className="hidden md:block overflow-hidden rounded-lg border border-hairline-light bg-canvas-light shadow-level-3">
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-left">
+                <thead>
+                  <tr className="border-b border-hairline-light bg-canvas-cream">
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã DO</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Đại lý</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Ngày lập</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Ngày giao dự kiến</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Trạng thái</th>
+                    <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-shade-60">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-hairline-light">
+                  {orders.map((order) => (
                     <tr key={order.id} className="hover:bg-canvas-cream/50 transition-colors">
                       <td className="px-6 py-4 text-xs font-bold">{order.do_number}</td>
                       <td className="px-6 py-4">
@@ -374,46 +413,37 @@ export default function DeliveryOrders() {
                       <td className="px-6 py-4">{getStatusBadge(order.status)}</td>
                       <td className="whitespace-nowrap px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          {canCancel && (
-                            <button
-                              onClick={() => setCancelModal({ show: true, orderId: order.id, reason: '' })}
-                              className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-pill border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
-                            >
-                              Hủy đơn
-                            </button>
-                          )}
-                          {canOpenPicking && (
-                            <button
-                              onClick={() => navigate(`/outbound/delivery-orders/${order.id}`)}
-                              className="inline-flex items-center justify-center rounded-pill border border-ink bg-canvas-light px-3 py-1 text-xs font-semibold text-ink transition-colors hover:bg-canvas-cream"
-                            >
-                              {order.status === 'NEW' ? 'Lập kế hoạch lấy hàng' : 'Duyệt xử lý kho'}
-                            </button>
-                          )}
-                          {canOpenQcEntry && (
-                            <button
-                              onClick={() => navigate(`/outbound/delivery-orders/${order.id}`)}
-                              className="inline-flex items-center justify-center rounded-pill border border-blue-300 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
-                            >
-                              Nhập kết quả lấy hàng/QC
-                            </button>
-                          )}
-                          <button
-                            onClick={() => navigate(`/outbound/delivery-orders/${order.id}`)}
-                            className="flex items-center justify-center rounded-pill p-1.5 text-shade-50 transition-colors hover:bg-canvas-cream hover:text-ink"
-                            title="Xem chi tiết"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </button>
+                          {renderDoActions(order)}
                         </div>
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+
+          {/* Mobile: stacked card view */}
+          <div className="flex flex-col gap-3 md:hidden">
+            {orders.map((order) => (
+              <div key={order.id} className="rounded-lg border border-hairline-light bg-canvas-light shadow-level-3 overflow-hidden">
+                <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center gap-2">
+                  <span className="text-xs font-bold text-ink">{order.do_number}</span>
+                  {getStatusBadge(order.status)}
+                </div>
+                <div className="p-4 flex flex-col gap-2 text-xs">
+                  <p className="font-semibold">{order.dealer_name}</p>
+                  <p className="text-shade-50">{getRoleHint(order, hasRole)}</p>
+                  <p className="text-shade-50">Ngày lập: <span className="font-semibold text-ink">{order.document_date ? new Date(order.document_date).toLocaleDateString('vi-VN') : '-'}</span></p>
+                  <p className="text-shade-50">Ngày giao dự kiến: <span className="font-semibold text-ink">{order.expected_delivery_date ? new Date(order.expected_delivery_date).toLocaleDateString('vi-VN') : '-'}</span></p>
+                </div>
+                <div className="p-4 border-t border-hairline-light flex flex-wrap gap-2">
+                  {renderDoActions(order)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       <Modal isOpen={showCreateModal} onClose={handleCloseCreateModal} title="Lập đơn xuất hàng" maxWidth="max-w-4xl">

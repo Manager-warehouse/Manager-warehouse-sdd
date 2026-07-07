@@ -620,7 +620,7 @@ const WarehouseManagement = () => {
           {binModalType === 'ADD' ? (
             <div className="flex flex-col gap-3">
               <span className="text-[10px] text-shade-40 block uppercase font-bold tracking-wider leading-none">Cấu trúc phân cấp ô kệ:</span>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <Input
                   label="Zone"
                   value={binZone}

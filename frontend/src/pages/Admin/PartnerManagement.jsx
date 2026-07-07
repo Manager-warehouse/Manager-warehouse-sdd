@@ -565,7 +565,7 @@ const PartnerManagement = () => {
         <form onSubmit={handleDlSubmit} className="flex flex-col gap-4">
           {/* Basic Info Section */}
           <div className="flex flex-col gap-3">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input
                 label="Mã Đại lý (Duy nhất)"
                 value={dlCode}
@@ -592,7 +592,7 @@ const PartnerManagement = () => {
               required
             />
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input
                 label="Số điện thoại liên lạc"
                 value={dlPhone}
@@ -636,7 +636,7 @@ const PartnerManagement = () => {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Input
                   label="Hạn mức tín dụng (VND)"
                   type="number"
@@ -697,7 +697,7 @@ const PartnerManagement = () => {
         maxWidth="max-w-md"
       >
         <form onSubmit={handleSplSubmit} className="flex flex-col gap-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label="Mã nhà cung cấp"
               value={splCode}
@@ -724,7 +724,7 @@ const PartnerManagement = () => {
             required
           />
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label="Người liên hệ kinh doanh"
               value={splContactPerson}

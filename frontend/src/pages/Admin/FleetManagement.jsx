@@ -663,7 +663,7 @@ const FleetManagement = () => {
         maxWidth="max-w-md"
       >
         <form onSubmit={handleVhSubmit} className="flex flex-col gap-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label="Biển số xe (Unique)"
               value={vhPlateNumber}
@@ -708,7 +708,7 @@ const FleetManagement = () => {
             required
           />
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label="Tải trọng tối đa (kg)"
               type="number"
@@ -749,7 +749,7 @@ const FleetManagement = () => {
         maxWidth="max-w-md"
       >
         <form onSubmit={handleDrSubmit} className="flex flex-col gap-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label="Liên kết tài khoản"
               type="select"
@@ -820,7 +820,7 @@ const FleetManagement = () => {
             placeholder="VD: 0904 445 556"
           />
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label="Số giấy phép lái xe (GPLX)"
               value={drLicenseNumber}
