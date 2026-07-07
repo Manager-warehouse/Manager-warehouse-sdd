@@ -248,6 +248,30 @@ const AuditLogs = () => {
               </td>
             </tr>
           )}
+          renderCard={(log) => (
+            <div key={log.id} className="rounded-lg border border-hairline-light bg-canvas-cream/30 overflow-hidden">
+              <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center gap-2">
+                <span className="font-mono text-[11px] text-shade-50">{formatDate(log.timestamp || log.createdAt)}</span>
+                <Badge type={getBadgeType(log.action)}>
+                  {log.action}
+                </Badge>
+              </div>
+              <div className="p-4 flex flex-col gap-2 text-xs">
+                <div className="font-semibold text-ink">{log.actorName}</div>
+                <p className="text-shade-50">Đối tượng: <span className="font-medium text-shade-70">{log.entityType} (ID: {log.entityId})</span></p>
+                <p className="text-shade-50">{log.description || log.details}</p>
+              </div>
+              <div className="p-4 border-t border-hairline-light flex justify-end">
+                <button
+                  onClick={() => openAuditDetail(log)}
+                  className="text-shade-60 hover:text-ink transition-colors"
+                  title="Xem chi tiết thay đổi"
+                >
+                  <Eye className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
         />
         <Pagination
           currentPage={currentPage}

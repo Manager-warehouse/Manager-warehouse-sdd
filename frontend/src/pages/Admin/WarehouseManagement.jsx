@@ -456,80 +456,143 @@ const WarehouseManagement = () => {
               <p className="text-sm text-shade-50">Vui lòng nhấp vào nút để thêm cấu hình ô kệ đầu tiên.</p>
             </div>
           ) : (
-            <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-canvas-cream border-b border-hairline-light">
-                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã ô kệ</th>
-                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center">Loại Khu vực</th>
-                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Sức chứa Thể tích (m³)</th>
-                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Sức chứa Khối lượng (kg)</th>
-                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center">Trạng thái</th>
-                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Hành động</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-hairline-light">
-                    {bins.map((bin) => (
-                      <tr
-                        key={bin.id}
-                        className={`hover:bg-canvas-cream/50 transition-colors ${bin.is_quarantine ? 'bg-amber-50/20' : ''} ${!bin.is_active ? 'opacity-50' : ''}`}
-                      >
-                        <td className="px-6 py-4">
-                          <span className="font-mono font-bold text-xs text-ink">{bin.code}</span>
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          {bin.is_quarantine ? (
-                            <Badge type="warning">
-                              <span className="inline-flex items-center gap-1">
-                                <ShieldAlert className="w-2.5 h-2.5" /> Quarantine
-                              </span>
-                            </Badge>
-                          ) : (
-                            <Badge type="success">Storage Bin</Badge>
-                          )}
-                        </td>
-                        <td className="px-6 py-4">
-                          {renderCapacityBar(bin.current_volume_m3 || 0, bin.capacity_m3, 'm³')}
-                        </td>
-                        <td className="px-6 py-4">
-                          {renderCapacityBar(bin.current_weight_kg || 0, bin.capacity_kg, 'kg')}
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <Badge type={bin.is_active ? 'success' : 'neutral'} className="text-[9px]">
-                            {bin.is_active ? 'Hoạt động' : 'Khóa'}
-                          </Badge>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex gap-2 justify-end items-center whitespace-nowrap">
-                            {hasRole(ROLES.STOREKEEPER) || hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.ADMIN) ? (
-                              <button
-                                onClick={() => handleOpenEditBin(bin)}
-                                className="p-1 hover:bg-canvas-cream rounded-full transition-colors shrink-0"
-                                title="Sửa ô kệ"
-                              >
-                                <Edit className="w-4 h-4 text-shade-60 hover:text-ink" />
-                              </button>
-                            ) : null}
-                            <button
-                              onClick={() => handleToggleBinStatus(bin)}
-                              className="p-1 hover:bg-canvas-cream rounded-full transition-colors shrink-0"
-                              title={bin.is_active ? 'Khóa ô kệ' : 'Kích hoạt ô kệ'}
-                            >
-                              {bin.is_active ? (
-                                <ToggleRight className="w-5 h-5 text-emerald-600" />
-                              ) : (
-                                <ToggleLeft className="w-5 h-5 text-shade-40" />
-                              )}
-                            </button>
-                          </div>
-                        </td>
+            <>
+              {/* Desktop/tablet: table view */}
+              <div className="hidden md:block bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-canvas-cream border-b border-hairline-light">
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã ô kệ</th>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center">Loại Khu vực</th>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Sức chứa Thể tích (m³)</th>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Sức chứa Khối lượng (kg)</th>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center">Trạng thái</th>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Hành động</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-hairline-light">
+                      {bins.map((bin) => (
+                        <tr
+                          key={bin.id}
+                          className={`hover:bg-canvas-cream/50 transition-colors ${bin.is_quarantine ? 'bg-amber-50/20' : ''} ${!bin.is_active ? 'opacity-50' : ''}`}
+                        >
+                          <td className="px-6 py-4">
+                            <span className="font-mono font-bold text-xs text-ink">{bin.code}</span>
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            {bin.is_quarantine ? (
+                              <Badge type="warning">
+                                <span className="inline-flex items-center gap-1">
+                                  <ShieldAlert className="w-2.5 h-2.5" /> Quarantine
+                                </span>
+                              </Badge>
+                            ) : (
+                              <Badge type="success">Storage Bin</Badge>
+                            )}
+                          </td>
+                          <td className="px-6 py-4">
+                            {renderCapacityBar(bin.current_volume_m3 || 0, bin.capacity_m3, 'm³')}
+                          </td>
+                          <td className="px-6 py-4">
+                            {renderCapacityBar(bin.current_weight_kg || 0, bin.capacity_kg, 'kg')}
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            <Badge type={bin.is_active ? 'success' : 'neutral'} className="text-[9px]">
+                              {bin.is_active ? 'Hoạt động' : 'Khóa'}
+                            </Badge>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex gap-2 justify-end items-center whitespace-nowrap">
+                              {hasRole(ROLES.STOREKEEPER) || hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.ADMIN) ? (
+                                <button
+                                  onClick={() => handleOpenEditBin(bin)}
+                                  className="p-1 hover:bg-canvas-cream rounded-full transition-colors shrink-0"
+                                  title="Sửa ô kệ"
+                                >
+                                  <Edit className="w-4 h-4 text-shade-60 hover:text-ink" />
+                                </button>
+                              ) : null}
+                              <button
+                                onClick={() => handleToggleBinStatus(bin)}
+                                className="p-1 hover:bg-canvas-cream rounded-full transition-colors shrink-0"
+                                title={bin.is_active ? 'Khóa ô kệ' : 'Kích hoạt ô kệ'}
+                              >
+                                {bin.is_active ? (
+                                  <ToggleRight className="w-5 h-5 text-emerald-600" />
+                                ) : (
+                                  <ToggleLeft className="w-5 h-5 text-shade-40" />
+                                )}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
+
+              {/* Mobile: stacked card view */}
+              <div className="flex flex-col gap-3 md:hidden">
+                {bins.map((bin) => (
+                  <div
+                    key={bin.id}
+                    className={`bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden ${bin.is_quarantine ? 'bg-amber-50/20' : ''} ${!bin.is_active ? 'opacity-50' : ''}`}
+                  >
+                    <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center gap-2">
+                      <span className="font-mono font-bold text-xs text-ink">{bin.code}</span>
+                      <div className="flex items-center gap-1.5">
+                        {bin.is_quarantine ? (
+                          <Badge type="warning">
+                            <span className="inline-flex items-center gap-1">
+                              <ShieldAlert className="w-2.5 h-2.5" /> Quarantine
+                            </span>
+                          </Badge>
+                        ) : (
+                          <Badge type="success">Storage Bin</Badge>
+                        )}
+                        <Badge type={bin.is_active ? 'success' : 'neutral'} className="text-[9px]">
+                          {bin.is_active ? 'Hoạt động' : 'Khóa'}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="p-4 flex flex-col gap-3 text-xs">
+                      <div>
+                        <span className="text-shade-50 block mb-1">Sức chứa Thể tích (m³)</span>
+                        {renderCapacityBar(bin.current_volume_m3 || 0, bin.capacity_m3, 'm³')}
+                      </div>
+                      <div>
+                        <span className="text-shade-50 block mb-1">Sức chứa Khối lượng (kg)</span>
+                        {renderCapacityBar(bin.current_weight_kg || 0, bin.capacity_kg, 'kg')}
+                      </div>
+                    </div>
+                    <div className="p-4 border-t border-hairline-light flex gap-2 justify-end items-center">
+                      {hasRole(ROLES.STOREKEEPER) || hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.ADMIN) ? (
+                        <button
+                          onClick={() => handleOpenEditBin(bin)}
+                          className="p-1.5 hover:bg-canvas-cream rounded-full transition-colors shrink-0"
+                          title="Sửa ô kệ"
+                        >
+                          <Edit className="w-4 h-4 text-shade-60 hover:text-ink" />
+                        </button>
+                      ) : null}
+                      <button
+                        onClick={() => handleToggleBinStatus(bin)}
+                        className="p-1.5 hover:bg-canvas-cream rounded-full transition-colors shrink-0"
+                        title={bin.is_active ? 'Khóa ô kệ' : 'Kích hoạt ô kệ'}
+                      >
+                        {bin.is_active ? (
+                          <ToggleRight className="w-5 h-5 text-emerald-600" />
+                        ) : (
+                          <ToggleLeft className="w-5 h-5 text-shade-40" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </div>
       </div>

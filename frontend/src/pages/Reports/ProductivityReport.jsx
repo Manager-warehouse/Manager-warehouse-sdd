@@ -173,106 +173,154 @@ const ProductivityReport = () => {
           {/* Tabs Content */}
           <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden">
             {activeTab === 'staff' && (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-canvas-cream border-b border-hairline-light">
-                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã nhân viên</th>
-                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Tên nhân viên</th>
-                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Vai trò</th>
-                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Số lượt soạn hàng (Picking runs)</th>
-                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Tổng sản lượng soạn (Qty)</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-hairline-light">
-                    {data.staff_productivity.length === 0 ? (
-                      <tr>
-                        <td colSpan="5" className="px-6 py-8 text-center text-shade-50">Không có dữ liệu bốc xếp trong dải ngày này.</td>
-                      </tr>
-                    ) : (
-                      data.staff_productivity.map((p, idx) => (
-                        <tr key={idx} className="hover:bg-canvas-cream/50 transition-colors">
-                          <td className="px-6 py-4 text-xs font-mono font-medium">{p.employee_code}</td>
-                          <td className="px-6 py-4 text-xs font-semibold text-ink">{p.full_name}</td>
-                          <td className="px-6 py-4 text-xs text-shade-50 text-[10px] uppercase font-bold">{p.role}</td>
-                          <td className="px-6 py-4 text-xs text-right font-medium">{p.picking_runs_count} lượt</td>
-                          <td className="px-6 py-4 text-xs text-right font-bold text-ink">
-                            {new Intl.NumberFormat('vi-VN').format(p.total_picked_qty)} cái
-                          </td>
+              data.staff_productivity.length === 0 ? (
+                <div className="px-6 py-8 text-center text-shade-50 text-xs">Không có dữ liệu bốc xếp trong dải ngày này.</div>
+              ) : (
+                <>
+                  <div className="hidden md:block overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-canvas-cream border-b border-hairline-light">
+                          <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã nhân viên</th>
+                          <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Tên nhân viên</th>
+                          <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Vai trò</th>
+                          <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Số lượt soạn hàng (Picking runs)</th>
+                          <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Tổng sản lượng soạn (Qty)</th>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                      </thead>
+                      <tbody className="divide-y divide-hairline-light">
+                        {data.staff_productivity.map((p, idx) => (
+                          <tr key={idx} className="hover:bg-canvas-cream/50 transition-colors">
+                            <td className="px-6 py-4 text-xs font-mono font-medium">{p.employee_code}</td>
+                            <td className="px-6 py-4 text-xs font-semibold text-ink">{p.full_name}</td>
+                            <td className="px-6 py-4 text-xs text-shade-50 text-[10px] uppercase font-bold">{p.role}</td>
+                            <td className="px-6 py-4 text-xs text-right font-medium">{p.picking_runs_count} lượt</td>
+                            <td className="px-6 py-4 text-xs text-right font-bold text-ink">
+                              {new Intl.NumberFormat('vi-VN').format(p.total_picked_qty)} cái
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="flex flex-col gap-3 p-4 md:hidden">
+                    {data.staff_productivity.map((p, idx) => (
+                      <div key={idx} className="rounded-lg border border-hairline-light bg-canvas-cream/30 overflow-hidden">
+                        <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center gap-2">
+                          <span className="font-mono text-xs font-medium">{p.employee_code}</span>
+                          <span className="text-[10px] uppercase font-bold text-shade-50">{p.role}</span>
+                        </div>
+                        <div className="p-4 flex flex-col gap-2 text-xs">
+                          <div className="font-semibold text-ink">{p.full_name}</div>
+                          <p className="text-shade-50">Số lượt soạn hàng: <span className="font-medium text-ink">{p.picking_runs_count} lượt</span></p>
+                          <p className="text-shade-50">Tổng sản lượng soạn: <span className="font-bold text-ink">{new Intl.NumberFormat('vi-VN').format(p.total_picked_qty)} cái</span></p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )
             )}
 
             {activeTab === 'storekeeper' && (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-canvas-cream border-b border-hairline-light">
-                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã thủ kho</th>
-                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Tên thủ kho</th>
-                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Vai trò</th>
-                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Số picking plans lập</th>
-                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Tổng số lượng QC checked</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-hairline-light">
-                    {data.storekeeper_productivity.length === 0 ? (
-                      <tr>
-                        <td colSpan="5" className="px-6 py-8 text-center text-shade-50">Không có dữ liệu QC trong dải ngày này.</td>
-                      </tr>
-                    ) : (
-                      data.storekeeper_productivity.map((p, idx) => (
-                        <tr key={idx} className="hover:bg-canvas-cream/50 transition-colors">
-                          <td className="px-6 py-4 text-xs font-mono font-medium">{p.employee_code}</td>
-                          <td className="px-6 py-4 text-xs font-semibold text-ink">{p.full_name}</td>
-                          <td className="px-6 py-4 text-xs text-shade-50 text-[10px] uppercase font-bold">{p.role}</td>
-                          <td className="px-6 py-4 text-xs text-right font-medium">{p.picking_plans_created} kế hoạch</td>
-                          <td className="px-6 py-4 text-xs text-right font-bold text-ink">
-                            {new Intl.NumberFormat('vi-VN').format(p.total_qc_checked_qty)} cái
-                          </td>
+              data.storekeeper_productivity.length === 0 ? (
+                <div className="px-6 py-8 text-center text-shade-50 text-xs">Không có dữ liệu QC trong dải ngày này.</div>
+              ) : (
+                <>
+                  <div className="hidden md:block overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-canvas-cream border-b border-hairline-light">
+                          <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã thủ kho</th>
+                          <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Tên thủ kho</th>
+                          <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Vai trò</th>
+                          <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Số picking plans lập</th>
+                          <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Tổng số lượng QC checked</th>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                      </thead>
+                      <tbody className="divide-y divide-hairline-light">
+                        {data.storekeeper_productivity.map((p, idx) => (
+                          <tr key={idx} className="hover:bg-canvas-cream/50 transition-colors">
+                            <td className="px-6 py-4 text-xs font-mono font-medium">{p.employee_code}</td>
+                            <td className="px-6 py-4 text-xs font-semibold text-ink">{p.full_name}</td>
+                            <td className="px-6 py-4 text-xs text-shade-50 text-[10px] uppercase font-bold">{p.role}</td>
+                            <td className="px-6 py-4 text-xs text-right font-medium">{p.picking_plans_created} kế hoạch</td>
+                            <td className="px-6 py-4 text-xs text-right font-bold text-ink">
+                              {new Intl.NumberFormat('vi-VN').format(p.total_qc_checked_qty)} cái
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="flex flex-col gap-3 p-4 md:hidden">
+                    {data.storekeeper_productivity.map((p, idx) => (
+                      <div key={idx} className="rounded-lg border border-hairline-light bg-canvas-cream/30 overflow-hidden">
+                        <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center gap-2">
+                          <span className="font-mono text-xs font-medium">{p.employee_code}</span>
+                          <span className="text-[10px] uppercase font-bold text-shade-50">{p.role}</span>
+                        </div>
+                        <div className="p-4 flex flex-col gap-2 text-xs">
+                          <div className="font-semibold text-ink">{p.full_name}</div>
+                          <p className="text-shade-50">Số picking plans lập: <span className="font-medium text-ink">{p.picking_plans_created} kế hoạch</span></p>
+                          <p className="text-shade-50">Tổng số lượng QC checked: <span className="font-bold text-ink">{new Intl.NumberFormat('vi-VN').format(p.total_qc_checked_qty)} cái</span></p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )
             )}
 
             {activeTab === 'driver' && (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-canvas-cream border-b border-hairline-light">
-                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã tài xế</th>
-                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Tên tài xế</th>
-                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Vai trò</th>
-                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Số chuyến hoàn thành</th>
-                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Số đơn giao thành công</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-hairline-light">
-                    {data.driver_productivity.length === 0 ? (
-                      <tr>
-                        <td colSpan="5" className="px-6 py-8 text-center text-shade-50">Không có dữ liệu giao vận trong dải ngày này.</td>
-                      </tr>
-                    ) : (
-                      data.driver_productivity.map((p, idx) => (
-                        <tr key={idx} className="hover:bg-canvas-cream/50 transition-colors">
-                          <td className="px-6 py-4 text-xs font-mono font-medium">{p.employee_code}</td>
-                          <td className="px-6 py-4 text-xs font-semibold text-ink">{p.full_name}</td>
-                          <td className="px-6 py-4 text-xs text-shade-50 text-[10px] uppercase font-bold">{p.role}</td>
-                          <td className="px-6 py-4 text-xs text-right font-medium">{p.trips_completed} chuyến</td>
-                          <td className="px-6 py-4 text-xs text-right font-bold text-ink">{p.successful_deliveries} đơn</td>
+              data.driver_productivity.length === 0 ? (
+                <div className="px-6 py-8 text-center text-shade-50 text-xs">Không có dữ liệu giao vận trong dải ngày này.</div>
+              ) : (
+                <>
+                  <div className="hidden md:block overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-canvas-cream border-b border-hairline-light">
+                          <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã tài xế</th>
+                          <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Tên tài xế</th>
+                          <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Vai trò</th>
+                          <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Số chuyến hoàn thành</th>
+                          <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Số đơn giao thành công</th>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                      </thead>
+                      <tbody className="divide-y divide-hairline-light">
+                        {data.driver_productivity.map((p, idx) => (
+                          <tr key={idx} className="hover:bg-canvas-cream/50 transition-colors">
+                            <td className="px-6 py-4 text-xs font-mono font-medium">{p.employee_code}</td>
+                            <td className="px-6 py-4 text-xs font-semibold text-ink">{p.full_name}</td>
+                            <td className="px-6 py-4 text-xs text-shade-50 text-[10px] uppercase font-bold">{p.role}</td>
+                            <td className="px-6 py-4 text-xs text-right font-medium">{p.trips_completed} chuyến</td>
+                            <td className="px-6 py-4 text-xs text-right font-bold text-ink">{p.successful_deliveries} đơn</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="flex flex-col gap-3 p-4 md:hidden">
+                    {data.driver_productivity.map((p, idx) => (
+                      <div key={idx} className="rounded-lg border border-hairline-light bg-canvas-cream/30 overflow-hidden">
+                        <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center gap-2">
+                          <span className="font-mono text-xs font-medium">{p.employee_code}</span>
+                          <span className="text-[10px] uppercase font-bold text-shade-50">{p.role}</span>
+                        </div>
+                        <div className="p-4 flex flex-col gap-2 text-xs">
+                          <div className="font-semibold text-ink">{p.full_name}</div>
+                          <p className="text-shade-50">Số chuyến hoàn thành: <span className="font-medium text-ink">{p.trips_completed} chuyến</span></p>
+                          <p className="text-shade-50">Số đơn giao thành công: <span className="font-bold text-ink">{p.successful_deliveries} đơn</span></p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )
             )}
           </div>
         </>

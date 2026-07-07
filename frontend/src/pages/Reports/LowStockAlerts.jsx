@@ -117,65 +117,105 @@ const LowStockAlerts = () => {
               </h3>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-canvas-cream border-b border-hairline-light">
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Kho vật lý</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã SKU</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Tên sản phẩm</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center">Loại cảnh báo</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Tồn khả dụng</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Định mức tối thiểu</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center">Trạng thái</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Thời gian cảnh báo</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-hairline-light">
-                  {alerts.length === 0 ? (
-                    <tr>
-                      <td colSpan="8" className="px-6 py-12 text-center text-shade-50">
-                        Tuyệt vời! Không có cảnh báo tồn kho nào cần xử lý.
-                      </td>
-                    </tr>
-                  ) : (
-                    alerts.map((alert) => (
-                      <tr
-                        key={alert.id}
-                        className={`hover:bg-canvas-cream/50 transition-colors ${!alert.is_resolved ? 'bg-red-50/20' : ''}`}
-                      >
-                        <td className="px-6 py-4 text-xs font-semibold text-ink">{alert.warehouse_name}</td>
-                        <td className="px-6 py-4 text-xs font-mono font-medium">{alert.product_sku}</td>
-                        <td className="px-6 py-4 text-xs font-medium">{alert.product_name}</td>
-                        <td className="px-6 py-4 text-xs text-center">{getAlertTag(alert.alert_type)}</td>
-                        <td className={`px-6 py-4 text-xs text-right font-bold ${alert.current_qty === 0 ? 'text-red-600' : 'text-orange-600'}`}>
+            {alerts.length === 0 ? (
+              <div className="px-6 py-12 text-center text-shade-50 text-xs">
+                Tuyệt vời! Không có cảnh báo tồn kho nào cần xử lý.
+              </div>
+            ) : (
+              <>
+                {/* Desktop/tablet: table view */}
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-canvas-cream border-b border-hairline-light">
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Kho vật lý</th>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã SKU</th>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Tên sản phẩm</th>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center">Loại cảnh báo</th>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Tồn khả dụng</th>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Định mức tối thiểu</th>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center">Trạng thái</th>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Thời gian cảnh báo</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-hairline-light">
+                      {alerts.map((alert) => (
+                        <tr
+                          key={alert.id}
+                          className={`hover:bg-canvas-cream/50 transition-colors ${!alert.is_resolved ? 'bg-red-50/20' : ''}`}
+                        >
+                          <td className="px-6 py-4 text-xs font-semibold text-ink">{alert.warehouse_name}</td>
+                          <td className="px-6 py-4 text-xs font-mono font-medium">{alert.product_sku}</td>
+                          <td className="px-6 py-4 text-xs font-medium">{alert.product_name}</td>
+                          <td className="px-6 py-4 text-xs text-center">{getAlertTag(alert.alert_type)}</td>
+                          <td className={`px-6 py-4 text-xs text-right font-bold ${alert.current_qty === 0 ? 'text-red-600' : 'text-orange-600'}`}>
+                            {new Intl.NumberFormat('vi-VN').format(alert.current_qty)}
+                          </td>
+                          <td className="px-6 py-4 text-xs text-right text-shade-60">
+                            {new Intl.NumberFormat('vi-VN').format(alert.reorder_point)}
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            <Badge size="sm" type={alert.is_resolved ? 'success' : 'danger'} className={alert.is_resolved ? '' : 'animate-pulse'}>
+                              <span className="inline-flex items-center gap-1">
+                                {alert.is_resolved ? <CheckCircle className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
+                                {alert.is_resolved ? 'Đã bổ sung' : 'Cần bổ sung'}
+                              </span>
+                            </Badge>
+                          </td>
+                          <td className="px-6 py-4 text-xs text-shade-60">
+                            {new Date(alert.created_at).toLocaleString('vi-VN')}
+                            {alert.is_resolved && alert.resolved_at && (
+                              <span className="block text-[10px] text-emerald-600">
+                                Bổ sung lúc: {new Date(alert.resolved_at).toLocaleString('vi-VN')}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile: stacked card view */}
+                <div className="flex flex-col gap-3 p-4 md:hidden">
+                  {alerts.map((alert) => (
+                    <div
+                      key={alert.id}
+                      className={`rounded-lg border border-hairline-light overflow-hidden ${!alert.is_resolved ? 'bg-red-50/20' : 'bg-canvas-cream/30'}`}
+                    >
+                      <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center gap-2">
+                        <span className="font-mono text-xs font-medium">{alert.product_sku}</span>
+                        {getAlertTag(alert.alert_type)}
+                      </div>
+                      <div className="p-4 flex flex-col gap-2 text-xs">
+                        <div className="font-semibold text-ink">{alert.product_name}</div>
+                        <p className="text-shade-50">Kho vật lý: <span className="font-semibold text-ink">{alert.warehouse_name}</span></p>
+                        <p className="text-shade-50">Tồn khả dụng: <span className={`font-bold ${alert.current_qty === 0 ? 'text-red-600' : 'text-orange-600'}`}>
                           {new Intl.NumberFormat('vi-VN').format(alert.current_qty)}
-                        </td>
-                        <td className="px-6 py-4 text-xs text-right text-shade-60">
-                          {new Intl.NumberFormat('vi-VN').format(alert.reorder_point)}
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <Badge size="sm" type={alert.is_resolved ? 'success' : 'danger'} className={alert.is_resolved ? '' : 'animate-pulse'}>
-                            <span className="inline-flex items-center gap-1">
-                              {alert.is_resolved ? <CheckCircle className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
-                              {alert.is_resolved ? 'Đã bổ sung' : 'Cần bổ sung'}
-                            </span>
-                          </Badge>
-                        </td>
-                        <td className="px-6 py-4 text-xs text-shade-60">
+                        </span></p>
+                        <p className="text-shade-50">Định mức tối thiểu: <span className="text-ink">{new Intl.NumberFormat('vi-VN').format(alert.reorder_point)}</span></p>
+                        <p className="text-shade-50">
                           {new Date(alert.created_at).toLocaleString('vi-VN')}
                           {alert.is_resolved && alert.resolved_at && (
                             <span className="block text-[10px] text-emerald-600">
                               Bổ sung lúc: {new Date(alert.resolved_at).toLocaleString('vi-VN')}
                             </span>
                           )}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                        </p>
+                        <div>
+                          <Badge size="sm" type={alert.is_resolved ? 'success' : 'danger'} className={alert.is_resolved ? '' : 'animate-pulse'}>
+                            <span className="inline-flex items-center gap-1">
+                              {alert.is_resolved ? <CheckCircle className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
+                              {alert.is_resolved ? 'Đã bổ sung' : 'Cần bổ sung'}
+                            </span>
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
 
             {/* Pagination */}
             {totalPages > 1 && (

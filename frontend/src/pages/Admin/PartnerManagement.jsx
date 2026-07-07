@@ -396,91 +396,155 @@ const PartnerManagement = () => {
             <p className="text-sm text-shade-50">Thử thay đổi bộ lọc tìm kiếm hoặc thêm mới đại lý.</p>
           </div>
         ) : (
-          <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="bg-canvas-cream border-b border-hairline-light">
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã Đại lý</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Tên Đại lý</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Vùng miền</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Điện thoại</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Hạn thanh toán</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Dư nợ hiện tại</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Hạn mức tín dụng</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center">Trạng thái nợ</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center">Hoạt động</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Hành động</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-hairline-light">
-                  {filteredDealers.map((dl) => {
-                    const isCreditHold = dl.credit_status === 'CREDIT_HOLD' || dl.current_balance > dl.credit_limit;
-                    return (
-                      <tr key={dl.id} className={`hover:bg-canvas-cream/50 transition-colors ${!dl.is_active ? 'opacity-50' : ''}`}>
-                        <td className="px-6 py-4 font-mono font-bold text-ink">{dl.code}</td>
-                        <td className="px-6 py-4">
-                          <div className="font-semibold text-ink">{dl.name}</div>
-                          {dl.email && <div className="text-[11px] text-shade-50 font-normal">{dl.email}</div>}
-                        </td>
-                        <td className="px-6 py-4 text-shade-60">{dl.region || 'N/A'}</td>
-                        <td className="px-6 py-4 text-shade-60 font-mono">{dl.phone || 'N/A'}</td>
-                        <td className="px-6 py-4 text-right font-medium">{dl.payment_term_days} ngày</td>
-                        <td className="px-6 py-4 text-right font-bold text-ink">
-                          {dl.current_balance?.toLocaleString('vi-VN')} VND
-                        </td>
-                        <td className="px-6 py-4 text-right font-bold text-shade-70">
-                          {dl.credit_limit?.toLocaleString('vi-VN')} VND
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          {isCreditHold ? (
-                            <Badge type="danger">
-                              <span className="inline-flex items-center gap-1">
-                                <ShieldAlert className="w-3 h-3 shrink-0" /> HOLD (Vượt nợ)
-                              </span>
+          <>
+            {/* Desktop/tablet: table view */}
+            <div className="hidden md:block bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-canvas-cream border-b border-hairline-light">
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã Đại lý</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Tên Đại lý</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Vùng miền</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Điện thoại</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Hạn thanh toán</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Dư nợ hiện tại</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Hạn mức tín dụng</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center">Trạng thái nợ</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center">Hoạt động</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Hành động</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-hairline-light">
+                    {filteredDealers.map((dl) => {
+                      const isCreditHold = dl.credit_status === 'CREDIT_HOLD' || dl.current_balance > dl.credit_limit;
+                      return (
+                        <tr key={dl.id} className={`hover:bg-canvas-cream/50 transition-colors ${!dl.is_active ? 'opacity-50' : ''}`}>
+                          <td className="px-6 py-4 font-mono font-bold text-ink">{dl.code}</td>
+                          <td className="px-6 py-4">
+                            <div className="font-semibold text-ink">{dl.name}</div>
+                            {dl.email && <div className="text-[11px] text-shade-50 font-normal">{dl.email}</div>}
+                          </td>
+                          <td className="px-6 py-4 text-shade-60">{dl.region || 'N/A'}</td>
+                          <td className="px-6 py-4 text-shade-60 font-mono">{dl.phone || 'N/A'}</td>
+                          <td className="px-6 py-4 text-right font-medium">{dl.payment_term_days} ngày</td>
+                          <td className="px-6 py-4 text-right font-bold text-ink">
+                            {dl.current_balance?.toLocaleString('vi-VN')} VND
+                          </td>
+                          <td className="px-6 py-4 text-right font-bold text-shade-70">
+                            {dl.credit_limit?.toLocaleString('vi-VN')} VND
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            {isCreditHold ? (
+                              <Badge type="danger">
+                                <span className="inline-flex items-center gap-1">
+                                  <ShieldAlert className="w-3 h-3 shrink-0" /> HOLD (Vượt nợ)
+                                </span>
+                              </Badge>
+                            ) : (
+                              <Badge type="success">ACTIVE (Tốt)</Badge>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            <Badge type={dl.is_active ? 'success' : 'neutral'} className="text-[9px]">
+                              {dl.is_active ? 'Hoạt động' : 'Khóa'}
                             </Badge>
-                          ) : (
-                            <Badge type="success">ACTIVE (Tốt)</Badge>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <Badge type={dl.is_active ? 'success' : 'neutral'} className="text-[9px]">
-                            {dl.is_active ? 'Hoạt động' : 'Khóa'}
-                          </Badge>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex gap-3.5 justify-end items-center">
-                            {(hasRole(ROLES.ACCOUNTANT) || hasRole(ROLES.ACCOUNTANT_MANAGER)) && (
-                              <button
-                                onClick={() => handleOpenEditDealer(dl)}
-                                className="p-1 hover:bg-canvas-cream rounded-full transition-colors shrink-0 text-shade-60 hover:text-ink"
-                                title="Sửa thông tin & Hạn mức"
-                              >
-                                <Edit className="w-4 h-4" />
-                              </button>
-                            )}
-                            {(hasRole(ROLES.ACCOUNTANT) || hasRole(ROLES.ACCOUNTANT_MANAGER)) && (
-                              <button
-                                onClick={() => handleToggleDlStatus(dl)}
-                                className="p-1 hover:bg-canvas-cream rounded-full transition-colors shrink-0"
-                                title={dl.is_active ? 'Khóa đại lý' : 'Kích hoạt đại lý'}
-                              >
-                                {dl.is_active ? (
-                                  <ToggleRight className="w-5 h-5 text-emerald-600" />
-                                ) : (
-                                  <ToggleLeft className="w-5 h-5 text-shade-40" />
-                                )}
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex gap-3.5 justify-end items-center">
+                              {(hasRole(ROLES.ACCOUNTANT) || hasRole(ROLES.ACCOUNTANT_MANAGER)) && (
+                                <button
+                                  onClick={() => handleOpenEditDealer(dl)}
+                                  className="p-1 hover:bg-canvas-cream rounded-full transition-colors shrink-0 text-shade-60 hover:text-ink"
+                                  title="Sửa thông tin & Hạn mức"
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </button>
+                              )}
+                              {(hasRole(ROLES.ACCOUNTANT) || hasRole(ROLES.ACCOUNTANT_MANAGER)) && (
+                                <button
+                                  onClick={() => handleToggleDlStatus(dl)}
+                                  className="p-1 hover:bg-canvas-cream rounded-full transition-colors shrink-0"
+                                  title={dl.is_active ? 'Khóa đại lý' : 'Kích hoạt đại lý'}
+                                >
+                                  {dl.is_active ? (
+                                    <ToggleRight className="w-5 h-5 text-emerald-600" />
+                                  ) : (
+                                    <ToggleLeft className="w-5 h-5 text-shade-40" />
+                                  )}
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
+
+            {/* Mobile: stacked card view */}
+            <div className="flex flex-col gap-3 md:hidden">
+              {filteredDealers.map((dl) => {
+                const isCreditHold = dl.credit_status === 'CREDIT_HOLD' || dl.current_balance > dl.credit_limit;
+                return (
+                  <div key={dl.id} className={`bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden ${!dl.is_active ? 'opacity-50' : ''}`}>
+                    <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center gap-2">
+                      <span className="font-mono font-bold text-xs text-ink">{dl.code}</span>
+                      <Badge type={dl.is_active ? 'success' : 'neutral'} className="text-[9px]">
+                        {dl.is_active ? 'Hoạt động' : 'Khóa'}
+                      </Badge>
+                    </div>
+                    <div className="p-4 flex flex-col gap-2 text-xs">
+                      <div className="font-semibold text-ink">{dl.name}</div>
+                      {dl.email && <div className="text-shade-50">{dl.email}</div>}
+                      <p className="text-shade-50">Vùng miền: <span className="font-medium text-ink">{dl.region || 'N/A'}</span></p>
+                      <p className="text-shade-50">Điện thoại: <span className="font-medium text-ink font-mono">{dl.phone || 'N/A'}</span></p>
+                      <p className="text-shade-50">Hạn thanh toán: <span className="font-medium text-ink">{dl.payment_term_days} ngày</span></p>
+                      <p className="text-shade-50">Dư nợ hiện tại: <span className="font-bold text-ink">{dl.current_balance?.toLocaleString('vi-VN')} VND</span></p>
+                      <p className="text-shade-50">Hạn mức tín dụng: <span className="font-bold text-ink">{dl.credit_limit?.toLocaleString('vi-VN')} VND</span></p>
+                      <div>
+                        {isCreditHold ? (
+                          <Badge type="danger">
+                            <span className="inline-flex items-center gap-1">
+                              <ShieldAlert className="w-3 h-3 shrink-0" /> HOLD (Vượt nợ)
+                            </span>
+                          </Badge>
+                        ) : (
+                          <Badge type="success">ACTIVE (Tốt)</Badge>
+                        )}
+                      </div>
+                    </div>
+                    <div className="p-4 border-t border-hairline-light flex gap-3.5 justify-end items-center">
+                      {(hasRole(ROLES.ACCOUNTANT) || hasRole(ROLES.ACCOUNTANT_MANAGER)) && (
+                        <button
+                          onClick={() => handleOpenEditDealer(dl)}
+                          className="p-1.5 hover:bg-canvas-cream rounded-full transition-colors shrink-0 text-shade-60 hover:text-ink"
+                          title="Sửa thông tin & Hạn mức"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                      )}
+                      {(hasRole(ROLES.ACCOUNTANT) || hasRole(ROLES.ACCOUNTANT_MANAGER)) && (
+                        <button
+                          onClick={() => handleToggleDlStatus(dl)}
+                          className="p-1.5 hover:bg-canvas-cream rounded-full transition-colors shrink-0"
+                          title={dl.is_active ? 'Khóa đại lý' : 'Kích hoạt đại lý'}
+                        >
+                          {dl.is_active ? (
+                            <ToggleRight className="w-5 h-5 text-emerald-600" />
+                          ) : (
+                            <ToggleLeft className="w-5 h-5 text-shade-40" />
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )
       ) : (
         // SUPPLIERS TAB
@@ -491,67 +555,115 @@ const PartnerManagement = () => {
             <p className="text-sm text-shade-50">Thử thay đổi bộ lọc tìm kiếm hoặc thêm mới nhà cung cấp.</p>
           </div>
         ) : (
-          <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="bg-canvas-cream border-b border-hairline-light">
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã Nhà CC</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Tên doanh nghiệp</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã số thuế</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Người liên hệ</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Điện thoại</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Địa chỉ văn phòng</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center">Trạng thái</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Hành động</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-hairline-light">
-                  {filteredSuppliers.map((spl) => (
-                    <tr key={spl.id} className={`hover:bg-canvas-cream/50 transition-colors ${!spl.is_active ? 'opacity-50' : ''}`}>
-                      <td className="px-6 py-4 font-mono font-bold text-ink">{spl.code}</td>
-                      <td className="px-6 py-4 font-semibold text-ink">{spl.company_name}</td>
-                      <td className="px-6 py-4 font-mono text-shade-60">{spl.tax_code || 'N/A'}</td>
-                      <td className="px-6 py-4 text-ink font-medium">{spl.contact_person || 'N/A'}</td>
-                      <td className="px-6 py-4 text-shade-60 font-mono">{spl.phone || 'N/A'}</td>
-                      <td className="px-6 py-4 text-shade-50 max-w-xs truncate" title={spl.address}>{spl.address || 'N/A'}</td>
-                      <td className="px-6 py-4 text-center">
-                        <Badge type={spl.is_active ? 'success' : 'neutral'} className="text-[9px]">
-                          {spl.is_active ? 'Hoạt động' : 'Khóa'}
-                        </Badge>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex gap-3 justify-end items-center">
-                          {(hasRole(ROLES.ACCOUNTANT) || hasRole(ROLES.ACCOUNTANT_MANAGER)) ? (
-                            <button
-                              onClick={() => handleOpenEditSupplier(spl)}
-                              className="p-1 hover:bg-canvas-cream rounded-full transition-colors shrink-0 text-shade-60 hover:text-ink"
-                              title="Sửa nhà cung cấp"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
-                          ) : null}
-                          {(hasRole(ROLES.ACCOUNTANT) || hasRole(ROLES.ACCOUNTANT_MANAGER)) && (
-                            <button
-                              onClick={() => handleToggleSplStatus(spl)}
-                              className="p-1 hover:bg-canvas-cream rounded-full transition-colors shrink-0"
-                              title={spl.is_active ? 'Khóa nhà cung cấp' : 'Kích hoạt nhà cung cấp'}
-                            >
-                              {spl.is_active ? (
-                                <ToggleRight className="w-5 h-5 text-emerald-600" />
-                              ) : (
-                                <ToggleLeft className="w-5 h-5 text-shade-40" />
-                              )}
-                            </button>
-                          )}
-                        </div>
-                      </td>
+          <>
+            {/* Desktop/tablet: table view */}
+            <div className="hidden md:block bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-canvas-cream border-b border-hairline-light">
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã Nhà CC</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Tên doanh nghiệp</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã số thuế</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Người liên hệ</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Điện thoại</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Địa chỉ văn phòng</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center">Trạng thái</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Hành động</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-hairline-light">
+                    {filteredSuppliers.map((spl) => (
+                      <tr key={spl.id} className={`hover:bg-canvas-cream/50 transition-colors ${!spl.is_active ? 'opacity-50' : ''}`}>
+                        <td className="px-6 py-4 font-mono font-bold text-ink">{spl.code}</td>
+                        <td className="px-6 py-4 font-semibold text-ink">{spl.company_name}</td>
+                        <td className="px-6 py-4 font-mono text-shade-60">{spl.tax_code || 'N/A'}</td>
+                        <td className="px-6 py-4 text-ink font-medium">{spl.contact_person || 'N/A'}</td>
+                        <td className="px-6 py-4 text-shade-60 font-mono">{spl.phone || 'N/A'}</td>
+                        <td className="px-6 py-4 text-shade-50 max-w-xs truncate" title={spl.address}>{spl.address || 'N/A'}</td>
+                        <td className="px-6 py-4 text-center">
+                          <Badge type={spl.is_active ? 'success' : 'neutral'} className="text-[9px]">
+                            {spl.is_active ? 'Hoạt động' : 'Khóa'}
+                          </Badge>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex gap-3 justify-end items-center">
+                            {(hasRole(ROLES.ACCOUNTANT) || hasRole(ROLES.ACCOUNTANT_MANAGER)) ? (
+                              <button
+                                onClick={() => handleOpenEditSupplier(spl)}
+                                className="p-1 hover:bg-canvas-cream rounded-full transition-colors shrink-0 text-shade-60 hover:text-ink"
+                                title="Sửa nhà cung cấp"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                            ) : null}
+                            {(hasRole(ROLES.ACCOUNTANT) || hasRole(ROLES.ACCOUNTANT_MANAGER)) && (
+                              <button
+                                onClick={() => handleToggleSplStatus(spl)}
+                                className="p-1 hover:bg-canvas-cream rounded-full transition-colors shrink-0"
+                                title={spl.is_active ? 'Khóa nhà cung cấp' : 'Kích hoạt nhà cung cấp'}
+                              >
+                                {spl.is_active ? (
+                                  <ToggleRight className="w-5 h-5 text-emerald-600" />
+                                ) : (
+                                  <ToggleLeft className="w-5 h-5 text-shade-40" />
+                                )}
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
+
+            {/* Mobile: stacked card view */}
+            <div className="flex flex-col gap-3 md:hidden">
+              {filteredSuppliers.map((spl) => (
+                <div key={spl.id} className={`bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden ${!spl.is_active ? 'opacity-50' : ''}`}>
+                  <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center gap-2">
+                    <span className="font-mono font-bold text-xs text-ink">{spl.code}</span>
+                    <Badge type={spl.is_active ? 'success' : 'neutral'} className="text-[9px]">
+                      {spl.is_active ? 'Hoạt động' : 'Khóa'}
+                    </Badge>
+                  </div>
+                  <div className="p-4 flex flex-col gap-2 text-xs">
+                    <div className="font-semibold text-ink">{spl.company_name}</div>
+                    <p className="text-shade-50">Mã số thuế: <span className="font-mono font-medium text-ink">{spl.tax_code || 'N/A'}</span></p>
+                    <p className="text-shade-50">Người liên hệ: <span className="font-medium text-ink">{spl.contact_person || 'N/A'}</span></p>
+                    <p className="text-shade-50">Điện thoại: <span className="font-mono font-medium text-ink">{spl.phone || 'N/A'}</span></p>
+                    <p className="text-shade-50">Địa chỉ: <span className="font-medium text-ink">{spl.address || 'N/A'}</span></p>
+                  </div>
+                  <div className="p-4 border-t border-hairline-light flex gap-3 justify-end items-center">
+                    {(hasRole(ROLES.ACCOUNTANT) || hasRole(ROLES.ACCOUNTANT_MANAGER)) ? (
+                      <button
+                        onClick={() => handleOpenEditSupplier(spl)}
+                        className="p-1.5 hover:bg-canvas-cream rounded-full transition-colors shrink-0 text-shade-60 hover:text-ink"
+                        title="Sửa nhà cung cấp"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                    ) : null}
+                    {(hasRole(ROLES.ACCOUNTANT) || hasRole(ROLES.ACCOUNTANT_MANAGER)) && (
+                      <button
+                        onClick={() => handleToggleSplStatus(spl)}
+                        className="p-1.5 hover:bg-canvas-cream rounded-full transition-colors shrink-0"
+                        title={spl.is_active ? 'Khóa nhà cung cấp' : 'Kích hoạt nhà cung cấp'}
+                      >
+                        {spl.is_active ? (
+                          <ToggleRight className="w-5 h-5 text-emerald-600" />
+                        ) : (
+                          <ToggleLeft className="w-5 h-5 text-shade-40" />
+                        )}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         )
       )}
 

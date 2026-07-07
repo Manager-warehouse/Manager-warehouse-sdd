@@ -131,48 +131,68 @@ const InventoryValuation = () => {
               </h3>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-canvas-cream border-b border-hairline-light">
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Kho vật lý</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã SKU</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Tên sản phẩm</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Số lô hàng</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Tồn thực tế</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Đơn giá vốn</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Tổng giá trị</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-hairline-light">
-                  {data.records.length === 0 ? (
-                    <tr>
-                      <td colSpan="7" className="px-6 py-8 text-center text-shade-50">
-                        Không có sản phẩm nào có số dư tồn kho khả dụng lớn hơn 0.
-                      </td>
-                    </tr>
-                  ) : (
-                    data.records.map((r, idx) => (
-                      <tr key={idx} className="hover:bg-canvas-cream/50 transition-colors">
-                        <td className="px-6 py-4 text-xs font-semibold text-ink">{r.warehouse_name}</td>
-                        <td className="px-6 py-4 text-xs font-mono font-medium">{r.product_sku}</td>
-                        <td className="px-6 py-4 text-xs">{r.product_name}</td>
-                        <td className="px-6 py-4 text-xs font-mono text-[11px] text-shade-60">{r.batch_number}</td>
-                        <td className="px-6 py-4 text-xs text-right font-medium">
-                          {new Intl.NumberFormat('vi-VN').format(r.total_qty)}
-                        </td>
-                        <td className="px-6 py-4 text-xs text-right text-shade-60">
-                          {formatCurrency(r.unit_cost)}
-                        </td>
-                        <td className="px-6 py-4 text-xs text-right font-semibold text-ink">
-                          {formatCurrency(r.valuation_amount)}
-                        </td>
+            {data.records.length === 0 ? (
+              <div className="px-6 py-8 text-center text-shade-50 text-xs">
+                Không có sản phẩm nào có số dư tồn kho khả dụng lớn hơn 0.
+              </div>
+            ) : (
+              <>
+                {/* Desktop/tablet: table view */}
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-canvas-cream border-b border-hairline-light">
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Kho vật lý</th>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã SKU</th>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Tên sản phẩm</th>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Số lô hàng</th>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Tồn thực tế</th>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Đơn giá vốn</th>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Tổng giá trị</th>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    </thead>
+                    <tbody className="divide-y divide-hairline-light">
+                      {data.records.map((r, idx) => (
+                        <tr key={idx} className="hover:bg-canvas-cream/50 transition-colors">
+                          <td className="px-6 py-4 text-xs font-semibold text-ink">{r.warehouse_name}</td>
+                          <td className="px-6 py-4 text-xs font-mono font-medium">{r.product_sku}</td>
+                          <td className="px-6 py-4 text-xs">{r.product_name}</td>
+                          <td className="px-6 py-4 text-xs font-mono text-[11px] text-shade-60">{r.batch_number}</td>
+                          <td className="px-6 py-4 text-xs text-right font-medium">
+                            {new Intl.NumberFormat('vi-VN').format(r.total_qty)}
+                          </td>
+                          <td className="px-6 py-4 text-xs text-right text-shade-60">
+                            {formatCurrency(r.unit_cost)}
+                          </td>
+                          <td className="px-6 py-4 text-xs text-right font-semibold text-ink">
+                            {formatCurrency(r.valuation_amount)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile: stacked card view */}
+                <div className="flex flex-col gap-3 p-4 md:hidden">
+                  {data.records.map((r, idx) => (
+                    <div key={idx} className="rounded-lg border border-hairline-light bg-canvas-cream/30 overflow-hidden">
+                      <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center gap-2">
+                        <span className="font-mono text-xs font-medium">{r.product_sku}</span>
+                        <span className="text-xs font-semibold text-ink">{r.warehouse_name}</span>
+                      </div>
+                      <div className="p-4 flex flex-col gap-2 text-xs">
+                        <div className="font-semibold text-ink">{r.product_name}</div>
+                        <p className="text-shade-50">Số lô hàng: <span className="font-mono text-[11px] text-ink">{r.batch_number}</span></p>
+                        <p className="text-shade-50">Tồn thực tế: <span className="font-medium text-ink">{new Intl.NumberFormat('vi-VN').format(r.total_qty)}</span></p>
+                        <p className="text-shade-50">Đơn giá vốn: <span className="text-ink">{formatCurrency(r.unit_cost)}</span></p>
+                        <p className="text-shade-50">Tổng giá trị: <span className="font-semibold text-ink">{formatCurrency(r.valuation_amount)}</span></p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </>
       )}
