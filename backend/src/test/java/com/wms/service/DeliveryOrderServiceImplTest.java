@@ -79,6 +79,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
@@ -260,6 +261,10 @@ class DeliveryOrderServiceImplTest {
                 .isInstanceOf(OutboundDeliveryException.class)
                 .extracting("code")
                 .isEqualTo("CREDIT_HOLD");
+        ArgumentCaptor<LocalDate> thresholdCaptor = ArgumentCaptor.forClass(LocalDate.class);
+        verify(invoiceRepository).existsByDealerIdAndStatusInAndDueDateBefore(
+                eq(10L), eq(List.of(InvoiceStatus.UNPAID, InvoiceStatus.PARTIALLY_PAID)), thresholdCaptor.capture());
+        assertThat(thresholdCaptor.getValue()).isEqualTo(LocalDate.now().minusDays(30));
         verify(deliveryOrderRepository, never()).save(any());
     }
 

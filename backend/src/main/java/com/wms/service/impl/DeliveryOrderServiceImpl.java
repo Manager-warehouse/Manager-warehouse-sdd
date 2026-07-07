@@ -96,6 +96,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class DeliveryOrderServiceImpl implements DeliveryOrderService {
 
     private static final BigDecimal ZERO = BigDecimal.ZERO.setScale(2);
+    private static final int CREDIT_HOLD_OVERDUE_DAYS = 30;
 
     private static final Set<DeliveryOrderStatus> CANCELLABLE_STATUSES = EnumSet.of(
             DeliveryOrderStatus.NEW,
@@ -966,7 +967,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         if (currentBalance.add(orderValue).compareTo(creditLimit) > 0) {
             throw creditHold("Dealer credit limit exceeded");
         }
-        LocalDate overdueThreshold = LocalDate.now().minusDays(45);
+        LocalDate overdueThreshold = LocalDate.now().minusDays(CREDIT_HOLD_OVERDUE_DAYS);
         boolean hasOverdue = invoiceRepository.existsByDealerIdAndStatusInAndDueDateBefore(
                 dealer.getId(), List.of(InvoiceStatus.UNPAID, InvoiceStatus.PARTIALLY_PAID), overdueThreshold);
         if (hasOverdue) {
