@@ -108,7 +108,7 @@ export default function PriceListManagement() {
             Quản lý giá vốn & giá bán theo kỳ hiệu lực tại <span className="font-semibold text-ink">{activeWarehouse?.name ?? '—'}</span>. Bản giá mới cần được Kế toán trưởng phê duyệt trước khi có hiệu lực.
           </p>
         </div>
-        <div className="flex gap-2 flex-nowrap items-center w-full lg:w-auto flex-shrink-0">
+        <div className="flex gap-2 flex-wrap lg:flex-nowrap items-center w-full lg:w-auto flex-shrink-0">
           <Button onClick={handleExportXlsx} variant="primary" icon={FileSpreadsheet} className="flex-none">
             Xuất Excel
           </Button>
@@ -182,7 +182,8 @@ export default function PriceListManagement() {
         </div>
       ) : (
         <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Desktop/tablet: table view */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-canvas-cream border-b border-hairline-light">
@@ -234,6 +235,37 @@ export default function PriceListManagement() {
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile: stacked card view */}
+          <div className="flex flex-col gap-3 p-4 md:hidden">
+            {paginated.map((entry) => (
+              <div key={entry.id} className="rounded-lg border border-hairline-light bg-canvas-cream/30 overflow-hidden">
+                <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center gap-2">
+                  <span className="font-mono text-xs text-shade-60">{entry.product_sku}</span>
+                  <Badge colorClassName={STATUS_STYLE[entry.status]}>
+                    {STATUS_LABEL[entry.status]}
+                  </Badge>
+                </div>
+                <div className="p-4 flex flex-col gap-2 text-xs">
+                  <div className="font-semibold">{entry.product_name}</div>
+                  <p className="text-shade-50">Kỳ hiệu lực: <span className="font-medium text-ink">{entry.effective_date} → {entry.end_date}</span></p>
+                  <p className="text-shade-50">Giá vốn: <span className="text-ink tabular-nums">{formatVND(entry.cost_price)}</span></p>
+                  <p className="text-shade-50">Giá bán: <span className="font-semibold text-ink tabular-nums">{formatVND(entry.selling_price)}</span></p>
+                  <p className="text-shade-50">Ghi chú: <span className="text-ink">{entry.notes || '—'}</span></p>
+                </div>
+                {canWrite && entry.status === 'PENDING' && entry.created_by?.id === user?.id && (
+                  <div className="p-4 border-t border-hairline-light flex gap-2 justify-end items-center">
+                    <Button variant="outline-light" icon={Edit2} onClick={() => { setEditTarget(entry); setShowForm(true); }}>
+                      Sửa
+                    </Button>
+                    <Button variant="outline-light" icon={Ban} onClick={() => handleCancel(entry.id)} className="text-red-600 border-red-200 hover:bg-red-50">
+                      Hủy
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
           <Pagination
             currentPage={safePage}

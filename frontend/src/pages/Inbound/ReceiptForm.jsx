@@ -381,60 +381,111 @@ const ReceiptForm = () => {
                 Chưa có sản phẩm nào được chọn. Hãy tìm kiếm và thêm sản phẩm ở khung phía trên.
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-canvas-cream border-b border-hairline-light">
-                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Sản phẩm</th>
-                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right w-24">Số lượng dự kiến</th>
-                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right w-36">Đơn giá nhập (VND)</th>
-                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right w-20">Hành động</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-hairline-light">
-                    {selectedItems.map((item, index) => (
-                      <tr key={item.product_id} className="hover:bg-canvas-cream/50 transition-colors">
-                        <td className="px-6 py-4">
+              <>
+                {/* Desktop/tablet: table view */}
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-canvas-cream border-b border-hairline-light">
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Sản phẩm</th>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right w-24">Số lượng dự kiến</th>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right w-36">Đơn giá nhập (VND)</th>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right w-20">Hành động</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-hairline-light">
+                      {selectedItems.map((item, index) => (
+                        <tr key={item.product_id} className="hover:bg-canvas-cream/50 transition-colors">
+                          <td className="px-6 py-4">
+                            <span className="font-bold block">{item.sku}</span>
+                            <span className="text-shade-50 block">{item.name}</span>
+
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <input
+                              type="number"
+                              min="1"
+                              step="any"
+                              value={item.expected_qty}
+                              onChange={(e) => handleQtyChange(index, e.target.value)}
+                              className="text-input text-right font-bold w-20 py-1"
+                              required
+                            />
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <input
+                              type="number"
+                              min="0"
+                              step="any"
+                              value={item.unit_cost}
+                              onChange={(e) => handleCostChange(index, e.target.value)}
+                              className="text-input text-right font-bold w-32 py-1"
+                              required
+                            />
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveItem(index)}
+                              className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4 mx-auto" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile: stacked card view with full-width inputs */}
+                <div className="flex flex-col divide-y divide-hairline-light md:hidden">
+                  {selectedItems.map((item, index) => (
+                    <div key={item.product_id} className="p-4 flex flex-col gap-3">
+                      <div className="flex justify-between items-start gap-2">
+                        <div className="text-xs">
                           <span className="font-bold block">{item.sku}</span>
                           <span className="text-shade-50 block">{item.name}</span>
-
-                        </td>
-                        <td className="px-6 py-4 text-right">
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveItem(index)}
+                          className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors shrink-0"
+                          title="Xóa sản phẩm"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[10px] font-semibold uppercase tracking-wider text-shade-50">Số lượng dự kiến</label>
                           <input
                             type="number"
                             min="1"
                             step="any"
                             value={item.expected_qty}
                             onChange={(e) => handleQtyChange(index, e.target.value)}
-                            className="text-input text-right font-bold w-20 py-1"
+                            className="text-input text-right font-bold py-1.5"
                             required
                           />
-                        </td>
-                        <td className="px-6 py-4 text-right">
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[10px] font-semibold uppercase tracking-wider text-shade-50">Đơn giá nhập (VND)</label>
                           <input
                             type="number"
                             min="0"
                             step="any"
                             value={item.unit_cost}
                             onChange={(e) => handleCostChange(index, e.target.value)}
-                            className="text-input text-right font-bold w-32 py-1"
+                            className="text-input text-right font-bold py-1.5"
                             required
                           />
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveItem(index)}
-                            className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
-                          >
-                            <Trash2 className="w-4 h-4 mx-auto" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
           </div>
 

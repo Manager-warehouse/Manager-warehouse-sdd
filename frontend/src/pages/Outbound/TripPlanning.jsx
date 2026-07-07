@@ -308,7 +308,7 @@ export default function TripPlanning() {
       <Modal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} title="Lập chuyến xe giao hàng" maxWidth="max-w-4xl">
         <div className="flex flex-col md:flex-row gap-6">
           <div className="flex-1 flex flex-col gap-5">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input
                 label="Phương tiện *"
                 type="select"
@@ -335,7 +335,7 @@ export default function TripPlanning() {
                   ...drivers.map((driver) => ({ value: driver.id, label: driver.full_name || driver.name })),
                 ]}
               />
-              <div className="col-span-2 grid grid-cols-2 gap-4">
+              <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Input
                   label="Bắt đầu dự kiến *"
                   type="datetime-local"

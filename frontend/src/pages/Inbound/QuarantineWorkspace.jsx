@@ -282,50 +282,89 @@ const QuarantineWorkspace = () => {
           </div>
         ) : (
           <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-canvas-cream border-b border-hairline-light">
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Sản phẩm</th>
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Số lượng hủy</th>
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Trị giá</th>
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Lý do tiêu hủy</th>
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Thẩm quyền duyệt</th>
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Hành động</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-hairline-light">
-                {pendingDisposals.map((adj) => {
-                  const isAuthorized = getDisposalApprovalAuthority(adj.total_value);
-                  return (
-                    <tr key={adj.id} className="hover:bg-canvas-cream/50 transition-colors">
-                      <td className="px-6 py-4">
-                        <span className="font-bold block">{adj.product_sku}</span>
-                        <span className="text-shade-50 block">{adj.product_name}</span>
-                      </td>
-                      <td className="px-6 py-4 text-right font-semibold text-red-600">{adj.failed_qty}</td>
-                      <td className="px-6 py-4 text-right font-bold">{adj.total_value.toLocaleString('vi-VN')} VND</td>
-                      <td className="px-6 py-4 text-shade-60 italic">{adj.cause}</td>
-                      <td className="px-6 py-4">{getDisposalThresholdBadge(adj.total_value)}</td>
-                      <td className="px-6 py-4 text-right whitespace-nowrap">
-                        {isAuthorized ? (
-                          <Button
-                            variant="aloe"
-                            onClick={() => handleApproveDisposal(adj.id, adj.total_value)}
-                            className="text-xs"
-                          >
-                            Phê duyệt
-                          </Button>
-                        ) : (
-                          <span className="text-[10px] text-red-500 font-semibold bg-red-50 border border-red-100 px-2 py-0.5 rounded whitespace-nowrap">
-                            Chờ cấp trên duyệt
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            {/* Desktop/tablet: table view */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-canvas-cream border-b border-hairline-light">
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Sản phẩm</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Số lượng hủy</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Trị giá</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Lý do tiêu hủy</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Thẩm quyền duyệt</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Hành động</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-hairline-light">
+                  {pendingDisposals.map((adj) => {
+                    const isAuthorized = getDisposalApprovalAuthority(adj.total_value);
+                    return (
+                      <tr key={adj.id} className="hover:bg-canvas-cream/50 transition-colors">
+                        <td className="px-6 py-4">
+                          <span className="font-bold block">{adj.product_sku}</span>
+                          <span className="text-shade-50 block">{adj.product_name}</span>
+                        </td>
+                        <td className="px-6 py-4 text-right font-semibold text-red-600">{adj.failed_qty}</td>
+                        <td className="px-6 py-4 text-right font-bold">{adj.total_value.toLocaleString('vi-VN')} VND</td>
+                        <td className="px-6 py-4 text-shade-60 italic">{adj.cause}</td>
+                        <td className="px-6 py-4">{getDisposalThresholdBadge(adj.total_value)}</td>
+                        <td className="px-6 py-4 text-right whitespace-nowrap">
+                          {isAuthorized ? (
+                            <Button
+                              variant="aloe"
+                              onClick={() => handleApproveDisposal(adj.id, adj.total_value)}
+                              className="text-xs"
+                            >
+                              Phê duyệt
+                            </Button>
+                          ) : (
+                            <span className="text-[10px] text-red-500 font-semibold bg-red-50 border border-red-100 px-2 py-0.5 rounded whitespace-nowrap">
+                              Chờ cấp trên duyệt
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile: stacked card view */}
+            <div className="flex flex-col gap-3 p-4 md:hidden">
+              {pendingDisposals.map((adj) => {
+                const isAuthorized = getDisposalApprovalAuthority(adj.total_value);
+                return (
+                  <div key={adj.id} className="rounded-lg border border-hairline-light bg-canvas-cream/30 overflow-hidden">
+                    <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center gap-2">
+                      <span className="font-bold text-xs">{adj.product_sku}</span>
+                      {getDisposalThresholdBadge(adj.total_value)}
+                    </div>
+                    <div className="p-4 flex flex-col gap-2 text-xs">
+                      <div className="text-shade-50">{adj.product_name}</div>
+                      <p className="text-shade-50">Số lượng hủy: <span className="font-semibold text-red-600">{adj.failed_qty}</span></p>
+                      <p className="text-shade-50">Trị giá: <span className="font-bold text-ink">{adj.total_value.toLocaleString('vi-VN')} VND</span></p>
+                      <p className="text-shade-50">Lý do: <span className="text-shade-60 italic">{adj.cause}</span></p>
+                    </div>
+                    <div className="p-4 border-t border-hairline-light flex justify-end">
+                      {isAuthorized ? (
+                        <Button
+                          variant="aloe"
+                          onClick={() => handleApproveDisposal(adj.id, adj.total_value)}
+                          className="text-xs"
+                        >
+                          Phê duyệt
+                        </Button>
+                      ) : (
+                        <span className="text-[10px] text-red-500 font-semibold bg-red-50 border border-red-100 px-2 py-0.5 rounded whitespace-nowrap">
+                          Chờ cấp trên duyệt
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )
       )}

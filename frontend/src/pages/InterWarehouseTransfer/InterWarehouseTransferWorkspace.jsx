@@ -387,35 +387,58 @@ const InterWarehouseTransferWorkspace = () => {
               />
             </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-canvas-cream border-b border-hairline-light">
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Phiếu</th>
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Tuyến</th>
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Trạng thái</th>
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Dòng hàng</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-hairline-light">
+          {!filteredTransfers.length ? (
+            <div className="px-6 py-8 text-center text-shade-50 text-xs">Không có phiếu điều chuyển phù hợp.</div>
+          ) : (
+            <>
+              {/* Desktop/tablet: table view */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-canvas-cream border-b border-hairline-light">
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Phiếu</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Tuyến</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Trạng thái</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Dòng hàng</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-hairline-light">
+                    {filteredTransfers.map((transfer) => (
+                      <tr key={transfer.id} onClick={() => setSelectedId(transfer.id)}
+                        className={`cursor-pointer hover:bg-canvas-cream/50 transition-colors ${selectedId === transfer.id ? 'bg-aloe-10/30' : ''}`}>
+                        <td className="px-6 py-4">
+                          <div className="font-semibold">{transfer.transferNumber}</div>
+                          <div className="text-xs text-shade-50">{transfer.externalInstructionCode}</div>
+                        </td>
+                        <td className="px-6 py-4 text-xs">{transfer.sourceWarehouseCode} → {transfer.destinationWarehouseCode}</td>
+                        <td className="px-6 py-4"><InterWarehouseTransferStatusBadge status={transfer.status} /></td>
+                        <td className="px-6 py-4 text-right">{transfer.items?.length || 0}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile: stacked card view */}
+              <div className="flex flex-col divide-y divide-hairline-light md:hidden">
                 {filteredTransfers.map((transfer) => (
-                  <tr key={transfer.id} onClick={() => setSelectedId(transfer.id)}
-                    className={`cursor-pointer hover:bg-canvas-cream/50 transition-colors ${selectedId === transfer.id ? 'bg-aloe-10/30' : ''}`}>
-                    <td className="px-6 py-4">
-                      <div className="font-semibold">{transfer.transferNumber}</div>
-                      <div className="text-xs text-shade-50">{transfer.externalInstructionCode}</div>
-                    </td>
-                    <td className="px-6 py-4 text-xs">{transfer.sourceWarehouseCode} → {transfer.destinationWarehouseCode}</td>
-                    <td className="px-6 py-4"><InterWarehouseTransferStatusBadge status={transfer.status} /></td>
-                    <td className="px-6 py-4 text-right">{transfer.items?.length || 0}</td>
-                  </tr>
+                  <div
+                    key={transfer.id}
+                    onClick={() => setSelectedId(transfer.id)}
+                    className={`p-4 flex flex-col gap-1.5 text-xs cursor-pointer hover:bg-canvas-cream/50 transition-colors ${selectedId === transfer.id ? 'bg-aloe-10/30' : ''}`}
+                  >
+                    <div className="flex justify-between items-center gap-2">
+                      <span className="font-semibold">{transfer.transferNumber}</span>
+                      <InterWarehouseTransferStatusBadge status={transfer.status} />
+                    </div>
+                    <span className="text-shade-50">{transfer.externalInstructionCode}</span>
+                    <span>{transfer.sourceWarehouseCode} → {transfer.destinationWarehouseCode}</span>
+                    <span className="text-shade-50">Dòng hàng: <span className="font-medium text-ink">{transfer.items?.length || 0}</span></span>
+                  </div>
                 ))}
-                {!filteredTransfers.length && (
-                  <tr><td className="px-6 py-8 text-center text-shade-50" colSpan="4">Không có phiếu điều chuyển phù hợp.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="flex flex-col gap-4">

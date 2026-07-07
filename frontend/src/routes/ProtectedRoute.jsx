@@ -26,18 +26,18 @@ const ProtectedRoute = ({ allowedRoles = [] }) => {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-canvas-cream text-ink overflow-hidden">
+    <div className="flex flex-col h-dvh bg-canvas-cream text-ink overflow-hidden">
       <Header />
-      
+
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
-        
+
         <main className="flex-1 overflow-y-auto">
           <div className="min-h-full flex flex-col">
-            <div className="flex-1 flex flex-col p-6">
+            <div className="flex-1 flex flex-col p-4 sm:p-6">
               <Outlet />
             </div>
-            
+
             <Footer />
           </div>
         </main>

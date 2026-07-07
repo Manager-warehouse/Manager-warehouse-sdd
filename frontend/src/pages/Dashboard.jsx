@@ -267,77 +267,133 @@ const Dashboard = () => {
             Không tìm thấy sản phẩm nào phù hợp.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-canvas-cream border-b border-hairline-light">
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã SKU</th>
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Tên Sản Phẩm</th>
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Đơn vị</th>
-                  {physicalWarehouses.map((wh) => (
-                    <th key={wh.id} className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center">
-                      {wh.name}
-                    </th>
-                  ))}
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Hành động</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-hairline-light">
-                {productsStock.map((prod) => {
-                  // Check if any other warehouse has stock > 0
-                  const hasStockElsewhere = physicalWarehouses.some(
-                    wh => Number(wh.id) !== Number(activeWarehouse?.id) && (prod.stockMap?.[wh.id] || 0) > 0
-                  );
+          <>
+            {/* Desktop/tablet: table view */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-canvas-cream border-b border-hairline-light">
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã SKU</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Tên Sản Phẩm</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Đơn vị</th>
+                    {physicalWarehouses.map((wh) => (
+                      <th key={wh.id} className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center">
+                        {wh.name}
+                      </th>
+                    ))}
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Hành động</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-hairline-light">
+                  {productsStock.map((prod) => {
+                    // Check if any other warehouse has stock > 0
+                    const hasStockElsewhere = physicalWarehouses.some(
+                      wh => Number(wh.id) !== Number(activeWarehouse?.id) && (prod.stockMap?.[wh.id] || 0) > 0
+                    );
 
-                  return (
-                    <tr
-                      key={prod.id}
-                      className="hover:bg-canvas-cream/50 transition-colors text-xs font-light text-ink"
-                    >
-                      <td className="px-6 py-4 font-mono font-semibold text-shade-70">
-                        {prod.sku}
-                      </td>
-                      <td className="px-6 py-4 font-normal">
-                        {prod.name}
-                      </td>
-                      <td className="px-6 py-4 text-shade-50">
-                        {prod.unit}
-                      </td>
-                      {physicalWarehouses.map((wh) => {
-                        const qty = prod.stockMap?.[wh.id] || 0;
-                        const isActiveWh = Number(wh.id) === Number(activeWarehouse?.id);
-                        return (
-                          <td
-                            key={wh.id}
-                            className={`px-6 py-4 text-center font-semibold ${
-                              isActiveWh
-                                ? 'bg-canvas-cream/40 border-x border-hairline-light text-ink'
-                                : qty > 0 ? 'text-[#127a3c]' : 'text-shade-40'
-                            }`}
-                          >
-                            {qty} {prod.unit.toLowerCase()}
-                          </td>
-                        );
-                      })}
-                      <td className="px-6 py-4 text-right">
-                        {hasStockElsewhere ? (
-                          <button
-                            onClick={() => handleOpenTransferModal(prod)}
-                            className="bg-aloe-10 hover:opacity-90 text-ink border border-aloe-10 px-3 py-1 rounded-pill text-[10px] font-bold uppercase tracking-wider transition-colors inline-flex items-center gap-1.5"
-                          >
-                            <ArrowRightLeft className="w-3 h-3" />
-                            <span>Xin điều chuyển</span>
-                          </button>
-                        ) : (
-                          <span className="text-[10px] text-shade-40 uppercase font-semibold">Không có sẵn</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                    return (
+                      <tr
+                        key={prod.id}
+                        className="hover:bg-canvas-cream/50 transition-colors text-xs font-light text-ink"
+                      >
+                        <td className="px-6 py-4 font-mono font-semibold text-shade-70">
+                          {prod.sku}
+                        </td>
+                        <td className="px-6 py-4 font-normal">
+                          {prod.name}
+                        </td>
+                        <td className="px-6 py-4 text-shade-50">
+                          {prod.unit}
+                        </td>
+                        {physicalWarehouses.map((wh) => {
+                          const qty = prod.stockMap?.[wh.id] || 0;
+                          const isActiveWh = Number(wh.id) === Number(activeWarehouse?.id);
+                          return (
+                            <td
+                              key={wh.id}
+                              className={`px-6 py-4 text-center font-semibold ${
+                                isActiveWh
+                                  ? 'bg-canvas-cream/40 border-x border-hairline-light text-ink'
+                                  : qty > 0 ? 'text-[#127a3c]' : 'text-shade-40'
+                              }`}
+                            >
+                              {qty} {prod.unit.toLowerCase()}
+                            </td>
+                          );
+                        })}
+                        <td className="px-6 py-4 text-right">
+                          {hasStockElsewhere ? (
+                            <button
+                              onClick={() => handleOpenTransferModal(prod)}
+                              className="bg-aloe-10 hover:opacity-90 text-ink border border-aloe-10 px-3 py-1 rounded-pill text-[10px] font-bold uppercase tracking-wider transition-colors inline-flex items-center gap-1.5"
+                            >
+                              <ArrowRightLeft className="w-3 h-3" />
+                              <span>Xin điều chuyển</span>
+                            </button>
+                          ) : (
+                            <span className="text-[10px] text-shade-40 uppercase font-semibold">Không có sẵn</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile: stacked card view */}
+            <div className="flex flex-col gap-3 p-4 md:hidden">
+              {productsStock.map((prod) => {
+                const hasStockElsewhere = physicalWarehouses.some(
+                  wh => Number(wh.id) !== Number(activeWarehouse?.id) && (prod.stockMap?.[wh.id] || 0) > 0
+                );
+
+                return (
+                  <div key={prod.id} className="rounded-lg border border-hairline-light bg-canvas-cream/30 overflow-hidden text-xs font-light text-ink">
+                    <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center gap-2">
+                      <span className="font-mono font-semibold text-shade-70">{prod.sku}</span>
+                      <span className="text-shade-50">{prod.unit}</span>
+                    </div>
+                    <div className="p-4 flex flex-col gap-2">
+                      <div className="font-normal">{prod.name}</div>
+                      <div className="grid grid-cols-2 gap-2 mt-1">
+                        {physicalWarehouses.map((wh) => {
+                          const qty = prod.stockMap?.[wh.id] || 0;
+                          const isActiveWh = Number(wh.id) === Number(activeWarehouse?.id);
+                          return (
+                            <div
+                              key={wh.id}
+                              className={`rounded px-2 py-1.5 text-center font-semibold ${
+                                isActiveWh
+                                  ? 'bg-canvas-cream border border-hairline-light text-ink'
+                                  : qty > 0 ? 'text-[#127a3c] bg-canvas-light' : 'text-shade-40 bg-canvas-light'
+                              }`}
+                            >
+                              <div className="text-[9px] uppercase tracking-wide font-bold mb-0.5">{wh.name}</div>
+                              {qty} {prod.unit.toLowerCase()}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div className="p-4 border-t border-hairline-light flex justify-end">
+                      {hasStockElsewhere ? (
+                        <button
+                          onClick={() => handleOpenTransferModal(prod)}
+                          className="bg-aloe-10 hover:opacity-90 text-ink border border-aloe-10 px-3 py-1 rounded-pill text-[10px] font-bold uppercase tracking-wider transition-colors inline-flex items-center gap-1.5"
+                        >
+                          <ArrowRightLeft className="w-3 h-3" />
+                          <span>Xin điều chuyển</span>
+                        </button>
+                      ) : (
+                        <span className="text-[10px] text-shade-40 uppercase font-semibold">Không có sẵn</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </div>
 

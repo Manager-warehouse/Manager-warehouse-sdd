@@ -85,6 +85,8 @@ export default function DriverTrip() {
 
   const fetchTrips = async () => {
     setLoading(true);
+    const loadedTrips = [];
+    let loadedAnySource = false;
     try {
       const allTrips = await outboundService.getTrips(null, {});
       const isDriver = user?.role === 'DRIVER';
@@ -228,45 +230,41 @@ export default function DriverTrip() {
   };
 
   if (!id) {
-    if (loading) {
-      return (
-        <div className="flex items-center justify-center p-20">
-          <Loader2 className="w-8 h-8 animate-spin text-shade-50" />
-        </div>
-      );
-    }
-
-    if (!trips.length) {
-      return (
-        <div className="bg-canvas-light rounded-lg border border-hairline-light p-12 text-center shadow-level-3">
-          <Truck className="w-12 h-12 text-shade-30 mx-auto mb-4" />
-          <h3 className="text-lg font-bold mb-1">Không có chuyến xe nào</h3>
-          <p className="text-sm text-shade-50">Hiện tại bạn chưa được gán chuyến xe nào.</p>
-        </div>
-      );
-    }
-
     return (
       <div className="flex flex-col gap-6">
         <div>
-          <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">Giao hàng</span>
-          <h1 className="text-2xl font-display font-semibold tracking-tight">Danh sách chuyến</h1>
+          <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">Vận hành / Giao hàng</span>
+          <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">Chuyến giao hàng của tôi</h1>
+          <p className="text-xs text-shade-50 font-light mt-1">Các chuyến xe được phân công cho tài xế hiện tại.</p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {trips.map((tripItem) => (
-            <div key={tripItem.id} onClick={() => navigate(`/outbound/driver/trips/${tripItem.id}`)} className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 hover:shadow-md transition-shadow cursor-pointer card-premium overflow-hidden">
-              <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center">
-                <span className="text-xs font-bold text-ink">{tripItem.trip_number}</span>
-                <StatusBadge status={tripItem.status} />
+
+        {loading ? (
+          <div className="flex items-center justify-center p-20">
+            <Loader2 className="w-8 h-8 animate-spin text-shade-50" />
+          </div>
+        ) : !trips.length ? (
+          <div className="bg-canvas-light rounded-lg border border-hairline-light p-12 text-center shadow-level-3">
+            <Truck className="w-12 h-12 text-shade-30 mx-auto mb-4" />
+            <h3 className="text-lg font-bold mb-1">Không có chuyến xe nào</h3>
+            <p className="text-sm text-shade-50">Hiện tại bạn chưa được gán chuyến xe nào.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {trips.map((tripItem) => (
+              <div key={tripItem.id} onClick={() => navigate(`/outbound/driver/trips/${tripItem.id}`)} className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 hover:shadow-md transition-shadow cursor-pointer overflow-hidden">
+                <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center">
+                  <span className="text-xs font-bold text-ink">{tripItem.trip_number}</span>
+                  <StatusBadge status={tripItem.status} />
+                </div>
+                <div className="p-4 flex flex-col gap-2 text-xs">
+                  <p className="flex items-center gap-2 text-shade-50"><Truck className="w-3.5 h-3.5 text-shade-40" /> Xe: <span className="font-semibold text-ink">{tripItem.vehicle_plate || '-'}</span></p>
+                  <p className="flex items-center gap-2 text-shade-50"><Calendar className="w-3.5 h-3.5 text-shade-40" /> T.gian dự kiến: <span className="font-semibold text-ink">{tripItem.planned_start_at ? new Date(tripItem.planned_start_at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) : '-'}</span></p>
+                  <p className="text-xs text-shade-50 pt-1">Tổng KL: <span className="font-semibold text-ink">{tripItem.total_weight_kg || 0} kg</span></p>
+                </div>
               </div>
-              <div className="p-4 flex flex-col gap-2 text-xs">
-                <p className="flex items-center gap-2 text-shade-50"><Truck className="w-3.5 h-3.5 text-shade-40" /> Xe: <span className="font-semibold text-ink">{tripItem.vehicle_plate || '-'}</span></p>
-                <p className="flex items-center gap-2 text-shade-50"><Calendar className="w-3.5 h-3.5 text-shade-40" /> T.gian dự kiến: <span className="font-semibold text-ink">{tripItem.planned_start_at ? new Date(tripItem.planned_start_at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) : '-'}</span></p>
-                <p className="text-xs text-shade-50 pt-1">Tổng KL: <span className="font-semibold text-ink">{tripItem.total_weight_kg || 0} kg</span></p>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
@@ -294,14 +292,20 @@ export default function DriverTrip() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-start gap-3 pt-1">
-        <button onClick={() => navigate('/outbound/driver/trips')} className="mt-0.5 p-1.5 hover:bg-canvas-cream rounded-full transition-colors text-shade-50 hover:text-ink shrink-0">
+      <div className="flex items-start gap-4">
+        <button
+          onClick={() => navigate('/outbound/driver/trips')}
+          className="mt-1 p-1.5 hover:bg-canvas-cream rounded-full transition-colors text-shade-50 hover:text-ink shrink-0"
+        >
           <ArrowLeft className="w-4 h-4" />
         </button>
         <div>
-          <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">Giao hàng / Chuyến của tôi</span>
-          <h1 className="text-xl font-display font-semibold tracking-tight">{trip.trip_number}</h1>
-          <p className="text-xs text-shade-50 mt-0.5">
+          <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">Vận hành / Giao hàng</span>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">{trip.trip_number}</h1>
+            <StatusBadge status={trip.status} />
+          </div>
+          <p className="text-xs text-shade-50 font-light mt-1">
             {isTransferTrip ? `${trip.sourceWarehouseCode} → ${trip.destinationWarehouseCode}` : `${deliveredCount}/${totalCount} điểm đã giao`}
           </p>
         </div>
@@ -311,7 +315,6 @@ export default function DriverTrip() {
         <div className="w-full lg:w-80 shrink-0 p-5 card-premium rounded-lg">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xs font-bold uppercase tracking-wider text-shade-40">Thông tin chuyến</h2>
-            <StatusBadge status={trip.status} />
           </div>
           <div className="flex flex-col gap-2 text-xs mb-4">
             <p className="flex items-center gap-2 text-shade-50"><Truck className="w-3.5 h-3.5 text-shade-40 shrink-0" /> Xe: <span className="font-semibold text-ink">{trip.vehicle_plate}</span></p>

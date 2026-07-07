@@ -476,24 +476,38 @@ const TransferRequestWorkspace = () => {
               <div>
                 <label className="text-xs font-semibold uppercase tracking-wider text-shade-60 block mb-2">Danh sách sản phẩm ({selectedRequest.items?.length || 0})</label>
                 <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 overflow-hidden">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-canvas-cream border-b border-hairline-light">
-                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã SKU</th>
-                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Tên sản phẩm</th>
-                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Số lượng yêu cầu</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-hairline-light">
-                      {selectedRequest.items?.map(item => (
-                        <tr key={item.id} className="hover:bg-canvas-cream/50 transition-colors">
-                          <td className="px-6 py-4 text-xs font-mono font-semibold">{item.productSku}</td>
-                          <td className="px-6 py-4 text-xs text-shade-60">{item.productName}</td>
-                          <td className="px-6 py-4 text-xs text-right font-semibold">{item.requestedQty} {item.productUnit}</td>
+                  {/* Desktop/tablet: table view */}
+                  <div className="hidden md:block overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-canvas-cream border-b border-hairline-light">
+                          <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã SKU</th>
+                          <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Tên sản phẩm</th>
+                          <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Số lượng yêu cầu</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-hairline-light">
+                        {selectedRequest.items?.map(item => (
+                          <tr key={item.id} className="hover:bg-canvas-cream/50 transition-colors">
+                            <td className="px-6 py-4 text-xs font-mono font-semibold">{item.productSku}</td>
+                            <td className="px-6 py-4 text-xs text-shade-60">{item.productName}</td>
+                            <td className="px-6 py-4 text-xs text-right font-semibold">{item.requestedQty} {item.productUnit}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Mobile: stacked card view */}
+                  <div className="flex flex-col divide-y divide-hairline-light md:hidden">
+                    {selectedRequest.items?.map(item => (
+                      <div key={item.id} className="p-4 flex flex-col gap-1.5 text-xs">
+                        <span className="font-mono font-semibold">{item.productSku}</span>
+                        <span className="text-shade-60">{item.productName}</span>
+                        <span className="font-semibold">SL yêu cầu: {item.requestedQty} {item.productUnit}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
 
