@@ -108,7 +108,7 @@ export default function PriceListManagement() {
             Quản lý giá vốn & giá bán theo kỳ hiệu lực tại <span className="font-semibold text-ink">{activeWarehouse?.name ?? '—'}</span>. Bản giá mới cần được Kế toán trưởng phê duyệt trước khi có hiệu lực.
           </p>
         </div>
-        <div className="flex gap-2 flex-nowrap items-center w-full lg:w-auto flex-shrink-0">
+        <div className="flex gap-2 flex-wrap lg:flex-nowrap items-center w-full lg:w-auto flex-shrink-0">
           <Button onClick={handleExportXlsx} variant="primary" icon={FileSpreadsheet} className="flex-none">
             Xuất Excel
           </Button>

@@ -78,7 +78,7 @@ const ProductivityReport = () => {
         </div>
 
         {/* Filters */}
-        <div className="flex gap-2 flex-nowrap items-center w-full lg:w-auto">
+        <div className="flex gap-2 flex-wrap lg:flex-nowrap items-center w-full lg:w-auto">
           {/* Warehouse */}
           <div className="w-48">
             <Input
