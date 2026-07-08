@@ -15,6 +15,7 @@ ENV VITE_USE_MOCK=${VITE_USE_MOCK}
 RUN npm run build
 
 FROM nginx:1.30.3-alpine3.23
+RUN apk --no-cache add --upgrade "libexpat>=2.8.2-r0"
 
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /workspace/dist /usr/share/nginx/html
