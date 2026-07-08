@@ -77,6 +77,32 @@ const pricingService = {
     return response.data;
   },
 
+  async lookupApproved({ product_id, warehouse_id, date }) {
+    if (USE_MOCK) {
+      await delay(200);
+      const targetDate = date || new Date().toISOString().slice(0, 10);
+      const entry = mockEntries.find(e => {
+        if (e.product_id !== Number(product_id) || e.status !== 'APPROVED') return false;
+        if (e.warehouse_id && Number(e.warehouse_id) !== Number(warehouse_id)) return false;
+        return e.effective_date <= targetDate && (!e.end_date || e.end_date >= targetDate);
+      });
+      if (!entry) {
+        const error = new Error('PRICE_NOT_FOUND');
+        error.response = { status: 404 };
+        throw error;
+      }
+      return entry;
+    }
+    const response = await apiClient.get(`${BASE}/lookup`, {
+      params: {
+        productId: Number(product_id),
+        warehouseId: Number(warehouse_id),
+        date,
+      },
+    });
+    return response.data;
+  },
+
   async create(data) {
     if (USE_MOCK) {
       await delay(400);

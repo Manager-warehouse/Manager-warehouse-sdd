@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { outboundService } from '../../services/outbound.service';
 import { masterDataService } from '../../services/masterData.service';
+import pricingService from '../../services/pricing.service';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
 import { useDebounce } from '../../hooks/useDebounce';
@@ -50,7 +51,7 @@ const STATUS_OPTIONS = [
   { value: 'CANCELLED', label: 'Đã hủy' },
 ];
 
-const createEmptyItemRow = () => ({ product_id: '', requested_qty: 1, unit_price: 0 });
+const createEmptyItemRow = () => ({ product_id: '', requested_qty: 1, unit_price: 0, price_status: 'idle' });
 
 const createEmptyForm = () => ({
   dealer_id: '',
@@ -58,6 +59,8 @@ const createEmptyForm = () => ({
   notes: '',
   items: [createEmptyItemRow()],
 });
+
+const formatVND = (value) => Number(value || 0).toLocaleString('vi-VN');
 
 const getStatusBadge = (status) => {
   const { label, color } = DO_STATUS_MAP[status] ?? {
@@ -173,6 +176,45 @@ export default function DeliveryOrders() {
     }));
   };
 
+  const lookupItemPrice = async (index, productId) => {
+    if (!activeWarehouse?.id || !productId) {
+      return;
+    }
+
+    const documentDate = formData.document_date || new Date().toISOString().slice(0, 10);
+    try {
+      const price = await pricingService.lookupApproved({
+        product_id: productId,
+        warehouse_id: activeWarehouse.id,
+        date: documentDate,
+      });
+      setFormData((prev) => {
+        const items = [...prev.items];
+        if (Number(items[index]?.product_id) !== Number(productId)) {
+          return prev;
+        }
+        items[index] = {
+          ...items[index],
+          unit_price: Number(price.selling_price ?? price.sellingPrice ?? 0),
+          price_status: 'ready',
+        };
+        return { ...prev, items };
+      });
+    } catch (error) {
+      setFormData((prev) => {
+        const items = [...prev.items];
+        if (Number(items[index]?.product_id) !== Number(productId)) {
+          return prev;
+        }
+        items[index] = { ...items[index], unit_price: 0, price_status: 'missing' };
+        return { ...prev, items };
+      });
+      if (error?.response?.status !== 404) {
+        addToast(error.message || 'Không thể tra báo giá sản phẩm', 'warning');
+      }
+    }
+  };
+
   const updateItemRow = (index, field, value) => {
     const items = [...formData.items];
     items[index][field] = value;
@@ -182,7 +224,12 @@ export default function DeliveryOrders() {
       if (product) {
         items[index].product_name = product.name;
         items[index].sku = product.sku;
-        items[index].unit_price = Number(product.selling_price || product.unit_price || items[index].unit_price || 0);
+        items[index].unit_price = 0;
+        items[index].price_status = 'loading';
+        lookupItemPrice(index, value);
+      } else {
+        items[index].unit_price = 0;
+        items[index].price_status = 'idle';
       }
     }
 
@@ -246,7 +293,8 @@ export default function DeliveryOrders() {
   const qcPendingDO = orders.filter((order) => order.status === 'QC_PENDING_APPROVAL').length;
   const approvedDO = orders.filter((order) => order.status === 'WAREHOUSE_APPROVED').length;
   const creditStatus = selectedDealerObj?.id === 4 ? 'BLOCKED' : selectedDealerObj?.id === 2 ? 'WARNING' : selectedDealerObj ? 'OK' : null;
-  const isSubmitDisabled = !formData.dealer_id || !formData.expected_delivery_date || !formData.items.length || creditStatus === 'BLOCKED' || submitting;
+  const hasInvalidPrice = formData.items.some((item) => item.product_id && (item.price_status !== 'ready' || Number(item.unit_price) <= 0));
+  const isSubmitDisabled = !formData.dealer_id || !formData.expected_delivery_date || !formData.items.length || hasInvalidPrice || creditStatus === 'BLOCKED' || submitting;
   const filteredDealers = dealers.filter((dealer) => {
     const keyword = dealerSearch.trim().toLowerCase();
     if (!keyword) {
@@ -521,7 +569,7 @@ export default function DeliveryOrders() {
                   <tr className="border-b border-hairline-light bg-canvas-cream">
                     <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Sản phẩm</th>
                     <th className="w-28 px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Số lượng</th>
-                    <th className="w-36 px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Đơn giá</th>
+                    <th className="w-36 px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Báo giá</th>
                     <th className="w-10 px-4 py-4" />
                   </tr>
                 </thead>
@@ -557,12 +605,24 @@ export default function DeliveryOrders() {
                         />
                       </td>
                       <td className="px-4 py-3">
-                        <Input
-                          type="number"
-                          min="0"
-                          value={item.unit_price}
-                          onChange={(event) => updateItemRow(index, 'unit_price', Number(event.target.value))}
-                        />
+                        <div className="flex flex-col gap-1">
+                          <div className="relative">
+                            <Input
+                              type="text"
+                              value={item.price_status === 'ready' ? `${formatVND(item.unit_price)} VND` : ''}
+                              disabled
+                              placeholder={item.price_status === 'loading' ? 'Đang tra giá...' : 'Chọn sản phẩm'}
+                            />
+                            {item.price_status === 'loading' && (
+                              <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-shade-40" />
+                            )}
+                          </div>
+                          {item.price_status === 'missing' && (
+                            <span className="text-[11px] font-medium text-red-600">
+                              Chưa có báo giá được duyệt
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-center">
                         <button type="button" onClick={() => removeItemRow(index)} className="rounded-full p-1 text-shade-40 transition-colors hover:bg-canvas-cream hover:text-red-600">
