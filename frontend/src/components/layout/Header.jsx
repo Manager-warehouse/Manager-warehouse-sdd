@@ -33,7 +33,7 @@ const Header = () => {
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-canvas-light border-b border-hairline-light h-16 px-6 flex items-center justify-between">
+    <header className="app-safe-header sticky top-0 z-40 bg-canvas-light border-b border-hairline-light px-6 flex items-center justify-between">
       {/* Left side: Hamburger menu and Brand */}
       <div className="flex items-center gap-4">
         <button

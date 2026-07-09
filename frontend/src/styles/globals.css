@@ -61,6 +61,21 @@
     @apply w-full bg-canvas-light text-ink text-sm px-3 py-2.5 rounded-md border border-hairline-light focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink transition-all min-h-[44px] disabled:bg-canvas-cream/60 disabled:text-shade-50 disabled:cursor-not-allowed disabled:opacity-70;
   }
 
+  /* iOS Capacitor safe-area helpers: keep app chrome below the native status bar / Dynamic Island */
+  .app-safe-header {
+    height: calc(4rem + env(safe-area-inset-top, 0px));
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .app-safe-drawer-backdrop {
+    top: calc(4rem + env(safe-area-inset-top, 0px));
+  }
+
+  .app-safe-drawer {
+    top: calc(4rem + env(safe-area-inset-top, 0px));
+    height: calc(100% - 4rem - env(safe-area-inset-top, 0px));
+  }
+
   /* Custom scrollbar */
   ::-webkit-scrollbar {
     width: 6px;
@@ -84,4 +99,3 @@ input::-ms-reveal,
 input::-ms-clear {
   display: none;
 }
-
