@@ -62,6 +62,35 @@ const createEmptyForm = () => ({
 
 const formatVND = (value) => Number(value || 0).toLocaleString('vi-VN');
 
+const toMoney = (value) => {
+  const amount = Number(value || 0);
+  return Number.isFinite(amount) ? amount : 0;
+};
+
+const calculateOrderValue = (items) => items.reduce((total, item) => (
+  total + (toMoney(item.requested_qty) * toMoney(item.unit_price))
+), 0);
+
+const getCreditCheck = (dealer, orderValue) => {
+  if (!dealer) {
+    return { status: null, remainingCredit: 0 };
+  }
+
+  const creditLimit = toMoney(dealer.credit_limit);
+  const currentBalance = toMoney(dealer.current_balance);
+  const remainingCredit = creditLimit - currentBalance - orderValue;
+
+  if (dealer.credit_status === 'CREDIT_HOLD' || remainingCredit < 0) {
+    return { status: 'BLOCKED', remainingCredit };
+  }
+
+  if (creditLimit > 0 && remainingCredit <= creditLimit * 0.1) {
+    return { status: 'WARNING', remainingCredit };
+  }
+
+  return { status: 'OK', remainingCredit };
+};
+
 const getStatusBadge = (status) => {
   const { label, color } = DO_STATUS_MAP[status] ?? {
     label: status,
@@ -292,7 +321,9 @@ export default function DeliveryOrders() {
   const waitingPickingDO = orders.filter((order) => order.status === 'WAITING_PICKING').length;
   const qcPendingDO = orders.filter((order) => order.status === 'QC_PENDING_APPROVAL').length;
   const approvedDO = orders.filter((order) => order.status === 'WAREHOUSE_APPROVED').length;
-  const creditStatus = selectedDealerObj?.id === 4 ? 'BLOCKED' : selectedDealerObj?.id === 2 ? 'WARNING' : selectedDealerObj ? 'OK' : null;
+  const orderValue = calculateOrderValue(formData.items);
+  const creditCheck = getCreditCheck(selectedDealerObj, orderValue);
+  const creditStatus = creditCheck.status;
   const hasInvalidPrice = formData.items.some((item) => item.product_id && (item.price_status !== 'ready' || Number(item.unit_price) <= 0));
   const isSubmitDisabled = !formData.dealer_id || !formData.expected_delivery_date || !formData.items.length || hasInvalidPrice || creditStatus === 'BLOCKED' || submitting;
   const filteredDealers = dealers.filter((dealer) => {
@@ -496,7 +527,7 @@ export default function DeliveryOrders() {
 
       <Modal isOpen={showCreateModal} onClose={handleCloseCreateModal} title="Lập đơn xuất hàng" maxWidth="max-w-4xl">
         <div className="flex flex-col gap-5">
-          <CreditCheckBanner status={creditStatus} remainingCredit={selectedDealerObj?.id === 2 ? 15000000 : 250000000} />
+          <CreditCheckBanner status={creditStatus} remainingCredit={creditCheck.remainingCredit} />
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="flex flex-col gap-3">
