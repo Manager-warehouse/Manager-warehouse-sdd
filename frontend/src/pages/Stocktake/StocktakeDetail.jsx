@@ -314,7 +314,7 @@ const StocktakeDetail = () => {
           <div className="px-5 py-3 border-b border-hairline-light bg-canvas-cream">
             <h2 className="text-xs font-bold text-shade-50 uppercase tracking-wider">Dòng hàng kiểm kê</h2>
           </div>
-          <div className="overflow-x-auto">
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-canvas-cream border-b border-hairline-light">
@@ -414,6 +414,108 @@ const StocktakeDetail = () => {
               </tbody>
             </table>
           </div>
+
+          <div className="flex flex-col gap-3 p-4 md:hidden">
+            {stocktake.items.map((item) => {
+              const edit = countEdits[item.id] || {};
+              const actualNum = edit.actual_qty !== '' && edit.actual_qty !== undefined ? Number(edit.actual_qty) : null;
+              const variance = actualNum !== null ? actualNum - item.system_qty : item.variance_qty;
+
+              return (
+                <div key={item.id} className="rounded-lg border border-hairline-light bg-canvas-light p-4 shadow-level-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-mono text-[11px] text-shade-50">{item.product_sku}</p>
+                      <p className="mt-1 text-sm font-semibold text-canvas-night">{item.product_name}</p>
+                    </div>
+                    {variance !== null && variance !== undefined && variance !== 0 ? (
+                      <span className={`shrink-0 rounded-pill px-3 py-1 text-[11px] font-bold ${
+                        variance < 0 ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-green-600'
+                      }`}>
+                        {variance > 0 ? '+' : ''}{variance.toLocaleString('vi-VN')}
+                      </span>
+                    ) : (
+                      <span className="shrink-0 rounded-pill bg-canvas-cream px-3 py-1 text-[11px] font-bold text-shade-50">
+                        Khớp
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+                    <div className="rounded-md bg-canvas-cream p-2">
+                      <span className="block text-[10px] uppercase tracking-wider text-shade-50">Lô</span>
+                      <span className="font-mono text-ink">{item.batch_number}</span>
+                    </div>
+                    <div className="rounded-md bg-canvas-cream p-2">
+                      <span className="block text-[10px] uppercase tracking-wider text-shade-50">Vị trí</span>
+                      <span className="font-mono text-ink">{item.location_code}</span>
+                    </div>
+                    <div className="rounded-md bg-canvas-cream p-2">
+                      <span className="block text-[10px] uppercase tracking-wider text-shade-50">Hệ thống</span>
+                      <span className="font-semibold text-ink">{item.system_qty.toLocaleString('vi-VN')}</span>
+                    </div>
+                    <div className="rounded-md bg-canvas-cream p-2">
+                      <span className="block text-[10px] uppercase tracking-wider text-shade-50">Thực tế</span>
+                      {isInProgress ? (
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={edit.actual_qty ?? ''}
+                          onChange={(e) => updateEdit(item.id, 'actual_qty', e.target.value)}
+                          placeholder="0"
+                          className="mt-1 w-full rounded-md border border-hairline-light px-2 py-2 text-right text-sm font-semibold outline-none focus:border-ink"
+                        />
+                      ) : (
+                        <span className={`font-semibold ${item.actual_qty === null ? 'text-shade-50 italic' : 'text-ink'}`}>
+                          {item.actual_qty !== null && item.actual_qty !== undefined ? item.actual_qty.toLocaleString('vi-VN') : '—'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between rounded-md border border-hairline-light px-3 py-2 text-xs">
+                    <span className="font-semibold text-shade-60">Lỗi nhân viên</span>
+                    {isInProgress ? (
+                      <input
+                        type="checkbox"
+                        checked={edit.is_employee_fault || false}
+                        onChange={(e) => updateEdit(item.id, 'is_employee_fault', e.target.checked)}
+                        className="h-5 w-5 accent-red-500"
+                      />
+                    ) : (
+                      <span className={item.is_employee_fault ? 'font-bold text-red-600' : 'text-shade-40'}>
+                        {item.is_employee_fault ? 'Có' : 'Không'}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="mt-3">
+                    <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-shade-60">
+                      Lý do chênh lệch {isInProgress && <span className="text-red-500">*</span>}
+                    </span>
+                    {isInProgress ? (
+                      <input
+                        type="text"
+                        value={edit.notes || ''}
+                        onChange={(e) => updateEdit(item.id, 'notes', e.target.value)}
+                        placeholder={variance !== null && variance !== 0 ? 'Bắt buộc nhập lý do...' : 'Ghi chú (không bắt buộc)'}
+                        className={`w-full rounded-md border px-3 py-2.5 text-xs outline-none ${
+                          variance !== null && variance !== 0 && !edit.notes?.trim()
+                            ? 'border-red-300 bg-red-50 focus:border-red-400'
+                            : 'border-hairline-light focus:border-ink'
+                        }`}
+                      />
+                    ) : (
+                      <span className={`text-xs ${item.notes ? 'text-canvas-night' : 'text-shade-30 italic'}`}>
+                        {item.notes || '—'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -425,7 +527,7 @@ const StocktakeDetail = () => {
         if (variantItems.length === 0) return null;
         return (
           <div className="bg-amber-50 border border-amber-200 rounded-lg overflow-hidden">
-            <div className="px-5 py-3 border-b border-amber-200 bg-amber-100 flex items-center justify-between">
+            <div className="flex flex-col gap-2 border-b border-amber-200 bg-amber-100 px-5 py-3 md:flex-row md:items-center md:justify-between">
               <h2 className="text-xs font-bold text-amber-800 uppercase tracking-wider">
                 Báo cáo chênh lệch — {variantItems.length} dòng hàng cần phê duyệt
               </h2>
@@ -437,7 +539,7 @@ const StocktakeDetail = () => {
                 Cấp duyệt: {stocktake.approval_level === 'CEO' ? 'CEO' : 'Trưởng kho'}
               </span>
             </div>
-            <div className="overflow-x-auto">
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-amber-200 bg-amber-50">
@@ -475,6 +577,46 @@ const StocktakeDetail = () => {
                   ))}
                 </tbody>
               </table>
+            </div>
+            <div className="flex flex-col gap-3 p-4 md:hidden">
+              {variantItems.map((it) => (
+                <div key={it.id} className={`rounded-lg border p-4 shadow-level-3 ${it.is_employee_fault ? 'border-red-200 bg-red-50' : 'border-amber-200 bg-canvas-light'}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-mono text-[11px] text-shade-50">{it.product_sku}</p>
+                      <p className="mt-1 text-sm font-semibold text-canvas-night">{it.product_name}</p>
+                    </div>
+                    <span className={`shrink-0 rounded-pill px-3 py-1 text-[11px] font-bold ${
+                      it.variance_qty < 0 ? 'bg-red-100 text-red-700' : 'bg-emerald-50 text-green-700'
+                    }`}>
+                      {it.variance_qty > 0 ? '+' : ''}{it.variance_qty?.toLocaleString('vi-VN')}
+                    </span>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+                    <div className="rounded-md bg-canvas-cream p-2">
+                      <span className="block text-[10px] uppercase tracking-wider text-shade-50">Hệ thống</span>
+                      <span className="font-semibold text-ink">{it.system_qty?.toLocaleString('vi-VN')}</span>
+                    </div>
+                    <div className="rounded-md bg-canvas-cream p-2">
+                      <span className="block text-[10px] uppercase tracking-wider text-shade-50">Thực tế</span>
+                      <span className="font-semibold text-ink">{it.actual_qty?.toLocaleString('vi-VN')}</span>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between text-xs">
+                    <span className="font-semibold text-shade-60">Lỗi nhân viên</span>
+                    {it.is_employee_fault
+                      ? <span className="rounded bg-red-100 px-2 py-1 text-[11px] font-bold text-red-600">Có</span>
+                      : <span className="text-shade-40">Không</span>}
+                  </div>
+
+                  <div className="mt-3 text-xs text-canvas-night">
+                    <span className="mb-1 block font-semibold text-shade-60">Lý do</span>
+                    {it.notes || <span className="text-shade-30 italic">Chưa có lý do</span>}
+                  </div>
+                </div>
+              ))}
             </div>
             {stocktake.is_employee_fault && (
               <div className="px-5 py-3 border-t border-amber-200 bg-red-50 text-xs text-red-700 font-semibold">
