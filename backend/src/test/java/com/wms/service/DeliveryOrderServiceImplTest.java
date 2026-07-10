@@ -417,6 +417,46 @@ class DeliveryOrderServiceImplTest {
     }
 
     @Test
+    void saveDeliveryOrderPickingPlan_acceptsNullZoneIdForMultiLevelStructure() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.NEW);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("10.00"));
+        item.setPlannedQty(ZERO);
+        item.setPickedQty(ZERO);
+        item.setQcPassQty(ZERO);
+        item.setQcFailQty(ZERO);
+        reservation.setReservedQty(new BigDecimal("10.00"));
+
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
+        when(deliveryOrderItemRepository.findByDeliveryOrderId(100L)).thenReturn(List.of(item));
+        when(allocationRepository.findByDeliveryOrderItemDeliveryOrderId(100L)).thenReturn(List.of());
+        when(inventoryRepository.findByIdInWithLock(List.of(501L))).thenReturn(List.of(inventory));
+        when(reservationRepository.findWithWarehouseAndProductByWarehouseIdAndProductIdForUpdate(20L, 30L))
+                .thenReturn(Optional.of(reservation));
+        when(inventoryRepository.save(any(Inventory.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(reservationRepository.save(any(WarehouseProductReservation.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(allocationRepository.save(any(DeliveryOrderItemAllocation.class))).thenAnswer(invocation -> {
+            DeliveryOrderItemAllocation allocation = invocation.getArgument(0);
+            allocation.setId(900L);
+            return allocation;
+        });
+        when(deliveryOrderItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(deliveryOrderRepository.save(any(DeliveryOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DeliveryOrderPickingPlanRequest request = new DeliveryOrderPickingPlanRequest();
+        request.setAllocations(new ArrayList<>(List.of(
+                allocationRequest(200L, 501L, 71L, 801L, null, new BigDecimal("10.00"))))); // zoneId is null
+
+        DeliveryOrderResponse response = service.saveDeliveryOrderPickingPlan(100L, request, storekeeper);
+
+        assertThat(response.getStatus()).isEqualTo(DeliveryOrderStatus.WAITING_PICKING);
+        assertThat(reservation.getReservedQty()).isEqualByComparingTo("0.00");
+        assertThat(inventory.getReservedQty()).isEqualByComparingTo("10.00");
+        assertThat(item.getPlannedQty()).isEqualByComparingTo("10.00");
+        verify(allocationRepository).save(any(DeliveryOrderItemAllocation.class));
+    }
+
+    @Test
     void saveDeliveryOrderPickingPlan_revisesConcreteReservationsByDelta() {
         DeliveryOrder order = order(100L, DeliveryOrderStatus.WAITING_PICKING);
         DeliveryOrderItem item = item(order, product, new BigDecimal("10.00"));
@@ -478,12 +518,11 @@ class DeliveryOrderServiceImplTest {
         when(deliveryOrderItemRepository.findByDeliveryOrderId(100L)).thenReturn(List.of(item));
         when(allocationRepository.findByDeliveryOrderItemDeliveryOrderId(100L)).thenReturn(List.of(existingAllocation));
         when(inventoryRepository.findByIdInWithLock(List.of(501L, 502L))).thenReturn(List.of(inventory, inventory2));
-        when(outboundQcRecordRepository.existsByAllocationId(900L)).thenReturn(true);
 
         DeliveryOrderPickingPlanRequest request = new DeliveryOrderPickingPlanRequest();
         request.setAllocations(new ArrayList<>(List.of(
-                allocationRequest(200L, 501L, 71L, 801L, 31L, new BigDecimal("7.00")),
-                allocationRequest(200L, 502L, 72L, 802L, 32L, new BigDecimal("3.00")))));
+                allocationRequest(200L, 501L, 71L, 801L, 31L, new BigDecimal("2.00")),
+                allocationRequest(200L, 502L, 72L, 802L, 32L, new BigDecimal("8.00")))));
 
         assertThatThrownBy(() -> service.saveDeliveryOrderPickingPlan(100L, request, storekeeper))
                 .isInstanceOf(OutboundDeliveryException.class)
@@ -498,7 +537,7 @@ class DeliveryOrderServiceImplTest {
         item.setPlannedQty(new BigDecimal("10.00"));
         inventory.setReservedQty(new BigDecimal("10.00"));
         DeliveryOrderItemAllocation existingAllocation = allocation(900L, item, inventory, zone,
-                new BigDecimal("10.00"), ZERO, false);
+                new BigDecimal("10.00"), new BigDecimal("3.00"), false);
         WarehouseLocation zone2 = zone(32L, warehouse);
         WarehouseLocation bin2 = bin(802L, warehouse, zone2);
         Batch batch2 = batch(72L, product, warehouse);
@@ -509,12 +548,11 @@ class DeliveryOrderServiceImplTest {
         when(deliveryOrderItemRepository.findByDeliveryOrderId(100L)).thenReturn(List.of(item));
         when(allocationRepository.findByDeliveryOrderItemDeliveryOrderId(100L)).thenReturn(List.of(existingAllocation));
         when(inventoryRepository.findByIdInWithLock(List.of(501L, 502L))).thenReturn(List.of(inventory, inventory2));
-        when(outboundQcRecordRepository.existsByAllocationId(900L)).thenReturn(true);
 
         DeliveryOrderPickingPlanRequest request = new DeliveryOrderPickingPlanRequest();
         request.setAllocations(new ArrayList<>(List.of(
-                allocationRequest(200L, 501L, 71L, 801L, 31L, new BigDecimal("7.00")),
-                allocationRequest(200L, 502L, 72L, 802L, 32L, new BigDecimal("3.00")))));
+                allocationRequest(200L, 501L, 71L, 801L, 31L, new BigDecimal("2.00")),
+                allocationRequest(200L, 502L, 72L, 802L, 32L, new BigDecimal("8.00")))));
 
         assertThatThrownBy(() -> service.saveDeliveryOrderPickingPlan(100L, request, storekeeper))
                 .isInstanceOf(OutboundDeliveryException.class)
@@ -571,13 +609,14 @@ class DeliveryOrderServiceImplTest {
         when(allocationRepository.findByDeliveryOrderItemDeliveryOrderId(100L)).thenReturn(List.of(existingAllocation));
         when(inventoryRepository.findByIdInWithLock(List.of(501L, 502L))).thenReturn(List.of(inventory, inventory2));
         when(entityManager.find(WarehouseLocation.class, 880L)).thenReturn(sourceBin);
-        when(inventoryRepository.findConcreteReservationRows(20L, 30L, 71L, 880L)).thenReturn(List.of());
+        when(inventoryRepository.findConcreteReservationRowForUpdate(20L, 30L, 71L, 880L))
+                .thenReturn(Optional.empty());
 
         DeliveryOrderPickingPlanRequest request = new DeliveryOrderPickingPlanRequest();
         request.setAllocations(new ArrayList<>(List.of(
-                allocationRequest(200L, 501L, 71L, 801L, 31L, new BigDecimal("6.00")),
-                allocationRequest(200L, 502L, 72L, 802L, 32L, new BigDecimal("4.00")))));
-        request.setReturnToBinRecords(List.of(returnToBinRequest(900L, new BigDecimal("4.00"), 880L)));
+                allocationRequest(200L, 501L, 71L, 801L, 31L, new BigDecimal("2.00")),
+                allocationRequest(200L, 502L, 72L, 802L, 32L, new BigDecimal("8.00")))));
+        request.setReturnToBinRecords(List.of(returnToBinRequest(900L, new BigDecimal("2.00"), 880L)));
 
         assertThatThrownBy(() -> service.saveDeliveryOrderPickingPlan(100L, request, storekeeper))
                 .isInstanceOf(OutboundDeliveryException.class)

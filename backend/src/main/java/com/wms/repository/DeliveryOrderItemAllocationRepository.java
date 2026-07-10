@@ -23,7 +23,13 @@ public interface DeliveryOrderItemAllocationRepository extends JpaRepository<Del
             "deliveryOrderItem", "deliveryOrderItem.product", "inventory",
             "batch", "location", "zone", "replacedAllocation"
     })
-    List<DeliveryOrderItemAllocation> findByDeliveryOrderItemIdIn(Collection<Long> deliveryOrderItemIds);
+    @Query("""
+            select a from DeliveryOrderItemAllocation a
+            where a.deliveryOrderItem.id in :deliveryOrderItemIds
+              and a.status = com.wms.enums.AllocationStatus.ACTIVE
+            """)
+    List<DeliveryOrderItemAllocation> findByDeliveryOrderItemIdIn(
+            @Param("deliveryOrderItemIds") Collection<Long> deliveryOrderItemIds);
 
     @EntityGraph(attributePaths = {
             "deliveryOrderItem", "deliveryOrderItem.product", "inventory",
@@ -32,6 +38,7 @@ public interface DeliveryOrderItemAllocationRepository extends JpaRepository<Del
     @Query("""
             select a from DeliveryOrderItemAllocation a
             where a.deliveryOrderItem.deliveryOrder.id = :deliveryOrderId
+              and a.status = com.wms.enums.AllocationStatus.ACTIVE
               and a.pickedQty < a.plannedQty
             order by a.id asc
             """)
@@ -41,12 +48,14 @@ public interface DeliveryOrderItemAllocationRepository extends JpaRepository<Del
             select coalesce(sum(a.plannedQty), 0)
             from DeliveryOrderItemAllocation a
             where a.deliveryOrderItem.deliveryOrder.id = :deliveryOrderId
+              and a.status = com.wms.enums.AllocationStatus.ACTIVE
             """)
     BigDecimal sumPlannedQtyByDeliveryOrderId(@Param("deliveryOrderId") Long deliveryOrderId);
 
     @Query("""
             select a from DeliveryOrderItemAllocation a
             where a.deliveryOrderItem.deliveryOrder.warehouse.id = :warehouseId
+              and a.status = com.wms.enums.AllocationStatus.ACTIVE
               and a.createdAt >= :start
               and a.createdAt <= :end
             """)
