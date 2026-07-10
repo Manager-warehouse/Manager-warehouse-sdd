@@ -20,6 +20,10 @@ public class DeliveryOrder {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Version
+    @Column(name = "version", nullable = false)
+    private Integer version;
+
     @Column(name = "do_number", nullable = false, unique = true, length = 50)
     private String doNumber;
 

@@ -9,6 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
@@ -76,6 +77,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(OutboundDeliveryException.class)
     public ResponseEntity<ApiErrorResponse> handleOutboundDelivery(OutboundDeliveryException ex) {
         return error(ex.getStatus(), ex.getCode(), ex.getMessage(), null, ex.getDetails());
+    }
+
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ApiErrorResponse> handleOptimisticConflict(ObjectOptimisticLockingFailureException ex) {
+        return error(HttpStatus.CONFLICT, "CONCURRENT_MODIFICATION",
+                "The resource was changed by another transaction; reload and retry", null, null);
     }
 
     @ExceptionHandler(AccessDeniedException.class)

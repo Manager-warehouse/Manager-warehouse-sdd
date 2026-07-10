@@ -17,7 +17,7 @@ Thủ kho có thể chọn hàng của một dòng Delivery Order từ nhiều b
   * The system SHALL show storekeepers a ranked inventory list by product, batch, bin, and zone for each Delivery Order item.
   * The ranked inventory list SHALL include only valid regular stock inside the selected warehouse's quality-passed storage/picking zones.
   * The ranked inventory list SHALL exclude quarantine, outbound staging, In-Transit, inactive locations, and any inventory row where `total_qty - reserved_qty <= 0`.
-  * The ranked inventory list SHALL place oldest received inventory first using FIFO because the current household-goods domain does not track expiry dates.
+  * The ranked inventory list SHALL place the oldest received date first using FIFO because the current household-goods domain does not track expiry dates; inventory rows sharing the same received date SHALL have equal FIFO priority regardless of row ID or bin.
   * The system SHALL allow a single Delivery Order item to be planned from multiple batch/bin/zone rows.
   * The total planned quantity for each Delivery Order item SHALL equal the requested quantity on that item before the picking plan can be saved.
   * The system SHALL create `PICKING_PLAN_SAVE` audit log entries whenever a storekeeper saves or changes the picking plan.
@@ -32,21 +32,23 @@ Thủ kho có thể chọn hàng của một dòng Delivery Order từ nhiều b
     * Validate each item's total planned quantity equals its requested quantity.
     * Decrease the matching `warehouse_product_reservations.reserved_qty` and increase `inventories.reserved_qty` for the selected batch/bin/zone rows in the same transaction.
     * Use optimistic locking on all affected `warehouse_product_reservations` and `inventories` rows.
+    * Use Delivery Order and allocation version checks so concurrent plan, cancellation, QC, replacement, or approval mutations cannot overwrite each other.
     * Keep the selected concrete inventory quantities reserved.
     * Move the Delivery Order to `WAITING_PICKING`.
   * WHEN a storekeeper changes a picking plan while the Delivery Order is in `WAITING_PICKING`, the system SHALL:
-    * Release concrete reservations from removed or reduced allocations.
+    * Release concrete reservations only for the unpicked portion of removed or reduced allocations.
     * Reserve concrete inventory for added or increased allocations.
     * Keep each Delivery Order item fully planned to its requested quantity.
     * Keep the Delivery Order in `WAITING_PICKING`.
   * WHEN a storekeeper changes a picking plan after warehouse staff has already recorded picked/QC results for the planned batch/bin/zone allocation, the same `PUT /api/v1/delivery-orders/{id}/picking-plan` request SHALL require return-to-bin records in the payload before any new allocation is saved.
   * WHEN only some picked allocations are changed, the system SHALL require `returnToBinRecords` only for the picked allocations being removed or reduced, and SHALL NOT require unchanged allocations to be returned.
   * WHEN a picking-plan change payload includes return-to-bin records, the system SHALL:
-    * Validate each returned quantity references the original allocation and does not exceed the picked quantity.
+    * Validate each returned quantity equals the picked portion removed by the revision, references the original allocation, and comes from the staging location recorded by that allocation's QC result.
     * Validate goods are returned to the original batch/bin/zone.
     * Move the returned quantity from outbound staging or picked state back to the original inventory row.
     * Create a `PICKED_GOODS_RETURN_TO_BIN` audit log with actor, quantity, product, original allocation, source state/location, original batch/bin/zone, before inventory state, and after inventory state.
     * Apply the revised picking plan only after all required returns are valid and recorded.
+    * Preserve removed allocations as transaction history with `status = CANCELLED`; active planning, QC, and operational reports SHALL exclude cancelled allocations.
   * WHEN QC fail quantity requires replacement and the Delivery Order is in `QC_PENDING_APPROVAL`, the system SHALL allow the storekeeper to select replacement goods from the same FIFO-ranked valid regular inventory list.
   * WHEN the storekeeper saves replacement goods, the system SHALL:
     * Update the Delivery Order item plan with replacement batch/bin/zone details.
@@ -56,6 +58,7 @@ Thủ kho có thể chọn hàng của một dòng Delivery Order từ nhiều b
     * Require warehouse staff to pick and QC the replacement goods before quality approval can complete.
 * **State-driven:**
   * WHILE a Delivery Order has recorded picked/QC results, the system SHALL block direct picking-plan changes for changed picked allocations unless the picked goods are first returned to their original locations through a recorded return-to-bin action.
+  * WHILE picked or QC-processed goods have not completed their warehouse return flow, the system SHALL reject direct Delivery Order cancellation with `PICKED_GOODS_RETURN_REQUIRED`.
 
 ## 4. API Endpoints
 
@@ -75,8 +78,8 @@ Thủ kho có thể chọn hàng của một dòng Delivery Order từ nhiều b
   * `plannedQty` - Quantity planned from this allocation.
 * `returnToBinRecords[]` - Required only for picked allocations that are removed or reduced by the revised plan:
   * `allocationId` - Existing allocation whose picked goods are being returned.
-  * `returnedQty` - Quantity returned to the original batch/bin/zone.
-  * `sourceLocationId` - Current source location/state before return, such as outbound staging.
+  * `returnedQty` - Exact picked quantity removed by the revision and returned to the original batch/bin/zone.
+  * `sourceLocationId` - Outbound staging location recorded by the allocation's QC result.
   * `reason` - Reason for returning goods and changing the plan.
 
 For each `doItemId`, the sum of `allocations[].plannedQty` SHALL equal the Delivery Order item's requested quantity. If an allocation was already picked but remains unchanged in the revised plan, the request SHALL NOT require a `returnToBinRecords[]` entry for that allocation.

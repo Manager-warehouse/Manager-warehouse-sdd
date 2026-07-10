@@ -134,12 +134,30 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
                         where i.warehouse.id = :warehouseId
                           and i.product.id = :productId
                           and i.warehouse.type <> com.wms.enums.WarehouseType.IN_TRANSIT
+                          and i.location.type = com.wms.enums.LocationType.BIN
                           and i.location.isActive = true
+                          and i.location.isLocked = false
                           and i.location.isQuarantine = false
                           and i.totalQty > i.reservedQty
                         order by i.batch.receivedDate asc, i.id asc
                         """)
         List<Inventory> findValidFifoCandidates(@Param("warehouseId") Long warehouseId,
+                        @Param("productId") Long productId);
+
+        @EntityGraph(attributePaths = { "warehouse", "product", "batch", "location", "location.parent" })
+        @Query("""
+                        select i from Inventory i
+                        where i.warehouse.id = :warehouseId
+                          and i.product.id = :productId
+                          and i.warehouse.type <> com.wms.enums.WarehouseType.IN_TRANSIT
+                          and i.location.type = com.wms.enums.LocationType.BIN
+                          and i.location.isActive = true
+                          and i.location.isLocked = false
+                          and i.location.isQuarantine = false
+                          and i.totalQty > 0
+                        order by i.batch.receivedDate asc, i.id asc
+                        """)
+        List<Inventory> findFifoRowsForPlanning(@Param("warehouseId") Long warehouseId,
                         @Param("productId") Long productId);
 
         @Query("""
