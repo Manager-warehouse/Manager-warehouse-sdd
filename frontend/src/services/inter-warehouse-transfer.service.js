@@ -504,6 +504,9 @@ export const interWarehouseTransferService = {
       const idx = requests.findIndex(r => r.id === Number(id));
       if (idx !== -1) {
         requests[idx].status = 'CONVERTED';
+        requests[idx].convertedTransferId = requests[idx].convertedTransferId || Date.now();
+        requests[idx].convertedTransferNumber = requests[idx].convertedTransferNumber || `TRF-${today().replaceAll('-', '')}-${String(id).padStart(4, '0')}`;
+        requests[idx].convertedAt = new Date().toISOString();
         localStorage.setItem('wms_db_transfer_requests', JSON.stringify(requests));
         return requests[idx];
       }

@@ -187,6 +187,22 @@
 
 ---
 
+### US-WMS-11A: Trưởng kho đề xuất điều chuyển từ tồn kho kho khác và CEO duyệt (Priority: P1)
+
+**Mô tả:** Là Trưởng kho của kho đang thiếu hàng, tôi muốn xem tồn kho khả dụng của các kho khác ở chế độ chỉ đọc và gửi yêu cầu điều chuyển để CEO duyệt trước khi Planner kho nguồn tạo phiếu `TRF-*`.
+
+**Tiêu chí nghiệm thu:**
+
+1. Trưởng kho chỉ được xem tồn kho khả dụng liên kho ở chế độ read-only; số khả dụng tính bằng `total_qty - reserved_qty` và loại trừ hàng Quarantine/In-Transit không available.
+2. Trưởng kho chỉ được tạo yêu cầu cho kho mình phụ trách; kho yêu cầu trở thành kho đích, kho còn hàng là kho nguồn đề xuất.
+3. Yêu cầu điều chuyển phải có kho nguồn, kho đích, SKU/số lượng, ngày cần hàng, lý do nghiệp vụ, số tồn khả dụng quan sát tại kho nguồn và kho yêu cầu.
+4. CEO có thể duyệt hoặc từ chối yêu cầu; từ chối bắt buộc nhập lý do và giữ lịch sử audit.
+5. CEO duyệt yêu cầu **không** reserve tồn và **không** tạo/trừ/cộng inventory. Việc giữ chỗ chỉ xảy ra khi Trưởng kho nguồn duyệt phiếu `TRF-*`.
+6. Sau khi CEO duyệt, hệ thống tạo/gửi mẫu yêu cầu đã duyệt cho Planner kho nguồn hoặc Planner trung tâm để chuyển thành một phiếu `TRF-*`.
+7. Một yêu cầu đã CEO duyệt chỉ được chuyển thành tối đa một phiếu `TRF-*`; chuyển trùng phải bị chặn.
+
+---
+
 ### US-WMS-12: Lập, Duyệt & Xác nhận Phiếu Điều chuyển Kho Nội bộ (Priority: P1)
 
 **Mô tả:** Là Planner / Trưởng kho, tôi muốn tạo và thực thi phiếu điều chuyển hàng hóa giữa 3 kho vật lý để cân bằng tồn kho giữa các miền.
@@ -201,6 +217,7 @@
 3. Dispatcher lập một chuyến xe nội bộ riêng cho phiếu điều chuyển: gán xe, tài xế và ngày vận chuyển.
    - Dispatcher chỉ được lập chuyến cho phiếu có kho nguồn thuộc phạm vi kho mình.
    - Danh sách tài xế hợp lệ chỉ gồm các tài xế có thể hoạt động tại kho nguồn của phiếu.
+   - Hệ thống phải kiểm tra xe/tài xế không bị trùng lịch và kiểm tra tải trọng xe theo khối lượng; thể tích chỉ kiểm tra khi xe có cấu hình thể tích.
 4. Thủ kho kho nguồn ghi nhận số lượng xuất và bốc xếp lên xe; Tài xế xác nhận đã nhận hàng và xe rời kho → Hệ thống **trừ tồn kho nguồn, giải phóng giữ chỗ, cộng vào Kho ảo In-Transit** → Trạng thái: **Đang vận chuyển (In-Transit)**.
    - Thủ kho nguồn phải ghi đúng số lượng đã duyệt; không được xuất thừa hoặc thiếu.
    - Nếu đã ghi hàng lên xe nhưng chưa rời kho mà cần hủy, hệ thống bắt buộc hạ hàng/unship trước rồi mới cho Trưởng kho nguồn hủy phiếu và nhả giữ chỗ.
@@ -208,7 +225,11 @@
    - Nếu khớp và QC đạt → Hệ thống **trừ Kho ảo In-Transit, cộng vào kho đích** → Trạng thái: **Hoàn thành**.
    - Nếu thiếu → Hệ thống **bắt buộc** ghi lý do chênh lệch và tự động tạo Phiếu điều chỉnh bù trừ.
    - Nếu nhận thừa (`received_qty > sent_qty`) → Hệ thống chặn, không cho xác nhận.
-   - Nếu QC lỗi → Phần lỗi được đưa vào Quarantine Zone, không tính vào tồn kho khả dụng.
+   - Nếu QC lỗi/hư hỏng → Phần lỗi được đưa vào Quarantine Zone với nguồn `INTERNAL_TRANSFER`, không tính vào tồn kho khả dụng, chỉ xử lý tiêu hủy theo Spec 009 và không tạo trả NCC/Debit Note.
+   - Nếu thiếu hàng → Phần thiếu không được tạo Quarantine hoặc disposal candidate vì không có hàng vật lý.
+   - Nếu gửi nhầm SKU nhưng hàng còn nguyên → Thủ kho đích báo cáo `WRONG_SKU`, Trưởng kho đích duyệt xe quay về kho nguồn, hàng vẫn ở In-Transit và kho nguồn thực hiện lại count/check/QC/final receive.
+   - Nếu trip quá hạn khi phiếu còn `IN_TRANSIT` → Hệ thống đánh dấu quá hạn, chặn receive-count/receive-check tại kho đích và yêu cầu vai trò có thẩm quyền kích hoạt Return to Source.
+   - Hàng đạt QC chỉ được cộng vào Bin hợp lệ của kho nhận sau khi kiểm tra sức chứa Bin.
 6. Planner chỉ được hủy phiếu khi còn **NEW**; sau khi **APPROVED** Planner không được hủy. Hệ thống không hỗ trợ hủy phiếu điều chuyển sau khi trạng thái đã là **Đang vận chuyển (In-Transit)**.
 7. Luồng nhận hàng điều chuyển vẫn ở màn Điều chuyển nội bộ; không gộp vào danh sách phiếu nhập NCC `RN`.
 
@@ -414,5 +435,5 @@
 
 ---
 
-*Tổng cộng: 26 User Stories bao phủ toàn bộ luồng vận hành WMS của Công ty Phúc Anh.*
+*Tổng cộng: 27 User Stories bao phủ toàn bộ luồng vận hành WMS của Công ty Phúc Anh.*
 *Ghi chú quan trọng: Hệ thống KHÔNG có quản lý sản xuất (Manufacturing), KHÔNG có HR/HRM, KHÔNG có Barcode/QR Scanner, KHÔNG có cổng B2B/B2C, SỬ DỤNG XE NỘI BỘ (không có chi phí 3PL trong luồng xuất hàng thông thường).*

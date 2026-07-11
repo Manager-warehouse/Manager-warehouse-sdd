@@ -15,6 +15,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -28,6 +29,7 @@ public class TransferRequestController {
 
     @GetMapping
     @Operation(summary = "Lấy danh sách các yêu cầu điều chuyển")
+    @PreAuthorize("hasAnyRole('ADMIN','CEO','PLANNER','WAREHOUSE_MANAGER')")
     public ResponseEntity<List<TransferRequestResponse>> getAllRequests() {
         User actor = currentUserService.getRequiredCurrentUser();
         return ResponseEntity.ok(requestService.getAllRequests(actor));
@@ -35,6 +37,7 @@ public class TransferRequestController {
 
     @GetMapping("/{id}")
     @Operation(summary = "Lấy chi tiết yêu cầu điều chuyển theo ID")
+    @PreAuthorize("hasAnyRole('ADMIN','CEO','PLANNER','WAREHOUSE_MANAGER')")
     public ResponseEntity<TransferRequestResponse> getRequestById(@PathVariable Long id) {
         User actor = currentUserService.getRequiredCurrentUser();
         return ResponseEntity.ok(requestService.getRequestById(id, actor));
@@ -42,6 +45,7 @@ public class TransferRequestController {
 
     @PostMapping
     @Operation(summary = "Tạo mới yêu cầu điều chuyển thô (DRAFT)")
+    @PreAuthorize("hasAnyRole('WAREHOUSE_MANAGER','ADMIN')")
     public ResponseEntity<TransferRequestResponse> createRequest(@Valid @RequestBody TransferRequestCreateRequest request) {
         User actor = currentUserService.getRequiredCurrentUser();
         TransferRequestResponse response = requestService.createRequest(request, actor);
@@ -50,6 +54,7 @@ public class TransferRequestController {
 
     @PutMapping("/{id}")
     @Operation(summary = "Cập nhật yêu cầu điều chuyển thô (Chỉ sửa khi DRAFT)")
+    @PreAuthorize("hasAnyRole('WAREHOUSE_MANAGER','ADMIN')")
     public ResponseEntity<TransferRequestResponse> updateRequest(
             @PathVariable Long id,
             @Valid @RequestBody TransferRequestUpdateRequest request) {
@@ -59,6 +64,7 @@ public class TransferRequestController {
 
     @PostMapping("/{id}/submit")
     @Operation(summary = "Gửi yêu cầu điều chuyển cho CEO duyệt (DRAFT -> SUBMITTED)")
+    @PreAuthorize("hasAnyRole('WAREHOUSE_MANAGER','ADMIN')")
     public ResponseEntity<TransferRequestResponse> submitRequest(@PathVariable Long id) {
         User actor = currentUserService.getRequiredCurrentUser();
         return ResponseEntity.ok(requestService.submitRequest(id, actor));
@@ -66,6 +72,7 @@ public class TransferRequestController {
 
     @PostMapping("/{id}/approve")
     @Operation(summary = "CEO phê duyệt yêu cầu điều chuyển (SUBMITTED -> APPROVED)")
+    @PreAuthorize("hasAnyRole('CEO','ADMIN')")
     public ResponseEntity<TransferRequestResponse> approveRequest(@PathVariable Long id) {
         User actor = currentUserService.getRequiredCurrentUser();
         return ResponseEntity.ok(requestService.approveRequest(id, actor));
@@ -73,6 +80,7 @@ public class TransferRequestController {
 
     @PostMapping("/{id}/reject")
     @Operation(summary = "CEO từ chối yêu cầu điều chuyển (SUBMITTED -> REJECTED)")
+    @PreAuthorize("hasAnyRole('CEO','ADMIN')")
     public ResponseEntity<TransferRequestResponse> rejectRequest(
             @PathVariable Long id,
             @Valid @RequestBody TransferRequestRejectRequest request) {
@@ -82,6 +90,7 @@ public class TransferRequestController {
 
     @PostMapping("/{id}/convert")
     @Operation(summary = "Planner convert yêu cầu điều chuyển đã duyệt thành phiếu điều chuyển TRF NEW")
+    @PreAuthorize("hasAnyRole('PLANNER','CEO','ADMIN')")
     public ResponseEntity<TransferRequestResponse> convertToTransfer(@PathVariable Long id) {
         User actor = currentUserService.getRequiredCurrentUser();
         return ResponseEntity.ok(requestService.convertToTransfer(id, actor));
@@ -89,6 +98,7 @@ public class TransferRequestController {
 
     @GetMapping("/stock-lookup")
     @Operation(summary = "Xem tồn kho khả dụng của sản phẩm tại các kho khác (không tính Quarantine)")
+    @PreAuthorize("hasAnyRole('WAREHOUSE_MANAGER','PLANNER','CEO','ADMIN')")
     public ResponseEntity<List<WarehouseStockLookupResponse>> stockLookup(@RequestParam Long productId) {
         User actor = currentUserService.getRequiredCurrentUser();
         return ResponseEntity.ok(requestService.stockLookup(productId, actor));
