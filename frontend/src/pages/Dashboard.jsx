@@ -86,7 +86,6 @@ const Dashboard = () => {
       );
       setProductsStock(results);
     } catch (error) {
-      console.error('Error loading cross stock:', error);
       addToast('Không thể tải thông tin tồn kho toàn hệ thống', 'error');
     } finally {
       setLoadingStock(false);
@@ -149,7 +148,6 @@ const Dashboard = () => {
       setShowModal(false);
       loadCrossWarehouseStock(); // Refresh stock
     } catch (error) {
-      console.error('Error creating transfer request:', error);
       addToast(error.message || 'Lỗi khi tạo yêu cầu điều chuyển', 'error');
     } finally {
       setSubmitting(false);
@@ -205,11 +203,11 @@ const Dashboard = () => {
             descStyle = 'text-shade-40';
             iconStyle = 'text-onPrimary bg-canvas-nightElevated';
           } else if (isDanger) {
-            cardStyle = 'bg-red-50/50 rounded-lg p-6 border border-red-200 shadow-level-3 hover:shadow-lg transition-all duration-200';
-            titleStyle = 'text-red-700/80';
-            valStyle = 'text-red-700';
-            descStyle = 'text-red-600/60';
-            iconStyle = 'text-red-700 bg-red-100/50';
+            cardStyle = 'bg-danger-50/50 rounded-lg p-6 border border-danger-200 shadow-level-3 hover:shadow-lg transition-all duration-200';
+            titleStyle = 'text-danger-700/80';
+            valStyle = 'text-danger-700';
+            descStyle = 'text-danger-600/60';
+            iconStyle = 'text-danger-700 bg-danger-100/50';
           }
 
           return (

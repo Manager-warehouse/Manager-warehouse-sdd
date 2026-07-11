@@ -6,27 +6,27 @@ const CreditCheckBanner = ({ status, remainingCredit }) => {
 
   const config = {
     OK: {
-      bg: 'bg-emerald-50',
-      border: 'border-emerald-200',
-      text: 'text-emerald-800',
+      bg: 'bg-success-50',
+      border: 'border-success-200',
+      text: 'text-success-800',
       icon: CheckCircle2,
-      iconColor: 'text-emerald-500',
+      iconColor: 'text-success-500',
       message: `Công nợ hợp lệ. Hạn mức còn: ${new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(remainingCredit || 0)}`
     },
     WARNING: {
-      bg: 'bg-amber-50',
-      border: 'border-amber-200',
-      text: 'text-amber-800',
+      bg: 'bg-warning-50',
+      border: 'border-warning-200',
+      text: 'text-warning-800',
       icon: AlertTriangle,
-      iconColor: 'text-amber-500',
+      iconColor: 'text-warning-500',
       message: 'Cảnh báo: Đại lý sắp chạm hạn mức công nợ.'
     },
     BLOCKED: {
-      bg: 'bg-red-50',
-      border: 'border-red-200',
-      text: 'text-red-800',
+      bg: 'bg-danger-50',
+      border: 'border-danger-200',
+      text: 'text-danger-800',
       icon: AlertCircle,
-      iconColor: 'text-red-500',
+      iconColor: 'text-danger-500',
       message: 'Đại lý đang bị khóa công nợ. Không thể tạo đơn xuất hàng.'
     }
   };

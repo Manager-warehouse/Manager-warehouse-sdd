@@ -40,7 +40,7 @@ const UserTable = ({ users, loading, onEdit, onToggleStatus }) => {
               ) : assignedWHNames ? (
                 assignedWHNames
               ) : (
-                <span className="text-red-500 font-semibold italic">Chưa gán kho</span>
+                <span className="text-danger-500 font-semibold italic">Chưa gán kho</span>
               )}
             </td>
             <td className="px-6 py-4">
@@ -59,7 +59,7 @@ const UserTable = ({ users, loading, onEdit, onToggleStatus }) => {
                 </button>
                 <button
                   onClick={() => onToggleStatus(user)}
-                  className={`p-1 rounded-full transition-colors shrink-0 ${user.isActive ? 'text-emerald-600 hover:bg-canvas-cream' : 'text-shade-40 hover:bg-canvas-cream'}`}
+                  className={`p-1 rounded-full transition-colors shrink-0 ${user.isActive ? 'text-success-600 hover:bg-canvas-cream' : 'text-shade-40 hover:bg-canvas-cream'}`}
                   title={user.isActive ? 'Khóa tài khoản' : 'Kích hoạt tài khoản'}
                 >
                   {user.isActive ? (
@@ -103,7 +103,7 @@ const UserTable = ({ users, loading, onEdit, onToggleStatus }) => {
                 ) : assignedWHNames ? (
                   assignedWHNames
                 ) : (
-                  <span className="text-red-500 font-semibold italic font-sans">Chưa gán kho</span>
+                  <span className="text-danger-500 font-semibold italic font-sans">Chưa gán kho</span>
                 )}
               </p>
             </div>
@@ -117,7 +117,7 @@ const UserTable = ({ users, loading, onEdit, onToggleStatus }) => {
               </button>
               <button
                 onClick={() => onToggleStatus(user)}
-                className={`p-1.5 rounded-full transition-colors shrink-0 ${user.isActive ? 'text-emerald-600 hover:bg-canvas-cream' : 'text-shade-40 hover:bg-canvas-cream'}`}
+                className={`p-1.5 rounded-full transition-colors shrink-0 ${user.isActive ? 'text-success-600 hover:bg-canvas-cream' : 'text-shade-40 hover:bg-canvas-cream'}`}
                 title={user.isActive ? 'Khóa tài khoản' : 'Kích hoạt tài khoản'}
               >
                 {user.isActive ? (

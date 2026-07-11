@@ -26,15 +26,15 @@ import { ROLES } from '../../utils/constants';
 
 const DO_STATUS_MAP = {
   NEW: { label: 'Mới', color: 'bg-canvas-cream text-shade-70 border-hairline-light' },
-  WAITING_PICKING: { label: 'Chờ lấy hàng/QC', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+  WAITING_PICKING: { label: 'Chờ lấy hàng/QC', color: 'bg-info-50 text-info-700 border-info-200' },
   QC_PENDING_APPROVAL: { label: 'Chờ duyệt QC', color: 'bg-violet-50 text-violet-700 border-violet-200' },
-  QC_COMPLETED: { label: 'QC xong', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  WAREHOUSE_APPROVED: { label: 'Chờ vận chuyển', color: 'bg-amber-50 text-amber-700 border-amber-200' },
+  QC_COMPLETED: { label: 'QC xong', color: 'bg-success-50 text-success-700 border-success-200' },
+  WAREHOUSE_APPROVED: { label: 'Chờ vận chuyển', color: 'bg-warning-50 text-warning-700 border-warning-200' },
   IN_TRANSIT: { label: 'Đang giao', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-  COMPLETED: { label: 'Đã giao', color: 'bg-emerald-50 text-emerald-900 border-emerald-300' },
+  COMPLETED: { label: 'Đã giao', color: 'bg-success-50 text-success-900 border-success-300' },
   RETURNED: { label: 'Hoàn trả', color: 'bg-orange-50 text-orange-700 border-orange-200' },
   REJECTED: { label: 'Bị từ chối', color: 'bg-rose-50 text-rose-700 border-rose-200' },
-  CANCELLED: { label: 'Đã hủy', color: 'bg-red-50 text-red-700 border-red-200' },
+  CANCELLED: { label: 'Đã hủy', color: 'bg-danger-50 text-danger-700 border-danger-200' },
 };
 
 const STATUS_OPTIONS = [
@@ -369,7 +369,7 @@ export default function DeliveryOrders() {
         {canCancel && (
           <button
             onClick={() => setCancelModal({ show: true, orderId: order.id, reason: '' })}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-pill border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-pill border border-danger-200 text-danger-600 hover:bg-danger-50 transition-colors"
           >
             Hủy đơn
           </button>
@@ -385,7 +385,7 @@ export default function DeliveryOrders() {
         {canOpenQcEntry && (
           <button
             onClick={() => navigate(`/outbound/delivery-orders/${order.id}`)}
-            className="inline-flex items-center justify-center rounded-pill border border-blue-300 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+            className="inline-flex items-center justify-center rounded-pill border border-info-300 bg-info-50 px-3 py-1 text-xs font-semibold text-info-700 transition-colors hover:bg-info-100"
           >
             Nhập kết quả lấy hàng/QC
           </button>
@@ -421,9 +421,9 @@ export default function DeliveryOrders() {
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         {[
           { label: 'Tổng đơn', value: totalDO, icon: <PackageCheck className="h-5 w-5" />, accent: 'text-shade-60 bg-canvas-cream' },
-          { label: 'Chờ lấy hàng/QC', value: waitingPickingDO, icon: <Clock className="h-5 w-5" />, accent: 'text-blue-600 bg-blue-50' },
+          { label: 'Chờ lấy hàng/QC', value: waitingPickingDO, icon: <Clock className="h-5 w-5" />, accent: 'text-info-600 bg-info-50' },
           { label: 'Chờ duyệt QC', value: qcPendingDO, icon: <PackageCheck className="h-5 w-5" />, accent: 'text-violet-600 bg-violet-50' },
-          { label: 'Chờ vận chuyển', value: approvedDO, icon: <Truck className="h-5 w-5" />, accent: 'text-amber-600 bg-amber-50' },
+          { label: 'Chờ vận chuyển', value: approvedDO, icon: <Truck className="h-5 w-5" />, accent: 'text-warning-600 bg-warning-50' },
         ].map(({ label, value, icon, accent }) => (
           <div key={label} className="flex items-center gap-3 rounded-lg border border-hairline-light bg-canvas-light p-4 shadow-level-3">
             <div className={`rounded-full p-2.5 ${accent}`}>{icon}</div>
@@ -649,14 +649,14 @@ export default function DeliveryOrders() {
                             )}
                           </div>
                           {item.price_status === 'missing' && (
-                            <span className="text-[11px] font-medium text-red-600">
+                            <span className="text-[11px] font-medium text-danger-600">
                               Chưa có báo giá được duyệt
                             </span>
                           )}
                         </div>
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <button type="button" onClick={() => removeItemRow(index)} className="rounded-full p-1 text-shade-40 transition-colors hover:bg-canvas-cream hover:text-red-600">
+                        <button type="button" onClick={() => removeItemRow(index)} className="rounded-full p-1 text-shade-40 transition-colors hover:bg-canvas-cream hover:text-danger-600">
                           <X className="h-4 w-4" />
                         </button>
                       </td>
@@ -676,7 +676,7 @@ export default function DeliveryOrders() {
 
       <Modal isOpen={cancelModal.show} onClose={() => setCancelModal({ show: false, orderId: null, reason: '' })} title="Hủy lệnh xuất hàng">
         <div className="flex flex-col gap-4">
-          <div className="flex items-center gap-2 text-sm font-semibold text-red-600">
+          <div className="flex items-center gap-2 text-sm font-semibold text-danger-600">
             <AlertTriangle className="h-4 w-4 shrink-0" /> Hành động này không thể hoàn tác.
           </div>
           <Input
@@ -687,7 +687,7 @@ export default function DeliveryOrders() {
           />
           <div className="flex justify-end gap-3 border-t border-hairline-light pt-4">
             <Button variant="outline-light" onClick={() => setCancelModal({ show: false, orderId: null, reason: '' })}>Đóng</Button>
-            <Button onClick={handleCancelDO} disabled={!cancelModal.reason.trim()} className="bg-red-600 text-white hover:bg-red-700 focus:ring-red-500">
+            <Button onClick={handleCancelDO} disabled={!cancelModal.reason.trim()} className="bg-danger-600 text-white hover:bg-danger-700 focus:ring-danger-500">
               Xác nhận hủy
             </Button>
           </div>

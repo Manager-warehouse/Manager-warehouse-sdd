@@ -4,8 +4,8 @@ const TripCapacityBar = ({ currentWeight, maxWeight }) => {
   const percentage = Math.min(Math.round((currentWeight / maxWeight) * 100), 100);
   
   let colorClass = 'bg-ink';
-  if (percentage >= 90) colorClass = 'bg-red-500';
-  else if (percentage >= 75) colorClass = 'bg-amber-500';
+  if (percentage >= 90) colorClass = 'bg-danger-500';
+  else if (percentage >= 75) colorClass = 'bg-warning-500';
 
   return (
     <div className="w-full">
@@ -20,7 +20,7 @@ const TripCapacityBar = ({ currentWeight, maxWeight }) => {
         />
       </div>
       {percentage > 100 && (
-        <p className="text-xs text-red-500 mt-1 font-medium">Vượt quá tải trọng cho phép!</p>
+        <p className="text-xs text-danger-500 mt-1 font-medium">Vượt quá tải trọng cho phép!</p>
       )}
     </div>
   );

@@ -12,7 +12,7 @@ const formatAllocation = (allocation) => {
 
 const PickingListTable = ({ items = [] }) => {
   return (
-    <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-sm overflow-hidden card-premium">
+    <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden">
       <div className="px-6 py-3.5 bg-canvas-cream border-b border-hairline-light">
         <h3 className="text-xs font-bold uppercase tracking-wider text-shade-60">
           Kế hoạch lấy hàng theo phân bổ

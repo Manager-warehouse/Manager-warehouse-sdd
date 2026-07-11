@@ -239,7 +239,7 @@ const QCInbound = () => {
             </div>
             <div>
               <span className="text-shade-50 block mb-0.5 font-normal">Trạng thái kiểm đếm:</span>
-              <span className="text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-pill border border-blue-200">Đã đếm xong</span>
+              <span className="text-info-600 bg-info-50 px-1.5 py-0.5 rounded-pill border border-info-200">Đã đếm xong</span>
             </div>
           </div>
         </div>
@@ -274,7 +274,7 @@ const QCInbound = () => {
                   const isMismatch = passed + failed !== actual;
 
                   return (
-                    <tr key={item.id} className={`hover:bg-canvas-cream/50 transition-colors ${isMismatch ? 'bg-red-50/30' : ''}`}>
+                    <tr key={item.id} className={`hover:bg-canvas-cream/50 transition-colors ${isMismatch ? 'bg-danger-50/30' : ''}`}>
                       <td className="px-6 py-4">
                         <span className="font-bold block">{getProductSku(item)}</span>
                         <span className="text-shade-50 block">{getProductName(item)}</span>
@@ -300,7 +300,7 @@ const QCInbound = () => {
                           step="any"
                           value={item.qc_failed_qty}
                           onChange={(e) => handleFailedQtyChange(item.id, e.target.value)}
-                          className="text-input text-right font-bold w-20 py-1 text-red-600 border-red-200"
+                          className="text-input text-right font-bold w-20 py-1 text-danger-600 border-danger-200"
                           required
                         />
                       </td>
@@ -310,7 +310,7 @@ const QCInbound = () => {
                           placeholder="Móp méo, rỉ sét..."
                           value={item.qc_failure_reason || ''}
                           onChange={(e) => handleReasonChange(item.id, e.target.value)}
-                          className={`text-input py-1 text-xs ${failed > 0 && !item.qc_failure_reason.trim() ? 'border-red-300 bg-red-50/20' : ''}`}
+                          className={`text-input py-1 text-xs ${failed > 0 && !item.qc_failure_reason.trim() ? 'border-danger-300 bg-danger-50/20' : ''}`}
                           required={failed > 0}
                         />
                       </td>
@@ -335,7 +335,7 @@ const QCInbound = () => {
                 <div
                   key={item.id}
                   className={`rounded-lg border p-4 shadow-level-3 ${
-                    isMismatch ? 'border-red-200 bg-red-50/30' : 'border-hairline-light bg-canvas-light'
+                    isMismatch ? 'border-danger-200 bg-danger-50/30' : 'border-hairline-light bg-canvas-light'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -374,7 +374,7 @@ const QCInbound = () => {
                         step="any"
                         value={item.qc_failed_qty}
                         onChange={(e) => handleFailedQtyChange(item.id, e.target.value)}
-                        className="text-input min-h-[44px] text-right font-bold text-red-600 border-red-200"
+                        className="text-input min-h-[44px] text-right font-bold text-danger-600 border-danger-200"
                         required
                       />
                     </label>
@@ -390,7 +390,7 @@ const QCInbound = () => {
                       value={item.qc_failure_reason || ''}
                       onChange={(e) => handleReasonChange(item.id, e.target.value)}
                       className={`text-input min-h-[44px] text-xs ${
-                        failed > 0 && !item.qc_failure_reason.trim() ? 'border-red-300 bg-red-50/20' : ''
+                        failed > 0 && !item.qc_failure_reason.trim() ? 'border-danger-300 bg-danger-50/20' : ''
                       }`}
                       required={failed > 0}
                     />
@@ -403,8 +403,8 @@ const QCInbound = () => {
 
         {/* Warning card for mismatch */}
         {checkValidationErrors() && (
-          <div className="bg-red-50 border border-red-200 text-red-900 rounded-lg p-4 text-xs font-semibold flex items-center gap-2">
-            <ShieldAlert className="w-4 h-4 text-red-600 flex-shrink-0" />
+          <div className="bg-danger-50 border border-danger-200 text-danger-900 rounded-lg p-4 text-xs font-semibold flex items-center gap-2">
+            <ShieldAlert className="w-4 h-4 text-danger-600 flex-shrink-0" />
             <span>
               Phát hiện lỗi nhập liệu: Tổng số lượng Đạt và Lỗi phải bằng số đếm thực tế của Thủ kho. Các sản phẩm có số lượng lỗi phải điền rõ lý do hư hỏng.
             </span>

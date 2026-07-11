@@ -47,6 +47,18 @@
     @apply bg-aloe-10 text-ink hover:opacity-90 focus:ring-aloe-10;
   }
 
+  .btn-pill-danger {
+    @apply bg-danger-600 text-onPrimary hover:bg-danger-700 focus:ring-danger-700;
+  }
+
+  .btn-pill-warning {
+    @apply bg-warning-500 text-onPrimary hover:bg-warning-600 focus:ring-warning-600;
+  }
+
+  .btn-pill-info {
+    @apply bg-info-600 text-onPrimary hover:bg-info-700 focus:ring-info-700;
+  }
+
   /* Design system cards from DESIGN.md */
   .card-premium {
     @apply bg-canvas-light rounded-lg border border-hairline-light p-6 shadow-level-3 hover:shadow-lg transition-all duration-200;

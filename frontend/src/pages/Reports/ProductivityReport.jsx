@@ -3,8 +3,10 @@ import reportService from '../../services/report.service';
 import { ClipboardList, Users, Truck, CheckSquare, Calendar, RefreshCw, FileSpreadsheet, AlertCircle } from 'lucide-react';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
+import { useUiStore } from '../../stores/ui.store';
 
 const ProductivityReport = () => {
+  const { addToast } = useUiStore();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -45,7 +47,6 @@ const ProductivityReport = () => {
       const res = await reportService.getProductivityReport(warehouseId, startDate, endDate);
       setData(res);
     } catch (err) {
-      console.error(err);
       setError(err.response?.data?.message || 'Không có quyền truy cập hoặc lỗi khi tải báo cáo năng suất.');
     } finally {
       setLoading(false);
@@ -56,8 +57,7 @@ const ProductivityReport = () => {
     try {
       await reportService.exportProductivityExcel(warehouseId, startDate, endDate);
     } catch (err) {
-      console.error(err);
-      alert('Lỗi xuất báo cáo Excel.');
+      addToast('Lỗi xuất báo cáo Excel.', 'error');
     }
   };
 
@@ -118,7 +118,7 @@ const ProductivityReport = () => {
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3 text-xs text-red-700">
+        <div className="bg-danger-50 border border-danger-200 rounded-lg p-4 flex items-center gap-3 text-xs text-danger-700">
           <AlertCircle className="w-4 h-4 flex-shrink-0" />
           <span>{error}</span>
         </div>

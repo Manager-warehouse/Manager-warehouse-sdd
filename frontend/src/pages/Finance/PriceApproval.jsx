@@ -61,7 +61,7 @@ export default function PriceApproval() {
           Xem xét và phê duyệt các bản giá mới do Kế toán viên đề xuất
           {activeWarehouse && <> — Kho <span className="font-semibold text-ink">{activeWarehouse.name}</span></>}.
           {!loading && entries.length > 0 && (
-            <span className="ml-1 font-semibold text-amber-700">{entries.length} bản giá đang chờ duyệt.</span>
+            <span className="ml-1 font-semibold text-warning-700">{entries.length} bản giá đang chờ duyệt.</span>
           )}
         </p>
       </div>
@@ -72,7 +72,7 @@ export default function PriceApproval() {
         </div>
       ) : entries.length === 0 ? (
         <div className="bg-canvas-light rounded-lg border border-hairline-light p-12 text-center shadow-level-3">
-          <CheckCircle className="w-12 h-12 text-emerald-400 mx-auto mb-4" />
+          <CheckCircle className="w-12 h-12 text-success-400 mx-auto mb-4" />
           <h3 className="text-lg font-bold mb-1">Không có bản giá nào chờ duyệt</h3>
           <p className="text-sm text-shade-50">Tất cả bản giá đã được xử lý.</p>
         </div>
@@ -124,7 +124,7 @@ function PriceCard({ entry, expanded, onToggle, onApprove, approving }) {
           </div>
           <div className="text-xs text-shade-50 mt-1">
             {entry.warehouse_name && (
-              <span className="inline-block bg-blue-50 text-blue-700 border border-blue-200 rounded-pill px-1.5 py-0.5 text-[10px] font-semibold mr-2">
+              <span className="inline-block bg-info-50 text-info-700 border border-info-200 rounded-pill px-1.5 py-0.5 text-[10px] font-semibold mr-2">
                 {entry.warehouse_name}
               </span>
             )}
@@ -218,7 +218,7 @@ function DeltaRow({ label, prev, curr, delta, deltaPct }) {
         <span className="text-lg font-bold tabular-nums">{formatVND(curr)}</span>
         {delta !== undefined && delta !== null && (
           <span className={`text-xs flex items-center gap-0.5 mb-0.5 font-semibold
-            ${isIncrease ? 'text-red-600' : isDecrease ? 'text-emerald-700' : 'text-shade-40'}`}>
+            ${isIncrease ? 'text-danger-600' : isDecrease ? 'text-success-700' : 'text-shade-40'}`}>
             {isIncrease ? <TrendingUp className="w-3.5 h-3.5" />
               : isDecrease ? <TrendingDown className="w-3.5 h-3.5" />
               : <Minus className="w-3.5 h-3.5" />}
@@ -229,7 +229,7 @@ function DeltaRow({ label, prev, curr, delta, deltaPct }) {
       <div className="text-xs text-shade-40">
         Kỳ trước: {formatVND(prev)}
         {delta !== undefined && delta !== null && delta !== 0 && (
-          <span className={`ml-1 ${delta > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+          <span className={`ml-1 ${delta > 0 ? 'text-danger-500' : 'text-success-600'}`}>
             ({delta > 0 ? '+' : ''}{formatVND(delta)})
           </span>
         )}

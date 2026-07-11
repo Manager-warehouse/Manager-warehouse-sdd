@@ -67,7 +67,6 @@ const ReturnsWorkspace = () => {
       const completedDos = doData.filter(d => d.status === 'DELIVERED' || d.status === 'COMPLETED');
       setDeliveryOrders(completedDos);
     } catch (e) {
-      console.error(e);
       addToast('Lỗi tải dữ liệu hàng trả', 'error');
     } finally {
       setLoading(false);
@@ -316,7 +315,7 @@ const ReturnsWorkspace = () => {
                       </td>
                       <td className="px-6 py-4">
                         {ret.credit_note_generated ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700">
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-success-700">
                             <Check className="w-3.5 h-3.5" /> Đã hoàn công nợ
                           </span>
                         ) : (
@@ -379,7 +378,7 @@ const ReturnsWorkspace = () => {
 
                   <div className="mt-3 text-[11px] font-semibold text-shade-60">
                     Credit Note: {ret.credit_note_generated ? (
-                      <span className="text-emerald-700">Đã hoàn công nợ</span>
+                      <span className="text-success-700">Đã hoàn công nợ</span>
                     ) : (
                       <span>Chưa hoàn</span>
                     )}
@@ -588,10 +587,10 @@ const ReturnsWorkspace = () => {
                           max={item.actualQty}
                           value={item.passedQty}
                           onChange={(e) => handleQcValueChange(item.receiptItemId, 'passedQty', e.target.value)}
-                          className="w-full px-2 py-1.5 bg-canvas-light border border-hairline-light rounded-md text-emerald-700 focus:outline-none focus:ring-1 focus:ring-ink text-center font-semibold text-sm transition-all"
+                          className="w-full px-2 py-1.5 bg-canvas-light border border-hairline-light rounded-md text-success-700 focus:outline-none focus:ring-1 focus:ring-ink text-center font-semibold text-sm transition-all"
                         />
                       </td>
-                      <td className="px-6 py-4 text-center font-semibold text-red-600 text-sm">
+                      <td className="px-6 py-4 text-center font-semibold text-danger-600 text-sm">
                         {item.failedQty}
                       </td>
                       <td className="px-6 py-4 flex flex-col gap-2">
@@ -616,7 +615,7 @@ const ReturnsWorkspace = () => {
                             <select
                               value={item.quarantineLocationId}
                               onChange={(e) => handleQcValueChange(item.receiptItemId, 'quarantineLocationId', e.target.value)}
-                              className="w-full px-2 py-1.5 bg-canvas-light border border-red-200 rounded-md text-ink text-xs focus:outline-none focus:ring-1 focus:ring-red-500 transition-all"
+                              className="w-full px-2 py-1.5 bg-canvas-light border border-danger-200 rounded-md text-ink text-xs focus:outline-none focus:ring-1 focus:ring-danger-500 transition-all"
                             >
                               <option value="">-- Chọn vị trí cách ly --</option>
                               {quarantineBins.map(b => (
@@ -663,12 +662,12 @@ const ReturnsWorkspace = () => {
                           max={item.actualQty}
                           value={item.passedQty}
                           onChange={(e) => handleQcValueChange(item.receiptItemId, 'passedQty', e.target.value)}
-                          className="text-input min-h-[44px] text-center font-semibold text-emerald-700"
+                          className="text-input min-h-[44px] text-center font-semibold text-success-700"
                         />
                       </label>
                     </div>
 
-                    <div className="mt-3 rounded-md border border-red-100 bg-red-50/50 px-3 py-2 text-xs font-semibold text-red-700">
+                    <div className="mt-3 rounded-md border border-danger-100 bg-danger-50/50 px-3 py-2 text-xs font-semibold text-danger-700">
                       QC lỗi: {item.failedQty}
                     </div>
 
@@ -694,7 +693,7 @@ const ReturnsWorkspace = () => {
                           <select
                             value={item.quarantineLocationId}
                             onChange={(e) => handleQcValueChange(item.receiptItemId, 'quarantineLocationId', e.target.value)}
-                            className="text-input min-h-[44px] border-red-200 text-xs focus:ring-red-500"
+                            className="text-input min-h-[44px] border-danger-200 text-xs focus:ring-danger-500"
                           >
                             <option value="">-- Chọn vị trí cách ly --</option>
                             {quarantineBins.map(b => (

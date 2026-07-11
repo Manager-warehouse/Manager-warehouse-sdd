@@ -13,8 +13,8 @@ import { ROLES } from '../../utils/constants';
 
 const STATUS_LABEL = { PENDING: 'Chờ duyệt', APPROVED: 'Đã duyệt', CANCELLED: 'Đã hủy' };
 const STATUS_STYLE = {
-  PENDING:   'bg-amber-50 text-amber-800 border-amber-300',
-  APPROVED:  'bg-aloe-10 text-emerald-900 border-emerald-300',
+  PENDING:   'bg-warning-50 text-warning-800 border-warning-300',
+  APPROVED:  'bg-aloe-10 text-success-900 border-success-300',
   CANCELLED: 'bg-canvas-cream text-shade-50 border-hairline-light',
 };
 
@@ -132,8 +132,8 @@ export default function PriceListManagement() {
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         {[
           { label: 'Tổng bản giá', value: totalEntries, icon: <DollarSign className="w-5 h-5" />, accent: 'text-shade-60 bg-canvas-cream' },
-          { label: 'Chờ duyệt', value: pendingCount, icon: <DollarSign className="w-5 h-5" />, accent: 'text-amber-600 bg-amber-50' },
-          { label: 'Đã duyệt', value: approvedCount, icon: <DollarSign className="w-5 h-5" />, accent: 'text-emerald-600 bg-emerald-50' },
+          { label: 'Chờ duyệt', value: pendingCount, icon: <DollarSign className="w-5 h-5" />, accent: 'text-warning-600 bg-warning-50' },
+          { label: 'Đã duyệt', value: approvedCount, icon: <DollarSign className="w-5 h-5" />, accent: 'text-success-600 bg-success-50' },
         ].map(({ label, value, icon, accent }) => (
           <div key={label} className="bg-canvas-light rounded-lg border border-hairline-light p-4 shadow-level-3 flex items-center gap-3">
             <div className={`p-2.5 rounded-full ${accent}`}>{icon}</div>
@@ -225,7 +225,7 @@ export default function PriceListManagement() {
                           <Button variant="outline-light" icon={Edit2} onClick={() => { setEditTarget(entry); setShowForm(true); }}>
                             Sửa
                           </Button>
-                          <Button variant="outline-light" icon={Ban} onClick={() => handleCancel(entry.id)} className="text-red-600 border-red-200 hover:bg-red-50">
+                          <Button variant="outline-light" icon={Ban} onClick={() => handleCancel(entry.id)} className="text-danger-600 border-danger-200 hover:bg-danger-50">
                             Hủy
                           </Button>
                         </div>
@@ -259,7 +259,7 @@ export default function PriceListManagement() {
                     <Button variant="outline-light" icon={Edit2} onClick={() => { setEditTarget(entry); setShowForm(true); }}>
                       Sửa
                     </Button>
-                    <Button variant="outline-light" icon={Ban} onClick={() => handleCancel(entry.id)} className="text-red-600 border-red-200 hover:bg-red-50">
+                    <Button variant="outline-light" icon={Ban} onClick={() => handleCancel(entry.id)} className="text-danger-600 border-danger-200 hover:bg-danger-50">
                       Hủy
                     </Button>
                   </div>
@@ -343,7 +343,6 @@ function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }
           }
         }
       } catch (err) {
-        console.error('Lỗi tải sản phẩm:', err);
         addToast('Không tải được danh sách sản phẩm', 'error');
       } finally {
         setLoadingProducts(false);
@@ -411,7 +410,7 @@ function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }
 
   return (
     <div className="fixed inset-0 bg-canvas-night/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-canvas-cream rounded-lg max-w-lg w-full border border-hairline-light shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+      <div className="bg-canvas-cream rounded-lg max-w-lg w-full border border-hairline-light shadow-level-4 overflow-hidden flex flex-col max-h-[85vh]">
         <div className="p-6 border-b border-hairline-light flex items-center justify-between bg-canvas-light">
           <div>
             <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
@@ -440,7 +439,7 @@ function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }
           ) : selectedProduct ? (
             <div>
               <label className="block text-xs font-bold text-shade-60 uppercase tracking-wider mb-1.5">
-                Sản phẩm <span className="text-red-500">*</span>
+                Sản phẩm <span className="text-danger-500">*</span>
               </label>
               <div className="flex gap-2">
                 <input
@@ -455,7 +454,7 @@ function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }
                     setSelectedProduct(null);
                     set('product_id', '');
                   }}
-                  className="btn-pill btn-pill-outline-light text-xs py-1.5 px-3 hover:text-red-600 hover:border-red-300"
+                  className="btn-pill btn-pill-outline-light text-xs py-1.5 px-3 hover:text-danger-600 hover:border-danger-300"
                 >
                   Thay đổi
                 </button>
@@ -464,7 +463,7 @@ function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }
           ) : (
             <div className="relative" onClick={(e) => e.stopPropagation()}>
               <label className="block text-xs font-bold text-shade-60 uppercase tracking-wider mb-1.5">
-                Tìm kiếm sản phẩm <span className="text-red-500">*</span>
+                Tìm kiếm sản phẩm <span className="text-danger-500">*</span>
               </label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-shade-60" />
@@ -487,7 +486,7 @@ function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }
               </div>
 
               {showSearchResults && searchQuery.trim() !== '' && (
-                <div className="absolute left-0 right-0 mt-1 bg-canvas-light border border-hairline-light rounded-lg shadow-xl max-h-60 overflow-y-auto z-50">
+                <div className="absolute left-0 right-0 mt-1 bg-canvas-light border border-hairline-light rounded-lg shadow-level-4 max-h-60 overflow-y-auto z-50">
                   {searchResults.length === 0 ? (
                     <div className="p-3 text-xs text-shade-50 text-center">Không tìm thấy sản phẩm</div>
                   ) : (
@@ -523,7 +522,7 @@ function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }
 
           <div>
             <label className="block text-xs font-bold text-shade-60 uppercase tracking-wider mb-1.5">
-              Hiệu lực từ ngày <span className="text-red-500">*</span>
+              Hiệu lực từ ngày <span className="text-danger-500">*</span>
             </label>
             <input type="date" value={form.effective_date} onChange={e => set('effective_date', e.target.value)}
               className="text-input w-full" />
@@ -535,14 +534,14 @@ function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-shade-60 uppercase tracking-wider mb-1.5">
-                Giá vốn (VNĐ) <span className="text-red-500">*</span>
+                Giá vốn (VNĐ) <span className="text-danger-500">*</span>
               </label>
               <input type="number" min="1" value={form.cost_price} onChange={e => set('cost_price', e.target.value)}
                 className="text-input w-full" placeholder="0" />
             </div>
             <div>
               <label className="block text-xs font-bold text-shade-60 uppercase tracking-wider mb-1.5">
-                Giá bán (VNĐ) <span className="text-red-500">*</span>
+                Giá bán (VNĐ) <span className="text-danger-500">*</span>
               </label>
               <input type="number" min="1" value={form.selling_price} onChange={e => set('selling_price', e.target.value)}
                 className="text-input w-full" placeholder="0" />
@@ -596,7 +595,7 @@ function ImportModal({ onClose, onDone }) {
 
   return (
     <div className="fixed inset-0 bg-canvas-night/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-canvas-cream rounded-lg max-w-lg w-full border border-hairline-light shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+      <div className="bg-canvas-cream rounded-lg max-w-lg w-full border border-hairline-light shadow-level-4 overflow-hidden flex flex-col max-h-[85vh]">
         <div className="p-6 border-b border-hairline-light flex items-center justify-between bg-canvas-light">
           <div>
             <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
@@ -631,8 +630,8 @@ function ImportModal({ onClose, onDone }) {
             <>
               <div className="grid grid-cols-3 gap-3 text-center">
                 <StatBox label="Tổng dòng" value={result.total_rows} />
-                <StatBox label="Thành công" value={result.created_count} color="text-emerald-700" />
-                <StatBox label="Lỗi" value={result.failed_count} color="text-red-600" />
+                <StatBox label="Thành công" value={result.created_count} color="text-success-700" />
+                <StatBox label="Lỗi" value={result.failed_count} color="text-danger-600" />
               </div>
               {result.failed?.length > 0 && (
                 <div className="max-h-48 overflow-y-auto rounded-lg border border-hairline-light">
@@ -649,7 +648,7 @@ function ImportModal({ onClose, onDone }) {
                         <tr key={i}>
                           <td className="px-3 py-2 tabular-nums">{f.row}</td>
                           <td className="px-3 py-2 font-mono">{f.product_sku}</td>
-                          <td className="px-3 py-2 text-red-600">{f.message}</td>
+                          <td className="px-3 py-2 text-danger-600">{f.message}</td>
                         </tr>
                       ))}
                     </tbody>

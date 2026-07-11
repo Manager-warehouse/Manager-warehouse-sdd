@@ -49,7 +49,6 @@ const ReceiptList = () => {
       setSuppliers(suppliersData);
       setDealers(dealersData);
     } catch (error) {
-      console.error(error);
       addToast('Lỗi khi tải dữ liệu phiếu nhập kho', 'error');
     } finally {
       setLoading(false);
@@ -89,25 +88,25 @@ const ReceiptList = () => {
   const getStatusBadge = (receipt) => {
     if (!receipt) return null;
     if (receipt.status === 'APPROVED' && isPutawayCompleted(receipt)) {
-      return <Badge size="sm" colorClassName="bg-emerald-100 text-emerald-800 border-emerald-300">Đã cất kệ</Badge>;
+      return <Badge size="sm" colorClassName="bg-success-100 text-success-800 border-success-300">Đã cất kệ</Badge>;
     }
     switch (receipt.status) {
       case 'PENDING_RECEIPT':
         return <Badge size="sm" colorClassName="bg-canvas-cream text-shade-70 border-hairline-light">Chờ nhận</Badge>;
       case 'DRAFT':
-        return <Badge size="sm" colorClassName="bg-blue-50 text-blue-700 border-blue-200">Đã đếm (nháp)</Badge>;
+        return <Badge size="sm" colorClassName="bg-info-50 text-info-700 border-info-200">Đã đếm (nháp)</Badge>;
       case 'QC_COMPLETED':
-        return <Badge size="sm" colorClassName="bg-amber-50 text-amber-700 border-amber-200">Đã QC</Badge>;
+        return <Badge size="sm" colorClassName="bg-warning-50 text-warning-700 border-warning-200">Đã QC</Badge>;
       case 'APPROVED':
-        return <Badge size="sm" colorClassName="bg-aloe-10 text-emerald-900 border-emerald-300">Đã duyệt</Badge>;
+        return <Badge size="sm" colorClassName="bg-aloe-10 text-success-900 border-success-300">Đã duyệt</Badge>;
       case 'REJECTED':
-        return <Badge size="sm" colorClassName="bg-red-50 text-red-700 border-red-200">Từ chối</Badge>;
+        return <Badge size="sm" colorClassName="bg-danger-50 text-danger-700 border-danger-200">Từ chối</Badge>;
       case 'IN_TRANSIT':
-        return <Badge size="sm" colorClassName="bg-amber-50 text-amber-700 border-amber-200">Chờ nhận nội bộ</Badge>;
+        return <Badge size="sm" colorClassName="bg-warning-50 text-warning-700 border-warning-200">Chờ nhận nội bộ</Badge>;
       case 'COMPLETED':
-        return <Badge size="sm" colorClassName="bg-aloe-10 text-emerald-900 border-emerald-300">Đã nhập kho</Badge>;
+        return <Badge size="sm" colorClassName="bg-aloe-10 text-success-900 border-success-300">Đã nhập kho</Badge>;
       case 'COMPLETED_WITH_DISCREPANCY':
-        return <Badge size="sm" colorClassName="bg-amber-50 text-amber-700 border-amber-200">Đã nhập có lệch</Badge>;
+        return <Badge size="sm" colorClassName="bg-warning-50 text-warning-700 border-warning-200">Đã nhập có lệch</Badge>;
       default:
         return <Badge size="sm" colorClassName="bg-canvas-cream text-shade-70 border-hairline-light">{receipt.status}</Badge>;
     }
@@ -238,7 +237,7 @@ const ReceiptList = () => {
       {receipt.status === 'QC_COMPLETED' && (hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.ADMIN)) && (
         <button
           onClick={() => handleOpenApproval(receipt.id)}
-          className="inline-flex items-center justify-center rounded-full bg-aloe-10 text-emerald-950 border border-emerald-300 hover:bg-emerald-100 px-3 py-1 text-xs font-bold whitespace-nowrap transition-colors duration-150"
+          className="inline-flex items-center justify-center rounded-full bg-aloe-10 text-success-950 border border-success-300 hover:bg-success-100 px-3 py-1 text-xs font-bold whitespace-nowrap transition-colors duration-150"
         >
           Duyệt phiếu
         </button>
@@ -254,7 +253,7 @@ const ReceiptList = () => {
       )}
 
       {receipt.status === 'APPROVED' && isPutawayCompleted(receipt) && (
-        <span className="text-xs font-bold text-emerald-600 flex items-center gap-1.5 px-3 py-1">
+        <span className="text-xs font-bold text-success-600 flex items-center gap-1.5 px-3 py-1">
           <Check className="w-3.5 h-3.5" />
           Đã cất
         </span>
@@ -429,7 +428,7 @@ const ReceiptList = () => {
       {/* Approval & View Detail Modal */}
       {showApprovalModal && selectedReceipt && (
         <div className="fixed inset-0 bg-canvas-night/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-canvas-cream rounded-lg max-w-3xl w-full border border-hairline-light shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+          <div className="bg-canvas-cream rounded-lg max-w-3xl w-full border border-hairline-light shadow-level-4 overflow-hidden flex flex-col max-h-[85vh]">
             <div className="p-6 border-b border-hairline-light flex items-center justify-between bg-canvas-cream">
               <div>
                 <span className="text-[10px] font-bold text-shade-40 uppercase tracking-widest block mb-1">Chi tiết phiếu</span>
@@ -467,14 +466,14 @@ const ReceiptList = () => {
                   <span className="font-bold">{selectedReceipt.document_date}</span>
                 </div>
                 {selectedReceipt.approved_at && (
-                  <div className="col-span-2 bg-emerald-50 border border-emerald-200 text-emerald-950 p-2.5 rounded-md flex gap-2 items-center">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                  <div className="col-span-2 bg-success-50 border border-success-200 text-success-950 p-2.5 rounded-md flex gap-2 items-center">
+                    <CheckCircle2 className="w-4 h-4 text-success-600 flex-shrink-0" />
                     <span>Phiếu đã được duyệt bởi Trưởng kho lúc {new Date(selectedReceipt.approved_at).toLocaleString('vi-VN')}</span>
                   </div>
                 )}
                 {selectedReceipt.rejection_reason && (
-                  <div className="col-span-2 bg-red-50 border border-red-200 text-red-950 p-2.5 rounded-md flex gap-2 items-center">
-                    <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0" />
+                  <div className="col-span-2 bg-danger-50 border border-danger-200 text-danger-950 p-2.5 rounded-md flex gap-2 items-center">
+                    <AlertTriangle className="w-4 h-4 text-danger-600 flex-shrink-0" />
                     <span>Bị từ chối duyệt. Lý do: <strong className="font-semibold">{selectedReceipt.rejection_reason}</strong></span>
                   </div>
                 )}
@@ -504,18 +503,18 @@ const ReceiptList = () => {
                           </td>
                           <td className="px-4 py-3 text-right font-semibold">{item.expected_qty}</td>
                           <td className="px-4 py-3 text-right font-semibold">{item.actual_qty !== null ? item.actual_qty : '-'}</td>
-                          <td className="px-4 py-3 text-right font-bold text-emerald-600">{item.qc_passed_qty !== null ? item.qc_passed_qty : '-'}</td>
-                          <td className="px-4 py-3 text-right font-bold text-red-600">{item.qc_failed_qty !== null ? item.qc_failed_qty : '-'}</td>
+                          <td className="px-4 py-3 text-right font-bold text-success-600">{item.qc_passed_qty !== null ? item.qc_passed_qty : '-'}</td>
+                          <td className="px-4 py-3 text-right font-bold text-danger-600">{item.qc_failed_qty !== null ? item.qc_failed_qty : '-'}</td>
                           <td className="px-4 py-3">
                             {item.qc_result ? (
                               <div className="flex flex-col gap-0.5">
                                 <div className="flex gap-1.5 items-center">
-                                  <span className={`text-[9px] font-bold ${item.qc_result === 'PASSED' ? 'text-emerald-700' : item.qc_result === 'FAILED' ? 'text-red-700' : 'text-amber-700'}`}>
+                                  <span className={`text-[9px] font-bold ${item.qc_result === 'PASSED' ? 'text-success-700' : item.qc_result === 'FAILED' ? 'text-danger-700' : 'text-warning-700'}`}>
                                     {item.qc_result}
                                   </span>
                                 </div>
                                 {item.qc_failure_reason && (
-                                  <span className="text-[10px] text-red-600 italic block">{item.qc_failure_reason}</span>
+                                  <span className="text-[10px] text-danger-600 italic block">{item.qc_failure_reason}</span>
                                 )}
                               </div>
                             ) : (
@@ -534,7 +533,7 @@ const ReceiptList = () => {
                 <div className="bg-canvas-light p-4 border border-hairline-light rounded-lg shadow-level-3">
                   {isRejecting ? (
                     <div className="flex flex-col gap-2">
-                      <label className="text-xs font-bold text-red-700 flex items-center gap-1.5">
+                      <label className="text-xs font-bold text-danger-700 flex items-center gap-1.5">
                         <AlertTriangle className="w-3.5 h-3.5" />
                         Lý do từ chối phê duyệt (Bắt buộc)
                       </label>
@@ -542,7 +541,7 @@ const ReceiptList = () => {
                         value={rejectionReason}
                         onChange={(e) => setRejectionReason(e.target.value)}
                         placeholder="Nhập lý do chi tiết từ chối phiếu nhập này..."
-                        className="text-input text-xs h-20 resize-none border-red-300 focus:border-red-500 focus:ring-red-100"
+                        className="text-input text-xs h-20 resize-none border-danger-300 focus:border-danger-500 focus:ring-danger-100"
                         required
                       />
                     </div>
@@ -583,7 +582,7 @@ const ReceiptList = () => {
                       <button
                         onClick={submitReject}
                         disabled={submittingApproval}
-                        className="btn-pill bg-red-600 hover:bg-red-700 text-white text-xs py-1.5 px-4 font-bold disabled:opacity-50"
+                        className="btn-pill bg-danger-600 hover:bg-danger-700 text-white text-xs py-1.5 px-4 font-bold disabled:opacity-50"
                       >
                         {submittingApproval ? 'Đang từ chối...' : 'Xác nhận từ chối'}
                       </button>
@@ -592,7 +591,7 @@ const ReceiptList = () => {
                     <>
                       <button
                         onClick={() => setIsRejecting(true)}
-                        className="btn-pill btn-pill-outline-light border-red-500 hover:bg-red-50 text-red-600 text-xs py-1.5 px-4"
+                        className="btn-pill btn-pill-outline-light border-danger-500 hover:bg-danger-50 text-danger-600 text-xs py-1.5 px-4"
                       >
                         Từ chối
                       </button>

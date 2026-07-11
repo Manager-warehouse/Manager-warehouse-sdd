@@ -19,10 +19,10 @@ const STATUS_LABELS = {
 
 const STATUS_STYLES = {
   DRAFT: 'bg-canvas-cream text-shade-60 border-hairline-light',
-  IN_PROGRESS: 'bg-blue-50 text-blue-700 border-blue-200',
-  PENDING_APPROVAL: 'bg-amber-50 text-amber-700 border-amber-200',
-  APPROVED: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  REJECTED: 'bg-red-50 text-red-700 border-red-200',
+  IN_PROGRESS: 'bg-info-50 text-info-700 border-info-200',
+  PENDING_APPROVAL: 'bg-warning-50 text-warning-700 border-warning-200',
+  APPROVED: 'bg-success-50 text-success-700 border-success-200',
+  REJECTED: 'bg-danger-50 text-danger-700 border-danger-200',
   CANCELLED: 'bg-canvas-cream text-shade-50 border-hairline-light',
 };
 
@@ -179,7 +179,7 @@ const StocktakeList = () => {
                       </td>
                       <td className="px-6 py-4 text-xs text-right font-mono">
                         {st.total_variance_value !== 0 && st.total_variance_value !== null ? (
-                          <span className={st.total_variance_value < 0 ? 'text-red-600' : 'text-green-600'}>
+                          <span className={st.total_variance_value < 0 ? 'text-danger-600' : 'text-success-600'}>
                             {st.total_variance_value.toLocaleString('vi-VN')}₫
                           </span>
                         ) : '—'}
@@ -196,7 +196,7 @@ const StocktakeList = () => {
                           {st.status === 'DRAFT' && canCreate && (
                             <button
                               onClick={() => handleStart(st.id)}
-                              className="p-1.5 rounded-lg text-shade-50 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                              className="p-1.5 rounded-lg text-shade-50 hover:text-info-600 hover:bg-info-50 transition-colors"
                               title="Bắt đầu kiểm kê"
                             >
                               <Play className="w-3.5 h-3.5" />
@@ -205,7 +205,7 @@ const StocktakeList = () => {
                           {(st.status === 'DRAFT' || st.status === 'IN_PROGRESS') && canCreate && (
                             <button
                               onClick={() => setConfirmModal({ action: 'cancel', id: st.id, label: 'hủy phiếu kiểm kê' })}
-                              className="p-1.5 rounded-lg text-shade-50 hover:text-red-500 hover:bg-red-50 transition-colors"
+                              className="p-1.5 rounded-lg text-shade-50 hover:text-danger-500 hover:bg-danger-50 transition-colors"
                               title="Hủy phiếu"
                             >
                               <XCircle className="w-3.5 h-3.5" />
@@ -214,7 +214,7 @@ const StocktakeList = () => {
                           {st.status === 'PENDING_APPROVAL' && canApprove && (
                             <button
                               onClick={() => setConfirmModal({ action: 'approve', id: st.id, label: 'phê duyệt phiếu kiểm kê' })}
-                              className="p-1.5 rounded-lg text-shade-50 hover:text-green-600 hover:bg-green-50 transition-colors"
+                              className="p-1.5 rounded-lg text-shade-50 hover:text-success-600 hover:bg-success-50 transition-colors"
                               title="Phê duyệt"
                             >
                               <CheckCircle className="w-3.5 h-3.5" />
@@ -242,7 +242,7 @@ const StocktakeList = () => {
                     <p className="text-shade-50">Ngày kiểm: <span className="font-medium text-ink">{st.stock_take_date}</span></p>
                     <p className="text-shade-50">Người kiểm: <span className="font-medium text-ink">{st.conducted_by_name}</span></p>
                     <p className="text-shade-50">Cấp duyệt: <span className="font-medium text-ink">{st.approval_level ? APPROVAL_LABELS[st.approval_level] || st.approval_level : '—'}</span></p>
-                    <p className="text-shade-50">Chênh lệch: <span className={`font-mono font-medium ${st.total_variance_value < 0 ? 'text-red-600' : st.total_variance_value > 0 ? 'text-green-600' : 'text-ink'}`}>
+                    <p className="text-shade-50">Chênh lệch: <span className={`font-mono font-medium ${st.total_variance_value < 0 ? 'text-danger-600' : st.total_variance_value > 0 ? 'text-success-600' : 'text-ink'}`}>
                       {st.total_variance_value !== 0 && st.total_variance_value !== null ? `${st.total_variance_value.toLocaleString('vi-VN')}₫` : '—'}
                     </span></p>
                   </div>
@@ -257,7 +257,7 @@ const StocktakeList = () => {
                     {st.status === 'DRAFT' && canCreate && (
                       <button
                         onClick={() => handleStart(st.id)}
-                        className="p-1.5 rounded-lg text-shade-50 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                        className="p-1.5 rounded-lg text-shade-50 hover:text-info-600 hover:bg-info-50 transition-colors"
                         title="Bắt đầu kiểm kê"
                       >
                         <Play className="w-3.5 h-3.5" />
@@ -266,7 +266,7 @@ const StocktakeList = () => {
                     {(st.status === 'DRAFT' || st.status === 'IN_PROGRESS') && canCreate && (
                       <button
                         onClick={() => setConfirmModal({ action: 'cancel', id: st.id, label: 'hủy phiếu kiểm kê' })}
-                        className="p-1.5 rounded-lg text-shade-50 hover:text-red-500 hover:bg-red-50 transition-colors"
+                        className="p-1.5 rounded-lg text-shade-50 hover:text-danger-500 hover:bg-danger-50 transition-colors"
                         title="Hủy phiếu"
                       >
                         <XCircle className="w-3.5 h-3.5" />
@@ -275,7 +275,7 @@ const StocktakeList = () => {
                     {st.status === 'PENDING_APPROVAL' && canApprove && (
                       <button
                         onClick={() => setConfirmModal({ action: 'approve', id: st.id, label: 'phê duyệt phiếu kiểm kê' })}
-                        className="p-1.5 rounded-lg text-shade-50 hover:text-green-600 hover:bg-green-50 transition-colors"
+                        className="p-1.5 rounded-lg text-shade-50 hover:text-success-600 hover:bg-success-50 transition-colors"
                         title="Phê duyệt"
                       >
                         <CheckCircle className="w-3.5 h-3.5" />
@@ -305,7 +305,7 @@ const StocktakeList = () => {
               <button
                 onClick={() => confirmModal.action === 'cancel' ? handleCancel(confirmModal.id) : handleApprove(confirmModal.id)}
                 className={`px-4 py-2 rounded-pill text-xs font-semibold transition-colors ${
-                  confirmModal.action === 'cancel' ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-aloe-10 hover:opacity-90 text-ink'
+                  confirmModal.action === 'cancel' ? 'bg-danger-500 hover:bg-danger-600 text-white' : 'bg-aloe-10 hover:opacity-90 text-ink'
                 }`}
               >
                 Xác nhận

@@ -59,7 +59,6 @@ const ReceiptForm = () => {
       } else {
         addToast(`Lỗi tải danh mục: ${msg || 'Vui lòng thử lại'}`, 'error');
       }
-      console.error('[ReceiptForm] fetchMetadata error:', status, msg, e);
     } finally {
       setLoading(false);
     }
@@ -265,7 +264,7 @@ const ReceiptForm = () => {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Người liên hệ <span className="text-red-500">*</span></label>
+            <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Người liên hệ <span className="text-danger-500">*</span></label>
             <input
               type="text"
               placeholder="VD: Nguyễn Văn A"
@@ -277,7 +276,7 @@ const ReceiptForm = () => {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Mã chứng từ nguồn (PO/DO hoàn) <span className="text-red-500">*</span></label>
+            <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Mã chứng từ nguồn (PO/DO hoàn) <span className="text-danger-500">*</span></label>
             <input
               type="text"
               placeholder="VD: PO-2026-0005"
@@ -345,7 +344,7 @@ const ReceiptForm = () => {
 
               {/* Search results dropdown */}
               {showSearchResults && searchQuery.trim() !== '' && (
-                <div className="absolute left-0 right-0 mt-1.5 bg-canvas-light border border-hairline-light rounded-lg shadow-xl max-h-60 overflow-y-auto z-40">
+                <div className="absolute left-0 right-0 mt-1.5 bg-canvas-light border border-hairline-light rounded-lg shadow-level-4 max-h-60 overflow-y-auto z-40">
                   {searchResults.length === 0 ? (
                     <div className="p-4 text-xs text-shade-50 text-center">Không tìm thấy sản phẩm hợp lệ</div>
                   ) : (
@@ -427,7 +426,7 @@ const ReceiptForm = () => {
                             <button
                               type="button"
                               onClick={() => handleRemoveItem(index)}
-                              className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
+                              className="p-1 text-danger-500 hover:text-danger-700 hover:bg-danger-50 rounded transition-colors"
                             >
                               <Trash2 className="w-4 h-4 mx-auto" />
                             </button>
@@ -450,7 +449,7 @@ const ReceiptForm = () => {
                         <button
                           type="button"
                           onClick={() => handleRemoveItem(index)}
-                          className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors shrink-0"
+                          className="p-1.5 text-danger-500 hover:text-danger-700 hover:bg-danger-50 rounded transition-colors shrink-0"
                           title="Xóa sản phẩm"
                         >
                           <Trash2 className="w-4 h-4" />

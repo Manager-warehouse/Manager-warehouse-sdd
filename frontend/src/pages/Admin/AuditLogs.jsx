@@ -36,7 +36,6 @@ const AuditLogs = () => {
       const response = await adminService.getAuditLogs();
       setLogs(response.data || response || []);
     } catch (err) {
-      console.error(err);
       addToast('Không thể tải nhật ký hoạt động', 'error');
     } finally {
       setLoading(false);
