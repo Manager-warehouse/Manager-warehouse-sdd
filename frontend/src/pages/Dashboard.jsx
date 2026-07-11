@@ -22,6 +22,8 @@ const Dashboard = () => {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [selectedSourceWhId, setSelectedSourceWhId] = useState('');
   const [requestedQty, setRequestedQty] = useState(1);
+  const [neededByDate, setNeededByDate] = useState('');
+  const [businessReason, setBusinessReason] = useState('');
   const [notes, setNotes] = useState('Yêu cầu điều chuyển nhanh từ Dashboard');
   const [submitting, setSubmitting] = useState(false);
 
@@ -103,6 +105,10 @@ const Dashboard = () => {
     
     setSelectedSourceWhId(defaultSrc ? String(defaultSrc.id) : '');
     setRequestedQty(1);
+    const defaultNeededBy = new Date();
+    defaultNeededBy.setDate(defaultNeededBy.getDate() + 2);
+    setNeededByDate(defaultNeededBy.toISOString().slice(0, 10));
+    setBusinessReason(`Bổ sung tồn khả dụng cho ${product.sku}`);
     setNotes(`Yêu cầu điều chuyển nhanh sản phẩm ${product.sku} từ Dashboard`);
     setShowModal(true);
   };
@@ -117,12 +123,18 @@ const Dashboard = () => {
       addToast('Số lượng yêu cầu phải lớn hơn 0', 'warning');
       return;
     }
+    if (!businessReason.trim()) {
+      addToast('Vui lòng nhập lý do nghiệp vụ', 'warning');
+      return;
+    }
 
     setSubmitting(true);
     try {
       const payload = {
         sourceWarehouseId: Number(selectedSourceWhId),
         destinationWarehouseId: Number(activeWarehouse.id),
+        neededByDate: neededByDate || null,
+        businessReason: businessReason.trim(),
         notes: notes,
         items: [
           {
@@ -477,6 +489,34 @@ const Dashboard = () => {
                   required
                   className="w-full bg-canvas-light border border-hairline-light rounded-md p-2 text-xs focus:outline-none focus:border-ink font-semibold"
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wider text-shade-60 block mb-1">
+                    Ngày cần hàng
+                  </label>
+                  <input
+                    type="date"
+                    value={neededByDate}
+                    onChange={(e) => setNeededByDate(e.target.value)}
+                    className="w-full bg-canvas-light border border-hairline-light rounded-md p-2 text-xs focus:outline-none focus:border-ink font-semibold"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wider text-shade-60 block mb-1">
+                    Lý do nghiệp vụ
+                  </label>
+                  <input
+                    type="text"
+                    value={businessReason}
+                    onChange={(e) => setBusinessReason(e.target.value)}
+                    required
+                    className="w-full bg-canvas-light border border-hairline-light rounded-md p-2 text-xs focus:outline-none focus:border-ink font-semibold"
+                    placeholder="VD: Bổ sung tồn bán"
+                  />
+                </div>
               </div>
 
               <div>

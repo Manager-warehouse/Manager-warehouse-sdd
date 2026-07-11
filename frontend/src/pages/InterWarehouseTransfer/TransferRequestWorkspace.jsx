@@ -23,6 +23,8 @@ const TransferRequestWorkspace = () => {
   // Creation State
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [sourceWhId, setSourceWhId] = useState('');
+  const [neededByDate, setNeededByDate] = useState('');
+  const [businessReason, setBusinessReason] = useState('');
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState([{ productId: '', requestedQty: '' }]);
   const [stockLookupResult, setStockLookupResult] = useState({}); // productId -> [{warehouseName, availableQty}]
@@ -94,6 +96,10 @@ const TransferRequestWorkspace = () => {
       addToast('Vui lòng chọn kho nguồn điều chuyển', 'warning');
       return;
     }
+    if (!businessReason.trim()) {
+      addToast('Vui lòng nhập lý do nghiệp vụ cho yêu cầu', 'warning');
+      return;
+    }
     const filteredItems = items.filter(i => i.productId && Number(i.requestedQty) > 0);
     if (filteredItems.length === 0) {
       addToast('Vui lòng nhập ít nhất một sản phẩm hợp lệ', 'warning');
@@ -105,6 +111,8 @@ const TransferRequestWorkspace = () => {
       const payload = {
         sourceWarehouseId: Number(sourceWhId),
         destinationWarehouseId: activeWarehouse.id,
+        neededByDate: neededByDate || null,
+        businessReason: businessReason.trim(),
         notes,
         items: filteredItems.map(i => ({
           productId: Number(i.productId),
@@ -117,6 +125,8 @@ const TransferRequestWorkspace = () => {
       setShowCreateModal(false);
       // Reset form
       setSourceWhId('');
+      setNeededByDate('');
+      setBusinessReason('');
       setNotes('');
       setItems([{ productId: '', requestedQty: '' }]);
       fetchData();
@@ -281,6 +291,21 @@ const TransferRequestWorkspace = () => {
                   <div>
                     <span className="font-semibold text-shade-50">Sản phẩm yêu cầu:</span> {req.items?.length || 0} SKU
                   </div>
+                  {req.neededByDate && (
+                    <div>
+                      <span className="font-semibold text-shade-50">Cần trước ngày:</span> {req.neededByDate}
+                    </div>
+                  )}
+                  {req.businessReason && (
+                    <div>
+                      <span className="font-semibold text-shade-50">Lý do nghiệp vụ:</span> {req.businessReason}
+                    </div>
+                  )}
+                  {req.convertedTransferNumber && (
+                    <div className="bg-emerald-50 text-emerald-700 p-2 rounded border border-emerald-100 font-semibold">
+                      Phiếu TRF đã tạo: {req.convertedTransferNumber}
+                    </div>
+                  )}
                   {req.notes && (
                     <div className="italic">
                       <span className="font-semibold text-shade-50 not-italic">Ghi chú:</span> "{req.notes}"
@@ -354,6 +379,21 @@ const TransferRequestWorkspace = () => {
                 />
               </div>
 
+              <div className="grid grid-cols-2 gap-4">
+                <Input
+                  label="Ngày cần hàng"
+                  type="date"
+                  value={neededByDate}
+                  onChange={(e) => setNeededByDate(e.target.value)}
+                />
+                <Input
+                  label="Lý do nghiệp vụ"
+                  value={businessReason}
+                  onChange={(e) => setBusinessReason(e.target.value)}
+                  placeholder="VD: Bù thiếu tồn bán, gom hàng cho đơn lớn..."
+                />
+              </div>
+
               {/* Items List */}
               <div className="flex flex-col gap-3">
                 <div className="flex justify-between items-center">
@@ -421,7 +461,7 @@ const TransferRequestWorkspace = () => {
               </div>
 
               <div className="flex flex-col gap-1.5 mt-2">
-                <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Ghi chú lý do điều chuyển</label>
+                <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Ghi chú bổ sung</label>
                 <textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
@@ -465,6 +505,15 @@ const TransferRequestWorkspace = () => {
                   <div><span className="text-shade-50">Người đề xuất:</span> <span className="font-semibold">{selectedRequest.createdByName}</span></div>
                   <div><span className="text-shade-50">Trạng thái:</span> {getStatusBadge(selectedRequest.status)}</div>
                 </div>
+                <div className="grid grid-cols-2 gap-2 border-t border-hairline-light pt-2 text-[11px]">
+                  <div><span className="text-shade-50">Ngày cần hàng:</span> <span className="font-semibold">{selectedRequest.neededByDate || 'Chưa đặt'}</span></div>
+                  <div><span className="text-shade-50">TRF đã tạo:</span> <span className="font-semibold">{selectedRequest.convertedTransferNumber || 'Chưa có'}</span></div>
+                </div>
+                {selectedRequest.businessReason && (
+                  <div className="border-t border-hairline-light pt-2">
+                    <span className="text-shade-50">Lý do nghiệp vụ:</span> <span className="font-semibold">{selectedRequest.businessReason}</span>
+                  </div>
+                )}
                 {selectedRequest.notes && (
                   <div className="border-t border-hairline-light pt-2">
                     <span className="text-shade-50">Ghi chú:</span> <span className="italic">"{selectedRequest.notes}"</span>
