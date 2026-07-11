@@ -127,6 +127,7 @@ umask 077
 compose config --quiet
 backup_id=$("$SCRIPT_DIR/backup-database.sh") || exit $?
 log "Backup gate passed for $backup_id"
+"$SCRIPT_DIR/reconcile-flyway-v4.sh"
 
 if [ -n "${GHCR_USERNAME:-}" ] && [ -n "${GHCR_TOKEN:-}" ]; then
   printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin >/dev/null
