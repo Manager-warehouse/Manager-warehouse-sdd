@@ -19,13 +19,17 @@ printf '%s' "$SOURCE_SHA" | grep -Eq '^[0-9a-f]{40}$' || fail "SOURCE_SHA is inv
 
 release_dir="$APP_DIR/.release"
 mkdir -p "$release_dir"
-RELEASE_ENV="$release_dir/current.env"
+CURRENT_RELEASE_ENV="$release_dir/current.env"
+CURRENT_RELEASE_MANIFEST="$release_dir/current.json"
+CANDIDATE_RELEASE_ENV="$release_dir/candidate.env"
+RELEASE_ENV="$CANDIDATE_RELEASE_ENV"
 PREVIOUS_RELEASE_ENV="$release_dir/previous.env"
 export RELEASE_ENV PREVIOUS_RELEASE_ENV
 
 docker_config=$(mktemp -d "$release_dir/docker-config.XXXXXX")
 cleanup() {
   rm -rf "$docker_config"
+  rm -f "$CANDIDATE_RELEASE_ENV"
 }
 trap cleanup EXIT INT TERM
 DOCKER_CONFIG="$docker_config"
@@ -40,6 +44,34 @@ cd "$APP_DIR"
 test -f .env || fail "Server-side .env is missing"
 test -f compose.prod.yaml || fail "compose.prod.yaml is missing"
 
+recover_current_release_env() {
+  [ -f "$CURRENT_RELEASE_MANIFEST" ] || return 0
+
+  manifest_source_sha=$(awk -F'"' '/"sourceSha"/ {print $4; exit}' "$CURRENT_RELEASE_MANIFEST")
+  manifest_backend_image=$(awk -F'"' '/"backendImage"/ {print $4; exit}' "$CURRENT_RELEASE_MANIFEST")
+  manifest_frontend_image=$(awk -F'"' '/"frontendImage"/ {print $4; exit}' "$CURRENT_RELEASE_MANIFEST")
+  [ -n "$manifest_source_sha" ] || fail "Healthy release manifest has no source SHA"
+  validate_image_ref "$manifest_backend_image"
+  validate_image_ref "$manifest_frontend_image"
+
+  current_source_sha=
+  if [ -f "$CURRENT_RELEASE_ENV" ]; then
+    current_source_sha=$(awk -F= '$1 == "SOURCE_SHA" {print $2; exit}' "$CURRENT_RELEASE_ENV")
+  fi
+  [ "$current_source_sha" = "$manifest_source_sha" ] && return 0
+
+  log "Recovering current release state from the last healthy manifest"
+  recovered_env=$(mktemp "$release_dir/current.env.XXXXXX")
+  {
+    printf 'BACKEND_IMAGE=%s\n' "$manifest_backend_image"
+    printf 'FRONTEND_IMAGE=%s\n' "$manifest_frontend_image"
+    printf 'SOURCE_SHA=%s\n' "$manifest_source_sha"
+  } >"$recovered_env"
+  mv "$recovered_env" "$CURRENT_RELEASE_ENV"
+}
+
+recover_current_release_env
+
 if ! git diff --quiet || ! git diff --cached --quiet; then
   fail "Tracked files on the VPS contain unapproved drift"
 fi
@@ -50,8 +82,8 @@ git pull --ff-only origin main
 [ "$(git rev-parse HEAD)" = "$SOURCE_SHA" ] \
   || fail "VPS source does not match approved source SHA"
 
-if [ -f "$RELEASE_ENV" ]; then
-  cp "$RELEASE_ENV" "$PREVIOUS_RELEASE_ENV"
+if [ -f "$CURRENT_RELEASE_ENV" ]; then
+  cp "$CURRENT_RELEASE_ENV" "$PREVIOUS_RELEASE_ENV"
 fi
 
 PREVIOUS_SOURCE_SHA=
@@ -77,7 +109,7 @@ umask 077
   printf 'BACKEND_IMAGE=%s\n' "$BACKEND_IMAGE"
   printf 'FRONTEND_IMAGE=%s\n' "$FRONTEND_IMAGE"
   printf 'SOURCE_SHA=%s\n' "$SOURCE_SHA"
-} >"$RELEASE_ENV"
+} >"$CANDIDATE_RELEASE_ENV"
 
 compose config --quiet
 backup_id=$("$SCRIPT_DIR/backup-database.sh") || exit $?
@@ -121,6 +153,9 @@ VERIFICATION_STARTED_AT="$verification_started_at"
 VERIFICATION_COMPLETED_AT=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
 BACKUP_ID="$backup_id"
 export VERIFICATION_STARTED_AT VERIFICATION_COMPLETED_AT BACKUP_ID
+mv "$CANDIDATE_RELEASE_ENV" "$CURRENT_RELEASE_ENV"
+RELEASE_ENV="$CURRENT_RELEASE_ENV"
+export RELEASE_ENV
 "$SCRIPT_DIR/release-manifest.sh"
 
 log "Production release $SOURCE_SHA is healthy"
