@@ -116,7 +116,7 @@ public class PriceHistoryController {
         try (Workbook wb = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             Sheet sheet = wb.createSheet("price_import");
             Row header = sheet.createRow(0);
-            String[] cols = {"product_sku", "warehouse_code", "effective_date", "end_date", "cost_price", "selling_price", "notes"};
+            String[] cols = {"product_sku", "warehouse_code", "effective_date", "cost_price", "selling_price", "notes"};
             for (int i = 0; i < cols.length; i++) {
                 header.createCell(i).setCellValue(cols[i]);
             }
@@ -139,7 +139,7 @@ public class PriceHistoryController {
         try (Workbook wb = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             Sheet sheet = wb.createSheet("bang-gia");
             Row header = sheet.createRow(0);
-            String[] cols = {"product_sku", "warehouse_name", "effective_date", "end_date", "cost_price", "selling_price", "notes"};
+            String[] cols = {"product_sku", "warehouse_name", "effective_date", "cost_price", "selling_price", "notes"};
             for (int i = 0; i < cols.length; i++) header.createCell(i).setCellValue(cols[i]);
             int rowIdx = 1;
             for (PriceHistoryResponse e : entries) {
@@ -147,10 +147,9 @@ public class PriceHistoryController {
                 row.createCell(0).setCellValue(e.getProductSku());
                 row.createCell(1).setCellValue(e.getWarehouseName() != null ? e.getWarehouseName() : "");
                 row.createCell(2).setCellValue(e.getEffectiveDate() != null ? e.getEffectiveDate().toString() : "");
-                row.createCell(3).setCellValue(e.getEndDate() != null ? e.getEndDate().toString() : "");
-                row.createCell(4).setCellValue(e.getCostPrice() != null ? e.getCostPrice().doubleValue() : 0);
-                row.createCell(5).setCellValue(e.getSellingPrice() != null ? e.getSellingPrice().doubleValue() : 0);
-                row.createCell(6).setCellValue(e.getNotes() != null ? e.getNotes() : "");
+                row.createCell(3).setCellValue(e.getCostPrice() != null ? e.getCostPrice().doubleValue() : 0);
+                row.createCell(4).setCellValue(e.getSellingPrice() != null ? e.getSellingPrice().doubleValue() : 0);
+                row.createCell(5).setCellValue(e.getNotes() != null ? e.getNotes() : "");
             }
             wb.write(out);
             String filename = "bang-gia-" + java.time.LocalDate.now() + ".xlsx";

@@ -189,7 +189,7 @@ export default function PriceListManagement() {
                 <tr className="bg-canvas-cream border-b border-hairline-light">
                   <th className="px-6 py-4 text-xs font-semibold text-shade-60 uppercase tracking-wider">SKU</th>
                   <th className="px-6 py-4 text-xs font-semibold text-shade-60 uppercase tracking-wider">Sản phẩm</th>
-                  <th className="px-6 py-4 text-xs font-semibold text-shade-60 uppercase tracking-wider">Kỳ hiệu lực</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-shade-60 uppercase tracking-wider">Hiệu lực từ</th>
                   <th className="px-6 py-4 text-xs font-semibold text-shade-60 uppercase tracking-wider text-right">Giá vốn</th>
                   <th className="px-6 py-4 text-xs font-semibold text-shade-60 uppercase tracking-wider text-right">Giá bán</th>
                   <th className="px-6 py-4 text-xs font-semibold text-shade-60 uppercase tracking-wider">Trạng thái</th>
@@ -203,7 +203,7 @@ export default function PriceListManagement() {
                     <td className="px-6 py-4 font-mono text-xs text-shade-60">{entry.product_sku}</td>
                     <td className="px-6 py-4 text-xs font-semibold">{entry.product_name}</td>
                     <td className="px-6 py-4 text-xs text-shade-50 whitespace-nowrap">
-                      {entry.effective_date} → {entry.end_date}
+                      {entry.effective_date}
                     </td>
                     <td className="px-6 py-4 text-xs text-shade-60 text-right tabular-nums">
                       {formatVND(entry.cost_price)}
@@ -249,7 +249,7 @@ export default function PriceListManagement() {
                 </div>
                 <div className="p-4 flex flex-col gap-2 text-xs">
                   <div className="font-semibold">{entry.product_name}</div>
-                  <p className="text-shade-50">Kỳ hiệu lực: <span className="font-medium text-ink">{entry.effective_date} → {entry.end_date}</span></p>
+                  <p className="text-shade-50">Hiệu lực từ: <span className="font-medium text-ink">{entry.effective_date}</span></p>
                   <p className="text-shade-50">Giá vốn: <span className="text-ink tabular-nums">{formatVND(entry.cost_price)}</span></p>
                   <p className="text-shade-50">Giá bán: <span className="font-semibold text-ink tabular-nums">{formatVND(entry.selling_price)}</span></p>
                   <p className="text-shade-50">Ghi chú: <span className="text-ink">{entry.notes || '—'}</span></p>
@@ -306,7 +306,6 @@ function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }
     product_id: entry?.product_id ?? '',
     warehouse_id: entry?.warehouse_id ?? warehouseId ?? '',
     effective_date: entry?.effective_date ?? '',
-    end_date: entry?.end_date ?? '',
     cost_price: entry?.cost_price ?? '',
     selling_price: entry?.selling_price ?? '',
     notes: entry?.notes ?? '',
@@ -385,12 +384,8 @@ function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.product_id || !form.warehouse_id || !form.effective_date || !form.end_date || !form.cost_price || !form.selling_price) {
+    if (!form.product_id || !form.warehouse_id || !form.effective_date || !form.cost_price || !form.selling_price) {
       addToast('Vui lòng điền đầy đủ các trường bắt buộc', 'error');
-      return;
-    }
-    if (form.effective_date > form.end_date) {
-      addToast('Ngày bắt đầu phải trước ngày kết thúc', 'error');
       return;
     }
     setSubmitting(true);
@@ -526,21 +521,15 @@ function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-shade-60 uppercase tracking-wider mb-1.5">
-                Từ ngày <span className="text-red-500">*</span>
-              </label>
-              <input type="date" value={form.effective_date} onChange={e => set('effective_date', e.target.value)}
-                className="text-input w-full" />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-shade-60 uppercase tracking-wider mb-1.5">
-                Đến ngày <span className="text-red-500">*</span>
-              </label>
-              <input type="date" value={form.end_date} onChange={e => set('end_date', e.target.value)}
-                className="text-input w-full" />
-            </div>
+          <div>
+            <label className="block text-xs font-bold text-shade-60 uppercase tracking-wider mb-1.5">
+              Hiệu lực từ ngày <span className="text-red-500">*</span>
+            </label>
+            <input type="date" value={form.effective_date} onChange={e => set('effective_date', e.target.value)}
+              className="text-input w-full" />
+            <p className="text-[11px] text-shade-50 mt-1">
+              Bản giá có hiệu lực kể từ ngày này cho đến khi có bản giá APPROVED khác mới hơn thay thế.
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -625,7 +614,7 @@ function ImportModal({ onClose, onDone }) {
             <>
               <p className="text-sm text-shade-50">
                 Chọn file <span className="font-mono text-xs bg-canvas-cream px-1.5 py-0.5 rounded-pill">.xlsx</span> đúng
-                cột: <span className="font-mono text-xs">product_sku, effective_date, end_date, cost_price, selling_price, notes</span>.
+                cột: <span className="font-mono text-xs">product_sku, warehouse_code, effective_date, cost_price, selling_price, notes</span>.
                 Tối đa 1.000 dòng.
               </p>
               <div className="border-2 border-dashed border-hairline-light rounded-lg p-8 text-center">

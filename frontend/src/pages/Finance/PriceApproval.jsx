@@ -128,7 +128,7 @@ function PriceCard({ entry, expanded, onToggle, onApprove, approving }) {
                 {entry.warehouse_name}
               </span>
             )}
-            Kỳ hiệu lực: <span className="font-medium text-ink">{entry.effective_date} → {entry.end_date}</span>
+            Hiệu lực từ: <span className="font-medium text-ink">{entry.effective_date}</span>
             &nbsp;·&nbsp; Tạo bởi <span className="font-medium text-ink">{entry.created_by?.full_name}</span>
           </div>
         </div>
@@ -170,7 +170,7 @@ function PriceCard({ entry, expanded, onToggle, onApprove, approving }) {
               <p className="text-xs font-bold text-shade-60 uppercase tracking-widest">
                 So sánh với bản giá đã duyệt trước
               </p>
-              <p className="text-xs text-shade-50">Kỳ trước: {prev.effective_date} → {prev.end_date}</p>
+              <p className="text-xs text-shade-50">Hiệu lực từ (bản trước): {prev.effective_date}</p>
               <div className="grid grid-cols-2 gap-4">
                 <DeltaRow
                   label="Giá vốn"

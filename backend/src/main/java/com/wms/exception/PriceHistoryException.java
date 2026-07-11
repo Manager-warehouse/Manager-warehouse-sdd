@@ -29,12 +29,7 @@ public class PriceHistoryException extends RuntimeException {
 
     public static PriceHistoryException overlappingDate() {
         return new PriceHistoryException(HttpStatus.CONFLICT, "OVERLAPPING_EFFECTIVE_DATE",
-                "Khoảng ngày trùng với bản giá APPROVED đang tồn tại cho cùng sản phẩm.");
-    }
-
-    public static PriceHistoryException invalidDateRange() {
-        return new PriceHistoryException(HttpStatus.BAD_REQUEST, "INVALID_DATE_RANGE",
-                "effective_date phải nhỏ hơn hoặc bằng end_date.");
+                "Đã tồn tại bản giá APPROVED khác cùng effective_date cho sản phẩm/kho này.");
     }
 
     public static PriceHistoryException missingPrice(String productIds) {
