@@ -48,8 +48,9 @@
   - _"Tỷ lệ hàng lỗi QC tháng này có tăng không?"_
   - _"Hiệu suất giao hàng đúng hạn (On-Time Delivery) có đảm bảo SLA không?"_
 - Phê duyệt các thay đổi cấu hình hệ thống quan trọng (thêm kho mới, thay đổi hạn mức công nợ Đại lý VIP).
+- Phê duyệt hoặc từ chối yêu cầu điều chuyển liên kho do Trưởng kho đề xuất; CEO approval chỉ tạo cơ sở cho Planner lập `TRF-*`, không giữ chỗ hoặc dịch chuyển inventory.
 
-**User Stories liên quan:** US-WMS-01, US-WMS-18
+**User Stories liên quan:** US-WMS-01, US-WMS-11A, US-WMS-18
 
 ---
 
@@ -74,8 +75,10 @@
 **Nghiệp vụ:**
 
 - Phê duyệt Phiếu nhập kho sau khi đối chiếu kết quả QC từ Thủ kho → mở khóa putaway; hệ thống chỉ cộng tồn kho sau khi Thủ kho cất hàng vào Bin.
+- Khi kho mình thiếu hàng, xem tồn khả dụng liên kho ở chế độ read-only và tạo yêu cầu điều chuyển gửi CEO duyệt.
 - Phê duyệt Phiếu điều chuyển kho (kho nguồn): Kiểm tra tồn khả dụng trước khi duyệt.
 - Xác nhận nhận hàng điều chuyển (kho đích): Kiểm tra số lượng thực tế, ghi nhận chênh lệch nếu có.
+- Với gửi nhầm SKU còn nguyên, Trưởng kho đích duyệt hoặc từ chối xe quay về kho nguồn; hàng vẫn ở In-Transit cho tới khi kho nguồn xác nhận nhận lại.
 - Duyệt chênh lệch kiểm kê và phê duyệt điều chỉnh tồn kho thực tế.
 - Phê duyệt biên bản hàng lỗi tại Quarantine Zone, quyết định phương án xử lý (tiêu hủy hoặc trả hàng cho nhà cung cấp - NCC).
 - Phê duyệt phiếu xuất hủy hàng lỗi.
@@ -120,7 +123,7 @@
 
 **Điều chuyển:**
 
-- Nhận lệnh điều chuyển từ Công ty mẹ/bộ phận điều phối trung tâm → Tạo Phiếu điều chuyển kho nội bộ thủ công (`TRF-*`) trên màn Điều chuyển nội bộ.
+- Nhận lệnh điều chuyển từ Công ty mẹ/bộ phận điều phối trung tâm hoặc yêu cầu điều chuyển đã được CEO duyệt → Tạo Phiếu điều chuyển kho nội bộ thủ công (`TRF-*`) trên màn Điều chuyển nội bộ.
 
 **User Stories liên quan:** US-WMS-02, US-WMS-06, US-WMS-11, US-WMS-12, US-WMS-26
 
@@ -136,6 +139,7 @@
 - Gom các Đơn xuất hàng (ở trạng thái Ready to Ship) vào một Chuyến xe; sắp xếp thứ tự giao hàng (Stop Order) để tối ưu lộ trình.
 - Lập một chuyến xe nội bộ riêng cho từng Phiếu điều chuyển kho; không gom nhiều Phiếu điều chuyển vào cùng một chuyến trong Sprint 1.
 - Kiểm tra tải trọng xe trước khi xác nhận chuyến (hệ thống cảnh báo nếu vượt tải).
+- Với điều chuyển, tài xế/xe phải thuộc phạm vi kho nguồn, không bị trùng lịch; kiểm tra cân nặng luôn áp dụng và thể tích chỉ áp dụng khi xe có cấu hình thể tích.
 
 **Lưu ý quan trọng:** Hệ thống **CHỈ dùng xe nội bộ** của Phúc Anh. KHÔNG phát sinh chi phí vận chuyển 3PL trong luồng xuất hàng thông thường → KHÔNG có quy trình Duyệt chi vận tải.
 
@@ -284,10 +288,13 @@ Công ty mẹ gửi yêu cầu xuất hàng
 ### Quy trình Điều chuyển Kho Nội bộ (Internal Transfer)
 
 ```
-Planner nhận lệnh điều chuyển ngoài (external instruction code)
+Trưởng kho kho thiếu hàng có thể xem tồn liên kho read-only
+    → Tạo yêu cầu điều chuyển gửi CEO nếu cần
+    → CEO duyệt/từ chối; nếu duyệt, Planner kho nguồn/trung tâm nhận mẫu đã duyệt
+Planner nhận lệnh điều chuyển ngoài (external instruction code) hoặc transfer request đã được CEO duyệt
     → Planner tạo Phiếu điều chuyển `TRF-*` [Mới] trên màn Điều chuyển nội bộ
     → Trưởng kho nguồn kiểm tra tồn khả dụng → Duyệt và khóa hàng [Đã duyệt]
-    → Dispatcher kho nguồn lập chuyến xe `TTR-*` riêng, gán xe và tài xế thuộc phạm vi kho nguồn
+    → Dispatcher kho nguồn lập chuyến xe `TTR-*` riêng, gán xe và tài xế thuộc phạm vi kho nguồn, kiểm tra tải trọng/trùng lịch
     → Thủ kho nguồn ghi nhận số gửi, bốc xếp lên xe nội bộ
     → Tài xế xác nhận nhận hàng, xe rời kho
         → Hệ thống: Trừ tồn Kho nguồn, Cộng Kho ảo In-Transit [Đang vận chuyển]
@@ -295,8 +302,10 @@ Planner nhận lệnh điều chuyển ngoài (external instruction code)
     → Thủ kho đích kiểm tra lại số lượng, chốt QC, chọn vị trí nhập kho cho hàng đạt
     → Trưởng kho đích xác nhận cuối cùng
         ├── Khớp + QC đạt → Hệ thống: Trừ In-Transit, Cộng tồn Kho đích [Hoàn thành]
-        ├── Thiếu → Ghi lý do + Tạo Phiếu điều chỉnh bù trừ
-        ├── QC lỗi → Phần lỗi vào Quarantine, không available
+        ├── Thiếu → Ghi lý do + Tạo Phiếu điều chỉnh bù trừ; không tạo Quarantine cho phần thiếu
+        ├── QC lỗi/hư hỏng → Phần lỗi vào Quarantine origin INTERNAL_TRANSFER, chỉ đi luồng tiêu hủy Spec 009
+        ├── Gửi nhầm SKU còn nguyên → Thủ kho đích báo cáo, Trưởng kho đích duyệt quay về kho nguồn
+        ├── Trip quá hạn → Chặn nhận ở kho đích, kích hoạt Return to Source theo thẩm quyền
         └── Nhận thừa → Chặn xác nhận
 ```
 

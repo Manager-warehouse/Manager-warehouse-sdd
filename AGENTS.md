@@ -180,7 +180,7 @@ Active specs:
 - `CLAUDE.md` — hệ thống kiến trúc, workflow, lessons learned, anti-patterns
 - `.specify/memory/constitution.md` — canonical project law, testing requirements, immutable stack rules
 - .sdd/specs/ (10 specs, 35 features, 30 P1) — feature specs chi tiết theo từng domain
-- `Userstory.md` — 26 user stories gu1ed1c
+- `Userstory.md` — 27 user stories được định nghĩa
 
 ## 14. GITNEXUS INTEGRATION
 
@@ -207,7 +207,7 @@ Active specs:
 Note: Nếu môi trường hiện tại không có GitNexus tooling, agent phải báo rõ không thể thực thi automation này trước khi tiếp tục các thay đổi thủ công.
 
 <!-- SPECKIT START -->
-<!-- Active Plan: specs/001-production-cd/plan.md -->
+<!-- Active Plan: .sdd/specs/005-inter-warehouse-transfer/plan.md -->
 <!-- SPECKIT END -->
 
 <!-- gitnexus:start -->

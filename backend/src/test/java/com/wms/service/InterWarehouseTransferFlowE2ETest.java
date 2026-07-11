@@ -228,6 +228,7 @@ class InterWarehouseTransferFlowE2ETest {
                 warehouseRepository,
                 productRepository,
                 inventoryRepository,
+                transferRepository,
                 assignmentRepository,
                 mockTransferService,
                 auditUtil
@@ -301,6 +302,8 @@ class InterWarehouseTransferFlowE2ETest {
         TransferRequestCreateRequest createReq = new TransferRequestCreateRequest(
                 sourceWarehouse.getId(),
                 destinationWarehouse.getId(),
+                LocalDate.now().plusDays(2),
+                "Cần bổ sung chảo cho tồn bán Hà Nội",
                 "Cần chảo gấp cho Hà Nội",
                 List.of(new TransferRequestItemRequest(product.getId(), new BigDecimal("30.00")))
         );
@@ -309,6 +312,8 @@ class InterWarehouseTransferFlowE2ETest {
 
         // --- 2. Manager submits for CEO approval (SUBMITTED) ---
         when(requestRepository.findById(transferRequest.getId())).thenReturn(Optional.of(transferRequest));
+        when(inventoryRepository.sumValidAvailableQty(sourceWarehouse.getId(), product.getId()))
+                .thenReturn(new BigDecimal("50.00"));
         TransferRequestResponse submittedResponse = requestService.submitRequest(transferRequest.getId(), manager);
         assertThat(submittedResponse.status()).isEqualTo(submittedResponse.status());
 
@@ -327,8 +332,10 @@ class InterWarehouseTransferFlowE2ETest {
         );
         when(mockTransferService.createTransfer(any(InterWarehouseTransferCreateRequest.class), eq(planner)))
                 .thenReturn(mockTrfRes);
+        when(transferRepository.findById(800L)).thenReturn(Optional.of(transfer));
         TransferRequestResponse convertedResponse = requestService.convertToTransfer(transferRequest.getId(), planner);
         assertThat(convertedResponse.status()).isEqualTo(TransferRequestStatus.CONVERTED);
+        assertThat(convertedResponse.convertedTransferId()).isEqualTo(transfer.getId());
 
         // --- 5. Destination Storekeeper counts items (IN_TRANSIT -> receive count) ---
         transfer.setStatus(InterWarehouseTransferStatus.IN_TRANSIT);

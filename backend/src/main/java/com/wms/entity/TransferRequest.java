@@ -2,6 +2,7 @@ package com.wms.entity;
 
 import com.wms.enums.TransferRequestStatus;
 import jakarta.persistence.*;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -63,8 +64,25 @@ public class TransferRequest {
     @Column(name = "rejection_reason", columnDefinition = "TEXT")
     private String rejectionReason;
 
+    @Column(name = "needed_by_date")
+    private LocalDate neededByDate;
+
+    @Column(name = "business_reason", columnDefinition = "TEXT")
+    private String businessReason;
+
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "converted_transfer_id")
+    private InterWarehouseTransfer convertedTransfer;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "converted_by")
+    private User convertedBy;
+
+    @Column(name = "converted_at")
+    private OffsetDateTime convertedAt;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
