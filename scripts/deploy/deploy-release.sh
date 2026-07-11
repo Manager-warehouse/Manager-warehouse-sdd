@@ -70,6 +70,19 @@ recover_current_release_env() {
   mv "$recovered_env" "$CURRENT_RELEASE_ENV"
 }
 
+diagnose_backend_failure() {
+  backend_container=$(compose ps -q backend 2>/dev/null || true)
+  [ -n "$backend_container" ] || {
+    log "ERROR: Backend container ID is unavailable for diagnostics" >&2
+    return 0
+  }
+
+  log "Backend container diagnostics follow" >&2
+  docker inspect --format 'State={{.State.Status}} Health={{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}} ExitCode={{.State.ExitCode}} Error={{.State.Error}}' \
+    "$backend_container" >&2 || true
+  docker logs --tail 200 "$backend_container" >&2 || true
+}
+
 recover_current_release_env
 
 if ! git diff --quiet || ! git diff --cached --quiet; then
@@ -121,6 +134,7 @@ fi
 
 retry 3 5 compose pull backend frontend
 if ! compose up -d --remove-orphans; then
+  diagnose_backend_failure
   log "Deployment failed; attempting application rollback"
   [ -f "$PREVIOUS_RELEASE_ENV" ] \
     && "$SCRIPT_DIR/rollback-release.sh" \
@@ -130,6 +144,7 @@ fi
 
 verification_started_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
 if ! "$SCRIPT_DIR/smoke-test.sh"; then
+  diagnose_backend_failure
   log "Verification failed; attempting application rollback"
   [ -f "$PREVIOUS_RELEASE_ENV" ] \
     && "$SCRIPT_DIR/rollback-release.sh" \
