@@ -190,7 +190,7 @@ public class DeliveryOrderServiceIT {
         PriceHistory price = PriceHistory.builder()
                 .product(product).warehouse(warehouse)
                 .costPrice(new BigDecimal("50.00")).sellingPrice(new BigDecimal("99.00"))
-                .effectiveDate(LocalDate.now().minusDays(5)).endDate(LocalDate.now().plusDays(30))
+                .effectiveDate(LocalDate.now().minusDays(5))
                 .status(PriceHistoryStatus.APPROVED).createdBy(planner)
                 .createdAt(OffsetDateTime.now()).build();
         priceHistoryRepository.save(price);
