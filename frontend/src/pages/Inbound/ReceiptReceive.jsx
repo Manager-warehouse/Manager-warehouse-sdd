@@ -117,7 +117,7 @@ const ReceiptReceive = () => {
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
         {/* Receipt details header card */}
-        <div className="bg-white border border-hairline-light rounded-lg p-6 shadow-sm card-premium">
+        <div className="bg-canvas-light border border-hairline-light rounded-lg p-6 shadow-level-3 card-premium">
           <h3 className="text-xs font-bold uppercase tracking-widest text-shade-40 border-b border-hairline-light pb-2 mb-4">
             Chi tiết chứng từ gốc
           </h3>
@@ -142,20 +142,20 @@ const ReceiptReceive = () => {
         </div>
 
         {/* Items Table */}
-        <div className="bg-white border border-hairline-light rounded-lg shadow-sm card-premium overflow-hidden">
-          <div className="p-4 border-b border-hairline-light bg-zinc-50">
+        <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 overflow-hidden">
+          <div className="p-4 border-b border-hairline-light bg-canvas-cream">
             <h3 className="text-xs font-bold uppercase tracking-widest text-shade-40">
               Danh sách sản phẩm kiểm đếm
             </h3>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-zinc-50 border-b border-hairline-light">
-                  <th className="px-6 py-3 font-bold text-shade-60">Sản phẩm</th>
-                  <th className="px-6 py-3 font-bold text-shade-60 text-right w-24">Dự kiến</th>
-                  <th className="px-6 py-3 font-bold text-shade-60 text-right w-36">Thực nhận</th>
+                <tr className="bg-canvas-cream border-b border-hairline-light">
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Sản phẩm</th>
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right w-24">Dự kiến</th>
+                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right w-36">Thực nhận</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-hairline-light">
@@ -163,7 +163,7 @@ const ReceiptReceive = () => {
                   const sku = getProductSku(item);
                   
                   return (
-                    <tr key={item.receipt_item_id} className="hover:bg-zinc-50/50">
+                    <tr key={item.receipt_item_id} className="hover:bg-canvas-cream/50 transition-colors">
                       <td className="px-6 py-4">
                         <span className="font-bold block">{sku}</span>
                         <span className="text-shade-50 block">{getProductName(item)}</span>
@@ -177,7 +177,7 @@ const ReceiptReceive = () => {
                           value={item.actual_qty === null ? '' : item.actual_qty}
                           onChange={(e) => handleQtyChange(item.receipt_item_id, e.target.value)}
                           placeholder="Nhập số đếm..."
-                          className="text-input text-right font-bold w-32 py-1.5 focus:ring-1 focus:ring-zinc-400"
+                          className="text-input text-right font-bold w-32 py-1.5 focus:ring-1 focus:ring-ink"
                           required
                         />
                       </td>
@@ -187,10 +187,49 @@ const ReceiptReceive = () => {
               </tbody>
             </table>
           </div>
+
+          <div className="flex flex-col gap-3 p-4 md:hidden">
+            {items.map((item) => {
+              const sku = getProductSku(item);
+
+              return (
+                <div
+                  key={item.receipt_item_id}
+                  className="rounded-lg border border-hairline-light bg-canvas-light p-4 shadow-level-3"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <span className="block font-mono text-[11px] font-bold text-ink">{sku}</span>
+                      <span className="mt-1 block text-xs text-shade-50">{getProductName(item)}</span>
+                    </div>
+                    <div className="shrink-0 rounded-pill bg-canvas-cream px-3 py-1 text-right text-[11px] font-bold text-shade-60">
+                      Dự kiến: {item.expected_qty}
+                    </div>
+                  </div>
+
+                  <label className="mt-4 flex flex-col gap-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-shade-60">
+                      Số lượng thực nhận
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={item.actual_qty === null ? '' : item.actual_qty}
+                      onChange={(e) => handleQtyChange(item.receipt_item_id, e.target.value)}
+                      placeholder="Nhập số đếm..."
+                      className="text-input min-h-[44px] text-right text-base font-bold"
+                      required
+                    />
+                  </label>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {/* Actions */}
-        <div className="flex justify-end gap-3">
+        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <button
             type="button"
             onClick={() => navigate('/inbound/receipts')}

@@ -1,7 +1,11 @@
 import { create } from 'zustand';
 
+// Sidebar starts open on desktop but collapsed on mobile/tablet so it doesn't
+// cover the screen as a drawer on first load.
+const getDefaultSidebarOpen = () => window.innerWidth >= 768;
+
 export const useUiStore = create((set) => ({
-  sidebarOpen: true,
+  sidebarOpen: getDefaultSidebarOpen(),
   toasts: [],
   loading: false,
 

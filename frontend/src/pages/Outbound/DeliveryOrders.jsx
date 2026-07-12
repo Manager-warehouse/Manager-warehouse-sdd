@@ -13,25 +13,28 @@ import {
 } from 'lucide-react';
 import { outboundService } from '../../services/outbound.service';
 import { masterDataService } from '../../services/masterData.service';
+import pricingService from '../../services/pricing.service';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
+import { useDebounce } from '../../hooks/useDebounce';
 import CreditCheckBanner from '../../components/warehouse/CreditCheckBanner';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import Modal from '../../components/common/Modal';
+import Badge from '../../components/common/Badge';
 import { ROLES } from '../../utils/constants';
 
 const DO_STATUS_MAP = {
-  NEW: { label: 'Mới', color: 'bg-zinc-100 text-zinc-800 border-zinc-200' },
-  WAITING_PICKING: { label: 'Chờ lấy hàng/QC', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+  NEW: { label: 'Mới', color: 'bg-canvas-cream text-shade-70 border-hairline-light' },
+  WAITING_PICKING: { label: 'Chờ lấy hàng/QC', color: 'bg-info-50 text-info-700 border-info-200' },
   QC_PENDING_APPROVAL: { label: 'Chờ duyệt QC', color: 'bg-violet-50 text-violet-700 border-violet-200' },
-  QC_COMPLETED: { label: 'QC xong', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  WAREHOUSE_APPROVED: { label: 'Chờ vận chuyển', color: 'bg-amber-50 text-amber-700 border-amber-200' },
+  QC_COMPLETED: { label: 'QC xong', color: 'bg-success-50 text-success-700 border-success-200' },
+  WAREHOUSE_APPROVED: { label: 'Chờ vận chuyển', color: 'bg-warning-50 text-warning-700 border-warning-200' },
   IN_TRANSIT: { label: 'Đang giao', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-  COMPLETED: { label: 'Đã giao', color: 'bg-emerald-50 text-emerald-900 border-emerald-300' },
+  COMPLETED: { label: 'Đã giao', color: 'bg-success-50 text-success-900 border-success-300' },
   RETURNED: { label: 'Hoàn trả', color: 'bg-orange-50 text-orange-700 border-orange-200' },
   REJECTED: { label: 'Bị từ chối', color: 'bg-rose-50 text-rose-700 border-rose-200' },
-  CANCELLED: { label: 'Đã hủy', color: 'bg-red-50 text-red-700 border-red-200' },
+  CANCELLED: { label: 'Đã hủy', color: 'bg-danger-50 text-danger-700 border-danger-200' },
 };
 
 const STATUS_OPTIONS = [
@@ -48,7 +51,7 @@ const STATUS_OPTIONS = [
   { value: 'CANCELLED', label: 'Đã hủy' },
 ];
 
-const createEmptyItemRow = () => ({ product_id: '', requested_qty: 1, unit_price: 0 });
+const createEmptyItemRow = () => ({ product_id: '', requested_qty: 1, unit_price: 0, price_status: 'idle' });
 
 const createEmptyForm = () => ({
   dealer_id: '',
@@ -57,14 +60,44 @@ const createEmptyForm = () => ({
   items: [createEmptyItemRow()],
 });
 
+const formatVND = (value) => Number(value || 0).toLocaleString('vi-VN');
+
+const toMoney = (value) => {
+  const amount = Number(value || 0);
+  return Number.isFinite(amount) ? amount : 0;
+};
+
+const calculateOrderValue = (items) => items.reduce((total, item) => (
+  total + (toMoney(item.requested_qty) * toMoney(item.unit_price))
+), 0);
+
+const getCreditCheck = (dealer, orderValue) => {
+  if (!dealer) {
+    return { status: null, remainingCredit: 0 };
+  }
+
+  const creditLimit = toMoney(dealer.credit_limit);
+  const currentBalance = toMoney(dealer.current_balance);
+  const remainingCredit = creditLimit - currentBalance - orderValue;
+
+  if (dealer.credit_status === 'CREDIT_HOLD' || remainingCredit < 0) {
+    return { status: 'BLOCKED', remainingCredit };
+  }
+
+  if (creditLimit > 0 && remainingCredit <= creditLimit * 0.1) {
+    return { status: 'WARNING', remainingCredit };
+  }
+
+  return { status: 'OK', remainingCredit };
+};
+
 const getStatusBadge = (status) => {
-  const base = 'text-[10px] font-semibold px-2 py-0.5 rounded-pill border uppercase tracking-wider whitespace-nowrap';
   const { label, color } = DO_STATUS_MAP[status] ?? {
     label: status,
-    color: 'bg-zinc-100 text-zinc-800 border-zinc-200',
+    color: 'bg-canvas-cream text-shade-70 border-hairline-light',
   };
 
-  return <span className={`${base} ${color}`}>{label}</span>;
+  return <Badge size="sm" colorClassName={color}>{label}</Badge>;
 };
 
 const getRoleHint = (order, hasRole) => {
@@ -103,9 +136,12 @@ export default function DeliveryOrders() {
   const [submitting, setSubmitting] = useState(false);
   const [cancelModal, setCancelModal] = useState({ show: false, orderId: null, reason: '' });
 
+  const debouncedSearch = useDebounce(search);
+  const debouncedProductSearch = useDebounce(productSearch);
+
   useEffect(() => {
     fetchOrders();
-  }, [activeWarehouse?.id, statusFilter, search]);
+  }, [activeWarehouse?.id, statusFilter, debouncedSearch]);
 
   useEffect(() => {
     if (!showCreateModal) {
@@ -120,7 +156,7 @@ export default function DeliveryOrders() {
     try {
       const data = await outboundService.getDeliveryOrders(activeWarehouse?.id, {
         status: statusFilter,
-        search,
+        search: debouncedSearch,
       });
       setOrders(data);
     } catch (error) {
@@ -169,6 +205,45 @@ export default function DeliveryOrders() {
     }));
   };
 
+  const lookupItemPrice = async (index, productId) => {
+    if (!activeWarehouse?.id || !productId) {
+      return;
+    }
+
+    const documentDate = formData.document_date || new Date().toISOString().slice(0, 10);
+    try {
+      const price = await pricingService.lookupApproved({
+        product_id: productId,
+        warehouse_id: activeWarehouse.id,
+        date: documentDate,
+      });
+      setFormData((prev) => {
+        const items = [...prev.items];
+        if (Number(items[index]?.product_id) !== Number(productId)) {
+          return prev;
+        }
+        items[index] = {
+          ...items[index],
+          unit_price: Number(price.selling_price ?? price.sellingPrice ?? 0),
+          price_status: 'ready',
+        };
+        return { ...prev, items };
+      });
+    } catch (error) {
+      setFormData((prev) => {
+        const items = [...prev.items];
+        if (Number(items[index]?.product_id) !== Number(productId)) {
+          return prev;
+        }
+        items[index] = { ...items[index], unit_price: 0, price_status: 'missing' };
+        return { ...prev, items };
+      });
+      if (error?.response?.status !== 404) {
+        addToast(error.message || 'Không thể tra báo giá sản phẩm', 'warning');
+      }
+    }
+  };
+
   const updateItemRow = (index, field, value) => {
     const items = [...formData.items];
     items[index][field] = value;
@@ -178,7 +253,12 @@ export default function DeliveryOrders() {
       if (product) {
         items[index].product_name = product.name;
         items[index].sku = product.sku;
-        items[index].unit_price = Number(product.selling_price || product.unit_price || items[index].unit_price || 0);
+        items[index].unit_price = 0;
+        items[index].price_status = 'loading';
+        lookupItemPrice(index, value);
+      } else {
+        items[index].unit_price = 0;
+        items[index].price_status = 'idle';
       }
     }
 
@@ -241,8 +321,11 @@ export default function DeliveryOrders() {
   const waitingPickingDO = orders.filter((order) => order.status === 'WAITING_PICKING').length;
   const qcPendingDO = orders.filter((order) => order.status === 'QC_PENDING_APPROVAL').length;
   const approvedDO = orders.filter((order) => order.status === 'WAREHOUSE_APPROVED').length;
-  const creditStatus = selectedDealerObj?.id === 4 ? 'BLOCKED' : selectedDealerObj?.id === 2 ? 'WARNING' : selectedDealerObj ? 'OK' : null;
-  const isSubmitDisabled = !formData.dealer_id || !formData.expected_delivery_date || !formData.items.length || creditStatus === 'BLOCKED' || submitting;
+  const orderValue = calculateOrderValue(formData.items);
+  const creditCheck = getCreditCheck(selectedDealerObj, orderValue);
+  const creditStatus = creditCheck.status;
+  const hasInvalidPrice = formData.items.some((item) => item.product_id && (item.price_status !== 'ready' || Number(item.unit_price) <= 0));
+  const isSubmitDisabled = !formData.dealer_id || !formData.expected_delivery_date || !formData.items.length || hasInvalidPrice || creditStatus === 'BLOCKED' || submitting;
   const filteredDealers = dealers.filter((dealer) => {
     const keyword = dealerSearch.trim().toLowerCase();
     if (!keyword) {
@@ -273,6 +356,51 @@ export default function DeliveryOrders() {
     return [selectedProduct, ...filteredProducts];
   };
 
+  const renderDoActions = (order) => {
+    const canCancel = hasRole(ROLES.WAREHOUSE_MANAGER)
+      && ['NEW', 'WAITING_PICKING', 'QC_PENDING_APPROVAL', 'QC_COMPLETED'].includes(order.status);
+    const canOpenPicking = hasRole(ROLES.STOREKEEPER)
+      && ['NEW', 'WAITING_PICKING', 'QC_PENDING_APPROVAL', 'QC_COMPLETED'].includes(order.status);
+    const canOpenQcEntry = hasRole(ROLES.WAREHOUSE_STAFF)
+      && order.status === 'WAITING_PICKING';
+
+    return (
+      <>
+        {canCancel && (
+          <button
+            onClick={() => setCancelModal({ show: true, orderId: order.id, reason: '' })}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-pill border border-danger-200 text-danger-600 hover:bg-danger-50 transition-colors"
+          >
+            Hủy đơn
+          </button>
+        )}
+        {canOpenPicking && (
+          <button
+            onClick={() => navigate(`/outbound/delivery-orders/${order.id}`)}
+            className="inline-flex items-center justify-center rounded-pill border border-ink bg-canvas-light px-3 py-1 text-xs font-semibold text-ink transition-colors hover:bg-canvas-cream"
+          >
+            {order.status === 'NEW' ? 'Lập kế hoạch lấy hàng' : 'Duyệt xử lý kho'}
+          </button>
+        )}
+        {canOpenQcEntry && (
+          <button
+            onClick={() => navigate(`/outbound/delivery-orders/${order.id}`)}
+            className="inline-flex items-center justify-center rounded-pill border border-info-300 bg-info-50 px-3 py-1 text-xs font-semibold text-info-700 transition-colors hover:bg-info-100"
+          >
+            Nhập kết quả lấy hàng/QC
+          </button>
+        )}
+        <button
+          onClick={() => navigate(`/outbound/delivery-orders/${order.id}`)}
+          className="flex items-center justify-center rounded-pill p-1.5 text-shade-50 transition-colors hover:bg-canvas-cream hover:text-ink"
+          title="Xem chi tiết"
+        >
+          <Eye className="h-4 w-4" />
+        </button>
+      </>
+    );
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
@@ -284,21 +412,20 @@ export default function DeliveryOrders() {
           </p>
         </div>
         {hasRole(ROLES.PLANNER) && (
-          <button onClick={handleOpenCreateModal} className="btn-pill btn-pill-primary flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            <span>Lập đơn xuất mới</span>
-          </button>
+          <Button onClick={handleOpenCreateModal} variant="primary" icon={Plus}>
+            Lập đơn xuất mới
+          </Button>
         )}
       </div>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         {[
-          { label: 'Tổng đơn', value: totalDO, icon: <PackageCheck className="h-5 w-5" />, accent: 'text-zinc-600 bg-zinc-100' },
-          { label: 'Chờ lấy hàng/QC', value: waitingPickingDO, icon: <Clock className="h-5 w-5" />, accent: 'text-blue-600 bg-blue-50' },
+          { label: 'Tổng đơn', value: totalDO, icon: <PackageCheck className="h-5 w-5" />, accent: 'text-shade-60 bg-canvas-cream' },
+          { label: 'Chờ lấy hàng/QC', value: waitingPickingDO, icon: <Clock className="h-5 w-5" />, accent: 'text-info-600 bg-info-50' },
           { label: 'Chờ duyệt QC', value: qcPendingDO, icon: <PackageCheck className="h-5 w-5" />, accent: 'text-violet-600 bg-violet-50' },
-          { label: 'Chờ vận chuyển', value: approvedDO, icon: <Truck className="h-5 w-5" />, accent: 'text-amber-600 bg-amber-50' },
+          { label: 'Chờ vận chuyển', value: approvedDO, icon: <Truck className="h-5 w-5" />, accent: 'text-warning-600 bg-warning-50' },
         ].map(({ label, value, icon, accent }) => (
-          <div key={label} className="flex items-center gap-3 rounded-lg border border-hairline-light bg-white p-4 shadow-sm">
+          <div key={label} className="flex items-center gap-3 rounded-lg border border-hairline-light bg-canvas-light p-4 shadow-level-3">
             <div className={`rounded-full p-2.5 ${accent}`}>{icon}</div>
             <div>
               <p className="text-xs font-medium text-shade-50">{label}</p>
@@ -308,25 +435,22 @@ export default function DeliveryOrders() {
         ))}
       </div>
 
-      <div className="flex flex-col items-center justify-between gap-4 rounded-lg border border-hairline-light bg-white p-4 shadow-sm md:flex-row">
-        <div className="relative w-full md:w-80">
-          <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-shade-40" />
-          <input
+      <div className="flex flex-col items-center justify-between gap-4 rounded-lg border border-hairline-light bg-canvas-light p-4 shadow-level-3 md:flex-row">
+        <div className="w-full md:w-80">
+          <Input
             type="text"
+            leftIcon={Search}
             placeholder="Tìm mã DO, tên đại lý..."
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            className="w-full text-input pl-10"
           />
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-shade-50">Trạng thái:</span>
-          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="text-input py-1.5 text-xs">
-            {STATUS_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
-        </div>
+        <Input
+          type="select"
+          value={statusFilter}
+          onChange={(event) => setStatusFilter(event.target.value)}
+          options={STATUS_OPTIONS}
+        />
       </div>
 
       {loading ? (
@@ -334,91 +458,76 @@ export default function DeliveryOrders() {
           <Loader2 className="h-8 w-8 animate-spin text-shade-50" />
         </div>
       ) : orders.length === 0 ? (
-        <div className="rounded-lg border border-hairline-light bg-white p-12 text-center shadow-sm">
+        <div className="rounded-lg border border-hairline-light bg-canvas-light p-12 text-center shadow-level-3">
           <PackageCheck className="mx-auto mb-4 h-12 w-12 text-shade-30" />
           <h3 className="mb-1 text-lg font-bold">Không tìm thấy đơn xuất hàng nào</h3>
           <p className="text-sm text-shade-50">Thử đổi bộ lọc hoặc tạo một đơn mới để bắt đầu.</p>
         </div>
       ) : (
-        <div className="card-premium overflow-hidden rounded-lg border border-hairline-light bg-white shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-left">
-              <thead>
-                <tr className="border-b border-hairline-light bg-zinc-50">
-                  <th className="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-shade-60">Mã DO</th>
-                  <th className="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-shade-60">Đại lý</th>
-                  <th className="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-shade-60">Ngày lập</th>
-                  <th className="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-shade-60">Ngày giao dự kiến</th>
-                  <th className="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-shade-60">Trạng thái</th>
-                  <th className="px-6 py-3.5 text-right text-xs font-bold uppercase tracking-wider text-shade-60">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-hairline-light">
-                {orders.map((order) => {
-                  const canCancel = hasRole(ROLES.WAREHOUSE_MANAGER)
-                    && ['NEW', 'WAITING_PICKING', 'QC_PENDING_APPROVAL', 'QC_COMPLETED'].includes(order.status);
-                  const canOpenPicking = hasRole(ROLES.STOREKEEPER)
-                    && ['NEW', 'WAITING_PICKING', 'QC_PENDING_APPROVAL', 'QC_COMPLETED'].includes(order.status);
-                  const canOpenQcEntry = hasRole(ROLES.WAREHOUSE_STAFF)
-                    && order.status === 'WAITING_PICKING';
-
-                  return (
-                    <tr key={order.id} className="hover:bg-zinc-50 transition-colors">
+        <>
+          {/* Desktop/tablet: table view */}
+          <div className="hidden md:block overflow-hidden rounded-lg border border-hairline-light bg-canvas-light shadow-level-3">
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-left">
+                <thead>
+                  <tr className="border-b border-hairline-light bg-canvas-cream">
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã DO</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Đại lý</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Ngày lập</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Ngày giao dự kiến</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Trạng thái</th>
+                    <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-shade-60">Hành động</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-hairline-light">
+                  {orders.map((order) => (
+                    <tr key={order.id} className="hover:bg-canvas-cream/50 transition-colors">
                       <td className="px-6 py-4 text-xs font-bold">{order.do_number}</td>
                       <td className="px-6 py-4">
                         <p className="text-xs font-semibold">{order.dealer_name}</p>
-                        <p className="mt-1 text-[11px] text-shade-40">{getRoleHint(order, hasRole)}</p>
+                        <p className="mt-1 text-[11px] text-shade-50">{getRoleHint(order, hasRole)}</p>
                       </td>
                       <td className="px-6 py-4 text-xs text-shade-50">{order.document_date ? new Date(order.document_date).toLocaleDateString('vi-VN') : '-'}</td>
                       <td className="px-6 py-4 text-xs text-shade-50">{order.expected_delivery_date ? new Date(order.expected_delivery_date).toLocaleDateString('vi-VN') : '-'}</td>
                       <td className="px-6 py-4">{getStatusBadge(order.status)}</td>
                       <td className="whitespace-nowrap px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          {canCancel && (
-                            <button
-                              onClick={() => setCancelModal({ show: true, orderId: order.id, reason: '' })}
-                              className="inline-flex items-center justify-center rounded-full border border-red-300 px-3 py-1 text-xs font-semibold text-red-600 transition-colors hover:bg-red-50"
-                            >
-                              Hủy đơn
-                            </button>
-                          )}
-                          {canOpenPicking && (
-                            <button
-                              onClick={() => navigate(`/outbound/delivery-orders/${order.id}`)}
-                              className="inline-flex items-center justify-center rounded-full border border-ink bg-canvas-light px-3 py-1 text-xs font-semibold text-ink transition-colors hover:bg-zinc-100"
-                            >
-                              {order.status === 'NEW' ? 'Lập kế hoạch lấy hàng' : 'Duyệt xử lý kho'}
-                            </button>
-                          )}
-                          {canOpenQcEntry && (
-                            <button
-                              onClick={() => navigate(`/outbound/delivery-orders/${order.id}`)}
-                              className="inline-flex items-center justify-center rounded-full border border-blue-300 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
-                            >
-                              Nhập kết quả lấy hàng/QC
-                            </button>
-                          )}
-                          <button
-                            onClick={() => navigate(`/outbound/delivery-orders/${order.id}`)}
-                            className="flex items-center justify-center rounded-full p-1.5 text-shade-50 transition-colors hover:bg-zinc-200 hover:text-ink"
-                            title="Xem chi tiết"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </button>
+                          {renderDoActions(order)}
                         </div>
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+
+          {/* Mobile: stacked card view */}
+          <div className="flex flex-col gap-3 md:hidden">
+            {orders.map((order) => (
+              <div key={order.id} className="rounded-lg border border-hairline-light bg-canvas-light shadow-level-3 overflow-hidden">
+                <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center gap-2">
+                  <span className="text-xs font-bold text-ink">{order.do_number}</span>
+                  {getStatusBadge(order.status)}
+                </div>
+                <div className="p-4 flex flex-col gap-2 text-xs">
+                  <p className="font-semibold">{order.dealer_name}</p>
+                  <p className="text-shade-50">{getRoleHint(order, hasRole)}</p>
+                  <p className="text-shade-50">Ngày lập: <span className="font-semibold text-ink">{order.document_date ? new Date(order.document_date).toLocaleDateString('vi-VN') : '-'}</span></p>
+                  <p className="text-shade-50">Ngày giao dự kiến: <span className="font-semibold text-ink">{order.expected_delivery_date ? new Date(order.expected_delivery_date).toLocaleDateString('vi-VN') : '-'}</span></p>
+                </div>
+                <div className="p-4 border-t border-hairline-light flex flex-wrap gap-2">
+                  {renderDoActions(order)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       <Modal isOpen={showCreateModal} onClose={handleCloseCreateModal} title="Lập đơn xuất hàng" maxWidth="max-w-4xl">
         <div className="flex flex-col gap-5">
-          <CreditCheckBanner status={creditStatus} remainingCredit={selectedDealerObj?.id === 2 ? 15000000 : 250000000} />
+          <CreditCheckBanner status={creditStatus} remainingCredit={creditCheck.remainingCredit} />
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="flex flex-col gap-3">
@@ -488,11 +597,11 @@ export default function DeliveryOrders() {
             <div className="overflow-hidden rounded-lg border border-hairline-light bg-canvas-light">
               <table className="w-full border-collapse text-left text-xs">
                 <thead>
-                  <tr className="border-b border-hairline-light bg-zinc-50">
-                    <th className="px-4 py-3 font-bold uppercase tracking-wider text-shade-60">Sản phẩm</th>
-                    <th className="w-28 px-4 py-3 font-bold uppercase tracking-wider text-shade-60">Số lượng</th>
-                    <th className="w-36 px-4 py-3 font-bold uppercase tracking-wider text-shade-60">Đơn giá</th>
-                    <th className="w-10 px-4 py-3" />
+                  <tr className="border-b border-hairline-light bg-canvas-cream">
+                    <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Sản phẩm</th>
+                    <th className="w-28 px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Số lượng</th>
+                    <th className="w-36 px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Báo giá</th>
+                    <th className="w-10 px-4 py-4" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-hairline-light">
@@ -505,40 +614,49 @@ export default function DeliveryOrders() {
                   )}
 
                   {formData.items.map((item, index) => (
-                    <tr key={`${item.product_id || 'new'}-${index}`} className="hover:bg-zinc-50/50">
-                      <td className="px-4 py-2.5">
-                        <select
+                    <tr key={`${item.product_id || 'new'}-${index}`} className="hover:bg-canvas-cream/50 transition-colors">
+                      <td className="px-4 py-3">
+                        <Input
+                          type="select"
                           disabled={masterDataLoading}
-                          className="w-full rounded-md border border-hairline-light bg-canvas-light px-3 py-2.5 text-sm text-ink transition-all focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
                           value={item.product_id}
                           onChange={(event) => updateItemRow(index, 'product_id', event.target.value)}
-                        >
-                          <option value="">{masterDataLoading ? '-- Đang tải sản phẩm --' : '-- Chọn sản phẩm --'}</option>
-                          {productOptionsFor(item.product_id).map((product) => (
-                            <option key={product.id} value={product.id}>[{product.sku}] {product.name}</option>
-                          ))}
-                        </select>
+                          options={[
+                            { value: '', label: masterDataLoading ? '-- Đang tải sản phẩm --' : '-- Chọn sản phẩm --' },
+                            ...productOptionsFor(item.product_id).map((product) => ({ value: product.id, label: `[${product.sku}] ${product.name}` })),
+                          ]}
+                        />
                       </td>
-                      <td className="px-4 py-2.5">
-                        <input
+                      <td className="px-4 py-3">
+                        <Input
                           type="number"
                           min="1"
-                          className="w-full rounded-md border border-hairline-light bg-canvas-light px-3 py-2.5 text-sm text-ink transition-all focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
                           value={item.requested_qty}
                           onChange={(event) => updateItemRow(index, 'requested_qty', Number(event.target.value))}
                         />
                       </td>
-                      <td className="px-4 py-2.5">
-                        <input
-                          type="number"
-                          min="0"
-                          className="w-full rounded-md border border-hairline-light bg-canvas-light px-3 py-2.5 text-sm text-ink transition-all focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
-                          value={item.unit_price}
-                          onChange={(event) => updateItemRow(index, 'unit_price', Number(event.target.value))}
-                        />
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col gap-1">
+                          <div className="relative">
+                            <Input
+                              type="text"
+                              value={item.price_status === 'ready' ? `${formatVND(item.unit_price)} VND` : ''}
+                              disabled
+                              placeholder={item.price_status === 'loading' ? 'Đang tra giá...' : 'Chọn sản phẩm'}
+                            />
+                            {item.price_status === 'loading' && (
+                              <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-shade-40" />
+                            )}
+                          </div>
+                          {item.price_status === 'missing' && (
+                            <span className="text-[11px] font-medium text-danger-600">
+                              Chưa có báo giá được duyệt
+                            </span>
+                          )}
+                        </div>
                       </td>
-                      <td className="px-4 py-2.5 text-center">
-                        <button type="button" onClick={() => removeItemRow(index)} className="rounded-full p-1 text-shade-40 transition-colors hover:bg-zinc-100 hover:text-red-600">
+                      <td className="px-4 py-3 text-center">
+                        <button type="button" onClick={() => removeItemRow(index)} className="rounded-full p-1 text-shade-40 transition-colors hover:bg-canvas-cream hover:text-danger-600">
                           <X className="h-4 w-4" />
                         </button>
                       </td>
@@ -558,7 +676,7 @@ export default function DeliveryOrders() {
 
       <Modal isOpen={cancelModal.show} onClose={() => setCancelModal({ show: false, orderId: null, reason: '' })} title="Hủy lệnh xuất hàng">
         <div className="flex flex-col gap-4">
-          <div className="flex items-center gap-2 text-sm font-semibold text-red-600">
+          <div className="flex items-center gap-2 text-sm font-semibold text-danger-600">
             <AlertTriangle className="h-4 w-4 shrink-0" /> Hành động này không thể hoàn tác.
           </div>
           <Input
@@ -569,7 +687,7 @@ export default function DeliveryOrders() {
           />
           <div className="flex justify-end gap-3 border-t border-hairline-light pt-4">
             <Button variant="outline-light" onClick={() => setCancelModal({ show: false, orderId: null, reason: '' })}>Đóng</Button>
-            <Button onClick={handleCancelDO} disabled={!cancelModal.reason.trim()} className="bg-red-600 text-white hover:bg-red-700 focus:ring-red-500">
+            <Button onClick={handleCancelDO} disabled={!cancelModal.reason.trim()} className="bg-danger-600 text-white hover:bg-danger-700 focus:ring-danger-500">
               Xác nhận hủy
             </Button>
           </div>

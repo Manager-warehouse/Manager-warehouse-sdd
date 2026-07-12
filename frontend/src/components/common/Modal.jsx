@@ -31,7 +31,7 @@ const Modal = ({
 
       {/* Panel */}
       <div
-        className={`relative w-full ${maxWidth} bg-canvas-light rounded-lg border border-hairline-light shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] flex flex-col max-h-[90vh] z-10 overflow-hidden transform transition-all duration-300`}
+        className={`relative w-full ${maxWidth} bg-canvas-light rounded-lg border border-hairline-light shadow-level-4 flex flex-col max-h-[90vh] z-10 overflow-hidden transform transition-all duration-300`}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 bg-canvas-cream border-b border-hairline-light">

@@ -18,19 +18,20 @@ import { interWarehouseTransferService } from '../../services/inter-warehouse-tr
 import { useUiStore } from '../../stores/ui.store';
 import { useAuthStore } from '../../stores/auth.store';
 import OTPInput from '../../components/warehouse/OTPInput';
+import Button from '../../components/common/Button';
+import Badge from '../../components/common/Badge';
 
 const DELIVERY_STATUS_MAP = {
-  WAREHOUSE_APPROVED: { label: 'Chờ giao', color: 'bg-amber-50 text-amber-700 border-amber-200' },
+  WAREHOUSE_APPROVED: { label: 'Chờ giao', color: 'bg-warning-50 text-warning-700 border-warning-200' },
   IN_TRANSIT: { label: 'Đang giao', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-  COMPLETED: { label: 'Đã giao', color: 'bg-emerald-50 text-emerald-900 border-emerald-300' },
-  FAILED: { label: 'Thất bại', color: 'bg-red-50 text-red-700 border-red-200' },
+  COMPLETED: { label: 'Đã giao', color: 'bg-success-50 text-success-900 border-success-300' },
+  FAILED: { label: 'Thất bại', color: 'bg-danger-50 text-danger-700 border-danger-200' },
   RETURNED: { label: 'Hoàn trả', color: 'bg-orange-50 text-orange-700 border-orange-200' },
 };
 
 const StatusBadge = ({ status }) => {
-  const base = 'text-[10px] font-semibold px-2 py-0.5 rounded-full border uppercase tracking-wider whitespace-nowrap';
-  const { label, color } = DELIVERY_STATUS_MAP[status] ?? { label: status, color: 'bg-zinc-100 text-zinc-800 border-zinc-200' };
-  return <span className={`${base} ${color}`}>{label}</span>;
+  const { label, color } = DELIVERY_STATUS_MAP[status] ?? { label: status, color: 'bg-canvas-cream text-shade-70 border-hairline-light' };
+  return <Badge size="sm" colorClassName={color}>{label}</Badge>;
 };
 
 function OTPCountdown({ expiresAt, onExpired }) {
@@ -51,7 +52,7 @@ function OTPCountdown({ expiresAt, onExpired }) {
   if (!expiresAt) return null;
   const mm = String(Math.floor(remaining / 60)).padStart(2, '0');
   const ss = String(remaining % 60).padStart(2, '0');
-  return <span className={`font-mono font-bold text-sm ${remaining < 60 ? 'text-red-600' : 'text-shade-50'}`}>{mm}:{ss}</span>;
+  return <span className={`font-mono font-bold text-sm ${remaining < 60 ? 'text-danger-600' : 'text-shade-50'}`}>{mm}:{ss}</span>;
 }
 
 export default function DriverTrip() {
@@ -84,6 +85,8 @@ export default function DriverTrip() {
 
   const fetchTrips = async () => {
     setLoading(true);
+    const loadedTrips = [];
+    let loadedAnySource = false;
     try {
       const allTrips = await outboundService.getTrips(null, {});
       const isDriver = user?.role === 'DRIVER';
@@ -227,45 +230,41 @@ export default function DriverTrip() {
   };
 
   if (!id) {
-    if (loading) {
-      return (
-        <div className="flex items-center justify-center p-20">
-          <Loader2 className="w-8 h-8 animate-spin text-shade-50" />
-        </div>
-      );
-    }
-
-    if (!trips.length) {
-      return (
-        <div className="bg-white rounded-lg border border-hairline-light p-12 text-center shadow-sm">
-          <Truck className="w-12 h-12 text-shade-30 mx-auto mb-4" />
-          <h3 className="text-lg font-bold mb-1">Không có chuyến xe nào</h3>
-          <p className="text-sm text-shade-50">Hiện tại bạn chưa được gán chuyến xe nào.</p>
-        </div>
-      );
-    }
-
     return (
       <div className="flex flex-col gap-6">
         <div>
-          <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">Giao hàng</span>
-          <h1 className="text-2xl font-display font-semibold tracking-tight">Danh sách chuyến</h1>
+          <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">Vận hành / Giao hàng</span>
+          <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">Chuyến giao hàng của tôi</h1>
+          <p className="text-xs text-shade-50 font-light mt-1">Các chuyến xe được phân công cho tài xế hiện tại.</p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {trips.map((tripItem) => (
-            <div key={tripItem.id} onClick={() => navigate(`/outbound/driver/trips/${tripItem.id}`)} className="bg-white rounded-lg border border-hairline-light shadow-sm hover:shadow-md transition-shadow cursor-pointer card-premium overflow-hidden">
-              <div className="p-4 border-b border-hairline-light bg-zinc-50 flex justify-between items-center">
-                <span className="text-xs font-bold text-ink">{tripItem.trip_number}</span>
-                <StatusBadge status={tripItem.status} />
+
+        {loading ? (
+          <div className="flex items-center justify-center p-20">
+            <Loader2 className="w-8 h-8 animate-spin text-shade-50" />
+          </div>
+        ) : !trips.length ? (
+          <div className="bg-canvas-light rounded-lg border border-hairline-light p-12 text-center shadow-level-3">
+            <Truck className="w-12 h-12 text-shade-30 mx-auto mb-4" />
+            <h3 className="text-lg font-bold mb-1">Không có chuyến xe nào</h3>
+            <p className="text-sm text-shade-50">Hiện tại bạn chưa được gán chuyến xe nào.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {trips.map((tripItem) => (
+              <div key={tripItem.id} onClick={() => navigate(`/outbound/driver/trips/${tripItem.id}`)} className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 hover:shadow-md transition-shadow cursor-pointer overflow-hidden">
+                <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center">
+                  <span className="text-xs font-bold text-ink">{tripItem.trip_number}</span>
+                  <StatusBadge status={tripItem.status} />
+                </div>
+                <div className="p-4 flex flex-col gap-2 text-xs">
+                  <p className="flex items-center gap-2 text-shade-50"><Truck className="w-3.5 h-3.5 text-shade-40" /> Xe: <span className="font-semibold text-ink">{tripItem.vehicle_plate || '-'}</span></p>
+                  <p className="flex items-center gap-2 text-shade-50"><Calendar className="w-3.5 h-3.5 text-shade-40" /> T.gian dự kiến: <span className="font-semibold text-ink">{tripItem.planned_start_at ? new Date(tripItem.planned_start_at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) : '-'}</span></p>
+                  <p className="text-xs text-shade-50 pt-1">Tổng KL: <span className="font-semibold text-ink">{tripItem.total_weight_kg || 0} kg</span></p>
+                </div>
               </div>
-              <div className="p-4 space-y-2 text-xs">
-                <p className="flex items-center gap-2 text-shade-50"><Truck className="w-3.5 h-3.5 text-shade-40" /> Xe: <span className="font-semibold text-ink">{tripItem.vehicle_plate || '-'}</span></p>
-                <p className="flex items-center gap-2 text-shade-50"><Calendar className="w-3.5 h-3.5 text-shade-40" /> T.gian dự kiến: <span className="font-semibold text-ink">{tripItem.planned_start_at ? new Date(tripItem.planned_start_at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) : '-'}</span></p>
-                <p className="text-xs text-shade-50 pt-1">Tổng KL: <span className="font-semibold text-ink">{tripItem.total_weight_kg || 0} kg</span></p>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
@@ -293,26 +292,31 @@ export default function DriverTrip() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-start gap-3 pt-1">
-        <button onClick={() => navigate('/outbound/driver/trips')} className="mt-0.5 p-1.5 hover:bg-zinc-200 rounded-full transition-colors text-shade-50 hover:text-ink shrink-0">
+      <div className="flex items-start gap-4">
+        <button
+          onClick={() => navigate('/outbound/driver/trips')}
+          className="mt-1 p-1.5 hover:bg-canvas-cream rounded-full transition-colors text-shade-50 hover:text-ink shrink-0"
+        >
           <ArrowLeft className="w-4 h-4" />
         </button>
         <div>
-          <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">Giao hàng / Chuyến của tôi</span>
-          <h1 className="text-xl font-display font-semibold tracking-tight">{trip.trip_number}</h1>
-          <p className="text-xs text-shade-50 mt-0.5">
+          <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">Vận hành / Giao hàng</span>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">{trip.trip_number}</h1>
+            <StatusBadge status={trip.status} />
+          </div>
+          <p className="text-xs text-shade-50 font-light mt-1">
             {isTransferTrip ? `${trip.sourceWarehouseCode} → ${trip.destinationWarehouseCode}` : `${deliveredCount}/${totalCount} điểm đã giao`}
           </p>
         </div>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-6 items-start">
-        <div className="w-full lg:w-80 shrink-0 bg-white rounded-lg border border-hairline-light shadow-sm p-5 card-premium">
+        <div className="w-full lg:w-80 shrink-0 p-5 card-premium rounded-lg">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xs font-bold uppercase tracking-wider text-shade-40">Thông tin chuyến</h2>
-            <StatusBadge status={trip.status} />
           </div>
-          <div className="space-y-2 text-xs mb-4">
+          <div className="flex flex-col gap-2 text-xs mb-4">
             <p className="flex items-center gap-2 text-shade-50"><Truck className="w-3.5 h-3.5 text-shade-40 shrink-0" /> Xe: <span className="font-semibold text-ink">{trip.vehicle_plate}</span></p>
             <p className="flex items-center gap-2 text-shade-50"><User className="w-3.5 h-3.5 text-shade-40 shrink-0" /> Tài xế: <span className="font-semibold text-ink">{trip.driver_name}</span></p>
             <p className="flex items-center gap-2 text-shade-50"><Calendar className="w-3.5 h-3.5 text-shade-40 shrink-0" /> Khởi hành: <span className="font-semibold text-ink">{new Date(trip.planned_date).toLocaleString('vi-VN')}</span></p>
@@ -323,8 +327,8 @@ export default function DriverTrip() {
           {trip.tripWarningActive && (
             <div className={`mb-4 rounded-md border px-3 py-2 text-[11px] ${
               trip.tripOverdue
-                ? 'border-red-200 bg-red-50 text-red-700'
-                : 'border-amber-200 bg-amber-50 text-amber-700'
+                ? 'border-danger-200 bg-danger-50 text-danger-700'
+                : 'border-warning-200 bg-warning-50 text-warning-700'
             }`}>
               {trip.tripWarningMessage}
             </div>
@@ -341,7 +345,7 @@ export default function DriverTrip() {
                 {transferLoaded ? 'Xác nhận xuất phát' : 'Chờ xếp hàng'}
               </button>
               {!transferLoaded && (
-                <p className="mt-2 text-[11px] leading-relaxed text-amber-700">
+                <p className="mt-2 text-[11px] leading-relaxed text-warning-700">
                   Thủ kho nguồn cần xác nhận xếp đủ số lượng hàng lên xe trước khi tài xế xuất phát.
                 </p>
               )}
@@ -355,9 +359,9 @@ export default function DriverTrip() {
                 <span>Tiến độ giao hàng</span>
                 <span className="font-semibold text-ink">{deliveredCount}/{totalCount}</span>
               </div>
-              <div className="w-full bg-zinc-100 rounded-full h-2">
+              <div className="w-full bg-canvas-cream rounded-full h-2">
                 <div
-                  className="bg-emerald-500 h-2 rounded-full transition-all duration-500"
+                  className="bg-success-500 h-2 rounded-full transition-all duration-500"
                   style={{ width: `${totalCount > 0 ? (deliveredCount / totalCount) * 100 : 0}%` }}
                 />
               </div>
@@ -372,13 +376,13 @@ export default function DriverTrip() {
         </h3>
 
         {isTransferTrip && trip.items.map((item) => (
-          <div key={item.id} className="rounded-lg border border-hairline-light bg-white shadow-sm p-4">
+          <div key={item.id} className="rounded-lg border border-hairline-light bg-canvas-light shadow-level-3 p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h4 className="text-sm font-bold text-ink leading-tight">{item.productSku} <span className="font-normal text-shade-50">{item.productName}</span></h4>
                 <p className="text-xs text-shade-50 mt-1">Kế hoạch: {item.plannedQty} · Xuất: {item.sentQty ?? '-'}</p>
               </div>
-              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-pill border uppercase tracking-wider bg-amber-50 text-amber-700 border-amber-200">
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-pill border uppercase tracking-wider bg-warning-50 text-warning-700 border-warning-200">
                 Điều chuyển
               </span>
             </div>
@@ -391,9 +395,9 @@ export default function DriverTrip() {
             const isPending = !isDelivered && !isFailed;
 
             return (
-              <div key={`${doItem.do_id}-${index}`} className={`rounded-lg border overflow-hidden ${isDelivered ? 'bg-emerald-50 border-emerald-300' : isFailed ? 'bg-red-50 border-red-200' : 'bg-white border-hairline-light shadow-sm'}`}>
+              <div key={`${doItem.do_id}-${index}`} className={`rounded-lg border overflow-hidden ${isDelivered ? 'bg-success-50 border-success-300' : isFailed ? 'bg-danger-50 border-danger-200' : 'bg-canvas-light border-hairline-light shadow-level-3'}`}>
                 <div className="p-4 flex gap-3">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 font-bold text-sm ${isDelivered ? 'bg-emerald-600 text-white' : isFailed ? 'bg-red-500 text-white' : 'bg-ink text-white'}`}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 font-bold text-sm ${isDelivered ? 'bg-success-600 text-white' : isFailed ? 'bg-danger-500 text-white' : 'bg-ink text-white'}`}>
                     {isDelivered ? <CheckCircle2 className="w-4 h-4" /> : index + 1}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -406,16 +410,16 @@ export default function DriverTrip() {
 
                     {isPending && trip.status === 'IN_TRANSIT' && (
                       <div className="flex gap-2 mt-4">
-                        <button onClick={() => { setActiveDO(doItem); setModalType('DELIVER'); }} className="flex-1 py-2.5 bg-ink text-white rounded-full text-sm font-semibold hover:bg-shade-70 active:scale-95 transition-all">
+                        <Button variant="primary" className="flex-1" onClick={() => { setActiveDO(doItem); setModalType('DELIVER'); }}>
                           Giao hàng (OTP)
-                        </button>
-                        <button onClick={() => { setActiveDO(doItem); setModalType('FAIL'); }} className="px-3.5 py-2.5 bg-red-50 text-red-700 border border-red-200 rounded-full hover:bg-red-100 active:scale-95 transition-all" title="Báo giao thất bại">
+                        </Button>
+                        <button onClick={() => { setActiveDO(doItem); setModalType('FAIL'); }} className="px-3.5 py-2.5 rounded-pill bg-danger-50 text-danger-700 border border-danger-200 hover:bg-danger-100 active:scale-95 transition-all" title="Báo giao thất bại">
                           <AlertTriangle className="w-4 h-4" />
                         </button>
                       </div>
                     )}
 
-                    {isFailed && doItem.failure_reason && <p className="text-xs text-red-600 mt-2 flex items-center gap-1"><X className="w-3.5 h-3.5 shrink-0" /> Thất bại: {doItem.failure_reason}</p>}
+                    {isFailed && doItem.failure_reason && <p className="text-xs text-danger-600 mt-2 flex items-center gap-1"><X className="w-3.5 h-3.5 shrink-0" /> Thất bại: {doItem.failure_reason}</p>}
                   </div>
                 </div>
               </div>
@@ -425,11 +429,11 @@ export default function DriverTrip() {
       </div>
 
       {activeDO && modalType === 'DELIVER' && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-xl max-h-[90vh] flex flex-col shadow-2xl">
+        <div className="fixed inset-0 bg-canvas-night/60 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-canvas-light w-full sm:max-w-md rounded-t-2xl sm:rounded-xl max-h-[90vh] flex flex-col shadow-level-4">
             <div className="px-5 py-4 border-b border-hairline-light flex items-center justify-between">
               <h3 className="text-base font-bold text-ink">Xác nhận giao hàng</h3>
-              <button onClick={closeModal} className="p-1.5 hover:bg-zinc-100 rounded-full text-shade-50 hover:text-ink transition-colors"><X className="w-5 h-5" /></button>
+              <button onClick={closeModal} className="p-1.5 hover:bg-canvas-cream rounded-full text-shade-50 hover:text-ink transition-colors"><X className="w-5 h-5" /></button>
             </div>
 
             <div className="p-5 overflow-y-auto flex-1 flex flex-col gap-5">
@@ -454,9 +458,9 @@ export default function DriverTrip() {
               <div className="border-t border-hairline-light pt-5">
                 <label className="block text-xs font-bold text-shade-60 mb-3 uppercase tracking-wider">Xác thực OTP từ đại lý</label>
                 {!otpSent ? (
-                  <button onClick={handleUploadPodAndRequestOTP} disabled={submitting} className="w-full py-3.5 bg-ink text-white font-bold rounded-full text-sm hover:bg-shade-70 disabled:opacity-50 active:scale-95 transition-all">
-                    {submitting ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Tải POD và gửi mã OTP'}
-                  </button>
+                  <Button variant="primary" className="w-full py-3.5" onClick={handleUploadPodAndRequestOTP} disabled={submitting} loading={submitting}>
+                    Tải POD và gửi mã OTP
+                  </Button>
                 ) : (
                   <div className="flex flex-col gap-4">
                     <div className="flex justify-between items-center">
@@ -464,7 +468,7 @@ export default function DriverTrip() {
                       <OTPCountdown expiresAt={otpExpiresAt} onExpired={() => setOtpExpired(true)} />
                     </div>
                     <OTPInput length={6} onComplete={handleVerifyOTP} />
-                    {otpExpired && <p className="text-xs text-red-600 text-center font-medium">Mã OTP đã hết hạn.</p>}
+                    {otpExpired && <p className="text-xs text-danger-600 text-center font-medium">Mã OTP đã hết hạn.</p>}
                     <button onClick={handleUploadPodAndRequestOTP} disabled={submitting || !otpExpired} className="text-sm text-ink font-semibold underline disabled:opacity-40 disabled:no-underline text-center">
                       Gửi lại OTP
                     </button>
@@ -477,21 +481,21 @@ export default function DriverTrip() {
       )}
 
       {activeDO && modalType === 'FAIL' && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-xl max-h-[90vh] flex flex-col shadow-2xl">
+        <div className="fixed inset-0 bg-canvas-night/60 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-canvas-light w-full sm:max-w-md rounded-t-2xl sm:rounded-xl max-h-[90vh] flex flex-col shadow-level-4">
             <div className="px-5 py-4 border-b border-hairline-light flex items-center justify-between">
-              <h3 className="text-base font-bold text-red-600 flex items-center gap-2"><AlertTriangle className="w-5 h-5" /> Báo giao thất bại</h3>
-              <button onClick={closeModal} className="p-1.5 hover:bg-zinc-100 rounded-full text-shade-50 hover:text-ink transition-colors"><X className="w-5 h-5" /></button>
+              <h3 className="text-base font-bold text-danger-600 flex items-center gap-2"><AlertTriangle className="w-5 h-5" /> Báo giao thất bại</h3>
+              <button onClick={closeModal} className="p-1.5 hover:bg-canvas-cream rounded-full text-shade-50 hover:text-ink transition-colors"><X className="w-5 h-5" /></button>
             </div>
 
             <div className="p-5 overflow-y-auto flex-1 flex flex-col gap-5">
-              <div className="bg-red-50 border border-red-100 rounded-lg p-3 text-sm text-red-800">Đơn <strong>{activeDO.do_number}</strong></div>
+              <div className="bg-danger-50 border border-danger-100 rounded-lg p-3 text-sm text-danger-800">Đơn <strong>{activeDO.do_number}</strong></div>
               <div>
                 <label className="block text-xs font-bold text-shade-60 mb-2 uppercase tracking-wider">Lý do thất bại *</label>
                 <textarea className="w-full text-input text-sm h-28 resize-none" placeholder="Đại lý đóng cửa, từ chối nhận..." value={failureReason} onChange={(event) => setFailureReason(event.target.value)} />
               </div>
               <textarea className="text-input text-sm h-20 resize-none" placeholder="Ghi chú bổ sung..." value={notes} onChange={(event) => setNotes(event.target.value)} />
-              <button onClick={handleFailDelivery} disabled={!failureReason.trim() || submitting} className="w-full py-3.5 bg-red-600 text-white font-bold rounded-full text-sm hover:bg-red-700 disabled:opacity-50 active:scale-95 transition-all">
+              <button onClick={handleFailDelivery} disabled={!failureReason.trim() || submitting} className="w-full py-3.5 bg-danger-600 text-white font-bold rounded-pill text-sm hover:bg-danger-700 disabled:opacity-50 active:scale-95 transition-all">
                 {submitting ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Xác nhận thất bại'}
               </button>
             </div>

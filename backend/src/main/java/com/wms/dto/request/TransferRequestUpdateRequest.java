@@ -3,6 +3,7 @@ package com.wms.dto.request;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import java.time.LocalDate;
 import java.util.List;
 
 public record TransferRequestUpdateRequest(
@@ -11,6 +12,10 @@ public record TransferRequestUpdateRequest(
 
     @NotNull(message = "DESTINATION_WAREHOUSE_ID_REQUIRED")
     Long destinationWarehouseId,
+
+    LocalDate neededByDate,
+
+    String businessReason,
 
     String notes,
 

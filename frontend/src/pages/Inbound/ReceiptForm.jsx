@@ -2,9 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
+import { useDebounce } from '../../hooks/useDebounce';
 import { inboundService } from '../../services/inbound.service';
 import { masterDataService } from '../../services/masterData.service';
 import { ArrowLeft, Trash2, Plus, Search, Loader2 } from 'lucide-react';
+import Input from '../../components/common/Input';
 
 const ReceiptForm = () => {
   const navigate = useNavigate();
@@ -57,7 +59,6 @@ const ReceiptForm = () => {
       } else {
         addToast(`Lỗi tải danh mục: ${msg || 'Vui lòng thử lại'}`, 'error');
       }
-      console.error('[ReceiptForm] fetchMetadata error:', status, msg, e);
     } finally {
       setLoading(false);
     }
@@ -65,21 +66,19 @@ const ReceiptForm = () => {
 
 
   // Simple product search debounce
+  const debouncedSearchQuery = useDebounce(searchQuery, 250);
+
   useEffect(() => {
-    if (!searchQuery.trim()) {
+    if (!debouncedSearchQuery.trim()) {
       setSearchResults([]);
       return;
     }
-    const delayDebounce = setTimeout(() => {
-      const filtered = products.filter(p =>
-        p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.name.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-      setSearchResults(filtered);
-    }, 250);
-
-    return () => clearTimeout(delayDebounce);
-  }, [searchQuery, products]);
+    const filtered = products.filter(p =>
+      p.sku.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+      p.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
+    );
+    setSearchResults(filtered);
+  }, [debouncedSearchQuery, products]);
 
   const handleAddItem = (product) => {
     // Check if duplicate
@@ -216,13 +215,13 @@ const ReceiptForm = () => {
 
       <form onSubmit={handleSubmit} className="flex flex-col lg:flex-row gap-6 items-start">
         {/* Left column - Metadata */}
-        <div className="w-full lg:w-1/3 bg-white border border-hairline-light rounded-lg p-6 shadow-sm card-premium flex flex-col gap-5">
+        <div className="w-full lg:w-1/3 bg-canvas-light border border-hairline-light rounded-lg p-6 shadow-level-3 card-premium flex flex-col gap-5">
           <h3 className="text-xs font-bold uppercase tracking-widest text-shade-40 border-b border-hairline-light pb-2 mb-2">
             Thông tin chung
           </h3>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold">Loại nhập kho</label>
+            <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Loại nhập kho</label>
             <select
               value={type}
               onChange={(e) => {
@@ -237,17 +236,17 @@ const ReceiptForm = () => {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold">Kho đích nhận</label>
+            <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Kho đích nhận</label>
             <input
               type="text"
               value={activeWarehouse?.name || ''}
               disabled
-              className="text-input bg-zinc-50 text-shade-50 cursor-not-allowed font-semibold"
+              className="text-input bg-canvas-cream text-shade-50 cursor-not-allowed font-semibold"
             />
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold">
+            <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">
               {type === 'PURCHASE' ? 'Nhà cung cấp' : 'Đại lý trả hàng'}
             </label>
             <select
@@ -265,7 +264,7 @@ const ReceiptForm = () => {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold">Người liên hệ <span className="text-red-500">*</span></label>
+            <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Người liên hệ <span className="text-danger-500">*</span></label>
             <input
               type="text"
               placeholder="VD: Nguyễn Văn A"
@@ -277,7 +276,7 @@ const ReceiptForm = () => {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold">Mã chứng từ nguồn (PO/DO hoàn) <span className="text-red-500">*</span></label>
+            <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Mã chứng từ nguồn (PO/DO hoàn) <span className="text-danger-500">*</span></label>
             <input
               type="text"
               placeholder="VD: PO-2026-0005"
@@ -289,7 +288,7 @@ const ReceiptForm = () => {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold">Kênh thông tin</label>
+            <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Kênh thông tin</label>
             <select
               value={sourceChannel}
               onChange={(e) => setSourceChannel(e.target.value)}
@@ -301,7 +300,7 @@ const ReceiptForm = () => {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold">Ngày chứng từ</label>
+            <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Ngày chứng từ</label>
             <input
               type="date"
               value={documentDate}
@@ -312,7 +311,7 @@ const ReceiptForm = () => {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold">Ghi chú</label>
+            <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Ghi chú</label>
             <textarea
               placeholder="Nhập ghi chú thêm..."
               value={notes}
@@ -325,15 +324,15 @@ const ReceiptForm = () => {
         {/* Right column - Products list & selection */}
         <div className="w-full lg:w-2/3 flex flex-col gap-6">
           {/* Product Search & Selector */}
-          <div className="bg-white border border-hairline-light rounded-lg p-6 shadow-sm card-premium relative">
+          <div className="bg-canvas-light border border-hairline-light rounded-lg p-6 shadow-level-3 card-premium relative">
             <h3 className="text-xs font-bold uppercase tracking-widest text-shade-40 mb-4 border-b border-hairline-light pb-2">
               Thêm sản phẩm
             </h3>
 
             <div className="relative">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-shade-40" />
-              <input
+              <Input
                 type="text"
+                leftIcon={Search}
                 placeholder="Tìm kiếm sản phẩm theo tên, SKU..."
                 value={searchQuery}
                 onChange={(e) => {
@@ -341,12 +340,11 @@ const ReceiptForm = () => {
                   setShowSearchResults(true);
                 }}
                 onFocus={() => setShowSearchResults(true)}
-                className="w-full text-input pl-10"
               />
 
               {/* Search results dropdown */}
               {showSearchResults && searchQuery.trim() !== '' && (
-                <div className="absolute left-0 right-0 mt-1.5 bg-white border border-hairline-light rounded-lg shadow-xl max-h-60 overflow-y-auto z-40">
+                <div className="absolute left-0 right-0 mt-1.5 bg-canvas-light border border-hairline-light rounded-lg shadow-level-4 max-h-60 overflow-y-auto z-40">
                   {searchResults.length === 0 ? (
                     <div className="p-4 text-xs text-shade-50 text-center">Không tìm thấy sản phẩm hợp lệ</div>
                   ) : (
@@ -354,7 +352,7 @@ const ReceiptForm = () => {
                       <div
                         key={prod.id}
                         onClick={() => handleAddItem(prod)}
-                        className="p-3 hover:bg-zinc-50 cursor-pointer transition-colors border-b border-hairline-light last:border-0 flex items-center justify-between text-xs"
+                        className="p-3 hover:bg-canvas-cream cursor-pointer transition-colors border-b border-hairline-light last:border-0 flex items-center justify-between text-xs"
                       >
                         <div>
                           <span className="font-bold block">{prod.sku}</span>
@@ -370,8 +368,8 @@ const ReceiptForm = () => {
           </div>
 
           {/* Selected Items Table */}
-          <div className="bg-white border border-hairline-light rounded-lg shadow-sm card-premium overflow-hidden">
-            <div className="p-4 border-b border-hairline-light bg-zinc-50">
+          <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 overflow-hidden">
+            <div className="p-4 border-b border-hairline-light bg-canvas-cream">
               <h3 className="text-xs font-bold uppercase tracking-widest text-shade-40">
                 Chi tiết sản phẩm lập lệnh
               </h3>
@@ -382,60 +380,111 @@ const ReceiptForm = () => {
                 Chưa có sản phẩm nào được chọn. Hãy tìm kiếm và thêm sản phẩm ở khung phía trên.
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-zinc-50 border-b border-hairline-light">
-                      <th className="px-6 py-3 font-bold text-shade-60">Sản phẩm</th>
-                      <th className="px-6 py-3 font-bold text-shade-60 text-right w-24">Số lượng dự kiến</th>
-                      <th className="px-6 py-3 font-bold text-shade-60 text-right w-36">Đơn giá nhập (VND)</th>
-                      <th className="px-6 py-3 font-bold text-shade-60 text-right w-20">Hành động</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-hairline-light">
-                    {selectedItems.map((item, index) => (
-                      <tr key={item.product_id} className="hover:bg-zinc-50/50">
-                        <td className="px-6 py-4">
+              <>
+                {/* Desktop/tablet: table view */}
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-canvas-cream border-b border-hairline-light">
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Sản phẩm</th>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right w-24">Số lượng dự kiến</th>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right w-36">Đơn giá nhập (VND)</th>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right w-20">Hành động</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-hairline-light">
+                      {selectedItems.map((item, index) => (
+                        <tr key={item.product_id} className="hover:bg-canvas-cream/50 transition-colors">
+                          <td className="px-6 py-4">
+                            <span className="font-bold block">{item.sku}</span>
+                            <span className="text-shade-50 block">{item.name}</span>
+
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <input
+                              type="number"
+                              min="1"
+                              step="any"
+                              value={item.expected_qty}
+                              onChange={(e) => handleQtyChange(index, e.target.value)}
+                              className="text-input text-right font-bold w-20 py-1"
+                              required
+                            />
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <input
+                              type="number"
+                              min="0"
+                              step="any"
+                              value={item.unit_cost}
+                              onChange={(e) => handleCostChange(index, e.target.value)}
+                              className="text-input text-right font-bold w-32 py-1"
+                              required
+                            />
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveItem(index)}
+                              className="p-1 text-danger-500 hover:text-danger-700 hover:bg-danger-50 rounded-full transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile: stacked card view with full-width inputs */}
+                <div className="flex flex-col divide-y divide-hairline-light md:hidden">
+                  {selectedItems.map((item, index) => (
+                    <div key={item.product_id} className="p-4 flex flex-col gap-3">
+                      <div className="flex justify-between items-start gap-2">
+                        <div className="text-xs">
                           <span className="font-bold block">{item.sku}</span>
                           <span className="text-shade-50 block">{item.name}</span>
-
-                        </td>
-                        <td className="px-6 py-4 text-right">
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveItem(index)}
+                          className="p-1.5 text-danger-500 hover:text-danger-700 hover:bg-danger-50 rounded transition-colors shrink-0"
+                          title="Xóa sản phẩm"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[10px] font-semibold uppercase tracking-wider text-shade-50">Số lượng dự kiến</label>
                           <input
                             type="number"
                             min="1"
                             step="any"
                             value={item.expected_qty}
                             onChange={(e) => handleQtyChange(index, e.target.value)}
-                            className="text-input text-right font-bold w-20 py-1"
+                            className="text-input text-right font-bold py-1.5"
                             required
                           />
-                        </td>
-                        <td className="px-6 py-4 text-right">
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[10px] font-semibold uppercase tracking-wider text-shade-50">Đơn giá nhập (VND)</label>
                           <input
                             type="number"
                             min="0"
                             step="any"
                             value={item.unit_cost}
                             onChange={(e) => handleCostChange(index, e.target.value)}
-                            className="text-input text-right font-bold w-32 py-1"
+                            className="text-input text-right font-bold py-1.5"
                             required
                           />
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveItem(index)}
-                            className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
-                          >
-                            <Trash2 className="w-4 h-4 mx-auto" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
           </div>
 

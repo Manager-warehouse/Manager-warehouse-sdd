@@ -7,24 +7,24 @@ const ToastItem = ({ id, message, type }) => {
 
   const configs = {
     success: {
-      bg: 'bg-canvas-light border-green-200',
+      bg: 'bg-canvas-light border-success-200',
       text: 'text-ink',
-      icon: <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" />
+      icon: <CheckCircle2 className="w-5 h-5 text-success-600 flex-shrink-0" />
     },
     error: {
-      bg: 'bg-canvas-light border-red-200',
+      bg: 'bg-canvas-light border-danger-200',
       text: 'text-ink',
-      icon: <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+      icon: <AlertCircle className="w-5 h-5 text-danger-500 flex-shrink-0" />
     },
     warning: {
-      bg: 'bg-canvas-light border-amber-200',
+      bg: 'bg-canvas-light border-warning-200',
       text: 'text-ink',
-      icon: <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0" />
+      icon: <AlertTriangle className="w-5 h-5 text-warning-500 flex-shrink-0" />
     },
     info: {
-      bg: 'bg-canvas-light border-blue-200',
+      bg: 'bg-canvas-light border-info-200',
       text: 'text-ink',
-      icon: <Info className="w-5 h-5 text-blue-500 flex-shrink-0" />
+      icon: <Info className="w-5 h-5 text-info-500 flex-shrink-0" />
     }
   };
 
@@ -32,7 +32,7 @@ const ToastItem = ({ id, message, type }) => {
 
   return (
     <div
-      className={`flex items-start gap-3 p-4 rounded-lg border shadow-lg max-w-sm w-80 animate-slide-in ${config.bg} ${config.text}`}
+      className={`flex items-start gap-3 p-4 rounded-lg border shadow-level-4 max-w-sm w-80 animate-slide-in ${config.bg} ${config.text}`}
       role="alert"
     >
       {config.icon}

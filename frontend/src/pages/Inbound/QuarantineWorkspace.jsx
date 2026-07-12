@@ -5,6 +5,8 @@ import { inboundService } from '../../services/inbound.service';
 import { masterDataService } from '../../services/masterData.service';
 import { ROLES } from '../../utils/constants';
 import { Loader2, ArrowRightLeft, Trash2, ShieldAlert, Check, X } from 'lucide-react';
+import Button from '../../components/common/Button';
+import Badge from '../../components/common/Badge';
 
 const QuarantineWorkspace = () => {
   const activeWarehouse = useAuthStore((state) => state.activeWarehouse);
@@ -79,7 +81,6 @@ const QuarantineWorkspace = () => {
       setShowRtvModal(false);
       fetchData();
     } catch (e) {
-      console.error('RTV error:', e);
       addToast(`Lỗi xử lý xuất trả hàng: ${e.message || 'Không xác định'}`, 'error');
     } finally {
       setSubmitting(false);
@@ -104,7 +105,6 @@ const QuarantineWorkspace = () => {
       setShowDisposalModal(false);
       fetchData();
     } catch (e) {
-      console.error('Disposal error:', e);
       addToast(`Lỗi xử lý yêu cầu tiêu hủy: ${e.message || 'Không xác định'}`, 'error');
     } finally {
       setSubmitting(false);
@@ -133,12 +133,12 @@ const QuarantineWorkspace = () => {
   // Finance Threshold Badge Renderer
   const getDisposalThresholdBadge = (value) => {
     if (value < 5000000) {
-      return <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-pill whitespace-nowrap">Tự động duyệt (&lt; 5M)</span>;
+      return <Badge size="sm" type="success">Tự động duyệt (&lt; 5M)</Badge>;
     }
     if (value <= 100000000) {
-      return <span className="text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-pill whitespace-nowrap">Trưởng kho duyệt (5M - 100M)</span>;
+      return <Badge size="sm" type="warning">Trưởng kho duyệt (5M - 100M)</Badge>;
     }
-    return <span className="text-[10px] font-bold bg-red-50 text-red-700 border border-red-200 px-2 py-0.5 rounded-pill whitespace-nowrap font-mono">Bắt buộc CEO duyệt (&gt; 100M)</span>;
+    return <Badge size="sm" type="danger">Bắt buộc CEO duyệt (&gt; 100M)</Badge>;
   };
 
   const getDisposalApprovalAuthority = (value) => {
@@ -199,7 +199,7 @@ const QuarantineWorkspace = () => {
       ) : activeTab === 'WORKSPACE' ? (
         // Workspace List
         quarantineItems.length === 0 ? (
-          <div className="bg-white rounded-lg border border-hairline-light p-12 text-center shadow-sm">
+          <div className="bg-canvas-light rounded-lg border border-hairline-light p-12 text-center shadow-level-3">
             <ShieldAlert className="w-12 h-12 text-shade-30 mx-auto mb-4" />
             <h3 className="text-lg font-bold mb-1">Khu vực cách ly hiện đang trống</h3>
             <p className="text-sm text-shade-50">Không có hàng hóa QC hỏng cần xử lý tại kho này.</p>
@@ -207,9 +207,9 @@ const QuarantineWorkspace = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {quarantineItems.map((item) => (
-              <div 
-                key={item.id} 
-                className="bg-white border border-hairline-light rounded-lg p-6 shadow-sm card-premium flex flex-col justify-between"
+              <div
+                key={item.id}
+                className="bg-canvas-light border border-hairline-light rounded-lg p-6 shadow-level-3 card-premium flex flex-col justify-between"
               >
                 <div>
                   <div className="flex justify-between items-start gap-4 mb-3 border-b border-hairline-light pb-2">
@@ -217,7 +217,7 @@ const QuarantineWorkspace = () => {
                       <span className="text-[10px] font-bold text-shade-40 uppercase font-mono block">{item.product_sku}</span>
                       <h4 className="font-bold text-sm text-ink">{item.product_name}</h4>
                     </div>
-                    <span className="text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-pill whitespace-nowrap font-bold text-xs">
+                    <span className="text-danger-700 bg-danger-50 border border-danger-200 px-2 py-0.5 rounded-pill whitespace-nowrap font-semibold text-[10px] uppercase tracking-wider">
                       Lỗi: {item.qc_failed_qty} {item.unit}
                     </span>
                   </div>
@@ -226,11 +226,11 @@ const QuarantineWorkspace = () => {
                     <div>
                       <span className="font-semibold text-shade-50">Nguồn gốc cách ly:</span>{' '}
                       {item.origin_type === 'INTERNAL_TRANSFER' ? (
-                        <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 px-1.5 py-0.5 rounded font-mono font-bold text-[10px]">
+                        <span className="bg-shade-30 text-ink border border-hairline-light px-1.5 py-0.5 rounded font-mono font-bold text-[10px]">
                           Điều chuyển: {item.receipt_number}
                         </span>
                       ) : (
-                        <span className="bg-zinc-50 text-zinc-700 border border-zinc-200 px-1.5 py-0.5 rounded font-mono font-bold text-[10px]">
+                        <span className="bg-canvas-cream text-shade-70 border border-hairline-light px-1.5 py-0.5 rounded font-mono font-bold text-[10px]">
                           Phiếu nhập: {item.receipt_number}
                         </span>
                       )}
@@ -239,7 +239,7 @@ const QuarantineWorkspace = () => {
                       <span className="font-semibold text-shade-50">Nhà cung cấp:</span> {getSupplierName(item.supplier_id)}
                     </div>
                     <div>
-                      <span className="font-semibold text-shade-50">Lý do lỗi QC:</span> <span className="text-red-600 font-semibold italic">{item.qc_failure_reason || 'Không rõ'}</span>
+                      <span className="font-semibold text-shade-50">Lý do lỗi QC:</span> <span className="text-danger-600 font-semibold italic">{item.qc_failure_reason || 'Không rõ'}</span>
                     </div>
                     <div>
                       <span className="font-semibold text-shade-50">Trị giá hàng lỗi:</span> <span className="font-bold text-ink">{item.total_value.toLocaleString('vi-VN')} VND</span>
@@ -247,7 +247,7 @@ const QuarantineWorkspace = () => {
                   </div>
                 </div>
 
-                <div className="flex gap-2 border-t border-zinc-100 pt-4 justify-end">
+                <div className="flex gap-2 border-t border-hairline-light pt-4 justify-end">
                   {(!item.origin_type || item.origin_type === 'RECEIPT') && (
                     <button
                       onClick={() => handleRtvClick(item)}
@@ -257,13 +257,14 @@ const QuarantineWorkspace = () => {
                       <span>Trả hàng NCC (RTV)</span>
                     </button>
                   )}
-                  <button
+                  <Button
+                    variant="primary"
                     onClick={() => handleDisposalClick(item)}
-                    className="btn-pill bg-zinc-900 hover:bg-zinc-800 text-white text-xs flex items-center gap-1.5 py-1.5"
+                    className="text-xs py-1.5"
+                    icon={Trash2}
                   >
-                    <Trash2 className="w-3.5 h-3.5 text-red-400" />
-                    <span>Yêu cầu tiêu hủy</span>
-                  </button>
+                    Yêu cầu tiêu hủy
+                  </Button>
                 </div>
               </div>
             ))}
@@ -272,78 +273,112 @@ const QuarantineWorkspace = () => {
       ) : (
         // Approvals List
         pendingDisposals.length === 0 ? (
-          <div className="bg-white rounded-lg border border-hairline-light p-12 text-center shadow-sm">
-            <Check className="w-12 h-12 text-emerald-500 mx-auto mb-4 bg-emerald-50 p-2.5 rounded-full" />
+          <div className="bg-canvas-light rounded-lg border border-hairline-light p-12 text-center shadow-level-3">
+            <Check className="w-12 h-12 text-success-500 mx-auto mb-4 bg-success-50 p-2.5 rounded-full" />
             <h3 className="text-lg font-bold mb-1">Không có yêu cầu tiêu hủy nào chờ duyệt</h3>
             <p className="text-sm text-shade-50">Mọi yêu cầu tiêu hủy hàng hỏng đã được xử lý xong.</p>
           </div>
         ) : (
-          <div className="bg-white rounded-lg border border-hairline-light shadow-sm overflow-hidden card-premium">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-zinc-50 border-b border-hairline-light">
-                  <th className="px-6 py-3.5 font-bold text-shade-60">Sản phẩm</th>
-                  <th className="px-6 py-3.5 font-bold text-shade-60 text-right">Số lượng hủy</th>
-                  <th className="px-6 py-3.5 font-bold text-shade-60 text-right">Trị giá</th>
-                  <th className="px-6 py-3.5 font-bold text-shade-60">Lý do tiêu hủy</th>
-                  <th className="px-6 py-3.5 font-bold text-shade-60">Thẩm quyền duyệt</th>
-                  <th className="px-6 py-3.5 font-bold text-shade-60 text-right">Hành động</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-hairline-light">
-                {pendingDisposals.map((adj) => {
-                  const isAuthorized = getDisposalApprovalAuthority(adj.total_value);
-                  return (
-                    <tr key={adj.id} className="hover:bg-zinc-50/50">
-                      <td className="px-6 py-4">
-                        <span className="font-bold block">{adj.product_sku}</span>
-                        <span className="text-shade-50 block">{adj.product_name}</span>
-                      </td>
-                      <td className="px-6 py-4 text-right font-semibold text-red-600">{adj.failed_qty}</td>
-                      <td className="px-6 py-4 text-right font-bold">{adj.total_value.toLocaleString('vi-VN')} VND</td>
-                      <td className="px-6 py-4 text-shade-60 italic">{adj.cause}</td>
-                      <td className="px-6 py-4">{getDisposalThresholdBadge(adj.total_value)}</td>
-                      <td className="px-6 py-4 text-right whitespace-nowrap">
-                        {isAuthorized ? (
-                          <button
-                            onClick={() => handleApproveDisposal(adj.id, adj.total_value)}
-                            className="inline-flex items-center justify-center rounded-full bg-aloe-10 text-emerald-950 border border-emerald-300 hover:bg-emerald-100 px-3.5 py-1 text-xs font-bold whitespace-nowrap transition-colors duration-150"
-                          >
-                            Phê duyệt
-                          </button>
-                        ) : (
-                          <span className="text-[10px] text-red-500 font-semibold bg-red-50 border border-red-100 px-2 py-0.5 rounded whitespace-nowrap">
-                            Chờ cấp trên duyệt
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden">
+            {/* Desktop/tablet: table view */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-canvas-cream border-b border-hairline-light">
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Sản phẩm</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Số lượng hủy</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Trị giá</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Lý do tiêu hủy</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Thẩm quyền duyệt</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Hành động</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-hairline-light">
+                  {pendingDisposals.map((adj) => {
+                    const isAuthorized = getDisposalApprovalAuthority(adj.total_value);
+                    return (
+                      <tr key={adj.id} className="hover:bg-canvas-cream/50 transition-colors">
+                        <td className="px-6 py-4">
+                          <span className="font-bold block">{adj.product_sku}</span>
+                          <span className="text-shade-50 block">{adj.product_name}</span>
+                        </td>
+                        <td className="px-6 py-4 text-right font-semibold text-danger-600">{adj.failed_qty}</td>
+                        <td className="px-6 py-4 text-right font-bold">{adj.total_value.toLocaleString('vi-VN')} VND</td>
+                        <td className="px-6 py-4 text-shade-60 italic">{adj.cause}</td>
+                        <td className="px-6 py-4">{getDisposalThresholdBadge(adj.total_value)}</td>
+                        <td className="px-6 py-4 text-right whitespace-nowrap">
+                          {isAuthorized ? (
+                            <button
+                              onClick={() => handleApproveDisposal(adj.id, adj.total_value)}
+                              className="inline-flex items-center justify-center rounded-full bg-aloe-10 text-success-950 border border-success-300 hover:bg-success-100 px-3 py-1 text-xs font-bold whitespace-nowrap transition-colors duration-150"
+                            >
+                              Phê duyệt
+                            </button>
+                          ) : (
+                            <Badge size="sm" type="danger">Chờ cấp trên duyệt</Badge>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile: stacked card view */}
+            <div className="flex flex-col gap-3 p-4 md:hidden">
+              {pendingDisposals.map((adj) => {
+                const isAuthorized = getDisposalApprovalAuthority(adj.total_value);
+                return (
+                  <div key={adj.id} className="rounded-lg border border-hairline-light bg-canvas-cream/30 overflow-hidden">
+                    <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center gap-2">
+                      <span className="font-bold text-xs">{adj.product_sku}</span>
+                      {getDisposalThresholdBadge(adj.total_value)}
+                    </div>
+                    <div className="p-4 flex flex-col gap-2 text-xs">
+                      <div className="text-shade-50">{adj.product_name}</div>
+                      <p className="text-shade-50">Số lượng hủy: <span className="font-semibold text-danger-600">{adj.failed_qty}</span></p>
+                      <p className="text-shade-50">Trị giá: <span className="font-bold text-ink">{adj.total_value.toLocaleString('vi-VN')} VND</span></p>
+                      <p className="text-shade-50">Lý do: <span className="text-shade-60 italic">{adj.cause}</span></p>
+                    </div>
+                    <div className="p-4 border-t border-hairline-light flex justify-end">
+                      {isAuthorized ? (
+                        <button
+                          onClick={() => handleApproveDisposal(adj.id, adj.total_value)}
+                          className="inline-flex items-center justify-center rounded-full bg-aloe-10 text-success-950 border border-success-300 hover:bg-success-100 px-3 py-1 text-xs font-bold whitespace-nowrap transition-colors duration-150"
+                        >
+                          Phê duyệt
+                        </button>
+                      ) : (
+                        <Badge size="sm" type="danger">Chờ cấp trên duyệt</Badge>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )
       )}
 
       {/* RTV Modal */}
       {showRtvModal && selectedItem && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-canvas-cream border border-hairline-light rounded-lg max-w-md w-full shadow-2xl overflow-hidden">
-            <div className="p-5 border-b border-hairline-light bg-white flex justify-between items-center">
+        <div className="fixed inset-0 bg-canvas-night/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-canvas-cream border border-hairline-light rounded-lg max-w-md w-full shadow-level-4 overflow-hidden">
+            <div className="p-5 border-b border-hairline-light bg-canvas-cream flex justify-between items-center">
               <h3 className="font-bold text-base flex items-center gap-2">
-                <ArrowRightLeft className="w-5 h-5 text-indigo-600" />
+                <ArrowRightLeft className="w-5 h-5 text-shade-70" />
                 Xác nhận xuất trả hàng lỗi NCC
               </h3>
-              <button onClick={() => setShowRtvModal(false)} className="p-1 hover:bg-zinc-100 rounded-full">
+              <button onClick={() => setShowRtvModal(false)} className="p-1 hover:bg-canvas-cream rounded-full">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="p-5 text-xs flex flex-col gap-4">
-              <div className="bg-white p-3 rounded border border-hairline-light shadow-inner flex flex-col gap-2">
+              <div className="bg-canvas-light p-3 rounded border border-hairline-light shadow-inner flex flex-col gap-2">
                 <div><span className="text-shade-50">Sản phẩm:</span> <strong className="text-ink">{selectedItem.product_sku} - {selectedItem.product_name}</strong></div>
                 <div><span className="text-shade-50">Nhà cung cấp:</span> <strong>{getSupplierName(selectedItem.supplier_id)}</strong></div>
-                <div><span className="text-shade-50">Số lượng lỗi QC xuất trả:</span> <strong className="text-red-600">{selectedItem.qc_failed_qty}</strong></div>
+                <div><span className="text-shade-50">Số lượng lỗi QC xuất trả:</span> <strong className="text-danger-600">{selectedItem.qc_failed_qty}</strong></div>
                 <div><span className="text-shade-50">Tổng tiền đòi bồi hoàn (Debit Note):</span> <strong className="text-ink text-sm">{selectedItem.total_value.toLocaleString('vi-VN')} VND</strong></div>
               </div>
               <div className="flex flex-col gap-1.5">
@@ -356,7 +391,7 @@ const QuarantineWorkspace = () => {
                 />
               </div>
             </div>
-            <div className="p-4 border-t border-hairline-light bg-zinc-50 flex justify-end gap-2">
+            <div className="p-4 border-t border-hairline-light bg-canvas-cream flex justify-end gap-2">
               <button onClick={() => setShowRtvModal(false)} className="btn-pill btn-pill-outline-light text-xs py-1.5 px-4">
                 Hủy
               </button>
@@ -374,21 +409,21 @@ const QuarantineWorkspace = () => {
 
       {/* Disposal Request Modal */}
       {showDisposalModal && selectedItem && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-canvas-cream border border-hairline-light rounded-lg max-w-md w-full shadow-2xl overflow-hidden">
-            <div className="p-5 border-b border-hairline-light bg-white flex justify-between items-center">
+        <div className="fixed inset-0 bg-canvas-night/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-canvas-cream border border-hairline-light rounded-lg max-w-md w-full shadow-level-4 overflow-hidden">
+            <div className="p-5 border-b border-hairline-light bg-canvas-cream flex justify-between items-center">
               <h3 className="font-bold text-base flex items-center gap-2">
-                <Trash2 className="w-5 h-5 text-red-600" />
+                <Trash2 className="w-5 h-5 text-danger-600" />
                 Yêu cầu tiêu hủy hàng hỏng
               </h3>
-              <button onClick={() => setShowDisposalModal(false)} className="p-1 hover:bg-zinc-100 rounded-full">
+              <button onClick={() => setShowDisposalModal(false)} className="p-1 hover:bg-canvas-cream rounded-full">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="p-5 text-xs flex flex-col gap-4">
-              <div className="bg-white p-3 rounded border border-hairline-light shadow-inner flex flex-col gap-2">
+              <div className="bg-canvas-light p-3 rounded border border-hairline-light shadow-inner flex flex-col gap-2">
                 <div><span className="text-shade-50">Sản phẩm:</span> <strong>{selectedItem.product_sku} - {selectedItem.product_name}</strong></div>
-                <div><span className="text-shade-50">Số lượng hủy:</span> <strong className="text-red-600">{selectedItem.qc_failed_qty}</strong></div>
+                <div><span className="text-shade-50">Số lượng hủy:</span> <strong className="text-danger-600">{selectedItem.qc_failed_qty}</strong></div>
                 <div><span className="text-shade-50">Tổng trị giá:</span> <strong>{selectedItem.total_value.toLocaleString('vi-VN')} VND</strong></div>
                 <div className="flex items-center gap-2 mt-1">
                   <span className="text-shade-50">Thẩm quyền:</span>
@@ -416,7 +451,7 @@ const QuarantineWorkspace = () => {
                 />
               </div>
             </div>
-            <div className="p-4 border-t border-hairline-light bg-zinc-50 flex justify-end gap-2">
+            <div className="p-4 border-t border-hairline-light bg-canvas-cream flex justify-end gap-2">
               <button onClick={() => setShowDisposalModal(false)} className="btn-pill btn-pill-outline-light text-xs py-1.5 px-4">
                 Hủy
               </button>

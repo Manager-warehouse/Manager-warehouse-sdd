@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../stores/auth.store';
 import Badge from '../components/common/Badge';
-import { Package, TrendingUp, AlertCircle, RefreshCw, Search, ArrowRightLeft, X, Send } from 'lucide-react';
+import Input from '../components/common/Input';
+import Modal from '../components/common/Modal';
+import Button from '../components/common/Button';
+import { Package, TrendingUp, AlertCircle, RefreshCw, Search, ArrowRightLeft, Send } from 'lucide-react';
 import { masterDataService } from '../services/masterData.service';
 import { interWarehouseTransferService } from '../services/inter-warehouse-transfer.service';
 import { useUiStore } from '../stores/ui.store';
+import { useDebounce } from '../hooks/useDebounce';
 
 const Dashboard = () => {
   const { user, activeWarehouse } = useAuthStore();
@@ -20,6 +24,8 @@ const Dashboard = () => {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [selectedSourceWhId, setSelectedSourceWhId] = useState('');
   const [requestedQty, setRequestedQty] = useState(1);
+  const [neededByDate, setNeededByDate] = useState('');
+  const [businessReason, setBusinessReason] = useState('');
   const [notes, setNotes] = useState('Yêu cầu điều chuyển nhanh từ Dashboard');
   const [submitting, setSubmitting] = useState(false);
 
@@ -47,6 +53,8 @@ const Dashboard = () => {
     }
   ];
 
+  const debouncedSearchQuery = useDebounce(searchQuery);
+
   const loadCrossWarehouseStock = async () => {
     setLoadingStock(true);
     try {
@@ -56,7 +64,7 @@ const Dashboard = () => {
       setPhysicalWarehouses(physicals);
 
       // 2. Load products list
-      const products = await masterDataService.getProducts({ search: searchQuery });
+      const products = await masterDataService.getProducts({ search: debouncedSearchQuery });
       const list = products.slice(0, 10); // Limit to 10 for performance
 
       // 3. For each product, lookup stock in all warehouses
@@ -80,7 +88,6 @@ const Dashboard = () => {
       );
       setProductsStock(results);
     } catch (error) {
-      console.error('Error loading cross stock:', error);
       addToast('Không thể tải thông tin tồn kho toàn hệ thống', 'error');
     } finally {
       setLoadingStock(false);
@@ -89,7 +96,7 @@ const Dashboard = () => {
 
   useEffect(() => {
     loadCrossWarehouseStock();
-  }, [searchQuery]);
+  }, [debouncedSearchQuery]);
 
   const handleOpenTransferModal = (product) => {
     setSelectedProduct(product);
@@ -99,6 +106,10 @@ const Dashboard = () => {
     
     setSelectedSourceWhId(defaultSrc ? String(defaultSrc.id) : '');
     setRequestedQty(1);
+    const defaultNeededBy = new Date();
+    defaultNeededBy.setDate(defaultNeededBy.getDate() + 2);
+    setNeededByDate(defaultNeededBy.toISOString().slice(0, 10));
+    setBusinessReason(`Bổ sung tồn khả dụng cho ${product.sku}`);
     setNotes(`Yêu cầu điều chuyển nhanh sản phẩm ${product.sku} từ Dashboard`);
     setShowModal(true);
   };
@@ -113,12 +124,18 @@ const Dashboard = () => {
       addToast('Số lượng yêu cầu phải lớn hơn 0', 'warning');
       return;
     }
+    if (!businessReason.trim()) {
+      addToast('Vui lòng nhập lý do nghiệp vụ', 'warning');
+      return;
+    }
 
     setSubmitting(true);
     try {
       const payload = {
         sourceWarehouseId: Number(selectedSourceWhId),
         destinationWarehouseId: Number(activeWarehouse.id),
+        neededByDate: neededByDate || null,
+        businessReason: businessReason.trim(),
         notes: notes,
         items: [
           {
@@ -133,7 +150,6 @@ const Dashboard = () => {
       setShowModal(false);
       loadCrossWarehouseStock(); // Refresh stock
     } catch (error) {
-      console.error('Error creating transfer request:', error);
       addToast(error.message || 'Lỗi khi tạo yêu cầu điều chuyển', 'error');
     } finally {
       setSubmitting(false);
@@ -183,17 +199,17 @@ const Dashboard = () => {
             descStyle = 'text-ink/60';
             iconStyle = 'text-ink bg-canvas-light/50';
           } else if (isPremium) {
-            cardStyle = 'bg-canvas-night text-onPrimary rounded-lg p-6 hover:shadow-lg transition-all duration-200 border border-hairline-dark';
+            cardStyle = 'bg-canvas-night text-onPrimary rounded-lg p-6 shadow-level-3 transition-all duration-200 border border-hairline-dark';
             titleStyle = 'text-shade-40';
             valStyle = 'text-onPrimary';
             descStyle = 'text-shade-40';
             iconStyle = 'text-onPrimary bg-canvas-nightElevated';
           } else if (isDanger) {
-            cardStyle = 'bg-red-50/50 rounded-lg p-6 border border-red-150 shadow-level-3 hover:shadow-lg transition-all duration-200';
-            titleStyle = 'text-red-700/80';
-            valStyle = 'text-red-700';
-            descStyle = 'text-red-600/60';
-            iconStyle = 'text-red-700 bg-red-100/50';
+            cardStyle = 'bg-danger-50/50 rounded-lg p-6 border border-danger-200 shadow-level-3 hover:shadow-lg transition-all duration-200';
+            titleStyle = 'text-danger-700/80';
+            valStyle = 'text-danger-700';
+            descStyle = 'text-danger-600/60';
+            iconStyle = 'text-danger-700 bg-danger-100/50';
           }
 
           return (
@@ -220,8 +236,8 @@ const Dashboard = () => {
       </div>
 
       {/* Cross-Warehouse Stock Management Section */}
-      <div className="card-premium flex flex-col gap-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-hairline-light pb-3 gap-3">
+      <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden flex flex-col">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-hairline-light px-6 py-4 gap-3">
           <div>
             <h3 className="text-sm font-bold text-shade-70 uppercase tracking-wider">
               Tồn kho hệ thống & Xin điều chuyển nhanh
@@ -233,14 +249,13 @@ const Dashboard = () => {
           
           <div className="flex items-center gap-3">
             {/* Search Input */}
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 text-shade-40 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
+            <div className="w-48 sm:w-60">
+              <Input
                 type="text"
+                leftIcon={Search}
                 placeholder="Tìm SKU hoặc tên..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8 pr-3 py-1.5 bg-canvas-cream border border-hairline-light rounded-pill text-xs focus:outline-none focus:border-shade-40 w-48 sm:w-60 font-light"
               />
             </div>
             
@@ -256,205 +271,239 @@ const Dashboard = () => {
         </div>
 
         {loadingStock && productsStock.length === 0 ? (
-          <div className="py-12 text-center text-shade-50 text-xs font-light">
+          <div className="px-6 py-12 text-center text-shade-50 text-xs font-light">
             Đang truy vấn tồn kho hệ thống...
           </div>
         ) : productsStock.length === 0 ? (
-          <div className="py-12 text-center text-shade-50 text-xs font-light">
+          <div className="px-6 py-12 text-center text-shade-50 text-xs font-light">
             Không tìm thấy sản phẩm nào phù hợp.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="table-premium w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-hairline-light bg-canvas-cream/50 text-[10px] uppercase font-bold text-shade-60 tracking-wider">
-                  <th className="py-3 px-4">Mã SKU</th>
-                  <th className="py-3 px-4">Tên Sản Phẩm</th>
-                  <th className="py-3 px-4">Đơn vị</th>
-                  {physicalWarehouses.map((wh) => (
-                    <th key={wh.id} className="py-3 px-4 text-center">
-                      {wh.name}
-                    </th>
-                  ))}
-                  <th className="py-3 px-4 text-right">Hành động</th>
-                </tr>
-              </thead>
-              <tbody>
-                {productsStock.map((prod) => {
-                  // Check if any other warehouse has stock > 0
-                  const hasStockElsewhere = physicalWarehouses.some(
-                    wh => Number(wh.id) !== Number(activeWarehouse?.id) && (prod.stockMap?.[wh.id] || 0) > 0
-                  );
+          <>
+            {/* Desktop/tablet: table view */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-canvas-cream border-b border-hairline-light">
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã SKU</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Tên Sản Phẩm</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Đơn vị</th>
+                    {physicalWarehouses.map((wh) => (
+                      <th key={wh.id} className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center">
+                        {wh.name}
+                      </th>
+                    ))}
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Hành động</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-hairline-light">
+                  {productsStock.map((prod) => {
+                    // Check if any other warehouse has stock > 0
+                    const hasStockElsewhere = physicalWarehouses.some(
+                      wh => Number(wh.id) !== Number(activeWarehouse?.id) && (prod.stockMap?.[wh.id] || 0) > 0
+                    );
 
-                  return (
-                    <tr
-                      key={prod.id}
-                      className="border-b border-hairline-light hover:bg-canvas-cream/30 transition-colors text-xs font-light text-ink"
-                    >
-                      <td className="py-3 px-4 font-mono font-semibold text-shade-70">
-                        {prod.sku}
-                      </td>
-                      <td className="py-3 px-4 font-normal">
-                        {prod.name}
-                      </td>
-                      <td className="py-3 px-4 text-shade-50">
-                        {prod.unit}
-                      </td>
-                      {physicalWarehouses.map((wh) => {
-                        const qty = prod.stockMap?.[wh.id] || 0;
-                        const isActiveWh = Number(wh.id) === Number(activeWarehouse?.id);
-                        return (
-                          <td
-                            key={wh.id}
-                            className={`py-3 px-4 text-center font-semibold ${
-                              isActiveWh 
-                                ? 'bg-canvas-cream/40 border-x border-hairline-light text-ink'
-                                : qty > 0 ? 'text-aloe-70' : 'text-shade-40'
-                            }`}
-                          >
-                            {qty} {prod.unit.toLowerCase()}
-                          </td>
-                        );
-                      })}
-                      <td className="py-3 px-4 text-right">
-                        {hasStockElsewhere ? (
-                          <button
-                            onClick={() => handleOpenTransferModal(prod)}
-                            className="bg-aloe-10 hover:bg-aloe-20 text-aloe-90 border border-aloe-30 px-3 py-1 rounded-pill text-[10px] font-bold uppercase tracking-wider transition-colors inline-flex items-center gap-1.5"
-                          >
-                            <ArrowRightLeft className="w-3 h-3" />
-                            <span>Xin điều chuyển</span>
-                          </button>
-                        ) : (
-                          <span className="text-[10px] text-shade-40 uppercase font-semibold">Không có sẵn</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                    return (
+                      <tr
+                        key={prod.id}
+                        className="hover:bg-canvas-cream/50 transition-colors text-xs font-light text-ink"
+                      >
+                        <td className="px-6 py-4 font-mono font-semibold text-shade-70">
+                          {prod.sku}
+                        </td>
+                        <td className="px-6 py-4 font-normal">
+                          {prod.name}
+                        </td>
+                        <td className="px-6 py-4 text-shade-50">
+                          {prod.unit}
+                        </td>
+                        {physicalWarehouses.map((wh) => {
+                          const qty = prod.stockMap?.[wh.id] || 0;
+                          const isActiveWh = Number(wh.id) === Number(activeWarehouse?.id);
+                          return (
+                            <td
+                              key={wh.id}
+                              className={`px-6 py-4 text-center font-semibold ${
+                                isActiveWh
+                                  ? 'bg-canvas-cream/40 border-x border-hairline-light text-ink'
+                                  : qty > 0 ? 'text-[#127a3c]' : 'text-shade-40'
+                              }`}
+                            >
+                              {qty} {prod.unit.toLowerCase()}
+                            </td>
+                          );
+                        })}
+                        <td className="px-6 py-4 text-right">
+                          {hasStockElsewhere ? (
+                            <button
+                              onClick={() => handleOpenTransferModal(prod)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill btn-pill-aloe text-xs font-semibold transition-colors"
+                            >
+                              <ArrowRightLeft className="w-3.5 h-3.5" />
+                              Xin điều chuyển
+                            </button>
+                          ) : (
+                            <span className="text-shade-50 text-[10px] font-medium">Không có sẵn</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile: stacked card view */}
+            <div className="flex flex-col gap-3 p-4 md:hidden">
+              {productsStock.map((prod) => {
+                const hasStockElsewhere = physicalWarehouses.some(
+                  wh => Number(wh.id) !== Number(activeWarehouse?.id) && (prod.stockMap?.[wh.id] || 0) > 0
+                );
+
+                return (
+                  <div key={prod.id} className="rounded-lg border border-hairline-light bg-canvas-cream/30 overflow-hidden text-xs font-light text-ink">
+                    <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center gap-2">
+                      <span className="font-mono font-semibold text-shade-70">{prod.sku}</span>
+                      <span className="text-shade-50">{prod.unit}</span>
+                    </div>
+                    <div className="p-4 flex flex-col gap-2">
+                      <div className="font-normal">{prod.name}</div>
+                      <div className="grid grid-cols-2 gap-2 mt-1">
+                        {physicalWarehouses.map((wh) => {
+                          const qty = prod.stockMap?.[wh.id] || 0;
+                          const isActiveWh = Number(wh.id) === Number(activeWarehouse?.id);
+                          return (
+                            <div
+                              key={wh.id}
+                              className={`rounded px-2 py-1.5 text-center font-semibold ${
+                                isActiveWh
+                                  ? 'bg-canvas-cream border border-hairline-light text-ink'
+                                  : qty > 0 ? 'text-[#127a3c] bg-canvas-light' : 'text-shade-40 bg-canvas-light'
+                              }`}
+                            >
+                              <div className="text-[9px] uppercase tracking-wide font-bold mb-0.5">{wh.name}</div>
+                              {qty} {prod.unit.toLowerCase()}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div className="p-4 border-t border-hairline-light flex justify-end">
+                      {hasStockElsewhere ? (
+                        <button
+                          onClick={() => handleOpenTransferModal(prod)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill btn-pill-aloe text-xs font-semibold transition-colors"
+                        >
+                          <ArrowRightLeft className="w-3.5 h-3.5" />
+                          Xin điều chuyển
+                        </button>
+                      ) : (
+                        <span className="text-shade-50 text-[10px] font-medium">Không có sẵn</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </div>
 
       {/* Quick Transfer Request Modal */}
-      {showModal && selectedProduct && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-canvas-cream border border-hairline-light rounded-lg shadow-level-4 max-w-md w-full overflow-hidden flex flex-col">
-            {/* Modal Header */}
-            <div className="bg-canvas-night text-onPrimary p-4 flex justify-between items-center border-b border-hairline-dark">
-              <div className="flex items-center gap-2">
-                <ArrowRightLeft className="w-4 h-4 text-aloe-20" />
-                <h4 className="text-sm font-bold uppercase tracking-wider">
-                  Xin điều chuyển nhanh
-                </h4>
+      <Modal isOpen={showModal && !!selectedProduct} onClose={() => setShowModal(false)} title="Xin điều chuyển nhanh" maxWidth="max-w-md">
+        {selectedProduct && (
+          <form onSubmit={handleCreateTransferRequest} className="flex flex-col gap-4">
+            <div>
+              <span className="text-xs font-semibold uppercase tracking-wider text-shade-60 block mb-1.5">
+                Sản phẩm yêu cầu
+              </span>
+              <div className="bg-canvas-cream p-3 rounded-md border border-hairline-light flex flex-col gap-1">
+                <span className="font-mono font-bold text-xs text-shade-70">{selectedProduct.sku}</span>
+                <span className="text-xs text-ink font-semibold">{selectedProduct.name}</span>
               </div>
-              <button
-                onClick={() => setShowModal(false)}
-                className="text-shade-40 hover:text-onPrimary transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
             </div>
 
-            {/* Modal Body */}
-            <form onSubmit={handleCreateTransferRequest} className="p-5 flex flex-col gap-4">
-              <div>
-                <span className="text-[10px] font-bold text-shade-50 uppercase tracking-wider block mb-1">
-                  Sản phẩm yêu cầu
-                </span>
-                <div className="bg-white p-3 rounded border border-hairline-light flex flex-col gap-1">
-                  <span className="font-mono font-bold text-xs text-shade-70">{selectedProduct.sku}</span>
-                  <span className="text-xs text-ink font-semibold">{selectedProduct.name}</span>
-                </div>
-              </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="Kho nhận (Kho đích)"
+                value={activeWarehouse?.name || 'Kho hiện tại'}
+                disabled
+              />
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <span className="text-[10px] font-bold text-shade-50 uppercase tracking-wider block mb-1">
-                    Kho nhận (Kho đích)
-                  </span>
-                  <div className="bg-canvas-cream/50 p-2.5 rounded border border-hairline-light text-xs font-semibold text-shade-70">
-                    {activeWarehouse?.name || 'Kho hiện tại'}
-                  </div>
-                </div>
+              <Input
+                label="Kho gửi (Kho nguồn) *"
+                type="select"
+                value={selectedSourceWhId}
+                onChange={(e) => setSelectedSourceWhId(e.target.value)}
+                required
+                options={[
+                  { value: '', label: '-- Chọn kho gửi --' },
+                  ...physicalWarehouses
+                    .filter(w => Number(w.id) !== Number(activeWarehouse?.id))
+                    .map((w) => {
+                      const qty = selectedProduct.stockMap?.[w.id] || 0;
+                      return {
+                        value: w.id,
+                        label: `${w.name} (Sẵn có: ${qty} ${selectedProduct.unit.toLowerCase()})`,
+                        disabled: qty <= 0,
+                      };
+                    }),
+                ]}
+              />
+            </div>
 
-                <div>
-                  <label className="text-[10px] font-bold text-shade-50 uppercase tracking-wider block mb-1">
-                    Kho gửi (Kho nguồn)
-                  </label>
-                  <select
-                    value={selectedSourceWhId}
-                    onChange={(e) => setSelectedSourceWhId(e.target.value)}
-                    required
-                    className="w-full bg-white border border-hairline-light rounded p-2 text-xs focus:outline-none focus:border-ink font-semibold"
-                  >
-                    <option value="">-- Chọn kho gửi --</option>
-                    {physicalWarehouses
-                      .filter(w => Number(w.id) !== Number(activeWarehouse?.id))
-                      .map((w) => {
-                        const qty = selectedProduct.stockMap?.[w.id] || 0;
-                        return (
-                          <option key={w.id} value={w.id} disabled={qty <= 0}>
-                            {w.name} (Sẵn có: {qty} {selectedProduct.unit.toLowerCase()})
-                          </option>
-                        );
-                      })}
-                  </select>
-                </div>
-              </div>
+            <Input
+              label={`Số lượng yêu cầu (Tối đa: ${selectedSourceWhId ? selectedProduct.stockMap?.[selectedSourceWhId] || 0 : 0})`}
+              type="number"
+              min="1"
+              max={selectedSourceWhId ? selectedProduct.stockMap?.[selectedSourceWhId] || 9999 : 1}
+              value={requestedQty}
+              onChange={(e) => setRequestedQty(Math.max(1, Number(e.target.value)))}
+              required
+            />
 
-              <div>
-                <label className="text-[10px] font-bold text-shade-50 uppercase tracking-wider block mb-1">
-                  Số lượng yêu cầu (Tối đa: {selectedSourceWhId ? selectedProduct.stockMap?.[selectedSourceWhId] || 0 : 0})
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  max={selectedSourceWhId ? selectedProduct.stockMap?.[selectedSourceWhId] || 9999 : 1}
-                  value={requestedQty}
-                  onChange={(e) => setRequestedQty(Math.max(1, Number(e.target.value)))}
-                  required
-                  className="w-full bg-white border border-hairline-light rounded p-2 text-xs focus:outline-none focus:border-ink font-semibold"
-                />
-              </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="Ngày cần hàng"
+                type="date"
+                value={neededByDate}
+                onChange={(e) => setNeededByDate(e.target.value)}
+              />
 
-              <div>
-                <label className="text-[10px] font-bold text-shade-50 uppercase tracking-wider block mb-1">
-                  Ghi chú yêu cầu
-                </label>
-                <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  rows="2"
-                  className="w-full bg-white border border-hairline-light rounded p-2 text-xs focus:outline-none focus:border-ink font-light"
-                  placeholder="Lý do xin điều chuyển..."
-                />
-              </div>
+              <Input
+                label="Lý do nghiệp vụ *"
+                type="text"
+                value={businessReason}
+                onChange={(e) => setBusinessReason(e.target.value)}
+                required
+                placeholder="VD: Bổ sung tồn bán"
+              />
+            </div>
 
-              {/* Modal Footer */}
-              <div className="flex justify-end gap-3 border-t border-hairline-light pt-4 mt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  className="bg-white border border-hairline-light hover:bg-canvas-cream text-ink px-4 py-2 rounded text-xs font-semibold uppercase tracking-wider transition-colors"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="bg-canvas-night hover:bg-canvas-nightElevated text-onPrimary px-4 py-2 rounded text-xs font-semibold uppercase tracking-wider transition-colors inline-flex items-center gap-1.5 disabled:opacity-50"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>{submitting ? 'Đang gửi...' : 'Gửi yêu cầu nháp'}</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wider text-shade-60 block mb-1.5">
+                Ghi chú yêu cầu
+              </label>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows="2"
+                className="text-input resize-none"
+                placeholder="Lý do xin điều chuyển..."
+              />
+            </div>
+
+            <div className="flex justify-end gap-3 border-t border-hairline-light pt-4">
+              <Button type="button" variant="outline-light" onClick={() => setShowModal(false)}>
+                Hủy
+              </Button>
+              <Button type="submit" variant="primary" icon={Send} loading={submitting}>
+                {submitting ? 'Đang gửi...' : 'Gửi yêu cầu nháp'}
+              </Button>
+            </div>
+          </form>
+        )}
+      </Modal>
     </div>
   );
 };

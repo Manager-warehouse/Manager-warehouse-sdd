@@ -1,0 +1,211 @@
+name: Verify and deploy production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  verify-backend:
+    name: Verify backend
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: wms_test
+          POSTGRES_USER: wms
+          POSTGRES_PASSWORD: wms_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: temurin
+          cache: maven
+      - name: Run backend tests
+        working-directory: backend
+        run: mvn -B test --no-transfer-progress
+        env:
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/wms_test
+          SPRING_DATASOURCE_USERNAME: wms
+          SPRING_DATASOURCE_PASSWORD: wms_test
+      - name: Upload backend test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-backend-surefire-reports
+          path: backend/target/surefire-reports/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  verify-frontend:
+    name: Verify frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Lint frontend
+        working-directory: frontend
+        run: npm run lint
+      - name: Run frontend tests
+        working-directory: frontend
+        run: npm test -- --runInBand
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+  publish-images:
+    name: Build, scan, and publish images
+    needs: [verify-backend, verify-frontend]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      backend-image: ${{ steps.refs.outputs.backend }}@${{ steps.backend.outputs.digest }}
+      frontend-image: ${{ steps.refs.outputs.frontend }}@${{ steps.frontend.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve lowercase image names
+        id: refs
+        shell: bash
+        run: |
+          repository="${GITHUB_REPOSITORY,,}"
+          echo "backend=${REGISTRY}/${repository}/backend" >> "$GITHUB_OUTPUT"
+          echo "frontend=${REGISTRY}/${repository}/frontend" >> "$GITHUB_OUTPUT"
+      - name: Validate production Compose contract
+        env:
+          BACKEND_IMAGE: ghcr.io/example/backend@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          FRONTEND_IMAGE: ghcr.io/example/frontend@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+          DB_PASSWORD: ci-only-password
+          JWT_SECRET: ci-only-secret-with-at-least-sixty-four-characters-0123456789abcdef
+          MAIL_USERNAME: ci@example.invalid
+          MAIL_PASSWORD: ci-only-password
+        run: docker compose -f compose.prod.yaml config --quiet
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and publish backend
+        id: backend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: true
+          tags: ${{ steps.refs.outputs.backend }}:${{ github.sha }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+      - name: Build and publish frontend
+        id: frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: true
+          tags: ${{ steps.refs.outputs.frontend }}:${{ github.sha }}
+          build-args: |
+            VITE_API_BASE_URL=/api/v1
+            VITE_USE_MOCK=false
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+      - name: Scan backend image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ steps.refs.outputs.backend }}@${{ steps.backend.outputs.digest }}
+          format: table
+          severity: HIGH,CRITICAL
+          trivyignores: .trivyignore.yaml
+          exit-code: "1"
+        env:
+          TRIVY_SHOW_SUPPRESSED: "true"
+      - name: Scan frontend image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ steps.refs.outputs.frontend }}@${{ steps.frontend.outputs.digest }}
+          format: table
+          severity: HIGH,CRITICAL
+          trivyignores: .trivyignore.yaml
+          exit-code: "1"
+        env:
+          TRIVY_SHOW_SUPPRESSED: "true"
+
+  deploy:
+    name: Deploy production
+    needs: publish-images
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Resolve production approver
+        id: approval
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          approved_by=$(gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/approvals" \
+            --jq '[.[] | select(.state == "approved")] | last | .user.login')
+          if [[ -z "$approved_by" || "$approved_by" == "${GITHUB_ACTOR}" ]]; then
+            echo "A distinct production environment approver is required." >&2
+            exit 1
+          fi
+          echo "approved-by=$approved_by" >> "$GITHUB_OUTPUT"
+          echo "approved-at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+      - name: Deploy approved image digests through SSH
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          APP_DIR: ${{ vars.VPS_APP_DIR || '/app/manager-warehouse' }}
+          BACKUP_DIR: ${{ vars.VPS_BACKUP_DIR || '/app/backups/manager-warehouse' }}
+          PUBLIC_URL: ${{ vars.PRODUCTION_URL }}
+          SOURCE_SHA: ${{ github.sha }}
+          BACKEND_IMAGE: ${{ needs.publish-images.outputs.backend-image }}
+          FRONTEND_IMAGE: ${{ needs.publish-images.outputs.frontend-image }}
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          REQUESTED_BY: ${{ github.actor }}
+          APPROVED_BY: ${{ steps.approval.outputs.approved-by }}
+          APPROVED_AT: ${{ steps.approval.outputs.approved-at }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          fingerprint: ${{ secrets.VPS_SSH_FINGERPRINT }}
+          port: 22
+          command_timeout: 20m
+          envs: APP_DIR,BACKUP_DIR,PUBLIC_URL,SOURCE_SHA,BACKEND_IMAGE,FRONTEND_IMAGE,GHCR_USERNAME,GHCR_TOKEN,REQUESTED_BY,APPROVED_BY,APPROVED_AT
+          script: |
+            set -Eeuo pipefail
+            cd "$APP_DIR"
+            git fetch origin main
+            git checkout main
+            git pull --ff-only origin main
+            exec scripts/deploy/deploy-release.sh

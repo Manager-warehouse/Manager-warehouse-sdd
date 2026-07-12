@@ -47,6 +47,18 @@
     @apply bg-aloe-10 text-ink hover:opacity-90 focus:ring-aloe-10;
   }
 
+  .btn-pill-danger {
+    @apply bg-danger-600 text-onPrimary hover:bg-danger-700 focus:ring-danger-700;
+  }
+
+  .btn-pill-warning {
+    @apply bg-warning-500 text-onPrimary hover:bg-warning-600 focus:ring-warning-600;
+  }
+
+  .btn-pill-info {
+    @apply bg-info-600 text-onPrimary hover:bg-info-700 focus:ring-info-700;
+  }
+
   /* Design system cards from DESIGN.md */
   .card-premium {
     @apply bg-canvas-light rounded-lg border border-hairline-light p-6 shadow-level-3 hover:shadow-lg transition-all duration-200;
@@ -54,6 +66,26 @@
 
   .card-featured-mint {
     @apply bg-aloe-10 rounded-lg p-6 hover:shadow-lg transition-all duration-200 text-ink border border-[#a2f7c0];
+  }
+
+  /* Standard text input styling (matches Input.jsx baseInputStyle) — used by pages that render raw <input>/<select>/<textarea> elements */
+  .text-input {
+    @apply w-full bg-canvas-light text-ink text-sm px-3 py-2.5 rounded-md border border-hairline-light focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink transition-all min-h-[44px] disabled:bg-canvas-cream/60 disabled:text-shade-50 disabled:cursor-not-allowed disabled:opacity-70;
+  }
+
+  /* iOS Capacitor safe-area helpers: keep app chrome below the native status bar / Dynamic Island */
+  .app-safe-header {
+    height: calc(4rem + env(safe-area-inset-top, 0px));
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .app-safe-drawer-backdrop {
+    top: calc(4rem + env(safe-area-inset-top, 0px));
+  }
+
+  .app-safe-drawer {
+    top: calc(4rem + env(safe-area-inset-top, 0px));
+    height: calc(100% - 4rem - env(safe-area-inset-top, 0px));
   }
 
   /* Custom scrollbar */
@@ -79,4 +111,3 @@ input::-ms-reveal,
 input::-ms-clear {
   display: none;
 }
-

@@ -56,9 +56,16 @@ public class ReceiptController {
             @ApiResponse(responseCode = "401", description = "Missing or invalid authentication"),
             @ApiResponse(responseCode = "403", description = "User cannot access this warehouse")
     })
-    public List<ReceiptResponse> getReceipts(@RequestParam Long warehouseId) {
+    public List<ReceiptResponse> getReceipts(
+            @RequestParam(value = "warehouse_id", required = false) Long warehouseIdSnake,
+            @RequestParam(value = "warehouseId", required = false) Long warehouseIdCamel,
+            @RequestParam(value = "type", required = false) com.wms.enums.ReceiptType type) {
+        Long warehouseId = warehouseIdSnake != null ? warehouseIdSnake : warehouseIdCamel;
+        if (warehouseId == null) {
+            throw new IllegalArgumentException("Required request parameter 'warehouseId' or 'warehouse_id' is not present");
+        }
         User actor = currentUserService.getRequiredCurrentUser();
-        return receiptService.getReceiptsByWarehouse(warehouseId, actor);
+        return receiptService.getReceiptsByWarehouseAndType(warehouseId, type, actor);
     }
 
     @GetMapping("/{id}")

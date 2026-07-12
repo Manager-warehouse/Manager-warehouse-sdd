@@ -36,6 +36,7 @@ import com.wms.entity.WarehouseLocation;
 import com.wms.entity.WarehouseProductReservation;
 import com.wms.enums.AuditAction;
 import com.wms.enums.AdjustmentType;
+import com.wms.enums.AllocationStatus;
 import com.wms.enums.ApprovalResult;
 import com.wms.enums.CreditStatus;
 import com.wms.enums.DeliveryOrderStatus;
@@ -69,6 +70,7 @@ import com.wms.service.PartnerEligibilityService;
 import com.wms.service.PriceHistoryService;
 import com.wms.util.PartnerAuditUtil;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -96,6 +98,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class DeliveryOrderServiceImpl implements DeliveryOrderService {
 
     private static final BigDecimal ZERO = BigDecimal.ZERO.setScale(2);
+    private static final int CREDIT_HOLD_OVERDUE_DAYS = 30;
 
     private static final Set<DeliveryOrderStatus> CANCELLABLE_STATUSES = EnumSet.of(
             DeliveryOrderStatus.NEW,
@@ -223,7 +226,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
             List<PickingCandidateResponse> candidateResponses = candidates.stream()
                     .map(inv -> toPickingCandidate(inv, item))
                     .sorted(Comparator.comparing(PickingCandidateResponse::getReceivedDate,
-                            Comparator.nullsLast(Comparator.reverseOrder())))
+                            Comparator.nullsLast(Comparator.naturalOrder())))
                     .toList();
             result.put(item.getId(), candidateResponses);
         }
@@ -347,6 +350,11 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
 
         List<DeliveryOrderItem> orderItems = items(order.getId());
         List<DeliveryOrderItemAllocation> orderAllocations = allocations(order.getId());
+        if (orderAllocations.stream().anyMatch(this::hasQcOrPickedRecord)) {
+            throw new OutboundDeliveryException("PICKED_GOODS_RETURN_REQUIRED",
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Picked or QC-processed goods must complete the warehouse return flow before cancellation");
+        }
         Map<String, Object> before = snapshot(order, null, List.of(), orderItems, orderAllocations);
         OffsetDateTime now = OffsetDateTime.now();
         List<Map<String, Object>> releasedDeltas = releaseReservations(order, orderItems, orderAllocations, now);
@@ -368,6 +376,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
             User actor) {
         requireRole(actor, UserRole.STOREKEEPER, "Only Storekeeper can save picking plans");
         DeliveryOrder order = findOrder(id);
+        entityManager.lock(order, LockModeType.PESSIMISTIC_WRITE);
         requireWarehouseScope(actor, order.getWarehouse().getId());
         if (order.getStatus() != DeliveryOrderStatus.NEW && order.getStatus() != DeliveryOrderStatus.WAITING_PICKING) {
             throw new OutboundDeliveryException("DELIVERY_ORDER_STATUS_INVALID",
@@ -383,6 +392,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                 request.getAllocations());
         List<ResolvedAllocationSelection> requestedSelections = resolvePickingSelections(order, orderItems,
                 existingAllocations, allocationRequests, actor);
+        validateFifoSelections(order, orderItems, existingAllocations, requestedSelections);
         validateRequestedItemTotals(orderItems, requestedSelections);
 
         OffsetDateTime now = OffsetDateTime.now();
@@ -702,6 +712,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                     .plannedQty(replacementRequest.getQuantity())
                     .pickedQty(ZERO)
                     .replacement(true)
+                    .status(AllocationStatus.ACTIVE)
                     .replacedAllocation(failedAllocation)
                     .createdBy(actor)
                     .createdAt(now)
@@ -926,7 +937,13 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     }
 
     private List<DeliveryOrderItemAllocation> allocations(Long orderId) {
-        return allocationRepository.findByDeliveryOrderItemDeliveryOrderId(orderId);
+        return allocationRepository.findByDeliveryOrderItemDeliveryOrderId(orderId).stream()
+                .filter(this::isActiveAllocation)
+                .toList();
+    }
+
+    private boolean isActiveAllocation(DeliveryOrderItemAllocation allocation) {
+        return allocation.getStatus() == null || allocation.getStatus() == AllocationStatus.ACTIVE;
     }
 
     private List<ItemPlan> buildItemPlans(DeliveryOrderCreateRequest request) {
@@ -966,7 +983,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         if (currentBalance.add(orderValue).compareTo(creditLimit) > 0) {
             throw creditHold("Dealer credit limit exceeded");
         }
-        LocalDate overdueThreshold = LocalDate.now().minusDays(45);
+        LocalDate overdueThreshold = LocalDate.now().minusDays(CREDIT_HOLD_OVERDUE_DAYS);
         boolean hasOverdue = invoiceRepository.existsByDealerIdAndStatusInAndDueDateBefore(
                 dealer.getId(), List.of(InvoiceStatus.UNPAID, InvoiceStatus.PARTIALLY_PAID), overdueThreshold);
         if (hasOverdue) {
@@ -1069,7 +1086,11 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         List<Map<String, Object>> deltas = new ArrayList<>();
         if (!orderAllocations.isEmpty()) {
             releaseConcreteAllocations(orderAllocations, now);
-            allocationRepository.deleteAll(orderAllocations);
+            orderAllocations.forEach(allocation -> {
+                allocation.setStatus(AllocationStatus.CANCELLED);
+                allocation.setUpdatedAt(now);
+            });
+            allocationRepository.saveAll(orderAllocations);
         }
         for (DeliveryOrderItem item : orderItems) {
             BigDecimal plannerReserved = value(item.getReservedQty()).subtract(
@@ -1185,9 +1206,6 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                 .toList());
         Map<Long, Inventory> inventoryById = inventories.stream()
                 .collect(Collectors.toMap(Inventory::getId, Function.identity()));
-        Set<AllocationSlotKey> existingKeys = existingAllocations.stream()
-                .map(allocation -> AllocationSlotKey.from(allocation.getDeliveryOrderItem().getId(), allocation))
-                .collect(Collectors.toSet());
         Set<AllocationSlotKey> requestKeys = new java.util.HashSet<>();
         List<ResolvedAllocationSelection> selections = new ArrayList<>();
         for (DeliveryOrderAllocationRequest request : requests) {
@@ -1203,13 +1221,18 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
             }
             WarehouseLocation zone = resolveZone(inventory, request.getZoneId());
             AllocationSlotKey key = new AllocationSlotKey(item.getId(), inventory.getId(),
-                    request.getBatchId(), request.getLocationId(), request.getZoneId());
+                    request.getBatchId(), request.getLocationId(), zone.getId());
             if (!requestKeys.add(key)) {
                 throw new OutboundDeliveryException("DUPLICATE_ALLOCATION",
                         HttpStatus.BAD_REQUEST,
                         "Duplicate allocation rows are not allowed for the same item/inventory/location");
             }
-            validateConcreteInventorySelection(order, item, inventory, zone, request, existingKeys.contains(key));
+            BigDecimal existingQty = existingAllocations.stream()
+                    .filter(allocation -> AllocationSlotKey.from(item.getId(), allocation).equals(key))
+                    .map(DeliveryOrderItemAllocation::getPlannedQty)
+                    .findFirst()
+                    .orElse(ZERO);
+            validateConcreteInventorySelection(order, item, inventory, zone, request, existingQty);
             selections.add(new ResolvedAllocationSelection(item, inventory, zone, request.getPlannedQty(), actor));
         }
         return selections;
@@ -1272,7 +1295,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
             // Return the BIN itself as the zone so downstream code has a non-null location
             return inventory.getLocation();
         }
-        if (!parent.getId().equals(zoneId)) {
+        if (zoneId != null && !parent.getId().equals(zoneId)) {
             throw new OutboundDeliveryException("INVENTORY_ROW_INVALID",
                     HttpStatus.UNPROCESSABLE_ENTITY,
                     "Inventory row does not match the requested zone");
@@ -1285,7 +1308,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
             Inventory inventory,
             WarehouseLocation zone,
             DeliveryOrderAllocationRequest request,
-            boolean existingSlot) {
+            BigDecimal existingQty) {
         if (!inventory.getWarehouse().getId().equals(order.getWarehouse().getId())
                 || inventory.getWarehouse().getType() == WarehouseType.IN_TRANSIT) {
             throw new OutboundDeliveryException("INVENTORY_ROW_INVALID",
@@ -1295,18 +1318,63 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         if (!inventory.getProduct().getId().equals(item.getProduct().getId())
                 || !inventory.getBatch().getId().equals(request.getBatchId())
                 || !inventory.getLocation().getId().equals(request.getLocationId())
+                || inventory.getLocation().getType() != LocationType.BIN
                 || !Boolean.TRUE.equals(inventory.getLocation().getIsActive())
+                || Boolean.TRUE.equals(inventory.getLocation().getIsLocked())
+                || !zone.getWarehouse().getId().equals(order.getWarehouse().getId())
+                || !Boolean.TRUE.equals(zone.getIsActive())
                 || Boolean.TRUE.equals(inventory.getLocation().getIsQuarantine())) {
             throw new OutboundDeliveryException("INVENTORY_ROW_INVALID",
                     HttpStatus.UNPROCESSABLE_ENTITY,
                     "Inventory row does not match the requested product/batch/bin");
         }
         BigDecimal availableQty = value(inventory.getTotalQty()).subtract(value(inventory.getReservedQty()));
-        BigDecimal existingQty = existingSlot ? value(request.getPlannedQty()) : ZERO;
-        if (availableQty.add(existingQty).compareTo(value(request.getPlannedQty())) < 0) {
+        if (availableQty.add(value(existingQty)).compareTo(value(request.getPlannedQty())) < 0) {
             throw new OutboundDeliveryException("INVENTORY_ROW_INVALID",
                     HttpStatus.UNPROCESSABLE_ENTITY,
                     "Inventory row does not have enough available quantity");
+        }
+    }
+
+    private void validateFifoSelections(DeliveryOrder order,
+            List<DeliveryOrderItem> items,
+            List<DeliveryOrderItemAllocation> existingAllocations,
+            List<ResolvedAllocationSelection> selections) {
+        Map<Long, Map<Long, BigDecimal>> selectedByItem = selections.stream()
+                .collect(Collectors.groupingBy(selection -> selection.item().getId(),
+                        Collectors.toMap(selection -> selection.inventory().getId(),
+                                ResolvedAllocationSelection::plannedQty, BigDecimal::add)));
+        for (DeliveryOrderItem item : items) {
+            BigDecimal remaining = value(item.getRequestedQty());
+            Map<Long, BigDecimal> selected = selectedByItem.getOrDefault(item.getId(), Map.of());
+            Map<Long, BigDecimal> existingByInventory = existingAllocations.stream()
+                    .filter(allocation -> allocation.getDeliveryOrderItem().getId().equals(item.getId()))
+                    .collect(Collectors.toMap(allocation -> allocation.getInventory().getId(),
+                            DeliveryOrderItemAllocation::getPlannedQty, BigDecimal::add));
+            Map<LocalDate, List<Inventory>> candidatesByDate = inventoryRepository.findFifoRowsForPlanning(
+                    order.getWarehouse().getId(), item.getProduct().getId()).stream()
+                    .collect(Collectors.groupingBy(candidate -> Optional.ofNullable(
+                                    candidate.getBatch().getReceivedDate()).orElse(LocalDate.MAX),
+                            LinkedHashMap::new, Collectors.toList()));
+            for (List<Inventory> sameDateCandidates : candidatesByDate.values()) {
+                BigDecimal availableOnDate = sameDateCandidates.stream()
+                        .map(candidate -> value(candidate.getTotalQty())
+                                .subtract(value(candidate.getReservedQty()))
+                                .add(value(existingByInventory.get(candidate.getId()))))
+                        .reduce(ZERO, this::valueAdd);
+                BigDecimal selectedOnDate = sameDateCandidates.stream()
+                        .map(candidate -> value(selected.get(candidate.getId())))
+                        .reduce(ZERO, this::valueAdd);
+                BigDecimal expectedOnDate = remaining.min(availableOnDate);
+                if (selectedOnDate.compareTo(expectedOnDate) != 0) {
+                    throw new OutboundDeliveryException("FIFO_VIOLATION", HttpStatus.UNPROCESSABLE_ENTITY,
+                            "Picking allocations must consume available inventory in FIFO order");
+                }
+                remaining = remaining.subtract(expectedOnDate);
+                if (remaining.compareTo(ZERO) <= 0) {
+                    break;
+                }
+            }
         }
     }
 
@@ -1379,6 +1447,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                     .plannedQty(selection.plannedQty())
                     .pickedQty(ZERO)
                     .replacement(false)
+                    .status(AllocationStatus.ACTIVE)
                     .createdBy(actor)
                     .createdAt(now)
                     .updatedAt(now)
@@ -1400,7 +1469,11 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                 .orElse(List.of())
                 .stream()
                 .collect(Collectors.toMap(DeliveryOrderReturnToBinRequest::getAllocationId, Function.identity(),
-                        (left, right) -> left));
+                        (left, right) -> {
+                            throw new OutboundDeliveryException("DUPLICATE_RETURN_RECORD", HttpStatus.BAD_REQUEST,
+                                    "Duplicate return-to-bin records are not allowed");
+                        }));
+        Set<Long> consumedReturnRequestIds = new java.util.HashSet<>();
         Map<AllocationSlotKey, ResolvedAllocationSelection> requestedByKey = requestedSelections.stream()
                 .collect(Collectors.toMap(ResolvedAllocationSelection::key, Function.identity()));
 
@@ -1413,17 +1486,21 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
             BigDecimal delta = requestedQty.subtract(currentQty);
             if (delta.compareTo(ZERO) < 0) {
                 BigDecimal reductionQty = delta.abs();
-                if (hasQcOrPickedRecord(existing)) {
+                BigDecimal unpickedQty = currentQty.subtract(value(existing.getPickedQty())).max(ZERO);
+                BigDecimal reservationReleaseQty = reductionQty.min(unpickedQty);
+                BigDecimal pickedReturnQty = reductionQty.subtract(reservationReleaseQty);
+                if (pickedReturnQty.compareTo(ZERO) > 0) {
                     DeliveryOrderReturnToBinRequest returnRequest = returnRequestByAllocationId.get(existing.getId());
                     if (returnRequest == null) {
                         throw new OutboundDeliveryException("PICKED_GOODS_RETURN_REQUIRED",
                                 HttpStatus.UNPROCESSABLE_ENTITY,
                                 "Changing a picked allocation requires return-to-bin records");
                     }
-                    processReturnToBin(order, existing, reductionQty, returnRequest, now, actor);
+                    consumedReturnRequestIds.add(existing.getId());
+                    processReturnToBin(order, existing, pickedReturnQty, returnRequest, now, actor);
                 }
                 Inventory inventory = existing.getInventory();
-                inventory.setReservedQty(subtractOrThrow(value(inventory.getReservedQty()), reductionQty,
+                inventory.setReservedQty(subtractOrThrow(value(inventory.getReservedQty()), reservationReleaseQty,
                         "INVENTORY_VERSION_CONFLICT",
                         "Concrete inventory reservation release would make reserved quantity negative"));
                 inventory.setUpdatedAt(now);
@@ -1445,12 +1522,18 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                 existing.setUpdatedAt(now);
                 finalAllocations.add(allocationRepository.save(existing));
             } else {
-                allocationRepository.delete(existing);
+                existing.setStatus(AllocationStatus.CANCELLED);
+                existing.setUpdatedAt(now);
+                allocationRepository.save(existing);
             }
         }
 
         for (ResolvedAllocationSelection requested : requestedByKey.values()) {
             finalAllocations.addAll(createInitialAllocations(List.of(requested), now, actor));
+        }
+        if (!consumedReturnRequestIds.equals(returnRequestByAllocationId.keySet())) {
+            throw new OutboundDeliveryException("RETURN_RECORD_NOT_APPLICABLE", HttpStatus.BAD_REQUEST,
+                    "Return-to-bin records must reference allocations being reduced or removed");
         }
         return finalAllocations.stream()
                 .sorted(Comparator.comparing(DeliveryOrderItemAllocation::getId))
@@ -1463,22 +1546,47 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
             DeliveryOrderReturnToBinRequest request,
             OffsetDateTime now,
             User actor) {
-        if (value(request.getReturnedQty()).compareTo(reductionQty) < 0) {
+        if (value(request.getReturnedQty()).compareTo(reductionQty) != 0) {
             throw new OutboundDeliveryException("PICKED_GOODS_RETURN_REQUIRED",
                     HttpStatus.UNPROCESSABLE_ENTITY,
-                    "Returned quantity must cover the reduced picked allocation quantity");
+                    "Returned quantity must equal the reduced picked allocation quantity");
         }
         WarehouseLocation sourceLocation = resolveWarehouseLocation(order, request.getSourceLocationId(), false,
                 "source");
-        if (inventoryRepository.findConcreteReservationRows(
+        Inventory sourceInventory = inventoryRepository.findConcreteReservationRowForUpdate(
                 order.getWarehouse().getId(),
                 existing.getDeliveryOrderItem().getProduct().getId(),
                 existing.getBatch().getId(),
-                sourceLocation.getId()).isEmpty()) {
+                sourceLocation.getId())
+                .orElseThrow(() -> new OutboundDeliveryException("INVENTORY_ROW_INVALID",
+                        HttpStatus.UNPROCESSABLE_ENTITY,
+                        "Return source location does not contain the picked inventory row"));
+        List<OutboundQcRecord> qcRows = outboundQcRecordRepository.findByAllocationIdIn(List.of(existing.getId()));
+        boolean matchesRecordedStaging = qcRows.stream()
+                .anyMatch(row -> row.getStagingLocation() != null
+                        && row.getStagingLocation().getId().equals(request.getSourceLocationId()));
+        if (!matchesRecordedStaging) {
+            throw new OutboundDeliveryException("INVENTORY_ROW_INVALID", HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Return source location does not match the recorded staging location");
+        }
+        Inventory originalInventory = existing.getInventory();
+        if (sourceInventory.getId().equals(originalInventory.getId())) {
             throw new OutboundDeliveryException("INVENTORY_ROW_INVALID",
                     HttpStatus.UNPROCESSABLE_ENTITY,
-                    "Return source location does not contain the picked inventory row");
+                    "Return source location must differ from the original bin");
         }
+
+        sourceInventory.setTotalQty(subtractOrThrow(value(sourceInventory.getTotalQty()), request.getReturnedQty(),
+                "INVENTORY_ROW_INVALID", "Return source inventory does not have enough quantity"));
+        sourceInventory.setReservedQty(subtractOrThrow(value(sourceInventory.getReservedQty()), request.getReturnedQty(),
+                "INVENTORY_ROW_INVALID", "Return source inventory does not have enough reserved quantity"));
+        sourceInventory.setUpdatedAt(now);
+        saveInventoryWithConflictHandling(sourceInventory);
+
+        originalInventory.setTotalQty(value(originalInventory.getTotalQty()).add(request.getReturnedQty()));
+        originalInventory.setUpdatedAt(now);
+        saveInventoryWithConflictHandling(originalInventory);
+
         DeliveryOrderItemReturnToBinRecord record = DeliveryOrderItemReturnToBinRecord.builder()
                 .deliveryOrderItem(existing.getDeliveryOrderItem())
                 .allocation(existing)
@@ -1514,13 +1622,17 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                     HttpStatus.UNPROCESSABLE_ENTITY,
                     "Replacement inventory does not belong to the delivery order warehouse");
         }
+        WarehouseLocation location = replacementInventory.getLocation();
+        WarehouseLocation zone = location.getParent() == null ? location : location.getParent();
         if (!replacementInventory.getProduct().getId().equals(item.getProduct().getId())
                 || !replacementInventory.getBatch().getId().equals(request.getReplacementBatchId())
-                || !replacementInventory.getLocation().getId().equals(request.getReplacementLocationId())
-                || replacementInventory.getLocation().getParent() == null
-                || !replacementInventory.getLocation().getParent().getId().equals(request.getReplacementZoneId())
-                || !Boolean.TRUE.equals(replacementInventory.getLocation().getIsActive())
-                || Boolean.TRUE.equals(replacementInventory.getLocation().getIsQuarantine())) {
+                || !location.getId().equals(request.getReplacementLocationId())
+                || (request.getReplacementZoneId() != null && !zone.getId().equals(request.getReplacementZoneId()))
+                || location.getType() != LocationType.BIN
+                || !Boolean.TRUE.equals(location.getIsActive())
+                || Boolean.TRUE.equals(location.getIsLocked())
+                || Boolean.TRUE.equals(location.getIsQuarantine())
+                || !zone.getWarehouse().getId().equals(order.getWarehouse().getId())) {
             throw new OutboundDeliveryException("INVENTORY_ROW_INVALID",
                     HttpStatus.UNPROCESSABLE_ENTITY,
                     "Replacement inventory row is invalid");
@@ -1629,6 +1741,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         }
         if (!location.getWarehouse().getId().equals(order.getWarehouse().getId())
                 || !Boolean.TRUE.equals(location.getIsActive())
+                || Boolean.TRUE.equals(location.getIsLocked())
                 || location.getType() != LocationType.BIN) {
             throw new OutboundDeliveryException("INVENTORY_ROW_INVALID",
                     HttpStatus.UNPROCESSABLE_ENTITY,
@@ -1638,6 +1751,12 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
             throw new OutboundDeliveryException("INVENTORY_ROW_INVALID",
                     HttpStatus.UNPROCESSABLE_ENTITY,
                     "Location does not match the required " + label + " rules");
+        }
+        if (location.getParent() != null
+                && !location.getParent().getWarehouse().getId().equals(order.getWarehouse().getId())) {
+            throw new OutboundDeliveryException("INVENTORY_ROW_INVALID",
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Location zone does not belong to the delivery order warehouse");
         }
         return location;
     }
@@ -1649,6 +1768,11 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
             Inventory sourceInventory,
             boolean quarantineRow,
             OffsetDateTime now) {
+        if (quarantineRow != Boolean.TRUE.equals(location.getIsQuarantine())) {
+            throw new OutboundDeliveryException("INVENTORY_ROW_INVALID",
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Inventory row location does not match the required quarantine rule");
+        }
         Optional<Inventory> existingRow = inventoryRepository.findConcreteReservationRowForUpdate(
                 order.getWarehouse().getId(), product.getId(), batch.getId(), location.getId());
         if (existingRow.isPresent()) {

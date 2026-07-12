@@ -1,13 +1,22 @@
-import React from 'react';
-import { NavLink } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Users, UserSquare, ShieldAlert, BarChart3, Package2, Settings, History, Box, Warehouse, Handshake, Truck, MapPin, PackageCheck, ClipboardList, DollarSign, CheckSquare, ArrowRightLeft } from 'lucide-react';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { ROLES } from '../../utils/constants';
 
 const Sidebar = () => {
   const { user, hasRole } = useAuthStore();
   const sidebarOpen = useUiStore((state) => state.sidebarOpen);
+  const setSidebarOpen = useUiStore((state) => state.setSidebarOpen);
+  const isMobile = useMediaQuery('(max-width: 767px)');
+  const location = useLocation();
+
+  // Close the drawer after navigating on mobile so the destination page is visible.
+  useEffect(() => {
+    if (isMobile) setSidebarOpen(false);
+  }, [location.pathname]);
 
   const menuItems = [
     {
@@ -181,7 +190,17 @@ const Sidebar = () => {
   if (!sidebarOpen) return null;
 
   return (
-    <aside className="w-64 bg-canvas-night text-onPrimary border-r border-hairline-dark flex flex-col h-full">
+    <>
+      {/* Mobile-only backdrop: closes the drawer on tap without covering the header */}
+      <div
+        className="app-safe-drawer-backdrop fixed inset-x-0 bottom-0 z-30 bg-black/50 md:hidden"
+        onClick={() => setSidebarOpen(false)}
+      />
+      <aside
+        className="app-safe-drawer fixed bottom-0 left-0 z-30 w-72 max-w-[85vw]
+          md:static md:top-auto md:bottom-auto md:z-auto md:w-64 md:max-w-none
+          bg-canvas-night text-onPrimary border-r border-hairline-dark flex flex-col md:h-full"
+      >
       {/* Scrollable menu area */}
       <div className="flex-1 overflow-y-auto py-6 px-4 flex flex-col gap-6">
         <div>
@@ -426,7 +445,8 @@ const Sidebar = () => {
           )}
         </div>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 };
 

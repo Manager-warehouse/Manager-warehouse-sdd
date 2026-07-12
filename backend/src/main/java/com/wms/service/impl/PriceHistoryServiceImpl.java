@@ -27,6 +27,7 @@ import com.wms.repository.WarehouseRepository;
 import com.wms.service.PriceHistoryService;
 import com.wms.util.PartnerAuditUtil;
 import org.apache.poi.ss.usermodel.*;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -80,17 +81,15 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
     @Override
     @Transactional
     public PriceHistoryResponse create(PriceHistoryCreateRequest req, User actor) {
-        validateDateRange(req.getEffectiveDate(), req.getEndDate());
         Product product = requireProduct(req.getProductId());
         Warehouse warehouse = requireWarehouse(req.getWarehouseId());
-        checkNoApprovedOverlap(product.getId(), warehouse.getId(), req.getEffectiveDate(), req.getEndDate(), null);
+        checkNoConflictingActive(product.getId(), warehouse.getId(), req.getEffectiveDate(), null);
 
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         PriceHistory ph = PriceHistory.builder()
                 .product(product)
                 .warehouse(warehouse)
                 .effectiveDate(req.getEffectiveDate())
-                .endDate(req.getEndDate())
                 .costPrice(req.getCostPrice())
                 .sellingPrice(req.getSellingPrice())
                 .notes(req.getNotes())
@@ -100,7 +99,7 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
                 .updatedAt(now)
                 .build();
 
-        PriceHistory saved = priceHistoryRepository.save(ph);
+        PriceHistory saved = saveOrThrowConflict(ph);
         notifyAccountantManagers(saved, "Bản giá mới chờ duyệt: " + product.getName());
         auditUtil.logChange(actor, AuditAction.PRICE_CREATE, "PRICE_HISTORY", saved.getId(),
                 String.valueOf(saved.getId()), Map.of(), snapshot(saved));
@@ -112,18 +111,16 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
     public PriceHistoryResponse update(Long id, PriceHistoryUpdateRequest req, User actor) {
         PriceHistory ph = require(id);
         guardEditable(ph, actor);
-        validateDateRange(req.getEffectiveDate(), req.getEndDate());
-        checkNoApprovedOverlap(ph.getProduct().getId(), ph.getWarehouse().getId(), req.getEffectiveDate(), req.getEndDate(), id);
+        checkNoConflictingActive(ph.getProduct().getId(), ph.getWarehouse().getId(), req.getEffectiveDate(), id);
 
         Map<String, Object> before = snapshot(ph);
         ph.setEffectiveDate(req.getEffectiveDate());
-        ph.setEndDate(req.getEndDate());
         ph.setCostPrice(req.getCostPrice());
         ph.setSellingPrice(req.getSellingPrice());
         ph.setNotes(req.getNotes());
         ph.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));
 
-        PriceHistory saved = priceHistoryRepository.save(ph);
+        PriceHistory saved = saveOrThrowConflict(ph);
         auditUtil.logChange(actor, AuditAction.PRICE_UPDATE, "PRICE_HISTORY", saved.getId(),
                 String.valueOf(saved.getId()), before, snapshot(saved));
         return toResponse(saved, null);
@@ -162,9 +159,6 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
                     "FORBIDDEN_APPROVE_OWN",
                     "Người tạo bản giá không được tự duyệt.");
         }
-
-        // Re-check overlap at approval time (race-condition guard)
-        checkNoApprovedOverlap(ph.getProduct().getId(), ph.getWarehouse().getId(), ph.getEffectiveDate(), ph.getEndDate(), id);
 
         Map<String, Object> before = snapshot(ph);
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
@@ -232,7 +226,9 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
 
     @Override
     public Optional<PriceHistory> lookupApproved(Long productId, Long warehouseId, LocalDate date) {
-        return priceHistoryRepository.findApprovedAtDate(productId, warehouseId, date);
+        return priceHistoryRepository
+                .findFirstByProductIdAndWarehouseIdAndStatusAndEffectiveDateLessThanEqualOrderByEffectiveDateDescApprovedAtDesc(
+                        productId, warehouseId, PriceHistoryStatus.APPROVED, date);
     }
 
     @Override
@@ -283,16 +279,26 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
 
     // ── helpers ─────────────────────────────────────────────────────────────
 
-    private void validateDateRange(LocalDate effective, LocalDate end) {
-        if (effective != null && end != null && effective.isAfter(end)) {
-            throw PriceHistoryException.invalidDateRange();
-        }
+    private void checkNoConflictingActive(Long productId, Long warehouseId, LocalDate effective, Long excludeId) {
+        List<PriceHistory> conflicts = priceHistoryRepository
+                .findConflictingActive(productId, warehouseId, effective, excludeId);
+        if (!conflicts.isEmpty()) throw PriceHistoryException.overlappingDate();
     }
 
-    private void checkNoApprovedOverlap(Long productId, Long warehouseId, LocalDate effective, LocalDate end, Long excludeId) {
-        List<PriceHistory> overlaps = priceHistoryRepository
-                .findApprovedOverlapping(productId, warehouseId, effective, end, excludeId);
-        if (!overlaps.isEmpty()) throw PriceHistoryException.overlappingDate();
+    /**
+     * checkNoConflictingActive above closes the common case, but a SELECT-then-INSERT
+     * check can't be atomic on its own — two concurrent creates can both pass the
+     * check before either commits. uq_price_history_active_effective_date (migration
+     * V57) is the actual source of truth; saveAndFlush forces the constraint to be
+     * evaluated here so a rare race surfaces as the same typed 409 instead of a raw
+     * DataIntegrityViolationException.
+     */
+    private PriceHistory saveOrThrowConflict(PriceHistory ph) {
+        try {
+            return priceHistoryRepository.saveAndFlush(ph);
+        } catch (DataIntegrityViolationException e) {
+            throw PriceHistoryException.overlappingDate();
+        }
     }
 
     private void guardEditable(PriceHistory ph, User actor) {
@@ -368,7 +374,6 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
         return PreviousApprovedRef.builder()
                 .id(prev.getId())
                 .effectiveDate(prev.getEffectiveDate())
-                .endDate(prev.getEndDate())
                 .costPrice(prev.getCostPrice())
                 .sellingPrice(prev.getSellingPrice())
                 .costPriceDelta(costDelta)
@@ -393,7 +398,7 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
                 HttpStatus.BAD_REQUEST,
                 "EXCEL_FORMAT_INVALID", "File Excel thiếu dòng header.");
 
-        String[] required = {"product_sku", "warehouse_code", "effective_date", "end_date", "cost_price", "selling_price"};
+        String[] required = {"product_sku", "warehouse_code", "effective_date", "cost_price", "selling_price"};
         for (int col = 0; col < required.length; col++) {
             Cell cell = header.getCell(col);
             String val = cell == null ? "" : cell.getStringCellValue().trim().toLowerCase();
@@ -411,14 +416,13 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
         String sku = cellString(row, 0);
         String warehouseCode = cellString(row, 1);
         String effectiveDateStr = cellString(row, 2);
-        String endDateStr = cellString(row, 3);
-        String costStr = cellString(row, 4);
-        String sellStr = cellString(row, 5);
-        String notes = cellString(row, 6);
+        String costStr = cellString(row, 3);
+        String sellStr = cellString(row, 4);
+        String notes = cellString(row, 5);
 
         // Presence check
         if (sku.isEmpty() || warehouseCode.isEmpty() || effectiveDateStr.isEmpty()
-                || endDateStr.isEmpty() || costStr.isEmpty() || sellStr.isEmpty()) {
+                || costStr.isEmpty() || sellStr.isEmpty()) {
             failed.add(failRow(displayRow, sku, "MISSING_REQUIRED_FIELD", "Thiếu trường bắt buộc"));
             return;
         }
@@ -438,17 +442,11 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
         }
 
         // Date parse
-        LocalDate effective, end;
+        LocalDate effective;
         try {
             effective = parseExcelDate(row.getCell(2), effectiveDateStr);
-            end = parseExcelDate(row.getCell(3), endDateStr);
         } catch (DateTimeParseException e) {
             failed.add(failRow(displayRow, sku, "INVALID_DATE_FORMAT", "Định dạng ngày không hợp lệ"));
-            return;
-        }
-
-        if (effective.isAfter(end)) {
-            failed.add(failRow(displayRow, sku, "INVALID_DATE_RANGE", "effective_date > end_date"));
             return;
         }
 
@@ -469,12 +467,12 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
 
         Product product = productOpt.get();
         Warehouse warehouse = warehouseOpt.get();
-        List<PriceHistory> overlaps = priceHistoryRepository
-                .findApprovedOverlapping(product.getId(), warehouse.getId(), effective, end, null);
-        if (!overlaps.isEmpty()) {
+        List<PriceHistory> conflicts = priceHistoryRepository
+                .findConflictingActive(product.getId(), warehouse.getId(), effective, null);
+        if (!conflicts.isEmpty()) {
             failed.add(failRow(displayRow, sku, "OVERLAPPING_EFFECTIVE_DATE",
-                    "Trùng với bản giá APPROVED " + overlaps.get(0).getEffectiveDate()
-                            + "–" + overlaps.get(0).getEndDate()));
+                    "Đã có bản giá " + conflicts.get(0).getStatus() + " khác cùng effective_date "
+                            + conflicts.get(0).getEffectiveDate()));
             return;
         }
 
@@ -483,7 +481,6 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
                 .product(product)
                 .warehouse(warehouse)
                 .effectiveDate(effective)
-                .endDate(end)
                 .costPrice(cost)
                 .sellingPrice(sell)
                 .notes(notes.isEmpty() ? null : notes)
@@ -536,7 +533,6 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
         return Map.of(
                 "status", ph.getStatus(),
                 "effectiveDate", ph.getEffectiveDate(),
-                "endDate", ph.getEndDate(),
                 "costPrice", ph.getCostPrice(),
                 "sellingPrice", ph.getSellingPrice()
         );
@@ -551,7 +547,6 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
                 .warehouseId(ph.getWarehouse().getId())
                 .warehouseName(ph.getWarehouse().getName())
                 .effectiveDate(ph.getEffectiveDate())
-                .endDate(ph.getEndDate())
                 .costPrice(ph.getCostPrice())
                 .sellingPrice(ph.getSellingPrice())
                 .status(ph.getStatus().name())

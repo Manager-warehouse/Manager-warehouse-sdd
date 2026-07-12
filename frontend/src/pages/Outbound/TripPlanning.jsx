@@ -8,22 +8,22 @@ import { useUiStore } from '../../stores/ui.store';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import Modal from '../../components/common/Modal';
+import Badge from '../../components/common/Badge';
 import TripCapacityBar from '../../components/warehouse/TripCapacityBar';
 import { ROLES } from '../../utils/constants';
 
 const TRIP_STATUS_MAP = {
-  PLANNED: { label: 'Lên kế hoạch', color: 'bg-zinc-100 text-zinc-800 border-zinc-200' },
+  PLANNED: { label: 'Lên kế hoạch', color: 'bg-canvas-cream text-shade-70 border-hairline-light' },
   IN_TRANSIT: { label: 'Đang giao', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-  COMPLETED: { label: 'Hoàn thành', color: 'bg-emerald-50 text-emerald-900 border-emerald-300' },
-  CANCELLED: { label: 'Đã hủy', color: 'bg-red-50 text-red-700 border-red-200' },
+  COMPLETED: { label: 'Hoàn thành', color: 'bg-success-50 text-success-900 border-success-300' },
+  CANCELLED: { label: 'Đã hủy', color: 'bg-danger-50 text-danger-700 border-danger-200' },
 };
 
 const emptyForm = { vehicle_id: '', driver_id: '', planned_start_at: '', planned_end_at: '', notes: '', delivery_orders: [] };
 
 const getTripStatusBadge = (status) => {
-  const base = 'text-[10px] font-semibold px-2 py-0.5 rounded-pill border uppercase tracking-wider whitespace-nowrap';
-  const { label, color } = TRIP_STATUS_MAP[status] ?? { label: status, color: 'bg-zinc-100 text-zinc-800 border-zinc-200' };
-  return <span className={`${base} ${color}`}>{label}</span>;
+  const { label, color } = TRIP_STATUS_MAP[status] ?? { label: status, color: 'bg-canvas-cream text-shade-70 border-hairline-light' };
+  return <Badge size="sm" colorClassName={color}>{label}</Badge>;
 };
 
 export default function TripPlanning() {
@@ -189,34 +189,34 @@ export default function TripPlanning() {
           </p>
         </div>
         {hasRole(ROLES.DISPATCHER) && (
-          <button onClick={openCreateModal} className="btn-pill btn-pill-primary flex items-center gap-2">
-            <Plus className="w-4 h-4" />
-            <span>Lập chuyến mới</span>
-          </button>
+          <Button onClick={openCreateModal} variant="primary" icon={Plus}>
+            Lập chuyến mới
+          </Button>
         )}
       </div>
 
-      <div className="bg-white rounded-lg border border-hairline-light p-4 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
-        <div className="relative w-full md:w-80">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-shade-40" />
-          <input
+      <div className="bg-canvas-light rounded-lg border border-hairline-light p-4 shadow-level-3 flex flex-col md:flex-row gap-4 items-center justify-between">
+        <div className="w-full md:w-80">
+          <Input
             type="text"
+            leftIcon={Search}
             placeholder="Tìm mã chuyến, xe, tài xế..."
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            className="w-full text-input pl-10"
           />
         </div>
-        <div className="flex items-center gap-2 w-full md:w-auto justify-end">
-          <span className="text-xs font-semibold text-shade-50">Trạng thái:</span>
-          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="text-input text-xs py-1.5">
-            <option value="ALL">Tất cả</option>
-            <option value="PLANNED">Lên kế hoạch</option>
-            <option value="IN_TRANSIT">Đang giao</option>
-            <option value="COMPLETED">Hoàn thành</option>
-            <option value="CANCELLED">Đã hủy</option>
-          </select>
-        </div>
+        <Input
+          type="select"
+          value={statusFilter}
+          onChange={(event) => setStatusFilter(event.target.value)}
+          options={[
+            { value: 'ALL', label: 'Tất cả' },
+            { value: 'PLANNED', label: 'Lên kế hoạch' },
+            { value: 'IN_TRANSIT', label: 'Đang giao' },
+            { value: 'COMPLETED', label: 'Hoàn thành' },
+            { value: 'CANCELLED', label: 'Đã hủy' },
+          ]}
+        />
       </div>
 
       {loading ? (
@@ -224,7 +224,7 @@ export default function TripPlanning() {
           <Loader2 className="w-8 h-8 animate-spin text-shade-50" />
         </div>
       ) : filteredTrips.length === 0 ? (
-        <div className="bg-white rounded-lg border border-hairline-light p-12 text-center shadow-sm">
+        <div className="bg-canvas-light rounded-lg border border-hairline-light p-12 text-center shadow-level-3">
           <Truck className="w-12 h-12 text-shade-30 mx-auto mb-4" />
           <h3 className="text-lg font-bold mb-1">Không tìm thấy chuyến xe nào</h3>
           <p className="text-sm text-shade-50">Thử đổi bộ lọc hoặc tạo chuyến mới để bắt đầu.</p>
@@ -232,19 +232,19 @@ export default function TripPlanning() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredTrips.map((trip) => (
-            <div key={trip.id} className="bg-white rounded-lg border border-hairline-light shadow-sm hover:shadow-md transition-shadow card-premium overflow-hidden">
-              <div className="p-4 border-b border-hairline-light bg-zinc-50 flex justify-between items-center">
+            <div key={trip.id} className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 hover:shadow-md transition-shadow overflow-hidden flex flex-col h-full">
+              <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center">
                 <span className="text-xs font-bold text-ink">{trip.trip_number}</span>
                 {getTripStatusBadge(trip.status)}
               </div>
-              <div className="p-4 space-y-2">
+              <div className="p-4 flex flex-col gap-2 flex-1">
                 <p className="flex items-center gap-2 text-xs"><Truck className="w-3.5 h-3.5 text-shade-40" /><span className="text-shade-50">Xe:</span><span className="font-semibold text-ink">{trip.vehicle_plate || '-'}</span></p>
                 <p className="flex items-center gap-2 text-xs"><User className="w-3.5 h-3.5 text-shade-40" /><span className="text-shade-50">Tài xế:</span><span className="font-semibold text-ink">{trip.driver_name || trip.driver_id}</span></p>
                 <p className="flex items-center gap-2 text-xs"><Calendar className="w-3.5 h-3.5 text-shade-40" /><span className="text-shade-50">TG dự kiến:</span><span className="font-semibold text-ink">{trip.planned_start_at ? new Date(trip.planned_start_at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) : '-'} - {trip.planned_end_at ? new Date(trip.planned_end_at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) : '-'}</span></p>
                 <p className="text-xs"><span className="text-shade-50">Tổng KL:</span> <span className="font-semibold text-ink">{trip.total_weight_kg} kg</span></p>
               </div>
               <div className="p-4 border-t border-hairline-light flex gap-2">
-                <button onClick={() => openDetailModal(trip)} className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-full border border-hairline-light bg-white text-ink hover:bg-zinc-50 px-3 py-1.5 text-xs font-semibold transition-colors">
+                <button onClick={() => openDetailModal(trip)} className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-full border border-hairline-light bg-canvas-light text-ink hover:bg-canvas-cream px-3 py-1.5 text-xs font-semibold transition-colors">
                   <Eye className="w-3.5 h-3.5" /> Chi tiết
                 </button>
               </div>
@@ -277,7 +277,7 @@ export default function TripPlanning() {
               {!detailTrip.delivery_orders?.length ? (
                 <p className="text-xs text-shade-40 italic text-center py-4">Chưa có điểm giao nào</p>
               ) : (
-                <div className="space-y-3">
+                <div className="flex flex-col gap-3">
                   {detailTrip.delivery_orders.map((stop, index) => (
                     <div key={`${stop.do_id}-${index}`} className="rounded-lg border p-4 flex gap-3 bg-canvas-cream border-hairline-light">
                       <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 bg-ink text-white">
@@ -294,7 +294,7 @@ export default function TripPlanning() {
               )}
             </div>
 
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800">
+            <div className="rounded-lg border border-warning-200 bg-warning-50 p-4 text-xs text-warning-800">
               Frontend này đã đồng bộ với backend hiện tại: dispatcher chỉ lập/xem trip, không xuất bến. Driver sẽ xác nhận depart trong màn hình driver.
             </div>
 
@@ -308,7 +308,7 @@ export default function TripPlanning() {
       <Modal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} title="Lập chuyến xe giao hàng" maxWidth="max-w-4xl">
         <div className="flex flex-col md:flex-row gap-6">
           <div className="flex-1 flex flex-col gap-5">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input
                 label="Phương tiện *"
                 type="select"
@@ -335,7 +335,7 @@ export default function TripPlanning() {
                   ...drivers.map((driver) => ({ value: driver.id, label: driver.full_name || driver.name })),
                 ]}
               />
-              <div className="col-span-2 grid grid-cols-2 gap-4">
+              <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Input
                   label="Bắt đầu dự kiến *"
                   type="datetime-local"
@@ -364,7 +364,7 @@ export default function TripPlanning() {
                         type="button"
                         key={order.id}
                         className={`w-full text-left px-4 py-3 border-b border-hairline-light flex items-center justify-between transition-colors ${
-                          isSelected ? 'bg-emerald-50 border-l-2 border-l-emerald-500' : 'hover:bg-zinc-50'
+                          isSelected ? 'bg-success-50 border-l-2 border-l-success-500' : 'hover:bg-canvas-cream'
                         }`}
                         onClick={() => toggleDOSelection(order)}
                       >
@@ -393,7 +393,7 @@ export default function TripPlanning() {
               {!formData.delivery_orders.length ? (
                 <div className="p-4 border-2 border-dashed border-shade-30 rounded-lg text-center text-shade-40 text-xs">Chưa chọn đơn hàng nào</div>
               ) : (
-                <div className="space-y-2">
+                <div className="flex flex-col gap-2">
                   {formData.delivery_orders.map((order, index) => (
                     <div key={order.id} className="bg-canvas-light rounded-lg border border-hairline-light p-2.5 flex items-center gap-2">
                       <div className="w-6 h-6 rounded-full bg-ink text-white flex items-center justify-center text-[10px] font-bold shrink-0">{index + 1}</div>

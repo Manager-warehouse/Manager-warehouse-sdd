@@ -303,19 +303,19 @@ const InterWarehouseTransferWorkspace = () => {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 flex-wrap">
+        <div className="flex-1 min-w-0">
           <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
             Vận hành / Transfer
           </span>
           <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">
             Điều chuyển nội bộ
           </h1>
-          <p className="text-xs text-shade-50 mt-1">
+          <p className="text-xs text-shade-50 font-light mt-1">
             Lập phiếu thủ công từ lệnh Công ty mẹ, giữ chỗ, xuất hàng, vận chuyển và xác nhận nhận hàng.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-shrink-0">
           <Button icon={RefreshCw} variant="outline-light" onClick={loadData} loading={loading}>Tải lại</Button>
           {canCreateTransfer && (
             <Button icon={Plus} onClick={() => setFormOpen((value) => !value)}>Tạo phiếu</Button>
@@ -324,7 +324,7 @@ const InterWarehouseTransferWorkspace = () => {
       </div>
 
       {formOpen && (
-        <div className="border border-hairline-light rounded-lg bg-white p-4 grid grid-cols-1 md:grid-cols-4 gap-3">
+        <div className="border border-hairline-light rounded-lg bg-canvas-light p-4 grid grid-cols-1 md:grid-cols-4 gap-3">
           <Input label="Mã lệnh Công ty mẹ" value={form.externalInstructionCode} onChange={(e) => setForm({ ...form, externalInstructionCode: e.target.value })} />
           <Input type="select" label="Kho nguồn" value={form.sourceWarehouseId} onChange={(e) => setForm({ ...form, sourceWarehouseId: e.target.value })}
             options={sourceWarehouseOptions} />
@@ -342,9 +342,9 @@ const InterWarehouseTransferWorkspace = () => {
                 <div className="min-h-[44px] rounded-md border border-hairline-light bg-canvas-cream/50 px-3 py-2 text-xs">
                   <div className="font-semibold uppercase tracking-wider text-shade-60">Tồn khả dụng</div>
                   {availabilityByLine[index]?.error ? (
-                    <div className="text-red-600">{availabilityByLine[index].error}</div>
+                    <div className="text-danger-600">{availabilityByLine[index].error}</div>
                   ) : availabilityByLine[index] ? (
-                    <div className={Number(item.plannedQty) > Number(availabilityByLine[index].availableQty ?? 0) ? 'text-red-600 font-semibold' : 'text-ink'}>
+                    <div className={Number(item.plannedQty) > Number(availabilityByLine[index].availableQty ?? 0) ? 'text-danger-600 font-semibold' : 'text-ink'}>
                       {availabilityByLine[index].availableQty ?? 0}
                       <span className="text-shade-50 font-normal"> / giữ {availabilityByLine[index].reservedQty ?? 0}</span>
                     </div>
@@ -364,57 +364,86 @@ const InterWarehouseTransferWorkspace = () => {
       )}
 
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.8fr)] gap-4">
-        <div className="border border-hairline-light rounded-lg bg-white overflow-hidden">
-          <div className="p-4 flex flex-col md:flex-row gap-3 md:items-center justify-between border-b border-hairline-light">
-            <div className="relative w-full md:w-80">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-shade-40" />
-              <input className="w-full text-input pl-10" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Tìm mã phiếu, mã lệnh..." />
+        <div className="border border-hairline-light rounded-lg bg-canvas-light shadow-level-3 overflow-hidden">
+          <div className="p-4 flex flex-col md:flex-row gap-4 items-center justify-between border-b border-hairline-light">
+            <div className="flex flex-col md:flex-row gap-4 items-center w-full md:w-auto">
+              <div className="w-full md:w-80">
+                <Input type="text" leftIcon={Search} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Tìm mã phiếu, mã lệnh..." />
+              </div>
+              <Input
+                type="select"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                options={[
+                  { value: 'ALL', label: 'Tất cả trạng thái' },
+                  { value: 'NEW', label: 'NEW' },
+                  { value: 'APPROVED', label: 'APPROVED' },
+                  { value: 'IN_TRANSIT', label: 'IN_TRANSIT' },
+                  { value: 'COMPLETED', label: 'COMPLETED' },
+                  { value: 'COMPLETED_WITH_DISCREPANCY', label: 'COMPLETED_WITH_DISCREPANCY' },
+                  { value: 'REJECTED', label: 'REJECTED' },
+                  { value: 'CANCELLED', label: 'CANCELLED' },
+                ]}
+              />
             </div>
-            <select className="text-input text-xs py-2" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-              <option value="ALL">Tất cả trạng thái</option>
-              <option value="NEW">NEW</option>
-              <option value="APPROVED">APPROVED</option>
-              <option value="IN_TRANSIT">IN_TRANSIT</option>
-              <option value="COMPLETED">COMPLETED</option>
-              <option value="COMPLETED_WITH_DISCREPANCY">COMPLETED_WITH_DISCREPANCY</option>
-              <option value="REJECTED">REJECTED</option>
-              <option value="CANCELLED">CANCELLED</option>
-            </select>
           </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="bg-canvas-cream text-xs uppercase tracking-wider text-shade-60">
-                <tr>
-                  <th className="text-left px-4 py-3">Phiếu</th>
-                  <th className="text-left px-4 py-3">Tuyến</th>
-                  <th className="text-left px-4 py-3">Trạng thái</th>
-                  <th className="text-right px-4 py-3">Dòng hàng</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-hairline-light">
+          {!filteredTransfers.length ? (
+            <div className="px-6 py-8 text-center text-shade-50 text-xs">Không có phiếu điều chuyển phù hợp.</div>
+          ) : (
+            <>
+              {/* Desktop/tablet: table view */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-canvas-cream border-b border-hairline-light">
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Phiếu</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Tuyến</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Trạng thái</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Dòng hàng</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-hairline-light">
+                    {filteredTransfers.map((transfer) => (
+                      <tr key={transfer.id} onClick={() => setSelectedId(transfer.id)}
+                        className={`cursor-pointer hover:bg-canvas-cream/50 transition-colors ${selectedId === transfer.id ? 'bg-aloe-10/30' : ''}`}>
+                        <td className="px-6 py-4">
+                          <div className="font-semibold">{transfer.transferNumber}</div>
+                          <div className="text-xs text-shade-50">{transfer.externalInstructionCode}</div>
+                        </td>
+                        <td className="px-6 py-4 text-xs">{transfer.sourceWarehouseCode} → {transfer.destinationWarehouseCode}</td>
+                        <td className="px-6 py-4"><InterWarehouseTransferStatusBadge status={transfer.status} /></td>
+                        <td className="px-6 py-4 text-right">{transfer.items?.length || 0}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile: stacked card view */}
+              <div className="flex flex-col divide-y divide-hairline-light md:hidden">
                 {filteredTransfers.map((transfer) => (
-                  <tr key={transfer.id} onClick={() => setSelectedId(transfer.id)}
-                    className={`cursor-pointer hover:bg-canvas-cream/60 ${selectedId === transfer.id ? 'bg-aloe-10/30' : ''}`}>
-                    <td className="px-4 py-3">
-                      <div className="font-semibold">{transfer.transferNumber}</div>
-                      <div className="text-xs text-shade-50">{transfer.externalInstructionCode}</div>
-                    </td>
-                    <td className="px-4 py-3 text-xs">{transfer.sourceWarehouseCode} → {transfer.destinationWarehouseCode}</td>
-                    <td className="px-4 py-3"><InterWarehouseTransferStatusBadge status={transfer.status} /></td>
-                    <td className="px-4 py-3 text-right">{transfer.items?.length || 0}</td>
-                  </tr>
+                  <div
+                    key={transfer.id}
+                    onClick={() => setSelectedId(transfer.id)}
+                    className={`p-4 flex flex-col gap-1.5 text-xs cursor-pointer hover:bg-canvas-cream/50 transition-colors ${selectedId === transfer.id ? 'bg-aloe-10/30' : ''}`}
+                  >
+                    <div className="flex justify-between items-center gap-2">
+                      <span className="font-semibold">{transfer.transferNumber}</span>
+                      <InterWarehouseTransferStatusBadge status={transfer.status} />
+                    </div>
+                    <span className="text-shade-50">{transfer.externalInstructionCode}</span>
+                    <span>{transfer.sourceWarehouseCode} → {transfer.destinationWarehouseCode}</span>
+                    <span className="text-shade-50">Dòng hàng: <span className="font-medium text-ink">{transfer.items?.length || 0}</span></span>
+                  </div>
                 ))}
-                {!filteredTransfers.length && (
-                  <tr><td className="px-4 py-8 text-center text-shade-50" colSpan="4">Không có phiếu điều chuyển phù hợp.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="flex flex-col gap-4">
           {selectedTransfer && (
-            <div className="border border-hairline-light rounded-lg bg-white p-4">
+            <div className="border border-hairline-light rounded-lg bg-canvas-light p-4">
               <div className="flex items-center justify-between mb-3">
                 <div>
                   <div className="text-xs font-bold uppercase tracking-wider text-shade-60">Chi tiết hàng</div>
@@ -434,18 +463,18 @@ const InterWarehouseTransferWorkspace = () => {
               {selectedTransfer.tripWarningActive && (
                 <div className={`mb-3 rounded-md border px-3 py-2 text-xs ${
                   selectedTransfer.tripOverdue
-                    ? 'border-red-200 bg-red-50 text-red-700'
-                    : 'border-amber-200 bg-amber-50 text-amber-700'
+                    ? 'border-danger-200 bg-danger-50 text-danger-700'
+                    : 'border-warning-200 bg-warning-50 text-warning-700'
                 }`}>
                   {selectedTransfer.tripWarningMessage}
                 </div>
               )}
               {selectedTransfer.status === 'COMPLETED_WITH_DISCREPANCY' && selectedTransfer.discrepancyReason && (
-                <div className="mb-3 rounded-md border border-red-200 bg-red-50/80 backdrop-blur-sm px-3.5 py-2.5 text-xs text-red-700 shadow-sm flex items-start gap-2 animate-in fade-in duration-200">
-                  <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                <div className="mb-3 rounded-md border border-danger-200 bg-danger-50/80 px-3.5 py-2.5 text-xs text-danger-700 shadow-level-3 flex items-start gap-2 animate-in fade-in duration-200">
+                  <AlertCircle className="w-4 h-4 text-danger-500 shrink-0 mt-0.5" />
                   <div>
                     <span className="font-bold block mb-0.5">Phát hiện chênh lệch thiếu hàng</span>
-                    <span className="font-normal text-red-600">Lý do: "{selectedTransfer.discrepancyReason}"</span>
+                    <span className="font-normal text-danger-600">Lý do: "{selectedTransfer.discrepancyReason}"</span>
                   </div>
                 </div>
               )}
@@ -459,16 +488,16 @@ const InterWarehouseTransferWorkspace = () => {
                   return (
                     <div key={item.id} className="py-2.5 text-xs">
                       <div className="font-semibold text-sm">{item.productSku} <span className="font-normal text-shade-60">{item.productName}</span></div>
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2 bg-zinc-50 p-2 rounded border border-hairline-light">
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2 bg-canvas-cream p-2 rounded border border-hairline-light">
                         <div><span className="text-shade-50">Kế hoạch:</span> <strong>{item.plannedQty}</strong></div>
-                        <div className={Number(item.plannedQty) > Number(selectedAvailabilityByItem[item.id]?.availableQty ?? 0) ? 'text-red-600 font-semibold' : ''}>
+                        <div className={Number(item.plannedQty) > Number(selectedAvailabilityByItem[item.id]?.availableQty ?? 0) ? 'text-danger-600 font-semibold' : ''}>
                           <span className="text-shade-50">Khả dụng nguồn:</span> <strong>{selectedAvailabilityByItem[item.id]?.error ? 'Lỗi tải' : (selectedAvailabilityByItem[item.id]?.availableQty ?? '-')}</strong>
                         </div>
                         <div><span className="text-shade-50">Đã xuất đi:</span> <strong className="text-ink">{item.sentQty ?? '-'}</strong></div>
-                        <div><span className="text-shade-50">Thực tế nhận:</span> <strong className="text-emerald-700">{item.receivedQty ?? '-'}</strong></div>
+                        <div><span className="text-shade-50">Thực tế nhận:</span> <strong className="text-success-700">{item.receivedQty ?? '-'}</strong></div>
                         <div><span className="text-shade-50">QC đạt/lỗi:</span> <strong>{item.qcPassedQty ?? '0'} / {item.qcFailedQty ?? '0'}</strong></div>
                         {hasDiscrepancy && (
-                          <div className="text-red-600 font-bold bg-red-100/50 px-1.5 py-0.5 rounded border border-red-250 w-fit">
+                          <div className="text-danger-600 font-bold bg-danger-100/50 px-1.5 py-0.5 rounded border border-danger-300 w-fit">
                             Chênh lệch: {diff > 0 ? `+${diff}` : diff} cái
                           </div>
                         )}

@@ -128,10 +128,10 @@ public class DeliveryOrderController {
             @ApiResponse(responseCode = "400", description = "Invalid picking-plan payload", content = @Content),
             @ApiResponse(responseCode = "403", description = "Storekeeper is not assigned to the delivery order warehouse", content = @Content),
             @ApiResponse(responseCode = "404", description = "Delivery order or inventory row not found", content = @Content),
-            @ApiResponse(responseCode = "409", description = "Inventory or reservation version conflict", content = @Content),
+            @ApiResponse(responseCode = "409", description = "Inventory, reservation, allocation, or Delivery Order concurrent modification conflict", content = @Content),
             @ApiResponse(responseCode = "422",
                     description = "Picking-plan business rule violation such as PICKING_PLAN_QTY_MISMATCH, "
-                            + "PICKED_GOODS_RETURN_REQUIRED, INVENTORY_ROW_INVALID, or DELIVERY_ORDER_STATUS_INVALID",
+                            + "FIFO_VIOLATION, PICKED_GOODS_RETURN_REQUIRED, INVENTORY_ROW_INVALID, or DELIVERY_ORDER_STATUS_INVALID",
                     content = @Content)
     })
     public DeliveryOrderResponse saveDeliveryOrderPickingPlan(@PathVariable Long id,

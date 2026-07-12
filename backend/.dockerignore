@@ -1,0 +1,12 @@
+.git
+.gitignore
+.idea
+.vscode
+.env
+.env.*
+application-secrets.yml
+src/main/resources/application-secrets.yml
+target
+logs
+*.log
+*.iml

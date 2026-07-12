@@ -9,6 +9,7 @@
 - `id`
 - `warehouse_id`
 - `status`
+- `version`
 - `updated_at`
 
 **Validation rules**
@@ -65,6 +66,8 @@
 - `picked_qty`
 - `is_replacement`
 - `replaced_allocation_id`
+- `status` (`ACTIVE` or `CANCELLED`)
+- `version`
 - `created_by`
 - `created_at`
 - `updated_at`
@@ -76,6 +79,8 @@
 - Referenced inventory row must be valid regular quality-passed stock with `available > 0`.
 - For initial and revised plans, per-item sum of `planned_qty` must equal item `requested_qty`.
 - If an allocation has recorded picked/QC rows, reduction or removal requires matching return-to-bin records first.
+- Removed allocations are retained with `status = CANCELLED`; operational totals and QC-pending queries include only `ACTIVE` rows.
+- Allocation updates use optimistic version checks.
 - Replacement allocations set `is_replacement = true` and may reference the failed original allocation through `replaced_allocation_id`.
 
 ## DeliveryOrderItemReturnToBinRecord
@@ -101,7 +106,8 @@
 
 - Required only for picked allocations that are removed or reduced.
 - `returned_qty > 0`.
-- `returned_qty` cannot exceed the picked quantity being backed out from the original allocation.
+- `returned_qty` must equal the picked portion being backed out from the original allocation.
+- `source_location_id` must equal the staging location recorded by the allocation's QC result.
 - Return destination must match the original allocation batch/location/zone.
 - Inventory movement back to the original row must be recorded before revised allocations are persisted.
 
@@ -170,6 +176,7 @@
 **Validation rules**
 
 - Candidate list includes only rows in the Delivery Order warehouse with valid regular quality-passed stock.
+- FIFO consumes older received dates first; rows sharing the same received date have equal priority across bins.
 - Exclude quarantine, outbound staging, In-Transit, inactive locations, and rows where `total_qty - reserved_qty <= 0`.
 - Initial plan save increments `reserved_qty` on selected rows while decrementing planner reservation.
 - Revised plan adjusts only the changed rows by delta.

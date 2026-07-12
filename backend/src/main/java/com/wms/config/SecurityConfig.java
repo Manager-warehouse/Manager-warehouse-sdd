@@ -74,7 +74,11 @@ public class SecurityConfig {
                 "http://localhost:3004",
                 "http://localhost:3005",
                 "http://localhost:5173",
-                "http://localhost:5174"
+                "http://localhost:5174",
+                "capacitor://localhost",
+                "ionic://localhost",
+                "https://manager-warehouse.online",
+                "https://www.manager-warehouse.online"
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         config.setAllowedHeaders(List.of("*"));

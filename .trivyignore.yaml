@@ -1,0 +1,76 @@
+vulnerabilities:
+  # Temporary risk acceptance approved by the repository owner on 2026-07-03.
+  # Owner: WMS Release Approver. Required remediation: upgrade the immutable
+  # Spring Boot 3.4.5 stack through an approved constitution amendment.
+  - id: CVE-2026-54512
+    expired_at: 2026-08-02
+    statement: Temporary acceptance for Jackson managed by Spring Boot 3.4.5; upgrade the approved stack before expiry.
+  - id: CVE-2026-54513
+    expired_at: 2026-08-02
+    statement: Temporary acceptance for Jackson managed by Spring Boot 3.4.5; upgrade the approved stack before expiry.
+
+  - id: CVE-2025-48988
+    expired_at: 2026-08-02
+    statement: Temporary acceptance for embedded Tomcat managed by Spring Boot 3.4.5; upgrade before expiry.
+  - id: CVE-2025-48989
+    expired_at: 2026-08-02
+    statement: Temporary acceptance for embedded Tomcat managed by Spring Boot 3.4.5; upgrade before expiry.
+  - id: CVE-2025-52520
+    expired_at: 2026-08-02
+    statement: Temporary acceptance for embedded Tomcat managed by Spring Boot 3.4.5; upgrade before expiry.
+  - id: CVE-2025-53506
+    expired_at: 2026-08-02
+    statement: Temporary acceptance for embedded Tomcat managed by Spring Boot 3.4.5; upgrade before expiry.
+  - id: CVE-2025-55752
+    expired_at: 2026-08-02
+    statement: Temporary acceptance for embedded Tomcat managed by Spring Boot 3.4.5; upgrade before expiry.
+  - id: CVE-2026-24734
+    expired_at: 2026-08-02
+    statement: Temporary acceptance for embedded Tomcat managed by Spring Boot 3.4.5; upgrade before expiry.
+  - id: CVE-2026-24880
+    expired_at: 2026-08-02
+    statement: Temporary acceptance for embedded Tomcat managed by Spring Boot 3.4.5; upgrade before expiry.
+  - id: CVE-2026-34483
+    expired_at: 2026-08-02
+    statement: Temporary acceptance for embedded Tomcat managed by Spring Boot 3.4.5; upgrade before expiry.
+  - id: CVE-2026-41284
+    expired_at: 2026-08-02
+    statement: Temporary acceptance for embedded Tomcat managed by Spring Boot 3.4.5; upgrade before expiry.
+  - id: CVE-2026-41293
+    expired_at: 2026-08-02
+    statement: Temporary acceptance for embedded Tomcat managed by Spring Boot 3.4.5; upgrade before expiry.
+  - id: CVE-2026-42498
+    expired_at: 2026-08-02
+    statement: Temporary acceptance for embedded Tomcat managed by Spring Boot 3.4.5; upgrade before expiry.
+  - id: CVE-2026-43512
+    expired_at: 2026-08-02
+    statement: Temporary acceptance for embedded Tomcat managed by Spring Boot 3.4.5; upgrade before expiry.
+  - id: CVE-2026-43513
+    expired_at: 2026-08-02
+    statement: Temporary acceptance for embedded Tomcat managed by Spring Boot 3.4.5; upgrade before expiry.
+  - id: CVE-2026-43515
+    expired_at: 2026-08-02
+    statement: Temporary acceptance for embedded Tomcat managed by Spring Boot 3.4.5; upgrade before expiry.
+
+  - id: CVE-2025-49146
+    expired_at: 2026-08-02
+    statement: Temporary acceptance for the PostgreSQL driver managed by Spring Boot 3.4.5; upgrade before expiry.
+  - id: CVE-2026-42198
+    expired_at: 2026-08-02
+    statement: Temporary acceptance for the PostgreSQL driver managed by Spring Boot 3.4.5; upgrade before expiry.
+
+  - id: CVE-2026-40973
+    expired_at: 2026-08-02
+    statement: Temporary acceptance for Spring Boot 3.4.5; persistent servlet sessions are not enabled and the stack must be upgraded before expiry.
+  - id: CVE-2025-41232
+    expired_at: 2026-08-02
+    statement: Temporary acceptance for Spring Security managed by Spring Boot 3.4.5; upgrade before expiry.
+  - id: CVE-2025-41248
+    expired_at: 2026-08-02
+    statement: Temporary acceptance for Spring Security managed by Spring Boot 3.4.5; upgrade before expiry.
+  - id: CVE-2026-22732
+    expired_at: 2026-08-02
+    statement: Temporary acceptance for Spring Security managed by Spring Boot 3.4.5; upgrade before expiry.
+  - id: CVE-2025-41249
+    expired_at: 2026-08-02
+    statement: Temporary acceptance for Spring Framework managed by Spring Boot 3.4.5; upgrade before expiry.

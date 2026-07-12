@@ -1,0 +1,183 @@
+# Application secrets - never commit these
+application-secrets.yml
+
+# Compiled class files
+*.class
+
+# Application insights
+*.log
+*.iml
+*.iws
+*.ipr
+.idea/
+
+#-maven
+.mvn
+
+# Gradle
+target/
+build/
+.gradle
+.gradle/
+
+# JDK/JRE
+*.jfr
+*.zip
+logs/
+*.tmp
+*.swp
+*.swo
+
+# Environment files
+.env
+dotenv
+
+# Application configuration
+*.properties
+*.yml
+!src/main/resources/application.yml
+!src/main/resources/application-prod.yml
+!src/test/resources/application.yml
+
+# Temporary files
+*.bak
+*.temp
+
+# Binaries
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Output of Maven dependency plugin
+target/
+
+# Coverage
+target/site/cobertura/test/**
+
+# IntelliJ IDEA
+dist/
+*.sublime-workspace
+tmp/
+*.log
+*.log.*
+
+target
+
+# Windows Explorer temporary files
+thumbs.db
+
+# Mac systems
+.DS_Store
+.LSOverride
+
+# Linux
+.*~
+Desktop
+
+# User-specific stuff
+.project
+.settings
+.xr
+try[^.py]
+
+# CI/CD artifacts
+output
+logs
+/reports
+
+# IDE plug-ins
+.project
+.settings
+.idea
+.vscode
+
+# Application logs
+*.log
+*.log.*
+**/*.log
+**/*/*.log
+
+# Temporary files
+*.temp
+*.tmp
+
+# Coverage
+.target
+
+# Maven plugin
+pom.xml.tag
+pom.xml.releaseBackup
+
+# Package Files
+*.war
+*.ear
+*.nar
+*.sar
+*.kar
+
+# node.js
+node_modules/
+npm-debug.log
+
+# jhipster
+/jhipster/jhipster-need-to-analyze/
+
+# Others
+.vagrant
+*.swp
+*.swo
+*.*.swp
+*.vvv
+.env
+.env.dev
+.env.test
+.env.production
+.env.local
+.env.example
+
+# database
+*.sqlite
+*.sqlite3
+
+# Hadoop
+*.deflate
+*.gz
+
+# Python
+*.pyc
+*.pyo
+*.pyd
+*.env
+*.venv
+
+# OS-specific
+.DS_Store
+.DS_Store?
+.DS_Store
+.env
+
+# Distribution archive
+*.tar
+*.tar.gz
+*.tgz
+
+# Go
+*.so
+
+# Package managers
+composer.lock
+yarn.lock
+
+# System files
+.System
+
+# Printers and print systems
+*.printk
+spool
+
+# Integration tests
+integration-test/src/main/resources/db/migration/integration-tests
+
+# Compiled source files
+bin/

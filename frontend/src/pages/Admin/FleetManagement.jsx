@@ -171,7 +171,6 @@ const FleetManagement = () => {
       setIsVhModalOpen(false);
       fetchData();
     } catch (err) {
-      console.error('Vehicle submit error:', err);
       if (err.message === 'DUPLICATE_PLATE_NUMBER' || err.message?.includes('DUPLICATE_PLATE_NUMBER')) {
         setVhFormErrors({ plate_number: 'Biển số xe này đã được đăng ký' });
       } else {
@@ -294,15 +293,21 @@ const FleetManagement = () => {
 
     if (diffDays < 0) {
       return (
-        <span className="text-[10px] font-bold bg-red-50 text-red-700 border border-red-200 px-2 py-0.5 rounded-pill whitespace-nowrap inline-flex items-center gap-1">
-          <ShieldAlert className="w-3 h-3" /> ĐÃ HẾT HẠN
-        </span>
+        <Badge type="danger">
+          <span className="inline-flex items-center gap-1">
+            <ShieldAlert className="w-3 h-3" /> ĐÃ HẾT HẠN
+          </span>
+        </Badge>
       );
     }
     if (diffDays <= 30) {
       return (
-        <span className="text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-pill whitespace-nowrap inline-flex items-center gap-1" title={`Bằng lái sẽ hết hạn vào ngày ${dateStr}`}>
-          <Calendar className="w-3 h-3" /> Hạn còn {diffDays} ngày
+        <span title={`Bằng lái sẽ hết hạn vào ngày ${dateStr}`}>
+          <Badge type="warning">
+            <span className="inline-flex items-center gap-1">
+              <Calendar className="w-3 h-3" /> Hạn còn {diffDays} ngày
+            </span>
+          </Badge>
         </span>
       );
     }
@@ -311,9 +316,9 @@ const FleetManagement = () => {
 
   const getVehicleStatusBadge = (status) => {
     const styles = {
-      AVAILABLE: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-      ON_TRIP: 'bg-blue-50 text-blue-700 border-blue-200',
-      MAINTENANCE: 'bg-amber-50 text-amber-700 border-amber-200',
+      AVAILABLE: 'bg-success-50 text-success-700 border-success-200',
+      ON_TRIP: 'bg-info-50 text-info-700 border-info-200',
+      MAINTENANCE: 'bg-warning-50 text-warning-700 border-warning-200',
     };
     const labels = {
       AVAILABLE: 'Sẵn sàng',
@@ -321,17 +326,17 @@ const FleetManagement = () => {
       MAINTENANCE: 'Bảo dưỡng',
     };
     return (
-      <span className={`text-[10px] font-bold border px-2 py-0.5 rounded-pill whitespace-nowrap ${styles[status] || styles.AVAILABLE}`}>
+      <Badge colorClassName={styles[status] || styles.AVAILABLE}>
         {labels[status] || status}
-      </span>
+      </Badge>
     );
   };
 
   const getDriverStatusBadge = (status) => {
     const styles = {
-      AVAILABLE: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-      ON_TRIP: 'bg-blue-50 text-blue-700 border-blue-200',
-      UNAVAILABLE: 'bg-amber-50 text-amber-700 border-amber-200',
+      AVAILABLE: 'bg-success-50 text-success-700 border-success-200',
+      ON_TRIP: 'bg-info-50 text-info-700 border-info-200',
+      UNAVAILABLE: 'bg-warning-50 text-warning-700 border-warning-200',
     };
     const labels = {
       AVAILABLE: 'Sẵn sàng',
@@ -339,9 +344,9 @@ const FleetManagement = () => {
       UNAVAILABLE: 'Không khả dụng',
     };
     return (
-      <span className={`text-[10px] font-bold border px-2 py-0.5 rounded-pill whitespace-nowrap ${styles[status] || styles.AVAILABLE}`}>
+      <Badge colorClassName={styles[status] || styles.AVAILABLE}>
         {labels[status] || status}
-      </span>
+      </Badge>
     );
   };
 
@@ -448,7 +453,7 @@ const FleetManagement = () => {
           onClick={() => { setActiveTab('VEHICLES'); setSearchTerm(''); }}
           className={`px-5 py-3 font-semibold text-sm transition-all border-b-2 flex items-center gap-2 ${
             activeTab === 'VEHICLES'
-              ? 'border-ink text-ink bg-white/50 rounded-t-lg'
+              ? 'border-ink text-ink bg-canvas-light/50 rounded-t-lg'
               : 'border-transparent text-shade-50 hover:text-ink'
           }`}
         >
@@ -459,7 +464,7 @@ const FleetManagement = () => {
           onClick={() => { setActiveTab('DRIVERS'); setSearchTerm(''); }}
           className={`px-5 py-3 font-semibold text-sm transition-all border-b-2 flex items-center gap-2 ${
             activeTab === 'DRIVERS'
-              ? 'border-ink text-ink bg-white/50 rounded-t-lg'
+              ? 'border-ink text-ink bg-canvas-light/50 rounded-t-lg'
               : 'border-transparent text-shade-50 hover:text-ink'
           }`}
         >
@@ -469,15 +474,14 @@ const FleetManagement = () => {
       </div>
 
       {/* Search Bar */}
-      <div className="bg-white border border-hairline-light rounded-lg p-4 mb-6 shadow-sm">
-        <div className="relative flex-1 w-full max-w-md">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-shade-40" />
-          <input
+      <div className="bg-canvas-light border border-hairline-light rounded-lg p-4 mb-6 shadow-level-3">
+        <div className="flex-1 w-full max-w-md">
+          <Input
             type="text"
+            leftIcon={Search}
             placeholder={activeTab === 'VEHICLES' ? 'Tìm theo biển số hoặc loại xe...' : 'Tìm theo tên hoặc số bằng lái tài xế...'}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-canvas-light text-ink text-sm pl-10 pr-4 py-2.5 rounded-md border border-hairline-light focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink min-h-[44px]"
           />
         </div>
       </div>
@@ -489,166 +493,267 @@ const FleetManagement = () => {
         </div>
       ) : activeTab === 'VEHICLES' ? (
         filteredVehicles.length === 0 ? (
-          <div className="bg-white rounded-lg border border-hairline-light p-12 text-center shadow-sm">
+          <div className="bg-canvas-light rounded-lg border border-hairline-light p-12 text-center shadow-level-3">
             <AlertCircle className="w-12 h-12 text-shade-30 mx-auto mb-4" />
             <h3 className="text-lg font-bold mb-1">Không tìm thấy xe tải</h3>
             <p className="text-sm text-shade-50">Thử thay đổi bộ lọc tìm kiếm hoặc đăng ký xe mới.</p>
           </div>
         ) : (
-          <div className="bg-white rounded-lg border border-hairline-light shadow-sm overflow-hidden card-premium">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="bg-zinc-50 border-b border-hairline-light">
-                    <th className="px-6 py-4 font-bold text-shade-60">Biển kiểm soát</th>
-                    <th className="px-6 py-4 font-bold text-shade-60">Dòng xe / Model</th>
-                    <th className="px-6 py-4 font-bold text-shade-60">Kho phụ trách</th>
-                    <th className="px-6 py-4 font-bold text-shade-60 text-right">Tải trọng tối đa (kg)</th>
-                    <th className="px-6 py-4 font-bold text-shade-60 text-right">Thể tích tối đa (m³)</th>
-                    <th className="px-6 py-4 font-bold text-shade-60 text-center">Trạng thái vận chuyển</th>
-                    <th className="px-6 py-4 font-bold text-shade-60 text-center">Hoạt động</th>
-                    <th className="px-6 py-4 font-bold text-shade-60 text-right">Hành động</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-hairline-light">
-                  {filteredVehicles.map((vh) => (
-                    <tr key={vh.id} className={`hover:bg-zinc-50/50 transition-colors ${!vh.is_active ? 'opacity-50' : ''}`}>
-                      <td className="px-6 py-4">
-                        <span className="font-mono font-bold text-ink bg-zinc-100 border border-zinc-200 px-2 py-1 rounded">
-                          {vh.plate_number}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 font-semibold text-ink">{vh.vehicle_type}</td>
-                      <td className="px-6 py-4 text-shade-60 font-semibold">
-                        {vh.warehouse_code || WAREHOUSES.find((warehouse) => warehouse.id === Number(vh.warehouse_id || vh.warehouseId))?.code || '-'}
-                      </td>
-                      <td className="px-6 py-4 text-right font-mono text-shade-70 font-semibold">
-                        {vh.max_weight_kg?.toLocaleString('vi-VN')} kg
-                      </td>
-                      <td className="px-6 py-4 text-right font-mono text-shade-60">
-                        {vh.max_volume_m3?.toFixed(2)} m³
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        {getVehicleStatusBadge(vh.status)}
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <Badge type={vh.is_active ? 'success' : 'neutral'} className="text-[9px]">
-                          {vh.is_active ? 'Hoạt động' : 'Khóa'}
-                        </Badge>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex gap-3.5 justify-end items-center font-bold">
-                          {hasRole(ROLES.DISPATCHER) || hasRole(ROLES.ADMIN) || hasRole(ROLES.CEO) ? (
-                            <button
-                              onClick={() => handleOpenEditVehicle(vh)}
-                              className="p-1 hover:bg-zinc-100 rounded-full transition-colors shrink-0 text-shade-60 hover:text-ink"
-                              title="Sửa xe tải"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
-                          ) : null}
-                          <button
-                            onClick={() => handleToggleVhStatus(vh)}
-                            className="p-1 hover:bg-zinc-100 rounded-full transition-colors shrink-0"
-                            title={vh.is_active ? 'Khóa xe tải' : 'Kích hoạt xe tải'}
-                          >
-                            {vh.is_active ? (
-                              <ToggleRight className="w-5 h-5 text-emerald-600" />
-                            ) : (
-                              <ToggleLeft className="w-5 h-5 text-shade-40" />
-                            )}
-                          </button>
-                        </div>
-                      </td>
+          <>
+            {/* Desktop/tablet: table view */}
+            <div className="hidden md:block bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-canvas-cream border-b border-hairline-light">
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Biển kiểm soát</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Dòng xe / Model</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Kho phụ trách</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Tải trọng tối đa (kg)</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Thể tích tối đa (m³)</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center">Trạng thái vận chuyển</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center">Hoạt động</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Hành động</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-hairline-light">
+                    {filteredVehicles.map((vh) => (
+                      <tr key={vh.id} className={`hover:bg-canvas-cream/50 transition-colors ${!vh.is_active ? 'opacity-50' : ''}`}>
+                        <td className="px-6 py-4">
+                          <span className="font-mono font-bold text-ink bg-canvas-cream border border-hairline-light px-2 py-1 rounded whitespace-nowrap">
+                            {vh.plate_number}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 font-semibold text-ink">{vh.vehicle_type}</td>
+                        <td className="px-6 py-4 text-shade-60 font-semibold">
+                          {vh.warehouse_code || WAREHOUSES.find((warehouse) => warehouse.id === Number(vh.warehouse_id || vh.warehouseId))?.code || '-'}
+                        </td>
+                        <td className="px-6 py-4 text-right font-mono text-shade-70 font-semibold">
+                          {vh.max_weight_kg?.toLocaleString('vi-VN')} kg
+                        </td>
+                        <td className="px-6 py-4 text-right font-mono text-shade-60">
+                          {vh.max_volume_m3?.toFixed(2)} m³
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          {getVehicleStatusBadge(vh.status)}
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <Badge type={vh.is_active ? 'success' : 'neutral'} className="text-[9px]">
+                            {vh.is_active ? 'Hoạt động' : 'Khóa'}
+                          </Badge>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex gap-3.5 justify-end items-center font-bold">
+                            {hasRole(ROLES.DISPATCHER) || hasRole(ROLES.ADMIN) || hasRole(ROLES.CEO) ? (
+                              <button
+                                onClick={() => handleOpenEditVehicle(vh)}
+                                className="p-1 hover:bg-canvas-cream rounded-full transition-colors shrink-0 text-shade-60 hover:text-ink"
+                                title="Sửa xe tải"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                            ) : null}
+                            <button
+                              onClick={() => handleToggleVhStatus(vh)}
+                              className="p-1 hover:bg-canvas-cream rounded-full transition-colors shrink-0"
+                              title={vh.is_active ? 'Khóa xe tải' : 'Kích hoạt xe tải'}
+                            >
+                              {vh.is_active ? (
+                                <ToggleRight className="w-5 h-5 text-success-600" />
+                              ) : (
+                                <ToggleLeft className="w-5 h-5 text-shade-40" />
+                              )}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
+
+            {/* Mobile: stacked card view */}
+            <div className="flex flex-col gap-3 md:hidden">
+              {filteredVehicles.map((vh) => (
+                <div key={vh.id} className={`bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden ${!vh.is_active ? 'opacity-50' : ''}`}>
+                  <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center gap-2">
+                    <span className="font-mono font-bold text-xs text-ink bg-canvas-light border border-hairline-light px-2 py-1 rounded whitespace-nowrap">
+                      {vh.plate_number}
+                    </span>
+                    <Badge type={vh.is_active ? 'success' : 'neutral'} className="text-[9px]">
+                      {vh.is_active ? 'Hoạt động' : 'Khóa'}
+                    </Badge>
+                  </div>
+                  <div className="p-4 flex flex-col gap-2 text-xs">
+                    <div className="font-semibold text-ink">{vh.vehicle_type}</div>
+                    <p className="text-shade-50">Kho phụ trách: <span className="font-semibold text-ink">
+                      {vh.warehouse_code || WAREHOUSES.find((warehouse) => warehouse.id === Number(vh.warehouse_id || vh.warehouseId))?.code || '-'}
+                    </span></p>
+                    <p className="text-shade-50">Tải trọng tối đa: <span className="font-mono font-semibold text-ink">{vh.max_weight_kg?.toLocaleString('vi-VN')} kg</span></p>
+                    <p className="text-shade-50">Thể tích tối đa: <span className="font-mono text-ink">{vh.max_volume_m3?.toFixed(2)} m³</span></p>
+                    <div>{getVehicleStatusBadge(vh.status)}</div>
+                  </div>
+                  <div className="p-4 border-t border-hairline-light flex gap-3.5 justify-end items-center font-bold">
+                    {hasRole(ROLES.DISPATCHER) || hasRole(ROLES.ADMIN) || hasRole(ROLES.CEO) ? (
+                      <button
+                        onClick={() => handleOpenEditVehicle(vh)}
+                        className="p-1.5 hover:bg-canvas-cream rounded-full transition-colors shrink-0 text-shade-60 hover:text-ink"
+                        title="Sửa xe tải"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                    ) : null}
+                    <button
+                      onClick={() => handleToggleVhStatus(vh)}
+                      className="p-1.5 hover:bg-canvas-cream rounded-full transition-colors shrink-0"
+                      title={vh.is_active ? 'Khóa xe tải' : 'Kích hoạt xe tải'}
+                    >
+                      {vh.is_active ? (
+                        <ToggleRight className="w-5 h-5 text-success-600" />
+                      ) : (
+                        <ToggleLeft className="w-5 h-5 text-shade-40" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         )
       ) : (
         // DRIVERS TAB
         filteredDrivers.length === 0 ? (
-          <div className="bg-white rounded-lg border border-hairline-light p-12 text-center shadow-sm">
+          <div className="bg-canvas-light rounded-lg border border-hairline-light p-12 text-center shadow-level-3">
             <AlertCircle className="w-12 h-12 text-shade-30 mx-auto mb-4" />
             <h3 className="text-lg font-bold mb-1">Không tìm thấy tài xế</h3>
             <p className="text-sm text-shade-50">Thử thay đổi bộ lọc tìm kiếm hoặc thêm mới tài xế.</p>
           </div>
         ) : (
-          <div className="bg-white rounded-lg border border-hairline-light shadow-sm overflow-hidden card-premium">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="bg-zinc-50 border-b border-hairline-light">
-                    <th className="px-6 py-4 font-bold text-shade-60">Họ và tên</th>
-                    <th className="px-6 py-4 font-bold text-shade-60">ID nhân viên</th>
-                    <th className="px-6 py-4 font-bold text-shade-60">Kho phụ trách</th>
-                    <th className="px-6 py-4 font-bold text-shade-60">Số điện thoại</th>
-                    <th className="px-6 py-4 font-bold text-shade-60">Số giấy phép lái xe</th>
-                    <th className="px-6 py-4 font-bold text-shade-60">Hạn bằng lái</th>
-                    <th className="px-6 py-4 font-bold text-shade-60 text-center">Trạng thái làm việc</th>
-                    <th className="px-6 py-4 font-bold text-shade-60 text-center">Hoạt động</th>
-                    <th className="px-6 py-4 font-bold text-shade-60 text-right">Hành động</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-hairline-light">
-                  {filteredDrivers.map((dr) => (
-                    <tr key={dr.id} className={`hover:bg-zinc-50/50 transition-colors ${!dr.is_active ? 'opacity-50' : ''}`}>
-                      <td className="px-6 py-4 font-semibold text-ink">{dr.full_name}</td>
-                      <td className="px-6 py-4 font-mono text-shade-50">{dr.accountCode || `NV-${String(dr.user_id).padStart(3, '0')}`}</td>
-                      <td className="px-6 py-4 text-shade-60 font-semibold">
-                        {getWarehouseLabels(dr.warehouse_ids || dr.warehouseIds || dr.accountWarehouses)}
-                      </td>
-                      <td className="px-6 py-4 text-shade-60 font-mono">{dr.phone || 'N/A'}</td>
-                      <td className="px-6 py-4 text-shade-60 font-mono font-bold">{dr.license_number || '-'}</td>
-                      <td className="px-6 py-4">
-                        {getExpiryBadge(dr.license_expiry)}
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        {dr.rowType === 'ACCOUNT_ONLY' ? (
-                          <span className="text-[10px] font-bold border px-2 py-0.5 rounded-pill whitespace-nowrap bg-amber-50 text-amber-700 border-amber-200">
-                            Chưa có hồ sơ
-                          </span>
-                        ) : getDriverStatusBadge(dr.status)}
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <Badge type={dr.is_active ? 'success' : 'neutral'} className="text-[9px]">
-                          {dr.is_active ? 'Hoạt động' : 'Khóa'}
-                        </Badge>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex gap-3.5 justify-end items-center font-bold">
-                          {hasRole(ROLES.DISPATCHER) || hasRole(ROLES.ADMIN) || hasRole(ROLES.CEO) ? (
-                            <button
-                              onClick={() => (dr.rowType === 'ACCOUNT_ONLY' ? handleOpenAddDriver(dr.user) : handleOpenEditDriver(dr))}
-                              className="p-1 hover:bg-zinc-100 rounded-full transition-colors shrink-0 text-shade-60 hover:text-ink"
-                              title={dr.rowType === 'ACCOUNT_ONLY' ? 'Tạo hồ sơ tài xế' : 'Sửa hồ sơ tài xế'}
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
-                          ) : null}
-                          {dr.rowType === 'PROFILE' && (
-                            <button
-                              onClick={() => handleToggleDrStatus(dr)}
-                              className="p-1 hover:bg-zinc-100 rounded-full transition-colors shrink-0"
-                              title={dr.is_active ? 'Khóa tài xế' : 'Kích hoạt tài xế'}
-                            >
-                              {dr.is_active ? (
-                                <ToggleRight className="w-5 h-5 text-emerald-600" />
-                              ) : (
-                                <ToggleLeft className="w-5 h-5 text-shade-40" />
-                              )}
-                            </button>
-                          )}
-                        </div>
-                      </td>
+          <>
+            {/* Desktop/tablet: table view */}
+            <div className="hidden md:block bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-canvas-cream border-b border-hairline-light">
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Họ và tên</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">ID nhân viên</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Kho phụ trách</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Số điện thoại</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Số giấy phép lái xe</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Hạn bằng lái</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center">Trạng thái làm việc</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center">Hoạt động</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Hành động</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-hairline-light">
+                    {filteredDrivers.map((dr) => (
+                      <tr key={dr.id} className={`hover:bg-canvas-cream/50 transition-colors ${!dr.is_active ? 'opacity-50' : ''}`}>
+                        <td className="px-6 py-4 font-semibold text-ink">{dr.full_name}</td>
+                        <td className="px-6 py-4 font-mono text-shade-50">{dr.accountCode || `NV-${String(dr.user_id).padStart(3, '0')}`}</td>
+                        <td className="px-6 py-4 text-shade-60 font-semibold">
+                          {getWarehouseLabels(dr.warehouse_ids || dr.warehouseIds || dr.accountWarehouses)}
+                        </td>
+                        <td className="px-6 py-4 text-shade-60 font-mono">{dr.phone || 'N/A'}</td>
+                        <td className="px-6 py-4 text-shade-60 font-mono font-bold">{dr.license_number || '-'}</td>
+                        <td className="px-6 py-4">
+                          {getExpiryBadge(dr.license_expiry)}
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          {dr.rowType === 'ACCOUNT_ONLY' ? (
+                            <Badge type="warning">Chưa có hồ sơ</Badge>
+                          ) : getDriverStatusBadge(dr.status)}
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <Badge type={dr.is_active ? 'success' : 'neutral'} className="text-[9px]">
+                            {dr.is_active ? 'Hoạt động' : 'Khóa'}
+                          </Badge>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex gap-3.5 justify-end items-center font-bold">
+                            {hasRole(ROLES.DISPATCHER) || hasRole(ROLES.ADMIN) || hasRole(ROLES.CEO) ? (
+                              <button
+                                onClick={() => (dr.rowType === 'ACCOUNT_ONLY' ? handleOpenAddDriver(dr.user) : handleOpenEditDriver(dr))}
+                                className="p-1 hover:bg-canvas-cream rounded-full transition-colors shrink-0 text-shade-60 hover:text-ink"
+                                title={dr.rowType === 'ACCOUNT_ONLY' ? 'Tạo hồ sơ tài xế' : 'Sửa hồ sơ tài xế'}
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                            ) : null}
+                            {dr.rowType === 'PROFILE' && (
+                              <button
+                                onClick={() => handleToggleDrStatus(dr)}
+                                className="p-1 hover:bg-canvas-cream rounded-full transition-colors shrink-0"
+                                title={dr.is_active ? 'Khóa tài xế' : 'Kích hoạt tài xế'}
+                              >
+                                {dr.is_active ? (
+                                  <ToggleRight className="w-5 h-5 text-success-600" />
+                                ) : (
+                                  <ToggleLeft className="w-5 h-5 text-shade-40" />
+                                )}
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
+
+            {/* Mobile: stacked card view */}
+            <div className="flex flex-col gap-3 md:hidden">
+              {filteredDrivers.map((dr) => (
+                <div key={dr.id} className={`bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden ${!dr.is_active ? 'opacity-50' : ''}`}>
+                  <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center gap-2">
+                    <span className="font-semibold text-xs text-ink">{dr.full_name}</span>
+                    <Badge type={dr.is_active ? 'success' : 'neutral'} className="text-[9px]">
+                      {dr.is_active ? 'Hoạt động' : 'Khóa'}
+                    </Badge>
+                  </div>
+                  <div className="p-4 flex flex-col gap-2 text-xs">
+                    <p className="text-shade-50">ID nhân viên: <span className="font-mono font-medium text-ink">{dr.accountCode || `NV-${String(dr.user_id).padStart(3, '0')}`}</span></p>
+                    <p className="text-shade-50">Kho phụ trách: <span className="font-semibold text-ink">{getWarehouseLabels(dr.warehouse_ids || dr.warehouseIds || dr.accountWarehouses)}</span></p>
+                    <p className="text-shade-50">Số điện thoại: <span className="font-mono font-medium text-ink">{dr.phone || 'N/A'}</span></p>
+                    <p className="text-shade-50">Số GPLX: <span className="font-mono font-bold text-ink">{dr.license_number || '-'}</span></p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {getExpiryBadge(dr.license_expiry)}
+                      {dr.rowType === 'ACCOUNT_ONLY' ? (
+                        <Badge type="warning">Chưa có hồ sơ</Badge>
+                      ) : getDriverStatusBadge(dr.status)}
+                    </div>
+                  </div>
+                  <div className="p-4 border-t border-hairline-light flex gap-3.5 justify-end items-center font-bold">
+                    {hasRole(ROLES.DISPATCHER) || hasRole(ROLES.ADMIN) || hasRole(ROLES.CEO) ? (
+                      <button
+                        onClick={() => (dr.rowType === 'ACCOUNT_ONLY' ? handleOpenAddDriver(dr.user) : handleOpenEditDriver(dr))}
+                        className="p-1.5 hover:bg-canvas-cream rounded-full transition-colors shrink-0 text-shade-60 hover:text-ink"
+                        title={dr.rowType === 'ACCOUNT_ONLY' ? 'Tạo hồ sơ tài xế' : 'Sửa hồ sơ tài xế'}
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                    ) : null}
+                    {dr.rowType === 'PROFILE' && (
+                      <button
+                        onClick={() => handleToggleDrStatus(dr)}
+                        className="p-1.5 hover:bg-canvas-cream rounded-full transition-colors shrink-0"
+                        title={dr.is_active ? 'Khóa tài xế' : 'Kích hoạt tài xế'}
+                      >
+                        {dr.is_active ? (
+                          <ToggleRight className="w-5 h-5 text-success-600" />
+                        ) : (
+                          <ToggleLeft className="w-5 h-5 text-shade-40" />
+                        )}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         )
       )}
 
@@ -660,7 +765,7 @@ const FleetManagement = () => {
         maxWidth="max-w-md"
       >
         <form onSubmit={handleVhSubmit} className="flex flex-col gap-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label="Biển số xe (Unique)"
               value={vhPlateNumber}
@@ -705,7 +810,7 @@ const FleetManagement = () => {
             required
           />
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label="Tải trọng tối đa (kg)"
               type="number"
@@ -746,7 +851,7 @@ const FleetManagement = () => {
         maxWidth="max-w-md"
       >
         <form onSubmit={handleDrSubmit} className="flex flex-col gap-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label="Liên kết tài khoản"
               type="select"
@@ -791,7 +896,7 @@ const FleetManagement = () => {
             />
           </div>
           {drModalType === 'ADD' && (driverUserLoadFailed || selectableDriverUsers.length === 0) && (
-            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            <div className="rounded-md border border-warning-200 bg-warning-50 px-3 py-2 text-xs text-warning-800">
               {driverUserLoadFailed
                 ? 'Không tải được danh sách tài khoản DRIVER để liên kết. Cần kiểm tra quyền/API quản lý tài khoản trước khi tạo hồ sơ tài xế.'
                 : 'Tất cả tài khoản DRIVER hiện có đã có hồ sơ tài xế. Muốn thêm tài xế mới, hãy tạo tài khoản role DRIVER trước rồi quay lại tạo hồ sơ.'}
@@ -817,7 +922,7 @@ const FleetManagement = () => {
             placeholder="VD: 0904 445 556"
           />
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label="Số giấy phép lái xe (GPLX)"
               value={drLicenseNumber}

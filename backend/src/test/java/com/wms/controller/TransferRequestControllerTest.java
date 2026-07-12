@@ -23,6 +23,7 @@ import com.wms.exception.GlobalExceptionHandler;
 import com.wms.service.CurrentUserService;
 import com.wms.service.transfer.TransferRequestService;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -83,7 +84,8 @@ class TransferRequestControllerTest {
         return new TransferRequestResponse(
                 id, number, 10L, "Source Warehouse", 20L, "Destination Warehouse", status,
                 1L, "Creator Name", null, null, null, null, null, null, null, null, null,
-                null, "Notes detail", OffsetDateTime.now(), OffsetDateTime.now(), List.of()
+                null, LocalDate.now().plusDays(2), "Destination shortage", "Notes detail",
+                null, null, null, null, null, OffsetDateTime.now(), OffsetDateTime.now(), List.of()
         );
     }
 
@@ -93,7 +95,7 @@ class TransferRequestControllerTest {
         TransferRequestItemRequest item = new TransferRequestItemRequest(100L, new BigDecimal("10.00"));
 
         TransferRequestCreateRequest request = new TransferRequestCreateRequest(
-                10L, 20L, "Notes details", List.of(item)
+                10L, 20L, LocalDate.now().plusDays(2), "Destination shortage", "Notes details", List.of(item)
         );
 
         TransferRequestResponse response = createMockResponse(500L, "TRQ-0001", TransferRequestStatus.DRAFT);

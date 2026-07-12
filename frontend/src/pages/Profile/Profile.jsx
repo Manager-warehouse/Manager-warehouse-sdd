@@ -41,7 +41,6 @@ const Profile = () => {
           login(fullUser, sessionStorage.getItem('wms_token'));
         }
       } catch (err) {
-        console.error('Failed to fetch full profile:', err);
       }
     };
     fetchProfile();
@@ -71,7 +70,6 @@ const Profile = () => {
       login(updatedUser, sessionStorage.getItem('wms_token'));
       addToast('Cập nhật thông tin cá nhân thành công', 'success');
     } catch (err) {
-      console.error(err);
       addToast('Cập nhật thông tin thất bại', 'error');
     } finally {
       setProfileLoading(false);
@@ -143,7 +141,7 @@ const Profile = () => {
         {/* Left: Metadata / RBAC Info */}
         <div className="lg:col-span-1 flex flex-col gap-6">
           <div className="card-premium flex flex-col items-center text-center gap-4">
-            <div className="w-20 h-20 rounded-full bg-ink text-onPrimary font-semibold text-2xl flex items-center justify-center shadow-lg">
+            <div className="w-20 h-20 rounded-full bg-ink text-onPrimary font-semibold text-2xl flex items-center justify-center shadow-level-3">
               {getAvatarFallback(user?.fullName)}
             </div>
             <div>
@@ -218,7 +216,7 @@ const Profile = () => {
                       <div className="text-xs font-semibold text-ink">{wh.name}</div>
                       <div className="text-[10px] text-shade-50 mt-0.5">{wh.address}</div>
                     </div>
-                    <span className="text-[10px] font-bold text-shade-60 border border-shade-30 px-2 py-0.5 rounded bg-canvas-light font-mono">
+                    <span className="text-[10px] font-bold text-shade-60 border border-shade-30 px-2 py-0.5 rounded-pill bg-canvas-light font-mono">
                       {wh.code}
                     </span>
                   </div>
@@ -305,7 +303,7 @@ const Profile = () => {
             </div>
 
             {passError && (
-              <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-md text-xs font-medium">
+              <div className="p-3 bg-danger-50 border border-danger-200 text-danger-700 rounded-lg text-xs font-medium">
                 {passError}
               </div>
             )}

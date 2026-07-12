@@ -7,7 +7,7 @@ import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import Modal from '../../components/common/Modal';
 import Badge from '../../components/common/Badge';
-import { Plus, Search, Edit, ToggleLeft, ToggleRight, AlertCircle, Filter, Loader2 } from 'lucide-react';
+import { Plus, Search, Edit, ToggleLeft, ToggleRight, AlertCircle, Loader2 } from 'lucide-react';
 
 const ProductManagement = () => {
   const { hasRole } = useAuthStore();
@@ -206,32 +206,31 @@ const ProductManagement = () => {
       </div>
 
       {/* Search & Filters */}
-      <div className="bg-white border border-hairline-light rounded-lg p-5 mb-6 shadow-sm flex flex-col md:flex-row gap-4 items-center">
+      <div className="bg-canvas-light border border-hairline-light rounded-lg p-5 mb-6 shadow-level-3 flex flex-col md:flex-row gap-4 items-center">
         {/* Search */}
-        <div className="relative flex-1 w-full">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-shade-40" />
-          <input
+        <div className="flex-1 w-full">
+          <Input
             type="text"
+            leftIcon={Search}
             placeholder="Tìm theo mã SKU hoặc tên sản phẩm..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-canvas-light text-ink text-sm pl-10 pr-4 py-2.5 rounded-md border border-hairline-light focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink min-h-[44px]"
           />
         </div>
 
         {/* Filter controls */}
         <div className="flex gap-4 w-full md:w-auto">
           <div className="w-full md:w-44">
-            <label className="block text-[10px] font-bold text-shade-50 uppercase mb-1 tracking-wider">Trạng thái</label>
-            <select
+            <Input
+              type="select"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full bg-canvas-light text-ink text-sm px-3 py-2 rounded-md border border-hairline-light focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink min-h-[38px]"
-            >
-              <option value="ALL">Tất cả trạng thái</option>
-              <option value="ACTIVE">Đang hoạt động</option>
-              <option value="INACTIVE">Đang khóa</option>
-            </select>
+              options={[
+                { value: 'ALL', label: 'Tất cả trạng thái' },
+                { value: 'ACTIVE', label: 'Đang hoạt động' },
+                { value: 'INACTIVE', label: 'Đang khóa' },
+              ]}
+            />
           </div>
         </div>
       </div>
@@ -242,79 +241,128 @@ const ProductManagement = () => {
           <Loader2 className="w-8 h-8 animate-spin text-shade-50" />
         </div>
       ) : filteredProducts.length === 0 ? (
-        <div className="bg-white rounded-lg border border-hairline-light p-12 text-center shadow-sm card-premium">
+        <div className="bg-canvas-light rounded-lg border border-hairline-light p-12 text-center shadow-level-3">
           <AlertCircle className="w-12 h-12 text-shade-30 mx-auto mb-4" />
           <h3 className="text-lg font-bold mb-1">Không tìm thấy sản phẩm</h3>
           <p className="text-sm text-shade-50">Thử thay đổi bộ lọc tìm kiếm hoặc thêm mới sản phẩm.</p>
         </div>
       ) : (
-        <div className="bg-white rounded-lg border border-hairline-light shadow-sm overflow-hidden card-premium">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-zinc-50 border-b border-hairline-light">
-                  <th className="px-6 py-4 font-bold text-shade-60">SKU</th>
-                  <th className="px-6 py-4 font-bold text-shade-60">Tên sản phẩm</th>
-                  <th className="px-6 py-4 font-bold text-shade-60">Đơn vị</th>
-                  <th className="px-6 py-4 font-bold text-shade-60 text-right">Quy đổi đóng gói</th>
-                  <th className="px-6 py-4 font-bold text-shade-60 text-right">Trọng lượng (kg)</th>
-                  <th className="px-6 py-4 font-bold text-shade-60 text-right">Thể tích (m³)</th>
-                  <th className="px-6 py-4 font-bold text-shade-60 text-right">Mức tối thiểu</th>
-                  <th className="px-6 py-4 font-bold text-shade-60 text-center">Trạng thái</th>
-                  <th className="px-6 py-4 font-bold text-shade-60 text-right">Hành động</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-hairline-light">
-                {filteredProducts.map((prod) => (
-                  <tr key={prod.id} className={`hover:bg-zinc-50/50 transition-colors ${!prod.is_active ? 'opacity-60 bg-zinc-50/20' : ''}`}>
-                    <td className="px-6 py-4">
-                      <span className="font-mono font-bold text-ink bg-zinc-100 px-2 py-1 rounded text-xs border border-zinc-200">
-                        {prod.sku}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 max-w-xs font-semibold text-ink truncate" title={prod.name}>
-                      {prod.name}
-                    </td>
-                    <td className="px-6 py-4 text-shade-60">{prod.unit}</td>
-                    <td className="px-6 py-4 text-right font-medium">{prod.unit_per_pack}</td>
-                    <td className="px-6 py-4 text-right font-mono text-shade-60">{prod.weight_kg?.toFixed(3)}</td>
-                    <td className="px-6 py-4 text-right font-mono text-shade-60">{prod.volume_m3?.toFixed(5)}</td>
-                    <td className="px-6 py-4 text-right font-mono font-medium">{prod.reorder_point}</td>
-                    <td className="px-6 py-4 text-center">
-                      <Badge type={prod.is_active ? 'success' : 'neutral'}>
-                        {prod.is_active ? 'Hoạt động' : 'Khóa'}
-                      </Badge>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex gap-3 justify-end items-center">
-                        {hasRole(ROLES.STOREKEEPER) || hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.ADMIN) ? (
-                          <button
-                            onClick={() => handleOpenEditModal(prod)}
-                            className="p-1 hover:bg-zinc-100 rounded-full transition-colors shrink-0"
-                            title="Sửa thông tin"
-                          >
-                            <Edit className="w-4 h-4 text-shade-60 hover:text-ink" />
-                          </button>
-                        ) : null}
-                        <button
-                          onClick={() => handleToggleStatus(prod.id, prod.is_active)}
-                          className="p-1 hover:bg-zinc-100 rounded-full transition-colors shrink-0"
-                          title={prod.is_active ? 'Khóa sản phẩm' : 'Kích hoạt sản phẩm'}
-                        >
-                          {prod.is_active ? (
-                            <ToggleRight className="w-5 h-5 text-emerald-600" />
-                          ) : (
-                            <ToggleLeft className="w-5 h-5 text-shade-40" />
-                          )}
-                        </button>
-                      </div>
-                    </td>
+        <>
+          {/* Desktop/tablet: table view */}
+          <div className="hidden md:block bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-canvas-cream border-b border-hairline-light">
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">SKU</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Tên sản phẩm</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Đơn vị</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Quy đổi đóng gói</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Trọng lượng (kg)</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Thể tích (m³)</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Mức tối thiểu</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center">Trạng thái</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Hành động</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-hairline-light">
+                  {filteredProducts.map((prod) => (
+                    <tr key={prod.id} className={`hover:bg-canvas-cream/50 transition-colors ${!prod.is_active ? 'opacity-60 bg-canvas-cream/20' : ''}`}>
+                      <td className="px-6 py-4">
+                        <span className="font-mono font-bold text-ink bg-canvas-cream px-2 py-1 rounded text-xs border border-hairline-light whitespace-nowrap">
+                          {prod.sku}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 font-semibold text-ink" title={prod.name}>
+                        {prod.name}
+                      </td>
+                      <td className="px-6 py-4 text-shade-60">{prod.unit}</td>
+                      <td className="px-6 py-4 text-right font-medium">{prod.unit_per_pack}</td>
+                      <td className="px-6 py-4 text-right font-mono text-shade-60">{prod.weight_kg?.toFixed(3)}</td>
+                      <td className="px-6 py-4 text-right font-mono text-shade-60">{prod.volume_m3?.toFixed(5)}</td>
+                      <td className="px-6 py-4 text-right font-mono font-medium">{prod.reorder_point}</td>
+                      <td className="px-6 py-4 text-center">
+                        <Badge type={prod.is_active ? 'success' : 'neutral'}>
+                          {prod.is_active ? 'Hoạt động' : 'Khóa'}
+                        </Badge>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex gap-3 justify-end items-center">
+                          {hasRole(ROLES.STOREKEEPER) || hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.ADMIN) ? (
+                            <button
+                              onClick={() => handleOpenEditModal(prod)}
+                              className="p-1 hover:bg-canvas-cream rounded-full transition-colors shrink-0"
+                              title="Sửa thông tin"
+                            >
+                              <Edit className="w-4 h-4 text-shade-60 hover:text-ink" />
+                            </button>
+                          ) : null}
+                          <button
+                            onClick={() => handleToggleStatus(prod.id, prod.is_active)}
+                            className="p-1 hover:bg-canvas-cream rounded-full transition-colors shrink-0"
+                            title={prod.is_active ? 'Khóa sản phẩm' : 'Kích hoạt sản phẩm'}
+                          >
+                            {prod.is_active ? (
+                              <ToggleRight className="w-5 h-5 text-success-600" />
+                            ) : (
+                              <ToggleLeft className="w-5 h-5 text-shade-40" />
+                            )}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+
+          {/* Mobile: stacked card view */}
+          <div className="flex flex-col gap-3 md:hidden">
+            {filteredProducts.map((prod) => (
+              <div key={prod.id} className={`bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden ${!prod.is_active ? 'opacity-60 bg-canvas-cream/20' : ''}`}>
+                <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center gap-2">
+                  <span className="font-mono font-bold text-ink bg-canvas-light px-2 py-1 rounded text-xs border border-hairline-light whitespace-nowrap">
+                    {prod.sku}
+                  </span>
+                  <Badge type={prod.is_active ? 'success' : 'neutral'}>
+                    {prod.is_active ? 'Hoạt động' : 'Khóa'}
+                  </Badge>
+                </div>
+                <div className="p-4 flex flex-col gap-2 text-xs">
+                  <div className="font-semibold text-ink">{prod.name}</div>
+                  <p className="text-shade-50">Đơn vị: <span className="font-medium text-ink">{prod.unit}</span></p>
+                  <p className="text-shade-50">Quy đổi đóng gói: <span className="font-medium text-ink">{prod.unit_per_pack}</span></p>
+                  <p className="text-shade-50">Trọng lượng: <span className="font-mono text-ink">{prod.weight_kg?.toFixed(3)} kg</span></p>
+                  <p className="text-shade-50">Thể tích: <span className="font-mono text-ink">{prod.volume_m3?.toFixed(5)} m³</span></p>
+                  <p className="text-shade-50">Mức tối thiểu: <span className="font-mono font-medium text-ink">{prod.reorder_point}</span></p>
+                </div>
+                <div className="p-4 border-t border-hairline-light flex gap-3 justify-end items-center">
+                  {hasRole(ROLES.STOREKEEPER) || hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.ADMIN) ? (
+                    <button
+                      onClick={() => handleOpenEditModal(prod)}
+                      className="p-1.5 hover:bg-canvas-cream rounded-full transition-colors shrink-0"
+                      title="Sửa thông tin"
+                    >
+                      <Edit className="w-4 h-4 text-shade-60 hover:text-ink" />
+                    </button>
+                  ) : null}
+                  <button
+                    onClick={() => handleToggleStatus(prod.id, prod.is_active)}
+                    className="p-1.5 hover:bg-canvas-cream rounded-full transition-colors shrink-0"
+                    title={prod.is_active ? 'Khóa sản phẩm' : 'Kích hoạt sản phẩm'}
+                  >
+                    {prod.is_active ? (
+                      <ToggleRight className="w-5 h-5 text-success-600" />
+                    ) : (
+                      <ToggleLeft className="w-5 h-5 text-shade-40" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       {/* Product Form Modal */}
@@ -325,7 +373,7 @@ const ProductManagement = () => {
         maxWidth="max-w-lg"
       >
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label="Mã SKU (Duy nhất)"
               value={formSku}
@@ -359,7 +407,7 @@ const ProductManagement = () => {
             required
           />
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Input
               label="Quy đổi đóng gói"
               type="number"
@@ -392,7 +440,7 @@ const ProductManagement = () => {
             />
           </div>
 
-          <div className="bg-zinc-50 p-3.5 rounded border border-hairline-light">
+          <div className="bg-canvas-cream p-3.5 rounded border border-hairline-light">
             <Input
               label="Mức Stock cảnh báo"
               type="number"

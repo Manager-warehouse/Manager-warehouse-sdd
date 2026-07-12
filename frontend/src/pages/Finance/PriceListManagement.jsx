@@ -1,19 +1,22 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, Upload, Download, Search, X, Edit2, Ban, DollarSign, Loader2, Warehouse } from 'lucide-react';
+import { Plus, Upload, Download, FileSpreadsheet, Search, X, Edit, XCircle, DollarSign, Loader2, Warehouse, RefreshCw } from 'lucide-react';
 import Pagination from '../../components/common/Pagination';
+import Input from '../../components/common/Input';
+import Button from '../../components/common/Button';
+import Badge from '../../components/common/Badge';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
+import { useDebounce } from '../../hooks/useDebounce';
 import pricingService from '../../services/pricing.service';
 import { masterDataService } from '../../services/masterData.service';
 import { ROLES } from '../../utils/constants';
 
 const STATUS_LABEL = { PENDING: 'Chờ duyệt', APPROVED: 'Đã duyệt', CANCELLED: 'Đã hủy' };
 const STATUS_STYLE = {
-  PENDING:   'bg-amber-50 text-amber-800 border-amber-300',
-  APPROVED:  'bg-aloe-10 text-emerald-900 border-emerald-300',
-  CANCELLED: 'bg-zinc-100 text-zinc-500 border-zinc-300',
+  PENDING:   'bg-warning-50 text-warning-800 border-warning-300',
+  APPROVED:  'bg-aloe-10 text-success-900 border-success-300',
+  CANCELLED: 'bg-canvas-cream text-shade-50 border-hairline-light',
 };
-const BADGE = 'text-[10px] font-semibold px-2 py-0.5 rounded-pill border uppercase tracking-wider whitespace-nowrap';
 
 export default function PriceListManagement() {
   const { user, hasRole, activeWarehouse } = useAuthStore();
@@ -26,6 +29,7 @@ export default function PriceListManagement() {
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
+  const [replaceTarget, setReplaceTarget] = useState(null);
   const [showImport, setShowImport] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -90,11 +94,17 @@ export default function PriceListManagement() {
     }
   };
 
+  const handleReplace = (entry) => {
+    setEditTarget(null);
+    setReplaceTarget(entry);
+    setShowForm(true);
+  };
+
   return (
     <div className="flex flex-col gap-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 flex-wrap">
+        <div className="flex-1 min-w-0">
           <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
             Tài chính / Bảng giá
           </span>
@@ -105,26 +115,21 @@ export default function PriceListManagement() {
             Quản lý giá vốn & giá bán theo kỳ hiệu lực tại <span className="font-semibold text-ink">{activeWarehouse?.name ?? '—'}</span>. Bản giá mới cần được Kế toán trưởng phê duyệt trước khi có hiệu lực.
           </p>
         </div>
-        <div className="flex gap-2 flex-wrap justify-end">
-          <button onClick={handleExportXlsx}
-            className="btn-pill btn-pill-outline-light flex items-center gap-2 text-sm">
-            <Upload className="w-4 h-4" /> Xuất Excel
-          </button>
+        <div className="flex gap-2 flex-wrap lg:flex-nowrap items-center w-full lg:w-auto flex-shrink-0">
+          <Button onClick={handleExportXlsx} variant="primary" icon={FileSpreadsheet} className="flex-none">
+            Xuất Excel
+          </Button>
           {canWrite && (
             <>
-              <button onClick={() => setShowImport(true)}
-                className="btn-pill btn-pill-outline-light flex items-center gap-2 text-sm">
-                <Download className="w-4 h-4" /> Nhập Excel
-              </button>
-              <button onClick={() => pricingService.downloadTemplate().catch(() => addToast('Không tải được file mẫu', 'error'))}
-                className="btn-pill btn-pill-outline-light flex items-center gap-2 text-sm">
-                <Upload className="w-4 h-4" /> Tải mẫu
-              </button>
-              <button onClick={() => { setEditTarget(null); setShowForm(true); }}
-                className="btn-pill btn-pill-primary flex items-center gap-2">
-                <Plus className="w-4 h-4" />
-                <span>Thêm bản giá</span>
-              </button>
+              <Button onClick={() => setShowImport(true)} variant="outline-light" icon={Download} className="flex-none">
+                Nhập Excel
+              </Button>
+              <Button onClick={() => pricingService.downloadTemplate().catch(() => addToast('Không tải được file mẫu', 'error'))} variant="outline-light" icon={Upload} className="flex-none">
+                Tải mẫu
+              </Button>
+              <Button onClick={() => { setEditTarget(null); setShowForm(true); }} variant="primary" icon={Plus} className="flex-none">
+                Thêm bản giá
+              </Button>
             </>
           )}
         </div>
@@ -133,11 +138,11 @@ export default function PriceListManagement() {
       {/* KPI Summary */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         {[
-          { label: 'Tổng bản giá', value: totalEntries, icon: <DollarSign className="w-5 h-5" />, accent: 'text-zinc-600 bg-zinc-100' },
-          { label: 'Chờ duyệt', value: pendingCount, icon: <DollarSign className="w-5 h-5" />, accent: 'text-amber-600 bg-amber-50' },
-          { label: 'Đã duyệt', value: approvedCount, icon: <DollarSign className="w-5 h-5" />, accent: 'text-emerald-600 bg-emerald-50' },
+          { label: 'Tổng bản giá', value: totalEntries, icon: <DollarSign className="w-5 h-5" />, accent: 'text-shade-60 bg-canvas-cream' },
+          { label: 'Chờ duyệt', value: pendingCount, icon: <DollarSign className="w-5 h-5" />, accent: 'text-warning-600 bg-warning-50' },
+          { label: 'Đã duyệt', value: approvedCount, icon: <DollarSign className="w-5 h-5" />, accent: 'text-success-600 bg-success-50' },
         ].map(({ label, value, icon, accent }) => (
-          <div key={label} className="bg-white rounded-lg border border-hairline-light p-4 shadow-sm flex items-center gap-3">
+          <div key={label} className="bg-canvas-light rounded-lg border border-hairline-light p-4 shadow-level-3 flex items-center gap-3">
             <div className={`p-2.5 rounded-full ${accent}`}>{icon}</div>
             <div>
               <p className="text-xs text-shade-50 font-medium">{label}</p>
@@ -148,26 +153,27 @@ export default function PriceListManagement() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-lg border border-hairline-light p-4 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
-        <div className="relative w-full md:w-80">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-shade-40" />
-          <input
+      <div className="bg-canvas-light rounded-lg border border-hairline-light p-4 shadow-level-3 flex flex-col md:flex-row gap-4 items-center justify-between">
+        <div className="w-full md:w-80">
+          <Input
             type="text"
+            leftIcon={Search}
             placeholder="Tìm SKU hoặc tên sản phẩm..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full text-input pl-10"
           />
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-shade-50">Trạng thái:</span>
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="text-input text-xs py-1.5">
-            <option value="ALL">Tất cả</option>
-            <option value="PENDING">Chờ duyệt</option>
-            <option value="APPROVED">Đã duyệt</option>
-            <option value="CANCELLED">Đã hủy</option>
-          </select>
-        </div>
+        <Input
+          type="select"
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          options={[
+            { value: 'ALL', label: 'Tất cả' },
+            { value: 'PENDING', label: 'Chờ duyệt' },
+            { value: 'APPROVED', label: 'Đã duyệt' },
+            { value: 'CANCELLED', label: 'Đã hủy' },
+          ]}
+        />
       </div>
 
       {/* Table */}
@@ -176,34 +182,35 @@ export default function PriceListManagement() {
           <Loader2 className="w-8 h-8 animate-spin text-shade-50" />
         </div>
       ) : filtered.length === 0 ? (
-        <div className="bg-white rounded-lg border border-hairline-light p-12 text-center shadow-sm">
+        <div className="bg-canvas-light rounded-lg border border-hairline-light p-12 text-center shadow-level-3">
           <DollarSign className="w-12 h-12 text-shade-30 mx-auto mb-4" />
           <h3 className="text-lg font-bold mb-1">Không tìm thấy bản giá nào</h3>
           <p className="text-sm text-shade-50">Thay đổi bộ lọc hoặc thêm bản giá mới để bắt đầu.</p>
         </div>
       ) : (
-        <div className="bg-white rounded-lg border border-hairline-light shadow-sm overflow-hidden card-premium">
-          <div className="overflow-x-auto">
+        <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden">
+          {/* Desktop/tablet: table view */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-zinc-50 border-b border-hairline-light">
-                  <th className="px-6 py-3.5 text-xs font-bold text-shade-60 uppercase tracking-wider">SKU</th>
-                  <th className="px-6 py-3.5 text-xs font-bold text-shade-60 uppercase tracking-wider">Sản phẩm</th>
-                  <th className="px-6 py-3.5 text-xs font-bold text-shade-60 uppercase tracking-wider">Kỳ hiệu lực</th>
-                  <th className="px-6 py-3.5 text-xs font-bold text-shade-60 uppercase tracking-wider text-right">Giá vốn</th>
-                  <th className="px-6 py-3.5 text-xs font-bold text-shade-60 uppercase tracking-wider text-right">Giá bán</th>
-                  <th className="px-6 py-3.5 text-xs font-bold text-shade-60 uppercase tracking-wider">Trạng thái</th>
-                  <th className="px-6 py-3.5 text-xs font-bold text-shade-60 uppercase tracking-wider">Ghi chú</th>
-                  <th className="px-6 py-3.5 text-xs font-bold text-shade-60 uppercase tracking-wider text-right">Thao tác</th>
+                <tr className="bg-canvas-cream border-b border-hairline-light">
+                  <th className="px-6 py-4 text-xs font-semibold text-shade-60 uppercase tracking-wider">SKU</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-shade-60 uppercase tracking-wider">Sản phẩm</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-shade-60 uppercase tracking-wider">Hiệu lực từ</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-shade-60 uppercase tracking-wider text-right">Giá vốn</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-shade-60 uppercase tracking-wider text-right">Giá bán</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-shade-60 uppercase tracking-wider">Trạng thái</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-shade-60 uppercase tracking-wider">Ghi chú</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-shade-60 uppercase tracking-wider text-right">Hành động</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-hairline-light">
                 {paginated.map((entry) => (
-                  <tr key={entry.id} className="hover:bg-zinc-50 transition-colors">
+                  <tr key={entry.id} className="hover:bg-canvas-cream/50 transition-colors">
                     <td className="px-6 py-4 font-mono text-xs text-shade-60">{entry.product_sku}</td>
                     <td className="px-6 py-4 text-xs font-semibold">{entry.product_name}</td>
                     <td className="px-6 py-4 text-xs text-shade-50 whitespace-nowrap">
-                      {entry.effective_date} → {entry.end_date}
+                      {entry.effective_date}
                     </td>
                     <td className="px-6 py-4 text-xs text-shade-60 text-right tabular-nums">
                       {formatVND(entry.cost_price)}
@@ -212,35 +219,102 @@ export default function PriceListManagement() {
                       {formatVND(entry.selling_price)}
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`${BADGE} ${STATUS_STYLE[entry.status]}`}>
+                      <Badge colorClassName={STATUS_STYLE[entry.status]}>
                         {STATUS_LABEL[entry.status]}
-                      </span>
+                      </Badge>
                     </td>
                     <td className="px-6 py-4 text-xs text-shade-50 max-w-[140px] truncate">
                       {entry.notes || '—'}
                     </td>
                     <td className="px-6 py-4 text-right whitespace-nowrap">
-                      {canWrite && entry.status === 'PENDING' && entry.created_by?.id === user?.id && (
-                        <div className="flex gap-2 justify-end items-center">
+                      <div className="flex gap-1 justify-end items-center">
+                        {canWrite && entry.status === 'PENDING' && entry.created_by?.id === user?.id ? (
+                          <>
+                            <button
+                              onClick={() => { setEditTarget(entry); setShowForm(true); }}
+                              className="p-1 hover:bg-canvas-cream rounded-full transition-colors shrink-0 text-shade-60 hover:text-ink"
+                              title="Sửa bản giá"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleCancel(entry.id)}
+                              className="p-1 hover:bg-canvas-cream rounded-full transition-colors shrink-0 text-shade-40 hover:text-danger-600"
+                              title="Hủy bản giá"
+                            >
+                              <XCircle className="w-4 h-4" />
+                            </button>
+                          </>
+                        ) : canWrite && entry.status === 'APPROVED' ? (
                           <button
-                            onClick={() => { setEditTarget(entry); setShowForm(true); }}
-                            className="inline-flex items-center justify-center rounded-full border border-ink bg-canvas-light text-ink hover:bg-zinc-100 px-3 py-1 text-xs font-semibold whitespace-nowrap transition-colors duration-150"
+                            onClick={() => handleReplace(entry)}
+                            className="p-1 hover:bg-canvas-cream rounded-full transition-colors shrink-0 text-shade-60 hover:text-ink"
+                            title="Cập nhật giá mới"
                           >
-                            <Edit2 className="w-3 h-3 mr-1" /> Sửa
+                            <RefreshCw className="w-4 h-4" />
                           </button>
-                          <button
-                            onClick={() => handleCancel(entry.id)}
-                            className="inline-flex items-center justify-center rounded-full border border-red-300 text-red-600 hover:bg-red-50 px-3 py-1 text-xs font-semibold whitespace-nowrap transition-colors duration-150"
-                          >
-                            <Ban className="w-3 h-3 mr-1" /> Hủy
-                          </button>
-                        </div>
-                      )}
+                        ) : (
+                          <span className="text-shade-50 text-[10px] font-medium">Không có sẵn</span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile: stacked card view */}
+          <div className="flex flex-col gap-3 p-4 md:hidden">
+            {paginated.map((entry) => (
+              <div key={entry.id} className="rounded-lg border border-hairline-light bg-canvas-cream/30 overflow-hidden">
+                <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center gap-2">
+                  <span className="font-mono text-xs text-shade-60">{entry.product_sku}</span>
+                  <Badge colorClassName={STATUS_STYLE[entry.status]}>
+                    {STATUS_LABEL[entry.status]}
+                  </Badge>
+                </div>
+                <div className="p-4 flex flex-col gap-2 text-xs">
+                  <div className="font-semibold">{entry.product_name}</div>
+                  <p className="text-shade-50">Hiệu lực từ: <span className="font-medium text-ink">{entry.effective_date}</span></p>
+                  <p className="text-shade-50">Giá vốn: <span className="text-ink tabular-nums">{formatVND(entry.cost_price)}</span></p>
+                  <p className="text-shade-50">Giá bán: <span className="font-semibold text-ink tabular-nums">{formatVND(entry.selling_price)}</span></p>
+                  <p className="text-shade-50">Ghi chú: <span className="text-ink">{entry.notes || '—'}</span></p>
+                </div>
+                {canWrite && entry.status === 'PENDING' && entry.created_by?.id === user?.id ? (
+                  <div className="p-4 border-t border-hairline-light flex gap-2 justify-end items-center">
+                    <button
+                      onClick={() => { setEditTarget(entry); setShowForm(true); }}
+                      className="p-1.5 hover:bg-canvas-cream rounded-full transition-colors shrink-0 text-shade-60 hover:text-ink"
+                      title="Sửa bản giá"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleCancel(entry.id)}
+                      className="p-1.5 hover:bg-canvas-cream rounded-full transition-colors shrink-0 text-shade-40 hover:text-danger-600"
+                      title="Hủy bản giá"
+                    >
+                      <XCircle className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : canWrite && entry.status === 'APPROVED' ? (
+                  <div className="p-4 border-t border-hairline-light flex justify-end">
+                    <button
+                      onClick={() => handleReplace(entry)}
+                      className="p-1.5 hover:bg-canvas-cream rounded-full transition-colors shrink-0 text-shade-60 hover:text-ink"
+                      title="Cập nhật giá mới"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="p-4 border-t border-hairline-light flex justify-end">
+                    <span className="text-shade-50 text-[10px] font-medium">Không có sẵn</span>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
           <Pagination
             currentPage={safePage}
@@ -256,10 +330,11 @@ export default function PriceListManagement() {
       {showForm && (
         <PriceEntryModal
           entry={editTarget}
+          replaceSource={replaceTarget}
           warehouseId={warehouseId}
           warehouseName={activeWarehouse?.name}
-          onClose={() => { setShowForm(false); setEditTarget(null); }}
-          onSaved={() => { setShowForm(false); setEditTarget(null); fetchEntries(); }}
+          onClose={() => { setShowForm(false); setEditTarget(null); setReplaceTarget(null); }}
+          onSaved={() => { setShowForm(false); setEditTarget(null); setReplaceTarget(null); fetchEntries(); }}
         />
       )}
 
@@ -275,19 +350,20 @@ export default function PriceListManagement() {
 
 // ── PriceEntryModal ────────────────────────────────────────────────────────
 
-function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }) {
+function PriceEntryModal({ entry, replaceSource, warehouseId, warehouseName, onClose, onSaved }) {
   const { addToast } = useUiStore();
+  const isEdit = !!entry;
+  const isReplace = !isEdit && !!replaceSource;
+  const seed = entry ?? replaceSource ?? null;
   const [form, setForm] = useState({
-    product_id: entry?.product_id ?? '',
-    warehouse_id: entry?.warehouse_id ?? warehouseId ?? '',
-    effective_date: entry?.effective_date ?? '',
-    end_date: entry?.end_date ?? '',
-    cost_price: entry?.cost_price ?? '',
-    selling_price: entry?.selling_price ?? '',
+    product_id: seed?.product_id ?? '',
+    warehouse_id: seed?.warehouse_id ?? warehouseId ?? '',
+    effective_date: isEdit ? (entry?.effective_date ?? '') : isReplace ? todayISO() : '',
+    cost_price: seed?.cost_price ?? '',
+    selling_price: seed?.selling_price ?? '',
     notes: entry?.notes ?? '',
   });
   const [submitting, setSubmitting] = useState(false);
-  const isEdit = !!entry;
 
   const [products, setProducts] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
@@ -306,43 +382,40 @@ function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }
         const activeProducts = data.filter(p => p.is_active);
         setProducts(activeProducts);
 
-        if (isEdit && entry?.product_id) {
-          const prod = activeProducts.find(p => p.id === entry.product_id);
+        if (seed?.product_id) {
+          const prod = activeProducts.find(p => p.id === seed.product_id);
           if (prod) {
             setSelectedProduct(prod);
           } else {
             setSelectedProduct({
-              id: entry.product_id,
-              sku: entry.product_sku || '',
-              name: entry.product_name || 'Sản phẩm không xác định'
+              id: seed.product_id,
+              sku: seed.product_sku || '',
+              name: seed.product_name || 'Sản phẩm không xác định'
             });
           }
         }
       } catch (err) {
-        console.error('Lỗi tải sản phẩm:', err);
         addToast('Không tải được danh sách sản phẩm', 'error');
       } finally {
         setLoadingProducts(false);
       }
     };
     fetchProducts();
-  }, [isEdit, entry, addToast]);
+  }, [seed, addToast]);
+
+  const debouncedSearchQuery = useDebounce(searchQuery, 250);
 
   useEffect(() => {
-    if (!searchQuery.trim()) {
+    if (!debouncedSearchQuery.trim()) {
       setSearchResults([]);
       return;
     }
-    const delayDebounce = setTimeout(() => {
-      const filtered = products.filter(p =>
-        p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.name.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-      setSearchResults(filtered);
-    }, 250);
-
-    return () => clearTimeout(delayDebounce);
-  }, [searchQuery, products]);
+    const filtered = products.filter(p =>
+      p.sku.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+      p.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
+    );
+    setSearchResults(filtered);
+  }, [debouncedSearchQuery, products]);
 
   // Đóng dropdown khi click ngoài
   useEffect(() => {
@@ -362,12 +435,8 @@ function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.product_id || !form.warehouse_id || !form.effective_date || !form.end_date || !form.cost_price || !form.selling_price) {
+    if (!form.product_id || !form.warehouse_id || !form.effective_date || !form.cost_price || !form.selling_price) {
       addToast('Vui lòng điền đầy đủ các trường bắt buộc', 'error');
-      return;
-    }
-    if (form.effective_date > form.end_date) {
-      addToast('Ngày bắt đầu phải trước ngày kết thúc', 'error');
       return;
     }
     setSubmitting(true);
@@ -392,44 +461,52 @@ function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-canvas-cream rounded-lg max-w-lg w-full border border-hairline-light shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
-        <div className="p-6 border-b border-hairline-light flex items-center justify-between bg-white">
+    <div className="fixed inset-0 bg-canvas-night/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-canvas-cream rounded-lg max-w-lg w-full border border-hairline-light shadow-level-4 overflow-hidden flex flex-col max-h-[85vh]">
+        <div className="p-6 border-b border-hairline-light flex items-center justify-between bg-canvas-light">
           <div>
-            <span className="text-[10px] font-bold text-shade-40 uppercase tracking-widest block mb-1">
+            <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
               Tài chính / Bảng giá
             </span>
-            <h3 className="text-xl font-bold">{isEdit ? 'Sửa bản giá' : 'Thêm bản giá mới'}</h3>
+            <h3 className="text-xl font-bold">{isEdit ? 'Sửa bản giá' : isReplace ? 'Cập nhật giá' : 'Thêm bản giá mới'}</h3>
           </div>
-          <button onClick={onClose} className="p-1 hover:bg-zinc-100 rounded-full transition-colors text-shade-50 hover:text-ink">
+          <button onClick={onClose} className="p-1 hover:bg-canvas-cream rounded-pill transition-colors text-shade-50 hover:text-ink">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto flex-1 flex flex-col gap-4">
-          {isEdit ? (
+          {isReplace && (
+            <div className="text-xs text-shade-50 bg-canvas-light border border-hairline-light rounded-lg p-3">
+              Bản giá này sẽ thay thế bản giá <span className="font-semibold text-ink">đang APPROVED</span> hiện
+              tại (hiệu lực từ <span className="font-semibold text-ink">{replaceSource.effective_date}</span>,
+              giá bán <span className="font-semibold text-ink">{formatVND(replaceSource.selling_price)}</span>)
+              kể từ ngày hiệu lực bạn chọn bên dưới. Bản giá cũ vẫn được giữ nguyên trong lịch sử.
+            </div>
+          )}
+          {(isEdit || isReplace) ? (
             <div>
               <label className="block text-xs font-bold text-shade-60 uppercase tracking-wider mb-1.5">
                 Sản phẩm
               </label>
               <input
                 type="text"
-                value={selectedProduct ? `${selectedProduct.sku} - ${selectedProduct.name}` : (entry?.product_name || `ID: ${form.product_id}`)}
+                value={selectedProduct ? `${selectedProduct.sku} - ${selectedProduct.name}` : (seed?.product_name || `ID: ${form.product_id}`)}
                 disabled
-                className="text-input w-full bg-zinc-50 text-shade-50 cursor-not-allowed font-semibold"
+                className="text-input w-full bg-canvas-cream text-shade-50 cursor-not-allowed font-semibold"
               />
             </div>
           ) : selectedProduct ? (
             <div>
               <label className="block text-xs font-bold text-shade-60 uppercase tracking-wider mb-1.5">
-                Sản phẩm <span className="text-red-500">*</span>
+                Sản phẩm <span className="text-danger-500">*</span>
               </label>
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={`${selectedProduct.sku} - ${selectedProduct.name}`}
                   disabled
-                  className="text-input flex-1 bg-zinc-50 text-shade-60 font-semibold"
+                  className="text-input flex-1 bg-canvas-cream text-shade-60 font-semibold"
                 />
                 <button
                   type="button"
@@ -437,7 +514,7 @@ function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }
                     setSelectedProduct(null);
                     set('product_id', '');
                   }}
-                  className="btn-pill btn-pill-outline-light text-xs py-1.5 px-3 hover:text-red-600 hover:border-red-300"
+                  className="btn-pill btn-pill-outline-light text-xs py-1.5 px-3 hover:text-danger-600 hover:border-danger-300"
                 >
                   Thay đổi
                 </button>
@@ -446,10 +523,10 @@ function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }
           ) : (
             <div className="relative" onClick={(e) => e.stopPropagation()}>
               <label className="block text-xs font-bold text-shade-60 uppercase tracking-wider mb-1.5">
-                Tìm kiếm sản phẩm <span className="text-red-500">*</span>
+                Tìm kiếm sản phẩm <span className="text-danger-500">*</span>
               </label>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-shade-40" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-shade-60" />
                 <input
                   type="text"
                   placeholder="Nhập tên sản phẩm hoặc SKU..."
@@ -463,13 +540,13 @@ function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }
                 />
                 {loadingProducts && (
                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    <Loader2 className="w-4 h-4 animate-spin text-shade-40" />
+                    <Loader2 className="w-4 h-4 animate-spin text-shade-60" />
                   </div>
                 )}
               </div>
 
               {showSearchResults && searchQuery.trim() !== '' && (
-                <div className="absolute left-0 right-0 mt-1 bg-white border border-hairline-light rounded-lg shadow-xl max-h-60 overflow-y-auto z-50">
+                <div className="absolute left-0 right-0 mt-1 bg-canvas-light border border-hairline-light rounded-lg shadow-level-4 max-h-60 overflow-y-auto z-50">
                   {searchResults.length === 0 ? (
                     <div className="p-3 text-xs text-shade-50 text-center">Không tìm thấy sản phẩm</div>
                   ) : (
@@ -477,7 +554,7 @@ function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }
                       <div
                         key={prod.id}
                         onClick={() => handleSelectProduct(prod)}
-                        className="p-2.5 hover:bg-zinc-50 cursor-pointer transition-colors border-b border-hairline-light last:border-0 flex items-center justify-between text-xs"
+                        className="p-2.5 hover:bg-canvas-cream cursor-pointer transition-colors border-b border-hairline-light last:border-0 flex items-center justify-between text-xs"
                       >
                         <div>
                           <span className="font-bold block text-ink">{prod.sku}</span>
@@ -497,40 +574,34 @@ function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }
             </label>
             <input
               type="text"
-              value={entry?.warehouse_name ?? warehouseName ?? '—'}
+              value={entry?.warehouse_name ?? replaceSource?.warehouse_name ?? warehouseName ?? '—'}
               disabled
-              className="text-input w-full bg-zinc-50 text-shade-50 cursor-not-allowed font-semibold"
+              className="text-input w-full bg-canvas-cream text-shade-50 cursor-not-allowed font-semibold"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-shade-60 uppercase tracking-wider mb-1.5">
-                Từ ngày <span className="text-red-500">*</span>
-              </label>
-              <input type="date" value={form.effective_date} onChange={e => set('effective_date', e.target.value)}
-                className="text-input w-full" />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-shade-60 uppercase tracking-wider mb-1.5">
-                Đến ngày <span className="text-red-500">*</span>
-              </label>
-              <input type="date" value={form.end_date} onChange={e => set('end_date', e.target.value)}
-                className="text-input w-full" />
-            </div>
+          <div>
+            <label className="block text-xs font-bold text-shade-60 uppercase tracking-wider mb-1.5">
+              Hiệu lực từ ngày <span className="text-danger-500">*</span>
+            </label>
+            <input type="date" value={form.effective_date} onChange={e => set('effective_date', e.target.value)}
+              className="text-input w-full" />
+            <p className="text-[11px] text-shade-50 mt-1">
+              Bản giá có hiệu lực kể từ ngày này cho đến khi có bản giá APPROVED khác mới hơn thay thế.
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-shade-60 uppercase tracking-wider mb-1.5">
-                Giá vốn (VNĐ) <span className="text-red-500">*</span>
+                Giá vốn (VNĐ) <span className="text-danger-500">*</span>
               </label>
               <input type="number" min="1" value={form.cost_price} onChange={e => set('cost_price', e.target.value)}
                 className="text-input w-full" placeholder="0" />
             </div>
             <div>
               <label className="block text-xs font-bold text-shade-60 uppercase tracking-wider mb-1.5">
-                Giá bán (VNĐ) <span className="text-red-500">*</span>
+                Giá bán (VNĐ) <span className="text-danger-500">*</span>
               </label>
               <input type="number" min="1" value={form.selling_price} onChange={e => set('selling_price', e.target.value)}
                 className="text-input w-full" placeholder="0" />
@@ -544,11 +615,11 @@ function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }
           </div>
         </form>
 
-        <div className="p-4 border-t border-hairline-light bg-zinc-50 flex justify-between gap-3">
+        <div className="p-4 border-t border-hairline-light bg-canvas-cream flex justify-between gap-3">
           <button type="button" onClick={onClose} className="btn-pill btn-pill-outline-light text-xs">Đóng</button>
           <button onClick={handleSubmit} disabled={submitting}
             className="btn-pill btn-pill-primary text-xs py-1.5 px-5 disabled:opacity-50 flex items-center gap-1.5">
-            {submitting ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Đang lưu...</> : isEdit ? 'Cập nhật' : 'Tạo bản giá'}
+            {submitting ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Đang lưu...</> : isEdit ? 'Cập nhật' : isReplace ? 'Cập nhật giá' : 'Tạo bản giá'}
           </button>
         </div>
       </div>
@@ -583,16 +654,16 @@ function ImportModal({ onClose, onDone }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-canvas-cream rounded-lg max-w-lg w-full border border-hairline-light shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
-        <div className="p-6 border-b border-hairline-light flex items-center justify-between bg-white">
+    <div className="fixed inset-0 bg-canvas-night/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-canvas-cream rounded-lg max-w-lg w-full border border-hairline-light shadow-level-4 overflow-hidden flex flex-col max-h-[85vh]">
+        <div className="p-6 border-b border-hairline-light flex items-center justify-between bg-canvas-light">
           <div>
-            <span className="text-[10px] font-bold text-shade-40 uppercase tracking-widest block mb-1">
+            <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
               Tài chính / Bảng giá
             </span>
             <h3 className="text-xl font-bold">Import bảng giá từ Excel</h3>
           </div>
-          <button onClick={onClose} className="p-1 hover:bg-zinc-100 rounded-full transition-colors text-shade-50 hover:text-ink">
+          <button onClick={onClose} className="p-1 hover:bg-canvas-cream rounded-pill transition-colors text-shade-50 hover:text-ink">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -601,8 +672,8 @@ function ImportModal({ onClose, onDone }) {
           {!result ? (
             <>
               <p className="text-sm text-shade-50">
-                Chọn file <span className="font-mono text-xs bg-zinc-100 px-1.5 py-0.5 rounded">.xlsx</span> đúng
-                cột: <span className="font-mono text-xs">product_sku, effective_date, end_date, cost_price, selling_price, notes</span>.
+                Chọn file <span className="font-mono text-xs bg-canvas-cream px-1.5 py-0.5 rounded-pill">.xlsx</span> đúng
+                cột: <span className="font-mono text-xs">product_sku, warehouse_code, effective_date, cost_price, selling_price, notes</span>.
                 Tối đa 1.000 dòng.
               </p>
               <div className="border-2 border-dashed border-hairline-light rounded-lg p-8 text-center">
@@ -619,13 +690,13 @@ function ImportModal({ onClose, onDone }) {
             <>
               <div className="grid grid-cols-3 gap-3 text-center">
                 <StatBox label="Tổng dòng" value={result.total_rows} />
-                <StatBox label="Thành công" value={result.created_count} color="text-emerald-700" />
-                <StatBox label="Lỗi" value={result.failed_count} color="text-red-600" />
+                <StatBox label="Thành công" value={result.created_count} color="text-success-700" />
+                <StatBox label="Lỗi" value={result.failed_count} color="text-danger-600" />
               </div>
               {result.failed?.length > 0 && (
                 <div className="max-h-48 overflow-y-auto rounded-lg border border-hairline-light">
                   <table className="w-full text-xs">
-                    <thead className="bg-zinc-50 sticky top-0">
+                    <thead className="bg-canvas-cream sticky top-0">
                       <tr>
                         <th className="px-3 py-2 text-left font-bold text-shade-60">Dòng</th>
                         <th className="px-3 py-2 text-left font-bold text-shade-60">SKU</th>
@@ -637,7 +708,7 @@ function ImportModal({ onClose, onDone }) {
                         <tr key={i}>
                           <td className="px-3 py-2 tabular-nums">{f.row}</td>
                           <td className="px-3 py-2 font-mono">{f.product_sku}</td>
-                          <td className="px-3 py-2 text-red-600">{f.message}</td>
+                          <td className="px-3 py-2 text-danger-600">{f.message}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -648,7 +719,7 @@ function ImportModal({ onClose, onDone }) {
           )}
         </div>
 
-        <div className="p-4 border-t border-hairline-light bg-zinc-50 flex justify-between gap-3">
+        <div className="p-4 border-t border-hairline-light bg-canvas-cream flex justify-between gap-3">
           <button onClick={onClose} className="btn-pill btn-pill-outline-light text-xs">Đóng</button>
           {!result ? (
             <button onClick={handleUpload} disabled={submitting || !file}
@@ -668,7 +739,7 @@ function ImportModal({ onClose, onDone }) {
 
 function StatBox({ label, value, color = 'text-ink' }) {
   return (
-    <div className="bg-zinc-50 rounded-lg p-3 border border-hairline-light">
+    <div className="bg-canvas-cream rounded-lg p-3 border border-hairline-light">
       <div className={`text-2xl font-bold ${color}`}>{value}</div>
       <div className="text-xs text-shade-50 mt-0.5">{label}</div>
     </div>
@@ -677,4 +748,8 @@ function StatBox({ label, value, color = 'text-ink' }) {
 
 function formatVND(n) {
   return Number(n).toLocaleString('vi-VN') + ' đ';
+}
+
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
 }

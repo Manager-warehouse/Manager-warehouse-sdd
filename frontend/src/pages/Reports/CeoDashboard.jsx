@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import reportService from '../../services/report.service';
-import { Package, TrendingUp, ShieldAlert, CheckCircle, ArrowRight, DollarSign, Calendar, AlertCircle } from 'lucide-react';
+import { Package, TrendingUp, ShieldAlert, CheckCircle, ArrowRight, DollarSign, Calendar, AlertCircle, Loader2 } from 'lucide-react';
 import Badge from '../../components/common/Badge';
 
 const CeoDashboard = () => {
@@ -19,7 +19,6 @@ const CeoDashboard = () => {
       const res = await reportService.getCeoDashboard();
       setData(res);
     } catch (err) {
-      console.error(err);
       setError(err.response?.data?.message || 'Không thể tải dữ liệu dashboard quản trị.');
     } finally {
       setLoading(false);
@@ -33,20 +32,20 @@ const CeoDashboard = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-canvas-night"></div>
-        <span className="ml-3 text-sm text-shade-60">Đang tải dữ liệu báo cáo quản trị...</span>
+      <div className="flex items-center justify-center min-h-[300px] gap-3">
+        <Loader2 className="w-8 h-8 animate-spin text-shade-50" />
+        <span className="text-sm text-shade-60">Đang tải dữ liệu báo cáo quản trị...</span>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-2xl mx-auto my-12 text-center">
-        <AlertCircle className="w-12 h-12 text-red-600 mx-auto mb-4" />
-        <h3 className="text-lg font-bold text-red-800">Lỗi Truy Cập Báo Cáo</h3>
-        <p className="text-sm text-red-600 mt-2">{error}</p>
-        <button onClick={fetchData} className="mt-4 px-4 py-2 bg-red-600 text-white rounded text-xs font-semibold hover:bg-red-700 transition-colors">
+      <div className="bg-danger-50 border border-danger-200 rounded-lg p-6 max-w-2xl mx-auto my-12 text-center">
+        <AlertCircle className="w-12 h-12 text-danger-600 mx-auto mb-4" />
+        <h3 className="text-lg font-bold text-danger-800">Lỗi Truy Cập Báo Cáo</h3>
+        <p className="text-sm text-danger-600 mt-2">{error}</p>
+        <button onClick={fetchData} className="mt-4 px-4 py-2 bg-danger-600 text-onPrimary rounded-pill text-xs font-semibold hover:bg-danger-700 transition-colors">
           Thử lại
         </button>
       </div>
@@ -95,7 +94,7 @@ const CeoDashboard = () => {
         </div>
 
         {/* Card 2: QC failure rate */}
-        <div className="bg-orange-50/50 rounded-lg p-6 border border-orange-200 flex flex-col justify-between h-40">
+        <div className="bg-orange-50/50 rounded-lg p-6 border border-orange-200 shadow-level-3 flex flex-col justify-between h-40">
           <div className="flex justify-between items-start">
             <div>
               <span className="text-[10px] font-bold uppercase tracking-wider block text-orange-800/80">
@@ -115,21 +114,21 @@ const CeoDashboard = () => {
         </div>
 
         {/* Card 3: OTD rate */}
-        <div className="bg-blue-50/50 rounded-lg p-6 border border-blue-200 flex flex-col justify-between h-40">
+        <div className="bg-info-50/50 rounded-lg p-6 border border-info-200 shadow-level-3 flex flex-col justify-between h-40">
           <div className="flex justify-between items-start">
             <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider block text-blue-800/80">
+              <span className="text-[10px] font-bold uppercase tracking-wider block text-info-800/80">
                 Tỷ lệ giao hàng đúng hạn (OTD)
               </span>
-              <span className="text-xl md:text-2xl font-display font-semibold block mt-2 text-blue-800">
+              <span className="text-xl md:text-2xl font-display font-semibold block mt-2 text-info-800">
                 {(kpis.on_time_delivery_rate * 100).toFixed(1)}%
               </span>
             </div>
-            <div className="p-2.5 rounded-full text-blue-700 bg-blue-100/50">
+            <div className="p-2.5 rounded-full text-info-700 bg-info-100/50">
               <CheckCircle className="w-5 h-5" />
             </div>
           </div>
-          <span className="text-[11px] font-light text-blue-700/60">
+          <span className="text-[11px] font-light text-info-700/60">
             Đơn hàng giao tới đại lý đúng hạn cam kết trên hệ thống
           </span>
         </div>
@@ -143,7 +142,7 @@ const CeoDashboard = () => {
             <h3 className="text-sm font-bold text-shade-70 uppercase tracking-wider">
               Báo cáo Lãi/Lỗ tóm tắt (Kỳ: {kpis.p_and_l.period})
             </h3>
-            <span className="text-xs bg-canvas-cream border border-hairline-light text-shade-70 px-2 py-0.5 rounded font-bold">
+            <span className="bg-canvas-cream border border-hairline-light text-shade-70 px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wider rounded-pill">
               VNĐ
             </span>
           </div>
@@ -156,7 +155,7 @@ const CeoDashboard = () => {
                 <span className="font-semibold text-ink">{formatCurrency(kpis.p_and_l.revenue)}</span>
               </div>
               <div className="w-full bg-canvas-cream h-2 rounded-full overflow-hidden">
-                <div className="bg-emerald-500 h-full rounded-full" style={{ width: '100%' }}></div>
+                <div className="bg-success-500 h-full rounded-full" style={{ width: '100%' }}></div>
               </div>
             </div>
 
@@ -192,11 +191,11 @@ const CeoDashboard = () => {
             <div className="mt-4 pt-4 border-t border-hairline-light flex justify-between items-center">
               <div>
                 <span className="text-[10px] font-bold text-shade-50 uppercase block">Lợi nhuận thuần nội bộ</span>
-                <span className={`text-lg font-bold block mt-1 ${kpis.p_and_l.net_profit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                <span className={`text-lg font-bold block mt-1 ${kpis.p_and_l.net_profit >= 0 ? 'text-success-700' : 'text-danger-700'}`}>
                   {formatCurrency(kpis.p_and_l.net_profit)}
                 </span>
               </div>
-              <div className={`px-3 py-1 rounded text-xs font-semibold ${kpis.p_and_l.net_profit >= 0 ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+              <div className={`px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wider rounded-pill ${kpis.p_and_l.net_profit >= 0 ? 'bg-success-50 text-success-800 border border-success-200' : 'bg-danger-50 text-danger-800 border border-danger-200'}`}>
                 {kpis.p_and_l.revenue > 0 ? ((kpis.p_and_l.net_profit / kpis.p_and_l.revenue) * 100).toFixed(1) : 0}% Biên LN
               </div>
             </div>
@@ -209,7 +208,7 @@ const CeoDashboard = () => {
             <h3 className="text-sm font-bold text-shade-70 uppercase tracking-wider">
               Top 5 Đại lý nợ quá hạn cao nhất
             </h3>
-            <span className="text-[10px] text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded font-bold">
+            <span className="text-danger-600 bg-danger-50 border border-danger-200 px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wider rounded-pill">
               Cảnh báo công nợ
             </span>
           </div>
@@ -225,11 +224,11 @@ const CeoDashboard = () => {
                   <div>
                     <span className="text-xs font-bold text-ink block">{debtor.dealer_name}</span>
                     <span className="text-[10px] font-light text-shade-50 mt-0.5 block">
-                      Số ngày quá hạn lớn nhất: <span className="text-red-600 font-semibold">{debtor.max_overdue_days} ngày</span>
+                      Số ngày quá hạn lớn nhất: <span className="text-danger-600 font-semibold">{debtor.max_overdue_days} ngày</span>
                     </span>
                   </div>
                   <div className="text-right">
-                    <span className="text-xs font-bold text-red-700 block">
+                    <span className="text-xs font-bold text-danger-700 block">
                       {formatCurrency(debtor.overdue_amount)}
                     </span>
                     <Badge type="danger" className="text-[9px] px-1.5 py-0.5 mt-0.5 inline-block">

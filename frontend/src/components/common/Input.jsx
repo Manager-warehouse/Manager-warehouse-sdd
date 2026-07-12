@@ -8,13 +8,14 @@ const Input = React.forwardRef(({
   className = '',
   id,
   options = [], // for type="select" or multiselect
+  leftIcon: LeftIcon,
   ...props
 }, ref) => {
   const [showPassword, setShowPassword] = useState(false);
   const inputId = id || `input-${Math.random().toString(36).substring(2, 9)}`;
   
   const baseInputStyle = 'w-full bg-canvas-light text-ink text-sm px-3 py-2.5 rounded-md border border-hairline-light focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink transition-all min-h-[44px] disabled:bg-canvas-cream/60 disabled:text-shade-50 disabled:cursor-not-allowed disabled:opacity-70';
-  const errorInputStyle = 'border-red-500 focus:ring-red-500 focus:border-red-500';
+  const errorInputStyle = 'border-danger-500 focus:ring-danger-500 focus:border-danger-500';
   
   return (
     <div className={`flex flex-col gap-1.5 w-full ${className}`}>
@@ -66,11 +67,14 @@ const Input = React.forwardRef(({
         </div>
       ) : (
         <div className="relative w-full">
+          {LeftIcon && (
+            <LeftIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-shade-40 pointer-events-none" />
+          )}
           <input
             id={inputId}
             type={type === 'password' ? (showPassword ? 'text' : 'password') : type}
             ref={ref}
-            className={`${baseInputStyle} ${error ? errorInputStyle : ''} ${type === 'password' ? 'pr-10' : ''}`}
+            className={`${baseInputStyle} ${error ? errorInputStyle : ''} ${type === 'password' ? 'pr-10' : ''} ${LeftIcon ? 'pl-10' : ''}`}
             {...props}
           />
           {type === 'password' && (
@@ -91,7 +95,7 @@ const Input = React.forwardRef(({
       )}
 
       {error && (
-        <span className="text-xs text-red-500 font-medium mt-0.5">
+        <span className="text-xs text-danger-500 font-medium mt-0.5">
           {error}
         </span>
       )}

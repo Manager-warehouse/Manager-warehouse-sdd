@@ -1,0 +1,52 @@
+name: wms-prod
+
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: wms
+      POSTGRES_USER: ${DB_USER:-wms_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  backend:
+    image: ${BACKEND_IMAGE:?BACKEND_IMAGE is required and must be digest-pinned}
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/wms
+      SPRING_DATASOURCE_USERNAME: ${DB_USER:-wms_user}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      SPRING_FLYWAY_ENABLED: "true"
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      MAIL_USERNAME: ${MAIL_USERNAME:?MAIL_USERNAME is required}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:?MAIL_PASSWORD is required}
+      TZ: Asia/Ho_Chi_Minh
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/v3/api-docs"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 12
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    image: ${FRONTEND_IMAGE:?FRONTEND_IMAGE is required and must be digest-pinned}
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:

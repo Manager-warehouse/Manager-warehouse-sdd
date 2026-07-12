@@ -1,8 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import reportService from '../../services/report.service';
-import { ClipboardList, Users, Truck, CheckSquare, Calendar, RefreshCw, FileSpreadsheet, AlertCircle } from 'lucide-react';
+import { ClipboardList, Users, Truck, CheckSquare, Calendar, RefreshCw, FileSpreadsheet, AlertCircle, Loader2 } from 'lucide-react';
+import Button from '../../components/common/Button';
+import Input from '../../components/common/Input';
+import { useUiStore } from '../../stores/ui.store';
 
 const ProductivityReport = () => {
+  const { addToast } = useUiStore();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -43,7 +47,6 @@ const ProductivityReport = () => {
       const res = await reportService.getProductivityReport(warehouseId, startDate, endDate);
       setData(res);
     } catch (err) {
-      console.error(err);
       setError(err.response?.data?.message || 'Không có quyền truy cập hoặc lỗi khi tải báo cáo năng suất.');
     } finally {
       setLoading(false);
@@ -54,8 +57,7 @@ const ProductivityReport = () => {
     try {
       await reportService.exportProductivityExcel(warehouseId, startDate, endDate);
     } catch (err) {
-      console.error(err);
-      alert('Lỗi xuất báo cáo Excel.');
+      addToast('Lỗi xuất báo cáo Excel.', 'error');
     }
   };
 
@@ -76,20 +78,23 @@ const ProductivityReport = () => {
         </div>
 
         {/* Filters */}
-        <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+        <div className="flex gap-2 flex-wrap lg:flex-nowrap items-center w-full lg:w-auto">
           {/* Warehouse */}
-          <select
-            value={warehouseId}
-            onChange={(e) => setWarehouseId(e.target.value)}
-            className="input-select text-xs font-semibold py-1.5 px-3 border border-hairline-light rounded bg-canvas-light text-ink"
-          >
-            <option value="1">Kho Hải Phòng</option>
-            <option value="2">Kho Hà Nội</option>
-            <option value="3">Kho Hồ Chí Minh</option>
-          </select>
+          <div className="w-48">
+            <Input
+              type="select"
+              value={warehouseId}
+              onChange={(e) => setWarehouseId(e.target.value)}
+              options={[
+                { value: '1', label: 'Kho Hải Phòng' },
+                { value: '2', label: 'Kho Hà Nội' },
+                { value: '3', label: 'Kho Hồ Chí Minh' },
+              ]}
+            />
+          </div>
 
           {/* Date range */}
-          <div className="flex items-center gap-1.5 bg-canvas-light border border-hairline-light rounded px-2.5 py-1.5">
+          <div className="flex items-center gap-1.5 bg-canvas-light border border-hairline-light rounded-md px-3 py-2.5 min-h-[44px]">
             <Calendar className="w-3.5 h-3.5 text-shade-50" />
             <input
               type="date"
@@ -106,29 +111,23 @@ const ProductivityReport = () => {
             />
           </div>
 
-          <button onClick={fetchData} className="btn-secondary flex items-center gap-1 text-xs py-1.5 px-3">
-            <RefreshCw className="w-3.5 h-3.5" />
-            <span>Lọc</span>
-          </button>
+          <Button variant="outline-light" icon={RefreshCw} onClick={fetchData}>Lọc</Button>
 
-          <button onClick={handleExport} className="btn-primary flex items-center gap-1.5 text-xs py-1.5 px-3.5 bg-canvas-night text-onPrimary hover:bg-canvas-nightElevated">
-            <FileSpreadsheet className="w-3.5 h-3.5 text-aloe-10" />
-            <span>Xuất Excel</span>
-          </button>
+          <Button variant="primary" icon={FileSpreadsheet} onClick={handleExport}>Xuất Excel</Button>
         </div>
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3 text-xs text-red-700">
+        <div className="bg-danger-50 border border-danger-200 rounded-lg p-4 flex items-center gap-3 text-xs text-danger-700">
           <AlertCircle className="w-4 h-4 flex-shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
       {loading ? (
-        <div className="flex items-center justify-center min-h-[300px]">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-canvas-night"></div>
-          <span className="ml-3 text-sm text-shade-60">Đang hạch toán sản lượng nhân viên...</span>
+        <div className="flex items-center justify-center min-h-[300px] gap-3">
+          <Loader2 className="w-8 h-8 animate-spin text-shade-50" />
+          <span className="text-sm text-shade-60">Đang hạch toán sản lượng nhân viên...</span>
         </div>
       ) : data ? (
         <>
@@ -172,108 +171,156 @@ const ProductivityReport = () => {
           </div>
 
           {/* Tabs Content */}
-          <div className="card-premium overflow-hidden">
+          <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden">
             {activeTab === 'staff' && (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="border-b border-hairline-light bg-canvas-cream text-shade-60 font-semibold uppercase tracking-wider">
-                      <th className="py-3 px-4">Mã nhân viên</th>
-                      <th className="py-3 px-4">Tên nhân viên</th>
-                      <th className="py-3 px-4">Vai trò</th>
-                      <th className="py-3 px-4 text-right">Số lượt soạn hàng (Picking runs)</th>
-                      <th className="py-3 px-4 text-right">Tổng sản lượng soạn (Qty)</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-hairline-light font-light text-shade-80">
-                    {data.staff_productivity.length === 0 ? (
-                      <tr>
-                        <td colSpan="5" className="py-8 text-center text-shade-50">Không có dữ liệu bốc xếp trong dải ngày này.</td>
-                      </tr>
-                    ) : (
-                      data.staff_productivity.map((p, idx) => (
-                        <tr key={idx} className="hover:bg-canvas-cream/50 transition-colors">
-                          <td className="py-3.5 px-4 font-mono font-medium">{p.employee_code}</td>
-                          <td className="py-3.5 px-4 font-semibold text-ink">{p.full_name}</td>
-                          <td className="py-3.5 px-4 text-shade-50 text-[10px] uppercase font-bold">{p.role}</td>
-                          <td className="py-3.5 px-4 text-right font-medium">{p.picking_runs_count} lượt</td>
-                          <td className="py-3.5 px-4 text-right font-bold text-ink">
-                            {new Intl.NumberFormat('vi-VN').format(p.total_picked_qty)} cái
-                          </td>
+              data.staff_productivity.length === 0 ? (
+                <div className="px-6 py-8 text-center text-shade-50 text-xs">Không có dữ liệu bốc xếp trong dải ngày này.</div>
+              ) : (
+                <>
+                  <div className="hidden md:block overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-canvas-cream border-b border-hairline-light">
+                          <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã nhân viên</th>
+                          <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Tên nhân viên</th>
+                          <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Vai trò</th>
+                          <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Số lượt soạn hàng (Picking runs)</th>
+                          <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Tổng sản lượng soạn (Qty)</th>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                      </thead>
+                      <tbody className="divide-y divide-hairline-light">
+                        {data.staff_productivity.map((p, idx) => (
+                          <tr key={idx} className="hover:bg-canvas-cream/50 transition-colors">
+                            <td className="px-6 py-4 text-xs font-mono font-medium">{p.employee_code}</td>
+                            <td className="px-6 py-4 text-xs font-semibold text-ink">{p.full_name}</td>
+                            <td className="px-6 py-4 text-xs text-shade-50 text-[10px] uppercase font-bold">{p.role}</td>
+                            <td className="px-6 py-4 text-xs text-right font-medium">{p.picking_runs_count} lượt</td>
+                            <td className="px-6 py-4 text-xs text-right font-bold text-ink">
+                              {new Intl.NumberFormat('vi-VN').format(p.total_picked_qty)} cái
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="flex flex-col gap-3 p-4 md:hidden">
+                    {data.staff_productivity.map((p, idx) => (
+                      <div key={idx} className="rounded-lg border border-hairline-light bg-canvas-cream/30 overflow-hidden">
+                        <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center gap-2">
+                          <span className="font-mono text-xs font-medium">{p.employee_code}</span>
+                          <span className="text-[10px] uppercase font-bold text-shade-50">{p.role}</span>
+                        </div>
+                        <div className="p-4 flex flex-col gap-2 text-xs">
+                          <div className="font-semibold text-ink">{p.full_name}</div>
+                          <p className="text-shade-50">Số lượt soạn hàng: <span className="font-medium text-ink">{p.picking_runs_count} lượt</span></p>
+                          <p className="text-shade-50">Tổng sản lượng soạn: <span className="font-bold text-ink">{new Intl.NumberFormat('vi-VN').format(p.total_picked_qty)} cái</span></p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )
             )}
 
             {activeTab === 'storekeeper' && (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="border-b border-hairline-light bg-canvas-cream text-shade-60 font-semibold uppercase tracking-wider">
-                      <th className="py-3 px-4">Mã thủ kho</th>
-                      <th className="py-3 px-4">Tên thủ kho</th>
-                      <th className="py-3 px-4">Vai trò</th>
-                      <th className="py-3 px-4 text-right">Số picking plans lập</th>
-                      <th className="py-3 px-4 text-right">Tổng số lượng QC checked</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-hairline-light font-light text-shade-80">
-                    {data.storekeeper_productivity.length === 0 ? (
-                      <tr>
-                        <td colSpan="5" className="py-8 text-center text-shade-50">Không có dữ liệu QC trong dải ngày này.</td>
-                      </tr>
-                    ) : (
-                      data.storekeeper_productivity.map((p, idx) => (
-                        <tr key={idx} className="hover:bg-canvas-cream/50 transition-colors">
-                          <td className="py-3.5 px-4 font-mono font-medium">{p.employee_code}</td>
-                          <td className="py-3.5 px-4 font-semibold text-ink">{p.full_name}</td>
-                          <td className="py-3.5 px-4 text-shade-50 text-[10px] uppercase font-bold">{p.role}</td>
-                          <td className="py-3.5 px-4 text-right font-medium">{p.picking_plans_created} kế hoạch</td>
-                          <td className="py-3.5 px-4 text-right font-bold text-ink">
-                            {new Intl.NumberFormat('vi-VN').format(p.total_qc_checked_qty)} cái
-                          </td>
+              data.storekeeper_productivity.length === 0 ? (
+                <div className="px-6 py-8 text-center text-shade-50 text-xs">Không có dữ liệu QC trong dải ngày này.</div>
+              ) : (
+                <>
+                  <div className="hidden md:block overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-canvas-cream border-b border-hairline-light">
+                          <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã thủ kho</th>
+                          <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Tên thủ kho</th>
+                          <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Vai trò</th>
+                          <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Số picking plans lập</th>
+                          <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Tổng số lượng QC checked</th>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                      </thead>
+                      <tbody className="divide-y divide-hairline-light">
+                        {data.storekeeper_productivity.map((p, idx) => (
+                          <tr key={idx} className="hover:bg-canvas-cream/50 transition-colors">
+                            <td className="px-6 py-4 text-xs font-mono font-medium">{p.employee_code}</td>
+                            <td className="px-6 py-4 text-xs font-semibold text-ink">{p.full_name}</td>
+                            <td className="px-6 py-4 text-xs text-shade-50 text-[10px] uppercase font-bold">{p.role}</td>
+                            <td className="px-6 py-4 text-xs text-right font-medium">{p.picking_plans_created} kế hoạch</td>
+                            <td className="px-6 py-4 text-xs text-right font-bold text-ink">
+                              {new Intl.NumberFormat('vi-VN').format(p.total_qc_checked_qty)} cái
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="flex flex-col gap-3 p-4 md:hidden">
+                    {data.storekeeper_productivity.map((p, idx) => (
+                      <div key={idx} className="rounded-lg border border-hairline-light bg-canvas-cream/30 overflow-hidden">
+                        <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center gap-2">
+                          <span className="font-mono text-xs font-medium">{p.employee_code}</span>
+                          <span className="text-[10px] uppercase font-bold text-shade-50">{p.role}</span>
+                        </div>
+                        <div className="p-4 flex flex-col gap-2 text-xs">
+                          <div className="font-semibold text-ink">{p.full_name}</div>
+                          <p className="text-shade-50">Số picking plans lập: <span className="font-medium text-ink">{p.picking_plans_created} kế hoạch</span></p>
+                          <p className="text-shade-50">Tổng số lượng QC checked: <span className="font-bold text-ink">{new Intl.NumberFormat('vi-VN').format(p.total_qc_checked_qty)} cái</span></p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )
             )}
 
             {activeTab === 'driver' && (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="border-b border-hairline-light bg-canvas-cream text-shade-60 font-semibold uppercase tracking-wider">
-                      <th className="py-3 px-4">Mã tài xế</th>
-                      <th className="py-3 px-4">Tên tài xế</th>
-                      <th className="py-3 px-4">Vai trò</th>
-                      <th className="py-3 px-4 text-right">Số chuyến hoàn thành</th>
-                      <th className="py-3 px-4 text-right">Số đơn giao thành công</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-hairline-light font-light text-shade-80">
-                    {data.driver_productivity.length === 0 ? (
-                      <tr>
-                        <td colSpan="5" className="py-8 text-center text-shade-50">Không có dữ liệu giao vận trong dải ngày này.</td>
-                      </tr>
-                    ) : (
-                      data.driver_productivity.map((p, idx) => (
-                        <tr key={idx} className="hover:bg-canvas-cream/50 transition-colors">
-                          <td className="py-3.5 px-4 font-mono font-medium">{p.employee_code}</td>
-                          <td className="py-3.5 px-4 font-semibold text-ink">{p.full_name}</td>
-                          <td className="py-3.5 px-4 text-shade-50 text-[10px] uppercase font-bold">{p.role}</td>
-                          <td className="py-3.5 px-4 text-right font-medium">{p.trips_completed} chuyến</td>
-                          <td className="py-3.5 px-4 text-right font-bold text-ink">{p.successful_deliveries} đơn</td>
+              data.driver_productivity.length === 0 ? (
+                <div className="px-6 py-8 text-center text-shade-50 text-xs">Không có dữ liệu giao vận trong dải ngày này.</div>
+              ) : (
+                <>
+                  <div className="hidden md:block overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-canvas-cream border-b border-hairline-light">
+                          <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã tài xế</th>
+                          <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Tên tài xế</th>
+                          <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Vai trò</th>
+                          <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Số chuyến hoàn thành</th>
+                          <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Số đơn giao thành công</th>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                      </thead>
+                      <tbody className="divide-y divide-hairline-light">
+                        {data.driver_productivity.map((p, idx) => (
+                          <tr key={idx} className="hover:bg-canvas-cream/50 transition-colors">
+                            <td className="px-6 py-4 text-xs font-mono font-medium">{p.employee_code}</td>
+                            <td className="px-6 py-4 text-xs font-semibold text-ink">{p.full_name}</td>
+                            <td className="px-6 py-4 text-xs text-shade-50 text-[10px] uppercase font-bold">{p.role}</td>
+                            <td className="px-6 py-4 text-xs text-right font-medium">{p.trips_completed} chuyến</td>
+                            <td className="px-6 py-4 text-xs text-right font-bold text-ink">{p.successful_deliveries} đơn</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="flex flex-col gap-3 p-4 md:hidden">
+                    {data.driver_productivity.map((p, idx) => (
+                      <div key={idx} className="rounded-lg border border-hairline-light bg-canvas-cream/30 overflow-hidden">
+                        <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center gap-2">
+                          <span className="font-mono text-xs font-medium">{p.employee_code}</span>
+                          <span className="text-[10px] uppercase font-bold text-shade-50">{p.role}</span>
+                        </div>
+                        <div className="p-4 flex flex-col gap-2 text-xs">
+                          <div className="font-semibold text-ink">{p.full_name}</div>
+                          <p className="text-shade-50">Số chuyến hoàn thành: <span className="font-medium text-ink">{p.trips_completed} chuyến</span></p>
+                          <p className="text-shade-50">Số đơn giao thành công: <span className="font-bold text-ink">{p.successful_deliveries} đơn</span></p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )
             )}
           </div>
         </>

@@ -42,6 +42,7 @@ class TransferRequestServiceImplTest {
     @Mock private WarehouseRepository warehouseRepository;
     @Mock private ProductRepository productRepository;
     @Mock private InventoryRepository inventoryRepository;
+    @Mock private InterWarehouseTransferRepository interWarehouseTransferRepository;
     @Mock private UserWarehouseAssignmentRepository assignmentRepository;
     @Mock private InterWarehouseTransferService transferService;
     @Mock private PartnerAuditUtil auditUtil;
@@ -96,6 +97,7 @@ class TransferRequestServiceImplTest {
         request.setStatus(TransferRequestStatus.DRAFT);
         request.setCreatedBy(manager);
         request.setCreatedAt(OffsetDateTime.now());
+        request.setUpdatedAt(OffsetDateTime.now());
 
         List<TransferRequestItem> items = new ArrayList<>();
         TransferRequestItem item = new TransferRequestItem();
@@ -114,6 +116,8 @@ class TransferRequestServiceImplTest {
         TransferRequestCreateRequest createReq = new TransferRequestCreateRequest(
                 sourceWarehouse.getId(),
                 destinationWarehouse.getId(),
+                LocalDate.now().plusDays(2),
+                "Destination shortage",
                 "Pls approve",
                 List.of(itemReq)
         );
@@ -137,6 +141,8 @@ class TransferRequestServiceImplTest {
         TransferRequestCreateRequest createReq = new TransferRequestCreateRequest(
                 sourceWarehouse.getId(),
                 destinationWarehouse.getId(),
+                LocalDate.now().plusDays(2),
+                "Destination shortage",
                 "Outside scope",
                 List.of()
         );
@@ -149,9 +155,29 @@ class TransferRequestServiceImplTest {
     }
 
     @Test
+    void createTransferRequest_failsIfActorIsNotWarehouseManager() {
+        TransferRequestCreateRequest createReq = new TransferRequestCreateRequest(
+                sourceWarehouse.getId(),
+                destinationWarehouse.getId(),
+                LocalDate.now().plusDays(2),
+                "Destination shortage",
+                "Planner should not create manager request",
+                List.of(new TransferRequestItemRequest(product.getId(), new BigDecimal("10.00")))
+        );
+
+        assertThatThrownBy(() -> service.createRequest(createReq, planner))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("WAREHOUSE_MANAGER_ROLE_REQUIRED");
+
+        verify(requestRepository, never()).save(any(TransferRequest.class));
+    }
+
+    @Test
     void submitRequest_success() {
         when(requestRepository.findById(request.getId())).thenReturn(Optional.of(request));
         when(assignmentRepository.findWarehouseIdsByUserId(manager.getId())).thenReturn(List.of(destinationWarehouse.getId()));
+        when(inventoryRepository.sumValidAvailableQty(sourceWarehouse.getId(), product.getId()))
+                .thenReturn(new BigDecimal("10.00"));
         when(requestRepository.save(any(TransferRequest.class))).thenReturn(request);
 
         TransferRequestResponse response = service.submitRequest(request.getId(), manager);
@@ -161,10 +187,26 @@ class TransferRequestServiceImplTest {
     }
 
     @Test
+    void submitRequest_failsWhenSourceAvailableIsInsufficient() {
+        when(requestRepository.findById(request.getId())).thenReturn(Optional.of(request));
+        when(assignmentRepository.findWarehouseIdsByUserId(manager.getId())).thenReturn(List.of(destinationWarehouse.getId()));
+        when(inventoryRepository.sumValidAvailableQty(sourceWarehouse.getId(), product.getId()))
+                .thenReturn(new BigDecimal("9.00"));
+
+        assertThatThrownBy(() -> service.submitRequest(request.getId(), manager))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("TRANSFER_REQUEST_QTY_EXCEEDS_SOURCE_AVAILABLE");
+
+        verify(requestRepository, never()).save(any(TransferRequest.class));
+    }
+
+    @Test
     void approveRequest_successByCeo() {
         request.setStatus(TransferRequestStatus.SUBMITTED);
 
         when(requestRepository.findById(request.getId())).thenReturn(Optional.of(request));
+        when(inventoryRepository.sumValidAvailableQty(sourceWarehouse.getId(), product.getId()))
+                .thenReturn(new BigDecimal("10.00"));
         when(requestRepository.save(any(TransferRequest.class))).thenReturn(request);
 
         TransferRequestResponse response = service.approveRequest(request.getId(), ceo);
@@ -202,13 +244,36 @@ class TransferRequestServiceImplTest {
         );
         when(transferService.createTransfer(any(InterWarehouseTransferCreateRequest.class), eq(planner)))
                 .thenReturn(transferResponse);
+        InterWarehouseTransfer transfer = new InterWarehouseTransfer();
+        transfer.setId(88L);
+        transfer.setTransferNumber("TRF-20260628-8888");
+        when(interWarehouseTransferRepository.findById(88L)).thenReturn(Optional.of(transfer));
         
         when(requestRepository.save(any(TransferRequest.class))).thenReturn(request);
 
         TransferRequestResponse response = service.convertToTransfer(request.getId(), planner);
 
         assertThat(response.status()).isEqualTo(TransferRequestStatus.CONVERTED);
+        assertThat(response.convertedTransferId()).isEqualTo(88L);
+        assertThat(request.getConvertedBy()).isEqualTo(planner);
+        assertThat(transfer.getTransferRequest()).isEqualTo(request);
         verify(transferService, times(1)).createTransfer(any(InterWarehouseTransferCreateRequest.class), eq(planner));
+        verify(interWarehouseTransferRepository).save(transfer);
+    }
+
+    @Test
+    void convertToTransfer_failsWhenAlreadyConverted() {
+        request.setStatus(TransferRequestStatus.APPROVED);
+        InterWarehouseTransfer transfer = new InterWarehouseTransfer();
+        transfer.setId(88L);
+        request.setConvertedTransfer(transfer);
+        when(requestRepository.findById(request.getId())).thenReturn(Optional.of(request));
+
+        assertThatThrownBy(() -> service.convertToTransfer(request.getId(), planner))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("TRANSFER_REQUEST_ALREADY_CONVERTED");
+
+        verify(transferService, never()).createTransfer(any(), any());
     }
 
     @Test

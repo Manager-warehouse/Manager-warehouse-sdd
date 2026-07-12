@@ -3,7 +3,7 @@ import { adminService } from '../../services/admin.service';
 import { useUiStore } from '../../stores/ui.store';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
-import { Save, Settings, CreditCard, CalendarDays, BarChart3 } from 'lucide-react';
+import { Save, Settings, CreditCard, CalendarDays, BarChart3, Loader2 } from 'lucide-react';
 
 
 const normalizeNumericValue = (value) => String(value ?? '').replace(',', '.').trim();
@@ -47,7 +47,7 @@ export const validate = (form) => {
 
 
 const Section = ({ icon: Icon, title, children }) => (
-  <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 p-6 md:p-8 flex flex-col gap-5">
+  <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 p-6 md:p-8 flex flex-col gap-6">
     <div className="flex items-center gap-3 pb-4 border-b border-hairline-light">
       <Icon className="w-5 h-5 text-shade-60" />
       <h2 className="text-base font-semibold uppercase tracking-wider text-ink">{title}</h2>
@@ -57,7 +57,7 @@ const Section = ({ icon: Icon, title, children }) => (
 );
 
 const Hint = ({ children }) => (
-  <span className="text-[11px] text-shade-40 italic mt-1">{children}</span>
+  <span className="text-[11px] text-shade-50 italic mt-1">{children}</span>
 );
 
 const DEFAULTS = {
@@ -90,7 +90,6 @@ const SystemConfig = () => {
       });
       setErrors({});
     } catch (err) {
-      console.error('Failed to load system config:', err);
       addToast('Không thể tải cấu hình hệ thống', 'error');
     } finally {
       setLoading(false);
@@ -129,7 +128,6 @@ const SystemConfig = () => {
       addToast('Cập nhật cấu hình hệ thống thành công', 'success');
       setErrors({});
     } catch (err) {
-      console.error('Failed to save system config:', err);
       addToast('Không thể lưu cấu hình hệ thống', 'error');
     } finally {
       setSaveLoading(false);
@@ -139,17 +137,14 @@ const SystemConfig = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20 text-shade-50">
-        <svg className="animate-spin h-6 w-6 text-ink mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-        </svg>
+        <Loader2 className="w-8 h-8 animate-spin text-ink mr-2" />
         <span>Đang tải cấu hình hệ thống...</span>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-6 max-w-4xl">
+    <div className="flex flex-col gap-6">
       <div>
         <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
           Hệ thống / Admin

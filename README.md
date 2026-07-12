@@ -125,14 +125,14 @@ Hệ thống có **10 Actors** chia thành 3 tầng theo mô hình **Maker-Check
 
 | Actor | Loại | Trách nhiệm chính |
 |---|---|---|
-| **CEO** | Checker cấp cao | Dashboard chiến lược, cấu hình hệ thống |
+| **CEO** | Checker cấp cao | Dashboard chiến lược, cấu hình hệ thống, phê duyệt yêu cầu điều chuyển liên kho do Trưởng kho đề xuất |
 | **System Admin** | Admin | Quản lý tài khoản, phân quyền RBAC, cấu hình tham số hệ thống |
 
 ### Tầng 2: Quản lý
 
 | Actor | Loại | Trách nhiệm chính |
 |---|---|---|
-| **Trưởng kho** | Checker | Duyệt nhập/xuất/điều chuyển, xử lý chênh lệch 5M–100M VNĐ, duyệt biên bản xử lý hàng lỗi |
+| **Trưởng kho** | Checker | Duyệt nhập/xuất/điều chuyển, đề xuất điều chuyển khi kho mình thiếu hàng, xử lý chênh lệch 5M–100M VNĐ, duyệt biên bản xử lý hàng lỗi |
 | **Kế toán trưởng** | Checker | Duyệt bảng giá, thiết lập Credit Limit, chốt sổ tháng, P&L / Aging Report |
 
 ### Tầng 3: Nghiệp vụ (Maker)
@@ -152,7 +152,7 @@ Hệ thống có **10 Actors** chia thành 3 tầng theo mô hình **Maker-Check
 
 ## User Stories
 
-Hệ thống có **26 User Stories** chia thành 9 nhóm nghiệp vụ:
+Hệ thống có **27 User Stories** chia thành 9 nhóm nghiệp vụ:
 
 ### Nhóm 1: Quản trị hệ thống & Cấu hình (Admin & CEO)
 
@@ -184,6 +184,7 @@ Hệ thống có **26 User Stories** chia thành 9 nhóm nghiệp vụ:
 | US | Tên | Priority |
 |---|---|---|
 | US-WMS-11 | Planner nhập lệnh điều chuyển thủ công từ Công ty mẹ/bộ phận điều phối | P2 |
+| US-WMS-11A | Trưởng kho đề xuất điều chuyển từ tồn kho liên kho và CEO duyệt | P1 |
 | US-WMS-12 | Lập, Duyệt & Xác nhận Phiếu Điều chuyển Kho Nội bộ | P1 |
 
 ### Nhóm 5: Kiểm kê & Quản lý giá (Inventory, Price & Audit)
@@ -269,10 +270,14 @@ Công ty mẹ gửi yêu cầu xuất hàng
 ### 3. Quy trình Điều chuyển Kho Nội bộ
 
 ```
-Planner nhận lệnh điều chuyển từ Công ty mẹ/bộ phận điều phối
-    → Planner nhập Phiếu điều chuyển thủ công kèm mã lệnh ngoài [MỚI]
+Nguồn lệnh điều chuyển:
+    ├── Công ty mẹ/bộ phận điều phối gửi lệnh ngoài cho Planner
+    └── Trưởng kho kho thiếu xem tồn kho liên kho read-only
+        → Tạo yêu cầu điều chuyển, CEO duyệt
+        → Planner kho nguồn/trung tâm nhận mẫu đã duyệt
+    → Planner nhập Phiếu điều chuyển thủ công kèm mã lệnh ngoài hoặc yêu cầu đã duyệt [MỚI]
     → Trưởng kho nguồn kiểm tra tồn khả dụng → Duyệt [ĐÃ DUYỆT]
-    → Dispatcher lập chuyến xe nội bộ riêng, gán xe và Tài xế
+    → Dispatcher lập chuyến xe nội bộ riêng, gán xe và Tài xế, kiểm tra xe/tài xế không trùng lịch và tải trọng xe
     → Thủ kho nguồn soạn/xuất hàng lên xe
         ├── Phải ghi đúng số lượng đã duyệt; không cho xuất thừa/thiếu
         └── Nếu cần hủy sau khi đã lên xe nhưng chưa rời kho → Unship/Unload trước rồi mới hủy
@@ -281,8 +286,12 @@ Planner nhận lệnh điều chuyển từ Công ty mẹ/bộ phận điều ph
     → Công nhân kho đích nhập số lượng thực nhận
     → Thủ kho đích kiểm tra lại số lượng, nhập QC, điều chỉnh số nếu cần và chọn vị trí nhập
     → Trưởng kho đích xác nhận cuối
-        ├── Khớp → Hệ thống: Trừ In-Transit, Cộng tồn Kho đích [HOÀN THÀNH]
-        └── Lệch → Ghi lý do + Tạo Phiếu điều chỉnh bù trừ
+        ├── Khớp + QC đạt → Hệ thống: Trừ In-Transit, Cộng tồn Kho đích [HOÀN THÀNH]
+        ├── Thiếu → Ghi lý do + Tạo Phiếu điều chỉnh bù trừ; không tạo hàng Quarantine cho phần thiếu
+        ├── QC lỗi/hư hỏng → Phần lỗi vào Quarantine theo nguồn INTERNAL_TRANSFER, chỉ đi luồng tiêu hủy Spec 009; không tạo RTV/Debit Note NCC
+        ├── Gửi nhầm SKU nhưng hàng còn nguyên → Thủ kho đích báo cáo, Trưởng kho đích duyệt xe quay về kho nguồn; hàng vẫn ở In-Transit
+        ├── Trip quá hạn khi còn In-Transit → Chặn nhận tại kho đích và yêu cầu vai trò có thẩm quyền kích hoạt Return to Source
+        └── Nhận thừa → Chặn xác nhận
 ```
 
 ### 4. Quy trình Công nợ & Kế toán (Finance Cycle)
@@ -352,7 +361,7 @@ Manager-warehouse-sdd/
 ├── CLAUDE.md                         # Kiến trúc, workflow, conventions, swimlane diagrams
 ├── DESIGN.md                         # UI design tokens (Apple design system)
 ├── Kiến trúc phân tầng các Actors.md # 10 Actors, nghiệp vụ, quy trình chi tiết
-├── Userstory.md                      # 26 User Stories đầy đủ
+├── Userstory.md                      # 27 User Stories đầy đủ
 ├── README.md                         # File này
 │
 ├── backend/                          # Spring Boot 3.4.5 + Java 21
@@ -535,6 +544,9 @@ Domain hàng hóa hiện tại của Phúc Anh là đồ gia dụng như nồi, 
 - Hàng fail QC → bắt buộc vào Quarantine Zone, tạo phiếu điều chỉnh tồn kho, trừ tồn kho hợp lệ và không tính vào available inventory
 - Điều chuyển phải đi qua In-Transit location cho đến khi kho đích xác nhận
 - Chênh lệch quantity_sent vs quantity_received → tạo adjustment/audit record
+- Hàng điều chuyển fail QC/hư hỏng vào Quarantine với origin INTERNAL_TRANSFER; chỉ xử lý tiêu hủy theo Spec 009, không tạo RTV/Debit Note NCC
+- Thiếu hàng điều chuyển là chênh lệch số lượng, không phải hàng vật lý trong Quarantine
+- Putaway hàng đạt từ điều chuyển vào Bin phải kiểm tra bin capacity; chuyến xe điều chuyển phải kiểm tra tải trọng xe
 ```
 
 ### Core Business Entities
@@ -627,7 +639,7 @@ Mỗi task hoàn thành khi đáp ứng **tất cả** các điều kiện sau:
 | [CLAUDE.md](./CLAUDE.md) | Kiến trúc chi tiết, workflow, swimlane diagrams, anti-patterns |
 | [DESIGN.md](./DESIGN.md) | UI design tokens (Apple design system) |
 | [Kiến trúc phân tầng các Actors.md](./Kiến%20trúc%20phân%20tầng%20các%20Actors.md) | 10 Actors, nghiệp vụ chi tiết, quy trình |
-| [Userstory.md](./Userstory.md) | 26 User Stories đầy đủ với tiêu chí nghiệm thu |
+| [Userstory.md](./Userstory.md) | 27 User Stories đầy đủ với tiêu chí nghiệm thu |
 | [specs/](./specs/) | Feature specifications (SDD) |
 
 ---

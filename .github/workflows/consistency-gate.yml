@@ -14,11 +14,11 @@ jobs:
           fetch-depth: 0
 
       - name: Check spec exists for feature branches
+        env:
+          HEAD_REF: ${{ github.head_ref }}
         run: |
-          BRANCH="${{ github.head_ref }}"
+          BRANCH="$HEAD_REF"
           if [[ "$BRANCH" == feat/* ]]; then
-            FEATURE_NAME="${BRANCH#feat/}"
-            SPEC_DIR="specs/"
             FOUND=false
             found_spec=$(find specs/ .sdd/specs/ -maxdepth 2 -name "spec.md" 2>/dev/null | head -5)
             if [ -n "$found_spec" ]; then
@@ -51,7 +51,8 @@ jobs:
 
       - name: Validate no TODO left
         run: |
-          TODOS=$(git diff origin/main..HEAD -- . | grep -E "\+.*TODO" | grep -v "consistency-gate.yml" | wc -l)
+          TODOS=$(git diff --unified=0 origin/main..HEAD -- backend/src/main frontend/src \
+            | grep -Ec '^\+[^+].*TODO' || true)
           if [ "$TODOS" -gt 0 ]; then
             echo "❌ Found $TODOS TODO(s) in new code — remove before merge"
             exit 1

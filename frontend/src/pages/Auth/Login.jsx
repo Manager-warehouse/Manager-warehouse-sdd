@@ -33,7 +33,6 @@ const Login = () => {
       addToast('Đăng nhập thành công', 'success');
       navigate('/dashboard');
     } catch (err) {
-      console.error(err);
       if (err.message === 'INVALID_CREDENTIALS') {
         setError('Email hoặc mật khẩu không chính xác');
         addToast('Đăng nhập thất bại', 'error');
@@ -59,7 +58,7 @@ const Login = () => {
           <div className="p-2 bg-onPrimary rounded-lg text-canvas-night">
             <Shield className="w-6 h-6 stroke-[2.5]" />
           </div>
-          <span className="font-display font-bold text-xl tracking-tight uppercase">
+          <span className="font-display font-semibold text-xl tracking-tight uppercase">
             Phúc Anh WMS
           </span>
         </div>
@@ -99,7 +98,7 @@ const Login = () => {
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
             {error && (
-              <div className="p-4 bg-red-950/40 border border-red-800 rounded-lg text-red-400 text-xs font-medium">
+              <div className="p-4 bg-danger-950/40 border border-danger-800 rounded-lg text-danger-400 text-xs font-medium">
                 {error}
               </div>
             )}
@@ -150,36 +149,26 @@ const Login = () => {
             <span className="text-[10px] font-bold text-aloe-10 uppercase tracking-wider block mb-2">
               Tài khoản dùng thử (Mock Mode)
             </span>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px] text-shade-40 font-mono">
-              <div>
-                <strong>Admin:</strong> admin@phucanh.vn
-              </div>
-              <div>
-                <strong>CEO:</strong> ceo@phucanh.vn
-              </div>
-              <div>
-                <strong>Planner:</strong> planer@gmail.com
-              </div>
-              <div>
-                <strong>HP Manager:</strong> manager.hp@phucanh.vn
-              </div>
-              <div>
-                <strong>HN Keeper:</strong> keeper.hn@phucanh.vn
-              </div>
-              <div>
-                <strong>HP QC Staff:</strong> qc.hp@phucanh.vn
-              </div>
-              <div>
-                <strong>Account Manager:</strong> accountmanager@gmail.com
-              </div>
-              <div>
-                Nghiệp vụ	Role yêu cầu	Tài khoản kiểm nghiệm (Email)	Kho được gán quyền
-1. Lập lệnh nhập	PLANNER	planer@gmail.com	Kho Hải Phòng
-2. Kiểm đếm thực tế	WAREHOUSE_STAFF	staff@email.com hoặc inspect.test@phucanh.vn	Kho Hải Phòng
-3. Kiểm QC	STOREKEEPER	storekeeperHP@gmail.com hoặc storekeeper@wms.com	Kho Hải Phòng
-4. Duyệt phiếu	WAREHOUSE_MANAGER	whHP@gmail.com hoặc manager.hp@phucanh.vn	Kho Hải Phòng
-5. Cất kệ (Putaway)	STOREKEEPER	storekeeperHP@gmail.com hoặc storekeeper@wms.com	Kho Hải Phòng
-              </div>
+            <div className="grid grid-cols-1 gap-2 text-[11px] text-shade-40 font-mono sm:grid-cols-2">
+              {[
+                ['Admin', 'admin@phucanh.vn'],
+                ['CEO', 'ceo@phucanh.vn'],
+                ['Planner', 'planer@gmail.com'],
+                ['HP Manager', 'manager.hp@phucanh.vn'],
+                ['HN Keeper', 'keeper.hn@phucanh.vn'],
+                ['HP QC Staff', 'qc.hp@phucanh.vn'],
+                ['Account Manager', 'accountmanager@gmail.com'],
+              ].map(([role, mail]) => (
+                <div key={role} className="min-w-0 rounded-md border border-hairline-dark bg-canvas-night px-3 py-2">
+                  <strong className="block text-onPrimary">{role}</strong>
+                  <span className="block truncate">{mail}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-3 rounded-md border border-hairline-dark bg-canvas-night px-3 py-2 text-[11px] text-shade-40">
+              <span className="font-semibold text-onPrimary">Luồng inbound HP:</span>{' '}
+              Planner lập lệnh → Warehouse Staff kiểm đếm → Storekeeper QC/cất kệ → Warehouse Manager duyệt.
             </div>
           </div>
         </div>

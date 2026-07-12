@@ -6,9 +6,9 @@ const MobileLayout = ({ children, title, backTo }) => {
   const navigate = useNavigate();
 
   return (
-    <div className="flex flex-col -m-6 md:-m-8 min-h-[calc(100vh-4rem)]">
+    <div className="flex flex-col -m-4 sm:-m-6 min-h-[calc(100dvh-4rem)]">
       {title && (
-        <div className="sticky top-0 z-10 bg-ink text-white px-4 py-3.5 flex items-center gap-3 shadow-md">
+        <div className="sticky top-0 z-10 bg-ink text-onPrimary px-4 py-3.5 flex items-center gap-3 shadow-level-3">
           {backTo && (
             <button
               onClick={() => navigate(backTo)}
@@ -20,7 +20,7 @@ const MobileLayout = ({ children, title, backTo }) => {
           <h1 className="text-base font-semibold tracking-tight flex-1 truncate">{title}</h1>
         </div>
       )}
-      <div className="flex-1 bg-zinc-100 overflow-y-auto pb-6">
+      <div className="flex-1 bg-canvas-cream overflow-y-auto p-4 md:p-6">
         {children}
       </div>
     </div>

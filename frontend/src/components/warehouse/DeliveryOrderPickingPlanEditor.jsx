@@ -28,8 +28,8 @@ const DeliveryOrderPickingPlanEditor = ({
   onRemoveAllocation,
   onSave,
 }) => (
-  <div className="bg-white rounded-lg border border-hairline-light shadow-sm card-premium overflow-hidden">
-    <div className="px-6 py-4 border-b border-hairline-light bg-zinc-50 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+  <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden">
+    <div className="px-6 py-4 border-b border-hairline-light bg-canvas-cream flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
       <div>
         <h3 className="text-xs font-bold uppercase tracking-wider text-shade-60">
           Lập kế hoạch lấy hàng
@@ -57,14 +57,14 @@ const DeliveryOrderPickingPlanEditor = ({
 
         return (
           <section key={item.id} className="border border-hairline-light rounded-lg overflow-hidden">
-            <div className="px-4 py-3 bg-zinc-50 border-b border-hairline-light flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div className="px-4 py-3 bg-canvas-cream border-b border-hairline-light flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="text-sm font-semibold text-ink">{item.product_name}</p>
                 <p className="text-xs text-shade-50 font-mono">{item.sku || '-'}</p>
               </div>
               <div className="text-xs font-semibold">
                 <span className="text-shade-50">Yêu cầu:</span> {Number(item.requested_qty || 0)}
-                <span className={`ml-3 ${qtyMatched ? 'text-emerald-700' : 'text-amber-700'}`}>
+                <span className={`ml-3 ${qtyMatched ? 'text-success-700' : 'text-warning-700'}`}>
                   Đã phân bổ: {plannedQty}
                 </span>
               </div>
@@ -72,7 +72,7 @@ const DeliveryOrderPickingPlanEditor = ({
 
             <div className="p-4 space-y-3">
               {!candidates.length && (
-                <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
+                <div className="flex items-start gap-2 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2.5 text-xs text-warning-800">
                   <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
                   <span>API hiện chưa trả danh sách tồn kho FIFO để chọn cho dòng này. Có thể chỉ xem phân bổ đã lưu.</span>
                 </div>
@@ -123,7 +123,7 @@ const DeliveryOrderPickingPlanEditor = ({
                       type="button"
                       onClick={() => onRemoveAllocation(item.id, index)}
                       disabled={(item.allocations || []).length <= 1}
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-hairline-light text-shade-50 transition hover:bg-zinc-100 hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-hairline-light text-shade-50 transition hover:bg-canvas-cream hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -134,7 +134,7 @@ const DeliveryOrderPickingPlanEditor = ({
               <button
                 type="button"
                 onClick={() => onAddAllocation(item.id)}
-                className="inline-flex items-center gap-2 rounded-pill border border-hairline-light px-4 py-2 text-xs font-semibold text-shade-60 transition hover:bg-zinc-100 hover:text-ink"
+                className="inline-flex items-center gap-2 rounded-pill border border-hairline-light px-4 py-2 text-xs font-semibold text-shade-60 transition hover:bg-canvas-cream hover:text-ink"
               >
                 <Plus className="w-3.5 h-3.5" />
                 Thêm dòng phân bổ
