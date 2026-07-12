@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, Upload, Download, FileSpreadsheet, Search, X, Edit2, Ban, DollarSign, Loader2, Warehouse } from 'lucide-react';
+import { Plus, Upload, Download, FileSpreadsheet, Search, X, Edit2, Ban, DollarSign, Loader2, Warehouse, RefreshCw } from 'lucide-react';
 import Pagination from '../../components/common/Pagination';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
@@ -29,6 +29,7 @@ export default function PriceListManagement() {
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
+  const [replaceTarget, setReplaceTarget] = useState(null);
   const [showImport, setShowImport] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -91,6 +92,12 @@ export default function PriceListManagement() {
     } catch (err) {
       addToast(err.message || 'Không thể hủy bản giá', 'error');
     }
+  };
+
+  const handleReplace = (entry) => {
+    setEditTarget(null);
+    setReplaceTarget(entry);
+    setShowForm(true);
   };
 
   return (
@@ -220,16 +227,35 @@ export default function PriceListManagement() {
                       {entry.notes || '—'}
                     </td>
                     <td className="px-6 py-4 text-right whitespace-nowrap">
-                      {canWrite && entry.status === 'PENDING' && entry.created_by?.id === user?.id && (
-                        <div className="flex gap-2 justify-end items-center">
-                          <Button variant="outline-light" icon={Edit2} onClick={() => { setEditTarget(entry); setShowForm(true); }}>
-                            Sửa
-                          </Button>
-                          <Button variant="outline-light" icon={Ban} onClick={() => handleCancel(entry.id)} className="text-danger-600 border-danger-200 hover:bg-danger-50">
-                            Hủy
-                          </Button>
-                        </div>
-                      )}
+                      <div className="flex gap-2 justify-end items-center">
+                        {canWrite && entry.status === 'PENDING' && entry.created_by?.id === user?.id && (
+                          <>
+                            <button
+                              onClick={() => { setEditTarget(entry); setShowForm(true); }}
+                              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill border border-ink bg-canvas-light text-ink hover:bg-canvas-cream text-xs font-semibold transition-colors"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                              Sửa
+                            </button>
+                            <button
+                              onClick={() => handleCancel(entry.id)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill border border-danger-200 text-danger-600 hover:bg-danger-50 text-xs font-semibold transition-colors"
+                            >
+                              <Ban className="w-3.5 h-3.5" />
+                              Hủy
+                            </button>
+                          </>
+                        )}
+                        {canWrite && entry.status === 'APPROVED' && (
+                          <button
+                            onClick={() => handleReplace(entry)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill border border-ink bg-canvas-light text-ink hover:bg-canvas-cream text-xs font-semibold transition-colors"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" />
+                            Cập nhật giá
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -256,12 +282,31 @@ export default function PriceListManagement() {
                 </div>
                 {canWrite && entry.status === 'PENDING' && entry.created_by?.id === user?.id && (
                   <div className="p-4 border-t border-hairline-light flex gap-2 justify-end items-center">
-                    <Button variant="outline-light" icon={Edit2} onClick={() => { setEditTarget(entry); setShowForm(true); }}>
+                    <button
+                      onClick={() => { setEditTarget(entry); setShowForm(true); }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill border border-ink bg-canvas-light text-ink hover:bg-canvas-cream text-xs font-semibold transition-colors"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
                       Sửa
-                    </Button>
-                    <Button variant="outline-light" icon={Ban} onClick={() => handleCancel(entry.id)} className="text-danger-600 border-danger-200 hover:bg-danger-50">
+                    </button>
+                    <button
+                      onClick={() => handleCancel(entry.id)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill border border-danger-200 text-danger-600 hover:bg-danger-50 text-xs font-semibold transition-colors"
+                    >
+                      <Ban className="w-3.5 h-3.5" />
                       Hủy
-                    </Button>
+                    </button>
+                  </div>
+                )}
+                {canWrite && entry.status === 'APPROVED' && (
+                  <div className="p-4 border-t border-hairline-light flex gap-2 justify-end items-center">
+                    <button
+                      onClick={() => handleReplace(entry)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill border border-ink bg-canvas-light text-ink hover:bg-canvas-cream text-xs font-semibold transition-colors"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      Cập nhật giá
+                    </button>
                   </div>
                 )}
               </div>
@@ -281,10 +326,11 @@ export default function PriceListManagement() {
       {showForm && (
         <PriceEntryModal
           entry={editTarget}
+          replaceSource={replaceTarget}
           warehouseId={warehouseId}
           warehouseName={activeWarehouse?.name}
-          onClose={() => { setShowForm(false); setEditTarget(null); }}
-          onSaved={() => { setShowForm(false); setEditTarget(null); fetchEntries(); }}
+          onClose={() => { setShowForm(false); setEditTarget(null); setReplaceTarget(null); }}
+          onSaved={() => { setShowForm(false); setEditTarget(null); setReplaceTarget(null); fetchEntries(); }}
         />
       )}
 
@@ -300,18 +346,20 @@ export default function PriceListManagement() {
 
 // ── PriceEntryModal ────────────────────────────────────────────────────────
 
-function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }) {
+function PriceEntryModal({ entry, replaceSource, warehouseId, warehouseName, onClose, onSaved }) {
   const { addToast } = useUiStore();
+  const isEdit = !!entry;
+  const isReplace = !isEdit && !!replaceSource;
+  const seed = entry ?? replaceSource ?? null;
   const [form, setForm] = useState({
-    product_id: entry?.product_id ?? '',
-    warehouse_id: entry?.warehouse_id ?? warehouseId ?? '',
-    effective_date: entry?.effective_date ?? '',
-    cost_price: entry?.cost_price ?? '',
-    selling_price: entry?.selling_price ?? '',
+    product_id: seed?.product_id ?? '',
+    warehouse_id: seed?.warehouse_id ?? warehouseId ?? '',
+    effective_date: isEdit ? (entry?.effective_date ?? '') : isReplace ? todayISO() : '',
+    cost_price: seed?.cost_price ?? '',
+    selling_price: seed?.selling_price ?? '',
     notes: entry?.notes ?? '',
   });
   const [submitting, setSubmitting] = useState(false);
-  const isEdit = !!entry;
 
   const [products, setProducts] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
@@ -330,15 +378,15 @@ function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }
         const activeProducts = data.filter(p => p.is_active);
         setProducts(activeProducts);
 
-        if (isEdit && entry?.product_id) {
-          const prod = activeProducts.find(p => p.id === entry.product_id);
+        if (seed?.product_id) {
+          const prod = activeProducts.find(p => p.id === seed.product_id);
           if (prod) {
             setSelectedProduct(prod);
           } else {
             setSelectedProduct({
-              id: entry.product_id,
-              sku: entry.product_sku || '',
-              name: entry.product_name || 'Sản phẩm không xác định'
+              id: seed.product_id,
+              sku: seed.product_sku || '',
+              name: seed.product_name || 'Sản phẩm không xác định'
             });
           }
         }
@@ -349,7 +397,7 @@ function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }
       }
     };
     fetchProducts();
-  }, [isEdit, entry, addToast]);
+  }, [seed, addToast]);
 
   const debouncedSearchQuery = useDebounce(searchQuery, 250);
 
@@ -416,7 +464,7 @@ function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }
             <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
               Tài chính / Bảng giá
             </span>
-            <h3 className="text-xl font-bold">{isEdit ? 'Sửa bản giá' : 'Thêm bản giá mới'}</h3>
+            <h3 className="text-xl font-bold">{isEdit ? 'Sửa bản giá' : isReplace ? 'Cập nhật giá' : 'Thêm bản giá mới'}</h3>
           </div>
           <button onClick={onClose} className="p-1 hover:bg-canvas-cream rounded-pill transition-colors text-shade-50 hover:text-ink">
             <X className="w-5 h-5" />
@@ -424,14 +472,22 @@ function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto flex-1 flex flex-col gap-4">
-          {isEdit ? (
+          {isReplace && (
+            <div className="text-xs text-shade-50 bg-canvas-light border border-hairline-light rounded-lg p-3">
+              Bản giá này sẽ thay thế bản giá <span className="font-semibold text-ink">đang APPROVED</span> hiện
+              tại (hiệu lực từ <span className="font-semibold text-ink">{replaceSource.effective_date}</span>,
+              giá bán <span className="font-semibold text-ink">{formatVND(replaceSource.selling_price)}</span>)
+              kể từ ngày hiệu lực bạn chọn bên dưới. Bản giá cũ vẫn được giữ nguyên trong lịch sử.
+            </div>
+          )}
+          {(isEdit || isReplace) ? (
             <div>
               <label className="block text-xs font-bold text-shade-60 uppercase tracking-wider mb-1.5">
                 Sản phẩm
               </label>
               <input
                 type="text"
-                value={selectedProduct ? `${selectedProduct.sku} - ${selectedProduct.name}` : (entry?.product_name || `ID: ${form.product_id}`)}
+                value={selectedProduct ? `${selectedProduct.sku} - ${selectedProduct.name}` : (seed?.product_name || `ID: ${form.product_id}`)}
                 disabled
                 className="text-input w-full bg-canvas-cream text-shade-50 cursor-not-allowed font-semibold"
               />
@@ -514,7 +570,7 @@ function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }
             </label>
             <input
               type="text"
-              value={entry?.warehouse_name ?? warehouseName ?? '—'}
+              value={entry?.warehouse_name ?? replaceSource?.warehouse_name ?? warehouseName ?? '—'}
               disabled
               className="text-input w-full bg-canvas-cream text-shade-50 cursor-not-allowed font-semibold"
             />
@@ -559,7 +615,7 @@ function PriceEntryModal({ entry, warehouseId, warehouseName, onClose, onSaved }
           <button type="button" onClick={onClose} className="btn-pill btn-pill-outline-light text-xs">Đóng</button>
           <button onClick={handleSubmit} disabled={submitting}
             className="btn-pill btn-pill-primary text-xs py-1.5 px-5 disabled:opacity-50 flex items-center gap-1.5">
-            {submitting ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Đang lưu...</> : isEdit ? 'Cập nhật' : 'Tạo bản giá'}
+            {submitting ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Đang lưu...</> : isEdit ? 'Cập nhật' : isReplace ? 'Cập nhật giá' : 'Tạo bản giá'}
           </button>
         </div>
       </div>
@@ -688,4 +744,8 @@ function StatBox({ label, value, color = 'text-ink' }) {
 
 function formatVND(n) {
   return Number(n).toLocaleString('vi-VN') + ' đ';
+}
+
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
 }

@@ -27,6 +27,7 @@ import com.wms.repository.WarehouseRepository;
 import com.wms.service.PriceHistoryService;
 import com.wms.util.PartnerAuditUtil;
 import org.apache.poi.ss.usermodel.*;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -82,7 +83,7 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
     public PriceHistoryResponse create(PriceHistoryCreateRequest req, User actor) {
         Product product = requireProduct(req.getProductId());
         Warehouse warehouse = requireWarehouse(req.getWarehouseId());
-        checkNoConflictingApproved(product.getId(), warehouse.getId(), req.getEffectiveDate(), null);
+        checkNoConflictingActive(product.getId(), warehouse.getId(), req.getEffectiveDate(), null);
 
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         PriceHistory ph = PriceHistory.builder()
@@ -98,7 +99,7 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
                 .updatedAt(now)
                 .build();
 
-        PriceHistory saved = priceHistoryRepository.save(ph);
+        PriceHistory saved = saveOrThrowConflict(ph);
         notifyAccountantManagers(saved, "Bản giá mới chờ duyệt: " + product.getName());
         auditUtil.logChange(actor, AuditAction.PRICE_CREATE, "PRICE_HISTORY", saved.getId(),
                 String.valueOf(saved.getId()), Map.of(), snapshot(saved));
@@ -110,7 +111,7 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
     public PriceHistoryResponse update(Long id, PriceHistoryUpdateRequest req, User actor) {
         PriceHistory ph = require(id);
         guardEditable(ph, actor);
-        checkNoConflictingApproved(ph.getProduct().getId(), ph.getWarehouse().getId(), req.getEffectiveDate(), id);
+        checkNoConflictingActive(ph.getProduct().getId(), ph.getWarehouse().getId(), req.getEffectiveDate(), id);
 
         Map<String, Object> before = snapshot(ph);
         ph.setEffectiveDate(req.getEffectiveDate());
@@ -119,7 +120,7 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
         ph.setNotes(req.getNotes());
         ph.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));
 
-        PriceHistory saved = priceHistoryRepository.save(ph);
+        PriceHistory saved = saveOrThrowConflict(ph);
         auditUtil.logChange(actor, AuditAction.PRICE_UPDATE, "PRICE_HISTORY", saved.getId(),
                 String.valueOf(saved.getId()), before, snapshot(saved));
         return toResponse(saved, null);
@@ -158,9 +159,6 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
                     "FORBIDDEN_APPROVE_OWN",
                     "Người tạo bản giá không được tự duyệt.");
         }
-
-        // Re-check for a conflicting APPROVED entry at approval time (race-condition guard)
-        checkNoConflictingApproved(ph.getProduct().getId(), ph.getWarehouse().getId(), ph.getEffectiveDate(), id);
 
         Map<String, Object> before = snapshot(ph);
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
@@ -229,7 +227,7 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
     @Override
     public Optional<PriceHistory> lookupApproved(Long productId, Long warehouseId, LocalDate date) {
         return priceHistoryRepository
-                .findFirstByProductIdAndWarehouseIdAndStatusAndEffectiveDateLessThanEqualOrderByEffectiveDateDesc(
+                .findFirstByProductIdAndWarehouseIdAndStatusAndEffectiveDateLessThanEqualOrderByEffectiveDateDescApprovedAtDesc(
                         productId, warehouseId, PriceHistoryStatus.APPROVED, date);
     }
 
@@ -281,10 +279,26 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
 
     // ── helpers ─────────────────────────────────────────────────────────────
 
-    private void checkNoConflictingApproved(Long productId, Long warehouseId, LocalDate effective, Long excludeId) {
+    private void checkNoConflictingActive(Long productId, Long warehouseId, LocalDate effective, Long excludeId) {
         List<PriceHistory> conflicts = priceHistoryRepository
-                .findConflictingApproved(productId, warehouseId, effective, excludeId);
+                .findConflictingActive(productId, warehouseId, effective, excludeId);
         if (!conflicts.isEmpty()) throw PriceHistoryException.overlappingDate();
+    }
+
+    /**
+     * checkNoConflictingActive above closes the common case, but a SELECT-then-INSERT
+     * check can't be atomic on its own — two concurrent creates can both pass the
+     * check before either commits. uq_price_history_active_effective_date (migration
+     * V57) is the actual source of truth; saveAndFlush forces the constraint to be
+     * evaluated here so a rare race surfaces as the same typed 409 instead of a raw
+     * DataIntegrityViolationException.
+     */
+    private PriceHistory saveOrThrowConflict(PriceHistory ph) {
+        try {
+            return priceHistoryRepository.saveAndFlush(ph);
+        } catch (DataIntegrityViolationException e) {
+            throw PriceHistoryException.overlappingDate();
+        }
     }
 
     private void guardEditable(PriceHistory ph, User actor) {
@@ -454,10 +468,11 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
         Product product = productOpt.get();
         Warehouse warehouse = warehouseOpt.get();
         List<PriceHistory> conflicts = priceHistoryRepository
-                .findConflictingApproved(product.getId(), warehouse.getId(), effective, null);
+                .findConflictingActive(product.getId(), warehouse.getId(), effective, null);
         if (!conflicts.isEmpty()) {
             failed.add(failRow(displayRow, sku, "OVERLAPPING_EFFECTIVE_DATE",
-                    "Đã có bản giá APPROVED khác cùng effective_date " + conflicts.get(0).getEffectiveDate()));
+                    "Đã có bản giá " + conflicts.get(0).getStatus() + " khác cùng effective_date "
+                            + conflicts.get(0).getEffectiveDate()));
             return;
         }
 

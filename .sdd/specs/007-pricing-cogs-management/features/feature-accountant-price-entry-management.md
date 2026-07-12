@@ -20,7 +20,7 @@ Kế toán viên tạo, sửa và hủy từng bản giá (`price_history`) cho 
 
 - The system SHALL require `product_id`, `warehouse_id`, `effective_date`, `cost_price`, `selling_price` for every price entry. There is no `end_date`.
 - The system SHALL enforce `cost_price > 0` and `selling_price > 0`.
-- The system SHALL check for another `APPROVED` entry with the exact same `(product_id, warehouse_id, effective_date)` on every create and update; violations return `OVERLAPPING_EFFECTIVE_DATE` (409). `PENDING` and `CANCELLED` entries are excluded from this check, and do not block another entry — including another `PENDING` — from sharing the same `effective_date`. Entries for the same product but a different warehouse never conflict.
+- The system SHALL check for another non-`CANCELLED` entry (`PENDING` or `APPROVED`) with the exact same `(product_id, warehouse_id, effective_date)` on every create and update; violations return `OVERLAPPING_EFFECTIVE_DATE` (409) (Session 2026-07-12 của `spec.md` — broadened from "APPROVED only"). A `PENDING` entry already occupying a date blocks creating a second one for that date: the correct way to fix a wrong `PENDING` entry is to edit it (`PUT`), not create a duplicate — the edit action already exists for exactly this reason. `CANCELLED` entries are excluded from the check. Entries for the same product but a different warehouse never conflict.
 - Every mutation SHALL create an audit log entry.
 
 ### 3.2 Event-driven
@@ -139,11 +139,11 @@ Kế toán viên tạo, sửa và hủy từng bản giá (`price_history`) cho 
 - Then hệ thống cho phép tạo (khác warehouse_id, không xung đột)
 - And trả HTTP 201
 
-**Scenario 3: PENDING không cản check trùng effective_date**
+**Scenario 3: Từ chối vì trùng effective_date với PENDING cùng kho**
 - Given product P tại kho Hải Phòng có PENDING với effective 01/07, không có APPROVED nào effective 01/07
 - When Kế toán viên tạo bản giá khác cũng effective 01/07 tại cùng kho Hải Phòng
-- Then hệ thống cho phép tạo (hai PENDING cùng effective_date cùng kho được phép tồn tại)
-- And khi Kế toán trưởng cố duyệt bản thứ hai sau khi bản thứ nhất đã được duyệt → bị chặn ở bước duyệt
+- Then HTTP 409 `OVERLAPPING_EFFECTIVE_DATE`
+- And không tạo bản ghi nào — nếu bản PENDING hiện tại sai, phải sửa nó qua `PUT /price-history/{id}` thay vì tạo bản mới
 
 **Scenario 3b: Bản giá mới supersede bản cũ, không cần sửa bản cũ**
 - Given product P tại kho Hải Phòng có APPROVED: effective 01/06, sell 115.000 (nhập sai, đáng lẽ 150.000)

@@ -23,7 +23,7 @@ Import không tự động duyệt. Tất cả bản ghi tạo ra đều ở `PE
 - The system SHALL return HTTP 201 when all rows are valid and all records are created.
 - The system SHALL return HTTP 207 when the file is structurally valid but at least one row fails data validation (including the case where all data rows fail).
 - The system SHALL return HTTP 400 when the file itself is invalid: not `.xlsx`, unreadable, or missing required columns A–E in the header.
-- The system SHALL apply the same validation rules as single-entry creation: required fields, positive prices, product existence, warehouse existence, no conflicting `APPROVED` entry with the same `(product_id, warehouse_id, effective_date)`. There is no `end_date` and no date-range validation.
+- The system SHALL apply the same validation rules as single-entry creation: required fields, positive prices, product existence, warehouse existence, no conflicting non-`CANCELLED` (`PENDING` or `APPROVED`) entry with the same `(product_id, warehouse_id, effective_date)` (Session 2026-07-12 của `spec.md`). There is no `end_date` and no date-range validation.
 - Every successfully created record SHALL trigger a single aggregated in-app notification to all `ACCOUNTANT_MANAGER` users (not one notification per row).
 - Every created price entry SHALL have `created_by = authenticated user` and `status = PENDING`.
 - Every mutation SHALL create an audit log entry per created record.
@@ -39,7 +39,7 @@ Import không tự động duyệt. Tất cả bản ghi tạo ra đều ở `PE
     - Validate presence of required columns.
     - Validate `product_sku` exists in `products` and `is_active = true`.
     - Validate positive prices.
-    - Check for a conflicting `APPROVED` entry with the same `(product_id, warehouse_id, effective_date)`.
+    - Check for a conflicting non-`CANCELLED` entry with the same `(product_id, warehouse_id, effective_date)`.
     - If valid: create `price_history` record with `status = PENDING`.
     - If invalid: record row number and reason in failure list.
   - After processing all rows:
@@ -70,7 +70,7 @@ Cột thừa ngoài A–F: bỏ qua. Cột thiếu trong A–E: toàn bộ file 
 | `WAREHOUSE_NOT_FOUND` | warehouse_code không tồn tại hoặc không active |
 | `INVALID_DATE_FORMAT` | Ngày không parse được |
 | `INVALID_PRICE` | `cost_price` hoặc `selling_price` <= 0 |
-| `OVERLAPPING_EFFECTIVE_DATE` | Đã tồn tại bản giá APPROVED khác cùng `(product_id, warehouse_id, effective_date)` |
+| `OVERLAPPING_EFFECTIVE_DATE` | Đã tồn tại bản giá PENDING hoặc APPROVED khác cùng `(product_id, warehouse_id, effective_date)` |
 
 ---
 
@@ -103,7 +103,7 @@ Cột thừa ngoài A–F: bỏ qua. Cột thiếu trong A–E: toàn bộ file 
   ],
   "failed": [
     { "row": 4, "product_sku": "XXXX-999", "error_code": "PRODUCT_NOT_FOUND", "message": "SKU không tồn tại" },
-    { "row": 6, "product_sku": "POT-001", "error_code": "OVERLAPPING_EFFECTIVE_DATE", "message": "Đã có bản giá APPROVED khác cùng effective_date 01/07 cho sản phẩm/kho này" }
+    { "row": 6, "product_sku": "POT-001", "error_code": "OVERLAPPING_EFFECTIVE_DATE", "message": "Đã có bản giá PENDING khác cùng effective_date 01/07 cho sản phẩm/kho này" }
   ]
 }
 ```
