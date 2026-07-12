@@ -56,9 +56,9 @@ Bản theo dõi tiến độ triển khai hệ thống kiểm thử tự động
   * *Trạng thái:* Đã hoàn thành.
   * *Chi tiết:* Tệp workflow test.yml đã được cập nhật bắt buộc chạy lint, test:coverage, và build đối với frontend trên CI (không còn dùng `--if-present` để bypass).
 
-- [ ] **B13: Push feature branch, tạo Pull Request và để CI/SonarQube kiểm tra.**
-  * *Trạng thái:* Chưa thực hiện.
-  * *Chi tiết:* Đang phát triển trên branch `feat/backend-test-sonarqube`, chưa tạo PR hoàn chỉnh lên `main` hoặc `develop`.
+- [x] **B13: Push feature branch, tạo Pull Request và để CI/SonarQube kiểm tra.**
+  * *Trạng thái:* Đã hoàn thành.
+  * *Chi tiết:* Đã giải quyết xung đột, chạy kiểm tra thành công với 10 checks pass và đã merge PR #40 vào nhánh `main`.
 
 - [ ] **B14: Build một Docker image có tag cố định sau khi CI đạt.**
   * *Trạng thái:* Chưa thực hiện.
