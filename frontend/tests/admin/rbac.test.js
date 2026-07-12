@@ -57,4 +57,51 @@ describe('RBAC Warehouse and Role Access Tests', () => {
     expect(useAuthStore.getState().hasWarehouseAccess(1)).toBe(false);
     expect(useAuthStore.getState().hasWarehouseAccess(2)).toBe(false);
   });
+
+  test('hasWarehouseAccess should return false when no user is logged in', () => {
+    useAuthStore.getState().logout();
+    expect(useAuthStore.getState().hasWarehouseAccess(1)).toBe(false);
+  });
+
+  test('hasWarehouseAccess should return false when user warehouses property is missing', () => {
+    const userWithoutWarehouses = {
+      id: 5,
+      role: ROLES.STOREKEEPER
+    };
+    useAuthStore.getState().login(userWithoutWarehouses, 'mock-jwt-token');
+    expect(useAuthStore.getState().hasWarehouseAccess(1)).toBe(false);
+  });
+
+  test('login should handle optional refreshToken', () => {
+    const user = { id: 6, role: ROLES.STOREKEEPER, warehouses: [1] };
+    useAuthStore.getState().login(user, 'mock-jwt-token', 'mock-refresh-token');
+    expect(sessionStorage.getItem('wms_refresh_token')).toBe('mock-refresh-token');
+  });
+
+  test('login should handle user with invalid warehouse ID (not in constant list)', () => {
+    const user = { id: 7, role: ROLES.STOREKEEPER, warehouses: [999] }; // 999 not in constant list
+    useAuthStore.getState().login(user, 'mock-jwt-token');
+    expect(useAuthStore.getState().activeWarehouse).toBeNull();
+    expect(sessionStorage.getItem('wms_active_warehouse')).toBeNull();
+  });
+
+  test('setActiveWarehouse should update store state and sessionStorage', () => {
+    const warehouse = { id: 2, code: 'HN-01', name: 'Kho Hà Nội' };
+    useAuthStore.getState().setActiveWarehouse(warehouse);
+    expect(useAuthStore.getState().activeWarehouse).toEqual(warehouse);
+    expect(JSON.parse(sessionStorage.getItem('wms_active_warehouse'))).toEqual(warehouse);
+  });
+
+  test('hasRole should evaluate role correctly and handle null user', () => {
+    // Null user
+    useAuthStore.getState().logout();
+    expect(useAuthStore.getState().hasRole(ROLES.ADMIN)).toBe(false);
+
+    // Active user
+    const user = { id: 8, role: ROLES.ADMIN, warehouses: [] };
+    useAuthStore.getState().login(user, 'mock-jwt-token');
+    expect(useAuthStore.getState().hasRole(ROLES.ADMIN)).toBe(true);
+    expect(useAuthStore.getState().hasRole(ROLES.CEO)).toBe(false);
+  });
 });
+

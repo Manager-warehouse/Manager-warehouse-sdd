@@ -34,21 +34,21 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
-      - name: Run backend tests
+      - name: Run backend tests and coverage
         run: |
           cd backend
           set +e
-          mvn -B -e test --no-transfer-progress
+          mvn -B -e clean verify --no-transfer-progress
           status=$?
           if [ "$status" -ne 0 ]; then
-            echo "::group::Surefire error reports"
-            grep -lE 'errors="[1-9][0-9]*"' target/surefire-reports/TEST-*.xml 2>/dev/null \
+            echo "::group::Surefire & Failsafe error reports"
+            grep -lE 'errors="[1-9][0-9]*"' target/surefire-reports/TEST-*.xml target/failsafe-reports/TEST-*.xml 2>/dev/null \
               | while IFS= read -r report; do
                   echo "===== $report ====="
                   cat "$report"
                 done
-            find target/surefire-reports -maxdepth 1 -type f \
-              \( -name '*.dump' -o -name '*.dumpstream' \) -print -exec cat {} \;
+            find target/surefire-reports target/failsafe-reports -maxdepth 1 -type f \
+              \( -name '*.dump' -o -name '*.dumpstream' \) -print -exec cat {} \; 2>/dev/null
             echo "::endgroup::"
           fi
           exit "$status"
@@ -61,12 +61,25 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: backend-surefire-reports
-          path: backend/target/surefire-reports/
+          name: backend-test-reports
+          path: |
+            backend/target/surefire-reports/
+            backend/target/failsafe-reports/
           if-no-files-found: ignore
 
+      - name: Analyze with SonarQube
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        run: |
+          if [ -n "$SONAR_TOKEN" ]; then
+            cd backend && mvn sonar:sonar -Dsonar.projectKey=wms-backend -Dsonar.host.url=$SONAR_HOST_URL -Dsonar.login=$SONAR_TOKEN --no-transfer-progress
+          else
+            echo "SonarQube credentials not set, skipping analysis."
+          fi
+
   test-frontend:
-    name: Frontend Tests (Jest)
+    name: Frontend Tests (Vitest)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -81,5 +94,27 @@ jobs:
       - name: Install dependencies
         run: cd frontend && npm ci
 
-      - name: Run frontend tests
-        run: cd frontend && npm test --if-present
+      - name: Run lint
+        run: cd frontend && npm run lint
+
+      - name: Run frontend tests and coverage
+        run: cd frontend && npm run test:coverage
+
+      - name: Build frontend
+        run: cd frontend && npm run build
+
+      - name: Analyze with SonarQube (Frontend)
+        if: ${{ secrets.SONAR_TOKEN != '' }}
+        uses: sonarsource/sonarqube-scan-action@v2
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        with:
+          projectBaseDir: frontend
+          args: >
+            -Dsonar.projectKey=wms-frontend
+            -Dsonar.sources=src
+            -Dsonar.tests=tests
+            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+            -Dsonar.coverage.exclusions=src/pages/**,src/components/**,src/main.jsx,src/App.jsx,src/router.jsx
+

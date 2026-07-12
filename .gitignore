@@ -29,7 +29,7 @@ yarn-error.log*
 .pnp.js
 
 # Testing
-/coverage
+coverage/
 
 # Production
 /build
