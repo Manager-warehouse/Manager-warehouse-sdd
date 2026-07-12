@@ -13,41 +13,10 @@
  *   minInventoryWarningThreshold >= 0 (integer)
  */
 
-// ─── Validator (mirrors SystemConfig.jsx validate()) ─────────────────────────
+import { validate } from '../../src/pages/Admin/SystemConfig';
 
 const validateSystemConfig = (form) => {
-  const errs = {};
-
-  const creditLimit = Number(form.defaultCreditLimit);
-  if (!Number.isFinite(creditLimit) || !Number.isInteger(creditLimit) || creditLimit <= 0) {
-    errs.defaultCreditLimit = 'Hạn mức nợ phải là số nguyên dương (> 0)';
-  }
-
-  const paymentTerm = Number(form.defaultPaymentTermDays);
-  if (!Number.isFinite(paymentTerm) || !Number.isInteger(paymentTerm) || paymentTerm <= 0) {
-    errs.defaultPaymentTermDays = 'Thời hạn thanh toán phải là số nguyên dương (> 0)';
-  }
-
-  const overdueDays = Number(form.creditHoldOverdueDays);
-  if (!Number.isFinite(overdueDays) || !Number.isInteger(overdueDays) || overdueDays <= 0) {
-    errs.creditHoldOverdueDays = 'Số ngày trễ hạn phải là số nguyên dương (> 0)';
-  }
-
-  const bufferPct = Number(form.creditUnlockBufferPct);
-  if (!Number.isFinite(bufferPct) || bufferPct <= 0 || bufferPct > 1) {
-    errs.creditUnlockBufferPct = 'Hệ số đệm mở khóa phải là số thập phân trong khoảng (0, 1]';
-  }
-
-  const closingDay = Number(form.monthlyClosingDay);
-  if (!Number.isFinite(closingDay) || !Number.isInteger(closingDay) || closingDay < 1 || closingDay > 31) {
-    errs.monthlyClosingDay = 'Ngày khóa sổ phải là số nguyên từ 1 đến 31';
-  }
-
-  const threshold = Number(form.minInventoryWarningThreshold);
-  if (!Number.isFinite(threshold) || !Number.isInteger(threshold) || threshold < 0) {
-    errs.minInventoryWarningThreshold = 'Ngưỡng cảnh báo tồn kho phải là số nguyên >= 0';
-  }
-
+  const errs = validate(form);
   return { isValid: Object.keys(errs).length === 0, errors: errs };
 };
 

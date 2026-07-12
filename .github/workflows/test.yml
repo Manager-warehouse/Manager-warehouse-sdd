@@ -34,15 +34,26 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
-      - name: Run backend tests
-        run: cd backend && mvn test --no-transfer-progress
+      - name: Run backend tests and coverage
+        run: cd backend && mvn clean verify --no-transfer-progress
         env:
           SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/wms_test
           SPRING_DATASOURCE_USERNAME: wms
           SPRING_DATASOURCE_PASSWORD: wms_test
 
+      - name: Analyze with SonarQube
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        run: |
+          if [ -n "$SONAR_TOKEN" ]; then
+            cd backend && mvn sonar:sonar -Dsonar.projectKey=wms-backend -Dsonar.host.url=$SONAR_HOST_URL -Dsonar.login=$SONAR_TOKEN --no-transfer-progress
+          else
+            echo "SonarQube credentials not set, skipping analysis."
+          fi
+
   test-frontend:
-    name: Frontend Tests (Jest)
+    name: Frontend Tests (Vitest)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -57,5 +68,27 @@ jobs:
       - name: Install dependencies
         run: cd frontend && npm ci
 
-      - name: Run frontend tests
-        run: cd frontend && npm test --if-present
+      - name: Run lint
+        run: cd frontend && npm run lint
+
+      - name: Run frontend tests and coverage
+        run: cd frontend && npm run test:coverage
+
+      - name: Build frontend
+        run: cd frontend && npm run build
+
+      - name: Analyze with SonarQube (Frontend)
+        if: ${{ secrets.SONAR_TOKEN != '' }}
+        uses: sonarsource/sonarqube-scan-action@v2
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        with:
+          projectBaseDir: frontend
+          args: >
+            -Dsonar.projectKey=wms-frontend
+            -Dsonar.sources=src
+            -Dsonar.tests=tests
+            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+            -Dsonar.coverage.exclusions=src/pages/**,src/components/**,src/main.jsx,src/App.jsx,src/router.jsx
+

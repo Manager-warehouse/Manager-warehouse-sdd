@@ -1,0 +1,6 @@
+projectKey=ware-frontend
+serverUrl=http://localhost:9000
+serverVersion=26.7.0.124771
+dashboardUrl=http://localhost:9000/dashboard?id=ware-frontend
+ceTaskId=cce9bc4f-362d-429e-bae5-86c7495196e9
+ceTaskUrl=http://localhost:9000/api/ce/task?id=cce9bc4f-362d-429e-bae5-86c7495196e9

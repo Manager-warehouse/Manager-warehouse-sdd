@@ -16,6 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
     "spring.datasource.password=", // test
     "spring.datasource.driver-class-name=org.h2.Driver",
     "spring.jpa.database-platform=org.hibernate.dialect.H2Dialect",
+    "spring.jpa.hibernate.ddl-auto=create-drop",
     "spring.flyway.enabled=false",
     "spring.mail.host=localhost",
     "spring.mail.port=25",

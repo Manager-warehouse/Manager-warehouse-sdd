@@ -9,7 +9,7 @@ import { Save, Settings, CreditCard, CalendarDays, BarChart3 } from 'lucide-reac
 const normalizeNumericValue = (value) => String(value ?? '').replace(',', '.').trim();
 const toNumber = (value) => Number(normalizeNumericValue(value));
 
-const validate = (form) => {
+export const validate = (form) => {
   const errs = {};
 
   const creditLimit = toNumber(form.defaultCreditLimit);
