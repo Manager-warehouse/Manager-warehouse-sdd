@@ -18,10 +18,6 @@ public class PriceHistoryUpdateRequest {
     private LocalDate effectiveDate;
 
     @NotNull
-    @JsonProperty("end_date")
-    private LocalDate endDate;
-
-    @NotNull
     @DecimalMin(value = "0.01", message = "cost_price phải lớn hơn 0")
     @JsonProperty("cost_price")
     private BigDecimal costPrice;

@@ -210,9 +210,9 @@ const TransferRequestWorkspace = () => {
   const getStatusBadge = (status) => {
     const maps = {
       DRAFT: { text: 'Bản thô (DRAFT)', class: 'bg-canvas-cream text-shade-60 border-hairline-light' },
-      SUBMITTED: { text: 'Chờ CEO Duyệt', class: 'bg-amber-50 text-amber-700 border-amber-200 animate-pulse' },
-      APPROVED: { text: 'Đã Duyệt', class: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-      REJECTED: { text: 'Bị Từ Chối', class: 'bg-red-50 text-red-700 border-red-200' },
+      SUBMITTED: { text: 'Chờ CEO Duyệt', class: 'bg-warning-50 text-warning-700 border-warning-200 animate-pulse' },
+      APPROVED: { text: 'Đã Duyệt', class: 'bg-success-50 text-success-700 border-success-200' },
+      REJECTED: { text: 'Bị Từ Chối', class: 'bg-danger-50 text-danger-700 border-danger-200' },
       CONVERTED: { text: 'Đã Chuyển TRF', class: 'bg-shade-30 text-ink border-hairline-light' }
     };
     const c = maps[status] || { text: status, class: 'bg-shade-30 text-ink' };
@@ -281,7 +281,7 @@ const TransferRequestWorkspace = () => {
                   <div>
                     <span className="text-[10px] font-bold text-shade-50 uppercase font-mono block">{req.requestNumber}</span>
                     <h4 className="font-bold text-xs text-ink mt-0.5">
-                      Từ: <span className="text-blue-700 font-bold">{req.sourceWarehouseName}</span> → Đến: <span className="text-ink font-bold">{req.destinationWarehouseName}</span>
+                      Từ: <span className="text-info-700 font-bold">{req.sourceWarehouseName}</span> → Đến: <span className="text-ink font-bold">{req.destinationWarehouseName}</span>
                     </h4>
                   </div>
                   {getStatusBadge(req.status)}
@@ -302,7 +302,7 @@ const TransferRequestWorkspace = () => {
                     </div>
                   )}
                   {req.convertedTransferNumber && (
-                    <div className="bg-emerald-50 text-emerald-700 p-2 rounded border border-emerald-100 font-semibold">
+                    <div className="bg-success-50 text-success-700 p-2 rounded border border-success-100 font-semibold">
                       Phiếu TRF đã tạo: {req.convertedTransferNumber}
                     </div>
                   )}
@@ -312,7 +312,7 @@ const TransferRequestWorkspace = () => {
                     </div>
                   )}
                   {req.rejectionReason && (
-                    <div className="text-red-600 font-semibold italic bg-red-50 p-2 rounded border border-red-100">
+                    <div className="text-danger-600 font-semibold italic bg-danger-50 p-2 rounded border border-danger-100">
                       Lý do từ chối: "{req.rejectionReason}"
                     </div>
                   )}
@@ -348,10 +348,10 @@ const TransferRequestWorkspace = () => {
       {/* Creation Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-canvas-night/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-          <div className="bg-canvas-light border border-hairline-light rounded-lg max-w-2xl w-full shadow-2xl overflow-hidden">
+          <div className="bg-canvas-light border border-hairline-light rounded-lg max-w-2xl w-full shadow-level-4 overflow-hidden">
             <div className="p-5 border-b border-hairline-light bg-canvas-cream flex justify-between items-center">
               <h3 className="font-bold text-base flex items-center gap-2">
-                <FileText className="w-5 h-5 text-blue-700" />
+                <FileText className="w-5 h-5 text-info-700" />
                 Tạo yêu cầu điều chuyển mới về kho {activeWarehouse?.name}
               </h3>
               <button onClick={() => setShowCreateModal(false)} className="p-1 hover:bg-canvas-cream rounded-full">
@@ -429,7 +429,7 @@ const TransferRequestWorkspace = () => {
                         {items.length > 1 && (
                           <button
                             onClick={() => handleRemoveItem(idx)}
-                            className="p-1 hover:bg-red-50 text-red-500 rounded"
+                            className="p-1 hover:bg-danger-50 text-danger-500 rounded"
                           >
                             <X className="w-4 h-4" />
                           </button>
@@ -440,14 +440,14 @@ const TransferRequestWorkspace = () => {
                       {item.productId && stockLookupResult[item.productId] && (
                         <div className="bg-canvas-cream p-2.5 rounded border border-hairline-light flex flex-col gap-1">
                           <div className="text-[10px] font-bold text-shade-50 uppercase flex items-center gap-1">
-                            <Info className="w-3 h-3 text-blue-700" />
+                            <Info className="w-3 h-3 text-info-700" />
                             Tồn khả dụng tại các kho khác (không tính hàng cách ly):
                           </div>
                           <div className="grid grid-cols-3 gap-2 mt-1">
                             {stockLookupResult[item.productId].map(stock => (
                               <div key={stock.warehouseId} className="bg-canvas-light px-2 py-1 rounded border border-hairline-light">
                                 <span className="font-semibold block text-[10px] text-shade-50 truncate">{stock.warehouseName}</span>
-                                <span className={`font-bold text-xs ${stock.availableQty > 0 ? 'text-emerald-700' : 'text-shade-50'}`}>
+                                <span className={`font-bold text-xs ${stock.availableQty > 0 ? 'text-success-700' : 'text-shade-50'}`}>
                                   {stock.availableQty} cái
                                 </span>
                               </div>
@@ -484,7 +484,7 @@ const TransferRequestWorkspace = () => {
       {/* Details & Approval Modal */}
       {showDetailModal && selectedRequest && (
         <div className="fixed inset-0 bg-canvas-night/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-canvas-light border border-hairline-light rounded-lg max-w-xl w-full shadow-2xl overflow-hidden">
+          <div className="bg-canvas-light border border-hairline-light rounded-lg max-w-xl w-full shadow-level-4 overflow-hidden">
             <div className="p-5 border-b border-hairline-light bg-canvas-cream flex justify-between items-center">
               <h3 className="font-bold text-base flex flex-col">
                 <span className="text-[10px] font-bold text-shade-50 uppercase font-mono">{selectedRequest.requestNumber}</span>
@@ -562,8 +562,8 @@ const TransferRequestWorkspace = () => {
 
               {/* CEO Reject Input panel */}
               {selectedRequest.status === 'SUBMITTED' && (hasRole(ROLES.CEO) || hasRole(ROLES.ADMIN)) && (
-                <div className="bg-red-50/50 p-4 border border-red-200 rounded flex flex-col gap-2">
-                  <label className="font-bold text-red-800 flex items-center gap-1">
+                <div className="bg-danger-50/50 p-4 border border-danger-200 rounded flex flex-col gap-2">
+                  <label className="font-bold text-danger-800 flex items-center gap-1">
                     <AlertCircle className="w-4 h-4" />
                     Phản hồi lý do từ chối (Bắt buộc nếu từ chối)
                   </label>
@@ -571,7 +571,7 @@ const TransferRequestWorkspace = () => {
                     value={rejectionReason}
                     onChange={(e) => setRejectionReason(e.target.value)}
                     placeholder="Nhập nguyên nhân không duyệt yêu cầu..."
-                    className="text-input h-16 resize-none bg-canvas-light border-red-300"
+                    className="text-input h-16 resize-none bg-canvas-light border-danger-300"
                   />
                 </div>
               )}

@@ -33,7 +33,6 @@ const Login = () => {
       addToast('Đăng nhập thành công', 'success');
       navigate('/dashboard');
     } catch (err) {
-      console.error(err);
       if (err.message === 'INVALID_CREDENTIALS') {
         setError('Email hoặc mật khẩu không chính xác');
         addToast('Đăng nhập thất bại', 'error');
@@ -99,7 +98,7 @@ const Login = () => {
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
             {error && (
-              <div className="p-4 bg-red-950/40 border border-red-800 rounded-lg text-red-400 text-xs font-medium">
+              <div className="p-4 bg-danger-950/40 border border-danger-800 rounded-lg text-danger-400 text-xs font-medium">
                 {error}
               </div>
             )}

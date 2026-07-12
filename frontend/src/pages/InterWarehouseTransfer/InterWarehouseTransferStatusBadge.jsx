@@ -4,13 +4,13 @@ import { interWarehouseTransferStatusLabel } from '../../utils/interWarehouseTra
 
 const statusMap = {
   NEW: 'bg-canvas-cream text-shade-70 border-hairline-light',
-  APPROVED: 'bg-blue-50 text-blue-700 border-blue-200',
-  IN_TRANSIT: 'bg-amber-50 text-amber-800 border-amber-200',
-  COMPLETED: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+  APPROVED: 'bg-info-50 text-info-700 border-info-200',
+  IN_TRANSIT: 'bg-warning-50 text-warning-800 border-warning-200',
+  COMPLETED: 'bg-success-50 text-success-800 border-success-200',
   COMPLETED_WITH_DISCREPANCY: 'bg-orange-50 text-orange-800 border-orange-200',
-  REJECTED: 'bg-red-50 text-red-700 border-red-200',
+  REJECTED: 'bg-danger-50 text-danger-700 border-danger-200',
   CANCELLED: 'bg-shade-30 text-shade-70 border-hairline-light',
-  QUARANTINED: 'bg-red-100 text-red-900 border-red-300',
+  QUARANTINED: 'bg-danger-100 text-danger-900 border-danger-300',
 };
 
 const InterWarehouseTransferStatusBadge = ({ status }) => (

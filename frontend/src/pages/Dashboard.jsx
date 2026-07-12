@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../stores/auth.store';
 import Badge from '../components/common/Badge';
 import Input from '../components/common/Input';
-import { Package, TrendingUp, AlertCircle, RefreshCw, Search, ArrowRightLeft, X, Send } from 'lucide-react';
+import Modal from '../components/common/Modal';
+import Button from '../components/common/Button';
+import { Package, TrendingUp, AlertCircle, RefreshCw, Search, ArrowRightLeft, Send } from 'lucide-react';
 import { masterDataService } from '../services/masterData.service';
 import { interWarehouseTransferService } from '../services/inter-warehouse-transfer.service';
 import { useUiStore } from '../stores/ui.store';
@@ -86,7 +88,6 @@ const Dashboard = () => {
       );
       setProductsStock(results);
     } catch (error) {
-      console.error('Error loading cross stock:', error);
       addToast('Không thể tải thông tin tồn kho toàn hệ thống', 'error');
     } finally {
       setLoadingStock(false);
@@ -149,7 +150,6 @@ const Dashboard = () => {
       setShowModal(false);
       loadCrossWarehouseStock(); // Refresh stock
     } catch (error) {
-      console.error('Error creating transfer request:', error);
       addToast(error.message || 'Lỗi khi tạo yêu cầu điều chuyển', 'error');
     } finally {
       setSubmitting(false);
@@ -205,11 +205,11 @@ const Dashboard = () => {
             descStyle = 'text-shade-40';
             iconStyle = 'text-onPrimary bg-canvas-nightElevated';
           } else if (isDanger) {
-            cardStyle = 'bg-red-50/50 rounded-lg p-6 border border-red-200 shadow-level-3 hover:shadow-lg transition-all duration-200';
-            titleStyle = 'text-red-700/80';
-            valStyle = 'text-red-700';
-            descStyle = 'text-red-600/60';
-            iconStyle = 'text-red-700 bg-red-100/50';
+            cardStyle = 'bg-danger-50/50 rounded-lg p-6 border border-danger-200 shadow-level-3 hover:shadow-lg transition-all duration-200';
+            titleStyle = 'text-danger-700/80';
+            valStyle = 'text-danger-700';
+            descStyle = 'text-danger-600/60';
+            iconStyle = 'text-danger-700 bg-danger-100/50';
           }
 
           return (
@@ -337,13 +337,13 @@ const Dashboard = () => {
                           {hasStockElsewhere ? (
                             <button
                               onClick={() => handleOpenTransferModal(prod)}
-                              className="bg-aloe-10 hover:opacity-90 text-ink border border-aloe-10 px-3 py-1 rounded-pill text-[10px] font-bold uppercase tracking-wider transition-colors inline-flex items-center gap-1.5"
+                              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill btn-pill-aloe text-xs font-semibold transition-colors"
                             >
-                              <ArrowRightLeft className="w-3 h-3" />
-                              <span>Xin điều chuyển</span>
+                              <ArrowRightLeft className="w-3.5 h-3.5" />
+                              Xin điều chuyển
                             </button>
                           ) : (
-                            <span className="text-[10px] text-shade-40 uppercase font-semibold">Không có sẵn</span>
+                            <span className="text-shade-50 text-[10px] font-medium">Không có sẵn</span>
                           )}
                         </td>
                       </tr>
@@ -392,13 +392,13 @@ const Dashboard = () => {
                       {hasStockElsewhere ? (
                         <button
                           onClick={() => handleOpenTransferModal(prod)}
-                          className="bg-aloe-10 hover:opacity-90 text-ink border border-aloe-10 px-3 py-1 rounded-pill text-[10px] font-bold uppercase tracking-wider transition-colors inline-flex items-center gap-1.5"
+                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill btn-pill-aloe text-xs font-semibold transition-colors"
                         >
-                          <ArrowRightLeft className="w-3 h-3" />
-                          <span>Xin điều chuyển</span>
+                          <ArrowRightLeft className="w-3.5 h-3.5" />
+                          Xin điều chuyển
                         </button>
                       ) : (
-                        <span className="text-[10px] text-shade-40 uppercase font-semibold">Không có sẵn</span>
+                        <span className="text-shade-50 text-[10px] font-medium">Không có sẵn</span>
                       )}
                     </div>
                   </div>
@@ -410,150 +410,100 @@ const Dashboard = () => {
       </div>
 
       {/* Quick Transfer Request Modal */}
-      {showModal && selectedProduct && (
-        <div className="fixed inset-0 bg-canvas-night/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-canvas-cream border border-hairline-light rounded-lg shadow-level-3 max-w-md w-full overflow-hidden flex flex-col">
-            {/* Modal Header */}
-            <div className="bg-canvas-night text-onPrimary p-4 flex justify-between items-center border-b border-hairline-dark">
-              <div className="flex items-center gap-2">
-                <ArrowRightLeft className="w-4 h-4 text-[#127a3c]" />
-                <h4 className="text-sm font-bold uppercase tracking-wider">
-                  Xin điều chuyển nhanh
-                </h4>
+      <Modal isOpen={showModal && !!selectedProduct} onClose={() => setShowModal(false)} title="Xin điều chuyển nhanh" maxWidth="max-w-md">
+        {selectedProduct && (
+          <form onSubmit={handleCreateTransferRequest} className="flex flex-col gap-4">
+            <div>
+              <span className="text-xs font-semibold uppercase tracking-wider text-shade-60 block mb-1.5">
+                Sản phẩm yêu cầu
+              </span>
+              <div className="bg-canvas-cream p-3 rounded-md border border-hairline-light flex flex-col gap-1">
+                <span className="font-mono font-bold text-xs text-shade-70">{selectedProduct.sku}</span>
+                <span className="text-xs text-ink font-semibold">{selectedProduct.name}</span>
               </div>
-              <button
-                onClick={() => setShowModal(false)}
-                className="text-shade-40 hover:text-onPrimary transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
             </div>
 
-            {/* Modal Body */}
-            <form onSubmit={handleCreateTransferRequest} className="p-5 flex flex-col gap-4">
-              <div>
-                <span className="text-xs font-semibold uppercase tracking-wider text-shade-60 block mb-1">
-                  Sản phẩm yêu cầu
-                </span>
-                <div className="bg-canvas-light p-3 rounded-md border border-hairline-light flex flex-col gap-1">
-                  <span className="font-mono font-bold text-xs text-shade-70">{selectedProduct.sku}</span>
-                  <span className="text-xs text-ink font-semibold">{selectedProduct.name}</span>
-                </div>
-              </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="Kho nhận (Kho đích)"
+                value={activeWarehouse?.name || 'Kho hiện tại'}
+                disabled
+              />
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <span className="text-xs font-semibold uppercase tracking-wider text-shade-60 block mb-1">
-                    Kho nhận (Kho đích)
-                  </span>
-                  <div className="bg-canvas-cream/50 p-2.5 rounded-md border border-hairline-light text-xs font-semibold text-shade-70">
-                    {activeWarehouse?.name || 'Kho hiện tại'}
-                  </div>
-                </div>
+              <Input
+                label="Kho gửi (Kho nguồn) *"
+                type="select"
+                value={selectedSourceWhId}
+                onChange={(e) => setSelectedSourceWhId(e.target.value)}
+                required
+                options={[
+                  { value: '', label: '-- Chọn kho gửi --' },
+                  ...physicalWarehouses
+                    .filter(w => Number(w.id) !== Number(activeWarehouse?.id))
+                    .map((w) => {
+                      const qty = selectedProduct.stockMap?.[w.id] || 0;
+                      return {
+                        value: w.id,
+                        label: `${w.name} (Sẵn có: ${qty} ${selectedProduct.unit.toLowerCase()})`,
+                        disabled: qty <= 0,
+                      };
+                    }),
+                ]}
+              />
+            </div>
 
-                <div>
-                  <label className="text-xs font-semibold uppercase tracking-wider text-shade-60 block mb-1">
-                    Kho gửi (Kho nguồn)
-                  </label>
-                  <select
-                    value={selectedSourceWhId}
-                    onChange={(e) => setSelectedSourceWhId(e.target.value)}
-                    required
-                    className="w-full bg-canvas-light border border-hairline-light rounded-md p-2 text-xs focus:outline-none focus:border-ink font-semibold"
-                  >
-                    <option value="">-- Chọn kho gửi --</option>
-                    {physicalWarehouses
-                      .filter(w => Number(w.id) !== Number(activeWarehouse?.id))
-                      .map((w) => {
-                        const qty = selectedProduct.stockMap?.[w.id] || 0;
-                        return (
-                          <option key={w.id} value={w.id} disabled={qty <= 0}>
-                            {w.name} (Sẵn có: {qty} {selectedProduct.unit.toLowerCase()})
-                          </option>
-                        );
-                      })}
-                  </select>
-                </div>
-              </div>
+            <Input
+              label={`Số lượng yêu cầu (Tối đa: ${selectedSourceWhId ? selectedProduct.stockMap?.[selectedSourceWhId] || 0 : 0})`}
+              type="number"
+              min="1"
+              max={selectedSourceWhId ? selectedProduct.stockMap?.[selectedSourceWhId] || 9999 : 1}
+              value={requestedQty}
+              onChange={(e) => setRequestedQty(Math.max(1, Number(e.target.value)))}
+              required
+            />
 
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-wider text-shade-60 block mb-1">
-                  Số lượng yêu cầu (Tối đa: {selectedSourceWhId ? selectedProduct.stockMap?.[selectedSourceWhId] || 0 : 0})
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  max={selectedSourceWhId ? selectedProduct.stockMap?.[selectedSourceWhId] || 9999 : 1}
-                  value={requestedQty}
-                  onChange={(e) => setRequestedQty(Math.max(1, Number(e.target.value)))}
-                  required
-                  className="w-full bg-canvas-light border border-hairline-light rounded-md p-2 text-xs focus:outline-none focus:border-ink font-semibold"
-                />
-              </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="Ngày cần hàng"
+                type="date"
+                value={neededByDate}
+                onChange={(e) => setNeededByDate(e.target.value)}
+              />
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-semibold uppercase tracking-wider text-shade-60 block mb-1">
-                    Ngày cần hàng
-                  </label>
-                  <input
-                    type="date"
-                    value={neededByDate}
-                    onChange={(e) => setNeededByDate(e.target.value)}
-                    className="w-full bg-canvas-light border border-hairline-light rounded-md p-2 text-xs focus:outline-none focus:border-ink font-semibold"
-                  />
-                </div>
+              <Input
+                label="Lý do nghiệp vụ *"
+                type="text"
+                value={businessReason}
+                onChange={(e) => setBusinessReason(e.target.value)}
+                required
+                placeholder="VD: Bổ sung tồn bán"
+              />
+            </div>
 
-                <div>
-                  <label className="text-xs font-semibold uppercase tracking-wider text-shade-60 block mb-1">
-                    Lý do nghiệp vụ
-                  </label>
-                  <input
-                    type="text"
-                    value={businessReason}
-                    onChange={(e) => setBusinessReason(e.target.value)}
-                    required
-                    className="w-full bg-canvas-light border border-hairline-light rounded-md p-2 text-xs focus:outline-none focus:border-ink font-semibold"
-                    placeholder="VD: Bổ sung tồn bán"
-                  />
-                </div>
-              </div>
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wider text-shade-60 block mb-1.5">
+                Ghi chú yêu cầu
+              </label>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows="2"
+                className="text-input resize-none"
+                placeholder="Lý do xin điều chuyển..."
+              />
+            </div>
 
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-wider text-shade-60 block mb-1">
-                  Ghi chú yêu cầu
-                </label>
-                <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  rows="2"
-                  className="w-full bg-canvas-light border border-hairline-light rounded-md p-2 text-xs focus:outline-none focus:border-ink font-light"
-                  placeholder="Lý do xin điều chuyển..."
-                />
-              </div>
-
-              {/* Modal Footer */}
-              <div className="flex justify-end gap-3 border-t border-hairline-light pt-4 mt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  className="bg-canvas-light border border-hairline-light hover:bg-canvas-cream text-ink px-4 py-2 rounded-pill text-xs font-semibold uppercase tracking-wider transition-colors"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="bg-canvas-night hover:bg-canvas-nightElevated text-onPrimary px-4 py-2 rounded-pill text-xs font-semibold uppercase tracking-wider transition-colors inline-flex items-center gap-1.5 disabled:opacity-50"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>{submitting ? 'Đang gửi...' : 'Gửi yêu cầu nháp'}</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+            <div className="flex justify-end gap-3 border-t border-hairline-light pt-4">
+              <Button type="button" variant="outline-light" onClick={() => setShowModal(false)}>
+                Hủy
+              </Button>
+              <Button type="submit" variant="primary" icon={Send} loading={submitting}>
+                {submitting ? 'Đang gửi...' : 'Gửi yêu cầu nháp'}
+              </Button>
+            </div>
+          </form>
+        )}
+      </Modal>
     </div>
   );
 };

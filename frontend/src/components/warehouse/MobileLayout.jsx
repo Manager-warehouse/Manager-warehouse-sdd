@@ -8,7 +8,7 @@ const MobileLayout = ({ children, title, backTo }) => {
   return (
     <div className="flex flex-col -m-4 sm:-m-6 min-h-[calc(100dvh-4rem)]">
       {title && (
-        <div className="sticky top-0 z-10 bg-ink text-white px-4 py-3.5 flex items-center gap-3 shadow-md">
+        <div className="sticky top-0 z-10 bg-ink text-onPrimary px-4 py-3.5 flex items-center gap-3 shadow-level-3">
           {backTo && (
             <button
               onClick={() => navigate(backTo)}

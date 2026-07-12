@@ -3,7 +3,7 @@ import React from 'react';
 const Button = ({
   children,
   type = 'button',
-  variant = 'primary', // primary, outline-light, outline-dark, aloe
+  variant = 'primary', // primary, outline-light, outline-dark, aloe, danger, warning, info
   loading = false,
   disabled = false,
   onClick,
@@ -20,6 +20,9 @@ const Button = ({
     'outline-light': 'bg-canvas-light text-ink border border-ink hover:bg-shade-30 focus:ring-shade-40',
     'outline-dark': 'bg-transparent text-onPrimary border-2 border-onPrimary hover:bg-onPrimary hover:text-canvas-night focus:ring-onPrimary',
     aloe: 'bg-aloe-10 text-ink hover:opacity-90 focus:ring-aloe-10',
+    danger: 'bg-danger-600 text-onPrimary hover:bg-danger-700 focus:ring-danger-700',
+    warning: 'bg-warning-500 text-onPrimary hover:bg-warning-600 focus:ring-warning-600',
+    info: 'bg-info-600 text-onPrimary hover:bg-info-700 focus:ring-info-700',
   };
 
   const selectedVariant = variants[variant] || variants.primary;

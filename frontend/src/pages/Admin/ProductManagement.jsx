@@ -303,7 +303,7 @@ const ProductManagement = () => {
                             title={prod.is_active ? 'Khóa sản phẩm' : 'Kích hoạt sản phẩm'}
                           >
                             {prod.is_active ? (
-                              <ToggleRight className="w-5 h-5 text-emerald-600" />
+                              <ToggleRight className="w-5 h-5 text-success-600" />
                             ) : (
                               <ToggleLeft className="w-5 h-5 text-shade-40" />
                             )}
@@ -353,7 +353,7 @@ const ProductManagement = () => {
                     title={prod.is_active ? 'Khóa sản phẩm' : 'Kích hoạt sản phẩm'}
                   >
                     {prod.is_active ? (
-                      <ToggleRight className="w-5 h-5 text-emerald-600" />
+                      <ToggleRight className="w-5 h-5 text-success-600" />
                     ) : (
                       <ToggleLeft className="w-5 h-5 text-shade-40" />
                     )}

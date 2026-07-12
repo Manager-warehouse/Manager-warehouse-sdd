@@ -342,9 +342,9 @@ const InterWarehouseTransferWorkspace = () => {
                 <div className="min-h-[44px] rounded-md border border-hairline-light bg-canvas-cream/50 px-3 py-2 text-xs">
                   <div className="font-semibold uppercase tracking-wider text-shade-60">Tồn khả dụng</div>
                   {availabilityByLine[index]?.error ? (
-                    <div className="text-red-600">{availabilityByLine[index].error}</div>
+                    <div className="text-danger-600">{availabilityByLine[index].error}</div>
                   ) : availabilityByLine[index] ? (
-                    <div className={Number(item.plannedQty) > Number(availabilityByLine[index].availableQty ?? 0) ? 'text-red-600 font-semibold' : 'text-ink'}>
+                    <div className={Number(item.plannedQty) > Number(availabilityByLine[index].availableQty ?? 0) ? 'text-danger-600 font-semibold' : 'text-ink'}>
                       {availabilityByLine[index].availableQty ?? 0}
                       <span className="text-shade-50 font-normal"> / giữ {availabilityByLine[index].reservedQty ?? 0}</span>
                     </div>
@@ -463,18 +463,18 @@ const InterWarehouseTransferWorkspace = () => {
               {selectedTransfer.tripWarningActive && (
                 <div className={`mb-3 rounded-md border px-3 py-2 text-xs ${
                   selectedTransfer.tripOverdue
-                    ? 'border-red-200 bg-red-50 text-red-700'
-                    : 'border-amber-200 bg-amber-50 text-amber-700'
+                    ? 'border-danger-200 bg-danger-50 text-danger-700'
+                    : 'border-warning-200 bg-warning-50 text-warning-700'
                 }`}>
                   {selectedTransfer.tripWarningMessage}
                 </div>
               )}
               {selectedTransfer.status === 'COMPLETED_WITH_DISCREPANCY' && selectedTransfer.discrepancyReason && (
-                <div className="mb-3 rounded-md border border-red-200 bg-red-50/80 px-3.5 py-2.5 text-xs text-red-700 shadow-level-3 flex items-start gap-2 animate-in fade-in duration-200">
-                  <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                <div className="mb-3 rounded-md border border-danger-200 bg-danger-50/80 px-3.5 py-2.5 text-xs text-danger-700 shadow-level-3 flex items-start gap-2 animate-in fade-in duration-200">
+                  <AlertCircle className="w-4 h-4 text-danger-500 shrink-0 mt-0.5" />
                   <div>
                     <span className="font-bold block mb-0.5">Phát hiện chênh lệch thiếu hàng</span>
-                    <span className="font-normal text-red-600">Lý do: "{selectedTransfer.discrepancyReason}"</span>
+                    <span className="font-normal text-danger-600">Lý do: "{selectedTransfer.discrepancyReason}"</span>
                   </div>
                 </div>
               )}
@@ -490,14 +490,14 @@ const InterWarehouseTransferWorkspace = () => {
                       <div className="font-semibold text-sm">{item.productSku} <span className="font-normal text-shade-60">{item.productName}</span></div>
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2 bg-canvas-cream p-2 rounded border border-hairline-light">
                         <div><span className="text-shade-50">Kế hoạch:</span> <strong>{item.plannedQty}</strong></div>
-                        <div className={Number(item.plannedQty) > Number(selectedAvailabilityByItem[item.id]?.availableQty ?? 0) ? 'text-red-600 font-semibold' : ''}>
+                        <div className={Number(item.plannedQty) > Number(selectedAvailabilityByItem[item.id]?.availableQty ?? 0) ? 'text-danger-600 font-semibold' : ''}>
                           <span className="text-shade-50">Khả dụng nguồn:</span> <strong>{selectedAvailabilityByItem[item.id]?.error ? 'Lỗi tải' : (selectedAvailabilityByItem[item.id]?.availableQty ?? '-')}</strong>
                         </div>
                         <div><span className="text-shade-50">Đã xuất đi:</span> <strong className="text-ink">{item.sentQty ?? '-'}</strong></div>
-                        <div><span className="text-shade-50">Thực tế nhận:</span> <strong className="text-emerald-700">{item.receivedQty ?? '-'}</strong></div>
+                        <div><span className="text-shade-50">Thực tế nhận:</span> <strong className="text-success-700">{item.receivedQty ?? '-'}</strong></div>
                         <div><span className="text-shade-50">QC đạt/lỗi:</span> <strong>{item.qcPassedQty ?? '0'} / {item.qcFailedQty ?? '0'}</strong></div>
                         {hasDiscrepancy && (
-                          <div className="text-red-600 font-bold bg-red-100/50 px-1.5 py-0.5 rounded border border-red-250 w-fit">
+                          <div className="text-danger-600 font-bold bg-danger-100/50 px-1.5 py-0.5 rounded border border-danger-300 w-fit">
                             Chênh lệch: {diff > 0 ? `+${diff}` : diff} cái
                           </div>
                         )}

@@ -90,7 +90,6 @@ const SystemConfig = () => {
       });
       setErrors({});
     } catch (err) {
-      console.error('Failed to load system config:', err);
       addToast('Không thể tải cấu hình hệ thống', 'error');
     } finally {
       setLoading(false);
@@ -129,7 +128,6 @@ const SystemConfig = () => {
       addToast('Cập nhật cấu hình hệ thống thành công', 'success');
       setErrors({});
     } catch (err) {
-      console.error('Failed to save system config:', err);
       addToast('Không thể lưu cấu hình hệ thống', 'error');
     } finally {
       setSaveLoading(false);
