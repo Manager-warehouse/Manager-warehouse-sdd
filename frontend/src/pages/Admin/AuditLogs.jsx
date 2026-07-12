@@ -213,7 +213,7 @@ const AuditLogs = () => {
       {/* Logs Table */}
       <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 overflow-hidden flex flex-col">
         <Table
-          headers={['Thời gian', 'Người thực hiện', 'Thao tác', 'Đối tượng', 'Nội dung', '']}
+          headers={['Thời gian', 'Người thực hiện', 'Thao tác', 'Đối tượng', 'Nội dung', 'Hành động']}
           data={paginatedLogs}
           loading={loading}
           emptyMessage="Không tìm thấy nhật ký hoạt động phù hợp"
@@ -239,7 +239,7 @@ const AuditLogs = () => {
               <td className="px-6 py-4 text-right">
                 <button
                   onClick={() => openAuditDetail(log)}
-                  className="text-shade-60 hover:text-ink transition-colors"
+                  className="p-1 hover:bg-canvas-cream rounded-full transition-colors text-shade-60 hover:text-ink"
                   title="Xem chi tiết thay đổi"
                 >
                   <Eye className="w-4 h-4" />
@@ -263,7 +263,7 @@ const AuditLogs = () => {
               <div className="p-4 border-t border-hairline-light flex justify-end">
                 <button
                   onClick={() => openAuditDetail(log)}
-                  className="text-shade-60 hover:text-ink transition-colors"
+                  className="p-1 hover:bg-canvas-cream rounded-full transition-colors text-shade-60 hover:text-ink"
                   title="Xem chi tiết thay đổi"
                 >
                   <Eye className="w-4 h-4" />

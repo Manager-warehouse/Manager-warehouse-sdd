@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, Upload, Download, FileSpreadsheet, Search, X, Edit2, Ban, DollarSign, Loader2, Warehouse, RefreshCw } from 'lucide-react';
+import { Plus, Upload, Download, FileSpreadsheet, Search, X, Edit, XCircle, DollarSign, Loader2, Warehouse, RefreshCw } from 'lucide-react';
 import Pagination from '../../components/common/Pagination';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
@@ -201,7 +201,7 @@ export default function PriceListManagement() {
                   <th className="px-6 py-4 text-xs font-semibold text-shade-60 uppercase tracking-wider text-right">Giá bán</th>
                   <th className="px-6 py-4 text-xs font-semibold text-shade-60 uppercase tracking-wider">Trạng thái</th>
                   <th className="px-6 py-4 text-xs font-semibold text-shade-60 uppercase tracking-wider">Ghi chú</th>
-                  <th className="px-6 py-4 text-xs font-semibold text-shade-60 uppercase tracking-wider text-right">Thao tác</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-shade-60 uppercase tracking-wider text-right">Hành động</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-hairline-light">
@@ -227,33 +227,34 @@ export default function PriceListManagement() {
                       {entry.notes || '—'}
                     </td>
                     <td className="px-6 py-4 text-right whitespace-nowrap">
-                      <div className="flex gap-2 justify-end items-center">
-                        {canWrite && entry.status === 'PENDING' && entry.created_by?.id === user?.id && (
+                      <div className="flex gap-1 justify-end items-center">
+                        {canWrite && entry.status === 'PENDING' && entry.created_by?.id === user?.id ? (
                           <>
                             <button
                               onClick={() => { setEditTarget(entry); setShowForm(true); }}
-                              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill border border-ink bg-canvas-light text-ink hover:bg-canvas-cream text-xs font-semibold transition-colors"
+                              className="p-1 hover:bg-canvas-cream rounded-full transition-colors shrink-0 text-shade-60 hover:text-ink"
+                              title="Sửa bản giá"
                             >
-                              <Edit2 className="w-3.5 h-3.5" />
-                              Sửa
+                              <Edit className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => handleCancel(entry.id)}
-                              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill border border-danger-200 text-danger-600 hover:bg-danger-50 text-xs font-semibold transition-colors"
+                              className="p-1 hover:bg-canvas-cream rounded-full transition-colors shrink-0 text-shade-40 hover:text-danger-600"
+                              title="Hủy bản giá"
                             >
-                              <Ban className="w-3.5 h-3.5" />
-                              Hủy
+                              <XCircle className="w-4 h-4" />
                             </button>
                           </>
-                        )}
-                        {canWrite && entry.status === 'APPROVED' && (
+                        ) : canWrite && entry.status === 'APPROVED' ? (
                           <button
                             onClick={() => handleReplace(entry)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill border border-ink bg-canvas-light text-ink hover:bg-canvas-cream text-xs font-semibold transition-colors"
+                            className="p-1 hover:bg-canvas-cream rounded-full transition-colors shrink-0 text-shade-60 hover:text-ink"
+                            title="Cập nhật giá mới"
                           >
-                            <RefreshCw className="w-3.5 h-3.5" />
-                            Cập nhật giá
+                            <RefreshCw className="w-4 h-4" />
                           </button>
+                        ) : (
+                          <span className="text-shade-50 text-[10px] font-medium">Không có sẵn</span>
                         )}
                       </div>
                     </td>
@@ -280,33 +281,36 @@ export default function PriceListManagement() {
                   <p className="text-shade-50">Giá bán: <span className="font-semibold text-ink tabular-nums">{formatVND(entry.selling_price)}</span></p>
                   <p className="text-shade-50">Ghi chú: <span className="text-ink">{entry.notes || '—'}</span></p>
                 </div>
-                {canWrite && entry.status === 'PENDING' && entry.created_by?.id === user?.id && (
+                {canWrite && entry.status === 'PENDING' && entry.created_by?.id === user?.id ? (
                   <div className="p-4 border-t border-hairline-light flex gap-2 justify-end items-center">
                     <button
                       onClick={() => { setEditTarget(entry); setShowForm(true); }}
-                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill border border-ink bg-canvas-light text-ink hover:bg-canvas-cream text-xs font-semibold transition-colors"
+                      className="p-1.5 hover:bg-canvas-cream rounded-full transition-colors shrink-0 text-shade-60 hover:text-ink"
+                      title="Sửa bản giá"
                     >
-                      <Edit2 className="w-3.5 h-3.5" />
-                      Sửa
+                      <Edit className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => handleCancel(entry.id)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill border border-danger-200 text-danger-600 hover:bg-danger-50 text-xs font-semibold transition-colors"
+                      className="p-1.5 hover:bg-canvas-cream rounded-full transition-colors shrink-0 text-shade-40 hover:text-danger-600"
+                      title="Hủy bản giá"
                     >
-                      <Ban className="w-3.5 h-3.5" />
-                      Hủy
+                      <XCircle className="w-4 h-4" />
                     </button>
                   </div>
-                )}
-                {canWrite && entry.status === 'APPROVED' && (
-                  <div className="p-4 border-t border-hairline-light flex gap-2 justify-end items-center">
+                ) : canWrite && entry.status === 'APPROVED' ? (
+                  <div className="p-4 border-t border-hairline-light flex justify-end">
                     <button
                       onClick={() => handleReplace(entry)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill border border-ink bg-canvas-light text-ink hover:bg-canvas-cream text-xs font-semibold transition-colors"
+                      className="p-1.5 hover:bg-canvas-cream rounded-full transition-colors shrink-0 text-shade-60 hover:text-ink"
+                      title="Cập nhật giá mới"
                     >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                      Cập nhật giá
+                      <RefreshCw className="w-4 h-4" />
                     </button>
+                  </div>
+                ) : (
+                  <div className="p-4 border-t border-hairline-light flex justify-end">
+                    <span className="text-shade-50 text-[10px] font-medium">Không có sẵn</span>
                   </div>
                 )}
               </div>

@@ -139,14 +139,16 @@ const UserManagement = () => {
 
       <div className="flex flex-col gap-4">
         {/* Search bar */}
-        <div className="w-full max-w-md">
-          <Input
-            type="text"
-            leftIcon={Search}
-            placeholder="Tìm theo tài khoản, tên hoặc email..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+        <div className="bg-canvas-light border border-hairline-light rounded-lg p-4 shadow-level-3">
+          <div className="w-full max-w-md">
+            <Input
+              type="text"
+              leftIcon={Search}
+              placeholder="Tìm theo tài khoản, tên hoặc email..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
         </div>
 
         {/* User Table Component */}

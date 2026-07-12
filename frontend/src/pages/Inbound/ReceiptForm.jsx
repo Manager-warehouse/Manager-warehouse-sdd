@@ -426,9 +426,9 @@ const ReceiptForm = () => {
                             <button
                               type="button"
                               onClick={() => handleRemoveItem(index)}
-                              className="p-1 text-danger-500 hover:text-danger-700 hover:bg-danger-50 rounded transition-colors"
+                              className="p-1 text-danger-500 hover:text-danger-700 hover:bg-danger-50 rounded-full transition-colors"
                             >
-                              <Trash2 className="w-4 h-4 mx-auto" />
+                              <Trash2 className="w-4 h-4" />
                             </button>
                           </td>
                         </tr>

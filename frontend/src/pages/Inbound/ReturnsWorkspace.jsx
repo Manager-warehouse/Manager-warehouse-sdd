@@ -293,7 +293,7 @@ const ReturnsWorkspace = () => {
                     <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Ngày tạo</th>
                     <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Trạng thái</th>
                     <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Credit Note</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Thao tác</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Hành động</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-hairline-light">
@@ -324,7 +324,7 @@ const ReturnsWorkspace = () => {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-2">
-                          {ret.status === 'DRAFT' && (
+                          {ret.status === 'DRAFT' ? (
                             <button
                               onClick={() => openQcSplit(ret)}
                               className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill border border-ink bg-canvas-light text-ink hover:bg-canvas-cream text-xs font-semibold transition-colors"
@@ -332,8 +332,7 @@ const ReturnsWorkspace = () => {
                               <ShieldAlert className="w-3.5 h-3.5" />
                               QC Phân tách & Nhập kho
                             </button>
-                          )}
-                          {ret.status === 'APPROVED' && !ret.credit_note_generated && (
+                          ) : ret.status === 'APPROVED' && !ret.credit_note_generated ? (
                             <button
                               onClick={() => openCreditNoteModal(ret)}
                               className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill btn-pill-aloe text-xs font-semibold transition-colors"
@@ -341,6 +340,8 @@ const ReturnsWorkspace = () => {
                               <Coins className="w-3.5 h-3.5" />
                               Tạo Credit Note
                             </button>
+                          ) : (
+                            <span className="text-shade-50 text-[10px] font-medium">Không có sẵn</span>
                           )}
                         </div>
                       </td>
@@ -384,7 +385,7 @@ const ReturnsWorkspace = () => {
                     )}
                   </div>
 
-                  {(ret.status === 'DRAFT' || (ret.status === 'APPROVED' && !ret.credit_note_generated)) && (
+                  {ret.status === 'DRAFT' || (ret.status === 'APPROVED' && !ret.credit_note_generated) ? (
                     <div className="mt-4 flex flex-col gap-2">
                       {ret.status === 'DRAFT' && (
                         <button
@@ -404,6 +405,10 @@ const ReturnsWorkspace = () => {
                           Tạo Credit Note
                         </button>
                       )}
+                    </div>
+                  ) : (
+                    <div className="mt-4 flex justify-end">
+                      <span className="text-shade-50 text-[10px] font-medium">Không có sẵn</span>
                     </div>
                   )}
                 </div>

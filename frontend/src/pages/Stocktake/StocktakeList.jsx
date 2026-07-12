@@ -158,7 +158,7 @@ const StocktakeList = () => {
                     <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-shade-60">Trạng thái</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-shade-60">Cấp duyệt</th>
                     <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-shade-60">Chênh lệch</th>
-                    <th className="px-6 py-4 text-center text-xs font-semibold uppercase tracking-wider text-shade-60">Thao tác</th>
+                    <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-shade-60">Hành động</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-hairline-light">
@@ -185,10 +185,10 @@ const StocktakeList = () => {
                         ) : '—'}
                       </td>
                       <td className="px-6 py-4">
-                        <div className="flex items-center justify-center gap-1.5">
+                        <div className="flex items-center justify-end gap-1.5">
                           <button
                             onClick={() => navigate(`/stocktake/${st.id}`)}
-                            className="p-1.5 rounded-lg text-shade-50 hover:text-[#127a3c] hover:bg-aloe-10 transition-colors"
+                            className="p-1 rounded-full text-shade-50 hover:text-[#127a3c] hover:bg-aloe-10 transition-colors"
                             title="Xem chi tiết"
                           >
                             <Eye className="w-3.5 h-3.5" />
@@ -196,7 +196,7 @@ const StocktakeList = () => {
                           {st.status === 'DRAFT' && canCreate && (
                             <button
                               onClick={() => handleStart(st.id)}
-                              className="p-1.5 rounded-lg text-shade-50 hover:text-info-600 hover:bg-info-50 transition-colors"
+                              className="p-1 rounded-full text-shade-50 hover:text-info-600 hover:bg-info-50 transition-colors"
                               title="Bắt đầu kiểm kê"
                             >
                               <Play className="w-3.5 h-3.5" />
@@ -205,7 +205,7 @@ const StocktakeList = () => {
                           {(st.status === 'DRAFT' || st.status === 'IN_PROGRESS') && canCreate && (
                             <button
                               onClick={() => setConfirmModal({ action: 'cancel', id: st.id, label: 'hủy phiếu kiểm kê' })}
-                              className="p-1.5 rounded-lg text-shade-50 hover:text-danger-500 hover:bg-danger-50 transition-colors"
+                              className="p-1 rounded-full text-shade-50 hover:text-danger-500 hover:bg-danger-50 transition-colors"
                               title="Hủy phiếu"
                             >
                               <XCircle className="w-3.5 h-3.5" />
@@ -214,7 +214,7 @@ const StocktakeList = () => {
                           {st.status === 'PENDING_APPROVAL' && canApprove && (
                             <button
                               onClick={() => setConfirmModal({ action: 'approve', id: st.id, label: 'phê duyệt phiếu kiểm kê' })}
-                              className="p-1.5 rounded-lg text-shade-50 hover:text-success-600 hover:bg-success-50 transition-colors"
+                              className="p-1 rounded-full text-shade-50 hover:text-success-600 hover:bg-success-50 transition-colors"
                               title="Phê duyệt"
                             >
                               <CheckCircle className="w-3.5 h-3.5" />
@@ -249,7 +249,7 @@ const StocktakeList = () => {
                   <div className="p-4 border-t border-hairline-light flex items-center justify-end gap-1.5">
                     <button
                       onClick={() => navigate(`/stocktake/${st.id}`)}
-                      className="p-1.5 rounded-lg text-shade-50 hover:text-[#127a3c] hover:bg-aloe-10 transition-colors"
+                      className="p-1.5 rounded-full text-shade-50 hover:text-[#127a3c] hover:bg-aloe-10 transition-colors"
                       title="Xem chi tiết"
                     >
                       <Eye className="w-3.5 h-3.5" />
@@ -257,7 +257,7 @@ const StocktakeList = () => {
                     {st.status === 'DRAFT' && canCreate && (
                       <button
                         onClick={() => handleStart(st.id)}
-                        className="p-1.5 rounded-lg text-shade-50 hover:text-info-600 hover:bg-info-50 transition-colors"
+                        className="p-1.5 rounded-full text-shade-50 hover:text-info-600 hover:bg-info-50 transition-colors"
                         title="Bắt đầu kiểm kê"
                       >
                         <Play className="w-3.5 h-3.5" />
@@ -266,7 +266,7 @@ const StocktakeList = () => {
                     {(st.status === 'DRAFT' || st.status === 'IN_PROGRESS') && canCreate && (
                       <button
                         onClick={() => setConfirmModal({ action: 'cancel', id: st.id, label: 'hủy phiếu kiểm kê' })}
-                        className="p-1.5 rounded-lg text-shade-50 hover:text-danger-500 hover:bg-danger-50 transition-colors"
+                        className="p-1.5 rounded-full text-shade-50 hover:text-danger-500 hover:bg-danger-50 transition-colors"
                         title="Hủy phiếu"
                       >
                         <XCircle className="w-3.5 h-3.5" />
@@ -275,7 +275,7 @@ const StocktakeList = () => {
                     {st.status === 'PENDING_APPROVAL' && canApprove && (
                       <button
                         onClick={() => setConfirmModal({ action: 'approve', id: st.id, label: 'phê duyệt phiếu kiểm kê' })}
-                        className="p-1.5 rounded-lg text-shade-50 hover:text-success-600 hover:bg-success-50 transition-colors"
+                        className="p-1.5 rounded-full text-shade-50 hover:text-success-600 hover:bg-success-50 transition-colors"
                         title="Phê duyệt"
                       >
                         <CheckCircle className="w-3.5 h-3.5" />

@@ -308,17 +308,14 @@ const QuarantineWorkspace = () => {
                         <td className="px-6 py-4">{getDisposalThresholdBadge(adj.total_value)}</td>
                         <td className="px-6 py-4 text-right whitespace-nowrap">
                           {isAuthorized ? (
-                            <Button
-                              variant="aloe"
+                            <button
                               onClick={() => handleApproveDisposal(adj.id, adj.total_value)}
-                              className="text-xs"
+                              className="inline-flex items-center justify-center rounded-full bg-aloe-10 text-success-950 border border-success-300 hover:bg-success-100 px-3 py-1 text-xs font-bold whitespace-nowrap transition-colors duration-150"
                             >
                               Phê duyệt
-                            </Button>
+                            </button>
                           ) : (
-                            <span className="text-[10px] text-danger-500 font-semibold bg-danger-50 border border-danger-100 px-2 py-0.5 rounded whitespace-nowrap">
-                              Chờ cấp trên duyệt
-                            </span>
+                            <Badge size="sm" type="danger">Chờ cấp trên duyệt</Badge>
                           )}
                         </td>
                       </tr>
@@ -346,17 +343,14 @@ const QuarantineWorkspace = () => {
                     </div>
                     <div className="p-4 border-t border-hairline-light flex justify-end">
                       {isAuthorized ? (
-                        <Button
-                          variant="aloe"
+                        <button
                           onClick={() => handleApproveDisposal(adj.id, adj.total_value)}
-                          className="text-xs"
+                          className="inline-flex items-center justify-center rounded-full bg-aloe-10 text-success-950 border border-success-300 hover:bg-success-100 px-3 py-1 text-xs font-bold whitespace-nowrap transition-colors duration-150"
                         >
                           Phê duyệt
-                        </Button>
+                        </button>
                       ) : (
-                        <span className="text-[10px] text-danger-500 font-semibold bg-danger-50 border border-danger-100 px-2 py-0.5 rounded whitespace-nowrap">
-                          Chờ cấp trên duyệt
-                        </span>
+                        <Badge size="sm" type="danger">Chờ cấp trên duyệt</Badge>
                       )}
                     </div>
                   </div>

@@ -476,7 +476,7 @@ export default function DeliveryOrders() {
                     <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Ngày lập</th>
                     <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Ngày giao dự kiến</th>
                     <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Trạng thái</th>
-                    <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-shade-60">Thao tác</th>
+                    <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-shade-60">Hành động</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-hairline-light">

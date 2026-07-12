@@ -343,7 +343,7 @@ const Dashboard = () => {
                               Xin điều chuyển
                             </button>
                           ) : (
-                            <span className="text-[10px] text-shade-40 uppercase font-semibold">Không có sẵn</span>
+                            <span className="text-shade-50 text-[10px] font-medium">Không có sẵn</span>
                           )}
                         </td>
                       </tr>
@@ -398,7 +398,7 @@ const Dashboard = () => {
                           Xin điều chuyển
                         </button>
                       ) : (
-                        <span className="text-[10px] text-shade-40 uppercase font-semibold">Không có sẵn</span>
+                        <span className="text-shade-50 text-[10px] font-medium">Không có sẵn</span>
                       )}
                     </div>
                   </div>

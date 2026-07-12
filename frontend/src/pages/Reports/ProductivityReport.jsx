@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import reportService from '../../services/report.service';
-import { ClipboardList, Users, Truck, CheckSquare, Calendar, RefreshCw, FileSpreadsheet, AlertCircle } from 'lucide-react';
+import { ClipboardList, Users, Truck, CheckSquare, Calendar, RefreshCw, FileSpreadsheet, AlertCircle, Loader2 } from 'lucide-react';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import { useUiStore } from '../../stores/ui.store';
@@ -125,9 +125,9 @@ const ProductivityReport = () => {
       )}
 
       {loading ? (
-        <div className="flex items-center justify-center min-h-[300px]">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-canvas-night"></div>
-          <span className="ml-3 text-sm text-shade-60">Đang hạch toán sản lượng nhân viên...</span>
+        <div className="flex items-center justify-center min-h-[300px] gap-3">
+          <Loader2 className="w-8 h-8 animate-spin text-shade-50" />
+          <span className="text-sm text-shade-60">Đang hạch toán sản lượng nhân viên...</span>
         </div>
       ) : data ? (
         <>

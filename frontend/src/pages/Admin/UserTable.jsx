@@ -7,7 +7,7 @@ import { Edit, ToggleLeft, ToggleRight } from 'lucide-react';
 const UserTable = ({ users, loading, onEdit, onToggleStatus }) => {
   return (
     <Table
-      headers={['Mã NV / Họ tên', 'Tài khoản / SĐT', 'Vai trò (Role)', 'Kho phụ trách', 'Trạng thái', 'Thao tác']}
+      headers={['Mã NV / Họ tên', 'Tài khoản / SĐT', 'Vai trò (Role)', 'Kho phụ trách', 'Trạng thái', 'Hành động']}
       data={users}
       loading={loading}
       renderRow={(user) => {

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import reportService from '../../services/report.service';
-import { Package, TrendingUp, ShieldAlert, CheckCircle, ArrowRight, DollarSign, Calendar, AlertCircle } from 'lucide-react';
+import { Package, TrendingUp, ShieldAlert, CheckCircle, ArrowRight, DollarSign, Calendar, AlertCircle, Loader2 } from 'lucide-react';
 import Badge from '../../components/common/Badge';
 
 const CeoDashboard = () => {
@@ -32,9 +32,9 @@ const CeoDashboard = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-canvas-night"></div>
-        <span className="ml-3 text-sm text-shade-60">Đang tải dữ liệu báo cáo quản trị...</span>
+      <div className="flex items-center justify-center min-h-[300px] gap-3">
+        <Loader2 className="w-8 h-8 animate-spin text-shade-50" />
+        <span className="text-sm text-shade-60">Đang tải dữ liệu báo cáo quản trị...</span>
       </div>
     );
   }
