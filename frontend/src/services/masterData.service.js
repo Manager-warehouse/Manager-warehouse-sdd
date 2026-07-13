@@ -1273,9 +1273,14 @@ export const masterDataService = {
       return newDrv;
     }
     const { status, warehouse_ids, warehouseIds, ...profileData } = drvData;
+    const whId = drvData.warehouseId || drvData.warehouse_id || (warehouse_ids && warehouse_ids.length > 0 ? warehouse_ids[0] : (warehouseIds && warehouseIds.length > 0 ? warehouseIds[0] : null));
+    const payload = {
+      ...profileData,
+      warehouseId: whId
+    };
     const response = await apiClient.post(
       "/dispatcher/drivers",
-      mapToCamelCase(profileData),
+      mapToCamelCase(payload),
     );
     if (status && status !== response.data.status) {
       await apiClient.patch(`/dispatcher/drivers/${response.data.id}/status`, {
@@ -1322,9 +1327,14 @@ export const masterDataService = {
       return updated;
     }
     const { status, warehouse_ids, warehouseIds, ...profileData } = drvData;
+    const whId = drvData.warehouseId || drvData.warehouse_id || (warehouse_ids && warehouse_ids.length > 0 ? warehouse_ids[0] : (warehouseIds && warehouseIds.length > 0 ? warehouseIds[0] : null));
+    const payload = {
+      ...profileData,
+      warehouseId: whId
+    };
     const response = await apiClient.put(
       `/dispatcher/drivers/${id}`,
-      mapToCamelCase(profileData),
+      mapToCamelCase(payload),
     );
     if (status) {
       await apiClient.patch(`/dispatcher/drivers/${id}/status`, {
