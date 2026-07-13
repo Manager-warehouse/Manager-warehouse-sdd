@@ -249,7 +249,17 @@ export default function DriverTrip() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {trips.map((tripItem) => (
-              <div key={tripItem.id} onClick={() => navigate(`/outbound/driver/trips/${tripItem.id}`)} className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 hover:shadow-md transition-shadow cursor-pointer overflow-hidden">
+              <div
+                key={tripItem.id || tripItem.trip_number}
+                onClick={() => {
+                  if (!tripItem.id) {
+                    addToast('Chuyến xe chưa có mã nội bộ để mở chi tiết', 'warning');
+                    return;
+                  }
+                  navigate(`/outbound/driver/trips/${tripItem.id}`);
+                }}
+                className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 hover:shadow-md transition-shadow cursor-pointer overflow-hidden"
+              >
                 <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center">
                   <span className="text-xs font-bold text-ink">{tripItem.trip_number}</span>
                   <StatusBadge status={tripItem.status} />
@@ -257,6 +267,7 @@ export default function DriverTrip() {
                 <div className="p-4 flex flex-col gap-2 text-xs">
                   <p className="flex items-center gap-2 text-shade-50"><Truck className="w-3.5 h-3.5 text-shade-40" /> Xe: <span className="font-semibold text-ink">{tripItem.vehicle_plate || '-'}</span></p>
                   <p className="flex items-center gap-2 text-shade-50"><Calendar className="w-3.5 h-3.5 text-shade-40" /> T.gian dự kiến: <span className="font-semibold text-ink">{tripItem.planned_start_at ? new Date(tripItem.planned_start_at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) : '-'}</span></p>
+                  <p className="flex items-center gap-2 text-shade-50"><MapPin className="w-3.5 h-3.5 text-shade-40" /> Điểm giao: <span className="font-semibold text-ink">{tripItem.delivery_orders?.length || 0}</span></p>
                   <p className="text-xs text-shade-50 pt-1">Tổng KL: <span className="font-semibold text-ink">{tripItem.total_weight_kg || 0} kg</span></p>
                 </div>
               </div>

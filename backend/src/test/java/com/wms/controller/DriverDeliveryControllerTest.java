@@ -30,6 +30,9 @@ import com.wms.service.CurrentUserService;
 import com.wms.service.DriverDeliveryService;
 import com.wms.service.TripService;
 import com.wms.util.JwtUtil;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -75,6 +78,9 @@ class DriverDeliveryControllerTest {
         mockMvc.perform(get("/api/v1/trips/900"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.tripId").value(900))
+                .andExpect(jsonPath("$.vehiclePlate").value("36C-88888"))
+                .andExpect(jsonPath("$.driverName").value("Driver Test 2"))
+                .andExpect(jsonPath("$.plannedStartAt").value("2026-07-17T14:06:00"))
                 .andExpect(jsonPath("$.deliveryOrders[0].currentAttempt.status").value("IN_TRANSIT"));
     }
 
@@ -229,7 +235,14 @@ class DriverDeliveryControllerTest {
                 .tripNumber("TRIP-1")
                 .status(status)
                 .driverId(401L)
+                .driverName("Driver Test 2")
                 .vehicleId(301L)
+                .vehiclePlate("36C-88888")
+                .plannedDate(LocalDate.of(2026, 7, 17))
+                .plannedStartAt(LocalDateTime.of(2026, 7, 17, 14, 6))
+                .plannedEndAt(LocalDateTime.of(2026, 7, 26, 14, 6))
+                .totalWeightKg(new BigDecimal("25.50"))
+                .totalVolumeM3(new BigDecimal("1.250"))
                 .deliveryOrders(List.of(DriverDeliveryOrderResponse.builder()
                         .doId(101L)
                         .doNumber("DO-101")
@@ -261,4 +274,3 @@ class DriverDeliveryControllerTest {
                 .build();
     }
 }
-
