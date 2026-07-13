@@ -229,6 +229,7 @@ public class TripServiceImpl implements TripService {
         trip.setStatus(TripStatus.CANCELLED);
         trip.setCancelReason(request.getReason());
         trip.setUpdatedAt(OffsetDateTime.now());
+        tripDeliveryOrderRepository.deactivateByTripId(trip.getId());
         Trip saved = tripRepository.save(trip);
         auditTrip(actor, AuditAction.TRIP_CANCEL, saved, before, snapshotWithMembers(saved));
         return toResponse(saved);
@@ -295,7 +296,8 @@ public class TripServiceImpl implements TripService {
             Long excludedTripId) {
         validateStopOrders(rows);
         List<Long> ids = validateUniqueDeliveryOrderIds(rows);
-        List<TripDeliveryOrder> existingAssignments = tripDeliveryOrderRepository.findAssignmentsForDeliveryOrders(ids, excludedTripId);
+        List<TripDeliveryOrder> existingAssignments = tripDeliveryOrderRepository
+                .findAssignmentsForDeliveryOrders(ids, ACTIVE_TRIP_STATUSES, excludedTripId);
         if (!existingAssignments.isEmpty()) {
             TripDeliveryOrder conflictAssignment = existingAssignments.get(0);
             throw new OutboundDeliveryException("DELIVERY_ORDER_ALREADY_ASSIGNED", HttpStatus.CONFLICT,
@@ -403,6 +405,7 @@ public class TripServiceImpl implements TripService {
                         .trip(trip)
                         .deliveryOrder(byId.get(row.getDoId()))
                         .stopOrder(row.getStopOrder())
+                        .isActive(true)
                         .build())
                 .toList();
         try {
