@@ -34,6 +34,42 @@ const StatusBadge = ({ status }) => {
   return <Badge size="sm" colorClassName={color}>{label}</Badge>;
 };
 
+const TRANSFER_TRIP_PREFIX = 'transfer-';
+
+const transferDriverStatus = (status) => {
+  if (status === 'APPROVED') return 'PLANNED';
+  if (status === 'COMPLETED' || status === 'COMPLETED_WITH_VARIANCE') return 'COMPLETED';
+  return status || 'PLANNED';
+};
+
+const toTransferDriverTrip = (transfer = {}) => ({
+  id: `${TRANSFER_TRIP_PREFIX}${transfer.id}`,
+  transferId: transfer.id,
+  tripId: transfer.tripId,
+  type: 'TRANSFER',
+  trip_number: transfer.tripNumber || transfer.transferNumber,
+  status: transferDriverStatus(transfer.status),
+  sourceWarehouseCode: transfer.sourceWarehouseCode,
+  destinationWarehouseCode: transfer.destinationWarehouseCode,
+  vehicle_plate: transfer.vehiclePlate || transfer.trip?.vehiclePlate || '',
+  driver_name: transfer.driverName || transfer.trip?.driverName || '',
+  planned_date: transfer.tripPlannedStartAt || transfer.plannedDate || transfer.documentDate,
+  planned_start_at: transfer.tripPlannedStartAt || transfer.plannedDate || transfer.documentDate,
+  planned_end_at: transfer.tripPlannedEndAt || null,
+  total_weight_kg: Number(transfer.totalWeightKg || transfer.trip?.totalWeightKg || 0),
+  tripWarningActive: transfer.tripWarningActive,
+  tripOverdue: transfer.tripOverdue,
+  tripWarningMessage: transfer.tripWarningMessage,
+  items: (transfer.items || []).map((item) => ({
+    id: item.id,
+    productSku: item.productSku,
+    productName: item.productName,
+    plannedQty: item.plannedQty,
+    sentQty: item.sentQty,
+  })),
+  delivery_orders: [],
+});
+
 function OTPCountdown({ expiresAt, onExpired }) {
   const [remaining, setRemaining] = useState(0);
 
