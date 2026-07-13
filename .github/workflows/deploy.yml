@@ -206,6 +206,5 @@ jobs:
             set -Eeuo pipefail
             cd "$APP_DIR"
             git fetch origin main
-            git checkout main
-            git pull --ff-only origin main
+            git checkout "$SOURCE_SHA"
             exec scripts/deploy/deploy-release.sh

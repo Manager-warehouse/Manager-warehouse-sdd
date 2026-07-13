@@ -90,8 +90,7 @@ if ! git diff --quiet || ! git diff --cached --quiet; then
 fi
 
 retry 3 5 git fetch origin main
-git checkout main
-git pull --ff-only origin main
+git checkout "$SOURCE_SHA"
 [ "$(git rev-parse HEAD)" = "$SOURCE_SHA" ] \
   || fail "VPS source does not match approved source SHA"
 
