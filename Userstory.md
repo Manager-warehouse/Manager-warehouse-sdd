@@ -217,21 +217,24 @@
 3. Dispatcher lập một chuyến xe nội bộ riêng cho phiếu điều chuyển: gán xe, tài xế và ngày vận chuyển.
    - Dispatcher chỉ được lập chuyến cho phiếu có kho nguồn thuộc phạm vi kho mình.
    - Danh sách tài xế hợp lệ chỉ gồm các tài xế có thể hoạt động tại kho nguồn của phiếu.
-   - Hệ thống phải kiểm tra xe/tài xế không bị trùng lịch và kiểm tra tải trọng xe theo khối lượng; thể tích chỉ kiểm tra khi xe có cấu hình thể tích.
-4. Thủ kho kho nguồn ghi nhận số lượng xuất và bốc xếp lên xe; Tài xế xác nhận đã nhận hàng và xe rời kho → Hệ thống **trừ tồn kho nguồn, giải phóng giữ chỗ, cộng vào Kho ảo In-Transit** → Trạng thái: **Đang vận chuyển (In-Transit)**.
+   - Hệ thống phải tính tải trọng/thể tích từ dòng hàng, kiểm tra xe/tài xế không bị trùng lịch, kiểm tra tải trọng xe theo khối lượng; thể tích chỉ kiểm tra khi xe có cấu hình thể tích.
+   - Chỉ được đổi xe/tài xế/lịch trước khi tài xế departure; sau departure trip bị khóa.
+4. Thủ kho kho nguồn kiểm outbound QC bằng mắt/đối chiếu phiếu, chụp ảnh xác nhận, ghi nhận số lượng xuất, bốc xếp lên xe và chụp ảnh bàn giao cho tài xế; Tài xế xác nhận đã nhận hàng và xe rời kho → Hệ thống **trừ tồn kho nguồn, giải phóng giữ chỗ, cộng vào Kho ảo In-Transit** → Trạng thái: **Đang vận chuyển (In-Transit)**.
    - Thủ kho nguồn phải ghi đúng số lượng đã duyệt; không được xuất thừa hoặc thiếu.
+   - Outbound QC và load/handover là bắt buộc trước khi tài xế departure, xác nhận bằng ảnh; hệ thống không yêu cầu Barcode/QR.
    - Nếu đã ghi hàng lên xe nhưng chưa rời kho mà cần hủy, hệ thống bắt buộc hạ hàng/unship trước rồi mới cho Trưởng kho nguồn hủy phiếu và nhả giữ chỗ.
-5. Công nhân kho đích nhập số lượng thực nhận; nếu số nhận thiếu/thừa so với số gửi thì phải nhập lý do. Thủ kho kho đích kiểm tra lại số lượng, có thể điều chỉnh số xác nhận kèm ghi chú, nhập/chốt QC và chọn vị trí nhập hàng đạt; Trưởng kho đích xác nhận cuối cùng:
+5. Tài xế được gán phải ghi nhận xe đến kho nhận và bàn giao vật lý trước khi kho nhận được kiểm đếm. Công nhân kho đích nhập blind count số lượng thực nhận; nếu số nhận thiếu/thừa so với số gửi thì phải nhập lý do. Thủ kho kho đích kiểm tra lại số lượng, có thể điều chỉnh số xác nhận kèm ghi chú, nhập/chốt QC, kiểm tra sức chứa Bin và chọn vị trí nhập hàng đạt; Trưởng kho đích xác nhận cuối cùng:
    - Nếu khớp và QC đạt → Hệ thống **trừ Kho ảo In-Transit, cộng vào kho đích** → Trạng thái: **Hoàn thành**.
-   - Nếu thiếu → Hệ thống **bắt buộc** ghi lý do chênh lệch và tự động tạo Phiếu điều chỉnh bù trừ.
-   - Nếu nhận thừa (`received_qty > sent_qty`) → Hệ thống chặn, không cho xác nhận.
+   - Nếu thiếu → Hệ thống **bắt buộc** ghi lý do chênh lệch, tạo hồ sơ incident/discrepancy và tự động tạo Phiếu điều chỉnh bù trừ.
+   - Nếu nhận thừa (`received_qty > sent_qty`) → Hệ thống chặn nhập kho thường và ghi nhận discrepancy hold/incident cho phần hàng vật lý thừa.
    - Nếu QC lỗi/hư hỏng → Phần lỗi được đưa vào Quarantine Zone với nguồn `INTERNAL_TRANSFER`, không tính vào tồn kho khả dụng, chỉ xử lý tiêu hủy theo Spec 009 và không tạo trả NCC/Debit Note.
    - Nếu thiếu hàng → Phần thiếu không được tạo Quarantine hoặc disposal candidate vì không có hàng vật lý.
-   - Nếu gửi nhầm SKU nhưng hàng còn nguyên → Thủ kho đích báo cáo `WRONG_SKU`, Trưởng kho đích duyệt xe quay về kho nguồn, hàng vẫn ở In-Transit và kho nguồn thực hiện lại count/check/QC/final receive.
-   - Nếu trip quá hạn khi phiếu còn `IN_TRANSIT` → Hệ thống đánh dấu quá hạn, chặn receive-count/receive-check tại kho đích và yêu cầu vai trò có thẩm quyền kích hoạt Return to Source.
+   - Nếu gửi nhầm SKU nhưng hàng còn nguyên → Thủ kho đích báo cáo `WRONG_SKU` theo từng line với SKU kỳ vọng, SKU thực tế, số lượng ảnh hưởng, lý do và ảnh nếu có; Trưởng kho đích duyệt xe quay về kho nguồn, hàng vẫn ở In-Transit, tài xế ghi nhận return departure/source arrival/handover và kho nguồn thực hiện lại count/check/QC/final receive.
+   - Nếu trip quá hạn khi phiếu còn `IN_TRANSIT` → Hệ thống đánh dấu quá hạn, chặn receive-count/receive-check tại kho đích và yêu cầu vai trò có thẩm quyền kích hoạt Return to Source với lý do/bằng chứng.
    - Hàng đạt QC chỉ được cộng vào Bin hợp lệ của kho nhận sau khi kiểm tra sức chứa Bin.
 6. Planner chỉ được hủy phiếu khi còn **NEW**; sau khi **APPROVED** Planner không được hủy. Hệ thống không hỗ trợ hủy phiếu điều chuyển sau khi trạng thái đã là **Đang vận chuyển (In-Transit)**.
 7. Luồng nhận hàng điều chuyển vẫn ở màn Điều chuyển nội bộ; không gộp vào danh sách phiếu nhập NCC `RN`.
+8. Mọi mutation của transfer/request/trip/resource/inventory phải có kiểm soát version/concurrency và audit đủ header, line-item, allocation, QC, wrong-SKU, trip/resource và inventory movement.
 
 ---
 

@@ -46,6 +46,10 @@ class InterWarehouseTransferFlowE2ETest {
     @Mock private DamageReportRepository damageReportRepository;
     @Mock private ProductRepository productRepository;
     @Mock private PriceHistoryRepository priceHistoryRepository;
+    @Mock private DiscrepancyIncidentRepository discrepancyIncidentRepository;
+    @Mock private DiscrepancyHoldEntryRepository discrepancyHoldEntryRepository;
+    @Mock private WrongSkuReportRepository wrongSkuReportRepository;
+    @Mock private WrongSkuReportItemRepository wrongSkuReportItemRepository;
 
     // Services under test
     private TransferRequestServiceImpl requestService;
@@ -258,7 +262,12 @@ class InterWarehouseTransferFlowE2ETest {
                 adjustmentRepository,
                 auditUtil,
                 helper,
-                quarantineRecordRepository
+                quarantineRecordRepository,
+                discrepancyIncidentRepository,
+                discrepancyHoldEntryRepository,
+                productRepository,
+                wrongSkuReportRepository,
+                wrongSkuReportItemRepository
         );
 
         disposalService = new DisposalService(
@@ -339,6 +348,8 @@ class InterWarehouseTransferFlowE2ETest {
 
         // --- 5. Destination Storekeeper counts items (IN_TRANSIT -> receive count) ---
         transfer.setStatus(InterWarehouseTransferStatus.IN_TRANSIT);
+        transfer.setDriverArrivedAt(OffsetDateTime.now());
+        transfer.setArrivalHandoverAt(OffsetDateTime.now());
         when(transferRepository.findWithDetailsById(transfer.getId())).thenReturn(Optional.of(transfer));
         when(assignmentRepository.findWarehouseIdsByUserId(storekeeper.getId())).thenReturn(List.of(destinationWarehouse.getId()));
 
@@ -408,6 +419,8 @@ class InterWarehouseTransferFlowE2ETest {
     void testE2ETransferFlow_shortageDiscrepancy() {
         // --- Setup counts showing shortage: Sent 30, received 28 ---
         transfer.setStatus(InterWarehouseTransferStatus.IN_TRANSIT);
+        transfer.setDriverArrivedAt(OffsetDateTime.now());
+        transfer.setArrivalHandoverAt(OffsetDateTime.now());
         when(transferRepository.findWithDetailsById(transfer.getId())).thenReturn(Optional.of(transfer));
         when(assignmentRepository.findWarehouseIdsByUserId(storekeeper.getId())).thenReturn(List.of(destinationWarehouse.getId()));
 
@@ -469,6 +482,7 @@ class InterWarehouseTransferFlowE2ETest {
         transfer.setStatus(InterWarehouseTransferStatus.IN_TRANSIT);
         when(transferRepository.findWithDetailsById(transfer.getId())).thenReturn(Optional.of(transfer));
         when(assignmentRepository.findWarehouseIdsByUserId(manager.getId())).thenReturn(List.of(destinationWarehouse.getId()));
+        when(wrongSkuReportRepository.findByTransferId(transfer.getId())).thenReturn(Collections.emptyList());
 
         // 1. Destination Manager requests return to source because of wrong SKU
         InterWarehouseTransferResponse returnRequested = receivingService.requestReturn(
@@ -489,6 +503,8 @@ class InterWarehouseTransferFlowE2ETest {
     @Test
     void testE2ETransferFlow_physicalDamageToQuarantineAndDisposal() {
         transfer.setStatus(InterWarehouseTransferStatus.IN_TRANSIT);
+        transfer.setDriverArrivedAt(OffsetDateTime.now());
+        transfer.setArrivalHandoverAt(OffsetDateTime.now());
         when(transferRepository.findWithDetailsById(transfer.getId())).thenReturn(Optional.of(transfer));
         
         // 1. Out of 30 items sent, 5 are physically damaged (failed QC) and must go to Quarantine Bin

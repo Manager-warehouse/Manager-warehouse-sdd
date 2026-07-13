@@ -282,7 +282,11 @@ const InterWarehouseTransferWorkspace = () => {
         assignTrip: () => interWarehouseTransferService.assignTrip(id, payload),
         ship: () => interWarehouseTransferService.shipTransfer(id),
         unship: () => interWarehouseTransferService.unshipTransfer(id),
+        recordOutboundQc: () => interWarehouseTransferService.recordOutboundQc(id, payload),
+        loadHandover: () => interWarehouseTransferService.loadHandover(id, payload),
         depart: () => interWarehouseTransferService.departTransfer(id),
+        driverArrive: () => interWarehouseTransferService.driverArrive(id),
+        receivingHandover: () => interWarehouseTransferService.receivingHandover(id, payload),
         receiveCount: () => interWarehouseTransferService.receiveCount(id, payload),
         receiveCheck: () => interWarehouseTransferService.receiveCheck(id, payload),
         finalReceive: () => interWarehouseTransferService.finalReceive(id, payload),
@@ -291,6 +295,9 @@ const InterWarehouseTransferWorkspace = () => {
         requestReturn: () => interWarehouseTransferService.requestReturn(id, payload),
         approveReturn: () => interWarehouseTransferService.approveReturn(id),
         rejectReturn: () => interWarehouseTransferService.rejectReturn(id, payload),
+        returnDepart: () => interWarehouseTransferService.returnDepart(id),
+        returnArrive: () => interWarehouseTransferService.returnArrive(id),
+        returnHandover: () => interWarehouseTransferService.returnHandover(id, payload),
       };
       const updated = await actions[name]();
       addToast('Đã cập nhật phiếu điều chuyển', 'success');

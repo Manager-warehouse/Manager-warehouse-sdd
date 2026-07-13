@@ -276,22 +276,23 @@ Nguồn lệnh điều chuyển:
         → Tạo yêu cầu điều chuyển, CEO duyệt
         → Planner kho nguồn/trung tâm nhận mẫu đã duyệt
     → Planner nhập Phiếu điều chuyển thủ công kèm mã lệnh ngoài hoặc yêu cầu đã duyệt [MỚI]
-    → Trưởng kho nguồn kiểm tra tồn khả dụng → Duyệt [ĐÃ DUYỆT]
-    → Dispatcher lập chuyến xe nội bộ riêng, gán xe và Tài xế, kiểm tra xe/tài xế không trùng lịch và tải trọng xe
-    → Thủ kho nguồn soạn/xuất hàng lên xe
+    → Trưởng kho nguồn kiểm tra tồn khả dụng FIFO eligible → Duyệt [ĐÃ DUYỆT]
+    → Dispatcher lập chuyến xe nội bộ riêng, gán xe và Tài xế, kiểm tra xe/tài xế không trùng lịch, tải trọng/thể tích xe
+    → Thủ kho nguồn soạn hàng, outbound QC bằng mắt/đối chiếu phiếu, chụp ảnh xác nhận, xuất hàng lên xe và chụp ảnh bàn giao cho tài xế
         ├── Phải ghi đúng số lượng đã duyệt; không cho xuất thừa/thiếu
         └── Nếu cần hủy sau khi đã lên xe nhưng chưa rời kho → Unship/Unload trước rồi mới hủy
     → Tài xế xác nhận đã nhận hàng và xe rời kho
         → Hệ thống: Trừ tồn Kho nguồn, Cộng Kho ảo In-Transit [ĐANG VẬN CHUYỂN]
-    → Công nhân kho đích nhập số lượng thực nhận
-    → Thủ kho đích kiểm tra lại số lượng, nhập QC, điều chỉnh số nếu cần và chọn vị trí nhập
+    → Tài xế ghi nhận xe đến kho nhận và kho nhận ghi nhận handover
+    → Công nhân kho đích blind count số lượng thực nhận
+    → Thủ kho đích kiểm tra lại số lượng, nhập QC, điều chỉnh số nếu cần, kiểm tra sức chứa Bin và chọn vị trí nhập
     → Trưởng kho đích xác nhận cuối
         ├── Khớp + QC đạt → Hệ thống: Trừ In-Transit, Cộng tồn Kho đích [HOÀN THÀNH]
-        ├── Thiếu → Ghi lý do + Tạo Phiếu điều chỉnh bù trừ; không tạo hàng Quarantine cho phần thiếu
+        ├── Thiếu → Ghi lý do + incident/discrepancy + Tạo Phiếu điều chỉnh bù trừ; không tạo hàng Quarantine cho phần thiếu
         ├── QC lỗi/hư hỏng → Phần lỗi vào Quarantine theo nguồn INTERNAL_TRANSFER, chỉ đi luồng tiêu hủy Spec 009; không tạo RTV/Debit Note NCC
-        ├── Gửi nhầm SKU nhưng hàng còn nguyên → Thủ kho đích báo cáo, Trưởng kho đích duyệt xe quay về kho nguồn; hàng vẫn ở In-Transit
-        ├── Trip quá hạn khi còn In-Transit → Chặn nhận tại kho đích và yêu cầu vai trò có thẩm quyền kích hoạt Return to Source
-        └── Nhận thừa → Chặn xác nhận
+        ├── Gửi nhầm SKU còn nguyên → Thủ kho đích báo cáo line expected/actual SKU + số lượng + lý do/ảnh nếu có, Trưởng kho đích duyệt xe quay về kho nguồn; tài xế ghi return departure/source arrival/handover
+        ├── Trip quá hạn khi còn In-Transit → Chặn nhận tại kho đích và yêu cầu vai trò có thẩm quyền kích hoạt Return to Source với lý do, kèm ảnh nếu có
+        └── Nhận thừa → Chặn nhập regular inventory và ghi discrepancy hold/incident
 ```
 
 ### 4. Quy trình Công nợ & Kế toán (Finance Cycle)
@@ -544,9 +545,15 @@ Domain hàng hóa hiện tại của Phúc Anh là đồ gia dụng như nồi, 
 - Hàng fail QC → bắt buộc vào Quarantine Zone, tạo phiếu điều chỉnh tồn kho, trừ tồn kho hợp lệ và không tính vào available inventory
 - Điều chuyển phải đi qua In-Transit location cho đến khi kho đích xác nhận
 - Chênh lệch quantity_sent vs quantity_received → tạo adjustment/audit record
+- Điều chuyển phải reserve FIFO eligible stock, loại Quarantine/inactive/locked location, và không cho tồn âm/reserved âm
+- Outbound QC + load handover bắt buộc trước khi tài xế departure và xác nhận bằng ảnh; không yêu cầu Barcode/QR trong Sprint 1
 - Hàng điều chuyển fail QC/hư hỏng vào Quarantine với origin INTERNAL_TRANSFER; chỉ xử lý tiêu hủy theo Spec 009, không tạo RTV/Debit Note NCC
 - Thiếu hàng điều chuyển là chênh lệch số lượng, không phải hàng vật lý trong Quarantine
-- Putaway hàng đạt từ điều chuyển vào Bin phải kiểm tra bin capacity; chuyến xe điều chuyển phải kiểm tra tải trọng xe
+- Wrong-SKU phải báo theo line expected SKU/actual SKU/số lượng/lý do/ảnh nếu có; approved return phải có return departure/source arrival/handover
+- Nhận thừa bị chặn khỏi regular inventory và phải ghi discrepancy hold/incident
+- Putaway hàng đạt từ điều chuyển vào Bin phải kiểm tra bin capacity; chuyến xe điều chuyển phải kiểm tra tải trọng/thể tích xe
+- Mutation transfer/request/trip/resource/inventory phải có version/concurrency guard; GET/list/detail không được mutate trạng thái
+- Migration đã apply không được sửa/rename/xóa; schema fix phải dùng migration mới
 ```
 
 ### Core Business Entities

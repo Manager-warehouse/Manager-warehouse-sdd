@@ -114,8 +114,8 @@ public class InterWarehouseTransferServiceImpl implements InterWarehouseTransfer
     }
 
     @Override
-    public InterWarehouseTransferResponse returnToSource(Long id, User actor) {
-        return receivingService.returnToSource(id, actor);
+    public InterWarehouseTransferResponse returnToSource(Long id, TransferReturnRequest request, User actor) {
+        return receivingService.returnToSource(id, request, actor);
     }
 
     @Override
@@ -137,5 +137,40 @@ public class InterWarehouseTransferServiceImpl implements InterWarehouseTransfer
     @Override
     public InterWarehouseTransferResponse rejectReturn(Long id, TransferReturnRejectRequest request, User actor) {
         return receivingService.rejectReturn(id, request, actor);
+    }
+
+    @Override
+    public InterWarehouseTransferResponse recordOutboundQc(Long id, OutboundQcRequest request, User actor) {
+        return shippingService.recordOutboundQc(id, request, actor);
+    }
+
+    @Override
+    public InterWarehouseTransferResponse loadHandover(Long id, LoadHandoverRequest request, User actor) {
+        return shippingService.loadHandover(id, request, actor);
+    }
+
+    @Override
+    public InterWarehouseTransferResponse driverArrive(Long id, User actor) {
+        return shippingService.driverArrive(id, actor);
+    }
+
+    @Override
+    public InterWarehouseTransferResponse receivingHandover(Long id, LoadHandoverRequest request, User actor) {
+        return shippingService.receivingHandover(id, request, actor);
+    }
+
+    @Override
+    public InterWarehouseTransferResponse returnDepart(Long id, User actor) {
+        return shippingService.returnDepart(id, actor);
+    }
+
+    @Override
+    public InterWarehouseTransferResponse returnArrive(Long id, User actor) {
+        return shippingService.returnArrive(id, actor);
+    }
+
+    @Override
+    public InterWarehouseTransferResponse returnHandover(Long id, LoadHandoverRequest request, User actor) {
+        return shippingService.returnHandover(id, request, actor);
     }
 }
