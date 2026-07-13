@@ -16,6 +16,8 @@ services:
       TZ: Asia/Ho_Chi_Minh
     ports:
       - "${BACKEND_PORT:-8080}:8080"
+    volumes:
+      - uploads:/app/uploads
     healthcheck:
       test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/v3/api-docs"]
       interval: 10s
@@ -36,3 +38,6 @@ services:
       backend:
         condition: service_healthy
     restart: unless-stopped
+
+volumes:
+  uploads:
