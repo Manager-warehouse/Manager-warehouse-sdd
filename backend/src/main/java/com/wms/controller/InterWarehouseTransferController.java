@@ -2,6 +2,7 @@ package com.wms.controller;
 
 import com.wms.dto.request.*;
 import com.wms.dto.response.InterWarehouseTransferResponse;
+import com.wms.dto.response.TransferPhotoUploadResponse;
 import com.wms.entity.User;
 import com.wms.service.CurrentUserService;
 import com.wms.service.transfer.InterWarehouseTransferService;
@@ -19,6 +20,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/v1/inter-warehouse-transfers")
@@ -115,6 +118,14 @@ public class InterWarehouseTransferController {
     public InterWarehouseTransferResponse recordOutboundQc(@PathVariable Long id,
                                                            @Valid @RequestBody OutboundQcRequest request) {
         return transferService.recordOutboundQc(id, request, currentUser());
+    }
+
+    @PostMapping("/{id}/photo-evidence")
+    @PreAuthorize("hasAnyRole('STOREKEEPER','WAREHOUSE_STAFF','WAREHOUSE_MANAGER','DRIVER','ADMIN','CEO')")
+    @Operation(summary = "Upload transfer photo evidence and return a short photo reference")
+    public TransferPhotoUploadResponse uploadPhotoEvidence(@PathVariable Long id,
+                                                           @RequestParam MultipartFile file) {
+        return transferService.uploadPhotoEvidence(id, file, currentUser());
     }
 
     @PostMapping("/{id}/load-handover")

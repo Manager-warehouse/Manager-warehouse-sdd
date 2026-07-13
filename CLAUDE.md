@@ -1110,7 +1110,7 @@ Planner nhap phieu `TRF-*` theo lenh ngoai hoac request da duoc CEO duyet
 - Nếu chuyến quá hạn khi phiếu còn `IN_TRANSIT`, hệ thống đánh dấu overdue, chặn receive-count/receive-check ở kho đích và yêu cầu WAREHOUSE_MANAGER kho nguồn, ADMIN, CEO hoặc PLANNER kích hoạt Return to Source với lý do, kèm photo refs nếu có.
 - Hàng đạt QC khi nhập vào kho đích hoặc kho nguồn sau Return to Source phải chọn Bin hợp lệ, không phải quarantine bin, và phải kiểm tra bin capacity trước khi cộng tồn.
 - Pick/outbound QC/load handover trong điều chuyển không dùng Barcode/QR; xác nhận bằng chọn line phiếu, nhập/xác nhận số lượng và ảnh chụp.
-- Các bước có ảnh trong UI phải dùng nút chọn file/chọn ảnh trên điện thoại/máy tính hoặc chụp trực tiếp bằng camera; không nhập link ảnh thủ công. Nút QC/xác nhận bàn giao/POD chỉ được bật sau khi đã có ảnh.
+- Các bước có ảnh trong UI phải dùng nút chọn file/chọn ảnh trên điện thoại/máy tính hoặc chụp trực tiếp bằng camera; không nhập link ảnh thủ công. UI nén ảnh camera lớn, upload multipart trước, rồi các action chỉ gửi `photoRef` ngắn; không gửi base64/data URL trong JSON. Nút QC/xác nhận bàn giao/POD chỉ được bật sau khi đã có ảnh.
 - Transfer/request/trip/resource/inventory mutations phải có version/concurrency guard; GET/list/detail không được mutate trạng thái nghiệp vụ.
 - Audit transfer phải đủ header, items, allocation, QC, wrong-SKU lines, trip/resource state và inventory movement để tái dựng nghiệp vụ.
 - Flyway migrations đã apply không được sửa/rename/xóa; schema fix phải đi qua migration mới.
@@ -1311,7 +1311,7 @@ Quy trình đối chiếu số liệu tồn kho thực tế, tính toán chênh 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **Manager-warehouse-sdd** (10161 symbols, 26319 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **Manager-warehouse-sdd** (10950 symbols, 28043 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 

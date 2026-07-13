@@ -357,11 +357,29 @@ export const interWarehouseTransferService = {
     return response.data;
   },
 
+  uploadPhotoEvidence: async (id, file) => {
+    if (useMock) {
+      return {
+        photoRef: `/mock/uploads/transfer/${Date.now()}-${file?.name || 'photo.jpg'}`,
+      };
+    }
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await apiClient.post(`/inter-warehouse-transfers/${id}/photo-evidence`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 60000,
+    });
+    return response.data;
+  },
+
   recordOutboundQc: async (id, payload) => {
+    const uploaded = payload.photoFile
+      ? await interWarehouseTransferService.uploadPhotoEvidence(id, payload.photoFile)
+      : null;
     const request = {
       passed: payload.passed ?? payload.outboundQcPassed,
       note: payload.note ?? payload.outboundQcNote ?? '',
-      photoRef: payload.photoRef ?? payload.outboundQcPhotoRef,
+      photoRef: uploaded?.photoRef ?? payload.photoRef ?? payload.outboundQcPhotoRef,
     };
     if (useMock) {
       return updateMockStatus(id, 'APPROVED', {
@@ -375,8 +393,11 @@ export const interWarehouseTransferService = {
   },
 
   loadHandover: async (id, payload) => {
+    const uploaded = payload.photoFile
+      ? await interWarehouseTransferService.uploadPhotoEvidence(id, payload.photoFile)
+      : null;
     const request = {
-      photoRef: payload.photoRef || payload.loadHandoverPhotoRef,
+      photoRef: uploaded?.photoRef || payload.photoRef || payload.loadHandoverPhotoRef,
     };
     if (useMock) {
       return updateMockStatus(id, 'APPROVED', {
@@ -398,13 +419,20 @@ export const interWarehouseTransferService = {
   },
 
   receivingHandover: async (id, payload) => {
+    const uploaded = payload.photoFile
+      ? await interWarehouseTransferService.uploadPhotoEvidence(id, payload.photoFile)
+      : null;
+    const request = {
+      ...payload,
+      photoRef: uploaded?.photoRef || payload.photoRef,
+    };
     if (useMock) {
       return updateMockStatus(id, 'IN_TRANSIT', {
         arrivalHandoverAt: new Date().toISOString(),
-        arrivalHandoverPhotoRef: payload.photoRef || null,
+        arrivalHandoverPhotoRef: request.photoRef || null,
       });
     }
-    const response = await apiClient.post(`/inter-warehouse-transfers/${id}/receiving-handover`, payload);
+    const response = await apiClient.post(`/inter-warehouse-transfers/${id}/receiving-handover`, request);
     return response.data;
   },
 
@@ -475,13 +503,20 @@ export const interWarehouseTransferService = {
   },
 
   returnHandover: async (id, payload) => {
+    const uploaded = payload.photoFile
+      ? await interWarehouseTransferService.uploadPhotoEvidence(id, payload.photoFile)
+      : null;
+    const request = {
+      ...payload,
+      photoRef: uploaded?.photoRef || payload.photoRef,
+    };
     if (useMock) {
       return updateMockStatus(id, 'IN_TRANSIT', {
         returnArrivalHandoverAt: new Date().toISOString(),
-        returnPhotoRef: payload.photoRef || null,
+        returnPhotoRef: request.photoRef || null,
       });
     }
-    const response = await apiClient.post(`/inter-warehouse-transfers/${id}/return-handover`, payload);
+    const response = await apiClient.post(`/inter-warehouse-transfers/${id}/return-handover`, request);
     return response.data;
   },
 
