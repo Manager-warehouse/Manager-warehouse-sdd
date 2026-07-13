@@ -13,6 +13,11 @@ application-secrets.yml
 
 #-maven
 .mvn
+!.mvn/
+!.mvn/maven.config
+!.mvn/settings.xml
+!.mvn/wrapper/
+!.mvn/wrapper/maven-wrapper.properties
 
 # Gradle
 target/

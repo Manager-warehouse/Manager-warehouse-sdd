@@ -21,7 +21,7 @@ jobs:
           cache: 'maven'
 
       - name: Compile backend
-        run: cd backend && mvn compile --no-transfer-progress
+        run: cd backend && mvn --settings ../.github/maven-settings.xml compile --no-transfer-progress
 
   build-frontend:
     name: Build Frontend (React 18)

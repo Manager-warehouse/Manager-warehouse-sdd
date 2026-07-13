@@ -42,7 +42,7 @@ jobs:
           cache: maven
       - name: Run backend tests
         working-directory: backend
-        run: mvn -B test --no-transfer-progress
+        run: mvn --settings ../.github/maven-settings.xml -B test --no-transfer-progress
         env:
           SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/wms_test
           SPRING_DATASOURCE_USERNAME: wms
