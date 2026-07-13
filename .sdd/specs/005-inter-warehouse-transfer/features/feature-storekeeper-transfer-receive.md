@@ -15,6 +15,7 @@ Sprint 1 gia dinh moi phieu `TRF` co mot lan ship va mot lan final receive. Cac 
 * **Event-driven:**
   * WHEN a Nhân viên kho/Công nhân kho đích records initial received counts, the system SHALL:
     * Allow the action only while the transfer is `IN_TRANSIT`.
+    * Require assigned driver arrival and receiving-warehouse handover to be recorded before counting starts.
     * Require `issueReason` per item when that item's `receivedQty < sentQty`, `receivedQty > sentQty`, or the worker reports an issue for that item; items with `receivedQty == sentQty` and no reported issue SHALL NOT require `issueReason`.
     * Reject `received_qty > sent_qty` after validating that an issue reason was provided.
     * Store the worker-entered counts as the current `received_qty` without completing the transfer.
@@ -30,6 +31,7 @@ Sprint 1 gia dinh moi phieu `TRF` co mot lan ship va mot lan final receive. Cac 
     * Require `qc_passed_qty + qc_failed_qty = confirmedReceivedQty`.
     * Require a QC failure reason when `qc_failed_qty > 0`.
     * Require `destination_location_id` for QC-passed quantity; the selected bin SHALL NOT be a quarantine bin (`QC_PASSED_BIN_MUST_NOT_BE_QUARANTINE`).
+    * Require the selected bin to have enough remaining capacity for QC-passed quantity.
     * When `qcFailedQty > 0`, validate at this step that the target warehouse has at least one active quarantine bin (`QUARANTINE_LOCATION_NOT_CONFIGURED`); do not defer this check to finalReceive.
     * Save `confirmedReceivedQty` as the effective `received_qty` for final confirmation and inventory settlement.
     * Store the approved received counts and QC result without completing the transfer.
@@ -79,6 +81,7 @@ Sprint 1 gia dinh moi phieu `TRF` co mot lan ship va mot lan final receive. Cac 
     * Set `is_returned = true`, retain the same transfer, trip, vehicle, driver, and In-Transit stock, and direct the assigned driver back to the source warehouse.
     * Flip receiving responsibility to source Staff, source Storekeeper, and source Warehouse Manager.
     * Create a `TRANSFER_RETURN_APPROVE` audit log entry.
+  * WHEN the assigned driver starts and completes the return leg, the system SHALL record return departure and source arrival/handover before source-side receive-count is allowed.
   * WHEN returned goods arrive at the source warehouse, the system SHALL repeat receive-count, receive-check/QC, and final-receive with source-scoped actors.
   * WHEN a transfer shortage is finalized, the system SHALL import and calculate value only for physically received and accepted quantity; missing quantity SHALL remain a quantity-only discrepancy and SHALL NOT be included in destination receipt value or billing totals.
 * **Authorization and warehouse scope:**
@@ -93,15 +96,19 @@ Sprint 1 gia dinh moi phieu `TRF` co mot lan ship va mot lan final receive. Cac 
   * The bin dropdown for QC-passed stock SHALL filter out quarantine bins (client-side pre-filtering), with backend enforcement as the authoritative guard.
 
 ## 4. API Endpoints
-* `PUT /api/v1/transfers/{id}/receive-count` - Nhân viên kho/Công nhân kho đích nhập hoặc sửa số lượng thực nhận ban đầu khi phiếu còn `IN_TRANSIT` và chưa được Thủ kho duyệt receive check.
-* `PUT /api/v1/transfers/{id}/receive-check` - Thủ kho đích kiểm tra lại số lượng, nhập/chốt QC, chọn vị trí nhập kho cho hàng đạt và duyệt kết quả nhận.
-* `POST /api/v1/transfers/{id}/final-receive` - Trưởng kho đích xác nhận nhận hàng tại kho đích và báo cáo chênh lệch nếu có.
-* `POST /api/v1/transfers/{id}/quarantine-reject` - Thủ kho đích hoặc Trưởng kho đích từ chối toàn bộ và đưa vào quarantine.
-* `POST /api/v1/transfers/{id}/return-request` - Thủ kho đích báo cáo gửi nhầm SKU còn nguyên.
-* `POST /api/v1/transfers/{id}/return-request/approve` - Trưởng kho đích duyệt cho tài xế quay đầu về kho nguồn.
-* `POST /api/v1/transfers/{id}/return-request/reject` - Trưởng kho đích từ chối yêu cầu quay đầu với lý do.
+* `POST /api/v1/inter-warehouse-transfers/{id}/arrive` - Tài xế được gán ghi nhận xe đã đến kho nhận hiện tại.
+* `POST /api/v1/inter-warehouse-transfers/{id}/arrival-handover` - Kho nhận ghi nhận bàn giao vật lý từ tài xế trước khi kiểm đếm.
+* `PUT /api/v1/inter-warehouse-transfers/{id}/receive-count` - Nhân viên kho/Công nhân kho đích nhập hoặc sửa số lượng thực nhận ban đầu khi phiếu còn `IN_TRANSIT` và chưa được Thủ kho duyệt receive check.
+* `PUT /api/v1/inter-warehouse-transfers/{id}/receive-check` - Thủ kho đích kiểm tra lại số lượng, nhập/chốt QC, chọn vị trí nhập kho cho hàng đạt và duyệt kết quả nhận.
+* `POST /api/v1/inter-warehouse-transfers/{id}/final-receive` - Trưởng kho đích xác nhận nhận hàng tại kho đích và báo cáo chênh lệch nếu có.
+* `POST /api/v1/inter-warehouse-transfers/{id}/quarantine-reject` - Thủ kho đích hoặc Trưởng kho đích từ chối toàn bộ và đưa vào quarantine.
+* `POST /api/v1/inter-warehouse-transfers/{id}/request-return` - Thủ kho đích báo cáo gửi nhầm SKU còn nguyên.
+* `POST /api/v1/inter-warehouse-transfers/{id}/approve-return` - Trưởng kho đích duyệt cho tài xế quay đầu về kho nguồn.
+* `POST /api/v1/inter-warehouse-transfers/{id}/reject-return` - Trưởng kho đích từ chối yêu cầu quay đầu với lý do.
+* `POST /api/v1/inter-warehouse-transfers/{id}/return-depart` - Tài xế xác nhận bắt đầu chặng quay về kho nguồn sau khi được duyệt.
+* `POST /api/v1/inter-warehouse-transfers/{id}/return-arrive` - Tài xế xác nhận đã về đến kho nguồn để bắt đầu nhận hoàn.
 
-### `PUT /api/v1/transfers/{id}/receive-count` Request
+### `PUT /api/v1/inter-warehouse-transfers/{id}/receive-count` Request
 ```json
 {
   "items": [
@@ -114,7 +121,7 @@ Sprint 1 gia dinh moi phieu `TRF` co mot lan ship va mot lan final receive. Cac 
 }
 ```
 
-### `PUT /api/v1/transfers/{id}/receive-check` Request
+### `PUT /api/v1/inter-warehouse-transfers/{id}/receive-check` Request
 ```json
 {
   "items": [
@@ -131,14 +138,14 @@ Sprint 1 gia dinh moi phieu `TRF` co mot lan ship va mot lan final receive. Cac 
 }
 ```
 
-### `POST /api/v1/transfers/{id}/final-receive` Request
+### `POST /api/v1/inter-warehouse-transfers/{id}/final-receive` Request
 ```json
 {
   "discrepancyReason": "Thieu 2 san pham so voi so luong da gui tu kho nguon"
 }
 ```
 
-### `POST /api/v1/transfers/{id}/quarantine-reject` Request
+### `POST /api/v1/inter-warehouse-transfers/{id}/quarantine-reject` Request
 ```json
 {
   "rejectionReason": "Toàn bộ kiện hàng bị ướt sũng nước, không thể nhập kho"
@@ -158,6 +165,9 @@ Sprint 1 gia dinh moi phieu `TRF` co mot lan ship va mot lan final receive. Cac 
 * `DESTINATION_LOCATION_REQUIRED` (HTTP 400): QC-passed quantity exists without `destinationLocationId`.
 * `QC_PASSED_BIN_MUST_NOT_BE_QUARANTINE` (HTTP 400): the selected `destinationLocationId` is a quarantine bin; QC-passed stock must go to a regular storage bin.
 * `INVALID_DESTINATION_LOCATION` (HTTP 400): the selected `destinationLocationId` does not belong to the target warehouse or is inactive.
+* `BIN_CAPACITY_EXCEEDED` (HTTP 422): the selected destination bin lacks capacity for QC-passed quantity.
+* `TRANSFER_ARRIVAL_REQUIRED` (HTTP 409): receive-count is attempted before driver arrival/handover.
+* `RETURN_ARRIVAL_REQUIRED` (HTTP 409): source return receive-count is attempted before return departure and source arrival/handover.
 * `QUARANTINE_LOCATION_NOT_CONFIGURED` (HTTP 422): QC-failed quantity exists but the target warehouse has no active quarantine bin — validated at `receiveCheck` time.
 * `DISCREPANCY_REQUIRES_REASON` (HTTP 400): shortage or final-level material issue outside normal QC failure exists without a reason.
 * `TRANSFER_SPLIT_RECEIVE_NOT_SUPPORTED` (HTTP 409): actor attempts to finalize the same transfer through multiple independent receipt cycles.

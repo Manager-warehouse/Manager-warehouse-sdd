@@ -10,6 +10,7 @@ import com.wms.repository.*;
 import com.wms.util.PartnerAuditUtil;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import lombok.RequiredArgsConstructor;
@@ -30,19 +31,38 @@ public class InterWarehouseTransferReceivingService {
     private final PartnerAuditUtil auditUtil;
     private final InterWarehouseTransferHelper helper;
     private final QuarantineRecordRepository quarantineRecordRepository;
+    private final DiscrepancyIncidentRepository discrepancyIncidentRepository;
+    private final DiscrepancyHoldEntryRepository discrepancyHoldEntryRepository;
+    private final ProductRepository productRepository;
+    private final WrongSkuReportRepository wrongSkuReportRepository;
+    private final WrongSkuReportItemRepository wrongSkuReportItemRepository;
 
     @Transactional
     public InterWarehouseTransferResponse receiveCount(Long id, InterWarehouseTransferReceiveCountRequest request, User actor) {
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.requireStatus(transfer, InterWarehouseTransferStatus.IN_TRANSIT);
         helper.ensureWarehouseScope(actor, transfer.isReturned() ? transfer.getSourceWarehouse().getId() : transfer.getDestinationWarehouse().getId());
+
+        if (Boolean.TRUE.equals(transfer.isReturned())) {
+            if (transfer.getReturnArrivedAt() == null) {
+                throw new BusinessRuleViolationException("RETURN_ARRIVE_REQUIRED");
+            }
+            if (transfer.getReturnArrivalHandoverAt() == null) {
+                throw new BusinessRuleViolationException("RETURN_HANDOVER_REQUIRED");
+            }
+        } else {
+            if (transfer.getDriverArrivedAt() == null) {
+                throw new BusinessRuleViolationException("DRIVER_ARRIVE_REQUIRED");
+            }
+            if (transfer.getArrivalHandoverAt() == null) {
+                throw new BusinessRuleViolationException("ARRIVAL_HANDOVER_REQUIRED");
+            }
+        }
+
         Map<Long, InterWarehouseTransferItem> itemById = helper.itemMap(transfer);
         Map<String, Object> before = helper.snapshot(transfer);
         for (InterWarehouseTransferReceiveCountItemRequest line : request.items()) {
             InterWarehouseTransferItem item = helper.requireItem(itemById, line.transferItemId());
-            if (line.receivedQty().compareTo(item.getSentQty()) > 0) {
-                throw new BusinessRuleViolationException("OVER_RECEIPT_BLOCKED");
-            }
             if (line.receivedQty().compareTo(item.getSentQty()) != 0 && helper.isBlank(line.issueReason())) {
                 throw new BusinessRuleViolationException("ISSUE_REASON_REQUIRED");
             }
@@ -109,7 +129,7 @@ public class InterWarehouseTransferReceivingService {
     }
 
     @Transactional
-    public InterWarehouseTransferResponse returnToSource(Long id, User actor) {
+    public InterWarehouseTransferResponse returnToSource(Long id, TransferReturnRequest request, User actor) {
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.requireStatus(transfer, InterWarehouseTransferStatus.IN_TRANSIT);
         if (actor.getRole() != UserRole.ADMIN && actor.getRole() != UserRole.CEO && actor.getRole() != UserRole.PLANNER) {
@@ -119,9 +139,47 @@ public class InterWarehouseTransferReceivingService {
             helper.ensureWarehouseScope(actor, transfer.getSourceWarehouse().getId());
         }
 
+        if (helper.isBlank(request.reason())) {
+            throw new BusinessRuleViolationException("RETURN_REASON_REQUIRED");
+        }
+
         Map<String, Object> before = helper.snapshot(transfer);
         transfer.setReturned(true);
+        transfer.setReturnReason(request.reason());
         transfer.setUpdatedAt(OffsetDateTime.now());
+
+        if (request.wrongSkuItems() != null && !request.wrongSkuItems().isEmpty()) {
+            WrongSkuReport report = WrongSkuReport.builder()
+                    .transfer(transfer)
+                    .status("APPROVED") // Auto-approved because it's initiated by manager/planner
+                    .reportedBy(actor)
+                    .reportedAt(OffsetDateTime.now())
+                    .managerDecisionBy(actor)
+                    .managerDecisionAt(OffsetDateTime.now())
+                    .build();
+            report = wrongSkuReportRepository.save(report);
+
+            for (WrongSkuItemRequest line : request.wrongSkuItems()) {
+                InterWarehouseTransferItem item = transferItemRepository.findById(line.transferItemId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Transfer item not found: " + line.transferItemId()));
+                Product expected = productRepository.findById(line.expectedProductId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + line.expectedProductId()));
+                Product actual = productRepository.findById(line.actualProductId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + line.actualProductId()));
+
+                WrongSkuReportItem reportItem = WrongSkuReportItem.builder()
+                        .report(report)
+                        .transferItem(item)
+                        .expectedProduct(expected)
+                        .actualProduct(actual)
+                        .affectedQty(line.affectedQty())
+                        .reason(line.reason())
+                        .photoRef(line.photoRef())
+                        .build();
+                wrongSkuReportItemRepository.save(reportItem);
+            }
+        }
+
         InterWarehouseTransfer saved = transferRepository.save(transfer);
         helper.audit(saved, actor, AuditAction.TRANSFER_RETURN_TO_SOURCE, before, helper.snapshot(saved));
         return helper.toResponse(saved);
@@ -177,9 +235,6 @@ public class InterWarehouseTransferReceivingService {
         if (item.getWorkerReceivedQty() == null) {
             throw new BusinessRuleViolationException("WORKER_COUNT_REQUIRED");
         }
-        if (line.confirmedQty().compareTo(item.getSentQty()) > 0) {
-            throw new BusinessRuleViolationException("OVER_RECEIPT_BLOCKED");
-        }
         if (line.confirmedQty().compareTo(item.getWorkerReceivedQty()) != 0 && helper.isBlank(line.checkerNote())) {
             throw new BusinessRuleViolationException("CHECKER_NOTE_REQUIRED");
         }
@@ -224,6 +279,22 @@ public class InterWarehouseTransferReceivingService {
                 .orElseThrow(() -> new BusinessRuleViolationException("IN_TRANSIT_WAREHOUSE_NOT_CONFIGURED"));
         WarehouseLocation quarantineLocation = null;
         Warehouse targetWarehouse = transfer.isReturned() ? transfer.getSourceWarehouse() : transfer.getDestinationWarehouse();
+
+        // T049: Validate bin capacity before inventory posting (dry-run check first)
+        for (InterWarehouseTransferItem item : helper.items(transfer)) {
+            BigDecimal passedQty = helper.zero(item.getQcPassedQty());
+            BigDecimal failedQty = helper.zero(item.getQcFailedQty());
+            if (passedQty.signum() > 0) {
+                assertLocationCapacity(item.getDestinationLocation(), item.getProduct(), passedQty);
+            }
+            if (failedQty.signum() > 0) {
+                if (quarantineLocation == null) {
+                    quarantineLocation = helper.findQuarantineLocation(transfer);
+                }
+                assertLocationCapacity(quarantineLocation, item.getProduct(), failedQty);
+            }
+        }
+
         for (InterWarehouseTransferItem item : helper.items(transfer)) {
             BigDecimal remainingPassed = helper.zero(item.getQcPassedQty());
             BigDecimal remainingFailed = helper.zero(item.getQcFailedQty());
@@ -236,8 +307,10 @@ public class InterWarehouseTransferReceivingService {
                 transit.setTotalQty(transit.getTotalQty().subtract(qty));
                 transit.setUpdatedAt(OffsetDateTime.now());
                 inventoryRepository.save(transit);
+
                 BigDecimal passQty = qty.min(remainingPassed);
                 if (passQty.signum() > 0) {
+                    applyLocationOccupancy(item.getDestinationLocation(), item.getProduct(), passQty);
                     helper.upsertInventory(targetWarehouse, item.getProduct(), transit.getBatch(),
                             item.getDestinationLocation(), passQty, transit.getCostPrice());
                     remainingPassed = remainingPassed.subtract(passQty);
@@ -247,6 +320,7 @@ public class InterWarehouseTransferReceivingService {
                     if (quarantineLocation == null) {
                         quarantineLocation = helper.findQuarantineLocation(transfer);
                     }
+                    applyLocationOccupancy(quarantineLocation, item.getProduct(), failQty);
                     helper.upsertInventory(targetWarehouse, item.getProduct(), transit.getBatch(),
                             quarantineLocation, failQty, transit.getCostPrice());
                     remainingFailed = remainingFailed.subtract(failQty);
@@ -291,6 +365,78 @@ public class InterWarehouseTransferReceivingService {
                             adjustment.getId(), adjustment.getAdjustmentNumber(), Map.of(), Map.of());
                 }
             }
+
+            // T050: Add discrepancy hold for over-receipt (excess quantity not satisfied by transit allocation)
+            BigDecimal overReceiptPassed = remainingPassed;
+            BigDecimal overReceiptFailed = remainingFailed;
+            BigDecimal totalOverReceipt = overReceiptPassed.add(overReceiptFailed);
+            if (totalOverReceipt.signum() > 0) {
+                DiscrepancyIncident incident = DiscrepancyIncident.builder()
+                        .transfer(transfer)
+                        .product(item.getProduct())
+                        .incidentType("OVER_RECEIPT")
+                        .quantity(totalOverReceipt)
+                        .status("OPEN")
+                        .resolutionNote("Over-receipt during transfer receiving")
+                        .build();
+                incident = discrepancyIncidentRepository.save(incident);
+
+                Batch batch = item.getBatch();
+                if (batch == null && !allocationRepository.findByTransferItemId(item.getId()).isEmpty()) {
+                    batch = allocationRepository.findByTransferItemId(item.getId()).get(0).getInventory().getBatch();
+                }
+
+                BigDecimal costPrice = BigDecimal.ZERO;
+                if (!allocationRepository.findByTransferItemId(item.getId()).isEmpty()) {
+                    costPrice = allocationRepository.findByTransferItemId(item.getId()).get(0).getInventory().getCostPrice();
+                }
+
+                if (overReceiptPassed.signum() > 0) {
+                    applyLocationOccupancy(item.getDestinationLocation(), item.getProduct(), overReceiptPassed);
+                    helper.upsertInventory(targetWarehouse, item.getProduct(), batch,
+                            item.getDestinationLocation(), overReceiptPassed, costPrice);
+                    discrepancyHoldEntryRepository.save(DiscrepancyHoldEntry.builder()
+                            .incident(incident)
+                            .warehouse(targetWarehouse)
+                            .product(item.getProduct())
+                            .batch(batch)
+                            .holdQty(overReceiptPassed)
+                            .holdLocation(item.getDestinationLocation())
+                            .build());
+                }
+                if (overReceiptFailed.signum() > 0) {
+                    if (quarantineLocation == null) {
+                        quarantineLocation = helper.findQuarantineLocation(transfer);
+                    }
+                    applyLocationOccupancy(quarantineLocation, item.getProduct(), overReceiptFailed);
+                    helper.upsertInventory(targetWarehouse, item.getProduct(), batch,
+                            quarantineLocation, overReceiptFailed, costPrice);
+                    discrepancyHoldEntryRepository.save(DiscrepancyHoldEntry.builder()
+                            .incident(incident)
+                            .warehouse(targetWarehouse)
+                            .product(item.getProduct())
+                            .batch(batch)
+                            .holdQty(overReceiptFailed)
+                            .holdLocation(quarantineLocation)
+                            .build());
+
+                    // Save QuarantineRecord for over-received failed QC
+                    QuarantineRecord qr = new QuarantineRecord();
+                    qr.setWarehouse(targetWarehouse);
+                    qr.setProduct(item.getProduct());
+                    qr.setBatch(batch);
+                    qr.setLocation(quarantineLocation);
+                    qr.setTransfer(transfer);
+                    qr.setTransferItem(item);
+                    qr.setOriginType("INTERNAL_TRANSFER");
+                    qr.setQuantity(overReceiptFailed);
+                    qr.setRemainingQuantity(overReceiptFailed);
+                    qr.setReason(item.getQcFailureReason() != null ? item.getQcFailureReason() : "Over-receipt QC failed");
+                    qr.setCreatedBy(actor);
+                    qr.setCreatedAt(OffsetDateTime.now());
+                    quarantineRecordRepository.save(qr);
+                }
+            }
         }
     }
 
@@ -299,6 +445,14 @@ public class InterWarehouseTransferReceivingService {
                 .orElseThrow(() -> new BusinessRuleViolationException("IN_TRANSIT_WAREHOUSE_NOT_CONFIGURED"));
         WarehouseLocation quarantineLocation = helper.findQuarantineLocation(transfer);
         Warehouse targetWarehouse = transfer.isReturned() ? transfer.getSourceWarehouse() : transfer.getDestinationWarehouse();
+
+        // T049: Validate bin capacity for quarantine location (dry run check first)
+        BigDecimal totalQtyToQuarantine = BigDecimal.ZERO;
+        for (InterWarehouseTransferItem item : helper.items(transfer)) {
+            BigDecimal qty = item.getSentQty() != null ? item.getSentQty() : item.getPlannedQty();
+            totalQtyToQuarantine = totalQtyToQuarantine.add(qty);
+            assertLocationCapacity(quarantineLocation, item.getProduct(), qty);
+        }
 
         for (InterWarehouseTransferItem item : helper.items(transfer)) {
             for (InterWarehouseTransferAllocation allocation : allocationRepository.findByTransferItemId(item.getId())) {
@@ -311,6 +465,7 @@ public class InterWarehouseTransferReceivingService {
                 transit.setUpdatedAt(OffsetDateTime.now());
                 inventoryRepository.save(transit);
 
+                applyLocationOccupancy(quarantineLocation, item.getProduct(), qty);
                 helper.upsertInventory(targetWarehouse, item.getProduct(), transit.getBatch(),
                         quarantineLocation, qty, transit.getCostPrice());
 
@@ -346,6 +501,36 @@ public class InterWarehouseTransferReceivingService {
         transfer.setReturnRequestedAt(OffsetDateTime.now());
         transfer.setUpdatedAt(OffsetDateTime.now());
 
+        if (request.wrongSkuItems() != null && !request.wrongSkuItems().isEmpty()) {
+            WrongSkuReport report = WrongSkuReport.builder()
+                    .transfer(transfer)
+                    .status("PENDING")
+                    .reportedBy(actor)
+                    .reportedAt(OffsetDateTime.now())
+                    .build();
+            report = wrongSkuReportRepository.save(report);
+
+            for (WrongSkuItemRequest line : request.wrongSkuItems()) {
+                InterWarehouseTransferItem item = transferItemRepository.findById(line.transferItemId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Transfer item not found: " + line.transferItemId()));
+                Product expected = productRepository.findById(line.expectedProductId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + line.expectedProductId()));
+                Product actual = productRepository.findById(line.actualProductId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + line.actualProductId()));
+
+                WrongSkuReportItem reportItem = WrongSkuReportItem.builder()
+                        .report(report)
+                        .transferItem(item)
+                        .expectedProduct(expected)
+                        .actualProduct(actual)
+                        .affectedQty(line.affectedQty())
+                        .reason(line.reason())
+                        .photoRef(line.photoRef())
+                        .build();
+                wrongSkuReportItemRepository.save(reportItem);
+            }
+        }
+
         InterWarehouseTransfer saved = transferRepository.save(transfer);
         helper.audit(saved, actor, AuditAction.UPDATE, before, helper.snapshot(saved));
         return helper.toResponse(saved);
@@ -369,6 +554,17 @@ public class InterWarehouseTransferReceivingService {
         transfer.setReturned(true);
         transfer.setReturnRequested(false);
         transfer.setUpdatedAt(OffsetDateTime.now());
+
+        // Approve pending wrong SKU reports
+        List<WrongSkuReport> pendingReports = wrongSkuReportRepository.findByTransferId(transfer.getId());
+        for (WrongSkuReport report : pendingReports) {
+            if ("PENDING".equals(report.getStatus())) {
+                report.setStatus("APPROVED");
+                report.setManagerDecisionBy(actor);
+                report.setManagerDecisionAt(OffsetDateTime.now());
+                wrongSkuReportRepository.save(report);
+            }
+        }
 
         InterWarehouseTransfer saved = transferRepository.save(transfer);
         helper.audit(saved, actor, AuditAction.TRANSFER_RETURN_TO_SOURCE, before, helper.snapshot(saved));
@@ -394,6 +590,18 @@ public class InterWarehouseTransferReceivingService {
         transfer.setReturnRequested(false);
         transfer.setUpdatedAt(OffsetDateTime.now());
 
+        // Reject pending wrong SKU reports
+        List<WrongSkuReport> pendingReports = wrongSkuReportRepository.findByTransferId(transfer.getId());
+        for (WrongSkuReport report : pendingReports) {
+            if ("PENDING".equals(report.getStatus())) {
+                report.setStatus("REJECTED");
+                report.setManagerDecisionBy(actor);
+                report.setManagerDecisionAt(OffsetDateTime.now());
+                report.setManagerNote(request.reason());
+                wrongSkuReportRepository.save(report);
+            }
+        }
+
         InterWarehouseTransfer saved = transferRepository.save(transfer);
         helper.audit(saved, actor, AuditAction.UPDATE, before, helper.snapshot(saved));
         return helper.toResponse(saved);
@@ -402,5 +610,39 @@ public class InterWarehouseTransferReceivingService {
     private String generateAdjustmentNumber() {
         return "ADJ-" + java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd"))
                + "-" + java.util.UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+    }
+
+    private void assertLocationCapacity(WarehouseLocation location, Product product, BigDecimal qty) {
+        if (location == null || qty == null || qty.signum() <= 0) {
+            return;
+        }
+        BigDecimal addedVolume = product.getVolumeM3() != null ? product.getVolumeM3().multiply(qty) : BigDecimal.ZERO;
+        BigDecimal addedWeight = product.getWeightKg() != null ? product.getWeightKg().multiply(qty) : BigDecimal.ZERO;
+
+        BigDecimal currentVolume = location.getCurrentVolumeM3() != null ? location.getCurrentVolumeM3() : BigDecimal.ZERO;
+        BigDecimal currentWeight = location.getCurrentWeightKg() != null ? location.getCurrentWeightKg() : BigDecimal.ZERO;
+
+        if (location.getCapacityM3() != null && currentVolume.add(addedVolume).compareTo(location.getCapacityM3()) > 0) {
+            throw new BusinessRuleViolationException("BIN_CAPACITY_EXCEEDED: Volume exceeds location capacity for " + location.getCode());
+        }
+        if (location.getCapacityKg() != null && currentWeight.add(addedWeight).compareTo(location.getCapacityKg()) > 0) {
+            throw new BusinessRuleViolationException("BIN_CAPACITY_EXCEEDED: Weight exceeds location capacity for " + location.getCode());
+        }
+    }
+
+    private void applyLocationOccupancy(WarehouseLocation location, Product product, BigDecimal qty) {
+        if (location == null || qty == null || qty.signum() <= 0) {
+            return;
+        }
+        BigDecimal addedVolume = product.getVolumeM3() != null ? product.getVolumeM3().multiply(qty) : BigDecimal.ZERO;
+        BigDecimal addedWeight = product.getWeightKg() != null ? product.getWeightKg().multiply(qty) : BigDecimal.ZERO;
+
+        BigDecimal currentVolume = location.getCurrentVolumeM3() != null ? location.getCurrentVolumeM3() : BigDecimal.ZERO;
+        BigDecimal currentWeight = location.getCurrentWeightKg() != null ? location.getCurrentWeightKg() : BigDecimal.ZERO;
+
+        location.setCurrentVolumeM3(currentVolume.add(addedVolume));
+        location.setCurrentWeightKg(currentWeight.add(addedWeight));
+        location.setUpdatedAt(OffsetDateTime.now());
+        locationRepository.save(location);
     }
 }

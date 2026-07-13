@@ -42,6 +42,18 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
   const [countRows, setCountRows] = useState([]);
   const [checkRows, setCheckRows] = useState([]);
   const [busy, setBusy] = useState(false);
+  const [outboundQcPhotoRef, setOutboundQcPhotoRef] = useState('');
+  const [outboundQcNote, setOutboundQcNote] = useState('');
+  const [loadHandoverPhotoRef, setLoadHandoverPhotoRef] = useState('');
+  const [arrivalHandoverPhotoRef, setArrivalHandoverPhotoRef] = useState('');
+  const [returnPhotoRef, setReturnPhotoRef] = useState('');
+  const [wrongSkuItems, setWrongSkuItems] = useState([]);
+  const [newWrongSku, setNewWrongSku] = useState({
+    transferItemId: '',
+    actualProductSku: '',
+    quantity: '',
+    reason: '',
+  });
 
   useEffect(() => {
     setTrip({
@@ -52,6 +64,18 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
     });
     setCountRows([]);
     setCheckRows([]);
+    setOutboundQcPhotoRef('');
+    setOutboundQcNote('');
+    setLoadHandoverPhotoRef('');
+    setArrivalHandoverPhotoRef('');
+    setReturnPhotoRef('');
+    setWrongSkuItems([]);
+    setNewWrongSku({
+      transferItemId: '',
+      actualProductSku: '',
+      quantity: '',
+      reason: '',
+    });
   }, [transfer?.id, transfer?.tripPlannedStartAt, transfer?.tripPlannedEndAt]);
 
   const destinationBins = useMemo(() => locations.filter((loc) => {
@@ -89,7 +113,9 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
   const hasTrip = Boolean(transfer.tripId);
   const isAssignedDriver = hasRole(ROLES.DRIVER)
     && Number(transfer.driverUserId || 0) === Number(currentUser?.id || 0);
-  const canDriverDepart = hasTrip && allItemsSent && isAssignedDriver;
+  const canDriverDepart = hasTrip && allItemsSent && isAssignedDriver
+    && (transfer.outboundQcPassed || transfer.outbound_qc_passed || false)
+    && Boolean(transfer.loadHandoverPhotoRef || transfer.load_handover_photo_ref || false);
   const sourceWarehouseId = Number(transfer.sourceWarehouseId || 0);
   const sourceVehicles = vehicles.filter((vehicle) => {
     const warehouseId = Number(vehicle.warehouse_id || vehicle.warehouseId || 0);
@@ -328,16 +354,82 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
       )}
 
       {transfer.status === 'APPROVED' && hasAny(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]) && canManageSourceWarehouse && hasTrip && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          <Button loading={busy} disabled={allItemsSent} icon={PackageCheck} onClick={() => run('ship')}>
-            {allItemsSent ? 'Đã xếp hàng' : 'Xếp hàng đúng số lượng'}
-          </Button>
-          <Button loading={busy} icon={RotateCcw} variant="outline-light" onClick={() => run('unship')}>Hạ hàng khỏi xe</Button>
+        <div className="flex flex-col gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <Button loading={busy} disabled={allItemsSent} icon={PackageCheck} onClick={() => run('ship')}>
+              {allItemsSent ? 'Đã xếp hàng' : 'Xếp hàng đúng số lượng'}
+            </Button>
+            <Button loading={busy} icon={RotateCcw} variant="outline-light" onClick={() => run('unship')}>Hạ hàng khỏi xe</Button>
+          </div>
+
+          {/* Outbound QC Step */}
+          {allItemsSent && (
+            <div className="border border-hairline-light rounded p-3 bg-canvas-cream flex flex-col gap-2">
+              <div className="text-xs font-semibold text-ink">BƯỚC 1: KIỂM TRA OUTBOUND QC</div>
+              {transfer.outboundQcPassed || transfer.outbound_qc_passed ? (
+                <div className="text-xs text-success-700 font-semibold flex items-center gap-1">
+                  <Check className="w-4 h-4" /> Outbound QC Đạt! (Ghi chú: "{transfer.outboundQcNote || transfer.outbound_qc_note || ''}")
+                </div>
+              ) : (
+                <>
+                  <Input label="Ghi chú QC" value={outboundQcNote} onChange={(e) => setOutboundQcNote(e.target.value)} placeholder="Nhập ghi chú QC..." />
+                  <Input label="Ảnh xác nhận QC (photo_ref)" value={outboundQcPhotoRef} onChange={(e) => setOutboundQcPhotoRef(e.target.value)} placeholder="Nhập link/ref ảnh..." />
+                  <div className="flex gap-2">
+                    <Button loading={busy} size="sm" onClick={() => {
+                      if (!outboundQcPhotoRef.trim()) {
+                        addToast('Vui lòng nhập link ảnh QC!', 'error');
+                        return;
+                      }
+                      run('recordOutboundQc', { outboundQcPassed: true, outboundQcNote, outboundQcPhotoRef });
+                    }}>QC Đạt</Button>
+                    <Button loading={busy} variant="outline-light" size="sm" className="text-danger-600 border-danger-300" onClick={() => {
+                      if (!outboundQcPhotoRef.trim()) {
+                        addToast('Vui lòng nhập link ảnh QC!', 'error');
+                        return;
+                      }
+                      run('recordOutboundQc', { outboundQcPassed: false, outboundQcNote, outboundQcPhotoRef });
+                    }}>QC Thất bại</Button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Load Handover Step */}
+          {allItemsSent && (transfer.outboundQcPassed || transfer.outbound_qc_passed) && (
+            <div className="border border-hairline-light rounded p-3 bg-canvas-cream flex flex-col gap-2">
+              <div className="text-xs font-semibold text-ink">BƯỚC 2: BÀN GIAO LÊN XE (LOAD HANDOVER)</div>
+              {transfer.loadHandoverPhotoRef || transfer.load_handover_photo_ref ? (
+                <div className="text-xs text-success-700 font-semibold flex items-center gap-1">
+                  <Check className="w-4 h-4" /> Đã bàn giao hàng lên xe! (Ảnh: {transfer.loadHandoverPhotoRef || transfer.load_handover_photo_ref})
+                </div>
+              ) : (
+                <>
+                  <Input label="Ảnh bàn giao hàng (photo_ref)" value={loadHandoverPhotoRef} onChange={(e) => setLoadHandoverPhotoRef(e.target.value)} placeholder="Nhập link/ref ảnh bàn giao..." />
+                  <Button loading={busy} size="sm" onClick={() => {
+                    if (!loadHandoverPhotoRef.trim()) {
+                      addToast('Vui lòng nhập link ảnh bàn giao!', 'error');
+                      return;
+                    }
+                    run('loadHandover', { loadHandoverPhotoRef });
+                  }}>Xác nhận Bàn giao</Button>
+                </>
+              )}
+            </div>
+          )}
         </div>
       )}
 
-      {transfer.status === 'APPROVED' && hasRole(ROLES.DRIVER) && canDriverDepart && (
-        <Button loading={busy} icon={Send} onClick={() => run('depart')}>Tài xế xác nhận rời kho</Button>
+      {transfer.status === 'APPROVED' && hasRole(ROLES.DRIVER) && hasTrip && allItemsSent && isAssignedDriver && (
+        <div className="flex flex-col gap-2">
+          {!((transfer.outboundQcPassed || transfer.outbound_qc_passed) && (transfer.loadHandoverPhotoRef || transfer.load_handover_photo_ref)) ? (
+            <div className="rounded-md border border-warning-200 bg-warning-50 p-3 text-xs text-warning-700">
+              Chờ thủ kho hoàn tất Outbound QC và bàn giao lên xe (Load Handover) trước khi tài xế xác nhận rời kho.
+            </div>
+          ) : (
+            <Button loading={busy} icon={Send} onClick={() => run('depart')}>Tài xế xác nhận rời kho</Button>
+          )}
+        </div>
       )}
 
       {transfer.status === 'APPROVED' && hasRole(ROLES.DRIVER) && hasTrip && allItemsSent && !isAssignedDriver && (
@@ -352,6 +444,99 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
         </div>
       )}
 
+      {/* ----------------- IN_TRANSIT STATE ----------------- */}
+
+      {/* Driver arrival & handover gates */}
+      {transfer.status === 'IN_TRANSIT' && !transfer.isReturned && (
+        <div className="flex flex-col gap-3 mb-2">
+          {/* Driver Arrive step */}
+          {!transfer.driverArrivedAt && (
+            <div className="border border-hairline-light rounded p-3 bg-canvas-cream flex flex-col gap-2">
+              <div className="text-xs font-semibold text-ink">BƯỚC 1: TÀI XẾ ĐẾN KHO ĐÍCH</div>
+              {isAssignedDriver ? (
+                <Button loading={busy} icon={Check} onClick={() => run('driverArrive')}>Tài xế xác nhận đã đến kho đích</Button>
+              ) : (
+                <div className="text-xs text-warning-700 italic">Đang chờ tài xế xác nhận đã đến kho đích...</div>
+              )}
+            </div>
+          )}
+
+          {/* Receiving Handover step */}
+          {transfer.driverArrivedAt && !transfer.arrivalHandoverAt && (
+            <div className="border border-hairline-light rounded p-3 bg-canvas-cream flex flex-col gap-2">
+              <div className="text-xs font-semibold text-ink">BƯỚC 2: BÀN GIAO TẠI KHO ĐÍCH</div>
+              {hasAny(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse ? (
+                <>
+                  <Input label="Ảnh bàn giao nhận hàng (photo_ref)" value={arrivalHandoverPhotoRef} onChange={(e) => setArrivalHandoverPhotoRef(e.target.value)} placeholder="Nhập link/ref ảnh bàn giao..." />
+                  <Button loading={busy} size="sm" onClick={() => {
+                    if (!arrivalHandoverPhotoRef.trim()) {
+                      addToast('Vui lòng nhập link ảnh bàn giao!', 'error');
+                      return;
+                    }
+                    run('receivingHandover', { photoRef: arrivalHandoverPhotoRef });
+                  }}>Xác nhận Nhận bàn giao</Button>
+                </>
+              ) : (
+                <div className="text-xs text-warning-700 italic">Đang chờ thủ kho kho đích xác nhận nhận bàn giao xe...</div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Return leg steps inside IN_TRANSIT (Quay đầu) */}
+      {transfer.status === 'IN_TRANSIT' && transfer.isReturned && (
+        <div className="flex flex-col gap-3 mb-2">
+          <div className="text-xs font-bold text-danger-700 uppercase">Luồng quay đầu về kho nguồn</div>
+
+          {/* Return Depart step */}
+          {!transfer.returnDepartedAt && (
+            <div className="border border-hairline-light rounded p-3 bg-canvas-cream flex flex-col gap-2">
+              <div className="text-xs font-semibold text-ink">BƯỚC 1: XUẤT PHÁT QUAY ĐẦU (TỪ KHO ĐÍCH)</div>
+              {isAssignedDriver ? (
+                <Button loading={busy} icon={Send} onClick={() => run('returnDepart')}>Tài xế rời kho đích (Quay đầu)</Button>
+              ) : (
+                <div className="text-xs text-warning-700 italic">Đang chờ tài xế xác nhận rời kho đích để quay đầu...</div>
+              )}
+            </div>
+          )}
+
+          {/* Return Arrive step */}
+          {transfer.returnDepartedAt && !transfer.returnArrivedAt && (
+            <div className="border border-hairline-light rounded p-3 bg-canvas-cream flex flex-col gap-2">
+              <div className="text-xs font-semibold text-ink">BƯỚC 2: XE QUAY VỀ ĐẾN KHO NGUỒN</div>
+              {isAssignedDriver ? (
+                <Button loading={busy} icon={Check} onClick={() => run('returnArrive')}>Tài xế xác nhận về đến kho nguồn</Button>
+              ) : (
+                <div className="text-xs text-warning-700 italic">Đang chờ xe quay về đến kho nguồn...</div>
+              )}
+            </div>
+          )}
+
+          {/* Return Handover step */}
+          {transfer.returnArrivedAt && !transfer.returnArrivalHandoverAt && (
+            <div className="border border-hairline-light rounded p-3 bg-canvas-cream flex flex-col gap-2">
+              <div className="text-xs font-semibold text-ink">BƯỚC 3: BÀN GIAO QUAY ĐẦU TẠI KHO NGUỒN</div>
+              {hasAny(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]) && canManageSourceWarehouse ? (
+                <>
+                  <Input label="Ảnh bàn giao quay đầu (photo_ref)" value={returnPhotoRef} onChange={(e) => setReturnPhotoRef(e.target.value)} placeholder="Nhập link/ref ảnh..." />
+                  <Button loading={busy} size="sm" onClick={() => {
+                    if (!returnPhotoRef.trim()) {
+                      addToast('Vui lòng nhập link ảnh bàn giao!', 'error');
+                      return;
+                    }
+                    run('returnHandover', { photoRef: returnPhotoRef });
+                  }}>Xác nhận Nhận bàn giao quay đầu</Button>
+                </>
+              ) : (
+                <div className="text-xs text-warning-700 italic">Đang chờ thủ kho kho nguồn xác nhận bàn giao quay đầu...</div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Wrong SKU return request waiting for approval */}
       {transfer.status === 'IN_TRANSIT' && !transfer.isReturned && transfer.returnRequested && (
         <div className="rounded-md border border-danger-200 bg-danger-50 p-3 flex flex-col gap-2.5 mb-2">
           <div className="text-xs text-danger-700 font-bold flex items-center gap-1.5">
@@ -393,24 +578,75 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
         </div>
       )}
 
+      {/* Wrong SKU submission form */}
       {transfer.status === 'IN_TRANSIT' && !transfer.isReturned && !transfer.returnRequested && hasAny(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && (
-        <div className="rounded-lg border border-hairline-light bg-canvas-cream p-4 text-sm flex flex-col gap-2 mb-2">
-          <div className="text-xs text-ink font-semibold">Phát hiện gửi sai SKU, hàng hỏng hoặc sai lệch nghiêm trọng khi mở thùng?</div>
+        <div className="rounded-lg border border-hairline-light bg-canvas-cream p-4 text-sm flex flex-col gap-3 mb-2">
+          <div className="text-xs text-ink font-semibold flex items-center gap-1.5 text-danger-700">
+            Báo sai SKU & Yêu cầu quay đầu xe
+          </div>
+
+          {/* Form to add item */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-2 items-end border-b border-hairline-light pb-3">
+            <Input type="select" label="Dòng hàng lỗi" value={newWrongSku.transferItemId} onChange={(e) => setNewWrongSku({ ...newWrongSku, transferItemId: e.target.value })}
+              options={[
+                { value: '', label: 'Chọn dòng hàng' },
+                ...(transfer.items || []).map((item) => ({ value: item.id, label: `${item.productSku} (Yêu cầu: ${item.plannedQty})` }))
+              ]} />
+            <Input label="SKU thực tế nhận" value={newWrongSku.actualProductSku} onChange={(e) => setNewWrongSku({ ...newWrongSku, actualProductSku: e.target.value })} placeholder="Nhập SKU..." />
+            <Input label="Số lượng sai" type="number" value={newWrongSku.quantity} onChange={(e) => setNewWrongSku({ ...newWrongSku, quantity: e.target.value })} />
+            <Input label="Lý do" value={newWrongSku.reason} onChange={(e) => setNewWrongSku({ ...newWrongSku, reason: e.target.value })} placeholder="Nhập lý do..." />
+            <div className="md:col-span-4 flex justify-end">
+              <Button size="sm" variant="outline-light" onClick={() => {
+                if (!newWrongSku.transferItemId || !newWrongSku.actualProductSku.trim() || !newWrongSku.quantity || !newWrongSku.reason.trim()) {
+                  addToast('Vui lòng nhập đầy đủ thông tin dòng hàng sai!', 'error');
+                  return;
+                }
+                setWrongSkuItems([...wrongSkuItems, {
+                  transferItemId: Number(newWrongSku.transferItemId),
+                  actualProductSku: newWrongSku.actualProductSku.trim(),
+                  quantity: Number(newWrongSku.quantity),
+                  reason: newWrongSku.reason.trim(),
+                }]);
+                setNewWrongSku({ transferItemId: '', actualProductSku: '', quantity: '', reason: '' });
+              }}>Thêm dòng</Button>
+            </div>
+          </div>
+
+          {/* List of items added */}
+          {wrongSkuItems.length > 0 && (
+            <div className="text-xs bg-canvas-light border border-hairline-light rounded p-2 flex flex-col gap-1.5">
+              <div className="font-semibold">Danh sách hàng sai SKU cần trả về:</div>
+              {wrongSkuItems.map((item, idx) => {
+                const orig = transfer.items.find((line) => line.id === item.transferItemId);
+                return (
+                  <div key={idx} className="flex justify-between items-center text-[11px] text-shade-60 border-b border-hairline-light pb-1">
+                    <span>- {orig?.productSku} → {item.actualProductSku} (SL: {item.quantity}): {item.reason}</span>
+                    <button className="text-danger-600 hover:underline" onClick={() => setWrongSkuItems(wrongSkuItems.filter((_, i) => i !== idx))}>Xóa</button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           <div className="flex gap-2">
             <Input
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="Nhập lý do gửi sai SKU..."
+              placeholder="Nhập lý do chung..."
               className="flex-1"
             />
-            <Button variant="outline-light" icon={RotateCcw} className="text-shade-50 border-hairline-light hover:bg-canvas-cream py-1.5 px-3 text-xs" loading={busy} onClick={() => {
+            <Button variant="outline-light" icon={RotateCcw} className="text-danger-700 border-danger-300 hover:bg-danger-50 py-1.5 px-3 text-xs" loading={busy} onClick={() => {
               if (!reason.trim()) {
-                addToast('Vui lòng điền lý do gửi sai SKU!', 'error');
+                addToast('Vui lòng nhập lý do chung!', 'error');
                 return;
               }
-              run('requestReturn', reason);
+              if (wrongSkuItems.length === 0) {
+                addToast('Vui lòng thêm ít nhất 1 dòng hàng sai SKU!', 'error');
+                return;
+              }
+              run('requestReturn', { reason: reason.trim(), wrongSkuItems });
             }}>
-              Báo sai SKU & Trả về
+              Gửi yêu cầu quay đầu
             </Button>
           </div>
         </div>
@@ -418,13 +654,23 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
 
       {transfer.status === 'IN_TRANSIT' && !transfer.isReturned && (hasAny(hasRole, [ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]) && canManageSourceWarehouse) && (
         <div className="rounded-md border border-warning-200 bg-warning-50/50 p-3 flex flex-col gap-2 mb-2">
-          <div className="text-xs text-warning-800 font-medium">Chuyến xe có sự cố hoặc cần quay đầu về kho nguồn?</div>
-          <Button variant="outline-light" icon={RotateCcw} className="text-warning-700 border-warning-300 hover:bg-warning-100" loading={busy} onClick={() => run('returnToSource')}>
-            Quay đầu về kho nguồn
-          </Button>
+          <div className="text-xs text-warning-800 font-medium">Chuyến xe có sự cố hoặc cần quay đầu về kho nguồn? (Yêu cầu lý do)</div>
+          <div className="flex gap-2">
+            <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Lý do quay đầu bắt buộc..." className="flex-1" />
+            <Button variant="outline-light" icon={RotateCcw} className="text-warning-700 border-warning-300 hover:bg-warning-100" loading={busy} onClick={() => {
+              if (!reason.trim()) {
+                addToast('Vui lòng nhập lý do quay đầu!', 'error');
+                return;
+              }
+              run('requestReturn', { reason: reason.trim(), wrongSkuItems: [] });
+            }}>
+              Quay đầu về kho nguồn
+            </Button>
+          </div>
         </div>
       )}
 
+      {/* Receive counting steps */}
       {transfer.status === 'IN_TRANSIT' && hasAny(hasRole, [ROLES.WAREHOUSE_STAFF, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && (
         <div className="flex flex-col gap-3">
           {transfer.tripOverdue && !transfer.isReturned ? (
@@ -433,18 +679,27 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
             </div>
           ) : (
             <>
-              <Button variant="outline-light" icon={ClipboardCheck} onClick={ensureCountRows}>Nhập số lượng thực nhận</Button>
-              {countRows.map((row) => {
-                const item = transfer.items.find((line) => line.id === row.transferItemId);
-                return (
-                  <div key={row.transferItemId} className="grid grid-cols-1 md:grid-cols-4 gap-2 items-end">
-                    <div className="text-xs font-semibold">{item.productSku}<br /><span className="text-shade-50">Gửi: {item.sentQty}</span></div>
-                    <Input label="Số lượng nhận" type="number" value={row.receivedQty} onChange={(e) => setRow(countRows, setCountRows, row.transferItemId, { receivedQty: Number(e.target.value) })} />
-                    <Input label="Lý do nếu lệch" value={row.issueReason} onChange={(e) => setRow(countRows, setCountRows, row.transferItemId, { issueReason: e.target.value })} />
-                    <Button loading={busy} className="py-2.5 px-4 text-xs" onClick={() => run('receiveCount', countRows)}>Lưu count</Button>
-                  </div>
-                );
-              })}
+              {/* If arrival/handover missing, show alert block instead of form */}
+              {(!transfer.isReturned && (!transfer.driverArrivedAt || !transfer.arrivalHandoverAt)) || (transfer.isReturned && (!transfer.returnArrivedAt || !transfer.returnArrivalHandoverAt)) ? (
+                <div className="rounded-md border border-warning-200 bg-warning-50 p-3 text-xs text-warning-700">
+                  Thao tác kiểm đếm thực nhận bị khóa. Yêu cầu hoàn thành các bước bàn giao xe/hàng với tài xế trước.
+                </div>
+              ) : (
+                <>
+                  <Button variant="outline-light" icon={ClipboardCheck} onClick={ensureCountRows}>Nhập số lượng thực nhận</Button>
+                  {countRows.map((row) => {
+                    const item = transfer.items.find((line) => line.id === row.transferItemId);
+                    return (
+                      <div key={row.transferItemId} className="grid grid-cols-1 md:grid-cols-4 gap-2 items-end">
+                        <div className="text-xs font-semibold">{item.productSku}<br /><span className="text-shade-50">Gửi: {item.sentQty}</span></div>
+                        <Input label="Số lượng nhận" type="number" value={row.receivedQty} onChange={(e) => setRow(countRows, setCountRows, row.transferItemId, { receivedQty: Number(e.target.value) })} />
+                        <Input label="Lý do nếu lệch" value={row.issueReason} onChange={(e) => setRow(countRows, setCountRows, row.transferItemId, { issueReason: e.target.value })} />
+                        <Button loading={busy} className="py-2.5 px-4 text-xs" onClick={() => run('receiveCount', countRows)}>Lưu count</Button>
+                      </div>
+                    );
+                  })}
+                </>
+              )}
             </>
           )}
         </div>
@@ -466,50 +721,58 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
             </div>
           ) : (
             <>
-              <div className="flex flex-col md:flex-row md:items-end gap-2 border-b border-hairline-light pb-3">
-                <div className="flex-1">
-                  <Button variant="outline-light" icon={ClipboardCheck} onClick={ensureCheckRows}>Kiểm tra count/QC</Button>
+              {(!transfer.isReturned && (!transfer.driverArrivedAt || !transfer.arrivalHandoverAt)) || (transfer.isReturned && (!transfer.returnArrivedAt || !transfer.returnArrivalHandoverAt)) ? (
+                <div className="rounded-md border border-warning-200 bg-warning-50 p-3 text-xs text-warning-700">
+                  Thao tác kiểm tra QC bị khóa. Yêu cầu hoàn thành các bước bàn giao xe/hàng với tài xế trước.
                 </div>
-                <div className="flex-1 md:flex-initial flex gap-2 items-end">
-                  <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Lý do từ chối cách ly bắt buộc" />
-                  <Button loading={busy} variant="outline-light" className="text-danger-600 border-danger-600 hover:bg-danger-50" icon={X} onClick={() => {
-                    if (!reason.trim()) {
-                      addToast('Vui lòng nhập lý do từ chối cách ly!', 'error');
-                      return;
-                    }
-                    run('quarantineReject', reason);
-                  }}>Từ chối & Cách ly toàn bộ</Button>
-                </div>
-              </div>
-              {checkRows.map((row) => {
-                const item = transfer.items.find((line) => line.id === row.transferItemId);
-                return (
-                  <div key={row.transferItemId} className="flex flex-col gap-2">
-                     <div className="grid grid-cols-1 md:grid-cols-6 gap-2 items-end">
-                       <div className="text-xs font-semibold">{item.productSku}<br /><span className="text-shade-50">CN nhập: {item.workerReceivedQty ?? '-'}</span></div>
-                       <Input label="SL chốt" type="number" value={row.confirmedQty} onChange={(e) => setRow(checkRows, setCheckRows, row.transferItemId, { confirmedQty: Number(e.target.value) })} />
-                       <Input label="QC đạt" type="number" value={row.qcPassedQty} onChange={(e) => setRow(checkRows, setCheckRows, row.transferItemId, { qcPassedQty: Number(e.target.value) })} />
-                       <div className="flex flex-col gap-1">
-                         <Input label="QC lỗi" type="number" value={row.qcFailedQty} onChange={(e) => setRow(checkRows, setCheckRows, row.transferItemId, { qcFailedQty: Number(e.target.value) })} />
-                         {Number(row.qcFailedQty) > 0 && (
-                           <div className="text-[10px] text-warning-700 bg-warning-50 border border-warning-200 rounded px-2 py-1 leading-snug">
-                             {destinationQuarantineBin
-                               ? <>{Number(row.qcFailedQty)} sp lỗi → <span className="font-mono font-bold">{destinationQuarantineBin.code ?? destinationQuarantineBin.code}</span> (tự động)</>
-                               : '⚠ Kho đích chưa có Quarantine Bin!'}
-                           </div>
-                         )}
-                       </div>
-                       <Input type="select" label="Bin đạt QC" value={row.destinationLocationId} onChange={(e) => setRow(checkRows, setCheckRows, row.transferItemId, { destinationLocationId: e.target.value })}
-                         options={[{ value: '', label: 'Chọn bin' }, ...destinationBins.map((loc) => ({ value: loc.id, label: loc.code }))]} />
-                       <Button loading={busy} className="py-2.5 px-4 text-xs" onClick={() => run('receiveCheck', checkRows.map((line) => ({ ...line, destinationLocationId: Number(line.destinationLocationId) })))}>Duyệt QC</Button>
-                     </div>
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                       <Input label="Checker note nếu sửa count" value={row.checkerNote} onChange={(e) => setRow(checkRows, setCheckRows, row.transferItemId, { checkerNote: e.target.value })} />
-                       <Input label="Lý do QC lỗi" value={row.qcFailureReason} onChange={(e) => setRow(checkRows, setCheckRows, row.transferItemId, { qcFailureReason: e.target.value })} />
-                     </div>
+              ) : (
+                <>
+                  <div className="flex flex-col md:flex-row md:items-end gap-2 border-b border-hairline-light pb-3">
+                    <div className="flex-1">
+                      <Button variant="outline-light" icon={ClipboardCheck} onClick={ensureCheckRows}>Kiểm tra count/QC</Button>
+                    </div>
+                    <div className="flex-1 md:flex-initial flex gap-2 items-end">
+                      <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Lý do từ chối cách ly bắt buộc" />
+                      <Button loading={busy} variant="outline-light" className="text-danger-600 border-danger-600 hover:bg-danger-50" icon={X} onClick={() => {
+                        if (!reason.trim()) {
+                          addToast('Vui lòng nhập lý do từ chối cách ly!', 'error');
+                          return;
+                        }
+                        run('quarantineReject', reason);
+                      }}>Từ chối & Cách ly toàn bộ</Button>
+                    </div>
                   </div>
-                );
-              })}
+                  {checkRows.map((row) => {
+                    const item = transfer.items.find((line) => line.id === row.transferItemId);
+                    return (
+                      <div key={row.transferItemId} className="flex flex-col gap-2">
+                         <div className="grid grid-cols-1 md:grid-cols-6 gap-2 items-end">
+                           <div className="text-xs font-semibold">{item.productSku}<br /><span className="text-shade-50">CN nhập: {item.workerReceivedQty ?? '-'}</span></div>
+                           <Input label="SL chốt" type="number" value={row.confirmedQty} onChange={(e) => setRow(checkRows, setCheckRows, row.transferItemId, { confirmedQty: Number(e.target.value) })} />
+                           <Input label="QC đạt" type="number" value={row.qcPassedQty} onChange={(e) => setRow(checkRows, setCheckRows, row.transferItemId, { qcPassedQty: Number(e.target.value) })} />
+                           <div className="flex flex-col gap-1">
+                             <Input label="QC lỗi" type="number" value={row.qcFailedQty} onChange={(e) => setRow(checkRows, setCheckRows, row.transferItemId, { qcFailedQty: Number(e.target.value) })} />
+                             {Number(row.qcFailedQty) > 0 && (
+                               <div className="text-[10px] text-warning-700 bg-warning-50 border border-warning-200 rounded px-2 py-1 leading-snug">
+                                 {destinationQuarantineBin
+                                   ? <>{Number(row.qcFailedQty)} sp lỗi → <span className="font-mono font-bold">{destinationQuarantineBin.code ?? destinationQuarantineBin.code}</span> (tự động)</>
+                                   : '⚠ Kho đích chưa có Quarantine Bin!'}
+                               </div>
+                             )}
+                           </div>
+                           <Input type="select" label="Bin đạt QC" value={row.destinationLocationId} onChange={(e) => setRow(checkRows, setCheckRows, row.transferItemId, { destinationLocationId: e.target.value })}
+                             options={[{ value: '', label: 'Chọn bin' }, ...destinationBins.map((loc) => ({ value: loc.id, label: loc.code }))]} />
+                           <Button loading={busy} className="py-2.5 px-4 text-xs" onClick={() => run('receiveCheck', checkRows.map((line) => ({ ...line, destinationLocationId: Number(line.destinationLocationId) })))}>Duyệt QC</Button>
+                         </div>
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                           <Input label="Checker note nếu sửa count" value={row.checkerNote} onChange={(e) => setRow(checkRows, setCheckRows, row.transferItemId, { checkerNote: e.target.value })} />
+                           <Input label="Lý do QC lỗi" value={row.qcFailureReason} onChange={(e) => setRow(checkRows, setCheckRows, row.transferItemId, { qcFailureReason: e.target.value })} />
+                         </div>
+                      </div>
+                    );
+                  })}
+                </>
+              )}
             </>
           )}
         </div>

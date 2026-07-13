@@ -48,9 +48,9 @@ Luong nay la tien xu ly cua transfer, khong thay the buoc Planner tao `TRF`, Tru
 * `POST /api/v1/transfer-requests` - Warehouse manager creates a draft transfer request from cross-warehouse stock visibility.
 * `PUT /api/v1/transfer-requests/{id}` - Warehouse manager updates a `DRAFT` request.
 * `POST /api/v1/transfer-requests/{id}/submit` - Warehouse manager submits request to CEO.
-* `POST /api/v1/transfer-requests/{id}/ceo-approve` - CEO approves request and sends/generates the approved request template for source Planner.
-* `POST /api/v1/transfer-requests/{id}/ceo-reject` - CEO rejects request with required reason.
-* `POST /api/v1/transfer-requests/{id}/convert-to-transfer` - Planner creates a `TRF-*` from an approved request.
+* `POST /api/v1/transfer-requests/{id}/approve` - CEO approves request and sends/generates the approved request template for source Planner.
+* `POST /api/v1/transfer-requests/{id}/reject` - CEO rejects request with required reason.
+* `POST /api/v1/transfer-requests/{id}/convert` - Planner creates a `TRF-*` from an approved request.
 
 ### Create Request Payload
 

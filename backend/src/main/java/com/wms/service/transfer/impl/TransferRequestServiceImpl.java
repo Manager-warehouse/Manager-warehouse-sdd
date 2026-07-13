@@ -204,7 +204,7 @@ public class TransferRequestServiceImpl implements TransferRequestService {
     @Override
     @Transactional
     public TransferRequestResponse convertToTransfer(Long id, User actor) {
-        if (actor.getRole() != UserRole.PLANNER && actor.getRole() != UserRole.ADMIN && actor.getRole() != UserRole.CEO) {
+        if (actor.getRole() != UserRole.PLANNER && actor.getRole() != UserRole.ADMIN) {
             throw new BusinessRuleViolationException("PLANNER_ROLE_REQUIRED");
         }
 
@@ -213,6 +213,11 @@ public class TransferRequestServiceImpl implements TransferRequestService {
             throw new BusinessRuleViolationException("ONLY_APPROVED_CAN_BE_CONVERTED");
         }
         if (req.getConvertedTransfer() != null) {
+            throw new BusinessRuleViolationException("TRANSFER_REQUEST_ALREADY_CONVERTED");
+        }
+        // Unique guard for active transfer conversion (T028)
+        if (interWarehouseTransferRepository.existsByTransferRequestIdAndStatusNotIn(req.getId(),
+                List.of(InterWarehouseTransferStatus.CANCELLED, InterWarehouseTransferStatus.REJECTED))) {
             throw new BusinessRuleViolationException("TRANSFER_REQUEST_ALREADY_CONVERTED");
         }
 
@@ -226,12 +231,15 @@ public class TransferRequestServiceImpl implements TransferRequestService {
                 ))
                 .toList();
 
+        // T027: plannedDate is taken from neededByDate instead of now()+2
+        LocalDate plannedDate = req.getNeededByDate() != null ? req.getNeededByDate() : LocalDate.now().plusDays(2);
+
         InterWarehouseTransferCreateRequest createRequest = new InterWarehouseTransferCreateRequest(
                 req.getRequestNumber(), // Use request number as external instruction code
                 req.getSourceWarehouse().getId(),
                 req.getDestinationWarehouse().getId(),
                 LocalDate.now(),
-                LocalDate.now().plusDays(2), // default planning lead time
+                plannedDate,
                 req.getNotes(),
                 itemRequests
         );

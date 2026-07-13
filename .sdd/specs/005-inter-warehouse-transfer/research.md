@@ -6,9 +6,9 @@
 
 **Alternatives considered**: Add `LOADED` status. Rejected because the user explicitly accepted using `sent_qty` and the spec keeps status `APPROVED` until driver departure.
 
-## Decision: Implement transfer endpoints under `/api/v1/transfers`
+## Decision: Implement transfer endpoints under `/api/v1/inter-warehouse-transfers`
 
-**Rationale**: Existing project convention uses REST resources under `/api/v1`. Transfer operations are state transitions on one aggregate, so sub-actions like `/approve`, `/ship`, `/depart`, `/receive-check` are appropriate.
+**Rationale**: Existing implementation exposes the transfer aggregate through `InterWarehouseTransferController` at `/api/v1/inter-warehouse-transfers`. Transfer operations are state transitions on one aggregate, so sub-actions like `/approve`, `/ship`, `/depart`, `/receive-check`, and `/final-receive` are appropriate.
 
 **Alternatives considered**: Separate resources like `/api/v1/transfer-shipments`. Rejected because it would split one transactional aggregate across unrelated controllers.
 
