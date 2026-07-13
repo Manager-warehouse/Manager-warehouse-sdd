@@ -93,6 +93,40 @@ class TripControllerTest {
 
     @Test
     @WithMockUser(username = "dispatcher@wms.com", roles = "DISPATCHER")
+    void createTrip_returnsBadRequestForDuplicateDeliveryOrderId() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(dispatcher);
+        when(tripService.createTrip(any(), eq(dispatcher)))
+                .thenThrow(new OutboundDeliveryException("DUPLICATE_DELIVERY_ORDER_ID",
+                        HttpStatus.BAD_REQUEST, "Duplicate Delivery Order ID(s) found in request: [101]"));
+
+        mockMvc.perform(post("/api/v1/trips")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createJson()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("DUPLICATE_DELIVERY_ORDER_ID"))
+                .andExpect(jsonPath("$.message").value("Duplicate Delivery Order ID(s) found in request: [101]"));
+    }
+
+    @Test
+    @WithMockUser(username = "dispatcher@wms.com", roles = "DISPATCHER")
+    void createTrip_returnsConflictForAlreadyAssignedDeliveryOrder() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(dispatcher);
+        when(tripService.createTrip(any(), eq(dispatcher)))
+                .thenThrow(new OutboundDeliveryException("DELIVERY_ORDER_ALREADY_ASSIGNED",
+                        HttpStatus.CONFLICT, "Delivery Order 7 is already assigned to trip 3"));
+
+        mockMvc.perform(post("/api/v1/trips")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createJson()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("DELIVERY_ORDER_ALREADY_ASSIGNED"))
+                .andExpect(jsonPath("$.message").value("Delivery Order 7 is already assigned to trip 3"));
+    }
+
+    @Test
+    @WithMockUser(username = "dispatcher@wms.com", roles = "DISPATCHER")
     void updateTrip_rejectsBusinessError() throws Exception {
         when(currentUserService.getRequiredCurrentUser()).thenReturn(dispatcher);
         when(tripService.updateTrip(eq(900L), any(), eq(dispatcher)))

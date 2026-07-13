@@ -53,6 +53,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -61,6 +62,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -69,6 +71,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class TripServiceImpl implements TripService {
 
     private static final BigDecimal ZERO = BigDecimal.ZERO;
+    private static final String TRIP_DELIVERY_ORDER_DO_UNIQUE_CONSTRAINT = "trip_delivery_orders_do_id_key";
     private static final List<TripStatus> ACTIVE_TRIP_STATUSES = List.of(TripStatus.PLANNED, TripStatus.IN_TRANSIT);
     private static final List<DeliveryOrderStatus> TERMINAL_DO_STATUSES = List.of(DeliveryOrderStatus.COMPLETED,
             DeliveryOrderStatus.RETURNED);
@@ -291,14 +294,14 @@ public class TripServiceImpl implements TripService {
             Long warehouseId,
             Long excludedTripId) {
         validateStopOrders(rows);
-        List<Long> ids = rows.stream().map(TripDeliveryOrderRequest::getDoId).distinct().toList();
-        if (ids.size() != rows.size()) {
-            throw rule("DUPLICATE_DELIVERY_ORDER", "Delivery orders must be unique within a trip");
+        List<Long> ids = validateUniqueDeliveryOrderIds(rows);
+        List<TripDeliveryOrder> existingAssignments = tripDeliveryOrderRepository.findAssignmentsForDeliveryOrders(ids, excludedTripId);
+        if (!existingAssignments.isEmpty()) {
+            TripDeliveryOrder conflictAssignment = existingAssignments.get(0);
+            throw new OutboundDeliveryException("DELIVERY_ORDER_ALREADY_ASSIGNED", HttpStatus.CONFLICT,
+                    "Delivery Order " + conflictAssignment.getDeliveryOrder().getId() + " is already assigned to trip " + conflictAssignment.getTrip().getId());
         }
-        if (tripDeliveryOrderRepository.existsActiveAssignmentForAnyDeliveryOrder(ids, ACTIVE_TRIP_STATUSES,
-                excludedTripId)) {
-            throw conflict("DO_ALREADY_ASSIGNED_TO_TRIP", "Delivery order already belongs to an active trip");
-        }
+
         Map<Long, DeliveryOrder> orders = deliveryOrderRepository.findDetailedByIdIn(ids).stream()
                 .collect(Collectors.toMap(DeliveryOrder::getId, Function.identity()));
         if (orders.size() != ids.size()) {
@@ -402,7 +405,46 @@ public class TripServiceImpl implements TripService {
                         .stopOrder(row.getStopOrder())
                         .build())
                 .toList();
-        tripDeliveryOrderRepository.saveAll(members);
+        try {
+            tripDeliveryOrderRepository.saveAllAndFlush(members);
+        } catch (DataIntegrityViolationException ex) {
+            if (isTripDeliveryOrderAssignmentConflict(ex)) {
+                List<Long> ids = members.stream()
+                        .map(member -> member.getDeliveryOrder().getId())
+                        .toList();
+                throw new OutboundDeliveryException("DELIVERY_ORDER_ALREADY_ASSIGNED", HttpStatus.CONFLICT,
+                        "Delivery Order(s) already assigned to another trip: " + ids);
+            }
+            throw ex;
+        }
+    }
+
+    private List<Long> validateUniqueDeliveryOrderIds(List<TripDeliveryOrderRequest> rows) {
+        Set<Long> seen = new LinkedHashSet<>();
+        Set<Long> duplicateIds = new LinkedHashSet<>();
+        for (TripDeliveryOrderRequest row : rows) {
+            Long id = row.getDoId();
+            if (id != null && !seen.add(id)) {
+                duplicateIds.add(id);
+            }
+        }
+        if (!duplicateIds.isEmpty()) {
+            throw new OutboundDeliveryException("DUPLICATE_DELIVERY_ORDER_ID", HttpStatus.BAD_REQUEST,
+                    "Duplicate Delivery Order ID(s) found in request: " + duplicateIds);
+        }
+        return new ArrayList<>(seen);
+    }
+
+    private boolean isTripDeliveryOrderAssignmentConflict(DataIntegrityViolationException ex) {
+        Throwable current = ex;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null && message.contains(TRIP_DELIVERY_ORDER_DO_UNIQUE_CONSTRAINT)) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
     private Capacity calculateCapacity(List<DeliveryOrder> orders, Vehicle vehicle) {

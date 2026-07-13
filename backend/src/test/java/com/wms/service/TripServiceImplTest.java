@@ -47,6 +47,7 @@ import com.wms.repository.WarehouseLocationRepository;
 import com.wms.repository.WarehouseRepository;
 import com.wms.service.impl.TripServiceImpl;
 import java.math.BigDecimal;
+import java.lang.reflect.Method;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -57,6 +58,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
+import org.springframework.transaction.annotation.Transactional;
 
 @ExtendWith(MockitoExtension.class)
 class TripServiceImplTest {
@@ -167,7 +171,7 @@ class TripServiceImplTest {
         assertThat(response.getStatus()).isEqualTo(TripStatus.PLANNED);
         assertThat(response.getDeliveryOrders()).hasSize(1);
         assertThat(order.getStatus()).isEqualTo(DeliveryOrderStatus.WAREHOUSE_APPROVED);
-        verify(tripDeliveryOrderRepository).saveAll(any());
+        verify(tripDeliveryOrderRepository).saveAllAndFlush(any());
     }
 
     @Test
@@ -210,15 +214,22 @@ class TripServiceImplTest {
     }
 
     @Test
-    void createTrip_rejectsActiveDeliveryOrderConflict() {
+    void createTrip_rejectsDeliveryOrderAlreadyAssignedConflict() {
         stubCreateUntilOrders();
-        when(tripDeliveryOrderRepository.existsActiveAssignmentForAnyDeliveryOrder(
-                eq(List.of(101L)), any(), eq(null))).thenReturn(true);
+        Trip conflictTrip = plannedTrip();
+        conflictTrip.setId(3L);
+        TripDeliveryOrder existingAssignment = member(conflictTrip, order, 1);
+        when(tripDeliveryOrderRepository.findAssignmentsForDeliveryOrders(eq(List.of(101L)), eq(null)))
+                .thenReturn(List.of(existingAssignment));
 
         assertThatThrownBy(() -> service.createTrip(createRequest(101L), dispatcher))
                 .isInstanceOf(OutboundDeliveryException.class)
-                .extracting("code")
-                .isEqualTo("DO_ALREADY_ASSIGNED_TO_TRIP");
+                .hasMessage("Delivery Order 101 is already assigned to trip 3")
+                .satisfies(ex -> {
+                    OutboundDeliveryException outbound = (OutboundDeliveryException) ex;
+                    assertThat(outbound.getCode()).isEqualTo("DELIVERY_ORDER_ALREADY_ASSIGNED");
+                    assertThat(outbound.getStatus()).isEqualTo(HttpStatus.CONFLICT);
+                });
     }
 
     @Test
@@ -248,13 +259,15 @@ class TripServiceImplTest {
         when(tripRepository.save(any(Trip.class))).thenAnswer(inv -> inv.getArgument(0));
         when(tripDeliveryOrderRepository.findByTripIdOrderByStopOrderAsc(900L))
                 .thenReturn(List.of(member(trip, order, 1)));
+        when(tripDeliveryOrderRepository.findAssignmentsForDeliveryOrders(eq(List.of(101L)), eq(900L)))
+                .thenReturn(List.of());
 
         var response = service.updateTrip(900L, updateRequest(), dispatcher);
 
         assertThat(response.getStatus()).isEqualTo(TripStatus.PLANNED);
         verify(tripDeliveryOrderRepository).deleteByTripId(900L);
-        verify(tripDeliveryOrderRepository).existsActiveAssignmentForAnyDeliveryOrder(
-                eq(List.of(101L)), any(), eq(900L));
+        verify(tripDeliveryOrderRepository).findAssignmentsForDeliveryOrders(
+                eq(List.of(101L)), eq(900L));
     }
 
     @Test
@@ -377,6 +390,8 @@ class TripServiceImplTest {
 
     private void stubCreateHappyPath() {
         stubCreateUntilOrders();
+        when(tripDeliveryOrderRepository.findAssignmentsForDeliveryOrders(any(), any()))
+                .thenReturn(List.of());
         when(deliveryOrderRepository.findDetailedByIdIn(List.of(101L))).thenReturn(List.of(order));
         when(deliveryOrderItemRepository.findByDeliveryOrderIdIn(List.of(101L)))
                 .thenReturn(List.of(item(order, BigDecimal.ONE)));
@@ -556,5 +571,106 @@ class TripServiceImplTest {
         user.setRole(role);
         user.setFullName(role.name());
         return user;
+    }
+
+    @Test
+    void createTrip_rejectsDuplicateDoIdInRequest() {
+        stubCreateUntilOrders();
+        TripCreateRequest request = createRequest(101L);
+        TripDeliveryOrderRequest second = tripRow(101L, 2); // Duplicate doId = 101
+        request.setDeliveryOrders(List.of(request.getDeliveryOrders().get(0), second));
+
+        assertThatThrownBy(() -> service.createTrip(request, dispatcher))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .hasMessageContaining("Duplicate Delivery Order ID(s) found in request: [101]")
+                .satisfies(ex -> {
+                    OutboundDeliveryException outbound = (OutboundDeliveryException) ex;
+                    assertThat(outbound.getCode()).isEqualTo("DUPLICATE_DELIVERY_ORDER_ID");
+                    assertThat(outbound.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+                });
+    }
+
+    @Test
+    void createTrip_translatesDataIntegrityViolationException() {
+        stubCreateUntilOrders();
+        when(deliveryOrderRepository.findDetailedByIdIn(List.of(101L))).thenReturn(List.of(order));
+        when(deliveryOrderItemRepository.findByDeliveryOrderIdIn(List.of(101L)))
+                .thenReturn(List.of(item(order, BigDecimal.ONE)));
+        when(tripRepository.existsByTripNumber(any())).thenReturn(false);
+        when(tripRepository.save(any(Trip.class))).thenAnswer(invocation -> {
+            Trip t = invocation.getArgument(0);
+            t.setId(900L);
+            return t;
+        });
+        when(tripDeliveryOrderRepository.findAssignmentsForDeliveryOrders(any(), any()))
+                .thenReturn(List.of());
+
+        when(tripDeliveryOrderRepository.saveAllAndFlush(any()))
+                .thenThrow(new DataIntegrityViolationException(
+                        "duplicate key value violates unique constraint \"trip_delivery_orders_do_id_key\""));
+
+        assertThatThrownBy(() -> service.createTrip(createRequest(101L), dispatcher))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .hasMessageContaining("Delivery Order(s) already assigned to another trip: [101]")
+                .satisfies(ex -> {
+                    OutboundDeliveryException outbound = (OutboundDeliveryException) ex;
+                    assertThat(outbound.getCode()).isEqualTo("DELIVERY_ORDER_ALREADY_ASSIGNED");
+                    assertThat(outbound.getStatus()).isEqualTo(HttpStatus.CONFLICT);
+                });
+    }
+
+    @Test
+    void createTrip_doesNotTranslateUnrelatedDataIntegrityViolationException() {
+        stubCreateUntilOrders();
+        when(deliveryOrderRepository.findDetailedByIdIn(List.of(101L))).thenReturn(List.of(order));
+        when(deliveryOrderItemRepository.findByDeliveryOrderIdIn(List.of(101L)))
+                .thenReturn(List.of(item(order, BigDecimal.ONE)));
+        when(tripRepository.existsByTripNumber(any())).thenReturn(false);
+        when(tripRepository.save(any(Trip.class))).thenAnswer(invocation -> {
+            Trip t = invocation.getArgument(0);
+            t.setId(900L);
+            return t;
+        });
+        when(tripDeliveryOrderRepository.findAssignmentsForDeliveryOrders(any(), any()))
+                .thenReturn(List.of());
+        when(tripDeliveryOrderRepository.saveAllAndFlush(any()))
+                .thenThrow(new DataIntegrityViolationException("trips_trip_number_key"));
+
+        assertThatThrownBy(() -> service.createTrip(createRequest(101L), dispatcher))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("trips_trip_number_key");
+    }
+
+    @Test
+    void createTrip_membershipFailureLeavesTransactionToRollbackAndSkipsAudit() {
+        stubCreateUntilOrders();
+        when(deliveryOrderRepository.findDetailedByIdIn(List.of(101L))).thenReturn(List.of(order));
+        when(deliveryOrderItemRepository.findByDeliveryOrderIdIn(List.of(101L)))
+                .thenReturn(List.of(item(order, BigDecimal.ONE)));
+        when(tripRepository.existsByTripNumber(any())).thenReturn(false);
+        when(tripRepository.save(any(Trip.class))).thenAnswer(invocation -> {
+            Trip t = invocation.getArgument(0);
+            t.setId(900L);
+            return t;
+        });
+        when(tripDeliveryOrderRepository.findAssignmentsForDeliveryOrders(any(), any()))
+                .thenReturn(List.of());
+        when(tripDeliveryOrderRepository.saveAllAndFlush(any()))
+                .thenThrow(new DataIntegrityViolationException(
+                        "duplicate key value violates unique constraint \"trip_delivery_orders_do_id_key\""));
+
+        assertThatThrownBy(() -> service.createTrip(createRequest(101L), dispatcher))
+                .isInstanceOf(OutboundDeliveryException.class);
+        verify(auditLogService, never()).log(any(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void createTrip_isTransactionalSoMembershipFailureRollsBackTripSave() throws Exception {
+        Method method = TripServiceImpl.class.getMethod("createTrip", TripCreateRequest.class, User.class);
+
+        Transactional transactional = method.getAnnotation(Transactional.class);
+
+        assertThat(transactional).isNotNull();
+        assertThat(transactional.readOnly()).isFalse();
     }
 }
