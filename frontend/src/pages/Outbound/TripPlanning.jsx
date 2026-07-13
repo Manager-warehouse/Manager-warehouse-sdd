@@ -45,6 +45,10 @@ export default function TripPlanning() {
   const [submitting, setSubmitting] = useState(false);
   const [detailTrip, setDetailTrip] = useState(null);
 
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancellingSubmit, setCancellingSubmit] = useState(false);
+
   useEffect(() => {
     fetchTrips();
   }, [activeWarehouse?.id, statusFilter]);
@@ -160,7 +164,27 @@ export default function TripPlanning() {
 
   const closeDetailModal = () => {
     setDetailTrip(null);
+    setIsCancelling(false);
+    setCancelReason('');
     if (routeId) navigate('/outbound/trips');
+  };
+
+  const handleCancelTrip = async () => {
+    if (!cancelReason.trim()) {
+      addToast('Vui lòng nhập lý do hủy chuyến', 'error');
+      return;
+    }
+    setCancellingSubmit(true);
+    try {
+      await outboundService.cancelTrip(detailTrip.id, cancelReason.trim());
+      addToast('Đã hủy chuyến xe thành công', 'success');
+      closeDetailModal();
+      fetchTrips();
+    } catch (error) {
+      addToast(error.message || 'Lỗi khi hủy chuyến xe', 'error');
+    } finally {
+      setCancellingSubmit(false);
+    }
   };
 
   const filteredTrips = useMemo(() => {
@@ -298,7 +322,46 @@ export default function TripPlanning() {
               Frontend này đã đồng bộ với backend hiện tại: dispatcher chỉ lập/xem trip, không xuất bến. Driver sẽ xác nhận depart trong màn hình driver.
             </div>
 
+            {isCancelling && (
+              <div className="bg-danger-50 border border-danger-200 rounded-lg p-4 flex flex-col gap-3">
+                <span className="text-xs font-bold text-danger-700 uppercase tracking-wider block">Xác nhận hủy chuyến xe</span>
+                <textarea
+                  className="text-input text-xs h-20 resize-none w-full border border-hairline-light rounded p-2"
+                  placeholder="Nhập lý do hủy chuyến (bắt buộc)..."
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  required
+                />
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setIsCancelling(false); setCancelReason(''); }}
+                    className="px-4 py-2 text-xs font-semibold rounded-pill border border-hairline-light bg-canvas-light text-ink hover:bg-canvas-cream transition-all duration-150 active:scale-95"
+                  >
+                    Hủy bỏ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCancelTrip}
+                    disabled={!cancelReason.trim() || cancellingSubmit}
+                    className="px-4 py-2 text-xs font-semibold rounded-pill bg-danger-600 text-white hover:bg-danger-700 active:scale-95 transition-all duration-150 disabled:opacity-50"
+                  >
+                    {cancellingSubmit ? 'Đang hủy...' : 'Xác nhận hủy'}
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="flex justify-end gap-3 border-t border-hairline-light pt-4">
+              {hasRole(ROLES.DISPATCHER) && detailTrip.status === 'PLANNED' && !isCancelling && (
+                <button
+                  type="button"
+                  onClick={() => setIsCancelling(true)}
+                  className="mr-auto px-4 py-2 rounded-pill bg-danger-50 text-danger-700 border border-danger-200 hover:bg-danger-100 active:scale-95 transition-all text-xs font-semibold"
+                >
+                  Hủy chuyến xe
+                </button>
+              )}
               <Button variant="outline-light" onClick={closeDetailModal}>Đóng</Button>
             </div>
           </div>

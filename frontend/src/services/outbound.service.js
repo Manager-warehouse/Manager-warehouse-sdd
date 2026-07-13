@@ -1026,6 +1026,20 @@ export const outboundService = {
     return normalizeTrip(response.data);
   },
 
+  cancelTrip: async (id, reason) => {
+    if (useMock) {
+      await mockDelay();
+      const trips = getDb(KEYS.TRIPS, INITIAL_TRIPS);
+      const idx = trips.findIndex((trip) => trip.id === Number(id));
+      if (idx === -1) throw new Error('Không tìm thấy chuyến xe');
+      trips[idx] = { ...trips[idx], status: 'CANCELLED', cancel_reason: reason };
+      saveDb(KEYS.TRIPS, trips);
+      return trips[idx];
+    }
+    const response = await apiClient.put(`/trips/${id}/cancel`, { reason });
+    return normalizeTrip(response.data);
+  },
+
   uploadPodEvidence: async (tripId, doId, { goodsImage, signDocumentImage, notes = '' }) => {
     if (useMock) return { success: true };
     const formData = new FormData();
