@@ -34,6 +34,45 @@ const StatusBadge = ({ status }) => {
   return <Badge size="sm" colorClassName={color}>{label}</Badge>;
 };
 
+const TRANSFER_TRIP_PREFIX = 'transfer-';
+
+const transferDriverStatus = (status) => {
+  if (status === 'APPROVED') return 'PLANNED';
+  if (status === 'COMPLETED' || status === 'COMPLETED_WITH_VARIANCE') return 'COMPLETED';
+  return status || 'PLANNED';
+};
+
+const toTransferDriverTrip = (transfer = {}) => ({
+  id: `${TRANSFER_TRIP_PREFIX}${transfer.id}`,
+  transferId: transfer.id,
+  tripId: transfer.tripId,
+  type: 'TRANSFER',
+  trip_number: transfer.tripNumber || transfer.transferNumber,
+  status: transferDriverStatus(transfer.status),
+  sourceWarehouseCode: transfer.sourceWarehouseCode,
+  destinationWarehouseCode: transfer.destinationWarehouseCode,
+  vehicle_plate: transfer.vehiclePlate || transfer.trip?.vehiclePlate || '',
+  driver_name: transfer.driverName || transfer.trip?.driverName || '',
+  planned_date: transfer.tripPlannedStartAt || transfer.plannedDate || transfer.documentDate,
+  planned_start_at: transfer.tripPlannedStartAt || transfer.plannedDate || transfer.documentDate,
+  planned_end_at: transfer.tripPlannedEndAt || null,
+  total_weight_kg: Number(transfer.totalWeightKg || transfer.trip?.totalWeightKg || 0),
+  tripWarningActive: transfer.tripWarningActive,
+  tripOverdue: transfer.tripOverdue,
+  tripWarningMessage: transfer.tripWarningMessage,
+  driverArrivedAt: transfer.driverArrivedAt,
+  arrivalHandoverAt: transfer.arrivalHandoverAt,
+  isReturned: Boolean(transfer.isReturned),
+  items: (transfer.items || []).map((item) => ({
+    id: item.id,
+    productSku: item.productSku,
+    productName: item.productName,
+    plannedQty: item.plannedQty,
+    sentQty: item.sentQty,
+  })),
+  delivery_orders: [],
+});
+
 function OTPCountdown({ expiresAt, onExpired }) {
   const [remaining, setRemaining] = useState(0);
 
@@ -158,6 +197,20 @@ export default function DriverTrip() {
         TRANSFER_TRIP_REQUIRED: 'Phiếu điều chuyển chưa được lập chuyến',
       };
       addToast(messages[error.message] || error.message || 'Lỗi khi xác nhận xuất phát', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleTransferArrive = async () => {
+    if (!trip?.transferId) return;
+    setSubmitting(true);
+    try {
+      await interWarehouseTransferService.driverArrive(trip.transferId);
+      addToast('Đã xác nhận tài xế đến kho đích', 'success');
+      fetchTrip(trip.id);
+    } catch (error) {
+      addToast(error.message || 'Lỗi khi xác nhận đến kho đích', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -359,6 +412,25 @@ export default function DriverTrip() {
                 </p>
               )}
             </>
+          )}
+
+          {isTransferTrip && trip.status === 'IN_TRANSIT' && !trip.isReturned && (
+            <div className="mt-4 pt-4 border-t border-hairline-light">
+              {!trip.driverArrivedAt ? (
+                <button
+                  onClick={handleTransferArrive}
+                  disabled={submitting}
+                  className="w-full btn-pill btn-pill-primary flex items-center justify-center gap-2 py-2.5 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                  Tài xế xác nhận đã đến kho đích
+                </button>
+              ) : (
+                <p className="text-[11px] leading-relaxed text-success-700 font-semibold">
+                  Đã xác nhận đến kho đích. Chờ kho đích nhận bàn giao hàng.
+                </p>
+              )}
+            </div>
           )}
 
           {/* Progress bar */}
