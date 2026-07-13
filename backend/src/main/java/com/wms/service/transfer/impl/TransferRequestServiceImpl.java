@@ -28,6 +28,7 @@ public class TransferRequestServiceImpl implements TransferRequestService {
     private final WarehouseRepository warehouseRepository;
     private final ProductRepository productRepository;
     private final InventoryRepository inventoryRepository;
+    private final InterWarehouseTransferRepository interWarehouseTransferRepository;
     private final UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
     private final InterWarehouseTransferService transferService;
     private final PartnerAuditUtil auditUtil;
@@ -56,6 +57,7 @@ public class TransferRequestServiceImpl implements TransferRequestService {
     @Override
     @Transactional
     public TransferRequestResponse createRequest(TransferRequestCreateRequest request, User actor) {
+        ensureRequesterRole(actor);
         ensureWarehouseScope(actor, request.destinationWarehouseId());
         if (Objects.equals(request.sourceWarehouseId(), request.destinationWarehouseId())) {
             throw new BusinessRuleViolationException("SOURCE_DESTINATION_MUST_DIFFER");
@@ -67,6 +69,8 @@ public class TransferRequestServiceImpl implements TransferRequestService {
         req.setSourceWarehouse(reference(Warehouse.class, request.sourceWarehouseId()));
         req.setDestinationWarehouse(reference(Warehouse.class, request.destinationWarehouseId()));
         req.setStatus(TransferRequestStatus.DRAFT);
+        req.setNeededByDate(request.neededByDate());
+        req.setBusinessReason(request.businessReason());
         req.setNotes(request.notes());
         req.setCreatedBy(actor);
         req.setCreatedAt(now);
@@ -88,6 +92,7 @@ public class TransferRequestServiceImpl implements TransferRequestService {
         if (req.getStatus() != TransferRequestStatus.DRAFT) {
             throw new BusinessRuleViolationException("ONLY_DRAFT_CAN_BE_UPDATED");
         }
+        ensureRequesterRole(actor);
         ensureWarehouseScope(actor, req.getDestinationWarehouse().getId());
         ensureWarehouseScope(actor, request.destinationWarehouseId());
         
@@ -99,6 +104,8 @@ public class TransferRequestServiceImpl implements TransferRequestService {
 
         req.setSourceWarehouse(reference(Warehouse.class, request.sourceWarehouseId()));
         req.setDestinationWarehouse(reference(Warehouse.class, request.destinationWarehouseId()));
+        req.setNeededByDate(request.neededByDate());
+        req.setBusinessReason(request.businessReason());
         req.setNotes(request.notes());
         req.setUpdatedAt(OffsetDateTime.now());
 
@@ -118,7 +125,9 @@ public class TransferRequestServiceImpl implements TransferRequestService {
         if (req.getStatus() != TransferRequestStatus.DRAFT) {
             throw new BusinessRuleViolationException("ONLY_DRAFT_CAN_BE_SUBMITTED");
         }
+        ensureRequesterRole(actor);
         ensureWarehouseScope(actor, req.getDestinationWarehouse().getId());
+        validateSourceAvailability(req);
 
         Map<String, Object> before = snapshot(req);
         req.setStatus(TransferRequestStatus.SUBMITTED);
@@ -145,6 +154,7 @@ public class TransferRequestServiceImpl implements TransferRequestService {
         if (req.getStatus() != TransferRequestStatus.SUBMITTED) {
             throw new BusinessRuleViolationException("ONLY_SUBMITTED_CAN_BE_APPROVED");
         }
+        validateSourceAvailability(req);
 
         Map<String, Object> before = snapshot(req);
         req.setStatus(TransferRequestStatus.APPROVED);
@@ -202,6 +212,9 @@ public class TransferRequestServiceImpl implements TransferRequestService {
         if (req.getStatus() != TransferRequestStatus.APPROVED) {
             throw new BusinessRuleViolationException("ONLY_APPROVED_CAN_BE_CONVERTED");
         }
+        if (req.getConvertedTransfer() != null) {
+            throw new BusinessRuleViolationException("TRANSFER_REQUEST_ALREADY_CONVERTED");
+        }
 
         // Convert to InterWarehouseTransfer using transferService
         List<InterWarehouseTransferItemRequest> itemRequests = req.getItems().stream()
@@ -228,13 +241,16 @@ public class TransferRequestServiceImpl implements TransferRequestService {
 
         Map<String, Object> before = snapshot(req);
         req.setStatus(TransferRequestStatus.CONVERTED);
+        InterWarehouseTransfer transfer = interWarehouseTransferRepository.findById(transferResponse.id())
+                .orElseThrow(() -> new ResourceNotFoundException("Transfer not found: " + transferResponse.id()));
+        transfer.setTransferRequest(req);
+        transfer.setUpdatedAt(OffsetDateTime.now());
+        interWarehouseTransferRepository.save(transfer);
+        req.setConvertedTransfer(transfer);
+        req.setConvertedBy(actor);
+        req.setConvertedAt(OffsetDateTime.now());
         req.setUpdatedAt(OffsetDateTime.now());
         TransferRequest saved = requestRepository.save(req);
-
-        // Update transfers record to set transfer_request_id (by custom direct update)
-        // Note: the created InterWarehouseTransfer can be linked. Since we need to update it, we can load and save.
-        // But since this is a side-effect, we can perform it in the DB or via repository later. 
-        // We will also log it in audit.
 
         auditUtil.logChange(actor, AuditAction.TRANSFER_REQUEST_CONVERT, "TRANSFER_REQUEST",
                 saved.getId(), saved.getRequestNumber(), before, snapshot(saved));
@@ -287,6 +303,27 @@ public class TransferRequestServiceImpl implements TransferRequestService {
         List<Long> assigned = loadWarehouseIds(actor);
         if (!assigned.contains(warehouseId)) {
             throw new BusinessRuleViolationException("WAREHOUSE_SCOPE_REQUIRED");
+        }
+    }
+
+    private void ensureRequesterRole(User actor) {
+        if (actor.getRole() != UserRole.WAREHOUSE_MANAGER && actor.getRole() != UserRole.ADMIN) {
+            throw new BusinessRuleViolationException("WAREHOUSE_MANAGER_ROLE_REQUIRED");
+        }
+    }
+
+    private void validateSourceAvailability(TransferRequest req) {
+        Map<Long, BigDecimal> requestedByProduct = new HashMap<>();
+        for (TransferRequestItem item : req.getItems()) {
+            Long productId = item.getProduct().getId();
+            requestedByProduct.merge(productId, item.getRequestedQty(), BigDecimal::add);
+        }
+        for (Map.Entry<Long, BigDecimal> entry : requestedByProduct.entrySet()) {
+            BigDecimal available = inventoryRepository.sumValidAvailableQty(req.getSourceWarehouse().getId(), entry.getKey());
+            BigDecimal safeAvailable = available == null ? BigDecimal.ZERO : available;
+            if (safeAvailable.compareTo(entry.getValue()) < 0) {
+                throw new BusinessRuleViolationException("TRANSFER_REQUEST_QTY_EXCEEDS_SOURCE_AVAILABLE");
+            }
         }
     }
 
@@ -366,7 +403,14 @@ public class TransferRequestServiceImpl implements TransferRequestService {
                 req.getRejectedBy() != null ? req.getRejectedBy().getFullName() : null,
                 req.getRejectedAt(),
                 req.getRejectionReason(),
+                req.getNeededByDate(),
+                req.getBusinessReason(),
                 req.getNotes(),
+                req.getConvertedTransfer() != null ? req.getConvertedTransfer().getId() : null,
+                req.getConvertedTransfer() != null ? req.getConvertedTransfer().getTransferNumber() : null,
+                req.getConvertedBy() != null ? req.getConvertedBy().getId() : null,
+                req.getConvertedBy() != null ? req.getConvertedBy().getFullName() : null,
+                req.getConvertedAt(),
                 req.getCreatedAt(),
                 req.getUpdatedAt(),
                 itemResponses
@@ -377,6 +421,9 @@ public class TransferRequestServiceImpl implements TransferRequestService {
         Map<String, Object> snap = new HashMap<>();
         snap.put("status", req.getStatus());
         snap.put("notes", req.getNotes());
+        snap.put("neededByDate", req.getNeededByDate());
+        snap.put("businessReason", req.getBusinessReason());
+        snap.put("convertedTransferId", req.getConvertedTransfer() != null ? req.getConvertedTransfer().getId() : null);
         snap.put("sourceWarehouseId", req.getSourceWarehouse().getId());
         snap.put("destinationWarehouseId", req.getDestinationWarehouse().getId());
         return snap;

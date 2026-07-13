@@ -74,7 +74,6 @@ const WarehouseManagement = () => {
       );
       setManagerUsers(filteredUsers);
     } catch (e) {
-      console.error('Error fetching manager users:', e);
       // Fallback to MOCK_USERS if API fails
       setManagerUsers(MOCK_USERS.filter(u => u.role === ROLES.WAREHOUSE_MANAGER || u.role === ROLES.STOREKEEPER));
     } finally {
@@ -306,11 +305,11 @@ const WarehouseManagement = () => {
     }
     const curNum = Number(current) || 0;
     const pct = (curNum / capNum) * 100;
-    let barColor = 'bg-emerald-500'; // Under 80%
+    let barColor = 'bg-success-500'; // Under 80%
     if (pct >= 100) {
-      barColor = 'bg-red-500';
+      barColor = 'bg-danger-500';
     } else if (pct >= 80) {
-      barColor = 'bg-amber-500';
+      barColor = 'bg-warning-500';
     }
 
     return (
@@ -409,7 +408,7 @@ const WarehouseManagement = () => {
                           title={wh.is_active ? 'Khóa kho' : 'Kích hoạt kho'}
                         >
                           {wh.is_active ? (
-                            <ToggleRight className="w-4 h-4 text-emerald-600" />
+                            <ToggleRight className="w-4 h-4 text-success-600" />
                           ) : (
                             <ToggleLeft className="w-4 h-4 text-shade-40" />
                           )}
@@ -475,7 +474,7 @@ const WarehouseManagement = () => {
                       {bins.map((bin) => (
                         <tr
                           key={bin.id}
-                          className={`hover:bg-canvas-cream/50 transition-colors ${bin.is_quarantine ? 'bg-amber-50/20' : ''} ${!bin.is_active ? 'opacity-50' : ''}`}
+                          className={`hover:bg-canvas-cream/50 transition-colors ${bin.is_quarantine ? 'bg-warning-50/20' : ''} ${!bin.is_active ? 'opacity-50' : ''}`}
                         >
                           <td className="px-6 py-4">
                             <span className="font-mono font-bold text-xs text-ink">{bin.code}</span>
@@ -519,7 +518,7 @@ const WarehouseManagement = () => {
                                 title={bin.is_active ? 'Khóa ô kệ' : 'Kích hoạt ô kệ'}
                               >
                                 {bin.is_active ? (
-                                  <ToggleRight className="w-5 h-5 text-emerald-600" />
+                                  <ToggleRight className="w-5 h-5 text-success-600" />
                                 ) : (
                                   <ToggleLeft className="w-5 h-5 text-shade-40" />
                                 )}
@@ -538,7 +537,7 @@ const WarehouseManagement = () => {
                 {bins.map((bin) => (
                   <div
                     key={bin.id}
-                    className={`bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden ${bin.is_quarantine ? 'bg-amber-50/20' : ''} ${!bin.is_active ? 'opacity-50' : ''}`}
+                    className={`bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden ${bin.is_quarantine ? 'bg-warning-50/20' : ''} ${!bin.is_active ? 'opacity-50' : ''}`}
                   >
                     <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center gap-2">
                       <span className="font-mono font-bold text-xs text-ink">{bin.code}</span>
@@ -583,7 +582,7 @@ const WarehouseManagement = () => {
                         title={bin.is_active ? 'Khóa ô kệ' : 'Kích hoạt ô kệ'}
                       >
                         {bin.is_active ? (
-                          <ToggleRight className="w-5 h-5 text-emerald-600" />
+                          <ToggleRight className="w-5 h-5 text-success-600" />
                         ) : (
                           <ToggleLeft className="w-5 h-5 text-shade-40" />
                         )}

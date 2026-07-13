@@ -149,7 +149,7 @@ const ReceiptReceive = () => {
             </h3>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-canvas-cream border-b border-hairline-light">
@@ -187,10 +187,49 @@ const ReceiptReceive = () => {
               </tbody>
             </table>
           </div>
+
+          <div className="flex flex-col gap-3 p-4 md:hidden">
+            {items.map((item) => {
+              const sku = getProductSku(item);
+
+              return (
+                <div
+                  key={item.receipt_item_id}
+                  className="rounded-lg border border-hairline-light bg-canvas-light p-4 shadow-level-3"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <span className="block font-mono text-[11px] font-bold text-ink">{sku}</span>
+                      <span className="mt-1 block text-xs text-shade-50">{getProductName(item)}</span>
+                    </div>
+                    <div className="shrink-0 rounded-pill bg-canvas-cream px-3 py-1 text-right text-[11px] font-bold text-shade-60">
+                      Dự kiến: {item.expected_qty}
+                    </div>
+                  </div>
+
+                  <label className="mt-4 flex flex-col gap-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-shade-60">
+                      Số lượng thực nhận
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={item.actual_qty === null ? '' : item.actual_qty}
+                      onChange={(e) => handleQtyChange(item.receipt_item_id, e.target.value)}
+                      placeholder="Nhập số đếm..."
+                      className="text-input min-h-[44px] text-right text-base font-bold"
+                      required
+                    />
+                  </label>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {/* Actions */}
-        <div className="flex justify-end gap-3">
+        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <button
             type="button"
             onClick={() => navigate('/inbound/receipts')}

@@ -33,7 +33,7 @@ const Header = () => {
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-canvas-light border-b border-hairline-light h-16 px-6 flex items-center justify-between">
+    <header className="app-safe-header sticky top-0 z-40 bg-canvas-light border-b border-hairline-light px-6 flex items-center justify-between">
       {/* Left side: Hamburger menu and Brand */}
       <div className="flex items-center gap-4">
         <button
@@ -128,7 +128,7 @@ const Header = () => {
 
                 <button
                   onClick={handleLogout}
-                  className="w-full text-left px-4 py-2 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2 border-t border-hairline-light"
+                  className="w-full text-left px-4 py-2 text-xs text-danger-600 hover:bg-danger-50 flex items-center gap-2 border-t border-hairline-light"
                 >
                   <LogOut className="w-3.5 h-3.5" />
                   <span>Đăng xuất</span>

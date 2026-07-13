@@ -193,13 +193,13 @@ const Sidebar = () => {
     <>
       {/* Mobile-only backdrop: closes the drawer on tap without covering the header */}
       <div
-        className="fixed inset-x-0 bottom-0 top-16 z-30 bg-black/50 md:hidden"
+        className="app-safe-drawer-backdrop fixed inset-x-0 bottom-0 z-30 bg-black/50 md:hidden"
         onClick={() => setSidebarOpen(false)}
       />
       <aside
-        className="fixed top-16 bottom-0 left-0 z-30 w-72 max-w-[85vw]
+        className="app-safe-drawer fixed bottom-0 left-0 z-30 w-72 max-w-[85vw]
           md:static md:top-auto md:bottom-auto md:z-auto md:w-64 md:max-w-none
-          bg-canvas-night text-onPrimary border-r border-hairline-dark flex flex-col h-[calc(100%-4rem)] md:h-full"
+          bg-canvas-night text-onPrimary border-r border-hairline-dark flex flex-col md:h-full"
       >
       {/* Scrollable menu area */}
       <div className="flex-1 overflow-y-auto py-6 px-4 flex flex-col gap-6">

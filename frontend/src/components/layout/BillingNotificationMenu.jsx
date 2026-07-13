@@ -29,7 +29,7 @@ export default function BillingNotificationMenu() {
       >
         <Bell className="w-5 h-5" />
         {pendingCount > 0 && (
-          <span className="absolute top-0 right-0 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white">
+          <span className="absolute top-0 right-0 w-4 h-4 bg-danger-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white">
             {pendingCount}
           </span>
         )}
@@ -53,7 +53,7 @@ export default function BillingNotificationMenu() {
                   </div>
                   <p className="text-xs text-zinc-600 truncate">{n.dealer_name}</p>
                   <div className="mt-2 flex justify-end">
-                    <button className="flex items-center gap-1 text-[11px] font-bold px-2 py-1 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-pill hover:bg-emerald-100 transition-colors">
+                    <button className="flex items-center gap-1 text-[11px] font-bold px-2 py-1 bg-success-50 text-success-600 border border-success-200 rounded-pill hover:bg-success-100 transition-colors">
                       <FileText className="w-3 h-3" />
                       TẠO HÓA ĐƠN
                     </button>

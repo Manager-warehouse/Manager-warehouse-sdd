@@ -60,6 +60,7 @@ public class InterWarehouseTransferShippingService {
         trip.setPlannedEndAt(request.plannedEndAt());
         trip.setTripType(TripType.TRANSFER);
         trip.setStatus(TripStatus.PLANNED);
+        trip.setWarehouse(transfer.getSourceWarehouse());
         trip.setTotalWeightKg(BigDecimal.ZERO);
         trip.setTotalVolumeM3(BigDecimal.ZERO);
         trip.setCreatedAt(OffsetDateTime.now());

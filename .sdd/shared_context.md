@@ -22,14 +22,14 @@
 
 | Actor        | Vai trò                                          |
 | ------------ | ------------------------------------------------ |
-| CEO          | Dashboard chiến lược                             |
+| CEO          | Dashboard chiến lược, duyệt yêu cầu điều chuyển liên kho do Trưởng kho đề xuất |
 | System Admin | Quản lý tài khoản, phân quyền, cấu hình hệ thống |
 
 ### Tầng Quản lý (Checker)
 
 | Actor                     | Vai trò                                               |
 | ------------------------- | ----------------------------------------------------- |
-| Trưởng kho kiêm Trưởng QC | Duyệt nhập/xuất/điều chuyển, xử lý chênh lệch thực tế |
+| Trưởng kho kiêm Trưởng QC | Duyệt nhập/xuất/điều chuyển, đề xuất điều chuyển khi kho mình thiếu hàng, xử lý chênh lệch thực tế |
 | Kế toán trưởng            | Duyệt bảng giá, thiết lập Credit Limit, chốt sổ       |
 
 ### Tầng Nghiệp vụ (Maker)
@@ -47,7 +47,7 @@
 
 | Thuật ngữ         | Định nghĩa                                                                                      |
 | ----------------- | ----------------------------------------------------------------------------------------------- |
-| **Batch**         | Lô hàng nhập cùng đợt, cùng grade; domain hiện tại không quản lý hạn dùng                       |
+| **Batch**         | Lô hàng gom theo sản phẩm, nguồn nhập/chứng từ và ngày nhận; domain hiện tại không quản lý hạn dùng hoặc grade |
 | **Bin Location**  | Vị trí kệ trong kho — mã hóa WH-Zone.Rack.Shelf.Bin                                             |
 | **Putaway**       | Quy trình cất hàng vào Bin sau khi QC đạt                                                       |
 | **FEFO**          | Ngoài phạm vi hiện tại vì hàng gia dụng không quản lý hạn sử dụng                               |
@@ -132,19 +132,30 @@ Outbound delivery trips use `trip_type = DELIVERY` and group at least one `WAREH
 ### Transfer (Điều chuyển)
 
 ```
-NEW → APPROVED → IN_TRANSIT → COMPLETED
- ↓       ↓            ↓
-REJECTED CANCELLED    COMPLETED_WITH_DISCREPANCY
+TRANSFER_REQUEST: DRAFT → SUBMITTED → CEO_APPROVED → CONVERTED
+                      ↓          ↓
+                 CANCELLED   CEO_REJECTED
+
+TRF: NEW → APPROVED → IN_TRANSIT → COMPLETED
+      ↓       ↓            ↓            ↓
+ REJECTED CANCELLED    COMPLETED_WITH_DISCREPANCY / QUARANTINED
 ```
 
 Transfer-specific invariants:
 
 - Trưởng kho nguồn approval reserves planned quantity immediately.
+- Trưởng kho kho thiếu hàng may view cross-warehouse availability read-only and submit a transfer request to CEO; CEO approval does not reserve or move stock.
+- Planner creates `TRF-*` from an external instruction or at most one CEO-approved transfer request.
 - Each transfer has exactly one dedicated internal trip; multi-transfer trips are out of scope.
+- Transfer trip assignment must check source-scoped vehicle/driver, overlapping assignments, vehicle weight capacity, and volume only when configured.
 - Driver departure confirmation moves stock from source warehouse to In-Transit.
 - Thủ kho đích records received counts and QC; Trưởng kho đích confirms final receipt.
 - received_qty > sent_qty is blocked.
-- QC-failed received quantity goes to Quarantine and is excluded from available inventory.
+- QC-passed stock must go to a valid non-quarantine Bin and pass bin capacity checks before inventory is increased.
+- QC-failed or physically damaged transfer quantity goes to Quarantine with `INTERNAL_TRANSFER` origin, is excluded from available inventory, and can only enter the Spec 009 disposal path; supplier RTV/Debit Note is blocked.
+- Missing transfer quantity creates only a `TRANSFER_DISCREPANCY` adjustment/audit; it must not become quarantine stock or a disposal candidate.
+- Intact wrong-SKU transfer stock remains In-Transit; destination Storekeeper reports, destination Warehouse Manager approves/rejects return, and the same driver/vehicle returns to the source warehouse for source count/check/QC/final receive.
+- Overdue trips still in `IN_TRANSIT` block destination receive actions and require Return to Source by an authorized source manager, Admin, CEO, or Planner.
 - Cancellation rules: Planner may cancel NEW; Trưởng kho nguồn/manager may cancel APPROVED and release reserved quantity; cancellation is blocked from REJECTED or IN_TRANSIT onward.
 
 ### Dealer Status

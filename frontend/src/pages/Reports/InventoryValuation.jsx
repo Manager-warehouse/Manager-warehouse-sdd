@@ -22,7 +22,6 @@ const InventoryValuation = () => {
       const res = await reportService.getInventoryValuation(selectedWarehouse || null);
       setData(res);
     } catch (err) {
-      console.error(err);
       setError(err.response?.data?.message || 'Không có quyền truy cập hoặc lỗi khi tải báo cáo định giá.');
     } finally {
       setLoading(false);
@@ -79,10 +78,10 @@ const InventoryValuation = () => {
           <span className="ml-3 text-sm text-shade-60">Đang tổng hợp dữ liệu tồn kho...</span>
         </div>
       ) : error ? (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-2xl mx-auto my-12 text-center">
-          <AlertCircle className="w-12 h-12 text-red-600 mx-auto mb-4" />
-          <h3 className="text-lg font-bold text-red-800">Lỗi Tải Báo Cáo</h3>
-          <p className="text-sm text-red-600 mt-2">{error}</p>
+        <div className="bg-danger-50 border border-danger-200 rounded-lg p-6 max-w-2xl mx-auto my-12 text-center">
+          <AlertCircle className="w-12 h-12 text-danger-600 mx-auto mb-4" />
+          <h3 className="text-lg font-bold text-danger-800">Lỗi Tải Báo Cáo</h3>
+          <p className="text-sm text-danger-600 mt-2">{error}</p>
         </div>
       ) : (
         <>
@@ -99,7 +98,7 @@ const InventoryValuation = () => {
             </div>
 
             <div className="card-premium p-6 flex items-center gap-4">
-              <div className="p-3 bg-emerald-50 text-emerald-700 rounded-full">
+              <div className="p-3 bg-success-50 text-success-700 rounded-full">
                 <RefreshCw className="w-6 h-6" />
               </div>
               <div>

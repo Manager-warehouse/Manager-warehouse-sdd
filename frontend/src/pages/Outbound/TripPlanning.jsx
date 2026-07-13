@@ -15,8 +15,8 @@ import { ROLES } from '../../utils/constants';
 const TRIP_STATUS_MAP = {
   PLANNED: { label: 'Lên kế hoạch', color: 'bg-canvas-cream text-shade-70 border-hairline-light' },
   IN_TRANSIT: { label: 'Đang giao', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-  COMPLETED: { label: 'Hoàn thành', color: 'bg-emerald-50 text-emerald-900 border-emerald-300' },
-  CANCELLED: { label: 'Đã hủy', color: 'bg-red-50 text-red-700 border-red-200' },
+  COMPLETED: { label: 'Hoàn thành', color: 'bg-success-50 text-success-900 border-success-300' },
+  CANCELLED: { label: 'Đã hủy', color: 'bg-danger-50 text-danger-700 border-danger-200' },
 };
 
 const emptyForm = { vehicle_id: '', driver_id: '', planned_start_at: '', planned_end_at: '', notes: '', delivery_orders: [] };
@@ -294,7 +294,7 @@ export default function TripPlanning() {
               )}
             </div>
 
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800">
+            <div className="rounded-lg border border-warning-200 bg-warning-50 p-4 text-xs text-warning-800">
               Frontend này đã đồng bộ với backend hiện tại: dispatcher chỉ lập/xem trip, không xuất bến. Driver sẽ xác nhận depart trong màn hình driver.
             </div>
 
@@ -364,7 +364,7 @@ export default function TripPlanning() {
                         type="button"
                         key={order.id}
                         className={`w-full text-left px-4 py-3 border-b border-hairline-light flex items-center justify-between transition-colors ${
-                          isSelected ? 'bg-emerald-50 border-l-2 border-l-emerald-500' : 'hover:bg-canvas-cream'
+                          isSelected ? 'bg-success-50 border-l-2 border-l-success-500' : 'hover:bg-canvas-cream'
                         }`}
                         onClick={() => toggleDOSelection(order)}
                       >

@@ -15,7 +15,7 @@ const Input = React.forwardRef(({
   const inputId = id || `input-${Math.random().toString(36).substring(2, 9)}`;
   
   const baseInputStyle = 'w-full bg-canvas-light text-ink text-sm px-3 py-2.5 rounded-md border border-hairline-light focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink transition-all min-h-[44px] disabled:bg-canvas-cream/60 disabled:text-shade-50 disabled:cursor-not-allowed disabled:opacity-70';
-  const errorInputStyle = 'border-red-500 focus:ring-red-500 focus:border-red-500';
+  const errorInputStyle = 'border-danger-500 focus:ring-danger-500 focus:border-danger-500';
   
   return (
     <div className={`flex flex-col gap-1.5 w-full ${className}`}>
@@ -95,7 +95,7 @@ const Input = React.forwardRef(({
       )}
 
       {error && (
-        <span className="text-xs text-red-500 font-medium mt-0.5">
+        <span className="text-xs text-danger-500 font-medium mt-0.5">
           {error}
         </span>
       )}

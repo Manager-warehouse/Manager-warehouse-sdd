@@ -8,7 +8,7 @@ const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true';
 const MOCK_ENTRIES = [
   {
     id: 1, product_id: 1, product_sku: 'POT-001', product_name: 'Nồi inox 20cm',
-    effective_date: '2026-06-01', end_date: '2026-06-30',
+    effective_date: '2026-06-01',
     cost_price: 80000, selling_price: 115000, status: 'APPROVED', notes: null,
     created_by: { id: 5, full_name: 'Nguyễn Kế Toán' },
     approved_by: { id: 6, full_name: 'Phạm Kế Toán Trưởng' },
@@ -17,7 +17,7 @@ const MOCK_ENTRIES = [
   },
   {
     id: 2, product_id: 1, product_sku: 'POT-001', product_name: 'Nồi inox 20cm',
-    effective_date: '2026-07-01', end_date: '2026-07-31',
+    effective_date: '2026-07-01',
     cost_price: 85000, selling_price: 120000, status: 'PENDING',
     notes: 'NCC tăng nguyên liệu', created_by: { id: 5, full_name: 'Nguyễn Kế Toán' },
     approved_by: null, approved_at: null, cancelled_by: null, cancelled_at: null,
@@ -25,7 +25,7 @@ const MOCK_ENTRIES = [
   },
   {
     id: 3, product_id: 2, product_sku: 'PAN-002', product_name: 'Chảo chống dính 26cm',
-    effective_date: '2026-07-01', end_date: '2026-07-31',
+    effective_date: '2026-07-01',
     cost_price: 120000, selling_price: 175000, status: 'PENDING', notes: null,
     created_by: { id: 5, full_name: 'Nguyễn Kế Toán' },
     approved_by: null, approved_at: null, cancelled_by: null, cancelled_at: null,
@@ -81,11 +81,15 @@ const pricingService = {
     if (USE_MOCK) {
       await delay(200);
       const targetDate = date || new Date().toISOString().slice(0, 10);
-      const entry = mockEntries.find(e => {
-        if (e.product_id !== Number(product_id) || e.status !== 'APPROVED') return false;
-        if (e.warehouse_id && Number(e.warehouse_id) !== Number(warehouse_id)) return false;
-        return e.effective_date <= targetDate && (!e.end_date || e.end_date >= targetDate);
-      });
+      // Effective-date-only model: the APPROVED entry with the latest
+      // effective_date not after targetDate is the one in effect.
+      const entry = mockEntries
+        .filter(e => {
+          if (e.product_id !== Number(product_id) || e.status !== 'APPROVED') return false;
+          if (e.warehouse_id && Number(e.warehouse_id) !== Number(warehouse_id)) return false;
+          return e.effective_date <= targetDate;
+        })
+        .sort((a, b) => (a.effective_date < b.effective_date ? 1 : -1))[0];
       if (!entry) {
         const error = new Error('PRICE_NOT_FOUND');
         error.response = { status: 404 };
@@ -112,7 +116,6 @@ const pricingService = {
         product_sku: 'SKU-' + data.product_id,
         product_name: 'Sản phẩm ' + data.product_id,
         effective_date: data.effective_date,
-        end_date: data.end_date,
         cost_price: Number(data.cost_price),
         selling_price: Number(data.selling_price),
         notes: data.notes || null,
@@ -137,8 +140,8 @@ const pricingService = {
       mockEntries[idx] = { ...mockEntries[idx], ...data };
       return mockEntries[idx];
     }
-    const { effective_date, end_date, cost_price, selling_price, notes } = data;
-    const response = await apiClient.put(`${BASE}/${id}`, { effective_date, end_date, cost_price, selling_price, notes });
+    const { effective_date, cost_price, selling_price, notes } = data;
+    const response = await apiClient.put(`${BASE}/${id}`, { effective_date, cost_price, selling_price, notes });
     return response.data;
   },
 
@@ -173,11 +176,11 @@ const pricingService = {
   async lookup(productId, warehouseId, date) {
     if (USE_MOCK) {
       await delay(200);
-      const entry = mockEntries.find(
-        e => e.product_id === productId && e.warehouse_id === warehouseId
-          && e.status === 'APPROVED'
-          && e.effective_date <= date && e.end_date >= date
-      );
+      // Effective-date-only model: latest effective_date <= date wins.
+      const entry = mockEntries
+        .filter(e => e.product_id === productId && e.warehouse_id === warehouseId
+          && e.status === 'APPROVED' && e.effective_date <= date)
+        .sort((a, b) => (a.effective_date < b.effective_date ? 1 : -1))[0];
       if (!entry) throw Object.assign(new Error('Không có giá hợp lệ'), { status: 404 });
       return entry;
     }

@@ -20,6 +20,7 @@ services:
     image: ${BACKEND_IMAGE:?BACKEND_IMAGE is required and must be digest-pinned}
     environment:
       SPRING_PROFILES_ACTIVE: prod
+      PORT: 8080
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/wms
       SPRING_DATASOURCE_USERNAME: ${DB_USER:-wms_user}
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}

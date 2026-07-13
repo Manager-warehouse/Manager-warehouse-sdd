@@ -96,55 +96,55 @@ const StocktakeForm = () => {
           {/* Accounting Period */}
           <div className="space-y-1.5">
             <label className="block text-xs font-semibold text-shade-40 uppercase tracking-wider">
-              Kỳ kế toán <span className="text-red-500">*</span>
+              Kỳ kế toán <span className="text-danger-500">*</span>
             </label>
             <select
               value={form.accounting_period_id}
               onChange={(e) => set('accounting_period_id', e.target.value)}
               className={`w-full px-3 py-2.5 rounded-md border text-sm outline-none transition-colors ${
-                errors.accounting_period_id ? 'border-red-400 bg-red-50' : 'border-hairline-light focus:border-ink'
+                errors.accounting_period_id ? 'border-danger-400 bg-danger-50' : 'border-hairline-light focus:border-ink'
               }`}
             >
               <option value={1}>T06/2026 (đang mở)</option>
             </select>
             {errors.accounting_period_id && (
-              <p className="text-xs text-red-500">{errors.accounting_period_id}</p>
+              <p className="text-xs text-danger-500">{errors.accounting_period_id}</p>
             )}
           </div>
 
           {/* Stock Take Date */}
           <div className="space-y-1.5">
             <label className="block text-xs font-semibold text-shade-40 uppercase tracking-wider">
-              Ngày kiểm kê <span className="text-red-500">*</span>
+              Ngày kiểm kê <span className="text-danger-500">*</span>
             </label>
             <input
               type="date"
               value={form.stock_take_date}
               onChange={(e) => set('stock_take_date', e.target.value)}
               className={`w-full px-3 py-2.5 rounded-md border text-sm outline-none transition-colors ${
-                errors.stock_take_date ? 'border-red-400 bg-red-50' : 'border-hairline-light focus:border-ink'
+                errors.stock_take_date ? 'border-danger-400 bg-danger-50' : 'border-hairline-light focus:border-ink'
               }`}
             />
             {errors.stock_take_date && (
-              <p className="text-xs text-red-500">{errors.stock_take_date}</p>
+              <p className="text-xs text-danger-500">{errors.stock_take_date}</p>
             )}
           </div>
 
           {/* Document Date */}
           <div className="space-y-1.5">
             <label className="block text-xs font-semibold text-shade-40 uppercase tracking-wider">
-              Ngày chứng từ <span className="text-red-500">*</span>
+              Ngày chứng từ <span className="text-danger-500">*</span>
             </label>
             <input
               type="date"
               value={form.document_date}
               onChange={(e) => set('document_date', e.target.value)}
               className={`w-full px-3 py-2.5 rounded-md border text-sm outline-none transition-colors ${
-                errors.document_date ? 'border-red-400 bg-red-50' : 'border-hairline-light focus:border-ink'
+                errors.document_date ? 'border-danger-400 bg-danger-50' : 'border-hairline-light focus:border-ink'
               }`}
             />
             {errors.document_date && (
-              <p className="text-xs text-red-500">{errors.document_date}</p>
+              <p className="text-xs text-danger-500">{errors.document_date}</p>
             )}
           </div>
         </div>

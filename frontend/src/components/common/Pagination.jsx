@@ -108,7 +108,7 @@ const Pagination = ({
                 onClick={() => handlePageChange(page)}
                 className={`min-w-[32px] h-8 px-1.5 text-xs font-semibold rounded-pill flex items-center justify-center transition-all
                   ${isActive 
-                    ? 'bg-ink text-onPrimary shadow-sm' 
+                    ? 'bg-ink text-onPrimary shadow-level-3'
                     : 'text-shade-60 hover:bg-canvas-cream hover:text-ink border border-transparent hover:border-hairline-light'
                   }`}
               >

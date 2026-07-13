@@ -468,7 +468,7 @@ const PartnerManagement = () => {
                                   title={dl.is_active ? 'Khóa đại lý' : 'Kích hoạt đại lý'}
                                 >
                                   {dl.is_active ? (
-                                    <ToggleRight className="w-5 h-5 text-emerald-600" />
+                                    <ToggleRight className="w-5 h-5 text-success-600" />
                                   ) : (
                                     <ToggleLeft className="w-5 h-5 text-shade-40" />
                                   )}
@@ -533,7 +533,7 @@ const PartnerManagement = () => {
                           title={dl.is_active ? 'Khóa đại lý' : 'Kích hoạt đại lý'}
                         >
                           {dl.is_active ? (
-                            <ToggleRight className="w-5 h-5 text-emerald-600" />
+                            <ToggleRight className="w-5 h-5 text-success-600" />
                           ) : (
                             <ToggleLeft className="w-5 h-5 text-shade-40" />
                           )}
@@ -604,7 +604,7 @@ const PartnerManagement = () => {
                                 title={spl.is_active ? 'Khóa nhà cung cấp' : 'Kích hoạt nhà cung cấp'}
                               >
                                 {spl.is_active ? (
-                                  <ToggleRight className="w-5 h-5 text-emerald-600" />
+                                  <ToggleRight className="w-5 h-5 text-success-600" />
                                 ) : (
                                   <ToggleLeft className="w-5 h-5 text-shade-40" />
                                 )}
@@ -653,7 +653,7 @@ const PartnerManagement = () => {
                         title={spl.is_active ? 'Khóa nhà cung cấp' : 'Kích hoạt nhà cung cấp'}
                       >
                         {spl.is_active ? (
-                          <ToggleRight className="w-5 h-5 text-emerald-600" />
+                          <ToggleRight className="w-5 h-5 text-success-600" />
                         ) : (
                           <ToggleLeft className="w-5 h-5 text-shade-40" />
                         )}
@@ -735,15 +735,15 @@ const PartnerManagement = () => {
           {(dealerModalType === 'ADD' || hasRole(ROLES.ACCOUNTANT_MANAGER)) && (
             <div className="border-t border-hairline-light pt-4">
               <div className="flex items-center gap-2 mb-3">
-                <ShieldAlert className="w-4 h-4 text-amber-600" />
+                <ShieldAlert className="w-4 h-4 text-warning-600" />
                 <span className="text-xs font-bold text-shade-70 uppercase tracking-wide">
                   {dealerModalType === 'ADD' ? 'Hạn mức tín dụng ban đầu' : 'Phê duyệt hạn mức nợ (ACCOUNTANT_MANAGER)'}
                 </span>
               </div>
 
               {dealerModalType === 'EDIT' && selectedDealer?.current_balance !== undefined && (
-                <div className="bg-amber-50 border border-amber-200 rounded px-3 py-2 text-xs text-amber-800 mb-3 flex items-center gap-1.5">
-                  <ShieldAlert className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                <div className="bg-warning-50 border border-warning-200 rounded px-3 py-2 text-xs text-warning-800 mb-3 flex items-center gap-1.5">
+                  <ShieldAlert className="w-3.5 h-3.5 text-warning-600 shrink-0" />
                   Dư nợ hiện tại: <strong>{selectedDealer?.current_balance?.toLocaleString('vi-VN')} VND</strong>. Thay đổi hạn mức có thể kích hoạt CREDIT_HOLD.
                 </div>
               )}
