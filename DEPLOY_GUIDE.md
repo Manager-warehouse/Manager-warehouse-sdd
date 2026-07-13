@@ -124,6 +124,10 @@ sudo chown -R "$USER":"$USER" /app/backups/manager-warehouse /app/manager-wareho
 chmod 700 /app/backups/manager-warehouse /app/manager-warehouse/.release
 ```
 
+Ảnh chứng từ/POD/điều chuyển được lưu trong Docker volume `uploads`
+và được mount vào backend tại `/app/uploads`. Không xóa volume này khi rollback
+hoặc recreate container; đây là dữ liệu nghiệp vụ tương tự backup/database.
+
 Đăng nhập GHCR một lần để xác nhận PAT có quyền đọc package. Không ghi PAT vào
 shell history; workflow sẽ đăng nhập lại bằng secret được mask:
 
