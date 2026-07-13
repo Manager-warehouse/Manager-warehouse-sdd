@@ -29,14 +29,25 @@ public interface TripDeliveryOrderRepository extends JpaRepository<TripDeliveryO
     @Modifying
     void deleteByTripId(Long tripId);
 
+    @Modifying
+    @Query("""
+            update TripDeliveryOrder tdo
+            set tdo.isActive = false
+            where tdo.trip.id = :tripId
+            """)
+    void deactivateByTripId(@Param("tripId") Long tripId);
+
     @EntityGraph(attributePaths = {"trip", "deliveryOrder"})
     @Query("""
             select tdo from TripDeliveryOrder tdo
             where tdo.deliveryOrder.id in :deliveryOrderIds
+              and tdo.isActive = true
+              and tdo.trip.status in :activeStatuses
               and (:excludedTripId is null or tdo.trip.id <> :excludedTripId)
             """)
     List<TripDeliveryOrder> findAssignmentsForDeliveryOrders(
             @Param("deliveryOrderIds") Collection<Long> deliveryOrderIds,
+            @Param("activeStatuses") Collection<TripStatus> activeStatuses,
             @Param("excludedTripId") Long excludedTripId);
 
     @Query("""

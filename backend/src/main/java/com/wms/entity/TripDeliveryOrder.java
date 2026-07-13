@@ -5,10 +5,7 @@ import jakarta.persistence.*;
 
 @Entity
 @Table(name = "trip_delivery_orders",
-        uniqueConstraints = {
-                @UniqueConstraint(name = "trip_delivery_orders_do_id_key", columnNames = "do_id"),
-                @UniqueConstraint(columnNames = {"trip_id", "stop_order"})
-        })
+        uniqueConstraints = @UniqueConstraint(columnNames = {"trip_id", "stop_order"}))
 @Getter
 @Setter
 @NoArgsConstructor
@@ -30,4 +27,8 @@ public class TripDeliveryOrder {
 
     @Column(name = "stop_order", nullable = false)
     private Integer stopOrder;
+
+    @Column(name = "is_active", nullable = false)
+    @Builder.Default
+    private Boolean isActive = true;
 }

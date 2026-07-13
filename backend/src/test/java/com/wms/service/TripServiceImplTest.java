@@ -219,7 +219,8 @@ class TripServiceImplTest {
         Trip conflictTrip = plannedTrip();
         conflictTrip.setId(3L);
         TripDeliveryOrder existingAssignment = member(conflictTrip, order, 1);
-        when(tripDeliveryOrderRepository.findAssignmentsForDeliveryOrders(eq(List.of(101L)), eq(null)))
+        when(tripDeliveryOrderRepository.findAssignmentsForDeliveryOrders(
+                eq(List.of(101L)), eq(List.of(TripStatus.PLANNED, TripStatus.IN_TRANSIT)), eq(null)))
                 .thenReturn(List.of(existingAssignment));
 
         assertThatThrownBy(() -> service.createTrip(createRequest(101L), dispatcher))
@@ -259,7 +260,8 @@ class TripServiceImplTest {
         when(tripRepository.save(any(Trip.class))).thenAnswer(inv -> inv.getArgument(0));
         when(tripDeliveryOrderRepository.findByTripIdOrderByStopOrderAsc(900L))
                 .thenReturn(List.of(member(trip, order, 1)));
-        when(tripDeliveryOrderRepository.findAssignmentsForDeliveryOrders(eq(List.of(101L)), eq(900L)))
+        when(tripDeliveryOrderRepository.findAssignmentsForDeliveryOrders(
+                eq(List.of(101L)), eq(List.of(TripStatus.PLANNED, TripStatus.IN_TRANSIT)), eq(900L)))
                 .thenReturn(List.of());
 
         var response = service.updateTrip(900L, updateRequest(), dispatcher);
@@ -267,7 +269,7 @@ class TripServiceImplTest {
         assertThat(response.getStatus()).isEqualTo(TripStatus.PLANNED);
         verify(tripDeliveryOrderRepository).deleteByTripId(900L);
         verify(tripDeliveryOrderRepository).findAssignmentsForDeliveryOrders(
-                eq(List.of(101L)), eq(900L));
+                eq(List.of(101L)), eq(List.of(TripStatus.PLANNED, TripStatus.IN_TRANSIT)), eq(900L));
     }
 
     @Test
@@ -280,6 +282,21 @@ class TripServiceImplTest {
                 .isInstanceOf(OutboundDeliveryException.class)
                 .extracting("code")
                 .isEqualTo("TRIP_NOT_EDITABLE");
+    }
+
+    @Test
+    void cancelTrip_deactivatesDeliveryOrderMembershipsSoOrdersCanBeReassigned() {
+        Trip trip = plannedTrip();
+        when(tripRepository.findWithWarehouseAndResourcesById(900L)).thenReturn(Optional.of(trip));
+        when(assignmentRepository.findWarehouseIdsByUserId(1L)).thenReturn(List.of(20L));
+        when(tripRepository.save(any(Trip.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(tripDeliveryOrderRepository.findByTripIdOrderByStopOrderAsc(900L))
+                .thenReturn(List.of(member(trip, order, 1)));
+
+        var response = service.cancelTrip(900L, cancelRequest(), dispatcher);
+
+        assertThat(response.getStatus()).isEqualTo(TripStatus.CANCELLED);
+        verify(tripDeliveryOrderRepository).deactivateByTripId(900L);
     }
 
     @Test
@@ -390,7 +407,7 @@ class TripServiceImplTest {
 
     private void stubCreateHappyPath() {
         stubCreateUntilOrders();
-        when(tripDeliveryOrderRepository.findAssignmentsForDeliveryOrders(any(), any()))
+        when(tripDeliveryOrderRepository.findAssignmentsForDeliveryOrders(any(), any(), any()))
                 .thenReturn(List.of());
         when(deliveryOrderRepository.findDetailedByIdIn(List.of(101L))).thenReturn(List.of(order));
         when(deliveryOrderItemRepository.findByDeliveryOrderIdIn(List.of(101L)))
@@ -602,7 +619,7 @@ class TripServiceImplTest {
             t.setId(900L);
             return t;
         });
-        when(tripDeliveryOrderRepository.findAssignmentsForDeliveryOrders(any(), any()))
+        when(tripDeliveryOrderRepository.findAssignmentsForDeliveryOrders(any(), any(), any()))
                 .thenReturn(List.of());
 
         when(tripDeliveryOrderRepository.saveAllAndFlush(any()))
@@ -631,7 +648,7 @@ class TripServiceImplTest {
             t.setId(900L);
             return t;
         });
-        when(tripDeliveryOrderRepository.findAssignmentsForDeliveryOrders(any(), any()))
+        when(tripDeliveryOrderRepository.findAssignmentsForDeliveryOrders(any(), any(), any()))
                 .thenReturn(List.of());
         when(tripDeliveryOrderRepository.saveAllAndFlush(any()))
                 .thenThrow(new DataIntegrityViolationException("trips_trip_number_key"));
@@ -653,7 +670,7 @@ class TripServiceImplTest {
             t.setId(900L);
             return t;
         });
-        when(tripDeliveryOrderRepository.findAssignmentsForDeliveryOrders(any(), any()))
+        when(tripDeliveryOrderRepository.findAssignmentsForDeliveryOrders(any(), any(), any()))
                 .thenReturn(List.of());
         when(tripDeliveryOrderRepository.saveAllAndFlush(any()))
                 .thenThrow(new DataIntegrityViolationException(
@@ -674,3 +691,4 @@ class TripServiceImplTest {
         assertThat(transactional.readOnly()).isFalse();
     }
 }
+
