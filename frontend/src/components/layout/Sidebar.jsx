@@ -23,7 +23,8 @@ const Sidebar = () => {
       title: 'Tổng quan',
       path: '/dashboard',
       icon: LayoutDashboard,
-      roles: [] // All roles
+      roles: [], // All non-driver roles
+      hiddenForRoles: [ROLES.DRIVER]
     },
     {
       title: 'Quản lý tài khoản',
@@ -209,6 +210,7 @@ const Sidebar = () => {
           </div>
           <nav className="flex flex-col gap-1">
             {menuItems
+              .filter(item => !(item.hiddenForRoles || []).some(role => hasRole(role)))
               .filter(item => item.roles.length === 0 || item.roles.some(role => hasRole(role)))
               .map((item) => (
                 <NavLink
