@@ -88,12 +88,7 @@ export default function DriverTrip() {
     const loadedTrips = [];
     let loadedAnySource = false;
     try {
-      const allTrips = await outboundService.getTrips(null, {});
-      const isDriver = user?.role === 'DRIVER';
-      const myOutboundTrips = isDriver
-        ? allTrips.filter(t => Number(t.driver_user_id || t.driverUserId || 0) === Number(user?.id)
-            || Number(t.driver_id || t.driverId || 0) === Number(user?.driverId || 0))
-        : allTrips;
+      const myOutboundTrips = await outboundService.getMyTrips();
       loadedTrips.push(...myOutboundTrips.map((tripRow) => ({ ...tripRow, type: tripRow.type || 'OUTBOUND' })));
       loadedAnySource = true;
     } catch {

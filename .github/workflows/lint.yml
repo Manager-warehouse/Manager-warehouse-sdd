@@ -21,7 +21,7 @@ jobs:
           cache: 'maven'
 
       - name: Checkstyle
-        run: cd backend && mvn checkstyle:check --no-transfer-progress || echo "No checkstyle config found, skipping"
+        run: cd backend && mvn --settings ../.github/maven-settings.xml checkstyle:check --no-transfer-progress || echo "No checkstyle config found, skipping"
 
   lint-frontend:
     name: Frontend Lint (ESLint)

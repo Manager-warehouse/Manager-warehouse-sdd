@@ -38,7 +38,7 @@ jobs:
         run: |
           cd backend
           set +e
-          mvn -B -e clean verify --no-transfer-progress
+          mvn --settings ../.github/maven-settings.xml -B -e clean verify --no-transfer-progress
           status=$?
           if [ "$status" -ne 0 ]; then
             echo "::group::Surefire & Failsafe error reports"
@@ -73,7 +73,7 @@ jobs:
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
         run: |
           if [ -n "$SONAR_TOKEN" ]; then
-            cd backend && mvn sonar:sonar -Dsonar.projectKey=wms-backend -Dsonar.host.url=$SONAR_HOST_URL -Dsonar.login=$SONAR_TOKEN --no-transfer-progress
+            cd backend && mvn --settings ../.github/maven-settings.xml sonar:sonar -Dsonar.projectKey=wms-backend -Dsonar.host.url=$SONAR_HOST_URL -Dsonar.login=$SONAR_TOKEN --no-transfer-progress
           else
             echo "SonarQube credentials not set, skipping analysis."
           fi
