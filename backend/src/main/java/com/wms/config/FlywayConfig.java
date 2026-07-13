@@ -21,9 +21,8 @@ public class FlywayConfig {
                 flyway.migrate();
                 log.info("FlywayConfig: Flyway migration completed successfully.");
             } catch (Exception e) {
-                log.error("FlywayConfig: Flyway migration failed: {}", e.getMessage(), e);
-                throw e;
-            }   
+                throw new IllegalStateException("Flyway migration failed", e);
+            }
         };
     }
 }
