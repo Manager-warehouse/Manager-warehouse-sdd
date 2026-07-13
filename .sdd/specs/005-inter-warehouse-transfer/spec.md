@@ -179,6 +179,7 @@ Exception branches SHALL be handled separately:
 - `driver_departed_at` (TIMESTAMPTZ)
 - `driver_arrived_at` (TIMESTAMPTZ)
 - `arrival_handover_at` (TIMESTAMPTZ)
+- `arrival_handover_photo_ref` (TEXT, NOT NULL before receiving handover confirmation)
 - `return_departed_at` (TIMESTAMPTZ)
 - `return_arrived_at` (TIMESTAMPTZ)
 - `version` (BIGINT, NOT NULL, DEFAULT 0)

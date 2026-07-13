@@ -364,14 +364,14 @@ paths:
       responses:
         '200':
           description: Arrival recorded
-  /inter-warehouse-transfers/{id}/arrival-handover:
+  /inter-warehouse-transfers/{id}/receiving-handover:
     post:
       summary: Receiving warehouse records physical handover from driver
       tags: [Inter-Warehouse Transfers]
       parameters:
         - $ref: '#/components/parameters/TransferId'
       requestBody:
-        required: false
+        required: true
         content:
           application/json:
             schema:

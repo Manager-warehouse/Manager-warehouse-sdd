@@ -423,8 +423,7 @@ export const interWarehouseTransferService = {
       ? await interWarehouseTransferService.uploadPhotoEvidence(id, payload.photoFile)
       : null;
     const request = {
-      ...payload,
-      photoRef: uploaded?.photoRef || payload.photoRef,
+      photoRef: uploaded?.photoRef || payload.photoRef || payload.arrivalHandoverPhotoRef,
     };
     if (useMock) {
       return updateMockStatus(id, 'IN_TRANSIT', {
@@ -507,8 +506,7 @@ export const interWarehouseTransferService = {
       ? await interWarehouseTransferService.uploadPhotoEvidence(id, payload.photoFile)
       : null;
     const request = {
-      ...payload,
-      photoRef: uploaded?.photoRef || payload.photoRef,
+      photoRef: uploaded?.photoRef || payload.photoRef || payload.returnPhotoRef,
     };
     if (useMock) {
       return updateMockStatus(id, 'IN_TRANSIT', {

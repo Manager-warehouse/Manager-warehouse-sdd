@@ -339,6 +339,7 @@ public class InterWarehouseTransferShippingService {
 
         Map<String, Object> before = helper.snapshot(transfer);
         transfer.setArrivalHandoverAt(OffsetDateTime.now());
+        transfer.setArrivalHandoverPhotoRef(request.photoRef());
         transfer.setArrivalHandoverBy(actor);
         transfer.setUpdatedAt(OffsetDateTime.now());
 

@@ -16,7 +16,7 @@ Fields to add/verify:
 - `load_handover_by`, `load_handover_at`
 - `outbound_qc_photo_ref`
 - `load_handover_photo_ref`
-- `driver_departed_at`, `driver_arrived_at`, `arrival_handover_at`
+- `driver_departed_at`, `driver_arrived_at`, `arrival_handover_at`, `arrival_handover_photo_ref`
 - `return_departed_at`, `return_arrived_at`
 - `created_by`
 - `external_instruction_code`
