@@ -244,6 +244,9 @@ export const interWarehouseTransferService = {
   shipTransfer: async (id) => {
     if (useMock) {
       const transfer = await interWarehouseTransferService.getTransferById(id);
+      if (!transfer.outboundQcPassed && !transfer.outbound_qc_passed) {
+        throw new Error('OUTBOUND_QC_NOT_PASSED');
+      }
       return updateMockStatus(id, 'APPROVED', {
         items: transfer.items.map((item) => ({ ...item, sentQty: item.plannedQty })),
       });
@@ -355,24 +358,32 @@ export const interWarehouseTransferService = {
   },
 
   recordOutboundQc: async (id, payload) => {
+    const request = {
+      passed: payload.passed ?? payload.outboundQcPassed,
+      note: payload.note ?? payload.outboundQcNote ?? '',
+      photoRef: payload.photoRef ?? payload.outboundQcPhotoRef,
+    };
     if (useMock) {
       return updateMockStatus(id, 'APPROVED', {
-        outboundQcPassed: payload.outboundQcPassed,
-        outboundQcNote: payload.outboundQcNote,
-        outboundQcPhotoRef: payload.outboundQcPhotoRef,
+        outboundQcPassed: request.passed,
+        outboundQcNote: request.note,
+        outboundQcPhotoRef: request.photoRef,
       });
     }
-    const response = await apiClient.post(`/inter-warehouse-transfers/${id}/outbound-qc`, payload);
+    const response = await apiClient.post(`/inter-warehouse-transfers/${id}/outbound-qc`, request);
     return response.data;
   },
 
   loadHandover: async (id, payload) => {
+    const request = {
+      photoRef: payload.photoRef || payload.loadHandoverPhotoRef,
+    };
     if (useMock) {
       return updateMockStatus(id, 'APPROVED', {
-        loadHandoverPhotoRef: payload.loadHandoverPhotoRef || payload.photoRef || null,
+        loadHandoverPhotoRef: request.photoRef || null,
       });
     }
-    const response = await apiClient.post(`/inter-warehouse-transfers/${id}/load-handover`, payload);
+    const response = await apiClient.post(`/inter-warehouse-transfers/${id}/load-handover`, request);
     return response.data;
   },
 

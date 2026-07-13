@@ -125,6 +125,9 @@ public class InterWarehouseTransferShippingService {
         helper.requireStatus(transfer, InterWarehouseTransferStatus.APPROVED);
         helper.ensureWarehouseScope(actor, transfer.getSourceWarehouse().getId());
         ensureSingleTransferTrip(transfer);
+        if (transfer.getOutboundQcPassed() == null || !transfer.getOutboundQcPassed()) {
+            throw new BusinessRuleViolationException("OUTBOUND_QC_NOT_PASSED");
+        }
         Map<String, Object> before = helper.snapshot(transfer);
         for (InterWarehouseTransferItem item : helper.items(transfer)) {
             item.setSentQty(item.getPlannedQty());

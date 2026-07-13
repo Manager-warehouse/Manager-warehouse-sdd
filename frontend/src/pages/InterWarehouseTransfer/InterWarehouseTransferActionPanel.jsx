@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Check, ClipboardCheck, PackageCheck, RotateCcw, Send, Truck, X } from 'lucide-react';
+import { Camera, Check, ClipboardCheck, PackageCheck, RotateCcw, Send, Truck, X } from 'lucide-react';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import { ROLES } from '../../utils/constants';
@@ -30,6 +30,13 @@ const getDriverWarehouseIds = (driver) => {
   return Array.isArray(ids) ? ids.map(Number) : [];
 };
 
+const readImageAsDataUrl = (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(reader.result);
+  reader.onerror = reject;
+  reader.readAsDataURL(file);
+});
+
 const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWarehouse, hasRole, hasWarehouseAccess, vehicles, drivers, locations, onAction }) => {
   const { addToast } = useUiStore();
   const [reason, setReason] = useState('');
@@ -43,8 +50,8 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
   const [checkRows, setCheckRows] = useState([]);
   const [busy, setBusy] = useState(false);
   const [outboundQcPhotoRef, setOutboundQcPhotoRef] = useState('');
+  const [outboundQcPhotoName, setOutboundQcPhotoName] = useState('');
   const [outboundQcNote, setOutboundQcNote] = useState('');
-  const [loadHandoverPhotoRef, setLoadHandoverPhotoRef] = useState('');
   const [arrivalHandoverPhotoRef, setArrivalHandoverPhotoRef] = useState('');
   const [returnPhotoRef, setReturnPhotoRef] = useState('');
   const [wrongSkuItems, setWrongSkuItems] = useState([]);
@@ -65,8 +72,8 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
     setCountRows([]);
     setCheckRows([]);
     setOutboundQcPhotoRef('');
+    setOutboundQcPhotoName('');
     setOutboundQcNote('');
-    setLoadHandoverPhotoRef('');
     setArrivalHandoverPhotoRef('');
     setReturnPhotoRef('');
     setWrongSkuItems([]);
@@ -111,11 +118,14 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
     && item.qcPassedQty !== null && item.qcPassedQty !== undefined
     && item.qcFailedQty !== null && item.qcFailedQty !== undefined);
   const hasTrip = Boolean(transfer.tripId);
+  const outboundQcValue = transfer.outboundQcPassed ?? transfer.outbound_qc_passed;
+  const outboundQcDone = outboundQcValue !== null && outboundQcValue !== undefined;
+  const outboundQcPassed = outboundQcValue === true;
+  const outboundQcFailed = outboundQcValue === false;
+  const loadHandoverDone = Boolean(transfer.loadHandoverPhotoRef || transfer.load_handover_photo_ref || false);
   const isAssignedDriver = hasRole(ROLES.DRIVER)
     && Number(transfer.driverUserId || 0) === Number(currentUser?.id || 0);
-  const canDriverDepart = hasTrip && allItemsSent && isAssignedDriver
-    && (transfer.outboundQcPassed || transfer.outbound_qc_passed || false)
-    && Boolean(transfer.loadHandoverPhotoRef || transfer.load_handover_photo_ref || false);
+  const canDriverDepart = hasTrip && allItemsSent && isAssignedDriver && outboundQcPassed && loadHandoverDone;
   const sourceWarehouseId = Number(transfer.sourceWarehouseId || 0);
   const sourceVehicles = vehicles.filter((vehicle) => {
     const warehouseId = Number(vehicle.warehouse_id || vehicle.warehouseId || 0);
@@ -147,15 +157,33 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
         detail: `Dispatcher kho nguồn ${transfer.sourceWarehouseCode} chọn xe và tài xế trước khi thủ kho xếp hàng. Chuyến phải được lên lịch trước ít nhất 7 ngày.`,
       };
     }
-    if (transfer.status === 'APPROVED' && hasTrip && !allItemsSent) {
+    if (transfer.status === 'APPROVED' && hasTrip && outboundQcFailed) {
       return {
-        title: 'Chờ xếp hàng',
+        title: 'QC xuất kho thất bại',
+        detail: 'Thủ kho chỉ được hạ hàng khỏi xe và xử lý lại, không được xác nhận đã xếp hàng.',
+      };
+    }
+    if (transfer.status === 'APPROVED' && hasTrip && !outboundQcDone) {
+      return {
+        title: 'Chờ kiểm tra outbound QC',
+        detail: `Thủ kho nguồn ${transfer.sourceWarehouseCode} cần ghi chú và chụp/chọn ảnh xác nhận QC trước khi xếp hàng.`,
+      };
+    }
+    if (transfer.status === 'APPROVED' && hasTrip && outboundQcPassed && !allItemsSent) {
+      return {
+        title: 'QC đạt - chờ xếp hàng',
         detail: `Thủ kho nguồn ${transfer.sourceWarehouseCode} xác nhận số lượng xuất lên xe.`,
       };
     }
-    if (transfer.status === 'APPROVED' && hasTrip && allItemsSent) {
+    if (transfer.status === 'APPROVED' && hasTrip && allItemsSent && !loadHandoverDone) {
       return {
-        title: 'Chờ tài xế rời kho',
+        title: 'Chờ hoàn tất xếp hàng',
+        detail: 'Thủ kho xác nhận hoàn tất bàn giao hàng lên xe trước khi tài xế rời kho.',
+      };
+    }
+    if (transfer.status === 'APPROVED' && hasTrip && allItemsSent && loadHandoverDone) {
+      return {
+        title: 'Đã hoàn tất xếp hàng',
         detail: `${transfer.driverName || 'Tài xế được gán'} xác nhận rời ${transfer.sourceWarehouseCode}.`,
       };
     }
@@ -203,6 +231,33 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
     } finally {
       setBusy(false);
     }
+  };
+
+  const selectOutboundQcPhoto = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      addToast('Vui lòng chọn hoặc chụp file ảnh.', 'error');
+      event.target.value = '';
+      return;
+    }
+    try {
+      const dataUrl = await readImageAsDataUrl(file);
+      setOutboundQcPhotoRef(dataUrl);
+      setOutboundQcPhotoName(file.name || 'Ảnh QC đã chọn');
+    } catch {
+      addToast('Không thể đọc ảnh QC, vui lòng chọn lại.', 'error');
+    } finally {
+      event.target.value = '';
+    }
+  };
+
+  const recordOutboundQc = (passed) => {
+    if (!outboundQcPhotoRef.trim()) {
+      addToast('Vui lòng chọn hoặc chụp ảnh QC.', 'error');
+      return;
+    }
+    run('recordOutboundQc', { passed, note: outboundQcNote, photoRef: outboundQcPhotoRef });
   };
 
   const ensureCountRows = () => {
@@ -355,64 +410,81 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
 
       {transfer.status === 'APPROVED' && hasAny(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]) && canManageSourceWarehouse && hasTrip && (
         <div className="flex flex-col gap-3">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-            <Button loading={busy} disabled={allItemsSent} icon={PackageCheck} onClick={() => run('ship')}>
-              {allItemsSent ? 'Đã xếp hàng' : 'Xếp hàng đúng số lượng'}
-            </Button>
-            <Button loading={busy} icon={RotateCcw} variant="outline-light" onClick={() => run('unship')}>Hạ hàng khỏi xe</Button>
+          {/* Outbound QC Step */}
+          <div className="border border-hairline-light rounded p-3 bg-canvas-cream flex flex-col gap-2">
+            <div className="text-xs font-semibold text-ink">BƯỚC 1: KIỂM TRA OUTBOUND QC</div>
+            {outboundQcPassed ? (
+              <div className="text-xs text-success-700 font-semibold flex items-center gap-1">
+                <Check className="w-4 h-4" /> Outbound QC Đạt! (Ghi chú: "{transfer.outboundQcNote || transfer.outbound_qc_note || ''}")
+              </div>
+            ) : outboundQcFailed ? (
+              <div className="rounded-md border border-danger-200 bg-danger-50 px-3 py-2 text-xs text-danger-700">
+                QC thất bại. Không được xác nhận xếp hàng; cần hạ hàng khỏi xe để xử lý lại.
+              </div>
+            ) : (
+              <>
+                <Input label="Ghi chú QC" value={outboundQcNote} onChange={(e) => setOutboundQcNote(e.target.value)} placeholder="Nhập ghi chú QC..." />
+                <div className="flex flex-col gap-2">
+                  <div className="text-xs font-semibold uppercase tracking-wider text-shade-60">Ảnh xác nhận QC</div>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <label className="rounded-pill font-medium transition-all duration-150 inline-flex items-center justify-center gap-2 text-sm leading-none box-border h-10 px-6 bg-canvas-light text-ink border border-ink hover:bg-shade-30 cursor-pointer">
+                      <Camera className="w-4 h-4" />
+                      Chọn hoặc chụp ảnh
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="sr-only"
+                        onChange={selectOutboundQcPhoto}
+                      />
+                    </label>
+                    <div className="min-h-10 flex flex-1 items-center rounded-md border border-hairline-light bg-canvas-light px-3 text-xs text-shade-60">
+                      {outboundQcPhotoName || 'Chưa chọn ảnh QC'}
+                    </div>
+                  </div>
+                  {outboundQcPhotoRef && (
+                    <img
+                      src={outboundQcPhotoRef}
+                      alt="Ảnh xác nhận QC"
+                      className="h-28 w-28 rounded-md border border-hairline-light object-cover"
+                    />
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Button loading={busy} size="sm" disabled={!outboundQcPhotoRef} onClick={() => recordOutboundQc(true)}>QC Đạt</Button>
+                  <Button loading={busy} variant="outline-light" size="sm" disabled={!outboundQcPhotoRef} className="text-danger-600 border-danger-300" onClick={() => recordOutboundQc(false)}>QC Thất bại</Button>
+                </div>
+              </>
+            )}
           </div>
 
-          {/* Outbound QC Step */}
-          {allItemsSent && (
-            <div className="border border-hairline-light rounded p-3 bg-canvas-cream flex flex-col gap-2">
-              <div className="text-xs font-semibold text-ink">BƯỚC 1: KIỂM TRA OUTBOUND QC</div>
-              {transfer.outboundQcPassed || transfer.outbound_qc_passed ? (
-                <div className="text-xs text-success-700 font-semibold flex items-center gap-1">
-                  <Check className="w-4 h-4" /> Outbound QC Đạt! (Ghi chú: "{transfer.outboundQcNote || transfer.outbound_qc_note || ''}")
-                </div>
-              ) : (
-                <>
-                  <Input label="Ghi chú QC" value={outboundQcNote} onChange={(e) => setOutboundQcNote(e.target.value)} placeholder="Nhập ghi chú QC..." />
-                  <Input label="Ảnh xác nhận QC (photo_ref)" value={outboundQcPhotoRef} onChange={(e) => setOutboundQcPhotoRef(e.target.value)} placeholder="Nhập link/ref ảnh..." />
-                  <div className="flex gap-2">
-                    <Button loading={busy} size="sm" onClick={() => {
-                      if (!outboundQcPhotoRef.trim()) {
-                        addToast('Vui lòng nhập link ảnh QC!', 'error');
-                        return;
-                      }
-                      run('recordOutboundQc', { outboundQcPassed: true, outboundQcNote, outboundQcPhotoRef });
-                    }}>QC Đạt</Button>
-                    <Button loading={busy} variant="outline-light" size="sm" className="text-danger-600 border-danger-300" onClick={() => {
-                      if (!outboundQcPhotoRef.trim()) {
-                        addToast('Vui lòng nhập link ảnh QC!', 'error');
-                        return;
-                      }
-                      run('recordOutboundQc', { outboundQcPassed: false, outboundQcNote, outboundQcPhotoRef });
-                    }}>QC Thất bại</Button>
-                  </div>
-                </>
-              )}
+          {outboundQcFailed ? (
+            <Button loading={busy} disabled={!allItemsSent} icon={RotateCcw} variant="outline-light" onClick={() => run('unship')}>
+              Hạ hàng khỏi xe
+            </Button>
+          ) : outboundQcPassed && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <Button loading={busy} disabled={allItemsSent} icon={PackageCheck} onClick={() => run('ship')}>
+                {allItemsSent ? 'Đã xếp hàng' : 'Hoàn tất xếp hàng'}
+              </Button>
+              <Button loading={busy} disabled={!allItemsSent} icon={RotateCcw} variant="outline-light" onClick={() => run('unship')}>Hạ hàng khỏi xe</Button>
             </div>
           )}
 
-          {/* Load Handover Step */}
-          {allItemsSent && (transfer.outboundQcPassed || transfer.outbound_qc_passed) && (
+          {allItemsSent && outboundQcPassed && (
             <div className="border border-hairline-light rounded p-3 bg-canvas-cream flex flex-col gap-2">
               <div className="text-xs font-semibold text-ink">BƯỚC 2: BÀN GIAO LÊN XE (LOAD HANDOVER)</div>
-              {transfer.loadHandoverPhotoRef || transfer.load_handover_photo_ref ? (
+              {loadHandoverDone ? (
                 <div className="text-xs text-success-700 font-semibold flex items-center gap-1">
-                  <Check className="w-4 h-4" /> Đã bàn giao hàng lên xe! (Ảnh: {transfer.loadHandoverPhotoRef || transfer.load_handover_photo_ref})
+                  <Check className="w-4 h-4" /> Đã hoàn tất bàn giao hàng lên xe và lưu ảnh xác nhận.
                 </div>
               ) : (
                 <>
-                  <Input label="Ảnh bàn giao hàng (photo_ref)" value={loadHandoverPhotoRef} onChange={(e) => setLoadHandoverPhotoRef(e.target.value)} placeholder="Nhập link/ref ảnh bàn giao..." />
-                  <Button loading={busy} size="sm" onClick={() => {
-                    if (!loadHandoverPhotoRef.trim()) {
-                      addToast('Vui lòng nhập link ảnh bàn giao!', 'error');
-                      return;
-                    }
-                    run('loadHandover', { loadHandoverPhotoRef });
-                  }}>Xác nhận Bàn giao</Button>
+                  <div className="text-xs text-shade-60">
+                    Dùng ảnh QC đã chọn làm ảnh bàn giao xếp hàng. Nếu cần ảnh mới, hạ hàng rồi QC lại.
+                  </div>
+                  <Button loading={busy} size="sm" onClick={() => run('loadHandover', { photoRef: transfer.outboundQcPhotoRef || transfer.outbound_qc_photo_ref })}>
+                    Xác nhận đã hoàn tất
+                  </Button>
                 </>
               )}
             </div>
@@ -422,7 +494,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
 
       {transfer.status === 'APPROVED' && hasRole(ROLES.DRIVER) && hasTrip && allItemsSent && isAssignedDriver && (
         <div className="flex flex-col gap-2">
-          {!((transfer.outboundQcPassed || transfer.outbound_qc_passed) && (transfer.loadHandoverPhotoRef || transfer.load_handover_photo_ref)) ? (
+          {!(outboundQcPassed && loadHandoverDone) ? (
             <div className="rounded-md border border-warning-200 bg-warning-50 p-3 text-xs text-warning-700">
               Chờ thủ kho hoàn tất Outbound QC và bàn giao lên xe (Load Handover) trước khi tài xế xác nhận rời kho.
             </div>
