@@ -14,8 +14,8 @@ Phiếu điều chuyển có thể gồm nhiều dòng hàng vì lệnh điều 
 ## 3. Functional Requirements (EARS)
 * **Ubiquitous:**
   * The system SHALL NOT generate transfer suggestions or automatically decide source/destination/quantity for inter-warehouse transfers in Sprint 1.
-  * The system SHALL create transfer records only from explicit Planner input based on an external transfer instruction or a CEO-approved manager transfer request.
-  * The system SHALL require `externalInstructionCode` for every transfer so the WMS transfer can be traced back to the instruction from Công ty mẹ, the central coordination team, or the CEO-approved transfer request.
+  * The system SHALL create transfer records only from explicit Planner input based on an external transfer instruction or an approved manager transfer request.
+  * The system SHALL require `externalInstructionCode` for every transfer so the WMS transfer can be traced back to the instruction from Công ty mẹ, the central coordination team, or the approved transfer request.
   * The system SHALL reject duplicate active transfers with the same `externalInstructionCode`, source warehouse, destination warehouse, and `documentDate`; transfers in `REJECTED` or `CANCELLED` status SHALL NOT block creating a corrected transfer for the same external instruction.
   * The system SHALL enforce Planner authorization before transfer create/update/cancel; Planner can create and edit transfers but SHALL NOT assign trips.
   * The system SHALL support multiple transfer item lines in one transfer.

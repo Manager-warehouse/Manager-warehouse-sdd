@@ -187,6 +187,28 @@ class TransferRequestServiceImplTest {
     }
 
     @Test
+    void cancelRequest_success() {
+        when(requestRepository.findById(request.getId())).thenReturn(Optional.of(request));
+        when(assignmentRepository.findWarehouseIdsByUserId(manager.getId())).thenReturn(List.of(destinationWarehouse.getId()));
+        when(requestRepository.save(any(TransferRequest.class))).thenReturn(request);
+
+        TransferRequestResponse response = service.cancelRequest(request.getId(), manager);
+
+        assertThat(response.status()).isEqualTo(TransferRequestStatus.CANCELLED);
+        verify(requestRepository, times(1)).save(request);
+    }
+
+    @Test
+    void cancelRequest_failsIfNotDraft() {
+        request.setStatus(TransferRequestStatus.SUBMITTED);
+        when(requestRepository.findById(request.getId())).thenReturn(Optional.of(request));
+
+        assertThatThrownBy(() -> service.cancelRequest(request.getId(), manager))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("ONLY_DRAFT_CAN_BE_CANCELLED");
+    }
+
+    @Test
     void submitRequest_failsWhenSourceAvailableIsInsufficient() {
         when(requestRepository.findById(request.getId())).thenReturn(Optional.of(request));
         when(assignmentRepository.findWarehouseIdsByUserId(manager.getId())).thenReturn(List.of(destinationWarehouse.getId()));

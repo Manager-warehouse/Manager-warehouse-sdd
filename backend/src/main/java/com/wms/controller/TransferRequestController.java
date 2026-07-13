@@ -62,6 +62,14 @@ public class TransferRequestController {
         return ResponseEntity.ok(requestService.updateRequest(id, request, actor));
     }
 
+    @PostMapping("/{id}/cancel")
+    @Operation(summary = "Hủy mềm yêu cầu điều chuyển DRAFT (hiển thị như xóa đơn)")
+    @PreAuthorize("hasAnyRole('WAREHOUSE_MANAGER','ADMIN')")
+    public ResponseEntity<TransferRequestResponse> cancelRequest(@PathVariable Long id) {
+        User actor = currentUserService.getRequiredCurrentUser();
+        return ResponseEntity.ok(requestService.cancelRequest(id, actor));
+    }
+
     @PostMapping("/{id}/submit")
     @Operation(summary = "Gửi yêu cầu điều chuyển cho CEO duyệt (DRAFT -> SUBMITTED)")
     @PreAuthorize("hasAnyRole('WAREHOUSE_MANAGER','ADMIN')")

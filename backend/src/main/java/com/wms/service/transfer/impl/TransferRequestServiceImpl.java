@@ -120,6 +120,27 @@ public class TransferRequestServiceImpl implements TransferRequestService {
 
     @Override
     @Transactional
+    public TransferRequestResponse cancelRequest(Long id, User actor) {
+        TransferRequest req = findRequest(id);
+        if (req.getStatus() != TransferRequestStatus.DRAFT) {
+            throw new BusinessRuleViolationException("ONLY_DRAFT_CAN_BE_CANCELLED");
+        }
+        ensureRequesterRole(actor);
+        ensureWarehouseScope(actor, req.getDestinationWarehouse().getId());
+
+        Map<String, Object> before = snapshot(req);
+        req.setStatus(TransferRequestStatus.CANCELLED);
+        req.setUpdatedAt(OffsetDateTime.now());
+
+        TransferRequest saved = requestRepository.save(req);
+        auditUtil.logChange(actor, AuditAction.CANCEL, "TRANSFER_REQUEST",
+                saved.getId(), saved.getRequestNumber(), before, snapshot(saved));
+
+        return toResponse(saved);
+    }
+
+    @Override
+    @Transactional
     public TransferRequestResponse submitRequest(Long id, User actor) {
         TransferRequest req = findRequest(id);
         if (req.getStatus() != TransferRequestStatus.DRAFT) {

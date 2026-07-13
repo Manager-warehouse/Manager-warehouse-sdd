@@ -973,16 +973,17 @@ Quy trình điều phối hàng hóa giữa 3 kho vật lý Hải Phòng, Hà N�
 Trưởng kho của kho đang thiếu hàng có thể xem tồn kho khả dụng liên kho ở chế độ read-only để đề xuất điều chuyển. Yêu cầu điều chuyển này phải được CEO duyệt trước khi Planner kho nguồn hoặc Planner trung tâm chuyển thành `TRF-*`. CEO duyệt yêu cầu không giữ chỗ tồn, không sinh biến động inventory và không thay thế bước Trưởng kho nguồn duyệt phiếu `TRF-*`; reservation chỉ xảy ra khi phiếu `TRF-*` được Trưởng kho nguồn duyệt.
 
 ```
-Truong kho kho thieu hang xem ton lien kho read-only, tao transfer request neu can
+Truong kho kho thieu hang xem ton lien kho read-only, tao transfer request neu can; khi con DRAFT duoc sua hoac xoa mem thanh CANCELLED
     -> CEO duyet/tu choi transfer request
     -> Planner kho nguon/trung tam chuyen request da duyet thanh `TRF-*`
-Planner nhap phieu `TRF-*` theo lenh ngoai hoac request CEO-approved
+Planner nhap phieu `TRF-*` theo lenh ngoai hoac request da duoc CEO duyet
     -> Truong kho nguon duyet/tu choi va giu cho FIFO-eligible stock
     -> Dispatcher kho nguon lap chuyen `TTR-*`, gan xe va tai xe thuoc pham vi kho nguon, kiem tra trung lich, tai trong va the tich neu co cau hinh
-    -> Thu kho nguon outbound QC bang mat/doi chieu phieu, chup anh xac nhan, ghi so gui, boc xep len xe va chup anh ban giao cho tai xe
+    -> Thu kho nguon outbound QC bang mat/doi chieu phieu, bat buoc chon/chup anh xac nhan truoc khi bam QC, QC dat moi duoc ghi so gui/boc xep; QC that bai chi cho ha hang khoi xe
+    -> Thu kho nguon chup/chon anh ban giao hang len xe truoc khi xac nhan handover cho tai xe
     -> Tai xe duoc gan xac nhan nhan hang va roi kho
         -> System tru ton kho nguon, giai phong reserved, cong kho ao `IN_TRANSIT`
-    -> Tai xe ghi nhan den kho nhan va kho nhan ghi nhan handover
+    -> Tai xe ghi nhan den kho nhan va kho nhan bat buoc chon/chup anh truoc khi ghi nhan handover
     -> Cong nhan/Nhan vien kho dich blind count so nhan ban dau
     -> Thu kho dich kiem tra lai, chot QC, kiem tra bin capacity, chon vi tri nhap kho cho hang dat
     -> Truong kho dich xac nhan cuoi cung
@@ -1006,10 +1007,12 @@ Planner nhap phieu `TRF-*` theo lenh ngoai hoac request CEO-approved
 │              │        │         │              │            │              │        │              │ In-Transit          │
 │ Tạo TRQ      │        │         │              │            │              │        │              │                    │
 │ [DRAFT]      │        │         │              │            │              │        │              │                    │
+│ Sửa hoặc xóa │        │         │              │            │              │        │              │ Xóa = CANCELLED,   │
+│ mềm khi DRAFT│        │         │              │            │              │        │              │ không delete DB    │
 │ Submit ──────┼───────►│         │              │            │              │        │              │ TRQ [SUBMITTED]    │
 │              │ Duyệt/ │         │              │            │              │        │              │                    │
 │              │ từ chối│         │              │            │              │        │              │ Nếu duyệt:          │
-│              │ ───────┼────────►│              │            │              │        │              │ TRQ [CEO_APPROVED], │
+│              │ ───────┼────────►│              │            │              │        │              │ TRQ [APPROVED],    │
 │              │        │ Convert │              │            │              │        │              │ chưa reserve        │
 │              │        │ TRQ hoặc│              │            │              │        │              │                    │
 │              │        │ tạo TRF │              │            │              │        │              │ TRF [NEW]          │
@@ -1025,10 +1028,12 @@ Planner nhap phieu `TRF-*` theo lenh ngoai hoac request CEO-approved
 │              │        │         │              │            │ Pick theo    │        │              │                    │
 │              │        │         │              │            │ phiếu, không │        │              │                    │
 │              │        │         │              │            │ Barcode/QR   │        │              │                    │
-│              │        │         │              │            │ Outbound QC  │        │              │ Yêu cầu ảnh QC,     │
-│              │        │         │              │            │ + ảnh        │        │              │ QC pass mới ship   │
+│              │        │         │              │            │ Outbound QC  │        │              │ Chọn/chụp ảnh      │
+│              │        │         │              │            │ + ảnh        │        │              │ trước khi bấm QC;  │
+│              │        │         │              │            │              │        │              │ QC pass mới ship   │
 │              │        │         │              │            │ Ship đúng SL │        │              │ sent=planned       │
-│              │        │         │              │            │ Handover ảnh ├──────►│              │ Handover required  │
+│              │        │         │              │            │ Handover ảnh ├──────►│              │ Handover photo     │
+│              │        │         │              │            │ cho tài xế   │        │              │ required           │
 │              │        │         │              │            │ cho tài xế   │ Depart │              │                    │
 │              │        │         │              │            │              │───────►│              │ Trừ kho nguồn,     │
 │              │        │         │              │            │              │        │              │ release reserved,  │
@@ -1036,8 +1041,9 @@ Planner nhap phieu `TRF-*` theo lenh ngoai hoac request CEO-approved
 │              │        │         │              │            │              │        │              │ TRF [IN_TRANSIT]   │
 │              │        │         │              │            │              │ Arrive │              │                    │
 │              │        │         │              │            │              │───────┼─────────────► Ghi arrival        │
-│              │        │         │              │            │              │        │ Handover     │                    │
-│              │        │         │              │            │              │        │ nhận hàng ───► Mở receive-count   │
+│              │        │         │              │            │              │        │ Handover     │ Chọn/chụp ảnh      │
+│              │        │         │              │            │              │        │ nhận hàng ───► trước handover,    │
+│              │        │         │              │            │              │        │              │ mở receive-count   │
 │              │        │         │              │            │              │        │ Blind count  │                    │
 │              │        │         │              │            │              │        │─────────────► Lưu received draft  │
 │              │        │         │              │            │              │        │ Storekeeper  │                    │
@@ -1104,6 +1110,7 @@ Planner nhap phieu `TRF-*` theo lenh ngoai hoac request CEO-approved
 - Nếu chuyến quá hạn khi phiếu còn `IN_TRANSIT`, hệ thống đánh dấu overdue, chặn receive-count/receive-check ở kho đích và yêu cầu WAREHOUSE_MANAGER kho nguồn, ADMIN, CEO hoặc PLANNER kích hoạt Return to Source với lý do, kèm photo refs nếu có.
 - Hàng đạt QC khi nhập vào kho đích hoặc kho nguồn sau Return to Source phải chọn Bin hợp lệ, không phải quarantine bin, và phải kiểm tra bin capacity trước khi cộng tồn.
 - Pick/outbound QC/load handover trong điều chuyển không dùng Barcode/QR; xác nhận bằng chọn line phiếu, nhập/xác nhận số lượng và ảnh chụp.
+- Các bước có ảnh trong UI phải dùng nút chọn file/chọn ảnh trên điện thoại/máy tính hoặc chụp trực tiếp bằng camera; không nhập link ảnh thủ công. Nút QC/xác nhận bàn giao/POD chỉ được bật sau khi đã có ảnh.
 - Transfer/request/trip/resource/inventory mutations phải có version/concurrency guard; GET/list/detail không được mutate trạng thái nghiệp vụ.
 - Audit transfer phải đủ header, items, allocation, QC, wrong-SKU lines, trip/resource state và inventory movement để tái dựng nghiệp vụ.
 - Flyway migrations đã apply không được sửa/rename/xóa; schema fix phải đi qua migration mới.

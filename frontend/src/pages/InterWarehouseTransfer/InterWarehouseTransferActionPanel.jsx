@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Camera, Check, ClipboardCheck, PackageCheck, RotateCcw, Send, Truck, X } from 'lucide-react';
+import { Check, ClipboardCheck, PackageCheck, RotateCcw, Send, Truck, X } from 'lucide-react';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
+import PhotoCaptureInput from '../../components/common/PhotoCaptureInput';
 import { ROLES } from '../../utils/constants';
 import { useUiStore } from '../../stores/ui.store';
 
@@ -29,13 +30,6 @@ const getDriverWarehouseIds = (driver) => {
   const ids = driver.warehouse_ids || driver.warehouseIds || [];
   return Array.isArray(ids) ? ids.map(Number) : [];
 };
-
-const readImageAsDataUrl = (file) => new Promise((resolve, reject) => {
-  const reader = new FileReader();
-  reader.onload = () => resolve(reader.result);
-  reader.onerror = reject;
-  reader.readAsDataURL(file);
-});
 
 const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWarehouse, hasRole, hasWarehouseAccess, vehicles, drivers, locations, onAction }) => {
   const { addToast } = useUiStore();
@@ -123,6 +117,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
   const outboundQcPassed = outboundQcValue === true;
   const outboundQcFailed = outboundQcValue === false;
   const loadHandoverDone = Boolean(transfer.loadHandoverPhotoRef || transfer.load_handover_photo_ref || false);
+  const outboundQcStoredPhotoRef = transfer.outboundQcPhotoRef || transfer.outbound_qc_photo_ref || '';
   const isAssignedDriver = hasRole(ROLES.DRIVER)
     && Number(transfer.driverUserId || 0) === Number(currentUser?.id || 0);
   const canDriverDepart = hasTrip && allItemsSent && isAssignedDriver && outboundQcPassed && loadHandoverDone;
@@ -230,25 +225,6 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
       setReason('');
     } finally {
       setBusy(false);
-    }
-  };
-
-  const selectOutboundQcPhoto = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      addToast('Vui lòng chọn hoặc chụp file ảnh.', 'error');
-      event.target.value = '';
-      return;
-    }
-    try {
-      const dataUrl = await readImageAsDataUrl(file);
-      setOutboundQcPhotoRef(dataUrl);
-      setOutboundQcPhotoName(file.name || 'Ảnh QC đã chọn');
-    } catch {
-      addToast('Không thể đọc ảnh QC, vui lòng chọn lại.', 'error');
-    } finally {
-      event.target.value = '';
     }
   };
 
@@ -424,31 +400,16 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
             ) : (
               <>
                 <Input label="Ghi chú QC" value={outboundQcNote} onChange={(e) => setOutboundQcNote(e.target.value)} placeholder="Nhập ghi chú QC..." />
-                <div className="flex flex-col gap-2">
-                  <div className="text-xs font-semibold uppercase tracking-wider text-shade-60">Ảnh xác nhận QC</div>
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <label className="rounded-pill font-medium transition-all duration-150 inline-flex items-center justify-center gap-2 text-sm leading-none box-border h-10 px-6 bg-canvas-light text-ink border border-ink hover:bg-shade-30 cursor-pointer">
-                      <Camera className="w-4 h-4" />
-                      Chọn hoặc chụp ảnh
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="sr-only"
-                        onChange={selectOutboundQcPhoto}
-                      />
-                    </label>
-                    <div className="min-h-10 flex flex-1 items-center rounded-md border border-hairline-light bg-canvas-light px-3 text-xs text-shade-60">
-                      {outboundQcPhotoName || 'Chưa chọn ảnh QC'}
-                    </div>
-                  </div>
-                  {outboundQcPhotoRef && (
-                    <img
-                      src={outboundQcPhotoRef}
-                      alt="Ảnh xác nhận QC"
-                      className="h-28 w-28 rounded-md border border-hairline-light object-cover"
-                    />
-                  )}
-                </div>
+                <PhotoCaptureInput
+                  label="Ảnh xác nhận QC"
+                  value={outboundQcPhotoRef}
+                  fileName={outboundQcPhotoName}
+                  onChange={(dataUrl, file) => {
+                    setOutboundQcPhotoRef(dataUrl);
+                    setOutboundQcPhotoName(file?.name || 'Ảnh QC đã chọn');
+                  }}
+                  required
+                />
                 <div className="flex gap-2">
                   <Button loading={busy} size="sm" disabled={!outboundQcPhotoRef} onClick={() => recordOutboundQc(true)}>QC Đạt</Button>
                   <Button loading={busy} variant="outline-light" size="sm" disabled={!outboundQcPhotoRef} className="text-danger-600 border-danger-300" onClick={() => recordOutboundQc(false)}>QC Thất bại</Button>
@@ -482,7 +443,12 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
                   <div className="text-xs text-shade-60">
                     Dùng ảnh QC đã chọn làm ảnh bàn giao xếp hàng. Nếu cần ảnh mới, hạ hàng rồi QC lại.
                   </div>
-                  <Button loading={busy} size="sm" onClick={() => run('loadHandover', { photoRef: transfer.outboundQcPhotoRef || transfer.outbound_qc_photo_ref })}>
+                  <Button
+                    loading={busy}
+                    size="sm"
+                    disabled={!outboundQcStoredPhotoRef}
+                    onClick={() => run('loadHandover', { photoRef: outboundQcStoredPhotoRef })}
+                  >
                     Xác nhận đã hoàn tất
                   </Button>
                 </>
@@ -539,10 +505,15 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
               <div className="text-xs font-semibold text-ink">BƯỚC 2: BÀN GIAO TẠI KHO ĐÍCH</div>
               {hasAny(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse ? (
                 <>
-                  <Input label="Ảnh bàn giao nhận hàng (photo_ref)" value={arrivalHandoverPhotoRef} onChange={(e) => setArrivalHandoverPhotoRef(e.target.value)} placeholder="Nhập link/ref ảnh bàn giao..." />
-                  <Button loading={busy} size="sm" onClick={() => {
+                  <PhotoCaptureInput
+                    label="Ảnh bàn giao nhận hàng"
+                    value={arrivalHandoverPhotoRef}
+                    onChange={(dataUrl) => setArrivalHandoverPhotoRef(dataUrl)}
+                    required
+                  />
+                  <Button loading={busy} size="sm" disabled={!arrivalHandoverPhotoRef} onClick={() => {
                     if (!arrivalHandoverPhotoRef.trim()) {
-                      addToast('Vui lòng nhập link ảnh bàn giao!', 'error');
+                      addToast('Vui lòng chọn hoặc chụp ảnh bàn giao!', 'error');
                       return;
                     }
                     run('receivingHandover', { photoRef: arrivalHandoverPhotoRef });
@@ -591,10 +562,15 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
               <div className="text-xs font-semibold text-ink">BƯỚC 3: BÀN GIAO QUAY ĐẦU TẠI KHO NGUỒN</div>
               {hasAny(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]) && canManageSourceWarehouse ? (
                 <>
-                  <Input label="Ảnh bàn giao quay đầu (photo_ref)" value={returnPhotoRef} onChange={(e) => setReturnPhotoRef(e.target.value)} placeholder="Nhập link/ref ảnh..." />
-                  <Button loading={busy} size="sm" onClick={() => {
+                  <PhotoCaptureInput
+                    label="Ảnh bàn giao quay đầu"
+                    value={returnPhotoRef}
+                    onChange={(dataUrl) => setReturnPhotoRef(dataUrl)}
+                    required
+                  />
+                  <Button loading={busy} size="sm" disabled={!returnPhotoRef} onClick={() => {
                     if (!returnPhotoRef.trim()) {
-                      addToast('Vui lòng nhập link ảnh bàn giao!', 'error');
+                      addToast('Vui lòng chọn hoặc chụp ảnh bàn giao!', 'error');
                       return;
                     }
                     run('returnHandover', { photoRef: returnPhotoRef });

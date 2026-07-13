@@ -130,6 +130,21 @@ class TransferRequestControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "manager@wms.com", roles = "WAREHOUSE_MANAGER")
+    void cancelRequest_success() throws Exception {
+        TransferRequestResponse response = createMockResponse(500L, "TRQ-0001", TransferRequestStatus.CANCELLED);
+
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(manager);
+        when(requestService.cancelRequest(eq(500L), eq(manager)))
+                .thenReturn(response);
+
+        mockMvc.perform(post("/api/v1/transfer-requests/500/cancel")
+                .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELLED"));
+    }
+
+    @Test
     @WithMockUser(username = "ceo@wms.com", roles = "CEO")
     void approveRequest_success() throws Exception {
         TransferRequestResponse response = createMockResponse(500L, "TRQ-0001", TransferRequestStatus.APPROVED);
