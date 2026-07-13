@@ -3,7 +3,7 @@
 ## 1. Context and Goal
 Planner nhận chỉ đạo điều chuyển hàng từ Công ty mẹ, bộ phận điều phối trung tâm, hoặc một yêu cầu điều chuyển do Trưởng kho đề xuất đã được CEO phê duyệt, sau đó nhập phiếu điều chuyển vào hệ thống WMS để kho nguồn kiểm tra, phê duyệt và thực thi. Công ty mẹ không phải user trong hệ thống ở Sprint 1; mọi lệnh điều chuyển từ Công ty mẹ được nhập trung gian qua Planner. Sprint 1 không có nghiệp vụ kho tự quyết định xuất/điều chuyển hàng khi chưa có CEO duyệt hoặc chỉ đạo điều phối hợp lệ, và không có gợi ý điều chuyển tự động dựa trên tồn kho.
 
-Planner thao tác trên man hinh dieu chuyen noi bo dung chung (`/transfers`). Luong nay tach rieng khoi man hinh phieu nhap `RN` tu nha cung cap.
+Planner thao tác trên man hinh dieu chuyen noi bo dung chung (`/inter-warehouse-transfers`). Luong nay tach rieng khoi man hinh phieu nhap `RN` tu nha cung cap.
 Trong Sprint 1, man nay dong vai tro la workspace van hanh chinh cho transfer. Bao cao/dashboard chuyen sau cho transfer moi o muc co ban: list theo trang thai, route, dong hang, tai xe/chuyen neu da co. Cac KPI tong hop chuyen sau co the bo sung sau.
 
 Phiếu điều chuyển có thể gồm nhiều dòng hàng vì lệnh điều chuyển thực tế có thể yêu cầu gửi nhiều SKU trong cùng một chuyến chứng từ, ví dụ 50 cái chảo và 30 nồi từ kho Hải Phòng sang kho Hà Nội.
@@ -40,10 +40,10 @@ Phiếu điều chuyển có thể gồm nhiều dòng hàng vì lệnh điều 
   * WHILE a transfer is `REJECTED`, Planner SHALL NOT revise or resubmit the same transfer; Planner MUST create a new transfer if the external instruction still needs to be executed.
 
 ## 4. API Endpoints
-* `POST /api/v1/transfers` - Planner tạo phiếu điều chuyển nhiều dòng hàng theo lệnh từ Công ty mẹ.
-* `GET /api/v1/transfers/{id}` - Tải lại phiếu hiện tại để Planner sửa trên danh sách đã có.
-* `PUT /api/v1/transfers/{id}` - Planner lưu lại header và danh sách item sau chỉnh sửa khi phiếu còn `NEW`; server xem payload là trạng thái hiện tại mong muốn của phiếu.
-* `PUT /api/v1/transfers/{id}/cancel` - Endpoint hủy dùng chung; Planner chỉ được hủy phiếu `NEW`, còn phiếu `APPROVED` chỉ được hủy bởi Trưởng kho nguồn/manager theo shipment flow.
+* `POST /api/v1/inter-warehouse-transfers` - Planner tạo phiếu điều chuyển nhiều dòng hàng theo lệnh từ Công ty mẹ.
+* `GET /api/v1/inter-warehouse-transfers/{id}` - Tải lại phiếu hiện tại để Planner sửa trên danh sách đã có.
+* `PUT /api/v1/inter-warehouse-transfers/{id}` - Planner lưu lại header và danh sách item sau chỉnh sửa khi phiếu còn `NEW`; server xem payload là trạng thái hiện tại mong muốn của phiếu.
+* `POST /api/v1/inter-warehouse-transfers/{id}/cancel` - Endpoint hủy dùng chung; Planner chỉ được hủy phiếu `NEW`, còn phiếu `APPROVED` chỉ được hủy bởi Trưởng kho nguồn/manager theo shipment flow.
 
 ### Request Payload
 ```json

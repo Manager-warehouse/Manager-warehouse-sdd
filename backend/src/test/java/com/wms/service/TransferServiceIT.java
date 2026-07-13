@@ -241,11 +241,26 @@ public class TransferServiceIT {
         assertThat(trf.status()).isEqualTo(InterWarehouseTransferStatus.APPROVED);
         assertThat(trf.tripId()).isNotNull();
 
-        // 4. Ship Transfer (moves stock to IN_TRANSIT virtual warehouse, keeps status APPROVED)
+        // 4. Outbound QC and load handover with photo confirmation
+        trf = transferService.recordOutboundQc(
+                trf.id(),
+                new OutboundQcRequest(true, "Outbound QC passed", "transfer/outbound-qc/trf-001.jpg"),
+                storekeeper
+        );
+        assertThat(trf.outboundQcPassed()).isTrue();
+
+        trf = transferService.loadHandover(
+                trf.id(),
+                new LoadHandoverRequest("transfer/load-handover/trf-001.jpg"),
+                storekeeper
+        );
+        assertThat(trf.loadHandoverPhotoRef()).isEqualTo("transfer/load-handover/trf-001.jpg");
+
+        // 5. Ship Transfer (keeps status APPROVED)
         trf = transferService.shipTransfer(trf.id(), storekeeper);
         assertThat(trf.status()).isEqualTo(InterWarehouseTransferStatus.APPROVED);
 
-        // 5. Depart Transfer (driver departs) - transitions status to IN_TRANSIT
+        // 6. Depart Transfer (driver departs) - transitions status to IN_TRANSIT
         trf = transferService.departTransfer(trf.id(), driverUser);
         assertThat(trf.status()).isEqualTo(InterWarehouseTransferStatus.IN_TRANSIT);
 
@@ -257,7 +272,18 @@ public class TransferServiceIT {
                 .orElseThrow();
         assertThat(transitInv.getTotalQty()).isEqualByComparingTo(new BigDecimal("30.00"));
 
-        // 6. Receive Count at destination
+        // 7. Driver arrival and destination handover
+        trf = transferService.driverArrive(trf.id(), driverUser);
+        assertThat(trf.driverArrivedAt()).isNotNull();
+
+        trf = transferService.receivingHandover(
+                trf.id(),
+                new LoadHandoverRequest("transfer/arrival-handover/trf-001.jpg"),
+                storekeeper
+        );
+        assertThat(trf.arrivalHandoverAt()).isNotNull();
+
+        // 8. Receive Count at destination
         InterWarehouseTransferReceiveCountItemRequest countItem = new InterWarehouseTransferReceiveCountItemRequest(
                 trf.items().get(0).id(),
                 new BigDecimal("30.00"),
@@ -268,7 +294,7 @@ public class TransferServiceIT {
         trf = transferService.receiveCount(trf.id(), countReq, storekeeper);
         assertThat(trf.status()).isEqualTo(InterWarehouseTransferStatus.IN_TRANSIT);
 
-        // 7. Receive Check (QC verification) at destination
+        // 9. Receive Check (QC verification) at destination
         InterWarehouseTransferReceiveCheckItemRequest checkItem = new InterWarehouseTransferReceiveCheckItemRequest(
                 trf.items().get(0).id(),
                 new BigDecimal("30.00"),
@@ -283,7 +309,7 @@ public class TransferServiceIT {
         trf = transferService.receiveCheck(trf.id(), checkReq, storekeeper);
         assertThat(trf.status()).isEqualTo(InterWarehouseTransferStatus.IN_TRANSIT);
 
-        // 8. Final Receive (completes the transfer, moves stock from transit bin to destination bin)
+        // 10. Final Receive (completes the transfer, moves stock from transit bin to destination bin)
         InterWarehouseTransferFinalReceiveRequest finalReq = new InterWarehouseTransferFinalReceiveRequest("Completed successfully");
         trf = transferService.finalReceive(trf.id(), finalReq, manager);
         assertThat(trf.status()).isEqualTo(InterWarehouseTransferStatus.COMPLETED);

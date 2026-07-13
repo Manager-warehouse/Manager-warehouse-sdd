@@ -46,10 +46,14 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
                         where i.warehouse.id = :warehouseId
                           and i.product.id = :productId
                           and (i.totalQty - i.reservedQty) > 0
+                          and i.location.isActive = true
+                          and i.location.isQuarantine = false
+                          and i.location.isLocked = false
                         order by b.receivedDate asc, i.id asc
                         """)
         List<Inventory> findReservableForUpdate(@Param("warehouseId") Long warehouseId,
                         @Param("productId") Long productId);
+
 
         @Lock(LockModeType.PESSIMISTIC_WRITE)
         @Query("""

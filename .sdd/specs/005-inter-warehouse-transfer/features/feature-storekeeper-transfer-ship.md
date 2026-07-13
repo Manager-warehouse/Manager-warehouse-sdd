@@ -5,6 +5,7 @@ Thu kho tai kho nguon chiu trach nhiem soan hang theo phieu dieu chuyen da duoc 
 
 Luot ship nay thuoc man **Dieu chuyen noi bo** va chi ap dung cho ma `TRF-*`, khong lien quan den luong `RN-*` cua nhap NCC.
 Trang thai dieu phoi cua tai xe la du lieu van hanh/danh muc. Tai xe khong tu doi trang thai san sang/ban/khong kha dung trong luong ship transfer; Dispatcher/admin quan ly lich ranh, con he thong co the tu dong chuyen sang `ON_TRIP` khi tai xe xac nhan roi kho.
+Kho Phuc Anh khong dung Barcode/QR trong Sprint 1. Buoc pick, outbound QC va load/handover cua dieu chuyen duoc xac nhan bang dong phieu tren he thong, so luong nhap/xac nhan va anh chup lam bang chung.
 
 ## 2. Actors
 - **Thu kho (Kho nguon)**: Soan hang, xac nhan xuat hang len xe tai.
@@ -45,11 +46,24 @@ Trang thai dieu phoi cua tai xe la du lieu van hanh/danh muc. Tai xe khong tu do
     * Create a `TRANSFER_TRIP_ASSIGN` audit log entry.
     * Allow changing vehicle, driver, or planned date only before departure; after departure the trip assignment becomes immutable in Sprint 1.
 
+  * WHEN a Thu kho nguon performs outbound QC, the system SHALL:
+    * Allow the action only while the transfer is `APPROVED`.
+    * Verify correct SKU, physical condition, packaging integrity, and readiness for the exact loaded quantity.
+    * Require photo confirmation for the QC result; Barcode/QR scan SHALL NOT be required.
+    * Block shipment/departure if outbound QC is missing or failed.
+    * Create a `TRANSFER_OUTBOUND_QC` audit log entry.
+
   * WHEN a Thu kho nguon confirms shipment preparation, the system SHALL:
     * Allow the action only while the transfer is `APPROVED`.
     * Allow the action only when the actor is assigned to the transfer source warehouse.
+    * Require outbound QC to have passed.
     * Require `sent_qty = planned_qty` for every item.
     * Create a `TRANSFER_SHIP` audit log entry.
+
+  * WHEN source warehouse hands loaded goods to the assigned driver, the system SHALL:
+    * Require shipment preparation and outbound QC passed.
+    * Record handover time, actor, optional note, and at least one photo reference of loaded goods or handover condition.
+    * Create a `TRANSFER_LOAD_HANDOVER` audit log entry.
 
   * WHEN a user needs to cancel after shipment preparation but before driver departure, the system SHALL require an unship/unload action first:
     * Allow unship/unload only while the transfer is still `APPROVED` and `sent_qty` has been recorded.
@@ -61,6 +75,7 @@ Trang thai dieu phoi cua tai xe la du lieu van hanh/danh muc. Tai xe khong tu do
     * Require the transfer to be `APPROVED`.
     * Require exactly one assigned trip where `trip_type = 'TRANSFER'`.
     * Require `sent_qty` to have been recorded for every item.
+    * Require source load/handover to the assigned driver.
     * Require the actor to be the driver assigned to the transfer trip.
     * Decrease source warehouse inventories: `total_qty -= sent_qty`.
     * Decrease source warehouse reserved quantity: `reserved_qty -= planned_qty`.
@@ -76,13 +91,15 @@ Trang thai dieu phoi cua tai xe la du lieu van hanh/danh muc. Tai xe khong tu do
     * IF the status is `REJECTED`, `IN_TRANSIT`, `COMPLETED`, `COMPLETED_WITH_DISCREPANCY`, or `CANCELLED`, reject the cancellation.
 
 ## 4. API Endpoints
-- `POST /api/v1/transfers/{id}/approve` - Duyet dieu chuyen va giu cho hang (Truong kho nguon).
-- `POST /api/v1/transfers/{id}/reject` - Tu choi phieu dieu chuyen khi con `NEW`, bat buoc nhap ly do (Truong kho nguon).
-- `POST /api/v1/transfers/{id}/trip` - Lap chuyen xe noi bo rieng cho phieu dieu chuyen (Dispatcher kho nguon).
-- `POST /api/v1/transfers/{id}/ship` - Thu kho nguon ghi nhan so luong gui di va boc xep len xe.
-- `POST /api/v1/transfers/{id}/unship` - Ha hang tu xe xuong kho truoc khi tai xe xac nhan roi kho; xoa so luong da ghi len xe va giu phieu o `APPROVED`.
-- `POST /api/v1/transfers/{id}/depart` - Tai xe duoc gan xac nhan da nhan hang, xe roi kho, giai phong giu cho va chuyen sang In-Transit.
-- `POST /api/v1/transfers/{id}/cancel` - Huy phieu dieu chuyen (`NEW`: Planner; unshipped `APPROVED`: Truong kho nguon/manager, giai phong giu cho).
+- `POST /api/v1/inter-warehouse-transfers/{id}/approve` - Duyet dieu chuyen va giu cho hang (Truong kho nguon).
+- `POST /api/v1/inter-warehouse-transfers/{id}/reject` - Tu choi phieu dieu chuyen khi con `NEW`, bat buoc nhap ly do (Truong kho nguon).
+- `POST /api/v1/inter-warehouse-transfers/{id}/trip` - Lap chuyen xe noi bo rieng cho phieu dieu chuyen (Dispatcher kho nguon).
+- `POST /api/v1/inter-warehouse-transfers/{id}/outbound-qc` - Thu kho nguon kiem tra QC xuat truoc khi boc xep/giao tai xe.
+- `POST /api/v1/inter-warehouse-transfers/{id}/ship` - Thu kho nguon ghi nhan so luong gui di va boc xep len xe.
+- `POST /api/v1/inter-warehouse-transfers/{id}/load-handover` - Ghi nhan ban giao hang da boc xep cho tai xe duoc gan.
+- `POST /api/v1/inter-warehouse-transfers/{id}/unship` - Ha hang tu xe xuong kho truoc khi tai xe xac nhan roi kho; xoa so luong da ghi len xe va giu phieu o `APPROVED`.
+- `POST /api/v1/inter-warehouse-transfers/{id}/depart` - Tai xe duoc gan xac nhan da nhan hang, xe roi kho, giai phong giu cho va chuyen sang In-Transit.
+- `POST /api/v1/inter-warehouse-transfers/{id}/cancel` - Huy phieu dieu chuyen (`NEW`: Planner; unshipped `APPROVED`: Truong kho nguon/manager, giai phong giu cho).
 
 ## 5. Validation and Error Handling
 - `INSUFFICIENT_TRANSFER_STOCK` (HTTP 422): source warehouse lacks available quantity at approval.
@@ -90,7 +107,10 @@ Trang thai dieu phoi cua tai xe la du lieu van hanh/danh muc. Tai xe khong tu do
 - `REJECTION_REASON_REQUIRED` (HTTP 400): Truong kho nguon rejects transfer without reason.
 - `TRANSFER_TRIP_REQUIRED` (HTTP 400): departure attempted before assigning exactly one `TRANSFER` trip.
 - `TRANSFER_TRIP_NOT_AVAILABLE` (HTTP 409): selected vehicle or driver is unavailable or already assigned to an overlapping trip.
+- `TRIP_CAPACITY_EXCEEDED` (HTTP 422): calculated transfer weight or volume exceeds selected vehicle capacity.
 - `WAREHOUSE_SCOPE_REQUIRED` (HTTP 403): Dispatcher/manager/storekeeper acts outside source warehouse scope.
+- `OUTBOUND_QC_REQUIRED` (HTTP 409): shipment/departure is attempted before outbound QC passed.
+- `TRANSFER_PHOTO_REQUIRED` (HTTP 400): outbound QC or load/handover is confirmed without required photo reference.
 - `ASSIGNED_DRIVER_REQUIRED` (HTTP 409): departure actor is not the driver assigned to the transfer trip.
 - `TRANSFER_SHIP_NOT_ALLOWED` (HTTP 409): transfer is not `APPROVED`, actor is not in source warehouse scope, or shipment has already been recorded.
 - `SENT_QTY_MISMATCH` (HTTP 400): any `sentQty` differs from the approved `plannedQty`.
@@ -103,7 +123,10 @@ Trang thai dieu phoi cua tai xe la du lieu van hanh/danh muc. Tai xe khong tu do
 - `TRANSFER_APPROVE`: Truong kho nguon approves transfer, reserves source inventory, and changes status to `APPROVED`.
 - `TRANSFER_REJECT`: Truong kho nguon rejects a `NEW` transfer with a required reason and changes status to `REJECTED`.
 - `TRANSFER_TRIP_ASSIGN`: Dispatcher assigns one dedicated transfer trip with source-scoped vehicle and driver.
+- `TRANSFER_TRIP_REASSIGN`: Dispatcher changes vehicle/driver/schedule before departure.
+- `TRANSFER_OUTBOUND_QC`: Thu kho nguon records outbound QC result and photo references before loading/departure.
 - `TRANSFER_SHIP`: Thu kho nguon records exact approved quantities as loaded onto vehicle.
+- `TRANSFER_LOAD_HANDOVER`: Thu kho nguon records handover to the assigned driver with photo confirmation.
 - `TRANSFER_UNSHIP`: Thu kho nguon/authorized manager unloads goods before departure and clears recorded sent quantities.
 - `TRANSFER_DEPART`: Assigned driver confirms goods received and vehicle departure; system moves inventory from source to In-Transit and changes status to `IN_TRANSIT`.
 - `TRANSFER_CANCEL`: Planner cancels `NEW`, or Truong kho nguon/authorized manager cancels unshipped `APPROVED` and releases reserved quantity.

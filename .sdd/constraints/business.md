@@ -14,6 +14,7 @@
 | INV-05 | `@Version` trên inventory — conflict → HTTP 409 + retry                                                                               | MUST   |
 | INV-06 | `available = total_qty - reserved_qty >= 0`. Check trước khi xuất                                                                     | MUST   |
 | INV-07 | Chênh lệch 5-100M → Trưởng kho duyệt; > 100M → CEO duyệt                                                                              | MUST   |
+| INV-08 | Điều chuyển chỉ được reserve FIFO từ vị trí active, không quarantine/locked, đúng kho nguồn và có available dương                     | MUST   |
 
 ## 2. Batch Rules
 
@@ -23,6 +24,7 @@
 | BAT-02 | Không quản lý serial từng sản phẩm trong luồng nhập/xuất Sprint 1                              | MUST   |
 | BAT-03 | Putaway kiểm tra `bin_capacity` trước khi đặt hàng vào bin                                     | MUST   |
 | BAT-04 | Không quản lý hạn sử dụng/hết hạn cho batch hàng gia dụng Sprint 1                             | MUST   |
+| BAT-05 | Transfer item ở giai đoạn lập phiếu có thể chưa có batch; batch traceability nằm ở allocation sau khi reserve FIFO                    | MUST   |
 
 ## 3. QC & Quarantine Rules
 
@@ -43,6 +45,14 @@
 | TRF-02 | Kho nguồn giảm → In-Transit tăng → Kho đích nhận → In-Transit giảm → Kho đích tăng | MUST   |
 | TRF-03 | Chênh lệch `quantity_sent` vs `quantity_received` → adjustment + audit record      | MUST   |
 | TRF-04 | Chỉ cập nhật inventory đích khi kho đích xác nhận                                  | MUST   |
+| TRF-05 | Luồng chuẩn phải có outbound QC bằng ảnh, load/handover bằng ảnh, driver departure, driver arrival/handover, blind count, receive-check/QC/bin-capacity, final confirmation; không yêu cầu Barcode/QR | MUST |
+| TRF-06 | Trip điều chuyển phải kiểm tra trùng lịch, kho nguồn của xe/tài xế, tải trọng/thể tích; chỉ được đổi xe/tài xế trước departure      | MUST   |
+| TRF-07 | Receive-count bị chặn nếu chưa có driver arrival và handover tại kho nhận hiện hành                                                 | MUST   |
+| TRF-08 | Wrong-SKU phải ghi theo line: expected SKU, actual SKU, affected quantity, reason, photo refs nếu có; manager đích duyệt mới được return | MUST |
+| TRF-09 | Return-to-source do quá hạn chỉ cho phép khi trip thực sự overdue, có lý do, hỗ trợ ảnh nếu có, và phải có return departure + source arrival/handover | MUST |
+| TRF-10 | Nhận thừa bị chặn khỏi regular inventory và phải ghi discrepancy hold/incident; không được im lặng bỏ qua hàng vật lý                | MUST   |
+| TRF-11 | Transfer/request/trip/resource/inventory mutations phải có version/concurrency guard; GET/list/detail không được mutate trạng thái   | MUST   |
+| TRF-12 | Migration đã apply không được sửa/rename/xóa; thay đổi schema transfer phải đi qua migration mới                                    | MUST   |
 
 ## 5. Outbound / Delivery Rules
 
@@ -97,6 +107,7 @@
 | AUD-02 | Audit log gồm: actor, action, timestamp, entity_type, entity_id, old_value, new_value, warehouse_id | MUST   |
 | AUD-03 | Phân quyền thay đổi cũng phải ghi audit log                                                         | MUST   |
 | AUD-04 | Report view cũng ghi log (người xem, thời gian, bộ lọc)                                             | MUST   |
+| AUD-05 | Audit điều chuyển phải đủ header, line-item, allocation, QC, wrong-SKU line, trip/resource và inventory movement để tái dựng nghiệp vụ | MUST |
 
 ## 10. Approval Thresholds
 

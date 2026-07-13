@@ -100,6 +100,10 @@ const TransferRequestWorkspace = () => {
       addToast('Vui lòng nhập lý do nghiệp vụ cho yêu cầu', 'warning');
       return;
     }
+    if (!neededByDate) {
+      addToast('Vui lòng chọn ngày cần hàng', 'warning');
+      return;
+    }
     const filteredItems = items.filter(i => i.productId && Number(i.requestedQty) > 0);
     if (filteredItems.length === 0) {
       addToast('Vui lòng nhập ít nhất một sản phẩm hợp lệ', 'warning');

@@ -18,6 +18,10 @@ public class InterWarehouseTransferItem {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "transfer_id", nullable = false)
     private InterWarehouseTransfer transfer;

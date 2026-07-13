@@ -96,6 +96,54 @@ const validateReceiveCheck = (rows, locations) => {
   return { isValid: true };
 };
 
+const validateOutboundQc = (payload) => {
+  if (payload.outboundQcPassed === undefined || payload.outboundQcPassed === null) {
+    return { isValid: false, error: 'Vui lòng chọn kết quả QC' };
+  }
+  if (!payload.outboundQcPhotoRef || !payload.outboundQcPhotoRef.trim()) {
+    return { isValid: false, error: 'Vui lòng nhập link ảnh QC' };
+  }
+  return { isValid: true };
+};
+
+const validateLoadHandover = (payload) => {
+  if (!payload.loadHandoverPhotoRef || !payload.loadHandoverPhotoRef.trim()) {
+    return { isValid: false, error: 'Vui lòng nhập link ảnh bàn giao' };
+  }
+  return { isValid: true };
+};
+
+const validateReceivingHandover = (payload) => {
+  if (!payload.photoRef || !payload.photoRef.trim()) {
+    return { isValid: false, error: 'Vui lòng nhập link ảnh bàn giao xe' };
+  }
+  return { isValid: true };
+};
+
+const validateWrongSkuReport = (payload) => {
+  if (!payload.reason || !payload.reason.trim()) {
+    return { isValid: false, error: 'Vui lòng nhập lý do chung' };
+  }
+  if (!payload.wrongSkuItems || payload.wrongSkuItems.length === 0) {
+    return { isValid: false, error: 'Vui lòng thêm ít nhất 1 dòng hàng sai SKU' };
+  }
+  for (const item of payload.wrongSkuItems) {
+    if (!item.transferItemId) {
+      return { isValid: false, error: 'Thiếu thông tin dòng hàng' };
+    }
+    if (!item.actualProductSku || !item.actualProductSku.trim()) {
+      return { isValid: false, error: 'Vui lòng nhập SKU thực tế' };
+    }
+    if (!item.quantity || Number(item.quantity) <= 0) {
+      return { isValid: false, error: 'Số lượng sai phải lớn hơn 0' };
+    }
+    if (!item.reason || !item.reason.trim()) {
+      return { isValid: false, error: 'Vui lòng nhập lý do dòng hàng' };
+    }
+  }
+  return { isValid: true };
+};
+
 // --- Test Suite ---
 
 describe('Inter-Warehouse Transfer Frontend Validations', () => {
@@ -317,6 +365,37 @@ describe('Inter-Warehouse Transfer Frontend Validations', () => {
       const result = validateReceiveCheck(rows, locations);
       expect(result.isValid).toBe(false);
       expect(result.error).toBe('Vị trí hàng đạt không được là bin quarantine');
+    });
+  });
+
+  describe('new workflow validations', () => {
+    test('validateOutboundQc validates photo reference', () => {
+      expect(validateOutboundQc({ outboundQcPassed: true, outboundQcPhotoRef: '' }).isValid).toBe(false);
+      expect(validateOutboundQc({ outboundQcPassed: true, outboundQcPhotoRef: 'photo.jpg' }).isValid).toBe(true);
+    });
+
+    test('validateLoadHandover validates photo reference', () => {
+      expect(validateLoadHandover({ loadHandoverPhotoRef: '' }).isValid).toBe(false);
+      expect(validateLoadHandover({ loadHandoverPhotoRef: 'load.jpg' }).isValid).toBe(true);
+    });
+
+    test('validateReceivingHandover validates photo reference', () => {
+      expect(validateReceivingHandover({ photoRef: '' }).isValid).toBe(false);
+      expect(validateReceivingHandover({ photoRef: 'arrive.jpg' }).isValid).toBe(true);
+    });
+
+    test('validateWrongSkuReport validates general reason and items', () => {
+      const payloadNoReason = { reason: '', wrongSkuItems: [{ transferItemId: 1, actualProductSku: 'SKU2', quantity: 2, reason: 'Wrong color' }] };
+      expect(validateWrongSkuReport(payloadNoReason).isValid).toBe(false);
+
+      const payloadNoItems = { reason: 'Wrong SKU delivered', wrongSkuItems: [] };
+      expect(validateWrongSkuReport(payloadNoItems).isValid).toBe(false);
+
+      const payloadValid = {
+        reason: 'Wrong SKU delivered',
+        wrongSkuItems: [{ transferItemId: 1, actualProductSku: 'SKU2', quantity: 2, reason: 'Wrong color' }]
+      };
+      expect(validateWrongSkuReport(payloadValid).isValid).toBe(true);
     });
   });
 });

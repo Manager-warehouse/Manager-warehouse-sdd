@@ -21,6 +21,10 @@ public class InterWarehouseTransfer {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
+
     @Column(name = "transfer_number", nullable = false, unique = true, length = 50)
     private String transferNumber;
 
@@ -128,6 +132,62 @@ public class InterWarehouseTransfer {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "transfer_request_id")
     private TransferRequest transferRequest;
+
+    // Outbound QC fields (T011)
+    @Column(name = "outbound_qc_passed")
+    private Boolean outboundQcPassed;
+
+    @Column(name = "outbound_qc_note", columnDefinition = "TEXT")
+    private String outboundQcNote;
+
+    @Column(name = "outbound_qc_photo_ref")
+    private String outboundQcPhotoRef;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "outbound_qc_by")
+    private User outboundQcBy;
+
+    @Column(name = "outbound_qc_at")
+    private OffsetDateTime outboundQcAt;
+
+    // Load handover fields (T011)
+    @Column(name = "load_handover_photo_ref")
+    private String loadHandoverPhotoRef;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "load_handover_by")
+    private User loadHandoverBy;
+
+    @Column(name = "load_handover_at")
+    private OffsetDateTime loadHandoverAt;
+
+    // Arrival and handover at destination (T011)
+    @Column(name = "driver_arrived_at")
+    private OffsetDateTime driverArrivedAt;
+
+    @Column(name = "arrival_handover_at")
+    private OffsetDateTime arrivalHandoverAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "arrival_handover_by")
+    private User arrivalHandoverBy;
+
+    // Return leg fields (T011)
+    @Column(name = "return_departed_at")
+    private OffsetDateTime returnDepartedAt;
+
+    @Column(name = "return_arrived_at")
+    private OffsetDateTime returnArrivedAt;
+
+    @Column(name = "return_arrival_handover_at")
+    private OffsetDateTime returnArrivalHandoverAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "return_arrival_handover_by")
+    private User returnArrivalHandoverBy;
+
+    @Column(name = "return_photo_ref")
+    private String returnPhotoRef;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
