@@ -8,6 +8,31 @@ const readImageAsDataUrl = (file) => new Promise((resolve, reject) => {
   reader.readAsDataURL(file);
 });
 
+const compressImageFile = async (file, maxDimension = 1600, quality = 0.78) => {
+  const dataUrl = await readImageAsDataUrl(file);
+  const image = new Image();
+  await new Promise((resolve, reject) => {
+    image.onload = resolve;
+    image.onerror = reject;
+    image.src = dataUrl;
+  });
+
+  const ratio = Math.min(1, maxDimension / Math.max(image.width, image.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(image.width * ratio));
+  canvas.height = Math.max(1, Math.round(image.height * ratio));
+  const context = canvas.getContext('2d');
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+  if (!blob || blob.size >= file.size) {
+    return file;
+  }
+
+  const baseName = (file.name || 'photo').replace(/\.[^.]+$/, '');
+  return new File([blob], `${baseName}.jpg`, { type: 'image/jpeg', lastModified: Date.now() });
+};
+
 const PhotoCaptureInput = ({
   label,
   value,
@@ -34,19 +59,26 @@ const PhotoCaptureInput = ({
     event.target.value = '';
     if (!file || !file.type.startsWith('image/')) return;
 
-    setLocalName(file.name || 'Ảnh đã chọn');
+    let selectedFile = file;
+    try {
+      selectedFile = await compressImageFile(file);
+    } catch {
+      selectedFile = file;
+    }
+
+    setLocalName(selectedFile.name || 'Ảnh đã chọn');
 
     if (output === 'file') {
       if (localPreview.startsWith('blob:')) {
         URL.revokeObjectURL(localPreview);
       }
-      setLocalPreview(URL.createObjectURL(file));
-      onChange?.(file, file);
+      setLocalPreview(URL.createObjectURL(selectedFile));
+      onChange?.(selectedFile, selectedFile);
       return;
     }
 
-    const dataUrl = await readImageAsDataUrl(file);
-    onChange?.(dataUrl, file);
+    const dataUrl = await readImageAsDataUrl(selectedFile);
+    onChange?.(dataUrl, selectedFile);
   };
 
   return (

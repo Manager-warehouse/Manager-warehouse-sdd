@@ -312,6 +312,8 @@ Exception branches SHALL be handled separately:
 | ONLY_DRAFT_CAN_BE_UPDATED | 409 | Warehouse manager attempts to edit a transfer request after it leaves DRAFT |
 | ONLY_DRAFT_CAN_BE_CANCELLED | 409 | Warehouse manager attempts to delete/cancel a transfer request after it leaves DRAFT |
 | PHOTO_REF_REQUIRED | 400 | Photo-required transfer action is submitted without selected/captured photo evidence |
+| TRANSFER_PHOTO_FILE_INVALID | 400 | Transfer photo upload is missing, not an image, or exceeds the configured size limit |
+| TRANSFER_PHOTO_STORAGE_FAILED | 500 | Transfer photo evidence cannot be persisted |
 | INVENTORY_VERSION_CONFLICT | 409 | Concurrent inventory update |
 | TRANSFER_VERSION_CONFLICT | 409 | Concurrent transfer or transfer-item update |
 | TRANSFER_REQUEST_VERSION_CONFLICT | 409 | Concurrent transfer request update or duplicate conversion race |
@@ -379,6 +381,7 @@ Exception branches SHALL be handled separately:
 - Thu kho nguon SHALL record shipment only for transfers in `APPROVED` status and only when assigned to the transfer source warehouse.
 - Thu kho nguon SHALL complete outbound QC before shipment can be loaded or departed. Outbound QC SHALL verify correct SKU, physical condition, packaging integrity, and loaded quantity readiness.
 - Outbound QC SHALL be confirmed by user-entered result and required photos, not by Barcode/QR scanning.
+- Selected/captured transfer photos SHALL be uploaded as multipart files first. The business action payload SHALL store only the returned short `photoRef`; raw base64/data URLs SHALL NOT be sent in `photoRef` because camera images can exceed request timeout and audit payload limits.
 - Pick confirmation SHALL use the selected transfer line and quantity in the system; the system SHALL NOT require scanning SKU, bin, carton, or pallet barcodes.
 - Load/handover to the assigned driver SHALL be recorded before departure and SHALL require at least one photo of the loaded goods or handover condition.
 - `sent_qty` SHALL equal approved `planned_qty` for every transfer item.

@@ -43,11 +43,11 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
   const [countRows, setCountRows] = useState([]);
   const [checkRows, setCheckRows] = useState([]);
   const [busy, setBusy] = useState(false);
-  const [outboundQcPhotoRef, setOutboundQcPhotoRef] = useState('');
+  const [outboundQcPhotoFile, setOutboundQcPhotoFile] = useState(null);
   const [outboundQcPhotoName, setOutboundQcPhotoName] = useState('');
   const [outboundQcNote, setOutboundQcNote] = useState('');
-  const [arrivalHandoverPhotoRef, setArrivalHandoverPhotoRef] = useState('');
-  const [returnPhotoRef, setReturnPhotoRef] = useState('');
+  const [arrivalHandoverPhotoFile, setArrivalHandoverPhotoFile] = useState(null);
+  const [returnPhotoFile, setReturnPhotoFile] = useState(null);
   const [wrongSkuItems, setWrongSkuItems] = useState([]);
   const [newWrongSku, setNewWrongSku] = useState({
     transferItemId: '',
@@ -65,11 +65,11 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
     });
     setCountRows([]);
     setCheckRows([]);
-    setOutboundQcPhotoRef('');
+    setOutboundQcPhotoFile(null);
     setOutboundQcPhotoName('');
     setOutboundQcNote('');
-    setArrivalHandoverPhotoRef('');
-    setReturnPhotoRef('');
+    setArrivalHandoverPhotoFile(null);
+    setReturnPhotoFile(null);
     setWrongSkuItems([]);
     setNewWrongSku({
       transferItemId: '',
@@ -229,11 +229,11 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
   };
 
   const recordOutboundQc = (passed) => {
-    if (!outboundQcPhotoRef.trim()) {
+    if (!outboundQcPhotoFile) {
       addToast('Vui lòng chọn hoặc chụp ảnh QC.', 'error');
       return;
     }
-    run('recordOutboundQc', { passed, note: outboundQcNote, photoRef: outboundQcPhotoRef });
+    run('recordOutboundQc', { passed, note: outboundQcNote, photoFile: outboundQcPhotoFile });
   };
 
   const ensureCountRows = () => {
@@ -402,17 +402,17 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
                 <Input label="Ghi chú QC" value={outboundQcNote} onChange={(e) => setOutboundQcNote(e.target.value)} placeholder="Nhập ghi chú QC..." />
                 <PhotoCaptureInput
                   label="Ảnh xác nhận QC"
-                  value={outboundQcPhotoRef}
                   fileName={outboundQcPhotoName}
-                  onChange={(dataUrl, file) => {
-                    setOutboundQcPhotoRef(dataUrl);
+                  output="file"
+                  onChange={(file) => {
+                    setOutboundQcPhotoFile(file);
                     setOutboundQcPhotoName(file?.name || 'Ảnh QC đã chọn');
                   }}
                   required
                 />
                 <div className="flex gap-2">
-                  <Button loading={busy} size="sm" disabled={!outboundQcPhotoRef} onClick={() => recordOutboundQc(true)}>QC Đạt</Button>
-                  <Button loading={busy} variant="outline-light" size="sm" disabled={!outboundQcPhotoRef} className="text-danger-600 border-danger-300" onClick={() => recordOutboundQc(false)}>QC Thất bại</Button>
+                  <Button loading={busy} size="sm" disabled={!outboundQcPhotoFile} onClick={() => recordOutboundQc(true)}>QC Đạt</Button>
+                  <Button loading={busy} variant="outline-light" size="sm" disabled={!outboundQcPhotoFile} className="text-danger-600 border-danger-300" onClick={() => recordOutboundQc(false)}>QC Thất bại</Button>
                 </div>
               </>
             )}
@@ -507,16 +507,16 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
                 <>
                   <PhotoCaptureInput
                     label="Ảnh bàn giao nhận hàng"
-                    value={arrivalHandoverPhotoRef}
-                    onChange={(dataUrl) => setArrivalHandoverPhotoRef(dataUrl)}
+                    output="file"
+                    onChange={(file) => setArrivalHandoverPhotoFile(file)}
                     required
                   />
-                  <Button loading={busy} size="sm" disabled={!arrivalHandoverPhotoRef} onClick={() => {
-                    if (!arrivalHandoverPhotoRef.trim()) {
+                  <Button loading={busy} size="sm" disabled={!arrivalHandoverPhotoFile} onClick={() => {
+                    if (!arrivalHandoverPhotoFile) {
                       addToast('Vui lòng chọn hoặc chụp ảnh bàn giao!', 'error');
                       return;
                     }
-                    run('receivingHandover', { photoRef: arrivalHandoverPhotoRef });
+                    run('receivingHandover', { photoFile: arrivalHandoverPhotoFile });
                   }}>Xác nhận Nhận bàn giao</Button>
                 </>
               ) : (
@@ -564,16 +564,16 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
                 <>
                   <PhotoCaptureInput
                     label="Ảnh bàn giao quay đầu"
-                    value={returnPhotoRef}
-                    onChange={(dataUrl) => setReturnPhotoRef(dataUrl)}
+                    output="file"
+                    onChange={(file) => setReturnPhotoFile(file)}
                     required
                   />
-                  <Button loading={busy} size="sm" disabled={!returnPhotoRef} onClick={() => {
-                    if (!returnPhotoRef.trim()) {
+                  <Button loading={busy} size="sm" disabled={!returnPhotoFile} onClick={() => {
+                    if (!returnPhotoFile) {
                       addToast('Vui lòng chọn hoặc chụp ảnh bàn giao!', 'error');
                       return;
                     }
-                    run('returnHandover', { photoRef: returnPhotoRef });
+                    run('returnHandover', { photoFile: returnPhotoFile });
                   }}>Xác nhận Nhận bàn giao quay đầu</Button>
                 </>
               ) : (
