@@ -13,6 +13,7 @@ public interface TransferRequestService {
     TransferRequestResponse getRequestById(Long id, User actor);
     TransferRequestResponse createRequest(TransferRequestCreateRequest request, User actor);
     TransferRequestResponse updateRequest(Long id, TransferRequestUpdateRequest request, User actor);
+    TransferRequestResponse cancelRequest(Long id, User actor);
     TransferRequestResponse submitRequest(Long id, User actor);
     TransferRequestResponse approveRequest(Long id, User actor);
     TransferRequestResponse rejectRequest(Long id, TransferRequestRejectRequest request, User actor);

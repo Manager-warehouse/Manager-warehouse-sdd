@@ -5,6 +5,7 @@ Công nhân/Nhân viên kho tại kho đích kiểm tra mặt số lượng khi 
 
 Luong nay duoc xu ly trong man **Dieu chuyen noi bo** cho ma `TRF-*`. No khong di vao danh sach phieu nhap `RN-*` tu nha cung cap.
 Sprint 1 gia dinh moi phieu `TRF` co mot lan ship va mot lan final receive. Cac truong hop nhieu dot nhan dang do, split receive, hoac chia thanh nhieu lan final receive khong nam trong scope chuan cua feature nay.
+Tat ca buoc ban giao co anh trong UI Sprint 1 phai dung thao tac chon file anh hoac chup anh truc tiep tren thiet bi; nut xac nhan ban giao bi khoa cho toi khi co anh. Khong nhap link anh thu cong.
 
 ## 2. Actors
 * **Nhân viên kho/Công nhân kho đích**: Kiểm tra mặt số lượng khi xe đến và nhập số lượng thực nhận ban đầu.
@@ -16,6 +17,7 @@ Sprint 1 gia dinh moi phieu `TRF` co mot lan ship va mot lan final receive. Cac 
   * WHEN a Nhân viên kho/Công nhân kho đích records initial received counts, the system SHALL:
     * Allow the action only while the transfer is `IN_TRANSIT`.
     * Require assigned driver arrival and receiving-warehouse handover to be recorded before counting starts.
+    * Require selected/captured arrival handover photo evidence before the handover confirmation can be submitted.
     * Require `issueReason` per item when that item's `receivedQty < sentQty`, `receivedQty > sentQty`, or the worker reports an issue for that item; items with `receivedQty == sentQty` and no reported issue SHALL NOT require `issueReason`.
     * Reject `received_qty > sent_qty` after validating that an issue reason was provided.
     * Store the worker-entered counts as the current `received_qty` without completing the transfer.
@@ -81,7 +83,7 @@ Sprint 1 gia dinh moi phieu `TRF` co mot lan ship va mot lan final receive. Cac 
     * Set `is_returned = true`, retain the same transfer, trip, vehicle, driver, and In-Transit stock, and direct the assigned driver back to the source warehouse.
     * Flip receiving responsibility to source Staff, source Storekeeper, and source Warehouse Manager.
     * Create a `TRANSFER_RETURN_APPROVE` audit log entry.
-  * WHEN the assigned driver starts and completes the return leg, the system SHALL record return departure and source arrival/handover before source-side receive-count is allowed.
+  * WHEN the assigned driver starts and completes the return leg, the system SHALL record return departure and source arrival/handover with selected/captured photo evidence before source-side receive-count is allowed.
   * WHEN returned goods arrive at the source warehouse, the system SHALL repeat receive-count, receive-check/QC, and final-receive with source-scoped actors.
   * WHEN a transfer shortage is finalized, the system SHALL import and calculate value only for physically received and accepted quantity; missing quantity SHALL remain a quantity-only discrepancy and SHALL NOT be included in destination receipt value or billing totals.
 * **Authorization and warehouse scope:**
@@ -94,6 +96,7 @@ Sprint 1 gia dinh moi phieu `TRF` co mot lan ship va mot lan final receive. Cac 
   * If the destination warehouse has no active quarantine bin, the hint SHALL display: `"⚠ Kho đích chưa có Quarantine Bin!"`
   * The storekeeper CANNOT select or override the quarantine bin; it is system-assigned only.
   * The bin dropdown for QC-passed stock SHALL filter out quarantine bins (client-side pre-filtering), with backend enforcement as the authoritative guard.
+  * Handover confirmation buttons SHALL remain disabled until required photo evidence has been selected from the device or captured by camera.
 
 ## 4. API Endpoints
 * `POST /api/v1/inter-warehouse-transfers/{id}/arrive` - Tài xế được gán ghi nhận xe đã đến kho nhận hiện tại.

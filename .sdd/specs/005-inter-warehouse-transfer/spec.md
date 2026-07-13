@@ -69,6 +69,8 @@ Bo sung luong tien xu ly cho nhu cau can bang ton kho giua cac kho:
 - Q: What data must a wrong-SKU report contain? -> A: Item-level expected SKU/product, actual SKU/product, affected quantity, reason, and optional photo references/attachments; the report must be reviewable by the destination Warehouse Manager.
 - Q: How should trip capacity and resources be handled? -> A: Trip weight/volume must be calculated from transfer lines and checked against vehicle capacity. Driver/vehicle/trip may be changed before departure, but resource release after final receive must only occur if the resource has no other active assignment.
 - Q: Does pick/outbound QC/load handover require barcode scanning? -> A: No. The warehouse does not use Barcode/QR in Sprint 1. Source pick, outbound QC, and load/handover are confirmed by selecting the transfer line in the system, entering/confirming quantity, and attaching required photos as operational evidence.
+- Q: Can a DRAFT transfer request be changed or deleted by the requesting warehouse manager? -> A: Yes. While `TRQ` is `DRAFT`, the requesting warehouse manager may edit header/item lines or use the UI "Xoa" action, which is implemented as a soft cancellation to `CANCELLED`; submitted/approved/rejected/converted/cancelled requests are immutable except for their allowed workflow actions.
+- Q: When do photo-based transfer buttons become available? -> A: Any action requiring photo evidence (outbound QC, load/handover, arrival handover, return handover, and driver POD in outbound delivery) must keep its approve/confirm button disabled until the user has selected an image file or captured a photo from the device camera; manual link entry is not accepted in Sprint 1 UI.
 
 ## 2. Actors
 
@@ -103,9 +105,9 @@ The canonical execution flow SHALL be:
 4. Planner revalidates the approved request, converts it at most once into `TRF`, or creates a manual `TRF` from an external instruction.
 5. Source Warehouse Manager approves the `TRF` and reserves FIFO-eligible inventory only.
 6. Dispatcher assigns or updates one dedicated `TRANSFER` trip before departure, with capacity and overlap checks.
-7. Source Storekeeper picks goods, performs outbound QC, records exact loaded quantities, and records photo-based load/handover evidence.
+7. Source Storekeeper picks goods, selects/captures required outbound-QC photo evidence, performs outbound QC, records exact loaded quantities only after QC passes, and records photo-based load/handover evidence before driver departure.
 8. Assigned Driver confirms departure; system moves stock to the virtual `IN_TRANSIT` warehouse.
-9. Assigned Driver records arrival and physical handover at the receiving warehouse.
+9. Assigned Driver records arrival and the receiving warehouse records physical handover with selected/captured photo evidence before receive-count is enabled.
 10. Receiving worker performs blind count.
 11. Storekeeper checks count, performs QC, validates destination bin capacity, and approves receive check.
 12. Warehouse Manager final-confirms receipt and settlement.
@@ -114,7 +116,7 @@ Exception branches SHALL be handled separately:
 - Shortage: create incident/discrepancy record plus `TRANSFER_DISCREPANCY` adjustment; missing quantity never becomes quarantine stock.
 - Over-receipt: block regular inventory posting and record a discrepancy-hold/incident for the physical excess goods; do not silently ignore physical overage.
 - QC failure: move physical failed quantity to Quarantine with internal-transfer origin for Spec 009 disposal.
-- Wrong SKU: require line-item report with expected/actual SKU, quantity, reason, and photo references when available; destination manager approves/rejects; approved return requires driver return departure, source arrival/handover, and source receiving.
+- Wrong SKU: require line-item report with expected/actual SKU, quantity, reason, and photo references when available; destination manager approves/rejects; approved return requires driver return departure, source arrival/handover with photo evidence, and source receiving.
 - Overdue trip: block destination receiving until an authorized return-to-source decision is recorded with reason and photo references when available.
 
 ## 4. Non-functional Requirements
@@ -166,13 +168,14 @@ Exception branches SHALL be handled separately:
 - `notes` (TEXT)
 - `created_at` (TIMESTAMPTZ)
 - `updated_at` (TIMESTAMPTZ)
-- `transfer_request_id` (BIGINT, FK->transfer_requests, NULLABLE) -- present when Planner creates `TRF` from CEO-approved manager request
+- `transfer_request_id` (BIGINT, FK->transfer_requests, NULLABLE) -- present when Planner creates `TRF` from an approved manager request
 - `outbound_qc_checked_by` (BIGINT, FK->users)
 - `outbound_qc_checked_at` (TIMESTAMPTZ)
 - `outbound_qc_result` (VARCHAR(20), CHECK IN ('PASSED','FAILED'))
+- `outbound_qc_photo_ref` (TEXT, NOT NULL before outbound QC pass/fail)
 - `load_handover_by` (BIGINT, FK->users)
 - `load_handover_at` (TIMESTAMPTZ)
-- `load_handover_photo_refs` (JSONB, NOT NULL DEFAULT '[]')
+- `load_handover_photo_ref` (TEXT, NOT NULL before load handover confirmation)
 - `driver_departed_at` (TIMESTAMPTZ)
 - `driver_arrived_at` (TIMESTAMPTZ)
 - `arrival_handover_at` (TIMESTAMPTZ)
@@ -185,7 +188,7 @@ Exception branches SHALL be handled separately:
 - `request_number` (VARCHAR(50), UNIQUE, NOT NULL) -- format `TRQ-YYYYMMDD-####`
 - `requesting_warehouse_id` (BIGINT, FK->warehouses, NOT NULL) -- kho dang thieu hang, becomes transfer destination
 - `source_warehouse_id` (BIGINT, FK->warehouses, NOT NULL) -- kho co hang, becomes transfer source
-- `status` (VARCHAR(40), DEFAULT 'DRAFT', CHECK IN ('DRAFT','SUBMITTED','CEO_APPROVED','CEO_REJECTED','CONVERTED','CANCELLED'))
+- `status` (VARCHAR(40), DEFAULT 'DRAFT', CHECK IN ('DRAFT','SUBMITTED','APPROVED','REJECTED','CONVERTED','CANCELLED'))
 - `requested_by` (BIGINT, FK->users, NOT NULL)
 - `submitted_at` (TIMESTAMPTZ)
 - `approved_by` (BIGINT, FK->users)
@@ -306,6 +309,9 @@ Exception branches SHALL be handled separately:
 | INVALID_DESTINATION_LOCATION | 400 | Destination bin does not belong to the target warehouse or is inactive |
 | DISCREPANCY_REQUIRES_REASON | 400 | Shortage, QC failure follow-up, or another material issue requires a reason |
 | TRANSFER_CANCEL_NOT_ALLOWED | 409 | Actor or current status is not allowed to cancel the transfer |
+| ONLY_DRAFT_CAN_BE_UPDATED | 409 | Warehouse manager attempts to edit a transfer request after it leaves DRAFT |
+| ONLY_DRAFT_CAN_BE_CANCELLED | 409 | Warehouse manager attempts to delete/cancel a transfer request after it leaves DRAFT |
+| PHOTO_REF_REQUIRED | 400 | Photo-required transfer action is submitted without selected/captured photo evidence |
 | INVENTORY_VERSION_CONFLICT | 409 | Concurrent inventory update |
 | TRANSFER_VERSION_CONFLICT | 409 | Concurrent transfer or transfer-item update |
 | TRANSFER_REQUEST_VERSION_CONFLICT | 409 | Concurrent transfer request update or duplicate conversion race |
@@ -333,12 +339,12 @@ Exception branches SHALL be handled separately:
 | TRANSFER_REQUEST_REASON_REQUIRED | 400 | Transfer request is missing business reason or shortage reason required for CEO review |
 | TRANSFER_REQUEST_APPROVAL_NOT_ALLOWED | 409 | CEO approval/rejection attempted in invalid request status |
 | CEO_REJECTION_REASON_REQUIRED | 400 | CEO rejects transfer request without reason |
-| TRANSFER_REQUEST_NOT_APPROVED | 409 | Planner attempts to create `TRF` from a request that is not CEO-approved |
+| TRANSFER_REQUEST_NOT_APPROVED | 409 | Planner attempts to create `TRF` from a request that is not approved |
 | TRANSFER_REQUEST_ALREADY_CONVERTED | 409 | Planner attempts to create another `TRF` from a request already converted to a transfer |
 
 ### Transfer Business Rules
 - Sprint 1 SHALL NOT generate transfer suggestions or automatically decide source/destination/quantity for inter-warehouse transfers.
-- Planner SHALL create transfers only from explicit external transfer instructions from Cong ty me, a central coordination team, or a CEO-approved manager transfer request.
+- Planner SHALL create transfers only from explicit external transfer instructions from Cong ty me, a central coordination team, or an approved manager transfer request.
 - A WAREHOUSE_MANAGER MAY view read-only available stock in other active warehouses to support manual replenishment decisions for their assigned warehouse.
 - Cross-warehouse stock visibility SHALL expose available quantity (`total_qty - reserved_qty`) and basic product/warehouse identifiers, but SHALL NOT allow the viewing manager to mutate another warehouse's inventory.
 - A WAREHOUSE_MANAGER MAY create a transfer request only where the requesting warehouse is within their assigned warehouse scope; that requesting warehouse becomes the destination if the request is later converted to a `TRF`.
@@ -347,8 +353,8 @@ Exception branches SHALL be handled separately:
 - CEO MAY approve or reject a submitted transfer request. Rejection SHALL require a reason and preserve the request for audit.
 - CEO approval SHALL NOT reserve inventory and SHALL NOT move stock. Inventory reservation remains part of source warehouse manager approval on the later `TRF`.
 - After CEO approval, the system SHALL generate or send an approved transfer request template/notification to the Planner assigned to the source warehouse so the Planner can create the executable `TRF`.
-- Planner MAY create a `TRF` from a CEO-approved transfer request. The resulting `TRF` SHALL copy source warehouse, destination warehouse, item lines, request reference, and traceability code from the approved request.
-- A CEO-approved transfer request SHALL be converted to at most one active `TRF`; duplicate conversion SHALL be rejected.
+- Planner MAY create a `TRF` from an approved transfer request. The resulting `TRF` SHALL copy source warehouse, destination warehouse, item lines, request reference, and traceability code from the approved request.
+- An approved transfer request SHALL be converted to at most one active `TRF`; duplicate conversion SHALL be rejected.
 - If source availability changes before `TRF` approval, existing source manager stock checks and `INSUFFICIENT_TRANSFER_STOCK` handling still apply.
 - Every transfer SHALL store a non-blank `external_instruction_code` for traceability.
 - Active transfers SHALL be unique by `external_instruction_code`, source warehouse, destination warehouse, and `document_date`; transfers in `REJECTED` or `CANCELLED` SHALL NOT block creating a corrected transfer.
@@ -447,7 +453,7 @@ Exception branches SHALL be handled separately:
 - `TRANSFER_REQUEST_SUBMIT`: Warehouse manager submits request to CEO.
 - `TRANSFER_REQUEST_CEO_APPROVE`: CEO approves request and triggers the approved request template/notification for source Planner.
 - `TRANSFER_REQUEST_CEO_REJECT`: CEO rejects request with required reason.
-- `TRANSFER_REQUEST_CONVERT`: Planner creates a `TRF` from a CEO-approved transfer request.
+- `TRANSFER_REQUEST_CONVERT`: Planner creates a `TRF` from an approved transfer request.
 - `TRANSFER_UPDATE`: Planner edits header or item lines while transfer status is `NEW`.
 - `TRANSFER_APPROVE`: Truong kho nguon approves transfer, reserves source inventory, and changes status to `APPROVED`.
 - `TRANSFER_REJECT`: Truong kho nguon rejects a `NEW` transfer with a required reason and changes status to `REJECTED`.

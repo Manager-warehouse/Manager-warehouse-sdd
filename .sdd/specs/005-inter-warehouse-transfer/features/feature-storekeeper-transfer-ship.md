@@ -5,7 +5,7 @@ Thu kho tai kho nguon chiu trach nhiem soan hang theo phieu dieu chuyen da duoc 
 
 Luot ship nay thuoc man **Dieu chuyen noi bo** va chi ap dung cho ma `TRF-*`, khong lien quan den luong `RN-*` cua nhap NCC.
 Trang thai dieu phoi cua tai xe la du lieu van hanh/danh muc. Tai xe khong tu doi trang thai san sang/ban/khong kha dung trong luong ship transfer; Dispatcher/admin quan ly lich ranh, con he thong co the tu dong chuyen sang `ON_TRIP` khi tai xe xac nhan roi kho.
-Kho Phuc Anh khong dung Barcode/QR trong Sprint 1. Buoc pick, outbound QC va load/handover cua dieu chuyen duoc xac nhan bang dong phieu tren he thong, so luong nhap/xac nhan va anh chup lam bang chung.
+Kho Phuc Anh khong dung Barcode/QR trong Sprint 1. Buoc pick, outbound QC va load/handover cua dieu chuyen duoc xac nhan bang dong phieu tren he thong, so luong nhap/xac nhan va anh chup lam bang chung. UI Sprint 1 khong nhap link anh thu cong; nguoi dung phai chon file anh tu may tinh/dien thoai hoac chup anh truc tiep bang camera thiet bi truoc khi nut xac nhan/duyet duoc kich hoat.
 
 ## 2. Actors
 - **Thu kho (Kho nguon)**: Soan hang, xac nhan xuat hang len xe tai.
@@ -49,8 +49,10 @@ Kho Phuc Anh khong dung Barcode/QR trong Sprint 1. Buoc pick, outbound QC va loa
   * WHEN a Thu kho nguon performs outbound QC, the system SHALL:
     * Allow the action only while the transfer is `APPROVED`.
     * Verify correct SKU, physical condition, packaging integrity, and readiness for the exact loaded quantity.
-    * Require photo confirmation for the QC result; Barcode/QR scan SHALL NOT be required.
+    * Require selected/captured photo confirmation for the QC result; Barcode/QR scan and manual photo-link entry SHALL NOT be required in the Sprint 1 UI.
+    * Keep `QC Dat` and `QC That bai` actions disabled until a photo has been selected or captured.
     * Block shipment/departure if outbound QC is missing or failed.
+    * If outbound QC failed, expose only the unload/unship action and do not allow shipment preparation until QC is redone and passed.
     * Create a `TRANSFER_OUTBOUND_QC` audit log entry.
 
   * WHEN a Thu kho nguon confirms shipment preparation, the system SHALL:
@@ -63,6 +65,7 @@ Kho Phuc Anh khong dung Barcode/QR trong Sprint 1. Buoc pick, outbound QC va loa
   * WHEN source warehouse hands loaded goods to the assigned driver, the system SHALL:
     * Require shipment preparation and outbound QC passed.
     * Record handover time, actor, optional note, and at least one photo reference of loaded goods or handover condition.
+    * Keep the handover confirmation action disabled until required photo evidence exists.
     * Create a `TRANSFER_LOAD_HANDOVER` audit log entry.
 
   * WHEN a user needs to cancel after shipment preparation but before driver departure, the system SHALL require an unship/unload action first:

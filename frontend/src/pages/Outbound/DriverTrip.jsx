@@ -4,7 +4,6 @@ import {
   AlertTriangle,
   ArrowLeft,
   Calendar,
-  Camera,
   CheckCircle2,
   Loader2,
   MapPin,
@@ -20,6 +19,7 @@ import { useAuthStore } from '../../stores/auth.store';
 import OTPInput from '../../components/warehouse/OTPInput';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
+import PhotoCaptureInput from '../../components/common/PhotoCaptureInput';
 
 const DELIVERY_STATUS_MAP = {
   WAREHOUSE_APPROVED: { label: 'Chờ giao', color: 'bg-warning-50 text-warning-700 border-warning-200' },
@@ -441,24 +441,34 @@ export default function DriverTrip() {
                 Đơn <strong className="font-bold">{activeDO.do_number}</strong>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-shade-60 mb-2 uppercase tracking-wider">Ảnh hàng hóa sau giao *</label>
-                <input type="file" accept="image/*" onChange={(event) => setGoodsImage(event.target.files?.[0] || null)} className="text-input text-xs w-full" />
-                {goodsImage && <p className="text-[11px] text-shade-50 mt-1 flex items-center gap-1"><Camera className="w-3 h-3" /> {goodsImage.name}</p>}
-              </div>
+              <PhotoCaptureInput
+                label="Ảnh hàng hóa sau giao"
+                fileName={goodsImage?.name}
+                onChange={(file) => setGoodsImage(file)}
+                output="file"
+                required
+              />
 
-              <div>
-                <label className="block text-xs font-bold text-shade-60 mb-2 uppercase tracking-wider">Ảnh chữ ký/POD *</label>
-                <input type="file" accept="image/*" onChange={(event) => setSignDocumentImage(event.target.files?.[0] || null)} className="text-input text-xs w-full" />
-                {signDocumentImage && <p className="text-[11px] text-shade-50 mt-1 flex items-center gap-1"><Camera className="w-3 h-3" /> {signDocumentImage.name}</p>}
-              </div>
+              <PhotoCaptureInput
+                label="Ảnh chữ ký/POD"
+                fileName={signDocumentImage?.name}
+                onChange={(file) => setSignDocumentImage(file)}
+                output="file"
+                required
+              />
 
               <textarea className="text-input text-sm h-20 resize-none" placeholder="Ghi chú giao hàng..." value={notes} onChange={(event) => setNotes(event.target.value)} />
 
               <div className="border-t border-hairline-light pt-5">
                 <label className="block text-xs font-bold text-shade-60 mb-3 uppercase tracking-wider">Xác thực OTP từ đại lý</label>
                 {!otpSent ? (
-                  <Button variant="primary" className="w-full py-3.5" onClick={handleUploadPodAndRequestOTP} disabled={submitting} loading={submitting}>
+                  <Button
+                    variant="primary"
+                    className="w-full py-3.5"
+                    onClick={handleUploadPodAndRequestOTP}
+                    disabled={submitting || !goodsImage || !signDocumentImage}
+                    loading={submitting}
+                  >
                     Tải POD và gửi mã OTP
                   </Button>
                 ) : (

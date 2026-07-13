@@ -4,7 +4,7 @@ import { useUiStore } from '../../stores/ui.store';
 import { interWarehouseTransferService } from '../../services/inter-warehouse-transfer.service';
 import { masterDataService } from '../../services/masterData.service';
 import { ROLES } from '../../utils/constants';
-import { Loader2, Plus, Send, Check, X, Eye, FileText, RefreshCw, AlertCircle, Inbox, Info } from 'lucide-react';
+import { Loader2, Plus, Send, Check, X, Eye, FileText, RefreshCw, AlertCircle, Inbox, Info, Pencil, Trash2 } from 'lucide-react';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import Badge from '../../components/common/Badge';
@@ -22,7 +22,9 @@ const TransferRequestWorkspace = () => {
 
   // Creation State
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingRequestId, setEditingRequestId] = useState(null);
   const [sourceWhId, setSourceWhId] = useState('');
+  const [destinationWhId, setDestinationWhId] = useState('');
   const [neededByDate, setNeededByDate] = useState('');
   const [businessReason, setBusinessReason] = useState('');
   const [notes, setNotes] = useState('');
@@ -90,6 +92,42 @@ const TransferRequestWorkspace = () => {
     setItems(updated);
   };
 
+  const resetRequestForm = () => {
+    setEditingRequestId(null);
+    setSourceWhId('');
+    setDestinationWhId(activeWarehouse?.id ? String(activeWarehouse.id) : '');
+    setNeededByDate('');
+    setBusinessReason('');
+    setNotes('');
+    setItems([{ productId: '', requestedQty: '' }]);
+    setStockLookupResult({});
+  };
+
+  const openCreateModal = () => {
+    resetRequestForm();
+    setShowCreateModal(true);
+  };
+
+  const closeRequestModal = () => {
+    setShowCreateModal(false);
+    resetRequestForm();
+  };
+
+  const handleEditRequest = (req) => {
+    setEditingRequestId(req.id);
+    setSourceWhId(String(req.sourceWarehouseId || ''));
+    setDestinationWhId(String(req.destinationWarehouseId || activeWarehouse?.id || ''));
+    setNeededByDate(req.neededByDate || '');
+    setBusinessReason(req.businessReason || '');
+    setNotes(req.notes || '');
+    setItems((req.items?.length ? req.items : [{ productId: '', requestedQty: '' }]).map((item) => ({
+      productId: item.productId ? String(item.productId) : '',
+      requestedQty: item.requestedQty ? String(item.requestedQty) : '',
+    })));
+    setShowDetailModal(false);
+    setShowCreateModal(true);
+  };
+
   const submitCreateRequest = async () => {
     if (!activeWarehouse) return;
     if (!sourceWhId) {
@@ -114,7 +152,7 @@ const TransferRequestWorkspace = () => {
     try {
       const payload = {
         sourceWarehouseId: Number(sourceWhId),
-        destinationWarehouseId: activeWarehouse.id,
+        destinationWarehouseId: Number(destinationWhId || activeWarehouse.id),
         neededByDate: neededByDate || null,
         businessReason: businessReason.trim(),
         notes,
@@ -124,18 +162,17 @@ const TransferRequestWorkspace = () => {
         }))
       };
 
-      await interWarehouseTransferService.createTransferRequest(payload);
-      addToast('Đã tạo yêu cầu điều chuyển thô (DRAFT)', 'success');
-      setShowCreateModal(false);
-      // Reset form
-      setSourceWhId('');
-      setNeededByDate('');
-      setBusinessReason('');
-      setNotes('');
-      setItems([{ productId: '', requestedQty: '' }]);
+      if (editingRequestId) {
+        await interWarehouseTransferService.updateTransferRequest(editingRequestId, payload);
+        addToast('Đã cập nhật yêu cầu điều chuyển DRAFT', 'success');
+      } else {
+        await interWarehouseTransferService.createTransferRequest(payload);
+        addToast('Đã tạo yêu cầu điều chuyển thô (DRAFT)', 'success');
+      }
+      closeRequestModal();
       fetchData();
     } catch (e) {
-      addToast(`Lỗi tạo yêu cầu: ${e.message || 'Không xác định'}`, 'error');
+      addToast(`Lỗi lưu yêu cầu: ${e.message || 'Không xác định'}`, 'error');
     } finally {
       setSubmitting(false);
     }
@@ -152,11 +189,28 @@ const TransferRequestWorkspace = () => {
     try {
       await interWarehouseTransferService.submitTransferRequest(id);
       addToast('Đã gửi yêu cầu điều chuyển lên CEO phê duyệt', 'success');
+      setShowDetailModal(false);
       fetchData();
     } catch (e) {
       addToast('Lỗi gửi yêu cầu duyệt', 'error');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCancelRequest = async (req) => {
+    const ok = window.confirm(`Xóa yêu cầu ${req.requestNumber}? Dữ liệu sẽ được hủy mềm và giữ lại lịch sử.`);
+    if (!ok) return;
+    setSubmitting(true);
+    try {
+      await interWarehouseTransferService.cancelTransferRequest(req.id);
+      addToast('Đã xóa/hủy yêu cầu điều chuyển DRAFT', 'success');
+      setShowDetailModal(false);
+      fetchData();
+    } catch (e) {
+      addToast('Lỗi xóa yêu cầu điều chuyển', 'error');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -217,7 +271,8 @@ const TransferRequestWorkspace = () => {
       SUBMITTED: { text: 'Chờ CEO Duyệt', class: 'bg-warning-50 text-warning-700 border-warning-200 animate-pulse' },
       APPROVED: { text: 'Đã Duyệt', class: 'bg-success-50 text-success-700 border-success-200' },
       REJECTED: { text: 'Bị Từ Chối', class: 'bg-danger-50 text-danger-700 border-danger-200' },
-      CONVERTED: { text: 'Đã Chuyển TRF', class: 'bg-shade-30 text-ink border-hairline-light' }
+      CONVERTED: { text: 'Đã Chuyển TRF', class: 'bg-shade-30 text-ink border-hairline-light' },
+      CANCELLED: { text: 'Đã xóa/hủy', class: 'bg-shade-30 text-shade-60 border-hairline-light' }
     };
     const c = maps[status] || { text: status, class: 'bg-shade-30 text-ink' };
     return <Badge size="sm" colorClassName={c.class}>{c.text}</Badge>;
@@ -239,7 +294,7 @@ const TransferRequestWorkspace = () => {
           </p>
         </div>
         {hasRole(ROLES.WAREHOUSE_MANAGER) && (
-          <Button variant="primary" icon={Plus} onClick={() => setShowCreateModal(true)}>
+          <Button variant="primary" icon={Plus} onClick={openCreateModal}>
             Tạo yêu cầu
           </Button>
         )}
@@ -247,7 +302,7 @@ const TransferRequestWorkspace = () => {
 
       {/* Tabs */}
       <div className="flex border-b border-hairline-light overflow-x-auto whitespace-nowrap scrollbar-none mb-2">
-        {['ALL', 'DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED', 'CONVERTED'].map(tab => (
+        {['ALL', 'DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED', 'CONVERTED', 'CANCELLED'].map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -323,19 +378,27 @@ const TransferRequestWorkspace = () => {
                 </div>
               </div>
 
-              <div className="flex gap-2 border-t border-hairline-light pt-3 justify-end items-center">
+              <div className="flex flex-wrap gap-2 border-t border-hairline-light pt-3 justify-end items-center">
                 <Button variant="outline-light" icon={Eye} onClick={() => handleViewDetails(req)}>
                   Chi tiết
                 </Button>
 
                 {req.status === 'DRAFT' && hasRole(ROLES.WAREHOUSE_MANAGER) && (
-                  <Button
-                    variant="primary"
-                    onClick={() => handleSubmitRequest(req.id)}
-                    icon={Send}
-                  >
-                    Gửi CEO duyệt
-                  </Button>
+                  <>
+                    <Button variant="outline-light" icon={Pencil} onClick={() => handleEditRequest(req)}>
+                      Sửa
+                    </Button>
+                    <Button variant="danger" icon={Trash2} onClick={() => handleCancelRequest(req)} loading={submitting}>
+                      Xóa
+                    </Button>
+                    <Button
+                      variant="primary"
+                      onClick={() => handleSubmitRequest(req.id)}
+                      icon={Send}
+                    >
+                      Gửi CEO duyệt
+                    </Button>
+                  </>
                 )}
 
                 {req.status === 'APPROVED' && (hasRole(ROLES.PLANNER) || hasRole(ROLES.ADMIN)) && (
@@ -356,9 +419,9 @@ const TransferRequestWorkspace = () => {
             <div className="p-5 border-b border-hairline-light bg-canvas-cream flex justify-between items-center">
               <h3 className="font-bold text-base flex items-center gap-2">
                 <FileText className="w-5 h-5 text-info-700" />
-                Tạo yêu cầu điều chuyển mới về kho {activeWarehouse?.name}
+                {editingRequestId ? 'Sửa yêu cầu điều chuyển' : `Tạo yêu cầu điều chuyển mới về kho ${activeWarehouse?.name}`}
               </h3>
-              <button onClick={() => setShowCreateModal(false)} className="p-1 hover:bg-canvas-cream rounded-full">
+              <button onClick={closeRequestModal} className="p-1 hover:bg-canvas-cream rounded-full">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -377,7 +440,7 @@ const TransferRequestWorkspace = () => {
                 />
                 <Input
                   label="Kho đích (Nhận hàng về)"
-                  value={activeWarehouse?.name}
+                  value={warehouses.find(w => String(w.id) === String(destinationWhId || activeWarehouse?.id))?.name || activeWarehouse?.name || ''}
                   disabled
                   className="bg-canvas-cream opacity-75"
                 />
@@ -476,9 +539,9 @@ const TransferRequestWorkspace = () => {
             </div>
 
             <div className="p-4 border-t border-hairline-light bg-canvas-cream flex justify-end gap-2">
-              <Button variant="outline-light" onClick={() => setShowCreateModal(false)}>Hủy</Button>
+              <Button variant="outline-light" onClick={closeRequestModal}>Hủy</Button>
               <Button variant="primary" onClick={submitCreateRequest} disabled={submitting} loading={submitting}>
-                Tạo DRAFT
+                {editingRequestId ? 'Lưu thay đổi' : 'Tạo DRAFT'}
               </Button>
             </div>
           </div>
@@ -581,8 +644,26 @@ const TransferRequestWorkspace = () => {
               )}
             </div>
 
-            <div className="p-4 border-t border-hairline-light bg-canvas-cream flex justify-end gap-2">
+            <div className="p-4 border-t border-hairline-light bg-canvas-cream flex flex-wrap justify-end gap-2">
               <Button variant="outline-light" onClick={() => setShowDetailModal(false)}>Đóng</Button>
+
+              {selectedRequest.status === 'DRAFT' && hasRole(ROLES.WAREHOUSE_MANAGER) && (
+                <>
+                  <Button variant="outline-light" icon={Pencil} onClick={() => handleEditRequest(selectedRequest)}>
+                    Sửa
+                  </Button>
+                  <Button variant="danger" icon={Trash2} onClick={() => handleCancelRequest(selectedRequest)} loading={submitting}>
+                    Xóa
+                  </Button>
+                  <Button
+                    variant="primary"
+                    icon={Send}
+                    onClick={() => handleSubmitRequest(selectedRequest.id)}
+                  >
+                    Gửi CEO duyệt
+                  </Button>
+                </>
+              )}
 
               {/* CEO Actions */}
               {selectedRequest.status === 'SUBMITTED' && (hasRole(ROLES.CEO) || hasRole(ROLES.ADMIN)) && (

@@ -538,6 +538,21 @@ export const interWarehouseTransferService = {
     return response.data;
   },
 
+  cancelTransferRequest: async (id) => {
+    if (useMock) {
+      const requests = JSON.parse(localStorage.getItem('wms_db_transfer_requests') || '[]');
+      const idx = requests.findIndex(r => r.id === Number(id));
+      if (idx !== -1) {
+        requests[idx].status = 'CANCELLED';
+        requests[idx].updatedAt = new Date().toISOString();
+        localStorage.setItem('wms_db_transfer_requests', JSON.stringify(requests));
+        return requests[idx];
+      }
+    }
+    const response = await apiClient.post(`/transfer-requests/${id}/cancel`);
+    return response.data;
+  },
+
   submitTransferRequest: async (id) => {
     if (useMock) {
       const requests = JSON.parse(localStorage.getItem('wms_db_transfer_requests') || '[]');

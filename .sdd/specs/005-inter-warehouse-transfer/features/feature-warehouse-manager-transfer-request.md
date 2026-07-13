@@ -8,7 +8,7 @@ Luong nay la tien xu ly cua transfer, khong thay the buoc Planner tao `TRF`, Tru
 
 ## 2. Actors
 
-* **Truong kho kho yeu cau**: Xem ton kho kha dung cua kho khac, tao va gui yeu cau dieu chuyen cho CEO.
+* **Truong kho kho yeu cau**: Xem ton kho kha dung cua kho khac, tao, sua/xoa mem khi con `DRAFT`, va gui yeu cau dieu chuyen cho CEO.
 * **CEO**: Xem nhu cau, ton kho tham chieu, ly do thieu hang, sau do phe duyet hoac tu choi.
 * **Planner kho nguon / Planner trung tam**: Nhan mau de nghi da duyet va tao `TRF-*` tu yeu cau da duoc CEO phe duyet.
 
@@ -30,23 +30,26 @@ Luong nay la tien xu ly cua transfer, khong thay the buoc Planner tao `TRF`, Tru
   * WHEN a manager creates a transfer request, the system SHALL require source warehouse, requesting warehouse, needed-by date, business reason, and at least one item line.
   * WHEN a manager adds an item line, the system SHALL require product, requested quantity, observed source available quantity, and observed requesting warehouse available quantity.
   * WHEN requested quantity is greater than current source available quantity at submit time, the system SHALL reject the request.
+  * WHEN the manager edits a `DRAFT` request, the system SHALL load the existing header and item lines into the form, save the current requested state through `PUT /api/v1/transfer-requests/{id}`, and keep an audit trail.
+  * WHEN the manager deletes a `DRAFT` request, the system SHALL soft-cancel it by setting status to `CANCELLED`; the system SHALL NOT physically delete the request or its item history.
   * WHEN the manager submits the request, the system SHALL set status to `SUBMITTED` and route it to CEO review.
-  * WHEN CEO approves a submitted request, the system SHALL set status to `CEO_APPROVED`, record approval metadata, and send/generate the approved request template for the source Planner.
-  * WHEN CEO rejects a submitted request, the system SHALL require `rejectionReason`, set status to `CEO_REJECTED`, and keep the request immutable for audit.
-  * WHEN Planner creates a `TRF-*` from a CEO-approved request, the system SHALL copy source warehouse, destination warehouse, item lines, needed-by/planned date, and traceability reference into the transfer create form.
+  * WHEN CEO approves a submitted request, the system SHALL set status to `APPROVED`, record approval metadata, and send/generate the approved request template for the source Planner.
+  * WHEN CEO rejects a submitted request, the system SHALL require `rejectionReason`, set status to `REJECTED`, and keep the request immutable for audit.
+  * WHEN Planner creates a `TRF-*` from an approved request, the system SHALL copy source warehouse, destination warehouse, item lines, needed-by/planned date, and traceability reference into the transfer create form.
   * WHEN Planner successfully creates the `TRF-*`, the system SHALL link the transfer to the request and set request status to `CONVERTED`.
 
 * **State-driven:**
-  * WHILE a transfer request is `DRAFT`, the requesting warehouse manager MAY edit or cancel it.
+  * WHILE a transfer request is `DRAFT`, the requesting warehouse manager MAY edit it or press the UI `Xoa` action, which performs soft cancellation to `CANCELLED`.
   * WHILE a transfer request is `SUBMITTED`, only CEO may approve or reject it; the requesting warehouse manager SHALL NOT edit item lines.
-  * WHILE a transfer request is `CEO_APPROVED`, Planner MAY convert it to one `TRF-*`; CEO approval SHALL NOT reserve inventory.
-  * WHILE a transfer request is `CEO_REJECTED`, `CONVERTED`, or `CANCELLED`, the system SHALL reject further edits, approval, or conversion.
+  * WHILE a transfer request is `APPROVED`, Planner MAY convert it to one `TRF-*`; CEO approval SHALL NOT reserve inventory.
+  * WHILE a transfer request is `REJECTED`, `CONVERTED`, or `CANCELLED`, the system SHALL reject further edits, approval, or conversion.
 
 ## 4. API Endpoints
 
 * `GET /api/v1/warehouse-stock/cross-warehouse` - Warehouse manager searches read-only stock availability in other warehouses.
 * `POST /api/v1/transfer-requests` - Warehouse manager creates a draft transfer request from cross-warehouse stock visibility.
 * `PUT /api/v1/transfer-requests/{id}` - Warehouse manager updates a `DRAFT` request.
+* `POST /api/v1/transfer-requests/{id}/cancel` - Warehouse manager soft-cancels a `DRAFT` request from the UI `Xoa` action.
 * `POST /api/v1/transfer-requests/{id}/submit` - Warehouse manager submits request to CEO.
 * `POST /api/v1/transfer-requests/{id}/approve` - CEO approves request and sends/generates the approved request template for source Planner.
 * `POST /api/v1/transfer-requests/{id}/reject` - CEO rejects request with required reason.
@@ -108,6 +111,8 @@ Luong nay la tien xu ly cua transfer, khong thay the buoc Planner tao `TRF`, Tru
 * `TRANSFER_REQUEST_REASON_REQUIRED` (HTTP 400): business reason or required item shortage reason is blank.
 * `TRANSFER_REQUEST_QTY_EXCEEDS_SOURCE_AVAILABLE` (HTTP 422): requested quantity exceeds current source available quantity.
 * `TRANSFER_REQUEST_APPROVAL_NOT_ALLOWED` (HTTP 409): CEO approval/rejection attempted outside `SUBMITTED` status.
+* `ONLY_DRAFT_CAN_BE_UPDATED` (HTTP 409): manager attempts to edit a request after it leaves `DRAFT`.
+* `ONLY_DRAFT_CAN_BE_CANCELLED` (HTTP 409): manager attempts to delete/cancel a request after it leaves `DRAFT`.
 * `CEO_REJECTION_REASON_REQUIRED` (HTTP 400): CEO rejects without reason.
 * `TRANSFER_REQUEST_NOT_APPROVED` (HTTP 409): Planner attempts conversion before CEO approval.
 * `TRANSFER_REQUEST_ALREADY_CONVERTED` (HTTP 409): request already linked to a `TRF-*`.
@@ -124,10 +129,20 @@ Luong nay la tien xu ly cua transfer, khong thay the buoc Planner tao `TRF`, Tru
   * When the requesting warehouse manager submits it
   * Then the system SHALL set status to `SUBMITTED`, record `submittedAt`, route it to CEO review, and create a `TRANSFER_REQUEST_SUBMIT` audit log.
 
+* **Scenario: Edit DRAFT request**
+  * Given a transfer request is in `DRAFT` status
+  * When the requesting warehouse manager clicks `Sua`, updates header or item lines, and saves
+  * Then the system SHALL persist the current request state, keep status `DRAFT`, and create an update audit log.
+
+* **Scenario: Delete DRAFT request**
+  * Given a transfer request is in `DRAFT` status
+  * When the requesting warehouse manager clicks `Xoa` and confirms
+  * Then the system SHALL set status to `CANCELLED`, keep the request history, and block future submit/edit/convert actions.
+
 * **Scenario: CEO approves and Planner receives template**
   * Given a transfer request is `SUBMITTED`
   * When CEO approves it
-  * Then the system SHALL set status to `CEO_APPROVED`, record CEO approval metadata, create a `TRANSFER_REQUEST_CEO_APPROVE` audit log, and send/generate an approved request template for the Planner of the source warehouse.
+  * Then the system SHALL set status to `APPROVED`, record CEO approval metadata, create a `TRANSFER_REQUEST_CEO_APPROVE` audit log, and send/generate an approved request template for the Planner of the source warehouse.
 
 * **Scenario: Planner converts approved request to TRF**
   * Given CEO approved a request for HCM to send 50 pans to HP
@@ -143,4 +158,4 @@ Luong nay la tien xu ly cua transfer, khong thay the buoc Planner tao `TRF`, Tru
 * **Scenario: CEO rejects with reason**
   * Given a transfer request is `SUBMITTED`
   * When CEO rejects it with a reason
-  * Then the system SHALL set status to `CEO_REJECTED`, store the reason, create a `TRANSFER_REQUEST_CEO_REJECT` audit log, and prevent future conversion.
+  * Then the system SHALL set status to `REJECTED`, store the reason, create a `TRANSFER_REQUEST_CEO_REJECT` audit log, and prevent future conversion.
