@@ -50,6 +50,7 @@ const FleetManagement = () => {
   const [drLicenseNumber, setDrLicenseNumber] = useState('');
   const [drLicenseExpiry, setDrLicenseExpiry] = useState('');
   const [drStatus, setDrStatus] = useState('AVAILABLE');
+  const [drWarehouseId, setDrWarehouseId] = useState('');
 
   const getUserId = (user) => user?.id;
   const getUserCode = (user) => user?.code;
@@ -206,6 +207,9 @@ const FleetManagement = () => {
     setDrLicenseNumber('');
     setDrLicenseExpiry('');
     setDrStatus('AVAILABLE');
+    const userWhs = user ? getUserWarehouses(user) : [];
+    const initialWhId = userWhs.length > 0 ? String(userWhs[0]) : (fleetWarehouses[0]?.id ? String(fleetWarehouses[0].id) : '');
+    setDrWarehouseId(initialWhId);
     setDrFormErrors({});
     setIsDrModalOpen(true);
   };
@@ -219,6 +223,7 @@ const FleetManagement = () => {
     setDrLicenseNumber(driver.license_number);
     setDrLicenseExpiry(driver.license_expiry);
     setDrStatus(driver.status || 'AVAILABLE');
+    setDrWarehouseId(String(driver.warehouse_id || driver.warehouseId || ''));
     setDrFormErrors({});
     setIsDrModalOpen(true);
   };
@@ -231,6 +236,7 @@ const FleetManagement = () => {
     if (!drFullName.trim()) errors.full_name = 'Họ tên tài xế bắt buộc';
     if (!drLicenseNumber.trim()) errors.license_number = 'Số bằng lái bắt buộc';
     if (!drLicenseExpiry) errors.license_expiry = 'Ngày hết hạn bằng lái bắt buộc';
+    if (!drWarehouseId) errors.warehouse_id = 'Kho phụ trách bắt buộc';
 
     setDrFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -243,7 +249,7 @@ const FleetManagement = () => {
     setDrSubmitting(true);
     const driverData = {
       user_id: Number(drUserId),
-      warehouse_ids: getUserWarehouses(driverUsers.find((user) => Number(getUserId(user)) === Number(drUserId))),
+      warehouse_id: Number(drWarehouseId),
       full_name: drFullName.trim(),
       phone: drPhone.trim(),
       license_number: drLicenseNumber.trim(),
@@ -262,7 +268,8 @@ const FleetManagement = () => {
       setIsDrModalOpen(false);
       fetchData();
     } catch (err) {
-      addToast(err.message || 'Lỗi lưu trữ thông tin tài xế', 'error');
+      const errorMsg = err.response?.data?.message || err.message || 'Lỗi lưu trữ thông tin tài xế';
+      addToast(errorMsg, 'error');
     } finally {
       setDrSubmitting(false);
     }
@@ -858,11 +865,15 @@ const FleetManagement = () => {
               value={drUserId}
               onChange={(e) => {
                 setDrUserId(e.target.value);
-                // Pre-fill full name and phone if matching user
+                // Pre-fill full name, phone and warehouse if matching user
                 const user = driverUsers.find(u => Number(getUserId(u)) === Number(e.target.value));
                 if (user) {
                   setDrFullName(getUserFullName(user));
                   setDrPhone(getUserPhone(user));
+                  const userWhs = getUserWarehouses(user);
+                  if (userWhs.length > 0) {
+                    setDrWarehouseId(String(userWhs[0]));
+                  }
                 }
               }}
               disabled={drModalType === 'EDIT' || (drModalType === 'ADD' && selectableDriverUsers.length === 0)}
@@ -912,6 +923,22 @@ const FleetManagement = () => {
             onChange={(e) => setDrFullName(e.target.value)}
             error={drFormErrors.full_name}
             placeholder="VD: Nguyễn Văn A"
+            required
+          />
+
+          <Input
+            label="Kho phụ trách"
+            type="select"
+            value={drWarehouseId}
+            onChange={(e) => setDrWarehouseId(e.target.value)}
+            error={drFormErrors.warehouse_id}
+            options={[
+              { value: '', label: 'Chọn kho phụ trách' },
+              ...fleetWarehouses.map((warehouse) => ({
+                value: String(warehouse.id),
+                label: `${warehouse.code} - ${warehouse.name}`,
+              }))
+            ]}
             required
           />
 
