@@ -29,6 +29,16 @@ public interface TripDeliveryOrderRepository extends JpaRepository<TripDeliveryO
     @Modifying
     void deleteByTripId(Long tripId);
 
+    @EntityGraph(attributePaths = {"trip", "deliveryOrder"})
+    @Query("""
+            select tdo from TripDeliveryOrder tdo
+            where tdo.deliveryOrder.id in :deliveryOrderIds
+              and (:excludedTripId is null or tdo.trip.id <> :excludedTripId)
+            """)
+    List<TripDeliveryOrder> findAssignmentsForDeliveryOrders(
+            @Param("deliveryOrderIds") Collection<Long> deliveryOrderIds,
+            @Param("excludedTripId") Long excludedTripId);
+
     @Query("""
             select count(tdo) > 0 from TripDeliveryOrder tdo
             where tdo.deliveryOrder.id in :deliveryOrderIds
