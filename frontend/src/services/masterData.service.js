@@ -1272,11 +1272,11 @@ export const masterDataService = {
       );
       return newDrv;
     }
-    const { status, warehouse_ids, warehouseIds, ...profileData } = drvData;
-    const whId = drvData.warehouseId || drvData.warehouse_id || (warehouse_ids && warehouse_ids.length > 0 ? warehouse_ids[0] : (warehouseIds && warehouseIds.length > 0 ? warehouseIds[0] : null));
+    const { status, warehouse_ids, warehouseIds, warehouse_id, warehouseId, ...profileData } = drvData;
+    const whId = warehouseId || warehouse_id || (warehouse_ids && warehouse_ids.length > 0 ? warehouse_ids[0] : (warehouseIds && warehouseIds.length > 0 ? warehouseIds[0] : null));
     const payload = {
       ...profileData,
-      warehouseId: whId
+      warehouseId: whId ? Number(whId) : null
     };
     const response = await apiClient.post(
       "/dispatcher/drivers",
@@ -1326,11 +1326,11 @@ export const masterDataService = {
       );
       return updated;
     }
-    const { status, warehouse_ids, warehouseIds, ...profileData } = drvData;
-    const whId = drvData.warehouseId || drvData.warehouse_id || (warehouse_ids && warehouse_ids.length > 0 ? warehouse_ids[0] : (warehouseIds && warehouseIds.length > 0 ? warehouseIds[0] : null));
+    const { status, warehouse_ids, warehouseIds, warehouse_id, warehouseId, ...profileData } = drvData;
+    const whId = warehouseId || warehouse_id || (warehouse_ids && warehouse_ids.length > 0 ? warehouse_ids[0] : (warehouseIds && warehouseIds.length > 0 ? warehouseIds[0] : null));
     const payload = {
       ...profileData,
-      warehouseId: whId
+      warehouseId: whId ? Number(whId) : null
     };
     const response = await apiClient.put(
       `/dispatcher/drivers/${id}`,
