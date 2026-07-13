@@ -1,6 +1,7 @@
 package com.wms.dto.request;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDate;
@@ -13,8 +14,10 @@ public record TransferRequestCreateRequest(
     @NotNull(message = "DESTINATION_WAREHOUSE_ID_REQUIRED")
     Long destinationWarehouseId,
 
+    @NotNull(message = "NEEDED_BY_DATE_REQUIRED")
     LocalDate neededByDate,
 
+    @NotBlank(message = "BUSINESS_REASON_REQUIRED")
     String businessReason,
 
     String notes,

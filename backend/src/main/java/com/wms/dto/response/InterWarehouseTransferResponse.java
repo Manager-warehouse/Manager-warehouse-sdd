@@ -37,6 +37,35 @@ public record InterWarehouseTransferResponse(
         Boolean isReturned,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt,
+
+        // Outbound QC
+        Boolean outboundQcPassed,
+        String outboundQcNote,
+        String outboundQcPhotoRef,
+        Long outboundQcById,
+        String outboundQcByName,
+        OffsetDateTime outboundQcAt,
+
+        // Load Handover
+        String loadHandoverPhotoRef,
+        Long loadHandoverById,
+        String loadHandoverByName,
+        OffsetDateTime loadHandoverAt,
+
+        // Arrival
+        OffsetDateTime driverArrivedAt,
+        OffsetDateTime arrivalHandoverAt,
+        Long arrivalHandoverById,
+        String arrivalHandoverByName,
+
+        // Return leg
+        OffsetDateTime returnDepartedAt,
+        OffsetDateTime returnArrivedAt,
+        OffsetDateTime returnArrivalHandoverAt,
+        Long returnArrivalHandoverById,
+        String returnArrivalHandoverByName,
+        String returnPhotoRef,
+
         List<InterWarehouseTransferItemResponse> items) {
 
     public static InterWarehouseTransferResponse from(InterWarehouseTransfer transfer,
@@ -74,6 +103,76 @@ public record InterWarehouseTransferResponse(
                 transfer.isReturned(),
                 transfer.getCreatedAt(),
                 transfer.getUpdatedAt(),
+
+                // Outbound QC
+                transfer.getOutboundQcPassed(),
+                transfer.getOutboundQcNote(),
+                transfer.getOutboundQcPhotoRef(),
+                transfer.getOutboundQcBy() == null ? null : transfer.getOutboundQcBy().getId(),
+                transfer.getOutboundQcBy() == null ? null : transfer.getOutboundQcBy().getFullName(),
+                transfer.getOutboundQcAt(),
+
+                // Load Handover
+                transfer.getLoadHandoverPhotoRef(),
+                transfer.getLoadHandoverBy() == null ? null : transfer.getLoadHandoverBy().getId(),
+                transfer.getLoadHandoverBy() == null ? null : transfer.getLoadHandoverBy().getFullName(),
+                transfer.getLoadHandoverAt(),
+
+                // Arrival
+                transfer.getDriverArrivedAt(),
+                transfer.getArrivalHandoverAt(),
+                transfer.getArrivalHandoverBy() == null ? null : transfer.getArrivalHandoverBy().getId(),
+                transfer.getArrivalHandoverBy() == null ? null : transfer.getArrivalHandoverBy().getFullName(),
+
+                // Return leg
+                transfer.getReturnDepartedAt(),
+                transfer.getReturnArrivedAt(),
+                transfer.getReturnArrivalHandoverAt(),
+                transfer.getReturnArrivalHandoverBy() == null ? null : transfer.getReturnArrivalHandoverBy().getId(),
+                transfer.getReturnArrivalHandoverBy() == null ? null : transfer.getReturnArrivalHandoverBy().getFullName(),
+                transfer.getReturnPhotoRef(),
+
                 items);
+    }
+
+    @SuppressWarnings("unchecked")
+    public InterWarehouseTransferResponse(
+            Long id,
+            String transferNumber,
+            String externalInstructionCode,
+            Long sourceWarehouseId,
+            String sourceWarehouseCode,
+            Long destinationWarehouseId,
+            String destinationWarehouseCode,
+            InterWarehouseTransferStatus status,
+            Long tripId,
+            String tripNumber,
+            Long vehicleId,
+            String vehiclePlate,
+            Long driverId,
+            Long driverUserId,
+            String driverName,
+            LocalDate documentDate,
+            LocalDate plannedDate,
+            LocalDateTime tripPlannedStartAt,
+            LocalDateTime tripPlannedEndAt,
+            Boolean tripWarningActive,
+            Boolean tripOverdue,
+            String tripWarningMessage,
+            LocalDate actualReceivedDate,
+            String discrepancyReason,
+            String rejectionReason,
+            String notes,
+            Boolean isReturned,
+            OffsetDateTime createdAt,
+            OffsetDateTime updatedAt,
+            List<?> items) {
+        this(id, transferNumber, externalInstructionCode, sourceWarehouseId, sourceWarehouseCode,
+                destinationWarehouseId, destinationWarehouseCode, status, tripId, tripNumber,
+                vehicleId, vehiclePlate, driverId, driverUserId, driverName, documentDate, plannedDate,
+                tripPlannedStartAt, tripPlannedEndAt, tripWarningActive, tripOverdue, tripWarningMessage,
+                actualReceivedDate, discrepancyReason, rejectionReason, notes, isReturned, createdAt, updatedAt,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                (List<InterWarehouseTransferItemResponse>) items);
     }
 }

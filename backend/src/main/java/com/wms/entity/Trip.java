@@ -64,6 +64,12 @@ public class Trip {
     @Column(name = "total_volume_m3", precision = 10, scale = 3)
     private BigDecimal totalVolumeM3;
 
+    @Column(name = "calculated_weight_kg", precision = 10, scale = 2)
+    private BigDecimal calculatedWeightKg;
+
+    @Column(name = "calculated_volume_m3", precision = 10, scale = 4)
+    private BigDecimal calculatedVolumeM3;
+
     @Column(name = "cancel_reason", columnDefinition = "TEXT")
     private String cancelReason;
 

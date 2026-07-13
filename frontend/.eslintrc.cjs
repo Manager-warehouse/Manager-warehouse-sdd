@@ -1,6 +1,6 @@
 module.exports = {
   root: true,
-  ignorePatterns: ['dist/', 'node_modules/', 'coverage/'],
+  ignorePatterns: ['dist/', 'node_modules/', 'coverage/', 'android/'],
   env: {
     browser: true,
     es2022: true,

@@ -109,11 +109,42 @@ public class InterWarehouseTransferController {
         return transferService.unshipTransfer(id, currentUser());
     }
 
+    @PostMapping("/{id}/outbound-qc")
+    @PreAuthorize("hasAnyRole('STOREKEEPER','WAREHOUSE_MANAGER','ADMIN','CEO')")
+    @Operation(summary = "Record outbound QC results for the transfer")
+    public InterWarehouseTransferResponse recordOutboundQc(@PathVariable Long id,
+                                                           @Valid @RequestBody OutboundQcRequest request) {
+        return transferService.recordOutboundQc(id, request, currentUser());
+    }
+
+    @PostMapping("/{id}/load-handover")
+    @PreAuthorize("hasAnyRole('STOREKEEPER','WAREHOUSE_MANAGER','ADMIN','CEO')")
+    @Operation(summary = "Record load handover photo for the transfer")
+    public InterWarehouseTransferResponse loadHandover(@PathVariable Long id,
+                                                       @Valid @RequestBody LoadHandoverRequest request) {
+        return transferService.loadHandover(id, request, currentUser());
+    }
+
     @PostMapping("/{id}/depart")
     @PreAuthorize("hasRole('DRIVER')")
     @Operation(summary = "Assigned driver confirms departure and moves stock to in-transit")
     public InterWarehouseTransferResponse departTransfer(@PathVariable Long id) {
         return transferService.departTransfer(id, currentUser());
+    }
+
+    @PostMapping("/{id}/driver-arrive")
+    @PreAuthorize("hasRole('DRIVER')")
+    @Operation(summary = "Assigned driver confirms arrival at destination warehouse")
+    public InterWarehouseTransferResponse driverArrive(@PathVariable Long id) {
+        return transferService.driverArrive(id, currentUser());
+    }
+
+    @PostMapping("/{id}/receiving-handover")
+    @PreAuthorize("hasAnyRole('STOREKEEPER','WAREHOUSE_STAFF','WAREHOUSE_MANAGER','ADMIN','CEO')")
+    @Operation(summary = "Record arrival handover check and photo at destination warehouse")
+    public InterWarehouseTransferResponse receivingHandover(@PathVariable Long id,
+                                                            @Valid @RequestBody LoadHandoverRequest request) {
+        return transferService.receivingHandover(id, request, currentUser());
     }
 
     @PutMapping("/{id}/receive-count")
@@ -143,8 +174,9 @@ public class InterWarehouseTransferController {
     @PostMapping("/{id}/return-to-source")
     @PreAuthorize("hasAnyRole('WAREHOUSE_MANAGER','ADMIN','CEO','PLANNER')")
     @Operation(summary = "Mark the in-transit transfer as returning/returned to source warehouse")
-    public InterWarehouseTransferResponse returnToSource(@PathVariable Long id) {
-        return transferService.returnToSource(id, currentUser());
+    public InterWarehouseTransferResponse returnToSource(@PathVariable Long id,
+                                                         @Valid @RequestBody TransferReturnRequest request) {
+        return transferService.returnToSource(id, request, currentUser());
     }
 
     @PostMapping("/{id}/quarantine-reject")
@@ -176,6 +208,28 @@ public class InterWarehouseTransferController {
     public InterWarehouseTransferResponse rejectReturn(@PathVariable Long id,
                                                        @Valid @RequestBody TransferReturnRejectRequest request) {
         return transferService.rejectReturn(id, request, currentUser());
+    }
+
+    @PostMapping("/{id}/return-depart")
+    @PreAuthorize("hasRole('DRIVER')")
+    @Operation(summary = "Assigned driver confirms departure for return leg")
+    public InterWarehouseTransferResponse returnDepart(@PathVariable Long id) {
+        return transferService.returnDepart(id, currentUser());
+    }
+
+    @PostMapping("/{id}/return-arrive")
+    @PreAuthorize("hasRole('DRIVER')")
+    @Operation(summary = "Assigned driver confirms arrival at source warehouse for return leg")
+    public InterWarehouseTransferResponse returnArrive(@PathVariable Long id) {
+        return transferService.returnArrive(id, currentUser());
+    }
+
+    @PostMapping("/{id}/return-handover")
+    @PreAuthorize("hasAnyRole('STOREKEEPER','WAREHOUSE_STAFF','WAREHOUSE_MANAGER','ADMIN','CEO')")
+    @Operation(summary = "Record arrival handover check and photo at source warehouse for return leg")
+    public InterWarehouseTransferResponse returnHandover(@PathVariable Long id,
+                                                         @Valid @RequestBody LoadHandoverRequest request) {
+        return transferService.returnHandover(id, request, currentUser());
     }
 
     private User currentUser() {

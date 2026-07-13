@@ -33,6 +33,21 @@ public interface TripRepository extends JpaRepository<Trip, Long> {
     @Query("""
             select count(t) > 0
             from Trip t
+            where t.driver.id = :driverId
+              and t.status in :statuses
+              and t.plannedStartAt < :plannedEndAt
+              and t.plannedEndAt > :plannedStartAt
+              and (:excludedTripId is null or t.id <> :excludedTripId)
+            """)
+    boolean existsDriverScheduleOverlapExcludingTrip(@Param("driverId") Long driverId,
+                                                    @Param("plannedStartAt") LocalDateTime plannedStartAt,
+                                                    @Param("plannedEndAt") LocalDateTime plannedEndAt,
+                                                    @Param("statuses") List<TripStatus> statuses,
+                                                    @Param("excludedTripId") Long excludedTripId);
+
+    @Query("""
+            select count(t) > 0
+            from Trip t
             where t.vehicle.id = :vehicleId
               and t.status in :statuses
               and t.plannedStartAt < :plannedEndAt
@@ -42,6 +57,21 @@ public interface TripRepository extends JpaRepository<Trip, Long> {
                                          @Param("plannedStartAt") LocalDateTime plannedStartAt,
                                          @Param("plannedEndAt") LocalDateTime plannedEndAt,
                                          @Param("statuses") List<TripStatus> statuses);
+
+    @Query("""
+            select count(t) > 0
+            from Trip t
+            where t.vehicle.id = :vehicleId
+              and t.status in :statuses
+              and t.plannedStartAt < :plannedEndAt
+              and t.plannedEndAt > :plannedStartAt
+              and (:excludedTripId is null or t.id <> :excludedTripId)
+            """)
+    boolean existsVehicleScheduleOverlapExcludingTrip(@Param("vehicleId") Long vehicleId,
+                                                     @Param("plannedStartAt") LocalDateTime plannedStartAt,
+                                                     @Param("plannedEndAt") LocalDateTime plannedEndAt,
+                                                     @Param("statuses") List<TripStatus> statuses,
+                                                     @Param("excludedTripId") Long excludedTripId);
 
     @EntityGraph(attributePaths = {"warehouse", "vehicle", "driver", "driver.user", "dispatcher"})
     Optional<Trip> findWithWarehouseAndResourcesById(Long id);

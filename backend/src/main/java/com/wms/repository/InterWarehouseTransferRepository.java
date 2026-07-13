@@ -15,6 +15,12 @@ import org.springframework.stereotype.Repository;
 public interface InterWarehouseTransferRepository extends JpaRepository<InterWarehouseTransfer, Long> {
     boolean existsByTransferNumber(String transferNumber);
 
+    long countByTripIdAndIdNot(Long tripId, Long transferId);
+
+    long countByTripId(Long tripId);
+
+    boolean existsByTransferRequestIdAndStatusNotIn(Long transferRequestId, Collection<InterWarehouseTransferStatus> statuses);
+
     boolean existsByExternalInstructionCodeAndSourceWarehouseIdAndDestinationWarehouseIdAndDocumentDateAndStatusNotIn(
             String externalInstructionCode,
             Long sourceWarehouseId,

@@ -21,6 +21,10 @@ public class TransferRequest {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
+
     @Column(name = "request_number", nullable = false, unique = true, length = 50)
     private String requestNumber;
 

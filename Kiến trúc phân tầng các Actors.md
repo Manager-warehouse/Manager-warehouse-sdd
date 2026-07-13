@@ -78,7 +78,7 @@
 - Khi kho mình thiếu hàng, xem tồn khả dụng liên kho ở chế độ read-only và tạo yêu cầu điều chuyển gửi CEO duyệt.
 - Phê duyệt Phiếu điều chuyển kho (kho nguồn): Kiểm tra tồn khả dụng trước khi duyệt.
 - Xác nhận nhận hàng điều chuyển (kho đích): Kiểm tra số lượng thực tế, ghi nhận chênh lệch nếu có.
-- Với gửi nhầm SKU còn nguyên, Trưởng kho đích duyệt hoặc từ chối xe quay về kho nguồn; hàng vẫn ở In-Transit cho tới khi kho nguồn xác nhận nhận lại.
+- Với gửi nhầm SKU còn nguyên, Trưởng kho đích duyệt hoặc từ chối xe quay về kho nguồn dựa trên report line-level expected SKU/actual SKU/số lượng/lý do/ảnh nếu có; hàng vẫn ở In-Transit cho tới khi tài xế hoàn tất return departure/source arrival/handover và kho nguồn xác nhận nhận lại.
 - Duyệt chênh lệch kiểm kê và phê duyệt điều chỉnh tồn kho thực tế.
 - Phê duyệt biên bản hàng lỗi tại Quarantine Zone, quyết định phương án xử lý (tiêu hủy hoặc trả hàng cho nhà cung cấp - NCC).
 - Phê duyệt phiếu xuất hủy hàng lỗi.
@@ -138,8 +138,9 @@
 - Tạo Chuyến xe (Trip Log): Chọn xe nội bộ Phúc Anh từ danh mục, gán Tài xế.
 - Gom các Đơn xuất hàng (ở trạng thái Ready to Ship) vào một Chuyến xe; sắp xếp thứ tự giao hàng (Stop Order) để tối ưu lộ trình.
 - Lập một chuyến xe nội bộ riêng cho từng Phiếu điều chuyển kho; không gom nhiều Phiếu điều chuyển vào cùng một chuyến trong Sprint 1.
-- Kiểm tra tải trọng xe trước khi xác nhận chuyến (hệ thống cảnh báo nếu vượt tải).
+- Kiểm tra tải trọng/thể tích xe trước khi xác nhận chuyến; hệ thống chặn nếu vượt tải.
 - Với điều chuyển, tài xế/xe phải thuộc phạm vi kho nguồn, không bị trùng lịch; kiểm tra cân nặng luôn áp dụng và thể tích chỉ áp dụng khi xe có cấu hình thể tích.
+- Với điều chuyển, Dispatcher chỉ được đổi xe/tài xế/lịch trước khi tài xế departure; sau departure trip bị khóa.
 
 **Lưu ý quan trọng:** Hệ thống **CHỈ dùng xe nội bộ** của Phúc Anh. KHÔNG phát sinh chi phí vận chuyển 3PL trong luồng xuất hàng thông thường → KHÔNG có quy trình Duyệt chi vận tải.
 
@@ -171,8 +172,9 @@
 
 **Điều chuyển:**
 
-- Ở kho nguồn: xác nhận xuất hàng lên xe nội bộ khi Phiếu điều chuyển đã được duyệt.
-- Ở kho đích: kiểm tra lại số lượng công nhân nhập, chốt QC, chọn vị trí nhập kho cho hàng đạt, duyệt receive-check.
+- Ở kho nguồn: outbound QC bằng mắt/đối chiếu phiếu, chụp ảnh xác nhận, xác nhận xuất hàng lên xe nội bộ và chụp ảnh load/handover cho tài xế khi Phiếu điều chuyển đã được duyệt.
+- Ở kho đích: kiểm tra lại blind count của công nhân, chốt QC, kiểm tra sức chứa Bin, chọn vị trí nhập kho cho hàng đạt, duyệt receive-check.
+- Khi phát hiện wrong-SKU còn nguyên: báo cáo theo line gồm SKU kỳ vọng, SKU thực tế, số lượng ảnh hưởng, lý do và ảnh nếu có.
 
 **Kiểm kê:**
 
@@ -293,20 +295,21 @@ Trưởng kho kho thiếu hàng có thể xem tồn liên kho read-only
     → CEO duyệt/từ chối; nếu duyệt, Planner kho nguồn/trung tâm nhận mẫu đã duyệt
 Planner nhận lệnh điều chuyển ngoài (external instruction code) hoặc transfer request đã được CEO duyệt
     → Planner tạo Phiếu điều chuyển `TRF-*` [Mới] trên màn Điều chuyển nội bộ
-    → Trưởng kho nguồn kiểm tra tồn khả dụng → Duyệt và khóa hàng [Đã duyệt]
-    → Dispatcher kho nguồn lập chuyến xe `TTR-*` riêng, gán xe và tài xế thuộc phạm vi kho nguồn, kiểm tra tải trọng/trùng lịch
-    → Thủ kho nguồn ghi nhận số gửi, bốc xếp lên xe nội bộ
+    → Trưởng kho nguồn kiểm tra tồn khả dụng FIFO eligible → Duyệt và khóa hàng [Đã duyệt]
+    → Dispatcher kho nguồn lập chuyến xe `TTR-*` riêng, gán xe và tài xế thuộc phạm vi kho nguồn, kiểm tra tải trọng/thể tích/trùng lịch
+    → Thủ kho nguồn outbound QC bằng mắt/đối chiếu phiếu, chụp ảnh xác nhận, ghi nhận số gửi, bốc xếp lên xe nội bộ và chụp ảnh handover cho tài xế
     → Tài xế xác nhận nhận hàng, xe rời kho
         → Hệ thống: Trừ tồn Kho nguồn, Cộng Kho ảo In-Transit [Đang vận chuyển]
-    → Công nhân/Nhân viên kho đích nhập số nhận thực tế ban đầu
-    → Thủ kho đích kiểm tra lại số lượng, chốt QC, chọn vị trí nhập kho cho hàng đạt
+    → Tài xế ghi nhận đến kho nhận và kho nhận ghi handover
+    → Công nhân/Nhân viên kho đích blind count số nhận thực tế ban đầu
+    → Thủ kho đích kiểm tra lại số lượng, chốt QC, kiểm tra Bin capacity, chọn vị trí nhập kho cho hàng đạt
     → Trưởng kho đích xác nhận cuối cùng
         ├── Khớp + QC đạt → Hệ thống: Trừ In-Transit, Cộng tồn Kho đích [Hoàn thành]
-        ├── Thiếu → Ghi lý do + Tạo Phiếu điều chỉnh bù trừ; không tạo Quarantine cho phần thiếu
+        ├── Thiếu → Ghi lý do + incident/discrepancy + Tạo Phiếu điều chỉnh bù trừ; không tạo Quarantine cho phần thiếu
         ├── QC lỗi/hư hỏng → Phần lỗi vào Quarantine origin INTERNAL_TRANSFER, chỉ đi luồng tiêu hủy Spec 009
-        ├── Gửi nhầm SKU còn nguyên → Thủ kho đích báo cáo, Trưởng kho đích duyệt quay về kho nguồn
-        ├── Trip quá hạn → Chặn nhận ở kho đích, kích hoạt Return to Source theo thẩm quyền
-        └── Nhận thừa → Chặn xác nhận
+        ├── Gửi nhầm SKU còn nguyên → Thủ kho đích báo cáo line expected/actual SKU + số lượng + lý do/ảnh nếu có, Trưởng kho đích duyệt quay về kho nguồn, tài xế ghi return departure/source arrival/handover
+        ├── Trip quá hạn → Chặn nhận ở kho đích, kích hoạt Return to Source theo thẩm quyền với lý do, kèm ảnh nếu có
+        └── Nhận thừa → Chặn nhập regular inventory và ghi discrepancy hold/incident
 ```
 
 ### Quy trình Công nợ & Kế toán (Finance Cycle)

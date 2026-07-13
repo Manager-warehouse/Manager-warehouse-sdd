@@ -10,6 +10,14 @@ Fields to add/verify:
 - `source_warehouse_id`
 - `destination_warehouse_id`
 - `status`: `NEW`, `APPROVED`, `REJECTED`, `IN_TRANSIT`, `COMPLETED`, `COMPLETED_WITH_DISCREPANCY`, `CANCELLED`
+- `is_returned`
+- `return_reason_code`, `return_reason`
+- `outbound_qc_checked_by`, `outbound_qc_checked_at`, `outbound_qc_result`
+- `load_handover_by`, `load_handover_at`
+- `outbound_qc_photo_refs`
+- `load_handover_photo_refs`
+- `driver_departed_at`, `driver_arrived_at`, `arrival_handover_at`
+- `return_departed_at`, `return_arrived_at`
 - `created_by`
 - `external_instruction_code`
 - `approved_by`, `approved_at`
@@ -24,6 +32,7 @@ Fields to add/verify:
 - `notes`
 - `transfer_request_id` (nullable link to CEO-approved manager request)
 - `created_at`, `updated_at`
+- `version`
 
 Validation:
 - Source and destination warehouses must differ.
@@ -34,6 +43,9 @@ Validation:
 - Source manager/authorized manager can cancel only unshipped `APPROVED`.
 - No cancellation after `IN_TRANSIT`.
 - If created from a transfer request, the linked request must be `CEO_APPROVED` and not already converted.
+- GET/list/detail reads must not mutate status or persist overdue transitions.
+- Receive-count is blocked until driver arrival and receiving-warehouse handover are recorded.
+- Return receiving is blocked until return departure and source arrival/handover are recorded.
 
 ## TransferRequest
 
@@ -54,6 +66,7 @@ Fields to add/verify:
 - `planner_assignee_id`
 - `converted_transfer_id`
 - `created_at`, `updated_at`
+- `version`
 
 Validation:
 - Requesting and source warehouses must differ.
@@ -65,6 +78,7 @@ Validation:
 - CEO approval does not reserve inventory.
 - Only `CEO_APPROVED` requests can be converted to `TRF`.
 - A request can be converted to at most one active transfer.
+- Concurrent updates and duplicate conversion races must fail with a version/unique-constraint conflict.
 
 ## TransferRequestItem
 
@@ -107,6 +121,9 @@ Fields to add/verify:
 - `receive_checked_by`
 - `receive_checked_at`
 - `receive_checker_note`
+- `batch_id` nullable on planned item; FIFO allocation rows store actual batch after approval
+- `outbound_qc_result`
+- `outbound_qc_note`
 
 Validation:
 - `planned_qty > 0`.
@@ -120,6 +137,31 @@ Validation:
 - A physically present `qc_failed_qty` creates or updates a quarantine source record with `origin_type = INTERNAL_TRANSFER` and `origin_id = transfer_item.id`.
 - A negative `variance_qty` represents missing stock and must not create a quarantine source record.
 - An intact wrong-SKU item remains linked to the transfer return-to-source flow and is not marked for disposal unless damage/QC failure is recorded separately.
+- Destination location for QC-passed quantity must have enough remaining bin capacity.
+
+## WrongSkuReport
+
+**Table**: `transfer_wrong_sku_reports` or equivalent actual table name
+
+Fields to add/verify:
+- `id`
+- `transfer_id`
+- `transfer_item_id`
+- `expected_product_id`
+- `actual_product_id`
+- `quantity`
+- `reason`
+- `photo_refs`
+- `status`: `REPORTED`, `APPROVED`, `REJECTED`, `RETURN_DEPARTED`, `RETURN_ARRIVED`, `CLOSED`
+- `reported_by`, `reported_at`
+- `decided_by`, `decided_at`, `decision_reason`
+
+Validation:
+- Expected and actual products must be different.
+- Quantity must be positive and must not exceed the affected in-transit quantity.
+- Reason is required.
+- Photo references are optional for wrong-SKU in Sprint 1 but must be preserved if supplied.
+- A manager decision requires destination warehouse manager scope.
 
 ## Transfer Return Decision
 
@@ -134,6 +176,7 @@ Rules:
 - Destination Storekeeper creates the `WRONG_SKU` report while the transfer remains `IN_TRANSIT`.
 - Destination Warehouse Manager approves or rejects the wrong-SKU return within destination warehouse scope.
 - Approval sets `is_returned = true`; the same trip, vehicle, driver, and In-Transit inventory remain active for the return leg.
+- Assigned driver must record return departure and source arrival/handover before source receiving starts.
 - Source Staff records return count, source Storekeeper checks/QC, and source Warehouse Manager final-confirms.
 - Final source confirmation completes the transfer while retaining `is_returned = true` for reporting.
 
@@ -146,11 +189,16 @@ Transfer usage:
 - exactly one trip per transfer
 - selected vehicle and driver must be available and not in overlapping trip
 - assigned driver is the only actor allowed to confirm transfer departure
+- `total_weight` and `total_volume` for transfer trips are calculated from transfer item quantity and product/package attributes.
+- Trip assignment is rejected if calculated weight or volume exceeds vehicle capacity.
+- Vehicle/driver/trip can be reassigned only before departure.
+- Vehicle/driver release at completion must verify the resource has no other active trip assignment.
 
 ## Inventory
 
 Transfer operations:
 - Approval: increase source `reserved_qty` by `planned_qty`.
+- Approval/reservation: reserve only FIFO-eligible stock from active, non-quarantine, source-scoped locations.
 - Cancel unshipped approved: decrease source `reserved_qty`.
 - Depart: decrease source `total_qty`, decrease source `reserved_qty`, increase In-Transit `total_qty`.
 - Final receive: decrease In-Transit `total_qty`; increase destination regular inventory for QC-passed quantity; increase destination quarantine inventory for QC-failed quantity.
@@ -161,6 +209,23 @@ Transfer operations:
 - Transfer quarantine inventory must be reconcilable to `quarantine_records.origin_type = INTERNAL_TRANSFER` before spec 009 disposal.
 - No inventory update may create negative total, negative reserved, or negative available.
 - Inventory updates must use optimistic locking/version checks.
+
+## Discrepancy Incident / Hold
+
+Create a discrepancy incident/hold when:
+- received quantity is lower than sent quantity;
+- physical over-receipt is observed and regular inventory posting is blocked;
+- final manager confirmation records a material issue beyond normal QC failure.
+
+Required data:
+- transfer and transfer item references
+- product and warehouse
+- discrepancy type: `SHORTAGE`, `OVERAGE_HOLD`, `QC_FAILURE`, `WRONG_SKU`, `OTHER`
+- quantity
+- reason
+- photo references when supplied; Barcode/QR scan references are not required for Sprint 1
+- owner/status for follow-up
+- audit linkage
 
 ## Adjustment
 
@@ -188,9 +253,14 @@ Required transfer actions:
 - `TRANSFER_APPROVE`
 - `TRANSFER_REJECT`
 - `TRANSFER_TRIP_ASSIGN`
+- `TRANSFER_TRIP_REASSIGN`
+- `TRANSFER_OUTBOUND_QC`
 - `TRANSFER_SHIP`
+- `TRANSFER_LOAD_HANDOVER`
 - `TRANSFER_UNSHIP`
 - `TRANSFER_DEPART`
+- `TRANSFER_ARRIVE`
+- `TRANSFER_ARRIVAL_HANDOVER`
 - `TRANSFER_RECEIVE_COUNT`
 - `TRANSFER_RECEIVE_CHECK`
 - `TRANSFER_RECEIVE_CONFIRM`
@@ -199,6 +269,9 @@ Required transfer actions:
 - `TRANSFER_RETURN_APPROVE`
 - `TRANSFER_RETURN_REJECT`
 - `TRANSFER_RETURN_TO_SOURCE`
+- `TRANSFER_RETURN_DEPART`
+- `TRANSFER_RETURN_ARRIVE`
+- `TRANSFER_RETURN_HANDOVER`
 - `TRANSFER_CANCEL`
 
-Each audit entry must include actor, action, entity type, entity id/code, timestamp, before state, and after state where relevant.
+Each audit entry must include actor, action, entity type, entity id/code, timestamp, before state, and after state where relevant. Transfer audit snapshots must include header, items, allocations, QC quantities, wrong-SKU report lines, trip/resource state, and inventory movement references.

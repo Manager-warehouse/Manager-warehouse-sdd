@@ -54,6 +54,9 @@
 | **FIFO**          | First In First Out — ưu tiên xuất batch nhập trước                                              |
 | **Quarantine**    | Khu cách ly hàng lỗi QC — không available                                                       |
 | **In-Transit**    | Kho ảo — hàng đang vận chuyển giữa 2 kho                                                        |
+| **TRQ**           | Yêu cầu điều chuyển do Trưởng kho kho thiếu lập, CEO duyệt trước khi Planner tạo `TRF-*`         |
+| **TRF**           | Phiếu điều chuyển nội bộ thực thi, luôn đi qua In-Transit và một chuyến `TTR-*` riêng             |
+| **TTR**           | Chuyến xe điều chuyển nội bộ, `trip_type = TRANSFER`, gắn đúng một phiếu `TRF-*` trong Sprint 1  |
 | **POD**           | Proof of Delivery — `goodsImage` + `signDocumentImage` + timestamp + OTP email 6 số đã xác thực |
 | **COGS**          | Cost of Goods Sold — giá vốn hàng bán                                                           |
 | **Credit Hold**   | Trạng thái chặn xuất hàng do nợ quá hạn/vượt hạn mức                                            |
@@ -95,6 +98,9 @@ Receipt (1) ──→ ReceiptItem (N) ──→ Product (1)
 DeliveryOrder (1) ──→ DeliveryOrderItem (N) ──→ Inventory (1)
 Transfer (1) ──→ TransferItem (N)
 Transfer (1) ──→ Trip (1, trip_type = TRANSFER)
+Transfer (1) ──→ TransferWrongSkuReport (N)
+TransferRequest (1) ──→ TransferRequestItem (N)
+TransferRequest (1) ──→ Transfer (0..1)
 Trip (1) ──→ TripDeliveryOrder (N) ──→ DeliveryOrder (1)
 Invoice (N) ──→ DeliveryOrder (1)
 PaymentReceipt (N) ──→ Invoice (1)
@@ -143,20 +149,30 @@ TRF: NEW → APPROVED → IN_TRANSIT → COMPLETED
 
 Transfer-specific invariants:
 
+- Luồng chuẩn: `TRQ draft -> submit -> CEO approve -> Planner revalidate & convert once -> Source manager reserve FIFO eligible -> Dispatcher capacity/overlap plan -> pick + outbound QC + load/handover -> driver depart -> IN_TRANSIT -> driver arrive/handover -> blind count -> storekeeper count/QC/bin-capacity check -> manager final confirmation`.
 - Trưởng kho nguồn approval reserves planned quantity immediately.
 - Trưởng kho kho thiếu hàng may view cross-warehouse availability read-only and submit a transfer request to CEO; CEO approval does not reserve or move stock.
 - Planner creates `TRF-*` from an external instruction or at most one CEO-approved transfer request.
+- Reservation must use FIFO-eligible stock only: active source warehouse/location, non-quarantine, non-locked, positive available quantity.
 - Each transfer has exactly one dedicated internal trip; multi-transfer trips are out of scope.
-- Transfer trip assignment must check source-scoped vehicle/driver, overlapping assignments, vehicle weight capacity, and volume only when configured.
+- Transfer trip assignment must calculate weight/volume from transfer lines, check source-scoped vehicle/driver, overlapping assignments, vehicle weight capacity, and volume only when configured.
+- Vehicle/driver/trip may be reassigned only before departure; terminal release must not mark a resource available if it has another active assignment.
+- Source storekeeper must pass outbound QC and record load/handover before driver departure; confirmation is photo-based, not Barcode/QR-based.
 - Driver departure confirmation moves stock from source warehouse to In-Transit.
-- Thủ kho đích records received counts and QC; Trưởng kho đích confirms final receipt.
+- Driver arrival and receiving-warehouse handover are required before any receive-count action.
+- Receiving starts with blind count, then storekeeper count/QC/bin-capacity check, then manager final confirmation.
 - received_qty > sent_qty is blocked.
 - QC-passed stock must go to a valid non-quarantine Bin and pass bin capacity checks before inventory is increased.
 - QC-failed or physically damaged transfer quantity goes to Quarantine with `INTERNAL_TRANSFER` origin, is excluded from available inventory, and can only enter the Spec 009 disposal path; supplier RTV/Debit Note is blocked.
-- Missing transfer quantity creates only a `TRANSFER_DISCREPANCY` adjustment/audit; it must not become quarantine stock or a disposal candidate.
-- Intact wrong-SKU transfer stock remains In-Transit; destination Storekeeper reports, destination Warehouse Manager approves/rejects return, and the same driver/vehicle returns to the source warehouse for source count/check/QC/final receive.
-- Overdue trips still in `IN_TRANSIT` block destination receive actions and require Return to Source by an authorized source manager, Admin, CEO, or Planner.
+- Missing transfer quantity creates incident/discrepancy plus `TRANSFER_DISCREPANCY` adjustment/audit; it must not become quarantine stock or a disposal candidate.
+- Physical over-receipt is blocked from regular inventory posting and must be captured as discrepancy hold/incident.
+- Intact wrong-SKU transfer stock remains In-Transit; destination Storekeeper reports item-level expected SKU, actual SKU, affected quantity, reason, and photo refs when available; destination Warehouse Manager approves/rejects return; the same driver/vehicle returns to the source warehouse for source count/check/QC/final receive.
+- Approved wrong-SKU or overdue return requires return departure, source arrival/handover, and source-side receiving; merely toggling `is_returned` is not sufficient.
+- Overdue trips still in `IN_TRANSIT` block destination receive actions and require Return to Source by an authorized source manager, Admin, CEO, or Planner with reason and photo refs when available.
 - Cancellation rules: Planner may cancel NEW; Trưởng kho nguồn/manager may cancel APPROVED and release reserved quantity; cancellation is blocked from REJECTED or IN_TRANSIT onward.
+- Transfer, transfer request, trip/resource, and inventory mutations require version/concurrency protection; GET/list/detail endpoints must not mutate persisted business state.
+- Applied Flyway migrations are immutable; schema fixes must use the next additive migration.
+- Audit snapshots for transfer mutations must include header, items, allocations, QC quantities, wrong-SKU lines, trip/resource state, and inventory movement references.
 
 ### Dealer Status
 
