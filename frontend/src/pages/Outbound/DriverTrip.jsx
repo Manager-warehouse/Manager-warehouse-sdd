@@ -88,13 +88,11 @@ export default function DriverTrip() {
     const loadedTrips = [];
     let loadedAnySource = false;
     try {
-      const allTrips = await outboundService.getTrips(null, {});
       const isDriver = user?.role === 'DRIVER';
-      const myOutboundTrips = isDriver
-        ? allTrips.filter(t => Number(t.driver_user_id || t.driverUserId || 0) === Number(user?.id)
-            || Number(t.driver_id || t.driverId || 0) === Number(user?.driverId || 0))
-        : allTrips;
-      loadedTrips.push(...myOutboundTrips.map((tripRow) => ({ ...tripRow, type: tripRow.type || 'OUTBOUND' })));
+      const outboundTrips = isDriver
+        ? await outboundService.getMyTrips()
+        : await outboundService.getTrips(null, {});
+      loadedTrips.push(...outboundTrips.map((tripRow) => ({ ...tripRow, type: tripRow.type || 'OUTBOUND' })));
       loadedAnySource = true;
     } catch {
       // Outbound trips are optional on this screen while transfer trips use the transfer API.

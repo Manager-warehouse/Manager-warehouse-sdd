@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { Navigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/auth.store';
 import Badge from '../components/common/Badge';
 import Input from '../components/common/Input';
 import Modal from '../components/common/Modal';
 import Button from '../components/common/Button';
 import { Package, TrendingUp, AlertCircle, RefreshCw, Search, ArrowRightLeft, Send } from 'lucide-react';
+import { ROLES } from '../utils/constants';
 import { masterDataService } from '../services/masterData.service';
 import { interWarehouseTransferService } from '../services/inter-warehouse-transfer.service';
 import { useUiStore } from '../stores/ui.store';
@@ -95,8 +97,13 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
+    if (user?.role === ROLES.DRIVER) return;
     loadCrossWarehouseStock();
-  }, [debouncedSearchQuery]);
+  }, [debouncedSearchQuery, user?.role]);
+
+  if (user?.role === ROLES.DRIVER) {
+    return <Navigate to="/outbound/driver/trips" replace />;
+  }
 
   const handleOpenTransferModal = (product) => {
     setSelectedProduct(product);
