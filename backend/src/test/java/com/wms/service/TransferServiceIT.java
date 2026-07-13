@@ -282,6 +282,7 @@ public class TransferServiceIT {
                 storekeeper
         );
         assertThat(trf.arrivalHandoverAt()).isNotNull();
+        assertThat(trf.arrivalHandoverPhotoRef()).isEqualTo("transfer/arrival-handover/trf-001.jpg");
 
         // 8. Receive Count at destination
         InterWarehouseTransferReceiveCountItemRequest countItem = new InterWarehouseTransferReceiveCountItemRequest(

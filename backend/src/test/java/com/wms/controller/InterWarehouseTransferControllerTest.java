@@ -241,6 +241,33 @@ class InterWarehouseTransferControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
+    void receivingHandover_success() throws Exception {
+        LoadHandoverRequest request = new LoadHandoverRequest("/uploads/transfer/arrival.jpg");
+        InterWarehouseTransferResponse response = createMockResponse(1L, "TRF-20260711-0001", InterWarehouseTransferStatus.IN_TRANSIT);
+
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(storekeeper);
+        when(transferService.receivingHandover(eq(1L), any(LoadHandoverRequest.class), eq(storekeeper)))
+                .thenReturn(response);
+
+        mockMvc.perform(post("/api/v1/inter-warehouse-transfers/1/receiving-handover")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request))
+                .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
+    void receivingHandover_validationFailure_missingPhotoRef() throws Exception {
+        mockMvc.perform(post("/api/v1/inter-warehouse-transfers/1/receiving-handover")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"photoRef\":\"\"}")
+                .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     @WithMockUser(username = "staff@wms.com", roles = "WAREHOUSE_STAFF")
     void receiveCount_success() throws Exception {
         InterWarehouseTransferReceiveCountItemRequest item = new InterWarehouseTransferReceiveCountItemRequest(101L, new BigDecimal("5.00"), "");

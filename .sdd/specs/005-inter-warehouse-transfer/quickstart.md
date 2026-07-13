@@ -72,7 +72,7 @@
 
 11. Arrive and handover as assigned driver/receiving warehouse:
    - `POST /api/v1/inter-warehouse-transfers/{id}/arrive`
-   - `POST /api/v1/inter-warehouse-transfers/{id}/arrival-handover`
+   - `POST /api/v1/inter-warehouse-transfers/{id}/receiving-handover`
    - handover UI must keep confirmation disabled until an image is selected or captured.
    - expect receive-count to remain blocked before both events are recorded.
 

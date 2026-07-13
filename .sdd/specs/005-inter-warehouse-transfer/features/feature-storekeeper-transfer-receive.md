@@ -100,7 +100,7 @@ Tat ca buoc ban giao co anh trong UI Sprint 1 phai dung thao tac chon file anh h
 
 ## 4. API Endpoints
 * `POST /api/v1/inter-warehouse-transfers/{id}/arrive` - Tài xế được gán ghi nhận xe đã đến kho nhận hiện tại.
-* `POST /api/v1/inter-warehouse-transfers/{id}/arrival-handover` - Kho nhận ghi nhận bàn giao vật lý từ tài xế trước khi kiểm đếm.
+* `POST /api/v1/inter-warehouse-transfers/{id}/receiving-handover` - Kho nhận ghi nhận bàn giao vật lý từ tài xế trước khi kiểm đếm.
 * `PUT /api/v1/inter-warehouse-transfers/{id}/receive-count` - Nhân viên kho/Công nhân kho đích nhập hoặc sửa số lượng thực nhận ban đầu khi phiếu còn `IN_TRANSIT` và chưa được Thủ kho duyệt receive check.
 * `PUT /api/v1/inter-warehouse-transfers/{id}/receive-check` - Thủ kho đích kiểm tra lại số lượng, nhập/chốt QC, chọn vị trí nhập kho cho hàng đạt và duyệt kết quả nhận.
 * `POST /api/v1/inter-warehouse-transfers/{id}/final-receive` - Trưởng kho đích xác nhận nhận hàng tại kho đích và báo cáo chênh lệch nếu có.
