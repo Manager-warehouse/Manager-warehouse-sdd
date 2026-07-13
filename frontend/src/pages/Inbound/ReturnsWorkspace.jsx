@@ -67,7 +67,6 @@ const ReturnsWorkspace = () => {
       const completedDos = doData.filter(d => d.status === 'DELIVERED' || d.status === 'COMPLETED');
       setDeliveryOrders(completedDos);
     } catch (e) {
-      console.error(e);
       addToast('Lỗi tải dữ liệu hàng trả', 'error');
     } finally {
       setLoading(false);
@@ -283,7 +282,8 @@ const ReturnsWorkspace = () => {
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-canvas-cream border-b border-hairline-light">
@@ -293,7 +293,7 @@ const ReturnsWorkspace = () => {
                     <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Ngày tạo</th>
                     <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Trạng thái</th>
                     <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Credit Note</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Thao tác</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Hành động</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-hairline-light">
@@ -315,7 +315,7 @@ const ReturnsWorkspace = () => {
                       </td>
                       <td className="px-6 py-4">
                         {ret.credit_note_generated ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700">
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-success-700">
                             <Check className="w-3.5 h-3.5" /> Đã hoàn công nợ
                           </span>
                         ) : (
@@ -324,7 +324,7 @@ const ReturnsWorkspace = () => {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-2">
-                          {ret.status === 'DRAFT' && (
+                          {ret.status === 'DRAFT' ? (
                             <button
                               onClick={() => openQcSplit(ret)}
                               className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill border border-ink bg-canvas-light text-ink hover:bg-canvas-cream text-xs font-semibold transition-colors"
@@ -332,8 +332,7 @@ const ReturnsWorkspace = () => {
                               <ShieldAlert className="w-3.5 h-3.5" />
                               QC Phân tách & Nhập kho
                             </button>
-                          )}
-                          {ret.status === 'APPROVED' && !ret.credit_note_generated && (
+                          ) : ret.status === 'APPROVED' && !ret.credit_note_generated ? (
                             <button
                               onClick={() => openCreditNoteModal(ret)}
                               className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill btn-pill-aloe text-xs font-semibold transition-colors"
@@ -341,6 +340,8 @@ const ReturnsWorkspace = () => {
                               <Coins className="w-3.5 h-3.5" />
                               Tạo Credit Note
                             </button>
+                          ) : (
+                            <span className="text-shade-50 text-[10px] font-medium">Không có sẵn</span>
                           )}
                         </div>
                       </td>
@@ -349,6 +350,71 @@ const ReturnsWorkspace = () => {
                 </tbody>
               </table>
             </div>
+            <div className="flex flex-col gap-3 p-4 md:hidden">
+              {returns.map((ret) => (
+                <div key={ret.id} className="rounded-lg border border-hairline-light bg-canvas-light p-4 shadow-level-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 font-semibold text-ink">
+                        <FileText className="h-4 w-4 shrink-0 text-shade-40" />
+                        <span className="truncate">{ret.receipt_number}</span>
+                      </div>
+                      <div className="mt-1 font-mono text-[11px] text-shade-50">{ret.source_order_code}</div>
+                    </div>
+                    <Badge size="sm" type={ret.status === 'APPROVED' ? 'success' : 'warning'}>
+                      {ret.status === 'APPROVED' ? 'Đã duyệt' : 'Chờ QC'}
+                    </Badge>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+                    <div className="rounded-md bg-canvas-cream p-2">
+                      <span className="block text-[10px] uppercase tracking-wider text-shade-50">Đại lý</span>
+                      <span className="font-semibold text-ink">{getDealerName(ret.dealer_id)}</span>
+                    </div>
+                    <div className="rounded-md bg-canvas-cream p-2">
+                      <span className="block text-[10px] uppercase tracking-wider text-shade-50">Ngày tạo</span>
+                      <span className="font-semibold text-ink">{ret.document_date}</span>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 text-[11px] font-semibold text-shade-60">
+                    Credit Note: {ret.credit_note_generated ? (
+                      <span className="text-success-700">Đã hoàn công nợ</span>
+                    ) : (
+                      <span>Chưa hoàn</span>
+                    )}
+                  </div>
+
+                  {ret.status === 'DRAFT' || (ret.status === 'APPROVED' && !ret.credit_note_generated) ? (
+                    <div className="mt-4 flex flex-col gap-2">
+                      {ret.status === 'DRAFT' && (
+                        <button
+                          onClick={() => openQcSplit(ret)}
+                          className="btn-pill btn-pill-outline-light min-h-[44px] text-xs"
+                        >
+                          <ShieldAlert className="h-3.5 w-3.5" />
+                          QC Phân tách & Nhập kho
+                        </button>
+                      )}
+                      {ret.status === 'APPROVED' && !ret.credit_note_generated && (
+                        <button
+                          onClick={() => openCreditNoteModal(ret)}
+                          className="btn-pill btn-pill-aloe min-h-[44px] text-xs"
+                        >
+                          <Coins className="h-3.5 w-3.5" />
+                          Tạo Credit Note
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="mt-4 flex justify-end">
+                      <span className="text-shade-50 text-[10px] font-medium">Không có sẵn</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            </>
           )}
         </div>
       ) : (
@@ -389,7 +455,7 @@ const ReturnsWorkspace = () => {
               <div className="flex flex-col gap-3">
                 <h3 className="text-xs font-semibold uppercase tracking-wider text-shade-60">Danh sách sản phẩm hoàn trả</h3>
                 <div className="border border-hairline-light rounded-lg overflow-hidden">
-                  <table className="w-full text-left border-collapse">
+                  <table className="hidden w-full text-left border-collapse md:table">
                     <thead>
                       <tr className="bg-canvas-cream border-b border-hairline-light">
                         <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Sản phẩm</th>
@@ -419,6 +485,36 @@ const ReturnsWorkspace = () => {
                       ))}
                     </tbody>
                   </table>
+
+                  <div className="flex flex-col gap-3 p-4 md:hidden">
+                    {returnItems.map(item => (
+                      <div key={item.productId} className="rounded-lg border border-hairline-light bg-canvas-light p-4 shadow-level-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold text-ink">{item.name}</div>
+                            <div className="mt-1 font-mono text-[11px] text-shade-60">{item.sku}</div>
+                          </div>
+                          <div className="shrink-0 rounded-pill bg-canvas-cream px-3 py-1 text-[11px] font-bold text-shade-60">
+                            Đã xuất: {item.maxQty}
+                          </div>
+                        </div>
+
+                        <label className="mt-4 flex flex-col gap-1.5">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-shade-60">
+                            Số lượng hoàn trả
+                          </span>
+                          <input
+                            type="number"
+                            min="0"
+                            max={item.maxQty}
+                            value={item.expectedQty || ''}
+                            onChange={(e) => handleReturnQtyChange(item.productId, e.target.value)}
+                            className="text-input min-h-[44px] text-center text-base font-semibold"
+                          />
+                        </label>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
@@ -434,7 +530,7 @@ const ReturnsWorkspace = () => {
               />
             </div>
 
-            <div className="flex justify-end gap-3 border-t border-hairline-light pt-4">
+            <div className="flex flex-col-reverse gap-3 border-t border-hairline-light pt-4 sm:flex-row sm:justify-end">
               <Button type="button" variant="outline-light" onClick={() => setActiveTab('LIST')}>
                 Hủy
               </Button>
@@ -461,7 +557,7 @@ const ReturnsWorkspace = () => {
             </div>
 
             <div className="border border-hairline-light rounded-lg overflow-hidden">
-              <table className="w-full text-left border-collapse">
+              <table className="hidden w-full text-left border-collapse md:table">
                 <thead>
                   <tr className="bg-canvas-cream border-b border-hairline-light">
                     <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Sản phẩm</th>
@@ -496,10 +592,10 @@ const ReturnsWorkspace = () => {
                           max={item.actualQty}
                           value={item.passedQty}
                           onChange={(e) => handleQcValueChange(item.receiptItemId, 'passedQty', e.target.value)}
-                          className="w-full px-2 py-1.5 bg-canvas-light border border-hairline-light rounded-md text-emerald-700 focus:outline-none focus:ring-1 focus:ring-ink text-center font-semibold text-sm transition-all"
+                          className="w-full px-2 py-1.5 bg-canvas-light border border-hairline-light rounded-md text-success-700 focus:outline-none focus:ring-1 focus:ring-ink text-center font-semibold text-sm transition-all"
                         />
                       </td>
-                      <td className="px-6 py-4 text-center font-semibold text-red-600 text-sm">
+                      <td className="px-6 py-4 text-center font-semibold text-danger-600 text-sm">
                         {item.failedQty}
                       </td>
                       <td className="px-6 py-4 flex flex-col gap-2">
@@ -524,7 +620,7 @@ const ReturnsWorkspace = () => {
                             <select
                               value={item.quarantineLocationId}
                               onChange={(e) => handleQcValueChange(item.receiptItemId, 'quarantineLocationId', e.target.value)}
-                              className="w-full px-2 py-1.5 bg-canvas-light border border-red-200 rounded-md text-ink text-xs focus:outline-none focus:ring-1 focus:ring-red-500 transition-all"
+                              className="w-full px-2 py-1.5 bg-canvas-light border border-danger-200 rounded-md text-ink text-xs focus:outline-none focus:ring-1 focus:ring-danger-500 transition-all"
                             >
                               <option value="">-- Chọn vị trí cách ly --</option>
                               {quarantineBins.map(b => (
@@ -538,9 +634,86 @@ const ReturnsWorkspace = () => {
                   ))}
                 </tbody>
               </table>
+
+              <div className="flex flex-col gap-3 p-4 md:hidden">
+                {qcItems.map(item => (
+                  <div key={item.receiptItemId} className="rounded-lg border border-hairline-light bg-canvas-light p-4 shadow-level-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-ink">{item.name}</div>
+                        <div className="mt-1 font-mono text-[11px] text-shade-60">{item.sku}</div>
+                      </div>
+                      <div className="shrink-0 rounded-pill bg-canvas-cream px-3 py-1 text-[11px] font-bold text-shade-60">
+                        Yêu cầu: {item.expectedQty}
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-2 gap-3">
+                      <label className="flex flex-col gap-1.5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-shade-60">Thực nhận</span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={item.actualQty}
+                          onChange={(e) => handleQcValueChange(item.receiptItemId, 'actualQty', e.target.value)}
+                          className="text-input min-h-[44px] text-center font-semibold"
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1.5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-shade-60">QC đạt</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max={item.actualQty}
+                          value={item.passedQty}
+                          onChange={(e) => handleQcValueChange(item.receiptItemId, 'passedQty', e.target.value)}
+                          className="text-input min-h-[44px] text-center font-semibold text-success-700"
+                        />
+                      </label>
+                    </div>
+
+                    <div className="mt-3 rounded-md border border-danger-100 bg-danger-50/50 px-3 py-2 text-xs font-semibold text-danger-700">
+                      QC lỗi: {item.failedQty}
+                    </div>
+
+                    <div className="mt-4 flex flex-col gap-3">
+                      {item.passedQty > 0 && (
+                        <label className="flex flex-col gap-1.5">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-shade-60">Vị trí đạt chuẩn</span>
+                          <select
+                            value={item.passedLocationId}
+                            onChange={(e) => handleQcValueChange(item.receiptItemId, 'passedLocationId', e.target.value)}
+                            className="text-input min-h-[44px] text-xs"
+                          >
+                            <option value="">-- Chọn vị trí --</option>
+                            {regularBins.map(b => (
+                              <option key={b.id} value={b.id}>{b.code} (Còn: {b.capacity_m3 - b.current_volume_m3} m³)</option>
+                            ))}
+                          </select>
+                        </label>
+                      )}
+                      {item.failedQty > 0 && (
+                        <label className="flex flex-col gap-1.5">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-shade-60">Khu cách ly lỗi</span>
+                          <select
+                            value={item.quarantineLocationId}
+                            onChange={(e) => handleQcValueChange(item.receiptItemId, 'quarantineLocationId', e.target.value)}
+                            className="text-input min-h-[44px] border-danger-200 text-xs focus:ring-danger-500"
+                          >
+                            <option value="">-- Chọn vị trí cách ly --</option>
+                            {quarantineBins.map(b => (
+                              <option key={b.id} value={b.id}>{b.code}</option>
+                            ))}
+                          </select>
+                        </label>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
 
-            <div className="flex justify-end gap-3 border-t border-hairline-light pt-4">
+            <div className="flex flex-col-reverse gap-3 border-t border-hairline-light pt-4 sm:flex-row sm:justify-end">
               <Button type="button" variant="outline-light" onClick={() => setShowQcModal(false)}>
                 Hủy
               </Button>

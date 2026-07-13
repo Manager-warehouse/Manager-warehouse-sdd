@@ -150,9 +150,9 @@ export default function QCOutbound() {
       </div>
 
       {failCount > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
-          <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
-          <p className="text-sm text-red-700 font-medium">
+        <div className="bg-danger-50 border border-danger-200 rounded-lg p-4 flex items-center gap-3">
+          <AlertCircle className="w-5 h-5 text-danger-600 shrink-0" />
+          <p className="text-sm text-danger-700 font-medium">
             <span className="font-bold">{failCount}</span> dòng phân bổ đang được đánh dấu không đạt QC.
             Nhập đầy đủ lý do và vị trí cách ly.
           </p>
@@ -176,7 +176,7 @@ export default function QCOutbound() {
             {qcRows.map((row) => {
               const isFailed = row.result === 'FAILED';
               return (
-                <div key={row.id} className={`p-6 transition-colors ${isFailed ? 'bg-red-50/30' : 'bg-canvas-light'}`}>
+                <div key={row.id} className={`p-6 transition-colors ${isFailed ? 'bg-danger-50/30' : 'bg-canvas-light'}`}>
                   <div className="flex flex-col gap-4">
                     <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                       <div>
@@ -192,7 +192,7 @@ export default function QCOutbound() {
                           onClick={() => updateRow(row.id, 'result', 'PASSED')}
                           className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill border text-xs font-semibold transition-colors ${
                             !isFailed
-                              ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                              ? 'bg-success-50 border-success-300 text-success-900'
                               : 'bg-canvas-light border-hairline-light text-shade-50 hover:bg-canvas-cream'
                           }`}
                         >
@@ -202,7 +202,7 @@ export default function QCOutbound() {
                           onClick={() => updateRow(row.id, 'result', 'FAILED')}
                           className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill border text-xs font-semibold transition-colors ${
                             isFailed
-                              ? 'bg-red-50 border-red-300 text-red-700'
+                              ? 'bg-danger-50 border-danger-300 text-danger-700'
                               : 'bg-canvas-light border-hairline-light text-shade-50 hover:bg-canvas-cream'
                           }`}
                         >
@@ -244,17 +244,17 @@ export default function QCOutbound() {
                     {isFailed && (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-xs font-semibold text-red-700 mb-1.5">Lý do không đạt QC *</label>
+                          <label className="block text-xs font-semibold text-danger-700 mb-1.5">Lý do không đạt QC *</label>
                           <input
                             type="text"
                             value={row.reason}
                             onChange={(event) => updateRow(row.id, 'reason', event.target.value)}
                             placeholder="Móp méo, trầy xước, sai mã..."
-                            className="w-full text-input text-xs border-red-300 focus:border-red-500"
+                            className="w-full text-input text-xs border-danger-300 focus:border-danger-500"
                           />
                         </div>
                         <div>
-                          <label className="block text-xs font-semibold text-red-700 mb-1.5">Vị trí cách ly *</label>
+                          <label className="block text-xs font-semibold text-danger-700 mb-1.5">Vị trí cách ly *</label>
                           <Input
                             type="select"
                             value={row.quarantine_location_id}

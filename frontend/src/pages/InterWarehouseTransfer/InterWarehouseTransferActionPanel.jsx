@@ -3,6 +3,7 @@ import { Check, ClipboardCheck, PackageCheck, RotateCcw, Send, Truck, X } from '
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import { ROLES } from '../../utils/constants';
+import { useUiStore } from '../../stores/ui.store';
 
 const hasAny = (hasRole, roles) => roles.some((role) => hasRole(role));
 const DRIVER_STATUS_LABELS = {
@@ -30,6 +31,7 @@ const getDriverWarehouseIds = (driver) => {
 };
 
 const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWarehouse, hasRole, hasWarehouseAccess, vehicles, drivers, locations, onAction }) => {
+  const { addToast } = useUiStore();
   const [reason, setReason] = useState('');
   const [trip, setTrip] = useState({
     vehicleId: '',
@@ -223,8 +225,8 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
       {transfer.tripWarningActive && (
         <div className={`rounded-md border px-3 py-2 text-xs ${
           transfer.tripOverdue
-            ? 'border-red-200 bg-red-50 text-red-700'
-            : 'border-amber-200 bg-amber-50 text-amber-700'
+            ? 'border-danger-200 bg-danger-50 text-danger-700'
+            : 'border-warning-200 bg-warning-50 text-warning-700'
         }`}>
           {transfer.tripWarningMessage}
         </div>
@@ -351,11 +353,11 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
       )}
 
       {transfer.status === 'IN_TRANSIT' && !transfer.isReturned && transfer.returnRequested && (
-        <div className="rounded-md border border-red-200 bg-red-50 p-3 flex flex-col gap-2.5 mb-2">
-          <div className="text-xs text-red-700 font-bold flex items-center gap-1.5">
+        <div className="rounded-md border border-danger-200 bg-danger-50 p-3 flex flex-col gap-2.5 mb-2">
+          <div className="text-xs text-danger-700 font-bold flex items-center gap-1.5">
             <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-danger-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-danger-500"></span>
             </span>
             YÊU CẦU QUAY ĐẦU DO SAI SKU ĐANG CHỜ PHÊ DUYỆT
           </div>
@@ -371,16 +373,16 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
                   placeholder="Lý do từ chối..."
                 />
               </div>
-              <Button loading={busy} variant="outline-light" className="text-red-600 border-red-300 hover:bg-red-50 py-1 px-3 text-xs" onClick={() => {
+              <Button loading={busy} variant="outline-light" className="text-danger-600 border-danger-300 hover:bg-danger-50 py-1 px-3 text-xs" onClick={() => {
                 if (!reason.trim()) {
-                  alert("Vui lòng điền lý do từ chối!");
+                  addToast('Vui lòng điền lý do từ chối!', 'error');
                   return;
                 }
                 run('rejectReturn', reason);
               }}>
                 Từ chối
               </Button>
-              <Button loading={busy} className="bg-red-600 hover:bg-red-700 text-white font-bold py-1 px-3 text-xs" onClick={() => run('approveReturn')}>
+              <Button loading={busy} className="bg-danger-600 hover:bg-danger-700 text-white font-bold py-1 px-3 text-xs" onClick={() => run('approveReturn')}>
                 Duyệt quay xe
               </Button>
             </div>
@@ -403,7 +405,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
             />
             <Button variant="outline-light" icon={RotateCcw} className="text-shade-50 border-hairline-light hover:bg-canvas-cream py-1.5 px-3 text-xs" loading={busy} onClick={() => {
               if (!reason.trim()) {
-                alert("Vui lòng điền lý do gửi sai SKU!");
+                addToast('Vui lòng điền lý do gửi sai SKU!', 'error');
                 return;
               }
               run('requestReturn', reason);
@@ -415,9 +417,9 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
       )}
 
       {transfer.status === 'IN_TRANSIT' && !transfer.isReturned && (hasAny(hasRole, [ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]) && canManageSourceWarehouse) && (
-        <div className="rounded-md border border-amber-200 bg-amber-50/50 p-3 flex flex-col gap-2 mb-2">
-          <div className="text-xs text-amber-800 font-medium">Chuyến xe có sự cố hoặc cần quay đầu về kho nguồn?</div>
-          <Button variant="outline-light" icon={RotateCcw} className="text-amber-700 border-amber-300 hover:bg-amber-100" loading={busy} onClick={() => run('returnToSource')}>
+        <div className="rounded-md border border-warning-200 bg-warning-50/50 p-3 flex flex-col gap-2 mb-2">
+          <div className="text-xs text-warning-800 font-medium">Chuyến xe có sự cố hoặc cần quay đầu về kho nguồn?</div>
+          <Button variant="outline-light" icon={RotateCcw} className="text-warning-700 border-warning-300 hover:bg-warning-100" loading={busy} onClick={() => run('returnToSource')}>
             Quay đầu về kho nguồn
           </Button>
         </div>
@@ -426,7 +428,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
       {transfer.status === 'IN_TRANSIT' && hasAny(hasRole, [ROLES.WAREHOUSE_STAFF, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && (
         <div className="flex flex-col gap-3">
           {transfer.tripOverdue && !transfer.isReturned ? (
-            <div className="rounded-md border border-red-200 bg-red-50 p-3 text-xs text-red-700 font-medium">
+            <div className="rounded-md border border-danger-200 bg-danger-50 p-3 text-xs text-danger-700 font-medium">
               Chuyến đi đã quá hạn giao hàng. Vui lòng liên hệ tài xế hoặc điều phối kho nguồn để thực hiện quay đầu xe về kho nguồn.
             </div>
           ) : (
@@ -459,7 +461,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
       {transfer.status === 'IN_TRANSIT' && hasAny(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && allItemsCounted && (
         <div className="flex flex-col gap-3">
           {transfer.tripOverdue && !transfer.isReturned ? (
-            <div className="rounded-md border border-red-200 bg-red-50 p-3 text-xs text-red-700 font-medium">
+            <div className="rounded-md border border-danger-200 bg-danger-50 p-3 text-xs text-danger-700 font-medium">
               Chuyến đi đã quá hạn giao hàng. Yêu cầu thực hiện quay đầu xe về kho nguồn.
             </div>
           ) : (
@@ -470,9 +472,9 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
                 </div>
                 <div className="flex-1 md:flex-initial flex gap-2 items-end">
                   <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Lý do từ chối cách ly bắt buộc" />
-                  <Button loading={busy} variant="outline-light" className="text-red-600 border-red-600 hover:bg-red-50" icon={X} onClick={() => {
+                  <Button loading={busy} variant="outline-light" className="text-danger-600 border-danger-600 hover:bg-danger-50" icon={X} onClick={() => {
                     if (!reason.trim()) {
-                      alert("Vui lòng nhập lý do từ chối cách ly!");
+                      addToast('Vui lòng nhập lý do từ chối cách ly!', 'error');
                       return;
                     }
                     run('quarantineReject', reason);
@@ -490,7 +492,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
                        <div className="flex flex-col gap-1">
                          <Input label="QC lỗi" type="number" value={row.qcFailedQty} onChange={(e) => setRow(checkRows, setCheckRows, row.transferItemId, { qcFailedQty: Number(e.target.value) })} />
                          {Number(row.qcFailedQty) > 0 && (
-                           <div className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 leading-snug">
+                           <div className="text-[10px] text-warning-700 bg-warning-50 border border-warning-200 rounded px-2 py-1 leading-snug">
                              {destinationQuarantineBin
                                ? <>{Number(row.qcFailedQty)} sp lỗi → <span className="font-mono font-bold">{destinationQuarantineBin.code ?? destinationQuarantineBin.code}</span> (tự động)</>
                                : '⚠ Kho đích chưa có Quarantine Bin!'}
@@ -524,7 +526,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
       {transfer.status === 'IN_TRANSIT' && hasAny(hasRole, [ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && allItemsChecked && (
         <div className="flex gap-2">
           {transfer.tripOverdue && !transfer.isReturned ? (
-            <div className="rounded-md border border-red-200 bg-red-50 p-3 text-xs text-red-700 font-medium">
+            <div className="rounded-md border border-danger-200 bg-danger-50 p-3 text-xs text-danger-700 font-medium">
               Chuyến đi đã quá hạn giao hàng. Yêu cầu thực hiện quay đầu xe về kho nguồn.
             </div>
           ) : (
@@ -534,9 +536,9 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
               </div>
               <div className="flex gap-2">
                 <Button loading={busy} icon={Check} onClick={() => run('finalReceive', reason)}>Xác nhận cuối</Button>
-                <Button loading={busy} variant="outline-light" className="text-red-600 border-red-600 hover:bg-red-50" icon={X} onClick={() => {
+                <Button loading={busy} variant="outline-light" className="text-danger-600 border-danger-600 hover:bg-danger-50" icon={X} onClick={() => {
                   if (!reason.trim()) {
-                    alert("Vui lòng nhập lý do từ chối cách ly vào ô văn bản!");
+                    addToast('Vui lòng nhập lý do từ chối cách ly vào ô văn bản!', 'error');
                     return;
                   }
                   run('quarantineReject', reason);

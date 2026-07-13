@@ -142,7 +142,7 @@ const ForgotPassword = () => {
           {step === 1 && (
             <form onSubmit={handleRequestOtp} className="flex flex-col gap-5">
               {error && (
-                <div className="p-4 bg-red-950/40 border border-red-800 rounded-lg text-red-400 text-xs font-medium">
+                <div className="p-4 bg-danger-950/40 border border-danger-800 rounded-lg text-danger-400 text-xs font-medium">
                   {error}
                 </div>
               )}
@@ -174,7 +174,7 @@ const ForgotPassword = () => {
           {step === 2 && (
             <form onSubmit={handleVerifyOtp} className="flex flex-col gap-5">
               {error && (
-                <div className="p-4 bg-red-950/40 border border-red-800 rounded-lg text-red-400 text-xs font-medium">
+                <div className="p-4 bg-danger-950/40 border border-danger-800 rounded-lg text-danger-400 text-xs font-medium">
                   {error}
                 </div>
               )}
@@ -216,7 +216,7 @@ const ForgotPassword = () => {
           {step === 3 && (
             <form onSubmit={handleResetPassword} className="flex flex-col gap-5">
               {error && (
-                <div className="p-4 bg-red-950/40 border border-red-800 rounded-lg text-red-400 text-xs font-medium">
+                <div className="p-4 bg-danger-950/40 border border-danger-800 rounded-lg text-danger-400 text-xs font-medium">
                   {error}
                 </div>
               )}

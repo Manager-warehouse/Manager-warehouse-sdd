@@ -968,12 +968,17 @@ Quy trình xử lý đơn xuất hàng bán cho Đại lý, tích hợp kiểm t
 
 ### 3. Quy trình Điều chuyển Kho Nội bộ (Internal Transfer)
 
-Quy trình điều phối hàng hóa giữa 3 kho vật lý Hải Phòng, Hà Nội, TP.HCM thông qua kho ảo trung chuyển `IN-TRANSIT` bằng xe nội bộ của Phúc Anh. Sprint 1 không có nghiệp vụ kho tự gợi ý hoặc tự quyết định điều chuyển; Planner nhập phiếu theo lệnh từ Công ty mẹ hoặc bộ phận điều phối trung tâm. Mã phiếu điều chuyển dùng `TRF-*`, mã chuyến điều chuyển dùng `TTR-*`, và luồng này tách riêng khỏi phiếu nhập NCC `RN-*`.
+Quy trình điều phối hàng hóa giữa 3 kho vật lý Hải Phòng, Hà Nội, TP.HCM thông qua kho ảo trung chuyển `IN-TRANSIT` bằng xe nội bộ của Phúc Anh. Sprint 1 không có nghiệp vụ kho tự gợi ý hoặc tự quyết định điều chuyển; Planner nhập phiếu theo lệnh từ Công ty mẹ, bộ phận điều phối trung tâm, hoặc từ một yêu cầu điều chuyển do Trưởng kho đề xuất đã được CEO duyệt. Mã phiếu điều chuyển dùng `TRF-*`, mã chuyến điều chuyển dùng `TTR-*`, và luồng này tách riêng khỏi phiếu nhập NCC `RN-*`.
+
+Trưởng kho của kho đang thiếu hàng có thể xem tồn kho khả dụng liên kho ở chế độ read-only để đề xuất điều chuyển. Yêu cầu điều chuyển này phải được CEO duyệt trước khi Planner kho nguồn hoặc Planner trung tâm chuyển thành `TRF-*`. CEO duyệt yêu cầu không giữ chỗ tồn, không sinh biến động inventory và không thay thế bước Trưởng kho nguồn duyệt phiếu `TRF-*`; reservation chỉ xảy ra khi phiếu `TRF-*` được Trưởng kho nguồn duyệt.
 
 ```
-Planner nhap phieu `TRF-*` theo lenh ngoai
+Truong kho kho thieu hang xem ton lien kho read-only, tao transfer request neu can
+    -> CEO duyet/tu choi transfer request
+    -> Planner kho nguon/trung tam chuyen request da duyet thanh `TRF-*`
+Planner nhap phieu `TRF-*` theo lenh ngoai hoac request CEO-approved
     -> Truong kho nguon duyet/tu choi va giu cho hang
-    -> Dispatcher kho nguon lap chuyen `TTR-*`, gan xe va tai xe thuoc pham vi kho nguon
+    -> Dispatcher kho nguon lap chuyen `TTR-*`, gan xe va tai xe thuoc pham vi kho nguon, kiem tra trung lich va tai trong
     -> Thu kho nguon ghi so gui, boc xep len xe
     -> Tai xe duoc gan xac nhan nhan hang va roi kho
         -> System tru ton kho nguon, giai phong reserved, cong kho ao `IN_TRANSIT`
@@ -982,12 +987,14 @@ Planner nhap phieu `TRF-*` theo lenh ngoai
     -> Truong kho dich xac nhan cuoi cung
         -> Khop + QC dat: tru `IN_TRANSIT`, cong ton kho dich, status `COMPLETED`
         -> Thieu: bat buoc ly do, tao adjustment, status `COMPLETED_WITH_DISCREPANCY`
-        -> QC loi: phan loi vao Quarantine, khong tinh available
+        -> QC loi/hu hong: phan loi vao Quarantine origin INTERNAL_TRANSFER, chi xu ly tieu huy theo Spec 009
+        -> Gui nham SKU con nguyen: Storekeeper dich bao cao, Truong kho dich duyet quay ve kho nguon, hang van o `IN_TRANSIT`
+        -> Trip qua han: chan receive o kho dich, vai tro co tham quyen kich hoat Return to Source
         -> Nhan thua: chan xac nhan
 ```
 
 **Luồng trạng thái phiếu điều chuyển:**
-`NEW` (Planner nhap phieu nhieu dong hang theo lenh tu Cong ty me/bo phan dieu phoi trung tam; Planner duoc sua dong hang hoac huy phieu khi con `NEW`) -> `APPROVED` (Truong kho nguon duyet va giu cho hang ngay) hoac `REJECTED` (Truong kho nguon tu choi va bat buoc nhap ly do; phieu rejected khong duoc sua/gui lai, phai tao phieu moi neu can tiep tuc) -> `IN_TRANSIT` (Dispatcher da lap chuyen xe rieng, Thu kho nguon ghi so gui, Tai xe duoc gan xac nhan roi kho; he thong dich chuyen ton kho vao kho trung chuyen `IN_TRANSIT`) -> `COMPLETED` (Cong nhan kho dich nhap so nhan, Thu kho dich kiem tra + QC + chon vi tri, Truong kho dich xac nhan cuoi cung va khop so luong) / `COMPLETED_WITH_DISCREPANCY` (Nhan thieu, tao phieu dieu chinh bu tru va log audit). Sau `APPROVED` khong cho sua header/dong hang; chi Truong kho nguon/manager duoc huy truoc khi `IN_TRANSIT` va phai giai phong reserved quantity. Neu `received_qty > sent_qty` he thong chan xac nhan; neu QC loi thi phan loi vao Quarantine va khong tinh available. Khong ho tro huy phieu sau khi da `IN_TRANSIT`.
+`NEW` (Planner nhap phieu nhieu dong hang theo lenh tu Cong ty me/bo phan dieu phoi trung tam hoac transfer request da duoc CEO duyet; Planner duoc sua dong hang hoac huy phieu khi con `NEW`) -> `APPROVED` (Truong kho nguon duyet va giu cho hang ngay) hoac `REJECTED` (Truong kho nguon tu choi va bat buoc nhap ly do; phieu rejected khong duoc sua/gui lai, phai tao phieu moi neu can tiep tuc) -> `IN_TRANSIT` (Dispatcher da lap chuyen xe rieng, Thu kho nguon ghi so gui, Tai xe duoc gan xac nhan roi kho; he thong dich chuyen ton kho vao kho trung chuyen `IN_TRANSIT`) -> `COMPLETED` (Cong nhan kho dich nhap so nhan, Thu kho dich kiem tra + QC + chon vi tri, Truong kho dich xac nhan cuoi cung va khop so luong) / `COMPLETED_WITH_DISCREPANCY` (Nhan thieu, tao phieu dieu chinh bu tru va log audit) / `QUARANTINED` (hang dieu chuyen bi tu choi toan bo do hu hong/QC loi va dua vao Quarantine). Sau `APPROVED` khong cho sua header/dong hang; chi Truong kho nguon/manager duoc huy truoc khi `IN_TRANSIT` va phai giai phong reserved quantity. Neu `received_qty > sent_qty` he thong chan xac nhan; neu QC loi thi phan loi vao Quarantine va khong tinh available. Hang thieu khong tao Quarantine/disposal candidate vi khong ton tai vat ly. Khong ho tro huy phieu sau khi da `IN_TRANSIT`.
 
 **Quy tắc chuyến xe điều chuyển:**
 
@@ -995,7 +1002,16 @@ Planner nhap phieu `TRF-*` theo lenh ngoai
 - Không gom nhiều Phiếu điều chuyển vào một chuyến xe trong Sprint 1.
 - Dispatcher chỉ được lập chuyến cho các phiếu có kho nguồn thuộc phạm vi kho mình phụ trách.
 - Danh sách tài xế hợp lệ chỉ gồm tài xế có thể hoạt động tại kho nguồn của phiếu điều chuyển.
+- Dispatcher phải kiểm tra xe/tài xế không bị trùng lịch; kiểm tra tải trọng theo cân nặng, và kiểm tra thể tích khi xe có `max_volume_m3`.
 - Tài xế phải xác nhận đã nhận hàng và xe rời kho trước khi hệ thống chuyển tồn sang `IN_TRANSIT`.
+
+**Ngoại lệ điều chuyển và Quarantine:**
+
+- Hàng điều chuyển fail QC hoặc hư hỏng đi vào Quarantine với origin `INTERNAL_TRANSFER`, giữ traceability tới transfer/transfer item/trip/vehicle/driver và chỉ đi luồng tiêu hủy Spec 009; không tạo supplier RTV hoặc supplier Debit Note.
+- Hàng thiếu khi nhận là discrepancy số lượng: tạo adjustment/audit `TRANSFER_DISCREPANCY`, tính giá trị nhập kho đích chỉ theo số lượng thực nhận và không tạo invoice/receivable/payable/Debit Note.
+- Gửi nhầm SKU nhưng hàng còn nguyên được xử lý bằng Return to Source: Storekeeper kho đích báo cáo `WRONG_SKU`, Trưởng kho đích duyệt, cùng tài xế/xe quay về kho nguồn, hàng vẫn nằm trong `IN_TRANSIT` cho tới khi kho nguồn count/check/QC/final receive.
+- Nếu chuyến quá hạn khi phiếu còn `IN_TRANSIT`, hệ thống đánh dấu overdue, chặn receive-count/receive-check ở kho đích và yêu cầu WAREHOUSE_MANAGER kho nguồn, ADMIN, CEO hoặc PLANNER kích hoạt Return to Source.
+- Hàng đạt QC khi nhập vào kho đích hoặc kho nguồn sau Return to Source phải chọn Bin hợp lệ, không phải quarantine bin, và phải kiểm tra bin capacity trước khi cộng tồn.
 
 ---
 

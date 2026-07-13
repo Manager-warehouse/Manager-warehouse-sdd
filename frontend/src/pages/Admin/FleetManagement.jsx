@@ -172,7 +172,6 @@ const FleetManagement = () => {
       setIsVhModalOpen(false);
       fetchData();
     } catch (err) {
-      console.error('Vehicle submit error:', err);
       if (err.message === 'DUPLICATE_PLATE_NUMBER' || err.message?.includes('DUPLICATE_PLATE_NUMBER')) {
         setVhFormErrors({ plate_number: 'Biển số xe này đã được đăng ký' });
       } else {
@@ -324,9 +323,9 @@ const FleetManagement = () => {
 
   const getVehicleStatusBadge = (status) => {
     const styles = {
-      AVAILABLE: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-      ON_TRIP: 'bg-blue-50 text-blue-700 border-blue-200',
-      MAINTENANCE: 'bg-amber-50 text-amber-700 border-amber-200',
+      AVAILABLE: 'bg-success-50 text-success-700 border-success-200',
+      ON_TRIP: 'bg-info-50 text-info-700 border-info-200',
+      MAINTENANCE: 'bg-warning-50 text-warning-700 border-warning-200',
     };
     const labels = {
       AVAILABLE: 'Sẵn sàng',
@@ -342,9 +341,9 @@ const FleetManagement = () => {
 
   const getDriverStatusBadge = (status) => {
     const styles = {
-      AVAILABLE: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-      ON_TRIP: 'bg-blue-50 text-blue-700 border-blue-200',
-      UNAVAILABLE: 'bg-amber-50 text-amber-700 border-amber-200',
+      AVAILABLE: 'bg-success-50 text-success-700 border-success-200',
+      ON_TRIP: 'bg-info-50 text-info-700 border-info-200',
+      UNAVAILABLE: 'bg-warning-50 text-warning-700 border-warning-200',
     };
     const labels = {
       AVAILABLE: 'Sẵn sàng',
@@ -567,7 +566,7 @@ const FleetManagement = () => {
                               title={vh.is_active ? 'Khóa xe tải' : 'Kích hoạt xe tải'}
                             >
                               {vh.is_active ? (
-                                <ToggleRight className="w-5 h-5 text-emerald-600" />
+                                <ToggleRight className="w-5 h-5 text-success-600" />
                               ) : (
                                 <ToggleLeft className="w-5 h-5 text-shade-40" />
                               )}
@@ -618,7 +617,7 @@ const FleetManagement = () => {
                       title={vh.is_active ? 'Khóa xe tải' : 'Kích hoạt xe tải'}
                     >
                       {vh.is_active ? (
-                        <ToggleRight className="w-5 h-5 text-emerald-600" />
+                        <ToggleRight className="w-5 h-5 text-success-600" />
                       ) : (
                         <ToggleLeft className="w-5 h-5 text-shade-40" />
                       )}
@@ -697,7 +696,7 @@ const FleetManagement = () => {
                                 title={dr.is_active ? 'Khóa tài xế' : 'Kích hoạt tài xế'}
                               >
                                 {dr.is_active ? (
-                                  <ToggleRight className="w-5 h-5 text-emerald-600" />
+                                  <ToggleRight className="w-5 h-5 text-success-600" />
                                 ) : (
                                   <ToggleLeft className="w-5 h-5 text-shade-40" />
                                 )}
@@ -751,7 +750,7 @@ const FleetManagement = () => {
                         title={dr.is_active ? 'Khóa tài xế' : 'Kích hoạt tài xế'}
                       >
                         {dr.is_active ? (
-                          <ToggleRight className="w-5 h-5 text-emerald-600" />
+                          <ToggleRight className="w-5 h-5 text-success-600" />
                         ) : (
                           <ToggleLeft className="w-5 h-5 text-shade-40" />
                         )}
@@ -908,7 +907,7 @@ const FleetManagement = () => {
             />
           </div>
           {drModalType === 'ADD' && (driverUserLoadFailed || selectableDriverUsers.length === 0) && (
-            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            <div className="rounded-md border border-warning-200 bg-warning-50 px-3 py-2 text-xs text-warning-800">
               {driverUserLoadFailed
                 ? 'Không tải được danh sách tài khoản DRIVER để liên kết. Cần kiểm tra quyền/API quản lý tài khoản trước khi tạo hồ sơ tài xế.'
                 : 'Tất cả tài khoản DRIVER hiện có đã có hồ sơ tài xế. Muốn thêm tài xế mới, hãy tạo tài khoản role DRIVER trước rồi quay lại tạo hồ sơ.'}

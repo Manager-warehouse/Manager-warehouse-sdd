@@ -9,7 +9,7 @@ import { Save, Settings, CreditCard, CalendarDays, BarChart3, Loader2 } from 'lu
 const normalizeNumericValue = (value) => String(value ?? '').replace(',', '.').trim();
 const toNumber = (value) => Number(normalizeNumericValue(value));
 
-const validate = (form) => {
+export const validate = (form) => {
   const errs = {};
 
   const creditLimit = toNumber(form.defaultCreditLimit);
@@ -90,7 +90,6 @@ const SystemConfig = () => {
       });
       setErrors({});
     } catch (err) {
-      console.error('Failed to load system config:', err);
       addToast('Không thể tải cấu hình hệ thống', 'error');
     } finally {
       setLoading(false);
@@ -129,7 +128,6 @@ const SystemConfig = () => {
       addToast('Cập nhật cấu hình hệ thống thành công', 'success');
       setErrors({});
     } catch (err) {
-      console.error('Failed to save system config:', err);
       addToast('Không thể lưu cấu hình hệ thống', 'error');
     } finally {
       setSaveLoading(false);

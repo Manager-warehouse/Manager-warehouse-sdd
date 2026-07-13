@@ -32,9 +32,6 @@ public class PriceHistoryResponse {
     @JsonProperty("effective_date")
     private LocalDate effectiveDate;
 
-    @JsonProperty("end_date")
-    private LocalDate endDate;
-
     @JsonProperty("cost_price")
     private BigDecimal costPrice;
 
@@ -81,9 +78,6 @@ public class PriceHistoryResponse {
 
         @JsonProperty("effective_date")
         private LocalDate effectiveDate;
-
-        @JsonProperty("end_date")
-        private LocalDate endDate;
 
         @JsonProperty("cost_price")
         private BigDecimal costPrice;

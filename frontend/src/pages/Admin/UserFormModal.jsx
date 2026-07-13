@@ -164,7 +164,7 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         {error && (
-          <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs font-medium">
+          <div className="p-3 bg-danger-50 border border-danger-200 text-danger-700 rounded-lg text-xs font-medium">
             {error}
           </div>
         )}

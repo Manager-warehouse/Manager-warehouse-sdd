@@ -1,6 +1,7 @@
 package com.wms.dto.response;
 
 import com.wms.enums.TransferRequestStatus;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 
@@ -24,7 +25,14 @@ public record TransferRequestResponse(
     String rejectedByName,
     OffsetDateTime rejectedAt,
     String rejectionReason,
+    LocalDate neededByDate,
+    String businessReason,
     String notes,
+    Long convertedTransferId,
+    String convertedTransferNumber,
+    Long convertedBy,
+    String convertedByName,
+    OffsetDateTime convertedAt,
     OffsetDateTime createdAt,
     OffsetDateTime updatedAt,
     List<TransferRequestItemResponse> items

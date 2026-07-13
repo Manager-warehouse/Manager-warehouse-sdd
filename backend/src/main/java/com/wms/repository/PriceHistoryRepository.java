@@ -32,65 +32,50 @@ public interface PriceHistoryRepository extends JpaRepository<PriceHistory, Long
         List<PriceHistory> findAllByOrderByCreatedAtAsc();
 
         /**
-         * Approved entries for overlap check — scoped to (product, warehouse), excludes
-         * the entry being edited.
+         * Non-CANCELLED (PENDING or APPROVED) entries conflicting with a candidate
+         * effective_date for (product, warehouse). A PENDING entry already occupying
+         * a date blocks creating another one for the same date — the correct way to
+         * fix a wrong PENDING entry is to edit it (PUT), not create a duplicate.
+         * Excludes the entry being edited when excludeId is provided.
          */
         @Query("""
                         SELECT p FROM PriceHistory p
                         WHERE p.product.id = :productId
                           AND p.warehouse.id = :warehouseId
-                          AND p.status = 'APPROVED'
-                          AND p.effectiveDate <= :endDate
-                          AND p.endDate >= :effectiveDate
+                          AND p.status IN ('APPROVED', 'PENDING')
+                          AND p.effectiveDate = :effectiveDate
                           AND (:excludeId IS NULL OR p.id <> :excludeId)
                         """)
-        List<PriceHistory> findApprovedOverlapping(
+        List<PriceHistory> findConflictingActive(
                         @Param("productId") Long productId,
                         @Param("warehouseId") Long warehouseId,
                         @Param("effectiveDate") LocalDate effectiveDate,
-                        @Param("endDate") LocalDate endDate,
                         @Param("excludeId") Long excludeId);
 
         /**
-         * Price lookup at a given date for DO creation — scoped to the DO's warehouse.
+         * Price lookup at a given date for DO creation — the APPROVED entry with the
+         * largest effective_date not after the given date (latest entry supersedes
+         * all earlier ones until a newer APPROVED entry exists). Two APPROVED entries
+         * sharing an effective_date should no longer be reachable in normal use (the
+         * creation-time check above blocks it), but approvedAt DESC still breaks the
+         * tie deterministically as defense-in-depth against a create/create race.
          */
-        @Query("""
-                        SELECT p FROM PriceHistory p
-                        WHERE p.product.id = :productId
-                          AND p.warehouse.id = :warehouseId
-                          AND p.status = 'APPROVED'
-                          AND p.effectiveDate <= :date
-                          AND p.endDate >= :date
-                        """)
-        Optional<PriceHistory> findApprovedAtDate(
-                        @Param("productId") Long productId,
-                        @Param("warehouseId") Long warehouseId,
-                        @Param("date") LocalDate date);
+        Optional<PriceHistory> findFirstByProductIdAndWarehouseIdAndStatusAndEffectiveDateLessThanEqualOrderByEffectiveDateDescApprovedAtDesc(
+                        Long productId, Long warehouseId, PriceHistoryStatus status, LocalDate date);
 
         /**
          * Most recent approved entry for a (product, warehouse) pair — used in approval
-         * delta view.
+         * delta view. approvedAt DESC breaks ties on effectiveDate the same way as the
+         * lookup above.
          */
         @Query("""
                         SELECT p FROM PriceHistory p
                         WHERE p.product.id = :productId
                           AND p.warehouse.id = :warehouseId
                           AND p.status = 'APPROVED'
-                        ORDER BY p.effectiveDate DESC
+                        ORDER BY p.effectiveDate DESC, p.approvedAt DESC
                         """)
         List<PriceHistory> findLatestApproved(
                         @Param("productId") Long productId,
                         @Param("warehouseId") Long warehouseId);
-
-        @Query("""
-                        select p from PriceHistory p
-                        where p.product.id = :productId
-                          and p.status = :status
-                          and p.effectiveDate <= :asOfDate
-                          and (p.endDate is null or p.endDate >= :asOfDate)
-                        order by p.effectiveDate desc
-                        """)
-        List<PriceHistory> findEffectivePrices(@Param("productId") Long productId,
-                        @Param("status") PriceHistoryStatus status,
-                        @Param("asOfDate") LocalDate asOfDate);
 }

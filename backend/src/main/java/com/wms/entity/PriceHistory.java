@@ -32,9 +32,6 @@ public class PriceHistory {
     @Column(name = "effective_date", nullable = false)
     private LocalDate effectiveDate;
 
-    @Column(name = "end_date", nullable = false)
-    private LocalDate endDate;
-
     @Column(name = "cost_price", nullable = false, precision = 18, scale = 2)
     private BigDecimal costPrice;
 

@@ -36,7 +36,6 @@ const LowStockAlerts = () => {
       setTotalElements(res.totalElements || 0);
       setTotalPages(res.totalPages || 0);
     } catch (err) {
-      console.error(err);
       setError(err.response?.data?.message || 'Không thể tải danh sách cảnh báo tồn kho.');
     } finally {
       setLoading(false);
@@ -102,10 +101,10 @@ const LowStockAlerts = () => {
           <span className="text-sm text-shade-60">Đang quét dữ liệu tồn kho dưới định mức...</span>
         </div>
       ) : error ? (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-2xl mx-auto my-12 text-center">
-          <AlertTriangle className="w-12 h-12 text-red-600 mx-auto mb-4" />
-          <h3 className="text-lg font-bold text-red-800">Lỗi Hệ Thống</h3>
-          <p className="text-sm text-red-600 mt-2">{error}</p>
+        <div className="bg-danger-50 border border-danger-200 rounded-lg p-6 max-w-2xl mx-auto my-12 text-center">
+          <AlertTriangle className="w-12 h-12 text-danger-600 mx-auto mb-4" />
+          <h3 className="text-lg font-bold text-danger-800">Lỗi Hệ Thống</h3>
+          <p className="text-sm text-danger-600 mt-2">{error}</p>
         </div>
       ) : (
         <>
@@ -142,13 +141,13 @@ const LowStockAlerts = () => {
                       {alerts.map((alert) => (
                         <tr
                           key={alert.id}
-                          className={`hover:bg-canvas-cream/50 transition-colors ${!alert.is_resolved ? 'bg-red-50/20' : ''}`}
+                          className={`hover:bg-canvas-cream/50 transition-colors ${!alert.is_resolved ? 'bg-danger-50/20' : ''}`}
                         >
                           <td className="px-6 py-4 text-xs font-semibold text-ink">{alert.warehouse_name}</td>
                           <td className="px-6 py-4 text-xs font-mono font-medium">{alert.product_sku}</td>
                           <td className="px-6 py-4 text-xs font-medium">{alert.product_name}</td>
                           <td className="px-6 py-4 text-xs text-center">{getAlertTag(alert.alert_type)}</td>
-                          <td className={`px-6 py-4 text-xs text-right font-bold ${alert.current_qty === 0 ? 'text-red-600' : 'text-orange-600'}`}>
+                          <td className={`px-6 py-4 text-xs text-right font-bold ${alert.current_qty === 0 ? 'text-danger-600' : 'text-orange-600'}`}>
                             {new Intl.NumberFormat('vi-VN').format(alert.current_qty)}
                           </td>
                           <td className="px-6 py-4 text-xs text-right text-shade-60">
@@ -165,7 +164,7 @@ const LowStockAlerts = () => {
                           <td className="px-6 py-4 text-xs text-shade-60">
                             {new Date(alert.created_at).toLocaleString('vi-VN')}
                             {alert.is_resolved && alert.resolved_at && (
-                              <span className="block text-[10px] text-emerald-600">
+                              <span className="block text-[10px] text-success-600">
                                 Bổ sung lúc: {new Date(alert.resolved_at).toLocaleString('vi-VN')}
                               </span>
                             )}
@@ -181,7 +180,7 @@ const LowStockAlerts = () => {
                   {alerts.map((alert) => (
                     <div
                       key={alert.id}
-                      className={`rounded-lg border border-hairline-light overflow-hidden ${!alert.is_resolved ? 'bg-red-50/20' : 'bg-canvas-cream/30'}`}
+                      className={`rounded-lg border border-hairline-light overflow-hidden ${!alert.is_resolved ? 'bg-danger-50/20' : 'bg-canvas-cream/30'}`}
                     >
                       <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center gap-2">
                         <span className="font-mono text-xs font-medium">{alert.product_sku}</span>
@@ -190,14 +189,14 @@ const LowStockAlerts = () => {
                       <div className="p-4 flex flex-col gap-2 text-xs">
                         <div className="font-semibold text-ink">{alert.product_name}</div>
                         <p className="text-shade-50">Kho vật lý: <span className="font-semibold text-ink">{alert.warehouse_name}</span></p>
-                        <p className="text-shade-50">Tồn khả dụng: <span className={`font-bold ${alert.current_qty === 0 ? 'text-red-600' : 'text-orange-600'}`}>
+                        <p className="text-shade-50">Tồn khả dụng: <span className={`font-bold ${alert.current_qty === 0 ? 'text-danger-600' : 'text-orange-600'}`}>
                           {new Intl.NumberFormat('vi-VN').format(alert.current_qty)}
                         </span></p>
                         <p className="text-shade-50">Định mức tối thiểu: <span className="text-ink">{new Intl.NumberFormat('vi-VN').format(alert.reorder_point)}</span></p>
                         <p className="text-shade-50">
                           {new Date(alert.created_at).toLocaleString('vi-VN')}
                           {alert.is_resolved && alert.resolved_at && (
-                            <span className="block text-[10px] text-emerald-600">
+                            <span className="block text-[10px] text-success-600">
                               Bổ sung lúc: {new Date(alert.resolved_at).toLocaleString('vi-VN')}
                             </span>
                           )}

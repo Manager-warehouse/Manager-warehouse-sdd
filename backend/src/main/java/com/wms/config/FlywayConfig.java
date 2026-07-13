@@ -15,12 +15,14 @@ public class FlywayConfig {
         return flyway -> {
             log.info("FlywayConfig: Starting Flyway migration...");
             try {
+                log.info("FlywayConfig: Repairing Flyway schema history...");
+                flyway.repair();
+                log.info("FlywayConfig: Running Flyway migration...");
                 flyway.migrate();
                 log.info("FlywayConfig: Flyway migration completed successfully.");
             } catch (Exception e) {
-                log.error("FlywayConfig: Flyway migration failed: {}", e.getMessage(), e);
-                throw e;
-            }   
+                throw new IllegalStateException("Flyway migration failed", e);
+            }
         };
     }
 }

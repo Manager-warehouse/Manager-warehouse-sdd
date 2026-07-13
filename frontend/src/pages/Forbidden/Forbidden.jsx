@@ -9,8 +9,8 @@ const Forbidden = () => {
   return (
     <div className="flex flex-col min-h-screen bg-canvas-cream text-ink items-center justify-center px-6">
       <div className="flex flex-col items-center gap-6 max-w-md text-center">
-        <div className="flex items-center justify-center w-20 h-20 rounded-full bg-red-50 border border-red-200">
-          <ShieldOff className="w-9 h-9 text-red-500" />
+        <div className="flex items-center justify-center w-20 h-20 rounded-full bg-danger-50 border border-danger-200">
+          <ShieldOff className="w-9 h-9 text-danger-500" />
         </div>
 
         <span className="text-[11px] font-bold text-shade-60 uppercase tracking-widest">
