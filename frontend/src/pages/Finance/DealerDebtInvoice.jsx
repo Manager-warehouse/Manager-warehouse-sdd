@@ -433,7 +433,7 @@ const DealerDebtInvoice = () => {
                   <span className="text-xs font-semibold text-ink uppercase tracking-wider">Xác nhận bằng mã OTP (Spec 004)</span>
                 </div>
                 <div className="text-xs text-shade-70 font-light mt-1">
-                  Đại lý đã nhập mã xác thực thành công lúc: <strong className="text-ink font-semibold">{new Date(selectedNotif.otpVerifiedAt).toLocaleString('vi-VN')}</strong>
+                  Đại lý đã nhập mã xác thực thành công lúc: <strong className="text-ink font-semibold">{new Date(selectedNotif.otp_verified_at).toLocaleString('vi-VN')}</strong>
                 </div>
               </div>
 
@@ -444,8 +444,8 @@ const DealerDebtInvoice = () => {
                   Ảnh chụp thực tế lúc giao hàng (POD Photo)
                 </span>
                 <div className="border border-hairline-light rounded overflow-hidden aspect-video bg-canvas-cream relative flex items-center justify-center">
-                  {selectedNotif.podImageUrl ? (
-                    <img src={selectedNotif.podImageUrl} alt="POD Photo" className="object-cover w-full h-full" />
+                  {selectedNotif.pod_image_url ? (
+                    <img src={selectedNotif.pod_image_url} alt="POD Photo" className="object-cover w-full h-full" />
                   ) : (
                     <span className="text-shade-40 text-xs italic">Không tìm thấy ảnh bàn giao</span>
                   )}
@@ -459,8 +459,8 @@ const DealerDebtInvoice = () => {
                   Chữ ký điện tử của Đại lý
                 </span>
                 <div className="border border-hairline-light rounded bg-canvas-cream p-4 h-24 flex items-center justify-center">
-                  {selectedNotif.podSignatureUrl ? (
-                    <img src={selectedNotif.podSignatureUrl} alt="Signature" className="h-full object-contain filter grayscale" />
+                  {selectedNotif.pod_signature_url ? (
+                    <img src={selectedNotif.pod_signature_url} alt="Signature" className="h-full object-contain filter grayscale" />
                   ) : (
                     <span className="text-shade-40 text-xs italic">Ký nhận tại quầy</span>
                   )}
@@ -468,7 +468,7 @@ const DealerDebtInvoice = () => {
               </div>
 
               <div className="text-[11px] text-shade-40 italic text-center">
-                Thời gian tài xế cập nhật POD: {new Date(selectedNotif.podTimestamp).toLocaleString('vi-VN')}
+                Thời gian tài xế cập nhật POD: {new Date(selectedNotif.pod_timestamp).toLocaleString('vi-VN')}
               </div>
             </div>
             <div className="p-4 border-t border-hairline-light bg-canvas-cream flex justify-end">
