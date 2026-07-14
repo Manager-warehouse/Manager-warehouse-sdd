@@ -352,8 +352,8 @@ public class PaymentReceiptServiceImpl implements PaymentReceiptService {
                 .createdById(entity.getCreatedBy().getId())
                 .createdByName(entity.getCreatedBy().getFullName())
                 .documentDate(entity.getDocumentDate())
-                .accountingPeriodId(entity.getAccountingPeriod().getId())
-                .accountingPeriodName(entity.getAccountingPeriod().getPeriodName())
+                .accountingPeriodId(entity.getAccountingPeriod() != null ? entity.getAccountingPeriod().getId() : null)
+                .accountingPeriodName(entity.getAccountingPeriod() != null ? entity.getAccountingPeriod().getPeriodName() : null)
                 .notes(entity.getNotes())
                 .createdAt(entity.getCreatedAt())
                 .build();
