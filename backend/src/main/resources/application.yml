@@ -11,11 +11,11 @@ spring:
       accept_float_as_int: false
       fail_on_unknown_properties: true
 
-  # Database Configuration (Supabase PostgreSQL)
+  # Database Configuration
   datasource:
-    url: jdbc:postgresql://aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=require
-    username: postgres.jzniugklqehtghgzggiv
-    password: Warehouse12345se12
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/postgres}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
     hikari:
       minimum-idle: 5
