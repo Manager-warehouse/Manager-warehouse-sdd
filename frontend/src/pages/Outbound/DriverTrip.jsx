@@ -202,8 +202,22 @@ export default function DriverTrip() {
     }
   };
 
+  const handleCompleteTrip = async () => {
+    setSubmitting(true);
+    try {
+      await outboundService.completeTrip(trip.id);
+      addToast('Đã xác nhận xe về kho hoàn thành chuyến xe!', 'success');
+      fetchTrip(trip.id);
+    } catch (error) {
+      addToast(error.message || 'Lỗi khi xác nhận xe về kho', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleTransferArrive = async () => {
     if (!trip?.transferId) return;
+
     setSubmitting(true);
     try {
       await interWarehouseTransferService.driverArrive(trip.transferId);
@@ -352,6 +366,10 @@ export default function DriverTrip() {
     ))
   );
 
+  const allStopsTerminal = !isTransferTrip
+    && (trip.delivery_orders?.length > 0)
+    && trip.delivery_orders.every((d) => ['COMPLETED', 'RETURNED'].includes(d.delivery_status));
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-start gap-4">
@@ -445,6 +463,40 @@ export default function DriverTrip() {
                   className="bg-success-500 h-2 rounded-full transition-all duration-500"
                   style={{ width: `${totalCount > 0 ? (deliveredCount / totalCount) * 100 : 0}%` }}
                 />
+              </div>
+            </div>
+          )}
+
+          {trip.status === 'IN_TRANSIT' && !isTransferTrip && allStopsTerminal && (
+            <div className="mt-4 pt-4 border-t border-hairline-light">
+              <div className="bg-success-50 border border-success-200 rounded-lg p-3 text-xs text-success-900 mb-3">
+                Tất cả điểm giao đã hoàn tất. Bạn có thể xác nhận xe đã về kho an toàn.
+              </div>
+              <button
+                onClick={handleCompleteTrip}
+                disabled={submitting}
+                className="w-full btn-pill btn-pill-primary bg-success-600 hover:bg-success-700 flex items-center justify-center gap-2 py-2.5 text-sm disabled:opacity-50"
+              >
+                {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                Xác nhận xe đã về kho
+              </button>
+            </div>
+          )}
+
+          {trip.status === 'IN_TRANSIT' && !isTransferTrip && !allStopsTerminal && totalCount > 0 && (
+            <div className="mt-3 text-[11px] text-shade-50 bg-canvas-cream rounded-md p-2.5">
+              Hoàn tất giao tất cả {totalCount} điểm để mở nút xác nhận về kho.
+            </div>
+          )}
+
+          {trip.status === 'COMPLETED' && (
+            <div className="mt-4 pt-4 border-t border-hairline-light">
+              <div className="bg-success-50 border border-success-300 rounded-lg p-3 text-xs text-success-900 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-success-600 shrink-0" />
+                <div>
+                  <p className="font-bold">Chuyến xe đã hoàn thành</p>
+                  <p className="text-[11px] text-success-800 mt-0.5">Xe và tài xế đã được xác nhận về kho an toàn.</p>
+                </div>
               </div>
             </div>
           )}
