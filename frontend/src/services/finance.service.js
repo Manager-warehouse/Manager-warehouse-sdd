@@ -46,10 +46,10 @@ const INITIAL_NOTIFICATIONS = [
     total_amount_estimate: 8500000.00,
     invoice_status: 'NOT_INVOICED',
     status: 'ACTIVE',
-    otpVerifiedAt: '2026-06-11T09:58:30Z',
-    podImageUrl: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=500',
-    podSignatureUrl: 'https://images.unsplash.com/photo-1506784983877-45594efa4cbe?w=500',
-    podTimestamp: '2026-06-11T10:00:00Z'
+    otp_verified_at: '2026-06-11T09:58:30Z',
+    pod_image_url: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=500',
+    pod_signature_url: 'https://images.unsplash.com/photo-1506784983877-45594efa4cbe?w=500',
+    pod_timestamp: '2026-06-11T10:00:00Z'
   }
 ];
 
