@@ -1040,6 +1040,29 @@ export const outboundService = {
     return normalizeTrip(response.data);
   },
 
+  completeTrip: async (id, { returnedAt, notes } = {}) => {
+    if (useMock) {
+      await mockDelay();
+      const trips = getDb(KEYS.TRIPS, INITIAL_TRIPS);
+      const idx = trips.findIndex((trip) => trip.id === Number(id));
+      if (idx === -1) throw new Error('Không tìm thấy chuyến xe');
+      trips[idx] = {
+        ...trips[idx],
+        status: 'COMPLETED',
+        completed_at: returnedAt || new Date().toISOString(),
+        notes: notes || trips[idx].notes || '',
+      };
+      saveDb(KEYS.TRIPS, trips);
+      addAuditLog('COMPLETE_TRIP', 'Trip', Number(id), `Tài xế xác nhận về kho hoàn thành chuyến xe #${id}`);
+      return trips[idx];
+    }
+    const response = await apiClient.put(`/trips/${id}/complete`, {
+      returnedAt: returnedAt || new Date().toISOString(),
+      notes: notes || '',
+    });
+    return normalizeTrip(response.data);
+  },
+
   uploadPodEvidence: async (tripId, doId, { goodsImage, signDocumentImage, notes = '' }) => {
     if (useMock) return { success: true };
     const formData = new FormData();
