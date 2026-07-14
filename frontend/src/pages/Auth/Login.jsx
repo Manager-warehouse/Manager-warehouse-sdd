@@ -172,7 +172,6 @@ const Login = () => {
               <span className="font-semibold text-onPrimary">Luồng inbound HP:</span>{' '}
               Planner lập lệnh → Warehouse Staff kiểm đếm → Storekeeper QC/cất kệ → Warehouse Manager duyệt.
             </div>
-            </div>
           </div>
         </div>
       </div>
