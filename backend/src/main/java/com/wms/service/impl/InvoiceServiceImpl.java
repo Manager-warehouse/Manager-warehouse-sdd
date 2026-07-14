@@ -227,8 +227,8 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .createdById(entity.getCreatedBy().getId())
                 .createdByName(entity.getCreatedBy().getFullName())
                 .documentDate(entity.getDocumentDate())
-                .accountingPeriodId(entity.getAccountingPeriod().getId())
-                .accountingPeriodName(entity.getAccountingPeriod().getPeriodName())
+                .accountingPeriodId(entity.getAccountingPeriod() != null ? entity.getAccountingPeriod().getId() : null)
+                .accountingPeriodName(entity.getAccountingPeriod() != null ? entity.getAccountingPeriod().getPeriodName() : null)
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .build();
