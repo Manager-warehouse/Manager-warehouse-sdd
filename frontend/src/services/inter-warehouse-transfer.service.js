@@ -244,6 +244,9 @@ export const interWarehouseTransferService = {
   shipTransfer: async (id) => {
     if (useMock) {
       const transfer = await interWarehouseTransferService.getTransferById(id);
+      if (!transfer.outboundQcPassed && !transfer.outbound_qc_passed) {
+        throw new Error('OUTBOUND_QC_NOT_PASSED');
+      }
       return updateMockStatus(id, 'APPROVED', {
         items: transfer.items.map((item) => ({ ...item, sentQty: item.plannedQty })),
       });
@@ -354,25 +357,54 @@ export const interWarehouseTransferService = {
     return response.data;
   },
 
+  uploadPhotoEvidence: async (id, file) => {
+    if (useMock) {
+      return {
+        photoRef: `/mock/uploads/transfer/${Date.now()}-${file?.name || 'photo.jpg'}`,
+      };
+    }
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await apiClient.post(`/inter-warehouse-transfers/${id}/photo-evidence`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 60000,
+    });
+    return response.data;
+  },
+
   recordOutboundQc: async (id, payload) => {
+    const uploaded = payload.photoFile
+      ? await interWarehouseTransferService.uploadPhotoEvidence(id, payload.photoFile)
+      : null;
+    const request = {
+      passed: payload.passed ?? payload.outboundQcPassed,
+      note: payload.note ?? payload.outboundQcNote ?? '',
+      photoRef: uploaded?.photoRef ?? payload.photoRef ?? payload.outboundQcPhotoRef,
+    };
     if (useMock) {
       return updateMockStatus(id, 'APPROVED', {
-        outboundQcPassed: payload.outboundQcPassed,
-        outboundQcNote: payload.outboundQcNote,
-        outboundQcPhotoRef: payload.outboundQcPhotoRef,
+        outboundQcPassed: request.passed,
+        outboundQcNote: request.note,
+        outboundQcPhotoRef: request.photoRef,
       });
     }
-    const response = await apiClient.post(`/inter-warehouse-transfers/${id}/outbound-qc`, payload);
+    const response = await apiClient.post(`/inter-warehouse-transfers/${id}/outbound-qc`, request);
     return response.data;
   },
 
   loadHandover: async (id, payload) => {
+    const uploaded = payload.photoFile
+      ? await interWarehouseTransferService.uploadPhotoEvidence(id, payload.photoFile)
+      : null;
+    const request = {
+      photoRef: uploaded?.photoRef || payload.photoRef || payload.loadHandoverPhotoRef,
+    };
     if (useMock) {
       return updateMockStatus(id, 'APPROVED', {
-        loadHandoverPhotoRef: payload.loadHandoverPhotoRef || payload.photoRef || null,
+        loadHandoverPhotoRef: request.photoRef || null,
       });
     }
-    const response = await apiClient.post(`/inter-warehouse-transfers/${id}/load-handover`, payload);
+    const response = await apiClient.post(`/inter-warehouse-transfers/${id}/load-handover`, request);
     return response.data;
   },
 
@@ -387,13 +419,19 @@ export const interWarehouseTransferService = {
   },
 
   receivingHandover: async (id, payload) => {
+    const uploaded = payload.photoFile
+      ? await interWarehouseTransferService.uploadPhotoEvidence(id, payload.photoFile)
+      : null;
+    const request = {
+      photoRef: uploaded?.photoRef || payload.photoRef || payload.arrivalHandoverPhotoRef,
+    };
     if (useMock) {
       return updateMockStatus(id, 'IN_TRANSIT', {
         arrivalHandoverAt: new Date().toISOString(),
-        arrivalHandoverPhotoRef: payload.photoRef || null,
+        arrivalHandoverPhotoRef: request.photoRef || null,
       });
     }
-    const response = await apiClient.post(`/inter-warehouse-transfers/${id}/receiving-handover`, payload);
+    const response = await apiClient.post(`/inter-warehouse-transfers/${id}/receiving-handover`, request);
     return response.data;
   },
 
@@ -464,13 +502,19 @@ export const interWarehouseTransferService = {
   },
 
   returnHandover: async (id, payload) => {
+    const uploaded = payload.photoFile
+      ? await interWarehouseTransferService.uploadPhotoEvidence(id, payload.photoFile)
+      : null;
+    const request = {
+      photoRef: uploaded?.photoRef || payload.photoRef || payload.returnPhotoRef,
+    };
     if (useMock) {
       return updateMockStatus(id, 'IN_TRANSIT', {
         returnArrivalHandoverAt: new Date().toISOString(),
-        returnPhotoRef: payload.photoRef || null,
+        returnPhotoRef: request.photoRef || null,
       });
     }
-    const response = await apiClient.post(`/inter-warehouse-transfers/${id}/return-handover`, payload);
+    const response = await apiClient.post(`/inter-warehouse-transfers/${id}/return-handover`, request);
     return response.data;
   },
 
@@ -524,6 +568,21 @@ export const interWarehouseTransferService = {
       }
     }
     const response = await apiClient.put(`/transfer-requests/${id}`, payload);
+    return response.data;
+  },
+
+  cancelTransferRequest: async (id) => {
+    if (useMock) {
+      const requests = JSON.parse(localStorage.getItem('wms_db_transfer_requests') || '[]');
+      const idx = requests.findIndex(r => r.id === Number(id));
+      if (idx !== -1) {
+        requests[idx].status = 'CANCELLED';
+        requests[idx].updatedAt = new Date().toISOString();
+        localStorage.setItem('wms_db_transfer_requests', JSON.stringify(requests));
+        return requests[idx];
+      }
+    }
+    const response = await apiClient.post(`/transfer-requests/${id}/cancel`);
     return response.data;
   },
 

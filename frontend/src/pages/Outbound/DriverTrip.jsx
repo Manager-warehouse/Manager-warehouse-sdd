@@ -4,7 +4,6 @@ import {
   AlertTriangle,
   ArrowLeft,
   Calendar,
-  Camera,
   CheckCircle2,
   Loader2,
   MapPin,
@@ -20,6 +19,7 @@ import { useAuthStore } from '../../stores/auth.store';
 import OTPInput from '../../components/warehouse/OTPInput';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
+import PhotoCaptureInput from '../../components/common/PhotoCaptureInput';
 
 const DELIVERY_STATUS_MAP = {
   WAREHOUSE_APPROVED: { label: 'Chờ giao', color: 'bg-warning-50 text-warning-700 border-warning-200' },
@@ -33,6 +33,45 @@ const StatusBadge = ({ status }) => {
   const { label, color } = DELIVERY_STATUS_MAP[status] ?? { label: status, color: 'bg-canvas-cream text-shade-70 border-hairline-light' };
   return <Badge size="sm" colorClassName={color}>{label}</Badge>;
 };
+
+const TRANSFER_TRIP_PREFIX = 'transfer-';
+
+const transferDriverStatus = (status) => {
+  if (status === 'APPROVED') return 'PLANNED';
+  if (status === 'COMPLETED' || status === 'COMPLETED_WITH_VARIANCE') return 'COMPLETED';
+  return status || 'PLANNED';
+};
+
+const toTransferDriverTrip = (transfer = {}) => ({
+  id: `${TRANSFER_TRIP_PREFIX}${transfer.id}`,
+  transferId: transfer.id,
+  tripId: transfer.tripId,
+  type: 'TRANSFER',
+  trip_number: transfer.tripNumber || transfer.transferNumber,
+  status: transferDriverStatus(transfer.status),
+  sourceWarehouseCode: transfer.sourceWarehouseCode,
+  destinationWarehouseCode: transfer.destinationWarehouseCode,
+  vehicle_plate: transfer.vehiclePlate || transfer.trip?.vehiclePlate || '',
+  driver_name: transfer.driverName || transfer.trip?.driverName || '',
+  planned_date: transfer.tripPlannedStartAt || transfer.plannedDate || transfer.documentDate,
+  planned_start_at: transfer.tripPlannedStartAt || transfer.plannedDate || transfer.documentDate,
+  planned_end_at: transfer.tripPlannedEndAt || null,
+  total_weight_kg: Number(transfer.totalWeightKg || transfer.trip?.totalWeightKg || 0),
+  tripWarningActive: transfer.tripWarningActive,
+  tripOverdue: transfer.tripOverdue,
+  tripWarningMessage: transfer.tripWarningMessage,
+  driverArrivedAt: transfer.driverArrivedAt,
+  arrivalHandoverAt: transfer.arrivalHandoverAt,
+  isReturned: Boolean(transfer.isReturned),
+  items: (transfer.items || []).map((item) => ({
+    id: item.id,
+    productSku: item.productSku,
+    productName: item.productName,
+    plannedQty: item.plannedQty,
+    sentQty: item.sentQty,
+  })),
+  delivery_orders: [],
+});
 
 function OTPCountdown({ expiresAt, onExpired }) {
   const [remaining, setRemaining] = useState(0);
@@ -88,8 +127,11 @@ export default function DriverTrip() {
     const loadedTrips = [];
     let loadedAnySource = false;
     try {
-      const myOutboundTrips = await outboundService.getMyTrips();
-      loadedTrips.push(...myOutboundTrips.map((tripRow) => ({ ...tripRow, type: tripRow.type || 'OUTBOUND' })));
+      const isDriver = user?.role === 'DRIVER';
+      const outboundTrips = isDriver
+        ? await outboundService.getMyTrips()
+        : await outboundService.getTrips(null, {});
+      loadedTrips.push(...outboundTrips.map((tripRow) => ({ ...tripRow, type: tripRow.type || 'OUTBOUND' })));
       loadedAnySource = true;
     } catch {
       // Outbound trips are optional on this screen while transfer trips use the transfer API.
@@ -163,15 +205,26 @@ export default function DriverTrip() {
   const handleCompleteTrip = async () => {
     setSubmitting(true);
     try {
-      if (trip.type === 'TRANSFER') {
-        await interWarehouseTransferService.completeTransferTrip?.(trip.transferId);
-      } else {
-        await outboundService.completeTrip(trip.id);
-      }
+      await outboundService.completeTrip(trip.id);
       addToast('Đã xác nhận xe về kho hoàn thành chuyến xe!', 'success');
       fetchTrip(trip.id);
     } catch (error) {
       addToast(error.message || 'Lỗi khi xác nhận xe về kho', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleTransferArrive = async () => {
+    if (!trip?.transferId) return;
+
+    setSubmitting(true);
+    try {
+      await interWarehouseTransferService.driverArrive(trip.transferId);
+      addToast('Đã xác nhận tài xế đến kho đích', 'success');
+      fetchTrip(trip.id);
+    } catch (error) {
+      addToast(error.message || 'Lỗi khi xác nhận đến kho đích', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -263,7 +316,17 @@ export default function DriverTrip() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {trips.map((tripItem) => (
-              <div key={tripItem.id} onClick={() => navigate(`/outbound/driver/trips/${tripItem.id}`)} className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 hover:shadow-md transition-shadow cursor-pointer overflow-hidden">
+              <div
+                key={tripItem.id || tripItem.trip_number}
+                onClick={() => {
+                  if (!tripItem.id) {
+                    addToast('Chuyến xe chưa có mã nội bộ để mở chi tiết', 'warning');
+                    return;
+                  }
+                  navigate(`/outbound/driver/trips/${tripItem.id}`);
+                }}
+                className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 hover:shadow-md transition-shadow cursor-pointer overflow-hidden"
+              >
                 <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center">
                   <span className="text-xs font-bold text-ink">{tripItem.trip_number}</span>
                   <StatusBadge status={tripItem.status} />
@@ -271,6 +334,7 @@ export default function DriverTrip() {
                 <div className="p-4 flex flex-col gap-2 text-xs">
                   <p className="flex items-center gap-2 text-shade-50"><Truck className="w-3.5 h-3.5 text-shade-40" /> Xe: <span className="font-semibold text-ink">{tripItem.vehicle_plate || '-'}</span></p>
                   <p className="flex items-center gap-2 text-shade-50"><Calendar className="w-3.5 h-3.5 text-shade-40" /> T.gian dự kiến: <span className="font-semibold text-ink">{tripItem.planned_start_at ? new Date(tripItem.planned_start_at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) : '-'}</span></p>
+                  <p className="flex items-center gap-2 text-shade-50"><MapPin className="w-3.5 h-3.5 text-shade-40" /> Điểm giao: <span className="font-semibold text-ink">{tripItem.delivery_orders?.length || 0}</span></p>
                   <p className="text-xs text-shade-50 pt-1">Tổng KL: <span className="font-semibold text-ink">{tripItem.total_weight_kg || 0} kg</span></p>
                 </div>
               </div>
@@ -366,6 +430,25 @@ export default function DriverTrip() {
                 </p>
               )}
             </>
+          )}
+
+          {isTransferTrip && trip.status === 'IN_TRANSIT' && !trip.isReturned && (
+            <div className="mt-4 pt-4 border-t border-hairline-light">
+              {!trip.driverArrivedAt ? (
+                <button
+                  onClick={handleTransferArrive}
+                  disabled={submitting}
+                  className="w-full btn-pill btn-pill-primary flex items-center justify-center gap-2 py-2.5 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                  Tài xế xác nhận đã đến kho đích
+                </button>
+              ) : (
+                <p className="text-[11px] leading-relaxed text-success-700 font-semibold">
+                  Đã xác nhận đến kho đích. Chờ kho đích nhận bàn giao hàng.
+                </p>
+              )}
+            </div>
           )}
 
           {/* Progress bar */}
@@ -491,24 +574,34 @@ export default function DriverTrip() {
                 Đơn <strong className="font-bold">{activeDO.do_number}</strong>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-shade-60 mb-2 uppercase tracking-wider">Ảnh hàng hóa sau giao *</label>
-                <input type="file" accept="image/*" onChange={(event) => setGoodsImage(event.target.files?.[0] || null)} className="text-input text-xs w-full" />
-                {goodsImage && <p className="text-[11px] text-shade-50 mt-1 flex items-center gap-1"><Camera className="w-3 h-3" /> {goodsImage.name}</p>}
-              </div>
+              <PhotoCaptureInput
+                label="Ảnh hàng hóa sau giao"
+                fileName={goodsImage?.name}
+                onChange={(file) => setGoodsImage(file)}
+                output="file"
+                required
+              />
 
-              <div>
-                <label className="block text-xs font-bold text-shade-60 mb-2 uppercase tracking-wider">Ảnh chữ ký/POD *</label>
-                <input type="file" accept="image/*" onChange={(event) => setSignDocumentImage(event.target.files?.[0] || null)} className="text-input text-xs w-full" />
-                {signDocumentImage && <p className="text-[11px] text-shade-50 mt-1 flex items-center gap-1"><Camera className="w-3 h-3" /> {signDocumentImage.name}</p>}
-              </div>
+              <PhotoCaptureInput
+                label="Ảnh chữ ký/POD"
+                fileName={signDocumentImage?.name}
+                onChange={(file) => setSignDocumentImage(file)}
+                output="file"
+                required
+              />
 
               <textarea className="text-input text-sm h-20 resize-none" placeholder="Ghi chú giao hàng..." value={notes} onChange={(event) => setNotes(event.target.value)} />
 
               <div className="border-t border-hairline-light pt-5">
                 <label className="block text-xs font-bold text-shade-60 mb-3 uppercase tracking-wider">Xác thực OTP từ đại lý</label>
                 {!otpSent ? (
-                  <Button variant="primary" className="w-full py-3.5" onClick={handleUploadPodAndRequestOTP} disabled={submitting} loading={submitting}>
+                  <Button
+                    variant="primary"
+                    className="w-full py-3.5"
+                    onClick={handleUploadPodAndRequestOTP}
+                    disabled={submitting || !goodsImage || !signDocumentImage}
+                    loading={submitting}
+                  >
                     Tải POD và gửi mã OTP
                   </Button>
                 ) : (

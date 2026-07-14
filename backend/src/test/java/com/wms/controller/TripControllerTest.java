@@ -27,7 +27,9 @@ import com.wms.service.CurrentUserService;
 import com.wms.service.DriverDeliveryService;
 import com.wms.service.TripService;
 import com.wms.util.JwtUtil;
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -74,6 +76,23 @@ class TripControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].tripNumber").value("TRIP-20260620-0001"))
                 .andExpect(jsonPath("$[0].status").value("PLANNED"));
+    }
+
+    @Test
+    @WithMockUser(username = "driver@wms.com", roles = "DRIVER")
+    void listDriverTrips_returnsOperationalTripFields() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(driver);
+        when(driverDeliveryService.listMyTrips(driver))
+                .thenReturn(List.of(driverTripResponse(TripStatus.PLANNED)));
+
+        mockMvc.perform(get("/api/v1/trips/driver"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].tripId").value(900))
+                .andExpect(jsonPath("$[0].vehiclePlate").value("36C-88888"))
+                .andExpect(jsonPath("$[0].driverName").value("Driver Test 2"))
+                .andExpect(jsonPath("$[0].plannedStartAt").value("2026-07-17T14:06:00"))
+                .andExpect(jsonPath("$[0].plannedEndAt").value("2026-07-26T14:06:00"))
+                .andExpect(jsonPath("$[0].totalWeightKg").value(25.50));
     }
 
     @Test
@@ -223,7 +242,14 @@ class TripControllerTest {
                 .tripNumber("TRIP-20260620-0001")
                 .status(status)
                 .driverId(401L)
+                .driverName("Driver Test 2")
                 .vehicleId(301L)
+                .vehiclePlate("36C-88888")
+                .plannedDate(LocalDate.of(2026, 7, 17))
+                .plannedStartAt(LocalDateTime.of(2026, 7, 17, 14, 6))
+                .plannedEndAt(LocalDateTime.of(2026, 7, 26, 14, 6))
+                .totalWeightKg(new BigDecimal("25.50"))
+                .totalVolumeM3(new BigDecimal("1.250"))
                 .deliveryOrders(List.of())
                 .build();
     }
@@ -286,4 +312,3 @@ class TripControllerTest {
         return user;
     }
 }
-

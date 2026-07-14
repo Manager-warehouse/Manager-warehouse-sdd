@@ -87,6 +87,21 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TransferRequestResponse'
+  /transfer-requests/{id}/cancel:
+    post:
+      summary: Warehouse manager soft-cancels a DRAFT transfer request
+      tags: [Transfer Requests]
+      parameters:
+        - $ref: '#/components/parameters/TransferRequestId'
+      responses:
+        '200':
+          description: Cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransferRequestResponse'
+        '409':
+          description: Request is not DRAFT or actor is not allowed to cancel
   /transfer-requests/{id}/approve:
     post:
       summary: CEO approves transfer request and sends template to source Planner
@@ -121,17 +136,17 @@ paths:
           description: Rejection reason required
   /transfer-requests/{id}/convert:
     post:
-      summary: Planner converts CEO-approved transfer request into TRF
+      summary: Planner converts approved transfer request into TRF
       tags: [Transfer Requests]
       parameters:
         - $ref: '#/components/parameters/TransferRequestId'
       responses:
-        '201':
-          description: Transfer created from approved request
+        '200':
+          description: Transfer request converted and linked to one TRF
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TransferResponse'
+                $ref: '#/components/schemas/TransferRequestResponse'
         '409':
           description: Request not approved or already converted
   /inter-warehouse-transfers:
@@ -259,6 +274,33 @@ paths:
           description: Outbound QC recorded
         '409':
           description: Outbound QC not allowed or failed
+  /inter-warehouse-transfers/{id}/photo-evidence:
+    post:
+      summary: Upload selected or captured transfer photo evidence
+      tags: [Inter-Warehouse Transfers]
+      parameters:
+        - $ref: '#/components/parameters/TransferId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Image evidence selected from device storage or captured by device camera. UI should compress large camera images before upload.
+      responses:
+        '200':
+          description: Photo stored and short reference returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransferPhotoUploadResponse'
+        '400':
+          description: Missing, non-image, or oversized photo file
   /inter-warehouse-transfers/{id}/ship:
     post:
       summary: Source storekeeper records exact approved quantity as loaded
@@ -322,14 +364,14 @@ paths:
       responses:
         '200':
           description: Arrival recorded
-  /inter-warehouse-transfers/{id}/arrival-handover:
+  /inter-warehouse-transfers/{id}/receiving-handover:
     post:
       summary: Receiving warehouse records physical handover from driver
       tags: [Inter-Warehouse Transfers]
       parameters:
         - $ref: '#/components/parameters/TransferId'
       requestBody:
-        required: false
+        required: true
         content:
           application/json:
             schema:
@@ -537,7 +579,9 @@ components:
       properties:
         id: { type: integer, format: int64 }
         requestNumber: { type: string }
-        status: { type: string }
+        status:
+          type: string
+          enum: [DRAFT, SUBMITTED, APPROVED, REJECTED, CONVERTED, CANCELLED]
         requestingWarehouseId: { type: integer, format: int64 }
         sourceWarehouseId: { type: integer, format: int64 }
         neededByDate: { type: string, format: date }
@@ -601,16 +645,14 @@ components:
         calculatedVolume: { type: number, readOnly: true }
     OutboundQcRequest:
       type: object
-      required: [passed, photoRefs]
+      required: [passed, photoRef]
       properties:
         passed: { type: boolean }
         note: { type: string }
-        photoRefs:
-          type: array
-          minItems: 1
-          description: Photo attachment references used as confirmation evidence; Barcode/QR scan is not required.
-          items:
-            type: string
+        photoRef:
+          type: string
+          minLength: 1
+          description: Short photo reference returned by the transfer photo evidence upload endpoint. Do not send raw base64/data URLs in this field.
         items:
           type: array
           items:
@@ -622,15 +664,20 @@ components:
               note: { type: string }
     HandoverRequest:
       type: object
-      required: [photoRefs]
+      required: [photoRef]
       properties:
         note: { type: string }
-        photoRefs:
-          type: array
-          minItems: 1
-          description: Photo attachment references for loaded goods, vehicle load, or handover condition.
-          items:
-            type: string
+        photoRef:
+          type: string
+          minLength: 1
+          description: Required short photo reference returned by the transfer photo evidence upload endpoint.
+    TransferPhotoUploadResponse:
+      type: object
+      required: [photoRef]
+      properties:
+        photoRef:
+          type: string
+          example: /uploads/transfer/trf-1-550e8400-e29b-41d4-a716-446655440000.jpg
     ShipTransferRequest:
       type: object
       required: [items]

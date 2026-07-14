@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, UserSquare, ShieldAlert, BarChart3, Package2, Settings, History, Box, Warehouse, Handshake, Truck, MapPin, PackageCheck, ClipboardList, DollarSign, CheckSquare, ArrowRightLeft } from 'lucide-react';
+import { LayoutDashboard, Users, UserSquare, ShieldAlert, BarChart3, Package2, Settings, History, Box, Warehouse, Handshake, Truck, MapPin, PackageCheck, ClipboardList, DollarSign, CheckSquare, ArrowRightLeft, FileText, Landmark } from 'lucide-react';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
@@ -23,7 +23,8 @@ const Sidebar = () => {
       title: 'Tổng quan',
       path: '/dashboard',
       icon: LayoutDashboard,
-      roles: [] // All roles
+      roles: [], // All non-driver roles
+      hiddenForRoles: [ROLES.DRIVER]
     },
     {
       title: 'Quản lý tài khoản',
@@ -156,6 +157,18 @@ const Sidebar = () => {
       path: '/finance/price-approval',
       icon: CheckSquare,
       roles: [ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN]
+    },
+    {
+      title: 'Hóa đơn & Kỳ kế toán',
+      path: '/finance/invoices',
+      icon: FileText,
+      roles: [ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN, ROLES.CEO]
+    },
+    {
+      title: 'Thu nợ & Aging',
+      path: '/finance/payments',
+      icon: Landmark,
+      roles: [ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN, ROLES.CEO]
     }
   ];
 
@@ -209,6 +222,7 @@ const Sidebar = () => {
           </div>
           <nav className="flex flex-col gap-1">
             {menuItems
+              .filter(item => !(item.hiddenForRoles || []).some(role => hasRole(role)))
               .filter(item => item.roles.length === 0 || item.roles.some(role => hasRole(role)))
               .map((item) => (
                 <NavLink
@@ -424,6 +438,7 @@ const Sidebar = () => {
             </nav>
           </div>
         )}
+
 
       </div>
 

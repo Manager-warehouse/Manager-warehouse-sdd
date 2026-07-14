@@ -14,9 +14,9 @@ Fields to add/verify:
 - `return_reason_code`, `return_reason`
 - `outbound_qc_checked_by`, `outbound_qc_checked_at`, `outbound_qc_result`
 - `load_handover_by`, `load_handover_at`
-- `outbound_qc_photo_refs`
-- `load_handover_photo_refs`
-- `driver_departed_at`, `driver_arrived_at`, `arrival_handover_at`
+- `outbound_qc_photo_ref`
+- `load_handover_photo_ref`
+- `driver_departed_at`, `driver_arrived_at`, `arrival_handover_at`, `arrival_handover_photo_ref`
 - `return_departed_at`, `return_arrived_at`
 - `created_by`
 - `external_instruction_code`
@@ -30,7 +30,7 @@ Fields to add/verify:
 - `document_date`
 - `accounting_period_id`
 - `notes`
-- `transfer_request_id` (nullable link to CEO-approved manager request)
+- `transfer_request_id` (nullable link to approved manager request)
 - `created_at`, `updated_at`
 - `version`
 
@@ -42,7 +42,7 @@ Validation:
 - Planner can cancel only `NEW`.
 - Source manager/authorized manager can cancel only unshipped `APPROVED`.
 - No cancellation after `IN_TRANSIT`.
-- If created from a transfer request, the linked request must be `CEO_APPROVED` and not already converted.
+- If created from a transfer request, the linked request must be `APPROVED` and not already converted.
 - GET/list/detail reads must not mutate status or persist overdue transitions.
 - Receive-count is blocked until driver arrival and receiving-warehouse handover are recorded.
 - Return receiving is blocked until return departure and source arrival/handover are recorded.
@@ -56,7 +56,7 @@ Fields to add/verify:
 - `request_number`
 - `requesting_warehouse_id` (warehouse that needs stock; becomes transfer destination)
 - `source_warehouse_id` (warehouse expected to send stock)
-- `status`: `DRAFT`, `SUBMITTED`, `CEO_APPROVED`, `CEO_REJECTED`, `CONVERTED`, `CANCELLED`
+- `status`: `DRAFT`, `SUBMITTED`, `APPROVED`, `REJECTED`, `CONVERTED`, `CANCELLED`
 - `requested_by`
 - `submitted_at`
 - `approved_by`, `approved_at`
@@ -73,10 +73,12 @@ Validation:
 - Requesting warehouse must be within the requesting warehouse manager's assigned warehouse scope.
 - Cross-warehouse stock lookup is read-only and must exclude quarantine stock from available quantity.
 - Business reason is required before submit.
+- Requesting manager can edit only `DRAFT` requests within their assigned destination warehouse scope.
+- Requesting manager can soft-cancel only `DRAFT` requests; cancellation sets `status = CANCELLED` and must not physically delete the request or its items.
 - CEO can approve or reject only `SUBMITTED` requests.
 - CEO rejection requires `rejection_reason`.
 - CEO approval does not reserve inventory.
-- Only `CEO_APPROVED` requests can be converted to `TRF`.
+- Only `APPROVED` requests can be converted to `TRF`.
 - A request can be converted to at most one active transfer.
 - Concurrent updates and duplicate conversion races must fail with a version/unique-constraint conflict.
 
@@ -244,10 +246,12 @@ Fields required:
 
 Required transfer actions:
 - `TRANSFER_REQUEST_CREATE`
+- `TRANSFER_REQUEST_UPDATE`
 - `TRANSFER_REQUEST_SUBMIT`
 - `TRANSFER_REQUEST_CEO_APPROVE`
 - `TRANSFER_REQUEST_CEO_REJECT`
 - `TRANSFER_REQUEST_CONVERT`
+- `TRANSFER_REQUEST_CANCEL`
 - `TRANSFER_CREATE`
 - `TRANSFER_UPDATE`
 - `TRANSFER_APPROVE`

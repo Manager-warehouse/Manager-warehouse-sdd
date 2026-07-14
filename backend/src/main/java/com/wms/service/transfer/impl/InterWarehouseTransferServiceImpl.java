@@ -2,19 +2,28 @@ package com.wms.service.transfer.impl;
 
 import com.wms.dto.request.*;
 import com.wms.dto.response.InterWarehouseTransferResponse;
+import com.wms.dto.response.TransferPhotoUploadResponse;
 import com.wms.entity.InterWarehouseTransfer;
 import com.wms.entity.User;
 import com.wms.exception.BusinessRuleViolationException;
 import com.wms.repository.InterWarehouseTransferRepository;
 import com.wms.service.transfer.InterWarehouseTransferService;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 @RequiredArgsConstructor
 public class InterWarehouseTransferServiceImpl implements InterWarehouseTransferService {
+
+    private static final long MAX_TRANSFER_PHOTO_BYTES = 5L * 1024L * 1024L;
 
     private final InterWarehouseTransferRepository transferRepository;
     private final InterWarehouseTransferHelper helper;
@@ -172,5 +181,43 @@ public class InterWarehouseTransferServiceImpl implements InterWarehouseTransfer
     @Override
     public InterWarehouseTransferResponse returnHandover(Long id, LoadHandoverRequest request, User actor) {
         return shippingService.returnHandover(id, request, actor);
+    }
+
+    @Override
+    public TransferPhotoUploadResponse uploadPhotoEvidence(Long id, MultipartFile file, User actor) {
+        InterWarehouseTransfer transfer = helper.findTransfer(id);
+        if (!helper.canViewTransfer(actor, transfer)) {
+            throw new BusinessRuleViolationException("WAREHOUSE_SCOPE_REQUIRED");
+        }
+        validateTransferPhoto(file);
+        return new TransferPhotoUploadResponse(storeTransferPhoto(file, id));
+    }
+
+    private void validateTransferPhoto(MultipartFile file) {
+        if (file == null || file.isEmpty()
+                || file.getSize() > MAX_TRANSFER_PHOTO_BYTES
+                || file.getContentType() == null
+                || !file.getContentType().startsWith("image/")) {
+            throw new BusinessRuleViolationException("TRANSFER_PHOTO_FILE_INVALID");
+        }
+    }
+
+    private String storeTransferPhoto(MultipartFile file, Long transferId) {
+        try {
+            Files.createDirectories(Path.of("uploads", "transfer"));
+            String filename = "trf-" + transferId + "-" + UUID.randomUUID() + extension(file.getOriginalFilename());
+            Path target = Path.of("uploads", "transfer", filename);
+            Files.copy(file.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
+            return "/uploads/transfer/" + filename;
+        } catch (IOException ex) {
+            throw new BusinessRuleViolationException("TRANSFER_PHOTO_STORAGE_FAILED");
+        }
+    }
+
+    private String extension(String filename) {
+        if (filename == null || !filename.contains(".")) {
+            return ".jpg";
+        }
+        return filename.substring(filename.lastIndexOf('.'));
     }
 }

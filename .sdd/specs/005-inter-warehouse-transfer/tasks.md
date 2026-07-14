@@ -2,7 +2,7 @@
 
 **Input**: `.sdd/specs/005-inter-warehouse-transfer/spec.md`, `plan.md`, `data-model.md`, `contracts/openapi.yaml`, `quickstart.md`
 
-**Last updated**: 2026-07-12
+**Last updated**: 2026-07-13
 
 **Purpose**: Replace the stale, duplicate task list with an executable remediation backlog for the production-correct internal transfer flow:
 `TRQ draft -> submit -> CEO approve -> Planner revalidate & convert once -> Source manager reserve FIFO eligible -> Dispatcher capacity/overlap plan -> pick + outbound QC + load/handover -> driver depart -> IN_TRANSIT -> driver arrive/handover -> blind count -> storekeeper count/QC/bin-capacity check -> manager final confirmation`.
@@ -25,6 +25,8 @@
 | Overdue return-to-source | only overdue IN_TRANSIT transfer can return, reason required, photo refs supported when available |
 | Contract alignment | OpenAPI path test/docs review against controller paths |
 | Frontend action buttons | role/state visibility tests + successful click + failed API response + post-success refresh for every primary transfer button |
+| Transfer request edit/delete | backend service/controller tests for DRAFT update and soft-cancel; frontend button visibility and modal save/cancel behavior |
+| Photo-gated actions | UI tests or manual smoke proving outbound QC, load handover, arrival handover, return handover, and driver POD buttons stay disabled until image selection/capture |
 | Frontend-to-backend smoke | full-stack happy path from `TRQ` to final receive plus backend assertions for inventory, audit, and DB state |
 | Deploy gate | backend unit/controller/integration + real DB migration + frontend tests/build + backend compile must all pass |
 
@@ -187,6 +189,12 @@
 - [x] T098 Add frontend-to-backend smoke test for unhappy deploy blockers: invalid driver scope, overloaded trip, missing outbound QC photo, receive before arrival, bin capacity exceeded, and stale version conflict.
 - [x] T099 Add CI/deploy verification documentation showing required commands for backend tests, DB migration tests, frontend tests, frontend build, backend compile, and full-stack smoke tests.
 - [x] T100 Block marking spec 005 deploy-ready until every requirement-to-test row in this file has a passing test reference recorded in `.sdd/specs/005-inter-warehouse-transfer/quickstart.md`.
+- [x] T101 Add backend `POST /api/v1/transfer-requests/{id}/cancel` soft-cancel endpoint and service method so UI `Xoa` never physically deletes request history.
+- [x] T102 Add backend service/controller tests for `DRAFT -> CANCELLED` transfer request soft-cancel and non-DRAFT cancellation rejection.
+- [x] T103 Update `frontend/src/pages/InterWarehouseTransfer/TransferRequestWorkspace.jsx` to show `Sua`/`Xoa` on DRAFT request cards and detail modal, reuse the create form for edit, and refresh after update/cancel.
+- [x] T104 Add a shared frontend photo selector/camera component and use it for transfer outbound QC, arrival handover, return handover, and outbound driver POD evidence.
+- [x] T105 Gate all photo-required action buttons so they remain disabled until an image has been selected or captured.
+- [x] T106 Update spec 005, feature docs, OpenAPI contract, and CLAUDE swimlane notes for DRAFT request edit/soft-delete and photo-gated confirmations.
 
 ## Dependencies
 

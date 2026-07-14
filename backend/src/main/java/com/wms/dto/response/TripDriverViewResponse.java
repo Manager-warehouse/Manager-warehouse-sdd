@@ -1,6 +1,9 @@
 package com.wms.dto.response;
 
 import com.wms.enums.TripStatus;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import lombok.Builder;
 import lombok.Getter;
@@ -12,6 +15,13 @@ public class TripDriverViewResponse {
     private String tripNumber;
     private TripStatus status;
     private Long driverId;
+    private String driverName;
     private Long vehicleId;
+    private String vehiclePlate;
+    private LocalDate plannedDate;
+    private LocalDateTime plannedStartAt;
+    private LocalDateTime plannedEndAt;
+    private BigDecimal totalWeightKg;
+    private BigDecimal totalVolumeM3;
     private List<DriverDeliveryOrderResponse> deliveryOrders;
 }

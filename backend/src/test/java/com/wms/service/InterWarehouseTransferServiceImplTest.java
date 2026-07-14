@@ -17,6 +17,7 @@ import com.wms.dto.request.InterWarehouseTransferRejectRequest;
 import com.wms.dto.request.TransferReturnRequest;
 import com.wms.dto.request.TransferReturnRejectRequest;
 import com.wms.dto.request.LoadHandoverRequest;
+import com.wms.dto.request.OutboundQcRequest;
 import com.wms.dto.response.InterWarehouseTransferResponse;
 import com.wms.entity.Batch;
 import com.wms.entity.Driver;
@@ -213,6 +214,11 @@ class InterWarehouseTransferServiceImplTest {
                 approvalService, shippingService, receivingService);
     }
 
+    private void recordPassingOutboundQcAndHandover() {
+        service.recordOutboundQc(1L, new OutboundQcRequest(true, "QC passed", "outbound-qc.jpg"), sourceManager);
+        service.loadHandover(1L, new LoadHandoverRequest("load-handover.jpg"), sourceManager);
+    }
+
     @Test
     void plannerLifecycle_createUpdateCancelNewWorks() {
         InterWarehouseTransferCreateRequest createRequest = new InterWarehouseTransferCreateRequest(
@@ -317,12 +323,18 @@ class InterWarehouseTransferServiceImplTest {
         assertThat(assigned.tripPlannedStartAt()).isEqualTo(VALID_TRIP_START);
         assertThat(assigned.tripPlannedEndAt()).isEqualTo(VALID_TRIP_END);
 
+        assertThatThrownBy(() -> service.shipTransfer(1L, sourceManager))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("OUTBOUND_QC_NOT_PASSED");
+
+        recordPassingOutboundQcAndHandover();
         InterWarehouseTransferResponse shipped = service.shipTransfer(1L, sourceManager);
         assertThat(shipped.items().get(0).sentQty()).isEqualByComparingTo("5.00");
 
         InterWarehouseTransferResponse unshipped = service.unshipTransfer(1L, sourceManager);
         assertThat(unshipped.items().get(0).sentQty()).isNull();
 
+        service.recordOutboundQc(1L, new OutboundQcRequest(true, "QC passed again", "outbound-qc-2.jpg"), sourceManager);
         service.shipTransfer(1L, sourceManager);
         InterWarehouseTransferResponse departed = service.departTransfer(1L, driverUser);
         assertThat(departed.status()).isEqualTo(InterWarehouseTransferStatus.IN_TRANSIT);
@@ -388,6 +400,7 @@ class InterWarehouseTransferServiceImplTest {
         service.approveTransfer(1L, sourceManager);
         service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
                 VALID_TRIP_START, VALID_TRIP_END), dispatcher);
+        recordPassingOutboundQcAndHandover();
         service.shipTransfer(1L, sourceManager);
         service.departTransfer(1L, driverUser);
 
@@ -426,6 +439,7 @@ class InterWarehouseTransferServiceImplTest {
         service.approveTransfer(1L, sourceManager);
         service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
                 VALID_TRIP_START, VALID_TRIP_END), dispatcher);
+        recordPassingOutboundQcAndHandover();
         service.shipTransfer(1L, sourceManager);
         service.departTransfer(1L, driverUser);
 
@@ -483,6 +497,7 @@ class InterWarehouseTransferServiceImplTest {
         service.approveTransfer(1L, sourceManager);
         service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
                 VALID_TRIP_START, VALID_TRIP_END), dispatcher);
+        recordPassingOutboundQcAndHandover();
         service.shipTransfer(1L, sourceManager);
         service.departTransfer(1L, driverUser);
 
@@ -530,6 +545,7 @@ class InterWarehouseTransferServiceImplTest {
         service.approveTransfer(1L, sourceManager);
         service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
                 VALID_TRIP_START, VALID_TRIP_END), dispatcher);
+        recordPassingOutboundQcAndHandover();
         service.shipTransfer(1L, sourceManager);
         service.departTransfer(1L, driverUser);
 
@@ -549,6 +565,7 @@ class InterWarehouseTransferServiceImplTest {
         service.approveTransfer(1L, sourceManager);
         service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
                 VALID_TRIP_START, VALID_TRIP_END), dispatcher);
+        recordPassingOutboundQcAndHandover();
         service.shipTransfer(1L, sourceManager);
         service.departTransfer(1L, driverUser);
 
@@ -583,6 +600,7 @@ class InterWarehouseTransferServiceImplTest {
         service.approveTransfer(1L, sourceManager);
         service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
                 VALID_TRIP_START, VALID_TRIP_END), dispatcher);
+        recordPassingOutboundQcAndHandover();
         service.shipTransfer(1L, sourceManager);
         service.departTransfer(1L, driverUser);
 
@@ -599,6 +617,7 @@ class InterWarehouseTransferServiceImplTest {
         service.approveTransfer(1L, sourceManager);
         service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
                 VALID_TRIP_START, VALID_TRIP_END), dispatcher);
+        recordPassingOutboundQcAndHandover();
         service.shipTransfer(1L, sourceManager);
         service.departTransfer(1L, driverUser);
 
@@ -626,6 +645,7 @@ class InterWarehouseTransferServiceImplTest {
         service.approveTransfer(1L, sourceManager);
         service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
                 VALID_TRIP_START, VALID_TRIP_END), dispatcher);
+        recordPassingOutboundQcAndHandover();
         service.shipTransfer(1L, sourceManager);
         service.departTransfer(1L, driverUser);
 
@@ -661,6 +681,7 @@ class InterWarehouseTransferServiceImplTest {
         service.approveTransfer(1L, sourceManager);
         service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
                 VALID_TRIP_START, VALID_TRIP_END), dispatcher);
+        recordPassingOutboundQcAndHandover();
         service.shipTransfer(1L, sourceManager);
         service.departTransfer(1L, driverUser);
 
@@ -686,8 +707,8 @@ class InterWarehouseTransferServiceImplTest {
         value.setSourceWarehouse(sourceWarehouse);
         value.setDestinationWarehouse(destinationWarehouse);
         value.setStatus(InterWarehouseTransferStatus.NEW);
-        value.setOutboundQcPassed(true);
-        value.setLoadHandoverPhotoRef("photo.jpg");
+        value.setOutboundQcPassed(null);
+        value.setLoadHandoverPhotoRef(null);
         value.setDriverArrivedAt(OffsetDateTime.now());
         value.setArrivalHandoverAt(OffsetDateTime.now());
         value.setCreatedBy(planner);

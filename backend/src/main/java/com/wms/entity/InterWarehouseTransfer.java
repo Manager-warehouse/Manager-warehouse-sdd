@@ -168,6 +168,9 @@ public class InterWarehouseTransfer {
     @Column(name = "arrival_handover_at")
     private OffsetDateTime arrivalHandoverAt;
 
+    @Column(name = "arrival_handover_photo_ref")
+    private String arrivalHandoverPhotoRef;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "arrival_handover_by")
     private User arrivalHandoverBy;

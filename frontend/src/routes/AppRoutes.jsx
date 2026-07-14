@@ -36,6 +36,8 @@ import CeoDashboard from '../pages/Reports/CeoDashboard';
 import InventoryValuation from '../pages/Reports/InventoryValuation';
 import LowStockAlerts from '../pages/Reports/LowStockAlerts';
 import ProductivityReport from '../pages/Reports/ProductivityReport';
+import DealerDebtInvoice from '../pages/Finance/DealerDebtInvoice';
+import Payments from '../pages/Finance/Payments';
 import { ROLES } from '../utils/constants';
 
 const AppRoutes = () => {
@@ -162,6 +164,12 @@ const AppRoutes = () => {
       </Route>
       <Route element={<ProtectedRoute allowedRoles={[ROLES.WAREHOUSE_MANAGER, ROLES.PLANNER, ROLES.ADMIN]} />}>
         <Route path="/reports/low-stock" element={<LowStockAlerts />} />
+      </Route>
+
+      {/* Finance & Credit protected routes */}
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN, ROLES.CEO]} />}>
+        <Route path="/finance/invoices" element={<DealerDebtInvoice />} />
+        <Route path="/finance/payments" element={<Payments />} />
       </Route>
 
       {/* Default Redirects */}

@@ -18,6 +18,9 @@ WORKDIR /app
 
 COPY --from=build --chown=wms:wms /workspace/target/wms-backend-0.0.1-SNAPSHOT.jar app.jar
 
+RUN mkdir -p /app/uploads/pod /app/uploads/transfer \
+    && chown -R wms:wms /app/uploads
+
 USER wms
 
 EXPOSE 8080

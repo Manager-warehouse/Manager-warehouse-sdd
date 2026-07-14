@@ -442,6 +442,7 @@ const normalizeTrip = (trip = {}) => ({
   vehicle_plate: value(trip, 'vehiclePlate', 'vehicle_plate', value(trip, 'plateNumber', 'plate_number', '')),
   driver_id: value(trip, 'driverId', 'driver_id'),
   driver_name: value(trip, 'driverName', 'driver_name', ''),
+  planned_date: value(trip, 'plannedDate', 'planned_date'),
   planned_start_at: value(trip, 'plannedStartAt', 'planned_start_at', value(trip, 'createdAt', 'created_at')),
   planned_end_at: value(trip, 'plannedEndAt', 'planned_end_at', value(trip, 'createdAt', 'created_at')),
   status: value(trip, 'status', 'status'),

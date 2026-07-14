@@ -2,8 +2,10 @@ package com.wms.service.transfer;
 
 import com.wms.dto.request.*;
 import com.wms.dto.response.InterWarehouseTransferResponse;
+import com.wms.dto.response.TransferPhotoUploadResponse;
 import com.wms.entity.User;
 import java.util.List;
+import org.springframework.web.multipart.MultipartFile;
 
 public interface InterWarehouseTransferService {
     List<InterWarehouseTransferResponse> getAllTransfers(User actor);
@@ -32,4 +34,5 @@ public interface InterWarehouseTransferService {
     InterWarehouseTransferResponse returnDepart(Long id, User actor);
     InterWarehouseTransferResponse returnArrive(Long id, User actor);
     InterWarehouseTransferResponse returnHandover(Long id, LoadHandoverRequest request, User actor);
+    TransferPhotoUploadResponse uploadPhotoEvidence(Long id, MultipartFile file, User actor);
 }

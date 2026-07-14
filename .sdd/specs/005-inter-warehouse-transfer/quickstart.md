@@ -19,12 +19,14 @@
 2. Create and submit a manager transfer request:
    - `POST /api/v1/transfer-requests`
    - include requesting warehouse, source warehouse, needed-by date, business reason, and item lines.
+   - while status is `DRAFT`, verify `PUT /api/v1/transfer-requests/{id}` can edit header/item lines.
+   - while status is `DRAFT`, verify `POST /api/v1/transfer-requests/{id}/cancel` soft-cancels to `CANCELLED`; no physical delete should occur.
    - `POST /api/v1/transfer-requests/{id}/submit`
    - expect request number format `TRQ-YYYYMMDD-####` and status `SUBMITTED`.
 
 3. Approve as CEO and convert as Planner:
    - `POST /api/v1/transfer-requests/{id}/approve`
-   - expect status `CEO_APPROVED` and approved template/notification for source Planner.
+   - expect status `APPROVED` and approved template/notification for source Planner.
    - `POST /api/v1/transfer-requests/{id}/convert`
    - expect one linked `TRF-*` and request status `CONVERTED`.
 
@@ -53,6 +55,8 @@
    - `POST /api/v1/inter-warehouse-transfers/{id}/ship`
    - `POST /api/v1/inter-warehouse-transfers/{id}/load-handover`
    - outbound QC and load/handover require photo references; no Barcode/QR scan is required.
+   - UI must keep QC pass/fail disabled until an image is selected or captured.
+   - UI must expose only unship/unload when outbound QC fails; shipment remains blocked.
    - the shipment step records exact approved quantity for every line.
    - sending less or more must return `SENT_QTY_MISMATCH`.
 
@@ -68,7 +72,8 @@
 
 11. Arrive and handover as assigned driver/receiving warehouse:
    - `POST /api/v1/inter-warehouse-transfers/{id}/arrive`
-   - `POST /api/v1/inter-warehouse-transfers/{id}/arrival-handover`
+   - `POST /api/v1/inter-warehouse-transfers/{id}/receiving-handover`
+   - handover UI must keep confirmation disabled until an image is selected or captured.
    - expect receive-count to remain blocked before both events are recorded.
 
 12. Receive count as destination worker:
@@ -105,21 +110,24 @@
 ## Frontend Validation Flow
 
 1. Requesting warehouse manager searches other warehouses' available stock and starts a transfer request from the shortage context.
-2. CEO opens submitted requests and approves or rejects with reason.
-3. Source Planner sees the approved request template and converts it to a `TRF`.
-4. Planner opens the shared transfer workspace at `/inter-warehouse-transfers` and creates or reviews the manual `TRF` transfer.
-5. Planner edits a `NEW` transfer and sees existing items loaded, not a blank form.
-6. Source manager sees approval/rejection actions only for source-scoped transfers.
-7. Dispatcher sees trip assignment actions only for approved transfers whose source warehouse is in dispatcher scope.
-8. Dispatcher can choose only vehicles and drivers valid for the source warehouse scope.
-9. Source storekeeper ships exact approved quantity and sees mismatch validation.
-10. Driver sees only the assigned transfer trip in the driver trip screen and can depart only that trip.
-11. Destination worker records initial count inside the transfer module, not inside the supplier inbound receipt list.
-12. Destination storekeeper checks count/QC and selects destination location for passed stock.
-13. Destination manager final-confirms completion/discrepancy in the same transfer module.
-14. Quarantine Workspace displays transfer origin and offers disposal only for damaged internal-transfer stock.
-15. Destination Storekeeper sees “Báo gửi nhầm SKU”; destination Manager sees approve/reject; neither action is shown outside destination warehouse scope.
-16. After approval, the driver sees the return instruction and source-side roles see the same three-step receiving workflow.
+2. While the request is `DRAFT`, verify card/detail buttons show `Sua`, `Xoa`, and `Gui CEO duyet`; `Sua` reloads the current request into the form and `Xoa` soft-cancels it to `CANCELLED`.
+3. CEO opens submitted requests and approves or rejects with reason.
+4. Source Planner sees the approved request template and converts it to a `TRF`.
+5. Planner opens the shared transfer workspace at `/inter-warehouse-transfers` and creates or reviews the manual `TRF` transfer.
+6. Planner edits a `NEW` transfer and sees existing items loaded, not a blank form.
+7. Source manager sees approval/rejection actions only for source-scoped transfers.
+8. Dispatcher sees trip assignment actions only for approved transfers whose source warehouse is in dispatcher scope.
+9. Dispatcher can choose only vehicles and drivers valid for the source warehouse scope.
+10. Source storekeeper cannot press outbound QC pass/fail until selecting/capturing an image; QC pass enables shipment, QC fail only allows unload.
+11. Source storekeeper ships exact approved quantity and sees mismatch validation.
+12. Driver sees only the assigned transfer trip in the driver trip screen and can depart only that trip.
+13. Destination handover and return handover confirmation buttons stay disabled until selecting/capturing an image.
+14. Destination worker records initial count inside the transfer module, not inside the supplier inbound receipt list.
+15. Destination storekeeper checks count/QC and selects destination location for passed stock.
+16. Destination manager final-confirms completion/discrepancy in the same transfer module.
+17. Quarantine Workspace displays transfer origin and offers disposal only for damaged internal-transfer stock.
+18. Destination Storekeeper sees “Báo gửi nhầm SKU”; destination Manager sees approve/reject; neither action is shown outside destination warehouse scope.
+19. After approval, the driver sees the return instruction and source-side roles see the same three-step receiving workflow.
 
 ## Required Checks Before Coding Is Done
 
@@ -133,6 +141,8 @@
 - OpenAPI/Swagger exposes transfer-request endpoints and cross-warehouse stock lookup.
 - Audit log records every transfer mutation.
 - Audit log records transfer-request create/submit/CEO approval/rejection/conversion.
+- Audit log records transfer-request update and DRAFT soft-cancel; delete actions must not physically delete request history.
+- Photo-required frontend actions are disabled until selected/captured images exist: outbound QC, load handover, arrival handover, return handover, and driver POD upload.
 - No inventory invariant can become negative.
 - Transfer shortages never become quarantine/disposal quantities.
 - Transfer-origin quarantine stock retains transfer-item traceability and cannot create RTV or supplier Debit Note.

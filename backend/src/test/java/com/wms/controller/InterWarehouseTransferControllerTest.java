@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -14,6 +15,7 @@ import com.wms.config.JwtAuthFilter;
 import com.wms.config.SecurityConfig;
 import com.wms.dto.request.*;
 import com.wms.dto.response.InterWarehouseTransferResponse;
+import com.wms.dto.response.TransferPhotoUploadResponse;
 import com.wms.entity.User;
 import com.wms.enums.InterWarehouseTransferStatus;
 import com.wms.enums.UserRole;
@@ -32,6 +34,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -207,6 +210,23 @@ class InterWarehouseTransferControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
+    void uploadPhotoEvidence_success() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "qc.jpg", "image/jpeg", "fake-image".getBytes());
+
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(storekeeper);
+        when(transferService.uploadPhotoEvidence(eq(1L), any(), eq(storekeeper)))
+                .thenReturn(new TransferPhotoUploadResponse("/uploads/transfer/trf-1-qc.jpg"));
+
+        mockMvc.perform(multipart("/api/v1/inter-warehouse-transfers/1/photo-evidence")
+                .file(file)
+                .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.photoRef").value("/uploads/transfer/trf-1-qc.jpg"));
+    }
+
+    @Test
     @WithMockUser(username = "driver@wms.com", roles = "DRIVER")
     void departTransfer_success() throws Exception {
         InterWarehouseTransferResponse response = createMockResponse(1L, "TRF-20260711-0001", InterWarehouseTransferStatus.IN_TRANSIT);
@@ -218,6 +238,33 @@ class InterWarehouseTransferControllerTest {
                 .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("IN_TRANSIT"));
+    }
+
+    @Test
+    @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
+    void receivingHandover_success() throws Exception {
+        LoadHandoverRequest request = new LoadHandoverRequest("/uploads/transfer/arrival.jpg");
+        InterWarehouseTransferResponse response = createMockResponse(1L, "TRF-20260711-0001", InterWarehouseTransferStatus.IN_TRANSIT);
+
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(storekeeper);
+        when(transferService.receivingHandover(eq(1L), any(LoadHandoverRequest.class), eq(storekeeper)))
+                .thenReturn(response);
+
+        mockMvc.perform(post("/api/v1/inter-warehouse-transfers/1/receiving-handover")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request))
+                .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
+    void receivingHandover_validationFailure_missingPhotoRef() throws Exception {
+        mockMvc.perform(post("/api/v1/inter-warehouse-transfers/1/receiving-handover")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"photoRef\":\"\"}")
+                .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

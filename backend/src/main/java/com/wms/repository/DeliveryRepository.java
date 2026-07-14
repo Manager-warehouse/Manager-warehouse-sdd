@@ -60,4 +60,6 @@ public interface DeliveryRepository extends JpaRepository<Delivery, Long> {
             """)
     java.util.List<Delivery> findByTripIdAndDeliveryOrderIdIn(@Param("tripId") Long tripId,
                                                               @Param("deliveryOrderIds") Collection<Long> deliveryOrderIds);
+
+    Optional<Delivery> findFirstByDeliveryOrderIdOrderByCreatedAtDesc(Long doId);
 }
