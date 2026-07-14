@@ -133,6 +133,7 @@ out/
 # Never commit these
 .env
 .env.*
+.env.supabase
 secrets.json
 credentials.json
 *.pem

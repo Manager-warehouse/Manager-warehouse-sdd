@@ -12,6 +12,15 @@ echo Root: %ROOT_DIR%
 echo.
 
 echo [1/2] Dang chay Backend (Spring Boot)...
+if exist "%BACKEND_DIR%\src\main\resources\.env.supabase" (
+    echo [INFO] Dang nap bien moi truong tu .env.supabase...
+    for /f "usebackq delims=" %%x in ("%BACKEND_DIR%\src\main\resources\.env.supabase") do (
+        echo %%x | findstr /r "^#" >nul
+        if errorlevel 1 (
+            set "%%x"
+        )
+    )
+)
 start "WMS Backend" cmd /k "pushd ""%BACKEND_DIR%"" && mvn spring-boot:run"
 
 echo [2/2] Dang chay Frontend (Vite)...
