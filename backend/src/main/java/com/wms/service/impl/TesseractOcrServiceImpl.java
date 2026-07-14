@@ -7,10 +7,7 @@ import com.wms.repository.DealerRepository;
 import com.wms.service.OcrService;
 import jakarta.annotation.PostConstruct;
 import java.io.File;
-import java.io.FileOutputStream;
-import java.io.InputStream;
 import java.math.BigDecimal;
-import java.net.URL;
 import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -44,45 +41,51 @@ public class TesseractOcrServiceImpl implements OcrService {
             return;
         }
         try {
-            File tessdataFolder = new File("tessdata");
-            if (!tessdataFolder.exists()) {
-                tessdataFolder.mkdirs();
-            }
-
-            // Tải dữ liệu huấn luyện ngôn ngữ từ GitHub nếu chưa tồn tại
-            downloadTessDataIfMissing(tessdataFolder, "eng");
-            downloadTessDataIfMissing(tessdataFolder, "vie");
+            // Ưu tiên dùng tessdata của hệ thống (cài qua apk trong Docker)
+            // Fallback sang ./tessdata cho môi trường dev local
+            String tessdataPath = resolveSystemTessdataPath();
 
             Tesseract impl = new Tesseract();
-            impl.setDatapath(tessdataFolder.getAbsolutePath());
+            impl.setDatapath(tessdataPath);
             impl.setLanguage("vie+eng");
             this.tesseract = impl;
             this.isOcrReady = true;
-            log.info("Tesseract OCR initialized successfully with eng+vie languages!");
+            log.info("Tesseract OCR initialized successfully with path: {} (eng+vie)", tessdataPath);
         } catch (Throwable e) {
-            log.warn("Failed to initialize Tesseract OCR (Native library missing or download failed). Error: {}", e.getMessage());
+            log.warn("Failed to initialize Tesseract OCR. Error: {}", e.getMessage());
             this.isOcrReady = false;
         }
     }
 
-    private void downloadTessDataIfMissing(File folder, String lang) {
-        File dataFile = new File(folder, lang + ".traineddata");
-        if (!dataFile.exists()) {
-            log.info("Downloading {}.traineddata from GitHub. Please wait...", lang);
-            String urlStr = "https://github.com/tesseract-ocr/tessdata/raw/main/" + lang + ".traineddata";
-            try (InputStream in = new URL(urlStr).openStream();
-                 FileOutputStream out = new FileOutputStream(dataFile)) {
-                byte[] buffer = new byte[8192];
-                int bytesRead;
-                while ((bytesRead = in.read(buffer)) != -1) {
-                    out.write(buffer, 0, bytesRead);
-                }
-                log.info("Downloaded {}.traineddata successfully!", lang);
-            } catch (Exception e) {
-                log.warn("Failed to download {}.traineddata: {}", lang, e.getMessage());
+    /**
+     * Tìm đường dẫn tessdata hợp lệ theo thứ tự ưu tiên:
+     * 1. /usr/share/tessdata (Alpine apk install — môi trường production Docker)
+     * 2. /usr/share/tesseract-ocr/5/tessdata (Debian/Ubuntu apt install)
+     * 3. ./tessdata (relative — môi trường dev local với traineddata tải sẵn)
+     */
+    private String resolveSystemTessdataPath() {
+        String[] candidates = {
+            "/usr/share/tessdata",
+            "/usr/share/tesseract-ocr/5/tessdata",
+            "/usr/share/tesseract-ocr/4.00/tessdata"
+        };
+        for (String path : candidates) {
+            File dir = new File(path);
+            File engFile = new File(dir, "eng.traineddata");
+            if (dir.isDirectory() && engFile.exists()) {
+                log.info("Found tessdata at system path: {}", path);
+                return path;
             }
         }
+        // Fallback: local dev — tạo thư mục và để dev tự đặt traineddata vào
+        log.warn("System tessdata not found. Falling back to ./tessdata for local development.");
+        File localDir = new File("tessdata");
+        localDir.mkdirs();
+        return localDir.getAbsolutePath();
     }
+
+
+
 
     @Override
     public PaymentReceiptOcrResponse processOcr(MultipartFile file, User actor) {
