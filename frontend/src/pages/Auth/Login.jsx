@@ -158,6 +158,8 @@ const Login = () => {
                 ['HN Keeper', 'keeper.hn@phucanh.vn'],
                 ['HP QC Staff', 'qc.hp@phucanh.vn'],
                 ['Account Manager', 'accountmanager@gmail.com'],
+                ['Accountant HP', 'accountantHP@phucanh.vn'],
+                ['Acc Manager HP', 'acc_managerHP@phucanh.vn'],
               ].map(([role, mail]) => (
                 <div key={role} className="min-w-0 rounded-md border border-hairline-dark bg-canvas-night px-3 py-2">
                   <strong className="block text-onPrimary">{role}</strong>
@@ -169,6 +171,7 @@ const Login = () => {
             <div className="mt-3 rounded-md border border-hairline-dark bg-canvas-night px-3 py-2 text-[11px] text-shade-40">
               <span className="font-semibold text-onPrimary">Luồng inbound HP:</span>{' '}
               Planner lập lệnh → Warehouse Staff kiểm đếm → Storekeeper QC/cất kệ → Warehouse Manager duyệt.
+            </div>
             </div>
           </div>
         </div>

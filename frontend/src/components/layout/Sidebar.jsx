@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, UserSquare, ShieldAlert, BarChart3, Package2, Settings, History, Box, Warehouse, Handshake, Truck, MapPin, PackageCheck, ClipboardList, DollarSign, CheckSquare, ArrowRightLeft } from 'lucide-react';
+import { LayoutDashboard, Users, UserSquare, ShieldAlert, BarChart3, Package2, Settings, History, Box, Warehouse, Handshake, Truck, MapPin, PackageCheck, ClipboardList, DollarSign, CheckSquare, ArrowRightLeft, FileText, Landmark } from 'lucide-react';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
@@ -157,6 +157,18 @@ const Sidebar = () => {
       path: '/finance/price-approval',
       icon: CheckSquare,
       roles: [ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN]
+    },
+    {
+      title: 'Hóa đơn & Kỳ kế toán',
+      path: '/finance/invoices',
+      icon: FileText,
+      roles: [ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN, ROLES.CEO]
+    },
+    {
+      title: 'Thu nợ & Aging',
+      path: '/finance/payments',
+      icon: Landmark,
+      roles: [ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN, ROLES.CEO]
     }
   ];
 
@@ -426,6 +438,7 @@ const Sidebar = () => {
             </nav>
           </div>
         )}
+
 
       </div>
 

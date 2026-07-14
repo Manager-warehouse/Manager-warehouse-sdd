@@ -22,4 +22,8 @@ public class BillingNotificationResponse {
     private BillingNotificationStatus status;
     private OffsetDateTime createdAt;
     private OffsetDateTime readAt;
+    private OffsetDateTime otpVerifiedAt;
+    private String podImageUrl;
+    private String podSignatureUrl;
+    private OffsetDateTime podTimestamp;
 }
