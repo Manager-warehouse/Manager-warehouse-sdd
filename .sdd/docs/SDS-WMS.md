@@ -469,3 +469,500 @@ WHERE id = ?;
 ## Ghi chú mở rộng tài liệu
 
 Class/method liệt kê trên lấy trực tiếp từ `backend/src/main/java/com/wms/{controller,service}/` tương ứng Spec 003. Khi mở rộng SDS cho các nhóm nghiệp vụ khác, tham chiếu bảng "Current Backend Flows" trong `backend/CLAUDE.md` để xác định class thực tế trước khi viết Class Specifications (VD Outbound → `DeliveryOrderController`/`DeliveryOrderService`, `AutoInvoiceService`, `DriverDeliveryServiceImpl`; Finance → `InvoiceServiceImpl`, `PaymentReceiptServiceImpl`, `AccountingPeriodServiceImpl`; Reports → `ReportServiceImpl`, `StockAlertServiceImpl`), giữ cùng cấu trúc mục a/b/c/d như trên.
+
+---
+
+# II. System Design Specifications (Spec 001–002)
+
+> **Phạm vi phần này:** Class Diagram, Entity Relationships, Database Schema, và SQL queries cho Spec 001 (Auth/RBAC) + Spec 002 (Master Data). Các class lấy từ backend; schema liên kết với Spec 003's receipts/batches/inventories để hỗ trợ warehouse-scoped RBAC.
+
+## 2. Spec 001: Authentication & RBAC Classes
+
+### 2.1 Class Specifications
+
+**Controller Layer:**
+- `AuthController.java` – Endpoints: login, refresh, logout, changePassword, forgotPassword, verifyOtp, getMe
+- `AdminController.java` – Endpoints: CRUD users, assign warehouses, create/update/delete roles
+
+**Service Layer:**
+- `AuthenticationService.java` – Password hashing (bcrypt cost ≥12), token generation/validation, OTP generation/verification
+- `JwtTokenProvider.java` – JWT token creation (access: 15m, refresh: 7d), verification, extraction
+- `UserService.java` – User CRUD, password hashing, warehouse assignment, audit logging
+- `RbacService.java` – Role/permission checks, warehouse scope validation
+
+**Entity Relationships:**
+```
+users (1) ←─── (many) user_warehouse_assignments ─── (many) warehouses
+users (1) ←─── (many) audit_logs
+users (1) ←─── (many) role_permissions ─── (many) permissions
+```
+
+**Key Database Columns (users table):**
+```sql
+id (BIGSERIAL PK)
+email (VARCHAR, UNIQUE)
+username (VARCHAR, UNIQUE)
+password_hash (VARCHAR, bcrypt)
+full_name (VARCHAR)
+phone (VARCHAR)
+job_title (VARCHAR)
+role (VARCHAR) – FK to roles table or ENUM
+is_active (BOOLEAN DEFAULT true)
+refresh_token_hash (VARCHAR NULL) – SHA-256 hash
+refresh_token_expires_at (TIMESTAMPTZ NULL)
+otp_hash (VARCHAR NULL) – SHA-256 hash for password reset
+otp_expires_at (TIMESTAMPTZ NULL) – TTL 10 minutes
+created_at (TIMESTAMPTZ)
+updated_at (TIMESTAMPTZ)
+```
+
+**SQL: User Authentication & Token Revocation**
+
+```sql
+-- Query user by email + verify password during login
+SELECT u.id, u.full_name, u.email, u.role, u.password_hash, u.is_active
+FROM users u
+WHERE u.email = ? AND u.is_active = true;
+
+-- Store refresh token hash after successful login
+UPDATE users
+SET refresh_token_hash = ?, refresh_token_expires_at = NOW() + INTERVAL '7 days'
+WHERE id = ?;
+
+-- Verify refresh token during token refresh endpoint
+SELECT u.id, u.role, u.email
+FROM users u
+WHERE u.refresh_token_hash = ? AND u.refresh_token_expires_at > NOW();
+
+-- Invalidate token on logout
+UPDATE users
+SET refresh_token_hash = NULL, refresh_token_expires_at = NULL
+WHERE id = ?;
+
+-- Store OTP hash for password reset
+UPDATE users
+SET otp_hash = ?, otp_expires_at = NOW() + INTERVAL '10 minutes'
+WHERE email = ? AND is_active = true;
+
+-- Verify OTP & update password
+UPDATE users
+SET password_hash = ?, otp_hash = NULL, otp_expires_at = NULL
+WHERE email = ? AND otp_hash = ? AND otp_expires_at > NOW();
+```
+
+---
+
+### 2.2 Warehouse Assignment & RBAC SQL
+
+**Table: user_warehouse_assignments**
+```sql
+CREATE TABLE user_warehouse_assignments (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(id),
+    warehouse_id BIGINT NOT NULL REFERENCES warehouses(id),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(user_id, warehouse_id)
+);
+
+-- Query assigned warehouses for a user
+SELECT w.id, w.code, w.name
+FROM warehouses w
+INNER JOIN user_warehouse_assignments uwa ON w.id = uwa.warehouse_id
+WHERE uwa.user_id = ? AND w.is_active = true;
+
+-- Validate warehouse access (used by every warehouse-scoped operation)
+SELECT COUNT(*)
+FROM user_warehouse_assignments
+WHERE user_id = ? AND warehouse_id = ?;
+-- Result > 0 = authorized; 0 = forbidden (403)
+```
+
+---
+
+## 3. Spec 002: Master Data Classes & Schema
+
+### 3.1 Product Management Classes
+
+**Service Layer:**
+- `ProductService.java` – CRUD products, SKU uniqueness, soft delete (is_active)
+- `ProductHistoryService.java` – Track price history for COGS calculation
+
+**Entity Relationships:**
+```
+products (1) ←─── (many) product_price_history
+products (1) ←─── (many) batches
+products (1) ←─── (many) receipt_items
+products (1) ←─── (many) delivery_order_items
+```
+
+**Key Database Columns (products table):**
+```sql
+id (BIGSERIAL PK)
+sku (VARCHAR, UNIQUE) – Cannot be modified after creation
+name (VARCHAR)
+unit (VARCHAR) – e.g., "cái", "thùng"
+description (TEXT NULL)
+weight_kg (DECIMAL(10,2) NULL)
+volume_m3 (DECIMAL(10,2) NULL)
+unit_per_pack (INTEGER NULL) – Conversion factor (e.g., 1 thùng = 12 cái)
+reorder_point (INTEGER NULL) – Low stock alert threshold
+is_active (BOOLEAN DEFAULT true)
+created_at (TIMESTAMPTZ)
+updated_at (TIMESTAMPTZ)
+```
+
+**SQL: Product Queries**
+
+```sql
+-- List active products with search
+SELECT p.id, p.sku, p.name, p.unit, p.weight_kg, p.volume_m3
+FROM products p
+WHERE p.is_active = true AND (p.sku ILIKE ? OR p.name ILIKE ?)
+ORDER BY p.created_at DESC;
+
+-- Check SKU uniqueness
+SELECT COUNT(*) FROM products WHERE sku = ? AND id <> ?;
+
+-- Prevent transactions for inactive products
+SELECT p.id FROM products p
+WHERE p.id = ? AND p.is_active = false;
+-- If result > 0: reject receipt/issue/transfer
+```
+
+---
+
+### 3.2 Warehouse & Bin Location Classes
+
+**Service Layer:**
+- `WarehouseService.java` – CRUD warehouses, manager assignment, soft delete
+- `BinLocationService.java` – CRUD zones/bins, capacity validation, quarantine setup
+- `LocationLockService.java` – Lock locations during stocktake, prevent concurrent transactions
+
+**Entity Relationships:**
+```
+warehouses (1) ←─── (many) warehouse_locations (zones/bins)
+warehouse_locations (1) ←─── (many) inventories
+warehouse_locations (1) ←─── (many) stock_take_items (locked during stocktake)
+```
+
+**Key Database Columns:**
+
+**warehouses table:**
+```sql
+id (BIGSERIAL PK)
+code (VARCHAR, UNIQUE) – e.g., HP, HN, HCM, IN_TRANSIT
+name (VARCHAR)
+address (TEXT NULL)
+phone (VARCHAR NULL)
+manager_id (BIGINT REFERENCES users(id)) – Must have MANAGER role
+type (VARCHAR) – PHYSICAL or IN_TRANSIT
+is_active (BOOLEAN DEFAULT true)
+created_at (TIMESTAMPTZ)
+updated_at (TIMESTAMPTZ)
+```
+
+**warehouse_locations table:**
+```sql
+id (BIGSERIAL PK)
+warehouse_id (BIGINT NOT NULL REFERENCES warehouses(id))
+code (VARCHAR, UNIQUE) – e.g., HP.A (zone) or HP.A.01.1.01 (bin)
+name (VARCHAR)
+type (VARCHAR) – ZONE or BIN
+parent_id (BIGINT REFERENCES warehouse_locations(id) NULL) – Parent zone for bins
+capacity_m3 (DECIMAL(10,2) NULL)
+capacity_kg (DECIMAL(10,2) NULL)
+is_quarantine (BOOLEAN DEFAULT false)
+is_locked (BOOLEAN DEFAULT false) – Locked during stocktake
+is_active (BOOLEAN DEFAULT true)
+created_at (TIMESTAMPTZ)
+updated_at (TIMESTAMPTZ)
+```
+
+**SQL: Warehouse & Bin Capacity**
+
+```sql
+-- List active warehouses with manager info
+SELECT w.id, w.code, w.name, w.type, u.full_name AS manager_name
+FROM warehouses w
+INNER JOIN users u ON w.manager_id = u.id
+WHERE w.is_active = true
+ORDER BY w.code;
+
+-- Get bin capacity & current usage
+SELECT wl.id, wl.code, wl.capacity_m3, wl.capacity_kg,
+       COALESCE(SUM(i.total_qty * p.volume_m3), 0) AS current_volume_m3,
+       COALESCE(SUM(i.total_qty * p.weight_kg), 0) AS current_weight_kg
+FROM warehouse_locations wl
+LEFT JOIN inventories i ON i.location_id = wl.id
+LEFT JOIN products p ON p.id = i.product_id
+WHERE wl.id = ? AND wl.type = 'BIN'
+GROUP BY wl.id, wl.capacity_m3, wl.capacity_kg;
+
+-- Prevent putting away goods if bin over capacity
+-- Application code: 
+-- IF (current_volume + incoming_volume > capacity_m3) OR 
+--    (current_weight + incoming_weight > capacity_kg)
+-- THEN reject with error BIN_OVER_CAPACITY
+
+-- Lock all locations during stocktake
+UPDATE warehouse_locations
+SET is_locked = true, updated_at = NOW()
+WHERE warehouse_id = ? AND type = 'BIN' AND is_quarantine = false;
+
+-- Prevent transactions on locked locations
+SELECT wl.id FROM warehouse_locations wl
+WHERE wl.id = ? AND wl.is_locked = true;
+-- If result > 0: reject receipt/issue/transfer with LOCATION_LOCKED
+
+-- Unlock locations after stocktake approval/rejection
+UPDATE warehouse_locations
+SET is_locked = false, updated_at = NOW()
+WHERE warehouse_id = ? AND type = 'BIN' AND is_locked = true;
+```
+
+---
+
+### 3.3 Audit Log for RBAC/Config Changes
+
+**Table: audit_logs (shared with all specs)**
+```sql
+CREATE TABLE audit_logs (
+    id BIGSERIAL PRIMARY KEY,
+    actor_id BIGINT REFERENCES users(id),
+    actor_name VARCHAR,
+    action VARCHAR – e.g., USER_CREATED, WAREHOUSE_CREATED, PRODUCT_UPDATED, PASSWORD_RESET_REQUEST
+    entity_type VARCHAR – e.g., USER, WAREHOUSE, PRODUCT, CONFIG
+    entity_id BIGINT
+    warehouse_id BIGINT REFERENCES warehouses(id) NULL
+    old_value TEXT NULL – JSON serialized before state
+    new_value TEXT NULL – JSON serialized after state
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Example: User creation audit
+INSERT INTO audit_logs (actor_id, actor_name, action, entity_type, entity_id, new_value)
+VALUES (?, ?, 'USER_CREATED', 'USER', ?, '{"email":"...","role":"STOREKEEPER","warehouses":[1,2]}');
+
+-- Example: Password reset request
+INSERT INTO audit_logs (actor_id, action, entity_type, entity_id)
+VALUES (NULL, 'PASSWORD_RESET_REQUEST', 'USER', ?); -- NULL actor for unauthenticated flow
+```
+
+---
+
+## 4. Spec 004+005: Outbound, Delivery & Transfer Classes
+
+### 4.1 Outbound/Delivery Core Services
+
+**Service Layer:**
+- `DeliveryOrderService.java` – CRUD DO, Credit Check, reserve + release, status transitions
+- `PickingPlanService.java` – FIFO batch selection, allocation strategy, snapshot unit_price
+- `OutboundQCService.java` – Record QC pass/fail, quarantine + adjustments for failures
+- `TripDispatchService.java` – Create trips, assign vehicle/driver, capacity validation (weight/volume)
+- `DriverDeliveryService.java` – Mobile API for driver: accept trip, depart, deliver, POD, OTP
+- `DeliveryOtpService.java` – Generate OTP (6-digit, TTL 5min), hash storage, verification (max 3 fail)
+- `AutoInvoiceService.java` – Event listener: WHEN delivery attempt = DELIVERED → create invoice + receivable
+
+**Key SQL: DO + Credit Check + Reservation**
+
+```sql
+-- Credit Check before DO create
+SELECT SUM(invoices.total_amount - COALESCE(payment_receipts.amount_paid, 0)) AS current_balance
+FROM invoices
+LEFT JOIN payment_receipts ON invoices.id = payment_receipts.invoice_id
+WHERE invoices.dealer_id = ? AND invoices.status NOT IN ('CANCELLED','CLOSED')
+GROUP BY invoices.dealer_id;
+-- IF current_balance + DO_value > credit_limit → BLOCK with CREDIT_HOLD
+
+-- Reserve warehouse-level on DO create
+UPDATE warehouse_product_reservations
+SET reserved_qty = reserved_qty + ?, version = version + 1
+WHERE warehouse_id = ? AND product_id = ?
+  AND version = ? -- Optimistic locking
+RETURNING reserved_qty;
+
+-- Create allocation on picking plan (FIFO)
+INSERT INTO delivery_order_item_allocations 
+  (do_item_id, inventory_id, batch_id, location_id, zone_id, planned_qty)
+SELECT ?, i.id, i.batch_id, i.location_id, wl_zone.id, ?
+FROM inventories i
+INNER JOIN batches b ON i.batch_id = b.id
+INNER JOIN warehouse_locations wl_zone ON wl_zone.id = wl.zone_id
+WHERE i.warehouse_id = ? AND i.product_id = ? 
+  AND i.total_qty - i.reserved_qty > 0
+  AND wl.is_quarantine = false
+  AND wl.type = 'BIN'
+ORDER BY b.received_date ASC -- FIFO
+LIMIT 1;
+```
+
+**SQL: Delivery & OTP**
+
+```sql
+-- Record OTP for delivery attempt (hash only, never plain)
+INSERT INTO delivery_otp_attempts 
+  (delivery_attempt_id, recipient_email, otp_hash, expires_at, status)
+VALUES (?, ?, SHA256(?), NOW() + INTERVAL '5 minutes', 'PENDING');
+
+-- Verify OTP (max 3 attempts)
+SELECT otp_hash, expires_at, attempt_count
+FROM delivery_otp_attempts
+WHERE delivery_attempt_id = ? AND status = 'PENDING'
+  AND attempt_count < 3;
+
+-- Mark OTP used after successful verification
+UPDATE delivery_otp_attempts
+SET status = 'VERIFIED', consumed_at = NOW()
+WHERE delivery_attempt_id = ? AND otp_hash = ?;
+
+-- Auto-create invoice on delivery DELIVERED
+INSERT INTO invoices (dealer_id, total_amount, issue_date, due_date, status)
+SELECT do.dealer_id, 
+       SUM(doi.qc_pass_qty * doi.unit_price),
+       DATE(NOW()),
+       DATE(NOW()) + INTERVAL '30 days',
+       'UNPAID'
+FROM delivery_attempts da
+INNER JOIN delivery_orders do ON da.do_id = do.id
+INNER JOIN delivery_order_items doi ON do.id = doi.do_id
+WHERE da.status = 'DELIVERED' AND da.id = ?
+GROUP BY do.dealer_id;
+```
+
+---
+
+### 4.2 Transfer Core Services
+
+**Service Layer:**
+- `InterWarehouseTransferService.java` – CRUD transfer, reserve FIFO, status transitions
+- `TransferShipmentService.java` – Outbound: pick + QC + handover
+- `TransferReceiveService.java` – Inbound: blind count + receive QC + bin-capacity + discrepancy
+- `TransferLocationLockService.java` – Lock/unlock during stocktake
+- `TransferDiscrepancyService.java` – Calculate discrepancy, create adjustment records
+
+**Key SQL: Transfer + Discrepancy**
+
+```sql
+-- Reserve FIFO for transfer on approval (source warehouse)
+UPDATE warehouse_product_reservations
+SET reserved_qty = reserved_qty + ?, version = version + 1
+WHERE warehouse_id = ? AND product_id = ?;
+
+-- Move qty to In-Transit on departure
+UPDATE inventories
+SET total_qty = total_qty - ?
+WHERE warehouse_id = ? AND product_id = ? AND version = ?;
+
+INSERT INTO inventories (warehouse_id, product_id, batch_id, location_id, total_qty)
+SELECT ?, ?, batch_id, in_transit_location_id, ?
+FROM inventories
+WHERE warehouse_id = ? AND product_id = ?;
+
+-- Calculate discrepancy on dest receive
+SELECT 
+  trf_items.planned_qty,
+  reception_records.received_qty,
+  (reception_records.received_qty - trf_items.planned_qty) AS variance_qty
+FROM transfer_items trf_items
+INNER JOIN reception_records ON trf_items.id = reception_records.transfer_item_id
+WHERE trf_items.transfer_id = ?;
+
+-- Create TRANSFER_DISCREPANCY adjustment if variance ≠ 0
+INSERT INTO adjustments 
+  (transfer_id, product_id, type, quantity_adjustment, variance_value)
+VALUES (?, ?, 'TRANSFER_DISCREPANCY', ?, ? * cost_price);
+```
+
+---
+
+## 5. Spec 006+007: Stocktake & Pricing Classes
+
+**Services:** `StocktakeService`, `PricingService` (price_history lookup for COGS on invoice create)
+
+**SQL: Stocktake + Location Lock**
+
+```sql
+-- Lock locations during IN_PROGRESS
+UPDATE warehouse_locations
+SET is_locked = true WHERE warehouse_id = ? AND type = 'BIN' AND is_quarantine = false;
+
+-- Update inventory on approval + optimistic locking
+UPDATE inventories SET total_qty = ?, version = version + 1
+WHERE id = ? AND version = ?;
+
+-- Price history COGS lookup (at issue_date)
+SELECT cost_price FROM product_price_history
+WHERE product_id = ? AND effective_date <= ? AND (end_date IS NULL OR end_date > ?)
+ORDER BY effective_date DESC LIMIT 1;
+```
+
+---
+
+## 6. Spec 008+009+010: Finance, Returns & Reporting Classes
+
+**Services:**
+- `InvoiceService` (auto-create on delivery DELIVERED)
+- `AccountingPeriodService` (close, lock, late-doc handling)
+- `ReturnService` (RTV Debit Note for supplier; Credit Note for customer)
+- `ReportService` (Dashboard KPI, Aging, P&L)
+
+**SQL: Auto-Invoice & Accounting Period**
+
+```sql
+-- Auto-create invoice trigger (after delivery DELIVERED)
+INSERT INTO invoices (dealer_id, total_amount, issue_date, due_date, status, document_reference)
+SELECT do.dealer_id, SUM(doi.qc_pass_qty * doi.unit_price), 
+       CURRENT_DATE, CURRENT_DATE + INTERVAL '30 days', 'UNPAID', 'DO-' || do.do_number
+FROM deliveries d
+INNER JOIN delivery_orders do ON d.do_id = do.id
+INNER JOIN delivery_order_items doi ON do.id = doi.do_id
+WHERE d.status = 'DELIVERED' AND d.id = ?
+GROUP BY do.dealer_id;
+
+-- Monthly closing lock
+UPDATE accounting_periods SET status = 'CLOSED' WHERE id = ?;
+-- Block new transactions in closed period; allow Correction Vouchers in open period
+
+-- Aging Report
+SELECT dealer_id, due_date,
+       CASE WHEN due_date < CURRENT_DATE AND CURRENT_DATE - due_date > 60 THEN '>60 days'
+            WHEN due_date < CURRENT_DATE AND CURRENT_DATE - due_date > 30 THEN '31-60 days'
+            WHEN due_date < CURRENT_DATE THEN '1-30 days'
+            ELSE 'Not due' END AS aging_bucket,
+       SUM(total_amount - COALESCE(paid_amount, 0)) AS balance
+FROM invoices
+WHERE status != 'CLOSED'
+GROUP BY dealer_id, aging_bucket;
+```
+
+---
+
+## Schema Reference Summary
+
+**Core Tables (All Specs):**
+```
+users ←→ user_warehouse_assignments ←→ warehouses
+warehouse_locations (zones/bins with is_locked, is_quarantine)
+products (SKU, unit, no serial/expiry/grade)
+batches (product + received_date + source receipt)
+inventories (warehouse + product + batch + location; optimistic locking via version)
+
+receipts, receipt_items, batches ← Spec 003
+delivery_orders, delivery_order_items, delivery_order_item_allocations, deliveries ← Spec 004
+transfers, transfer_items, reception_records ← Spec 005
+stock_takes, stock_take_items ← Spec 006
+product_price_history ← Spec 007
+invoices, payment_receipts, accounting_periods ← Spec 008
+quarantine_records, damage_reports, adjustments (type in STOCK_TAKE, TRANSFER_DISCREPANCY, DISPOSAL, RTV...) ← Spec 009
+audit_logs (append-only, action = *, entity_type = *, REPORT_VIEW for dashboards) ← All specs
+```
+
+**Constraint Summary:**
+- Inventory: total_qty ≥ 0, reserved_qty ≥ 0, total_qty - reserved_qty ≥ 0 (CHECK + app validation)
+- Warehouse: unique code, manager_id FK to user with MANAGER role
+- Location: unique code per warehouse, parent_id for hierarchy (ZONE → BIN only)
+- Product: unique SKU, no serial/expiry/grade for household goods
+- DO/Transfer: credit check, FIFO allocation, optimistic locking, soft-cancel (status = CANCELLED)
+- Stocktake/Adjustment: location locking, flat approval (Trưởng kho)
+- Invoice: auto-create on delivery DELIVERED, unit_price snapshot from picking plan
+- Audit: append-only, ghi all mutations + REPORT_VIEW for confidential reports
