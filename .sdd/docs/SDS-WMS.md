@@ -9,6 +9,7 @@
 | Date       | A\*M, D | In charge    | Change Description                                                                           |
 | ---------- | ------- | ------------ | -------------------------------------------------------------------------------------------- |
 | 2026-07-14 | A       | WMS Dev Team | Khởi tạo SDS dựa trên backend thực tế `backend/src/main/java/com/wms/`, tương ứng RDS-WMS.md |
+| 2026-07-15 | M       | WMS Dev Team | Đồng bộ catalog spec 001–012; Spec 011–012 là quality/testing cross-cutting. SDS này vẫn mô tả chi tiết luồng inbound đại diện của Spec 003. |
 
 _A - Added M - Modified D - Deleted_
 

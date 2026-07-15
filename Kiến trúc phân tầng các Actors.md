@@ -1,8 +1,8 @@
 # KIẾN TRÚC PHÂN TẦNG CÁC ACTORS - HỆ THỐNG WMS PHÚC ANH
 
-# Phiên bản: 2.0 | Cập nhật: 2026-05-27
+# Phiên bản: 2.1 | Cập nhật: 2026-07-15
 
-# Ghi chú: Hệ thống dùng xe nội bộ Phúc Anh. KHÔNG có quản lý sản xuất, HRM, Barcode/QR, cổng B2B/B2C.
+# Ghi chú: Hệ thống dùng xe nội bộ Phúc Anh. KHÔNG có quản lý sản xuất, HRM, Barcode/QR, cổng B2B/B2C. Nguồn nghiệp vụ chuẩn là `.sdd/specs/001`–`010`; Spec 011–012 bổ sung vai trò chất lượng kỹ thuật, không thay đổi RBAC vận hành 10 actor.
 
 ---
 

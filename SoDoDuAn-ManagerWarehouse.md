@@ -1,135 +1,47 @@
-manager-warehouse-sdd/
-│
-├── .sdd/                          # Toàn bộ "não" đặc tả của dự án (SDD artifacts) [1]
-│   ├── constitution.md            # "Hiến pháp" dự án (Hard rules, bảo mật, kiến trúc) [2]
-│   ├── shared_context.md          # Nguồn sự thật chung để đồng bộ giữa các AI Agent [2, 3]
-│   ├── constraints/               # Ràng buộc chi tiết cho AI Agent [3]
-│   │   ├── global.md              # Ràng buộc Tech stack (Spring Boot 3.4.5, React 18), Naming convention [4]
-│   │   ├── business.md            # Ràng buộc nghiệp vụ WMS (FIFO, QC, audit log) [5]
-│   │   └── safety.md              # Ràng buộc an toàn (Cấm tồn kho âm, cấm xóa data business) [6]
-│   ├── specs/                     # Đặc tả tính năng chi tiết (Feature specs) [7]
-│   │   ├── _template.md           # Template mẫu để tạo Spec mới [7]
-│   │   └── feature-auth/          # Đặc tả module Xác thực & Phân quyền [8]
-│   │       ├── SPEC.md            # File đặc tả đã chốt (Locked spec) [8]
-│   │       ├── PLAN.md            # Kế hoạch thực thi do AI lập [9]
-│   │       ├── TASKS.md           # Danh sách các task nhỏ đã chia [9]
-│   │       ├── CONTEXT.md         # Ngữ cảnh thiết kế tính năng [8]
-│   │       └── CHANGELOG.md       # Lịch sử thay đổi của spec [8]
-│   ├── skills/                    # Thư viện kỹ năng chuyên sâu (SKILL.md) cho Agent [10]
-│   │   └── sql-performance.md     # Ví dụ: Kỹ năng tối ưu truy vấn PostgreSQL [10]
-│   ├── rfcs/                      # Lưu trữ các quyết định thay đổi kiến trúc (ADR) [11]
-│   └── reviews/                   # Lưu kết quả AI review Spec để phát hiện lỗi [11]
-│
-├── .agents/                       # Thư mục chứa cấu hình AI Agent [12]
-│   ├── AGENT.md                   # Định nghĩa Persona, vai trò, giới hạn của Agent [12]
-│   ├── Project_Codex.md           # Cấu hình Codex: personality, công cụ, quy tắc [12]
-│   └── skills/                    # Thư viện kỹ năng chuyên sâu (SKILL.md) [13]
-│       ├── speckit-analyze/       # Kỹ năng phân tích consistency spec/plan/tasks [13]
-│       ├── speckit-checklist/     # Kỹ năng tạo checklist theo yêu cầu [13]
-│       ├── speckit-clarify/       # Kỹ năng đặt câu hỏi làm rõ spec [13]
-│       ├── speckit-constitution/  # Kỹ năng tạo/cập nhật hiến pháp dự án [13]
-│       ├── speckit-implement/     # Kỹ năng thực thi implementation plan [13]
-│       ├── speckit-plan/          # Kỹ năng lập kế hoạch thực thi [13]
-│       ├── speckit-specify/       # Kỹ năng viết đặc tả tính năng [13]
-│       ├── speckit-tasks/         # Kỹ năng chia nhỏ task từ spec [13]
-│       └── speckit-taskstoissues/ # Kỹ năng chuyển task thành GitHub Issues [13]
-│
-├── .claude/                       # Cấu hình Claude Code skills [14]
-│   └── skills/gitnexus/           # GitNexus integration skills [14]
-│       ├── gitnexus-cli/          # CLI commands: index, analyze, wiki [14]
-│       ├── gitnexus-debugging/    # Tracing bugs, errors, stack traces [14]
-│       ├── gitnexus-exploring/    # Khám phá kiến trúc, execution flows [14]
-│       ├── gitnexus-guide/        # Hướng dẫn sử dụng GitNexus tooling [14]
-│       ├── gitnexus-impact-analysis/  # Phân tích tác động khi thay đổi code [14]
-│       └── gitnexus-refactoring/  # Rename, extract, split code an toàn [14]
-│
-├── .specify/                      # Cấu hình và templates cho Specify workflow [15]
-│   ├── integration.json           # File cấu hình integrations [15]
-│   ├── integrations/              # Manifest kết nối công cụ [15]
-│   │   ├── codex.manifest.json    # Codex integration manifest [15]
-│   │   └── speckit.manifest.json  # Speckit integration manifest [15]
-│   ├── memory/                    # Bộ nhớ dài hạn của hệ thống [15]
-│   │   └── constitution.md        # Hiến pháp dự án (lưu trong memory) [15]
-│   ├── scripts/                   # Scripts hỗ trợ tự động hóa [15]
-│   │   └── powershell/            # PowerShell scripts (check-prerequisites, setup) [15]
-│   └── templates/                 # Templates cho các artifact [15]
-│       ├── checklist-template.md  # Template checklist [15]
-│       ├── constitution-template.md   # Template constitution [15]
-│       ├── plan-template.md       # Template plan [15]
-│       ├── spec-template.md       # Template spec [15]
-│       └── tasks-template.md      # Template tasks [15]
-│
-├── .github/                       # CI/CD pipelines & GitHub Agents [16]
-│   ├── copilot-instructions.md    # Hướng dẫn cho GitHub Copilot [16]
-│   ├── workflows/                 # Pipelines CI/CD để tự động hóa [17]
-│   │   ├── build.yml              # Build Backend (Maven) + Frontend (npm) [17]
-│   │   ├── test.yml               # Chạy JUnit 5 + Jest với PostgreSQL test container [17]
-│   │   ├── lint.yml               # Checkstyle (Java) + ESLint (React) [17]
-│   │   ├── constitution-check.yml # Validation gate chặn commit vi phạm quy tắc [18]
-│   │   └── consistency-gate.yml   # Kiểm tra độ đồng nhất giữa Code và Spec [18]
-│   ├── agents/                    # Định nghĩa GitHub Agents (Speckit) [19]
-│   │   ├── speckit.analyze.agent.md      # Agent phân tích spec [19]
-│   │   ├── speckit.checklist.agent.md    # Agent tạo checklist [19]
-│   │   ├── speckit.clarify.agent.md      # Agent làm rõ spec [19]
-│   │   ├── speckit.constitution.agent.md # Agent quản lý constitution [19]
-│   │   ├── speckit.git.*.agent.md        # Agent git workflow (commit, feature, init, remote, validate) [19]
-│   │   ├── speckit.implement.agent.md    # Agent thực thi [19]
-│   │   ├── speckit.plan.agent.md         # Agent lập kế hoạch [19]
-│   │   ├── speckit.specify.agent.md      # Agent viết spec [19]
-│   │   ├── speckit.tasks.agent.md        # Agent chia task [19]
-│   │   └── speckit.taskstoissues.agent.md # Agent tạo issues [19]
-│   └── prompts/                   # Prompt templates cho GitHub Agents [19]
-│       └── speckit.*.prompt.md    # Prompts tương ứng (14 files) [19]
-│
-├── backend/                       # Backend Spring Boot 3.4.5 + Java 21 [20]
-│   ├── CLAUDE.md                  # Hướng dẫn backend cho AI Agent [20]
-│   └── src/                       # Source code [20]
-│       ├── main/java/com/wms/     # Mã nguồn chính (Layered Architecture) [21]
-│       │   ├── aop/               # AOP: AuditLogging, ExceptionHandling, Performance [21]
-│       │   ├── config/            # Spring config, Security (JWT), JPA config [21]
-│       │   ├── controller/        # REST controllers (/api/v1/*) [21]
-│       │   ├── dto/               # Request/Response DTOs [21]
-│       │   ├── entity/            # JPA entities [21]
-│       │   ├── enums/             # Domain enums (WarehouseStatus, ReceiptStatus, BatchGrade...) [21]
-│       │   ├── exception/         # Custom exceptions, global error handler [21]
-│       │   ├── repository/        # Spring Data JPA repositories [21]
-│       │   ├── service/           # Business logic services [21]
-│       │   └── util/              # Helper utilities, FIFO selector [21]
-│       ├── main/resources/        # Cấu hình ứng dụng [20]
-│       │   └── db/migration/      # Flyway migrations (database versioning) [22]
-│       └── test/java/             # Unit & Integration tests (JUnit 5, Mockito) [23]
-│
-├── frontend/                      # Frontend React 18 + JavaScript + Tailwind CSS [24]
-│   ├── CLAUDE.md                  # Hướng dẫn frontend cho AI Agent [24]
-│   └── src/                       # Source code [24]
-│       ├── components/            # React components [24]
-│       │   ├── common/            # Shared UI components (Button, Table, Modal...) [24]
-│       │   └── warehouse/         # Nghiệp vụ kho (Receipt, Issue, Transfer...) [24]
-│       ├── hooks/                 # Custom React hooks (useFetch, useFilters...) [24]
-│       ├── pages/                 # Page-level components / routes [24]
-│       ├── services/              # API client logic (axios calls) [24]
-│       ├── stores/                # State management (Zustand/Redux) [24]
-│       ├── types/                 # Shared type definitions [24]
-│       └── utils/                 # Helper utilities (formatQuantity, date...) [24]
-│
-├── specs/                         # Đặc tả tính năng cấp repository [25]
-│   └── 001-featurename-us-wh/     # Feature spec đầu tiên [25]
-│       └── spec.md                # File đặc tả chi tiết [25]
-│
-├── test/                          # Thư mục kiểm thử tự động [26]
-│   ├── unit.md                    # Hướng dẫn Unit tests (JUnit 5, Jest) [26]
-│   ├── integrantion.md            # Hướng dẫn Integration tests [26]
-│   └── e2e.md                     # Hướng dẫn End-to-End tests [26]
-│
-├── AGENTS.md                      # Định nghĩa Agent persona, công nghệ, giới hạn [27]
-├── CLAUDE.md                      # Project DNA, bài học kinh nghiệm, conventions [28]
-├── DESIGN.md                      # Thiết kế kiến trúc hệ thống [29]
-├── SoDoDuAn.md                    # Sơ đồ dự án (bản tham khảo từ dự án khác) [30]
-├── SoDoDuAn-ManagerWarehouse.md   # Sơ đồ dự án này (file hiện tại) [31]
-├── Userstory.md                   # User stories cho hệ thống WMS [32]
-├── database.md                    # Thiết kế database schema [33]
-├── Kiến trúc phân tầng các Actors.md  # Tài liệu kiến trúc actors [34]
-├── README.md                      # Giới thiệu tổng quan dự án [35]
-├── package.json                   # Node.js dependencies (dev tooling) [36]
-├── package-lock.json              # Lock file cho npm [36]
-└── .gitignore                     # Git ignore rules [37]
+# Sơ đồ dự án — Manager Warehouse SDD
+
+> Đồng bộ: 2026-07-15. Đây là sơ đồ logical của các thư mục đang dùng; không liệt kê thư mục build/cache như `target`, `dist`, `node_modules`.
+
+```text
+Manager-warehouse-sdd/
+├── .sdd/
+│   ├── constitution.md, shared_context.md, constraints/
+│   ├── docs/                       # RDS, SDS, database schema documentation
+│   └── specs/001-... đến 012-...   # Nguồn đặc tả feature
+├── .specify/
+│   ├── memory/constitution.md      # Constitution canonical
+│   ├── templates/                  # Spec/plan/task templates
+│   └── scripts/                    # Utility scripts của Specify
+├── .agents/                        # Agent configuration và Speckit skills
+├── .claude/                        # Claude/GitNexus skill configuration
+├── backend/
+│   ├── src/main/java/com/wms/      # Controller → Service → Repository → Entity
+│   ├── src/main/resources/db/migration/ # Flyway migrations
+│   └── src/test/java/              # JUnit/Mockito/integration tests
+├── frontend/
+│   ├── src/                        # React pages, components, routes, services, stores
+│   ├── tests/                      # Vitest + React Testing Library
+│   ├── android/ và ios/            # Capacitor native shells
+│   └── package.json
+├── selenium-tests/                 # UI/end-to-end test project nếu được sử dụng
+├── specs/                          # Repo-level delivery/production specs
+├── scripts/                        # Deploy and maintenance scripts
+├── AGENTS.md, CLAUDE.md            # Quy tắc vận hành và kiến trúc
+├── Userstory.md                    # 27 story vận hành + 3 story testing
+├── FEATURES_SUMMARY.md             # Catalog 12 specs
+├── Kiến trúc phân tầng các Actors.md
+├── frontend_folder_structure.md
+└── MOBILE_BUILD_GUIDE.md
+```
+
+## Nguồn sự thật và phạm vi
+
+| Nội dung | Nguồn chuẩn |
+| --- | --- |
+| Quy tắc kiến trúc, data integrity, test/DoD | `.specify/memory/constitution.md` |
+| Quy tắc vận hành agent và domain | `AGENTS.md`, `CLAUDE.md` |
+| Requirement/acceptance criteria | `.sdd/specs/001`–`012` |
+| Thiết kế yêu cầu và lớp inbound đại diện | `.sdd/docs/RDS-WMS.md`, `.sdd/docs/SDS-WMS.md` |
+| Tài liệu schema | `.sdd/docs/database_schema_documentation.md` + Flyway migrations |
+
+Spec 001–010 bao phủ nghiệp vụ WMS. Spec 011 (backend testing/SonarQube) và 012 (frontend testing) là chất lượng xuyên suốt, không bổ sung actor nghiệp vụ hoặc bảng dữ liệu business.

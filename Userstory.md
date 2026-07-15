@@ -1,5 +1,5 @@
 # USER STORIES - HỆ THỐNG QUẢN LÝ KHO (WMS) - CÔNG TY PHÚC ANH
-# Phiên bản: 2.0 | Cập nhật: 2026-05-27
+# Phiên bản: 2.1 | Cập nhật: 2026-07-15
 # Ghi chú: Hệ thống sử dụng toàn bộ XE NỘI BỘ của Phúc Anh — KHÔNG phát sinh chi phí 3PL, KHÔNG có luồng Duyệt chi vận tải.
 
 ---
@@ -438,5 +438,27 @@
 
 ---
 
-*Tổng cộng: 27 User Stories bao phủ toàn bộ luồng vận hành WMS của Công ty Phúc Anh.*
+---
+
+## NHÓM 10: CHẤT LƯỢNG KỸ THUẬT & KIỂM THỬ
+
+### US-WMS-TEST-01: Hạ tầng kiểm thử Backend & Quality Gate (Priority: P1)
+
+**Mô tả:** Là Developer/QA, tôi muốn CI chạy unit và integration test backend, xuất JaCoCo XML cho SonarQube để kiểm soát chất lượng mã mới.
+
+**Tiêu chí nghiệm thu:** Quality Gate 80% áp dụng cho new code trong PR; DTO/entity/config có thể được loại trừ minh bạch; không commit token/credential; lỗi test hoặc cấu hình phải làm build thất bại.
+
+### US-WMS-TEST-02: Bộ kiểm thử Core Services & Nghiệp vụ Kho (Priority: P1)
+
+**Mô tả:** Là Developer/QA, tôi muốn kiểm thử RBAC và các bất biến FIFO, tồn kho không âm, reserved quantity, QC, transfer, optimistic lock và audit trail.
+
+**Tiêu chí nghiệm thu:** Các dịch vụ mới đạt tối thiểu 80% coverage; test có nhiều bộ dữ liệu dùng JUnit 5 Parameterized Tests; endpoint có happy path và error path phù hợp.
+
+### US-WMS-TEST-03: Kiểm thử giao diện Frontend (Priority: P1)
+
+**Mô tả:** Là Frontend Developer/QA, tôi muốn dùng Vitest + React Testing Library để kiểm thử utility/form validation, route/RBAC, trạng thái component và chống double-submit.
+
+**Tiêu chí nghiệm thu:** Test xác nhận hành vi người dùng, chạy được qua `npm test`, không thay thế integration test của backend và dùng parameterized tests cho dữ liệu biên khi phù hợp.
+
+*Tổng cộng: 30 User Stories: 27 câu chuyện vận hành và 3 câu chuyện chất lượng kỹ thuật. Chi tiết chuẩn: `.sdd/specs/001`–`012`.*
 *Ghi chú quan trọng: Hệ thống KHÔNG có quản lý sản xuất (Manufacturing), KHÔNG có HR/HRM, KHÔNG có Barcode/QR Scanner, KHÔNG có cổng B2B/B2C, SỬ DỤNG XE NỘI BỘ (không có chi phí 3PL trong luồng xuất hàng thông thường).*

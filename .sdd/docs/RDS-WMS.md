@@ -12,6 +12,7 @@
 | ------- | ---------- | ------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
 | V1.0    | 2026-07-14 | A       | WMS Dev Team | Khởi tạo tài liệu RDS dựa trên `.sdd/specs/001` → `010`, `CLAUDE.md`, `README.md`, `AGENTS.md`, `Kiến trúc phân tầng các Actors.md` |
 | V1.1    | 2026-07-15 | M       | WMS Dev Team | Bỏ phân cấp phê duyệt theo giá trị (AUTO/<5tr, Trưởng kho/5-100tr, CEO/>100tr) cho chênh lệch kiểm kê và tiêu hủy hàng lỗi; đồng bộ về quy tắc phẳng "Trưởng kho phê duyệt trực tiếp, không phân cấp giá trị" theo quyết định team và các tài liệu gốc đã cập nhật |
+| V1.2    | 2026-07-15 | M       | WMS Dev Team | Đồng bộ catalog spec 001–012; xác định 011–012 là yêu cầu chất lượng xuyên suốt, không thay đổi actor/RBAC nghiệp vụ. |
 
 _A - Added M - Modified D - Deleted_
 
@@ -42,7 +43,7 @@ Hệ thống WMS có **10 Actors**, chia thành 3 tầng theo mô hình **Maker-
 
 #### a. Diagram(s)
 
-Hệ thống được chia thành 10 nhóm nghiệp vụ (Feature Groups), tương ứng 10 spec `.sdd/specs/001` → `010`. Quan hệ tổng quát giữa các actor và các nhóm use case:
+Hệ thống có 10 nhóm nghiệp vụ tương ứng spec `.sdd/specs/001` → `010`. Spec `011-backend-test-sonarqube` và `012-frontend-testing` là yêu cầu chất lượng xuyên suốt (Developer/QA/CI), không phải nhóm use case vận hành và không thay đổi mô hình 10 actor. Quan hệ tổng quát giữa actor và nhóm use case:
 
 ```
 CEO ────────────────► [Dashboard & Reports] [Transfer Request Approval]
@@ -335,7 +336,7 @@ Frontend theo cấu trúc React 18 + Tailwind: `components/` (PascalCase), `page
 
 # II. Requirement Specifications
 
-> **Phạm vi phần này:** tài liệu viết đầy đủ chi tiết (Functional Description + Business Rules) cho nhóm nghiệp vụ đại diện **Spec 003 – Inbound Receipt & QC**, theo đúng mẫu template. Các nhóm nghiệp vụ còn lại (Spec 001, 002, 004–010) đã có danh sách Use Case đầy đủ tại mục I.1.2; khi cần, viết tiếp Functional Description theo cùng mẫu cho từng UC trong danh sách đó.
+> **Phạm vi phần này:** tài liệu viết đầy đủ chi tiết (Functional Description + Business Rules) cho nhóm nghiệp vụ đại diện **Spec 003 – Inbound Receipt & QC**, theo đúng mẫu template. Các nhóm nghiệp vụ còn lại (Spec 001, 002, 004–010) đã có danh sách Use Case đầy đủ tại mục I.1.2; Spec 011–012 là quality/testing cross-cutting. Khi cần, viết tiếp Functional Description theo cùng mẫu cho từng UC trong danh sách đó.
 
 ## 1. Inbound Receipt & QC (Spec 003)
 
@@ -691,4 +692,4 @@ Theo `README.md`/`.specify/memory/constitution.md`, hệ thống **KHÔNG** bao 
 
 ## 4. Ghi chú mở rộng tài liệu
 
-Danh sách Use Case đầy đủ cho các nhóm nghiệp vụ còn lại (Spec 001, 002, 004–010) đã có tại mục **I.1.2.b**. Khi cần viết chi tiết Functional Description + UI/DB Design cho một nhóm cụ thể, áp dụng đúng mẫu tại **Phần II mục 1** và **Phần III mục 1** của tài liệu này (dùng làm khuôn mẫu tham chiếu), lấy nội dung nghiệp vụ từ file spec tương ứng trong `.sdd/specs/<số>-<tên>/`.
+Danh sách Use Case đầy đủ cho các nhóm nghiệp vụ còn lại (Spec 001, 002, 004–010) đã có tại mục **I.1.2.b**. Spec 011–012 quy định test/quality gate và không tạo UI/DB use case nghiệp vụ. Khi cần viết chi tiết Functional Description + UI/DB Design cho một nhóm cụ thể, áp dụng đúng mẫu tại **Phần II mục 1** và **Phần III mục 1** của tài liệu này, lấy nội dung nghiệp vụ từ file spec tương ứng trong `.sdd/specs/<số>-<tên>/`.

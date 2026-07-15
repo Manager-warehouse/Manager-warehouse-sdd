@@ -2,6 +2,8 @@
 
 Hướng dẫn này dành riêng cho dự án `Manager-warehouse-sdd`, dùng frontend React/Vite hiện tại để đóng app mobile bằng Capacitor.
 
+> **Đồng bộ:** 2026-07-15 · **Runtime:** Capacitor 8 · Trước khi đóng gói, chạy `npm test`, `npm run lint` và `npm run build` theo Spec 012.
+
 ## 1. Thông tin hiện tại của app
 
 - Frontend: `frontend/`
@@ -41,6 +43,8 @@ npx cap sync
 Lệnh `npm run build` tạo bundle web trong `frontend/dist`.
 
 Lệnh `npx cap sync` copy bundle mới vào iOS/Android project.
+
+Nếu thay đổi native dependency hoặc Capacitor config, chạy lại `npx cap sync` trước khi mở Android Studio/Xcode.
 
 ## 3. Build Android APK debug
 
@@ -331,4 +335,3 @@ Cách này không cần Xcode, không cần dây data, không cần Apple Develo
 - [ ] Backend production đã deploy CORS cho mobile origin
 - [ ] Login production chạy được trên mobile app
 - [ ] Không commit secrets, keystore, `keystore.properties`, `.env.production`
-

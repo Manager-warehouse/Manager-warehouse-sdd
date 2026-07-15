@@ -1,8 +1,9 @@
 # TỔNG HỢP FEATURE & QUY TẮC NGHIỆP VỤ (WMS PHÚC ANH)
 
-> **Phiên bản:** v1.0.2
+> **Phiên bản:** v1.1.0
 > **Dự án:** Warehouse Management System (WMS) - Công ty Phúc Anh
-> **Tài liệu nguồn:** [AGENTS.md](AGENTS.md) · [constitution.md](.sdd/constitution.md) · [Userstory.md](Userstory.md) · [shared_context.md](.sdd/shared_context.md)
+> **Đồng bộ lần cuối:** 2026-07-15
+> **Nguồn chuẩn:** các `spec.md` trong [`.sdd/specs/`](.sdd/specs/), sau đó là [constitution](.specify/memory/constitution.md). Tài liệu này là bản tổng hợp, không thay thế spec chi tiết.
 
 ---
 
@@ -78,9 +79,9 @@ Mọi spec và mã nguồn trong dự án phải tuân thủ tuyệt đối các
 
 ---
 
-## 4. Danh Sách 10 Domain Specs & 35 Features Chi Tiết
+## 4. Danh Sách 12 Specs Hiện Hành
 
-Dưới đây là tổng hợp 10 Domain Specifications chứa 26 User Stories gốc được phân rã chi tiết:
+Dưới đây là tổng hợp 10 spec nghiệp vụ (001–010) và 2 spec chất lượng kỹ thuật (011–012). Mã/tên feature và acceptance criteria phải tra cứu tại từng `spec.md` vì một số feature có artifact con độc lập.
 
 ### Spec 001: Xác thực, Phân quyền & Hoạt động (Auth & RBAC)
 * **Mã Spec:** [001-security-auth-rbac-audit](.sdd/specs/001-security-auth-rbac-audit/spec.md)
@@ -88,7 +89,7 @@ Dưới đây là tổng hợp 10 Domain Specifications chứa 26 User Stories g
 * **Các User Stories:**
   * **US-WMS-01 (P1):** [Cấu hình Tham số Hệ thống & Định mức Phê duyệt động (Maker-Checker)](.sdd/specs/001-security-auth-rbac-audit/features/feature-admin-system-config.md).
   * **US-WMS-21 (P1):** [Phân quyền người dùng theo Chi nhánh Kho và Vai trò (RBAC)](.sdd/specs/001-security-auth-rbac-audit/features/feature-admin-auth-rbac.md). Hệ thống chặn nhân viên kho truy cập báo cáo tài chính và chặn nhân viên kho này can thiệp kho khác. (Xem thêm: [Xác thực Người dùng](.sdd/specs/001-security-auth-rbac-audit/features/feature-user-auth.md))
-  * **Audit Log (P1):** [Nhật ký Hoạt động (Audit Log)](.sdd/specs/001-security-auth-rbac-audit/features/feature-system-audit-logging.md). Tự động ghi lại log mọi thao tác CREATE, UPDATE, DELETE, APPROVE, REJECT, CANCEL trên thực thể nghiệp vụ (ai làm, làm gì, trước/sau thay đổi, thời gian).
+  * **Audit Log (P1):** [Nhật ký Hoạt động (Audit Log)](.sdd/specs/001-security-auth-rbac-audit/features/001-audit-logging/feature-system-audit-logging.md). Tự động ghi lại log mọi thao tác CREATE, UPDATE, DELETE, APPROVE, REJECT, CANCEL trên thực thể nghiệp vụ (ai làm, làm gì, trước/sau thay đổi, thời gian).
 * **Actors:** System Admin, CEO, Mọi người dùng.
 * **Endpoints chính:** `/api/v1/auth/login`, `/api/v1/admin/users`, `/api/v1/admin/system-config`, `/api/v1/audit-logs`.
 
@@ -98,7 +99,7 @@ Dưới đây là tổng hợp 10 Domain Specifications chứa 26 User Stories g
 * **Các User Stories:**
   * **US-WMS-19 (P1):** [Quản lý SKU và danh mục sản phẩm](.sdd/specs/002-master-data-management/features/feature-admin-products.md) (hỗ trợ quy đổi đơn vị Thùng → Cái; không quản lý serial/hạn sử dụng cho hàng gia dụng Sprint 1).
   * **US-WMS-20 (P2):** [Cấu hình Vị trí kho](.sdd/specs/002-master-data-management/features/feature-admin-warehouses.md) (Zone → Bin) và kiểm tra sức chứa Bin (m3/kg) khi Putaway (`warehouse_locations`).
-  * **US-WMS-22 (P1):** [Quản lý Danh mục Đối tác](.sdd/specs/002-master-data-management/features/feature-accountant-partners.md) (Đại lý & Nhà cung cấp). Kế toán trưởng thiết lập Credit Limit cho từng Đại lý.
+  * **US-WMS-22 (P1):** [Quản lý Danh mục Đối tác](.sdd/specs/002-master-data-management/features/feature-accountant-partners/feature-accountant-partners.md) (Đại lý & Nhà cung cấp). Kế toán trưởng thiết lập Credit Limit cho từng Đại lý.
   * **US-WMS-23 (P2):** [Quản lý Danh mục Xe tải & Tài xế Nội bộ](.sdd/specs/002-master-data-management/features/feature-dispatcher-fleet-drivers.md) (xe: Rảnh/Đang đi chuyến/Bảo trì; tài xế: Rảnh/Đang đi chuyến/Không khả dụng).
 * **Actors:** Planner, Kế toán viên, Kế toán trưởng, System Admin, Dispatcher, Thủ kho kiêm QC, Trưởng kho.
 * **Endpoints chính:** `/api/v1/products`, `/api/v1/warehouses`, `/api/v1/bin-locations`, `/api/v1/dealers`, `/api/v1/suppliers`, `/api/v1/vehicles`, `/api/v1/drivers`.
@@ -107,8 +108,8 @@ Dưới đây là tổng hợp 10 Domain Specifications chứa 26 User Stories g
 * **Mã Spec:** [003-inbound-receipt-qc](.sdd/specs/003-inbound-receipt-qc/spec.md)
 * **Mục tiêu:** Quản lý toàn bộ quy trình nhập kho từ tiếp nhận lệnh nhập thô đến kiểm hàng thực tế, thực hiện QC kiểm chất lượng, duyệt nhập chính thức để mở khóa putaway, và chỉ tăng tồn kho khả dụng sau khi putaway hoàn tất.
 * **Các User Stories:**
-  * **US-WMS-02 (P1):** [Lập Lệnh nhập kho thủ công](.sdd/specs/003-inbound-receipt-qc/features/feature-planner-receipt-drafting.md) từ nguồn Email/Zalo (Trạng thái ban đầu: `Pending Receipt`).
-  * **US-WMS-03 (P1):** [Đếm hàng thực tế](.sdd/specs/003-inbound-receipt-qc/features/feature-storekeeper-receipt-receive.md) và [Kiểm QC Inbound](.sdd/specs/003-inbound-receipt-qc/features/feature-qc-inbound-inspection.md) (Phân loại Đạt → cất vào warehouse_locations đạt chuẩn; Lỗi → bắt buộc chuyển sang Quarantine Zone).
+  * **US-WMS-02 (P1):** [Lập Lệnh nhập kho thủ công](.sdd/specs/003-inbound-receipt-qc/features/feature-planner-receipt-drafting/feature-planner-receipt-drafting.md) từ nguồn Email/Zalo (Trạng thái ban đầu: `Pending Receipt`).
+  * **US-WMS-03 (P1):** [Đếm hàng thực tế](.sdd/specs/003-inbound-receipt-qc/features/feature-warehouse-staff-receipt-counting/feature-warehouse-staff-receipt-counting.md) và [Kiểm QC Inbound](.sdd/specs/003-inbound-receipt-qc/features/feature-qc-inbound-inspection.md) (Phân loại Đạt → cất vào warehouse_locations đạt chuẩn; Lỗi → bắt buộc chuyển sang Quarantine Zone).
   * **US-WMS-04 (P1 - RTV sub-flow):** [Phê duyệt hàng lỗi trong Quarantine Zone](.sdd/specs/003-inbound-receipt-qc/features/feature-manager-quarantine-handling.md) (Feature 003 chỉ hiển thị "Trả NCC": Trưởng kho tạo RTV request + hệ thống tự tạo Debit Note; Thủ kho phải xác nhận giao trả đủ toàn bộ số lượng Quarantine thì mới trừ quarantine). Tiêu hủy hàng lỗi được map riêng trong Spec 009.
   * **US-WMS-05 (P1):** [Duyệt nhập kho](.sdd/specs/003-inbound-receipt-qc/features/feature-manager-receipt-approval.md) (Trưởng kho đối chiếu kết quả QC, ký duyệt Phiếu nhập kho để mở khóa putaway; nếu từ chối thì chờ xe NCC đến nhận và Thủ kho xác nhận `RETURNED_TO_SUPPLIER`; sau khi putaway xong mới tăng tồn kho khả dụng thực tế).
 * **Actors:** Planner, Thủ kho kiêm QC, Nhân viên kho, Trưởng kho, Kế toán viên.
@@ -119,10 +120,10 @@ Dưới đây là tổng hợp 10 Domain Specifications chứa 26 User Stories g
 * **Mục tiêu:** Quản lý quy trình bán hàng xuất kho tích hợp kiểm tra công nợ Đại lý tự động, giữ chỗ (reserve) tồn kho khả dụng, soạn hàng, kiểm QC Outbound đóng gói, gom chuyến xe và xác nhận giao hàng bằng OTP.
 * **Các User Stories:**
   * **US-WMS-06 (P1):** [Tiếp nhận yêu cầu & Lập Đơn xuất hàng](.sdd/specs/004-outbound-delivery-pod/features/feature-planner-delivery-order/feature-planner-delivery-order.md) (Delivery Order). Hệ thống tự động Credit Check (Chặn nếu nợ quá hạn >30 ngày hoặc vượt Credit Limit) và tự động giữ chỗ (Reserve) tồn kho khả dụng. Giải phóng Reserved khi đơn bị hủy hoặc chuyển sang trạng thái In-Transit.
-  * **US-WMS-07 (P1):** [Soạn hàng tại kệ (Picking)](.sdd/specs/004-outbound-delivery-pod/features/feature-storekeeper-picking/feature-storekeeper-picking.md) & [Kiểm QC đóng gói](.sdd/specs/004-outbound-delivery-pod/features/feature-qc-outbound-inspection/feature-qc-outbound-inspection.md) (đúng SKU, số lượng, đóng thùng chống sốc).
+  * **US-WMS-07 (P1):** [Soạn hàng tại kệ (Picking)](.sdd/specs/004-outbound-delivery-pod/features/feature-storekeeper-picking-plan/feature-storekeeper-picking-plan.md) & [Kiểm QC đóng gói](.sdd/specs/004-outbound-delivery-pod/features/feature-warehouse-staff-picking-qc/feature-warehouse-staff-picking-qc.md) (đúng SKU, số lượng, đóng thùng chống sốc).
   * **US-WMS-08 (P1):** [Lập Chuyến xe (Trip Log)](.sdd/specs/004-outbound-delivery-pod/features/feature-dispatcher-trip-dispatch/feature-dispatcher-trip-dispatch.md) nội bộ, gán tài xế, sắp xếp Stop Order. Trừ tồn kho vật lý tại thời điểm xe xuất phát rời kho (status đổi sang In-Transit).
   * **US-WMS-09 (P1):** [Giao diện Web di động cho Tài xế](.sdd/specs/004-outbound-delivery-pod/features/feature-driver-mobile-pod/feature-driver-mobile-pod.md) để xem chuyến xe và xác nhận giao hàng bằng OTP tại điểm giao. Mỗi lần giao là một `deliveries` attempt riêng; OTP chỉ lưu hash/verifier trong `delivery_otp_attempts`, không lưu raw OTP. Nếu giao thất bại, attempt hiện tại chuyển `FAILED`, DO chuyển `RETURNED`, hàng vẫn ở kho ảo In-Transit cho đến khi luồng hoàn hàng riêng tiếp nhận và phân loại.
-  * **US-WMS-10 (P1 - Notification sub-flow):** [Thông báo Kế toán](.sdd/specs/004-outbound-delivery-pod/features/feature-accountant-billing-notification/feature-accountant-billing-notification.md) ngay khi đơn chuyển trạng thái sang `Delivered`. Kế toán dùng invoice candidates worklist để không sót DO đã giao chưa lập hóa đơn; tạo hóa đơn xong thì DO chuyển `COMPLETED`. Ghi nhận công nợ và credit hold được map đầy đủ trong Spec 008.
+  * **US-WMS-10 (P1 - Notification sub-flow):** Thông báo Kế toán ngay khi đơn chuyển trạng thái sang `Delivered`. Kế toán dùng invoice candidates worklist để không sót DO đã giao chưa lập hóa đơn; tạo hóa đơn xong thì DO chuyển `COMPLETED`. Ghi nhận công nợ và credit hold được map đầy đủ trong [Spec 008](.sdd/specs/008-finance-billing-closing/spec.md).
 * **Actors:** Planner, Thủ kho kiêm QC, Nhân viên kho, Dispatcher, Tài xế, Kế toán viên, Kế toán trưởng, Trưởng kho.
 * **Endpoints chính:** `/api/v1/delivery-orders`, `/api/v1/delivery-orders/{id}/pick`, `/api/v1/delivery-orders/{id}/qc-outbound`, `/api/v1/trips`, `/api/v1/trips/{id}/depart`, `/api/v1/trips/{tripId}/delivery-orders/{doId}/pod-evidence`, `/api/v1/trips/{tripId}/delivery-orders/{doId}/delivery-otp`, `/api/v1/trips/{tripId}/delivery-orders/{doId}/confirm-delivery`, `/api/v1/trips/{tripId}/delivery-orders/{doId}/fail-delivery`, `/api/v1/accounting/invoice-candidates`, `/api/v1/accounting/invoice-candidates/{doId}/invoice`.
 
@@ -147,7 +148,7 @@ Dưới đây là tổng hợp 10 Domain Specifications chứa 26 User Stories g
 * **Mã Spec:** [007-pricing-cogs-management](.sdd/specs/007-pricing-cogs-management/spec.md)
 * **Mục tiêu:** Quản lý bảng giá bán và giá vốn theo kỳ kinh doanh hiệu lực để tính giá trị giao dịch và COGS chính xác.
 * **Các User Stories:**
-  * **US-WMS-14 (P1):** [Quản lý bảng giá theo kỳ](.sdd/specs/007-pricing-cogs-management/features/feature-accountant-pricing-management.md) (Maker-Checker: Kế toán viên lập, Kế toán trưởng duyệt). Hệ thống bắt buộc lưu lịch sử giá vào `price_history`. Khi xuất hàng, hệ thống tự động tra cứu giá vốn/bán. (Xem thêm: [Tự động tính COGS](.sdd/specs/007-pricing-cogs-management/features/feature-system-cogs-calculation.md))
+  * **US-WMS-14 (P1):** [Quản lý bảng giá theo kỳ](.sdd/specs/007-pricing-cogs-management/features/feature-accountant-price-entry-management.md) (Maker-Checker: Kế toán viên lập, Kế toán trưởng duyệt). Hệ thống bắt buộc lưu lịch sử giá vào `price_history`. Khi xuất hàng, hệ thống tự động tra cứu giá vốn/bán. (Xem thêm: [Tự động tính COGS](.sdd/specs/007-pricing-cogs-management/features/feature-system-cogs-calculation.md))
 * **Actors:** Kế toán viên, Kế toán trưởng.
 * **Endpoints chính:** `/api/v1/price-lists`, `/api/v1/price-lists/{id}/approve`, `/api/v1/products/{id}/price-history`.
 
@@ -180,6 +181,18 @@ Dưới đây là tổng hợp 10 Domain Specifications chứa 26 User Stories g
   * **US-WMS-25 (P3):** Báo cáo năng suất & sản lượng nhân viên kho (số đơn bốc xếp/di chuyển của nhân viên, số đơn soạn và QC của thủ kho, số chuyến của tài xế) để làm căn cứ HRM tính lương sản phẩm. [Chi tiết](.sdd/specs/010-reports-dashboards-alerts/features/feature-manager-productivity-report.md)
 * **Actors:** CEO, Kế toán trưởng, Trưởng kho, Planner.
 * **Endpoints chính:** `/api/v1/dashboard/ceo`, `/api/v1/reports/inventory-valuation`, `/api/v1/reports/productivity`, `/api/v1/alerts/low-stock`.
+
+### Spec 011: Kiểm thử Backend & SonarQube
+* **Mã Spec:** [011-backend-test-sonarqube](.sdd/specs/011-backend-test-sonarqube/spec.md)
+* **Mục tiêu:** Chuẩn hóa hạ tầng test backend, test core services/phân quyền và test nghiệp vụ WMS; thiết lập báo cáo JaCoCo/SonarQube cùng QA sign-off.
+* **Quy tắc đồng bộ:** Quality Gate 80% chỉ áp dụng cho *new code* trong PR; không commit secrets vào test; dùng JUnit 5 parameterized tests cho nhiều bộ dữ liệu.
+* **Actors:** Developer, Tech Lead/QA, QA Engineer, CI/CD Runner.
+
+### Spec 012: Kiểm thử Frontend
+* **Mã Spec:** [012-frontend-testing](.sdd/specs/012-frontend-testing/spec.md)
+* **Mục tiêu:** Kiểm thử utility/form validation, route/RBAC UI, state component và chống double-submit bằng Vitest + React Testing Library.
+* **Quy tắc đồng bộ:** ưu tiên kiểm thử hành vi người dùng; dùng test parameterized cho các bộ dữ liệu biên; không thay thế kiểm thử backend/integration API.
+* **Actors:** Frontend Developer, Tech Lead/QA, CI/CD Runner.
 
 ---
 

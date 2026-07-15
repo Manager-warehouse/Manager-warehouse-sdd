@@ -1,5 +1,7 @@
 # Tài Liệu Đặc Tả & Hướng Dẫn Sử Dụng Database WMS Phúc Anh
 
+> **Đồng bộ:** 2026-07-15 · **Nguồn schema triển khai:** `backend/src/main/resources/db/migration/` · **Nguồn nghiệp vụ:** `.sdd/specs/001`–`010`. Flyway migration là nguồn cuối cùng khi tài liệu và database khác nhau.
+
 Tài liệu này giải thích chi tiết cấu trúc cơ sở dữ liệu PostgreSQL của Hệ thống Quản lý Kho (WMS) Phúc Anh, bao gồm ý nghĩa nghiệp vụ của tất cả các bảng (36 bảng core + 1 bảng bổ trợ), chi tiết từng trường dữ liệu, cách hoạt động và ví dụ thực tế cho mỗi thực thể.
 
 ---
@@ -19,7 +21,7 @@ Tài liệu này giải thích chi tiết cấu trúc cơ sở dữ liệu Postg
 11. [Nhóm 10: Kiểm Kê & Điều Chỉnh Tồn Kho (Stocktake & Adjustments)](#nhóm-10-kiểm-kê--điều-chỉnh-tồn-kho)
 12. [Nhóm 11: Tài Chính & Công Nợ Đại Lý (Billing & Debt Management)](#nhóm-11-tài-chính--công-nợ-đại-lý)
 13. [Nhóm 12: Cấu Hình Hệ Thống & Nhật Ký Bảo Mật (Configs & Audit Logs)](#nhóm-12-cấu-hình-hệ-thống--nhật-ký-bảo-mật)
-14. [Các Trigger Tự Động & View Quan Trọng](#các-trigger-tự-động--view-quan-trọng)
+14. [Cơ Chế Nghiệp Vụ Tự Động & FIFO](#cơ-chế-nghiệp-vụ-tự-động--fifo)
 
 ---
 
@@ -109,7 +111,7 @@ erDiagram
   - `type` (VARCHAR(10)): CHECK: `ZONE` (Phân khu lớn, ví dụ Khu A, Khu B) hoặc `BIN` (Ô/Kệ chứa hàng thực tế).
   - `parent_id` (BIGINT, FK -> warehouse_locations): Trỏ tới Zone cha. Nếu là Zone thì trường này để `NULL`.
   - `capacity_m3` & `capacity_kg` (DECIMAL): Giới hạn thể tích (m3) và tải trọng (kg) tối đa của ô kệ (chỉ áp dụng cho loại `BIN`).
-  - `current_volume_m3` & `current_weight_kg` (DECIMAL): Thể tích và khối lượng hàng hiện tại đang chứa trong ô kệ (tự động cập nhật bằng database trigger).
+  - `current_volume_m3` & `current_weight_kg` (DECIMAL): Thể tích và khối lượng hàng hiện tại trong ô kệ, được service putaway duy trì trong cùng transaction.
   - `is_quarantine` (BOOLEAN, DEFAULT false): Cờ đánh dấu vị trí cách ly (Quarantine Zone/Bin) để giữ hàng lỗi QC hoặc hàng hoàn trả.
 - **Ví dụ thực tế:**
   - Bản ghi 1 (Khu vực): `id = 10`, `type = "ZONE"`, `code = "WH-HP.A"`, `parent_id = NULL`.
@@ -390,6 +392,11 @@ erDiagram
   - `destination_warehouse_id` (FK): Kho nhận hàng đến.
   - `status` (VARCHAR(40)): CHECK: `NEW` (Lập lệnh), `APPROVED` (Trưởng kho duyệt), `IN_TRANSIT` (Hàng đang nằm ở kho ảo/ở trên xe đi đường), `COMPLETED` (Kho đích đã nhận đủ), `COMPLETED_WITH_DISCREPANCY` (Hoàn thành nhưng bị lệch số lượng thực nhận), `CANCELLED`.
 
+### 25.1. Bảng `transfer_requests` & `transfer_request_items`
+
+- **Công dụng:** Lưu đề xuất điều chuyển trước khi thành `transfers`; tách biệt yêu cầu điều phối khỏi chứng từ vận hành đã được duyệt.
+- **Ràng buộc:** Mỗi dòng yêu cầu xác định SKU/số lượng và kho nguồn–đích theo warehouse scope. Phê duyệt, từ chối và tạo transfer phải ghi audit log; không hard-code trạng thái hoặc warehouse ID.
+
 ### 26. Bảng `transfer_items`
 
 - **Công dụng:** Chi tiết các lô hàng và số lượng cần điều chuyển. Ghi nhận độc lập số lượng gửi và số lượng nhận thực tế để phát hiện hao hụt.
@@ -398,6 +405,12 @@ erDiagram
   - `sent_qty` (DECIMAL): Số lượng kho nguồn thực xuất lên xe.
   - `received_qty` (DECIMAL): Số lượng kho đích thực tế nhận được khi dỡ hàng xuống.
   - `variance_qty` (DECIMAL): Số lượng chênh lệch hao hụt khi đi đường (`received_qty - sent_qty`). Nếu chênh lệch âm, hệ thống yêu cầu lập phiếu **Adjustment** điều chỉnh hao hụt để ghi nhận lý do.
+
+### 26.1. Bảng hardening transfer
+
+- `inter_warehouse_transfer_allocations`: allocation theo batch/vị trí để duy trì FIFO và optimistic locking khi ship.
+- `wrong_sku_reports`, `wrong_sku_report_items`: ghi nhận SKU sai trong bước nhận kho đích.
+- `discrepancy_incidents`, `discrepancy_hold_entries`: bằng chứng và hàng giữ lại khi có thiếu/thừa; chênh lệch phải dẫn đến adjustment/audit thích hợp.
 
 ---
 
@@ -488,18 +501,17 @@ erDiagram
 
 ---
 
-## CÁC TRIGGER TỰ ĐỘNG & VIEW QUAN TRỌNG
+## CƠ CHẾ NGHIỆP VỤ TỰ ĐỘNG & FIFO
 
-### 1. Tự động tính toán sức chứa ô kệ (`trg_inventories_bin_capacity`)
+### 1. Kiểm tra sức chứa ô kệ
 
-- **Cơ chế:** Khi có bất kỳ hành động Nhập, Xuất hoặc Di chuyển hàng làm thay đổi bảng `inventories`, một trigger sẽ tự động nhân số lượng hàng (`total_qty`) với thể tích (`volume_m3`) và khối lượng (`weight_kg`) của SKU đó, sau đó cộng dồn để cập nhật trực tiếp vào cột `current_volume_m3` và `current_weight_kg` của ô kệ (`warehouse_locations`) tương ứng.
-- **Lợi ích:** Hệ thống luôn biết chính xác ô kệ nào còn bao nhiêu m3 trống để đưa ra gợi ý cất hàng tự động mà không cần tính toán thủ công ở backend.
+- **Cơ chế chuẩn:** Service putaway tính/kiểm tra `capacity_m3`, `capacity_kg`, `current_volume_m3` và `current_weight_kg` trong transaction trước khi cập nhật inventory. Không giả định trigger database tồn tại nếu migration chưa khai báo nó.
+- **Lợi ích:** Giữ validation nghiệp vụ trong Spring service/JPA, nhất quán với kiến trúc không dùng raw SQL.
 
-### 2. Tự động cảnh báo tồn kho (`trg_inventories_stock_alert`)
+### 2. Cảnh báo tồn kho thấp
 
-- **Cơ chế:** Mỗi khi số lượng tồn của một sản phẩm thay đổi, hệ thống tự động so sánh tổng tồn kho của sản phẩm đó trong kho với trường `reorder_point` của sản phẩm. Nếu thấp hơn, hệ thống tự động chèn một dòng cảnh báo vào bảng `stock_alerts`.
+- **Cơ chế chuẩn:** Sau biến động tồn kho, service/background process đánh giá `available = total_qty - reserved_qty` so với `reorder_point` hoặc `MIN_INVENTORY_WARNING_THRESHOLD`, rồi tạo/resolve `stock_alerts`. Unique `(warehouse_id, product_id, alert_type, is_resolved)` tránh spam alert mở.
 
-### 3. View xếp hạng tồn kho FIFO (`v_inventory_by_batch`)
+### 3. Lựa chọn FIFO
 
-- **Cơ chế:** View này sắp xếp tồn kho chi tiết theo nguyên tắc ưu tiên lô có ngày nhập kho cũ nhất lên trước (`received_date ASC` - FIFO), chỉ bao gồm tồn kho hợp lệ trong khu vực đạt chất lượng.
-- **Lợi ích:** Khi xuất kho, backend chỉ cần select từ View này để tự động phân bổ hàng xuất tối ưu mà không cần viết thuật toán sắp xếp phức tạp ở code ứng dụng.
+- **Cơ chế chuẩn:** Repository/service chọn batch theo `received_date ASC`, chỉ lấy tồn kho hợp lệ ngoài Quarantine và dùng optimistic locking. Không giả định view SQL `v_inventory_by_batch` tồn tại nếu migration chưa khai báo nó.
