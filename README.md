@@ -152,7 +152,7 @@ Hệ thống có **10 Actors** chia thành 3 tầng theo mô hình **Maker-Check
 
 ## User Stories
 
-Hệ thống có **27 User Stories** chia thành 9 nhóm nghiệp vụ:
+Hệ thống có **30 User Stories**: 27 câu chuyện vận hành trong 9 nhóm nghiệp vụ và 3 câu chuyện chất lượng kỹ thuật (Spec 011–012).
 
 ### Nhóm 1: Quản trị hệ thống & Cấu hình (Admin & CEO)
 
@@ -359,7 +359,8 @@ Manager-warehouse-sdd/
 ├── CLAUDE.md                         # Kiến trúc, workflow, conventions, swimlane diagrams
 ├── DESIGN.md                         # UI design tokens (Apple design system)
 ├── Kiến trúc phân tầng các Actors.md # 10 Actors, nghiệp vụ, quy trình chi tiết
-├── Userstory.md                      # 27 User Stories đầy đủ
+├── Userstory.md                      # 30 User Stories đầy đủ
+├── FEATURES_SUMMARY.md                # Catalog 12 specs hiện hành
 ├── README.md                         # File này
 │
 ├── backend/                          # Spring Boot 3.4.5 + Java 21
@@ -643,9 +644,10 @@ Mỗi task hoàn thành khi đáp ứng **tất cả** các điều kiện sau:
 | [CLAUDE.md](./CLAUDE.md) | Kiến trúc chi tiết, workflow, swimlane diagrams, anti-patterns |
 | [DESIGN.md](./DESIGN.md) | UI design tokens (Apple design system) |
 | [Kiến trúc phân tầng các Actors.md](./Kiến%20trúc%20phân%20tầng%20các%20Actors.md) | 10 Actors, nghiệp vụ chi tiết, quy trình |
-| [Userstory.md](./Userstory.md) | 27 User Stories đầy đủ với tiêu chí nghiệm thu |
-| [specs/](./specs/) | Feature specifications (SDD) |
+| [Userstory.md](./Userstory.md) | 30 User Stories đầy đủ với tiêu chí nghiệm thu |
+| [FEATURES_SUMMARY.md](./FEATURES_SUMMARY.md) | Tổng hợp 12 specs và các quy tắc nghiệp vụ |
+| [.sdd/specs/](./.sdd/specs/) | Nguồn đặc tả chuẩn: 001–010 nghiệp vụ, 011–012 testing/quality |
 
 ---
 
-*Phiên bản: 1.0 | Cập nhật: 2026-05-29 | Dự án: WMS Phúc Anh — Sprint 1*
+*Phiên bản: 1.1 | Cập nhật: 2026-07-15 | Dự án: WMS Phúc Anh — Sprint 1*
