@@ -117,9 +117,513 @@ all mutating tables ──> audit_logs (append-only, actor_id nullable cho SYSTE
 
 # II. Code Designs
 
-> **Phạm vi phần này:** thiết kế chi tiết Class Diagram / Class Specifications / Sequence Diagram / Database Queries cho nhóm nghiệp vụ đại diện **Spec 003 – Inbound Receipt & QC** (đồng bộ với `docs/RDS-WMS.md`). Các class/method liệt kê dưới đây lấy trực tiếp từ code thực tế tại `backend/src/main/java/com/wms/`. Khi cần mở rộng cho các nhóm nghiệp vụ khác (Outbound, Transfer, Stocktake, Pricing, Finance...), áp dụng cùng mẫu, tham chiếu class tương ứng trong `backend/CLAUDE.md` mục "Current Backend Flows".
+> **Phạm vi phần này:** thiết kế chi tiết Class Diagram / Class Specifications / Sequence Diagram / Database Queries cho **toàn bộ 10 nhóm nghiệp vụ (Spec 001–010)**, đồng bộ với `docs/RDS-WMS.md`. Các class/method liệt kê dưới đây lấy trực tiếp từ code thực tế tại `backend/src/main/java/com/wms/`, tham chiếu class tương ứng trong `backend/CLAUDE.md` mục "Current Backend Flows". Spec 011–012 (testing/SonarQube) là quality cross-cutting, không có class nghiệp vụ riêng.
 
-## 1. Receipt Creation & Physical Counting
+## 1. Security, Authentication & RBAC (Spec 001)
+
+### 1.1 System Configuration
+
+#### a. Class Diagram
+
+```
+SystemConfigController ──uses──► SystemConfigService ──uses──► SystemConfigRepository ──maps──► SystemConfig (entity)
+        │                              │
+        └──DTO: UpdateConfigRequest    └──uses──► AuditLogService
+```
+
+#### b. Class Specifications
+
+**SystemConfigController Class**
+
+| No  | Method                                       | Description                                                                                                    |
+| --- | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| 01  | `getConfigs()`                                | `GET /api/v1/admin/system-configs` — role `ADMIN`. Trả toàn bộ tham số hệ thống hiện tại.                    |
+| 02  | `updateConfig(String key, UpdateConfigRequest)` | `PUT /api/v1/admin/system-configs/{key}` — role `ADMIN`. Cập nhật 1 tham số (VD `DEFAULT_CREDIT_LIMIT`, `DEFAULT_MIN_STOCK`, `DEFAULT_PAYMENT_TERM_DAYS`, `PERIOD_CLOSE_DAY`). |
+
+**SystemConfigService Class**
+
+| No  | Method                                                     | Description                                                                                                                                                                                                                                                                            |
+| --- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 01  | `updateConfig(String key, String newValue, User actor)`      | **Input**: `key` (VD `DEFAULT_CREDIT_LIMIT`), `newValue`, actor (phải `ADMIN`). **Xử lý nội bộ**: `requireAdmin(actor)` → validate `newValue` theo kiểu dữ liệu của key (numeric/date) → `validateRange` (không âm, không vượt ngưỡng hợp lý) → load config cũ để snapshot → `systemConfigRepository.save()` → ghi audit `SYSTEM_CONFIG_UPDATED` với before/after. **Output**: `SystemConfigResponse`. |
+| 02 (private) | `requireAdmin` / `validateRange`                    | Kiểm tra role + validate giá trị theo business rule của từng key.                                                                                                                                                                                                                       |
+
+#### c. Sequence Diagram(s)
+
+```
+System Admin → SystemConfigController.updateConfig(key, request)
+  SystemConfigController → SystemConfigService.updateConfig(key, newValue, actor)
+    SystemConfigService → requireAdmin(actor)
+    SystemConfigService → validateRange(key, newValue)
+    SystemConfigService → systemConfigRepository.findByKey(key)   → old value (snapshot)
+    SystemConfigService → systemConfigRepository.save(key, newValue)
+    SystemConfigService → auditLogService.log(SYSTEM_CONFIG_UPDATED, before, after)
+  SystemConfigService --> SystemConfigController : SystemConfigResponse
+SystemConfigController --> System Admin : 200 OK
+```
+
+#### d. Database Queries
+
+```sql
+-- 1/ Đọc toàn bộ config hiện tại
+SELECT config_key, config_value, updated_at FROM system_configs ORDER BY config_key;
+
+-- 2/ Cập nhật 1 tham số
+UPDATE system_configs
+SET config_value = ?, updated_at = NOW()
+WHERE config_key = ?;
+```
+
+---
+
+### 1.2 User & Warehouse Assignment Management
+
+#### a. Class Diagram
+
+```
+AdminController ──uses──► UserService ──uses──► UserRepository ──maps──► User (entity)
+        │                       │                                             └──► UserWarehouseAssignment
+        │                       └──uses──► RbacService (role/permission validate)
+        └──DTO: CreateUserRequest / UpdateUserRequest ──► UserResponse
+```
+
+#### b. Class Specifications
+
+**AdminController Class**
+
+| No  | Method                                              | Description                                                                                              |
+| --- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| 01  | `getUsers(...)`                                     | `GET /api/v1/admin/users` — role `ADMIN`. Trả danh sách user + role + warehouse assignments.               |
+| 02  | `createUser(CreateUserRequest request)`             | `POST /api/v1/admin/users` — role `ADMIN`. Input: email, username, password, fullName, role, warehouseIds[]. |
+| 03  | `updateUser(Long id, UpdateUserRequest request)`     | `PUT /api/v1/admin/users/{id}` — cập nhật role/warehouse assignment.                                        |
+| 04  | `deactivateUser(Long id)`                            | `DELETE /api/v1/admin/users/{id}` — soft-delete, `is_active = false`.                                       |
+
+**UserService Class**
+
+| No  | Method                                                                 | Description                                                                                                                                                                                                                                                                                                                                                                    |
+| --- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 01  | `createUser(CreateUserRequest request, User actor)`                    | **Input**: request (email/username unique, password ≥8 ký tự, role hợp lệ trong 10 role, warehouseIds[]), actor (`ADMIN`). **Xử lý nội bộ**: `requireAdmin` → `validateUniqueEmail`/`validateUniqueUsername` → `passwordEncoder.encode` (bcrypt cost ≥12) → lưu `User` (`is_active = true`) → lưu `UserWarehouseAssignment[]` cho mỗi warehouseId → ghi audit `USER_CREATED`. **Output**: `UserResponse`.                                                            |
+| 02  | `updateUserAssignment(Long userId, UpdateUserRequest request, User actor)` | **Input**: `userId`, request (role mới, warehouseIds mới), actor. **Xử lý nội bộ**: diff warehouseIds cũ/mới → xóa assignment không còn, thêm assignment mới → cập nhật role nếu đổi → ghi audit `USER_UPDATED` với before/after. **Output**: `UserResponse`.                                                                                                                    |
+| 03  | `deactivateUser(Long userId, User actor)`                              | **Input**: `userId`, actor. **Xử lý nội bộ**: set `is_active = false`, không xóa record; ghi audit `USER_DEACTIVATED`. **Output**: `UserResponse`.                                                                                                                                                                                                                              |
+
+#### c. Sequence Diagram(s)
+
+```
+System Admin → AdminController.createUser(request)
+  AdminController → UserService.createUser(request, actor)
+    UserService → requireAdmin(actor)
+    UserService → userRepository.existsByEmail(email)        [duplicate check]
+    UserService → userRepository.existsByUsername(username)  [duplicate check]
+    UserService → passwordEncoder.encode(password)            → bcrypt hash
+    UserService → userRepository.save(user)                   → User{is_active=true}
+    loop each warehouseId
+      UserService → userWarehouseAssignmentRepository.save(userId, warehouseId)
+    end
+    UserService → auditLogService.log(USER_CREATED, before=null, after=snapshot)
+  UserService --> AdminController : UserResponse
+AdminController --> System Admin : 201 Created
+```
+
+#### d. Database Queries
+
+```sql
+-- 1/ Kiểm tra trùng email/username
+SELECT EXISTS (SELECT 1 FROM users WHERE email = ?);
+SELECT EXISTS (SELECT 1 FROM users WHERE username = ?);
+
+-- 2/ Tạo user
+INSERT INTO users (email, username, password_hash, full_name, phone, job_title, role, is_active, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, true, NOW()) RETURNING id;
+
+-- 3/ Gán warehouse
+INSERT INTO user_warehouse_assignments (user_id, warehouse_id, created_at)
+VALUES (?, ?, NOW());
+
+-- 4/ Vô hiệu hóa user
+UPDATE users SET is_active = false, updated_at = NOW() WHERE id = ?;
+```
+
+---
+
+### 1.3 Authentication (Login/JWT)
+
+#### a. Class Diagram
+
+```
+AuthController ──uses──► AuthenticationService ──uses──► UserRepository
+        │                       │
+        │                       ├──uses──► JwtTokenProvider (generate/verify access + refresh token)
+        │                       └──uses──► PasswordEncoder (bcrypt)
+        └──DTO: LoginRequest / RefreshTokenRequest ──► AuthResponse
+```
+
+#### b. Class Specifications
+
+**AuthController Class**
+
+| No  | Method                                    | Description                                                                                 |
+| --- | -------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| 01  | `login(LoginRequest request)`               | `POST /api/v1/auth/login` — public. Input: email/password. Output: access + refresh token. |
+| 02  | `refresh(RefreshTokenRequest request)`      | `POST /api/v1/auth/refresh` — public. Input: refresh token. Output: access token mới.       |
+| 03  | `logout()`                                  | `POST /api/v1/auth/logout` — authenticated. Xóa refresh token hash.                        |
+| 04  | `getMe()`                                   | `GET /api/v1/auth/me` — authenticated. Trả thông tin user hiện tại + warehouse assignments. |
+
+**AuthenticationService Class**
+
+| No  | Method                                                | Description                                                                                                                                                                                                                                                                                             |
+| --- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 01  | `login(String email, String password)`                  | **Input**: email, password. **Xử lý nội bộ**: `userRepository.findByEmail` (throw `UnauthorizedException` nếu không tồn tại hoặc `is_active=false`) → `passwordEncoder.matches(password, user.passwordHash)` (throw nếu sai) → `jwtTokenProvider.generateAccessToken` (15m) + `generateRefreshToken` (7d) → hash refresh token (SHA-256), lưu `users.refresh_token_hash` + `refresh_token_expires_at` → ghi audit `USER_LOGIN`. **Output**: `AuthResponse{accessToken, refreshToken}`. |
+| 02  | `refreshToken(String refreshToken)`                     | **Input**: refresh token (plain). **Xử lý nội bộ**: hash input, so khớp `users.refresh_token_hash` + kiểm tra `refresh_token_expires_at > NOW()` → sinh access token mới. **Output**: `AuthResponse{accessToken}`.                                                                                       |
+| 03  | `logout(User actor)`                                    | **Input**: actor hiện tại. **Xử lý nội bộ**: set `refresh_token_hash = NULL`, `refresh_token_expires_at = NULL`. **Output**: void.                                                                                                                                                                        |
+
+#### c. Sequence Diagram(s)
+
+```
+User → AuthController.login(request)
+  AuthController → AuthenticationService.login(email, password)
+    AuthenticationService → userRepository.findByEmail(email)     → User (must be is_active)
+    AuthenticationService → passwordEncoder.matches(password, hash)
+    AuthenticationService → jwtTokenProvider.generateAccessToken(user)   [15m]
+    AuthenticationService → jwtTokenProvider.generateRefreshToken(user)  [7d]
+    AuthenticationService → userRepository.save(user{refresh_token_hash})
+    AuthenticationService → auditLogService.log(USER_LOGIN)
+  AuthenticationService --> AuthController : AuthResponse
+AuthController --> User : 200 OK (accessToken, refreshToken)
+```
+
+#### d. Database Queries
+
+```sql
+-- 1/ Tìm user theo email để login
+SELECT id, full_name, email, role, password_hash, is_active
+FROM users WHERE email = ? AND is_active = true;
+
+-- 2/ Lưu refresh token hash sau login thành công
+UPDATE users
+SET refresh_token_hash = ?, refresh_token_expires_at = NOW() + INTERVAL '7 days'
+WHERE id = ?;
+
+-- 3/ Verify refresh token khi refresh
+SELECT id, role, email FROM users
+WHERE refresh_token_hash = ? AND refresh_token_expires_at > NOW();
+
+-- 4/ Logout — xóa refresh token
+UPDATE users SET refresh_token_hash = NULL, refresh_token_expires_at = NULL WHERE id = ?;
+```
+
+---
+
+### 1.4 Audit Log Query
+
+#### a. Class Diagram
+
+```
+AuditLogController ──uses──► AuditLogService ──uses──► AuditLogRepository ──maps──► AuditLog (entity, append-only)
+```
+
+#### b. Class Specifications
+
+**AuditLogController Class**
+
+| No  | Method                    | Description                                                                                                            |
+| --- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| 01  | `getAuditLogs(...)`      | `GET /api/v1/admin/audit-logs` — role `ADMIN`. Filter: actor_id, action, entity_type, warehouse_id, from/to date; phân trang. |
+
+**AuditLogService Class**
+
+| No  | Method                                              | Description                                                                                                                                     |
+| --- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01  | `queryAuditLogs(AuditLogFilterRequest filter, User actor)` | **Input**: filter (actor_id, action, entity_type, warehouse_id, dateFrom, dateTo, page/size), actor (`ADMIN`). **Xử lý nội bộ**: build dynamic query theo filter non-null → sort `created_at DESC`. **Output**: `Page<AuditLogResponse>`. Read-only, không mutate. |
+| 02 (static/util) | `AuditLogUtil.log(action, entityType, entityId, actor, before, after)` | Utility dùng bởi MỌI service khác để ghi audit; build JSON diff before/after, filter field nhạy cảm (password_hash, otp_hash...). |
+
+#### c. Sequence Diagram(s)
+
+```
+System Admin → AuditLogController.getAuditLogs(filter)
+  AuditLogController → AuditLogService.queryAuditLogs(filter, actor)
+    AuditLogService → requireAdmin(actor)
+    AuditLogService → auditLogRepository.findByFilters(filter, pageable)
+  AuditLogService --> AuditLogController : Page<AuditLogResponse>
+AuditLogController --> System Admin : 200 OK
+```
+
+#### d. Database Queries
+
+```sql
+SELECT al.id, al.actor_id, al.actor_role, al.action, al.entity_type, al.entity_id,
+       al.warehouse_id, al.old_value, al.new_value, al.created_at
+FROM audit_logs al
+WHERE (? IS NULL OR al.actor_id = ?)
+  AND (? IS NULL OR al.action = ?)
+  AND (? IS NULL OR al.entity_type = ?)
+  AND (? IS NULL OR al.warehouse_id = ?)
+  AND (? IS NULL OR al.created_at >= ?)
+  AND (? IS NULL OR al.created_at <= ?)
+ORDER BY al.created_at DESC
+LIMIT ? OFFSET ?;
+```
+
+---
+
+## 2. Master Data Management (Spec 002)
+
+### 2.1 Product/SKU Management
+
+#### a. Class Diagram
+
+```
+ProductController ──uses──► ProductService ──uses──► ProductRepository ──maps──► Product (entity)
+        │                          │
+        │                          └──uses──► PriceHistoryRepository (COGS lookup)
+        └──DTO: CreateProductRequest / UpdateProductRequest ──► ProductResponse
+```
+
+#### b. Class Specifications
+
+**ProductController Class**
+
+| No  | Method                                        | Description                                                                              |
+| --- | ------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| 01  | `getProducts(...)`                              | `GET /api/v1/products` — search theo SKU/name, filter `is_active`.                          |
+| 02  | `createProduct(CreateProductRequest request)`   | `POST /api/v1/products` — role `STOREKEEPER`/`ADMIN`. SKU unique, immutable sau tạo.       |
+| 03  | `updateProduct(Long id, UpdateProductRequest)`  | `PUT /api/v1/products/{id}` — chỉ cho sửa name/unit/weight/volume/reorder_point, KHÔNG sửa SKU. |
+| 04  | `deactivateProduct(Long id)`                    | `DELETE /api/v1/products/{id}` — soft-delete `is_active = false`.                          |
+
+**ProductService Class**
+
+| No  | Method                                                     | Description                                                                                                                                                                                                                                                       |
+| --- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01  | `createProduct(CreateProductRequest request, User actor)`      | **Input**: request (sku unique, name, unit, weightKg, volumeM3, unitPerPack, reorderPoint), actor (`STOREKEEPER`/`ADMIN`). **Xử lý nội bộ**: `validateUniqueSku` → lưu `Product` (`is_active=true`) → ghi audit `PRODUCT_CREATED`. **Output**: `ProductResponse`.  |
+| 02  | `updateProduct(Long id, UpdateProductRequest request, User actor)` | **Input**: `id`, request (chỉ field cho phép sửa). **Xử lý nội bộ**: load product, apply field updates (bỏ qua nếu request cố gửi `sku` khác) → lưu → ghi audit `PRODUCT_UPDATED`. **Output**: `ProductResponse`.                                                    |
+| 03  | `deactivateProduct(Long id, User actor)`                        | **Input**: `id`. **Xử lý nội bộ**: kiểm tra product không có transaction đang mở (optional warning) → set `is_active=false` → ghi audit `PRODUCT_DEACTIVATED`. **Output**: void.                                                                                    |
+
+#### c. Sequence Diagram(s)
+
+```
+Thủ kho → ProductController.createProduct(request)
+  ProductController → ProductService.createProduct(request, actor)
+    ProductService → productRepository.existsBySku(sku)   [duplicate check]
+    ProductService → productRepository.save(product)      → Product{is_active=true}
+    ProductService → auditLogService.log(PRODUCT_CREATED, before=null, after=snapshot)
+  ProductService --> ProductController : ProductResponse
+ProductController --> Thủ kho : 201 Created
+```
+
+#### d. Database Queries
+
+```sql
+-- 1/ Danh sách sản phẩm active, search theo sku/name
+SELECT id, sku, name, unit, weight_kg, volume_m3, reorder_point
+FROM products
+WHERE is_active = true AND (sku ILIKE ? OR name ILIKE ?)
+ORDER BY created_at DESC;
+
+-- 2/ Kiểm tra SKU trùng
+SELECT EXISTS (SELECT 1 FROM products WHERE sku = ?);
+
+-- 3/ Tạo sản phẩm
+INSERT INTO products (sku, name, unit, weight_kg, volume_m3, unit_per_pack, reorder_point, is_active, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, true, NOW()) RETURNING id;
+
+-- 4/ Vô hiệu hóa
+UPDATE products SET is_active = false, updated_at = NOW() WHERE id = ?;
+```
+
+---
+
+### 2.2 Warehouse Zone & Bin Location Configuration
+
+#### a. Class Diagram
+
+```
+WarehouseController ──uses──► WarehouseService ──uses──► WarehouseRepository ──maps──► Warehouse (entity)
+BinLocationController ──uses──► BinLocationService ──uses──► WarehouseLocationRepository ──maps──► WarehouseLocation (entity)
+                                       │
+                                       └──uses──► LocationLockService (lock/unlock khi stocktake)
+```
+
+#### b. Class Specifications
+
+**WarehouseController / BinLocationController Class**
+
+| No  | Method                                             | Description                                                                                     |
+| --- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| 01  | `getWarehouses()`                                    | `GET /api/v1/warehouses` — danh sách kho vật lý + IN_TRANSIT.                                       |
+| 02  | `createZone(Long warehouseId, CreateZoneRequest)`    | `POST /api/v1/warehouses/{id}/locations` (type=ZONE) — role `WAREHOUSE_MANAGER`/`ADMIN`.            |
+| 03  | `createBin(Long warehouseId, CreateBinRequest)`      | `POST /api/v1/warehouses/{id}/locations` (type=BIN, parent_id=zone) — kèm capacity_m3/capacity_kg. |
+| 04  | `lockLocations(Long warehouseId)`                    | Internal — gọi bởi `StocktakeService` khi bắt đầu kiểm kê.                                          |
+
+**BinLocationService Class**
+
+| No  | Method                                                              | Description                                                                                                                                                                                                                                                       |
+| --- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01  | `createLocation(Long warehouseId, CreateLocationRequest request, User actor)` | **Input**: warehouseId, request (code unique trong kho, type ZONE/BIN, parent_id nếu BIN, capacity, is_quarantine), actor (`WAREHOUSE_MANAGER`/`ADMIN`). **Xử lý nội bộ**: `validateUniqueCode` → `validateHierarchy` (BIN phải có parent là ZONE, không cho BIN làm parent) → lưu `WarehouseLocation` → ghi audit `LOCATION_CREATED`. **Output**: `LocationResponse`.  |
+| 02  | `lockLocationsForStocktake(Long warehouseId)`                             | **Input**: warehouseId (gọi từ `StocktakeService.startStocktake`). **Xử lý nội bộ**: `UPDATE warehouse_locations SET is_locked=true WHERE warehouse_id=? AND type='BIN' AND is_quarantine=false`. **Output**: void.                                              |
+| 03  | `unlockLocationsAfterStocktake(Long warehouseId)`                         | Ngược lại của trên, gọi khi stocktake `CLOSED`/`REJECTED`.                                                                                                                                                                                                          |
+
+#### c. Sequence Diagram(s)
+
+```
+Trưởng kho → BinLocationController.createBin(warehouseId, request)
+  BinLocationController → BinLocationService.createLocation(warehouseId, request, actor)
+    BinLocationService → validateUniqueCode(warehouseId, code)
+    BinLocationService → validateHierarchy(parentId, type)
+    BinLocationService → warehouseLocationRepository.save(location)
+    BinLocationService → auditLogService.log(LOCATION_CREATED, before=null, after=snapshot)
+  BinLocationService --> BinLocationController : LocationResponse
+BinLocationController --> Trưởng kho : 201 Created
+```
+
+#### d. Database Queries
+
+```sql
+-- 1/ Kiểm tra code trùng trong kho
+SELECT EXISTS (SELECT 1 FROM warehouse_locations WHERE warehouse_id = ? AND code = ?);
+
+-- 2/ Tạo zone/bin
+INSERT INTO warehouse_locations (warehouse_id, code, name, type, parent_id, capacity_m3, capacity_kg, is_quarantine, is_active, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, true, NOW()) RETURNING id;
+
+-- 3/ Lock toàn bộ bin (trừ quarantine) khi bắt đầu stocktake
+UPDATE warehouse_locations
+SET is_locked = true, updated_at = NOW()
+WHERE warehouse_id = ? AND type = 'BIN' AND is_quarantine = false;
+
+-- 4/ Unlock sau stocktake
+UPDATE warehouse_locations
+SET is_locked = false, updated_at = NOW()
+WHERE warehouse_id = ? AND type = 'BIN' AND is_locked = true;
+```
+
+---
+
+### 2.3 Dealer/Supplier & Credit Limit Management
+
+#### a. Class Diagram
+
+```
+DealerController ──uses──► DealerService ──uses──► DealerRepository ──maps──► Dealer (entity)
+SupplierController ──uses──► SupplierService ──uses──► SupplierRepository ──maps──► Supplier (entity)
+DealerService ──uses──► CreditLimitService (set limit, check credit_status)
+```
+
+#### b. Class Specifications
+
+**DealerController Class**
+
+| No  | Method                                              | Description                                                                                        |
+| --- | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| 01  | `createDealer(CreateDealerRequest request)`           | `POST /api/v1/dealers` — role `ACCOUNTANT`. Tạo hồ sơ Đại lý cơ bản, `credit_status = ACTIVE` mặc định. |
+| 02  | `updateCreditLimit(Long dealerId, CreditLimitRequest)` | `PUT /api/v1/dealers/{id}/credit-limit` — role `ACCOUNTANT_MANAGER`.                                    |
+
+**CreditLimitService Class**
+
+| No  | Method                                                                    | Description                                                                                                                                                                                                                                                              |
+| --- | ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01  | `updateCreditLimit(Long dealerId, BigDecimal newLimit, Integer paymentTermDays, User actor)` | **Input**: dealerId, newLimit (>0), paymentTermDays (30/60), actor (`ACCOUNTANT_MANAGER`). **Xử lý nội bộ**: `validateRange(newLimit)` → snapshot old value → `dealerRepository.updateLimit()` → ghi audit `CREDIT_LIMIT_UPDATED` với before/after. **Output**: `DealerResponse`. |
+| 02  | `checkCreditStatus(Long dealerId, BigDecimal newDoValue)`                       | **Input**: dealerId, newDoValue (giá trị DO sắp tạo). **Xử lý nội bộ**: query `current_balance` + `credit_limit` + overdue invoices (`due_date < NOW() - 30d`) → `IF balance + newDoValue > limit OR hasOverdue THEN return BLOCKED`. **Output**: `CreditCheckResult{allowed, reason}`. Dùng bởi `DeliveryOrderService.createDeliveryOrder`. |
+
+#### c. Sequence Diagram(s)
+
+```
+Kế toán trưởng → DealerController.updateCreditLimit(dealerId, request)
+  DealerController → CreditLimitService.updateCreditLimit(dealerId, newLimit, termDays, actor)
+    CreditLimitService → validateRange(newLimit)
+    CreditLimitService → dealerRepository.findById(dealerId)   → old limit (snapshot)
+    CreditLimitService → dealerRepository.save(dealer{credit_limit=newLimit})
+    CreditLimitService → auditLogService.log(CREDIT_LIMIT_UPDATED, before, after)
+  CreditLimitService --> DealerController : DealerResponse
+DealerController --> Kế toán trưởng : 200 OK
+```
+
+#### d. Database Queries
+
+```sql
+-- 1/ Tạo dealer
+INSERT INTO dealers (name, address, phone, email, credit_limit, credit_status, payment_term_days, current_balance, created_at)
+VALUES (?, ?, ?, ?, 0, 'ACTIVE', 30, 0, NOW()) RETURNING id;
+
+-- 2/ Cập nhật Credit Limit
+UPDATE dealers SET credit_limit = ?, payment_term_days = ?, updated_at = NOW() WHERE id = ?;
+
+-- 3/ Credit Check (dùng bởi DO creation)
+SELECT d.current_balance, d.credit_limit, d.credit_status,
+       EXISTS (
+         SELECT 1 FROM invoices i
+         WHERE i.dealer_id = d.id AND i.status IN ('UNPAID','PARTIALLY_PAID')
+           AND i.due_date < NOW() - INTERVAL '30 days'
+       ) AS has_overdue
+FROM dealers d WHERE d.id = ?;
+```
+
+---
+
+### 2.4 Vehicle & Driver Management
+
+#### a. Class Diagram
+
+```
+VehicleController ──uses──► VehicleService ──uses──► VehicleRepository ──maps──► Vehicle (entity)
+DriverController ──uses──► DriverService ──uses──► DriverRepository ──maps──► Driver (entity)
+                                   │
+                                   └──FK──► User (driver.user_id), Warehouse (driver scope)
+```
+
+#### b. Class Specifications
+
+**VehicleController / DriverController Class**
+
+| No  | Method                                     | Description                                                                                     |
+| --- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| 01  | `createVehicle(CreateVehicleRequest request)` | `POST /api/v1/vehicles` — role `DISPATCHER`/`ADMIN`. Biển số unique, max_weight_kg, max_volume_m3. |
+| 02  | `createDriver(CreateDriverRequest request)`   | `POST /api/v1/drivers` — liên kết `user_id`, gán 1+ warehouse phạm vi hoạt động.                    |
+
+**VehicleService / DriverService Class**
+
+| No  | Method                                                        | Description                                                                                                                                                                                                                     |
+| --- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 01  | `createVehicle(CreateVehicleRequest request, User actor)`           | **Input**: plateNumber (unique), maxWeightKg, maxVolumeM3 (nullable), actor. **Xử lý nội bộ**: `validateUniquePlate` → lưu `Vehicle` (`is_active=true`) → ghi audit `VEHICLE_CREATED`. **Output**: `VehicleResponse`.               |
+| 02  | `createDriver(CreateDriverRequest request, User actor)`              | **Input**: userId (phải có role `DRIVER`), warehouseIds[], actor. **Xử lý nội bộ**: validate user tồn tại + role DRIVER → lưu `Driver` linked `user_id` + warehouse scope → ghi audit `DRIVER_CREATED`. **Output**: `DriverResponse`. |
+| 03  | `getEligibleDrivers(Long warehouseId)`                               | Trả danh sách driver active thuộc `warehouseId`, dùng bởi `TripDispatchService` khi Dispatcher chọn tài xế.                                                                                                                        |
+
+#### c. Sequence Diagram(s)
+
+```
+Dispatcher → VehicleController.createVehicle(request)
+  VehicleController → VehicleService.createVehicle(request, actor)
+    VehicleService → vehicleRepository.existsByPlateNumber(plate)   [duplicate check]
+    VehicleService → vehicleRepository.save(vehicle)
+    VehicleService → auditLogService.log(VEHICLE_CREATED, before=null, after=snapshot)
+  VehicleService --> VehicleController : VehicleResponse
+VehicleController --> Dispatcher : 201 Created
+```
+
+#### d. Database Queries
+
+```sql
+-- 1/ Kiểm tra biển số trùng
+SELECT EXISTS (SELECT 1 FROM vehicles WHERE plate_number = ?);
+
+-- 2/ Tạo vehicle
+INSERT INTO vehicles (plate_number, max_weight_kg, max_volume_m3, is_active, created_at)
+VALUES (?, ?, ?, true, NOW()) RETURNING id;
+
+-- 3/ Tạo driver gán warehouse scope
+INSERT INTO drivers (user_id, is_active, created_at) VALUES (?, true, NOW()) RETURNING id;
+INSERT INTO driver_warehouse_assignments (driver_id, warehouse_id) VALUES (?, ?);
+
+-- 4/ Danh sách tài xế eligible cho 1 kho
+SELECT d.id, u.full_name
+FROM drivers d
+JOIN users u ON d.user_id = u.id
+JOIN driver_warehouse_assignments dwa ON dwa.driver_id = d.id
+WHERE dwa.warehouse_id = ? AND d.is_active = true;
+```
+
+---
+
+## 3. Inbound Receipt & QC (Spec 003)
+
+### 3.1 Receipt Creation & Physical Counting
 
 ### a. Class Diagram
 
@@ -230,7 +734,7 @@ WHERE id = ? AND status IN ('PENDING_RECEIPT','DRAFT','QC_COMPLETED','QC_FAILED'
 
 ---
 
-## 2. Inbound QC Inspection
+### 3.2 Inbound QC Inspection
 
 ### a. Class Diagram
 
@@ -279,7 +783,7 @@ WHERE id = ? AND status = 'DRAFT';
 
 ---
 
-## 3. Receipt Approval & Putaway
+### 3.3 Receipt Approval & Putaway
 
 ### a. Class Diagram
 
@@ -374,7 +878,7 @@ WHERE warehouse_id = ? AND product_id = ? AND batch_id = ? AND location_id = ? A
 
 ---
 
-## 4. Quarantine & Return-to-Vendor (RTV)
+### 3.4 Quarantine & Return-to-Vendor (RTV)
 
 ### a. Class Diagram
 
@@ -462,290 +966,6 @@ WHERE receipt_id = ? AND product_id = ? AND quantity >= ?;
 
 UPDATE adjustments SET status = 'CONFIRMED', confirmed_at = NOW()
 WHERE id = ?;
-```
-
----
-
-## Ghi chú mở rộng tài liệu
-
-Class/method liệt kê trên lấy trực tiếp từ `backend/src/main/java/com/wms/{controller,service}/` tương ứng Spec 003. Khi mở rộng SDS cho các nhóm nghiệp vụ khác, tham chiếu bảng "Current Backend Flows" trong `backend/CLAUDE.md` để xác định class thực tế trước khi viết Class Specifications (VD Outbound → `DeliveryOrderController`/`DeliveryOrderService`, `AutoInvoiceService`, `DriverDeliveryServiceImpl`; Finance → `InvoiceServiceImpl`, `PaymentReceiptServiceImpl`, `AccountingPeriodServiceImpl`; Reports → `ReportServiceImpl`, `StockAlertServiceImpl`), giữ cùng cấu trúc mục a/b/c/d như trên.
-
----
-
-# II. System Design Specifications (Spec 001–002)
-
-> **Phạm vi phần này:** Class Diagram, Entity Relationships, Database Schema, và SQL queries cho Spec 001 (Auth/RBAC) + Spec 002 (Master Data). Các class lấy từ backend; schema liên kết với Spec 003's receipts/batches/inventories để hỗ trợ warehouse-scoped RBAC.
-
-## 2. Spec 001: Authentication & RBAC Classes
-
-### 2.1 Class Specifications
-
-**Controller Layer:**
-- `AuthController.java` – Endpoints: login, refresh, logout, changePassword, forgotPassword, verifyOtp, getMe
-- `AdminController.java` – Endpoints: CRUD users, assign warehouses, create/update/delete roles
-
-**Service Layer:**
-- `AuthenticationService.java` – Password hashing (bcrypt cost ≥12), token generation/validation, OTP generation/verification
-- `JwtTokenProvider.java` – JWT token creation (access: 15m, refresh: 7d), verification, extraction
-- `UserService.java` – User CRUD, password hashing, warehouse assignment, audit logging
-- `RbacService.java` – Role/permission checks, warehouse scope validation
-
-**Entity Relationships:**
-```
-users (1) ←─── (many) user_warehouse_assignments ─── (many) warehouses
-users (1) ←─── (many) audit_logs
-users (1) ←─── (many) role_permissions ─── (many) permissions
-```
-
-**Key Database Columns (users table):**
-```sql
-id (BIGSERIAL PK)
-email (VARCHAR, UNIQUE)
-username (VARCHAR, UNIQUE)
-password_hash (VARCHAR, bcrypt)
-full_name (VARCHAR)
-phone (VARCHAR)
-job_title (VARCHAR)
-role (VARCHAR) – FK to roles table or ENUM
-is_active (BOOLEAN DEFAULT true)
-refresh_token_hash (VARCHAR NULL) – SHA-256 hash
-refresh_token_expires_at (TIMESTAMPTZ NULL)
-otp_hash (VARCHAR NULL) – SHA-256 hash for password reset
-otp_expires_at (TIMESTAMPTZ NULL) – TTL 10 minutes
-created_at (TIMESTAMPTZ)
-updated_at (TIMESTAMPTZ)
-```
-
-**SQL: User Authentication & Token Revocation**
-
-```sql
--- Query user by email + verify password during login
-SELECT u.id, u.full_name, u.email, u.role, u.password_hash, u.is_active
-FROM users u
-WHERE u.email = ? AND u.is_active = true;
-
--- Store refresh token hash after successful login
-UPDATE users
-SET refresh_token_hash = ?, refresh_token_expires_at = NOW() + INTERVAL '7 days'
-WHERE id = ?;
-
--- Verify refresh token during token refresh endpoint
-SELECT u.id, u.role, u.email
-FROM users u
-WHERE u.refresh_token_hash = ? AND u.refresh_token_expires_at > NOW();
-
--- Invalidate token on logout
-UPDATE users
-SET refresh_token_hash = NULL, refresh_token_expires_at = NULL
-WHERE id = ?;
-
--- Store OTP hash for password reset
-UPDATE users
-SET otp_hash = ?, otp_expires_at = NOW() + INTERVAL '10 minutes'
-WHERE email = ? AND is_active = true;
-
--- Verify OTP & update password
-UPDATE users
-SET password_hash = ?, otp_hash = NULL, otp_expires_at = NULL
-WHERE email = ? AND otp_hash = ? AND otp_expires_at > NOW();
-```
-
----
-
-### 2.2 Warehouse Assignment & RBAC SQL
-
-**Table: user_warehouse_assignments**
-```sql
-CREATE TABLE user_warehouse_assignments (
-    id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT NOT NULL REFERENCES users(id),
-    warehouse_id BIGINT NOT NULL REFERENCES warehouses(id),
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(user_id, warehouse_id)
-);
-
--- Query assigned warehouses for a user
-SELECT w.id, w.code, w.name
-FROM warehouses w
-INNER JOIN user_warehouse_assignments uwa ON w.id = uwa.warehouse_id
-WHERE uwa.user_id = ? AND w.is_active = true;
-
--- Validate warehouse access (used by every warehouse-scoped operation)
-SELECT COUNT(*)
-FROM user_warehouse_assignments
-WHERE user_id = ? AND warehouse_id = ?;
--- Result > 0 = authorized; 0 = forbidden (403)
-```
-
----
-
-## 3. Spec 002: Master Data Classes & Schema
-
-### 3.1 Product Management Classes
-
-**Service Layer:**
-- `ProductService.java` – CRUD products, SKU uniqueness, soft delete (is_active)
-- `ProductHistoryService.java` – Track price history for COGS calculation
-
-**Entity Relationships:**
-```
-products (1) ←─── (many) product_price_history
-products (1) ←─── (many) batches
-products (1) ←─── (many) receipt_items
-products (1) ←─── (many) delivery_order_items
-```
-
-**Key Database Columns (products table):**
-```sql
-id (BIGSERIAL PK)
-sku (VARCHAR, UNIQUE) – Cannot be modified after creation
-name (VARCHAR)
-unit (VARCHAR) – e.g., "cái", "thùng"
-description (TEXT NULL)
-weight_kg (DECIMAL(10,2) NULL)
-volume_m3 (DECIMAL(10,2) NULL)
-unit_per_pack (INTEGER NULL) – Conversion factor (e.g., 1 thùng = 12 cái)
-reorder_point (INTEGER NULL) – Low stock alert threshold
-is_active (BOOLEAN DEFAULT true)
-created_at (TIMESTAMPTZ)
-updated_at (TIMESTAMPTZ)
-```
-
-**SQL: Product Queries**
-
-```sql
--- List active products with search
-SELECT p.id, p.sku, p.name, p.unit, p.weight_kg, p.volume_m3
-FROM products p
-WHERE p.is_active = true AND (p.sku ILIKE ? OR p.name ILIKE ?)
-ORDER BY p.created_at DESC;
-
--- Check SKU uniqueness
-SELECT COUNT(*) FROM products WHERE sku = ? AND id <> ?;
-
--- Prevent transactions for inactive products
-SELECT p.id FROM products p
-WHERE p.id = ? AND p.is_active = false;
--- If result > 0: reject receipt/issue/transfer
-```
-
----
-
-### 3.2 Warehouse & Bin Location Classes
-
-**Service Layer:**
-- `WarehouseService.java` – CRUD warehouses, manager assignment, soft delete
-- `BinLocationService.java` – CRUD zones/bins, capacity validation, quarantine setup
-- `LocationLockService.java` – Lock locations during stocktake, prevent concurrent transactions
-
-**Entity Relationships:**
-```
-warehouses (1) ←─── (many) warehouse_locations (zones/bins)
-warehouse_locations (1) ←─── (many) inventories
-warehouse_locations (1) ←─── (many) stock_take_items (locked during stocktake)
-```
-
-**Key Database Columns:**
-
-**warehouses table:**
-```sql
-id (BIGSERIAL PK)
-code (VARCHAR, UNIQUE) – e.g., HP, HN, HCM, IN_TRANSIT
-name (VARCHAR)
-address (TEXT NULL)
-phone (VARCHAR NULL)
-manager_id (BIGINT REFERENCES users(id)) – Must have MANAGER role
-type (VARCHAR) – PHYSICAL or IN_TRANSIT
-is_active (BOOLEAN DEFAULT true)
-created_at (TIMESTAMPTZ)
-updated_at (TIMESTAMPTZ)
-```
-
-**warehouse_locations table:**
-```sql
-id (BIGSERIAL PK)
-warehouse_id (BIGINT NOT NULL REFERENCES warehouses(id))
-code (VARCHAR, UNIQUE) – e.g., HP.A (zone) or HP.A.01.1.01 (bin)
-name (VARCHAR)
-type (VARCHAR) – ZONE or BIN
-parent_id (BIGINT REFERENCES warehouse_locations(id) NULL) – Parent zone for bins
-capacity_m3 (DECIMAL(10,2) NULL)
-capacity_kg (DECIMAL(10,2) NULL)
-is_quarantine (BOOLEAN DEFAULT false)
-is_locked (BOOLEAN DEFAULT false) – Locked during stocktake
-is_active (BOOLEAN DEFAULT true)
-created_at (TIMESTAMPTZ)
-updated_at (TIMESTAMPTZ)
-```
-
-**SQL: Warehouse & Bin Capacity**
-
-```sql
--- List active warehouses with manager info
-SELECT w.id, w.code, w.name, w.type, u.full_name AS manager_name
-FROM warehouses w
-INNER JOIN users u ON w.manager_id = u.id
-WHERE w.is_active = true
-ORDER BY w.code;
-
--- Get bin capacity & current usage
-SELECT wl.id, wl.code, wl.capacity_m3, wl.capacity_kg,
-       COALESCE(SUM(i.total_qty * p.volume_m3), 0) AS current_volume_m3,
-       COALESCE(SUM(i.total_qty * p.weight_kg), 0) AS current_weight_kg
-FROM warehouse_locations wl
-LEFT JOIN inventories i ON i.location_id = wl.id
-LEFT JOIN products p ON p.id = i.product_id
-WHERE wl.id = ? AND wl.type = 'BIN'
-GROUP BY wl.id, wl.capacity_m3, wl.capacity_kg;
-
--- Prevent putting away goods if bin over capacity
--- Application code: 
--- IF (current_volume + incoming_volume > capacity_m3) OR 
---    (current_weight + incoming_weight > capacity_kg)
--- THEN reject with error BIN_OVER_CAPACITY
-
--- Lock all locations during stocktake
-UPDATE warehouse_locations
-SET is_locked = true, updated_at = NOW()
-WHERE warehouse_id = ? AND type = 'BIN' AND is_quarantine = false;
-
--- Prevent transactions on locked locations
-SELECT wl.id FROM warehouse_locations wl
-WHERE wl.id = ? AND wl.is_locked = true;
--- If result > 0: reject receipt/issue/transfer with LOCATION_LOCKED
-
--- Unlock locations after stocktake approval/rejection
-UPDATE warehouse_locations
-SET is_locked = false, updated_at = NOW()
-WHERE warehouse_id = ? AND type = 'BIN' AND is_locked = true;
-```
-
----
-
-### 3.3 Audit Log for RBAC/Config Changes
-
-**Table: audit_logs (shared with all specs)**
-```sql
-CREATE TABLE audit_logs (
-    id BIGSERIAL PRIMARY KEY,
-    actor_id BIGINT REFERENCES users(id),
-    actor_name VARCHAR,
-    action VARCHAR – e.g., USER_CREATED, WAREHOUSE_CREATED, PRODUCT_UPDATED, PASSWORD_RESET_REQUEST
-    entity_type VARCHAR – e.g., USER, WAREHOUSE, PRODUCT, CONFIG
-    entity_id BIGINT
-    warehouse_id BIGINT REFERENCES warehouses(id) NULL
-    old_value TEXT NULL – JSON serialized before state
-    new_value TEXT NULL – JSON serialized after state
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Example: User creation audit
-INSERT INTO audit_logs (actor_id, actor_name, action, entity_type, entity_id, new_value)
-VALUES (?, ?, 'USER_CREATED', 'USER', ?, '{"email":"...","role":"STOREKEEPER","warehouses":[1,2]}');
-
--- Example: Password reset request
-INSERT INTO audit_logs (actor_id, action, entity_type, entity_id)
-VALUES (NULL, 'PASSWORD_RESET_REQUEST', 'USER', ?); -- NULL actor for unauthenticated flow
 ```
 
 ---
@@ -934,6 +1154,9 @@ FROM invoices
 WHERE status != 'CLOSED'
 GROUP BY dealer_id, aging_bucket;
 ```
+
+---
+
 
 ---
 
