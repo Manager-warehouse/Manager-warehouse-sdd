@@ -270,7 +270,7 @@ const ReceiptList = () => {
   );
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="mobile-page">
       {/* Header section */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
@@ -297,7 +297,7 @@ const ReceiptList = () => {
       </div>
 
       {/* Filters & search */}
-      <div className="bg-canvas-light rounded-lg border border-hairline-light p-4 shadow-level-3 flex flex-col md:flex-row gap-4 items-center justify-between mb-6">
+      <div className="mobile-filter-bar bg-canvas-light rounded-lg border border-hairline-light p-3 md:p-4 shadow-level-3 md:flex md:flex-row md:gap-4 md:items-center md:justify-between mb-2 md:mb-6">
         <div className="w-full md:w-80">
           <Input
             type="text"
@@ -308,7 +308,7 @@ const ReceiptList = () => {
           />
         </div>
 
-        <div className="flex flex-wrap gap-3 w-full md:w-auto justify-end">
+        <div className="mobile-filter-bar md:flex md:flex-wrap md:gap-3 md:w-auto md:justify-end">
           <div className="w-full sm:w-48">
             <Input
               type="select"

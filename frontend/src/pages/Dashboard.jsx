@@ -164,7 +164,7 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="mobile-page">
       {/* Welcome Banner */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
@@ -187,7 +187,7 @@ const Dashboard = () => {
       </div>
 
       {/* KPI Cards section */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
         {mockKpis.map((kpi, idx) => {
           const isHighlight = kpi.type === 'highlight';
           const isPremium = kpi.type === 'premium';
@@ -220,13 +220,13 @@ const Dashboard = () => {
           }
 
           return (
-            <div key={idx} className={`${cardStyle} flex flex-col justify-between h-40`}>
+            <div key={idx} className={`${cardStyle} mobile-kpi-card flex flex-col justify-between h-40`}>
               <div className="flex justify-between items-start">
                 <div>
                   <span className="text-[10px] font-bold uppercase tracking-wider block">
                     {kpi.title}
                   </span>
-                  <span className="text-xl md:text-2xl font-display font-semibold block mt-2">
+                  <span className="mobile-kpi-value text-xl md:text-2xl font-display font-semibold block mt-2">
                     {kpi.value}
                   </span>
                 </div>
@@ -244,7 +244,7 @@ const Dashboard = () => {
 
       {/* Cross-Warehouse Stock Management Section */}
       <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden flex flex-col">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-hairline-light px-6 py-4 gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-hairline-light px-4 sm:px-6 py-4 gap-3">
           <div>
             <h3 className="text-sm font-bold text-shade-70 uppercase tracking-wider">
               Tồn kho hệ thống & Xin điều chuyển nhanh
@@ -254,9 +254,9 @@ const Dashboard = () => {
             </p>
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="mobile-filter-bar sm:flex sm:items-center sm:gap-3">
             {/* Search Input */}
-            <div className="w-48 sm:w-60">
+            <div className="sm:w-60">
               <Input
                 type="text"
                 leftIcon={Search}

@@ -402,7 +402,7 @@ export default function DeliveryOrders() {
   };
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="mobile-page">
       <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
         <div>
           <span className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-shade-60">Vận hành / Xuất kho</span>
@@ -418,24 +418,24 @@ export default function DeliveryOrders() {
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:gap-4 md:grid-cols-4">
         {[
           { label: 'Tổng đơn', value: totalDO, icon: <PackageCheck className="h-5 w-5" />, accent: 'text-shade-60 bg-canvas-cream' },
           { label: 'Chờ lấy hàng/QC', value: waitingPickingDO, icon: <Clock className="h-5 w-5" />, accent: 'text-info-600 bg-info-50' },
           { label: 'Chờ duyệt QC', value: qcPendingDO, icon: <PackageCheck className="h-5 w-5" />, accent: 'text-violet-600 bg-violet-50' },
           { label: 'Chờ vận chuyển', value: approvedDO, icon: <Truck className="h-5 w-5" />, accent: 'text-warning-600 bg-warning-50' },
         ].map(({ label, value, icon, accent }) => (
-          <div key={label} className="flex items-center gap-3 rounded-lg border border-hairline-light bg-canvas-light p-4 shadow-level-3">
+          <div key={label} className="flex items-center gap-2.5 md:gap-3 rounded-lg border border-hairline-light bg-canvas-light p-3 md:p-4 shadow-level-3">
             <div className={`rounded-full p-2.5 ${accent}`}>{icon}</div>
             <div>
               <p className="text-xs font-medium text-shade-50">{label}</p>
-              <p className="text-2xl font-bold text-ink">{value}</p>
+              <p className="text-xl md:text-2xl font-bold text-ink">{value}</p>
             </div>
           </div>
         ))}
       </div>
 
-      <div className="flex flex-col items-center justify-between gap-4 rounded-lg border border-hairline-light bg-canvas-light p-4 shadow-level-3 md:flex-row">
+      <div className="mobile-filter-bar rounded-lg border border-hairline-light bg-canvas-light p-3 md:p-4 shadow-level-3 md:flex md:flex-row md:items-center md:justify-between md:gap-4">
         <div className="w-full md:w-80">
           <Input
             type="text"
