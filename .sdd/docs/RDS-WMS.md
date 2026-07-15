@@ -1753,7 +1753,7 @@ INSERT INTO driver_warehouse_assignments (driver_id, warehouse_id) VALUES (?, ?)
 
 ## 3. Inbound Receipt & QC (Spec 003)
 
-### 1.1 Receipt Management
+### 3.1 Receipt Management
 
 #### a. Receipt Detail (Count) Screen
 
@@ -1766,11 +1766,11 @@ Related use cases:
 UI Design
 
 | Field Name        | Field Type                    | Description                                                  |
-| ----------------- | ----------------------------- | ------------------------------------------------------------ |
+| ----------------- | ------------------------------ | ------------------------------------------------------------ |
 | Receipt Number    | Text (read-only)              | Mã phiếu nhập, tự sinh khi tạo Receipt                       |
 | Warehouse         | Text (read-only)              | Kho nhận hàng                                                |
 | Status Badge      | Label                         | Hiển thị trạng thái hiện tại (`PENDING_RECEIPT`/`DRAFT`/...) |
-| Item Table        |                               |                                                              |
+| Item Table        |                                |                                                               |
 | SKU               | Text (read-only)              | Mã sản phẩm                                                  |
 | Expected Qty      | Integer (read-only)           | Số lượng dự kiến theo lệnh nhập                              |
 | Counted Qty\*     | Text Box, Integer (>0)        | Số lượng đếm thực tế Nhân viên kho nhập                      |
@@ -1814,8 +1814,8 @@ WHERE id = ? AND status IN ('PENDING_RECEIPT', 'DRAFT', 'QC_COMPLETED', 'QC_FAIL
 UI Design
 
 | Field Name     | Field Type          | Description                            |
-| -------------- | ------------------- | -------------------------------------- |
-| Item Table     |                     |                                        |
+| -------------- | -------------------- | --------------------------------------- |
+| Item Table     |                      |                                          |
 | SKU            | Text (read-only)    | Mã sản phẩm                            |
 | Actual Qty     | Integer (read-only) | Số lượng đã đếm                        |
 | QC Result\*    | Radio (Đạt / Lỗi)   | Kết quả kiểm tra ngoại quan/chất lượng |
@@ -1847,7 +1847,7 @@ WHERE id = ? AND status = 'DRAFT'
 UI Design
 
 | Field Name    | Field Type              | Description                                           |
-| ------------- | ----------------------- | ----------------------------------------------------- |
+| ------------- | ------------------------ | ------------------------------------------------------ |
 | QC Summary    | Table (read-only)       | Tổng hợp số lượng Đạt/Lỗi theo từng SKU               |
 | Decision\*    | Radio (Duyệt / Từ chối) | Quyết định của Trưởng kho                             |
 | Reject Reason | Text Area               | Bắt buộc khi Decision = Từ chối                       |
@@ -1857,7 +1857,7 @@ UI Design
 Database Access
 
 | Table        | CRUD | Description                                                    |
-| ------------ | ---- | -------------------------------------------------------------- |
+| ------------ | ---- | --------------------------------------------------------------- |
 | `receipts`   | RU   | Cập nhật `status` sang `APPROVED`/`RETURN_TO_SUPPLIER_PENDING` |
 | `audit_logs` | C    | Ghi log `RECEIPT_APPROVE`/`RECEIPT_REJECT`                     |
 
@@ -1878,8 +1878,8 @@ WHERE id = ? AND status = 'QC_COMPLETED'
 UI Design
 
 | Field Name      | Field Type                | Description                                                  |
-| --------------- | ------------------------- | ------------------------------------------------------------ |
-| Item Table      |                           |                                                              |
+| --------------- | -------------------------- | ------------------------------------------------------------ |
+| Item Table      |                            |                                                                |
 | SKU             | Text (read-only)          | Mã sản phẩm cần cất                                          |
 | Qty to Putaway  | Integer (read-only)       | Số lượng đạt QC cần cất Bin                                  |
 | Bin Location\*  | Combo Box (Single-Choice) | Danh sách Bin còn đủ sức chứa trong kho, loại Quarantine bin |
@@ -1888,7 +1888,7 @@ UI Design
 Database Access
 
 | Table                 | CRUD | Description                                                 |
-| --------------------- | ---- | ----------------------------------------------------------- |
+| --------------------- | ---- | ------------------------------------------------------------- |
 | `warehouse_locations` | R    | Kiểm tra `capacity` còn trống của Bin                       |
 | `batches`             | CR   | Tạo/tìm batch theo product + receipt + received_date        |
 | `inventories`         | CU   | Cộng `total_qty` cho warehouse + product + batch + location |
@@ -1913,6 +1913,1008 @@ GROUP BY wl.id, wl.capacity, wl.is_quarantine
 UPDATE inventories
 SET total_qty = total_qty + ?, version = version + 1
 WHERE warehouse_id = ? AND product_id = ? AND batch_id = ? AND location_id = ? AND version = ?
+```
+
+---
+
+## 4. Outbound Delivery & POD (Spec 004)
+
+### 4.1 Delivery Order Management
+
+#### a. Delivery Order List
+
+Related use cases:
+
+- UC-14_Create Delivery Order (Credit Check)
+
+UI Design
+
+| Field Name     | Field Type   | Description                                        |
+| --------------- | ------------- | ----------------------------------------------------- |
+| Filter Warehouse| Combo Box    | Loc theo kho                                          |
+| Filter Dealer   | Combo Box    | Loc theo Dai ly                                       |
+| Filter Status   | Combo Box    | Loc theo trang thai DO                                |
+| DO Table        | Table        | Ma DO, Dai ly, kho, trang thai, ngay tao              |
+| Tao Don xuat    | Button       | Mo Delivery Order Detail o che do tao moi             |
+
+Database Access
+
+| Table              | CRUD | Description                              |
+| -------------------- | ---- | ------------------------------------------- |
+| `delivery_orders`     | R    | Doc danh sach DO theo filter                |
+
+**_SQL Commands_**
+
+```sql
+SELECT do.id, do.status, do.created_at, d.name AS dealer_name, w.code AS warehouse_code
+FROM delivery_orders do
+JOIN dealers d ON d.id = do.dealer_id
+JOIN warehouses w ON w.id = do.warehouse_id
+WHERE (? IS NULL OR do.warehouse_id = ?) AND (? IS NULL OR do.status = ?)
+ORDER BY do.created_at DESC;
+```
+
+#### b. Delivery Order Detail (Create)
+
+UI Design
+
+| Field Name       | Field Type            | Description                                       |
+| ------------------ | ------------------------ | ------------------------------------------------------ |
+| Warehouse\*        | Combo Box               | Kho xuat hang                                         |
+| Dealer\*           | Combo Box               | Dai ly nhan hang                                      |
+| Credit Check Badge | Label (read-only)      | Hien thi ket qua Credit Check (`ACTIVE`/`CREDIT_HOLD`)|
+| Item Table         |                          |                                                        |
+| SKU\*              | Combo Box (search)      | San pham                                              |
+| Requested Qty\*    | Number (>0)             | So luong yeu cau                                      |
+| Unit Price         | Number (read-only)      | Gia snapshot tu bang gia hieu luc                      |
+| Submit DO          | Button                  | Tao DO, kich hoat Credit Check + reserve               |
+
+Database Access
+
+| Table                              | CRUD | Description                                       |
+| ------------------------------------ | ---- | ----------------------------------------------------- |
+| `delivery_orders`                     | C    | Tao DO moi, `status=NEW`                              |
+| `delivery_order_items`                | C    | Tao dong hang + snapshot `unit_price`                 |
+| `dealers`                             | R    | Kiem tra Credit Check                                 |
+| `warehouse_product_reservations`      | CU   | Reserve cap warehouse                                 |
+| `audit_logs`                           | C    | Ghi log `DO_CREATED`                                  |
+
+**_SQL Commands_**
+
+```sql
+SELECT d.current_balance, d.credit_limit, d.credit_status FROM dealers d WHERE d.id = ?;
+
+INSERT INTO delivery_orders (warehouse_id, dealer_id, status, created_by, created_at)
+VALUES (?, ?, 'NEW', ?, NOW()) RETURNING id;
+
+INSERT INTO delivery_order_items (do_id, product_id, requested_qty, unit_price) VALUES (?, ?, ?, ?);
+
+UPDATE warehouse_product_reservations SET reserved_qty = reserved_qty + ?, version = version + 1
+WHERE warehouse_id = ? AND product_id = ? AND version = ?;
+```
+
+### 4.2 Picking Plan
+
+#### a. Picking Plan Screen
+
+Related use cases:
+
+- UC-15_Create Picking Plan (FIFO)
+
+UI Design
+
+| Field Name         | Field Type             | Description                                       |
+| -------------------- | ------------------------ | ------------------------------------------------------ |
+| DO Item Table        |                          |                                                        |
+| SKU                  | Text (read-only)        | San pham can lay                                      |
+| FIFO Suggestion      | Table (read-only)       | Danh sach batch/bin/zone goi y theo `received_date ASC`|
+| Planned Qty\*        | Number (multi-allocation)| So luong lay tu tung batch/bin                         |
+| Submit Plan          | Button                  | Luu allocation, chuyen DO `WAITING_PICKING`            |
+
+Database Access
+
+| Table                              | CRUD | Description                                     |
+| ------------------------------------ | ---- | --------------------------------------------------- |
+| `delivery_order_item_allocations`     | CR   | Tao allocation theo FIFO                           |
+| `inventories`                         | R    | Doc ton kho kha dung theo batch/bin                |
+| `audit_logs`                           | C    | Ghi log `PICKING_PLAN_CREATED`                     |
+
+**_SQL Commands_**
+
+```sql
+SELECT i.batch_id, i.location_id, wl.zone_id, b.received_date, (i.total_qty - i.reserved_qty) AS available_qty
+FROM inventories i
+JOIN batches b ON b.id = i.batch_id
+JOIN warehouse_locations wl ON wl.id = i.location_id
+WHERE i.warehouse_id = ? AND i.product_id = ? AND wl.is_quarantine = false
+ORDER BY b.received_date ASC;
+
+INSERT INTO delivery_order_item_allocations (do_item_id, batch_id, location_id, zone_id, planned_qty, status)
+VALUES (?, ?, ?, ?, ?, 'PLANNED');
+```
+
+### 4.3 Picking & Outbound QC Execution
+
+#### a. Picking & QC Execution Screen
+
+Related use cases:
+
+- UC-16_Execute Picking & Outbound QC
+
+UI Design
+
+| Field Name     | Field Type          | Description                                     |
+| --------------- | --------------------- | --------------------------------------------------- |
+| Allocation Table|                       |                                                      |
+| SKU/Batch/Bin   | Text (read-only)     | Theo allocation da lap                              |
+| Picked Qty\*    | Number                | So luong da lay thuc te                             |
+| QC Result\*     | Radio (Pass/Fail)     | Ket qua QC outbound                                |
+| Fail Reason     | Text Area             | Bat buoc khi Fail                                   |
+| Submit          | Button                | Ghi nhan pick+QC cho toan bo dong                   |
+
+Database Access
+
+| Table                              | CRUD | Description                                    |
+| ------------------------------------ | ---- | -------------------------------------------------- |
+| `delivery_order_item_allocations`     | RU   | Cap nhat `picked_qty`/`qc_pass_qty`/`qc_fail_qty`  |
+| `quarantine_records`                  | C    | Tao ban ghi cho hang fail                          |
+| `audit_logs`                           | C    | Ghi log `PICKING_QC_EXECUTED`                      |
+
+**_SQL Commands_**
+
+```sql
+UPDATE delivery_order_item_allocations
+SET picked_qty = ?, qc_pass_qty = ?, qc_fail_qty = ?, status = 'PICKED'
+WHERE id = ? AND do_item_id = ?;
+
+INSERT INTO quarantine_records (warehouse_id, product_id, quantity, origin, do_id, created_at)
+VALUES (?, ?, ?, 'OUTBOUND_QC_FAIL', ?, NOW());
+```
+
+### 4.4 Warehouse Approval
+
+#### a. Warehouse Approval Detail
+
+Related use cases:
+
+- UC-17_Approve/Reject Delivery Order
+
+UI Design
+
+| Field Name    | Field Type              | Description                                       |
+| ------------- | ------------------------- | ------------------------------------------------------ |
+| QC Summary    | Table (read-only)        | Tong hop so luong Pass/Fail theo tung SKU               |
+| Decision\*    | Radio (Duyet / Tu choi)  | Quyet dinh cua Truong kho                             |
+| Reject Reason | Text Area                | Bat buoc khi tu choi                                   |
+| Approve       | Button                    | Chuyen `WAREHOUSE_APPROVED`                            |
+| Reject        | Button                    | Tra hang pass ve bin goc, chuyen `REJECTED`             |
+
+Database Access
+
+| Table                              | CRUD | Description                              |
+| ------------------------------------ | ---- | --------------------------------------------- |
+| `delivery_orders`                     | RU   | Cap nhat status                               |
+| `inventories`                          | U    | Cong lai ton kho khi reject                   |
+| `audit_logs`                           | C    | Ghi log `DO_APPROVED`/`DO_REJECTED`           |
+
+**_SQL Commands_**
+
+```sql
+UPDATE delivery_orders SET status = 'WAREHOUSE_APPROVED', approved_by = ?, approved_at = NOW()
+WHERE id = ? AND status = 'QC_COMPLETED';
+
+UPDATE inventories SET total_qty = total_qty + ?, version = version + 1
+WHERE warehouse_id = ? AND product_id = ? AND batch_id = ? AND location_id = ?;
+```
+
+### 4.5 Trip Dispatch
+
+#### a. Trip Dispatch Screen
+
+Related use cases:
+
+- UC-18_Dispatch Delivery Trip
+
+UI Design
+
+| Field Name      | Field Type            | Description                                    |
+| ----------------- | ------------------------ | -------------------------------------------------- |
+| DO Selection\*    | Multi-Select            | Danh sach DO `WAREHOUSE_APPROVED` cung kho          |
+| Vehicle\*         | Combo Box                | Xe con hoat dong, kiem tra tai trong               |
+| Driver\*          | Combo Box                | Tai xe thuoc pham vi kho                            |
+| Total Weight      | Label (read-only, computed)| Tong tai trong cac DO da chon                    |
+| Create Trip       | Button                    | Tao trip `DELIVERY`                                 |
+
+Database Access
+
+| Table    | CRUD | Description                              |
+| --------- | ---- | -------------------------------------------- |
+| `trips`   | C    | Tao trip moi                                |
+| `delivery_orders` | U | Gan `trip_id`                          |
+| `audit_logs` | C | Ghi log `TRIP_CREATED`                      |
+
+**_SQL Commands_**
+
+```sql
+SELECT SUM(doi.requested_qty * p.weight_kg) AS total_weight
+FROM delivery_order_items doi JOIN products p ON p.id = doi.product_id
+WHERE doi.do_id = ANY(?);
+
+INSERT INTO trips (trip_type, warehouse_id, vehicle_id, driver_id, status, created_at)
+VALUES ('DELIVERY', ?, ?, ?, 'PLANNED', NOW()) RETURNING id;
+```
+
+### 4.6 Driver Mobile POD/OTP
+
+#### a. Driver Trip List (Mobile)
+
+UI Design
+
+| Field Name  | Field Type       | Description                             |
+| ------------ | ------------------ | ------------------------------------------ |
+| Trip Table   | Table (mobile)    | Danh sach chuyen/DO duoc gan cho tai xe    |
+
+Database Access
+
+| Table    | CRUD | Description                              |
+| --------- | ---- | -------------------------------------------- |
+| `trips`   | R    | Doc theo `driver_id` hien tai               |
+
+**_SQL Commands_**
+
+```sql
+SELECT t.id, t.status, do.id AS do_id, d.name AS dealer_name
+FROM trips t
+JOIN delivery_orders do ON do.trip_id = t.id
+JOIN dealers d ON d.id = do.dealer_id
+WHERE t.driver_id = ?;
+```
+
+#### b. POD Upload (Mobile)
+
+UI Design
+
+| Field Name          | Field Type              | Description                                      |
+| --------------------- | -------------------------- | ------------------------------------------------------ |
+| Chon/Chup anh hang    | Camera/File Picker button | `goodsImage`, nen truoc khi upload multipart          |
+| Chon/Chup chu ky      | Camera/File Picker button | `signDocumentImage`                                   |
+| Upload                | Button                    | Upload multipart, tra ve `photoRef`                    |
+
+Database Access
+
+| Table       | CRUD | Description                              |
+| ------------ | ---- | -------------------------------------------- |
+| `deliveries` | U    | Luu `goods_image_ref`/`sign_document_image_ref` |
+
+**_SQL Commands_**
+
+```sql
+UPDATE deliveries SET goods_image_ref = ?, sign_document_image_ref = ? WHERE id = ?;
+```
+
+#### c. OTP Entry (Mobile)
+
+UI Design
+
+| Field Name    | Field Type       | Description                                  |
+| -------------- | ------------------ | ----------------------------------------------- |
+| Yeu cau OTP    | Button            | Chi bat sau khi da upload du 2 anh               |
+| Nhap OTP\*     | Text Box (6 digit)| Ma Dai ly doc cho tai xe                        |
+| Xac nhan       | Button            | Verify OTP, hoan tat giao hang                  |
+
+Database Access
+
+| Table                     | CRUD | Description                                  |
+| --------------------------- | ---- | ------------------------------------------------- |
+| `delivery_otp_attempts`      | CRU  | Sinh/verify OTP, max 3 lan sai                    |
+| `deliveries`                  | U    | Chuyen `status=DELIVERED`                         |
+
+**_SQL Commands_**
+
+```sql
+INSERT INTO delivery_otp_attempts (delivery_id, recipient_email, otp_hash, expires_at, attempt_count, status)
+VALUES (?, ?, ?, NOW() + INTERVAL '5 minutes', 0, 'PENDING');
+
+UPDATE delivery_otp_attempts SET status = 'VERIFIED', consumed_at = NOW() WHERE id = ?;
+UPDATE deliveries SET status = 'DELIVERED', otp_verified_at = NOW() WHERE id = ?;
+```
+
+---
+
+## 5. Inter-Warehouse Transfer (Spec 005)
+
+### 5.1 Cross-Warehouse Stock View & Transfer Request
+
+#### a. Cross-Warehouse Stock View
+
+Related use cases:
+
+- UC-21_View Cross-Warehouse Stock & Request Transfer
+
+UI Design
+
+| Field Name    | Field Type          | Description                                    |
+| -------------- | ---------------------- | ------------------------------------------------- |
+| Product Filter | Combo Box (search)    | Loc theo SKU                                      |
+| Stock Table    | Table (read-only)     | Ton kha dung theo tung kho vat ly (loai Quarantine/In-Transit) |
+| Tao Yeu cau    | Button                | Mo Transfer Request Form                          |
+
+Database Access
+
+| Table                  | CRUD | Description                            |
+| ------------------------ | ---- | ------------------------------------------ |
+| `inventories`             | R    | Doc ton kha dung lien kho                 |
+
+**_SQL Commands_**
+
+```sql
+SELECT w.id AS warehouse_id, w.code, i.product_id, SUM(i.total_qty - i.reserved_qty) AS available_qty
+FROM inventories i
+JOIN warehouses w ON w.id = i.warehouse_id
+JOIN warehouse_locations wl ON wl.id = i.location_id
+WHERE w.type = 'PHYSICAL' AND wl.is_quarantine = false
+GROUP BY w.id, w.code, i.product_id;
+```
+
+#### b. Transfer Request Form
+
+UI Design
+
+| Field Name           | Field Type   | Description                                |
+| ---------------------- | -------------- | ----------------------------------------------- |
+| Source Warehouse       | Text (read-only)| Kho dang thieu hang (kho cua Truong kho hien tai) |
+| Dest Warehouse\*       | Combo Box     | Kho nguon co the lay hang                       |
+| Item Table\*           |               |                                                  |
+| Submit                 | Button        | Gui yeu cau cho CEO duyet                       |
+
+Database Access
+
+| Table                 | CRUD | Description                              |
+| ------------------------ | ---- | --------------------------------------------- |
+| `transfer_requests`       | C    | Tao request `status=DRAFT` -> `SUBMITTED`     |
+| `audit_logs`               | C    | Ghi log `TRANSFER_REQUEST_CREATED`            |
+
+**_SQL Commands_**
+
+```sql
+INSERT INTO transfer_requests (source_warehouse_id, dest_warehouse_id, status, created_by, created_at)
+VALUES (?, ?, 'DRAFT', ?, NOW()) RETURNING id;
+```
+
+### 5.2 Transfer Detail (Approve)
+
+#### a. Transfer Detail - Approve Tab
+
+Related use cases:
+
+- UC-22_Create Transfer Order (TRF-*)
+- UC-23_Approve/Reject Transfer & Reserve Stock
+
+UI Design
+
+| Field Name    | Field Type              | Description                                 |
+| -------------- | -------------------------- | ------------------------------------------------ |
+| Transfer Code  | Text (read-only)          | Ma `TRF-*`                                      |
+| Item Table     | Table (read-only)         | SKU, so luong ke hoach                          |
+| Decision\*     | Radio (Duyet/Tu choi)      | Quyet dinh cua Truong kho nguon                 |
+| Reject Reason  | Text Area                  | Bat buoc khi tu choi                            |
+| Approve        | Button                     | Reserve FIFO, chuyen `APPROVED`                 |
+| Reject         | Button                     | Chuyen `REJECTED`                               |
+
+Database Access
+
+| Table                              | CRUD | Description                              |
+| ------------------------------------ | ---- | --------------------------------------------- |
+| `transfers`                           | RU   | Cap nhat status                               |
+| `warehouse_product_reservations`      | U    | Reserve theo FIFO khi duyet                    |
+| `audit_logs`                           | C    | Ghi log `TRANSFER_APPROVED`/`TRANSFER_REJECTED`|
+
+**_SQL Commands_**
+
+```sql
+UPDATE warehouse_product_reservations SET reserved_qty = reserved_qty + ?, version = version + 1
+WHERE warehouse_id = ? AND product_id = ? AND version = ?;
+
+UPDATE transfers SET status = 'APPROVED', approved_by = ?, approved_at = NOW() WHERE id = ? AND status = 'NEW';
+```
+
+### 5.3 Transfer Ship
+
+#### a. Transfer Ship Screen
+
+Related use cases:
+
+- UC-24_Dispatch Trip & Ship Goods
+
+UI Design
+
+| Field Name        | Field Type              | Description                                    |
+| -------------------- | -------------------------- | ------------------------------------------------------ |
+| Vehicle/Driver\*    | Combo Box                 | Chon xe/tai xe thuoc kho nguon                         |
+| Outbound QC Table    | Table                      | Ket qua QC bang mat cho tung dong hang                 |
+| Chon/Chup anh ban giao| Camera/File Picker button| Bat buoc truoc khi xac nhan handover                   |
+| Xac nhan roi kho     | Button                     | Tru ton kho nguon, cong `IN_TRANSIT`                   |
+
+Database Access
+
+| Table          | CRUD | Description                              |
+| ---------------- | ---- | --------------------------------------------- |
+| `trips`           | C    | Tao trip `TRANSFER`                          |
+| `inventories`      | U    | Tru kho nguon, cong `IN_TRANSIT`             |
+| `audit_logs`       | C    | Ghi log `TRANSFER_SHIPPED`                    |
+
+**_SQL Commands_**
+
+```sql
+INSERT INTO trips (trip_type, warehouse_id, vehicle_id, driver_id, status, created_at)
+VALUES ('TRANSFER', ?, ?, ?, 'PLANNED', NOW()) RETURNING id;
+
+UPDATE inventories SET total_qty = total_qty - ?, version = version + 1
+WHERE warehouse_id = ? AND product_id = ? AND batch_id = ? AND version = ?;
+```
+
+### 5.4 Transfer Receive
+
+#### a. Transfer Receive Screen
+
+Related use cases:
+
+- UC-25_Receive & Confirm Transfer at Destination
+
+UI Design
+
+| Field Name         | Field Type            | Description                                       |
+| --------------------- | ------------------------ | ------------------------------------------------------ |
+| Blind Count Table     | Table                    | Cong nhan nhap so luong nhan thuc te (chua thay sent_qty) |
+| QC Result Table       | Table                    | Thu kho dich kiem tra + QC                              |
+| Bin Location\*        | Combo Box (per item)     | Vi tri cat hang dat, loai Quarantine bin                |
+| Xac nhan cuoi cung    | Button (Truong kho dich) | Khop so luong -> tru IN_TRANSIT, cong kho dich          |
+
+Database Access
+
+| Table                 | CRUD | Description                                       |
+| ----------------------- | ---- | ------------------------------------------------------- |
+| `transfer_items`         | RU   | Cap nhat `received_qty`, `qc_pass_qty`/`qc_fail_qty`    |
+| `inventories`             | U    | Tru `IN_TRANSIT`, cong kho dich                          |
+| `adjustments`             | C    | Tao `TRANSFER_DISCREPANCY` neu thieu                     |
+| `quarantine_records`      | C    | Tao ban ghi neu QC fail                                  |
+| `audit_logs`               | C    | Ghi log `TRANSFER_RECEIVED`                             |
+
+**_SQL Commands_**
+
+```sql
+UPDATE inventories SET total_qty = total_qty - ? WHERE warehouse_id = (SELECT id FROM warehouses WHERE type='IN_TRANSIT') AND product_id = ?;
+UPDATE inventories SET total_qty = total_qty + ?, version = version + 1 WHERE warehouse_id = ? AND product_id = ? AND location_id = ?;
+UPDATE transfers SET status = 'COMPLETED', updated_at = NOW() WHERE id = ?;
+```
+
+---
+
+## 6. Stocktake & Adjustment (Spec 006)
+
+### 6.1 Stocktake Count
+
+#### a. Stocktake Count Screen
+
+Related use cases:
+
+- UC-26_Create Stocktake & Record Count
+
+UI Design
+
+| Field Name     | Field Type        | Description                                    |
+| --------------- | -------------------- | ------------------------------------------------- |
+| Warehouse       | Text (read-only)    | Kho dang kiem ke                                  |
+| Count Table     |                      |                                                    |
+| SKU/Bin         | Text (read-only)    | Vi tri can dem                                    |
+| System Qty      | Integer (read-only)  | Ton kho theo he thong tai thoi diem tao phieu     |
+| Counted Qty\*   | Number                | So luong dem thuc te                             |
+| Variance        | Integer (computed)   | = System Qty - Counted Qty                        |
+| Submit Count    | Button                | Ghi nhan ket qua dem                              |
+
+Database Access
+
+| Table                 | CRUD | Description                                    |
+| ----------------------- | ---- | --------------------------------------------------- |
+| `stocktakes`             | CR   | Tao phieu `IN_PROGRESS`, khoa bin                    |
+| `stocktake_items`         | CRU  | Snapshot `system_qty`, cap nhat `received_qty`      |
+| `warehouse_locations`     | U    | `is_locked=true` khi bat dau kiem ke                 |
+| `audit_logs`               | C    | Ghi log `STOCKTAKE_CREATED`                          |
+
+**_SQL Commands_**
+
+```sql
+INSERT INTO stocktakes (warehouse_id, status, created_by, created_at) VALUES (?, 'IN_PROGRESS', ?, NOW()) RETURNING id;
+
+INSERT INTO stocktake_items (stocktake_id, product_id, location_id, system_qty)
+SELECT ?, i.product_id, i.location_id, i.total_qty FROM inventories i WHERE i.warehouse_id = ?;
+
+UPDATE warehouse_locations SET is_locked = true WHERE warehouse_id = ? AND type = 'BIN' AND is_quarantine = false;
+
+UPDATE stocktake_items SET received_qty = ?, variance_qty = system_qty - ? WHERE id = ?;
+```
+
+### 6.2 Variance Approval
+
+#### a. Variance Approval Detail
+
+Related use cases:
+
+- UC-27_Approve Inventory Adjustment
+
+UI Design
+
+| Field Name    | Field Type               | Description                                    |
+| -------------- | --------------------------- | ------------------------------------------------- |
+| Variance Table | Table (read-only)          | SKU, System Qty, Counted Qty, Variance             |
+| Decision\*     | Radio (Duyet/Tu choi)      | Truong kho quyet dinh (khong phan cap gia tri)     |
+| Approve        | Button                      | Cap nhat ton kho, tao adjustment, mo khoa bin       |
+| Reject         | Button                      | Yeu cau dem lai, giu bin khoa                       |
+
+Database Access
+
+| Table                  | CRUD | Description                                    |
+| ------------------------ | ---- | --------------------------------------------------- |
+| `inventories`             | U    | Cap nhat `total_qty` theo `received_qty`             |
+| `adjustments`              | C    | Tao ban ghi `type=STOCKTAKE`                         |
+| `warehouse_locations`      | U    | `is_locked=false` sau khi duyet                      |
+| `audit_logs`                | C    | Ghi log `STOCKTAKE_APPROVED`                         |
+
+**_SQL Commands_**
+
+```sql
+UPDATE inventories SET total_qty = ?, version = version + 1 WHERE product_id = ? AND location_id = ? AND warehouse_id = ?;
+
+INSERT INTO adjustments (stocktake_id, product_id, type, quantity_adjustment, created_at)
+VALUES (?, ?, 'STOCKTAKE', ?, NOW());
+
+UPDATE warehouse_locations SET is_locked = false WHERE warehouse_id = ? AND is_locked = true;
+
+UPDATE stocktakes SET status = 'CLOSED', approved_by = ?, approved_at = NOW() WHERE id = ?;
+```
+
+---
+
+## 7. Pricing & COGS Management (Spec 007)
+
+### 7.1 Price List Management
+
+#### a. Price List Screen
+
+Related use cases:
+
+- UC-28_Create Price List (Cost + Selling)
+
+UI Design
+
+| Field Name       | Field Type   | Description                                  |
+| ------------------ | -------------- | ------------------------------------------------ |
+| Product Table\*    |               |                                                    |
+| SKU                | Combo Box (search)| San pham                                      |
+| Cost Price\*       | Number (>0)   | Gia von                                          |
+| Selling Price\*    | Number (>0)   | Gia ban                                          |
+| Effective Date\*   | Date Picker   | Ngay bat dau hieu luc                            |
+| Import Excel       | Button (pop-up)| Mo Excel Import Popup                            |
+| Submit             | Button        | Luu bang gia `status=DRAFT`                      |
+
+Database Access
+
+| Table              | CRUD | Description                            |
+| --------------------- | ---- | ------------------------------------------- |
+| `price_history`        | C    | Tao ban ghi gia moi `status=DRAFT`         |
+| `audit_logs`            | C    | Ghi log `PRICE_LIST_CREATED`                |
+
+**_SQL Commands_**
+
+```sql
+INSERT INTO price_history (product_id, cost_price, selling_price, effective_date, end_date, status, created_at)
+VALUES (?, ?, ?, ?, NULL, 'DRAFT', NOW());
+```
+
+#### b. Excel Import Popup
+
+UI Design
+
+| Field Name    | Field Type   | Description                                  |
+| -------------- | -------------- | ------------------------------------------------ |
+| Chon file\*    | File Picker   | File Excel theo template mau                     |
+| Preview Table  | Table (read-only)| Xem truoc du lieu parse duoc                  |
+| Xac nhan Import| Button        | Import hang loat vao `price_history`             |
+
+Database Access
+
+| Table            | CRUD | Description                        |
+| ------------------- | ---- | --------------------------------------- |
+| `price_history`      | C    | Import hang loat dong gia               |
+
+**_SQL Commands_**
+
+```sql
+INSERT INTO price_history (product_id, cost_price, selling_price, effective_date, status, created_at)
+SELECT product_id, cost_price, selling_price, effective_date, 'DRAFT', NOW() FROM unnest(?::price_import_row[]);
+```
+
+### 7.2 Price Approval
+
+#### a. Price Approval Detail
+
+Related use cases:
+
+- UC-29_Approve Price List
+
+UI Design
+
+| Field Name  | Field Type        | Description                                |
+| ------------ | -------------------- | ------------------------------------------------ |
+| Price Table  | Table (read-only)   | Danh sach dong gia cho duyet                     |
+| Approve      | Button               | Chuyen `status=ACTIVE`                            |
+
+Database Access
+
+| Table            | CRUD | Description                        |
+| ------------------- | ---- | --------------------------------------- |
+| `price_history`      | U    | Cap nhat `status=ACTIVE`                |
+| `audit_logs`          | C    | Ghi log `PRICE_LIST_APPROVED`           |
+
+**_SQL Commands_**
+
+```sql
+UPDATE price_history SET status = 'ACTIVE', approved_by = ?, approved_at = NOW() WHERE id = ? AND status = 'DRAFT';
+```
+
+---
+
+## 8. Finance & Billing & Closing (Spec 008)
+
+### 8.1 Billing Reconciliation
+
+#### a. Billing Notification Worklist
+
+Related use cases:
+
+- UC-31_Track & Reconcile Invoice
+
+UI Design
+
+| Field Name    | Field Type        | Description                                  |
+| -------------- | -------------------- | ------------------------------------------------ |
+| Worklist Table | Table (read-only)   | DO da giao chua confirm doi chieu                |
+| Xem chi tiet   | Button (mo Invoice Detail)| Mo hoa don tuong ung                       |
+| Confirm        | Button               | Danh dau da doi chieu xong                        |
+
+Database Access
+
+| Table                     | CRUD | Description                                 |
+| ---------------------------- | ---- | -------------------------------------------------- |
+| `billing_notifications`       | RU   | Doc + danh dau `is_confirmed`                       |
+| `invoices`                     | R    | Join lay thong tin hoa don                          |
+| `audit_logs`                    | C    | Ghi log `INVOICE_RECONCILED`                        |
+
+**_SQL Commands_**
+
+```sql
+SELECT bn.id, bn.do_id, i.id AS invoice_id, i.total_amount
+FROM billing_notifications bn JOIN invoices i ON i.do_id = bn.do_id
+WHERE bn.is_confirmed = false;
+
+UPDATE billing_notifications SET is_confirmed = true, confirmed_at = NOW() WHERE id = ?;
+```
+
+#### b. Invoice Detail
+
+UI Design
+
+| Field Name    | Field Type        | Description                            |
+| -------------- | -------------------- | -------------------------------------------- |
+| Invoice Info   | Read-only fields    | so hoa don, ngay phat hanh, ngay den han       |
+| Line Items     | Table (read-only)   | SKU, so luong, don gia, thanh tien             |
+| Payment Status | Label                | `UNPAID`/`PARTIALLY_PAID`/`PAID`               |
+
+Database Access
+
+| Table            | CRUD | Description                            |
+| ------------------- | ---- | -------------------------------------------- |
+| `invoices`            | R    | Doc thong tin hoa don                        |
+| `invoice_lines`        | R    | Doc chi tiet dong hoa don                    |
+
+**_SQL Commands_**
+
+```sql
+SELECT i.*, il.product_id, il.quantity, il.unit_price
+FROM invoices i JOIN invoice_lines il ON il.invoice_id = i.id
+WHERE i.id = ?;
+```
+
+### 8.2 Payment Collection
+
+#### a. Payment Receipt Form
+
+Related use cases:
+
+- UC-32_Record Payment Receipt
+
+UI Design
+
+| Field Name       | Field Type      | Description                                    |
+| ------------------ | ------------------ | ------------------------------------------------------ |
+| Dealer\*           | Combo Box         | Dai ly thanh toan                                     |
+| Amount\*           | Number (>0)       | So tien thu duoc                                      |
+| Invoice Selection\*| Multi-Select      | Cac hoa don duoc can tru                              |
+| Payment Method     | Combo Box          | Tien mat/Chuyen khoan                                  |
+| Submit             | Button             | Ghi Phieu thu, can tru hoa don                          |
+
+Database Access
+
+| Table                | CRUD | Description                                     |
+| ---------------------- | ---- | ---------------------------------------------------- |
+| `payment_receipts`       | C    | Tao phieu thu                                        |
+| `invoices`                | U    | Cap nhat `paid_amount`/`status`                       |
+| `dealers`                  | U    | Tru `current_balance`, danh gia lai credit_status     |
+| `audit_logs`                | C    | Ghi log `PAYMENT_RECEIVED`                            |
+
+**_SQL Commands_**
+
+```sql
+INSERT INTO payment_receipts (dealer_id, amount, payment_date, created_at) VALUES (?, ?, NOW(), NOW()) RETURNING id;
+
+UPDATE invoices SET status = CASE WHEN paid_amount + ? >= total_amount THEN 'PAID' ELSE 'PARTIALLY_PAID' END,
+                    paid_amount = paid_amount + ? WHERE id = ?;
+
+UPDATE dealers SET current_balance = current_balance - ? WHERE id = ?;
+```
+
+### 8.3 Aging Report
+
+#### a. Aging Report Screen
+
+Related use cases:
+
+- UC-33_View Credit Aging Report
+
+UI Design
+
+| Field Name  | Field Type      | Description                                  |
+| ------------ | ------------------ | ------------------------------------------------ |
+| Aging Table  | Table (read-only) | Dealer, bucket (Not due/1-30/31-60/>60), balance |
+| Export       | Button             | Xuat Excel                                       |
+
+Database Access
+
+| Table       | CRUD | Description                            |
+| ------------- | ---- | -------------------------------------------- |
+| `invoices`      | R    | Tinh toan aging bucket                        |
+
+**_SQL Commands_**
+
+```sql
+SELECT dealer_id,
+       CASE WHEN due_date >= CURRENT_DATE THEN 'Not due'
+            WHEN CURRENT_DATE - due_date <= 30 THEN '1-30 days'
+            WHEN CURRENT_DATE - due_date <= 60 THEN '31-60 days'
+            ELSE '>60 days' END AS aging_bucket,
+       SUM(total_amount - paid_amount) AS balance
+FROM invoices WHERE status NOT IN ('CLOSED', 'PAID')
+GROUP BY dealer_id, aging_bucket;
+```
+
+### 8.4 Period Closing
+
+#### a. Period Closing Popup
+
+Related use cases:
+
+- UC-34_Close Accounting Period
+
+UI Design
+
+| Field Name   | Field Type       | Description                                |
+| ------------- | ------------------- | ---------------------------------------------- |
+| Period Info   | Read-only fields   | Ky ke toan sap chot                             |
+| Xac nhan chot | Button              | Khoa cung chung tu trong ky                     |
+
+Database Access
+
+| Table                  | CRUD | Description                           |
+| ------------------------ | ---- | ------------------------------------------- |
+| `accounting_periods`       | RU   | Kiem tra ky truoc da `CLOSED`, cap nhat status|
+| `audit_logs`                | C    | Ghi log `PERIOD_CLOSED`                       |
+
+**_SQL Commands_**
+
+```sql
+SELECT EXISTS (SELECT 1 FROM accounting_periods WHERE period_end < (SELECT period_start FROM accounting_periods WHERE id = ?) AND status != 'CLOSED');
+
+UPDATE accounting_periods SET status = 'CLOSED', closed_by = ?, closed_at = NOW() WHERE id = ?;
+```
+
+---
+
+## 9. Returns, Scrap & Disposal (Spec 009)
+
+### 9.1 Customer Returns
+
+#### a. Customer Return Form
+
+Related use cases:
+
+- UC-35_Process Dealer Return (Credit Note)
+
+UI Design
+
+| Field Name    | Field Type       | Description                                    |
+| -------------- | ------------------- | ------------------------------------------------- |
+| Dealer\*       | Combo Box          | Dai ly hoan tra                                   |
+| DO goc\*       | Combo Box          | Don xuat goc lien quan                             |
+| Item Table\*   |                     |                                                     |
+| QC Result      | Radio (Dat/Loi)     | Ket qua QC hang hoan                               |
+| Submit         | Button              | Tao receipt `type=RETURN`, xu ly ton kho theo QC   |
+
+Database Access
+
+| Table                  | CRUD | Description                              |
+| ------------------------ | ---- | --------------------------------------------- |
+| `receipts`                | C    | Tao phieu `type=RETURN`                       |
+| `inventories`              | U    | Cong ton neu QC dat                           |
+| `quarantine_records`       | C    | Tao ban ghi neu QC fail                        |
+| `audit_logs`                | C    | Ghi log audit                                  |
+
+**_SQL Commands_**
+
+```sql
+INSERT INTO receipts (type, dealer_id, warehouse_id, status, created_by, created_at)
+VALUES ('RETURN', ?, ?, 'PENDING_RECEIPT', ?, NOW()) RETURNING id;
+
+UPDATE inventories SET total_qty = total_qty + ?, version = version + 1
+WHERE warehouse_id = ? AND product_id = ? AND location_id = ?;
+
+INSERT INTO credit_notes (dealer_id, receipt_id, amount, reason, created_at)
+VALUES (?, ?, ?, 'CUSTOMER_RETURN', NOW());
+```
+
+### 9.2 Disposal Approval
+
+#### a. Disposal Approval Detail
+
+Related use cases:
+
+- UC-36_Approve & Execute Disposal
+
+UI Design
+
+| Field Name    | Field Type      | Description                                  |
+| -------------- | ------------------ | ------------------------------------------------ |
+| Quarantine Item| Text (read-only)  | Hang loi can tieu huy                            |
+| Reason\*       | Text Area          | Ly do tieu huy                                   |
+| Approve        | Button (Truong kho)| Duyet tieu huy (khong phan cap gia tri)          |
+| Execute        | Button (Thu kho)   | Xac nhan da tieu huy, tru Quarantine              |
+
+Database Access
+
+| Table                 | CRUD | Description                              |
+| ------------------------ | ---- | --------------------------------------------- |
+| `damage_reports`           | CRU  | Tao/duyet/thuc hien tieu huy                  |
+| `quarantine_records`       | U    | Tru so luong sau tieu huy                     |
+| `adjustments`                | C    | Tao ban ghi `type=DISPOSAL`                    |
+| `audit_logs`                  | C    | Ghi log `DISPOSAL_APPROVED`/`DISPOSAL_EXECUTED`|
+
+**_SQL Commands_**
+
+```sql
+UPDATE damage_reports SET status = 'APPROVED', approved_by = ?, approved_at = NOW() WHERE id = ?;
+
+UPDATE quarantine_records SET quantity = quantity - ? WHERE id = ?;
+
+INSERT INTO adjustments (product_id, type, quantity_adjustment, created_at) VALUES (?, 'DISPOSAL', ?, NOW());
+
+UPDATE damage_reports SET status = 'EXECUTED', executed_at = NOW() WHERE id = ?;
+```
+
+---
+
+## 10. Reports, Dashboards & Alerts (Spec 010)
+
+### 10.1 CEO Dashboard
+
+#### a. CEO Dashboard Screen
+
+Related use cases:
+
+- UC-37_View Management Dashboard
+
+UI Design
+
+| Field Name        | Field Type              | Description                                    |
+| -------------------- | -------------------------- | ------------------------------------------------------ |
+| Inventory Tab        | Panel (read-only)         | Tong gia tri ton kho, low stock count                  |
+| Credit Tab           | Panel (read-only)         | Aging summary, tong cong no                             |
+| P&L Tab              | Panel (read-only)         | Doanh thu YTD, COGS, bien loi nhuan                    |
+| QC Tab               | Panel (read-only)         | Ty le Dat/Loi QC                                       |
+| OTD Tab              | Panel (read-only)         | Ty le giao dung hen                                     |
+
+Database Access
+
+| Table                | CRUD | Description                              |
+| ----------------------- | ---- | --------------------------------------------- |
+| `inventories`             | R    | Tinh gia tri ton kho                          |
+| `invoices`                 | R    | Tinh aging/P&L                                |
+| `delivery_orders`           | R    | Tinh OTD rate                                 |
+| `receipt_items`             | R    | Tinh ty le QC                                  |
+
+**_SQL Commands_**
+
+```sql
+SELECT SUM(i.total_qty * ph.cost_price) AS total_value
+FROM inventories i JOIN price_history ph ON ph.product_id = i.product_id AND ph.status = 'ACTIVE';
+
+SELECT COUNT(*) FILTER (WHERE delivered_at <= requested_date)::float / COUNT(*) AS otd_rate
+FROM delivery_orders WHERE status = 'COMPLETED';
+```
+
+### 10.2 Low Stock Alerts
+
+#### a. Low Stock Alerts List
+
+Related use cases:
+
+- UC-38_Trigger/Resolve Low Stock Alert
+
+UI Design
+
+| Field Name    | Field Type        | Description                                  |
+| -------------- | -------------------- | ------------------------------------------------ |
+| Alert Table    | Table (read-only)   | SKU, kho, available_qty, reorder_point            |
+| Mark Resolved  | Button (Planner)     | Danh dau da xu ly thu cong                         |
+
+Database Access
+
+| Table          | CRUD | Description                              |
+| ---------------- | ---- | --------------------------------------------- |
+| `stock_alerts`     | RU   | Doc alert dang active, mark resolved         |
+
+**_SQL Commands_**
+
+```sql
+SELECT sa.id, sa.warehouse_id, sa.product_id, sa.created_at
+FROM stock_alerts sa WHERE sa.is_resolved = false;
+
+UPDATE stock_alerts SET is_resolved = true, resolved_at = NOW() WHERE id = ?;
+```
+
+### 10.3 Productivity Report
+
+#### a. Productivity Report Screen
+
+Related use cases:
+
+- UC-39_View/Export Productivity Report
+
+UI Design
+
+| Field Name    | Field Type      | Description                                  |
+| -------------- | ------------------ | ------------------------------------------------ |
+| Date Range\*   | Date Picker        | Khoang thoi gian bao cao                          |
+| Staff Table    | Table (read-only) | Nhan vien, so thao tac, so item xu ly, efficiency  |
+| Export         | Button              | Xuat Excel                                        |
+
+Database Access
+
+| Table                              | CRUD | Description                              |
+| ------------------------------------ | ---- | --------------------------------------------- |
+| `audit_logs`                           | R    | Dem so thao tac theo actor                    |
+| `delivery_order_item_allocations`       | R    | Tong hop so luong da lay theo actor           |
+
+**_SQL Commands_**
+
+```sql
+SELECT al.actor_id, COUNT(*) AS actions_count
+FROM audit_logs al
+WHERE al.warehouse_id = ? AND al.created_at BETWEEN ? AND ?
+GROUP BY al.actor_id;
+
+SELECT picked_by AS actor_id, SUM(picked_qty) AS total_picked
+FROM delivery_order_item_allocations
+WHERE warehouse_id = ? AND updated_at BETWEEN ? AND ?
+GROUP BY picked_by;
 ```
 
 ---
