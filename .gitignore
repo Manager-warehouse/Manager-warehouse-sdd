@@ -170,3 +170,12 @@ $RECYCLE.BIN/
 *.zip
 
 .PVS-Studio/
+
+# ===== PERSONAL CODEX LOOP =====
+# Local agent routines, state, and run history. These are intentionally per-user.
+/.codex/
+/LOOP.md
+/STATE.md
+/loop-budget.md
+/loop-constraints.md
+/loop-run-log.md
