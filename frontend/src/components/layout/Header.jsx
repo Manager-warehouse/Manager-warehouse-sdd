@@ -33,9 +33,9 @@ const Header = () => {
   };
 
   return (
-    <header className="app-safe-header sticky top-0 z-40 bg-canvas-light border-b border-hairline-light px-4 sm:px-6 flex items-center justify-between">
+    <header className="app-safe-header sticky top-0 z-40 w-full max-w-full overflow-hidden bg-canvas-light border-b border-hairline-light px-3 sm:px-6 flex items-center justify-between">
       {/* Left side: Hamburger menu and Brand */}
-      <div className="flex items-center gap-2 sm:gap-4">
+      <div className="flex items-center gap-2 sm:gap-4 min-w-0">
         <button
           onClick={toggleSidebar}
           className="p-1.5 rounded-full hover:bg-canvas-cream text-ink focus:outline-none"
@@ -48,7 +48,7 @@ const Header = () => {
       </div>
 
       {/* Right side: Actions */}
-      <div className="flex items-center gap-2 sm:gap-4">
+      <div className="flex items-center gap-1.5 sm:gap-4 min-w-0">
         
         {/* Billing Notifications for Accountant */}
         {(user?.role === 'ACCOUNTANT' || user?.role === 'ADMIN') && (
@@ -57,16 +57,16 @@ const Header = () => {
 
         {/* Warehouse Selector Dropdown */}
         {activeWarehouse && (
-          <div className="relative">
+          <div className="relative min-w-0">
             <button
               onClick={() => {
                 setWarehouseDropdownOpen(!warehouseDropdownOpen);
                 setProfileDropdownOpen(false);
               }}
-              className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-pill border border-hairline-light bg-canvas-cream hover:bg-shade-30 text-xs font-semibold text-ink uppercase tracking-wider transition-colors focus:outline-none"
+              className="flex max-w-[7.5rem] items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-pill border border-hairline-light bg-canvas-cream hover:bg-shade-30 text-xs font-semibold text-ink uppercase tracking-wider transition-colors focus:outline-none"
             >
               <Warehouse className="w-3.5 h-3.5" />
-              <span>{activeWarehouse.code}</span>
+              <span className="truncate">{activeWarehouse.code}</span>
               <ChevronDown className="w-3 h-3 text-shade-60" />
             </button>
 
@@ -102,7 +102,7 @@ const Header = () => {
               }}
               className="flex items-center gap-2 p-1 rounded-pill hover:bg-canvas-cream focus:outline-none focus:ring-1 focus:ring-ink"
             >
-              <div className="w-8 h-8 rounded-full bg-ink text-onPrimary font-semibold text-xs flex items-center justify-center shrink-0">
+              <div className="w-8 h-8 shrink-0 rounded-full bg-ink text-onPrimary font-semibold text-xs flex items-center justify-center">
                 {getAvatarFallback(user.fullName)}
               </div>
               <ChevronDown className="w-3.5 h-3.5 text-shade-60 mr-1" />
