@@ -970,193 +970,1351 @@ WHERE id = ?;
 
 ---
 
-## 4. Spec 004+005: Outbound, Delivery & Transfer Classes
+## 4. Outbound Delivery & POD (Spec 004)
 
-### 4.1 Outbound/Delivery Core Services
+### 4.1 DO Creation & Credit Check
 
-**Service Layer:**
-- `DeliveryOrderService.java` – CRUD DO, Credit Check, reserve + release, status transitions
-- `PickingPlanService.java` – FIFO batch selection, allocation strategy, snapshot unit_price
-- `OutboundQCService.java` – Record QC pass/fail, quarantine + adjustments for failures
-- `TripDispatchService.java` – Create trips, assign vehicle/driver, capacity validation (weight/volume)
-- `DriverDeliveryService.java` – Mobile API for driver: accept trip, depart, deliver, POD, OTP
-- `DeliveryOtpService.java` – Generate OTP (6-digit, TTL 5min), hash storage, verification (max 3 fail)
-- `AutoInvoiceService.java` – Event listener: WHEN delivery attempt = DELIVERED → create invoice + receivable
+#### a. Class Diagram
 
-**Key SQL: DO + Credit Check + Reservation**
-
-```sql
--- Credit Check before DO create
-SELECT SUM(invoices.total_amount - COALESCE(payment_receipts.amount_paid, 0)) AS current_balance
-FROM invoices
-LEFT JOIN payment_receipts ON invoices.id = payment_receipts.invoice_id
-WHERE invoices.dealer_id = ? AND invoices.status NOT IN ('CANCELLED','CLOSED')
-GROUP BY invoices.dealer_id;
--- IF current_balance + DO_value > credit_limit → BLOCK with CREDIT_HOLD
-
--- Reserve warehouse-level on DO create
-UPDATE warehouse_product_reservations
-SET reserved_qty = reserved_qty + ?, version = version + 1
-WHERE warehouse_id = ? AND product_id = ?
-  AND version = ? -- Optimistic locking
-RETURNING reserved_qty;
-
--- Create allocation on picking plan (FIFO)
-INSERT INTO delivery_order_item_allocations 
-  (do_item_id, inventory_id, batch_id, location_id, zone_id, planned_qty)
-SELECT ?, i.id, i.batch_id, i.location_id, wl_zone.id, ?
-FROM inventories i
-INNER JOIN batches b ON i.batch_id = b.id
-INNER JOIN warehouse_locations wl_zone ON wl_zone.id = wl.zone_id
-WHERE i.warehouse_id = ? AND i.product_id = ? 
-  AND i.total_qty - i.reserved_qty > 0
-  AND wl.is_quarantine = false
-  AND wl.type = 'BIN'
-ORDER BY b.received_date ASC -- FIFO
-LIMIT 1;
+```
+DeliveryOrderController ──uses──► DeliveryOrderService ──uses──► DeliveryOrderRepository ──maps──► DeliveryOrder (entity)
+        │                              │                                                                  └──► DeliveryOrderItem
+        │                              ├──uses──► CreditLimitService (credit check)
+        │                              ├──uses──► InventoryRepository (available check)
+        │                              ├──uses──► PriceHistoryRepository (COGS snapshot)
+        │                              └──uses──► WarehouseProductReservationRepository
+        └──DTO: CreateDeliveryOrderRequest ──► DeliveryOrderResponse
 ```
 
-**SQL: Delivery & OTP**
+#### b. Class Specifications
+
+**DeliveryOrderController Class**
+
+| No  | Method                                          | Description                                                                                    |
+| --- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| 01  | `getDeliveryOrders(...)`                          | `GET /api/v1/delivery-orders` — filter theo kho/dealer/status; warehouse-scoped.                    |
+| 02  | `createDeliveryOrder(CreateDeliveryOrderRequest)` | `POST /api/v1/delivery-orders` — role `PLANNER`. Tra 422 `CREDIT_HOLD`/`INSUFFICIENT_STOCK` neu fail. |
+
+**DeliveryOrderService Class**
+
+| No  | Method                                                            | Description                                                                                                                                                                                                                                                                                                                                                                          |
+| --- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01  | `createDeliveryOrder(CreateDeliveryOrderRequest request, User actor)`   | **Input**: request (warehouseId, dealerId, requestedDate, items[]), actor (`PLANNER`). **Xu ly noi bo**: `requirePlanner` -> `creditLimitService.checkCreditStatus(dealerId, totalValue)` (throw `CreditHoldException` neu block) -> `validateAvailableStock` cho tung item (`total_qty - reserved_qty >= requestedQty`) -> `priceHistoryService.snapshotPrice` cho tung item -> luu `DeliveryOrder` (`status=NEW`) + `DeliveryOrderItem[]` -> `warehouseProductReservationRepository.reserve` (cap warehouse, chua cap batch) -> ghi audit `DO_CREATED`. **Output**: `DeliveryOrderResponse`. |
+
+#### c. Sequence Diagram(s)
+
+```
+Planner -> DeliveryOrderController.createDeliveryOrder(request)
+  DeliveryOrderController -> DeliveryOrderService.createDeliveryOrder(request, actor)
+    DeliveryOrderService -> requirePlanner(actor)
+    DeliveryOrderService -> creditLimitService.checkCreditStatus(dealerId, totalValue)   [throw neu CREDIT_HOLD]
+    loop each item
+      DeliveryOrderService -> inventoryRepository.getAvailableQty(warehouseId, productId)  [throw neu thieu]
+      DeliveryOrderService -> priceHistoryRepository.findEffectivePrice(productId, today)
+    end
+    DeliveryOrderService -> deliveryOrderRepository.save(do{status=NEW})
+    DeliveryOrderService -> deliveryOrderItemRepository.saveAll(items)
+    DeliveryOrderService -> warehouseProductReservationRepository.reserve(warehouseId, productId, qty)
+    DeliveryOrderService -> auditLogService.log(DO_CREATED, before=null, after=snapshot)
+  DeliveryOrderService --> DeliveryOrderController : DeliveryOrderResponse
+DeliveryOrderController --> Planner : 201 Created
+```
+
+#### d. Database Queries
 
 ```sql
--- Record OTP for delivery attempt (hash only, never plain)
-INSERT INTO delivery_otp_attempts 
-  (delivery_attempt_id, recipient_email, otp_hash, expires_at, status)
-VALUES (?, ?, SHA256(?), NOW() + INTERVAL '5 minutes', 'PENDING');
+-- 1/ Credit Check
+SELECT d.current_balance, d.credit_limit, d.credit_status,
+       EXISTS (SELECT 1 FROM invoices i WHERE i.dealer_id = d.id
+               AND i.status IN ('UNPAID','PARTIALLY_PAID') AND i.due_date < NOW() - INTERVAL '30 days') AS has_overdue
+FROM dealers d WHERE d.id = ?;
 
--- Verify OTP (max 3 attempts)
-SELECT otp_hash, expires_at, attempt_count
-FROM delivery_otp_attempts
-WHERE delivery_attempt_id = ? AND status = 'PENDING'
-  AND attempt_count < 3;
+-- 2/ Kiem tra ton kha dung
+SELECT COALESCE(SUM(total_qty - reserved_qty), 0) AS available_qty
+FROM inventories WHERE warehouse_id = ? AND product_id = ?;
 
--- Mark OTP used after successful verification
-UPDATE delivery_otp_attempts
-SET status = 'VERIFIED', consumed_at = NOW()
-WHERE delivery_attempt_id = ? AND otp_hash = ?;
+-- 3/ Snapshot gia hieu luc
+SELECT cost_price, selling_price FROM price_history
+WHERE product_id = ? AND effective_date <= CURRENT_DATE AND (end_date IS NULL OR end_date > CURRENT_DATE)
+ORDER BY effective_date DESC LIMIT 1;
 
--- Auto-create invoice on delivery DELIVERED
-INSERT INTO invoices (dealer_id, total_amount, issue_date, due_date, status)
-SELECT do.dealer_id, 
-       SUM(doi.qc_pass_qty * doi.unit_price),
-       DATE(NOW()),
-       DATE(NOW()) + INTERVAL '30 days',
-       'UNPAID'
-FROM delivery_attempts da
-INNER JOIN delivery_orders do ON da.do_id = do.id
-INNER JOIN delivery_order_items doi ON do.id = doi.do_id
-WHERE da.status = 'DELIVERED' AND da.id = ?
-GROUP BY do.dealer_id;
+-- 4/ Tao DO + items
+INSERT INTO delivery_orders (warehouse_id, dealer_id, status, created_by, created_at)
+VALUES (?, ?, 'NEW', ?, NOW()) RETURNING id;
+
+INSERT INTO delivery_order_items (do_id, product_id, requested_qty, unit_price)
+VALUES (?, ?, ?, ?);
+
+-- 5/ Reserve cap warehouse
+UPDATE warehouse_product_reservations
+SET reserved_qty = reserved_qty + ?, version = version + 1
+WHERE warehouse_id = ? AND product_id = ? AND version = ?;
 ```
 
 ---
 
-### 4.2 Transfer Core Services
+### 4.2 Picking Plan (FIFO)
 
-**Service Layer:**
-- `InterWarehouseTransferService.java` – CRUD transfer, reserve FIFO, status transitions
-- `TransferShipmentService.java` – Outbound: pick + QC + handover
-- `TransferReceiveService.java` – Inbound: blind count + receive QC + bin-capacity + discrepancy
-- `TransferLocationLockService.java` – Lock/unlock during stocktake
-- `TransferDiscrepancyService.java` – Calculate discrepancy, create adjustment records
+#### a. Class Diagram
 
-**Key SQL: Transfer + Discrepancy**
+```
+PickingPlanController ──uses──► PickingPlanService ──uses──► FIFOSelector (util)
+                                       │
+                                       ├──uses──► DeliveryOrderItemAllocationRepository
+                                       └──uses──► InventoryRepository / BatchRepository
+```
+
+#### b. Class Specifications
+
+**PickingPlanController Class**
+
+| No  | Method                                              | Description                                                                       |
+| --- | ------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| 01  | `createPickingPlan(Long doId, PickingPlanRequest)`    | `PUT /api/v1/delivery-orders/{id}/picking-plan` — role `STOREKEEPER`.               |
+
+**PickingPlanService Class**
+
+| No  | Method                                                        | Description                                                                                                                                                                                                                                                                        |
+| --- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01  | `createPickingPlan(Long doId, PickingPlanRequest request, User actor)` | **Input**: doId (`status=NEW`), request.allocations[] (batchId/locationId/zoneId/plannedQty theo `FIFOSelector` goi y), actor (`STOREKEEPER`). **Xu ly noi bo**: `fifoSelector.suggestBatches(warehouseId, productId)` order by `batch.received_date ASC` -> validate `sum(allocations.plannedQty) == doItem.requestedQty` -> luu `DeliveryOrderItemAllocation[]` -> chuyen DO `WAITING_PICKING` -> ghi audit `PICKING_PLAN_CREATED`. **Output**: `DeliveryOrderResponse`. |
+
+#### c. Sequence Diagram(s)
+
+```
+Thu kho -> PickingPlanController.createPickingPlan(doId, request)
+  PickingPlanController -> PickingPlanService.createPickingPlan(doId, request, actor)
+    PickingPlanService -> deliveryOrderRepository.findById(doId)     -> DO (must be NEW)
+    PickingPlanService -> fifoSelector.suggestBatches(warehouseId, productId)   [order by received_date ASC]
+    PickingPlanService -> validate sum(allocations) == requestedQty
+    PickingPlanService -> allocationRepository.saveAll(allocations)
+    PickingPlanService -> deliveryOrder.setStatus(WAITING_PICKING)
+    PickingPlanService -> auditLogService.log(PICKING_PLAN_CREATED, before, after)
+  PickingPlanService --> PickingPlanController : DeliveryOrderResponse
+PickingPlanController --> Thu kho : 200 OK
+```
+
+#### d. Database Queries
 
 ```sql
--- Reserve FIFO for transfer on approval (source warehouse)
+-- 1/ Goi y batch theo FIFO
+SELECT i.batch_id, i.location_id, wl.zone_id, b.received_date, (i.total_qty - i.reserved_qty) AS available_qty
+FROM inventories i
+JOIN batches b ON b.id = i.batch_id
+JOIN warehouse_locations wl ON wl.id = i.location_id
+WHERE i.warehouse_id = ? AND i.product_id = ? AND wl.is_quarantine = false
+  AND (i.total_qty - i.reserved_qty) > 0
+ORDER BY b.received_date ASC;
+
+-- 2/ Luu allocation
+INSERT INTO delivery_order_item_allocations (do_item_id, batch_id, location_id, zone_id, planned_qty, status)
+VALUES (?, ?, ?, ?, ?, 'PLANNED');
+
+-- 3/ Chuyen trang thai DO
+UPDATE delivery_orders SET status = 'WAITING_PICKING', updated_at = NOW() WHERE id = ? AND status = 'NEW';
+```
+
+---
+
+### 4.3 Picking & Outbound QC
+
+#### a. Class Diagram
+
+```
+OutboundQCController ──uses──► OutboundQCService ──uses──► DeliveryOrderItemAllocationRepository
+                                       │
+                                       ├──uses──► QuarantineRecordRepository (hang fail)
+                                       └──uses──► AdjustmentRepository
+```
+
+#### b. Class Specifications
+
+**OutboundQCService Class**
+
+| No  | Method                                                           | Description                                                                                                                                                                                                                                                                                             |
+| --- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01  | `executePickingAndQc(Long doId, PickingQcRequest request, User actor)`  | **Input**: doId (`WAITING_PICKING`), request.lines[] (allocationId, pickedQty, qcResult Pass/Fail, failReason), actor (`WAREHOUSE_STAFF`). **Xu ly noi bo**: validate `pickedQty <= allocation.plannedQty` (else `OVER_PICKED`) -> hang Pass: cap nhat `allocation.qcPassQty`, di chuyen vao outbound staging location -> hang Fail: tao `quarantine_records` (`origin=OUTBOUND_QC_FAIL`) + `adjustments`, release phan reserve tuong ung -> tinh trang thai DO tong (`QC_PENDING_APPROVAL`) -> ghi audit `PICKING_QC_EXECUTED`. **Output**: `DeliveryOrderResponse`. |
+
+#### c. Sequence Diagram(s)
+
+```
+Nhan vien kho -> OutboundQCController.executePickingAndQc(doId, request)
+  OutboundQCController -> OutboundQCService.executePickingAndQc(doId, request, actor)
+    OutboundQCService -> allocationRepository.findByDoId(doId)
+    loop each line
+      OutboundQCService -> validate pickedQty <= plannedQty
+      alt QC Pass
+        OutboundQCService -> moveToOutboundStaging(allocation, pickedQty)
+      else QC Fail
+        OutboundQCService -> quarantineRecordRepository.save(origin=OUTBOUND_QC_FAIL)
+        OutboundQCService -> adjustmentRepository.save(type=OUTBOUND_QC_FAIL)
+      end
+    end
+    OutboundQCService -> deliveryOrder.setStatus(QC_PENDING_APPROVAL)
+    OutboundQCService -> auditLogService.log(PICKING_QC_EXECUTED, before, after)
+  OutboundQCService --> OutboundQCController : DeliveryOrderResponse
+OutboundQCController --> Nhan vien kho : 200 OK
+```
+
+#### d. Database Queries
+
+```sql
+-- 1/ Cap nhat allocation sau pick+QC
+UPDATE delivery_order_item_allocations
+SET picked_qty = ?, qc_pass_qty = ?, qc_fail_qty = ?, status = 'PICKED'
+WHERE id = ? AND do_item_id = ?;
+
+-- 2/ Tao quarantine record cho hang fail
+INSERT INTO quarantine_records (warehouse_id, product_id, quantity, origin, do_id, created_at)
+VALUES (?, ?, ?, 'OUTBOUND_QC_FAIL', ?, NOW());
+
+-- 3/ Chuyen trang thai DO
+UPDATE delivery_orders SET status = 'QC_PENDING_APPROVAL', updated_at = NOW() WHERE id = ?;
+```
+
+---
+
+### 4.4 Warehouse Approval (DO)
+
+#### a. Class Diagram
+
+```
+DeliveryOrderApprovalController ──uses──► DeliveryOrderApprovalService ──uses──► DeliveryOrderRepository
+                                                  │
+                                                  └──uses──► DeliveryOrderItemAllocationRepository (reject -> return to bin)
+```
+
+#### b. Class Specifications
+
+**DeliveryOrderApprovalService Class**
+
+| No  | Method                                                       | Description                                                                                                                                                                                                                                                                                    |
+| --- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01  | `approveDo(Long doId, User actor)`                                 | **Input**: doId (`QC_COMPLETED`), actor (`WAREHOUSE_MANAGER`). **Xu ly noi bo**: cap nhat `status = WAREHOUSE_APPROVED`; ghi audit `DO_APPROVED`. **Output**: `DeliveryOrderResponse`.                                                                                                          |
+| 02  | `rejectDo(Long doId, RejectRequest request, User actor)`           | **Input**: doId, request.reason (bat buoc), actor. **Xu ly noi bo**: tra toan bo hang QC-pass o outbound staging ve bin goc (ghi `PICKED_GOODS_RETURN_TO_BIN`), release allocation, `status = REJECTED`; ghi audit `DO_REJECTED`. **Output**: `DeliveryOrderResponse`.                          |
+
+#### c. Sequence Diagram(s)
+
+```
+Truong kho -> DeliveryOrderApprovalController.approve(doId)
+  DeliveryOrderApprovalController -> DeliveryOrderApprovalService.approveDo(doId, actor)
+    DeliveryOrderApprovalService -> deliveryOrderRepository.findById(doId)   -> DO (must be QC_COMPLETED)
+    DeliveryOrderApprovalService -> deliveryOrder.setStatus(WAREHOUSE_APPROVED)
+    DeliveryOrderApprovalService -> auditLogService.log(DO_APPROVED, before, after)
+  DeliveryOrderApprovalService --> DeliveryOrderApprovalController : DeliveryOrderResponse
+DeliveryOrderApprovalController --> Truong kho : 200 OK
+```
+
+#### d. Database Queries
+
+```sql
+UPDATE delivery_orders SET status = 'WAREHOUSE_APPROVED', approved_by = ?, approved_at = NOW()
+WHERE id = ? AND status = 'QC_COMPLETED';
+
+-- Reject: tra hang pass ve bin goc
+UPDATE inventories SET total_qty = total_qty + ?, version = version + 1
+WHERE warehouse_id = ? AND product_id = ? AND batch_id = ? AND location_id = ?;
+
+UPDATE delivery_orders SET status = 'REJECTED', reject_reason = ? WHERE id = ?;
+```
+
+---
+
+### 4.5 Trip Dispatch (Delivery)
+
+#### a. Class Diagram
+
+```
+TripDispatchController ──uses──► TripDispatchService ──uses──► TripRepository ──maps──► Trip (entity)
+                                       │
+                                       ├──uses──► VehicleRepository / DriverService (eligible drivers)
+                                       └──uses──► DeliveryOrderRepository
+```
+
+#### b. Class Specifications
+
+**TripDispatchService Class**
+
+| No  | Method                                                             | Description                                                                                                                                                                                                                                                                                                              |
+| --- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 01  | `createDeliveryTrip(CreateTripRequest request, User actor)`               | **Input**: request (warehouseId, doIds[] tat ca `WAREHOUSE_APPROVED` cung kho, vehicleId, driverId), actor (`DISPATCHER`). **Xu ly noi bo**: `requireDispatcher` -> tinh `totalWeight = Sum(doItem.qty * product.weightKg)` -> kiem tra `totalWeight <= vehicle.maxWeightKg` (else `OVER_WEIGHT`) -> neu `vehicle.maxVolumeM3` khac null, kiem tra tuong tu the tich -> validate driver thuoc warehouse scope -> luu `Trip` (`trip_type=DELIVERY`, `status=PLANNED`) -> link DO[] -> ghi audit `TRIP_CREATED`. **Output**: `TripResponse`. |
+
+#### c. Sequence Diagram(s)
+
+```
+Dispatcher -> TripDispatchController.createTrip(request)
+  TripDispatchController -> TripDispatchService.createDeliveryTrip(request, actor)
+    TripDispatchService -> requireDispatcher(actor)
+    TripDispatchService -> calculate totalWeight(doIds)
+    TripDispatchService -> validate totalWeight <= vehicle.maxWeightKg
+    TripDispatchService -> validate totalVolume <= vehicle.maxVolumeM3 (neu co)
+    TripDispatchService -> validate driver in warehouse scope
+    TripDispatchService -> tripRepository.save(trip{trip_type=DELIVERY, status=PLANNED})
+    TripDispatchService -> linkDeliveryOrders(trip, doIds)
+    TripDispatchService -> auditLogService.log(TRIP_CREATED, before=null, after=snapshot)
+  TripDispatchService --> TripDispatchController : TripResponse
+TripDispatchController --> Dispatcher : 201 Created
+```
+
+#### d. Database Queries
+
+```sql
+-- 1/ Tinh tong tai trong cac DO
+SELECT SUM(doi.requested_qty * p.weight_kg) AS total_weight
+FROM delivery_order_items doi
+JOIN products p ON p.id = doi.product_id
+WHERE doi.do_id = ANY(?);
+
+-- 2/ Tao trip
+INSERT INTO trips (trip_type, warehouse_id, vehicle_id, driver_id, status, created_at)
+VALUES ('DELIVERY', ?, ?, ?, 'PLANNED', NOW()) RETURNING id;
+
+-- 3/ Gan DO vao trip
+UPDATE delivery_orders SET trip_id = ? WHERE id = ANY(?);
+```
+
+---
+
+### 4.6 Driver Mobile POD + OTP
+
+#### a. Class Diagram
+
+```
+DriverDeliveryController ──uses──► DriverDeliveryServiceImpl ──uses──► DeliveryRepository ──maps──► Delivery (entity)
+                                       │
+                                       └──uses──► DeliveryOtpService ──uses──► DeliveryOtpAttemptRepository
+```
+
+#### b. Class Specifications
+
+**DriverDeliveryServiceImpl Class**
+
+| No  | Method                                                             | Description                                                                                                                                                                                                                                                                                    |
+| --- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01  | `uploadPod(Long deliveryId, PodUploadRequest request, User actor)`         | **Input**: deliveryId, request (goodsImageRef, signDocumentImageRef - da upload multipart truoc), actor (`DRIVER`, phai dung driver duoc gan). **Xu ly noi bo**: validate ca 2 anh da co -> luu vao `deliveries.goods_image_ref`/`sign_document_image_ref`. **Output**: `DeliveryResponse`. |
+
+**DeliveryOtpService Class**
+
+| No  | Method                                                       | Description                                                                                                                                                                                                                                                                                                                                       |
+| --- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01  | `requestOtp(Long deliveryId, User actor)`                          | **Input**: deliveryId (da co du POD anh). **Xu ly noi bo**: kiem tra khong co OTP con hieu luc (else `OTP_ALREADY_ACTIVE`) -> sinh ma 6 so random -> hash (SHA-256) -> luu `delivery_otp_attempts` (`expires_at = NOW()+5m`, `status=PENDING`) -> gui email toi `dealer.email`. **Output**: void.                                                          |
+| 02  | `verifyOtp(Long deliveryId, String otpPlain, User actor)`           | **Input**: deliveryId, otpPlain (tai xe nhap). **Xu ly noi bo**: hash input, so khop voi `delivery_otp_attempts.otp_hash` con `PENDING` va `expires_at > NOW()` -> neu dung: `status=VERIFIED`, `consumed_at=NOW()`, `deliveries.status=DELIVERED` -> trigger `AutoInvoiceService` -> neu sai: `attempt_count += 1`, neu `>= 3` thi `status=LOCKED`. **Output**: `DeliveryResponse`. |
+
+#### c. Sequence Diagram(s)
+
+```
+Tai xe -> DriverDeliveryController.requestOtp(deliveryId)
+  DriverDeliveryController -> DeliveryOtpService.requestOtp(deliveryId, actor)
+    DeliveryOtpService -> validate no active OTP
+    DeliveryOtpService -> generate 6-digit code
+    DeliveryOtpService -> hash(code) -> SHA-256
+    DeliveryOtpService -> otpAttemptRepository.save(hash, expires_at=+5m, status=PENDING)
+    DeliveryOtpService -> mailService.sendOtp(dealer.email, code)
+  DeliveryOtpService --> DriverDeliveryController : void
+DriverDeliveryController --> Tai xe : 200 OK
+
+Tai xe -> DriverDeliveryController.verifyOtp(deliveryId, otpPlain)
+  DriverDeliveryController -> DeliveryOtpService.verifyOtp(deliveryId, otpPlain, actor)
+    DeliveryOtpService -> hash(otpPlain)
+    DeliveryOtpService -> otpAttemptRepository.findPending(deliveryId)
+    alt hash matches AND not expired
+      DeliveryOtpService -> otpAttempt.setStatus(VERIFIED)
+      DeliveryOtpService -> delivery.setStatus(DELIVERED)
+      DeliveryOtpService -> eventPublisher.publish(DeliveryDeliveredEvent)   [-> AutoInvoiceService]
+    else
+      DeliveryOtpService -> otpAttempt.incrementAttemptCount()
+      alt attemptCount >= 3
+        DeliveryOtpService -> otpAttempt.setStatus(LOCKED)
+      end
+    end
+  DeliveryOtpService --> DriverDeliveryController : DeliveryResponse
+DriverDeliveryController --> Tai xe : 200 OK
+```
+
+#### d. Database Queries
+
+```sql
+-- 1/ Luu OTP hash
+INSERT INTO delivery_otp_attempts (delivery_id, recipient_email, otp_hash, expires_at, attempt_count, status)
+VALUES (?, ?, ?, NOW() + INTERVAL '5 minutes', 0, 'PENDING');
+
+-- 2/ Verify OTP
+SELECT id, otp_hash, expires_at, attempt_count
+FROM delivery_otp_attempts
+WHERE delivery_id = ? AND status = 'PENDING';
+
+UPDATE delivery_otp_attempts SET status = 'VERIFIED', consumed_at = NOW() WHERE id = ?;
+UPDATE deliveries SET status = 'DELIVERED', otp_verified_at = NOW() WHERE id = ?;
+
+-- 3/ Sai OTP: tang attempt_count, khoa neu >=3
+UPDATE delivery_otp_attempts
+SET attempt_count = attempt_count + 1,
+    status = CASE WHEN attempt_count + 1 >= 3 THEN 'LOCKED' ELSE status END
+WHERE id = ?;
+```
+
+---
+
+### 4.7 Auto-Invoice Creation
+
+#### a. Class Diagram
+
+```
+DeliveryDeliveredEvent ──triggers──► AutoInvoiceService (listener) ──uses──► InvoiceRepository / DealerRepository
+```
+
+#### b. Class Specifications
+
+**AutoInvoiceService Class**
+
+| No  | Method                                                | Description                                                                                                                                                                                                                                                                              |
+| --- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 01  | `onDeliveryDelivered(DeliveryDeliveredEvent event)`         | **Input**: event chua `deliveryId`/`doId`. **Xu ly noi bo**: idempotent check (`invoiceRepository.existsByDoId`) -> tinh `total_amount = Sum(doItem.qcPassQty * doItem.unitPrice)` -> tao `invoices` (`issue_date=TODAY`, `due_date=TODAY+30`, `status=UNPAID`) -> cong `dealers.current_balance` -> cap nhat DO `status=COMPLETED` -> ghi audit `INVOICE_CREATED`. **Output**: void (event-driven, khong HTTP response). |
+
+#### c. Sequence Diagram(s)
+
+```
+[Event] DeliveryDeliveredEvent -> AutoInvoiceService.onDeliveryDelivered(event)
+  AutoInvoiceService -> invoiceRepository.existsByDoId(doId)   [idempotent check]
+  AutoInvoiceService -> deliveryOrderItemRepository.findByDoId(doId)
+  AutoInvoiceService -> calculate totalAmount = Sum(qcPassQty * unitPrice)
+  AutoInvoiceService -> invoiceRepository.save(invoice{status=UNPAID, due_date=+30d})
+  AutoInvoiceService -> dealerRepository.increaseBalance(dealerId, totalAmount)
+  AutoInvoiceService -> deliveryOrder.setStatus(COMPLETED)
+  AutoInvoiceService -> auditLogService.log(INVOICE_CREATED, before=null, after=snapshot)
+```
+
+#### d. Database Queries
+
+```sql
+SELECT EXISTS (SELECT 1 FROM invoices WHERE do_id = ?);
+
+INSERT INTO invoices (do_id, dealer_id, total_amount, issue_date, due_date, status, created_at)
+SELECT ?, do.dealer_id, SUM(doi.qc_pass_qty * doi.unit_price), CURRENT_DATE, CURRENT_DATE + 30, 'UNPAID', NOW()
+FROM delivery_orders do
+JOIN delivery_order_items doi ON doi.do_id = do.id
+WHERE do.id = ?
+GROUP BY do.dealer_id;
+
+UPDATE dealers SET current_balance = current_balance + ? WHERE id = ?;
+UPDATE delivery_orders SET status = 'COMPLETED' WHERE id = ?;
+```
+
+---
+
+## 5. Inter-Warehouse Transfer (Spec 005)
+
+### 5.1 Cross-Warehouse View & Transfer Request
+
+#### a. Class Diagram
+
+```
+CrossWarehouseStockController ──uses──► CrossWarehouseStockService (read-only)
+TransferRequestController ──uses──► TransferRequestService ──uses──► TransferRequestRepository
+```
+
+#### b. Class Specifications
+
+**TransferRequestService Class**
+
+| No  | Method                                                       | Description                                                                                                                                                                                                                                                    |
+| --- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01  | `getCrossWarehouseStock(User actor)`                                | **Input**: actor (`WAREHOUSE_MANAGER`). **Xu ly noi bo**: query ton kha dung cua 3 kho vat ly (loai `IN_TRANSIT`, `Quarantine`), read-only, khong reserve. **Output**: `List<CrossWarehouseStockResponse>`.                                                       |
+| 02  | `createTransferRequest(CreateTransferRequestRequest request, User actor)` | **Input**: request (sourceWarehouseId, destWarehouseId, items[]), actor. **Xu ly noi bo**: validate `source != dest` -> luu `transfer_requests` (`status=DRAFT`) -> ghi audit `TRANSFER_REQUEST_CREATED`. **Output**: `TransferRequestResponse`.                    |
+| 03  | `approveTransferRequest(Long id, User ceo)`                          | CEO duyet: `status = APPROVED`, khong reserve, khong sinh bien dong inventory.                                                                                                                                                                                     |
+
+#### c. Sequence Diagram(s)
+
+```
+Truong kho -> TransferRequestController.createRequest(request)
+  TransferRequestController -> TransferRequestService.createTransferRequest(request, actor)
+    TransferRequestService -> validate sourceWarehouseId != destWarehouseId
+    TransferRequestService -> transferRequestRepository.save(request{status=DRAFT})
+    TransferRequestService -> auditLogService.log(TRANSFER_REQUEST_CREATED)
+  TransferRequestService --> TransferRequestController : TransferRequestResponse
+TransferRequestController --> Truong kho : 201 Created
+
+CEO -> TransferRequestController.approve(id)
+  TransferRequestController -> TransferRequestService.approveTransferRequest(id, ceo)
+    TransferRequestService -> transferRequest.setStatus(APPROVED)
+    TransferRequestService -> auditLogService.log(TRANSFER_REQUEST_APPROVED)
+  TransferRequestService --> TransferRequestController : TransferRequestResponse
+TransferRequestController --> CEO : 200 OK
+```
+
+#### d. Database Queries
+
+```sql
+-- 1/ Ton kha dung lien kho (read-only)
+SELECT w.id AS warehouse_id, w.code, i.product_id,
+       SUM(i.total_qty - i.reserved_qty) AS available_qty
+FROM inventories i
+JOIN warehouses w ON w.id = i.warehouse_id
+JOIN warehouse_locations wl ON wl.id = i.location_id
+WHERE w.type = 'PHYSICAL' AND wl.is_quarantine = false
+GROUP BY w.id, w.code, i.product_id;
+
+-- 2/ Tao transfer request
+INSERT INTO transfer_requests (source_warehouse_id, dest_warehouse_id, status, created_by, created_at)
+VALUES (?, ?, 'DRAFT', ?, NOW()) RETURNING id;
+
+-- 3/ CEO duyet
+UPDATE transfer_requests SET status = 'APPROVED', approved_by = ?, approved_at = NOW() WHERE id = ?;
+```
+
+---
+
+### 5.2 Transfer Order Creation
+
+#### a. Class Diagram
+
+```
+TransferController ──uses──► InterWarehouseTransferService ──uses──► TransferRepository ──maps──► Transfer (entity)
+                                       └──► TransferItem
+```
+
+#### b. Class Specifications
+
+**InterWarehouseTransferService Class**
+
+| No  | Method                                                     | Description                                                                                                                                                                                                                                       |
+| --- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01  | `createTransfer(CreateTransferRequest request, User actor)`        | **Input**: request (sourceWarehouseId, destWarehouseId, items[]), actor (`PLANNER`). **Xu ly noi bo**: validate `source != dest`, SKU ton tai -> luu `transfers` (`status=NEW`, ma `TRF-*`) + `transfer_items` (`sent_qty=0`) -> ghi audit `TRANSFER_CREATED`. Chua reserve. **Output**: `TransferResponse`. |
+
+#### c. Sequence Diagram(s)
+
+```
+Planner -> TransferController.createTransfer(request)
+  TransferController -> InterWarehouseTransferService.createTransfer(request, actor)
+    InterWarehouseTransferService -> validate sourceWarehouseId != destWarehouseId
+    InterWarehouseTransferService -> transferRepository.save(transfer{status=NEW, code=TRF-*})
+    InterWarehouseTransferService -> transferItemRepository.saveAll(items{sent_qty=0})
+    InterWarehouseTransferService -> auditLogService.log(TRANSFER_CREATED, before=null, after=snapshot)
+  InterWarehouseTransferService --> TransferController : TransferResponse
+TransferController --> Planner : 201 Created
+```
+
+#### d. Database Queries
+
+```sql
+INSERT INTO transfers (code, source_warehouse_id, dest_warehouse_id, status, created_by, created_at)
+VALUES (?, ?, ?, 'NEW', ?, NOW()) RETURNING id;
+
+INSERT INTO transfer_items (transfer_id, product_id, planned_qty, sent_qty, received_qty)
+VALUES (?, ?, ?, 0, 0);
+```
+
+---
+
+### 5.3 Transfer Approval & Reserve Stock
+
+#### a. Class Diagram
+
+```
+TransferApprovalController ──uses──► TransferApprovalService ──uses──► TransferRepository
+                                              │
+                                              └──uses──► FIFOSelector / WarehouseProductReservationRepository
+```
+
+#### b. Class Specifications
+
+**TransferApprovalService Class**
+
+| No  | Method                                                   | Description                                                                                                                                                                                                                                                        |
+| --- | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01  | `approveTransfer(Long transferId, User actor)`                    | **Input**: transferId (`NEW`), actor (`WAREHOUSE_MANAGER` kho nguon). **Xu ly noi bo**: kiem tra ton FIFO-eligible du cho moi item (else `INSUFFICIENT_STOCK`) -> reserve theo `fifoSelector` -> `status=APPROVED` -> ghi audit `TRANSFER_APPROVED`. **Output**: `TransferResponse`. |
+| 02  | `rejectTransfer(Long transferId, String reason, User actor)`       | **Input**: transferId, reason bat buoc. **Xu ly noi bo**: `status=REJECTED`, khong reserve; ghi audit `TRANSFER_REJECTED`. **Output**: `TransferResponse`.                                                                                                          |
+
+#### c. Sequence Diagram(s)
+
+```
+Truong kho nguon -> TransferApprovalController.approve(transferId)
+  TransferApprovalController -> TransferApprovalService.approveTransfer(transferId, actor)
+    TransferApprovalService -> transferRepository.findById(transferId)    -> Transfer (must be NEW)
+    loop each item
+      TransferApprovalService -> fifoSelector.checkAvailable(warehouseId, productId, qty)  [throw neu thieu]
+      TransferApprovalService -> reservationRepository.reserve(warehouseId, productId, qty)
+    end
+    TransferApprovalService -> transfer.setStatus(APPROVED)
+    TransferApprovalService -> auditLogService.log(TRANSFER_APPROVED, before, after)
+  TransferApprovalService --> TransferApprovalController : TransferResponse
+TransferApprovalController --> Truong kho nguon : 200 OK
+```
+
+#### d. Database Queries
+
+```sql
 UPDATE warehouse_product_reservations
 SET reserved_qty = reserved_qty + ?, version = version + 1
-WHERE warehouse_id = ? AND product_id = ?;
-
--- Move qty to In-Transit on departure
-UPDATE inventories
-SET total_qty = total_qty - ?
 WHERE warehouse_id = ? AND product_id = ? AND version = ?;
 
-INSERT INTO inventories (warehouse_id, product_id, batch_id, location_id, total_qty)
-SELECT ?, ?, batch_id, in_transit_location_id, ?
-FROM inventories
-WHERE warehouse_id = ? AND product_id = ?;
-
--- Calculate discrepancy on dest receive
-SELECT 
-  trf_items.planned_qty,
-  reception_records.received_qty,
-  (reception_records.received_qty - trf_items.planned_qty) AS variance_qty
-FROM transfer_items trf_items
-INNER JOIN reception_records ON trf_items.id = reception_records.transfer_item_id
-WHERE trf_items.transfer_id = ?;
-
--- Create TRANSFER_DISCREPANCY adjustment if variance ≠ 0
-INSERT INTO adjustments 
-  (transfer_id, product_id, type, quantity_adjustment, variance_value)
-VALUES (?, ?, 'TRANSFER_DISCREPANCY', ?, ? * cost_price);
+UPDATE transfers SET status = 'APPROVED', approved_by = ?, approved_at = NOW() WHERE id = ? AND status = 'NEW';
+UPDATE transfers SET status = 'REJECTED', reject_reason = ? WHERE id = ? AND status = 'NEW';
 ```
 
 ---
 
-## 5. Spec 006+007: Stocktake & Pricing Classes
+### 5.4 Transfer Ship (Dispatch + Outbound QC + Handover)
 
-**Services:** `StocktakeService`, `PricingService` (price_history lookup for COGS on invoice create)
+#### a. Class Diagram
 
-**SQL: Stocktake + Location Lock**
+```
+TransferShipmentController ──uses──► TransferShipmentService ──uses──► TripRepository (trip_type=TRANSFER)
+                                              │
+                                              └──uses──► InventoryRepository (tru nguon, cong IN_TRANSIT)
+```
+
+#### b. Class Specifications
+
+**TransferShipmentService Class**
+
+| No  | Method                                                            | Description                                                                                                                                                                                                                                                                                                            |
+| --- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01  | `dispatchTransferTrip(CreateTransferTripRequest request, User actor)`      | **Input**: request (transferId `APPROVED`, vehicleId, driverId thuoc kho nguon). **Xu ly noi bo**: tuong tu `TripDispatchService` (weight/volume check) -> tao `trips` (`trip_type=TRANSFER`, ma `TTR-*`). **Output**: `TripResponse`.                                                                                    |
+| 02  | `confirmDeparture(Long transferId, User actor)`                            | **Input**: transferId, actor (`DRIVER`). **Xu ly noi bo**: kiem tra anh handover da upload -> tru `inventories` kho nguon, cong `inventories` kho ao `IN_TRANSIT` -> `transfer.status=IN_TRANSIT`; ghi audit `TRANSFER_SHIPPED`. **Output**: `TransferResponse`.                                                          |
+
+#### c. Sequence Diagram(s)
+
+```
+Tai xe -> TransferShipmentController.confirmDeparture(transferId)
+  TransferShipmentController -> TransferShipmentService.confirmDeparture(transferId, actor)
+    TransferShipmentService -> validate handoverPhotoRef da co
+    TransferShipmentService -> inventoryRepository.decrease(sourceWarehouseId, productId, qty)
+    TransferShipmentService -> inventoryRepository.increase(IN_TRANSIT_WAREHOUSE_ID, productId, qty)
+    TransferShipmentService -> transfer.setStatus(IN_TRANSIT)
+    TransferShipmentService -> auditLogService.log(TRANSFER_SHIPPED, before, after)
+  TransferShipmentService --> TransferShipmentController : TransferResponse
+TransferShipmentController --> Tai xe : 200 OK
+```
+
+#### d. Database Queries
 
 ```sql
--- Lock locations during IN_PROGRESS
-UPDATE warehouse_locations
-SET is_locked = true WHERE warehouse_id = ? AND type = 'BIN' AND is_quarantine = false;
+INSERT INTO trips (trip_type, warehouse_id, vehicle_id, driver_id, status, created_at)
+VALUES ('TRANSFER', ?, ?, ?, 'PLANNED', NOW()) RETURNING id;
 
--- Update inventory on approval + optimistic locking
-UPDATE inventories SET total_qty = ?, version = version + 1
-WHERE id = ? AND version = ?;
+UPDATE inventories SET total_qty = total_qty - ?, version = version + 1
+WHERE warehouse_id = ? AND product_id = ? AND batch_id = ? AND version = ?;
 
--- Price history COGS lookup (at issue_date)
-SELECT cost_price FROM product_price_history
-WHERE product_id = ? AND effective_date <= ? AND (end_date IS NULL OR end_date > ?)
+INSERT INTO inventories (warehouse_id, product_id, batch_id, location_id, total_qty)
+VALUES ((SELECT id FROM warehouses WHERE type='IN_TRANSIT'), ?, ?, NULL, ?)
+ON CONFLICT (warehouse_id, product_id, batch_id) DO UPDATE SET total_qty = inventories.total_qty + EXCLUDED.total_qty;
+
+UPDATE transfers SET status = 'IN_TRANSIT', updated_at = NOW() WHERE id = ?;
+```
+
+---
+
+### 5.5 Transfer Receive (Count + QC + Final Approval)
+
+#### a. Class Diagram
+
+```
+TransferReceiveController ──uses──► TransferReceiveService ──uses──► TransferDiscrepancyService
+                                              │
+                                              └──uses──► InventoryRepository / QuarantineRecordRepository
+```
+
+#### b. Class Specifications
+
+**TransferReceiveService Class**
+
+| No  | Method                                                              | Description                                                                                                                                                                                                                                                                                                                                                        |
+| --- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01  | `recordBlindCount(Long transferId, BlindCountRequest request, User actor)`    | **Input**: transferId (`IN_TRANSIT`), request.receivedQty[] theo item, actor (`WAREHOUSE_STAFF`). **Xu ly noi bo**: luu received draft (chua cap nhat inventory). **Output**: `TransferReceiveDraftResponse`.                                                                                                                                                       |
+| 02  | `confirmFinalReceive(Long transferId, FinalReceiveRequest request, User actor)` | **Input**: transferId, request (QC result tung item, bin chon cho hang dat), actor (`WAREHOUSE_MANAGER` kho dich). **Xu ly noi bo**: `transferDiscrepancyService.calculate(sent_qty, received_qty)` -> neu khop: tru `IN_TRANSIT`, cong kho dich, `status=COMPLETED`; neu thieu: tao `adjustments(TRANSFER_DISCREPANCY)`, `status=COMPLETED_WITH_DISCREPANCY`; neu QC fail: vao Quarantine (`origin=INTERNAL_TRANSFER`). **Output**: `TransferResponse`. |
+
+#### c. Sequence Diagram(s)
+
+```
+Truong kho dich -> TransferReceiveController.confirmFinalReceive(transferId, request)
+  TransferReceiveController -> TransferReceiveService.confirmFinalReceive(transferId, request, actor)
+    TransferReceiveService -> transferDiscrepancyService.calculate(sentQty, receivedQty)
+    alt received == sent AND QC pass
+      TransferReceiveService -> inventoryRepository.decrease(IN_TRANSIT, productId, qty)
+      TransferReceiveService -> inventoryRepository.increase(destWarehouseId, productId, batchId, binId, qty)
+      TransferReceiveService -> transfer.setStatus(COMPLETED)
+    else received < sent
+      TransferReceiveService -> adjustmentRepository.save(type=TRANSFER_DISCREPANCY)
+      TransferReceiveService -> transfer.setStatus(COMPLETED_WITH_DISCREPANCY)
+    else QC fail
+      TransferReceiveService -> quarantineRecordRepository.save(origin=INTERNAL_TRANSFER)
+    end
+    TransferReceiveService -> auditLogService.log(TRANSFER_RECEIVED, before, after)
+  TransferReceiveService --> TransferReceiveController : TransferResponse
+TransferReceiveController --> Truong kho dich : 200 OK
+```
+
+#### d. Database Queries
+
+```sql
+-- 1/ Tinh chenh lech
+SELECT ti.planned_qty AS sent_qty, ?::int AS received_qty, (?::int - ti.planned_qty) AS variance_qty
+FROM transfer_items ti WHERE ti.id = ?;
+
+-- 2/ Khop: tru IN_TRANSIT, cong kho dich
+UPDATE inventories SET total_qty = total_qty - ? WHERE warehouse_id = (SELECT id FROM warehouses WHERE type='IN_TRANSIT') AND product_id = ?;
+UPDATE inventories SET total_qty = total_qty + ?, version = version + 1 WHERE warehouse_id = ? AND product_id = ? AND location_id = ?;
+UPDATE transfers SET status = 'COMPLETED', updated_at = NOW() WHERE id = ?;
+
+-- 3/ Chenh lech: tao adjustment
+INSERT INTO adjustments (transfer_id, product_id, type, quantity_adjustment, created_at)
+VALUES (?, ?, 'TRANSFER_DISCREPANCY', ?, NOW());
+UPDATE transfers SET status = 'COMPLETED_WITH_DISCREPANCY' WHERE id = ?;
+
+-- 4/ QC fail: Quarantine
+INSERT INTO quarantine_records (warehouse_id, product_id, quantity, origin, transfer_id, created_at)
+VALUES (?, ?, ?, 'INTERNAL_TRANSFER', ?, NOW());
+```
+
+---
+
+## 6. Stocktake & Adjustment (Spec 006)
+
+### 6.1 Stocktake Creation & Count
+
+#### a. Class Diagram
+
+```
+StocktakeController ──uses──► StocktakeService ──uses──► StocktakeRepository ──maps──► Stocktake (entity)
+                                       │                                                       └──► StocktakeItem
+                                       └──uses──► LocationLockService (lock/unlock bin)
+```
+
+#### b. Class Specifications
+
+**StocktakeService Class**
+
+| No  | Method                                                     | Description                                                                                                                                                                                                                                                       |
+| --- | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01  | `createStocktake(Long warehouseId, User actor)`                  | **Input**: warehouseId, actor (`STOREKEEPER`). **Xu ly noi bo**: kiem tra khong co stocktake `IN_PROGRESS` khac cho kho (else `WAREHOUSE_LOCKED`) -> snapshot `system_qty` tu `inventories` cho tung product/location -> luu `stocktakes` (`status=IN_PROGRESS`) + `stocktake_items` -> `locationLockService.lockLocationsForStocktake(warehouseId)` -> ghi audit `STOCKTAKE_CREATED`. **Output**: `StocktakeResponse`.                                       |
+| 02  | `recordCount(Long stocktakeId, RecordCountRequest request, User actor)` | **Input**: stocktakeId, request.counts[] (product/location/receivedQty), actor (`WAREHOUSE_STAFF`). **Xu ly noi bo**: cap nhat `stocktake_items.received_qty` -> tinh `variance_qty = system_qty - received_qty`. **Output**: `StocktakeResponse`.                    |
+
+#### c. Sequence Diagram(s)
+
+```
+Thu kho -> StocktakeController.createStocktake(warehouseId)
+  StocktakeController -> StocktakeService.createStocktake(warehouseId, actor)
+    StocktakeService -> validate no other stocktake IN_PROGRESS for warehouse
+    StocktakeService -> snapshot inventories AS system_qty
+    StocktakeService -> stocktakeRepository.save(stocktake{status=IN_PROGRESS})
+    StocktakeService -> locationLockService.lockLocationsForStocktake(warehouseId)
+    StocktakeService -> auditLogService.log(STOCKTAKE_CREATED, before=null, after=snapshot)
+  StocktakeService --> StocktakeController : StocktakeResponse
+StocktakeController --> Thu kho : 201 Created
+```
+
+#### d. Database Queries
+
+```sql
+SELECT EXISTS (SELECT 1 FROM stocktakes WHERE warehouse_id = ? AND status = 'IN_PROGRESS');
+
+INSERT INTO stocktakes (warehouse_id, status, created_by, created_at) VALUES (?, 'IN_PROGRESS', ?, NOW()) RETURNING id;
+
+INSERT INTO stocktake_items (stocktake_id, product_id, location_id, system_qty)
+SELECT ?, i.product_id, i.location_id, i.total_qty FROM inventories i WHERE i.warehouse_id = ?;
+
+UPDATE warehouse_locations SET is_locked = true WHERE warehouse_id = ? AND type = 'BIN' AND is_quarantine = false;
+
+UPDATE stocktake_items SET received_qty = ?, variance_qty = system_qty - ? WHERE id = ?;
+```
+
+---
+
+### 6.2 Adjustment Approval
+
+#### a. Class Diagram
+
+```
+StocktakeApprovalController ──uses──► StocktakeApprovalService ──uses──► InventoryRepository
+                                              │
+                                              └──uses──► AdjustmentRepository / LocationLockService (unlock)
+```
+
+#### b. Class Specifications
+
+**StocktakeApprovalService Class**
+
+| No  | Method                                                     | Description                                                                                                                                                                                                                                                              |
+| --- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 01  | `approveAdjustment(Long stocktakeId, User actor)`                | **Input**: stocktakeId, actor (`WAREHOUSE_MANAGER`). **Xu ly noi bo**: voi moi `stocktake_item` co `variance_qty != 0`: `inventoryRepository.setTotalQty(receivedQty)` + tao `adjustments` (`type=STOCKTAKE`) -> `locationLockService.unlock(warehouseId)` -> `stocktake.status=CLOSED` -> ghi audit `STOCKTAKE_APPROVED`. **Output**: `StocktakeResponse`. Flat approval, khong phan cap gia tri. |
+| 02  | `rejectAdjustment(Long stocktakeId, User actor)`                 | **Input**: stocktakeId. **Xu ly noi bo**: `status` quay lai `IN_PROGRESS`, kho van lock, yeu cau dem lai. **Output**: `StocktakeResponse`.                                                                                                                                 |
+
+#### c. Sequence Diagram(s)
+
+```
+Truong kho -> StocktakeApprovalController.approve(stocktakeId)
+  StocktakeApprovalController -> StocktakeApprovalService.approveAdjustment(stocktakeId, actor)
+    loop each stocktake_item where variance_qty != 0
+      StocktakeApprovalService -> inventoryRepository.setTotalQty(productId, locationId, receivedQty)
+      StocktakeApprovalService -> adjustmentRepository.save(type=STOCKTAKE, quantity=varianceQty)
+    end
+    StocktakeApprovalService -> locationLockService.unlock(warehouseId)
+    StocktakeApprovalService -> stocktake.setStatus(CLOSED)
+    StocktakeApprovalService -> auditLogService.log(STOCKTAKE_APPROVED, before, after)
+  StocktakeApprovalService --> StocktakeApprovalController : StocktakeResponse
+StocktakeApprovalController --> Truong kho : 200 OK
+```
+
+#### d. Database Queries
+
+```sql
+UPDATE inventories SET total_qty = ?, version = version + 1 WHERE product_id = ? AND location_id = ? AND warehouse_id = ?;
+
+INSERT INTO adjustments (stocktake_id, product_id, type, quantity_adjustment, created_at)
+VALUES (?, ?, 'STOCKTAKE', ?, NOW());
+
+UPDATE warehouse_locations SET is_locked = false WHERE warehouse_id = ? AND is_locked = true;
+
+UPDATE stocktakes SET status = 'CLOSED', approved_by = ?, approved_at = NOW() WHERE id = ?;
+```
+
+---
+
+## 7. Pricing & COGS Management (Spec 007)
+
+### 7.1 Price List Creation
+
+#### a. Class Diagram
+
+```
+PriceListController ──uses──► PricingService ──uses──► PriceHistoryRepository ──maps──► PriceHistory (entity)
+```
+
+#### b. Class Specifications
+
+**PricingService Class**
+
+| No  | Method                                                        | Description                                                                                                                                                                                                                        |
+| --- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01  | `createPriceList(CreatePriceListRequest request, User actor)`          | **Input**: request.items[] (productId, costPrice, sellingPrice, effectiveDate), actor (`ACCOUNTANT`). **Xu ly noi bo**: `validatePriceRange` (>0) -> luu `price_history` (`status=DRAFT`) -> ghi audit `PRICE_LIST_CREATED`. **Output**: `PriceListResponse`. |
+| 02  | `importExcel(MultipartFile file, User actor)`                          | Parse Excel theo template, map tung dong -> goi `createPriceList` hang loat.                                                                                                                                                            |
+
+#### c. Sequence Diagram(s)
+
+```
+Ke toan vien -> PriceListController.createPriceList(request)
+  PriceListController -> PricingService.createPriceList(request, actor)
+    loop each item
+      PricingService -> validatePriceRange(costPrice, sellingPrice)
+      PricingService -> priceHistoryRepository.save(item{status=DRAFT})
+    end
+    PricingService -> auditLogService.log(PRICE_LIST_CREATED, before=null, after=snapshot)
+  PricingService --> PriceListController : PriceListResponse
+PriceListController --> Ke toan vien : 201 Created
+```
+
+#### d. Database Queries
+
+```sql
+INSERT INTO price_history (product_id, cost_price, selling_price, effective_date, end_date, status, created_at)
+VALUES (?, ?, ?, ?, NULL, 'DRAFT', NOW());
+```
+
+---
+
+### 7.2 Price Approval
+
+#### a. Class Diagram
+
+```
+PriceApprovalController ──uses──► PriceApprovalService ──uses──► PriceHistoryRepository
+```
+
+#### b. Class Specifications
+
+**PriceApprovalService Class**
+
+| No  | Method                                                | Description                                                                                                                                     |
+| --- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01  | `approvePriceList(Long priceListId, User actor)`                | **Input**: priceListId (`DRAFT`), actor (`ACCOUNTANT_MANAGER`). **Xu ly noi bo**: `status=ACTIVE`; ghi audit `PRICE_LIST_APPROVED`. **Output**: `PriceListResponse`. |
+
+#### c. Sequence Diagram(s)
+
+```
+Ke toan truong -> PriceApprovalController.approve(priceListId)
+  PriceApprovalController -> PriceApprovalService.approvePriceList(priceListId, actor)
+    PriceApprovalService -> priceHistoryRepository.updateStatus(priceListId, ACTIVE)
+    PriceApprovalService -> auditLogService.log(PRICE_LIST_APPROVED, before, after)
+  PriceApprovalService --> PriceApprovalController : PriceListResponse
+PriceApprovalController --> Ke toan truong : 200 OK
+```
+
+#### d. Database Queries
+
+```sql
+UPDATE price_history SET status = 'ACTIVE', approved_by = ?, approved_at = NOW() WHERE id = ? AND status = 'DRAFT';
+```
+
+---
+
+### 7.3 COGS Auto-Calculation (Snapshot)
+
+#### a. Class Diagram
+
+```
+DeliveryOrderService ──uses──► PriceHistoryRepository.findEffectivePrice(productId, date)
+```
+
+#### b. Class Specifications
+
+**PriceHistoryRepository (query method)**
+
+| No  | Method                                                          | Description                                                                                                                                                       |
+| --- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01  | `findEffectivePrice(Long productId, LocalDate date)`                     | **Input**: productId, date (ngay tao DO). **Xu ly noi bo**: `WHERE product_id=? AND effective_date <= date AND (end_date IS NULL OR end_date > date) ORDER BY effective_date DESC LIMIT 1`. **Output**: `PriceHistory{costPrice, sellingPrice}`, snapshot co dinh vao `delivery_order_items.unit_price`. |
+
+#### c. Sequence Diagram(s)
+
+```
+DeliveryOrderService -> priceHistoryRepository.findEffectivePrice(productId, today)
+  priceHistoryRepository --> DeliveryOrderService : PriceHistory (or throw NO_ACTIVE_PRICE)
+DeliveryOrderService -> deliveryOrderItem.setUnitPrice(priceHistory.sellingPrice)
+```
+
+#### d. Database Queries
+
+```sql
+SELECT cost_price, selling_price FROM price_history
+WHERE product_id = ? AND status = 'ACTIVE'
+  AND effective_date <= ? AND (end_date IS NULL OR end_date > ?)
 ORDER BY effective_date DESC LIMIT 1;
 ```
 
 ---
 
-## 6. Spec 008+009+010: Finance, Returns & Reporting Classes
+## 8. Finance & Billing & Closing (Spec 008)
 
-**Services:**
-- `InvoiceService` (auto-create on delivery DELIVERED)
-- `AccountingPeriodService` (close, lock, late-doc handling)
-- `ReturnService` (RTV Debit Note for supplier; Credit Note for customer)
-- `ReportService` (Dashboard KPI, Aging, P&L)
+### 8.1 Invoice Reconciliation
 
-**SQL: Auto-Invoice & Accounting Period**
+#### a. Class Diagram
+
+```
+BillingNotificationController ──uses──► InvoiceServiceImpl ──uses──► BillingNotificationRepository / InvoiceRepository
+```
+
+#### b. Class Specifications
+
+**InvoiceServiceImpl Class**
+
+| No  | Method                                                    | Description                                                                                                                                                          |
+| --- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01  | `getBillingWorklist(User actor)`                                    | Tra danh sach `billing_notifications` chua confirm, join `invoices`.                                                                                                    |
+| 02  | `confirmReconciliation(Long billingNotificationId, User actor)`      | **Input**: id, actor (`ACCOUNTANT`). **Xu ly noi bo**: mark `is_confirmed=true`; ghi audit `INVOICE_RECONCILED`. **Output**: void.                                       |
+
+#### c. Sequence Diagram(s)
+
+```
+Ke toan vien -> BillingNotificationController.confirm(id)
+  BillingNotificationController -> InvoiceServiceImpl.confirmReconciliation(id, actor)
+    InvoiceServiceImpl -> billingNotificationRepository.markConfirmed(id)
+    InvoiceServiceImpl -> auditLogService.log(INVOICE_RECONCILED, before, after)
+  InvoiceServiceImpl --> BillingNotificationController : void
+BillingNotificationController --> Ke toan vien : 200 OK
+```
+
+#### d. Database Queries
 
 ```sql
--- Auto-create invoice trigger (after delivery DELIVERED)
-INSERT INTO invoices (dealer_id, total_amount, issue_date, due_date, status, document_reference)
-SELECT do.dealer_id, SUM(doi.qc_pass_qty * doi.unit_price), 
-       CURRENT_DATE, CURRENT_DATE + INTERVAL '30 days', 'UNPAID', 'DO-' || do.do_number
-FROM deliveries d
-INNER JOIN delivery_orders do ON d.do_id = do.id
-INNER JOIN delivery_order_items doi ON do.id = doi.do_id
-WHERE d.status = 'DELIVERED' AND d.id = ?
-GROUP BY do.dealer_id;
+SELECT bn.id, bn.do_id, i.id AS invoice_id, i.total_amount
+FROM billing_notifications bn
+JOIN invoices i ON i.do_id = bn.do_id
+WHERE bn.is_confirmed = false;
 
--- Monthly closing lock
-UPDATE accounting_periods SET status = 'CLOSED' WHERE id = ?;
--- Block new transactions in closed period; allow Correction Vouchers in open period
+UPDATE billing_notifications SET is_confirmed = true, confirmed_at = NOW() WHERE id = ?;
+```
 
--- Aging Report
-SELECT dealer_id, due_date,
-       CASE WHEN due_date < CURRENT_DATE AND CURRENT_DATE - due_date > 60 THEN '>60 days'
-            WHEN due_date < CURRENT_DATE AND CURRENT_DATE - due_date > 30 THEN '31-60 days'
-            WHEN due_date < CURRENT_DATE THEN '1-30 days'
-            ELSE 'Not due' END AS aging_bucket,
-       SUM(total_amount - COALESCE(paid_amount, 0)) AS balance
+---
+
+### 8.2 Payment Receipt Recording
+
+#### a. Class Diagram
+
+```
+PaymentReceiptController ──uses──► PaymentReceiptServiceImpl ──uses──► PaymentReceiptRepository / InvoiceRepository / DealerRepository
+```
+
+#### b. Class Specifications
+
+**PaymentReceiptServiceImpl Class**
+
+| No  | Method                                                          | Description                                                                                                                                                                                                                                                                                                    |
+| --- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01  | `recordPayment(RecordPaymentRequest request, User actor)`                  | **Input**: request (dealerId, amount, invoiceIds[] can tru), actor (`ACCOUNTANT`). **Xu ly noi bo**: validate `amount > 0` -> luu `payment_receipts` -> voi moi invoice: cap nhat `status` (`PAID` neu du, `PARTIALLY_PAID` neu thieu) -> `dealers.current_balance -= amount` -> `creditLimitService.reEvaluate(dealerId)` (neu `balance < limit*0.8` va khong overdue -> `ACTIVE`) -> ghi audit `PAYMENT_RECEIVED`. **Output**: `PaymentReceiptResponse`. |
+
+#### c. Sequence Diagram(s)
+
+```
+Ke toan vien -> PaymentReceiptController.recordPayment(request)
+  PaymentReceiptController -> PaymentReceiptServiceImpl.recordPayment(request, actor)
+    PaymentReceiptServiceImpl -> validate amount > 0
+    PaymentReceiptServiceImpl -> paymentReceiptRepository.save(receipt)
+    loop each invoiceId
+      PaymentReceiptServiceImpl -> invoiceRepository.applyPayment(invoiceId, allocatedAmount)
+    end
+    PaymentReceiptServiceImpl -> dealerRepository.decreaseBalance(dealerId, amount)
+    PaymentReceiptServiceImpl -> creditLimitService.reEvaluate(dealerId)
+    PaymentReceiptServiceImpl -> auditLogService.log(PAYMENT_RECEIVED, before, after)
+  PaymentReceiptServiceImpl --> PaymentReceiptController : PaymentReceiptResponse
+PaymentReceiptController --> Ke toan vien : 201 Created
+```
+
+#### d. Database Queries
+
+```sql
+INSERT INTO payment_receipts (dealer_id, amount, payment_date, created_at) VALUES (?, ?, NOW(), NOW()) RETURNING id;
+
+UPDATE invoices SET status = CASE WHEN paid_amount + ? >= total_amount THEN 'PAID' ELSE 'PARTIALLY_PAID' END,
+                    paid_amount = paid_amount + ?
+WHERE id = ?;
+
+UPDATE dealers SET current_balance = current_balance - ? WHERE id = ?;
+
+UPDATE dealers SET credit_status = 'ACTIVE'
+WHERE id = ? AND current_balance < credit_limit * 0.8
+  AND NOT EXISTS (SELECT 1 FROM invoices WHERE dealer_id = dealers.id AND status IN ('UNPAID','PARTIALLY_PAID') AND due_date < NOW() - INTERVAL '30 days');
+```
+
+---
+
+### 8.3 Aging Report
+
+#### a. Class Diagram
+
+```
+ReportController ──uses──► ReportServiceImpl ──uses──► InvoiceRepository (aggregate query)
+```
+
+#### b. Class Specifications
+
+**ReportServiceImpl Class**
+
+| No  | Method                                    | Description                                                                                                                                                                       |
+| --- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01  | `getAgingReport(User actor)`                     | **Input**: actor (`ACCOUNTANT_MANAGER`/`CEO`). **Xu ly noi bo**: query `invoices` chua `CLOSED`, nhom theo `dealer_id` + bucket (`Not due`/`1-30`/`31-60`/`>60`) theo `due_date`. **Output**: `AgingReportResponse`, read-only. |
+
+#### c. Sequence Diagram(s)
+
+```
+Ke toan truong -> ReportController.getAgingReport()
+  ReportController -> ReportServiceImpl.getAgingReport(actor)
+    ReportServiceImpl -> invoiceRepository.aggregateAging()
+  ReportServiceImpl --> ReportController : AgingReportResponse
+ReportController --> Ke toan truong : 200 OK
+```
+
+#### d. Database Queries
+
+```sql
+SELECT dealer_id,
+       CASE WHEN due_date >= CURRENT_DATE THEN 'Not due'
+            WHEN CURRENT_DATE - due_date <= 30 THEN '1-30 days'
+            WHEN CURRENT_DATE - due_date <= 60 THEN '31-60 days'
+            ELSE '>60 days' END AS aging_bucket,
+       SUM(total_amount - paid_amount) AS balance
 FROM invoices
-WHERE status != 'CLOSED'
+WHERE status NOT IN ('CLOSED', 'PAID')
 GROUP BY dealer_id, aging_bucket;
 ```
 
 ---
 
+### 8.4 Accounting Period Closing
+
+#### a. Class Diagram
+
+```
+AccountingPeriodController ──uses──► AccountingPeriodServiceImpl ──uses──► AccountingPeriodRepository
+```
+
+#### b. Class Specifications
+
+**AccountingPeriodServiceImpl Class**
+
+| No  | Method                                       | Description                                                                                                                                                                        |
+| --- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01  | `closePeriod(Long periodId, User actor)`             | **Input**: periodId, actor (`ACCOUNTANT_MANAGER`). **Xu ly noi bo**: validate moi ky truoc do da `CLOSED` (else `PERIOD_SEQUENCE_ERROR`) -> `status=CLOSED`; ghi audit `PERIOD_CLOSED`. **Output**: `AccountingPeriodResponse`. |
+
+#### c. Sequence Diagram(s)
+
+```
+Ke toan truong -> AccountingPeriodController.close(periodId)
+  AccountingPeriodController -> AccountingPeriodServiceImpl.closePeriod(periodId, actor)
+    AccountingPeriodServiceImpl -> validate all prior periods CLOSED
+    AccountingPeriodServiceImpl -> accountingPeriodRepository.updateStatus(periodId, CLOSED)
+    AccountingPeriodServiceImpl -> auditLogService.log(PERIOD_CLOSED, before, after)
+  AccountingPeriodServiceImpl --> AccountingPeriodController : AccountingPeriodResponse
+AccountingPeriodController --> Ke toan truong : 200 OK
+```
+
+#### d. Database Queries
+
+```sql
+SELECT EXISTS (SELECT 1 FROM accounting_periods WHERE period_end < (SELECT period_start FROM accounting_periods WHERE id = ?) AND status != 'CLOSED');
+
+UPDATE accounting_periods SET status = 'CLOSED', closed_by = ?, closed_at = NOW() WHERE id = ?;
+```
+
+---
+
+## 9. Returns, Scrap & Disposal (Spec 009)
+
+### 9.1 Dealer Return & Credit Note
+
+#### a. Class Diagram
+
+```
+ReturnController ──uses──► ReturnService ──uses──► ReceiptRepository (type=RETURN)
+                                   └──uses──► CreditNoteService ──uses──► CreditNoteRepository
+```
+
+#### b. Class Specifications
+
+**ReturnService Class**
+
+| No  | Method                                                | Description                                                                                                                                                                                                                          |
+| --- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01  | `receiveDealerReturn(CreateReturnRequest request, User actor)`  | **Input**: request (dealerId, doId goc, items[]), actor (`STOREKEEPER`). **Xu ly noi bo**: tao `receipts` (`type=RETURN`) -> QC hang hoan -> neu dat: cong ton kho bin; neu fail: vao Quarantine. **Output**: `ReceiptResponse`.        |
+
+**CreditNoteService Class**
+
+| No  | Method                                                | Description                                                                                                                                                                     |
+| --- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01  | `createCreditNote(Long returnReceiptId, User actor)`             | **Input**: returnReceiptId (hang QC dat), actor (`ACCOUNTANT`). **Xu ly noi bo**: tinh `amount = returnQty * original_unit_price` (tu DO goc) -> luu `credit_notes` -> tru `dealers.current_balance`. **Output**: `CreditNoteResponse`. |
+
+#### c. Sequence Diagram(s)
+
+```
+Thu kho -> ReturnController.receiveDealerReturn(request)
+  ReturnController -> ReturnService.receiveDealerReturn(request, actor)
+    ReturnService -> receiptRepository.save(receipt{type=RETURN})
+    alt QC pass
+      ReturnService -> inventoryRepository.increase(warehouseId, productId, binId, qty)
+    else QC fail
+      ReturnService -> quarantineRecordRepository.save(origin=CUSTOMER_RETURN_QC_FAIL)
+    end
+  ReturnService --> ReturnController : ReceiptResponse
+ReturnController --> Thu kho : 201 Created
+
+Ke toan vien -> CreditNoteController.createCreditNote(returnReceiptId)
+  CreditNoteController -> CreditNoteService.createCreditNote(returnReceiptId, actor)
+    CreditNoteService -> calculate amount = returnQty * originalUnitPrice
+    CreditNoteService -> creditNoteRepository.save(creditNote)
+    CreditNoteService -> dealerRepository.decreaseBalance(dealerId, amount)
+    CreditNoteService -> auditLogService.log(CREDIT_NOTE_CREATED, before, after)
+  CreditNoteService --> CreditNoteController : CreditNoteResponse
+CreditNoteController --> Ke toan vien : 201 Created
+```
+
+#### d. Database Queries
+
+```sql
+INSERT INTO receipts (type, dealer_id, warehouse_id, status, created_by, created_at)
+VALUES ('RETURN', ?, ?, 'PENDING_RECEIPT', ?, NOW()) RETURNING id;
+
+UPDATE inventories SET total_qty = total_qty + ?, version = version + 1
+WHERE warehouse_id = ? AND product_id = ? AND location_id = ?;
+
+INSERT INTO credit_notes (dealer_id, receipt_id, amount, reason, created_at)
+VALUES (?, ?, ?, 'CUSTOMER_RETURN', NOW());
+
+UPDATE dealers SET current_balance = current_balance - ? WHERE id = ?;
+```
+
+---
+
+### 9.2 Disposal Approval & Execution
+
+#### a. Class Diagram
+
+```
+DisposalController ──uses──► DisposalService ──uses──► DamageReportRepository / AdjustmentRepository / QuarantineRecordRepository
+```
+
+#### b. Class Specifications
+
+**DisposalService Class**
+
+| No  | Method                                                     | Description                                                                                                                                                                                                                                       |
+| --- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01  | `createDamageReport(CreateDamageReportRequest request, User actor)` | **Input**: request (quarantineRecordId, quantity, origin, reason), actor (`STOREKEEPER`). **Xu ly noi bo**: luu `damage_reports` (`status=PENDING`). **Output**: `DamageReportResponse`.                                                            |
+| 02  | `approveDisposal(Long damageReportId, User actor)`                  | **Input**: damageReportId, actor (`WAREHOUSE_MANAGER`, flat approval). **Xu ly noi bo**: `status=APPROVED`; ghi audit `DISPOSAL_APPROVED`. **Output**: `DamageReportResponse`.                                                                        |
+| 03  | `executeDisposal(Long damageReportId, User actor)`                  | **Input**: damageReportId (`APPROVED`), actor (`STOREKEEPER`). **Xu ly noi bo**: tru `quarantine_records`, tao `adjustments` (`type=DISPOSAL`), `status=EXECUTED`; ghi audit `DISPOSAL_EXECUTED`. **Output**: `DamageReportResponse`.                     |
+
+#### c. Sequence Diagram(s)
+
+```
+Truong kho -> DisposalController.approve(damageReportId)
+  DisposalController -> DisposalService.approveDisposal(damageReportId, actor)
+    DisposalService -> damageReport.setStatus(APPROVED)
+    DisposalService -> auditLogService.log(DISPOSAL_APPROVED, before, after)
+  DisposalService --> DisposalController : DamageReportResponse
+DisposalController --> Truong kho : 200 OK
+
+Thu kho -> DisposalController.execute(damageReportId)
+  DisposalController -> DisposalService.executeDisposal(damageReportId, actor)
+    DisposalService -> quarantineRecordRepository.decrease(quantity)
+    DisposalService -> adjustmentRepository.save(type=DISPOSAL)
+    DisposalService -> damageReport.setStatus(EXECUTED)
+    DisposalService -> auditLogService.log(DISPOSAL_EXECUTED, before, after)
+  DisposalService --> DisposalController : DamageReportResponse
+DisposalController --> Thu kho : 200 OK
+```
+
+#### d. Database Queries
+
+```sql
+INSERT INTO damage_reports (quarantine_record_id, quantity, origin, reason, status, created_at)
+VALUES (?, ?, ?, ?, 'PENDING', NOW()) RETURNING id;
+
+UPDATE damage_reports SET status = 'APPROVED', approved_by = ?, approved_at = NOW() WHERE id = ?;
+
+UPDATE quarantine_records SET quantity = quantity - ? WHERE id = ?;
+
+INSERT INTO adjustments (product_id, type, quantity_adjustment, created_at)
+VALUES (?, 'DISPOSAL', ?, NOW());
+
+UPDATE damage_reports SET status = 'EXECUTED', executed_at = NOW() WHERE id = ?;
+```
+
+---
+
+## 10. Reports, Dashboards & Alerts (Spec 010)
+
+### 10.1 CEO Dashboard
+
+#### a. Class Diagram
+
+```
+DashboardController ──uses──► ReportServiceImpl ──uses──► (aggregate queries across inventories/invoices/deliveries/receipt_items)
+```
+
+#### b. Class Specifications
+
+**ReportServiceImpl Class**
+
+| No  | Method                             | Description                                                                                                                                                                                       |
+| --- | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01  | `getDashboardKpi(User actor)`             | **Input**: actor (`CEO`). **Xu ly noi bo**: tong hop Inventory KPI (total value, low stock count), Credit KPI (A/R, aging), P&L (revenue YTD, COGS, margin%), QC KPI (accept/defect rate), OTD (on-time %). Read-only. **Output**: `DashboardResponse`. |
+
+#### c. Sequence Diagram(s)
+
+```
+CEO -> DashboardController.getDashboardKpi()
+  DashboardController -> ReportServiceImpl.getDashboardKpi(actor)
+    ReportServiceImpl -> inventoryRepository.aggregateValue()
+    ReportServiceImpl -> invoiceRepository.aggregateAging()
+    ReportServiceImpl -> deliveryRepository.aggregateOtdRate()
+    ReportServiceImpl -> receiptItemRepository.aggregateQcRate()
+  ReportServiceImpl --> DashboardController : DashboardResponse
+DashboardController --> CEO : 200 OK
+```
+
+#### d. Database Queries
+
+```sql
+-- Inventory value
+SELECT SUM(i.total_qty * ph.cost_price) AS total_value
+FROM inventories i
+JOIN price_history ph ON ph.product_id = i.product_id AND ph.status = 'ACTIVE';
+
+-- OTD rate
+SELECT COUNT(*) FILTER (WHERE delivered_at <= requested_date)::float / COUNT(*) AS otd_rate
+FROM delivery_orders WHERE status = 'COMPLETED';
+
+-- QC accept rate
+SELECT COUNT(*) FILTER (WHERE qc_result = 'PASS')::float / COUNT(*) AS accept_rate
+FROM receipt_items WHERE qc_result IS NOT NULL;
+```
+
+---
+
+### 10.2 Low Stock Alert Trigger/Resolve
+
+#### a. Class Diagram
+
+```
+[InventoryChangeEvent] ──triggers──► StockAlertServiceImpl ──uses──► StockAlertRepository ──maps──► StockAlert (entity)
+```
+
+#### b. Class Specifications
+
+**StockAlertServiceImpl Class**
+
+| No  | Method                                                   | Description                                                                                                                                                                                                                                            |
+| --- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01  | `onInventoryChanged(InventoryChangeEvent event)`                   | **Input**: event (warehouseId, productId). **Xu ly noi bo**: tinh `available_qty = total_qty - reserved_qty` -> so voi `product.reorderPoint` -> neu duoi nguong va chua co alert active: tao `stock_alerts` (`is_resolved=false`); neu hoi phuc va co alert active: `is_resolved=true`. **Output**: void (event-driven). |
+| 02  | `resolveAlert(Long alertId, User actor)`                            | Planner mark resolved thu cong (VD sau khi lap DO nhap hang).                                                                                                                                                                                             |
+
+#### c. Sequence Diagram(s)
+
+```
+[Event] InventoryChangeEvent -> StockAlertServiceImpl.onInventoryChanged(event)
+  StockAlertServiceImpl -> calculate availableQty = total_qty - reserved_qty
+  StockAlertServiceImpl -> productRepository.getReorderPoint(productId)
+  alt availableQty < reorderPoint AND no active alert
+    StockAlertServiceImpl -> stockAlertRepository.save(alert{is_resolved=false})
+  else availableQty >= reorderPoint AND active alert exists
+    StockAlertServiceImpl -> stockAlertRepository.markResolved(alertId)
+  end
+```
+
+#### d. Database Queries
+
+```sql
+SELECT COALESCE(SUM(total_qty - reserved_qty), 0) AS available_qty
+FROM inventories WHERE warehouse_id = ? AND product_id = ?;
+
+INSERT INTO stock_alerts (warehouse_id, product_id, alert_type, is_resolved, created_at)
+VALUES (?, ?, 'LOW_STOCK', false, NOW())
+ON CONFLICT (warehouse_id, product_id, alert_type) WHERE is_resolved = false DO NOTHING;
+
+UPDATE stock_alerts SET is_resolved = true, resolved_at = NOW()
+WHERE warehouse_id = ? AND product_id = ? AND is_resolved = false;
+```
+
+---
+
+### 10.3 Productivity Report
+
+#### a. Class Diagram
+
+```
+ProductivityReportController ──uses──► ReportServiceImpl ──uses──► AuditLogRepository / DeliveryOrderItemRepository
+```
+
+#### b. Class Specifications
+
+**ReportServiceImpl Class (Productivity)**
+
+| No  | Method                                            | Description                                                                                                                                                                        |
+| --- | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01  | `getProductivityReport(Long warehouseId, DateRange range, User actor)` | **Input**: warehouseId, date range, actor (`WAREHOUSE_MANAGER`). **Xu ly noi bo**: dem so phieu xu ly + item picked/packed tu `audit_logs`/`delivery_order_item_allocations` theo staff, tinh efficiency = items/gio (uoc luong tu state-change timestamps). **Output**: `ProductivityReportResponse`, ho tro export Excel. |
+
+#### c. Sequence Diagram(s)
+
+```
+Truong kho -> ProductivityReportController.getReport(warehouseId, range)
+  ProductivityReportController -> ReportServiceImpl.getProductivityReport(warehouseId, range, actor)
+    ReportServiceImpl -> auditLogRepository.countActionsByActor(warehouseId, range)
+    ReportServiceImpl -> allocationRepository.sumPickedQtyByActor(warehouseId, range)
+    ReportServiceImpl -> calculate efficiency = totalItems / totalHours
+  ReportServiceImpl --> ProductivityReportController : ProductivityReportResponse
+ProductivityReportController --> Truong kho : 200 OK
+```
+
+#### d. Database Queries
+
+```sql
+SELECT al.actor_id, COUNT(*) AS actions_count
+FROM audit_logs al
+WHERE al.warehouse_id = ? AND al.created_at BETWEEN ? AND ?
+GROUP BY al.actor_id;
+
+SELECT picked_by AS actor_id, SUM(picked_qty) AS total_picked
+FROM delivery_order_item_allocations
+WHERE warehouse_id = ? AND updated_at BETWEEN ? AND ?
+GROUP BY picked_by;
+```
 
 ---
 
