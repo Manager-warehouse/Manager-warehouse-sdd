@@ -336,11 +336,238 @@ Frontend theo cấu trúc React 18 + Tailwind: `components/` (PascalCase), `page
 
 # II. Requirement Specifications
 
-> **Phạm vi phần này:** tài liệu viết đầy đủ chi tiết (Functional Description + Business Rules) cho nhóm nghiệp vụ đại diện **Spec 003 – Inbound Receipt & QC**, theo đúng mẫu template. Các nhóm nghiệp vụ còn lại (Spec 001, 002, 004–010) đã có danh sách Use Case đầy đủ tại mục I.1.2; Spec 011–012 là quality/testing cross-cutting. Khi cần, viết tiếp Functional Description theo cùng mẫu cho từng UC trong danh sách đó.
+> **Phạm vi phần này:** tài liệu viết đầy đủ chi tiết (Functional Description + Business Rules) cho các nhóm nghiệp vụ **Spec 001 – Security & Auth**, **Spec 002 – Master Data**, và **Spec 003 – Inbound Receipt & QC**, theo đúng mẫu template. Các nhóm nghiệp vụ còn lại (Spec 004–010) đã có danh sách Use Case đầy đủ tại mục I.1.2 và sẽ được bổ sung Functional Description tương tự; Spec 011–012 là quality/testing cross-cutting. 
 
-## 1. Inbound Receipt & QC (Spec 003)
+## 1. Security, Authentication & RBAC (Spec 001)
 
-### 1.1 UC-09_Create Purchase Receipt
+### 1.1 UC-01_Configure System Parameters
+
+#### a. Functionalities
+
+| UC ID and Name:    | UC-01_Configure System Parameters                                                                                                                                                                                                                          |                   |            |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | ---------- |
+| Created By:        | WMS Dev Team                                                                                                                                                                                                                                               | Date Created:     | 2026-07-14 |
+| Primary Actor:     | System Admin                                                                                                                                                                                                                                               | Secondary Actors: | None       |
+| Trigger:           | System Admin cần cấu hình các tham số hệ thống mặc định (hạn mức công nợ, tồn kho tối thiểu, kỳ hạn thanh toán, ngày khóa kỳ kế toán)                                                                                                                    |                   |            |
+| Description:       | System Admin truy cập giao diện cấu hình hệ thống để cập nhật các tham số global, áp dụng cho toàn bộ hệ thống hoặc từng dealer                                                                                                                         |                   |            |
+| Preconditions:     | PRE-1: User đã đăng nhập với role `ADMIN`.                                                                                                                                                                                                                 |                   |            |
+| Postconditions:    | POST-1: `system_configs` được cập nhật với các giá trị mới.<br>POST-2: Ghi audit log `SYSTEM_CONFIG_UPDATED`.                                                                                                                                            |                   |            |
+| Normal Flow:       | 1.0 Configure System Parameters<br>1. System Admin truy cập màn hình System Config<br>2. System Admin nhập/cập nhật các tham số (default credit limit, min stock level, payment term days, period close day)<br>3. System Admin xác nhận lưu<br>4. Hệ thống validate và lưu `system_configs`<br>5. Ghi audit log `SYSTEM_CONFIG_UPDATED` |                   |            |
+| Alternative Flows: | None                                                                                                                                                                                                                                                       |                   |            |
+| Exceptions:        | 1.0.E1 Giá trị không hợp lệ (âm, quá lớn)<br>1. Hệ thống trả lỗi `INVALID_CONFIG_VALUE` (400)<br>1.0.E2 Không có quyền<br>1. Hệ thống trả `FORBIDDEN` (403)                                                                                                |                   |            |
+| Priority:          | Must Have                                                                                                                                                                                                                                                  |                   |            |
+| Frequency of Use:  | Hiếm — chỉ khi cần thay đổi chính sách                                                                                                                                                                                                                    |                   |            |
+| Business Rules:    | BR-SEC-01                                                                                                                                                                                                                                                  |                   |            |
+| Other Information: | Các tham số này dùng làm mặc định cho hạn mức công nợ Đại lý mới, kỳ hạn thanh toán mặc định, tồn kho tối thiểu cảnh báo.                                                                                                                                 |                   |            |
+| Assumptions:       | System Admin hiểu rõ ý nghĩa của từng tham số.                                                                                                                                                                                                              |                   |            |
+
+#### b. Business Rules
+
+| ID        | Business Rule             | Business Rule Description                           |
+| --------- | ------------------------- | --------------------------------------------------- |
+| BR-SEC-01 | Role-based Access Control | Chỉ ADMIN được cấu hình hệ thống, không ai khác    |
+
+### 1.2 UC-02_Manage Users & Role/Warehouse Assignment
+
+#### a. Functionalities
+
+| UC ID and Name:    | UC-02_Manage Users & Role/Warehouse Assignment                                                                                                                                                                         |                   |            |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | ---------- |
+| Created By:        | WMS Dev Team                                                                                                                                                                                                           | Date Created:     | 2026-07-14 |
+| Primary Actor:     | System Admin                                                                                                                                                                                                           | Secondary Actors: | None       |
+| Trigger:           | System Admin cần tạo/vô hiệu hóa tài khoản hoặc gán role + kho cho user                                                                                                                                                |                   |            |
+| Description:       | System Admin quản lý vòng đời tài khoản người dùng, phân quyền theo role (10 roles), và gán chi nhánh kho cho từng user (1+ kho)                                                                                      |                   |            |
+| Preconditions:     | PRE-1: User đã đăng nhập với role `ADMIN`.                                                                                                                                                                            |                   |            |
+| Postconditions:    | POST-1: `users` record được tạo/cập nhật với `is_active` flag.<br>POST-2: `user_warehouse_assignments` được cập nhật theo danh sách kho gán.<br>POST-3: Ghi audit log `USER_CREATED`/`USER_UPDATED`/`USER_DEACTIVATED`. |                   |            |
+| Normal Flow:       | 2.0 Manage Users<br>1. System Admin truy cập User List<br>2. System Admin chọn "Tạo User" hoặc chỉnh sửa user hiện tại<br>3. System Admin nhập email, full name, phone, job_title, role, danh sách kho<br>4. System Admin xác nhận<br>5. Hệ thống validate email unique + role valid<br>6. Lưu `users` + `user_warehouse_assignments`<br>7. Ghi audit log |                   |            |
+| Alternative Flows: | 2.1 Deactivate User<br>1. System Admin chọn user, bấm "Vô hiệu hóa"<br>2. Hệ thống đặt `users.is_active = false`<br>3. User đó không thể đăng nhập nữa, nhưng lịch sử vẫn giữ                                        |                   |            |
+| Exceptions:        | 2.0.E1 Email đã tồn tại<br>1. Hệ thống trả `DUPLICATE_EMAIL` (409)<br>2.0.E2 Role không hợp lệ<br>1. Hệ thống trả `INVALID_ROLE` (400)                                                                                |                   |            |
+| Priority:          | Must Have                                                                                                                                                                                                              |                   |            |
+| Frequency of Use:  | Định kỳ khi có nhân viên mới hoặc thay đổi quyền                                                                                                                                                                      |                   |            |
+| Business Rules:    | BR-SEC-01, BR-SEC-02                                                                                                                                                                                                  |                   |            |
+| Other Information: | Mỗi user có thể được gán vào 1+ kho; khi thao tác warehouse-scoped, user chỉ thấy dữ liệu của kho được gán.                                                                                                          |                   |            |
+| Assumptions:       | Email là định danh duy nhất của người dùng.                                                                                                                                                                            |                   |            |
+
+#### b. Business Rules
+
+| ID        | Business Rule                  | Business Rule Description                                                                       |
+| --------- | ------------------------------ | ----------------------------------------------------------------------------------------------- |
+| BR-SEC-02 | Warehouse-scoped RBAC          | Mọi warehouse operation phải kiểm tra CẢ role LẪN warehouse assignment; không chỉ role          |
+
+### 1.3 UC-03_Login (JWT)
+
+#### a. Functionalities
+
+| UC ID and Name:    | UC-03_Login (JWT)                                                                                                                                                                                                                                                            |                   |            |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | ---------- |
+| Created By:        | WMS Dev Team                                                                                                                                                                                                                                                                | Date Created:     | 2026-07-14 |
+| Primary Actor:     | Người dùng (bất kỳ role)                                                                                                                                                                                                                                                    | Secondary Actors: | None       |
+| Trigger:           | User nhập email/password trên giao diện login                                                                                                                                                                                                                               |                   |            |
+| Description:       | Hệ thống xác thực email/password, sinh JWT access token (15 phút) + refresh token (7 ngày), trả lại cho client                                                                                                                                                            |                   |            |
+| Preconditions:     | PRE-1: User tài khoản đã tồn tại và `is_active = true`.<br>PRE-2: Password đã được hash bằng bcrypt (cost ≥ 12).                                                                                                                                                          |                   |            |
+| Postconditions:    | POST-1: `users.refresh_token_hash` được cập nhật, `refresh_token_expires_at` được set.<br>POST-2: Trả access token + refresh token cho client.<br>POST-3: Ghi audit log `USER_LOGIN`.                                                                                      |                   |            |
+| Normal Flow:       | 3.0 Login<br>1. User nhập email + password<br>2. Hệ thống tìm user theo email<br>3. Hệ thống verify password bằng bcrypt.compare (xem 3.0.E1)<br>4. Hệ thống sinh JWT access token (15m) + refresh token (7d)<br>5. Hash refresh token lưu vào `users.refresh_token_hash`<br>6. Trả access + refresh token<br>7. Ghi audit log `USER_LOGIN` |                   |            |
+| Alternative Flows: | 3.1 Token Refresh<br>1. Client gửi `/auth/refresh` với refresh token<br>2. Hệ thống verify hash khớp + chưa hết hạn<br>3. Sinh access token mới<br>4. Return new access token                                                                                              |                   |            |
+| Exceptions:        | 3.0.E1 Email không tồn tại hoặc `is_active = false`<br>1. Hệ thống trả `UNAUTHORIZED` (401)<br>3.0.E2 Password sai<br>1. Hệ thống trả `UNAUTHORIZED` (401)<br>3.0.E3 Refresh token không hợp lệ hoặc hết hạn<br>1. Hệ thống trả `UNAUTHORIZED` (401)             |                   |            |
+| Priority:          | Must Have                                                                                                                                                                                                                                                                    |                   |            |
+| Frequency of Use:  | Mỗi user session                                                                                                                                                                                                                                                            |                   |            |
+| Business Rules:    | BR-AUTH-01, BR-AUTH-02                                                                                                                                                                                                                                                     |                   |            |
+| Other Information: | JWT không lưu session; stateless. Client phải gửi access token ở header `Authorization: Bearer <token>` cho mọi request.                                                                                                                                                    |                   |            |
+| Assumptions:       | Client tin tưởng gửi password qua HTTPS. Refresh token được lưu trữ an toàn ở client.                                                                                                                                                                                     |                   |            |
+
+#### b. Business Rules
+
+| ID         | Business Rule                  | Business Rule Description                                                                                      |
+| ---------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| BR-AUTH-01 | Bcrypt Password Hashing        | Password phải hash bằng bcrypt (cost ≥ 12) trước lưu DB; never plain text                                     |
+| BR-AUTH-02 | JWT Token Expiry               | Access token: 15 phút; Refresh token: 7 ngày; refresh token phải hash trước lưu                               |
+
+### 1.4 UC-04_View Audit Log
+
+#### a. Functionalities
+
+| UC ID and Name:    | UC-04_View Audit Log                                                                                                                                                                                                          |                   |            |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | ---------- |
+| Created By:        | WMS Dev Team                                                                                                                                                                                                                  | Date Created:     | 2026-07-14 |
+| Primary Actor:     | System Admin                                                                                                                                                                                                                  | Secondary Actors: | None       |
+| Trigger:           | System Admin cần tra cứu nhật ký hoạt động hệ thống (ai làm gì, khi nào)                                                                                                                                                    |                   |            |
+| Description:       | System Admin xem danh sách audit log (append-only, không cho sửa/xóa), filter theo actor/entity/time/warehouse                                                                                                                |                   |            |
+| Preconditions:     | PRE-1: User đã đăng nhập với role `ADMIN`.                                                                                                                                                                                   |                   |            |
+| Postconditions:    | POST-1: Trả danh sách audit log theo filter (read-only, không mutate dữ liệu).                                                                                                                                                |                   |            |
+| Normal Flow:       | 4.0 Query Audit Log<br>1. System Admin truy cập Audit Log screen<br>2. System Admin nhập filter (actor email, action, entity_type, date range, warehouse)<br>3. Hệ thống query `audit_logs` theo filter<br>4. Hiển thị kết quả (danh sách + phân trang) |                   |            |
+| Alternative Flows: | None                                                                                                                                                                                                                          |                   |            |
+| Exceptions:        | None (read-only, không có mutation error)                                                                                                                                                                                    |                   |            |
+| Priority:          | Must Have                                                                                                                                                                                                                     |                   |            |
+| Frequency of Use:  | Hiếm — khi cần debug hoặc compliance check                                                                                                                                                                                    |                   |            |
+| Business Rules:    | BR-SEC-01, BR-AUD-01                                                                                                                                                                                                          |                   |            |
+| Other Information: | Audit log là append-only; không bao giờ cho update/delete. Nó lưu actor, action, entity_type, entity_id, old_value (JSON), new_value (JSON), timestamp.                                                                     |                   |            |
+| Assumptions:       | None                                                                                                                                                                                                                          |                   |            |
+
+#### b. Business Rules
+
+| ID        | Business Rule      | Business Rule Description                                                                 |
+| --------- | ------------------ | ----------------------------------------------------------------------------------------- |
+| BR-AUD-01 | Audit Log Immutable | Audit log là append-only; không cho update/delete; chỉ ADMIN có quyền query               |
+
+---
+
+## 2. Master Data Management (Spec 002)
+
+### 2.1 UC-05_Manage Product/SKU Catalog
+
+#### a. Functionalities
+
+| UC ID and Name:    | UC-05_Manage Product/SKU Catalog                                                                                                                                                                                                                           |                   |            |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | ---------- |
+| Created By:        | WMS Dev Team                                                                                                                                                                                                                                               | Date Created:     | 2026-07-14 |
+| Primary Actor:     | Thủ kho kiêm QC (STOREKEEPER)                                                                                                                                                                                                                              | Secondary Actors: | Admin      |
+| Trigger:           | Cần tạo/cập nhật sản phẩm mới vào danh mục                                                                                                                                                                                                               |                   |            |
+| Description:       | Thủ kho nhập thông tin SKU (mã, tên, đơn vị, quy cách), hệ thống validate SKU unique, lưu và cho phép tái sử dụng trong receipt/issue/transfer                                                                                                           |                   |            |
+| Preconditions:     | PRE-1: User có role `STOREKEEPER` hoặc `ADMIN`.                                                                                                                                                                                                            |                   |            |
+| Postconditions:    | POST-1: `products` record được tạo/cập nhật với `is_active` flag.<br>POST-2: Ghi audit log `PRODUCT_CREATED`/`PRODUCT_UPDATED`.                                                                                                                         |                   |            |
+| Normal Flow:       | 5.0 Manage Product<br>1. Thủ kho truy cập Product/SKU List<br>2. Thủ kho chọn "Tạo SKU" hoặc chỉnh sửa SKU hiện tại<br>3. Thủ kho nhập SKU (bắt buộc, unique), tên, đơn vị tính, quy cách, trọng lượng, thể tích, reorder_point<br>4. Xác nhận<br>5. Hệ thống validate + lưu `products`<br>6. Ghi audit log |                   |            |
+| Alternative Flows: | 5.1 Deactivate Product<br>1. Thủ kho chọn product, bấm "Vô hiệu hóa"<br>2. Hệ thống đặt `products.is_active = false`<br>3. Product đó không thể dùng trong receipt/issue/transfer mới                                                                      |                   |            |
+| Exceptions:        | 5.0.E1 SKU đã tồn tại<br>1. Hệ thống trả `DUPLICATE_SKU` (409)<br>5.0.E2 SKU không được phép sửa sau tạo<br>1. Nếu là update: chỉ cho sửa tên/đơn vị/trọng lượng/thể tích, không cho sửa SKU                                                                |                   |            |
+| Priority:          | Must Have                                                                                                                                                                                                                                                  |                   |            |
+| Frequency of Use:  | Khi có sản phẩm mới, thường hiếm                                                                                                                                                                                                                         |                   |            |
+| Business Rules:    | BR-PROD-01                                                                                                                                                                                                                                                 |                   |            |
+| Other Information: | Domain hàng gia dụng: không có serial, không có hạn sử dụng, không có grade. Mỗi SKU chỉ là danh mục đơn giản.                                                                                                                                          |                   |            |
+| Assumptions:       | SKU là định danh vĩnh viễn; không được thay đổi sau tạo.                                                                                                                                                                                                  |                   |            |
+
+#### b. Business Rules
+
+| ID        | Business Rule     | Business Rule Description                                                   |
+| --------- | ----------------- | --------------------------------------------------------------------------- |
+| BR-PROD-01 | Unique SKU & Immutable | SKU phải unique và không được sửa sau khi tạo; chỉ tên/unit/specs được sửa |
+
+### 2.2 UC-06_Configure Warehouse Zones & Bin Locations
+
+#### a. Functionalities
+
+| UC ID and Name:    | UC-06_Configure Warehouse Zones & Bin Locations                                                                                                                                                                                                                                |                   |            |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | ---------- |
+| Created By:        | WMS Dev Team                                                                                                                                                                                                                                                                    | Date Created:     | 2026-07-14 |
+| Primary Actor:     | Trưởng kho / System Admin                                                                                                                                                                                                                                                       | Secondary Actors: | None       |
+| Trigger:           | Cần cấu hình zone (VD: receiving, storage, picking, shipping) và bin location (VD: HP.A.01, HP.A.02) cho kho                                                                                                                                                                 |                   |            |
+| Description:       | Trưởng kho/Admin tạo zone, bin, cấu hình sức chứa (volume/weight), đánh dấu quarantine zone, set is_locked khi stocktake                                                                                                                                                      |                   |            |
+| Preconditions:     | PRE-1: User có role `WAREHOUSE_MANAGER` hoặc `ADMIN`.<br>PRE-2: Warehouse đã tồn tại.                                                                                                                                                                                          |                   |            |
+| Postconditions:    | POST-1: `warehouse_locations` được tạo/cập nhật với phân cấp zone → bin.<br>POST-2: Ghi audit log `LOCATION_CREATED`/`LOCATION_UPDATED`.                                                                                                                                      |                   |            |
+| Normal Flow:       | 6.0 Configure Zones & Bins<br>1. Trưởng kho truy cập Warehouse Config > Zones/Bins<br>2. Trưởng kho tạo Zone (VD: receiving, storage, quarantine)<br>3. Trưởng kho tạo Bins dưới mỗi Zone (VD: A.01, A.02) + cấu hình capacity (m³/kg)<br>4. Xác nhận<br>5. Hệ thống validate + lưu hierarchy<br>6. Ghi audit log |                   |            |
+| Alternative Flows: | 6.1 Mark Quarantine Zone<br>1. Trưởng kho chọn zone, đánh dấu `is_quarantine = true`<br>2. Hàng fail QC sẽ được đưa vào zone này tự động<br>6.2 Lock Locations for Stocktake<br>1. Khi stocktake `IN_PROGRESS`, system tự động `is_locked = true` cho mọi bins (không phải quarantine)<br>2. Khi stocktake `CLOSED`, tự động unlock |                   |            |
+| Exceptions:        | 6.0.E1 Location code đã tồn tại trong warehouse<br>1. Hệ thống trả `DUPLICATE_LOCATION_CODE` (409)<br>6.0.E2 Phân cấp không hợp lệ (VD tạo bin dưới bin)<br>1. Hệ thống trả `INVALID_LOCATION_HIERARCHY` (422)                                                                  |                   |            |
+| Priority:          | Must Have                                                                                                                                                                                                                                                                        |                   |            |
+| Frequency of Use:  | Định kỳ khi cần điều chỉnh kho (hiếm)                                                                                                                                                                                                                                          |                   |            |
+| Business Rules:    | BR-LOC-01, BR-LOC-02                                                                                                                                                                                                                                                             |                   |            |
+| Other Information: | Phân cấp: Warehouse → Zone → Bin. Quarantine zone không được dùng putaway hàng bình thường, chỉ cho hàng fail QC/disposal.                                                                                                                                                    |                   |            |
+| Assumptions:       | None                                                                                                                                                                                                                                                                             |                   |            |
+
+#### b. Business Rules
+
+| ID        | Business Rule          | Business Rule Description                                                                  |
+| --------- | ---------------------- | ------------------------------------------------------------------------------------------ |
+| BR-LOC-01 | Location Hierarchy     | Zone → Bin hierarchy cấm không được vi phạm; không dùng bin làm parent của bin khác       |
+| BR-LOC-02 | Quarantine Zone Strict | Quarantine zone không được putaway hàng bình thường; chỉ nhập/xuất hàng lỗi QC và disposal |
+
+### 2.3 UC-07_Manage Dealer/Supplier & Credit Limit
+
+#### a. Functionalities
+
+| UC ID and Name:    | UC-07_Manage Dealer/Supplier & Credit Limit                                                                                                                                                                                                                    |                   |            |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | ---------- |
+| Created By:        | WMS Dev Team                                                                                                                                                                                                                                                   | Date Created:     | 2026-07-14 |
+| Primary Actor:     | Kế toán viên (ACCOUNTANT) tạo hồ sơ; Kế toán trưởng (ACCOUNTANT_MANAGER) duyệt Credit Limit                                                                                                                                                                   | Secondary Actors: | None       |
+| Trigger:           | Có Đại lý mới cần lập hồ sơ hoặc cần cập nhật Credit Limit                                                                                                                                                                                                     |                   |            |
+| Description:       | Kế toán viên nhập thông tin Đại lý (tên, địa chỉ, phone, email, điều khoản thanh toán); Kế toán trưởng thiết lập Credit Limit và kỳ hạn thanh toán (Net 30/60)                                                                                              |                   |            |
+| Preconditions:     | PRE-1: User có role `ACCOUNTANT` (tạo hồ sơ) hoặc `ACCOUNTANT_MANAGER` (duyệt Credit Limit).                                                                                                                                                                  |                   |            |
+| Postconditions:    | POST-1: `dealers` hoặc `suppliers` record được tạo/cập nhật.<br>POST-2: Ghi audit log `DEALER_CREATED`/`CREDIT_LIMIT_UPDATED`.                                                                                                                               |                   |            |
+| Normal Flow:       | 7.0 Manage Dealers/Suppliers<br>1. Kế toán viên truy cập Dealer/Supplier List<br>2. Kế toán viên tạo dealer: tên, địa chỉ, phone, email, bank account (tùy chọn)<br>3. Kế toán viên xác nhận<br>4. Hệ thống lưu `dealers` (hoặc `suppliers` nếu NCC)<br>5. Kế toán trưởng duyệt: set `credit_limit`, `payment_term_days`, `credit_status = ACTIVE`<br>6. Ghi audit log |                   |            |
+| Alternative Flows: | 7.1 Update Credit Limit<br>1. Kế toán trưởng chọn dealer, bấm "Cập nhật Credit Limit"<br>2. Nhập limit mới + ngày hiệu lực<br>3. Hệ thống cập nhật `dealers.credit_limit`<br>4. Ghi audit log `CREDIT_LIMIT_UPDATED` + snapshot old/new                                |                   |            |
+| Exceptions:        | 7.0.E1 Email đã tồn tại<br>1. Hệ thống trả `DUPLICATE_EMAIL` (409)<br>7.0.E2 Credit Limit âm hoặc quá lớn<br>1. Hệ thống trả `INVALID_CREDIT_LIMIT` (400)                                                                                                    |                   |            |
+| Priority:          | Must Have                                                                                                                                                                                                                                                      |                   |            |
+| Frequency of Use:  | Khi có đại lý mới hoặc audit credit định kỳ                                                                                                                                                                                                                    |                   |            |
+| Business Rules:    | BR-DEAL-01, BR-DEAL-02                                                                                                                                                                                                                                         |                   |            |
+| Other Information: | Credit Limit = hạn mức nợ tối đa; khi balance + new DO > limit → hệ thống chặn (CREDIT_HOLD).                                                                                                                                                              |                   |            |
+| Assumptions:       | Kế toán trưởng hiểu rõ credit risk từng đại lý.                                                                                                                                                                                                               |                   |            |
+
+#### b. Business Rules
+
+| ID        | Business Rule       | Business Rule Description                                                                          |
+| --------- | ------------------- | -------------------------------------------------------------------------------------------------- |
+| BR-DEAL-01 | RBAC Dealer Mgmt    | Chỉ ACCOUNTANT tạo, ACCOUNTANT_MANAGER duyệt Credit Limit                                         |
+| BR-DEAL-02 | Credit Check Gate   | Khi tạo DO, kiểm tra IF current_balance + DO_value > credit_limit OR >30d overdue → CREDIT_HOLD  |
+
+### 2.4 UC-08_Manage Vehicles & Drivers
+
+#### a. Functionalities
+
+| UC ID and Name:    | UC-08_Manage Vehicles & Drivers                                                                                                                                                                                                                                  |                   |            |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | ---------- |
+| Created By:        | WMS Dev Team                                                                                                                                                                                                                                                     | Date Created:     | 2026-07-14 |
+| Primary Actor:     | Dispatcher (DISPATCHER) / System Admin                                                                                                                                                                                                                          | Secondary Actors: | None       |
+| Trigger:           | Cần thêm xe tải mới hoặc tài xế mới vào danh mục nội bộ Phúc Anh                                                                                                                                                                                                |                   |            |
+| Description:       | Dispatcher/Admin quản lý danh mục xe tải (biển số, tải trọng, thể tích) và tài xế (tên, phạm vi kho hoạt động)                                                                                                                                               |                   |            |
+| Preconditions:     | PRE-1: User có role `DISPATCHER` hoặc `ADMIN`.                                                                                                                                                                                                                   |                   |            |
+| Postconditions:    | POST-1: `vehicles` hoặc `drivers` record được tạo/cập nhật.<br>POST-2: Ghi audit log `VEHICLE_CREATED`/`DRIVER_CREATED`.                                                                                                                                      |                   |            |
+| Normal Flow:       | 8.0 Manage Vehicles & Drivers<br>1. Dispatcher truy cập Vehicle/Driver List<br>2. Dispatcher tạo vehicle: biển số, tải trọng (kg), thể tích (m³), tình trạng<br>3. Dispatcher tạo driver: tên, phone, user_id, warehouse(s) phạm vi hoạt động<br>4. Xác nhận<br>5. Hệ thống lưu `vehicles` + `drivers`<br>6. Ghi audit log |                   |            |
+| Alternative Flows: | 8.1 Deactivate Vehicle/Driver<br>1. Dispatcher chọn vehicle/driver, bấm "Vô hiệu hóa"<br>2. Hệ thống đặt `is_active = false`<br>3. Xe/tài xế không thể gán cho trip mới                                                                                      |                   |            |
+| Exceptions:        | 8.0.E1 Biển số xe đã tồn tại<br>1. Hệ thống trả `DUPLICATE_PLATE_NUMBER` (409)<br>8.0.E2 Tải trọng/thể tích không hợp lệ<br>1. Hệ thống trả `INVALID_VEHICLE_SPECS` (400)                                                                                   |                   |            |
+| Priority:          | Must Have                                                                                                                                                                                                                                                        |                   |            |
+| Frequency of Use:  | Định kỳ khi có xe/tài xế mới hoặc thay đổi (hiếm)                                                                                                                                                                                                               |                   |            |
+| Business Rules:    | BR-FLEET-01                                                                                                                                                                                                                                                      |                   |            |
+| Other Information: | Tài xế gán với 1+ warehouse để giới hạn phạm vi hoạt động. Khi dispatcher lập trip, phải chọn xe/tài xế trong phạm vi kho.                                                                                                                                   |                   |            |
+| Assumptions:       | Phúc Anh chỉ dùng xe nội bộ, không dùng 3PL.                                                                                                                                                                                                                    |                   |            |
+
+#### b. Business Rules
+
+| ID        | Business Rule       | Business Rule Description                                                          |
+| --------- | ------------------- | ----------------------------------------------------------------------------------- |
+| BR-FLEET-01 | Internal Fleet Only | Tất cả xe phải nội bộ Phúc Anh, gán warehouse scope; không 3PL, không outsource   |
+
+---
+
+## 3. Inbound Receipt & QC (Spec 003)
+
+### 3.1 UC-09_Create Purchase Receipt
 
 #### a. Functionalities
 
@@ -370,7 +597,7 @@ Frontend theo cấu trúc React 18 + Tailwind: `components/` (PascalCase), `page
 | BR-INV-01 | Non-negative inventory     | `inventories.total_qty >= 0`, `reserved_qty >= 0`, `total_qty - reserved_qty >= 0` luôn đúng |
 | BR-INV-04 | No direct inventory update | Điều chỉnh tồn kho chỉ được đi qua receipt/issue/transfer/adjustment/stocktake flow          |
 
-### 1.2 UC-10_Record Physical Receive Count
+### 3.2 UC-10_Record Physical Receive Count
 
 #### a. Functionalities
 
@@ -395,7 +622,7 @@ Frontend theo cấu trúc React 18 + Tailwind: `components/` (PascalCase), `page
 
 None ngoài BR-INV-01 đã liệt kê ở trên.
 
-### 1.3 UC-11_Perform Inbound QC Inspection
+### 3.3 UC-11_Perform Inbound QC Inspection
 
 #### a. Functionalities
 
@@ -423,7 +650,7 @@ None ngoài BR-INV-01 đã liệt kê ở trên.
 | BR-QC-01 | QC Gate              | Hàng nhập kho phải qua QC trước khi được tính vào available inventory                              |
 | BR-QC-02 | Quarantine Exclusion | Hàng fail QC không được tính vào available inventory cho tới khi được xử lý theo flow RTV/disposal |
 
-### 1.4 UC-12_Handle Quarantine & RTV
+### 3.4 UC-12_Handle Quarantine & RTV
 
 #### a. Functionalities
 
@@ -448,7 +675,7 @@ None ngoài BR-INV-01 đã liệt kê ở trên.
 
 Đã liệt kê ở trên (BR-QC-02, BR-INV-04).
 
-### 1.5 UC-13_Approve/Reject Receipt & Putaway
+### 3.5 UC-13_Approve/Reject Receipt & Putaway
 
 #### a. Functionalities
 
@@ -689,354 +916,3 @@ Theo `README.md`/`.specify/memory/constitution.md`, hệ thống **KHÔNG** bao 
 | BR-SEC-01 | Constraints  | Authorization phải kiểm tra CẢ role LẪN warehouse assignment cho mọi thao tác phạm vi kho                                                                                        |
 | BR-SEC-02 | Constraints  | Audit log là bằng chứng bất biến — append-only, không ai (kể cả System Admin) được sửa/xóa                                                                                       |
 | BR-DEL-01 | Constraints  | Master data soft-delete bằng `is_active = false`; transaction data cancel bằng `status = CANCELLED`; không xóa vật lý                                                            |
-
-## 4. Ghi chú mở rộng tài liệu
-
-Danh sách Use Case đầy đủ cho các nhóm nghiệp vụ còn lại (Spec 001, 002, 004–010) đã có tại mục **I.1.2.b**. Spec 011–012 quy định test/quality gate và không tạo UI/DB use case nghiệp vụ. Khi cần viết chi tiết Functional Description + UI/DB Design cho một nhóm cụ thể, áp dụng đúng mẫu tại **Phần II mục 1** và **Phần III mục 1** của tài liệu này, lấy nội dung nghiệp vụ từ file spec tương ứng trong `.sdd/specs/<số>-<tên>/`.
-
----
-
-# II. Functional Specifications
-
-> **Phạm vi phần này:** Viết chi tiết Functional Description (Use Cases) + Business Rules cho các nhóm nghiệp vụ còn lại (Spec 001–002, 004–010), theo đúng mẫu template của Spec 003. Mỗi spec dùng mục riêng; trong mỗi mục liệt kê các UC chi tiết với điều kiện, luồng, ngoại lệ và bảng business rules đi kèm.
-
-## 2. Spec 001: Authentication, RBAC & System Config (US-WMS-01, US-WMS-21)
-
-### 2.1 UC-01: User Login
-
-#### a. Functionalities
-
-| UC ID and Name:    | UC-01_User Login                                    |                   |            |
-| ------------------ | --------------------------------------------------- | ----------------- | ---------- |
-| Created By:        | WMS Dev Team                                        | Date Created:     | 2026-07-14 |
-| Primary Actor:     | Any User (email + password)                         | Secondary Actors: | System     |
-| Trigger:           | User accesses the login page and submits credentials |                   |            |
-| Description:       | User authenticates via email/password; system verifies credentials, hashes password with bcrypt cost ≥ 12, and issues JWT tokens (access: 15m, refresh: 7d) |                   |            |
-| Preconditions:     | PRE-1: User account exists and is active (`is_active = true`)<br>PRE-2: User has not exceeded login attempts (rate limiting).     |                   |            |
-| Postconditions:    | POST-1: Access token issued with TTL 15 minutes<br>POST-2: Refresh token issued with TTL 7 days and stored server-side (`users.refresh_token_hash`)<br>POST-3: User profile returned with assigned warehouses |                   |            |
-| Normal Flow:       | 1. User enters email and password on login form<br>2. System validates email format and password strength (≥8 chars, mixed case + number)<br>3. System looks up user by email<br>4. System compares submitted password against bcrypt hash in DB<br>5. IF match: generate access + refresh tokens, store refresh_token_hash, return tokens + profile<br>6. IF no match: return HTTP 401 `INVALID_CREDENTIALS` |                   |            |
-| Alternative Flows: | 1.1 Account Inactive<br>   • IF user.is_active = false, return HTTP 401 `ACCOUNT_INACTIVE` without revealing username |                   |            |
-| Exceptions:        | E1: User email not found → HTTP 401 `INVALID_CREDENTIALS`<br>E2: Password mismatch → HTTP 401 `INVALID_CREDENTIALS`<br>E3: Too many failed login attempts in 15 min → HTTP 429 (rate limit)<br>E4: Validation error (bad email format) → HTTP 400 |                   |            |
-| Priority:          | Must Have                                           |                   |            |
-| Frequency of Use:  | Every user login, ~100–200 times/day across all warehouses |                   |            |
-| Business Rules:    | BR-SEC-01, BR-SEC-04 (bcrypt cost ≥ 12), BR-SEC-05 (JWT strength) |                   |            |
-| Other Information: | None                                                |                   |            |
-| Assumptions:       | SMTP is configured for password reset emails. 2FA not in Sprint 1. |                   |            |
-
-#### b. Business Rules
-
-| ID | Rule | Description |
-|----|------|-------------|
-| BR-AUTH-01 | Password hashing | All user passwords MUST be hashed with bcrypt cost factor ≥ 12 |
-| BR-AUTH-02 | Token TTL | Access token TTL = 15 minutes; Refresh token TTL = 7 days |
-| BR-AUTH-03 | Refresh token server-side | Refresh tokens stored as hashed values on `users.refresh_token_hash`; invalidation on logout |
-| BR-AUTH-04 | Rate limiting | Max 5 failed login attempts per 15 min per IP; HTTP 429 if exceeded |
-
----
-
-### 2.2 UC-02: Refresh Access Token
-
-| UC ID and Name:    | UC-02_Refresh Access Token          |                   |            |
-| ------------------ | ----------------------------------- | ----------------- | ---------- |
-| Created By:        | WMS Dev Team                        | Date Created:     | 2026-07-14 |
-| Primary Actor:     | Any authenticated user              | Secondary Actors: | System     |
-| Trigger:           | Access token nearing expiry or expired |                   |            |
-| Description:       | User provides a valid refresh token to obtain a new access token without re-entering password |                   |            |
-| Preconditions:     | PRE-1: Refresh token exists in `users.refresh_token_hash` and is not expired<br>PRE-2: Refresh token has not been invalidated (logout) |                   |            |
-| Postconditions:    | POST-1: New access token issued with TTL 15 minutes<br>POST-2: Refresh token remains unchanged |                   |            |
-| Normal Flow:       | 1. Client sends `POST /api/v1/auth/refresh` with `refreshToken`<br>2. System hashes submitted token and compares to `users.refresh_token_hash`<br>3. System checks expiry via `users.refresh_token_expires_at`<br>4. IF valid and not expired: issue new access token, return HTTP 200<br>5. IF not matching or expired: return HTTP 401 `TOKEN_EXPIRED` or `TOKEN_INVALID` |                   |            |
-| Exceptions:        | E1: Token hash mismatch → HTTP 401 `TOKEN_INVALID`<br>E2: Token expired → HTTP 401 `TOKEN_EXPIRED`<br>E3: Account deactivated → HTTP 401 `ACCOUNT_INACTIVE` |                   |            |
-| Priority:          | Must Have                           |                   |            |
-| Frequency of Use:  | Every 15 min per active user session |                   |            |
-| Business Rules:    | BR-AUTH-02, BR-AUTH-03              |                   |            |
-
-#### b. Business Rules
-
-Covered by UC-01 rules.
-
----
-
-### 2.3 UC-03: Logout & Invalidate Token
-
-| UC ID and Name:    | UC-03_Logout                        |                   |            |
-| ------------------ | ----------------------------------- | ----------------- | ---------- |
-| Created By:        | WMS Dev Team                        | Date Created:     | 2026-07-14 |
-| Primary Actor:     | Any authenticated user              | Secondary Actors: | System     |
-| Trigger:           | User clicks logout button or session timeout      |                   |            |
-| Description:       | User logs out; system invalidates refresh token to prevent future reuse |                   |            |
-| Preconditions:     | PRE-1: User has valid access token  |                   |            |
-| Postconditions:    | POST-1: `users.refresh_token_hash` cleared to NULL<br>POST-2: `users.refresh_token_expires_at` cleared |                   |            |
-| Normal Flow:       | 1. User calls `POST /api/v1/auth/logout` with access token in header<br>2. System verifies access token (not expired, signature valid)<br>3. System extracts user_id from token<br>4. System sets `users.refresh_token_hash = NULL`, `refresh_token_expires_at = NULL`<br>5. Return HTTP 204 No Content |                   |            |
-| Exceptions:        | E1: Invalid access token → HTTP 401 `TOKEN_INVALID`<br>E2: Expired access token → HTTP 401 `TOKEN_EXPIRED` |                   |            |
-| Priority:          | Must Have                           |                   |            |
-| Business Rules:    | BR-AUTH-03                          |                   |            |
-
----
-
-### 2.4 UC-04: Password Reset (Forgot Password → OTP Verification)
-
-| UC ID and Name:    | UC-04_Password Reset                |                   |            |
-| ------------------ | ----------------------------------- | ----------------- | ---------- |
-| Created By:        | WMS Dev Team                        | Date Created:     | 2026-07-14 |
-| Primary Actor:     | User (unauthenticated)              | Secondary Actors: | System, Email |
-| Trigger:           | User clicks "Forgot Password" on login page |                   |            |
-| Description:       | Two-step flow: (1) User requests password reset via email → system generates + sends OTP; (2) User verifies OTP + sets new password |                   |            |
-| Preconditions:     | PRE-1: User account exists (inactive accounts receive no email) |                   |            |
-| Postconditions:    | POST-1: User password updated and hashed with bcrypt<br>POST-2: OTP invalidated after use<br>POST-3: Audit log recorded |                   |            |
-| Normal Flow (Step 1 — Forgot Password):       | 1. Unauthenticated user calls `POST /api/v1/auth/forgot-password` with email<br>2. System looks up user by email<br>3. IF found AND is_active=true: generate 6-digit OTP, hash it, store in `users.otp_hash`, set `users.otp_expires_at = NOW + 10min`, send email via SMTP<br>4. Always return HTTP 200 (no email enumeration)<br>5. Ghi audit log `PASSWORD_RESET_REQUEST` |                   |            |
-| Normal Flow (Step 2 — Verify OTP): | 1. User calls `POST /api/v1/auth/verify-otp` with email, otp, newPassword<br>2. System looks up user by email<br>3. System hashes submitted OTP, compares to `users.otp_hash`<br>4. IF match AND otp_expires_at > NOW: hash new password with bcrypt, update `users.password_hash`, clear `otp_hash` + `otp_expires_at`, return HTTP 200<br>5. Ghi audit log `PASSWORD_RESET_COMPLETE` |                   |            |
-| Exceptions:        | E1 (forgot-password): Email not found → HTTP 200 (silent)<br>E2 (verify-otp): OTP invalid → HTTP 400 `OTP_INVALID`<br>E3 (verify-otp): OTP expired → HTTP 400 `OTP_EXPIRED` |                   |            |
-| Priority:          | Must Have                           |                   |            |
-| Business Rules:    | BR-AUTH-01, BR-SEC-01               |                   |            |
-
----
-
-### 2.5 UC-05: System Admin Manages Users & Warehouse Assignment
-
-| UC ID and Name:    | UC-05_User & Warehouse Management   |                   |            |
-| ------------------ | ----------------------------------- | ----------------- | ---------- |
-| Created By:        | WMS Dev Team                        | Date Created:     | 2026-07-14 |
-| Primary Actor:     | System Admin (ADMIN role)           | Secondary Actors: | CEO approval (new warehouse) |
-| Trigger:           | System Admin accesses User Management or Warehouse Config screen |                   |            |
-| Description:       | System Admin creates/updates user accounts, assigns roles (CEO, ADMIN, MANAGER, STOREKEEPER, etc.), and assigns users to specific warehouses for data isolation |                   |            |
-| Preconditions:     | PRE-1: Actor has ADMIN role        |                   |            |
-| Postconditions:    | POST-1: User created or updated with role + warehouse assignment<br>POST-2: Audit log recorded with old/new values |                   |            |
-| Normal Flow:       | 1. Admin opens User List, clicks "Create User"<br>2. Admin fills: email (unique check), username (unique), password (strength validated), fullName, phone, jobTitle, role (dropdown), assigned_warehouses (multi-select)<br>3. Admin submits<br>4. System validates: unique email, unique username, password ≥8 chars, role valid<br>5. System hashes password with bcrypt (cost ≥12)<br>6. System creates `users` record with is_active=true<br>7. System links user to selected warehouses via `user_warehouse_assignments` table (many-to-many)<br>8. Ghi audit log `USER_CREATED` |                   |            |
-| Alternative Flows: | A.1 Update User<br>   • Admin modifies role or warehouse assignment<br>   • System updates `user_warehouse_assignments` (add/remove as needed)<br>   • Ghi audit log `USER_UPDATED` with before/after state<br>A.2 Deactivate User<br>   • Admin clicks Delete (soft-delete)<br>   • System sets is_active = false<br>   • System prevents future login for this user |                   |            |
-| Exceptions:        | E1: Email already exists → HTTP 400 `DUPLICATE_EMAIL`<br>E2: Invalid role → HTTP 400 `INVALID_ROLE`<br>E3: No warehouses assigned → HTTP 400 `NO_WAREHOUSES_ASSIGNED` (for non-ADMIN/CEO roles) |                   |            |
-| Priority:          | Must Have                           |                   |            |
-| Business Rules:    | BR-SEC-01 (warehouse scope check), BR-DEL-01 (soft delete) |                   |            |
-
----
-
-## 3. Spec 002: Master Data Management (US-WMS-19, US-WMS-20)
-
-### 3.1 UC-06: Product Master Data Management
-
-| UC ID and Name:    | UC-06_Product Management            |                   |            |
-| ------------------ | ----------------------------------- | ----------------- | ---------- |
-| Created By:        | WMS Dev Team                        | Date Created:     | 2026-07-14 |
-| Primary Actor:     | Thủ kho (STOREKEEPER role)          | Secondary Actors: | System Admin |
-| Trigger:           | Storekeeper accesses Product Master Data screen |                   |            |
-| Description:       | Manage SKU (product code), name, unit, packaging conversion (thùng→cái), weight, volume, reorder point. No serial tracking or expiry fields for household goods |                   |            |
-| Preconditions:     | PRE-1: Actor has STOREKEEPER or ADMIN role |                   |            |
-| Postconditions:    | POST-1: Product record created/updated<br>POST-2: SKU uniqueness guaranteed |                   |            |
-| Normal Flow:       | 1. Storekeeper opens Product List, clicks "Create Product"<br>2. Fills: SKU (unique check), name, unit (e.g., cái, thùng), optional: description, weight_kg, volume_m3, unit_per_pack (conversion), reorder_point<br>3. Submits<br>4. System validates: unique SKU, positive weight/volume if provided, positive unit_per_pack if provided<br>5. System creates `products` record with is_active=true<br>6. Ghi audit log `PRODUCT_CREATED` |                   |            |
-| Alternative Flows: | A.1 Update Product<br>   • Storekeeper modifies name, unit, weight, volume, reorder_point<br>   • Cannot modify SKU once created<br>   • Ghi audit log `PRODUCT_UPDATED`<br>A.2 Deactivate Product<br>   • Storekeeper clicks Delete (soft-delete)<br>   • System sets is_active = false<br>   • System prevents new transactions (receipt, issue, transfer) for this product |                   |            |
-| Exceptions:        | E1: SKU already exists → HTTP 400 `DUPLICATE_SKU`<br>E2: Invalid unit → HTTP 400 `INVALID_UNIT`<br>E3: Negative weight/volume → HTTP 400 `INVALID_DIMENSION` |                   |            |
-| Priority:          | Must Have                           |                   |            |
-| Business Rules:    | BR-BAT-01 (no serial, no expiry), BR-DEL-01 (soft delete) |                   |            |
-
----
-
-### 3.2 UC-07: Warehouse Configuration & Bin Location Setup
-
-| UC ID and Name:    | UC-07_Warehouse & Bin Management    |                   |            |
-| ------------------ | ----------------------------------- | ----------------- | ---------- |
-| Created By:        | WMS Dev Team                        | Date Created:     | 2026-07-14 |
-| Primary Actor:     | System Admin, CEO (for new warehouse) | Secondary Actors: | Thủ kho    |
-| Trigger:           | Admin opens Warehouse Config or Bin Location screens |                   |            |
-| Description:       | Create/update physical warehouses (HP, HN, HCM) and virtual warehouse (IN_TRANSIT); define zones (e.g., receiving, storage, picking, quarantine) and bins with capacity constraints (m3, kg) |                   |            |
-| Preconditions:     | PRE-1: For new warehouse: CEO approval<br>PRE-2: For bins: parent zone must exist in same warehouse |                   |            |
-| Postconditions:    | POST-1: Warehouse/Zone/Bin created with globally unique codes<br>POST-2: Bin capacity constraints configured<br>POST-3: IN_TRANSIT warehouse has default zone + bin auto-created |                   |            |
-| Normal Flow (Warehouse): | 1. Admin/CEO opens Warehouse List, clicks "Create Warehouse"<br>2. Fills: code (e.g., HP, HN, HCM, IN_TRANSIT), name, address, phone, manager_id (FK to user with MANAGER role), type (PHYSICAL or IN_TRANSIT)<br>3. Submits<br>4. System validates: unique code, valid manager role, type is PHYSICAL or IN_TRANSIT<br>5. System creates `warehouses` record with is_active=true<br>6. IF type=IN_TRANSIT: auto-create default zone + bin<br>7. Ghi audit log `WAREHOUSE_CREATED` |                   |            |
-| Normal Flow (Zone): | 1. Admin opens Bin Location List, clicks "Create Zone"<br>2. Selects warehouse, enters zone_code (e.g., A, B, QUARANTINE)<br>3. System auto-generates globally unique code = `{warehouse_code}.{zone_code}` (e.g., HP.A)<br>4. System creates `warehouse_locations` record with type='ZONE', is_quarantine=(true if code contains 'QUARANTINE'), is_active=true<br>5. Ghi audit log `ZONE_CREATED` |                   |            |
-| Normal Flow (Bin): | 1. Admin opens Bin Location List, clicks "Create Bin"<br>2. Selects warehouse + parent zone (must match warehouse)<br>3. Enters bin_code (e.g., 01.1.01), capacity_m3, capacity_kg<br>4. System auto-generates code = `{warehouse_code}.{zone_code}.{bin_code}` (e.g., HP.A.01.1.01)<br>5. System validates: parent zone exists and same warehouse, capacity positive<br>6. System creates `warehouse_locations` record with type='BIN', parent_id=zone.id, is_active=true<br>7. Ghi audit log `BIN_CREATED` |                   |            |
-| Exceptions:        | E1: Zone code not unique within warehouse → HTTP 400 `DUPLICATE_ZONE_CODE`<br>E2: Bin parent zone not in same warehouse → HTTP 400 `ZONE_WAREHOUSE_MISMATCH`<br>E3: Negative capacity → HTTP 400 `INVALID_CAPACITY`<br>E4: Cannot deactivate location with stock → HTTP 409 `LOCATION_HAS_STOCK` |                   |            |
-| Priority:          | Must Have                           |                   |            |
-| Business Rules:    | BR-BAT-02 (bin capacity check), BR-DEL-01 (soft delete), BR-TRF-01 (IN_TRANSIT auto-create) |                   |            |
-
----
-
-## 4. Business Rules (Spec 001 + 002)
-
-| ID | Category | Rule Description |
-|----|----------|------------------|
-| BR-AUTH-01 | Security | All user passwords MUST be hashed with bcrypt cost factor ≥ 12; no plain text storage |
-| BR-AUTH-02 | Token Management | Access token TTL = 15 minutes; Refresh token TTL = 7 days |
-| BR-AUTH-03 | Revocation | Refresh tokens stored as hashed values server-side; invalidated on logout |
-| BR-AUTH-04 | Rate Limiting | Max 5 failed login attempts per 15 min per IP; enforce HTTP 429 |
-| BR-SEC-01 | RBAC | Authorization MUST check BOTH role AND warehouse assignment for all warehouse-scoped operations |
-| BR-SEC-02 | Audit | All user/role/warehouse changes MUST create audit log entries (append-only, never modify/delete) |
-| BR-BAT-01 | Product Domain | Batch gom theo sản phẩm + nguồn nhập + ngày nhận; KHÔNG serial, KHÔNG hạn sử dụng, KHÔNG grade |
-| BR-BAT-02 | Bin Capacity | Putaway MUST check `bin_capacity` trước khi đặt hàng vào bin (check both m3 + kg) |
-| BR-DEL-01 | Soft Delete | Master data: `is_active = false`; Transaction data: `status = CANCELLED`; NO physical deletion |
-| BR-TRF-01 | Virtual Warehouse | IN_TRANSIT warehouse auto-creates default zone + bin; bypass capacity checks for this location |
-
----
-
-# III. Spec 004: Outbound & Delivery (US-WMS-06..10)
-
-**Compact UC Summary:**
-
-| UC | Actor | Description |
-|----|----|-------------|
-| UC-14 | Planner | Lập Đơn xuất hàng (DO); system kiểm Credit Check + tồn kho khả dụng; reserve cấp warehouse/product |
-| UC-15 | Thủ kho | Lập picking plan FIFO; chọn batch/bin/zone hợp lệ từ kho; snapshot giá unit_price |
-| UC-16 | Nhân viên kho | Lấy hàng + QC outbound (pass/fail); hàng fail → Quarantine + adjustment |
-| UC-17 | Thủ kho | Duyệt chất lượng; nếu fail chưa đủ → chọn replacement từ batch khác |
-| UC-18 | Trưởng kho | Duyệt xuất kho; DO chuyển WAREHOUSE_APPROVED |
-| UC-19 | Dispatcher | Lập trip; gán xe/tài xế; tối ưu lộ trình; kiểm tải trọng/thể tích |
-| UC-20 | Tài xế | Nhận hàng (xe rời kho) → In-Transit; giao hàng + POD + OTP email xác nhận |
-| UC-21 | System | Auto create invoice + cộng công nợ khi giao thành công |
-
-**Business Rules:**
-- BR-OUT-01: Credit Check auto → block if `balance + DO > limit` OR overdue > 30d
-- BR-OUT-02: Reserve + release tối ưu (không double-book)
-- BR-OUT-03: FIFO + optimistic locking cho inventory updates
-- BR-OUT-04: POD = goodsImage + signDocumentImage + OTP verified
-- BR-OUT-05: Invoice auto-create khi delivery attempt = DELIVERED (không manual)
-- BR-OUT-06: OTP 6-digit, TTL 5min, max 3 attempts
-
----
-
-# IV. Spec 005: Inter-warehouse Transfer (US-WMS-11..13)
-
-**Compact UC Summary:**
-
-| UC | Actor | Description |
-|----|----|-------------|
-| UC-22 | Planner | Nhập phiếu điều chuyển (TRF); không auto-suggest; chỉ từ lệnh ngoài hoặc CEO-approved request |
-| UC-23 | Trưởng kho | Duyệt phiếu (kho nguồn); FIFO-eligible reserve; chờ dispatcher lập trip |
-| UC-24 | Dispatcher | Lập trip outbound; gán xe/tài xế nguồn; QC outbound ảnh + soạn hàng |
-| UC-25 | Tài xế | Departure (xe rời kho nguồn) → trừ kho nguồn, cộng In-Transit |
-| UC-26 | Tài xế | Arrival (xe đến kho đích) → blind count; receiving handover ảnh |
-| UC-27 | Thủ kho | Receive-check + QC + bin-capacity; final confirm → trừ In-Transit, cộng kho đích |
-| UC-28 | System | Tính discrepancy + adjust nếu thiếu/thừa |
-
-**Business Rules:**
-- BR-TRF-01: Transfer → In-Transit location mandatory
-- BR-TRF-02: Outbound QC + handover ảnh bắt buộc (không Barcode/QR trong Sprint 1)
-- BR-TRF-03: Chênh lệch qty → adjustment loại TRANSFER_DISCREPANCY
-- BR-TRF-04: Wrong-SKU → Return-to-Source; quá hạn → override với lý do + audit
-- BR-TRF-05: Version/concurrency guard trên transfer + trip mutations
-- BR-TRF-06: Audit transfer đầy đủ: header, items, allocation, QC, inventory movement
-
----
-
-# V. Business Rules Summary (Spec 004+005)
-
-| ID | Category | Rule |
-|----|----|------|
-| BR-OUT-01 | Credit Control | Auto-block DO if `balance + value > limit` OR overdue >30d; CREDIT_HOLD state |
-| BR-OUT-02 | Reservation | Reserve tại DO create (warehouse-level); concrete allocation khi picking plan |
-| BR-OUT-03 | Inventory | FIFO batch selection + optimistic locking (@Version) on `inventories` |
-| BR-OUT-04 | QC Outbound | Pass → staging; Fail → Quarantine + adjustment; replacement nếu fail chưa đủ |
-| BR-OUT-05 | Invoice | Auto-create khi delivery DELIVERED; snapshot unit_price từ picking plan |
-| BR-OUT-06 | POD & OTP | goodsImage + signDocumentImage bắt buộc; OTP 6-digit, 5min TTL, max 3 fail |
-| BR-OUT-07 | Trip | Concurrent task check (xe/tài xế overlap); tải trọng/thể tích validate |
-| BR-TRF-01 | Virtual Location | Transfer → In-Transit; released khi dest receive confirmed |
-| BR-TRF-02 | QC Transfer | Outbound QC + ảnh handover; Inbound blind count + receive QC + bin-capacity check |
-| BR-TRF-03 | Discrepancy | qty_sent ≠ qty_received → TRANSFER_DISCREPANCY adjustment |
-| BR-TRF-04 | Wrong-SKU | Line-level expected/actual SKU + Return-to-Source mech |
-| BR-TRF-05 | Overdue Transfer | Trip overdue → block receive; override chỉ với CEO/MANAGER + lý do + photo refs |
-| BR-TRF-06 | Audit | Transfer mutations phải ghi đầy đủ audit trail: header/items/allocation/QC/inventory |
-
----
-
-# VI. Spec 006: Stocktake & Variance (US-WMS-13)
-
-**Compact UC Summary:**
-
-| UC | Actor | Description |
-|----|----|-------------|
-| UC-29 | Thủ kho | Tạo phiếu kiểm kê; exclude Quarantine; lock locations khi IN_PROGRESS |
-| UC-30 | Thủ kho | Nhập số đếm thực tế; tính variance_qty = actual - system |
-| UC-31 | Thủ kho | Hoàn tất đếm → PENDING_APPROVAL (route Trưởng kho) |
-| UC-32 | Trưởng kho | Duyệt/từ chối chênh lệch; không phân cấp theo giá trị |
-| UC-33 | System | Update inventory khi duyệt; release location lock |
-
-**Business Rules:**
-- BR-STK-01: Phiếu không bao gồm Quarantine zones (WHERE is_quarantine = false)
-- BR-STK-02: Lock locations (is_locked = true) từ IN_PROGRESS → release khi APPROVED/REJECTED
-- BR-STK-03: Variance = actual_qty - system_qty; value = variance × cost_price
-- BR-STK-04: Mọi chênh lệch → Trưởng kho duyệt trực tiếp (KHÔNG phân cấp)
-- BR-STK-05: Inventory update + optimistic locking khi approval
-
----
-
-# VII. Spec 007: Pricing & COGS (US-WMS-14)
-
-**Compact UC Summary:**
-
-| UC | Actor | Description |
-|----|----|-------------|
-| UC-34 | Kế toán viên | Nhập bảng giá (cost_price, selling_price); có hiệu lực từ ngày |
-| UC-35 | Kế toán trưởng | Duyệt bảng giá; không phân cấp |
-| UC-36 | System | COGS = cost_price tại ngày xuất (từ price_history) |
-
-**Business Rules:**
-- BR-PRICE-01: Price history lưu cost_price + selling_price + effective_date + end_date
-- BR-PRICE-02: COGS lookup qua price_history.effective_date ≤ issue_date
-- BR-PRICE-03: Giá bán snapshot ở picking plan → invoiced qua unit_price column
-
----
-
-# VIII. Spec 008: Finance & Billing (US-WMS-15..18)
-
-**Compact UC Summary:**
-
-| UC | Actor | Description |
-|----|----|-------------|
-| UC-37 | System | Auto-create invoice khi delivery DELIVERED; cộng receivable |
-| UC-38 | Kế toán viên | Ghi nhận thanh toán; trừ receivable |
-| UC-39 | Kế toán trưởng | Chốt sổ kỳ; block nếu còn chứng từ tồn đọng |
-| UC-40 | System | P&L + Aging Report; xem Debit/Credit balances |
-
-**Business Rules:**
-- BR-FIN-01: Invoice auto-create (không manual) → Kế toán chỉ xem + reconcile
-- BR-FIN-02: Monthly closing → lock kỳ trước; late docs → Correction Voucher ở kỳ mở
-- BR-FIN-03: Aging = invoice.due_date so với TODAY; >30d auto CREDIT_HOLD
-- BR-FIN-04: COGS not null + immutable; balance = invoice - payment
-
----
-
-# IX. Spec 009: Returns & Disposal (US-WMS-24..25)
-
-**Compact UC Summary:**
-
-| UC | Actor | Description |
-|----|----|-------------|
-| UC-41 | Trưởng kho | Trả hàng NCC (RTV) cho fail QC origin RECEIPT → tạo Debit Note |
-| UC-42 | Trưởng kho | Tiêu hủy hàng lỗi từ Quarantine → adjustment loại DISPOSAL (không phân cấp) |
-| UC-43 | Kế toán viên | Ghi nhận Credit Note cho hàng hoàn trả (customer); tính returned_value |
-
-**Business Rules:**
-- BR-RET-01: RTV (Spec 003) → Debit Note cho NCC; Disposal (Spec 009) → no NCC Debit
-- BR-RET-02: Hàng transfer fail → DISPOSAL (không RTV)
-- BR-RET-03: Tiêu hủy mọi giá trị → Trưởng kho duyệt trực tiếp
-- BR-RET-04: Credit Note (customer return) → trừ receivable
-
----
-
-# X. Spec 010: Reports & Dashboards (US-WMS-22..23)
-
-**Compact UC Summary:**
-
-| UC | Actor | Description |
-|----|----|-------------|
-| UC-44 | CEO | Dashboard: tồn kho (value), công nợ (aging), P&L, OTD%, QC fail rate |
-| UC-45 | Kế toán trưởng | Aging Report (Due/OD 1-30/31-60/>60) + cash flow forecast |
-| UC-46 | System | Low stock alert khi available < reorder_point; send email |
-
-**Business Rules:**
-- BR-RPT-01: Report view → ghi REPORT_VIEW audit log (AUD-04)
-- BR-RPT-02: Dashboard tính toán real-time từ inventories + invoices
-- BR-RPT-03: Alert (low stock) → trigger email tới Planner/Storekeeper
-
----
-
-# Summary: All 10 Specs Complete
-
-| Spec | UC Count | Key Rules |
-|------|----------|-----------|
-| 001 | 5 | JWT (15m/7d), bcrypt ≥12, RBAC warehouse-scoped |
-| 002 | 3 | Master data soft-delete, SKU unique, bin capacity |
-| 003 | 5 | Receipt → QC → Putaway; quarantine RTV path |
-| 004 | 8 | Credit Check auto, FIFO picking, POD + OTP auto-invoice |
-| 005 | 7 | Transfer via In-Transit, blind count, discrepancy adjust |
-| 006 | 5 | Stocktake lock locations, flat approval (Trưởng kho) |
-| 007 | 3 | Price history, COGS snapshot, markup tracking |
-| 008 | 4 | Monthly closing, Aging 1-30/31-60/>60, P&L |
-| 009 | 3 | RTV → Debit Note (supplier), Disposal flat approval |
-| 010 | 3 | Dashboard KPI, Low stock alert, REPORT_VIEW audit |
