@@ -704,6 +704,725 @@ None ngoài BR-INV-01 đã liệt kê ở trên.
 
 ---
 
+## 4. Outbound Delivery & POD (Spec 004)
+
+### 4.1 UC-14_Create Delivery Order (Credit Check)
+
+#### a. Functionalities
+
+| UC ID and Name:    | UC-14_Create Delivery Order (Credit Check)                                                                                                                                                                                                      |                   |            |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | ---------- |
+| Created By:        | WMS Dev Team                                                                                                                                                                                                                                    | Date Created:     | 2026-07-14 |
+| Primary Actor:     | Planner (PLANNER)                                                                                                                                                                                                                               | Secondary Actors: | None       |
+| Trigger:           | Planner nhận yêu cầu xuất hàng từ Công ty mẹ hoặc Đại lý                                                                                                                                                                                       |                   |            |
+| Description:       | Planner tạo Đơn Xuất Hàng (DO), hệ thống kiểm tra Credit Check + tồn kho khả dụng + phạm vi kho, sau đó tự động reserve tồn kho                                                                                                             |                   |            |
+| Preconditions:     | PRE-1: User có role `PLANNER`.<br>PRE-2: Đại lý tồn tại và `credit_status = ACTIVE` (hoặc chưa CREDIT_HOLD).                                                                                                                                 |                   |            |
+| Postconditions:    | POST-1: `delivery_orders` được tạo với `status = NEW`.<br>POST-2: `delivery_order_items` được tạo kèm `unit_price` snapshot từ `price_history`.<br>POST-3: `warehouse_product_reservations` được cộng (warehouse-level reserve).<br>POST-4: Ghi audit log `DO_CREATED`. |                   |            |
+| Normal Flow:       | 4.0 Create DO<br>1. Planner truy cập Delivery Order List, chọn "Tạo Đơn Xuất"<br>2. Planner chọn kho, Đại lý, ngày yêu cầu giao<br>3. Planner nhập danh sách SKU + số lượng<br>4. Planner xác nhận tạo<br>5. Hệ thống kiểm tra Credit Check: nếu `current_balance + DO_value > credit_limit` hoặc `>30d overdue` → BLOCK với `CREDIT_HOLD` (xem 4.0.E1)<br>6. Hệ thống kiểm tra tồn kho khả dụng (xem 4.0.E2)<br>7. Hệ thống snapshot giá vốn/giá bán từ `price_history` hiệu lực<br>8. Lưu `delivery_orders` + `delivery_order_items` + reserve tồn<br>9. Ghi audit log `DO_CREATED` |                   |            |
+| Alternative Flows: | None                                                                                                                                                                                                                                              |                   |            |
+| Exceptions:        | 4.0.E1 Vượt hạn mức công nợ hoặc quá hạn<br>1. Hệ thống trả `CREDIT_HOLD` (422), không tạo DO<br>4.0.E2 Không đủ tồn kho khả dụng<br>1. Hệ thống trả `INSUFFICIENT_STOCK` (422), không tạo DO                                                    |                   |            |
+| Priority:          | Must Have                                                                                                                                                                                                                                         |                   |            |
+| Frequency of Use:  | 30-50 đơn/tháng/kho ước tính                                                                                                                                                                                                                   |                   |            |
+| Business Rules:    | BR-CREDIT-01, BR-INV-01, BR-INV-04                                                                                                                                                                                                              |                   |            |
+| Other Information: | DO không được tạo nếu Credit Check fail; hệ thống phải kiểm tra BOTH balance + overdue.                                                                                                                                                         |                   |            |
+| Assumptions:       | Planner nhập dữ liệu chính xác từ yêu cầu.                                                                                                                                                                                                     |                   |            |
+
+#### b. Business Rules
+
+| ID           | Business Rule       | Business Rule Description                                                                          |
+| ------------ | ------------------- | -------------------------------------------------------------------------------------------------- |
+| BR-CREDIT-01 | Credit Check Gate   | Khi tạo DO, kiểm tra IF current_balance + DO_value > credit_limit OR >30d overdue → CREDIT_HOLD  |
+
+### 4.2 UC-15_Create Picking Plan (FIFO)
+
+#### a. Functionalities
+
+| UC ID and Name:    | UC-15_Create Picking Plan (FIFO)                                                                                                                                                                                                    |                   |            |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | ---------- |
+| Created By:        | WMS Dev Team                                                                                                                                                                                                                        | Date Created:     | 2026-07-14 |
+| Primary Actor:     | Thủ kho (STOREKEEPER)                                                                                                                                                                                                               | Secondary Actors: | None       |
+| Trigger:           | DO ở trạng thái `NEW`, Thủ kho lập kế hoạch lấy hàng                                                                                                                                                                                |                   |            |
+| Description:       | Thủ kho chọn batch/bin/zone theo FIFO (ngày nhận sớm nhất) cho từng dòng DO, hệ thống tạo `delivery_order_item_allocations` chi tiết theo batch/location/zone                                                                       |                   |            |
+| Preconditions:     | PRE-1: DO ở `status = NEW`.<br>PRE-2: Tồn kho khả dụng đã được reserve (cấp warehouse).                                                                                                                                           |                   |            |
+| Postconditions:    | POST-1: `delivery_order_item_allocations` được tạo với chi tiết batch/location/zone/planned_qty.<br>POST-2: DO chuyển `status = WAITING_PICKING`.<br>POST-3: Ghi audit log `PICKING_PLAN_CREATED`.                                  |                   |            |
+| Normal Flow:       | 5.0 Create Picking Plan<br>1. Thủ kho mở DO Detail ở `status = NEW`<br>2. Thủ kho bấm "Lập Picking Plan"<br>3. Hệ thống hiển thị danh sách batch có sẵn theo FIFO (order by `batch.received_date ASC`)<br>4. Thủ kho chọn batch/location cho từng dòng DO (nếu cần gom từ nhiều batch)<br>5. Xác nhận<br>6. Hệ thống validate tổng allocation = DO item qty (xem 5.0.E1)<br>7. Lưu allocations<br>8. Chuyển DO `WAITING_PICKING`<br>9. Ghi audit log |                   |            |
+| Alternative Flows: | None                                                                                                                                                                                                                                |                   |            |
+| Exceptions:        | 5.0.E1 Tổng allocation < DO item qty<br>1. Hệ thống trả `ALLOCATION_INCOMPLETE` (422), không lưu                                                                                                                                  |                   |            |
+| Priority:          | Must Have                                                                                                                                                                                                                           |                   |            |
+| Frequency of Use:  | Mỗi DO sau `NEW`                                                                                                                                                                                                                   |                   |            |
+| Business Rules:    | BR-FIFO-01                                                                                                                                                                                                                          |                   |            |
+| Other Information: | FIFO = nguyên tắc mặc định; chọn batch có `received_date` sớm nhất trước.                                                                                                                                                         |                   |            |
+| Assumptions:       | Thủ kho hiểu quy tắc FIFO và bin layout.                                                                                                                                                                                          |                   |            |
+
+#### b. Business Rules
+
+| ID         | Business Rule | Business Rule Description                                                      |
+| ---------- | ------------- | ------------------------------------------------------------------------------ |
+| BR-FIFO-01 | FIFO Mandate  | Chọn batch theo `received_date ASC` (sớm nhất trước); không cho custom order   |
+
+### 4.3 UC-16_Execute Picking & Outbound QC
+
+#### a. Functionalities
+
+| UC ID and Name:    | UC-16_Execute Picking & Outbound QC                                                                                                                                                                                                  |                   |            |
+| ------------------ | ------------------------------------------------------------------------------------------------ | ------------------------------------- | ---------- |
+| Created By:        | WMS Dev Team                                                                                   | Date Created:     | 2026-07-14 |
+| Primary Actor:     | Nhân viên kho (WAREHOUSE_STAFF)                                                                | Secondary Actors: | Thủ kho (QC review) |
+| Trigger:           | DO ở `WAITING_PICKING`, Nhân viên kho lấy hàng theo allocation                               |                   |            |
+| Description:       | Nhân viên kho lấy hàng theo picking plan, ghi nhận kết quả QC (Đạt/Lỗi), hàng Đạt vào outbound staging, hàng Lỗi vào Quarantine |                   |            |
+| Preconditions:     | PRE-1: DO ở `WAITING_PICKING`.<br>PRE-2: Allocations đã được tạo đầy đủ.                  |                   |            |
+| Postconditions:    | POST-1: `delivery_order_item_allocations` được cập nhật với `picked_qty`/`qc_pass_qty`/`qc_fail_qty`.<br>POST-2: DO chuyển `QC_PENDING_APPROVAL` khi còn hàng Đạt.<br>POST-3: Hàng Lỗi tạo quarantine record + adjustment.<br>POST-4: Ghi audit log `PICKING_QC_EXECUTED`. |                   |            |
+| Normal Flow:       | 6.0 Execute Picking<br>1. Nhân viên kho lấy hàng theo picking plan (allocation)<br>2. Ghi nhận QC: Đạt/Lỗi + lý do khi Lỗi<br>3. Hàng Đạt: lưu vào outbound staging<br>4. Hàng Lỗi: chuyển Quarantine + tạo adjustment<br>5. Xác nhận hoàn tất picking+QC<br>6. Hệ thống cập nhật allocation + tính trạng thái DO<br>7. Ghi audit log |                   |            |
+| Alternative Flows: | None                                                                                                                                                                                                                                 |                   |            |
+| Exceptions:        | 6.0.E1 Picked qty > allocation qty<br>1. Hệ thống trả `OVER_PICKED` (422)                       |                   |            |
+| Priority:          | Must Have                                                                                     |                   |            |
+| Frequency of Use:  | Mỗi DO sau `WAITING_PICKING`                                                                 |                   |            |
+| Business Rules:    | BR-QC-01, BR-QC-02, BR-INV-04                                                                 |                   |            |
+| Other Information: | Hàng fail QC không được tính vào DO giao; chỉ QC-pass tính.                                   |                   |            |
+| Assumptions:       | Nhân viên kho kiểm tra chất lượng trực tiếp khi lấy hàng.                                    |                   |            |
+
+#### b. Business Rules
+
+(Refer BR-QC-01, BR-QC-02 từ Spec 003)
+
+### 4.4 UC-17_Warehouse Approval (DO)
+
+#### a. Functionalities
+
+| UC ID and Name:    | UC-17_Warehouse Approval (DO)                                                                                                                                                                                  |                   |            |
+| ------------------ | --------------------------------------------------------------------------- | ------------------------------------- | ---------- |
+| Created By:        | WMS Dev Team                                                                | Date Created:     | 2026-07-14 |
+| Primary Actor:     | Trưởng kho (WAREHOUSE_MANAGER)                                            | Secondary Actors: | None       |
+| Trigger:           | DO ở `QC_PENDING_APPROVAL` hoặc `QC_COMPLETED`                           |                   |            |
+| Description:       | Trưởng kho duyệt/từ chối DO xuất kho. Nếu duyệt, mở khóa cho Dispatcher lập trip. Nếu từ chối, trả hàng QC-pass về bin gốc |                   |            |
+| Preconditions:     | PRE-1: DO ở `QC_PENDING_APPROVAL` hoặc `QC_COMPLETED`.                   |                   |            |
+| Postconditions:    | POST-1 (Approve): DO chuyển `WAREHOUSE_APPROVED`, mở khóa trip dispatch.<br>POST-2 (Reject): DO chuyển `REJECTED`, trả hàng về, giải phóng allocation.<br>POST-3: Ghi audit log `DO_APPROVED`/`DO_REJECTED`. |                   |            |
+| Normal Flow:       | 7.0 Warehouse Approval<br>1. Trưởng kho xem DO Detail ở `QC_COMPLETED`<br>2. Trưởng kho duyệt hoặc từ chối<br>3. Nếu duyệt: hệ thống chuyển `WAREHOUSE_APPROVED`, ghi log<br>4. Nếu từ chối: nhập lý do, hệ thống trả hàng + release allocation, chuyển `REJECTED` |                   |            |
+| Alternative Flows: | None                                                                       |                   |            |
+| Exceptions:        | 7.0.E1 DO không ở trạng thái có thể duyệt<br>1. Hệ thống trả `INVALID_STATUS` (409)       |                   |            |
+| Priority:          | Must Have                                                                  |                   |            |
+| Frequency of Use:  | Mỗi DO sau QC xong                                                         |                   |            |
+| Business Rules:    | BR-AUTH-MANAGER                                                            |                   |            |
+| Other Information: | Reject phải giải phóng allocation + trả hàng QC-pass về bin gốc.           |                   |            |
+| Assumptions:       | None                                                                       |                   |            |
+
+#### b. Business Rules
+
+| ID | Business Rule | Description |
+| --- | --- | --- |
+| BR-AUTH-MANAGER | Manager-only Approval | Chỉ WAREHOUSE_MANAGER được duyệt/từ chối DO |
+
+### 4.5 UC-18_Dispatch Delivery Trip
+
+#### a. Functionalities
+
+| UC ID and Name:    | UC-18_Dispatch Delivery Trip                                                                                                                                                                                         |                   |            |
+| ------------------ | -------- | ------------------------------------- | ---------- |
+| Created By:        | WMS Dev Team | Date Created:     | 2026-07-14 |
+| Primary Actor:     | Dispatcher (DISPATCHER)                                                 | Secondary Actors: | None       |
+| Trigger:           | Có DO `WAREHOUSE_APPROVED`, Dispatcher lập chuyến giao hàng        |                   |            |
+| Description:       | Dispatcher gom 1+ DO cùng kho vào một trip, gán xe/tài xế, kiểm tra tải trọng/thể tích |                   |            |
+| Preconditions:     | PRE-1: DO ở `WAREHOUSE_APPROVED`.<br>PRE-2: Xe + tài xế đã được tạo và `is_active = true`.<br>PRE-3: Tài xế gán cho warehouse của DO. |                   |            |
+| Postconditions:    | POST-1: `trips` được tạo với `status = PLANNED`, `trip_type = DELIVERY`.<br>POST-2: Trip linked với DO[] + vehicle + driver.<br>POST-3: Ghi audit log `TRIP_CREATED`. |                   |            |
+| Normal Flow:       | 8.0 Dispatch Trip<br>1. Dispatcher truy cập Trip Dispatch screen<br>2. Dispatcher chọn 1+ DO `WAREHOUSE_APPROVED` cùng kho<br>3. Dispatcher chọn vehicle + driver (phải ở warehouse của DO)<br>4. Hệ thống tính tải trọng (sum all DO items * product weight)<br>5. Hệ thống kiểm tra vehicle.tải_trọng_max >= tổng_tải (xem 8.0.E1)<br>6. Nếu vehicle có max_volume_m3, kiểm tra tương tự (xem 8.0.E2)<br>7. Dispatcher xác nhận<br>8. Hệ thống lưu trip, chuyển DO `IN_TRANSIT`<br>9. Ghi audit log |                   |            |
+| Alternative Flows: | None                                                               |                   |            |
+| Exceptions:        | 8.0.E1 Vượt tải trọng<br>1. Hệ thống trả `OVER_WEIGHT` (422)<br>8.0.E2 Vượt thể tích<br>1. Hệ thống trả `OVER_VOLUME` (422)<br>8.0.E3 Tài xế không thuộc warehouse<br>1. Hệ thống trả `DRIVER_OUT_OF_SCOPE` (403) |                   |            |
+| Priority:          | Must Have                                                          |                   |            |
+| Frequency of Use:  | 1-2 trip/kho/ngày ước tính                                        |                   |            |
+| Business Rules:    | BR-TRIP-01, BR-TRIP-02                                             |                   |            |
+| Other Information: | Sprint 1 không tối ưu lộ trình (routing); chỉ gom DO theo thứ tự định sẵn. Kiểm tra tải trọng/thể tích bắt buộc. |                   |            |
+| Assumptions:       | Dispatcher nhập dữ liệu xe/tài xế chính xác.                      |                   |            |
+
+#### b. Business Rules
+
+| ID | Business Rule | Description |
+| --- | --- | --- |
+| BR-TRIP-01 | Weight Check | Không cho dispatch nếu tổng tải > vehicle.max_weight |
+| BR-TRIP-02 | Volume Check | Nếu vehicle có max_volume, không cho dispatch nếu tổng thể tích > max |
+
+### 4.6 UC-19_Driver Mobile POD + OTP
+
+#### a. Functionalities
+
+| UC ID and Name:    | UC-19_Driver Mobile POD + OTP                                                                                                                                                                                          |                   |            |
+| ------------------ | -------- | ------------------------------------- | ---------- |
+| Created By:        | WMS Dev Team | Date Created:     | 2026-07-14 |
+| Primary Actor:     | Tài xế (DRIVER)                                                     | Secondary Actors: | Đại lý (OTP confirm) |
+| Trigger:           | Tài xế đã giao hàng cho Đại lý, cần xác nhận POD + OTP           |                   |            |
+| Description:       | Tài xế upload ảnh hàng + ảnh chữ ký, yêu cầu OTP gửi email Đại lý, Đại lý xác thực OTP, tài xế nhập OTP, hệ thống xác nhận giao thành công |                   |            |
+| Preconditions:     | PRE-1: Trip ở `IN_TRANSIT`.<br>PRE-2: Tài xế đã đến điểm giao.   |                   |            |
+| Postconditions:    | POST-1: `deliveries` được tạo với `status = DELIVERED` (sau OTP verify).<br>POST-2: DO chuyển `COMPLETED`.<br>POST-3: Hệ thống tự động tạo invoice + cộng công nợ Đại lý.<br>POST-4: Ghi audit log `DELIVERY_COMPLETED`. |                   |            |
+| Normal Flow:       | 9.0 POD + OTP<br>1. Tài xế mở Delivery app, xem DO cần giao<br>2. Tài xế chụp ảnh hàng (goodsImage) + ảnh chữ ký Đại lý (signDocumentImage)<br>3. Tài xế bấm "Yêu cầu OTP"<br>4. Hệ thống gửi OTP 6 số qua email Đại lý (TTL 5 phút)<br>5. Đại lý đọc OTP, bảo tài xế nhập<br>6. Tài xế nhập OTP<br>7. Hệ thống verify OTP (xem 9.0.E1, 9.0.E2)<br>8. Nếu đúng: `delivery.status = DELIVERED`, do.status = `COMPLETED`, auto-invoice<br>9. Ghi audit log |                   |            |
+| Alternative Flows: | 9.1 Giao Thất Bại<br>1. Tài xế ghi lý do (vắng, từ chối, sai địa chỉ)<br>2. `delivery.status = FAILED`<br>3. DO quay lại `RETURNED`, hàng ở `IN_TRANSIT` |                   |            |
+| Exceptions:        | 9.0.E1 OTP sai 3 lần<br>1. Hệ thống khóa OTP, yêu cầu ADMIN reset<br>9.0.E2 OTP quá hạn<br>1. Tài xế yêu cầu OTP mới, hệ thống sinh mã mới |                   |            |
+| Priority:          | Must Have                                                          |                   |            |
+| Frequency of Use:  | Mỗi lần giao hàng                                                  |                   |            |
+| Business Rules:    | BR-OTP-01, BR-INVOICE-01                                           |                   |            |
+| Other Information: | OTP không được lưu plain text, chỉ lưu hash. Ảnh bắt buộc trước khi bấm giao. Auto-invoice xảy ra ngay khi DELIVERED. |                   |            |
+| Assumptions:       | Email Đại lý chính xác. Đại lý có access email.                 |                   |            |
+
+#### b. Business Rules
+
+| ID | Business Rule | Description |
+| --- | --- | --- |
+| BR-OTP-01 | OTP Security | OTP 6 chữ số, TTL 5 phút, max 3 fail rồi lock, chỉ lưu hash |
+| BR-INVOICE-01 | Auto Invoice on Delivery | Khi delivery `DELIVERED`, hệ thống tự động tạo invoice + cộng receivable |
+
+### 4.7 UC-20_Auto-create Invoice
+
+#### a. Functionalities
+
+| UC ID and Name:    | UC-20_Auto-create Invoice                                                                                                                                                                                              |                   |            |
+| ------------------ | -------- | ------------------------------------- | ---------- |
+| Created By:        | WMS Dev Team | Date Created:     | 2026-07-14 |
+| Primary Actor:     | System (AutoInvoiceService)                                         | Secondary Actors: | None       |
+| Trigger:           | Delivery attempt chuyển `DELIVERED` (OTP verify thành công)       |                   |            |
+| Description:       | Hệ thống tự động tạo hóa đơn bán hàng từ DO, cộng công nợ Đại lý, ghi audit log |                   |            |
+| Preconditions:     | PRE-1: Delivery `status = DELIVERED`.<br>PRE-2: DO + DO items + unit_price snapshot sẵn có. |                   |            |
+| Postconditions:    | POST-1: `invoices` được tạo với `status = UNPAID`, `issue_date = TODAY`, `due_date = TODAY + 30`.<br>POST-2: `dealers.current_balance` được cộng tổng invoice value.<br>POST-3: Ghi audit log `INVOICE_CREATED`. |                   |            |
+| Normal Flow:       | 10.0 Auto Invoice<br>1. Delivery attempt chuyển `DELIVERED` (event trigger)<br>2. AutoInvoiceService.createInvoice(delivery)<br>3. Tính total_amount = sum(do_item.qc_pass_qty * do_item.unit_price)<br>4. Tạo invoices record<br>5. Cộng dealers.current_balance += total_amount<br>6. Ghi audit log |                   |            |
+| Alternative Flows: | None                                                               |                   |            |
+| Exceptions:        | 10.0.E1 Invoice creation fail<br>1. Rollback delivery + log error, ghi alert cho ACCOUNTANT_MANAGER |                   |            |
+| Priority:          | Must Have                                                          |                   |            |
+| Frequency of Use:  | Tự động, mỗi lần DO giao thành công                               |                   |            |
+| Business Rules:    | BR-INVOICE-01, BR-INVOICE-02                                       |                   |            |
+| Other Information: | Non-UI function; event-driven. Điều kiện idempotent: nếu invoice đã tạo, không tạo lại (check by DO id). |                   |            |
+| Assumptions:       | DO + items + unit_price snapshot đã sẵn có đầy đủ.               |                   |            |
+
+#### b. Business Rules
+
+| ID | Business Rule | Description |
+| --- | --- | --- |
+| BR-INVOICE-02 | Invoice Idempotent | Chỉ tạo invoice 1 lần per DO; nếu đã tạo, không tạo lại |
+
+---
+
+## 5. Inter-Warehouse Transfer (Spec 005)
+
+### 5.1 UC-21_View Cross-Warehouse Stock & Request Transfer
+
+#### a. Functionalities
+
+| UC ID and Name:    | UC-21_View Cross-Warehouse Stock & Request Transfer                                                                                                                                                                    |                   |            |
+| ------------------ | -------- | ------------------------------------- | ---------- |
+| Created By:        | WMS Dev Team | Date Created:     | 2026-07-14 |
+| Primary Actor:     | Trưởng kho (WAREHOUSE_MANAGER) của kho thiếu hàng           | Secondary Actors: | CEO (duyệt yêu cầu) |
+| Trigger:           | Trưởng kho kho thiếu hàng muốn xem tồn liên kho để yêu cầu điều chuyển |                   |            |
+| Description:       | Trưởng kho xem tồn kho khả dụng (read-only) của 3 kho vật lý, tạo yêu cầu điều chuyển gửi CEO duyệt |                   |            |
+| Preconditions:     | PRE-1: User có role `WAREHOUSE_MANAGER` được gán 1+ kho.       |                   |            |
+| Postconditions:    | POST-1: `transfer_requests` được tạo với `status = DRAFT`.<br>POST-2: Ghi audit log `TRANSFER_REQUEST_CREATED`. |                   |            |
+| Normal Flow:       | 11.0 Cross-Warehouse Stock View & Transfer Request<br>1. Trưởng kho truy cập "Cross-Warehouse Stock" (read-only, liên kho)<br>2. Trưởng kho xem tồn khả dụng mỗi kho<br>3. Trưởng kho chọn "Yêu cầu Điều Chuyển"<br>4. Trưởng kho chọn kho nguồn, kho đích, danh sách SKU + số lượng<br>5. Xác nhận gửi CEO<br>6. Hệ thống lưu `transfer_requests` (`DRAFT`)<br>7. Ghi audit log |                   |            |
+| Alternative Flows: | 11.1 Edit/Delete Draft Request<br>1. Trưởng kho sửa hoặc xóa request còn `DRAFT`<br>2. Hệ thống cập nhật hoặc xóa mềm (status = `CANCELLED`) |                   |            |
+| Exceptions:        | 11.0.E1 Kho đích = kho hiện tại<br>1. Hệ thống trả `SAME_WAREHOUSE` (422)       |                   |            |
+| Priority:          | Must Have                                                          |                   |            |
+| Frequency of Use:  | Khi cần điều chuyển, 1-2 lần/kho/tháng ước tính                 |                   |            |
+| Business Rules:    | BR-TRANSFER-01                                                     |                   |            |
+| Other Information: | Cross-warehouse stock view không giữ chỗ tồn, không sinh biến động inventory. Chỉ read-only. |                   |            |
+| Assumptions:       | Trưởng kho hiểu nhu cầu hàng của kho mình.                       |                   |            |
+
+#### b. Business Rules
+
+| ID | Business Rule | Description |
+| --- | --- | --- |
+| BR-TRANSFER-01 | No Reservation on View | Cross-warehouse view không giữ chỗ; chỉ đề xuất có xác nhận CEO mới reserve |
+
+### 5.2 UC-22_Create Transfer Order (TRF-*)
+
+#### a. Functionalities
+
+| UC ID and Name:    | UC-22_Create Transfer Order (TRF-*)                                                                                                                                                                                      |                   |            |
+| ------------------ | -------- | ------------------------------------- | ---------- |
+| Created By:        | WMS Dev Team | Date Created:     | 2026-07-14 |
+| Primary Actor:     | Planner (PLANNER) kho nguồn hoặc trung tâm       | Secondary Actors: | None       |
+| Trigger:           | CEO đã duyệt transfer request, hoặc Planner nhận lệnh điều chuyển từ Công ty mẹ |                   |            |
+| Description:       | Planner tạo Phiếu Điều Chuyển (TRF-*), liên kết kho nguồn/đích, danh sách hàng |                   |            |
+| Preconditions:     | PRE-1: User có role `PLANNER`.<br>PRE-2: Transfer request đã CEO duyệt (nếu từ request) hoặc lệnh từ ngoài.<br>PRE-3: SKU trong phiếu tồn tại. |                   |            |
+| Postconditions:    | POST-1: `transfers` được tạo với `status = NEW`.<br>POST-2: `transfer_items` được tạo kèm `sent_qty = 0` (chưa giao).<br>POST-3: Ghi audit log `TRANSFER_CREATED`. |                   |            |
+| Normal Flow:       | 12.0 Create Transfer<br>1. Planner truy cập Transfer List, chọn "Tạo Phiếu Điều Chuyển"<br>2. Planner nhập kho nguồn, kho đích, danh sách SKU + số lượng dự kiến gửi<br>3. Planner xác nhận tạo<br>4. Hệ thống validate (kho khác, SKU tồn tại)<br>5. Lưu `transfers` (`NEW`) + `transfer_items`<br>6. Ghi audit log |                   |            |
+| Alternative Flows: | 12.1 Edit/Delete Draft<br>1. Khi transfer `NEW`, Planner có thể sửa/xóa<br>2. Hệ thống cập nhật/xóa mềm |                   |            |
+| Exceptions:        | 12.0.E1 Kho nguồn = kho đích<br>1. Hệ thống trả `SAME_WAREHOUSE` (422)<br>12.0.E2 SKU không tồn tại<br>1. Hệ thống trả `PRODUCT_NOT_FOUND` (404) |                   |            |
+| Priority:          | Must Have                                                          |                   |            |
+| Frequency of Use:  | 1-5 phiếu/tháng ước tính                                          |                   |            |
+| Business Rules:    | BR-TRANSFER-02                                                     |                   |            |
+| Other Information: | Phiếu lúc tạo chỉ có `sent_qty = 0`, chưa reserve. Reserve xảy ra khi Trưởng kho nguồn duyệt. |                   |            |
+| Assumptions:       | Planner nhập dữ liệu chính xác từ lệnh.                          |                   |            |
+
+#### b. Business Rules
+
+| ID | Business Rule | Description |
+| --- | --- | --- |
+| BR-TRANSFER-02 | No Reserve on Create | Phiếu lúc tạo chỉ `NEW`, chưa reserve; reserve xảy ra khi duyệt |
+
+### 5.3 UC-23_Approve/Reject Transfer & Reserve Stock
+
+#### a. Functionalities
+
+| UC ID and Name:    | UC-23_Approve/Reject Transfer & Reserve Stock                                                                                                                                                                           |                   |            |
+| ------------------ | -------- | ------------------------------------- | ---------- |
+| Created By:        | WMS Dev Team | Date Created:     | 2026-07-14 |
+| Primary Actor:     | Trưởng kho (WAREHOUSE_MANAGER) kho nguồn       | Secondary Actors: | None       |
+| Trigger:           | Transfer ở `NEW`, Trưởng kho nguồn duyệt/từ chối             |                   |            |
+| Description:       | Trưởng kho duyệt phiếu, hệ thống reserve tồn FIFO-eligible. Nếu từ chối, phiếu bị hủy. |                   |            |
+| Preconditions:     | PRE-1: Transfer ở `NEW`.<br>PRE-2: Trưởng kho belongs to kho nguồn của transfer. |                   |            |
+| Postconditions:    | POST-1 (Approve): Transfer chuyển `APPROVED`, tồn được reserve (warehouse-level + batch-level).<br>POST-2 (Reject): Transfer chuyển `REJECTED`, không reserve, lưu lý do từ chối.<br>POST-3: Ghi audit log. |                   |            |
+| Normal Flow:       | 13.0 Approve Transfer<br>1. Trưởng kho xem Transfer Detail ở `NEW`<br>2. Trưởng kho duyệt<br>3. Hệ thống kiểm tra tồn FIFO-eligible đủ cho tất cả items (xem 13.0.E1)<br>4. Nếu đủ: reserve + chuyển `APPROVED`<br>5. Ghi audit log<br>6. Nếu không duyệt: nhập lý do, chuyển `REJECTED`, ghi log |                   |            |
+| Alternative Flows: | 13.1 Reject Transfer<br>1. Trưởng kho bấm "Từ chối", nhập lý do<br>2. Hệ thống chuyển transfer `REJECTED`, không tạo reservation |                   |            |
+| Exceptions:        | 13.0.E1 Không đủ tồn FIFO-eligible<br>1. Hệ thống trả `INSUFFICIENT_STOCK` (422), không cho duyệt |                   |            |
+| Priority:          | Must Have                                                          |                   |            |
+| Frequency of Use:  | Mỗi phiếu mới                                                    |                   |            |
+| Business Rules:    | BR-TRANSFER-03, BR-FIFO-01                                        |                   |            |
+| Other Information: | Reserve xảy ra tại bước này, không ở create. FIFO-eligible = không Quarantine. |                   |            |
+| Assumptions:       | Trưởng kho hiểu rõ tồn kho khả dụng của kho.                   |                   |            |
+
+#### b. Business Rules
+
+| ID | Business Rule | Description |
+| --- | --- | --- |
+| BR-TRANSFER-03 | Reserve on Approval | Chỉ khi duyệt mới reserve FIFO-eligible stock |
+
+### 5.4 UC-24_Dispatch Transfer Trip & Ship Goods
+
+#### a. Functionalities
+
+| UC ID and Name:    | UC-24_Dispatch Transfer Trip & Ship Goods                                                                                                                                                                                |                   |            |
+| ------------------ | -------- | ------------------------------------- | ---------- |
+| Created By:        | WMS Dev Team | Date Created:     | 2026-07-14 |
+| Primary Actor:     | Dispatcher (DISPATCHER) kho nguồn       | Secondary Actors: | Thủ kho, Nhân viên kho |
+| Trigger:           | Transfer ở `APPROVED`, Dispatcher lập chuyến (`TTR-*`)         |                   |            |
+| Description:       | Dispatcher lập chuyến xe, Thủ kho pick + QC + handover cho tài xế. Tài xế confirm rời kho → chuyển `IN_TRANSIT`. |                   |            |
+| Preconditions:     | PRE-1: Transfer ở `APPROVED` với reserved stock.<br>PRE-2: Xe + tài xế đã được tạo.      |                   |            |
+| Postconditions:    | POST-1: `trips` được tạo với `trip_type = TRANSFER`.<br>POST-2: Tồn kho nguồn được trừ, tồn kho `IN_TRANSIT` được cộng.<br>POST-3: Transfer chuyển `IN_TRANSIT`.<br>POST-4: Ghi audit log `TRANSFER_SHIPPED`. |                   |            |
+| Normal Flow:       | 14.0 Ship Transfer<br>1. Dispatcher lập chuyến TTR-*<br>2. Dispatcher chọn vehicle + driver (phạm vi nguồn)<br>3. Dispatcher confirm<br>4. Thủ kho pick + QC outbound (bắt buộc chụp ảnh)<br>5. Thủ kho handover cho tài xế (chụp ảnh)<br>6. Tài xế confirm rời kho<br>7. Hệ thống trừ kho nguồn, cộng `IN_TRANSIT`, chuyển transfer `IN_TRANSIT`<br>8. Ghi audit log |                   |            |
+| Alternative Flows: | None                                                           |                   |            |
+| Exceptions:        | 14.0.E1 Tài xế không rời kho đúng giờ<br>1. Dispatcher có thể update trip hoặc cancel trước depart |                   |            |
+| Priority:          | Must Have                                                          |                   |            |
+| Frequency of Use:  | Mỗi transfer `APPROVED`                                         |                   |            |
+| Business Rules:    | BR-TRIP-01, BR-TRIP-02                                           |                   |            |
+| Other Information: | Pick + QC + handover bắt buộc chụp ảnh. Không dùng barcode, nhập liệu thủ công. |                   |            |
+| Assumptions:       | Thủ kho kiểm tra chất lượng trước ship. Tài xế xác nhận handover. |                   |            |
+
+#### b. Business Rules
+
+(Refer BR-TRIP-01, BR-TRIP-02 từ Spec 004)
+
+### 5.5 UC-25_Receive Transfer at Destination
+
+#### a. Functionalities
+
+| UC ID and Name:    | UC-25_Receive Transfer at Destination                                                                                                                                                                                    |                   |            |
+| ------------------ | -------- | ------------------------------------- | ---------- |
+| Created By:        | WMS Dev Team | Date Created:     | 2026-07-14 |
+| Primary Actor:     | Công nhân (WAREHOUSE_STAFF) / Thủ kho (STOREKEEPER) / Trưởng kho (WAREHOUSE_MANAGER) kho đích |                   |            |
+| Trigger:           | Transfer ở `IN_TRANSIT`, tài xế đến kho đích                    |                   |            |
+| Description:       | Công nhân đếm → Thủ kho kiểm/QC → Trưởng kho xác nhận cuối. Nếu khớp: trừ `IN_TRANSIT`, cộng kho đích. Nếu chênh: tạo adjustment + incident. |                   |            |
+| Preconditions:     | PRE-1: Transfer ở `IN_TRANSIT`.<br>PRE-2: Tài xế đã giao hàng tại kho đích. |                   |            |
+| Postconditions:    | POST-1 (Khớp): Transfer chuyển `COMPLETED`, tồn kho nguồn/IN_TRANSIT trừ, tồn kho đích cộng.<br>POST-2 (Chênh): chuyển `COMPLETED_WITH_DISCREPANCY`, tạo adjustment + incident.<br>POST-3: Ghi audit log. |                   |            |
+| Normal Flow:       | 15.0 Receive Transfer<br>1. Công nhân đếm số lượng nhận (blind count)<br>2. Ghi nhận received_qty<br>3. Thủ kho kiểm tra: nếu QC OK → chọn bin putaway; nếu QC fail → Quarantine<br>4. Thủ kho confirm QC xong<br>5. Trưởng kho xác nhận cuối<br>6. Hệ thống so sánh received vs sent: nếu khớp `COMPLETED`, nếu chênh `COMPLETED_WITH_DISCREPANCY` + tạo adjustment<br>7. Cộng tồn kho đích<br>8. Ghi audit log |                   |            |
+| Alternative Flows: | 15.1 Discrepancy Handling<br>1. Nếu received < sent: tạo adjustment giảm<br>2. Nếu received > sent: chặn và ghi incident<br>3. Nếu QC fail: hàng vào Quarantine với origin `INTERNAL_TRANSFER` |                   |            |
+| Exceptions:        | 15.0.E1 Received > Sent<br>1. Hệ thống chặn receive confirm, yêu cầu nhập lý do |                   |            |
+| Priority:          | Must Have                                                          |                   |            |
+| Frequency of Use:  | Mỗi transfer `IN_TRANSIT`                                        |                   |            |
+| Business Rules:    | BR-TRANSFER-04, BR-LOC-02                                        |                   |            |
+| Other Information: | Blind count bắt buộc. Nếu chênh >5% hoặc lỗi QC → không tính vào available inventory. |                   |            |
+| Assumptions:       | Công nhân đếm chính xác. Thủ kho kiểm tra kỹ trước putaway.    |                   |            |
+
+#### b. Business Rules
+
+| ID | Business Rule | Description |
+| --- | --- | --- |
+| BR-TRANSFER-04 | Discrepancy Tolerance | Chênh lệch tạo adjustment, không đóng cứng trạng thái transfer |
+
+---
+
+## 6. Stocktake & Adjustment (Spec 006)
+
+### 6.1 UC-26_Create Stocktake & Record Count
+
+#### a. Functionalities
+
+| UC ID and Name:    | UC-26_Create Stocktake & Record Count                                                                                                                                                                                  |                   |            |
+| ------------------ | -------- | ------------------------------------- | ---------- |
+| Created By:        | WMS Dev Team | Date Created:     | 2026-07-14 |
+| Primary Actor:     | Thủ kho (STOREKEEPER)                                            | Secondary Actors: | Nhân viên kho |
+| Trigger:           | Định kỳ kiểm kê tồn kho (hàng tháng hoặc theo yêu cầu)          |                   |            |
+| Description:       | Thủ kho tạo phiếu kiểm kê, kho bị khóa (không nhập/xuất), đếm thực tế, nhập kết quả |                   |            |
+| Preconditions:     | PRE-1: User có role `STOREKEEPER`.<br>PRE-2: Kho không trong stocktake `IN_PROGRESS`. |                   |            |
+| Postconditions:    | POST-1: `stocktakes` được tạo với `status = IN_PROGRESS`.<br>POST-2: Kho được khóa (warehouse_locations.is_locked = true).<br>POST-3: Nhân viên kho nhập received_count cho mỗi product/location.<br>POST-4: Hệ thống tính variance (system_qty - received_qty).<br>POST-5: Ghi audit log `STOCKTAKE_CREATED`. |                   |            |
+| Normal Flow:       | 16.0 Stocktake<br>1. Thủ kho tạo phiếu kiểm kê<br>2. Hệ thống lock kho (không cho nhập/xuất)<br>3. Nhân viên kho đi đếm, nhập received_count cho từng product/location<br>4. Thủ kho confirm xong đếm<br>5. Hệ thống tính variance = system_qty (theo inventory table) - received_qty<br>6. Ghi audit log |                   |            |
+| Alternative Flows: | None                                                           |                   |            |
+| Exceptions:        | 16.0.E1 Kho đang lock<br>1. Hệ thống trả `WAREHOUSE_LOCKED` (409), không tạo stocktake mới |                   |            |
+| Priority:          | Must Have                                                          |                   |            |
+| Frequency of Use:  | 1x/tháng/kho                                                     |                   |            |
+| Business Rules:    | BR-STOCKTAKE-01, BR-LOC-01                                       |                   |            |
+| Other Information: | Trong stocktake `IN_PROGRESS`, kho bị khóa. Kho nhân viên không được phép lấy/nhập/điều chuyển. |                   |            |
+| Assumptions:       | Nhân viên đếm chính xác. Thủ kho giám sát.                       |                   |            |
+
+#### b. Business Rules
+
+| ID | Business Rule | Description |
+| --- | --- | --- |
+| BR-STOCKTAKE-01 | Lock on Stocktake | Khi stocktake `IN_PROGRESS`, warehouse bị lock; không cho nhập/xuất |
+
+### 6.2 UC-27_Approve Inventory Adjustment
+
+#### a. Functionalities
+
+| UC ID and Name:    | UC-27_Approve Inventory Adjustment                                                                                                                                                                                        |                   |            |
+| ------------------ | -------- | ------------------------------------- | ---------- |
+| Created By:        | WMS Dev Team | Date Created:     | 2026-07-14 |
+| Primary Actor:     | Trưởng kho (WAREHOUSE_MANAGER)                                 | Secondary Actors: | None       |
+| Trigger:           | Stocktake xong đếm, variance tính toán, chờ Trưởng kho duyệt   |                   |            |
+| Description:       | Trưởng kho xem variance từng product, duyệt hoặc từ chối adjustment. Nếu duyệt: inventory cập nhật theo received_qty. |                   |            |
+| Preconditions:     | PRE-1: Stocktake ở trạng thái đã hoàn tất đếm (chưa duyệt).     |                   |            |
+| Postconditions:    | POST-1 (Approve): Inventory được cập nhật; `stocktakes.status = CLOSED`; kho unlock.<br>POST-2 (Reject): Chưa cập nhật inventory; kho quay lại `IN_PROGRESS` để đếm lại.<br>POST-3: Ghi audit log. |                   |            |
+| Normal Flow:       | 17.0 Approve Adjustment<br>1. Trưởng kho xem Stocktake Variance Report<br>2. Trưởng kho duyệt<br>3. Hệ thống cập nhật `inventories.total_qty = received_qty` cho từng product/location (xem 17.0.E1)<br>4. Tạo `adjustments` record (`type = STOCKTAKE`, `quantity_adjustment = variance_qty`)<br>5. Kho unlock<br>6. Chuyển stocktake `CLOSED`<br>7. Ghi audit log |                   |            |
+| Alternative Flows: | 17.1 Reject Adjustment<br>1. Trưởng kho từ chối (nghi ngờ đếm sai)<br>2. Hệ thống quay stocktake về `IN_PROGRESS`, yêu cầu đếm lại<br>3. Kho vẫn lock cho tới khi duyệt lại |                   |            |
+| Exceptions:        | 17.0.E1 Bin capacity conflict<br>1. Nếu cập nhật total_qty gây vượt capacity, hệ thống cảnh báo nhưng vẫn cho cập nhật (inventory truth of record) |                   |            |
+| Priority:          | Must Have                                                          |                   |            |
+| Frequency of Use:  | 1x/tháng/kho                                                     |                   |            |
+| Business Rules:    | BR-STOCKTAKE-01, BR-INV-01                                       |                   |            |
+| Other Information: | Flat approval: không phân cấp theo giá trị chênh. Trưởng kho duyệt toàn bộ stocktake. |                   |            |
+| Assumptions:       | Trưởng kho hiểu variance và nguyên nhân.                       |                   |            |
+
+#### b. Business Rules
+
+(Refer BR-STOCKTAKE-01, BR-INV-01)
+
+---
+
+## 7. Pricing & COGS Management (Spec 007)
+
+### 7.1 UC-28_Create Price List
+
+#### a. Functionalities
+
+| UC ID and Name:    | UC-28_Create Price List                                                                                                                                                                                                 |                   |            |
+| ------------------ | -------- | ------------------------------------- | ---------- |
+| Created By:        | WMS Dev Team | Date Created:     | 2026-07-14 |
+| Primary Actor:     | Kế toán viên (ACCOUNTANT)                                      | Secondary Actors: | None       |
+| Trigger:           | Cần cập nhật giá vốn/giá bán theo kỳ (tháng/quý)               |                   |            |
+| Description:       | Kế toán viên nhập bảng giá cho từng product: cost_price, selling_price, effective_date, end_date (tùy chọn) |                   |            |
+| Preconditions:     | PRE-1: User có role `ACCOUNTANT`.                               |                   |            |
+| Postconditions:    | POST-1: `price_history` được tạo với `status = DRAFT`.<br>POST-2: Ghi audit log `PRICE_LIST_CREATED`. |                   |            |
+| Normal Flow:       | 18.0 Create Price List<br>1. Kế toán viên truy cập Price List screen<br>2. Kế toán viên chọn effective_date<br>3. Kế toán viên nhập product + cost_price + selling_price<br>4. Có thể import Excel (CSV/XLSX) với template<br>5. Xác nhận<br>6. Hệ thống lưu `price_history` (`DRAFT`)<br>7. Ghi audit log |                   |            |
+| Alternative Flows: | 18.1 Excel Import<br>1. Kế toán viên upload file Excel<br>2. Hệ thống validate format + data<br>3. Lưu hàng loạt |                   |            |
+| Exceptions:        | 18.0.E1 Giá âm hoặc quá lớn<br>1. Hệ thống trả `INVALID_PRICE` (400)<br>18.0.E2 Product không tồn tại<br>1. Hệ thống trả `PRODUCT_NOT_FOUND` (404) |                   |            |
+| Priority:          | Must Have                                                          |                   |            |
+| Frequency of Use:  | 1-2 lần/tháng                                                   |                   |            |
+| Business Rules:    | BR-PRICE-01                                                      |                   |            |
+| Other Information: | `price_history.end_date = NULL` nghĩa là effective cho tới khi có giá mới. Bảng giá hiện tại = `effective_date <= TODAY AND (end_date IS NULL OR end_date > TODAY)`. |                   |            |
+| Assumptions:       | Kế toán viên nhập giá chính xác từ Công ty mẹ hoặc nội bộ.    |                   |            |
+
+#### b. Business Rules
+
+| ID | Business Rule | Description |
+| --- | --- | --- |
+| BR-PRICE-01 | Price History Timeline | `effective_date` và `end_date` định nghĩa kỳ hiệu lực; không overlap cho cùng product |
+
+### 7.2 UC-29_Approve Price List
+
+#### a. Functionalities
+
+| UC ID and Name:    | UC-29_Approve Price List                                                                                                                                                                                                |                   |            |
+| ------------------ | -------- | ------------------------------------- | ---------- |
+| Created By:        | WMS Dev Team | Date Created:     | 2026-07-14 |
+| Primary Actor:     | Kế toán trưởng (ACCOUNTANT_MANAGER)                           | Secondary Actors: | None       |
+| Trigger:           | Bảng giá `DRAFT`, chờ Kế toán trưởng duyệt                   |                   |            |
+| Description:       | Kế toán trưởng xem bảng giá, duyệt để có hiệu lực            |                   |            |
+| Preconditions:     | PRE-1: Price list ở `status = DRAFT`.                          |                   |            |
+| Postconditions:    | POST-1 (Approve): `status = ACTIVE`, bảng giá có hiệu lực từ `effective_date`.<br>POST-2 (Reject): `status = REJECTED`, không có hiệu lực.<br>POST-3: Ghi audit log. |                   |            |
+| Normal Flow:       | 19.0 Approve Price<br>1. Kế toán trưởng xem Price List Detail<br>2. Kế toán trưởng duyệt hoặc từ chối<br>3. Hệ thống chuyển trạng thái + ghi log |                   |            |
+| Alternative Flows: | None                                                           |                   |            |
+| Exceptions:        | 19.0.E1 Không có quyền<br>1. Hệ thống trả `FORBIDDEN` (403)    |                   |            |
+| Priority:          | Must Have                                                          |                   |            |
+| Frequency of Use:  | 1-2 lần/tháng                                                   |                   |            |
+| Business Rules:    | BR-PRICE-01                                                     |                   |            |
+| Other Information: | Flat approval; không phân cấp theo mức giá.                   |                   |            |
+| Assumptions:       | Kế toán trưởng kiểm tra cẩn thận giá trước duyệt.             |                   |            |
+
+#### b. Business Rules
+
+(Refer BR-PRICE-01)
+
+### 7.3 UC-30_Auto-calculate COGS
+
+#### a. Functionalities
+
+| UC ID and Name:    | UC-30_Auto-calculate COGS                                                                                                                                                                                               |                   |            |
+| ------------------ | -------- | ------------------------------------- | ---------- |
+| Created By:        | WMS Dev Team | Date Created:     | 2026-07-14 |
+| Primary Actor:     | System (service layer)                                         | Secondary Actors: | None       |
+| Trigger:           | Khi Planner tạo DO (UC-14), hệ thống snapshot giá từ `price_history` |                   |            |
+| Description:       | Hệ thống lookup giá vốn/giá bán hiệu lực tại thời điểm tạo DO, lưu vào `delivery_order_items.unit_price` |                   |            |
+| Preconditions:     | PRE-1: DO đang được tạo.<br>PRE-2: `price_history` đã được Kế toán trưởng duyệt (`ACTIVE`). |                   |            |
+| Postconditions:    | POST-1: `delivery_order_items.unit_price` được snapshot từ `price_history`.<br>POST-2: Khi auto-invoice, dùng snapshot này để tính total_amount. |                   |            |
+| Normal Flow:       | 20.0 Snapshot COGS<br>1. Planner tạo DO<br>2. Hệ thống query `price_history` với điều kiện: `product_id = ?, effective_date <= DATE_DO, (end_date IS NULL OR end_date > DATE_DO)`<br>3. Lấy `cost_price` + `selling_price`<br>4. Lưu vào `delivery_order_items.unit_price`<br>5. Hệ thống dùng unit_price này khi auto-invoice |                   |            |
+| Alternative Flows: | None                                                           |                   |            |
+| Exceptions:        | 20.0.E1 Không có giá hiệu lực<br>1. Hệ thống trả `NO_ACTIVE_PRICE` (422), block DO create |                   |            |
+| Priority:          | Must Have                                                          |                   |            |
+| Frequency of Use:  | Tự động, mỗi lần tạo DO                                       |                   |            |
+| Business Rules:    | BR-PRICE-02, BR-INVOICE-02                                     |                   |            |
+| Other Information: | Non-UI function; automatic khi tạo DO. Snapshot cố định, không thay đổi khi giá lên/xuống sau. |                   |            |
+| Assumptions:       | `price_history` đã được setup đầy đủ trước khi tạo DO.       |                   |            |
+
+#### b. Business Rules
+
+| ID | Business Rule | Description |
+| --- | --- | --- |
+| BR-PRICE-02 | COGS Snapshot Immutable | Unit_price snapshot tại tạo DO, không thay đổi khi giá cập nhật sau |
+
+---
+
+## 8. Finance & Billing & Closing (Spec 008)
+
+### 8.1 UC-31_Track & Reconcile Invoice
+
+#### a. Functionalities
+
+| UC ID and Name:    | UC-31_Track & Reconcile Invoice                                                                                                                                                                                         |                   |            |
+| ------------------ | -------- | ------------------------------------- | ---------- |
+| Created By:        | WMS Dev Team | Date Created:     | 2026-07-14 |
+| Primary Actor:     | Kế toán viên (ACCOUNTANT)                                      | Secondary Actors: | None       |
+| Trigger:           | DO giao thành công, invoice được tạo, kế toán cần đối chiếu   |                   |            |
+| Description:       | Kế toán viên xem `billing_notifications` worklist (DO đã giao chờ đối chiếu), confirm invoice tương ứng |                   |            |
+| Preconditions:     | PRE-1: DO ở `COMPLETED` (sau delivery `DELIVERED`).<br>PRE-2: Invoice đã được auto-create. |                   |            |
+| Postconditions:    | POST-1: `billing_notifications` được mark as confirmed.<br>POST-2: Ghi audit log `INVOICE_RECONCILED`. |                   |            |
+| Normal Flow:       | 21.0 Reconcile Invoice<br>1. Kế toán viên xem Billing Notifications Worklist<br>2. Kế toán viên xem chi tiết DO → Invoice tương ứng<br>3. Confirm match giữa DO + Invoice (số lượng, giá, total)<br>4. Nếu match: confirm, worklist item cleared<br>5. Ghi audit log |                   |            |
+| Alternative Flows: | 21.1 Invoice Mismatch<br>1. Nếu không match: ghi note, escalate cho ACCOUNTANT_MANAGER<br>2. Chưa clear worklist item |                   |            |
+| Exceptions:        | 21.0.E1 Không có invoice tương ứng<br>1. Ghi alert cho hệ thống, escalate |                   |            |
+| Priority:          | Must Have                                                          |                   |            |
+| Frequency of Use:  | Hàng ngày, mỗi khi có DO giao                                  |                   |            |
+| Business Rules:    | BR-INVOICE-03                                                   |                   |            |
+| Other Information: | `billing_notifications` là worklist để đối chiếu; không bắt buộc phải confirm, nhưng giúp audit trail. |                   |            |
+| Assumptions:       | Kế toán viên compare DO + Invoice kỹ lưỡng trước confirm.     |                   |            |
+
+#### b. Business Rules
+
+| ID | Business Rule | Description |
+| --- | --- | --- |
+| BR-INVOICE-03 | Reconciliation Workflow | Worklist để đối chiếu; confirm khi match giữa DO + Invoice |
+
+### 8.2 UC-32_Record Payment Receipt
+
+#### a. Functionalities
+
+| UC ID and Name:    | UC-32_Record Payment Receipt                                                                                                                                                                                            |                   |            |
+| ------------------ | -------- | ------------------------------------- | ---------- |
+| Created By:        | WMS Dev Team | Date Created:     | 2026-07-14 |
+| Primary Actor:     | Kế toán viên (ACCOUNTANT)                                      | Secondary Actors: | None       |
+| Trigger:           | Đại lý thanh toán hóa đơn, ghi Phiếu Thu                      |                   |            |
+| Description:       | Kế toán viên ghi nhận Phiếu Thu, cấn trừ hóa đơn, cập nhật công nợ. Nếu balance < credit_limit*0.8, mở khóa tín dụng. |                   |            |
+| Preconditions:     | PRE-1: User có role `ACCOUNTANT`.<br>PRE-2: Invoice tồn tại và chưa fully paid. |                   |            |
+| Postconditions:    | POST-1: `payment_receipts` được tạo.<br>POST-2: `invoices.status` cập nhật (`PAID` nếu full, `PARTIALLY_PAID` nếu partial).<br>POST-3: `dealers.current_balance` trừ amount thanh toán.<br>POST-4: Nếu balance < limit*0.8 và không overdue → `credit_status = ACTIVE`.<br>POST-5: Ghi audit log `PAYMENT_RECEIVED`. |                   |            |
+| Normal Flow:       | 22.0 Payment Receipt<br>1. Kế toán viên truy cập Payment Receipt screen<br>2. Kế toán viên chọn Đại lý, ngày thanh toán, amount<br>3. Hệ thống hiển thị danh sách hóa đơn chờ thanh toán<br>4. Kế toán viên chọn hóa đơn để cấn trừ<br>5. Xác nhận<br>6. Hệ thống tính tổng payment, trừ balance, cập nhật invoice status<br>7. Kiểm tra credit (xem 22.0.E1)<br>8. Ghi audit log |                   |            |
+| Alternative Flows: | 22.1 Partial Payment<br>1. Nếu payment < invoice total: update `PARTIALLY_PAID`<br>2. Tiếp tục tính credit_status |                   |            |
+| Exceptions:        | 22.0.E1 Amount < 0 hoặc > total invoice<br>1. Hệ thống trả `INVALID_AMOUNT` (400)<br>22.0.E2 Dealer không tồn tại<br>1. Hệ thống trả `DEALER_NOT_FOUND` (404) |                   |            |
+| Priority:          | Must Have                                                          |                   |            |
+| Frequency of Use:  | Định kỳ khi nhận thanh toán                                   |                   |            |
+| Business Rules:    | BR-CREDIT-02, BR-INVOICE-04                                    |                   |            |
+| Other Information: | Thanh toán idempotent: nếu đã record, không record lại (check by receipt id). |                   |            |
+| Assumptions:       | Kế toán viên receive payment info chính xác từ tài chính/ngân hàng. |                   |            |
+
+#### b. Business Rules
+
+| ID | Business Rule | Description |
+| --- | --- | --- |
+| BR-CREDIT-02 | Credit Unlock | Khi balance < credit_limit * 0.8, mở khóa từ CREDIT_HOLD sang ACTIVE |
+| BR-INVOICE-04 | Payment Idempotent | Chỉ record 1 lần per payment; không record lại nếu đã tồn tại |
+
+### 8.3 UC-33_View Aging Report
+
+#### a. Functionalities
+
+| UC ID and Name:    | UC-33_View Aging Report                                                                                                                                                                                                 |                   |            |
+| ------------------ | -------- | ------------------------------------- | ---------- |
+| Created By:        | WMS Dev Team | Date Created:     | 2026-07-14 |
+| Primary Actor:     | Kế toán trưởng (ACCOUNTANT_MANAGER)                           | Secondary Actors: | None       |
+| Trigger:           | Cần xem báo cáo phân kỳ công nợ (định kỳ hàng tháng)           |                   |            |
+| Description:       | System generate aging report phân loại hóa đơn chưa trả thành: 1-30 ngày, 31-60 ngày, >60 ngày (qua hạn) |                   |            |
+| Preconditions:     | PRE-1: User có role `ACCOUNTANT_MANAGER` hoặc `CEO`.           |                   |            |
+| Postconditions:    | POST-1: Aging report được hiển thị / export (read-only).<br>POST-2: Ghi audit log `AGING_REPORT_VIEWED`. |                   |            |
+| Normal Flow:       | 23.0 Aging Report<br>1. Kế toán trưởng truy cập Aging Report<br>2. Hệ thống query invoices theo `due_date`<br>3. Phân loại:<br>   - Not due: due_date >= TODAY<br>   - 1-30 days: due_date < TODAY, NOW - due_date ≤ 30<br>   - 31-60 days: 31 ≤ NOW - due_date ≤ 60<br>   - >60 days: NOW - due_date > 60<br>4. Hiển thị tổng hợp amount + dealer count per bucket<br>5. Cho export Excel / PDF |                   |            |
+| Alternative Flows: | 23.1 Drill Down<br>1. Kế toán trưởng click bucket để xem chi tiết hóa đơn |                   |            |
+| Exceptions:        | None (read-only)                                               |                   |            |
+| Priority:          | Must Have                                                          |                   |            |
+| Frequency of Use:  | Hàng tháng (định kỳ)                                           |                   |            |
+| Business Rules:    | None (read-only reporting)                                     |                   |            |
+| Other Information: | Report tính toán qua hạn từ `due_date`, không phải `issue_date`. |                   |            |
+| Assumptions:       | Invoice `issue_date` + 30 = `due_date` (Net 30 mặc định).    |                   |            |
+
+#### b. Business Rules
+
+None (read-only reporting)
+
+### 8.4 UC-34_Close Accounting Period
+
+#### a. Functionalities
+
+| UC ID and Name:    | UC-34_Close Accounting Period                                                                                                                                                                                           |                   |            |
+| ------------------ | -------- | ------------------------------------- | ---------- |
+| Created By:        | WMS Dev Team | Date Created:     | 2026-07-14 |
+| Primary Actor:     | Kế toán trưởng (ACCOUNTANT_MANAGER)                           | Secondary Actors: | None       |
+| Trigger:           | Kỳ kế toán kết thúc (cuối tháng), cần chốt sổ                |                   |            |
+| Description:       | Kế toán trưởng khóa cứng kỳ tháng, chỉ cho phép Adjustment Vouchers trong kỳ mở; chứng từ kỳ đóng không cho sửa/xóa |                   |            |
+| Preconditions:     | PRE-1: User có role `ACCOUNTANT_MANAGER`.<br>PRE-2: Kỳ tồn tại (created bởi system hoặc manual). |                   |            |
+| Postconditions:    | POST-1: `accounting_periods.status = CLOSED`.<br>POST-2: Chứng từ trong kỳ này không cho sửa/xóa (read-only).<br>POST-3: Ghi audit log `PERIOD_CLOSED`. |                   |            |
+| Normal Flow:       | 24.0 Close Period<br>1. Kế toán trưởng xem Accounting Periods (OPEN/CLOSED)<br>2. Kế toán trưởng chọn kỳ cuối cùng OPEN<br>3. Bấm "Chốt Sổ"<br>4. Hệ thống confirm (bất khả đảo)<br>5. Chuyển status → `CLOSED`<br>6. Ghi audit log |                   |            |
+| Alternative Flows: | None                                                           |                   |            |
+| Exceptions:        | 24.0.E1 Kỳ còn OPEN trước đó<br>1. Hệ thống yêu cầu đóng kỳ trước trước (không cho skip kỳ) |                   |            |
+| Priority:          | Must Have                                                          |                   |            |
+| Frequency of Use:  | 1x/tháng (cuối tháng)                                         |                   |            |
+| Business Rules:    | BR-CLOSE-01                                                     |                   |            |
+| Other Information: | Sau kỳ CLOSED, chỉ cho Correction/Adjustment Vouchers ở kỳ mở; chứng từ kỳ CLOSED read-only. |                   |            |
+| Assumptions:       | Kế toán trưởng chắc chắn trước khi chốt (không reversible).  |                   |            |
+
+#### b. Business Rules
+
+| ID | Business Rule | Description |
+| --- | --- | --- |
+| BR-CLOSE-01 | Sequential Period Closing | Phải đóng kỳ theo thứ tự (không skip); kỳ mở chỉ có corrections |
+
+---
+
+## 9. Returns, Scrap & Disposal (Spec 009)
+
+### 9.1 UC-35_Process Dealer Return (Credit Note)
+
+#### a. Functionalities
+
+| UC ID and Name:    | UC-35_Process Dealer Return (Credit Note)                                                                                                                                                                               |                   |            |
+| ------------------ | -------- | ------------------------------------- | ---------- |
+| Created By:        | WMS Dev Team | Date Created:     | 2026-07-14 |
+| Primary Actor:     | Thủ kho (STOREKEEPER) tiếp nhận; Kế toán viên (ACCOUNTANT) lập Credit Note | Secondary Actors: | None |
+| Trigger:           | Đại lý hoàn hàng (lỗi, không phù hợp, v.v.)                  |                   |            |
+| Description:       | Thủ kho tiếp nhận hàng hoàn, kiểm tra chất lượng. Nếu OK: cộng tồn kho. Kế toán viên lập Credit Note giảm công nợ. |                   |            |
+| Preconditions:     | PRE-1: Hàng từ Đại lý, có DO tương ứng.                       |                   |            |
+| Postconditions:    | POST-1: Hàng hoàn được cộng lại tồn kho (nếu QC OK).<br>POST-2: `credit_notes` được tạo, giảm balance Đại lý.<br>POST-3: Ghi audit log `RETURN_RECEIVED`/`CREDIT_NOTE_CREATED`. |                   |            |
+| Normal Flow:       | 25.0 Process Return<br>1. Thủ kho nhận hàng hoàn từ Đại lý<br>2. Kiểm tra chất lượng<br>3. Nếu OK: cộng tồn kho vào bin<br>4. Kế toán viên lập Credit Note: dealer, amount (= return_qty * unit_price from original DO)<br>5. Hệ thống trừ dealers.current_balance<br>6. Ghi audit log |                   |            |
+| Alternative Flows: | None                                                           |                   |            |
+| Exceptions:        | 25.0.E1 QC return fail (hàng bị hư)<br>1. Hàng vào Quarantine, không cộng tồn thường<br>2. Kế toán viên không lập Credit Note, ghi disposition |                   |            |
+| Priority:          | Should Have                                                    |                   |            |
+| Frequency of Use:  | Hiếm, khi có hoàn hàng                                       |                   |            |
+| Business Rules:    | BR-RETURN-01                                                   |                   |            |
+| Other Information: | Return từ Đại lý khác với RTV từ NCC; không dùng Debit Note.  |                   |            |
+| Assumptions:       | Thủ kho kiểm tra chất lượng hoàn trước cộng tồn.             |                   |            |
+
+#### b. Business Rules
+
+| ID | Business Rule | Description |
+| --- | --- | --- |
+| BR-RETURN-01 | Customer Return vs Supplier RTV | Return từ Đại lý → Credit Note; RTV từ NCC → Debit Note |
+
+### 9.2 UC-36_Approve & Execute Disposal
+
+#### a. Functionalities
+
+| UC ID and Name:    | UC-36_Approve & Execute Disposal                                                                                                                                                                                       |                   |            |
+| ------------------ | -------- | ------------------------------------- | ---------- |
+| Created By:        | WMS Dev Team | Date Created:     | 2026-07-14 |
+| Primary Actor:     | Trưởng kho (WAREHOUSE_MANAGER)                                 | Secondary Actors: | Thủ kho |
+| Trigger:           | Hàng lỗi QC trong Quarantine, cần tiêu hủy                   |                   |            |
+| Description:       | Thủ kho/Trưởng kho submit biên bản hư hỏng + lý do tiêu hủy, Trưởng kho duyệt, Thủ kho xác nhận tiêu hủy |                   |            |
+| Preconditions:     | PRE-1: Quarantine records tồn tại.<br>PRE-2: Hàng không thể bán lại (QC fail, lỗi sản xuất). |                   |            |
+| Postconditions:    | POST-1: `damage_reports` được tạo.<br>POST-2: `adjustments` loại `DISPOSAL` được tạo.<br>POST-3: Tồn Quarantine bị trừ (hàng tiêu hủy).<br>POST-4: Ghi audit log `DISPOSAL_APPROVED`/`DISPOSAL_EXECUTED`. |                   |            |
+| Normal Flow:       | 26.0 Disposal<br>1. Thủ kho lập biên bản hư hỏng: product, qty, origin (QC fail/...), lý do tiêu hủy<br>2. Trưởng kho xem + duyệt<br>3. Thủ kho xác nhận tiêu hủy (chụp ảnh nếu cần)<br>4. Hệ thống trừ Quarantine inventory<br>5. Tạo `adjustments` (`type = DISPOSAL`)<br>6. Ghi audit log |                   |            |
+| Alternative Flows: | 26.1 Reject Disposal<br>1. Trưởng kho từ chối (nghi ngờ còn dùng được)<br>2. Hàng quay lại Quarantine, chờ xử lý khác |                   |            |
+| Exceptions:        | 26.0.E1 Không có quyền<br>1. Hệ thống trả `FORBIDDEN` (403)    |                   |            |
+| Priority:          | Should Have                                                    |                   |            |
+| Frequency of Use:  | Theo tỷ lệ QC fail (thường thấp)                              |                   |            |
+| Business Rules:    | BR-DISPOSE-01                                                  |                   |            |
+| Other Information: | Flat approval: Trưởng kho duyệt không phân cấp giá trị.      |                   |            |
+| Assumptions:       | Thủ kho lập biên bản chính xác.                               |                   |            |
+
+#### b. Business Rules
+
+| ID | Business Rule | Description |
+| --- | --- | --- |
+| BR-DISPOSE-01 | Flat Disposal Approval | Trưởng kho duyệt tiêu hủy; không phân cấp theo giá trị |
+
+---
+
+## 10. Reports, Dashboards & Alerts (Spec 010)
+
+### 10.1 UC-37_View CEO Dashboard
+
+#### a. Functionalities
+
+| UC ID and Name:    | UC-37_View CEO Dashboard                                                                                                                                                                                                |                   |            |
+| ------------------ | -------- | ------------------------------------- | ---------- |
+| Created By:        | WMS Dev Team | Date Created:     | 2026-07-14 |
+| Primary Actor:     | CEO                                                            | Secondary Actors: | ACCOUNTANT_MANAGER |
+| Trigger:           | CEO truy cập Dashboard để xem KPI toàn hệ thống               |                   |            |
+| Description:       | Dashboard tổng hợp KPI: tồn kho, công nợ, P&L, tỷ lệ lỗi QC, On-Time Delivery (OTD) |                   |            |
+| Preconditions:     | PRE-1: User có role `CEO`.                                    |                   |            |
+| Postconditions:    | POST-1: Dashboard hiển thị (read-only).<br>POST-2: Ghi audit log `DASHBOARD_VIEWED` (nếu config audit). |                   |            |
+| Normal Flow:       | 27.0 CEO Dashboard<br>1. CEO truy cập Home / Dashboard<br>2. Hệ thống hiển thị multi-tab:<br>   - Inventory KPI: total value, low stock count, movement ratio<br>   - Credit KPI: total A/R, aging buckets, CREDIT_HOLD count<br>   - P&L: revenue (YTD), COGS, gross margin%<br>   - QC KPI: accept rate%, defect rate%<br>   - OTD: on-time %, late delivery count<br>3. CEO click tab để xem chi tiết |                   |            |
+| Alternative Flows: | None                                                           |                   |            |
+| Exceptions:        | None (read-only)                                               |                   |            |
+| Priority:          | Should Have                                                    |                   |            |
+| Frequency of Use:  | Hàng ngày (CEO check)                                         |                   |            |
+| Business Rules:    | None (read-only reporting)                                     |                   |            |
+| Other Information: | Non-UI function: KPI calculated nightly or on-demand.        |                   |            |
+| Assumptions:       | Data từ các operation tables (inventory, invoices, deliveries) đã valid. |                   |            |
+
+#### b. Business Rules
+
+None (read-only reporting)
+
+### 10.2 UC-38_Trigger/Resolve Low Stock Alert
+
+#### a. Functionalities
+
+| UC ID and Name:    | UC-38_Trigger/Resolve Low Stock Alert                                                                                                                                                                                  |                   |            |
+| ------------------ | -------- | ------------------------------------- | ---------- |
+| Created By:        | WMS Dev Team | Date Created:     | 2026-07-14 |
+| Primary Actor:     | System (StockAlertService)                                    | Secondary Actors: | Planner (resolve) |
+| Trigger:           | Tự động khi tồn khả dụng < `reorder_point`                   |                   |            |
+| Description:       | Hệ thống tạo cảnh báo low stock, Planner xem + resolve (lập DO để nhập hàng) |                   |            |
+| Preconditions:     | PRE-1: Product có `reorder_point` được set.                   |                   |            |
+| Postconditions:    | POST-1: `stock_alerts` được tạo (`is_resolved = false`).<br>POST-2: Planner xác nhận resolve (lập DO hoặc manual mark).<br>POST-3: Alert chuyển `is_resolved = true`.<br>POST-4: Ghi audit log `ALERT_CREATED`/`ALERT_RESOLVED`. |                   |            |
+| Normal Flow:       | 28.0 Low Stock Alert<br>1. System service trigger mỗi khi inventory change (receipt/issue/transfer/adjust)<br>2. Tính `available_qty = total_qty - reserved_qty - quarantine_qty`<br>3. Nếu `available_qty < reorder_point`: tạo `stock_alerts` record (`is_resolved = false`)<br>4. Alert xuất hiện trong Planner worklist<br>5. Planner xem, lập DO để nhập hàng hoặc mark resolved<br>6. Ghi audit log |                   |            |
+| Alternative Flows: | 28.1 Manual Resolve<br>1. Planner xem alert, chọn "Resolve"<br>2. Ghi note hoặc confirm lập DO<br>3. Alert chuyển `is_resolved = true` |                   |            |
+| Exceptions:        | None (auto-generated)                                          |                   |            |
+| Priority:          | Should Have                                                    |                   |            |
+| Frequency of Use:  | Real-time khi tồn thay đổi                                   |                   |            |
+| Business Rules:    | BR-ALERT-01                                                    |                   |            |
+| Other Information: | Non-UI function: auto-calculated. Worklist cho Planner theo dõi. |                   |            |
+| Assumptions:       | `reorder_point` được set chính xác cho từng product.         |                   |            |
+
+#### b. Business Rules
+
+| ID | Business Rule | Description |
+| --- | --- | --- |
+| BR-ALERT-01 | Low Stock Alert Trigger | Alert kích hoạt khi available_qty < reorder_point |
+
+### 10.3 UC-39_View/Export Productivity Report
+
+#### a. Functionalities
+
+| UC ID and Name:    | UC-39_View/Export Productivity Report                                                                                                                                                                                  |                   |            |
+| ------------------ | -------- | ------------------------------------- | ---------- |
+| Created By:        | WMS Dev Team | Date Created:     | 2026-07-14 |
+| Primary Actor:     | Trưởng kho (WAREHOUSE_MANAGER)                                 | Secondary Actors: | None       |
+| Trigger:           | Trưởng kho cần xem báo cáo năng suất nhân viên kho (định kỳ) |                   |            |
+| Description:       | System generate productivity report: nhân viên, số phiếu xử lý, số item picked/packed, efficiency score (item/giờ) |                   |            |
+| Preconditions:     | PRE-1: User có role `WAREHOUSE_MANAGER`.                       |                   |            |
+| Postconditions:    | POST-1: Report hiển thị / export Excel (read-only).<br>POST-2: Ghi audit log `PRODUCTIVITY_REPORT_VIEWED`. |                   |            |
+| Normal Flow:       | 29.0 Productivity Report<br>1. Trưởng kho truy cập Productivity Report<br>2. Chọn khoảng thời gian (tháng/quý)<br>3. Hệ thống query audit_logs + delivery_order_items để tính:<br>   - Số phiếu xử lý (DO / transfers)<br>   - Số item picked<br>   - Tổng giờ làm (estimate từ workflow state changes)<br>   - Efficiency = items / hours<br>4. Hiển thị bảng + biểu đồ<br>5. Export Excel nếu cần |                   |            |
+| Alternative Flows: | None                                                           |                   |            |
+| Exceptions:        | None (read-only)                                               |                   |            |
+| Priority:          | Should Have                                                    |                   |            |
+| Frequency of Use:  | Định kỳ (tháng/quý)                                           |                   |            |
+| Business Rules:    | None (read-only reporting)                                     |                   |            |
+| Other Information: | Non-UI function: Report tính từ audit_logs + delivery tables. Efficiency là proxy; không audit lọc giờ từng staff. |                   |            |
+| Assumptions:       | Audit_logs đầy đủ từ mọi workflow state changes.             |                   |            |
+
+#### b. Business Rules
+
+None (read-only reporting)
+
+---
+
 # III. Design Specifications
 
 > **Phạm vi phần này:** thiết kế UI/DB Access/SQL cho các màn hình chính của **Spec 003 – Inbound Receipt & QC**, theo đúng mẫu template. Các nhóm nghiệp vụ khác áp dụng cùng mẫu khi triển khai.
