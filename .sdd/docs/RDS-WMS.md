@@ -336,7 +336,7 @@ Frontend theo cấu trúc React 18 + Tailwind: `components/` (PascalCase), `page
 
 # II. Requirement Specifications
 
-> **Phạm vi phần này:** tài liệu viết đầy đủ chi tiết (Functional Description + Business Rules) cho các nhóm nghiệp vụ **Spec 001 – Security & Auth**, **Spec 002 – Master Data**, và **Spec 003 – Inbound Receipt & QC**, theo đúng mẫu template. Các nhóm nghiệp vụ còn lại (Spec 004–010) đã có danh sách Use Case đầy đủ tại mục I.1.2 và sẽ được bổ sung Functional Description tương tự; Spec 011–012 là quality/testing cross-cutting. 
+> **Phạm vi phần này:** tài liệu viết đầy đủ chi tiết (Functional Description + Business Rules) theo đúng mẫu template cho **toàn bộ 10 nhóm nghiệp vụ (Spec 001–010)**, đồng bộ với danh sách Use Case tại mục I.1.2. Spec 011–012 là quality/testing cross-cutting, không có UI/DB use case nghiệp vụ riêng.
 
 ## 1. Security, Authentication & RBAC (Spec 001)
 
