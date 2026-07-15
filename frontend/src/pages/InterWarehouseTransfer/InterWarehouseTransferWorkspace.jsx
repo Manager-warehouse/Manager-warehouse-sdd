@@ -309,8 +309,8 @@ const InterWarehouseTransferWorkspace = () => {
   };
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 flex-wrap">
+    <div className="mobile-page">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-4 flex-wrap">
         <div className="flex-1 min-w-0">
           <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
             Vận hành / Transfer
@@ -322,7 +322,7 @@ const InterWarehouseTransferWorkspace = () => {
             Lập phiếu thủ công từ lệnh Công ty mẹ, giữ chỗ, xuất hàng, vận chuyển và xác nhận nhận hàng.
           </p>
         </div>
-        <div className="flex gap-2 flex-shrink-0">
+        <div className="mobile-filter-bar sm:flex sm:gap-2 sm:flex-shrink-0">
           <Button icon={RefreshCw} variant="outline-light" onClick={loadData} loading={loading}>Tải lại</Button>
           {canCreateTransfer && (
             <Button icon={Plus} onClick={() => setFormOpen((value) => !value)}>Tạo phiếu</Button>
@@ -331,7 +331,7 @@ const InterWarehouseTransferWorkspace = () => {
       </div>
 
       {formOpen && (
-        <div className="border border-hairline-light rounded-lg bg-canvas-light p-4 grid grid-cols-1 md:grid-cols-4 gap-3">
+        <div className="border border-hairline-light rounded-lg bg-canvas-light p-3 md:p-4 grid grid-cols-1 md:grid-cols-4 gap-3">
           <Input label="Mã lệnh Công ty mẹ" value={form.externalInstructionCode} onChange={(e) => setForm({ ...form, externalInstructionCode: e.target.value })} />
           <Input type="select" label="Kho nguồn" value={form.sourceWarehouseId} onChange={(e) => setForm({ ...form, sourceWarehouseId: e.target.value })}
             options={sourceWarehouseOptions} />

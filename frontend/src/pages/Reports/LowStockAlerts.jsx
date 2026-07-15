@@ -50,7 +50,7 @@ const LowStockAlerts = () => {
   };
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="mobile-page">
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
@@ -65,7 +65,7 @@ const LowStockAlerts = () => {
           </p>
         </div>
 
-        <div className="flex gap-2 flex-wrap md:flex-nowrap items-center">
+        <div className="mobile-filter-bar md:flex md:flex-nowrap md:items-center md:gap-2">
           <Input
             type="select"
             value={warehouseId}
@@ -76,7 +76,7 @@ const LowStockAlerts = () => {
               { value: '2', label: 'Kho Hà Nội' },
               { value: '3', label: 'Kho Hồ Chí Minh' },
             ]}
-            className="flex-1"
+            className="md:flex-1"
           />
           <Input
             type="select"
@@ -87,7 +87,7 @@ const LowStockAlerts = () => {
               { value: 'true', label: 'Đã bổ sung (Đã xử lý)' },
               { value: 'all', label: 'Tất cả lịch sử' },
             ]}
-            className="flex-1"
+            className="md:flex-1"
           />
           <Button variant="outline-light" icon={RefreshCw} onClick={fetchAlerts}>
             Làm mới
@@ -110,7 +110,7 @@ const LowStockAlerts = () => {
         <>
           {/* Details Table */}
           <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between border-b border-hairline-light px-6 py-4">
+            <div className="flex items-center justify-between border-b border-hairline-light px-4 sm:px-6 py-4">
               <h3 className="text-sm font-bold text-shade-70 uppercase tracking-wider">
                 Danh sách cảnh báo ({totalElements} bản ghi)
               </h3>
@@ -176,17 +176,17 @@ const LowStockAlerts = () => {
                 </div>
 
                 {/* Mobile: stacked card view */}
-                <div className="flex flex-col gap-3 p-4 md:hidden">
+                <div className="mobile-compact-list flex flex-col gap-3 p-4 md:hidden">
                   {alerts.map((alert) => (
                     <div
                       key={alert.id}
                       className={`rounded-lg border border-hairline-light overflow-hidden ${!alert.is_resolved ? 'bg-danger-50/20' : 'bg-canvas-cream/30'}`}
                     >
-                      <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center gap-2">
+                      <div className="p-3 sm:p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center gap-2">
                         <span className="font-mono text-xs font-medium">{alert.product_sku}</span>
                         {getAlertTag(alert.alert_type)}
                       </div>
-                      <div className="p-4 flex flex-col gap-2 text-xs">
+                      <div className="p-3 sm:p-4 flex flex-col gap-2 text-xs">
                         <div className="font-semibold text-ink">{alert.product_name}</div>
                         <p className="text-shade-50">Kho vật lý: <span className="font-semibold text-ink">{alert.warehouse_name}</span></p>
                         <p className="text-shade-50">Tồn khả dụng: <span className={`font-bold ${alert.current_qty === 0 ? 'text-danger-600' : 'text-orange-600'}`}>

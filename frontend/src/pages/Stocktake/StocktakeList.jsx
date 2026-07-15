@@ -107,7 +107,7 @@ const StocktakeList = () => {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="mobile-page">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -123,12 +123,12 @@ const StocktakeList = () => {
       </div>
 
       {/* Filters */}
-      <div className="flex border-b border-hairline-light overflow-x-auto whitespace-nowrap scrollbar-none mb-2">
+      <div className="flex border-b border-hairline-light overflow-x-auto whitespace-nowrap scrollbar-none mb-1 md:mb-2">
         {['', 'DRAFT', 'IN_PROGRESS', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'CANCELLED'].map((s) => (
           <button
             key={s}
             onClick={() => setStatusFilter(s)}
-            className={`px-4 py-2.5 font-semibold text-xs transition-colors border-b-2 uppercase tracking-wide ${
+            className={`px-3 md:px-4 py-2.5 font-semibold text-xs transition-colors border-b-2 uppercase tracking-wide ${
               statusFilter === s
                 ? 'border-ink text-ink'
                 : 'border-transparent text-shade-50 hover:text-ink'

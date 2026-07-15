@@ -88,6 +88,103 @@
     height: calc(100% - 4rem - env(safe-area-inset-top, 0px));
   }
 
+  .app-safe-public {
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .auth-login-shell {
+    min-height: 100dvh;
+  }
+
+  .auth-login-brand {
+    padding: calc(4.5rem + env(safe-area-inset-top, 0px)) 1.25rem 1.25rem;
+  }
+
+  .mobile-page {
+    @apply flex flex-col gap-6;
+  }
+
+  .mobile-filter-bar {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  @media (max-width: 767px) {
+    .auth-login-shell {
+      min-height: calc(100dvh + env(safe-area-inset-top, 0px));
+    }
+
+    .auth-login-brand {
+      min-height: auto;
+    }
+
+    .auth-login-brand h1 {
+      font-size: clamp(2rem, 11vw, 3.25rem);
+      line-height: 0.98;
+    }
+
+    .auth-login-form {
+      padding: 1.25rem;
+    }
+
+    .auth-login-trial {
+      max-height: 18rem;
+      overflow-y: auto;
+    }
+
+    .mobile-page {
+      @apply gap-4;
+    }
+
+    .mobile-page h1 {
+      font-size: clamp(1.75rem, 7.5vw, 2.1rem);
+      line-height: 1.08;
+      overflow-wrap: anywhere;
+    }
+
+    .mobile-page p {
+      line-height: 1.45;
+    }
+
+    .mobile-page .card-premium,
+    .mobile-page .card-featured-mint {
+      @apply p-4;
+    }
+
+    .mobile-page .mobile-kpi-card {
+      min-height: 7.75rem;
+      height: auto;
+    }
+
+    .mobile-page .mobile-kpi-card .mobile-kpi-value {
+      font-size: 1.45rem;
+      line-height: 1.05;
+    }
+
+    .mobile-page .mobile-section-card {
+      @apply rounded-lg;
+    }
+
+    .mobile-filter-bar {
+      @apply grid grid-cols-1 w-full;
+    }
+
+    .mobile-filter-bar > * {
+      min-width: 0;
+      width: 100%;
+    }
+
+    .mobile-compact-list {
+      @apply gap-2 p-3;
+    }
+  }
+
+  @media (min-width: 768px) and (hover: hover) and (pointer: fine) {
+    .auth-login-brand {
+      padding: 4rem;
+    }
+  }
+
   /* Custom scrollbar */
   ::-webkit-scrollbar {
     width: 6px;

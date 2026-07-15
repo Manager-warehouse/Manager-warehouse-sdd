@@ -279,7 +279,7 @@ const TransferRequestWorkspace = () => {
   };
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="mobile-page">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -301,7 +301,7 @@ const TransferRequestWorkspace = () => {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-hairline-light overflow-x-auto whitespace-nowrap scrollbar-none mb-2">
+      <div className="flex border-b border-hairline-light overflow-x-auto whitespace-nowrap scrollbar-none mb-1 md:mb-2">
         {['ALL', 'DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED', 'CONVERTED', 'CANCELLED'].map(tab => (
           <button
             key={tab}
@@ -323,17 +323,17 @@ const TransferRequestWorkspace = () => {
           <Loader2 className="w-8 h-8 animate-spin text-shade-50" />
         </div>
       ) : filteredRequests.length === 0 ? (
-        <div className="bg-canvas-light rounded-lg border border-hairline-light p-16 text-center shadow-level-3">
+        <div className="bg-canvas-light rounded-lg border border-hairline-light p-8 md:p-16 text-center shadow-level-3">
           <Inbox className="w-12 h-12 text-shade-50 mx-auto mb-4" />
           <h3 className="text-sm font-semibold text-ink mb-1">Không tìm thấy yêu cầu nào</h3>
           <p className="text-xs text-shade-50 font-light">Không có yêu cầu điều chuyển nào ở trạng thái này.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-6">
           {filteredRequests.map((req) => (
             <div
               key={req.id}
-              className="bg-canvas-light border border-hairline-light rounded-lg p-5 shadow-level-3 hover:shadow-md transition-shadow flex flex-col justify-between"
+              className="bg-canvas-light border border-hairline-light rounded-lg p-4 md:p-5 shadow-level-3 hover:shadow-md transition-shadow flex flex-col justify-between"
             >
               <div>
                 <div className="flex justify-between items-start gap-4 mb-3 pb-3 border-b border-hairline-light">

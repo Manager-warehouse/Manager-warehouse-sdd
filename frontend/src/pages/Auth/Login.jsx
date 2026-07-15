@@ -48,9 +48,9 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-canvas-night text-onPrimary flex flex-col md:flex-row font-sans">
+    <div className="auth-login-shell app-safe-public bg-canvas-night text-onPrimary flex flex-col md:flex-row font-sans">
       {/* Left panel: Branding / Cinematic */}
-      <div className="flex-1 flex flex-col justify-between p-8 md:p-16 bg-gradient-to-br from-canvas-nightElevated via-canvas-night to-shade-70 relative overflow-hidden border-b md:border-b-0 md:border-r border-hairline-dark">
+      <div className="auth-login-brand flex-1 flex flex-col justify-between bg-gradient-to-br from-canvas-nightElevated via-canvas-night to-shade-70 relative overflow-hidden border-b md:border-b-0 md:border-r border-hairline-dark">
         <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#c1fbd4_1px,transparent_1px)] [background-size:16px_16px]" />
 
         {/* Eyebrow / Logo */}
@@ -64,7 +64,7 @@ const Login = () => {
         </div>
 
         {/* Cinematic Text */}
-        <div className="relative my-auto py-12 md:py-0 z-10">
+        <div className="relative my-auto py-8 md:py-0 z-10">
           <span className="text-[12px] font-semibold text-aloe-10 uppercase tracking-widest block mb-4">
             Hệ thống Quản lý Kho vận nội bộ
           </span>
@@ -73,7 +73,7 @@ const Login = () => {
             <br />
             <span className="text-shade-40">Vận hành tối ưu.</span>
           </h1>
-          <p className="text-sm md:text-base text-shade-40 font-light mt-6 max-w-md leading-relaxed">
+          <p className="text-sm md:text-base text-shade-40 font-light mt-4 md:mt-6 max-w-md leading-relaxed">
             Hệ thống quản lý tồn kho tích hợp nghiệp vụ nhập, xuất, điều chuyển, kiểm định chất lượng (QC) và công nợ đại lý của Phúc Anh.
           </p>
         </div>
@@ -85,8 +85,8 @@ const Login = () => {
       </div>
 
       {/* Right panel: Login Form */}
-      <div className="flex-1 flex flex-col justify-center items-center p-8 md:p-16 bg-canvas-night">
-        <div className="w-full max-w-md flex flex-col gap-8">
+      <div className="auth-login-form flex-1 flex flex-col justify-center items-center p-8 md:p-16 bg-canvas-night">
+        <div className="w-full max-w-md flex flex-col gap-6 md:gap-8">
           <div>
             <h2 className="text-2xl font-display font-semibold tracking-tight">
               Đăng nhập hệ thống
@@ -96,7 +96,7 @@ const Login = () => {
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4 md:gap-5">
             {error && (
               <div className="p-4 bg-danger-950/40 border border-danger-800 rounded-lg text-danger-400 text-xs font-medium">
                 {error}
@@ -145,7 +145,7 @@ const Login = () => {
           </form>
 
           {/* Quick instructions / Help */}
-          <div className="p-4 bg-canvas-nightElevated border border-hairline-dark rounded-lg">
+          <div className="auth-login-trial p-4 bg-canvas-nightElevated border border-hairline-dark rounded-lg">
             <span className="text-[10px] font-bold text-aloe-10 uppercase tracking-wider block mb-2">
               Tài khoản dùng thử (Mock Mode)
             </span>
