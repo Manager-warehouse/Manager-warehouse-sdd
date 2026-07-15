@@ -1425,9 +1425,333 @@ None (read-only reporting)
 
 # III. Design Specifications
 
-> **Phạm vi phần này:** thiết kế UI/DB Access/SQL cho các màn hình chính của **Spec 003 – Inbound Receipt & QC**, theo đúng mẫu template. Các nhóm nghiệp vụ khác áp dụng cùng mẫu khi triển khai.
+> **Phạm vi phần này:** thiết kế UI Design / Database Access / SQL Commands cho các màn hình chính của **toàn bộ 10 nhóm nghiệp vụ (Spec 001–010)**, theo đúng mẫu template, đồng bộ với danh sách màn hình tại mục I.2.2.
 
-## 1. Inbound Receipt & QC
+## 1. Security, Authentication & RBAC (Spec 001)
+
+### 1.1 System Configuration
+
+#### a. System Config Screen
+
+Man hinh cho System Admin cau hinh tham so mac dinh cua he thong; lien quan UC-01.
+
+Related use cases:
+
+- UC-01_Configure System Parameters
+
+UI Design
+
+| Field Name              | Field Type          | Description                                              |
+| ------------------------ | -------------------- | --------------------------------------------------------- |
+| Default Credit Limit     | Text Box, Number (>0) | Han muc cong no mac dinh cho Dai ly moi                  |
+| Default Min Stock Level  | Text Box, Number (>=0) | Nguong canh bao ton kho thap mac dinh                    |
+| Default Payment Term Days| Combo Box (30/60)     | Ky han thanh toan mac dinh                               |
+| Period Close Day         | Text Box, Number (1-28)| Ngay trong thang tu dong nhac chot so ke toan             |
+| Save                      | Button                | Xac nhan luu toan bo tham so da sua                       |
+
+Database Access
+
+| Table            | CRUD | Description                                       |
+| ----------------- | ---- | -------------------------------------------------- |
+| `system_configs`  | RU   | Doc gia tri hien tai, cap nhat gia tri moi theo key |
+| `audit_logs`      | C    | Ghi log `SYSTEM_CONFIG_UPDATED` voi before/after    |
+
+**_SQL Commands_**
+
+```sql
+SELECT config_key, config_value, updated_at FROM system_configs ORDER BY config_key;
+
+UPDATE system_configs SET config_value = ?, updated_at = NOW() WHERE config_key = ?;
+```
+
+### 1.2 User & RBAC Management
+
+#### a. User List Screen
+
+Related use cases:
+
+- UC-02_Manage Users & Role/Warehouse Assignment
+
+UI Design
+
+| Field Name     | Field Type       | Description                                  |
+| --------------- | ----------------- | ---------------------------------------------- |
+| Filter by Role  | Combo Box         | Loc theo 1 trong 10 role                       |
+| Filter by WH    | Combo Box         | Loc theo kho duoc gan                          |
+| User Table      | Table             | Hien thi email, ho ten, role, danh sach kho, trang thai active |
+| Tao User        | Button            | Mo User Detail Form o che do tao moi            |
+
+Database Access
+
+| Table                        | CRUD | Description                          |
+| ----------------------------- | ---- | -------------------------------------- |
+| `users`                       | R    | Doc danh sach user theo filter        |
+| `user_warehouse_assignments`  | R    | Join lay danh sach kho cua tung user  |
+
+**_SQL Commands_**
+
+```sql
+SELECT u.id, u.email, u.full_name, u.role, u.is_active,
+       array_agg(w.code) AS warehouses
+FROM users u
+LEFT JOIN user_warehouse_assignments uwa ON uwa.user_id = u.id
+LEFT JOIN warehouses w ON w.id = uwa.warehouse_id
+WHERE (? IS NULL OR u.role = ?)
+GROUP BY u.id
+ORDER BY u.created_at DESC;
+```
+
+#### b. User Detail Form
+
+UI Design
+
+| Field Name      | Field Type                  | Description                                       |
+| ----------------- | ----------------------------- | ---------------------------------------------------- |
+| Email\*           | Text Box (email format)       | Dinh danh dang nhap, unique                         |
+| Username\*        | Text Box                      | Unique, dung cho hien thi noi bo                    |
+| Password\*        | Password Box (chi khi tao moi)| >=8 ky tu, hash bcrypt cost>=12                     |
+| Full Name\*       | Text Box                      | Ho ten day du                                       |
+| Phone              | Text Box                      | So dien thoai lien he                               |
+| Job Title          | Text Box                      | Chuc danh cong viec                                 |
+| Role\*             | Combo Box (10 role)            | Vai tro he thong                                    |
+| Warehouses\*       | Multi-Select                  | 1+ kho duoc gan cho user (bat buoc voi role warehouse-scoped) |
+| Active             | Toggle                        | Bat/tat truy cap                                    |
+| Save               | Button                        | Luu user + gan kho                                  |
+| Deactivate         | Button (chi khi sua)          | Vo hieu hoa tai khoan, khong xoa vinh vien          |
+
+Database Access
+
+| Table                        | CRUD | Description                                    |
+| ----------------------------- | ---- | ------------------------------------------------- |
+| `users`                       | CRU  | Tao/sua thong tin user, hash password             |
+| `user_warehouse_assignments`  | CRUD | Them/xoa gan kho theo danh sach moi               |
+| `audit_logs`                   | C    | Ghi log `USER_CREATED`/`USER_UPDATED`/`USER_DEACTIVATED` |
+
+**_SQL Commands_**
+
+```sql
+SELECT EXISTS (SELECT 1 FROM users WHERE email = ?);
+
+INSERT INTO users (email, username, password_hash, full_name, phone, job_title, role, is_active, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, true, NOW()) RETURNING id;
+
+INSERT INTO user_warehouse_assignments (user_id, warehouse_id, created_at) VALUES (?, ?, NOW());
+
+UPDATE users SET is_active = false, updated_at = NOW() WHERE id = ?;
+```
+
+### 1.3 Audit Log
+
+#### a. Audit Log Screen
+
+Man hinh read-only cho System Admin tra cuu nhat ky hoat dong.
+
+Related use cases:
+
+- UC-04_View Audit Log
+
+UI Design
+
+| Field Name    | Field Type       | Description                                  |
+| -------------- | ----------------- | ----------------------------------------------- |
+| Actor Filter   | Text Box (email)  | Loc theo nguoi thuc hien                        |
+| Action Filter  | Combo Box         | Loc theo loai hanh dong                         |
+| Entity Filter  | Combo Box         | Loc theo doi tuong (USER/RECEIPT/DO/...)        |
+| Warehouse Filter| Combo Box        | Loc theo kho                                    |
+| Date Range     | Date Picker (from/to) | Loc theo khoang thoi gian                    |
+| Log Table      | Table (read-only)| actor, action, entity, timestamp, before/after (expand JSON) |
+
+Database Access
+
+| Table         | CRUD | Description                          |
+| -------------- | ---- | --------------------------------------- |
+| `audit_logs`   | R    | Doc theo filter dong, sap xep moi nhat truoc |
+
+**_SQL Commands_**
+
+```sql
+SELECT al.id, al.actor_id, al.actor_role, al.action, al.entity_type, al.entity_id,
+       al.warehouse_id, al.old_value, al.new_value, al.created_at
+FROM audit_logs al
+WHERE (? IS NULL OR al.actor_id = ?)
+  AND (? IS NULL OR al.action = ?)
+  AND (? IS NULL OR al.entity_type = ?)
+  AND (? IS NULL OR al.warehouse_id = ?)
+  AND (? IS NULL OR al.created_at >= ?)
+  AND (? IS NULL OR al.created_at <= ?)
+ORDER BY al.created_at DESC
+LIMIT ? OFFSET ?;
+```
+
+---
+
+## 2. Master Data Management (Spec 002)
+
+### 2.1 Product/SKU Catalog
+
+#### a. Product/SKU List & Detail Screen
+
+Related use cases:
+
+- UC-05_Manage Product/SKU Catalog
+
+UI Design
+
+| Field Name       | Field Type                     | Description                                |
+| ----------------- | ------------------------------- | --------------------------------------------- |
+| Search            | Text Box                        | Tim theo SKU hoac ten san pham               |
+| SKU\*             | Text Box (chi sua khi tao moi)  | Ma dinh danh, unique, khong doi sau tao      |
+| Name\*            | Text Box                        | Ten san pham                                 |
+| Unit\*            | Text Box                        | Don vi tinh (cai, thung...)                  |
+| Weight (kg)       | Number                          | Trong luong don vi                           |
+| Volume (m3)       | Number                          | The tich don vi                              |
+| Unit per Pack     | Number                          | He so quy doi (VD 1 thung = 12 cai)          |
+| Reorder Point     | Number                          | Nguong canh bao ton kho thap                 |
+| Active            | Toggle                          | Bat/tat su dung SKU                          |
+| Save              | Button                          | Luu san pham                                 |
+
+Database Access
+
+| Table       | CRUD | Description                                       |
+| ------------ | ---- | ---------------------------------------------------- |
+| `products`   | CRU  | Tao/sua/doc san pham, kiem tra SKU unique             |
+| `audit_logs` | C    | Ghi log `PRODUCT_CREATED`/`PRODUCT_UPDATED`           |
+
+**_SQL Commands_**
+
+```sql
+SELECT p.id, p.sku, p.name, p.unit, p.weight_kg, p.volume_m3, p.reorder_point
+FROM products p
+WHERE p.is_active = true AND (p.sku ILIKE ? OR p.name ILIKE ?)
+ORDER BY p.created_at DESC;
+
+SELECT EXISTS (SELECT 1 FROM products WHERE sku = ?);
+
+INSERT INTO products (sku, name, unit, weight_kg, volume_m3, unit_per_pack, reorder_point, is_active, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, true, NOW()) RETURNING id;
+```
+
+### 2.2 Warehouse & Bin Location Configuration
+
+#### a. Warehouse/Bin Config Screen
+
+Related use cases:
+
+- UC-06_Configure Warehouse Zones & Bin Locations
+
+UI Design
+
+| Field Name     | Field Type                | Description                                        |
+| --------------- | --------------------------- | ----------------------------------------------------- |
+| Warehouse Tree  | Tree View (read-only)      | Hien thi Warehouse -> Zone -> Bin                     |
+| Code\*          | Text Box                   | Ma zone/bin, unique trong kho                         |
+| Type\*          | Radio (Zone / Bin)         | Loai vi tri                                           |
+| Parent Zone     | Combo Box (chi khi Type=Bin)| Zone cha cua bin                                      |
+| Capacity (m3)   | Number                     | Suc chua theo the tich                                |
+| Capacity (kg)   | Number                     | Suc chua theo trong luong                             |
+| Is Quarantine   | Checkbox                   | Danh dau zone cach ly hang loi                        |
+| Save            | Button                     | Luu zone/bin moi                                      |
+
+Database Access
+
+| Table                  | CRUD | Description                                            |
+| ----------------------- | ---- | --------------------------------------------------------- |
+| `warehouse_locations`   | CR   | Tao zone/bin, kiem tra code unique va phan cap hop le    |
+| `warehouses`            | R    | Doc danh sach kho de hien thi tree                        |
+| `audit_logs`            | C    | Ghi log `LOCATION_CREATED`/`LOCATION_UPDATED`             |
+
+**_SQL Commands_**
+
+```sql
+SELECT EXISTS (SELECT 1 FROM warehouse_locations WHERE warehouse_id = ? AND code = ?);
+
+INSERT INTO warehouse_locations (warehouse_id, code, name, type, parent_id, capacity_m3, capacity_kg, is_quarantine, is_active, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, true, NOW()) RETURNING id;
+```
+
+### 2.3 Dealer/Supplier & Credit Limit
+
+#### a. Dealer/Supplier Detail Screen
+
+Related use cases:
+
+- UC-07_Manage Dealer/Supplier & Credit Limit
+
+UI Design
+
+| Field Name         | Field Type              | Description                                     |
+| -------------------- | -------------------------- | -------------------------------------------------- |
+| Name\*               | Text Box                   | Ten Dai ly/Nha cung cap                            |
+| Address              | Text Area                  | Dia chi                                            |
+| Phone                | Text Box                   | So dien thoai                                      |
+| Email\*              | Text Box (email format)    | Email lien he, unique                              |
+| Credit Limit         | Number (chi Dai ly, ACCOUNTANT_MANAGER moi sua)| Han muc cong no                     |
+| Payment Term Days    | Combo Box (30/60)          | Ky han thanh toan                                  |
+| Credit Status        | Label (read-only)          | `ACTIVE`/`CREDIT_HOLD`                             |
+| Save                 | Button                     | Luu ho so                                          |
+| Update Credit Limit  | Button (rieng, role ACCOUNTANT_MANAGER)| Cap nhat han muc + ky han          |
+
+Database Access
+
+| Table       | CRUD | Description                                          |
+| ------------ | ---- | -------------------------------------------------------- |
+| `dealers`    | CRU  | Tao/sua ho so, cap nhat credit_limit/payment_term_days   |
+| `suppliers`  | CRU  | Tao/sua ho so NCC                                        |
+| `audit_logs` | C    | Ghi log `DEALER_CREATED`/`CREDIT_LIMIT_UPDATED`          |
+
+**_SQL Commands_**
+
+```sql
+INSERT INTO dealers (name, address, phone, email, credit_limit, credit_status, payment_term_days, current_balance, created_at)
+VALUES (?, ?, ?, ?, 0, 'ACTIVE', 30, 0, NOW()) RETURNING id;
+
+UPDATE dealers SET credit_limit = ?, payment_term_days = ?, updated_at = NOW() WHERE id = ?;
+```
+
+### 2.4 Vehicle & Driver Catalog
+
+#### a. Vehicle/Driver List & Detail Screen
+
+Related use cases:
+
+- UC-08_Manage Vehicles & Drivers
+
+UI Design
+
+| Field Name       | Field Type            | Description                                  |
+| ------------------ | ------------------------ | ------------------------------------------------ |
+| Plate Number\*     | Text Box                | Bien so xe, unique                              |
+| Max Weight (kg)\*  | Number                  | Tai trong toi da                                |
+| Max Volume (m3)    | Number                  | The tich toi da (khong bat buoc)                |
+| Driver User\*      | Combo Box (role DRIVER) | Lien ket tai khoan tai xe                       |
+| Warehouses\*       | Multi-Select            | Pham vi kho hoat dong cua tai xe                |
+| Active             | Toggle                  | Bat/tat su dung                                 |
+| Save               | Button                  | Luu xe/tai xe                                   |
+
+Database Access
+
+| Table                        | CRUD | Description                              |
+| ----------------------------- | ---- | ------------------------------------------- |
+| `vehicles`                    | CR   | Tao xe, kiem tra bien so unique            |
+| `drivers`                      | CR   | Tao tai xe, lien ket user_id               |
+| `driver_warehouse_assignments`| CR   | Gan pham vi kho cho tai xe                 |
+| `audit_logs`                   | C    | Ghi log `VEHICLE_CREATED`/`DRIVER_CREATED` |
+
+**_SQL Commands_**
+
+```sql
+SELECT EXISTS (SELECT 1 FROM vehicles WHERE plate_number = ?);
+
+INSERT INTO vehicles (plate_number, max_weight_kg, max_volume_m3, is_active, created_at)
+VALUES (?, ?, ?, true, NOW()) RETURNING id;
+
+INSERT INTO drivers (user_id, is_active, created_at) VALUES (?, true, NOW()) RETURNING id;
+INSERT INTO driver_warehouse_assignments (driver_id, warehouse_id) VALUES (?, ?);
+```
+
+---
+
+## 3. Inbound Receipt & QC (Spec 003)
 
 ### 1.1 Receipt Management
 
