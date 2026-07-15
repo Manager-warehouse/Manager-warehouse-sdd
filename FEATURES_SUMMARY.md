@@ -69,11 +69,8 @@ Mọi spec và mã nguồn trong dự án phải tuân thủ tuyệt đối các
 1. **Kho ảo In-Transit:** Quy trình điều chuyển hàng giữa các kho vật lý bắt buộc phải đi qua trạng thái trung gian là kho ảo **In-Transit**. Tồn kho tại kho nguồn giảm → tồn kho In-Transit tăng → xe di chuyển → kho đích xác nhận nhận hàng → tồn kho In-Transit giảm → tồn kho khả dụng tại kho đích tăng.
 2. **Xử lý chênh lệch điều chuyển:** Bất kỳ chênh lệch nào giữa số lượng xuất đi (`sent_qty`) và số lượng nhận thực tế (`received_qty`) tại kho đích phải được ghi nhận lý do rõ ràng (`discrepancy_reason`), tạo biên bản chênh lệch và tự động tạo phiếu điều chỉnh (`adjustments` type = 'TRANSFER_DISCREPANCY') hoặc Audit trail tương ứng.
 
-### 3.5 Quy Tắc Phê Duyệt Phân Hạn Mức (Approval Threshold Rules)
-Đối với các thao tác điều chỉnh tồn kho (do kiểm kê lệch hoặc tiêu hủy hàng lỗi từ khu cách ly), hệ thống áp dụng bảng định mức phê duyệt động Maker-Checker:
-* **Giá trị lệch < 5,000,000 VND:** Hệ thống tự động duyệt nếu có xác nhận từ QC hoặc biên bản kiểm kê.
-* **Giá trị lệch từ 5,000,000 VND đến 100,000,000 VND:** Yêu cầu **Trưởng kho** phê duyệt.
-* **Giá trị lệch > 100,000,000 VND** hoặc nguyên nhân do lỗi cá nhân nhân viên: Yêu cầu **CEO** phê duyệt.
+### 3.5 Quy Tắc Phê Duyệt Điều Chỉnh Tồn Kho (Approval Rules)
+Đối với các thao tác điều chỉnh tồn kho (do kiểm kê lệch hoặc tiêu hủy hàng lỗi từ khu cách ly), hệ thống áp dụng cơ chế Maker-Checker: Thủ kho đếm/đề xuất, **Trưởng kho** phê duyệt hoặc từ chối trực tiếp trên hệ thống — không phân cấp theo giá trị chênh lệch.
 
 ### 3.6 Quy Tắc Xóa Mềm (Soft Delete Rules)
 * **Dữ liệu danh mục (Master Data):** Không xóa vật lý bản ghi. Sử dụng thuộc tính `is_active = false` để ẩn danh mục (Product, Warehouse, warehouse_locations, Dealer, Supplier, Vehicle, Driver). Hệ thống chặn việc tạo giao dịch mới liên quan đến danh mục bị vô hiệu hóa nhưng giữ nguyên lịch sử giao dịch cũ.
@@ -170,8 +167,8 @@ Dưới đây là tổng hợp 10 Domain Specifications chứa 26 User Stories g
 * **Mục tiêu:** Quy trình tiếp nhận hàng trả về từ đại lý và thanh lý, tiêu hủy hàng hỏng trong khu cách ly.
 * **Các User Stories:**
   * **US-WMS-24 (P2):** Xử lý hàng hoàn trả từ Đại lý (Inbound Returns). Thủ kho lập phiếu nhận hàng hoàn (`receipts` type = 'RETURN') → Thủ kho kiểm QC chất lượng (Hàng tốt → nhập lại kho thường; Hàng lỗi → chuyển Quarantine Zone). Kế toán tạo Credit Note tương ứng để trừ công nợ cho Đại lý. [Chi tiết](.sdd/specs/009-returns-scrap-disposal/features/feature-storekeeper-customer-returns.md)
-  * **US-WMS-04 (P1 - Disposal sub-flow):** Tiêu hủy hàng lỗi từ Quarantine Zone. Áp dụng bảng định mức phê duyệt: <5tr tự động, 5-100tr Trưởng kho duyệt, >100tr CEO duyệt (tạo `adjustments` type = 'DISPOSAL' và `damage_reports`). Được duyệt thì giảm tồn quarantine, ghi biên bản hủy. [Chi tiết](.sdd/specs/009-returns-scrap-disposal/features/feature-manager-scrap-disposal.md)
-* **Actors:** Thủ kho kiêm QC, Nhân viên kho, Trưởng kho, Kế toán viên, CEO.
+  * **US-WMS-04 (P1 - Disposal sub-flow):** Tiêu hủy hàng lỗi từ Quarantine Zone. Trưởng kho đề xuất và phê duyệt trực tiếp, không phân cấp theo giá trị (tạo `adjustments` type = 'DISPOSAL' và `damage_reports`). Được duyệt thì giảm tồn quarantine, ghi biên bản hủy. [Chi tiết](.sdd/specs/009-returns-scrap-disposal/features/feature-manager-scrap-disposal.md)
+* **Actors:** Thủ kho kiêm QC, Nhân viên kho, Trưởng kho, Kế toán viên.
 * **Endpoints chính:** `/api/v1/returns`, `/api/v1/returns/{id}/qc`, `/api/v1/returns/{id}/credit-note`, `/api/v1/disposal`, `/api/v1/disposal/{id}/approve`.
 
 ### Spec 010: Báo Cáo & Cảnh Báo (Reporting & Alerts)

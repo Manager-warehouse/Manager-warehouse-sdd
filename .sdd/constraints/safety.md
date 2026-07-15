@@ -95,5 +95,5 @@
 |---|---|---|
 | FIN-01 | KHÔNG cho phép xuất hàng khi Dealer đang CREDIT_HOLD | MUST |
 | FIN-02 | KHÔNG cho phép chốt sổ khi còn chứng từ tồn đọng | MUST |
-| FIN-03 | Mọi adjustment > 5M phải có approval | MUST |
+| FIN-03 | Mọi adjustment (không phân cấp giá trị) phải có approval của Trưởng kho | MUST |
 | FIN-04 | COGS không thể âm | MUST |

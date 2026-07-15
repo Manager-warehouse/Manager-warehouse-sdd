@@ -1235,9 +1235,7 @@ Quy trình đối chiếu số liệu tồn kho thực tế, tính toán chênh 
 
 **Thẩm quyền duyệt chênh lệch kiểm kê & xuất hủy hàng lỗi:**
 
-- # Tất cả chênh lệch kiểm kê và phiếu xuất hủy hàng lỗi đều do Trưởng kho phê duyệt trực tiếp trên hệ thống.
-- **Từ 5 triệu đến 100 triệu VNĐ**: Trưởng kho xem xét và phê duyệt trên hệ thống.
-- **Trên 100 triệu VNĐ hoặc lỗi xác định do nhân viên**: Phải trình trực tiếp CEO phê duyệt trên hệ thống.
+- Tất cả chênh lệch kiểm kê và phiếu xuất hủy hàng lỗi đều do Trưởng kho phê duyệt trực tiếp trên hệ thống, không phân cấp theo giá trị.
 
 ---
 

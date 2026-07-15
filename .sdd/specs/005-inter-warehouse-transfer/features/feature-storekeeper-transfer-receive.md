@@ -160,7 +160,7 @@ Tat ca buoc ban giao co anh trong UI Sprint 1 phai dung thao tac chon file anh h
 ## 5. Validation and Error Handling
 * `TRANSFER_RECEIVE_NOT_ALLOWED` (HTTP 409): transfer is not `IN_TRANSIT` or the current receive step is not allowed.
 * `RECEIVE_ISSUE_REASON_REQUIRED` (HTTP 400): an item has `receivedQty < sentQty`, `receivedQty > sentQty`, or a reported issue without item-level `issueReason`.
-* `RECEIVED_QTY_EXCEEDS_SENT` (HTTP 422): `receivedQty > sentQty`.
+* `RECEIVED_QTY_EXCEEDS_SENT` (HTTP 422): `receivedQty > sentQty`; the system SHALL still persist an `OVERAGE_HOLD` discrepancy record for the excess quantity per TRF-10 rather than discarding the report.
 * `RECEIVE_CHECK_REQUIRED` (HTTP 409): Trưởng kho đích attempts final confirmation before Thủ kho đích approves receive check.
 * `CHECKER_NOTE_REQUIRED` (HTTP 400): `confirmedReceivedQty` differs from the worker-entered `receivedQty` without `checkerNote`; `checkerNote` is optional when the quantities match.
 * `QC_TOTAL_MISMATCH` (HTTP 400): `qcPassedQty + qcFailedQty != confirmedReceivedQty`.
@@ -193,10 +193,11 @@ Tat ca buoc ban giao co anh trong UI Sprint 1 phai dung thao tac chon file anh h
     * Calculate destination inventory quantity and value for 28 units only; the 2 missing units SHALL carry no amount in the destination receipt total.
     * Create no invoice, revenue, dealer receivable, supplier payable, or supplier Debit Note.
 
-* **Scenario: Reject over-receipt**
+* **Scenario: Reject over-receipt and record an overage hold**
   * Given a transfer of 30 units in `IN_TRANSIT` status
   * When Nhân viên kho HN records receipt of 32 units with an issue reason
-  * Then the system SHALL reject the receive-count request because received quantity cannot exceed sent quantity.
+  * Then the system SHALL reject the receive-count request because `receivedQty` cannot exceed `sentQty`.
+  * And the system SHALL create a discrepancy record with `type = 'OVERAGE_HOLD'` for the 2 physically-observed excess units, block them from regular inventory posting, and write a `TRANSFER_OVERAGE_HOLD_CREATE` audit log entry — the excess quantity SHALL NOT be silently discarded from the submission.
 
 * **Scenario: Reject shortage without issue reason**
   * Given a transfer of 30 units in `IN_TRANSIT` status

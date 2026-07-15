@@ -24,7 +24,8 @@ Nhân viên kho (WAREHOUSE_STAFF) kiểm tra ngoại quan và chất lượng b�
     * Update the receipt status to `QC_FAILED`.
     * Mark the whole failed lot as requiring Trưởng kho quarantine/RTV handling.
     * The system SHALL NOT create or update batch records at this step.
-    * The system SHALL NOT increase regular inventory or quarantine inventory at this step.
+    * The system SHALL NOT increase regular inventory at this step.
+    * The system SHALL increase quarantine inventory by the full failed lot quantity (`actual_qty`).
 * **State-driven:**
   * WHILE a receipt is `DRAFT`, the system SHALL treat all QC sample data as inspection data only and SHALL NOT update batch, regular inventory, or quarantine inventory.
   * WHILE a receipt is `QC_COMPLETED`, the system SHALL hold the lot for Trưởng kho approval and SHALL NOT increase available inventory until approval and putaway completion.
@@ -39,4 +40,5 @@ Nhân viên kho (WAREHOUSE_STAFF) kiểm tra ngoại quan và chất lượng b�
   * When Warehouse Staff inspects a random sample of 10 units and records 9 passed and 1 failed due to ngoại quan
   * And Storekeeper confirms the QC result
   * Then the system SHALL mark the receipt `QC_FAILED` and flag the full 100 units for Trưởng kho quarantine/RTV handling.
-  * And the system SHALL NOT create batch records, increase regular inventory, or increase quarantine inventory.
+  * And the system SHALL NOT create batch records or increase regular inventory.
+  * And the system SHALL increase quarantine inventory by the full 100 units.

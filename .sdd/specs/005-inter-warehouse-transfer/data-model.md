@@ -9,7 +9,7 @@ Fields to add/verify:
 - `transfer_number`
 - `source_warehouse_id`
 - `destination_warehouse_id`
-- `status`: `NEW`, `APPROVED`, `REJECTED`, `IN_TRANSIT`, `COMPLETED`, `COMPLETED_WITH_DISCREPANCY`, `CANCELLED`
+- `status`: `NEW`, `APPROVED`, `REJECTED`, `IN_TRANSIT`, `COMPLETED`, `COMPLETED_WITH_DISCREPANCY`, `CANCELLED`, `QUARANTINED`
 - `is_returned`
 - `return_reason_code`, `return_reason`
 - `outbound_qc_checked_by`, `outbound_qc_checked_at`, `outbound_qc_result`

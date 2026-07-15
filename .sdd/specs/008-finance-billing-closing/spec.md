@@ -121,7 +121,7 @@ Các endpoints được cấu hình thông qua base API prefix `/api/v1`:
 | **POST** | `/api/v1/payment-receipts` | `ACCOUNTANT` | Ghi nhận phiếu thu cấn trừ công nợ đại lý |
 | **POST** | `/api/v1/payment-receipts/ocr` | `ACCOUNTANT` | Upload và phân tích hóa đơn chuyển khoản qua OCR |
 | **GET** | `/api/v1/payment-receipts` | `ACCOUNTANT`, `ACCOUNTANT_MANAGER` | Danh sách phiếu thu công nợ |
-| **GET** | `/api/v1/credit/aging-report` | `ACCOUNTANT_MANAGER` | Báo cáo công nợ phân kỳ của đại lý |
+| **GET** | `/api/v1/credit/aging-report` | `ACCOUNTANT`, `ACCOUNTANT_MANAGER` | Báo cáo công nợ phân kỳ của đại lý (Kế toán viên xem để đốc thúc thu hồi công nợ; Kế toán trưởng dùng cho quyết định Credit Limit) |
 | **GET** | `/api/v1/accounting-periods` | `ACCOUNTANT`, `ACCOUNTANT_MANAGER` | Danh sách kỳ kế toán |
 | **PUT** | `/api/v1/accounting-periods/{id}/close` | `ACCOUNTANT_MANAGER` | Thực hiện khóa kỳ kế toán |
 
@@ -149,3 +149,4 @@ Các endpoints được cấu hình thông qua base API prefix `/api/v1`:
 - Kê khai và tính toán thuế VAT chi tiết (chỉ lưu tổng tiền hóa đơn).
 - Đối soát tự động với tài khoản ngân hàng (Bank Statement).
 - Tự động trừ tiền qua các cổng thanh toán online.
+- Tạo `credit_notes` (Phiếu ghi giảm công nợ cho hàng hoàn trả): thuộc luồng US-WMS-24 tại Spec 009 (`feature-storekeeper-customer-returns.md`). Spec 008 chỉ áp dụng khoản trừ `current_balance` mà `credit_notes` đã tạo, không sở hữu bước tạo Credit Note.

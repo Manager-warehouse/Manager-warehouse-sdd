@@ -347,10 +347,7 @@ Kế toán trưởng kiểm tra điều kiện → Chốt sổ kỳ T → CLOSED
 
 ### Phê duyệt điều chỉnh tồn kho & hủy hàng
 
-| Giá trị lệch / Giá trị hủy | Người duyệt |
-|---|---|
-| 5 – 100 triệu VNĐ | Trưởng kho |
-| > 100 triệu VNĐ **hoặc** lỗi do nhân viên | CEO |
+Tất cả chênh lệch kiểm kê và phiếu xuất hủy hàng lỗi đều do **Trưởng kho** phê duyệt trực tiếp trên hệ thống, không phân cấp theo giá trị.
 
 ---
 

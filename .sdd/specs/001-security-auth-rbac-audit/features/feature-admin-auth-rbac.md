@@ -11,7 +11,7 @@
   * WHEN a System Admin creates or modifies a user, the system SHALL validate username uniqueness, valid email format, and password strength.
   * WHEN a System Admin assigns a user to a specific warehouse, the system SHALL authorize that user to perform transactions only within that warehouse.
 * **Optional:**
-  * WHERE the user has `SYSTEM_ADMIN` role, the system SHALL bypass warehouse checks and allow access to all warehouses.
+  * WHERE the user has `ADMIN` role, the system SHALL bypass warehouse checks and allow access to all warehouses.
   * WHERE a user has the `CEO` role, the system SHALL allow view-only access to all dashboards and reports across all warehouses.
 
 ## 4. API Endpoints
