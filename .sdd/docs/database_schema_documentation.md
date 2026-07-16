@@ -2,6 +2,8 @@
 
 > **Đồng bộ:** 2026-07-15 · **Nguồn schema triển khai:** `backend/src/main/resources/db/migration/` · **Nguồn nghiệp vụ:** `.sdd/specs/001`–`010`. Flyway migration là nguồn cuối cùng khi tài liệu và database khác nhau.
 
+> **Schema-gap bắt buộc:** Domain chuẩn không quản lý serial, expiry hay quality grade. Tuy nhiên migration hiện có vẫn còn `batches.expiry_date` và `batches.grade` (default `A`). Đây là legacy schema cần migration cleanup có kiểm soát trong task riêng; service/UI không được dùng chúng để tạo nghiệp vụ mới. Các mô tả domain trong tài liệu này tuân theo spec/constitution, đồng thời ghi rõ legacy field khi cần đối chiếu database.
+
 Tài liệu này giải thích chi tiết cấu trúc cơ sở dữ liệu PostgreSQL của Hệ thống Quản lý Kho (WMS) Phúc Anh, bao gồm ý nghĩa nghiệp vụ của tất cả các bảng (36 bảng core + 1 bảng bổ trợ), chi tiết từng trường dữ liệu, cách hoạt động và ví dụ thực tế cho mỗi thực thể.
 
 ---
@@ -203,12 +205,12 @@ erDiagram
 
 ### 12. Bảng `batches`
 
-- **Công dụng:** Quản lý thông tin nguồn gốc của lô hàng nhập kho. Phục vụ quản lý FIFO và phân hạng chất lượng hàng.
+- **Công dụng:** Quản lý nguồn gốc lô hàng để chọn FIFO theo `received_date`; không phân hạng chất lượng trong domain.
 - **Chi tiết các trường:**
   - `batch_number` (VARCHAR(100), UNIQUE): Số lô duy nhất (ví dụ: `LOT-TH-20260601`).
   - `product_id` (BIGINT, FK -> products): SKU của sản phẩm thuộc lô này.
   - `received_date` (DATE): Ngày nhập lô hàng về kho (Dùng để xác định lô cũ nhất cho FIFO).
-  - `grade` (VARCHAR(1)): Phân loại chất lượng của lô. CHECK: `A` (Hàng mới/hoàn hảo), `B` (Hàng móp vỏ nhẹ), `C` (Hàng lỗi hỏng cần thanh lý).
+  - `expiry_date`, `grade` (legacy columns trong migration): không được service/UI Sprint 1 sử dụng để phân lô, FEFO hay phân cấp hàng bán lại. Hàng fail QC phải đi Quarantine.
 - **Ví dụ thực tế:** Lô hàng `LOT-A` nhập ngày `2026-06-01` sẽ được chọn để xuất kho trước lô `LOT-B` nhập ngày `2026-06-05` theo FIFO.
 
 ### 13. Bảng `inventories`
@@ -254,7 +256,7 @@ erDiagram
 - **Chi tiết các trường:**
   - `expected_qty` (DECIMAL): Số lượng nhà cung cấp thông báo giao.
   - `actual_qty` (DECIMAL): Số lượng đếm thực tế khi mở thùng hàng.
-  - `qc_passed_qty` (DECIMAL): Số lượng đạt tiêu chuẩn (hàng loại A $\rightarrow$ sẽ được cất vào các ô kệ thông thường).
+  - `qc_passed_qty` (DECIMAL): Số lượng đạt QC để cất vào bin thường; không gán quality grade.
   - `qc_failed_qty` (DECIMAL): Số lượng lỗi hỏng (sẽ bắt buộc phải cất vào **Khu cách ly Quarantine**).
   - `qc_result` (VARCHAR(20)): Kết quả kiểm định. CHECK: `PENDING`, `PASSED`, `FAILED`, `PARTIAL`.
 
@@ -476,6 +478,23 @@ erDiagram
 
 ---
 
+## BẢNG HỖ TRỢ VÀ HARDENING BẮT BUỘC
+
+Các bảng dưới đây cũng có migration và thuộc catalog schema; chúng không được bỏ qua khi thiết kế API, audit hoặc test integration.
+
+| Table | Vai trò chính |
+| --- | --- |
+| `notifications` | Thông báo in-app chung theo người nhận, loại và bản ghi tham chiếu. |
+| `document_sequences` | Sinh số chứng từ có kiểm soát. |
+| `warehouse_product_reservations` | Tổng reserved quantity theo kho/SKU, có `version` để chống ghi đè cạnh tranh. |
+| `quarantine_records` | Truy vết hàng QC fail trong quarantine và origin (`RECEIPT_QC_FAIL`/`INTERNAL_TRANSFER`/outbound). |
+| `delivery_order_item_replacements` | Lịch sử nguồn tồn kho thay thế khi allocation/QC outbound cần đổi hàng. |
+| `inter_warehouse_transfer_allocations` | Allocation theo batch/vị trí cho điều chuyển, phục vụ FIFO và optimistic locking. |
+| `wrong_sku_reports`, `wrong_sku_report_items` | Expected/actual SKU, quantity và lý do khi nhận sai SKU ở kho đích. |
+| `discrepancy_incidents`, `discrepancy_hold_entries` | Incident và lượng vật lý bị giữ khi transfer thiếu/thừa; không tự cộng vào available inventory. |
+
+`transfer_requests`/`transfer_request_items` và `quarantine_records` là phần không thể thiếu của flow Spec 005/003; `billing_notifications` là worklist đối chiếu hóa đơn, không thay thế invoice lifecycle.
+
 ## NHÓM 12: CẤU HÌNH HỆ THỐNG & NHẬT KÝ BẢO MẬT
 
 ### 35. Bảng `system_configs`
@@ -489,7 +508,7 @@ erDiagram
 
 - **Công dụng:** Lưu nhật ký toàn bộ các hành động thay đổi dữ liệu kho bãi để phục vụ mục đích kiểm toán bảo mật (Audit Trail). **Bảng này được cấu hình Trigger chặn tuyệt đối mọi hành vi UPDATE hoặc DELETE sau khi ghi.**
 - **Chi tiết các trường:**
-  - `actor_id` & `actor_role` (FK): Người thực hiện và vai trò của họ tại thời điểm đó (ví dụ: `Thủ kho`).
+  - `actor_id` & `actor_role`: Người thực hiện và vai trò tại thời điểm đó. `actor_id` là FK **NOT NULL** trong migration; system action phải dùng system actor đã provision thay vì ghi NULL.
   - `action` (VARCHAR): Loại thao tác. CHECK: `LOGIN`, `LOGOUT`, `CREATE`, `UPDATE`, `STATUS_CHANGE`, `APPROVE`, `REJECT`, `CANCEL`, `SOFT_DELETE`, `ASSIGN`, `UNASSIGN`.
   - `entity_type` & `entity_id` (VARCHAR/BIGINT): Đối tượng bị thay đổi (ví dụ: bảng `inventories`, id `55`).
   - `old_value` & `new_value` (JSONB): Bản ghi giá trị trước và sau khi sửa (Chỉ lưu phần thông tin khác nhau - Diff-only và tự động loại bỏ các trường nhạy cảm như password).

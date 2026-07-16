@@ -2,6 +2,8 @@
 
 **Software Design Specification**
 
+**Version: 1.3**
+
 – Hà Nội, 2026 –
 
 # Record of Changes
@@ -10,6 +12,7 @@
 | ---------- | ------- | ------------ | -------------------------------------------------------------------------------------------- |
 | 2026-07-14 | A       | WMS Dev Team | Khởi tạo SDS dựa trên backend thực tế `backend/src/main/java/com/wms/`, tương ứng RDS-WMS.md |
 | 2026-07-15 | M       | WMS Dev Team | Đồng bộ catalog spec 001–012; Spec 011–012 là quality/testing cross-cutting. SDS này vẫn mô tả chi tiết luồng inbound đại diện của Spec 003. |
+| 2026-07-16 | M       | WMS Dev Team | Rà soát theo Template3; chuẩn hóa schema references, data-access convention và low-stock lifecycle theo Spec 010. |
 
 _A - Added M - Modified D - Deleted_
 
@@ -18,6 +21,8 @@ _A - Added M - Modified D - Deleted_
 # I. Overview
 
 ## 1. Code Packages
+
+> **Quy ước template:** “Database Queries” là mô tả logical query để giải thích thiết kế; production code dùng Spring Data JPA/Hibernate, không thực thi raw SQL trong application. Flyway migration quyết định tên bảng/cột thực tế.
 
 Backend theo layered architecture bắt buộc **Controller → Service → Repository → Entity** (xem `backend/CLAUDE.md`), main package `com.wms`. Package diagram tổng quan:
 
@@ -71,7 +76,7 @@ products ──< price_history
 dealers ──< invoices ──< invoice_lines
 dealers ──< payment_receipts
 dealers ──< credit_notes
-all mutating tables ──> audit_logs (append-only, actor_id nullable cho SYSTEM)
+all mutating tables ──> audit_logs (append-only, actor_id NOT NULL)
 ```
 
 ### b. Table Description
@@ -111,7 +116,7 @@ all mutating tables ──> audit_logs (append-only, actor_id nullable cho SYSTE
 | 31  | `damage_reports`                  | Biên bản hư hỏng phục vụ tiêu hủy.                                                                                                                                                                                          |
 | 32  | `stock_alerts`                    | Cảnh báo tồn kho thấp tự động, unique `(warehouse_id, product_id, alert_type, is_resolved=false)`.                                                                                                                          |
 | 33  | `system_configs`                  | Tham số hệ thống dạng key-value có kiểm soát.                                                                                                                                                                               |
-| 34  | `audit_logs`                      | `actor_id` (nullable), `actor_role`, `action`, `entity_type`, `entity_id`, `timestamp`, `old_value`, `new_value` (JSON); append-only.                                                                                       |
+| 34  | `audit_logs`                      | `actor_id` (NOT NULL), `actor_role`, `action`, `entity_type`, `entity_id`, `timestamp`, `old_value`, `new_value` (JSON); append-only.                                                                                       |
 
 ---
 
@@ -193,7 +198,7 @@ AdminController ──uses──► UserService ──uses──► UserReposito
 | No  | Method                                              | Description                                                                                              |
 | --- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | 01  | `getUsers(...)`                                     | `GET /api/v1/admin/users` — role `ADMIN`. Trả danh sách user + role + warehouse assignments.               |
-| 02  | `createUser(CreateUserRequest request)`             | `POST /api/v1/admin/users` — role `ADMIN`. Input: email, username, password, fullName, role, warehouseIds[]. |
+| 02  | `createUser(CreateUserRequest request)`             | `POST /api/v1/admin/users` — role `ADMIN`. Input: code, email, password, fullName, role, warehouseIds[]. |
 | 03  | `updateUser(Long id, UpdateUserRequest request)`     | `PUT /api/v1/admin/users/{id}` — cập nhật role/warehouse assignment.                                        |
 | 04  | `deactivateUser(Long id)`                            | `DELETE /api/v1/admin/users/{id}` — soft-delete, `is_active = false`.                                       |
 
@@ -201,7 +206,7 @@ AdminController ──uses──► UserService ──uses──► UserReposito
 
 | No  | Method                                                                 | Description                                                                                                                                                                                                                                                                                                                                                                    |
 | --- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 01  | `createUser(CreateUserRequest request, User actor)`                    | **Input**: request (email/username unique, password ≥8 ký tự, role hợp lệ trong 10 role, warehouseIds[]), actor (`ADMIN`). **Xử lý nội bộ**: `requireAdmin` → `validateUniqueEmail`/`validateUniqueUsername` → `passwordEncoder.encode` (bcrypt cost ≥12) → lưu `User` (`is_active = true`) → lưu `UserWarehouseAssignment[]` cho mỗi warehouseId → ghi audit `USER_CREATED`. **Output**: `UserResponse`.                                                            |
+| 01  | `createUser(CreateUserRequest request, User actor)`                    | **Input**: request (code/email unique, password ≥8 ký tự, role hợp lệ trong 10 role, warehouseIds[]), actor (`ADMIN`). **Xử lý nội bộ**: `requireAdmin` → `validateUniqueCode`/`validateUniqueEmail` → `passwordEncoder.encode` (bcrypt cost ≥12) → lưu `User` (`is_active = true`) → lưu `UserWarehouseAssignment[]` cho mỗi warehouseId → ghi audit `USER_CREATED`. **Output**: `UserResponse`.                                                            |
 | 02  | `updateUserAssignment(Long userId, UpdateUserRequest request, User actor)` | **Input**: `userId`, request (role mới, warehouseIds mới), actor. **Xử lý nội bộ**: diff warehouseIds cũ/mới → xóa assignment không còn, thêm assignment mới → cập nhật role nếu đổi → ghi audit `USER_UPDATED` với before/after. **Output**: `UserResponse`.                                                                                                                    |
 | 03  | `deactivateUser(Long userId, User actor)`                              | **Input**: `userId`, actor. **Xử lý nội bộ**: set `is_active = false`, không xóa record; ghi audit `USER_DEACTIVATED`. **Output**: `UserResponse`.                                                                                                                                                                                                                              |
 
@@ -212,7 +217,7 @@ System Admin → AdminController.createUser(request)
   AdminController → UserService.createUser(request, actor)
     UserService → requireAdmin(actor)
     UserService → userRepository.existsByEmail(email)        [duplicate check]
-    UserService → userRepository.existsByUsername(username)  [duplicate check]
+    UserService → userRepository.existsByCode(code)  [duplicate check]
     UserService → passwordEncoder.encode(password)            → bcrypt hash
     UserService → userRepository.save(user)                   → User{is_active=true}
     loop each warehouseId
@@ -226,12 +231,12 @@ AdminController --> System Admin : 201 Created
 #### d. Database Queries
 
 ```sql
--- 1/ Kiểm tra trùng email/username
+-- 1/ Kiểm tra trùng email/code
 SELECT EXISTS (SELECT 1 FROM users WHERE email = ?);
-SELECT EXISTS (SELECT 1 FROM users WHERE username = ?);
+SELECT EXISTS (SELECT 1 FROM users WHERE code = ?);
 
 -- 2/ Tạo user
-INSERT INTO users (email, username, password_hash, full_name, phone, job_title, role, is_active, created_at)
+INSERT INTO users (code, email, password_hash, full_name, phone, job_title, role, is_active, created_at)
 VALUES (?, ?, ?, ?, ?, ?, ?, true, NOW()) RETURNING id;
 
 -- 3/ Gán warehouse
@@ -607,16 +612,15 @@ SELECT EXISTS (SELECT 1 FROM vehicles WHERE plate_number = ?);
 INSERT INTO vehicles (plate_number, max_weight_kg, max_volume_m3, is_active, created_at)
 VALUES (?, ?, ?, true, NOW()) RETURNING id;
 
--- 3/ Tạo driver gán warehouse scope
-INSERT INTO drivers (user_id, is_active, created_at) VALUES (?, true, NOW()) RETURNING id;
-INSERT INTO driver_warehouse_assignments (driver_id, warehouse_id) VALUES (?, ?);
+-- 3/ Tạo driver gán đúng một warehouse scope
+INSERT INTO drivers (warehouse_id, user_id, full_name, license_number, license_expiry, is_active, created_at)
+VALUES (?, ?, ?, ?, ?, true, NOW()) RETURNING id;
 
 -- 4/ Danh sách tài xế eligible cho 1 kho
 SELECT d.id, u.full_name
 FROM drivers d
 JOIN users u ON d.user_id = u.id
-JOIN driver_warehouse_assignments dwa ON dwa.driver_id = d.id
-WHERE dwa.warehouse_id = ? AND d.is_active = true;
+WHERE d.warehouse_id = ? AND d.is_active = true;
 ```
 
 ---
@@ -858,12 +862,12 @@ UPDATE receipts SET status = 'RETURN_TO_SUPPLIER_PENDING', reject_reason = ?
 WHERE id = ? AND status = 'QC_COMPLETED';
 
 -- 3/ Kiểm tra sức chứa Bin trước putaway
-SELECT wl.id, wl.capacity, wl.is_quarantine,
+SELECT wl.id, wl.capacity_m3, wl.capacity_kg, wl.current_volume_m3, wl.current_weight_kg, wl.is_quarantine,
        COALESCE(SUM(i.total_qty), 0) AS current_qty
 FROM warehouse_locations wl
 LEFT JOIN inventories i ON i.location_id = wl.id
 WHERE wl.id = ? AND wl.is_quarantine = false
-GROUP BY wl.id, wl.capacity, wl.is_quarantine;
+GROUP BY wl.id, wl.capacity_m3, wl.capacity_kg, wl.current_volume_m3, wl.current_weight_kg, wl.is_quarantine;
 
 -- 4/ Tìm hoặc tạo batch theo product + receipt + received_date
 SELECT id FROM batches WHERE product_id = ? AND receipt_id = ? AND received_date = ?;
@@ -2243,7 +2247,6 @@ FROM receipt_items WHERE qc_result IS NOT NULL;
 | No  | Method                                                   | Description                                                                                                                                                                                                                                            |
 | --- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 01  | `onInventoryChanged(InventoryChangeEvent event)`                   | **Input**: event (warehouseId, productId). **Xu ly noi bo**: tinh `available_qty = total_qty - reserved_qty` -> so voi `product.reorderPoint` -> neu duoi nguong va chua co alert active: tao `stock_alerts` (`is_resolved=false`); neu hoi phuc va co alert active: `is_resolved=true`. **Output**: void (event-driven). |
-| 02  | `resolveAlert(Long alertId, User actor)`                            | Planner mark resolved thu cong (VD sau khi lap DO nhap hang).                                                                                                                                                                                             |
 
 #### c. Sequence Diagram(s)
 
@@ -2266,7 +2269,7 @@ FROM inventories WHERE warehouse_id = ? AND product_id = ?;
 
 INSERT INTO stock_alerts (warehouse_id, product_id, alert_type, is_resolved, created_at)
 VALUES (?, ?, 'LOW_STOCK', false, NOW())
-ON CONFLICT (warehouse_id, product_id, alert_type) WHERE is_resolved = false DO NOTHING;
+ON CONFLICT (warehouse_id, product_id, alert_type, is_resolved) DO NOTHING;
 
 UPDATE stock_alerts SET is_resolved = true, resolved_at = NOW()
 WHERE warehouse_id = ? AND product_id = ? AND is_resolved = false;
@@ -2330,12 +2333,12 @@ inventories (warehouse + product + batch + location; optimistic locking via vers
 
 receipts, receipt_items, batches ← Spec 003
 delivery_orders, delivery_order_items, delivery_order_item_allocations, deliveries ← Spec 004
-transfers, transfer_items, reception_records ← Spec 005
+transfers, transfer_requests, transfer_request_items, transfer_items, inter_warehouse_transfer_allocations ← Spec 005
 stock_takes, stock_take_items ← Spec 006
-product_price_history ← Spec 007
+price_history ← Spec 007
 invoices, payment_receipts, accounting_periods ← Spec 008
 quarantine_records, damage_reports, adjustments (type in STOCK_TAKE, TRANSFER_DISCREPANCY, DISPOSAL, RTV...) ← Spec 009
-audit_logs (append-only, action = *, entity_type = *, REPORT_VIEW for dashboards) ← All specs
+audit_logs (append-only, actor_id NOT NULL, action/entity_type snapshots) ← All specs
 ```
 
 **Constraint Summary:**
