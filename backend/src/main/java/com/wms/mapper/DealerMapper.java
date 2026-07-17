@@ -15,6 +15,8 @@ public class DealerMapper {
                 .email(dealer.getEmail())
                 .defaultDeliveryAddress(dealer.getDefaultDeliveryAddress())
                 .region(dealer.getRegion())
+                .bankAccountNumber(dealer.getBankAccountNumber())
+                .bankName(dealer.getBankName())
                 .paymentTermDays(dealer.getPaymentTermDays())
                 .creditLimit(dealer.getCreditLimit())
                 .currentBalance(dealer.getCurrentBalance())
