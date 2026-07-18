@@ -22,6 +22,7 @@ import java.util.Optional;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -103,8 +104,15 @@ public class AccountingPeriodServiceImpl implements AccountingPeriodService {
         return toResponse(saved);
     }
 
+    // REQUIRES_NEW so this check can be called from inside a caller's own transaction
+    // (e.g. one row of a multi-row Excel import loop) and, if it throws, only this
+    // isolated sub-transaction is marked rollback-only/rolled back — not the caller's
+    // shared transaction. With plain REQUIRED, catching the exception in the caller
+    // does not undo the rollback-only flag the interceptor already set on the joined
+    // transaction, and the caller's later commit fails with UnexpectedRollbackException
+    // even though the exception was "handled".
     @Override
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void validateDateInOpenPeriod(LocalDate date) {
         resolveOpenPeriod(date);
     }

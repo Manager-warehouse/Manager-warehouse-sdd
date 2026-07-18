@@ -19,15 +19,19 @@ import com.wms.enums.PriceHistoryStatus;
 import com.wms.enums.UserRole;
 import com.wms.exception.PriceHistoryException;
 import com.wms.exception.ResourceNotFoundException;
+import com.wms.exception.UnprocessableEntityException;
 import com.wms.repository.NotificationRepository;
 import com.wms.repository.PriceHistoryRepository;
 import com.wms.repository.ProductRepository;
 import com.wms.repository.UserRepository;
 import com.wms.repository.WarehouseRepository;
+import com.wms.service.AccountingPeriodService;
 import com.wms.service.PriceHistoryService;
 import com.wms.util.PartnerAuditUtil;
 import org.apache.poi.ss.usermodel.*;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -37,6 +41,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import jakarta.persistence.criteria.Predicate;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -46,9 +51,11 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 public class PriceHistoryServiceImpl implements PriceHistoryService {
@@ -63,19 +70,22 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
     private final UserRepository userRepository;
     private final NotificationRepository notificationRepository;
     private final PartnerAuditUtil auditUtil;
+    private final AccountingPeriodService accountingPeriodService;
 
     public PriceHistoryServiceImpl(PriceHistoryRepository priceHistoryRepository,
                                    ProductRepository productRepository,
                                    WarehouseRepository warehouseRepository,
                                    UserRepository userRepository,
                                    NotificationRepository notificationRepository,
-                                   PartnerAuditUtil auditUtil) {
+                                   PartnerAuditUtil auditUtil,
+                                   AccountingPeriodService accountingPeriodService) {
         this.priceHistoryRepository = priceHistoryRepository;
         this.productRepository = productRepository;
         this.warehouseRepository = warehouseRepository;
         this.userRepository = userRepository;
         this.notificationRepository = notificationRepository;
         this.auditUtil = auditUtil;
+        this.accountingPeriodService = accountingPeriodService;
     }
 
     @Override
@@ -83,6 +93,8 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
     public PriceHistoryResponse create(PriceHistoryCreateRequest req, User actor) {
         Product product = requireProduct(req.getProductId());
         Warehouse warehouse = requireWarehouse(req.getWarehouseId());
+        checkSellingAboveCost(req.getCostPrice(), req.getSellingPrice());
+        accountingPeriodService.validateDateInOpenPeriod(req.getEffectiveDate());
         checkNoConflictingActive(product.getId(), warehouse.getId(), req.getEffectiveDate(), null);
 
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
@@ -111,6 +123,8 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
     public PriceHistoryResponse update(Long id, PriceHistoryUpdateRequest req, User actor) {
         PriceHistory ph = require(id);
         guardEditable(ph, actor);
+        checkSellingAboveCost(req.getCostPrice(), req.getSellingPrice());
+        accountingPeriodService.validateDateInOpenPeriod(req.getEffectiveDate());
         checkNoConflictingActive(ph.getProduct().getId(), ph.getWarehouse().getId(), req.getEffectiveDate(), id);
 
         Map<String, Object> before = snapshot(ph);
@@ -183,25 +197,18 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<PriceHistoryResponse> getAll(Long productId, Long warehouseId, PriceHistoryStatus status) {
-        List<PriceHistory> list;
-        if (productId != null && warehouseId != null && status != null) {
-            list = priceHistoryRepository.findByProductIdAndWarehouseIdAndStatusOrderByCreatedAtAsc(productId, warehouseId, status);
-        } else if (productId != null && warehouseId != null) {
-            list = priceHistoryRepository.findByProductIdAndWarehouseIdOrderByCreatedAtDesc(productId, warehouseId);
-        } else if (productId != null && status != null) {
-            list = priceHistoryRepository.findByProductIdAndStatusOrderByCreatedAtAsc(productId, status);
-        } else if (warehouseId != null && status != null) {
-            list = priceHistoryRepository.findByWarehouseIdAndStatusOrderByCreatedAtAsc(warehouseId, status);
-        } else if (productId != null) {
-            list = priceHistoryRepository.findByProductIdOrderByCreatedAtDesc(productId);
-        } else if (warehouseId != null) {
-            list = priceHistoryRepository.findByWarehouseIdOrderByCreatedAtAsc(warehouseId);
-        } else if (status != null) {
-            list = priceHistoryRepository.findByStatusOrderByCreatedAtAsc(status);
-        } else {
-            list = priceHistoryRepository.findAllByOrderByCreatedAtAsc();
-        }
+    public List<PriceHistoryResponse> getAll(Long productId, Long warehouseId, PriceHistoryStatus status,
+            LocalDate effectiveDateFrom, LocalDate effectiveDateTo) {
+        Specification<PriceHistory> spec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            if (productId != null) predicates.add(cb.equal(root.get("product").get("id"), productId));
+            if (warehouseId != null) predicates.add(cb.equal(root.get("warehouse").get("id"), warehouseId));
+            if (status != null) predicates.add(cb.equal(root.get("status"), status));
+            if (effectiveDateFrom != null) predicates.add(cb.greaterThanOrEqualTo(root.get("effectiveDate"), effectiveDateFrom));
+            if (effectiveDateTo != null) predicates.add(cb.lessThanOrEqualTo(root.get("effectiveDate"), effectiveDateTo));
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
+        List<PriceHistory> list = priceHistoryRepository.findAll(spec, Sort.by(Sort.Direction.ASC, "createdAt"));
         // Populate previous_approved for PENDING entries so the approval list can show delta comparisons.
         return list.stream().map(p -> {
             PreviousApprovedRef prev = (p.getStatus() == PriceHistoryStatus.PENDING)
@@ -243,17 +250,24 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
             Sheet sheet = wb.getSheetAt(0);
             validateExcelHeaders(sheet);
 
-            int dataRowCount = sheet.getLastRowNum(); // row 0 = header
-            if (dataRowCount > EXCEL_MAX_ROWS) {
+            // getLastRowNum() reflects the last physically-written row index, which can
+            // over-count when the sheet has trailing blank/formatted rows with no data.
+            // Collect the actual non-blank data rows first so the 1000-row limit is
+            // checked against real data, not sheet geometry.
+            List<Row> dataRows = new ArrayList<>();
+            for (int i = 1; i <= sheet.getLastRowNum(); i++) {
+                Row row = sheet.getRow(i);
+                if (row != null && !isRowBlank(row)) dataRows.add(row);
+            }
+            if (dataRows.size() > EXCEL_MAX_ROWS) {
                 throw new PriceHistoryException(
                         HttpStatus.BAD_REQUEST,
                         "EXCEL_TOO_MANY_ROWS", "File vượt quá 1.000 dòng dữ liệu.");
             }
 
-            for (int i = 1; i <= dataRowCount; i++) {
-                Row row = sheet.getRow(i);
-                if (row == null) continue;
-                processExcelRow(row, i + 1, actor, created, failed);
+            Set<String> seenInFile = new HashSet<>();
+            for (Row row : dataRows) {
+                processExcelRow(row, row.getRowNum() + 1, actor, created, failed, seenInFile);
             }
         } catch (IOException e) {
             log.error("Failed to parse Excel file", e);
@@ -278,6 +292,12 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
     }
 
     // ── helpers ─────────────────────────────────────────────────────────────
+
+    private void checkSellingAboveCost(BigDecimal costPrice, BigDecimal sellingPrice) {
+        if (sellingPrice.compareTo(costPrice) <= 0) {
+            throw PriceHistoryException.sellingBelowCost();
+        }
+    }
 
     private void checkNoConflictingActive(Long productId, Long warehouseId, LocalDate effective, Long excludeId) {
         List<PriceHistory> conflicts = priceHistoryRepository
@@ -312,7 +332,7 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
 
     private PriceHistory require(Long id) {
         return priceHistoryRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Bản giá không tồn tại: " + id));
+                .orElseThrow(() -> PriceHistoryException.notFound(id));
     }
 
     private Product requireProduct(Long productId) {
@@ -358,10 +378,14 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
     }
 
     private PreviousApprovedRef buildPreviousApproved(PriceHistory ph) {
-        List<PriceHistory> latest = priceHistoryRepository.findLatestApproved(ph.getProduct().getId(), ph.getWarehouse().getId());
-        if (latest.isEmpty()) return null;
+        // Anchored to ph's own effective_date (not "most recent APPROVED overall") so a
+        // backdated entry is compared against the price it actually supersedes; excludes
+        // ph itself in case ph is already APPROVED.
+        List<PriceHistory> candidates = priceHistoryRepository.findApprovedAtOrBefore(
+                ph.getProduct().getId(), ph.getWarehouse().getId(), ph.getEffectiveDate(), ph.getId());
+        if (candidates.isEmpty()) return null;
 
-        PriceHistory prev = latest.get(0);
+        PriceHistory prev = candidates.get(0);
         BigDecimal costDelta = ph.getCostPrice().subtract(prev.getCostPrice());
         BigDecimal sellDelta = ph.getSellingPrice().subtract(prev.getSellingPrice());
         BigDecimal costPct = prev.getCostPrice().compareTo(BigDecimal.ZERO) == 0 ? BigDecimal.ZERO
@@ -381,6 +405,13 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
                 .sellingPriceDelta(sellDelta)
                 .sellingPriceDeltaPct(sellPct)
                 .build();
+    }
+
+    private boolean isRowBlank(Row row) {
+        for (int col = 0; col <= 5; col++) {
+            if (!cellString(row, col).isEmpty()) return false;
+        }
+        return true;
     }
 
     private void validateExcelFile(MultipartFile file) {
@@ -412,7 +443,7 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
     }
 
     protected void processExcelRow(Row row, int displayRow, User actor,
-                                   List<CreatedRow> created, List<FailedRow> failed) {
+                                   List<CreatedRow> created, List<FailedRow> failed, Set<String> seenInFile) {
         String sku = cellString(row, 0);
         String warehouseCode = cellString(row, 1);
         String effectiveDateStr = cellString(row, 2);
@@ -450,6 +481,13 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
             return;
         }
 
+        try {
+            accountingPeriodService.validateDateInOpenPeriod(effective);
+        } catch (UnprocessableEntityException e) {
+            failed.add(failRow(displayRow, sku, "PERIOD_CLOSED", e.getMessage()));
+            return;
+        }
+
         // Price parse
         BigDecimal cost, sell;
         try {
@@ -465,8 +503,25 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
             return;
         }
 
+        if (sell.compareTo(cost) <= 0) {
+            failed.add(failRow(displayRow, sku, "SELLING_BELOW_COST", "selling_price phải lớn hơn cost_price"));
+            return;
+        }
+
         Product product = productOpt.get();
         Warehouse warehouse = warehouseOpt.get();
+
+        // Two rows in the same file targeting the same (product, warehouse, effective_date)
+        // would both pass the DB check below independently — track keys already created in
+        // this batch so the second row is rejected as a duplicate instead of also creating
+        // a row that immediately conflicts with the first.
+        String dedupKey = product.getId() + ":" + warehouse.getId() + ":" + effective;
+        if (seenInFile.contains(dedupKey)) {
+            failed.add(failRow(displayRow, sku, "OVERLAPPING_EFFECTIVE_DATE",
+                    "Trùng effective_date với một dòng khác trong cùng file cho sản phẩm/kho này"));
+            return;
+        }
+
         List<PriceHistory> conflicts = priceHistoryRepository
                 .findConflictingActive(product.getId(), warehouse.getId(), effective, null);
         if (!conflicts.isEmpty()) {
@@ -491,6 +546,7 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
                 .build();
 
         PriceHistory saved = priceHistoryRepository.save(ph);
+        seenInFile.add(dedupKey);
         created.add(CreatedRow.builder()
                 .row(displayRow)
                 .productSku(sku)
@@ -546,6 +602,7 @@ public class PriceHistoryServiceImpl implements PriceHistoryService {
                 .productName(ph.getProduct().getName())
                 .warehouseId(ph.getWarehouse().getId())
                 .warehouseName(ph.getWarehouse().getName())
+                .warehouseCode(ph.getWarehouse().getCode())
                 .effectiveDate(ph.getEffectiveDate())
                 .costPrice(ph.getCostPrice())
                 .sellingPrice(ph.getSellingPrice())

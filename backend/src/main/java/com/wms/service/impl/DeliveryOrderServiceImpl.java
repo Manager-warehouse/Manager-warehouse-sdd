@@ -28,6 +28,7 @@ import com.wms.entity.DeliveryOrderItemReturnToBinRecord;
 import com.wms.entity.DeliveryOrderWarehouseApproval;
 import com.wms.entity.Inventory;
 import com.wms.entity.OutboundQcRecord;
+import com.wms.entity.PriceHistory;
 import com.wms.entity.Product;
 import com.wms.entity.QuarantineRecord;
 import com.wms.entity.User;
@@ -277,6 +278,19 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         Dealer dealer = dealerRepository.findByIdForUpdate(request.getDealerId())
                 .orElseThrow(() -> new ResourceNotFoundException("Dealer not found with id: " + request.getDealerId()));
 
+        // Validate every line has an approved price before building any plan, in one pass,
+        // so a DO missing prices for several products reports all of them together instead
+        // of failing on just the first one buildItemPlans() would hit.
+        List<Long> missingPrice = request.getItems().stream()
+                .map(DeliveryOrderItemCreateRequest::getProductId)
+                .distinct()
+                .filter(pid -> priceHistoryService
+                        .lookupApproved(pid, request.getWarehouseId(), request.getDocumentDate()).isEmpty())
+                .toList();
+        if (!missingPrice.isEmpty()) {
+            throw PriceHistoryException.missingPrice(missingPrice.toString());
+        }
+
         List<ItemPlan> itemPlans = buildItemPlans(request);
         BigDecimal orderValue = itemPlans.stream()
                 .map(ItemPlan::lineAmount)
@@ -303,19 +317,6 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         order.setNotes(request.getNotes());
         order.setCreatedAt(now);
         order.setUpdatedAt(now);
-
-        LocalDate today = request.getDocumentDate();
-        Long warehouseId = request.getWarehouseId();
-        // Validate all lines have an approved price for this warehouse before creating
-        // anything
-        List<Long> missingPrice = request.getItems().stream()
-                .map(i -> i.getProductId())
-                .distinct()
-                .filter(pid -> priceHistoryService.lookupApproved(pid, warehouseId, today).isEmpty())
-                .toList();
-        if (!missingPrice.isEmpty()) {
-            throw PriceHistoryException.missingPrice(missingPrice.toString());
-        }
 
         DeliveryOrder saved = deliveryOrderRepository.save(order);
         List<Map<String, Object>> reservationDeltas = reserveWarehouseProducts(warehouse, requestedByProduct, now);
@@ -980,11 +981,11 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
             Product product = productRepository.findByIdAndIsActiveTrue(item.getProductId())
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "Active product not found with id: " + item.getProductId()));
-            BigDecimal unitPrice = priceHistoryService
+            PriceHistory price = priceHistoryService
                     .lookupApproved(product.getId(), request.getWarehouseId(), request.getDocumentDate())
-                    .map(price -> value(price.getSellingPrice()))
                     .orElseThrow(() -> PriceHistoryException.missingPrice(product.getId().toString()));
-            plans.add(new ItemPlan(product, item.getRequestedQty(), unitPrice));
+            plans.add(new ItemPlan(product, item.getRequestedQty(), value(price.getSellingPrice()),
+                    value(price.getCostPrice())));
         }
         return plans;
     }
@@ -1170,6 +1171,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         item.setQcFailQty(ZERO);
         item.setIssuedQty(ZERO);
         item.setUnitPrice(plan.unitPrice());
+        item.setUnitCost(plan.unitCost());
         return item;
     }
 
@@ -2000,7 +2002,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         return doItemId + ":" + inventoryId;
     }
 
-    private record ItemPlan(Product product, BigDecimal requestedQty, BigDecimal unitPrice) {
+    private record ItemPlan(Product product, BigDecimal requestedQty, BigDecimal unitPrice, BigDecimal unitCost) {
         BigDecimal lineAmount() {
             return requestedQty.multiply(unitPrice);
         }
