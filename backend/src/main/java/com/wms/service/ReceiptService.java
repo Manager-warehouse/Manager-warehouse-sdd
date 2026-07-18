@@ -61,6 +61,7 @@ public class ReceiptService {
     private final UserWarehouseAssignmentRepository assignmentRepository;
     private final AuditLogService auditLogService;
     private final ReceiptMapper receiptMapper;
+    private final AccountingPeriodService accountingPeriodService;
 
     public ReceiptService(DocumentSequenceRepository sequenceRepository,
                           ReceiptRepository receiptRepository,
@@ -70,7 +71,8 @@ public class ReceiptService {
                           ProductRepository productRepository,
                           UserWarehouseAssignmentRepository assignmentRepository,
                           AuditLogService auditLogService,
-                          ReceiptMapper receiptMapper) {
+                          ReceiptMapper receiptMapper,
+                          AccountingPeriodService accountingPeriodService) {
         this.sequenceRepository = sequenceRepository;
         this.receiptRepository = receiptRepository;
         this.receiptItemRepository = receiptItemRepository;
@@ -80,6 +82,7 @@ public class ReceiptService {
         this.assignmentRepository = assignmentRepository;
         this.auditLogService = auditLogService;
         this.receiptMapper = receiptMapper;
+        this.accountingPeriodService = accountingPeriodService;
     }
 
     @Transactional(readOnly = true)
@@ -248,6 +251,7 @@ public class ReceiptService {
                                  Supplier supplier,
                                  Warehouse warehouse) {
         OffsetDateTime now = OffsetDateTime.now();
+        LocalDate documentDate = LocalDate.now();
         Receipt receipt = new Receipt();
         receipt.setReceiptNumber(generateReceiptNumber());
         receipt.setSourceOrderCode(request.getSourceReference());
@@ -257,7 +261,8 @@ public class ReceiptService {
         receipt.setContactPerson(request.getContactPerson());
         receipt.setSourceChannel(request.getSourceChannel().name());
         receipt.setStatus(ReceiptStatus.PENDING_RECEIPT);
-        receipt.setDocumentDate(LocalDate.now());
+        receipt.setDocumentDate(documentDate);
+        receipt.setAccountingPeriod(accountingPeriodService.resolveOpenPeriod(documentDate));
         receipt.setCreatedBy(actor);
         receipt.setNotes(request.getNotes());
         receipt.setCreatedAt(now);

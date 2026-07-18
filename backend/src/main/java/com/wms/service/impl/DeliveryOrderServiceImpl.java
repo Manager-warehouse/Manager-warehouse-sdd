@@ -65,9 +65,12 @@ import com.wms.repository.QuarantineRecordRepository;
 import com.wms.repository.UserWarehouseAssignmentRepository;
 import com.wms.repository.WarehouseProductReservationRepository;
 import com.wms.repository.WarehouseRepository;
+import com.wms.entity.AccountingPeriod;
+import com.wms.service.AccountingPeriodService;
 import com.wms.service.DeliveryOrderService;
 import com.wms.service.PartnerEligibilityService;
 import com.wms.service.PriceHistoryService;
+import com.wms.service.SystemConfigService;
 import com.wms.util.PartnerAuditUtil;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
@@ -98,7 +101,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class DeliveryOrderServiceImpl implements DeliveryOrderService {
 
     private static final BigDecimal ZERO = BigDecimal.ZERO.setScale(2);
-    private static final int CREDIT_HOLD_OVERDUE_DAYS = 30;
+    private static final int DEFAULT_CREDIT_HOLD_OVERDUE_DAYS = 30;
 
     private static final Set<DeliveryOrderStatus> CANCELLABLE_STATUSES = EnumSet.of(
             DeliveryOrderStatus.NEW,
@@ -128,6 +131,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     private final PartnerAuditUtil auditUtil;
     private final EntityManager entityManager;
     private final PriceHistoryService priceHistoryService;
+    private final AccountingPeriodService accountingPeriodService;
+    private final SystemConfigService systemConfigService;
 
     public DeliveryOrderServiceImpl(DeliveryOrderRepository deliveryOrderRepository,
             DeliveryOrderItemRepository deliveryOrderItemRepository,
@@ -150,7 +155,9 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
             DeliveryOrderMapper deliveryOrderMapper,
             PartnerAuditUtil auditUtil,
             EntityManager entityManager,
-            PriceHistoryService priceHistoryService) {
+            PriceHistoryService priceHistoryService,
+            AccountingPeriodService accountingPeriodService,
+            SystemConfigService systemConfigService) {
         this.deliveryOrderRepository = deliveryOrderRepository;
         this.deliveryOrderItemRepository = deliveryOrderItemRepository;
         this.allocationRepository = allocationRepository;
@@ -173,6 +180,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         this.auditUtil = auditUtil;
         this.entityManager = entityManager;
         this.priceHistoryService = priceHistoryService;
+        this.accountingPeriodService = accountingPeriodService;
+        this.systemConfigService = systemConfigService;
     }
 
     @Override
@@ -263,7 +272,9 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         Warehouse warehouse = activeWarehouse(request.getWarehouseId());
         requireWarehouseScope(actor, warehouse.getId());
         partnerEligibilityService.ensureDealerActive(request.getDealerId());
-        Dealer dealer = dealerRepository.findById(request.getDealerId())
+        // Locked for the duration of this transaction so a concurrent order for the same
+        // dealer can't read a stale balance and both pass the credit check.
+        Dealer dealer = dealerRepository.findByIdForUpdate(request.getDealerId())
                 .orElseThrow(() -> new ResourceNotFoundException("Dealer not found with id: " + request.getDealerId()));
 
         List<ItemPlan> itemPlans = buildItemPlans(request);
@@ -271,6 +282,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                 .map(ItemPlan::lineAmount)
                 .reduce(ZERO, BigDecimal::add);
         validateCredit(dealer, orderValue);
+
+        AccountingPeriod accountingPeriod = accountingPeriodService.resolveOpenPeriod(request.getDocumentDate());
 
         Map<Long, BigDecimal> requestedByProduct = itemPlans.stream()
                 .collect(Collectors.toMap(plan -> plan.product().getId(), ItemPlan::requestedQty, BigDecimal::add));
@@ -286,6 +299,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         order.setStatus(DeliveryOrderStatus.NEW);
         order.setCreatedBy(actor);
         order.setDocumentDate(request.getDocumentDate());
+        order.setAccountingPeriod(accountingPeriod);
         order.setNotes(request.getNotes());
         order.setCreatedAt(now);
         order.setUpdatedAt(now);
@@ -554,6 +568,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                 adjustment.setApprovedBy(actor);
                 adjustment.setApprovedAt(now);
                 adjustment.setDocumentDate(LocalDate.now());
+                adjustment.setAccountingPeriod(accountingPeriodService.resolveOpenPeriod(LocalDate.now()));
                 adjustment.setCreatedBy(actor);
                 adjustment.setCreatedAt(now);
 
@@ -983,11 +998,12 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         if (currentBalance.add(orderValue).compareTo(creditLimit) > 0) {
             throw creditHold("Dealer credit limit exceeded");
         }
-        LocalDate overdueThreshold = LocalDate.now().minusDays(CREDIT_HOLD_OVERDUE_DAYS);
+        int overdueDays = systemConfigService.getIntValue("CREDIT_HOLD_OVERDUE_DAYS", DEFAULT_CREDIT_HOLD_OVERDUE_DAYS);
+        LocalDate overdueThreshold = LocalDate.now().minusDays(overdueDays);
         boolean hasOverdue = invoiceRepository.existsByDealerIdAndStatusInAndDueDateBefore(
                 dealer.getId(), List.of(InvoiceStatus.UNPAID, InvoiceStatus.PARTIALLY_PAID), overdueThreshold);
         if (hasOverdue) {
-            throw creditHold("Dealer has invoice overdue more than 30 days");
+            throw creditHold("Dealer has invoice overdue more than " + overdueDays + " days");
         }
     }
 

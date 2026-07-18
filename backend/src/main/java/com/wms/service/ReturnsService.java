@@ -43,6 +43,7 @@ public class ReturnsService {
     private final CreditNoteRepository creditNoteRepository;
     private final ReceiptValidationService receiptValidationService;
     private final AuditLogService auditLogService;
+    private final AccountingPeriodService accountingPeriodService;
 
     public ReturnsService(ReceiptRepository receiptRepository,
                           ReceiptItemRepository receiptItemRepository,
@@ -53,7 +54,8 @@ public class ReturnsService {
                           InventoryRepository inventoryRepository,
                           CreditNoteRepository creditNoteRepository,
                           ReceiptValidationService receiptValidationService,
-                          AuditLogService auditLogService) {
+                          AuditLogService auditLogService,
+                          AccountingPeriodService accountingPeriodService) {
         this.receiptRepository = receiptRepository;
         this.receiptItemRepository = receiptItemRepository;
         this.deliveryOrderRepository = deliveryOrderRepository;
@@ -64,6 +66,7 @@ public class ReturnsService {
         this.creditNoteRepository = creditNoteRepository;
         this.receiptValidationService = receiptValidationService;
         this.auditLogService = auditLogService;
+        this.accountingPeriodService = accountingPeriodService;
     }
 
     @Transactional
@@ -428,7 +431,10 @@ public class ReturnsService {
             totalRefundAmount = totalRefundAmount.add(qty.multiply(returnPrice));
         }
 
-        Dealer dealer = receipt.getDealer();
+        // Locked for the duration of this transaction so a concurrent invoice/payment for
+        // the same dealer can't race on current_balance.
+        Dealer dealer = dealerRepository.findByIdForUpdate(receipt.getDealer().getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Dealer not found: " + receipt.getDealer().getId()));
         BigDecimal oldBalance = dealer.getCurrentBalance();
         BigDecimal newBalance = oldBalance.subtract(totalRefundAmount); // Refund reduces outstanding balance dealer owes us
 
@@ -439,6 +445,12 @@ public class ReturnsService {
         String creditNoteNumber = "CN-" + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))
                 + "-" + UUID.randomUUID().toString().substring(0, 6).toUpperCase();
 
+        // Stamp the period for the credit note's own document date (today), not the
+        // (possibly older, possibly since-closed) return receipt's period — matches the
+        // Invoice/PaymentReceipt pattern and rejects backdating into a closed period.
+        LocalDate documentDate = LocalDate.now();
+        AccountingPeriod accountingPeriod = accountingPeriodService.resolveOpenPeriod(documentDate);
+
         CreditNote creditNote = CreditNote.builder()
                 .creditNoteNumber(creditNoteNumber)
                 .dealer(dealer)
@@ -446,8 +458,8 @@ public class ReturnsService {
                 .amount(totalRefundAmount)
                 .reason(request.getReason())
                 .createdBy(actor)
-                .documentDate(LocalDate.now())
-                .accountingPeriod(receipt.getAccountingPeriod())
+                .documentDate(documentDate)
+                .accountingPeriod(accountingPeriod)
                 .createdAt(OffsetDateTime.now())
                 .build();
 

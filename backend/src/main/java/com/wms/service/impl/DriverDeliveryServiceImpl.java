@@ -9,6 +9,7 @@ import com.wms.dto.response.DeliveryAttemptResponse;
 import com.wms.dto.response.DeliveryOtpResponse;
 import com.wms.dto.response.DriverDeliveryOrderResponse;
 import com.wms.dto.response.TripDriverViewResponse;
+import com.wms.entity.BillingNotification;
 import com.wms.entity.Dealer;
 import com.wms.entity.Delivery;
 import com.wms.entity.DeliveryOrder;
@@ -28,6 +29,7 @@ import com.wms.enums.TripStatus;
 import com.wms.enums.VehicleStatus;
 import com.wms.exception.OutboundDeliveryException;
 import com.wms.exception.ResourceNotFoundException;
+import com.wms.repository.BillingNotificationRepository;
 import com.wms.repository.DeliveryOrderItemRepository;
 import com.wms.repository.DeliveryOrderRepository;
 import com.wms.repository.DeliveryOtpAttemptRepository;
@@ -81,6 +83,7 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
     private final DeliveryOrderItemRepository deliveryOrderItemRepository;
     private final InventoryRepository inventoryRepository;
     private final AutoInvoiceService autoInvoiceService;
+    private final BillingNotificationRepository billingNotificationRepository;
     private final AuditLogService auditLogService;
     private final JavaMailSender mailSender;
     private final SecureRandom secureRandom = new SecureRandom();
@@ -93,6 +96,7 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
                                      DeliveryOrderItemRepository deliveryOrderItemRepository,
                                      InventoryRepository inventoryRepository,
                                      AutoInvoiceService autoInvoiceService,
+                                     BillingNotificationRepository billingNotificationRepository,
                                      AuditLogService auditLogService,
                                      JavaMailSender mailSender) {
         this.tripRepository = tripRepository;
@@ -103,6 +107,7 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
         this.deliveryOrderItemRepository = deliveryOrderItemRepository;
         this.inventoryRepository = inventoryRepository;
         this.autoInvoiceService = autoInvoiceService;
+        this.billingNotificationRepository = billingNotificationRepository;
         this.auditLogService = auditLogService;
         this.mailSender = mailSender;
     }
@@ -198,6 +203,7 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
         verifyOtp(otp, request.getOtp());
         Map<String, Object> before = attemptSnapshot(delivery);
         decrementTransitInventory(delivery.getDeliveryOrder());
+        createBillingNotification(delivery.getDeliveryOrder());
         autoInvoiceService.createForConfirmedDelivery(delivery.getDeliveryOrder(), actor);
         OffsetDateTime now = OffsetDateTime.now();
         otp.setStatus(DeliveryOtpStatus.VERIFIED);
@@ -340,6 +346,36 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
             transit.setUpdatedAt(OffsetDateTime.now());
             saveInventory(transit);
         }
+    }
+
+    // Creates the accountant reconciliation worklist entry (Spec 008, billing_notifications)
+    // before invoice creation runs, so AutoInvoiceServiceImpl can find and archive it in the
+    // same transaction. totalAmountEstimate is a rough estimate independent of the formal
+    // invoice total — it must not block delivery confirmation if line pricing is incomplete.
+    private void createBillingNotification(DeliveryOrder order) {
+        List<DeliveryOrderItem> items = deliveryOrderItemRepository.findByDeliveryOrderId(order.getId());
+        BigDecimal estimate = items.stream()
+                .map(this::estimateLineAmount)
+                .reduce(ZERO, BigDecimal::add);
+        Dealer dealer = order.getDealer();
+        BillingNotification notification = BillingNotification.builder()
+                .deliveryOrder(order)
+                .doNumber(order.getDoNumber())
+                .dealer(dealer)
+                .dealerName(dealer.getName())
+                .warehouse(order.getWarehouse())
+                .deliveredAt(OffsetDateTime.now())
+                .totalAmountEstimate(estimate)
+                .build();
+        billingNotificationRepository.save(notification);
+    }
+
+    private BigDecimal estimateLineAmount(DeliveryOrderItem item) {
+        BigDecimal quantity = value(item.getIssuedQty()).compareTo(ZERO) > 0
+                ? value(item.getIssuedQty())
+                : value(item.getRequestedQty());
+        BigDecimal unitPrice = value(item.getUnitPrice());
+        return quantity.multiply(unitPrice);
     }
 
     private TripDriverViewResponse toTripDriverView(Trip trip) {

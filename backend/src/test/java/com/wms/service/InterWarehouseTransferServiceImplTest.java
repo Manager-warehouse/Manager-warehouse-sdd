@@ -18,7 +18,11 @@ import com.wms.dto.request.TransferReturnRequest;
 import com.wms.dto.request.TransferReturnRejectRequest;
 import com.wms.dto.request.LoadHandoverRequest;
 import com.wms.dto.request.OutboundQcRequest;
+import com.wms.dto.request.AccountingPeriodCloseRequest;
+import com.wms.dto.request.AccountingPeriodCreateRequest;
+import com.wms.dto.response.AccountingPeriodResponse;
 import com.wms.dto.response.InterWarehouseTransferResponse;
+import com.wms.entity.AccountingPeriod;
 import com.wms.entity.Batch;
 import com.wms.entity.Driver;
 import com.wms.entity.Inventory;
@@ -95,6 +99,7 @@ class InterWarehouseTransferServiceImplTest {
     private com.wms.repository.WrongSkuReportItemRepository wrongSkuReportItemRepository;
     private TrackingAuditUtil auditUtil;
     private EntityManager entityManager;
+    private AccountingPeriodService accountingPeriodService;
     private InterWarehouseTransferServiceImpl service;
 
     private Warehouse sourceWarehouse;
@@ -182,6 +187,32 @@ class InterWarehouseTransferServiceImplTest {
         wrongSkuReportItemRepository = proxy(com.wms.repository.WrongSkuReportItemRepository.class, new DefaultRepoHandler());
         auditUtil = new TrackingAuditUtil();
         entityManager = proxy(EntityManager.class, new EntityManagerHandler());
+        accountingPeriodService = new AccountingPeriodService() {
+            @Override
+            public List<AccountingPeriodResponse> getAllPeriods(User actor) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public AccountingPeriodResponse createPeriod(AccountingPeriodCreateRequest request, User actor) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public AccountingPeriodResponse closePeriod(Long id, AccountingPeriodCloseRequest request, User actor) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void validateDateInOpenPeriod(LocalDate date) {
+                // no-op: transfer document dates in this test are always treated as open
+            }
+
+            @Override
+            public AccountingPeriod resolveOpenPeriod(LocalDate date) {
+                return AccountingPeriod.builder().id(1L).periodName("2026-07").status(null).build();
+            }
+        };
 
         InterWarehouseTransferMapper mapper = new InterWarehouseTransferMapper();
 
@@ -191,7 +222,7 @@ class InterWarehouseTransferServiceImplTest {
                 tripRepository, mapper, auditUtil, entityManager);
 
         InterWarehouseTransferPlanningService planningService = new InterWarehouseTransferPlanningService(
-                transferRepository, transferItemRepository, helper);
+                transferRepository, transferItemRepository, helper, accountingPeriodService);
 
         InterWarehouseTransferApprovalService approvalService = new InterWarehouseTransferApprovalService(
                 transferRepository, helper);

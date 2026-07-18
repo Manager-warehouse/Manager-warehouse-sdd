@@ -2,24 +2,39 @@ package com.wms.service.impl;
 
 import com.wms.dto.outbound.AutoInvoiceResult;
 import com.wms.dto.outbound.AutoInvoiceResult.AutoInvoiceLineResult;
+import com.wms.entity.AccountingPeriod;
 import com.wms.entity.Dealer;
 import com.wms.entity.DeliveryOrder;
 import com.wms.entity.DeliveryOrderItem;
+import com.wms.entity.DocumentSequence;
 import com.wms.entity.Invoice;
 import com.wms.entity.InvoiceLine;
 import com.wms.entity.User;
+import com.wms.enums.AccountingPeriodStatus;
 import com.wms.enums.AuditAction;
+import com.wms.enums.BillingNotificationInvoiceStatus;
+import com.wms.enums.BillingNotificationStatus;
+import com.wms.enums.CreditStatus;
 import com.wms.enums.DeliveryOrderStatus;
 import com.wms.enums.InvoiceStatus;
+import com.wms.exception.DuplicateResourceException;
 import com.wms.exception.OutboundDeliveryException;
+import com.wms.exception.ResourceNotFoundException;
+import com.wms.exception.UnprocessableEntityException;
+import com.wms.repository.AccountingPeriodRepository;
+import com.wms.repository.BillingNotificationRepository;
+import com.wms.repository.DealerRepository;
 import com.wms.repository.DeliveryOrderItemRepository;
+import com.wms.repository.DocumentSequenceRepository;
 import com.wms.repository.InvoiceLineRepository;
 import com.wms.repository.InvoiceRepository;
+import com.wms.service.AccountingPeriodService;
 import com.wms.service.AuditLogService;
 import com.wms.service.AutoInvoiceService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,19 +47,37 @@ import org.springframework.transaction.annotation.Transactional;
 public class AutoInvoiceServiceImpl implements AutoInvoiceService {
 
     private static final BigDecimal ZERO = BigDecimal.ZERO;
+    private static final DateTimeFormatter INVOICE_NUMBER_DATE = DateTimeFormatter.ofPattern("yyyyMM");
+    private static final String INVOICE_SEQUENCE_KEY = "INVOICE";
+    private static final int DEFAULT_PAYMENT_TERM_DAYS = 30;
 
     private final InvoiceRepository invoiceRepository;
     private final InvoiceLineRepository invoiceLineRepository;
     private final DeliveryOrderItemRepository deliveryOrderItemRepository;
+    private final DealerRepository dealerRepository;
+    private final AccountingPeriodRepository accountingPeriodRepository;
+    private final AccountingPeriodService accountingPeriodService;
+    private final BillingNotificationRepository billingNotificationRepository;
+    private final DocumentSequenceRepository sequenceRepository;
     private final AuditLogService auditLogService;
 
     public AutoInvoiceServiceImpl(InvoiceRepository invoiceRepository,
                                   InvoiceLineRepository invoiceLineRepository,
                                   DeliveryOrderItemRepository deliveryOrderItemRepository,
+                                  DealerRepository dealerRepository,
+                                  AccountingPeriodRepository accountingPeriodRepository,
+                                  AccountingPeriodService accountingPeriodService,
+                                  BillingNotificationRepository billingNotificationRepository,
+                                  DocumentSequenceRepository sequenceRepository,
                                   AuditLogService auditLogService) {
         this.invoiceRepository = invoiceRepository;
         this.invoiceLineRepository = invoiceLineRepository;
         this.deliveryOrderItemRepository = deliveryOrderItemRepository;
+        this.dealerRepository = dealerRepository;
+        this.accountingPeriodRepository = accountingPeriodRepository;
+        this.accountingPeriodService = accountingPeriodService;
+        this.billingNotificationRepository = billingNotificationRepository;
+        this.sequenceRepository = sequenceRepository;
         this.auditLogService = auditLogService;
     }
 
@@ -53,25 +86,16 @@ public class AutoInvoiceServiceImpl implements AutoInvoiceService {
     public AutoInvoiceResult createForConfirmedDelivery(DeliveryOrder deliveryOrder, User actor) {
         return invoiceRepository.findByDeliveryOrderId(deliveryOrder.getId())
                 .map(invoice -> toResult(invoice, true))
-                .orElseGet(() -> createInvoice(deliveryOrder, actor));
+                .orElseGet(() -> createAutoInvoice(deliveryOrder, actor));
     }
 
-    private AutoInvoiceResult createInvoice(DeliveryOrder order, User actor) {
-        validateOrder(order);
-        Dealer dealer = order.getDealer();
-        BigDecimal balanceBefore = value(dealer.getCurrentBalance());
-        List<LineDraft> drafts = buildLineDrafts(order.getId());
-        BigDecimal total = drafts.stream().map(LineDraft::lineAmount).reduce(ZERO, BigDecimal::add);
-        LocalDate issueDate = LocalDate.now();
-        Invoice invoice = newInvoice(order, actor, total, issueDate);
+    private AutoInvoiceResult createAutoInvoice(DeliveryOrder order, User actor) {
+        if (order.getStatus() != DeliveryOrderStatus.IN_TRANSIT) {
+            throw rule("DELIVERY_ORDER_STATUS_INVALID", "Delivery Order must be IN_TRANSIT before auto-invoice");
+        }
         try {
-            Invoice saved = invoiceRepository.save(invoice);
-            List<InvoiceLine> lines = drafts.stream().map(draft -> draft.toEntity(saved)).toList();
-            invoiceLineRepository.saveAll(lines);
-            dealer.setCurrentBalance(balanceBefore.add(total));
-            dealer.setUpdatedAt(OffsetDateTime.now());
-            auditInvoice(actor, saved, balanceBefore, dealer.getCurrentBalance(), lines);
-            return toResult(saved, false, lines);
+            PersistResult result = persistInvoice(order, actor, LocalDate.now(), AuditAction.INVOICE_AUTO_CREATE);
+            return toResult(result.invoice(), false, result.lines());
         } catch (DataIntegrityViolationException ex) {
             return invoiceRepository.findByDeliveryOrderId(order.getId())
                     .map(existing -> toResult(existing, true))
@@ -79,10 +103,58 @@ public class AutoInvoiceServiceImpl implements AutoInvoiceService {
         }
     }
 
-    private void validateOrder(DeliveryOrder order) {
-        if (order.getStatus() != DeliveryOrderStatus.IN_TRANSIT) {
-            throw rule("DELIVERY_ORDER_STATUS_INVALID", "Delivery Order must be IN_TRANSIT before auto-invoice");
+    @Override
+    @Transactional
+    public Invoice createBackfillInvoice(DeliveryOrder order, User actor, LocalDate documentDate) {
+        if (order.getStatus() != DeliveryOrderStatus.COMPLETED) {
+            throw new UnprocessableEntityException(
+                    "DELIVERY_ORDER_NOT_DELIVERED: Delivery Order has not completed OTP + POD confirmation");
         }
+        if (invoiceRepository.existsByDeliveryOrderId(order.getId())) {
+            throw new DuplicateResourceException(
+                    "INVOICE_ALREADY_EXISTS: Invoice already exists for this Delivery Order");
+        }
+        return persistInvoice(order, actor, documentDate, AuditAction.CREATE).invoice();
+    }
+
+    private record PersistResult(Invoice invoice, List<InvoiceLine> lines) {
+    }
+
+    // Shared by both the automatic (confirm-delivery) path and the manual backfill path:
+    // credit-limit check, accounting-period validation/stamping, DocumentSequence numbering,
+    // and billing-notification archival must stay identical between the two callers.
+    private PersistResult persistInvoice(DeliveryOrder order, User actor, LocalDate documentDate, AuditAction auditAction) {
+        accountingPeriodService.validateDateInOpenPeriod(documentDate);
+        AccountingPeriod period = accountingPeriodRepository
+                .findPeriodByDateAndStatus(documentDate, AccountingPeriodStatus.OPEN)
+                .orElseThrow(() -> new UnprocessableEntityException("No open accounting period found for document date"));
+
+        List<LineDraft> drafts = buildLineDrafts(order.getId());
+        BigDecimal total = drafts.stream().map(LineDraft::lineAmount).reduce(ZERO, BigDecimal::add);
+
+        Dealer dealer = dealerRepository.findByIdForUpdate(order.getDealer().getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Dealer not found with id: " + order.getDealer().getId()));
+        BigDecimal balanceBefore = value(dealer.getCurrentBalance());
+        LocalDate dueDate = documentDate.plusDays(
+                dealer.getPaymentTermDays() != null ? dealer.getPaymentTermDays() : DEFAULT_PAYMENT_TERM_DAYS);
+
+        Invoice invoice = newInvoice(order, dealer, actor, total, documentDate, dueDate, period);
+        Invoice saved = invoiceRepository.save(invoice);
+        List<InvoiceLine> lines = drafts.stream().map(draft -> draft.toEntity(saved)).toList();
+        invoiceLineRepository.saveAll(lines);
+
+        BigDecimal newBalance = balanceBefore.add(total);
+        dealer.setCurrentBalance(newBalance);
+        dealer.setUpdatedAt(OffsetDateTime.now());
+        BigDecimal creditLimit = value(dealer.getCreditLimit());
+        if (newBalance.compareTo(creditLimit) > 0) {
+            dealer.setCreditStatus(CreditStatus.CREDIT_HOLD);
+        }
+        dealerRepository.save(dealer);
+
+        archiveBillingNotification(order);
+        auditInvoice(actor, auditAction, saved, balanceBefore, newBalance, lines);
+        return new PersistResult(saved, lines);
     }
 
     private List<LineDraft> buildLineDrafts(Long deliveryOrderId) {
@@ -117,37 +189,52 @@ public class AutoInvoiceServiceImpl implements AutoInvoiceService {
         return issued;
     }
 
-    private Invoice newInvoice(DeliveryOrder order, User actor, BigDecimal total, LocalDate issueDate) {
+    private Invoice newInvoice(DeliveryOrder order, Dealer dealer, User actor, BigDecimal total,
+                                LocalDate documentDate, LocalDate dueDate, AccountingPeriod period) {
         OffsetDateTime now = OffsetDateTime.now();
         return Invoice.builder()
-                .invoiceNumber(generateInvoiceNumber())
+                .invoiceNumber(generateInvoiceNumber(documentDate))
                 .deliveryOrder(order)
-                .dealer(order.getDealer())
+                .dealer(dealer)
                 .totalAmount(total)
-                .issueDate(issueDate)
-                .dueDate(issueDate.plusDays(30))
+                .issueDate(documentDate)
+                .dueDate(dueDate)
                 .status(InvoiceStatus.UNPAID)
                 .createdBy(actor)
-                .documentDate(issueDate)
+                .documentDate(documentDate)
+                .accountingPeriod(period)
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
     }
 
-    private String generateInvoiceNumber() {
-        String date = LocalDate.now().toString().replace("-", "");
-        for (int sequence = 1; sequence <= 9999; sequence++) {
-            String candidate = "INV-" + date + "-" + String.format("%04d", sequence);
-            if (!invoiceRepository.existsByInvoiceNumber(candidate)) {
-                return candidate;
-            }
-        }
-        throw rule("INVOICE_NUMBER_EXHAUSTED", "Cannot generate invoice number");
+    private String generateInvoiceNumber(LocalDate documentDate) {
+        String datePart = documentDate.format(INVOICE_NUMBER_DATE);
+        DocumentSequence sequence = sequenceRepository
+                .findBySequenceKeyForUpdate(INVOICE_SEQUENCE_KEY)
+                .orElseThrow(() -> new IllegalStateException("Invoice sequence is not configured"));
+        long value = sequence.getNextValue();
+        sequence.setNextValue(value + 1);
+        sequence.setUpdatedAt(OffsetDateTime.now());
+        sequenceRepository.save(sequence);
+        return "INV-" + datePart + "-" + String.format("%06d", value);
     }
 
-    private void auditInvoice(User actor, Invoice invoice, BigDecimal before,
+    private void archiveBillingNotification(DeliveryOrder order) {
+        billingNotificationRepository.findByDeliveryOrderIdAndInvoiceStatusAndStatus(
+                order.getId(),
+                BillingNotificationInvoiceStatus.NOT_INVOICED,
+                BillingNotificationStatus.ACTIVE
+        ).ifPresent(notification -> {
+            notification.setInvoiceStatus(BillingNotificationInvoiceStatus.INVOICED);
+            notification.setStatus(BillingNotificationStatus.ARCHIVED);
+            billingNotificationRepository.save(notification);
+        });
+    }
+
+    private void auditInvoice(User actor, AuditAction action, Invoice invoice, BigDecimal before,
                               BigDecimal after, List<InvoiceLine> lines) {
-        auditLogService.log(actor, AuditAction.INVOICE_AUTO_CREATE, "INVOICE",
+        auditLogService.log(actor, action, "INVOICE",
                 invoice.getId(), invoice.getInvoiceNumber(), invoice.getDeliveryOrder().getWarehouse().getId(),
                 Map.of("dealerBalance", before),
                 Map.of("dealerBalance", after, "invoice", invoiceSnapshot(invoice), "lines", lineSnapshots(lines)));

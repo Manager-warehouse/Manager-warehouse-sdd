@@ -11,6 +11,7 @@ import com.wms.enums.AuditAction;
 import com.wms.exception.BusinessRuleViolationException;
 import com.wms.repository.InterWarehouseTransferItemRepository;
 import com.wms.repository.InterWarehouseTransferRepository;
+import com.wms.service.AccountingPeriodService;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
@@ -26,6 +27,7 @@ public class InterWarehouseTransferPlanningService {
     private final InterWarehouseTransferRepository transferRepository;
     private final InterWarehouseTransferItemRepository transferItemRepository;
     private final InterWarehouseTransferHelper helper;
+    private final AccountingPeriodService accountingPeriodService;
 
     @Transactional
     public InterWarehouseTransferResponse createTransfer(InterWarehouseTransferCreateRequest request, User actor) {
@@ -114,6 +116,7 @@ public class InterWarehouseTransferPlanningService {
         transfer.setSourceWarehouse(helper.reference(Warehouse.class, sourceWarehouseId));
         transfer.setDestinationWarehouse(helper.reference(Warehouse.class, destinationWarehouseId));
         transfer.setDocumentDate(documentDate);
+        transfer.setAccountingPeriod(accountingPeriodService.resolveOpenPeriod(documentDate));
         transfer.setPlannedDate(plannedDate);
         transfer.setNotes(notes);
     }
