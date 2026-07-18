@@ -1,10 +1,10 @@
 # Tài Liệu Đặc Tả & Hướng Dẫn Sử Dụng Database WMS Phúc Anh
 
-> **Đồng bộ:** 2026-07-15 · **Nguồn schema triển khai:** `backend/src/main/resources/db/migration/` · **Nguồn nghiệp vụ:** `.sdd/specs/001`–`010`. Flyway migration là nguồn cuối cùng khi tài liệu và database khác nhau.
+> **Đồng bộ:** 2026-07-19 · **Đã đối chiếu VPS production:** PostgreSQL container `wms-prod-db-1` · **Nguồn schema triển khai:** `backend/src/main/resources/db/migration/` · **Nguồn nghiệp vụ:** `.sdd/specs/001`–`010`. Flyway migration là nguồn cuối cùng khi tài liệu và database khác nhau.
 
-> **Schema-gap bắt buộc:** Domain chuẩn không quản lý serial, expiry hay quality grade. Tuy nhiên migration hiện có vẫn còn `batches.expiry_date` và `batches.grade` (default `A`). Đây là legacy schema cần migration cleanup có kiểm soát trong task riêng; service/UI không được dùng chúng để tạo nghiệp vụ mới. Các mô tả domain trong tài liệu này tuân theo spec/constitution, đồng thời ghi rõ legacy field khi cần đối chiếu database.
+> **Schema-gap bắt buộc:** Domain chuẩn không quản lý serial, expiry hay quality grade. Tuy nhiên VPS vẫn còn `products.has_expiry`, `products.shelf_life_days`, `products.has_serial`, `batches.expiry_date` và `batches.grade` (default `A`), cùng legacy fields liên quan ở một số line item. Đây là legacy schema cần migration cleanup **forward-only** trong task riêng; service/UI không được dùng chúng để tạo nghiệp vụ mới.
 
-Tài liệu này giải thích chi tiết cấu trúc cơ sở dữ liệu PostgreSQL của Hệ thống Quản lý Kho (WMS) Phúc Anh, bao gồm ý nghĩa nghiệp vụ của tất cả các bảng (36 bảng core + 1 bảng bổ trợ), chi tiết từng trường dữ liệu, cách hoạt động và ví dụ thực tế cho mỗi thực thể.
+Migration hiện định nghĩa **55 bảng WMS** (sau rename V2 vẫn là một bảng transfer, không phải hai) và Flyway tạo thêm bảng kỹ thuật `flyway_schema_history`; VPS cần có **56 bảng trong `public`** khi toàn bộ migration thành công. Tài liệu này giải thích cấu trúc, quan hệ và quy tắc sử dụng của các bảng nghiệp vụ; các bảng hardening được liệt kê riêng ở phần hỗ trợ.
 
 ---
 
@@ -197,7 +197,7 @@ erDiagram
 ### 11. Bảng `price_history`
 
 - **Công dụng:** Quản lý lịch sử thay đổi giá mua (giá vốn `cost_price`) và giá bán (`selling_price`) của từng SKU. Giá bán phải được phê duyệt trước khi có hiệu lực.
-- **Chi tiết các trường:** `effective_date` (ngày hiệu lực), `end_date` (ngày hết hiệu lực), `status` (CHECK: `PENDING`/`APPROVED`), và `approved_by` (ID Kế toán trưởng phê duyệt).
+- **Chi tiết các trường:** `effective_date` (ngày hiệu lực), `status`, `approved_by` (ID Kế toán trưởng phê duyệt). `end_date` **không tồn tại** trên VPS từ migration V6; giá có hiệu lực được chọn theo bản ghi `ACTIVE` mới nhất có `effective_date <= ngày nghiệp vụ`.
 
 ---
 
@@ -385,7 +385,7 @@ erDiagram
 [Kho Nguồn] ──(Xuất hàng)──> [Kho ảo IN_TRANSIT] ──(Vận chuyển)──> [Kho Đích]
 ```
 
-### 25. Bảng `transfers`
+### 25. Bảng `inter_warehouse_transfers`
 
 - **Công dụng:** Quản lý yêu cầu điều chuyển hàng hóa giữa 3 kho vật lý của công ty (ví dụ: Chuyển 100 Tivi từ Kho Hà Nội vào Kho Hồ Chí Minh).
 - **Chi tiết các trường:**
@@ -396,10 +396,10 @@ erDiagram
 
 ### 25.1. Bảng `transfer_requests` & `transfer_request_items`
 
-- **Công dụng:** Lưu đề xuất điều chuyển trước khi thành `transfers`; tách biệt yêu cầu điều phối khỏi chứng từ vận hành đã được duyệt.
+- **Công dụng:** Lưu đề xuất điều chuyển trước khi thành `inter_warehouse_transfers`; tách biệt yêu cầu điều phối khỏi chứng từ vận hành đã được duyệt.
 - **Ràng buộc:** Mỗi dòng yêu cầu xác định SKU/số lượng và kho nguồn–đích theo warehouse scope. Phê duyệt, từ chối và tạo transfer phải ghi audit log; không hard-code trạng thái hoặc warehouse ID.
 
-### 26. Bảng `transfer_items`
+### 26. Bảng `inter_warehouse_transfer_items`
 
 - **Công dụng:** Chi tiết các lô hàng và số lượng cần điều chuyển. Ghi nhận độc lập số lượng gửi và số lượng nhận thực tế để phát hiện hao hụt.
 - **Chi tiết các trường:**
