@@ -5,11 +5,15 @@ import com.wms.entity.Dealer;
 import com.wms.entity.User;
 import com.wms.repository.DealerRepository;
 import com.wms.service.OcrService;
+import com.wms.util.OcrImagePreprocessor;
 import jakarta.annotation.PostConstruct;
+import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import javax.imageio.ImageIO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.sourceforge.tess4j.ITesseract;
@@ -23,6 +27,9 @@ import org.springframework.web.server.ResponseStatusException;
 @RequiredArgsConstructor
 @Slf4j
 public class TesseractOcrServiceImpl implements OcrService {
+
+    private static final String UNREADABLE_IMAGE_MESSAGE =
+            "Không thể đọc được tệp ảnh này. Vui lòng kiểm tra định dạng ảnh hoặc nhập tay.";
 
     private final DealerRepository dealerRepository;
     private ITesseract tesseract;
@@ -84,25 +91,20 @@ public class TesseractOcrServiceImpl implements OcrService {
         return localDir.getAbsolutePath();
     }
 
-
-
-
     @Override
     public PaymentReceiptOcrResponse processOcr(MultipartFile file, User actor) {
         if (!isOcrReady || tesseract == null) {
             log.warn("Tesseract OCR service is not ready/initialized on this system.");
-            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, 
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
                 "Dịch vụ OCR hiện tại không hoạt động trên máy chủ. Vui lòng nhập thông tin thủ công.");
         }
 
-        File tempFile = null;
-        try {
-            // Chuyển MultipartFile thành File tạm để Tesseract đọc
-            tempFile = File.createTempFile("ocr_receipt_", "_" + file.getOriginalFilename());
-            file.transferTo(tempFile);
+        BufferedImage sourceImage = readImage(file);
 
-            // Chạy OCR thực tế quét chữ trong ảnh
-            String resultText = tesseract.doOCR(tempFile);
+        try {
+            // Ảnh chỉ được giữ trong bộ nhớ để xử lý OCR, không ghi ra đĩa.
+            BufferedImage processedImage = OcrImagePreprocessor.preprocess(sourceImage);
+            String resultText = tesseract.doOCR(processedImage);
             log.info("OCR Result Text Length: {}", resultText.length());
 
             return parseOcrText(resultText);
@@ -110,105 +112,101 @@ public class TesseractOcrServiceImpl implements OcrService {
             throw e;
         } catch (Throwable e) {
             log.warn("Actual OCR processing failed. Error: {}", e.getMessage());
-            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, 
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
                 "Không thể xử lý hình ảnh này bằng OCR. Vui lòng kiểm tra định dạng ảnh hoặc nhập tay. Chi tiết: " + e.getMessage());
-        } finally {
-            if (tempFile != null && tempFile.exists()) {
-                tempFile.delete();
+        }
+    }
+
+    private BufferedImage readImage(MultipartFile file) {
+        try {
+            BufferedImage image = ImageIO.read(file.getInputStream());
+            if (image == null) {
+                throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, UNREADABLE_IMAGE_MESSAGE);
             }
+            return image;
+        } catch (IOException e) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, UNREADABLE_IMAGE_MESSAGE);
         }
     }
 
     private PaymentReceiptOcrResponse parseOcrText(String text) {
-        BigDecimal amount = null;
-        LocalDate paymentDate = LocalDate.now();
-        Long dealerId = null;
-        String notes = "CK TIEN HANG - GIAO DICH OCR";
-
         // Chuẩn hóa văn bản: xóa khoảng trắng thừa, đưa về lowercase
         String cleanText = text.replaceAll("\\r?\\n", " ").replaceAll("\\s+", " ");
         String lowercaseText = cleanText.toLowerCase();
 
-        // 1. Tìm số tiền bằng các giải thuật phân lớp ưu tiên
+        BigDecimal amount = extractAmount(cleanText, lowercaseText);
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            log.warn("OCR parse failed: Could not extract any valid payment amount from OCR text.");
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
+                "Không thể nhận diện số tiền chuyển khoản hợp lệ từ hóa đơn này. Vui lòng nhập thông tin thủ công.");
+        }
 
-        // Cách 1: Tìm số tiền đi kèm sau từ khóa "số tiền" hoặc "amount"
-        // Ví dụ: "số tiền: 100.000 vnd" hoặc "amount 5,000,000"
+        LocalDate paymentDate = extractPaymentDate(cleanText);
+        DealerMatchResult dealerMatch = matchDealer(lowercaseText);
+
+        return PaymentReceiptOcrResponse.builder()
+                .amount(amount)
+                .paymentDate(paymentDate)
+                .dealerId(dealerMatch.dealerId())
+                .notes(dealerMatch.notes())
+                .confidenceScore(dealerMatch.confidenceScore())
+                .build();
+    }
+
+    private BigDecimal extractAmount(String cleanText, String lowercaseText) {
+        // Cách 1: Tìm số tiền đi kèm sau từ khóa "số tiền" hoặc "amount", cho phép tối đa
+        // 3 từ đệm ở giữa (ví dụ "Số tiền giao dịch: 100.000")
         java.util.regex.Pattern keywordPattern = java.util.regex.Pattern.compile(
-            "(?:so\\s+tien|số\\s+tiền|amount|tong\\s+tien|tổng\\s+tiền|so\\s+tien\\s+chuyen|số\\s+tiền\s+chuyển|gia\\s+tri|giá\\s+trị)\\s*[:\\-\\. ]*\\s*([+\\-\\s]*[\\d.,]+(?:\\s*(?:vnd|vnd|đ|d|dong|đồng))?)", 
+            "(?:so\\s+tien|số\\s+tiền|amount|tong\\s+tien|tổng\\s+tiền|so\\s+tien\\s+chuyen|"
+            + "số\\s+tiền\\s+chuyển|gia\\s+tri|giá\\s+trị)(?:\\s+\\p{L}+){0,3}\\s*[:\\-\\. ]*\\s*"
+            + "([+\\-\\s]*[\\d.,]+(?:\\s*(?:vnd|đ|d|dong|đồng))?)",
             java.util.regex.Pattern.CASE_INSENSITIVE
         );
         java.util.regex.Matcher keywordMatcher = keywordPattern.matcher(lowercaseText);
         if (keywordMatcher.find()) {
-            amount = extractNumberFromText(keywordMatcher.group(1));
+            BigDecimal amount = extractNumberFromText(keywordMatcher.group(1));
+            if (amount != null) {
+                return amount;
+            }
         }
 
         // Cách 2: Nếu chưa tìm được, tìm số đi kèm đơn vị tiền tệ "vnd", "đ", "dong", "đồng" ở phía sau
-        if (amount == null) {
-            java.util.regex.Pattern currencyPattern = java.util.regex.Pattern.compile(
-                "([\\d.,]+)\\s*(?:vnd|đ|dong|đồng)\\b", 
-                java.util.regex.Pattern.CASE_INSENSITIVE
-            );
-            java.util.regex.Matcher currencyMatcher = currencyPattern.matcher(lowercaseText);
-            BigDecimal maxVal = BigDecimal.ZERO;
-            while (currencyMatcher.find()) {
-                BigDecimal val = extractNumberFromText(currencyMatcher.group(1));
-                if (val != null && val.compareTo(maxVal) > 0 && val.compareTo(new BigDecimal("1000")) >= 0) {
-                    maxVal = val;
-                }
-            }
-            if (maxVal.compareTo(BigDecimal.ZERO) > 0) {
-                amount = maxVal;
-            }
+        BigDecimal byCurrencySuffix = maxMatchAtLeast(lowercaseText,
+                "([\\d.,]+)\\s*(?:vnd|đ|dong|đồng)\\b", null);
+        if (byCurrencySuffix != null) {
+            return byCurrencySuffix;
         }
 
-        // Cách 3: Nếu vẫn chưa tìm được, tìm số có dấu cộng (+) đằng trước (phổ biến trên screenshot biến động số dư / giao dịch thành công)
-        if (amount == null) {
-            java.util.regex.Pattern plusPattern = java.util.regex.Pattern.compile(
-                "\\+\\s*([\\d.,]+)", 
-                java.util.regex.Pattern.CASE_INSENSITIVE
-            );
-            java.util.regex.Matcher plusMatcher = plusPattern.matcher(lowercaseText);
-            BigDecimal maxVal = BigDecimal.ZERO;
-            while (plusMatcher.find()) {
-                BigDecimal val = extractNumberFromText(plusMatcher.group(1));
-                if (val != null && val.compareTo(maxVal) > 0 && val.compareTo(new BigDecimal("1000")) >= 0) {
-                    maxVal = val;
-                }
-            }
-            if (maxVal.compareTo(BigDecimal.ZERO) > 0) {
-                amount = maxVal;
-            }
+        // Cách 3: Nếu vẫn chưa tìm được, tìm số có dấu cộng (+) đằng trước (phổ biến trên screenshot
+        // biến động số dư / giao dịch thành công)
+        BigDecimal byPlusSign = maxMatchAtLeast(lowercaseText, "\\+\\s*([\\d.,]+)", null);
+        if (byPlusSign != null) {
+            return byPlusSign;
         }
 
-        // Cách 4: Fallback cuối cùng - tìm số lớn nhất có định dạng phân cách nghìn (dấu chấm hoặc phẩy) và độ dài hợp lý
-        if (amount == null) {
-            java.util.regex.Pattern genericPattern = java.util.regex.Pattern.compile(
-                "\\b\\d{1,3}(?:[.,]\\d{3})+\\b"
-            );
-            java.util.regex.Matcher genericMatcher = genericPattern.matcher(cleanText);
-            BigDecimal maxVal = BigDecimal.ZERO;
-            while (genericMatcher.find()) {
-                BigDecimal val = extractNumberFromText(genericMatcher.group());
-                if (val != null && val.compareTo(maxVal) > 0 && val.compareTo(new BigDecimal("1000")) >= 0) {
-                    // Giới hạn số tiền dưới 1 tỷ để tránh nhầm với số tài khoản/mã giao dịch
-                    if (val.compareTo(new BigDecimal("1000000000")) < 0) {
-                        maxVal = val;
-                    }
-                }
-            }
-            if (maxVal.compareTo(BigDecimal.ZERO) > 0) {
-                amount = maxVal;
-            }
-        }
+        // Cách 4: Fallback cuối cùng - tìm số lớn nhất có định dạng phân cách nghìn và độ dài hợp lý,
+        // giới hạn dưới 1 tỷ để tránh nhầm với số tài khoản/mã giao dịch
+        return maxMatchAtLeast(cleanText, "\\b\\d{1,3}(?:[.,]\\d{3})+\\b", new BigDecimal("1000000000"));
+    }
 
-        // Nếu hoàn toàn không thể nhận diện được số tiền giao dịch hợp lệ, ném lỗi 422
-        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
-            log.warn("OCR parse failed: Could not extract any valid payment amount from OCR text.");
-            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, 
-                "Không thể nhận diện số tiền chuyển khoản hợp lệ từ hóa đơn này. Vui lòng nhập thông tin thủ công.");
+    private BigDecimal maxMatchAtLeast(String text, String regex, BigDecimal exclusiveUpperBound) {
+        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile(regex,
+                java.util.regex.Pattern.CASE_INSENSITIVE).matcher(text);
+        BigDecimal maxVal = BigDecimal.ZERO;
+        while (matcher.find()) {
+            BigDecimal val = extractNumberFromText(matcher.group(matcher.groupCount() > 0 ? 1 : 0));
+            if (val == null || val.compareTo(maxVal) <= 0 || val.compareTo(new BigDecimal("1000")) < 0) {
+                continue;
+            }
+            if (exclusiveUpperBound != null && val.compareTo(exclusiveUpperBound) >= 0) {
+                continue;
+            }
+            maxVal = val;
         }
+        return maxVal.compareTo(BigDecimal.ZERO) > 0 ? maxVal : null;
+    }
 
-        // 2. Tìm ngày thanh toán (paymentDate)
+    private LocalDate extractPaymentDate(String cleanText) {
         // Tìm ngày tháng năm định dạng dd/mm/yyyy, yyyy-mm-dd hoặc dd-mm-yyyy
         java.util.regex.Pattern datePattern = java.util.regex.Pattern.compile(
             "\\b(\\d{1,2})[/-](\\d{1,2})[/-](\\d{4})\\b|\\b(\\d{4})[/-](\\d{1,2})[/-](\\d{1,2})\\b"
@@ -220,63 +218,98 @@ public class TesseractOcrServiceImpl implements OcrService {
                     int day = Integer.parseInt(dateMatcher.group(1));
                     int month = Integer.parseInt(dateMatcher.group(2));
                     int year = Integer.parseInt(dateMatcher.group(3));
-                    paymentDate = LocalDate.of(year, month, day);
-                } else {
-                    int year = Integer.parseInt(dateMatcher.group(4));
-                    int month = Integer.parseInt(dateMatcher.group(5));
-                    int day = Integer.parseInt(dateMatcher.group(6));
-                    paymentDate = LocalDate.of(year, month, day);
+                    return LocalDate.of(year, month, day);
                 }
+                int year = Integer.parseInt(dateMatcher.group(4));
+                int month = Integer.parseInt(dateMatcher.group(5));
+                int day = Integer.parseInt(dateMatcher.group(6));
+                return LocalDate.of(year, month, day);
             } catch (Exception e) {
                 // Giữ mặc định LocalDate.now()
             }
         }
+        return LocalDate.now();
+    }
 
-        // 3. Tìm đại lý (dealerId) khớp tên/code trong database
+    /**
+     * Khớp đại lý theo hai lượt: số tài khoản ngân hàng đã đăng ký (tín hiệu chính xác, không
+     * phụ thuộc ngân hàng cụ thể) trước, sau đó mới rơi về khớp tên/mã đại lý như trước đây.
+     */
+    private DealerMatchResult matchDealer(String lowercaseText) {
         List<Dealer> dealers = dealerRepository.findAll();
-        for (Dealer dealer : dealers) {
-            if (Boolean.TRUE.equals(dealer.getIsActive())) {
-                String dealerName = dealer.getName().toLowerCase();
-                String dealerCode = dealer.getCode().toLowerCase();
-                
-                String cleanDealerName = dealerName.replaceAll("[^a-z0-9]", "");
-                String cleanOcrText = lowercaseText.replaceAll("[^a-z0-9]", "");
 
-                if (lowercaseText.contains(dealerName) 
-                        || lowercaseText.contains(dealerCode)
-                        || cleanOcrText.contains(cleanDealerName)
-                        || lowercaseText.contains(dealerCode.replace("-", " "))) {
-                    dealerId = dealer.getId();
-                    notes = "CK TIEN HANG - " + dealer.getName().toUpperCase() + " - GIAO DICH OCR";
-                    break;
-                }
+        DealerMatchResult byAccount = matchByBankAccount(lowercaseText, dealers);
+        if (byAccount != null) {
+            return byAccount;
+        }
+
+        DealerMatchResult byNameOrCode = matchByNameOrCode(lowercaseText, dealers);
+        if (byNameOrCode != null) {
+            return byNameOrCode;
+        }
+
+        return new DealerMatchResult(null, "CK TIEN HANG - KHONG RO DAI LY (OCR)", 0.60);
+    }
+
+    private DealerMatchResult matchByBankAccount(String lowercaseText, List<Dealer> dealers) {
+        String normalizedText = lowercaseText.replaceAll("[^0-9]", "");
+        for (Dealer dealer : dealers) {
+            if (!Boolean.TRUE.equals(dealer.getIsActive())) {
+                continue;
+            }
+            String account = dealer.getBankAccountNumber();
+            if (account == null || account.isBlank()) {
+                continue;
+            }
+            String normalizedAccount = account.replaceAll("[^0-9]", "");
+            if (normalizedAccount.length() >= 6 && normalizedText.contains(normalizedAccount)) {
+                return new DealerMatchResult(dealer.getId(), dealerNotes(dealer), 0.97);
             }
         }
+        return null;
+    }
 
-        // Ghi chú mặc định nếu không khớp đại lý nào
-        if (dealerId == null) {
-            notes = "CK TIEN HANG - KHONG RO DAI LY (OCR)";
+    private DealerMatchResult matchByNameOrCode(String lowercaseText, List<Dealer> dealers) {
+        // So khớp trên bản đã bỏ dấu tiếng Việt: Tesseract thường đọc sai/rớt dấu thanh trên
+        // ảnh chụp màn hình ứng dụng ngân hàng, nên so khớp có dấu chính xác tuyệt đối là quá chặt.
+        String foldedOcrText = foldToAsciiAlphanumeric(lowercaseText);
+        for (Dealer dealer : dealers) {
+            if (!Boolean.TRUE.equals(dealer.getIsActive())) {
+                continue;
+            }
+            String dealerCode = dealer.getCode().toLowerCase();
+            String foldedDealerName = foldToAsciiAlphanumeric(dealer.getName());
+
+            if (foldedOcrText.contains(foldedDealerName)
+                    || lowercaseText.contains(dealerCode)
+                    || lowercaseText.contains(dealerCode.replace("-", " "))) {
+                return new DealerMatchResult(dealer.getId(), dealerNotes(dealer), 0.95);
+            }
         }
+        return null;
+    }
 
-        return PaymentReceiptOcrResponse.builder()
-                .amount(amount)
-                .paymentDate(paymentDate)
-                .dealerId(dealerId)
-                .notes(notes)
-                .confidenceScore(dealerId != null ? 0.95 : 0.60)
-                .build();
+    private String foldToAsciiAlphanumeric(String text) {
+        String withoutMarks = java.text.Normalizer.normalize(text.toLowerCase(), java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{InCombiningDiacriticalMarks}+", "")
+                .replace('đ', 'd');
+        return withoutMarks.replaceAll("[^a-z0-9]", "");
+    }
+
+    private String dealerNotes(Dealer dealer) {
+        return "CK TIEN HANG - " + dealer.getName().toUpperCase() + " - GIAO DICH OCR";
     }
 
     private BigDecimal extractNumberFromText(String text) {
         if (text == null) return null;
         // Loại bỏ các từ khóa tiền tệ ra khỏi chuỗi để lấy phần số
         String clean = text.toLowerCase().replaceAll("[^\\d.,]", "");
-        
+
         // Loại bỏ phần thập phân VND lẻ .00 hoặc ,00 ở cuối nếu có
         if (clean.endsWith(".00") || clean.endsWith(",00")) {
             clean = clean.substring(0, clean.length() - 3);
         }
-        
+
         // Loại bỏ toàn bộ dấu phân tách hàng nghìn để parse thành số nguyên
         clean = clean.replace(".", "").replace(",", "");
         if (clean.isEmpty()) return null;
@@ -285,5 +318,8 @@ public class TesseractOcrServiceImpl implements OcrService {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    private record DealerMatchResult(Long dealerId, String notes, double confidenceScore) {
     }
 }

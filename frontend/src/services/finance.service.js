@@ -306,9 +306,7 @@ export const financeService = {
     if (useMock) {
       await new Promise(resolve => setTimeout(resolve, 1500));
       const dealers = getDb(KEYS.DEALERS, []);
-      const activeDealers = dealers.filter(d => d.credit_status === 'ACTIVE' || d.is_active !== false);
-      const demoDealer = activeDealers[0] || { id: 1, name: 'Đại lý Minh Trí' };
-      
+
       // Phân tích tên file ảnh giả lập số tiền
       let filenameClean = file.name.toLowerCase();
       if (filenameClean.includes("screenshot")) {
@@ -325,16 +323,41 @@ export const financeService = {
         amount = parseFloat(match[0]);
       }
       
-      // Phân tích tên file ảnh để map đại lý
-      let matchedDealer = demoDealer;
+      // Phân tích tên file ảnh để map đại lý: ưu tiên số tài khoản ngân hàng (nếu có trong tên file
+      // giả lập ảnh chụp), sau đó mới rơi về khớp tên/mã đại lý — mô phỏng lại thứ tự khớp của backend.
+      let matchedDealer = null;
+      let matchedByBankAccount = false;
       const filename = file.name.toLowerCase();
+      const filenameDigitsOnly = filename.replace(/[^0-9]/g, '');
       for (const d of dealers) {
-        const cleanName = d.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-        const cleanFilename = filename.replace(/[^a-z0-9]/g, '');
-        if (cleanFilename.includes(cleanName) || filename.includes(d.code.toLowerCase().replace(/-/g, '_'))) {
-          matchedDealer = d;
-          break;
+        if (d.bank_account_number) {
+          const cleanAccount = String(d.bank_account_number).replace(/[^0-9]/g, '');
+          if (cleanAccount.length >= 6 && filenameDigitsOnly.includes(cleanAccount)) {
+            matchedDealer = d;
+            matchedByBankAccount = true;
+            break;
+          }
         }
+      }
+      if (!matchedDealer) {
+        for (const d of dealers) {
+          const cleanName = d.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+          const cleanFilename = filename.replace(/[^a-z0-9]/g, '');
+          if (cleanFilename.includes(cleanName) || filename.includes(d.code.toLowerCase().replace(/-/g, '_'))) {
+            matchedDealer = d;
+            break;
+          }
+        }
+      }
+
+      if (!matchedDealer) {
+        return {
+          amount: amount,
+          payment_date: new Date().toISOString().slice(0, 10),
+          dealer_id: null,
+          notes: `CK TIEN HANG - KHONG RO DAI LY (OCR_MOCK_${Math.floor(Math.random() * 100000)})`,
+          confidence_score: 0.55
+        };
       }
 
       return {
@@ -342,7 +365,7 @@ export const financeService = {
         payment_date: new Date().toISOString().slice(0, 10),
         dealer_id: matchedDealer.id,
         notes: `CK TIEN HANG - ${matchedDealer.name.toUpperCase()} - GIAO DICH OCR_MOCK_${Math.floor(Math.random() * 100000)}`,
-        confidence_score: 0.96
+        confidence_score: matchedByBankAccount ? 0.97 : 0.95
       };
     }
     const formData = new FormData();

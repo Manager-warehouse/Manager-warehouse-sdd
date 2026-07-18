@@ -33,6 +33,8 @@ const PartnerManagement = () => {
   const [dlEmail, setDlEmail] = useState('');
   const [dlAddress, setDlAddress] = useState('');
   const [dlRegion, setDlRegion] = useState('');
+  const [dlBankAccountNumber, setDlBankAccountNumber] = useState('');
+  const [dlBankName, setDlBankName] = useState('');
   const [dlPaymentTerms, setDlPaymentTerms] = useState('30');
   const [dlCreditLimit, setDlCreditLimit] = useState('0');
   const [dlOriginalCreditLimit, setDlOriginalCreditLimit] = useState('0');
@@ -84,6 +86,8 @@ const PartnerManagement = () => {
     setDlEmail('');
     setDlAddress('');
     setDlRegion('');
+    setDlBankAccountNumber('');
+    setDlBankName('');
     setDlPaymentTerms('30');
     setDlCreditLimit('50000000');
     setDlOriginalPaymentTerms('30');
@@ -101,6 +105,8 @@ const PartnerManagement = () => {
     setDlEmail(dealer.email || '');
     setDlAddress(dealer.default_delivery_address || '');
     setDlRegion(dealer.region || '');
+    setDlBankAccountNumber(dealer.bank_account_number || '');
+    setDlBankName(dealer.bank_name || '');
     setDlPaymentTerms(String(dealer.payment_term_days || 30));
     setDlCreditLimit(String(dealer.credit_limit || 0));
     setDlOriginalPaymentTerms(String(dealer.payment_term_days || 30));
@@ -162,6 +168,8 @@ const PartnerManagement = () => {
           email: dlEmail.trim(),
           default_delivery_address: dlAddress.trim(),
           region: dlRegion.trim(),
+          bank_account_number: dlBankAccountNumber.trim(),
+          bank_name: dlBankName.trim(),
           payment_term_days: Number(dlPaymentTerms),
           credit_limit: parseFloat(dlCreditLimit),
         };
@@ -175,6 +183,8 @@ const PartnerManagement = () => {
           email: dlEmail.trim(),
           default_delivery_address: dlAddress.trim(),
           region: dlRegion.trim(),
+          bank_account_number: dlBankAccountNumber.trim(),
+          bank_name: dlBankName.trim(),
         };
         await masterDataService.updateDealer(selectedDealer.id, dlData);
 
@@ -500,6 +510,7 @@ const PartnerManagement = () => {
                       <div className="font-semibold text-ink">{dl.name}</div>
                       {dl.email && <div className="text-shade-50">{dl.email}</div>}
                       <p className="text-shade-50">Vùng miền: <span className="font-medium text-ink">{dl.region || 'N/A'}</span></p>
+                      <p className="text-shade-50">Số TK ngân hàng: <span className="font-medium text-ink font-mono">{dl.bank_account_number ? `${dl.bank_account_number}${dl.bank_name ? ` (${dl.bank_name})` : ''}` : 'N/A'}</span></p>
                       <p className="text-shade-50">Điện thoại: <span className="font-medium text-ink font-mono">{dl.phone || 'N/A'}</span></p>
                       <p className="text-shade-50">Hạn thanh toán: <span className="font-medium text-ink">{dl.payment_term_days} ngày</span></p>
                       <p className="text-shade-50">Dư nợ hiện tại: <span className="font-bold text-ink">{dl.current_balance?.toLocaleString('vi-VN')} VND</span></p>
@@ -727,6 +738,21 @@ const PartnerManagement = () => {
                 value={dlAddress}
                 onChange={(e) => setDlAddress(e.target.value)}
                 placeholder="Nhập địa chỉ giao hàng..."
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input
+                label="Số tài khoản ngân hàng"
+                value={dlBankAccountNumber}
+                onChange={(e) => setDlBankAccountNumber(e.target.value)}
+                placeholder="VD: 0123456789"
+              />
+              <Input
+                label="Ngân hàng"
+                value={dlBankName}
+                onChange={(e) => setDlBankName(e.target.value)}
+                placeholder="VD: Techcombank"
               />
             </div>
           </div>
