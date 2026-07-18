@@ -21,7 +21,7 @@ Sprint 1 dùng **standard cost** (giá kỳ từ `price_history.cost_price`) —
 
 ### 3.1 Ubiquitous
 
-- The system SHALL always look up `price_history` WHERE `status = 'APPROVED' AND warehouse_id = :doWarehouseId AND effective_date <= :today`, ordered by `effective_date DESC`, taking the first row, for each product line when a DO is created.
+- The system SHALL always look up `price_history` WHERE `status = 'APPROVED' AND warehouse_id = :doWarehouseId AND effective_date <= :today`, ordered by `effective_date DESC`, taking the first row, for each product line when a DO is created. `:today` is the DO's own `document_date` (a required field on `DeliveryOrderCreateRequest`, spec 004), not the literal system clock (Session 2026-07-18 của `spec.md`) — this allows creating a DO for a transaction that physically happened slightly earlier than the moment it's entered into the system, while still bounded by the open-accounting-period check (spec 008) that already rejects any `document_date` in a `CLOSED` period.
 - The system SHALL snapshot `selling_price` → `delivery_order_items.unit_price` and `cost_price` → `delivery_order_items.unit_cost` at DO creation time.
 - The system SHALL NOT recalculate or allow overriding these snapshotted values after DO creation.
 - The system SHALL NOT use `PENDING` or `CANCELLED` price entries for any transaction lookup.
@@ -31,7 +31,8 @@ Sprint 1 dùng **standard cost** (giá kỳ từ `price_history.cost_price`) —
 **Khi tạo Delivery Order (`POST /api/v1/delivery-orders`, định nghĩa đầy đủ tại spec 004)**
 
 - WHEN Planner creates a DO with one or more product lines:
-  - For each `delivery_order_item`, query: `SELECT * FROM price_history WHERE product_id = ? AND warehouse_id = :doWarehouseId AND status = 'APPROVED' AND effective_date <= CURRENT_DATE ORDER BY effective_date DESC LIMIT 1`.
+  - For each `delivery_order_item`, query: `SELECT * FROM price_history WHERE product_id = ? AND warehouse_id = :doWarehouseId AND status = 'APPROVED' AND effective_date <= :documentDate ORDER BY effective_date DESC LIMIT 1` (`:documentDate` = the DO's own `document_date`, see 3.1).
+  - This check SHALL run as one pass over all distinct `product_id`s in the request before any plan is built, so that if multiple lines are missing a price, all of their `product_id`s are collected and returned together — not just the first one encountered (Session 2026-07-18 của `spec.md`).
   - IF no matching row found for ANY item → reject the entire DO with HTTP 422 `MISSING_PRICE`, listing which `product_id`(s) are missing a price.
   - IF all items have a matching row → snapshot `selling_price` into `unit_price` and `cost_price` into `unit_cost` on each `delivery_order_items` row.
   - Continue with DO creation (credit check, inventory reservation) as defined in spec 004.
@@ -100,6 +101,12 @@ Không có endpoint độc lập. Logic tích hợp vào:
 - Given DO tại kho Hải Phòng có 3 dòng: product A và B có giá APPROVED tại Hải Phòng, product C không có giá tại Hải Phòng
 - When Planner tạo DO
 - Then HTTP 422 `MISSING_PRICE` chỉ rõ product C
+- And toàn bộ DO bị từ chối (không tạo dòng nào)
+
+**Scenario 3b: DO chứa nhiều sản phẩm — nhiều dòng cùng thiếu giá**
+- Given DO tại kho Hải Phòng có 3 dòng: product A có giá APPROVED tại Hải Phòng, product B và C đều không có giá tại Hải Phòng
+- When Planner tạo DO
+- Then HTTP 422 `MISSING_PRICE` liệt kê cả product B và C trong cùng một response — Planner không cần gửi lại nhiều lần để phát hiện từng sản phẩm thiếu giá một
 - And toàn bộ DO bị từ chối (không tạo dòng nào)
 
 **Scenario 4: Giá không thay đổi sau khi bảng giá được cập nhật**

@@ -35,9 +35,10 @@ class PaymentReceiptServiceTest {
     @Mock private PaymentReceiptRepository paymentReceiptRepository;
     @Mock private InvoiceRepository invoiceRepository;
     @Mock private DealerRepository dealerRepository;
+    @Mock private CreditNoteRepository creditNoteRepository;
     @Mock private AccountingPeriodRepository accountingPeriodRepository;
     @Mock private DocumentSequenceRepository sequenceRepository;
-    @Mock private SystemConfigRepository systemConfigRepository;
+    @Mock private SystemConfigService systemConfigService;
     @Mock private AccountingPeriodService accountingPeriodService;
     @Mock private AuditLogService auditLogService;
 
@@ -111,16 +112,13 @@ class PaymentReceiptServiceTest {
         request.setPaymentMethod(PaymentMethod.BANK_TRANSFER);
         request.setNotes("Paying fully");
 
-        SystemConfig bufferConfig = new SystemConfig();
-        bufferConfig.setConfigKey("CREDIT_UNLOCK_BUFFER_PCT");
-        bufferConfig.setConfigValue("0.8");
-
-        when(dealerRepository.findById(10L)).thenReturn(Optional.of(dealer));
+        when(dealerRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(dealer));
         when(invoiceRepository.findById(50L)).thenReturn(Optional.of(invoice));
         when(paymentReceiptRepository.findByDealerIdOrderByCreatedAtDesc(10L)).thenReturn(Collections.emptyList());
         when(accountingPeriodRepository.findPeriodByDateAndStatus(request.getPaymentDate(), AccountingPeriodStatus.OPEN))
                 .thenReturn(Optional.of(period));
-        when(systemConfigRepository.findByConfigKey("CREDIT_UNLOCK_BUFFER_PCT")).thenReturn(Optional.of(bufferConfig));
+        when(systemConfigService.getDecimalValue(eq("CREDIT_UNLOCK_BUFFER_PCT"), any()))
+                .thenReturn(new BigDecimal("0.8"));
         when(sequenceRepository.findBySequenceKeyForUpdate("PAYMENT")).thenReturn(Optional.of(sequence));
 
         when(paymentReceiptRepository.save(any(PaymentReceipt.class))).thenAnswer(invocation -> {
@@ -170,7 +168,7 @@ class PaymentReceiptServiceTest {
 
         invoice.setStatus(InvoiceStatus.PAID);
 
-        when(dealerRepository.findById(10L)).thenReturn(Optional.of(dealer));
+        when(dealerRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(dealer));
         when(invoiceRepository.findById(50L)).thenReturn(Optional.of(invoice));
 
         assertThatThrownBy(() -> paymentReceiptService.createPaymentReceipt(request, accountantUser))
@@ -187,7 +185,7 @@ class PaymentReceiptServiceTest {
         request.setAmount(BigDecimal.valueOf(25000000)); // Hóa đơn chỉ nợ 20000000
         request.setPaymentDate(LocalDate.of(2026, 6, 20));
 
-        when(dealerRepository.findById(10L)).thenReturn(Optional.of(dealer));
+        when(dealerRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(dealer));
         when(invoiceRepository.findById(50L)).thenReturn(Optional.of(invoice));
         when(paymentReceiptRepository.findByDealerIdOrderByCreatedAtDesc(10L)).thenReturn(Collections.emptyList());
 

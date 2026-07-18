@@ -55,6 +55,8 @@ class ReceiptRtvCreateServiceTest {
     private QuarantineRecordRepository quarantineRecordRepository;
     @Mock
     private PriceHistoryRepository priceHistoryRepository;
+    @Mock
+    private AccountingPeriodService accountingPeriodService;
 
     private ReceiptValidationService receiptValidationService;
     private QuarantineRtvService receiptService;
@@ -109,7 +111,10 @@ class ReceiptRtvCreateServiceTest {
                 receiptValidationService,
                 auditLogService,
                 quarantineRecordRepository,
-                priceHistoryRepository);
+                priceHistoryRepository,
+                accountingPeriodService);
+        lenient().when(accountingPeriodService.resolveOpenPeriod(any()))
+                .thenReturn(AccountingPeriod.builder().id(1L).periodName("2026-07").build());
     }
 
     // -----------------------------------------------------------------------

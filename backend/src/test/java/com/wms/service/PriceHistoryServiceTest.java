@@ -43,6 +43,7 @@ class PriceHistoryServiceTest {
     @Mock UserRepository userRepository;
     @Mock NotificationRepository notificationRepository;
     @Mock PartnerAuditUtil auditUtil;
+    @Mock AccountingPeriodService accountingPeriodService;
 
     PriceHistoryServiceImpl service;
 
@@ -54,7 +55,8 @@ class PriceHistoryServiceTest {
     void setUp() {
         service = new PriceHistoryServiceImpl(
                 priceHistoryRepository, productRepository,
-                warehouseRepository, userRepository, notificationRepository, auditUtil);
+                warehouseRepository, userRepository, notificationRepository, auditUtil,
+                accountingPeriodService);
 
         actor = new User();
         actor.setId(1L);
@@ -88,6 +90,21 @@ class PriceHistoryServiceTest {
 
         assertThat(resp.getStatus()).isEqualTo("PENDING");
         verify(notificationRepository, never()).save(any()); // no managers to notify
+    }
+
+    @Test
+    void create_effectiveDateInClosedPeriod_throws() {
+        PriceHistoryCreateRequest req = buildCreateRequest(LocalDate.of(2026, 1, 1));
+
+        when(productRepository.findById(10L)).thenReturn(Optional.of(product));
+        when(warehouseRepository.findById(1L)).thenReturn(Optional.of(warehouse));
+        doThrow(new com.wms.exception.UnprocessableEntityException("PERIOD_CLOSED: Cannot create or modify transactions in a closed accounting period: 2026-01"))
+                .when(accountingPeriodService).validateDateInOpenPeriod(LocalDate.of(2026, 1, 1));
+
+        assertThatThrownBy(() -> service.create(req, actor))
+                .isInstanceOf(com.wms.exception.UnprocessableEntityException.class)
+                .hasMessageContaining("PERIOD_CLOSED");
+        verify(priceHistoryRepository, never()).saveAndFlush(any());
     }
 
     @Test

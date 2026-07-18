@@ -36,4 +36,14 @@ public class PriceHistoryException extends RuntimeException {
         return new PriceHistoryException(HttpStatus.UNPROCESSABLE_ENTITY, "MISSING_PRICE",
                 "Không tìm thấy bản giá APPROVED cho sản phẩm: " + productIds);
     }
+
+    public static PriceHistoryException notFound(Long id) {
+        return new PriceHistoryException(HttpStatus.NOT_FOUND, "PRICE_NOT_FOUND",
+                "Bản giá không tồn tại: " + id);
+    }
+
+    public static PriceHistoryException sellingBelowCost() {
+        return new PriceHistoryException(HttpStatus.UNPROCESSABLE_ENTITY, "SELLING_BELOW_COST",
+                "selling_price phải lớn hơn cost_price.");
+    }
 }

@@ -37,7 +37,4 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     List<Invoice> findUnpaidInvoicesByDealer(
             @Param("dealerId") Long dealerId,
             @Param("statuses") List<InvoiceStatus> statuses);
-
-    @Query("select count(i) > 0 from Invoice i where i.accountingPeriod.id = :periodId and i.status <> 'PAID'")
-    boolean existsUnpaidInvoicesInPeriod(@Param("periodId") Long periodId);
 }

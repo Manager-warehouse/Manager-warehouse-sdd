@@ -15,6 +15,7 @@ import com.wms.dto.request.CreateReceiptRequest;
 import com.wms.dto.request.ReceiveReceiptItemRequest;
 import com.wms.dto.request.ReceiveReceiptRequest;
 import com.wms.dto.response.ReceiptResponse;
+import com.wms.entity.AccountingPeriod;
 import com.wms.entity.DocumentSequence;
 import com.wms.entity.Product;
 import com.wms.entity.Receipt;
@@ -69,6 +70,8 @@ class ReceiptServiceTest {
     private UserWarehouseAssignmentRepository assignmentRepository;
     @Mock
     private AuditLogService auditLogService;
+    @Mock
+    private AccountingPeriodService accountingPeriodService;
 
     private ReceiptService receiptService;
     private User planner;
@@ -81,7 +84,7 @@ class ReceiptServiceTest {
     void setUp() {
         receiptService = new ReceiptService(sequenceRepository, receiptRepository, receiptItemRepository,
                 supplierRepository, warehouseRepository, productRepository,
-                assignmentRepository, auditLogService, new ReceiptMapper());
+                assignmentRepository, auditLogService, new ReceiptMapper(), accountingPeriodService);
         planner = user(1L, UserRole.PLANNER);
         warehouseStaff = user(2L, UserRole.WAREHOUSE_STAFF);
         supplier = supplier(10L, true);
@@ -94,6 +97,8 @@ class ReceiptServiceTest {
         stubValidLookups();
         when(sequenceRepository.findBySequenceKeyForUpdate("RECEIPT"))
                 .thenReturn(Optional.of(sequence()));
+        when(accountingPeriodService.resolveOpenPeriod(any()))
+                .thenReturn(AccountingPeriod.builder().id(1L).periodName("2026-07").build());
         when(receiptRepository.saveAndFlush(any(Receipt.class))).thenAnswer(invocation -> {
             Receipt receipt = invocation.getArgument(0);
             receipt.setId(100L);

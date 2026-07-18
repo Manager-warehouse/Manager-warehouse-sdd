@@ -1,41 +1,42 @@
 package com.wms.service.impl;
 
 import com.wms.dto.request.AccountingPeriodCloseRequest;
+import com.wms.dto.request.AccountingPeriodCreateRequest;
 import com.wms.dto.response.AccountingPeriodResponse;
 import com.wms.entity.*;
 import com.wms.enums.*;
+import com.wms.exception.DuplicateResourceException;
 import com.wms.exception.ResourceNotFoundException;
 import com.wms.exception.UnprocessableEntityException;
 import com.wms.repository.AccountingPeriodRepository;
-import com.wms.repository.InvoiceRepository;
 import com.wms.service.AccountingPeriodService;
 import com.wms.service.AuditLogService;
 import jakarta.persistence.EntityManager;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.YearMonth;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class AccountingPeriodServiceImpl implements AccountingPeriodService {
 
     private final AccountingPeriodRepository accountingPeriodRepository;
-    private final InvoiceRepository invoiceRepository;
     private final AuditLogService auditLogService;
     private final EntityManager entityManager;
 
     public AccountingPeriodServiceImpl(
             AccountingPeriodRepository accountingPeriodRepository,
-            InvoiceRepository invoiceRepository,
             AuditLogService auditLogService,
             EntityManager entityManager) {
         this.accountingPeriodRepository = accountingPeriodRepository;
-        this.invoiceRepository = invoiceRepository;
         this.auditLogService = auditLogService;
         this.entityManager = entityManager;
     }
@@ -47,6 +48,26 @@ public class AccountingPeriodServiceImpl implements AccountingPeriodService {
         return accountingPeriodRepository.findAllByOrderByStartDateDesc().stream()
                 .map(this::toResponse)
                 .toList();
+    }
+
+    @Override
+    @Transactional
+    public AccountingPeriodResponse createPeriod(AccountingPeriodCreateRequest request, User actor) {
+        requireAccountantManager(actor);
+
+        if (accountingPeriodRepository.findByPeriodName(request.getPeriodName()).isPresent()) {
+            throw new DuplicateResourceException("Accounting period already exists: " + request.getPeriodName());
+        }
+
+        AccountingPeriod saved = accountingPeriodRepository.save(buildPeriod(
+                YearMonth.parse(request.getPeriodName()), request.getNotes()));
+
+        auditLogService.log(actor, AuditAction.CREATE, "ACCOUNTING_PERIOD",
+                saved.getId(), saved.getPeriodName(), null, null,
+                Map.of("periodName", saved.getPeriodName(),
+                        "startDate", saved.getStartDate(), "endDate", saved.getEndDate()));
+
+        return toResponse(saved);
     }
 
     @Override
@@ -83,16 +104,65 @@ public class AccountingPeriodServiceImpl implements AccountingPeriodService {
         return toResponse(saved);
     }
 
+    // REQUIRES_NEW so this check can be called from inside a caller's own transaction
+    // (e.g. one row of a multi-row Excel import loop) and, if it throws, only this
+    // isolated sub-transaction is marked rollback-only/rolled back — not the caller's
+    // shared transaction. With plain REQUIRED, catching the exception in the caller
+    // does not undo the rollback-only flag the interceptor already set on the joined
+    // transaction, and the caller's later commit fails with UnexpectedRollbackException
+    // even though the exception was "handled".
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void validateDateInOpenPeriod(LocalDate date) {
-        Optional<AccountingPeriod> periodOpt = accountingPeriodRepository.findPeriodByDate(date);
-        if (periodOpt.isEmpty()) {
+        resolveOpenPeriod(date);
+    }
+
+    @Override
+    @Transactional
+    public AccountingPeriod resolveOpenPeriod(LocalDate date) {
+        AccountingPeriod period = resolveOrProvisionPeriod(date);
+        if (period.getStatus() == AccountingPeriodStatus.CLOSED) {
+            throw new UnprocessableEntityException(
+                    "PERIOD_CLOSED: Cannot create or modify transactions in a closed accounting period: "
+                            + period.getPeriodName());
+        }
+        return period;
+    }
+
+    // Auto-provisions the next calendar-month period on the fly when none exists yet for a
+    // future date — a safety net for POST /accounting-periods being forgotten, replacing
+    // reliance on manually seeding many months ahead. A missing PAST date is a real data
+    // problem and is never silently papered over.
+    private AccountingPeriod resolveOrProvisionPeriod(LocalDate date) {
+        Optional<AccountingPeriod> existing = accountingPeriodRepository.findPeriodByDate(date);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+        if (date.isBefore(LocalDate.now())) {
             throw new UnprocessableEntityException("No accounting period configured for date: " + date);
         }
-        if (periodOpt.get().getStatus() == AccountingPeriodStatus.CLOSED) {
-            throw new UnprocessableEntityException("PERIOD_CLOSED: Cannot create or modify transactions in a closed accounting period: " + periodOpt.get().getPeriodName());
+        return provisionPeriod(YearMonth.from(date));
+    }
+
+    private AccountingPeriod provisionPeriod(YearMonth month) {
+        String periodName = month.toString();
+        try {
+            return accountingPeriodRepository.save(buildPeriod(month, null));
+        } catch (DataIntegrityViolationException ex) {
+            // Concurrent request already provisioned this month first.
+            return accountingPeriodRepository.findByPeriodName(periodName).orElseThrow(() -> ex);
         }
+    }
+
+    private AccountingPeriod buildPeriod(YearMonth month, String notes) {
+        return AccountingPeriod.builder()
+                .periodName(month.toString())
+                .startDate(month.atDay(1))
+                .endDate(month.atEndOfMonth())
+                .status(AccountingPeriodStatus.OPEN)
+                .notes(notes)
+                .createdAt(OffsetDateTime.now())
+                .build();
     }
 
     private void validateNoPendingDocuments(Long periodId) {
@@ -119,8 +189,10 @@ public class AccountingPeriodServiceImpl implements AccountingPeriodService {
         }
 
         // 3. Transfers (NEW, APPROVED, IN_TRANSIT) -> Phải COMPLETED, COMPLETED_WITH_DISCREPANCY hoặc CANCELLED
+        // Entity name is InterWarehouseTransfer (the JPA @Entity for inter_warehouse_transfers);
+        // "Transfer" is not a registered entity name and previously made this query fail at parse time.
         Long pendingTransfers = entityManager.createQuery(
-                "select count(t) from Transfer t where t.accountingPeriod.id = :periodId "
+                "select count(t) from InterWarehouseTransfer t where t.accountingPeriod.id = :periodId "
                         + "and t.status not in ('COMPLETED', 'COMPLETED_WITH_DISCREPANCY', 'CANCELLED')", Long.class)
                 .setParameter("periodId", periodId)
                 .getSingleResult();
@@ -151,10 +223,19 @@ public class AccountingPeriodServiceImpl implements AccountingPeriodService {
             throw new UnprocessableEntityException("Cannot close period: " + pendingAdjustments + " unapproved adjustments exist in this period.");
         }
 
-        // 6. Invoices (Chưa thanh toán - UNPAID, PARTIALLY_PAID)
-        boolean hasUnpaid = invoiceRepository.existsUnpaidInvoicesInPeriod(periodId);
-        if (hasUnpaid) {
-            throw new UnprocessableEntityException("Cannot close period: Unpaid invoices exist in this period.");
+        // 6. Delivery Orders COMPLETED in this period but with no invoice yet (auto-invoice or
+        // backfill never ran). Per spec, UNPAID/PARTIALLY_PAID invoices do NOT block closing —
+        // outstanding debt is tracked via the Aging Report in the next open period, not here.
+        Long unInvoicedCompletedDOs = entityManager.createQuery(
+                "select count(d) from DeliveryOrder d where d.accountingPeriod.id = :periodId "
+                        + "and d.status = 'COMPLETED' "
+                        + "and not exists (select 1 from Invoice i where i.deliveryOrder = d)", Long.class)
+                .setParameter("periodId", periodId)
+                .getSingleResult();
+
+        if (unInvoicedCompletedDOs > 0) {
+            throw new UnprocessableEntityException("Cannot close period: " + unInvoicedCompletedDOs
+                    + " completed delivery orders have no invoice yet in this period.");
         }
     }
 

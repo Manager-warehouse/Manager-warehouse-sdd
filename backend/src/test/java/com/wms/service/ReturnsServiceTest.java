@@ -37,6 +37,7 @@ class ReturnsServiceTest {
     @Mock private CreditNoteRepository creditNoteRepository;
     @Mock private ReceiptValidationService receiptValidationService;
     @Mock private AuditLogService auditLogService;
+    @Mock private AccountingPeriodService accountingPeriodService;
 
     @InjectMocks
     private ReturnsService returnsService;
@@ -194,6 +195,9 @@ class ReturnsServiceTest {
         when(receiptRepository.findById(100L)).thenReturn(Optional.of(approvedReceipt));
         when(creditNoteRepository.findByReceiptId(100L)).thenReturn(Optional.empty());
         when(receiptItemRepository.findByReceiptId(100L)).thenReturn(List.of(item1));
+        when(dealerRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(dealer));
+        when(accountingPeriodService.resolveOpenPeriod(any()))
+                .thenReturn(AccountingPeriod.builder().id(1L).periodName("2026-06").build());
         when(creditNoteRepository.save(any(CreditNote.class))).thenAnswer(invocation -> {
             CreditNote cn = invocation.getArgument(0);
             cn.setId(600L);

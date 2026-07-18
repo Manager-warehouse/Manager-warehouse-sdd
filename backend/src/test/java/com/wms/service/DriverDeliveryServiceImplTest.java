@@ -41,6 +41,7 @@ import com.wms.enums.VehicleStatus;
 import com.wms.enums.WarehouseType;
 import com.wms.exception.OutboundDeliveryException;
 import com.wms.exception.ResourceNotFoundException;
+import com.wms.repository.BillingNotificationRepository;
 import com.wms.repository.DeliveryOrderItemRepository;
 import com.wms.repository.DeliveryOrderRepository;
 import com.wms.repository.DeliveryOtpAttemptRepository;
@@ -78,6 +79,7 @@ class DriverDeliveryServiceImplTest {
     @Mock private DeliveryOrderItemRepository deliveryOrderItemRepository;
     @Mock private InventoryRepository inventoryRepository;
     @Mock private AutoInvoiceService autoInvoiceService;
+    @Mock private BillingNotificationRepository billingNotificationRepository;
     @Mock private AuditLogService auditLogService;
     @Mock private JavaMailSender mailSender;
 
@@ -92,7 +94,7 @@ class DriverDeliveryServiceImplTest {
     void setUp() {
         service = new DriverDeliveryServiceImpl(tripRepository, tripDeliveryOrderRepository, deliveryRepository,
                 otpRepository, deliveryOrderRepository, deliveryOrderItemRepository, inventoryRepository,
-                autoInvoiceService, auditLogService, mailSender);
+                autoInvoiceService, billingNotificationRepository, auditLogService, mailSender);
         actor = User.builder().id(10L).fullName("Driver").role(UserRole.DRIVER).build();
         warehouse = Warehouse.builder().id(20L).code("HP").name("Hai Phong")
                 .type(WarehouseType.PHYSICAL).isActive(true).build();

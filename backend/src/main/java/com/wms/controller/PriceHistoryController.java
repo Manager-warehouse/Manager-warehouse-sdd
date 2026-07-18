@@ -80,12 +80,14 @@ public class PriceHistoryController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ACCOUNTANT', 'ACCOUNTANT_MANAGER', 'ADMIN', 'CEO')")
-    @Operation(summary = "Danh sách bản giá (filter: product_id, warehouse_id, status)")
+    @Operation(summary = "Danh sách bản giá (filter: product_id, warehouse_id, status, effective_date range)")
     public List<PriceHistoryResponse> getAll(
             @RequestParam(required = false) Long productId,
             @RequestParam(required = false) Long warehouseId,
-            @RequestParam(required = false) PriceHistoryStatus status) {
-        return priceHistoryService.getAll(productId, warehouseId, status);
+            @RequestParam(required = false) PriceHistoryStatus status,
+            @RequestParam(required = false) LocalDate effectiveDateFrom,
+            @RequestParam(required = false) LocalDate effectiveDateTo) {
+        return priceHistoryService.getAll(productId, warehouseId, status, effectiveDateFrom, effectiveDateTo);
     }
 
     @GetMapping("/lookup")
@@ -135,17 +137,17 @@ public class PriceHistoryController {
             @RequestParam(required = false) Long productId,
             @RequestParam(required = false) Long warehouseId,
             @RequestParam(required = false) PriceHistoryStatus status) {
-        List<PriceHistoryResponse> entries = priceHistoryService.getAll(productId, warehouseId, status);
+        List<PriceHistoryResponse> entries = priceHistoryService.getAll(productId, warehouseId, status, null, null);
         try (Workbook wb = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             Sheet sheet = wb.createSheet("bang-gia");
             Row header = sheet.createRow(0);
-            String[] cols = {"product_sku", "warehouse_name", "effective_date", "cost_price", "selling_price", "notes"};
+            String[] cols = {"product_sku", "warehouse_code", "effective_date", "cost_price", "selling_price", "notes"};
             for (int i = 0; i < cols.length; i++) header.createCell(i).setCellValue(cols[i]);
             int rowIdx = 1;
             for (PriceHistoryResponse e : entries) {
                 Row row = sheet.createRow(rowIdx++);
                 row.createCell(0).setCellValue(e.getProductSku());
-                row.createCell(1).setCellValue(e.getWarehouseName() != null ? e.getWarehouseName() : "");
+                row.createCell(1).setCellValue(e.getWarehouseCode() != null ? e.getWarehouseCode() : "");
                 row.createCell(2).setCellValue(e.getEffectiveDate() != null ? e.getEffectiveDate().toString() : "");
                 row.createCell(3).setCellValue(e.getCostPrice() != null ? e.getCostPrice().doubleValue() : 0);
                 row.createCell(4).setCellValue(e.getSellingPrice() != null ? e.getSellingPrice().doubleValue() : 0);

@@ -14,22 +14,9 @@ import java.util.Optional;
 public interface PriceHistoryRepository extends JpaRepository<PriceHistory, Long>,
                 JpaSpecificationExecutor<PriceHistory> {
 
-        List<PriceHistory> findByProductIdAndWarehouseIdOrderByCreatedAtDesc(Long productId, Long warehouseId);
-
+        // Used only by getByProduct() (GET /products/{id}/price-history), which is a
+        // separate endpoint from the filterable getAll() below (Specification-based).
         List<PriceHistory> findByProductIdOrderByCreatedAtDesc(Long productId);
-
-        List<PriceHistory> findByStatusOrderByCreatedAtAsc(PriceHistoryStatus status);
-
-        List<PriceHistory> findByWarehouseIdAndStatusOrderByCreatedAtAsc(Long warehouseId, PriceHistoryStatus status);
-
-        List<PriceHistory> findByProductIdAndWarehouseIdAndStatusOrderByCreatedAtAsc(
-                        Long productId, Long warehouseId, PriceHistoryStatus status);
-
-        List<PriceHistory> findByProductIdAndStatusOrderByCreatedAtAsc(Long productId, PriceHistoryStatus status);
-
-        List<PriceHistory> findByWarehouseIdOrderByCreatedAtAsc(Long warehouseId);
-
-        List<PriceHistory> findAllByOrderByCreatedAtAsc();
 
         /**
          * Non-CANCELLED (PENDING or APPROVED) entries conflicting with a candidate
@@ -64,9 +51,10 @@ public interface PriceHistoryRepository extends JpaRepository<PriceHistory, Long
                         Long productId, Long warehouseId, PriceHistoryStatus status, LocalDate date);
 
         /**
-         * Most recent approved entry for a (product, warehouse) pair — used in approval
-         * delta view. approvedAt DESC breaks ties on effectiveDate the same way as the
-         * lookup above.
+         * Most recent approved entry for a (product, warehouse) pair, regardless of any
+         * particular date — used where callers want "the current standard cost/price"
+         * (e.g. disposal/quarantine valuation), not a comparison anchored to another
+         * entry's own effective_date.
          */
         @Query("""
                         SELECT p FROM PriceHistory p
@@ -78,4 +66,28 @@ public interface PriceHistoryRepository extends JpaRepository<PriceHistory, Long
         List<PriceHistory> findLatestApproved(
                         @Param("productId") Long productId,
                         @Param("warehouseId") Long warehouseId);
+
+        /**
+         * The APPROVED entry in effect immediately before a given effective_date, i.e.
+         * the entry a PENDING/APPROVED row at that date would supersede — used for the
+         * approval delta view so a backdated entry (effective_date earlier than an
+         * already-newer APPROVED entry) is compared against the price it actually
+         * replaces, not against whatever happens to be the overall most recent one.
+         * excludeId keeps an APPROVED entry from matching itself when viewing its own
+         * detail.
+         */
+        @Query("""
+                        SELECT p FROM PriceHistory p
+                        WHERE p.product.id = :productId
+                          AND p.warehouse.id = :warehouseId
+                          AND p.status = 'APPROVED'
+                          AND p.effectiveDate <= :effectiveDate
+                          AND (:excludeId IS NULL OR p.id <> :excludeId)
+                        ORDER BY p.effectiveDate DESC, p.approvedAt DESC
+                        """)
+        List<PriceHistory> findApprovedAtOrBefore(
+                        @Param("productId") Long productId,
+                        @Param("warehouseId") Long warehouseId,
+                        @Param("effectiveDate") LocalDate effectiveDate,
+                        @Param("excludeId") Long excludeId);
 }

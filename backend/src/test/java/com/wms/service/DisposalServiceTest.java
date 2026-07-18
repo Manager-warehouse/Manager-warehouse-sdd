@@ -41,6 +41,7 @@ class DisposalServiceTest {
     @Mock private ReceiptValidationService receiptValidationService;
     @Mock private AuditLogService auditLogService;
     @Mock private QuarantineRecordRepository quarantineRecordRepository;
+    @Mock private AccountingPeriodService accountingPeriodService;
 
     @InjectMocks
     private DisposalService disposalService;
@@ -76,6 +77,9 @@ class DisposalServiceTest {
                 .sampleFailedQty(10)
                 .unitCost(BigDecimal.valueOf(100000)) // 100K each -> Total 1M (Auto approval)
                 .build();
+
+        lenient().when(accountingPeriodService.resolveOpenPeriod(any()))
+                .thenReturn(AccountingPeriod.builder().id(1L).periodName("2026-07").build());
     }
 
     @Test

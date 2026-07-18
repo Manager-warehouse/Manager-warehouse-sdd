@@ -39,6 +39,7 @@ frontend/dist/
 # Misc
 .DS_Store
 *.pem
+backend/uploads
 
 # Debug
 npm-debug.log*

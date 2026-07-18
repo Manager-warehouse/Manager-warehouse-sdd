@@ -18,6 +18,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
@@ -86,6 +87,36 @@ public class SystemConfigServiceImpl implements SystemConfigService {
         auditLogRepository.save(auditLog);
 
         return systemConfigMapper.toResponse(savedConfig);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public int getIntValue(String configKey, int defaultValue) {
+        return systemConfigRepository.findByConfigKey(configKey)
+                .map(SystemConfig::getConfigValue)
+                .map(value -> {
+                    try {
+                        return Integer.parseInt(value);
+                    } catch (NumberFormatException e) {
+                        return defaultValue;
+                    }
+                })
+                .orElse(defaultValue);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public BigDecimal getDecimalValue(String configKey, BigDecimal defaultValue) {
+        return systemConfigRepository.findByConfigKey(configKey)
+                .map(SystemConfig::getConfigValue)
+                .map(value -> {
+                    try {
+                        return new BigDecimal(value);
+                    } catch (NumberFormatException e) {
+                        return defaultValue;
+                    }
+                })
+                .orElse(defaultValue);
     }
 
     private String resolveDefaultDescription(String configKey) {

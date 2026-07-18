@@ -20,6 +20,8 @@ Kế toán viên tạo, sửa và hủy từng bản giá (`price_history`) cho 
 
 - The system SHALL require `product_id`, `warehouse_id`, `effective_date`, `cost_price`, `selling_price` for every price entry. There is no `end_date`.
 - The system SHALL enforce `cost_price > 0` and `selling_price > 0`.
+- The system SHALL enforce `selling_price > cost_price`; violations return `SELLING_BELOW_COST` (422) (Session 2026-07-18 của `spec.md`). Checked on create and update, alongside the positive-price and same-effective-date checks.
+- The system SHALL require `effective_date` to fall in an `OPEN` accounting period (same `AccountingPeriodService.validateDateInOpenPeriod()` check `DeliveryOrder.document_date` already uses, spec 004/008); a `CLOSED`-period `effective_date` is rejected with `UNPROCESSABLE_ENTITY` (422, message prefixed `PERIOD_CLOSED:`) on both create and update (Session 2026-07-18 của `spec.md`).
 - The system SHALL check for another non-`CANCELLED` entry (`PENDING` or `APPROVED`) with the exact same `(product_id, warehouse_id, effective_date)` on every create and update; violations return `OVERLAPPING_EFFECTIVE_DATE` (409) (Session 2026-07-12 của `spec.md` — broadened from "APPROVED only"). A `PENDING` entry already occupying a date blocks creating a second one for that date: the correct way to fix a wrong `PENDING` entry is to edit it (`PUT`), not create a duplicate — the edit action already exists for exactly this reason. `CANCELLED` entries are excluded from the check. Entries for the same product but a different warehouse never conflict.
 - Every mutation SHALL create an audit log entry.
 
@@ -41,7 +43,7 @@ Kế toán viên tạo, sửa và hủy từng bản giá (`price_history`) cho 
   - Update the record and return HTTP 200.
 
 **Hủy bản giá**
-- WHEN Kế toán viên submits `DELETE /api/v1/price-history/{id}`:
+- WHEN Kế toán viên submits `PUT /api/v1/price-history/{id}/cancel`:
   - Reject with `PRICE_ALREADY_APPROVED` (409) if `status = APPROVED`.
   - Reject with `PRICE_ALREADY_CANCELLED` (409) if `status = CANCELLED`.
   - Reject with HTTP 403 if `created_by != authenticated user`.
@@ -62,8 +64,8 @@ Kế toán viên tạo, sửa và hủy từng bản giá (`price_history`) cho 
 |--------|------|-------|
 | `POST` | `/api/v1/price-history` | Tạo bản giá mới |
 | `PUT` | `/api/v1/price-history/{id}` | Sửa bản giá PENDING |
-| `DELETE` | `/api/v1/price-history/{id}` | Hủy bản giá PENDING (soft cancel) |
-| `GET` | `/api/v1/price-history` | Danh sách bản giá (filter: product_id, warehouse_id, status, effective_date range) |
+| `PUT` | `/api/v1/price-history/{id}/cancel` | Hủy bản giá PENDING (soft cancel) |
+| `GET` | `/api/v1/price-history` | Danh sách bản giá (filter: `productId`, `warehouseId`, `status`, `effectiveDateFrom`, `effectiveDateTo` — inclusive range; luôn sắp xếp `created_at ASC`) |
 | `GET` | `/api/v1/products/{id}/price-history` | Lịch sử tất cả bản giá của một sản phẩm (filter tùy chọn: warehouse_id) |
 
 ### Request body — `POST /api/v1/price-history`
@@ -164,6 +166,23 @@ Kế toán viên tạo, sửa và hủy từng bản giá (`price_history`) cho 
 
 **Scenario 6: Hủy bản giá PENDING**
 - Given bản giá ID=15 ở PENDING
-- When Kế toán viên (người tạo) gọi DELETE /price-history/15
+- When Kế toán viên (người tạo) gọi PUT /price-history/15/cancel
 - Then `status = CANCELLED`, bản ghi vẫn còn trong DB
 - And HTTP 200
+
+**Scenario 7: Từ chối vì selling_price <= cost_price**
+- Given Kế toán viên tạo bản giá với cost_price = 100.000, selling_price = 90.000
+- When submit POST /price-history
+- Then HTTP 422 `SELLING_BELOW_COST`
+- And không tạo bản ghi nào
+
+**Scenario 8: Từ chối vì effective_date thuộc kỳ kế toán đã CLOSED**
+- Given kỳ kế toán tháng 01/2026 đã ở trạng thái CLOSED
+- When Kế toán viên tạo bản giá với effective_date = 15/01/2026
+- Then HTTP 422 `UNPROCESSABLE_ENTITY` (message tiền tố `PERIOD_CLOSED:`)
+- And không tạo bản ghi nào
+
+**Scenario 9: Cho phép effective_date bất kỳ trong kỳ đang mở**
+- Given kỳ kế toán tháng hiện tại (07/2026) đang OPEN, chưa có bản giá nào effective 05/07/2026
+- When Kế toán viên tạo bản giá với effective_date = 05/07/2026 (một ngày đã qua trong cùng tháng, không phải hôm nay)
+- Then hệ thống tạo bản ghi `status = PENDING` bình thường — không bị chặn bởi kiểm tra kỳ kế toán vì 05/07/2026 vẫn thuộc kỳ đang mở

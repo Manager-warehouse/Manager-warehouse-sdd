@@ -11,6 +11,7 @@ import com.wms.repository.*;
 import com.wms.service.AccountingPeriodService;
 import com.wms.service.AuditLogService;
 import com.wms.service.PaymentReceiptService;
+import com.wms.service.SystemConfigService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -34,9 +35,10 @@ public class PaymentReceiptServiceImpl implements PaymentReceiptService {
     private final PaymentReceiptRepository paymentReceiptRepository;
     private final InvoiceRepository invoiceRepository;
     private final DealerRepository dealerRepository;
+    private final CreditNoteRepository creditNoteRepository;
     private final AccountingPeriodRepository accountingPeriodRepository;
     private final DocumentSequenceRepository sequenceRepository;
-    private final SystemConfigRepository systemConfigRepository;
+    private final SystemConfigService systemConfigService;
     private final AccountingPeriodService accountingPeriodService;
     private final AuditLogService auditLogService;
 
@@ -44,17 +46,19 @@ public class PaymentReceiptServiceImpl implements PaymentReceiptService {
             PaymentReceiptRepository paymentReceiptRepository,
             InvoiceRepository invoiceRepository,
             DealerRepository dealerRepository,
+            CreditNoteRepository creditNoteRepository,
             AccountingPeriodRepository accountingPeriodRepository,
             DocumentSequenceRepository sequenceRepository,
-            SystemConfigRepository systemConfigRepository,
+            SystemConfigService systemConfigService,
             AccountingPeriodService accountingPeriodService,
             AuditLogService auditLogService) {
         this.paymentReceiptRepository = paymentReceiptRepository;
         this.invoiceRepository = invoiceRepository;
         this.dealerRepository = dealerRepository;
+        this.creditNoteRepository = creditNoteRepository;
         this.accountingPeriodRepository = accountingPeriodRepository;
         this.sequenceRepository = sequenceRepository;
-        this.systemConfigRepository = systemConfigRepository;
+        this.systemConfigService = systemConfigService;
         this.accountingPeriodService = accountingPeriodService;
         this.auditLogService = auditLogService;
     }
@@ -67,8 +71,9 @@ public class PaymentReceiptServiceImpl implements PaymentReceiptService {
         // 1. Validate ngày hạch toán có trong kỳ kế toán đang mở
         accountingPeriodService.validateDateInOpenPeriod(request.getPaymentDate());
 
-        // 2. Tìm kiếm đại lý và hóa đơn
-        Dealer dealer = dealerRepository.findById(request.getDealerId())
+        // 2. Tìm kiếm đại lý và hóa đơn (locked for the duration of this transaction so a
+        // concurrent invoice/payment for the same dealer can't race on current_balance).
+        Dealer dealer = dealerRepository.findByIdForUpdate(request.getDealerId())
                 .orElseThrow(() -> new ResourceNotFoundException("Dealer not found with id: " + request.getDealerId()));
 
         Invoice invoice = invoiceRepository.findById(request.getInvoiceId())
@@ -119,7 +124,7 @@ public class PaymentReceiptServiceImpl implements PaymentReceiptService {
 
         // Mở khóa công nợ tự động nếu dư nợ giảm dưới credit_limit * buffer_pct
         BigDecimal creditLimit = dealer.getCreditLimit() != null ? dealer.getCreditLimit() : BigDecimal.ZERO;
-        BigDecimal bufferPct = getSystemConfigDecimal("CREDIT_UNLOCK_BUFFER_PCT", new BigDecimal("0.8"));
+        BigDecimal bufferPct = systemConfigService.getDecimalValue("CREDIT_UNLOCK_BUFFER_PCT", new BigDecimal("0.8"));
         BigDecimal unlockThreshold = creditLimit.multiply(bufferPct);
 
         if (dealer.getCreditStatus() == CreditStatus.CREDIT_HOLD && newBalance.compareTo(unlockThreshold) < 0) {
@@ -186,10 +191,19 @@ public class PaymentReceiptServiceImpl implements PaymentReceiptService {
             }
 
             BigDecimal currentBalance = dealer.getCurrentBalance() != null ? dealer.getCurrentBalance() : BigDecimal.ZERO;
-            
+
             // Tìm tất cả hóa đơn chưa thanh toán hoặc thanh toán một phần của đại lý này
             List<Invoice> unpaidInvoices = invoiceRepository.findUnpaidInvoicesByDealer(
                     dealer.getId(), Arrays.asList(InvoiceStatus.UNPAID, InvoiceStatus.PARTIALLY_PAID));
+
+            // Credit notes (Spec 009) only reduce dealer.currentBalance and don't reference a
+            // specific invoice, so they'd otherwise never show up in this per-invoice bucketing
+            // and the bucket totals would drift from currentBalance. Net the pool against the
+            // oldest unpaid invoices first (unpaidInvoices is already ordered by dueDate asc) —
+            // read-time only, no CreditNote/Invoice row is mutated.
+            BigDecimal creditNotePool = creditNoteRepository.findByDealerId(dealer.getId()).stream()
+                    .map(CreditNote::getAmount)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
 
             BigDecimal inTermAmount = BigDecimal.ZERO;
             BigDecimal overdue1To30 = BigDecimal.ZERO;
@@ -213,19 +227,26 @@ public class PaymentReceiptServiceImpl implements PaymentReceiptService {
                     continue;
                 }
 
+                BigDecimal appliedCreditNote = creditNotePool.min(remainingInvoiceDebt);
+                creditNotePool = creditNotePool.subtract(appliedCreditNote);
+                BigDecimal effectiveDebt = remainingInvoiceDebt.subtract(appliedCreditNote);
+                if (effectiveDebt.compareTo(BigDecimal.ZERO) <= 0) {
+                    continue;
+                }
+
                 if (invoice.getDueDate().isAfter(today) || invoice.getDueDate().isEqual(today)) {
-                    inTermAmount = inTermAmount.add(remainingInvoiceDebt);
+                    inTermAmount = inTermAmount.add(effectiveDebt);
                 } else {
                     long overdueDays = ChronoUnit.DAYS.between(invoice.getDueDate(), today);
                     if (overdueDays >= 1 && overdueDays <= 30) {
-                        overdue1To30 = overdue1To30.add(remainingInvoiceDebt);
+                        overdue1To30 = overdue1To30.add(effectiveDebt);
                     } else if (overdueDays >= 31 && overdueDays <= 60) {
-                        overdue31To60 = overdue31To60.add(remainingInvoiceDebt);
+                        overdue31To60 = overdue31To60.add(effectiveDebt);
                     } else if (overdueDays >= 61 && overdueDays <= 90) {
-                        overdue61To90 = overdue61To90.add(remainingInvoiceDebt);
+                        overdue61To90 = overdue61To90.add(effectiveDebt);
                         hasHighRiskOverdue = true;
                     } else {
-                        overdueOver90 = overdueOver90.add(remainingInvoiceDebt);
+                        overdueOver90 = overdueOver90.add(effectiveDebt);
                         hasHighRiskOverdue = true;
                     }
                 }
@@ -256,11 +277,11 @@ public class PaymentReceiptServiceImpl implements PaymentReceiptService {
     @Transactional
     public void runDailyOverdueHoldJob() {
         LocalDate today = LocalDate.now();
-        int maxOverdueDays = getSystemConfigInteger("CREDIT_HOLD_OVERDUE_DAYS", 30);
+        int maxOverdueDays = systemConfigService.getIntValue("CREDIT_HOLD_OVERDUE_DAYS", 30);
 
         List<Invoice> unpaidInvoices = invoiceRepository.findByStatusOrderByCreatedAtDesc(InvoiceStatus.UNPAID);
         List<Invoice> partialInvoices = invoiceRepository.findByStatusOrderByCreatedAtDesc(InvoiceStatus.PARTIALLY_PAID);
-        
+
         List<Invoice> allUnpaid = new ArrayList<>();
         allUnpaid.addAll(unpaidInvoices);
         allUnpaid.addAll(partialInvoices);
@@ -269,7 +290,11 @@ public class PaymentReceiptServiceImpl implements PaymentReceiptService {
             if (invoice.getDueDate().isBefore(today)) {
                 long overdueDays = ChronoUnit.DAYS.between(invoice.getDueDate(), today);
                 if (overdueDays > maxOverdueDays) {
-                    Dealer dealer = invoice.getDealer();
+                    // Locked so this doesn't race with a concurrent payment unlocking the
+                    // same dealer's credit at the same time.
+                    Dealer dealer = dealerRepository.findByIdForUpdate(invoice.getDealer().getId())
+                            .orElseThrow(() -> new ResourceNotFoundException(
+                                    "Dealer not found with id: " + invoice.getDealer().getId()));
                     if (dealer.getCreditStatus() == CreditStatus.ACTIVE) {
                         dealer.setCreditStatus(CreditStatus.CREDIT_HOLD);
                         dealerRepository.save(dealer);
@@ -312,30 +337,6 @@ public class PaymentReceiptServiceImpl implements PaymentReceiptService {
         sequence.setUpdatedAt(OffsetDateTime.now());
         sequenceRepository.save(sequence);
         return "PAY-" + datePart + "-" + String.format("%06d", value);
-    }
-
-    private BigDecimal getSystemConfigDecimal(String key, BigDecimal defaultValue) {
-        return systemConfigRepository.findByConfigKey(key)
-                .map(c -> {
-                    try {
-                        return new BigDecimal(c.getConfigValue());
-                    } catch (Exception e) {
-                        return defaultValue;
-                    }
-                })
-                .orElse(defaultValue);
-    }
-
-    private int getSystemConfigInteger(String key, int defaultValue) {
-        return systemConfigRepository.findByConfigKey(key)
-                .map(c -> {
-                    try {
-                        return Integer.parseInt(c.getConfigValue());
-                    } catch (Exception e) {
-                        return defaultValue;
-                    }
-                })
-                .orElse(defaultValue);
     }
 
     private PaymentReceiptResponse toResponse(PaymentReceipt entity) {
