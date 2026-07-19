@@ -15,8 +15,10 @@ import com.wms.repository.InventoryRepository;
 import com.wms.repository.UserRepository;
 import com.wms.repository.WarehouseLocationRepository;
 import com.wms.repository.WarehouseRepository;
+import com.wms.repository.UserWarehouseAssignmentRepository;
 import com.wms.service.AuditLogService;
 import com.wms.service.WarehouseService;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,15 +40,30 @@ public class WarehouseServiceImpl implements WarehouseService {
     private final InventoryRepository inventoryRepository;
     private final MasterDataMapper mapper;
     private final AuditLogService auditLogService;
+    private final UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
+
 
     @Override
     @Transactional(readOnly = true)
-    public List<WarehouseResponse> getAllWarehouses(Boolean isActive) {
+    public List<WarehouseResponse> getAllWarehouses(Boolean isActive, Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+
         List<Warehouse> list = (isActive != null) 
                 ? warehouseRepository.findByIsActive(isActive)
                 : warehouseRepository.findAll();
-        return list.stream().map(mapper::toResponse).collect(Collectors.toList());
+
+        if (user.getRole() == UserRole.ADMIN || user.getRole() == UserRole.CEO || user.getRole() == UserRole.WAREHOUSE_MANAGER) {
+            return list.stream().map(mapper::toResponse).collect(Collectors.toList());
+        } else {
+            List<Long> assignedIds = userWarehouseAssignmentRepository.findWarehouseIdsByUserId(userId);
+            return list.stream()
+                    .filter(w -> assignedIds.contains(w.getId()))
+                    .map(mapper::toResponse)
+                    .collect(Collectors.toList());
+        }
     }
+
 
     @Override
     @Transactional(readOnly = true)

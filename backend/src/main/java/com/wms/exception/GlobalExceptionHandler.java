@@ -213,8 +213,12 @@ public class GlobalExceptionHandler {
             case "ASSIGNED_DRIVER_REQUIRED": return "Chỉ tài xế được chỉ định mới có quyền xác nhận khởi hành.";
             case "QC_PASSED_BIN_MUST_NOT_BE_QUARANTINE": return "Hàng đạt QC không thể xếp vào khu vực cách ly (Quarantine). Vui lòng chọn bin lưu trữ thông thường.";
             case "QUARANTINE_LOCATION_NOT_CONFIGURED": return "Kho đích chưa có khu vực cách ly (Quarantine). Cần thêm ít nhất một Bin Quarantine trước khi duyệt QC lỗi.";
+            case "WAREHOUSE_REQUIRED": return "Yêu cầu gán kho hoạt động cho tài khoản.";
+            case "MULTIPLE_WAREHOUSES_NOT_ALLOWED": return "Chỉ được phép gán tối đa 1 kho cho vai trò này.";
+            case "WAREHOUSE_SCOPE_FORBIDDEN": return "Bạn không có quyền truy cập phạm vi kho này.";
             default: return msg;
         }
+
     }
 
     private ResponseEntity<ApiErrorResponse> error(HttpStatus status,

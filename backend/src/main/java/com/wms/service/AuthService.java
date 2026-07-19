@@ -7,9 +7,13 @@ import com.wms.enums.AuditAction;
 import com.wms.repository.UserRepository;
 import com.wms.repository.UserWarehouseAssignmentRepository;
 import com.wms.repository.AuditLogRepository;
+import com.wms.repository.WarehouseRepository;
+import com.wms.entity.Warehouse;
+import com.wms.enums.UserRole;
 import com.wms.util.JwtUtil;
 import com.wms.util.AuditLogUtil;
 import lombok.RequiredArgsConstructor;
+import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -38,6 +42,7 @@ public class AuthService {
     private final EmailService emailService;
     private final UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
     private final AuditLogRepository auditLogRepository;
+    private final WarehouseRepository warehouseRepository;
 
     @Value("${jwt.refresh-token-expiry}")
     private long refreshTokenExpiry;
@@ -244,13 +249,43 @@ public class AuthService {
     }
 
     private List<LoginResponse.WarehouseInfo> buildWarehouseInfoList(User user) {
-        // UserWarehouseAssignment is loaded via separate query to avoid N+1
-        // For now returning empty list — will be populated when
-        // UserWarehouseAssignmentRepository is added
-        return List.of();
+        if (user.getRole() == UserRole.ADMIN || user.getRole() == UserRole.CEO) {
+            return warehouseRepository.findAll().stream()
+                    .filter(Warehouse::getIsActive)
+                    .map(w -> LoginResponse.WarehouseInfo.builder()
+                            .id(w.getId())
+                            .name(w.getName())
+                            .build())
+                    .collect(Collectors.toList());
+        } else {
+            List<Long> assignedIds = userWarehouseAssignmentRepository.findWarehouseIdsByUserId(user.getId());
+            return warehouseRepository.findAllById(assignedIds).stream()
+                    .map(w -> LoginResponse.WarehouseInfo.builder()
+                            .id(w.getId())
+                            .name(w.getName())
+                            .build())
+                    .collect(Collectors.toList());
+        }
     }
 
     private List<MeResponse.WarehouseInfo> buildMeWarehouseInfoList(User user) {
-        return List.of();
+        if (user.getRole() == UserRole.ADMIN || user.getRole() == UserRole.CEO) {
+            return warehouseRepository.findAll().stream()
+                    .filter(Warehouse::getIsActive)
+                    .map(w -> MeResponse.WarehouseInfo.builder()
+                            .id(w.getId())
+                            .name(w.getName())
+                            .build())
+                    .collect(Collectors.toList());
+        } else {
+            List<Long> assignedIds = userWarehouseAssignmentRepository.findWarehouseIdsByUserId(user.getId());
+            return warehouseRepository.findAllById(assignedIds).stream()
+                    .map(w -> MeResponse.WarehouseInfo.builder()
+                            .id(w.getId())
+                            .name(w.getName())
+                            .build())
+                    .collect(Collectors.toList());
+        }
     }
+
 }

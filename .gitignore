@@ -10,6 +10,9 @@ run-all.sh
 CLAUDE-Local.md
 .claude/
 
+# ===== DOCS (local only) =====
+tutorial.md
+
 # ===== Class-AI-Agent =====
 # Exclude local AI agent class materials
 Class-AI-Agent/

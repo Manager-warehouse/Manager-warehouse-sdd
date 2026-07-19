@@ -1,14 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Menu, LogOut, User, Warehouse, ChevronDown } from 'lucide-react';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
 import { WAREHOUSES } from '../../utils/constants';
 import { getAvatarFallback } from '../../utils/format';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+
 import BillingNotificationMenu from './BillingNotificationMenu';
 
 const Header = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, activeWarehouse, setActiveWarehouse, logout } = useAuthStore();
   const { toggleSidebar, addToast } = useUiStore();
   
@@ -16,9 +18,24 @@ const Header = () => {
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
 
   // Determine allowed warehouses for this user
-  const allowedWarehouses = WAREHOUSES.filter(
-    (w) => !user?.warehouses || user.warehouses.length === 0 || user.warehouses.includes(w.id)
-  );
+  const allowedWarehouses = useMemo(() => {
+    if (!user) return [];
+    if (user.role === 'ADMIN' || user.role === 'CEO') {
+      return WAREHOUSES;
+    }
+    if (user.role === 'WAREHOUSE_MANAGER') {
+      const isAllowedPage = location.pathname === '/dashboard' || location.pathname === '/inventory-availability';
+      if (isAllowedPage) {
+        return WAREHOUSES;
+      }
+    }
+    return WAREHOUSES.filter(
+      (w) => user.warehouses && user.warehouses.includes(w.id)
+    );
+  }, [user, location.pathname]);
+
+  const isSelectorInteractive = allowedWarehouses.length > 1;
+
 
   const handleWarehouseChange = (wh) => {
     setActiveWarehouse(wh);
@@ -60,15 +77,21 @@ const Header = () => {
           <div className="relative min-w-0">
             <button
               onClick={() => {
-                setWarehouseDropdownOpen(!warehouseDropdownOpen);
-                setProfileDropdownOpen(false);
+                if (isSelectorInteractive) {
+                  setWarehouseDropdownOpen(!warehouseDropdownOpen);
+                  setProfileDropdownOpen(false);
+                }
               }}
-              className="flex max-w-[7.5rem] items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-pill border border-hairline-light bg-canvas-cream hover:bg-shade-30 text-xs font-semibold text-ink uppercase tracking-wider transition-colors focus:outline-none"
+              disabled={!isSelectorInteractive}
+              className={`flex max-w-[7.5rem] items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-pill border border-hairline-light bg-canvas-cream text-xs font-semibold text-ink uppercase tracking-wider transition-colors focus:outline-none ${
+                isSelectorInteractive ? 'hover:bg-shade-30 cursor-pointer' : 'cursor-default opacity-85'
+              }`}
             >
               <Warehouse className="w-3.5 h-3.5" />
               <span className="truncate">{activeWarehouse.code}</span>
-              <ChevronDown className="w-3 h-3 text-shade-60" />
+              {isSelectorInteractive && <ChevronDown className="w-3 h-3 text-shade-60" />}
             </button>
+
 
             {warehouseDropdownOpen && (
               <div className="absolute right-0 mt-2 w-56 bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 py-1.5 z-50">

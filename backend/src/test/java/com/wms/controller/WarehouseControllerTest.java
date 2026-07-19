@@ -62,11 +62,13 @@ public class WarehouseControllerTest {
     @Test
     @WithMockUser(username = "admin@wms.com", roles = "ADMIN")
     void getAllWarehouses_Admin_Returns200() throws Exception {
-        when(warehouseService.getAllWarehouses(any())).thenReturn(List.of(new WarehouseResponse()));
+        when(userRepository.findByEmail("admin@wms.com")).thenReturn(Optional.of(adminUser));
+        when(warehouseService.getAllWarehouses(any(), eq(1L))).thenReturn(List.of(new WarehouseResponse()));
 
         mockMvc.perform(get("/api/v1/admin/warehouses"))
                 .andExpect(status().isOk());
     }
+
 
     @Test
     void getAllWarehouses_Unauthenticated_Returns403() throws Exception {

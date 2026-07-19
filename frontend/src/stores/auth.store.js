@@ -65,6 +65,7 @@ export const useAuthStore = create((set, get) => {
     hasRole: (role) => {
       const user = get().user;
       if (!user) return false;
+      if (user.role === 'ADMIN' && role !== 'DRIVER') return true;
       return user.role === role;
     },
 

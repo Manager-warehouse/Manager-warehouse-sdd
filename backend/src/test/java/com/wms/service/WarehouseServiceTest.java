@@ -14,7 +14,9 @@ import com.wms.repository.InventoryRepository;
 import com.wms.repository.UserRepository;
 import com.wms.repository.WarehouseLocationRepository;
 import com.wms.repository.WarehouseRepository;
+import com.wms.repository.UserWarehouseAssignmentRepository;
 import com.wms.service.impl.WarehouseServiceImpl;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -24,6 +26,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.util.Optional;
+import java.util.List;
+
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -44,6 +48,9 @@ public class WarehouseServiceTest {
     private MasterDataMapper mapper;
     @Mock
     private AuditLogService auditLogService;
+    @Mock
+    private UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
+
 
     @InjectMocks
     private WarehouseServiceImpl warehouseService;
@@ -153,4 +160,44 @@ public class WarehouseServiceTest {
         assertThrows(IllegalArgumentException.class, () -> warehouseService.deactivateWarehouse(10L, 1L));
         assertTrue(warehouse.getIsActive());
     }
+
+    @Test
+    void getAllWarehouses_Admin_ReturnsAll() {
+        Warehouse w1 = new Warehouse();
+        w1.setId(10L);
+        w1.setIsActive(true);
+        Warehouse w2 = new Warehouse();
+        w2.setId(20L);
+        w2.setIsActive(true);
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(actor));
+        when(warehouseRepository.findByIsActive(true)).thenReturn(List.of(w1, w2));
+        when(mapper.toResponse(any(Warehouse.class))).thenReturn(new WarehouseResponse());
+
+        var result = warehouseService.getAllWarehouses(true, 1L);
+        assertEquals(2, result.size());
+    }
+
+    @Test
+    void getAllWarehouses_RestrictedUser_ReturnsOnlyAssigned() {
+        Warehouse w1 = new Warehouse();
+        w1.setId(10L);
+        w1.setIsActive(true);
+        Warehouse w2 = new Warehouse();
+        w2.setId(20L);
+        w2.setIsActive(true);
+
+        User restrictedUser = new User();
+        restrictedUser.setId(3L);
+        restrictedUser.setRole(UserRole.STOREKEEPER);
+
+        when(userRepository.findById(3L)).thenReturn(Optional.of(restrictedUser));
+        when(warehouseRepository.findByIsActive(true)).thenReturn(List.of(w1, w2));
+        when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(10L));
+        when(mapper.toResponse(w1)).thenReturn(new WarehouseResponse());
+
+        var result = warehouseService.getAllWarehouses(true, 3L);
+        assertEquals(1, result.size());
+    }
 }
+
