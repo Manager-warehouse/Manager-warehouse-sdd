@@ -33,10 +33,11 @@ const Login = () => {
       addToast('Đăng nhập thành công', 'success');
       navigate('/dashboard');
     } catch (err) {
-      if (err.message === 'INVALID_CREDENTIALS') {
+      const message = err.message || '';
+      if (message.includes('INVALID_CREDENTIALS')) {
         setError('Email hoặc mật khẩu không chính xác');
         addToast('Đăng nhập thất bại', 'error');
-      } else if (err.message === 'USER_INACTIVE') {
+      } else if (message.includes('USER_INACTIVE')) {
         setError('Tài khoản này đã bị khóa. Vui lòng liên hệ Admin.');
         addToast('Tài khoản bị khóa', 'error');
       } else {
@@ -147,8 +148,12 @@ const Login = () => {
           {/* Quick instructions / Help */}
           <div className="auth-login-trial p-4 bg-canvas-nightElevated border border-hairline-dark rounded-lg">
             <span className="text-[10px] font-bold text-aloe-10 uppercase tracking-wider block mb-2">
-              Tài khoản dùng thử (Mock Mode)
+              Tài khoản dùng thử
             </span>
+            <div className="mb-3 rounded-md border border-hairline-dark bg-canvas-night px-3 py-2 text-[11px] text-shade-40">
+              <span className="font-semibold text-onPrimary">Mật khẩu:</span>{' '}
+              <span className="font-mono">password123</span>
+            </div>
             <div className="grid grid-cols-1 gap-2 text-[11px] text-shade-40 font-mono sm:grid-cols-2">
               {[
                 ['Admin', 'admin@phucanh.vn'],
