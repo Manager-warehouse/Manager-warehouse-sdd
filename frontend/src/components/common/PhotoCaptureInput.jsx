@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Camera } from 'lucide-react';
 
 const readImageAsDataUrl = (file) => new Promise((resolve, reject) => {
@@ -42,6 +42,8 @@ const PhotoCaptureInput = ({
   required = false,
   disabled = false,
 }) => {
+  const cameraInputRef = useRef(null);
+  const galleryInputRef = useRef(null);
   const [localPreview, setLocalPreview] = useState('');
   const [localName, setLocalName] = useState('');
 
@@ -81,6 +83,16 @@ const PhotoCaptureInput = ({
     onChange?.(dataUrl, selectedFile);
   };
 
+  const openCamera = () => {
+    if (disabled) return;
+    cameraInputRef.current?.click();
+  };
+
+  const openGallery = () => {
+    if (disabled) return;
+    galleryInputRef.current?.click();
+  };
+
   return (
     <div className="flex flex-col gap-2">
       {label && (
@@ -89,17 +101,40 @@ const PhotoCaptureInput = ({
         </div>
       )}
       <div className="flex flex-col sm:flex-row gap-2">
-        <label className={`rounded-pill font-medium transition-all duration-150 inline-flex items-center justify-center gap-2 text-sm leading-none box-border h-10 px-6 bg-canvas-light text-ink border border-ink hover:bg-shade-30 ${disabled ? 'opacity-50 pointer-events-none' : 'cursor-pointer'}`}>
+        <button
+          type="button"
+          onClick={openCamera}
+          disabled={disabled}
+          className={`rounded-pill font-medium transition-all duration-150 inline-flex items-center justify-center gap-2 text-sm leading-none box-border h-10 px-6 bg-canvas-light text-ink border border-ink hover:bg-shade-30 disabled:opacity-50 disabled:cursor-not-allowed`}
+        >
           <Camera className="w-4 h-4" />
-          Chọn hoặc chụp ảnh
-          <input
-            type="file"
-            accept="image/*"
-            className="sr-only"
-            disabled={disabled}
-            onChange={handleFile}
-          />
-        </label>
+          Chụp ảnh
+        </button>
+        <button
+          type="button"
+          onClick={openGallery}
+          disabled={disabled}
+          className={`rounded-pill font-medium transition-all duration-150 inline-flex items-center justify-center gap-2 text-sm leading-none box-border h-10 px-6 bg-canvas-light text-ink border border-hairline-light hover:bg-shade-30 disabled:opacity-50 disabled:cursor-not-allowed`}
+        >
+          Chọn ảnh
+        </button>
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          disabled={disabled}
+          onChange={handleFile}
+        />
+        <input
+          ref={galleryInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          disabled={disabled}
+          onChange={handleFile}
+        />
         <div className="min-h-10 flex flex-1 items-center rounded-md border border-hairline-light bg-canvas-light px-3 text-xs text-shade-60">
           {selectedName || 'Chưa chọn ảnh'}
         </div>

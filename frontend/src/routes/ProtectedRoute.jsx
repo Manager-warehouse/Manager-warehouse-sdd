@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../stores/auth.store';
 import { WAREHOUSES } from '../utils/constants';
@@ -11,8 +11,19 @@ const ProtectedRoute = ({ allowedRoles = [] }) => {
   const location = useLocation();
   const { token, user, activeWarehouse, setActiveWarehouse } = useAuthStore();
 
+  const clampHorizontalScroll = useCallback((event) => {
+    const target = event.currentTarget;
+    if (target.scrollLeft !== 0) {
+      target.scrollLeft = 0;
+    }
+    document.documentElement.scrollLeft = 0;
+    document.body.scrollLeft = 0;
+  }, []);
+
   useEffect(() => {
     document.body.classList.add('layout-locked');
+    document.documentElement.scrollLeft = 0;
+    document.body.scrollLeft = 0;
     return () => {
       document.body.classList.remove('layout-locked');
     };
@@ -45,15 +56,19 @@ const ProtectedRoute = ({ allowedRoles = [] }) => {
   }
 
   return (
-    <div className="flex flex-col h-dvh w-full max-w-full bg-canvas-cream text-ink overflow-hidden">
+    <div className="flex h-dvh w-full max-w-[100vw] flex-col overflow-hidden bg-canvas-cream text-ink">
       <Header />
 
-      <div className="flex flex-1 min-w-0 overflow-hidden">
+      <div className="flex min-w-0 max-w-full flex-1 overflow-hidden">
         <Sidebar />
 
-        <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto">
-          <div className="min-h-full min-w-0 flex flex-col">
-            <div className="flex-1 min-w-0 flex flex-col p-4 sm:p-6">
+        <main
+          className="app-main min-w-0 max-w-full flex-1 overflow-y-auto"
+          onScroll={clampHorizontalScroll}
+          onTouchMove={clampHorizontalScroll}
+        >
+          <div className="app-main-inner flex min-h-full min-w-0 max-w-full flex-col">
+            <div className="app-content flex min-w-0 max-w-full flex-1 flex-col px-3 py-4 sm:p-6">
               <Outlet />
             </div>
 

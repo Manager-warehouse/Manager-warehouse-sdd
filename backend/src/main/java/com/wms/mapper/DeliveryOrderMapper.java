@@ -66,6 +66,8 @@ public class DeliveryOrderMapper {
                 return DeliveryOrderItemResponse.builder()
                                 .id(item.getId())
                                 .productId(item.getProduct().getId())
+                                .productName(item.getProduct() == null ? null : item.getProduct().getName())
+                                .sku(item.getProduct() == null ? null : item.getProduct().getSku())
                                 .batchId(item.getBatch() == null ? null : item.getBatch().getId())
                                 .locationId(item.getLocation() == null ? null : item.getLocation().getId())
                                 .zoneId(item.getZone() == null ? null : item.getZone().getId())

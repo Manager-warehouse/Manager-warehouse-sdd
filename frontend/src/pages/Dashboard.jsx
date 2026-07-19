@@ -37,6 +37,7 @@ const Dashboard = () => {
   const [businessReason, setBusinessReason] = useState('');
   const [notes, setNotes] = useState('Yêu cầu điều chuyển nhanh từ Dashboard');
   const [submitting, setSubmitting] = useState(false);
+  const [mobileStockLimit, setMobileStockLimit] = useState(3);
 
   const formatQuantity = (value) => Number(value || 0).toLocaleString('vi-VN', {
     maximumFractionDigits: 2,
@@ -69,6 +70,9 @@ const Dashboard = () => {
   ];
 
   const debouncedSearchQuery = useDebounce(searchQuery);
+  const welcomeName = user?.fullName
+    ? user.fullName.split(' ').filter(Boolean).slice(0, 2).join(' ')
+    : 'Người dùng';
 
   const loadStockOverview = async () => {
     if (!activeWarehouse?.id) return;
@@ -128,7 +132,16 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
+    document.documentElement.scrollLeft = 0;
+    document.body.scrollLeft = 0;
+    document.querySelectorAll('.app-main, .app-main-inner, .app-content').forEach((node) => {
+      node.scrollLeft = 0;
+    });
+  }, []);
+
+  useEffect(() => {
     if (user?.role === ROLES.DRIVER) return;
+    setMobileStockLimit(3);
     loadCrossWarehouseStock();
   }, [debouncedSearchQuery, user?.role]);
 
@@ -200,22 +213,22 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="mobile-page">
+    <div className="mobile-page w-full max-w-full overflow-x-hidden">
       {/* Welcome Banner */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
+      <div className="dashboard-hero flex w-full min-w-0 max-w-full flex-col items-start justify-between gap-3 md:flex-row md:items-center">
+        <div className="min-w-0 max-w-full">
           <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
             WMS Phúc Anh
           </span>
-          <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">
-            Xin chào, {user?.fullName || 'Người dùng'}
+          <h1 className="dashboard-title text-xl md:text-3xl font-display font-semibold tracking-tight">
+            Xin chào, {welcomeName}
           </h1>
-          <p className="text-xs text-shade-50 font-light mt-1">
+          <p className="dashboard-subtitle text-xs text-shade-50 font-light mt-1">
             Hôm nay bạn đang làm việc tại <span className="font-semibold text-ink">{activeWarehouse?.name || 'Chưa chọn kho'}</span>.
           </p>
         </div>
 
-        <div>
+        <div className="min-w-0 max-w-full">
           <Badge type="highlight" className="text-xs py-1 px-3">
             {activeWarehouse?.code || 'HP-01'}
           </Badge>
@@ -223,8 +236,8 @@ const Dashboard = () => {
       </div>
 
       {/* KPI Cards section */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-        {overviewKpis.map((kpi, idx) => {
+      <div className="grid w-full min-w-0 grid-cols-1 gap-3 md:grid-cols-3 md:gap-6">
+        {mockKpis.map((kpi, idx) => {
           const isHighlight = kpi.type === 'highlight';
           const isPremium = kpi.type === 'premium';
           const isDanger = kpi.type === 'danger';
@@ -256,21 +269,21 @@ const Dashboard = () => {
           }
 
           return (
-            <div key={idx} className={`${cardStyle} mobile-kpi-card flex flex-col justify-between h-40`}>
-              <div className="flex justify-between items-start">
-                <div>
+            <div key={idx} className={`${cardStyle} mobile-kpi-card flex h-40 min-w-0 max-w-full flex-col justify-between overflow-hidden`}>
+              <div className="flex min-w-0 items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
                   <span className="text-[10px] font-bold uppercase tracking-wider block">
                     {kpi.title}
                   </span>
-                  <span className="mobile-kpi-value text-xl md:text-2xl font-display font-semibold block mt-2">
+                  <span className="mobile-kpi-value mt-2 block max-w-full font-display text-xl font-semibold leading-tight md:text-2xl">
                     {kpi.value}
                   </span>
                 </div>
-                <div className={`p-2.5 rounded-full ${iconStyle}`}>
+                <div className={`mobile-kpi-icon shrink-0 rounded-full p-2.5 ${iconStyle}`}>
                   <kpi.icon className="w-5 h-5" />
                 </div>
               </div>
-              <span className={`text-[11px] font-light ${descStyle}`}>
+              <span className={`mobile-kpi-desc text-[11px] font-light ${descStyle}`}>
                 {kpi.desc}
               </span>
             </div>
@@ -279,9 +292,9 @@ const Dashboard = () => {
       </div>
 
       {/* Cross-Warehouse Stock Management Section */}
-      <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden flex flex-col">
+      <div className="flex min-w-0 max-w-full flex-col overflow-hidden rounded-lg border border-hairline-light bg-canvas-light shadow-level-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-hairline-light px-4 sm:px-6 py-4 gap-3">
-          <div>
+          <div className="min-w-0">
             <h3 className="text-sm font-bold text-shade-70 uppercase tracking-wider">
               Tồn kho hệ thống & Xin điều chuyển nhanh
             </h3>
@@ -400,41 +413,45 @@ const Dashboard = () => {
             </div>
 
             {/* Mobile: stacked card view */}
-            <div className="flex flex-col gap-3 p-4 md:hidden">
-              {productsStock.map((prod) => {
+            <div className="flex flex-col gap-3 p-3 md:hidden">
+              {productsStock.slice(0, mobileStockLimit).map((prod) => {
                 const hasStockElsewhere = physicalWarehouses.some(
                   wh => Number(wh.id) !== Number(activeWarehouse?.id) && (prod.stockMap?.[wh.id] || 0) > 0
                 );
+                const compactWarehouses = physicalWarehouses.filter((wh) => {
+                  const qty = prod.stockMap?.[wh.id] || 0;
+                  return Number(wh.id) === Number(activeWarehouse?.id) || qty > 0;
+                });
 
                 return (
-                  <div key={prod.id} className="rounded-lg border border-hairline-light bg-canvas-cream/30 overflow-hidden text-xs font-light text-ink">
-                    <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center gap-2">
+                  <div key={prod.id} className="mobile-stock-card rounded-lg border border-hairline-light bg-canvas-cream/30 overflow-hidden text-xs font-light text-ink">
+                    <div className="border-b border-hairline-light bg-canvas-cream p-3 flex justify-between items-center gap-2">
                       <span className="font-mono font-semibold text-shade-70">{prod.sku}</span>
                       <span className="text-shade-50">{prod.unit}</span>
                     </div>
-                    <div className="p-4 flex flex-col gap-2">
-                      <div className="font-normal">{prod.name}</div>
-                      <div className="grid grid-cols-2 gap-2 mt-1">
-                        {physicalWarehouses.map((wh) => {
+                    <div className="p-3 flex flex-col gap-2">
+                      <div className="font-normal leading-snug">{prod.name}</div>
+                      <div className="grid grid-cols-1 gap-2 mt-1">
+                        {compactWarehouses.map((wh) => {
                           const qty = prod.stockMap?.[wh.id] || 0;
                           const isActiveWh = Number(wh.id) === Number(activeWarehouse?.id);
                           return (
                             <div
                               key={wh.id}
-                              className={`rounded px-2 py-1.5 text-center font-semibold ${
+                              className={`flex items-center justify-between gap-2 rounded px-2.5 py-2 font-semibold ${
                                 isActiveWh
                                   ? 'bg-canvas-cream border border-hairline-light text-ink'
                                   : qty > 0 ? 'text-[#127a3c] bg-canvas-light' : 'text-shade-40 bg-canvas-light'
                               }`}
                             >
-                              <div className="text-[9px] uppercase tracking-wide font-bold mb-0.5">{wh.name}</div>
-                              {qty} {prod.unit.toLowerCase()}
+                              <div className="min-w-0 truncate text-[9px] uppercase tracking-wide font-bold">{wh.name}</div>
+                              <div className="shrink-0">{qty} {prod.unit.toLowerCase()}</div>
                             </div>
                           );
                         })}
                       </div>
                     </div>
-                    <div className="p-4 border-t border-hairline-light flex justify-end">
+                    <div className="border-t border-hairline-light p-3 flex justify-end">
                       {hasStockElsewhere ? (
                         <button
                           onClick={() => handleOpenTransferModal(prod)}
@@ -450,6 +467,15 @@ const Dashboard = () => {
                   </div>
                 );
               })}
+              {productsStock.length > mobileStockLimit && (
+                <button
+                  type="button"
+                  onClick={() => setMobileStockLimit((limit) => Math.min(limit + 3, productsStock.length))}
+                  className="rounded-pill border border-hairline-light bg-canvas-light px-4 py-2 text-xs font-semibold text-shade-70 shadow-level-1"
+                >
+                  Xem thêm {Math.min(3, productsStock.length - mobileStockLimit)} sản phẩm
+                </button>
+              )}
             </div>
           </>
         )}
