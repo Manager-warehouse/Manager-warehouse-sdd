@@ -1,12 +1,16 @@
 package com.wms.service;
 
 import com.wms.dto.response.InventoryAvailabilityResponse;
+import com.wms.dto.response.WarehouseStockOverviewResponse;
 import com.wms.entity.Batch;
 import com.wms.entity.Inventory;
 import com.wms.entity.Product;
 import com.wms.entity.Warehouse;
+import com.wms.repository.DeliveryOrderRepository;
 import com.wms.repository.InventoryRepository;
 import com.wms.repository.ProductRepository;
+import com.wms.repository.ReceiptRepository;
+import com.wms.repository.StockAlertRepository;
 import com.wms.repository.WarehouseRepository;
 import com.wms.service.impl.InventoryServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,11 +39,26 @@ public class InventoryServiceTest {
     @Mock
     private ProductRepository productRepository;
 
+    @Mock
+    private ReceiptRepository receiptRepository;
+
+    @Mock
+    private DeliveryOrderRepository deliveryOrderRepository;
+
+    @Mock
+    private StockAlertRepository stockAlertRepository;
+
     private InventoryService inventoryService;
 
     @BeforeEach
     void setUp() {
-        inventoryService = new InventoryServiceImpl(inventoryRepository, warehouseRepository, productRepository);
+        inventoryService = new InventoryServiceImpl(
+                inventoryRepository,
+                warehouseRepository,
+                productRepository,
+                receiptRepository,
+                deliveryOrderRepository,
+                stockAlertRepository);
     }
 
     @Test
@@ -93,6 +112,23 @@ public class InventoryServiceTest {
         assertThat(response.totalQty()).isEqualTo(new BigDecimal("100.00"));
         assertThat(response.reservedQty()).isEqualTo(new BigDecimal("30.00"));
         assertThat(response.availableQty()).isEqualTo(new BigDecimal("70.00"));
+    }
+
+    @Test
+    void getOverview_success() {
+        when(warehouseRepository.existsById(1L)).thenReturn(true);
+        when(inventoryRepository.sumValidAvailableQtyByWarehouse(1L)).thenReturn(new BigDecimal("125.50"));
+        when(receiptRepository.countByWarehouseIdAndDocumentDate(1L, LocalDate.now())).thenReturn(3L);
+        when(deliveryOrderRepository.countByWarehouseIdAndDocumentDate(1L, LocalDate.now())).thenReturn(5L);
+        when(stockAlertRepository.countByWarehouseIdAndIsResolvedFalse(1L)).thenReturn(2L);
+
+        WarehouseStockOverviewResponse response = inventoryService.getOverview(1L);
+
+        assertThat(response.warehouseId()).isEqualTo(1L);
+        assertThat(response.availableQty()).isEqualTo(new BigDecimal("125.50"));
+        assertThat(response.todayReceiptCount()).isEqualTo(3L);
+        assertThat(response.todayDeliveryOrderCount()).isEqualTo(5L);
+        assertThat(response.activeLowStockCount()).isEqualTo(2L);
     }
 
     @Test
