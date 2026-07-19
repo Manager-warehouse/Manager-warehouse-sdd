@@ -395,7 +395,7 @@ const Dashboard = () => {
                               className={`px-4 py-4 text-center font-semibold whitespace-nowrap ${
                                 isActiveWh
                                   ? 'bg-canvas-cream/40 border-x border-hairline-light text-ink'
-                                  : qty > 0 ? 'text-[#127a3c]' : 'text-shade-40'
+                                  : qty > 0 ? 'text-success-700' : 'text-shade-40'
                               }`}
                             >
                               {qty} {prod.unit?.toLowerCase()}
@@ -451,7 +451,7 @@ const Dashboard = () => {
                               className={`flex items-center justify-between gap-2 rounded px-2.5 py-2 font-semibold ${
                                 isActiveWh
                                   ? 'bg-canvas-cream border border-hairline-light text-ink'
-                                  : qty > 0 ? 'text-[#127a3c] bg-canvas-light' : 'text-shade-40 bg-canvas-light'
+                                  : qty > 0 ? 'text-success-700 bg-canvas-light' : 'text-shade-40 bg-canvas-light'
                               }`}
                             >
                               <div className="min-w-0 truncate text-[9px] uppercase tracking-wide font-bold" title={wh.name}>{wh.name}</div>
@@ -526,7 +526,7 @@ const Dashboard = () => {
                       const qty = selectedProduct.stockMap?.[w.id] || 0;
                       return {
                         value: w.id,
-                        label: `${w.name} (Sẵn có: ${qty} ${selectedProduct.unit.toLowerCase()})`,
+                        label: `${w.name} (Sẵn có: ${qty} ${selectedProduct.unit?.toLowerCase()})`,
                         disabled: qty <= 0,
                       };
                     }),

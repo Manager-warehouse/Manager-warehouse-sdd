@@ -164,7 +164,7 @@ const StocktakeList = () => {
                 <tbody className="divide-y divide-hairline-light">
                   {stocktakes.map((st) => (
                     <tr key={st.id} className="hover:bg-canvas-cream/50 transition-colors">
-                      <td className="px-6 py-4 font-mono text-xs text-[#127a3c] font-semibold">
+                      <td className="px-6 py-4 font-mono text-xs text-success-700 font-semibold">
                         {st.stock_take_number}
                       </td>
                       <td className="px-6 py-4 text-xs text-shade-50">{st.stock_take_date}</td>
@@ -188,7 +188,7 @@ const StocktakeList = () => {
                         <div className="flex items-center justify-end gap-1.5">
                           <button
                             onClick={() => navigate(`/stocktake/${st.id}`)}
-                            className="p-1 rounded-full text-shade-50 hover:text-[#127a3c] hover:bg-aloe-10 transition-colors"
+                            className="p-1 rounded-full text-shade-50 hover:text-success-700 hover:bg-aloe-10 transition-colors"
                             title="Xem chi tiết"
                           >
                             <Eye className="w-3.5 h-3.5" />
@@ -233,7 +233,7 @@ const StocktakeList = () => {
               {stocktakes.map((st) => (
                 <div key={st.id} className="rounded-lg border border-hairline-light bg-canvas-cream/30 overflow-hidden">
                   <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center gap-2">
-                    <span className="font-mono text-xs text-[#127a3c] font-semibold">{st.stock_take_number}</span>
+                    <span className="font-mono text-xs text-success-700 font-semibold">{st.stock_take_number}</span>
                     <Badge size="sm" colorClassName={STATUS_STYLES[st.status] || 'bg-canvas-cream text-shade-50 border-hairline-light'}>
                       {STATUS_LABELS[st.status] || st.status}
                     </Badge>
@@ -249,7 +249,7 @@ const StocktakeList = () => {
                   <div className="p-4 border-t border-hairline-light flex items-center justify-end gap-1.5">
                     <button
                       onClick={() => navigate(`/stocktake/${st.id}`)}
-                      className="p-1.5 rounded-full text-shade-50 hover:text-[#127a3c] hover:bg-aloe-10 transition-colors"
+                      className="p-1.5 rounded-full text-shade-50 hover:text-success-700 hover:bg-aloe-10 transition-colors"
                       title="Xem chi tiết"
                     >
                       <Eye className="w-3.5 h-3.5" />
