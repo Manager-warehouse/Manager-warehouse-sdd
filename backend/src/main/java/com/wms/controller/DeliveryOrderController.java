@@ -93,7 +93,7 @@ public class DeliveryOrderController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','ACCOUNTANT_MANAGER','PLANNER')")
+    @PreAuthorize("hasRole('PLANNER')")
     @Operation(summary = "Update delivery order")
     public DeliveryOrderResponse updateDeliveryOrder(@PathVariable Long id,
                                                      @Valid @RequestBody DeliveryOrderUpdateRequest request) {
