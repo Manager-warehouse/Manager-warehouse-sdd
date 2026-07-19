@@ -320,13 +320,13 @@ const PartnerManagement = () => {
 
   // --- FILTERS ---
   const filteredDealers = dealers.filter((d) =>
-    d.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    d.name.toLowerCase().includes(searchTerm.toLowerCase())
+    (d.code || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (d.name || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const filteredSuppliers = suppliers.filter((s) =>
-    s.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.company_name.toLowerCase().includes(searchTerm.toLowerCase())
+    (s.code || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (s.company_name || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (

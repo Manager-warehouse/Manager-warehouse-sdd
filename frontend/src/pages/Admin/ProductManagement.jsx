@@ -163,8 +163,8 @@ const ProductManagement = () => {
 
   const filteredProducts = products.filter((prod) => {
     const matchesSearch =
-      prod.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      prod.name.toLowerCase().includes(searchTerm.toLowerCase());
+      (prod.sku || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (prod.name || '').toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesStatus =
       statusFilter === 'ALL' ||

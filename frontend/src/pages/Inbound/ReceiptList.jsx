@@ -77,9 +77,9 @@ const ReceiptList = () => {
     const needle = searchTerm.toLowerCase();
     const partnerName = getPartnerName(receipt);
     const sourceReference = receipt.source_reference || 'N/A';
-    const matchesSearch = receipt.receipt_number.toLowerCase().includes(needle)
+    const matchesSearch = (receipt.receipt_number || '').toLowerCase().includes(needle)
       || sourceReference.toLowerCase().includes(needle)
-      || partnerName.toLowerCase().includes(needle);
+      || (partnerName || '').toLowerCase().includes(needle);
     const matchesStatus = statusFilter === 'ALL' || receipt.status === statusFilter;
     const matchesType = typeFilter === 'ALL' || receipt.type === typeFilter;
     return matchesSearch && matchesStatus && matchesType;
