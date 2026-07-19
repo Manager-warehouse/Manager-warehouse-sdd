@@ -33,7 +33,7 @@ const Header = () => {
   };
 
   return (
-    <header className="app-safe-header sticky top-0 z-40 w-full max-w-full overflow-hidden bg-canvas-light border-b border-hairline-light px-3 sm:px-6 flex items-center justify-between">
+    <header className="app-safe-header sticky top-0 z-40 w-full max-w-full overflow-visible bg-canvas-light border-b border-hairline-light px-3 sm:px-6 flex items-center justify-between">
       {/* Left side: Hamburger menu and Brand */}
       <div className="flex items-center gap-2 sm:gap-4 min-w-0">
         <button
@@ -100,7 +100,7 @@ const Header = () => {
                 setProfileDropdownOpen(!profileDropdownOpen);
                 setWarehouseDropdownOpen(false);
               }}
-              className="flex items-center gap-2 p-1 rounded-pill hover:bg-canvas-cream focus:outline-none focus:ring-1 focus:ring-ink"
+              className="flex h-10 shrink-0 items-center gap-2 rounded-pill px-1 py-1 hover:bg-canvas-cream focus:outline-none focus:ring-1 focus:ring-ink"
             >
               <div className="w-8 h-8 shrink-0 rounded-full bg-ink text-onPrimary font-semibold text-xs flex items-center justify-center">
                 {getAvatarFallback(user.fullName)}
