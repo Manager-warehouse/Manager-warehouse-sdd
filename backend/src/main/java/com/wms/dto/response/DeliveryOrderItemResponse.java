@@ -13,6 +13,8 @@ public class DeliveryOrderItemResponse {
     private Long batchId;
     private Long locationId;
     private Long zoneId;
+    private String productName;
+    private String sku;
     private BigDecimal requestedQty;
     private BigDecimal reservedQty;
     private BigDecimal plannedQty;
