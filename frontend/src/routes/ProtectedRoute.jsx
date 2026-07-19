@@ -31,7 +31,7 @@ const ProtectedRoute = ({ allowedRoles = [] }) => {
 
   useEffect(() => {
     if (user && user.role === 'WAREHOUSE_MANAGER' && user.warehouses && user.warehouses.length > 0) {
-      const isAllowedPage = location.pathname === '/dashboard' || location.pathname === '/inventory-availability';
+      const isAllowedPage = location.pathname === '/dashboard';
       if (!isAllowedPage) {
         const assignedId = user.warehouses[0];
         if (activeWarehouse && activeWarehouse.id !== assignedId) {
