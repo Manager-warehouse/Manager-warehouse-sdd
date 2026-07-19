@@ -202,7 +202,9 @@ public class ReceiptService {
     }
 
     private void requireWarehouseAccess(User actor, Long warehouseId) {
-        if (actor.getRole() == com.wms.enums.UserRole.ADMIN || actor.getRole() == com.wms.enums.UserRole.CEO) {
+        if (actor.getRole() == com.wms.enums.UserRole.ADMIN || actor.getRole() == com.wms.enums.UserRole.CEO
+                || actor.getRole() == com.wms.enums.UserRole.ACCOUNTANT
+                || actor.getRole() == com.wms.enums.UserRole.ACCOUNTANT_MANAGER) {
             return;
         }
         boolean assigned = assignmentRepository.findWarehouseIdsByUserId(actor.getId())

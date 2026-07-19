@@ -82,7 +82,7 @@ const AppRoutes = () => {
       </Route>
 
       {/* Inbound & QC protected routes */}
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.PLANNER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.PLANNER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.WAREHOUSE_MANAGER, ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN, ROLES.CEO]} />}>
         <Route path="/inbound/receipts" element={<ReceiptList />} />
       </Route>
 
@@ -156,13 +156,13 @@ const AppRoutes = () => {
       </Route>
 
       {/* Reports & Alerts (Module 010) */}
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.CEO, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.CEO, ROLES.ADMIN]} />}>
         <Route path="/reports/ceo-dashboard" element={<CeoDashboard />} />
       </Route>
       <Route element={<ProtectedRoute allowedRoles={[ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN]} />}>
         <Route path="/reports/inventory-valuation" element={<InventoryValuation />} />
       </Route>
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.WAREHOUSE_MANAGER, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN]} />}>
         <Route path="/reports/productivity" element={<ProductivityReport />} />
       </Route>
       <Route element={<ProtectedRoute allowedRoles={[ROLES.WAREHOUSE_MANAGER, ROLES.PLANNER, ROLES.ADMIN]} />}>

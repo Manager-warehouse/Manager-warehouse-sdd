@@ -165,77 +165,63 @@ public class AccountingPeriodServiceImpl implements AccountingPeriodService {
                 .build();
     }
 
+    private static final int PENDING_SAMPLE_LIMIT = 5;
+
     private void validateNoPendingDocuments(Long periodId) {
         // 1. Receipts (PENDING_RECEIPT, DRAFT, QC_COMPLETED, QC_FAILED) -> Phải APPROVED hoặc REJECTED hoặc RETURNED_TO_SUPPLIER
-        Long pendingReceipts = entityManager.createQuery(
-                "select count(r) from Receipt r where r.accountingPeriod.id = :periodId "
-                        + "and r.status not in ('APPROVED', 'REJECTED', 'RETURNED_TO_SUPPLIER')", Long.class)
-                .setParameter("periodId", periodId)
-                .getSingleResult();
-
-        if (pendingReceipts > 0) {
-            throw new UnprocessableEntityException("Cannot close period: " + pendingReceipts + " pending/unapproved inbound receipts exist in this period.");
-        }
+        checkNoPending(periodId, "Receipt", "r", "receiptNumber",
+                "r.status not in ('APPROVED', 'REJECTED', 'RETURNED_TO_SUPPLIER')",
+                "pending/unapproved inbound receipts");
 
         // 2. Delivery Orders (NEW, PICKING, READY_TO_SHIP, IN_TRANSIT, DELIVERED) -> Phải COMPLETED hoặc CANCELLED hoặc RETURNED
-        Long pendingDOs = entityManager.createQuery(
-                "select count(d) from DeliveryOrder d where d.accountingPeriod.id = :periodId "
-                        + "and d.status not in ('COMPLETED', 'CANCELLED', 'RETURNED')", Long.class)
-                .setParameter("periodId", periodId)
-                .getSingleResult();
-
-        if (pendingDOs > 0) {
-            throw new UnprocessableEntityException("Cannot close period: " + pendingDOs + " pending delivery orders exist in this period.");
-        }
+        checkNoPending(periodId, "DeliveryOrder", "d", "doNumber",
+                "d.status not in ('COMPLETED', 'CANCELLED', 'RETURNED')",
+                "pending delivery orders");
 
         // 3. Transfers (NEW, APPROVED, IN_TRANSIT) -> Phải COMPLETED, COMPLETED_WITH_DISCREPANCY hoặc CANCELLED
         // Entity name is InterWarehouseTransfer (the JPA @Entity for inter_warehouse_transfers);
         // "Transfer" is not a registered entity name and previously made this query fail at parse time.
-        Long pendingTransfers = entityManager.createQuery(
-                "select count(t) from InterWarehouseTransfer t where t.accountingPeriod.id = :periodId "
-                        + "and t.status not in ('COMPLETED', 'COMPLETED_WITH_DISCREPANCY', 'CANCELLED')", Long.class)
-                .setParameter("periodId", periodId)
-                .getSingleResult();
-
-        if (pendingTransfers > 0) {
-            throw new UnprocessableEntityException("Cannot close period: " + pendingTransfers + " pending internal warehouse transfers exist in this period.");
-        }
+        checkNoPending(periodId, "InterWarehouseTransfer", "t", "transferNumber",
+                "t.status not in ('COMPLETED', 'COMPLETED_WITH_DISCREPANCY', 'CANCELLED')",
+                "pending internal warehouse transfers");
 
         // 4. Stock Takes (DRAFT, IN_PROGRESS, PENDING_APPROVAL) -> Phải APPROVED hoặc CANCELLED
-        Long pendingStockTakes = entityManager.createQuery(
-                "select count(s) from StockTake s where s.accountingPeriod.id = :periodId "
-                        + "and s.status not in ('APPROVED', 'CANCELLED')", Long.class)
-                .setParameter("periodId", periodId)
-                .getSingleResult();
-
-        if (pendingStockTakes > 0) {
-            throw new UnprocessableEntityException("Cannot close period: " + pendingStockTakes + " pending stocktakes exist in this period.");
-        }
+        checkNoPending(periodId, "StockTake", "s", "stockTakeNumber",
+                "s.status not in ('APPROVED', 'CANCELLED')",
+                "pending stocktakes");
 
         // 5. Adjustments (Không phải APPROVED)
-        Long pendingAdjustments = entityManager.createQuery(
-                "select count(a) from Adjustment a where a.accountingPeriod.id = :periodId "
-                        + "and a.approvedBy is null", Long.class) // Assuming adjustment status is controlled by approval
-                .setParameter("periodId", periodId)
-                .getSingleResult();
-
-        if (pendingAdjustments > 0) {
-            throw new UnprocessableEntityException("Cannot close period: " + pendingAdjustments + " unapproved adjustments exist in this period.");
-        }
+        checkNoPending(periodId, "Adjustment", "a", "adjustmentNumber",
+                "a.approvedBy is null", // Assuming adjustment status is controlled by approval
+                "unapproved adjustments");
 
         // 6. Delivery Orders COMPLETED in this period but with no invoice yet (auto-invoice or
         // backfill never ran). Per spec, UNPAID/PARTIALLY_PAID invoices do NOT block closing —
         // outstanding debt is tracked via the Aging Report in the next open period, not here.
-        Long unInvoicedCompletedDOs = entityManager.createQuery(
-                "select count(d) from DeliveryOrder d where d.accountingPeriod.id = :periodId "
-                        + "and d.status = 'COMPLETED' "
-                        + "and not exists (select 1 from Invoice i where i.deliveryOrder = d)", Long.class)
+        checkNoPending(periodId, "DeliveryOrder", "d", "doNumber",
+                "d.status = 'COMPLETED' and not exists (select 1 from Invoice i where i.deliveryOrder = d)",
+                "completed delivery orders have no invoice yet");
+    }
+
+    // Reports both a count and a sample of blocking document numbers so the accountant
+    // knows exactly which documents to resolve, instead of just "N documents are pending".
+    private void checkNoPending(Long periodId, String entityName, String alias, String numberField,
+            String whereClause, String docLabel) {
+        String from = " from " + entityName + " " + alias
+                + " where " + alias + ".accountingPeriod.id = :periodId and " + whereClause;
+
+        Long count = entityManager.createQuery("select count(" + alias + ")" + from, Long.class)
                 .setParameter("periodId", periodId)
                 .getSingleResult();
 
-        if (unInvoicedCompletedDOs > 0) {
-            throw new UnprocessableEntityException("Cannot close period: " + unInvoicedCompletedDOs
-                    + " completed delivery orders have no invoice yet in this period.");
+        if (count > 0) {
+            List<String> sample = entityManager.createQuery(
+                            "select " + alias + "." + numberField + from, String.class)
+                    .setParameter("periodId", periodId)
+                    .setMaxResults(PENDING_SAMPLE_LIMIT)
+                    .getResultList();
+            throw new UnprocessableEntityException("Cannot close period: " + count + " " + docLabel
+                    + " exist in this period (e.g. " + String.join(", ", sample) + ").");
         }
     }
 
