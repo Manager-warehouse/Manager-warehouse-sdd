@@ -2,6 +2,7 @@ package com.wms.repository;
 
 import com.wms.entity.DeliveryOrder;
 import com.wms.enums.DeliveryOrderStatus;
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -60,4 +61,6 @@ public interface DeliveryOrderRepository extends JpaRepository<DeliveryOrder, Lo
             where d.id in :ids
             """)
     List<DeliveryOrder> findDetailedByIdIn(@Param("ids") Collection<Long> ids);
+
+    long countByWarehouseIdAndDocumentDate(Long warehouseId, LocalDate documentDate);
 }

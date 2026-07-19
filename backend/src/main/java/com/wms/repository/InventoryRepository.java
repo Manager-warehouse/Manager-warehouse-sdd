@@ -132,6 +132,18 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
         BigDecimal sumValidAvailableQty(@Param("warehouseId") Long warehouseId,
                         @Param("productId") Long productId);
 
+        @Query("""
+                        select coalesce(sum(i.totalQty - i.reservedQty), 0)
+                        from Inventory i
+                        where i.warehouse.id = :warehouseId
+                          and i.warehouse.type <> com.wms.enums.WarehouseType.IN_TRANSIT
+                          and i.location.isActive = true
+                          and i.location.isQuarantine = false
+                          and i.location.isLocked = false
+                          and i.totalQty > i.reservedQty
+                        """)
+        BigDecimal sumValidAvailableQtyByWarehouse(@Param("warehouseId") Long warehouseId);
+
         @EntityGraph(attributePaths = { "warehouse", "product", "batch", "location", "location.parent" })
         @Query("""
                         select i from Inventory i
