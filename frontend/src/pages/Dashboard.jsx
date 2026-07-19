@@ -19,6 +19,13 @@ const Dashboard = () => {
   const [productsStock, setProductsStock] = useState([]);
   const [physicalWarehouses, setPhysicalWarehouses] = useState([]);
   const [loadingStock, setLoadingStock] = useState(false);
+  const [loadingOverview, setLoadingOverview] = useState(false);
+  const [stockOverview, setStockOverview] = useState({
+    availableQty: 0,
+    todayReceiptCount: 0,
+    todayDeliveryOrderCount: 0,
+    activeLowStockCount: 0,
+  });
   const [searchQuery, setSearchQuery] = useState('');
 
   // Transfer Modal state
@@ -32,24 +39,30 @@ const Dashboard = () => {
   const [submitting, setSubmitting] = useState(false);
   const [mobileStockLimit, setMobileStockLimit] = useState(3);
 
-  const mockKpis = [
+  const formatQuantity = (value) => Number(value || 0).toLocaleString('vi-VN', {
+    maximumFractionDigits: 2,
+  });
+
+  const overviewKpis = [
     {
       title: 'Tồn kho khả dụng',
-      value: '4,520 sản phẩm',
-      desc: 'Kho đang vận hành ổn định',
+      value: loadingOverview ? 'Đang tải...' : `${formatQuantity(stockOverview.availableQty)} sản phẩm`,
+      desc: activeWarehouse?.name ? `Dữ liệu từ ${activeWarehouse.name}` : 'Chưa chọn kho',
       icon: Package,
-      type: 'highlight' // aloe mint green card
+      type: 'highlight'
     },
     {
       title: 'Giao dịch trong ngày',
-      value: '38 phiếu',
-      desc: '12 nhập kho & 26 xuất kho',
+      value: loadingOverview
+        ? 'Đang tải...'
+        : `${stockOverview.todayReceiptCount + stockOverview.todayDeliveryOrderCount} phiếu`,
+      desc: `${stockOverview.todayReceiptCount} nhập kho & ${stockOverview.todayDeliveryOrderCount} xuất kho`,
       icon: TrendingUp,
-      type: 'premium' // black card
+      type: 'premium'
     },
     {
       title: 'Cảnh báo tồn kho thấp',
-      value: '2 sản phẩm',
+      value: loadingOverview ? 'Đang tải...' : `${stockOverview.activeLowStockCount} sản phẩm`,
       desc: 'SKU đang dưới hạn mức tối thiểu',
       icon: AlertCircle,
       type: 'danger'
@@ -60,6 +73,24 @@ const Dashboard = () => {
   const welcomeName = user?.fullName
     ? user.fullName.split(' ').filter(Boolean).slice(0, 2).join(' ')
     : 'Người dùng';
+
+  const loadStockOverview = async () => {
+    if (!activeWarehouse?.id) return;
+    setLoadingOverview(true);
+    try {
+      const data = await interWarehouseTransferService.getStockOverview(activeWarehouse.id);
+      setStockOverview({
+        availableQty: Number(data.availableQty ?? data.available_qty ?? 0),
+        todayReceiptCount: Number(data.todayReceiptCount ?? data.today_receipt_count ?? 0),
+        todayDeliveryOrderCount: Number(data.todayDeliveryOrderCount ?? data.today_delivery_order_count ?? 0),
+        activeLowStockCount: Number(data.activeLowStockCount ?? data.active_low_stock_count ?? 0),
+      });
+    } catch (error) {
+      addToast('Không thể tải chỉ số tổng quan từ database', 'error');
+    } finally {
+      setLoadingOverview(false);
+    }
+  };
 
   const loadCrossWarehouseStock = async () => {
     setLoadingStock(true);
@@ -113,6 +144,11 @@ const Dashboard = () => {
     setMobileStockLimit(3);
     loadCrossWarehouseStock();
   }, [debouncedSearchQuery, user?.role]);
+
+  useEffect(() => {
+    if (user?.role === ROLES.DRIVER) return;
+    loadStockOverview();
+  }, [activeWarehouse?.id, user?.role]);
 
   if (user?.role === ROLES.DRIVER) {
     return <Navigate to="/outbound/driver/trips" replace />;
@@ -280,11 +316,14 @@ const Dashboard = () => {
             </div>
             
             <button
-              onClick={loadCrossWarehouseStock}
-              disabled={loadingStock}
+              onClick={() => {
+                loadStockOverview();
+                loadCrossWarehouseStock();
+              }}
+              disabled={loadingStock || loadingOverview}
               className="text-xs text-shade-60 hover:text-ink flex items-center gap-1 font-semibold transition-colors disabled:opacity-50"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${loadingStock ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 ${loadingStock || loadingOverview ? 'animate-spin' : ''}`} />
               <span>Tải lại</span>
             </button>
           </div>

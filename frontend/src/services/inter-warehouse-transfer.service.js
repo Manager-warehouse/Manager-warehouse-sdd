@@ -711,4 +711,40 @@ export const interWarehouseTransferService = {
     const response = await apiClient.get('/transfer-requests/stock-lookup', { params: { productId } });
     return response.data;
   },
+
+  getStockOverview: async (warehouseId) => {
+    if (useMock) {
+      const inventories = readMockInventories().filter((item) =>
+        Number(item.warehouse_id ?? item.warehouseId) === Number(warehouseId)
+      );
+      const availableQty = inventories.reduce(
+        (sum, item) => sum + (Number(item.total_qty ?? item.totalQty ?? 0) - Number(item.reserved_qty ?? item.reservedQty ?? 0)),
+        0,
+      );
+      const receipts = JSON.parse(localStorage.getItem('wms_db_receipts') || '[]');
+      const deliveryOrders = JSON.parse(localStorage.getItem('wms_db_delivery_orders') || '[]');
+      const alerts = JSON.parse(localStorage.getItem('wms_db_stock_alerts') || '[]');
+      const todayText = today();
+
+      return {
+        warehouseId: Number(warehouseId),
+        availableQty,
+        todayReceiptCount: receipts.filter((row) =>
+          Number(row.warehouse_id ?? row.warehouseId) === Number(warehouseId)
+          && String(row.document_date ?? row.documentDate ?? '').slice(0, 10) === todayText
+        ).length,
+        todayDeliveryOrderCount: deliveryOrders.filter((row) =>
+          Number(row.warehouse_id ?? row.warehouseId) === Number(warehouseId)
+          && String(row.document_date ?? row.documentDate ?? '').slice(0, 10) === todayText
+        ).length,
+        activeLowStockCount: alerts.filter((row) =>
+          Number(row.warehouse_id ?? row.warehouseId) === Number(warehouseId)
+          && (row.is_resolved ?? row.isResolved) === false
+        ).length,
+      };
+    }
+
+    const response = await apiClient.get('/warehouse-stock/overview', { params: { warehouseId } });
+    return response.data;
+  },
 };

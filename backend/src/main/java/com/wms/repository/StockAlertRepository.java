@@ -28,4 +28,6 @@ public interface StockAlertRepository extends JpaRepository<StockAlert, Long> {
             @Param("productId") Long productId,
             @Param("isResolved") Boolean isResolved,
             Pageable pageable);
+
+    long countByWarehouseIdAndIsResolvedFalse(Long warehouseId);
 }
