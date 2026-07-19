@@ -198,7 +198,7 @@ const ReceiptList = () => {
 
   const renderReceiptActions = (receipt) => (
     <>
-      {receipt.status === 'PENDING_RECEIPT' && (hasRole(ROLES.WAREHOUSE_STAFF) || hasRole(ROLES.ADMIN)) && (
+      {receipt.status === 'PENDING_RECEIPT' && (hasRole(ROLES.WAREHOUSE_STAFF) || hasRole(ROLES.STOREKEEPER) || hasRole(ROLES.ADMIN)) && (
         <button
           onClick={() => navigate(`/inbound/receive/${receipt.id}`)}
           className="inline-flex items-center justify-center rounded-full border border-ink bg-canvas-light text-ink hover:bg-canvas-cream px-3 py-1 text-xs font-semibold whitespace-nowrap transition-colors duration-150"
