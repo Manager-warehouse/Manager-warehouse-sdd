@@ -940,6 +940,28 @@ export const masterDataService = {
     return mapToSnakeCase(updatedDealer);
   },
 
+  updateDealerCreditStatus: async (id, creditStatus) => {
+    if (useMock) {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      const dealers = getDb(KEYS.DEALERS, INITIAL_DEALERS);
+      const idx = dealers.findIndex((d) => d.id === Number(id));
+      if (idx === -1) throw new Error("DEALER_NOT_FOUND");
+
+      const oldStatus = dealers[idx].credit_status;
+      dealers[idx].credit_status = creditStatus;
+      saveDb(KEYS.DEALERS, dealers);
+      addMockAuditLog(
+        "DEALER_CREDIT_STATUS_CHANGED",
+        "Dealer",
+        id,
+        `Đổi trạng thái tín dụng Đại lý ${dealers[idx].code} từ ${oldStatus} sang ${creditStatus}`,
+      );
+      return dealers[idx];
+    }
+    const response = await apiClient.put(`/dealers/${id}/credit-status`, { creditStatus });
+    return mapToSnakeCase(response.data);
+  },
+
   toggleDealerStatus: async (id, isActive, name = "") => {
     if (useMock) {
       await new Promise((resolve) => setTimeout(resolve, 300));

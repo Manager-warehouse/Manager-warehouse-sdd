@@ -84,7 +84,7 @@ const Sidebar = () => {
       title: 'Phiếu Nhập & QC',
       path: '/inbound/receipts',
       icon: Package2,
-      roles: [ROLES.PLANNER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]
+      roles: [ROLES.PLANNER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.WAREHOUSE_MANAGER, ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN, ROLES.CEO]
     },
     {
       title: 'Xử lý hàng lỗi',

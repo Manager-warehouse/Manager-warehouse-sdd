@@ -82,7 +82,7 @@ const AppRoutes = () => {
       </Route>
 
       {/* Inbound & QC protected routes */}
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.PLANNER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.PLANNER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.WAREHOUSE_MANAGER, ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN, ROLES.CEO]} />}>
         <Route path="/inbound/receipts" element={<ReceiptList />} />
       </Route>
 
