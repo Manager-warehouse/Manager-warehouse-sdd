@@ -237,7 +237,7 @@ const Dashboard = () => {
 
       {/* KPI Cards section */}
       <div className="grid w-full min-w-0 grid-cols-1 gap-3 md:grid-cols-3 md:gap-6">
-        {mockKpis.map((kpi, idx) => {
+        {overviewKpis.map((kpi, idx) => {
           const isHighlight = kpi.type === 'highlight';
           const isPremium = kpi.type === 'premium';
           const isDanger = kpi.type === 'danger';
