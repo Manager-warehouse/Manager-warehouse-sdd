@@ -173,8 +173,11 @@ public class ReceiptService {
     }
 
     private void requireWarehouseStaff(User actor) {
-        if (actor == null || (actor.getRole() != UserRole.WAREHOUSE_STAFF && actor.getRole() != UserRole.ADMIN)) {
-            throw new AccessDeniedException("Warehouse Staff or Admin role is required");
+        if (actor == null || (actor.getRole() != UserRole.WAREHOUSE_STAFF
+                && actor.getRole() != UserRole.STOREKEEPER
+                && actor.getRole() != UserRole.WAREHOUSE_MANAGER
+                && actor.getRole() != UserRole.ADMIN)) {
+            throw new AccessDeniedException("Warehouse Staff, Storekeeper, Warehouse Manager, or Admin role is required");
         }
     }
 
