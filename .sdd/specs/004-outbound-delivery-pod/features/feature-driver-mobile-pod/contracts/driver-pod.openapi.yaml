@@ -4,6 +4,29 @@ info:
   version: 1.0.0
   description: Contracts for driver mobile POD upload, OTP confirmation, failed delivery, trip completion, and admin OTP reset in Sprint 1.
 paths:
+  /api/v1/trips/driver:
+    get:
+      summary: List assigned trips for driver mobile
+      operationId: listDriverTrips
+      tags:
+        - Driver Trips
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Assigned driver trips across DELIVERY and TRANSFER trip types
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TripDriverViewResponse"
+        "403":
+          description: Authenticated user is not a Driver
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/v1/trips/{id}:
     get:
       summary: Get assigned trip detail for driver mobile
@@ -467,12 +490,52 @@ components:
         status:
           type: string
           example: IN_TRANSIT
+        tripType:
+          type: string
+          enum:
+            - DELIVERY
+            - TRANSFER
+          example: DELIVERY
+        tripTypeLabel:
+          type: string
+          example: Giao dai ly
+        transferId:
+          type: integer
+          format: int64
+          nullable: true
+          description: Present for TRANSFER rows so the driver app can open the internal transfer detail.
         driverId:
           type: integer
           format: int64
+        driverName:
+          type: string
         vehicleId:
           type: integer
           format: int64
+        vehiclePlate:
+          type: string
+        plannedStartAt:
+          type: string
+          format: date-time
+        plannedEndAt:
+          type: string
+          format: date-time
+        totalWeightKg:
+          type: number
+        totalVolumeM3:
+          type: number
+        deliveryStopCount:
+          type: integer
+          description: Present for DELIVERY card summaries.
+        sourceWarehouseCode:
+          type: string
+          description: Present for TRANSFER card summaries.
+        destinationWarehouseCode:
+          type: string
+          description: Present for TRANSFER card summaries.
+        transferLineCount:
+          type: integer
+          description: Present for TRANSFER card summaries.
         deliveryOrders:
           type: array
           items:

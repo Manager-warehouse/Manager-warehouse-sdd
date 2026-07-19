@@ -142,6 +142,10 @@
 **Tiêu chí nghiệm thu:**
 
 1. Tài xế đăng nhập bằng tài khoản riêng → Chỉ xem được danh sách trip và delivery attempt được gán cho driver profile của mình.
+   - Màn danh sách của tài xế dùng tiêu đề trung tính **Chuyến xe của tôi**, không dùng wording chỉ dành cho giao đại lý.
+   - Mỗi card hiển thị nhãn loại chuyến: **Giao đại lý** cho `trip_type = DELIVERY` và **Điều chuyển nội bộ** cho `trip_type = TRANSFER`.
+   - Tài xế có 3 nút filter: **Tất cả**, **Nội bộ**, **Đại lý**. **Nội bộ** chỉ hiển thị `TTR-*`/`TRANSFER`; **Đại lý** chỉ hiển thị `TRIP-*`/`DELIVERY`.
+   - Card giao đại lý hiển thị số điểm giao/đại lý; card điều chuyển nội bộ hiển thị tuyến kho nguồn → kho đích và số dòng hàng, không hiển thị wording POD/OTP đại lý trên card.
 2. Tại điểm giao: Tài xế chụp ảnh hàng hóa bàn giao (`goodsImage`) và ảnh chữ ký/biên nhận của Đại lý (`signDocumentImage`); mỗi ảnh phải là file ảnh nhỏ hơn 5MB.
 3. Tài xế yêu cầu xác nhận giao hàng → Hệ thống sinh OTP ngẫu nhiên 6 chữ số, gửi qua email Đại lý, chỉ lưu hash/verifier, thời điểm tạo, thời điểm hết hạn, số lần thử và trạng thái trong `delivery_otp_attempts`; OTP có hiệu lực 5 phút và mỗi delivery attempt chỉ có một row OTP.
 4. Nếu OTP còn hạn và Tài xế yêu cầu gửi lại, hệ thống trả lỗi và không ghi đè mã cũ. Nếu OTP quá hạn và Tài xế yêu cầu gửi lại, hệ thống dùng `UPDATE` ghi đè OTP hiện tại của delivery attempt bằng mã mới. Nếu nhập sai OTP 3 lần, phải nhờ Admin reset thì mới có mã mới; nếu OTP xác thực thành công, hệ thống đánh dấu OTP đã xác thực và không cho dùng lại.
@@ -219,6 +223,7 @@
    - Danh sách tài xế hợp lệ chỉ gồm các tài xế có thể hoạt động tại kho nguồn của phiếu.
    - Hệ thống phải tính tải trọng/thể tích từ dòng hàng, kiểm tra xe/tài xế không bị trùng lịch, kiểm tra tải trọng xe theo khối lượng; thể tích chỉ kiểm tra khi xe có cấu hình thể tích.
    - Chỉ được đổi xe/tài xế/lịch trước khi tài xế departure; sau departure trip bị khóa.
+   - Chuyến điều chuyển `TTR-*` xuất hiện trong màn **Chuyến xe của tôi** của tài xế với nhãn **Điều chuyển nội bộ** và filter **Nội bộ**; detail của chuyến này đi theo luồng depart/arrive/handover của điều chuyển, không dùng POD/OTP đại lý.
 4. Thủ kho kho nguồn kiểm outbound QC bằng mắt/đối chiếu phiếu, chụp ảnh xác nhận, ghi nhận số lượng xuất, bốc xếp lên xe và chụp ảnh bàn giao cho tài xế; Tài xế xác nhận đã nhận hàng và xe rời kho → Hệ thống **trừ tồn kho nguồn, giải phóng giữ chỗ, cộng vào Kho ảo In-Transit** → Trạng thái: **Đang vận chuyển (In-Transit)**.
    - Thủ kho nguồn phải ghi đúng số lượng đã duyệt; không được xuất thừa hoặc thiếu.
    - Outbound QC và load/handover là bắt buộc trước khi tài xế departure, xác nhận bằng ảnh; hệ thống không yêu cầu Barcode/QR.

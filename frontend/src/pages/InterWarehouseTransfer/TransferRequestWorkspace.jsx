@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
 import { interWarehouseTransferService } from '../../services/inter-warehouse-transfer.service';
@@ -8,6 +8,7 @@ import { Loader2, Plus, Send, Check, X, Eye, FileText, RefreshCw, AlertCircle, I
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import Badge from '../../components/common/Badge';
+import Pagination from '../../components/common/Pagination';
 
 const TransferRequestWorkspace = () => {
   const activeWarehouse = useAuthStore((state) => state.activeWarehouse);
@@ -19,6 +20,8 @@ const TransferRequestWorkspace = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('ALL'); // ALL, DRAFT, SUBMITTED, APPROVED, REJECTED, CONVERTED
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   // Creation State
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -260,10 +263,18 @@ const TransferRequestWorkspace = () => {
   };
 
   // Filter requests by Tab
-  const filteredRequests = requests.filter(req => {
+  const filteredRequests = useMemo(() => requests.filter(req => {
     if (activeTab === 'ALL') return true;
     return req.status === activeTab;
-  });
+  }), [requests, activeTab]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRequests.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedRequests = filteredRequests.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab]);
 
   const getStatusBadge = (status) => {
     const maps = {
@@ -330,7 +341,7 @@ const TransferRequestWorkspace = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-6">
-          {filteredRequests.map((req) => (
+          {paginatedRequests.map((req) => (
             <div
               key={req.id}
               className="bg-canvas-light border border-hairline-light rounded-lg p-4 md:p-5 shadow-level-3 hover:shadow-md transition-shadow flex flex-col justify-between"
@@ -409,6 +420,20 @@ const TransferRequestWorkspace = () => {
               </div>
             </div>
           ))}
+          <div className="lg:col-span-2">
+            <Pagination
+              currentPage={safePage}
+              totalPages={totalPages}
+              totalItems={filteredRequests.length}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={(size) => {
+                setPageSize(size);
+                setCurrentPage(1);
+              }}
+              pageSizeOptions={[10, 25, 50]}
+            />
+          </div>
         </div>
       )}
 

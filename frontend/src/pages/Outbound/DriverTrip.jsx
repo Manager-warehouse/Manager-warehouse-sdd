@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   AlertTriangle,
@@ -13,7 +13,10 @@ import {
   X,
 } from 'lucide-react';
 import { outboundService } from '../../services/outbound.service';
-import { interWarehouseTransferService } from '../../services/inter-warehouse-transfer.service';
+import {
+  interWarehouseTransferService,
+  toTransferDriverTripSummary,
+} from '../../services/inter-warehouse-transfer.service';
 import { useUiStore } from '../../stores/ui.store';
 import { useAuthStore } from '../../stores/auth.store';
 import OTPInput from '../../components/warehouse/OTPInput';
@@ -43,35 +46,18 @@ const transferDriverStatus = (status) => {
 };
 
 const toTransferDriverTrip = (transfer = {}) => ({
-  id: `${TRANSFER_TRIP_PREFIX}${transfer.id}`,
-  transferId: transfer.id,
-  tripId: transfer.tripId,
-  type: 'TRANSFER',
-  trip_number: transfer.tripNumber || transfer.transferNumber,
+  ...toTransferDriverTripSummary(transfer),
   status: transferDriverStatus(transfer.status),
-  sourceWarehouseCode: transfer.sourceWarehouseCode,
-  destinationWarehouseCode: transfer.destinationWarehouseCode,
-  vehicle_plate: transfer.vehiclePlate || transfer.trip?.vehiclePlate || '',
-  driver_name: transfer.driverName || transfer.trip?.driverName || '',
-  planned_date: transfer.tripPlannedStartAt || transfer.plannedDate || transfer.documentDate,
-  planned_start_at: transfer.tripPlannedStartAt || transfer.plannedDate || transfer.documentDate,
-  planned_end_at: transfer.tripPlannedEndAt || null,
-  total_weight_kg: Number(transfer.totalWeightKg || transfer.trip?.totalWeightKg || 0),
-  tripWarningActive: transfer.tripWarningActive,
-  tripOverdue: transfer.tripOverdue,
-  tripWarningMessage: transfer.tripWarningMessage,
-  driverArrivedAt: transfer.driverArrivedAt,
-  arrivalHandoverAt: transfer.arrivalHandoverAt,
-  isReturned: Boolean(transfer.isReturned),
-  items: (transfer.items || []).map((item) => ({
-    id: item.id,
-    productSku: item.productSku,
-    productName: item.productName,
-    plannedQty: item.plannedQty,
-    sentQty: item.sentQty,
-  })),
-  delivery_orders: [],
 });
+
+const getTripType = (trip = {}) => trip.trip_type || trip.tripType || trip.type || 'DELIVERY';
+const isTransfer = (trip = {}) => getTripType(trip) === 'TRANSFER';
+const typeLabel = (trip = {}) => (
+  trip.trip_type_label || trip.tripTypeLabel || (isTransfer(trip) ? 'Dieu chuyen noi bo' : 'Giao dai ly')
+);
+const getTransferId = (trip = {}) => trip.transfer_id || trip.transferId;
+const getSourceWarehouseCode = (trip = {}) => trip.source_warehouse_code || trip.sourceWarehouseCode;
+const getDestinationWarehouseCode = (trip = {}) => trip.destination_warehouse_code || trip.destinationWarehouseCode;
 
 function OTPCountdown({ expiresAt, onExpired }) {
   const [remaining, setRemaining] = useState(0);
@@ -102,6 +88,7 @@ export default function DriverTrip() {
 
   const [trip, setTrip] = useState(null);
   const [trips, setTrips] = useState([]);
+  const [tripTypeFilter, setTripTypeFilter] = useState('ALL');
   const [loading, setLoading] = useState(true);
   const [activeDO, setActiveDO] = useState(null);
   const [modalType, setModalType] = useState(null);
@@ -131,7 +118,11 @@ export default function DriverTrip() {
       const outboundTrips = isDriver
         ? await outboundService.getMyTrips()
         : await outboundService.getTrips(null, {});
-      loadedTrips.push(...outboundTrips.map((tripRow) => ({ ...tripRow, type: tripRow.type || 'OUTBOUND' })));
+      loadedTrips.push(...outboundTrips.map((tripRow) => ({
+        ...tripRow,
+        trip_type: getTripType(tripRow),
+        trip_type_label: typeLabel(tripRow),
+      })));
       loadedAnySource = true;
     } catch {
       // Outbound trips are optional on this screen while transfer trips use the transfer API.
@@ -142,7 +133,14 @@ export default function DriverTrip() {
       const transferTrips = transfers
         .filter((transfer) => transfer.tripId && Number(transfer.driverUserId || 0) === Number(user?.id || 0))
         .map(toTransferDriverTrip);
-      loadedTrips.push(...transferTrips);
+      const existingTransferKeys = new Set(
+        loadedTrips
+          .filter(isTransfer)
+          .map((tripRow) => String(getTransferId(tripRow) || tripRow.trip_id || tripRow.tripId || tripRow.id))
+      );
+      loadedTrips.push(...transferTrips.filter((tripRow) => (
+        !existingTransferKeys.has(String(getTransferId(tripRow) || tripRow.trip_id || tripRow.tripId))
+      )));
       loadedAnySource = true;
     } catch {
       // Surface a toast only if both trip sources failed.
@@ -170,7 +168,11 @@ export default function DriverTrip() {
         setTrip(toTransferDriverTrip(data));
       } else {
         const data = await outboundService.getTripById(tripId);
-        setTrip({ ...data, type: data.type || 'OUTBOUND' });
+        setTrip({
+          ...data,
+          trip_type: getTripType(data),
+          trip_type_label: typeLabel(data),
+        });
       }
     } catch {
       addToast('Không tìm thấy chuyến xe', 'error');
@@ -183,8 +185,8 @@ export default function DriverTrip() {
   const handleDepart = async () => {
     setSubmitting(true);
     try {
-      if (trip.type === 'TRANSFER') {
-        await interWarehouseTransferService.departTransfer(trip.transferId);
+      if (isTransfer(trip)) {
+        await interWarehouseTransferService.departTransfer(getTransferId(trip));
       } else {
         await outboundService.departTrip(trip.id);
       }
@@ -216,11 +218,11 @@ export default function DriverTrip() {
   };
 
   const handleTransferArrive = async () => {
-    if (!trip?.transferId) return;
+    if (!getTransferId(trip)) return;
 
     setSubmitting(true);
     try {
-      await interWarehouseTransferService.driverArrive(trip.transferId);
+      await interWarehouseTransferService.driverArrive(getTransferId(trip));
       addToast('Đã xác nhận tài xế đến kho đích', 'success');
       fetchTrip(trip.id);
     } catch (error) {
@@ -294,47 +296,90 @@ export default function DriverTrip() {
     setNotes('');
   };
 
+  const filteredTrips = useMemo(() => {
+    if (tripTypeFilter === 'ALL') {
+      return trips;
+    }
+    return trips.filter((tripItem) => getTripType(tripItem) === tripTypeFilter);
+  }, [trips, tripTypeFilter]);
+
   if (!id) {
     return (
       <div className="flex flex-col gap-6">
         <div>
-          <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">Vận hành / Giao hàng</span>
-          <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">Chuyến giao hàng của tôi</h1>
+          <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">Vận hành / Chuyến xe</span>
+          <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">Chuyến xe của tôi</h1>
           <p className="text-xs text-shade-50 font-light mt-1">Các chuyến xe được phân công cho tài xế hiện tại.</p>
+        </div>
+
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {[
+            { value: 'ALL', label: 'Tat ca' },
+            { value: 'TRANSFER', label: 'Noi bo' },
+            { value: 'DELIVERY', label: 'Dai ly' },
+          ].map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => setTripTypeFilter(option.value)}
+              className={`px-4 py-2 rounded-pill border text-xs font-semibold uppercase tracking-wider transition-colors ${
+                tripTypeFilter === option.value
+                  ? 'bg-ink text-onPrimary border-ink'
+                  : 'bg-canvas-light text-shade-60 border-hairline-light hover:text-ink'
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
         </div>
 
         {loading ? (
           <div className="flex items-center justify-center p-20">
             <Loader2 className="w-8 h-8 animate-spin text-shade-50" />
           </div>
-        ) : !trips.length ? (
+        ) : !filteredTrips.length ? (
           <div className="bg-canvas-light rounded-lg border border-hairline-light p-12 text-center shadow-level-3">
             <Truck className="w-12 h-12 text-shade-30 mx-auto mb-4" />
             <h3 className="text-lg font-bold mb-1">Không có chuyến xe nào</h3>
-            <p className="text-sm text-shade-50">Hiện tại bạn chưa được gán chuyến xe nào.</p>
+            <p className="text-sm text-shade-50">
+              {trips.length ? 'Không có chuyến xe phù hợp với bộ lọc hiện tại.' : 'Hiện tại bạn chưa được gán chuyến xe nào.'}
+            </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {trips.map((tripItem) => (
+            {filteredTrips.map((tripItem) => (
               <div
                 key={tripItem.id || tripItem.trip_number}
                 onClick={() => {
-                  if (!tripItem.id) {
+                  const detailId = isTransfer(tripItem) && getTransferId(tripItem)
+                    ? `${TRANSFER_TRIP_PREFIX}${getTransferId(tripItem)}`
+                    : tripItem.id;
+                  if (!detailId) {
                     addToast('Chuyến xe chưa có mã nội bộ để mở chi tiết', 'warning');
                     return;
                   }
-                  navigate(`/outbound/driver/trips/${tripItem.id}`);
+                  navigate(`/outbound/driver/trips/${detailId}`);
                 }}
                 className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 hover:shadow-md transition-shadow cursor-pointer overflow-hidden"
               >
                 <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center">
-                  <span className="text-xs font-bold text-ink">{tripItem.trip_number}</span>
+                  <div className="min-w-0">
+                    <span className="text-xs font-bold text-ink block truncate">{tripItem.trip_number}</span>
+                    <span className="text-[10px] font-semibold text-shade-50 uppercase tracking-wider">{typeLabel(tripItem)}</span>
+                  </div>
                   <StatusBadge status={tripItem.status} />
                 </div>
                 <div className="p-4 flex flex-col gap-2 text-xs">
                   <p className="flex items-center gap-2 text-shade-50"><Truck className="w-3.5 h-3.5 text-shade-40" /> Xe: <span className="font-semibold text-ink">{tripItem.vehicle_plate || '-'}</span></p>
                   <p className="flex items-center gap-2 text-shade-50"><Calendar className="w-3.5 h-3.5 text-shade-40" /> T.gian dự kiến: <span className="font-semibold text-ink">{tripItem.planned_start_at ? new Date(tripItem.planned_start_at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) : '-'}</span></p>
-                  <p className="flex items-center gap-2 text-shade-50"><MapPin className="w-3.5 h-3.5 text-shade-40" /> Điểm giao: <span className="font-semibold text-ink">{tripItem.delivery_orders?.length || 0}</span></p>
+                  {isTransfer(tripItem) ? (
+                    <>
+                      <p className="flex items-center gap-2 text-shade-50"><MapPin className="w-3.5 h-3.5 text-shade-40" /> Tuyến: <span className="font-semibold text-ink">{getSourceWarehouseCode(tripItem) || '-'} → {getDestinationWarehouseCode(tripItem) || '-'}</span></p>
+                      <p className="flex items-center gap-2 text-shade-50"><MapPin className="w-3.5 h-3.5 text-shade-40" /> Dòng hàng: <span className="font-semibold text-ink">{tripItem.transfer_line_count ?? tripItem.items?.length ?? 0}</span></p>
+                    </>
+                  ) : (
+                    <p className="flex items-center gap-2 text-shade-50"><MapPin className="w-3.5 h-3.5 text-shade-40" /> Điểm giao: <span className="font-semibold text-ink">{tripItem.delivery_stop_count ?? tripItem.delivery_orders?.length ?? 0}</span></p>
+                  )}
                   <p className="text-xs text-shade-50 pt-1">Tổng KL: <span className="font-semibold text-ink">{tripItem.total_weight_kg || 0} kg</span></p>
                 </div>
               </div>
@@ -355,11 +400,11 @@ export default function DriverTrip() {
 
   if (!trip) return null;
 
-  const isTransferTrip = trip.type === 'TRANSFER';
+  const isTransferTrip = isTransfer(trip);
   const deliveredCount = trip.delivery_orders?.filter(d => d.delivery_status === 'COMPLETED').length ?? 0;
-  const totalCount = isTransferTrip ? trip.items.length : (trip.delivery_orders?.length ?? 0);
+  const totalCount = isTransferTrip ? (trip.items?.length ?? trip.transfer_line_count ?? 0) : (trip.delivery_orders?.length ?? 0);
   const transferLoaded = !isTransferTrip || (
-    trip.items.length > 0
+    trip.items?.length > 0
     && trip.items.every((item) => (
       item.sentQty != null
       && Number(item.sentQty) === Number(item.plannedQty)
@@ -386,7 +431,7 @@ export default function DriverTrip() {
             <StatusBadge status={trip.status} />
           </div>
           <p className="text-xs text-shade-50 font-light mt-1">
-            {isTransferTrip ? `${trip.sourceWarehouseCode} → ${trip.destinationWarehouseCode}` : `${deliveredCount}/${totalCount} điểm đã giao`}
+            {isTransferTrip ? `${getSourceWarehouseCode(trip)} → ${getDestinationWarehouseCode(trip)}` : `${deliveredCount}/${totalCount} điểm đã giao`}
           </p>
         </div>
       </div>
@@ -508,7 +553,7 @@ export default function DriverTrip() {
           {isTransferTrip ? `Danh sách hàng điều chuyển (${totalCount} dòng)` : `Danh sách điểm giao (${totalCount} điểm)`}
         </h3>
 
-        {isTransferTrip && trip.items.map((item) => (
+        {isTransferTrip && (trip.items || []).map((item) => (
           <div key={item.id} className="rounded-lg border border-hairline-light bg-canvas-light shadow-level-3 p-4">
             <div className="flex items-start justify-between gap-3">
               <div>

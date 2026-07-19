@@ -7,18 +7,55 @@
 **Fields used/updated**
 
 - `id`
+- `trip_number`
+- `trip_type`
 - `driver_id`
 - `vehicle_id`
 - `warehouse_id`
 - `status`
+- `planned_start_at`
+- `planned_end_at`
+- `total_weight_kg`
+- `total_volume_m3`
 - `completed_at`
 - `notes`
 
 **Validation rules**
 
 - Driver may view and mutate only trips assigned to their own driver profile.
+- Driver list summaries must expose `trip_type` as `tripType` so the UI can filter `Tat ca`, `Noi bo`, and `Dai ly`.
+- `trip_type = DELIVERY` maps to `tripTypeLabel = Giao dai ly` and uses Delivery Order stop counts in the card summary.
+- `trip_type = TRANSFER` maps to `tripTypeLabel = Dieu chuyen noi bo` and uses transfer source/destination route plus line count in the card summary.
+- Read-only list filtering must not mutate trip status, inventory, transfer state, delivery attempts, or audit logs.
 - Driver can complete a trip only while the trip is `IN_TRANSIT`.
 - Trip completion requires every assigned Delivery Order to be `COMPLETED` or `RETURNED`.
+
+## DriverTripSummaryResponse
+
+**Purpose**: Read-only card model for the driver mobile list, combining outbound delivery and internal transfer trips without mixing their action rules.
+
+**Fields returned**
+
+- `tripId`
+- `tripNumber`
+- `tripType` (`DELIVERY` or `TRANSFER`)
+- `tripTypeLabel` (`Giao dai ly` or `Dieu chuyen noi bo`)
+- `status`
+- `driverId`
+- `vehicleId`
+- `vehiclePlate`
+- `plannedStartAt`
+- `plannedEndAt`
+- `totalWeightKg`
+- `totalVolumeM3`
+- `deliveryStopCount` for `DELIVERY`
+- `sourceWarehouseCode`, `destinationWarehouseCode`, and `transferLineCount` for `TRANSFER`
+
+**Validation rules**
+
+- Response rows are generated only for trips assigned to the authenticated driver profile.
+- `DELIVERY` rows must not include transfer-only route actions.
+- `TRANSFER` rows must not include POD, OTP, dealer refusal, or confirm-delivery affordances.
 
 ## TripDeliveryOrder
 

@@ -113,6 +113,9 @@ const AppRoutes = () => {
       <Route element={<ProtectedRoute allowedRoles={[ROLES.PLANNER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.WAREHOUSE_MANAGER, ROLES.DISPATCHER, ROLES.ADMIN, ROLES.CEO]} />}>
         <Route path="/transfers" element={<InterWarehouseTransferWorkspace />} />
         <Route path="/transfers/:id" element={<InterWarehouseTransferWorkspace />} />
+      </Route>
+
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.PLANNER, ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]} />}>
         <Route path="/transfers/requests" element={<TransferRequestWorkspace />} />
       </Route>
 

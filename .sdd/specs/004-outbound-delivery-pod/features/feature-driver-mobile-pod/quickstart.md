@@ -4,6 +4,8 @@
 
 Implement driver mobile trip view, POD evidence upload, OTP request and confirmation, failed delivery handling, admin OTP reset, and trip completion while preserving trip assignment scope, OTP security, inventory integrity, and audit requirements.
 
+The driver mobile trip list is also the shared list for assigned internal transfer trips. It must use neutral `Chuyen xe` wording, label each row by `tripType`, and let the driver filter `Tat ca`, `Noi bo`, or `Dai ly` before opening the appropriate detail workflow.
+
 ## Suggested implementation order
 
 1. Add or extend repositories and DTOs for current delivery-attempt lookup, OTP row lifecycle, multipart POD upload, and admin reset.
@@ -25,6 +27,29 @@ Implement driver mobile trip view, POD evidence upload, OTP request and confirma
    - record failed delivery without changing inventory
    - complete the trip only after all assigned Delivery Orders are terminal
 5. Update driver-facing trip response mapping so the mobile UI can show current trip, Delivery Orders, attempts, POD state, and delivery outcome.
+6. Update driver-facing list response mapping and frontend normalization so assigned `DELIVERY` and `TRANSFER` trips expose the same card fields plus type-specific summaries.
+
+## Driver list walkthrough
+
+### 0. List and filter assigned trips
+
+```http
+GET /api/v1/trips/driver
+Authorization: Bearer <driver-jwt>
+```
+
+Expected result:
+
+- Return only trips assigned to the authenticated driver profile.
+- Include `tripType = DELIVERY` for dealer delivery trips and `tripType = TRANSFER` for internal transfer trips.
+- Include `tripTypeLabel` for Vietnamese card badges: `Giao dai ly` or `Dieu chuyen noi bo`.
+- Delivery rows include `deliveryStopCount`.
+- Transfer rows include `sourceWarehouseCode`, `destinationWarehouseCode`, and `transferLineCount`.
+- The frontend title is `Chuyen xe cua toi`.
+- The `Tat ca` filter shows every returned row.
+- The `Noi bo` filter shows only `TRANSFER` rows and uses route wording.
+- The `Dai ly` filter shows only `DELIVERY` rows and uses dealer stop count wording.
+- Filter switching is local/read-only and must not create audit records.
 
 ## API walkthrough
 
@@ -148,6 +173,7 @@ Expected result:
 ## Required tests
 
 - Service test: driver cannot access a trip or Delivery Order outside the assigned driver profile.
+- Service/controller test: assigned trip list returns mixed `DELIVERY` and `TRANSFER` summaries with `tripType` labels and hides other drivers' trips.
 - Service test: POD upload rejects missing, oversized, or non-image files.
 - Service test: OTP request is blocked before both POD images exist.
 - Service test: OTP resend is blocked while active and updates the same row after expiry.
@@ -157,6 +183,7 @@ Expected result:
 - Service test: failed delivery moves Delivery Order to `RETURNED` without changing inventory.
 - Service test: trip completion only works when every assigned Delivery Order is `COMPLETED` or `RETURNED`.
 - Controller integration test: POD upload, OTP request, confirm-delivery, fail-delivery, trip-complete, and admin-reset endpoints return expected happy-path and business-error responses.
+- Frontend test: driver list filters `Tat ca`, `Noi bo`, and `Dai ly` render the expected card subset and type-specific wording.
 
 ## Definition of done reminders
 
@@ -164,3 +191,4 @@ Expected result:
 - Keep all POD and OTP endpoints documented in OpenAPI.
 - Do not change inventory for failed delivery; only successful confirmation decrements virtual `IN_TRANSIT`.
 - Ensure every driver and admin action writes audit logs with before/after context.
+- Keep driver list filters read-only: no inventory, delivery attempt, transfer, trip status, resource, or audit mutation occurs when filtering.

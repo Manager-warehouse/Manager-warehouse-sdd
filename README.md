@@ -179,6 +179,8 @@ Hệ thống có **30 User Stories**: 27 câu chuyện vận hành trong 9 nhóm
 | US-WMS-09 | Giao diện Web mobile cho Tài xế & POD thời gian thực | P1 |
 | US-WMS-10 | Tự động tạo Hóa đơn bán hàng & Cộng công nợ Đại lý | P1 |
 
+Driver mobile note: the assigned-trip entry screen is `Chuyen xe cua toi`, showing both dealer delivery trips (`DELIVERY`/`TRIP-*`) and internal transfer trips (`TRANSFER`/`TTR-*`) with filters `Tat ca`, `Noi bo`, and `Dai ly`.
+
 ### Nhóm 4: Điều chuyển nội bộ (Replenishment & Transfer)
 
 | US | Tên | Priority |

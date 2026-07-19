@@ -17,6 +17,7 @@ import com.wms.entity.DeliveryOrderItem;
 import com.wms.entity.DeliveryOtpAttempt;
 import com.wms.entity.Driver;
 import com.wms.entity.Inventory;
+import com.wms.entity.InterWarehouseTransfer;
 import com.wms.entity.Trip;
 import com.wms.entity.TripDeliveryOrder;
 import com.wms.entity.User;
@@ -26,6 +27,7 @@ import com.wms.enums.DeliveryOtpStatus;
 import com.wms.enums.DeliveryStatus;
 import com.wms.enums.DriverStatus;
 import com.wms.enums.TripStatus;
+import com.wms.enums.TripType;
 import com.wms.enums.VehicleStatus;
 import com.wms.exception.OutboundDeliveryException;
 import com.wms.exception.ResourceNotFoundException;
@@ -35,6 +37,7 @@ import com.wms.repository.DeliveryOrderRepository;
 import com.wms.repository.DeliveryOtpAttemptRepository;
 import com.wms.repository.DeliveryRepository;
 import com.wms.repository.InventoryRepository;
+import com.wms.repository.InterWarehouseTransferRepository;
 import com.wms.repository.TripDeliveryOrderRepository;
 import com.wms.repository.TripRepository;
 import com.wms.service.AuditLogService;
@@ -82,6 +85,7 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
     private final DeliveryOrderRepository deliveryOrderRepository;
     private final DeliveryOrderItemRepository deliveryOrderItemRepository;
     private final InventoryRepository inventoryRepository;
+    private final InterWarehouseTransferRepository interWarehouseTransferRepository;
     private final AutoInvoiceService autoInvoiceService;
     private final BillingNotificationRepository billingNotificationRepository;
     private final AuditLogService auditLogService;
@@ -95,6 +99,7 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
                                      DeliveryOrderRepository deliveryOrderRepository,
                                      DeliveryOrderItemRepository deliveryOrderItemRepository,
                                      InventoryRepository inventoryRepository,
+                                     InterWarehouseTransferRepository interWarehouseTransferRepository,
                                      AutoInvoiceService autoInvoiceService,
                                      BillingNotificationRepository billingNotificationRepository,
                                      AuditLogService auditLogService,
@@ -106,6 +111,7 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
         this.deliveryOrderRepository = deliveryOrderRepository;
         this.deliveryOrderItemRepository = deliveryOrderItemRepository;
         this.inventoryRepository = inventoryRepository;
+        this.interWarehouseTransferRepository = interWarehouseTransferRepository;
         this.autoInvoiceService = autoInvoiceService;
         this.billingNotificationRepository = billingNotificationRepository;
         this.auditLogService = auditLogService;
@@ -116,15 +122,17 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
     @Transactional(readOnly = true)
     public TripDriverViewResponse getAssignedTrip(Long tripId, User actor) {
         Trip trip = assignedTrip(tripId, actor);
-        return toTripDriverView(trip);
+        InterWarehouseTransfer transfer = transferSummaryByTrip(trip);
+        return toTripDriverView(trip, transfer);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<TripDriverViewResponse> listMyTrips(User actor) {
-        return tripRepository.findAssignedDriverTrips(actor.getId())
-                .stream()
-                .map(this::toTripDriverView)
+        List<Trip> trips = tripRepository.findAssignedDriverTrips(actor.getId());
+        Map<Long, InterWarehouseTransfer> transfersByTripId = transferSummariesByTripId(trips);
+        return trips.stream()
+                .map(trip -> toTripDriverView(trip, transfersByTripId.get(trip.getId())))
                 .toList();
     }
 
@@ -379,16 +387,26 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
     }
 
     private TripDriverViewResponse toTripDriverView(Trip trip) {
+        return toTripDriverView(trip, transferSummaryByTrip(trip));
+    }
+
+    private TripDriverViewResponse toTripDriverView(Trip trip, InterWarehouseTransfer transfer) {
         List<TripDeliveryOrder> rows = tripDeliveryOrderRepository.findByTripIdOrderByStopOrderAsc(trip.getId());
-        Map<Long, Delivery> attempts = deliveryRepository.findByTripIdAndDeliveryOrderIdIn(
-                        trip.getId(),
-                        rows.stream().map(row -> row.getDeliveryOrder().getId()).toList())
-                .stream()
-                .collect(Collectors.toMap(d -> d.getDeliveryOrder().getId(), Function.identity(), (first, ignored) -> first));
+        Map<Long, Delivery> attempts = rows.isEmpty()
+                ? Map.of()
+                : deliveryRepository.findByTripIdAndDeliveryOrderIdIn(
+                                trip.getId(),
+                                rows.stream().map(row -> row.getDeliveryOrder().getId()).toList())
+                        .stream()
+                        .collect(Collectors.toMap(d -> d.getDeliveryOrder().getId(), Function.identity(), (first, ignored) -> first));
+        TripType tripType = trip.getTripType() == null ? TripType.DELIVERY : trip.getTripType();
         return TripDriverViewResponse.builder()
                 .tripId(trip.getId())
                 .tripNumber(trip.getTripNumber())
                 .status(trip.getStatus())
+                .tripType(tripType)
+                .tripTypeLabel(tripTypeLabel(tripType))
+                .transferId(transfer == null ? null : transfer.getId())
                 .driverId(trip.getDriver().getId())
                 .driverName(trip.getDriver().getFullName())
                 .vehicleId(trip.getVehicle().getId())
@@ -398,6 +416,10 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
                 .plannedEndAt(trip.getPlannedEndAt())
                 .totalWeightKg(trip.getTotalWeightKg())
                 .totalVolumeM3(trip.getTotalVolumeM3())
+                .deliveryStopCount(rows.size())
+                .sourceWarehouseCode(transfer == null ? null : transfer.getSourceWarehouse().getCode())
+                .destinationWarehouseCode(transfer == null ? null : transfer.getDestinationWarehouse().getCode())
+                .transferLineCount(transfer == null ? null : transfer.getItems().size())
                 .deliveryOrders(rows.stream()
                         .map(row -> DriverDeliveryOrderResponse.builder()
                                 .doId(row.getDeliveryOrder().getId())
@@ -408,6 +430,34 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
                                 .build())
                         .toList())
                 .build();
+    }
+
+    private Map<Long, InterWarehouseTransfer> transferSummariesByTripId(List<Trip> trips) {
+        List<Long> transferTripIds = trips.stream()
+                .filter(trip -> trip.getTripType() == TripType.TRANSFER)
+                .map(Trip::getId)
+                .toList();
+        if (transferTripIds.isEmpty()) {
+            return Map.of();
+        }
+        return interWarehouseTransferRepository.findByTripIdInWithSummary(transferTripIds)
+                .stream()
+                .filter(transfer -> transfer.getTrip() != null)
+                .collect(Collectors.toMap(
+                        transfer -> transfer.getTrip().getId(),
+                        Function.identity(),
+                        (first, ignored) -> first));
+    }
+
+    private InterWarehouseTransfer transferSummaryByTrip(Trip trip) {
+        if (trip.getTripType() != TripType.TRANSFER) {
+            return null;
+        }
+        return interWarehouseTransferRepository.findByTripIdWithSummary(trip.getId()).orElse(null);
+    }
+
+    private String tripTypeLabel(TripType tripType) {
+        return tripType == TripType.TRANSFER ? "Dieu chuyen noi bo" : "Giao dai ly";
     }
 
     private DeliveryAttemptResponse toAttemptResponseOrNull(Delivery delivery) {

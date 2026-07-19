@@ -23,6 +23,8 @@ import com.wms.entity.DeliveryOrderItem;
 import com.wms.entity.DeliveryOtpAttempt;
 import com.wms.entity.Driver;
 import com.wms.entity.Inventory;
+import com.wms.entity.InterWarehouseTransfer;
+import com.wms.entity.InterWarehouseTransferItem;
 import com.wms.entity.Product;
 import com.wms.entity.Trip;
 import com.wms.entity.TripDeliveryOrder;
@@ -47,6 +49,7 @@ import com.wms.repository.DeliveryOrderRepository;
 import com.wms.repository.DeliveryOtpAttemptRepository;
 import com.wms.repository.DeliveryRepository;
 import com.wms.repository.InventoryRepository;
+import com.wms.repository.InterWarehouseTransferRepository;
 import com.wms.repository.TripDeliveryOrderRepository;
 import com.wms.repository.TripRepository;
 import com.wms.service.impl.DriverDeliveryServiceImpl;
@@ -78,6 +81,7 @@ class DriverDeliveryServiceImplTest {
     @Mock private DeliveryOrderRepository deliveryOrderRepository;
     @Mock private DeliveryOrderItemRepository deliveryOrderItemRepository;
     @Mock private InventoryRepository inventoryRepository;
+    @Mock private InterWarehouseTransferRepository interWarehouseTransferRepository;
     @Mock private AutoInvoiceService autoInvoiceService;
     @Mock private BillingNotificationRepository billingNotificationRepository;
     @Mock private AuditLogService auditLogService;
@@ -94,6 +98,7 @@ class DriverDeliveryServiceImplTest {
     void setUp() {
         service = new DriverDeliveryServiceImpl(tripRepository, tripDeliveryOrderRepository, deliveryRepository,
                 otpRepository, deliveryOrderRepository, deliveryOrderItemRepository, inventoryRepository,
+                interWarehouseTransferRepository,
                 autoInvoiceService, billingNotificationRepository, auditLogService, mailSender);
         actor = User.builder().id(10L).fullName("Driver").role(UserRole.DRIVER).build();
         warehouse = Warehouse.builder().id(20L).code("HP").name("Hai Phong")
@@ -123,6 +128,48 @@ class DriverDeliveryServiceImplTest {
         assertThatThrownBy(() -> service.getAssignedTrip(50L, actor))
                 .isInstanceOf(OutboundDeliveryException.class)
                 .hasMessageContaining("Driver is not assigned");
+    }
+
+    @Test
+    void listMyTrips_mapsDeliveryAndTransferSummariesForAssignedDriverOnly() {
+        Warehouse destination = Warehouse.builder().id(21L).code("HN").name("Ha Noi")
+                .type(WarehouseType.PHYSICAL).isActive(true).build();
+        Trip transferTrip = Trip.builder().id(51L).tripNumber("TTR-1").warehouse(warehouse)
+                .driver(trip.getDriver()).vehicle(trip.getVehicle()).dispatcher(actor).plannedDate(LocalDate.now())
+                .tripType(TripType.TRANSFER).status(TripStatus.PLANNED).build();
+        InterWarehouseTransfer transfer = InterWarehouseTransfer.builder()
+                .id(500L)
+                .transferNumber("TRF-1")
+                .sourceWarehouse(warehouse)
+                .destinationWarehouse(destination)
+                .trip(transferTrip)
+                .items(List.of(
+                        InterWarehouseTransferItem.builder().id(501L).plannedQty(BigDecimal.ONE).build(),
+                        InterWarehouseTransferItem.builder().id(502L).plannedQty(BigDecimal.TEN).build()))
+                .build();
+        TripDeliveryOrder row = TripDeliveryOrder.builder().trip(trip).deliveryOrder(order).stopOrder(1).build();
+
+        when(tripRepository.findAssignedDriverTrips(actor.getId())).thenReturn(List.of(trip, transferTrip));
+        when(interWarehouseTransferRepository.findByTripIdInWithSummary(List.of(51L))).thenReturn(List.of(transfer));
+        when(tripDeliveryOrderRepository.findByTripIdOrderByStopOrderAsc(50L)).thenReturn(List.of(row));
+        when(deliveryRepository.findByTripIdAndDeliveryOrderIdIn(50L, List.of(70L))).thenReturn(List.of(delivery));
+        when(tripDeliveryOrderRepository.findByTripIdOrderByStopOrderAsc(51L)).thenReturn(List.of());
+
+        List<com.wms.dto.response.TripDriverViewResponse> responses = service.listMyTrips(actor);
+
+        assertThat(responses).hasSize(2);
+        assertThat(responses.get(0).getTripType()).isEqualTo(TripType.DELIVERY);
+        assertThat(responses.get(0).getTripTypeLabel()).isEqualTo("Giao dai ly");
+        assertThat(responses.get(0).getDeliveryStopCount()).isEqualTo(1);
+        assertThat(responses.get(1).getTripType()).isEqualTo(TripType.TRANSFER);
+        assertThat(responses.get(1).getTripTypeLabel()).isEqualTo("Dieu chuyen noi bo");
+        assertThat(responses.get(1).getTransferId()).isEqualTo(500L);
+        assertThat(responses.get(1).getSourceWarehouseCode()).isEqualTo("HP");
+        assertThat(responses.get(1).getDestinationWarehouseCode()).isEqualTo("HN");
+        assertThat(responses.get(1).getTransferLineCount()).isEqualTo(2);
+        assertThat(responses.get(1).getDeliveryOrders()).isEmpty();
+        verify(tripRepository).findAssignedDriverTrips(actor.getId());
+        verify(tripRepository, never()).findAll();
     }
 
     @Test

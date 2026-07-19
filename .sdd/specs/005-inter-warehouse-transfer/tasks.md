@@ -195,6 +195,10 @@
 - [x] T104 Add a shared frontend photo selector/camera component and use it for transfer outbound QC, arrival handover, return handover, and outbound driver POD evidence.
 - [x] T105 Gate all photo-required action buttons so they remain disabled until an image has been selected or captured.
 - [x] T106 Update spec 005, feature docs, OpenAPI contract, and CLAUDE swimlane notes for DRAFT request edit/soft-delete and photo-gated confirmations.
+- [X] T107 Update shared driver trip list integration so `TTR-*` rows expose `tripType = TRANSFER`, `tripTypeLabel = Dieu chuyen noi bo`, source/destination route, and transfer line count in `frontend/src/pages/Outbound/DriverTrip.jsx`.
+- [X] T108 Add frontend test coverage proving the `Noi bo` filter shows only `TTR-*` transfer trips and hides dealer POD/OTP actions in `frontend/src/pages/Outbound/DriverTrip.test.jsx`.
+- [X] T109 Add backend or service mapping coverage proving assigned transfer trips cannot be listed for another driver in `backend/src/test/java/com/wms/service/InterWarehouseTransferServiceImplTest.java` or `DriverDeliveryServiceImplTest.java`.
+- [X] T110 Update `.sdd/specs/004-outbound-delivery-pod/features/feature-driver-mobile-pod/contracts/driver-pod.openapi.yaml` and backend Swagger annotations if transfer summary fields are added to the shared driver trip response.
 
 ## Dependencies
 

@@ -121,6 +121,10 @@
 10. Source storekeeper cannot press outbound QC pass/fail until selecting/capturing an image; QC pass enables shipment, QC fail only allows unload.
 11. Source storekeeper ships exact approved quantity and sees mismatch validation.
 12. Driver sees only the assigned transfer trip in the driver trip screen and can depart only that trip.
+    - The shared driver list is titled `Chuyen xe cua toi`, not delivery-only wording.
+    - Selecting `Noi bo` shows this `TTR-*` transfer trip and hides dealer delivery trips.
+    - The transfer card shows `Dieu chuyen noi bo` and source warehouse -> destination warehouse route instead of `Diem giao`.
+    - The transfer detail does not expose POD, dealer OTP, dealer refusal, invoice, or confirm-delivery actions.
 13. Destination handover and return handover confirmation buttons stay disabled until selecting/capturing an image.
 14. Destination worker records initial count inside the transfer module, not inside the supplier inbound receipt list.
 15. Destination storekeeper checks count/QC and selects destination location for passed stock.
