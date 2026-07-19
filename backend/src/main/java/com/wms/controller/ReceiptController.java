@@ -103,7 +103,7 @@ public class ReceiptController {
     }
 
     @PutMapping("/{id}/receive")
-    @PreAuthorize("hasAnyRole('WAREHOUSE_STAFF', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('WAREHOUSE_STAFF', 'STOREKEEPER', 'ADMIN')")
     @Operation(summary = "Submit or correct complete physical receipt counts")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Receipt counts accepted",
