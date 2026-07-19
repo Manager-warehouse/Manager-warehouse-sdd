@@ -139,19 +139,29 @@ const Dashboard = () => {
     });
   }, []);
 
+  // Accountants have no warehouse assignment and no need for warehouse-stock KPIs;
+  // the backend rejects these calls for their role, which otherwise surfaces as a
+  // misleading "cannot load from database" toast instead of sending them to a page
+  // they can actually use.
+  const isAccountingRole = user?.role === ROLES.ACCOUNTANT || user?.role === ROLES.ACCOUNTANT_MANAGER;
+
   useEffect(() => {
-    if (user?.role === ROLES.DRIVER) return;
+    if (user?.role === ROLES.DRIVER || isAccountingRole) return;
     setMobileStockLimit(3);
     loadCrossWarehouseStock();
   }, [debouncedSearchQuery, user?.role]);
 
   useEffect(() => {
-    if (user?.role === ROLES.DRIVER) return;
+    if (user?.role === ROLES.DRIVER || isAccountingRole) return;
     loadStockOverview();
   }, [activeWarehouse?.id, user?.role]);
 
   if (user?.role === ROLES.DRIVER) {
     return <Navigate to="/outbound/driver/trips" replace />;
+  }
+
+  if (isAccountingRole) {
+    return <Navigate to="/finance/invoices" replace />;
   }
 
   const handleOpenTransferModal = (product) => {

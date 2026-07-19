@@ -57,7 +57,10 @@ public class ReceiptValidationService {
         if (actor == null) {
             throw new ForbiddenReceiptWarehouseException("FORBIDDEN_RECEIPT_ROLE: actor is null");
         }
-        if (actor.getRole() == UserRole.ADMIN || actor.getRole() == UserRole.CEO) {
+        // Accountants issue Credit Notes across warehouses and are never warehouse-assigned;
+        // matches the same bypass already applied to ReceiptService.requireWarehouseAccess.
+        if (actor.getRole() == UserRole.ADMIN || actor.getRole() == UserRole.CEO
+                || actor.getRole() == UserRole.ACCOUNTANT || actor.getRole() == UserRole.ACCOUNTANT_MANAGER) {
             return;
         }
         List<Long> assignedWarehouseIds = userWarehouseAssignmentRepository

@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
 import { authService } from '../../services/auth.service';
+import { ROLES } from '../../utils/constants';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import { Shield, User } from 'lucide-react';
@@ -31,7 +32,11 @@ const Login = () => {
       const data = await authService.login(email, password);
       loginStore(data.user, data.accessToken, data.refreshToken);
       addToast('Đăng nhập thành công', 'success');
-      navigate('/dashboard');
+      // Accountants have no warehouse assignment and the general dashboard's
+      // widgets are warehouse-stock KPIs they can't access; send them straight
+      // to a page their role actually uses instead of bouncing through /dashboard.
+      const isAccountingRole = data.user?.role === ROLES.ACCOUNTANT || data.user?.role === ROLES.ACCOUNTANT_MANAGER;
+      navigate(isAccountingRole ? '/finance/invoices' : '/dashboard');
     } catch (err) {
       const message = err.message || '';
       if (message.includes('INVALID_CREDENTIALS')) {
