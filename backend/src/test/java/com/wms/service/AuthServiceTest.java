@@ -6,6 +6,8 @@ import com.wms.enums.UserRole;
 import com.wms.repository.UserRepository;
 import com.wms.repository.UserWarehouseAssignmentRepository;
 import com.wms.repository.AuditLogRepository;
+import com.wms.repository.WarehouseRepository;
+
 import com.wms.util.JwtUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -43,6 +45,9 @@ class AuthServiceTest {
     private UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
     @Mock
     private AuditLogRepository auditLogRepository;
+    @Mock
+    private WarehouseRepository warehouseRepository;
+
 
     @InjectMocks
     private AuthService authService;
@@ -52,6 +57,9 @@ class AuthServiceTest {
     @BeforeEach
     void setUp() {
         ReflectionTestUtils.setField(authService, "refreshTokenExpiry", 604800L);
+
+        lenient().when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(any())).thenReturn(java.util.Collections.emptyList());
+        lenient().when(warehouseRepository.findAllById(any())).thenReturn(java.util.Collections.emptyList());
 
         activeUser = User.builder()
                 .id(1L)
@@ -65,6 +73,7 @@ class AuthServiceTest {
                 .updatedAt(OffsetDateTime.now())
                 .build();
     }
+
 
     // ─── LOGIN ───────────────────────────────────────────────────────────────
 

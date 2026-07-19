@@ -101,7 +101,9 @@ describe('RBAC Warehouse and Role Access Tests', () => {
     const user = { id: 8, role: ROLES.ADMIN, warehouses: [] };
     useAuthStore.getState().login(user, 'mock-jwt-token');
     expect(useAuthStore.getState().hasRole(ROLES.ADMIN)).toBe(true);
-    expect(useAuthStore.getState().hasRole(ROLES.CEO)).toBe(false);
+    expect(useAuthStore.getState().hasRole(ROLES.CEO)).toBe(true);
+    expect(useAuthStore.getState().hasRole(ROLES.STOREKEEPER)).toBe(true);
+    expect(useAuthStore.getState().hasRole(ROLES.DRIVER)).toBe(false);
   });
 });
 

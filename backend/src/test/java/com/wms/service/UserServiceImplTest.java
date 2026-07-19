@@ -282,4 +282,83 @@ class UserServiceImplTest {
         verify(auditLogRepository).save(auditCaptor.capture());
         assertThat(auditCaptor.getValue().getAction()).isEqualTo(AuditAction.SOFT_DELETE);
     }
+
+    @Test
+    @DisplayName("Tạo người dùng vai trò bị giới hạn thất bại - Không gán kho nào")
+    void createUser_restrictedRole_noWarehouse_throwsException() {
+        UserRequest request = UserRequest.builder()
+                .code("NEW02")
+                .fullName("Store Keeper")
+                .email("sk@phucanh.vn")
+                .password("Password123")
+                .role(UserRole.STOREKEEPER)
+                .warehouses(Collections.emptyList())
+                .build();
+
+        when(userRepository.findByEmail("sk@phucanh.vn")).thenReturn(Optional.empty());
+        when(userRepository.findByCode("NEW02")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> userService.createUser(request, 1L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("WAREHOUSE_REQUIRED");
+    }
+
+    @Test
+    @DisplayName("Tạo người dùng vai trò bị giới hạn thất bại - Gán nhiều hơn 1 kho")
+    void createUser_restrictedRole_multipleWarehouses_throwsException() {
+        UserRequest request = UserRequest.builder()
+                .code("NEW03")
+                .fullName("Store Keeper Multi")
+                .email("skmulti@phucanh.vn")
+                .password("Password123")
+                .role(UserRole.STOREKEEPER)
+                .warehouses(List.of(10L, 20L))
+                .build();
+
+        when(userRepository.findByEmail("skmulti@phucanh.vn")).thenReturn(Optional.empty());
+        when(userRepository.findByCode("NEW03")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> userService.createUser(request, 1L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("MULTIPLE_WAREHOUSES_NOT_ALLOWED");
+    }
+
+    @Test
+    @DisplayName("Tạo ADMIN thành công không lưu gán kho ngay cả khi truyền danh sách kho")
+    void createAdmin_ignoreWarehouses_success() {
+        UserRequest request = UserRequest.builder()
+                .code("NEW_ADM")
+                .fullName("New Admin")
+                .email("newadmin@phucanh.vn")
+                .password("Password123")
+                .role(UserRole.ADMIN)
+                .warehouses(List.of(10L, 20L))
+                .build();
+
+        when(userRepository.findByEmail("newadmin@phucanh.vn")).thenReturn(Optional.empty());
+        when(userRepository.findByCode("NEW_ADM")).thenReturn(Optional.empty());
+        when(userRepository.findById(1L)).thenReturn(Optional.of(adminUser));
+        when(passwordEncoder.encode("Password123")).thenReturn("hashedPassword");
+
+        User savedUser = User.builder()
+                .id(4L)
+                .code("NEW_ADM")
+                .fullName("New Admin")
+                .email("newadmin@phucanh.vn")
+                .role(UserRole.ADMIN)
+                .isActive(true)
+                .createdAt(OffsetDateTime.now())
+                .updatedAt(OffsetDateTime.now())
+                .build();
+        when(userRepository.save(any(User.class))).thenReturn(savedUser);
+        when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(4L)).thenReturn(Collections.emptyList());
+
+        UserResponse response = userService.createUser(request, 1L);
+
+        assertThat(response.getId()).isEqualTo(4L);
+        assertThat(response.getRole()).isEqualTo(UserRole.ADMIN);
+        assertThat(response.getWarehouses()).isEmpty();
+        verify(userWarehouseAssignmentRepository, never()).save(any(UserWarehouseAssignment.class));
+    }
 }
+

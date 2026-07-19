@@ -26,9 +26,12 @@ public class WarehouseController {
     @GetMapping
     @PreAuthorize("hasAnyRole('CEO', 'ADMIN', 'WAREHOUSE_MANAGER', 'STOREKEEPER', 'WAREHOUSE_STAFF', 'PLANNER', 'DISPATCHER')")
     public ResponseEntity<List<WarehouseResponse>> getAllWarehouses(
-            @RequestParam(required = false) Boolean isActive) {
-        return ResponseEntity.ok(warehouseService.getAllWarehouses(isActive));
+            @RequestParam(required = false) Boolean isActive,
+            Principal principal) {
+        Long actorId = getActorId(principal);
+        return ResponseEntity.ok(warehouseService.getAllWarehouses(isActive, actorId));
     }
+
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('CEO', 'ADMIN', 'WAREHOUSE_MANAGER', 'STOREKEEPER', 'WAREHOUSE_STAFF', 'PLANNER', 'DISPATCHER')")
