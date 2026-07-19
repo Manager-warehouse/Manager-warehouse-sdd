@@ -358,8 +358,8 @@ const Dashboard = () => {
                     <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Tên Sản Phẩm</th>
                     <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Đơn vị</th>
                     {physicalWarehouses.map((wh) => (
-                      <th key={wh.id} className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center">
-                        {wh.name}
+                      <th key={wh.id} className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center max-w-[120px]" title={wh.name}>
+                        <span className="block truncate">{wh.name}</span>
                       </th>
                     ))}
                     <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Hành động</th>
@@ -392,13 +392,13 @@ const Dashboard = () => {
                           return (
                             <td
                               key={wh.id}
-                              className={`px-6 py-4 text-center font-semibold ${
+                              className={`px-4 py-4 text-center font-semibold whitespace-nowrap ${
                                 isActiveWh
                                   ? 'bg-canvas-cream/40 border-x border-hairline-light text-ink'
                                   : qty > 0 ? 'text-[#127a3c]' : 'text-shade-40'
                               }`}
                             >
-                              {qty} {prod.unit.toLowerCase()}
+                              {qty} {prod.unit?.toLowerCase()}
                             </td>
                           );
                         })}
@@ -454,8 +454,8 @@ const Dashboard = () => {
                                   : qty > 0 ? 'text-[#127a3c] bg-canvas-light' : 'text-shade-40 bg-canvas-light'
                               }`}
                             >
-                              <div className="min-w-0 truncate text-[9px] uppercase tracking-wide font-bold">{wh.name}</div>
-                              <div className="shrink-0">{qty} {prod.unit.toLowerCase()}</div>
+                              <div className="min-w-0 truncate text-[9px] uppercase tracking-wide font-bold" title={wh.name}>{wh.name}</div>
+                              <div className="shrink-0">{qty} {prod.unit?.toLowerCase()}</div>
                             </div>
                           );
                         })}
