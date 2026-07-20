@@ -37,7 +37,14 @@ import LowStockAlerts from '../pages/Reports/LowStockAlerts';
 import ProductivityReport from '../pages/Reports/ProductivityReport';
 import DealerDebtInvoice from '../pages/Finance/DealerDebtInvoice';
 import Payments from '../pages/Finance/Payments';
-import { ROLES } from '../utils/constants';
+import { ROLES, getDefaultRouteByRole } from '../utils/constants';
+import { useAuthStore } from '../stores/auth.store';
+
+const DefaultRedirect = () => {
+  const { user } = useAuthStore();
+  if (!user) return <Navigate to="/login" replace />;
+  return <Navigate to={getDefaultRouteByRole(user.role)} replace />;
+};
 
 const AppRoutes = () => {
   return (
@@ -175,8 +182,8 @@ const AppRoutes = () => {
       </Route>
 
       {/* Default Redirects */}
-      <Route path="/" element={<Navigate to="/admin/users" replace />} />
-      <Route path="*" element={<Navigate to="/admin/users" replace />} />
+      <Route path="/" element={<DefaultRedirect />} />
+      <Route path="*" element={<DefaultRedirect />} />
     </Routes>
   );
 };

@@ -7,6 +7,7 @@ import { ROLES } from '../../utils/constants';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import { Shield, User } from 'lucide-react';
+import { getDefaultRouteByRole } from '../../utils/constants';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -32,7 +33,7 @@ const Login = () => {
       const data = await authService.login(email, password);
       loginStore(data.user, data.accessToken, data.refreshToken);
       addToast('Đăng nhập thành công', 'success');
-      navigate('/admin/users');
+      navigate(getDefaultRouteByRole(data.user.role));
     } catch (err) {
       const message = err.message || '';
       if (message.includes('INVALID_CREDENTIALS')) {
