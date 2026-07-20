@@ -3,9 +3,11 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
 import { authService } from '../../services/auth.service';
+import { ROLES } from '../../utils/constants';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import { Shield, User } from 'lucide-react';
+import { getDefaultRouteByRole } from '../../utils/constants';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -31,7 +33,7 @@ const Login = () => {
       const data = await authService.login(email, password);
       loginStore(data.user, data.accessToken, data.refreshToken);
       addToast('Đăng nhập thành công', 'success');
-      navigate('/dashboard');
+      navigate(getDefaultRouteByRole(data.user.role));
     } catch (err) {
       const message = err.message || '';
       if (message.includes('INVALID_CREDENTIALS')) {

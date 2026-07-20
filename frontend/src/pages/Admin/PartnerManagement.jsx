@@ -37,6 +37,8 @@ const PartnerManagement = () => {
   const [dlCreditLimit, setDlCreditLimit] = useState('0');
   const [dlOriginalCreditLimit, setDlOriginalCreditLimit] = useState('0');
   const [dlOriginalPaymentTerms, setDlOriginalPaymentTerms] = useState('30');
+  const [dlCreditStatus, setDlCreditStatus] = useState('ACTIVE');
+  const [dlOriginalCreditStatus, setDlOriginalCreditStatus] = useState('ACTIVE');
 
   // Supplier Modal States
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
@@ -105,21 +107,8 @@ const PartnerManagement = () => {
     setDlCreditLimit(String(dealer.credit_limit || 0));
     setDlOriginalPaymentTerms(String(dealer.payment_term_days || 30));
     setDlOriginalCreditLimit(String(dealer.credit_limit || 0));
-    setDlFormErrors({});
-    setIsDealerModalOpen(true);
-  };
-
-  const handleOpenCreditLimit = (dealer) => {
-    if (!hasRole(ROLES.ACCOUNTANT_MANAGER)) {
-      addToast('Chỉ Kế toán trưởng được phép phê duyệt hạn mức tín dụng', 'warning');
-      return;
-    }
-    setDealerModalType('CREDIT');
-    setSelectedDealer(dealer);
-    setDlCreditLimit(String(dealer.credit_limit || 0));
-    setDlPaymentTerms(String(dealer.payment_term_days || 30));
-    setDlOriginalPaymentTerms(String(dealer.payment_term_days || 30));
-    setDlOriginalCreditLimit(String(dealer.credit_limit || 0));
+    setDlCreditStatus(dealer.credit_status || 'ACTIVE');
+    setDlOriginalCreditStatus(dealer.credit_status || 'ACTIVE');
     setDlFormErrors({});
     setIsDealerModalOpen(true);
   };
@@ -151,6 +140,8 @@ const PartnerManagement = () => {
     const creditChanged =
       dlCreditLimit !== dlOriginalCreditLimit ||
       dlPaymentTerms !== dlOriginalPaymentTerms;
+    const creditStatusChanged =
+      dealerModalType === 'EDIT' && canEditCredit && dlCreditStatus !== dlOriginalCreditStatus;
 
     setDlSubmitting(true);
     try {
@@ -186,6 +177,22 @@ const PartnerManagement = () => {
           };
           await masterDataService.updateDealerCreditLimit(selectedDealer.id, limitData);
         }
+
+        // Credit status manual override (ACCOUNTANT_MANAGER only, if changed). Kept in its own
+        // try/catch so the backend's specific unlock-rule rejection (balance still above the
+        // buffer, or an invoice still overdue) reaches the manager instead of being swallowed
+        // by the generic save-failure toast below.
+        if (creditStatusChanged) {
+          try {
+            await masterDataService.updateDealerCreditStatus(selectedDealer.id, dlCreditStatus);
+          } catch (statusErr) {
+            addToast(statusErr.message || 'Không thể đổi trạng thái tín dụng', 'error');
+            setIsDealerModalOpen(false);
+            fetchData();
+            return;
+          }
+        }
+
         addToast(`Cập nhật thông tin đại lý ${dlName} thành công`, 'success');
       }
       setIsDealerModalOpen(false);
@@ -303,13 +310,13 @@ const PartnerManagement = () => {
 
   // --- FILTERS ---
   const filteredDealers = dealers.filter((d) =>
-    d.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    d.name.toLowerCase().includes(searchTerm.toLowerCase())
+    (d.code || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (d.name || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const filteredSuppliers = suppliers.filter((s) =>
-    s.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.company_name.toLowerCase().includes(searchTerm.toLowerCase())
+    (s.code || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (s.company_name || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -759,6 +766,7 @@ const PartnerManagement = () => {
                   min="0"
                   step="1000000"
                   required
+                  disabled={dealerModalType === 'ADD'}
                 />
                 <Input
                   label="Kỳ hạn thanh toán (ngày)"
@@ -769,8 +777,29 @@ const PartnerManagement = () => {
                   min="0"
                   step="1"
                   required
+                  disabled={dealerModalType === 'ADD'}
                 />
               </div>
+
+              {dealerModalType === 'EDIT' && (
+                <div className="mt-4">
+                  <label className="text-xs font-semibold text-shade-70 block mb-1">
+                    Trạng thái tín dụng (can thiệp thủ công)
+                  </label>
+                  <select
+                    value={dlCreditStatus}
+                    onChange={(e) => setDlCreditStatus(e.target.value)}
+                    className="bg-canvas-light text-ink text-xs border border-hairline-light rounded px-3 py-2 outline-none focus:border-shade-60 w-full sm:w-auto"
+                  >
+                    <option value="ACTIVE">ACTIVE (Cho phép giao dịch)</option>
+                    <option value="CREDIT_HOLD">CREDIT_HOLD (Khóa công nợ)</option>
+                  </select>
+                  <p className="text-[10px] text-shade-40 mt-1">
+                    Mở khóa thủ công (chuyển sang ACTIVE) yêu cầu dư nợ dưới 80% hạn mức và không còn hóa đơn quá hạn;
+                    hệ thống sẽ từ chối và báo lý do cụ thể nếu chưa đủ điều kiện. Khóa (CREDIT_HOLD) luôn được chấp nhận.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 

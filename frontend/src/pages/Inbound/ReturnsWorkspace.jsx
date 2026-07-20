@@ -8,12 +8,18 @@ import Modal from '../../components/common/Modal';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import Badge from '../../components/common/Badge';
+import { ROLES } from '../../utils/constants';
 import { Loader2, Plus, Receipt, ShieldAlert, Check, Coins, FileText, ArrowRightLeft } from 'lucide-react';
 
 const ReturnsWorkspace = () => {
   const activeWarehouse = useAuthStore((state) => state.activeWarehouse);
   const { user } = useAuthStore();
   const { addToast } = useUiStore();
+
+  // Spec 009 only assigns the accountant the Credit Note step on already-APPROVED
+  // returns; receiving/QC-splitting incoming returns is Thủ kho's job. Scope the
+  // workspace down accordingly instead of exposing the full storekeeper flow.
+  const isAccountingRole = user?.role === ROLES.ACCOUNTANT || user?.role === ROLES.ACCOUNTANT_MANAGER;
 
   const [returns, setReturns] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -43,6 +49,7 @@ const ReturnsWorkspace = () => {
   const [creditReason, setCreditReason] = useState('');
 
   const [submitting, setSubmitting] = useState(false);
+  const canManageReturnOperations = ['WAREHOUSE_STAFF', 'STOREKEEPER', 'WAREHOUSE_MANAGER', 'ADMIN', 'CEO'].includes(user?.role);
 
   useEffect(() => {
     if (activeWarehouse) {
@@ -54,18 +61,22 @@ const ReturnsWorkspace = () => {
     setLoading(true);
     try {
       const data = await returnsService.getReturns({ warehouse_id: activeWarehouse.id });
-      setReturns(data);
+      // Accountants only act on returns already APPROVED by the storekeeper (the
+      // Credit Note step); DRAFT/pending-QC items are outside their spec'd role.
+      setReturns(isAccountingRole ? data.filter(r => r.status === 'APPROVED') : data);
 
       const dlData = await masterDataService.getDealers();
       setDealers(dlData);
 
-      const locs = await masterDataService.getBinLocations(activeWarehouse.id);
-      setRegularBins(locs.filter(l => !l.is_quarantine));
-      setQuarantineBins(locs.filter(l => l.is_quarantine));
+      if (!isAccountingRole) {
+        const locs = await masterDataService.getBinLocations(activeWarehouse.id);
+        setRegularBins(locs.filter(l => !l.is_quarantine));
+        setQuarantineBins(locs.filter(l => l.is_quarantine));
 
-      const doData = await outboundService.getDeliveryOrders(activeWarehouse.id);
-      const completedDos = doData.filter(d => d.status === 'DELIVERED' || d.status === 'COMPLETED');
-      setDeliveryOrders(completedDos);
+        const doData = await outboundService.getDeliveryOrders(activeWarehouse.id);
+        const completedDos = doData.filter(d => d.status === 'DELIVERED' || d.status === 'COMPLETED');
+        setDeliveryOrders(completedDos);
+      }
     } catch (e) {
       addToast('Lỗi tải dữ liệu hàng trả', 'error');
     } finally {
@@ -146,17 +157,22 @@ const ReturnsWorkspace = () => {
     try {
       const details = await returnsService.getReturnById(receipt.id);
       setQcReceipt(details);
-      const items = details.items.map(item => ({
-        receiptItemId: item.id,
-        sku: item.product_sku || `SKU-${item.product_id}`,
-        name: item.product_name || `Sản phẩm ${item.product_id}`,
-        expectedQty: item.expected_qty,
-        actualQty: item.expected_qty,
-        passedQty: item.expected_qty,
+      const items = details.items.map(item => {
+        const receiptItemId = item.receipt_item_id ?? item.receiptItemId ?? item.id;
+        const productId = item.product_id ?? item.productId;
+        const expectedQty = item.expected_qty ?? item.expectedQty ?? 0;
+        return {
+        receiptItemId,
+        sku: item.product_sku || item.productSku || `SKU-${productId}`,
+        name: item.product_name || item.productName || `Sản phẩm ${productId}`,
+        expectedQty,
+        actualQty: expectedQty,
+        passedQty: expectedQty,
         failedQty: 0,
         passedLocationId: regularBins[0]?.id || '',
         quarantineLocationId: quarantineBins[0]?.id || ''
-      }));
+        };
+      });
       setQcItems(items);
       setShowQcModal(true);
     } catch (e) {
@@ -254,19 +270,24 @@ const ReturnsWorkspace = () => {
             Nhận hàng hoàn trả & Khấu trừ công nợ
           </h1>
           <p className="text-xs text-shade-50 font-light mt-1">
-            Xử lý hàng đại lý trả lại, phân tách QC (regular/quarantine) và sinh Credit Note khấu trừ công nợ.
+            {isAccountingRole
+              ? 'Sinh Credit Note khấu trừ công nợ cho các phiếu trả hàng đã được Thủ kho duyệt nhập kho.'
+              : 'Xử lý hàng đại lý trả lại, phân tách QC (regular/quarantine) và sinh Credit Note khấu trừ công nợ.'}
           </p>
         </div>
+        {!isAccountingRole && (
         <Button
           variant={activeTab === 'CREATE' ? 'outline-light' : 'primary'}
           icon={activeTab === 'CREATE' ? null : Plus}
           onClick={() => setActiveTab(activeTab === 'LIST' ? 'CREATE' : 'LIST')}
+          disabled={!canManageReturnOperations}
         >
           {activeTab === 'CREATE' ? 'Quay lại danh sách' : 'Lập phiếu trả hàng mới'}
         </Button>
+        )}
       </div>
 
-      {activeTab === 'LIST' ? (
+      {activeTab === 'LIST' || isAccountingRole ? (
         <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden flex flex-col">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
@@ -324,7 +345,7 @@ const ReturnsWorkspace = () => {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-2">
-                          {ret.status === 'DRAFT' ? (
+                          {ret.status === 'DRAFT' && canManageReturnOperations ? (
                             <button
                               onClick={() => openQcSplit(ret)}
                               className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill border border-ink bg-canvas-light text-ink hover:bg-canvas-cream text-xs font-semibold transition-colors"
@@ -387,7 +408,7 @@ const ReturnsWorkspace = () => {
 
                   {ret.status === 'DRAFT' || (ret.status === 'APPROVED' && !ret.credit_note_generated) ? (
                     <div className="mt-4 flex flex-col gap-2">
-                      {ret.status === 'DRAFT' && (
+                      {ret.status === 'DRAFT' && canManageReturnOperations && (
                         <button
                           onClick={() => openQcSplit(ret)}
                           className="btn-pill btn-pill-outline-light min-h-[44px] text-xs"

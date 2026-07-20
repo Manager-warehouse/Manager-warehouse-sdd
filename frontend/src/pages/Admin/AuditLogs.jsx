@@ -18,6 +18,8 @@ const AuditLogs = () => {
   // Pagination States
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
   // Filters State
   const [search, setSearch] = useState('');
@@ -33,8 +35,15 @@ const AuditLogs = () => {
   const loadLogs = async () => {
     setLoading(true);
     try {
-      const response = await adminService.getAuditLogs();
-      setLogs(response.data || response || []);
+      const response = await adminService.getAuditLogs({
+        page: currentPage,
+        pageSize,
+      });
+      const pageData = response.data || response || [];
+      const rows = Array.isArray(pageData) ? pageData : pageData.data || [];
+      setLogs(rows);
+      setTotalItems(pageData.totalItems ?? rows.length);
+      setTotalPages(pageData.totalPages ?? (pageData.hasNext ? currentPage + 1 : currentPage));
     } catch (err) {
       addToast('Không thể tải nhật ký hoạt động', 'error');
     } finally {
@@ -44,12 +53,13 @@ const AuditLogs = () => {
 
   useEffect(() => {
     loadLogs();
-  }, []);
+  }, [currentPage, pageSize]);
 
   const handleResetFilters = () => {
     setSearch('');
     setSelectedAction('ALL');
     setSelectedEntity('ALL');
+    setCurrentPage(1);
   };
 
   // Filter logs locally
@@ -69,21 +79,12 @@ const AuditLogs = () => {
     return matchesSearch && matchesAction && matchesEntity;
   });
 
-  // Reset page to 1 when filters change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [search, selectedAction, selectedEntity]);
-
-  // Paginated Logs
-  const totalItems = filteredLogs.length;
-  const totalPages = Math.ceil(totalItems / pageSize) || 1;
-  const paginatedLogs = filteredLogs.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-
   // Extract unique actions and entities for filter options
   const uniqueActions = ['ALL', ...new Set(logs.map((log) => log.action))];
   const uniqueEntities = ['ALL', ...new Set(logs.map((log) => log.entityType))];
 
   const getBadgeType = (action) => {
+    if (!action) return 'info';
     if (action.includes('CREATED')) return 'success';
     if (action.includes('DEACTIVATED') || action.includes('DELETED')) return 'danger';
     if (action.includes('UPDATED')) return 'warning';
@@ -214,7 +215,7 @@ const AuditLogs = () => {
       <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 overflow-hidden flex flex-col">
         <Table
           headers={['Thời gian', 'Người thực hiện', 'Thao tác', 'Đối tượng', 'Nội dung', 'Hành động']}
-          data={paginatedLogs}
+          data={filteredLogs}
           loading={loading}
           emptyMessage="Không tìm thấy nhật ký hoạt động phù hợp"
           renderRow={(log) => (
@@ -278,8 +279,11 @@ const AuditLogs = () => {
           totalItems={totalItems}
           pageSize={pageSize}
           onPageChange={setCurrentPage}
-          onPageSizeChange={setPageSize}
-          pageSizeOptions={[25, 50, 100]}
+          onPageSizeChange={(size) => {
+            setPageSize(size);
+            setCurrentPage(1);
+          }}
+          pageSizeOptions={[10, 25, 30]}
         />
       </div>
 

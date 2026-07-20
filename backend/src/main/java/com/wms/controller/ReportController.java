@@ -30,7 +30,7 @@ public class ReportController {
     private final CurrentUserService currentUserService;
 
     @GetMapping("/dashboard/ceo")
-    @PreAuthorize("hasAnyRole('CEO', 'ACCOUNTANT_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('CEO', 'ADMIN')")
     @Operation(summary = "Xem 5 chỉ số KPI chiến lược trên CEO Dashboard")
     public CeoDashboardResponse getCeoDashboard() {
         Long currentUserId = currentUserService.getRequiredCurrentUser().getId();
@@ -47,7 +47,7 @@ public class ReportController {
     }
 
     @GetMapping("/reports/productivity")
-    @PreAuthorize("hasAnyRole('WAREHOUSE_MANAGER', 'ACCOUNTANT_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('WAREHOUSE_MANAGER', 'ADMIN')")
     @Operation(summary = "Xem báo cáo năng suất nhân viên kho (JSON)")
     public ProductivityReportResponse getProductivityReport(
             @RequestParam Long warehouseId,
@@ -58,7 +58,7 @@ public class ReportController {
     }
 
     @GetMapping("/reports/productivity/export")
-    @PreAuthorize("hasAnyRole('WAREHOUSE_MANAGER', 'ACCOUNTANT_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('WAREHOUSE_MANAGER', 'ADMIN')")
     @Operation(summary = "Xuất file Excel báo cáo năng suất nhân viên kho")
     public ResponseEntity<byte[]> exportProductivityReport(
             @RequestParam Long warehouseId,

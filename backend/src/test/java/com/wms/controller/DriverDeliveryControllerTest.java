@@ -76,7 +76,7 @@ class DriverDeliveryControllerTest {
         when(currentUserService.getRequiredCurrentUser()).thenReturn(driver);
         when(driverDeliveryService.getAssignedTrip(900L, driver)).thenReturn(tripView());
 
-        mockMvc.perform(get("/api/v1/trips/900"))
+        mockMvc.perform(get("/api/v1/trips/driver/900"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.tripId").value(900))
                 .andExpect(jsonPath("$.vehiclePlate").value("36C-88888"))

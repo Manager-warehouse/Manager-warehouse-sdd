@@ -24,7 +24,7 @@ const Header = () => {
       return WAREHOUSES;
     }
     if (user.role === 'WAREHOUSE_MANAGER') {
-      const isAllowedPage = location.pathname === '/dashboard' || location.pathname === '/inventory-availability';
+      const isAllowedPage = location.pathname === '/dashboard';
       if (isAllowedPage) {
         return WAREHOUSES;
       }

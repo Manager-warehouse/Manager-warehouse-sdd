@@ -34,6 +34,7 @@ import com.wms.exception.DuplicateResourceException;
 import com.wms.exception.ReceiptCountException;
 import com.wms.exception.UnprocessableEntityException;
 import com.wms.mapper.ReceiptMapper;
+import com.wms.repository.CreditNoteRepository;
 import com.wms.repository.DocumentSequenceRepository;
 import com.wms.repository.ProductRepository;
 import com.wms.repository.ReceiptItemRepository;
@@ -72,6 +73,8 @@ class ReceiptServiceTest {
     private AuditLogService auditLogService;
     @Mock
     private AccountingPeriodService accountingPeriodService;
+    @Mock
+    private CreditNoteRepository creditNoteRepository;
 
     private ReceiptService receiptService;
     private User planner;
@@ -84,7 +87,8 @@ class ReceiptServiceTest {
     void setUp() {
         receiptService = new ReceiptService(sequenceRepository, receiptRepository, receiptItemRepository,
                 supplierRepository, warehouseRepository, productRepository,
-                assignmentRepository, auditLogService, new ReceiptMapper(), accountingPeriodService);
+                assignmentRepository, auditLogService, new ReceiptMapper(), accountingPeriodService,
+                creditNoteRepository);
         planner = user(1L, UserRole.PLANNER);
         warehouseStaff = user(2L, UserRole.WAREHOUSE_STAFF);
         supplier = supplier(10L, true);
@@ -297,6 +301,31 @@ class ReceiptServiceTest {
 
         assertEquals("RECEIPT_ALREADY_FINALIZED", ex.getCode());
         verify(receiptItemRepository, never()).findByReceiptIdOrderByIdAsc(any());
+    }
+
+    @Test
+    void getReceiptById_allowsAccountantWithoutWarehouseAssignment() {
+        Receipt receipt = receipt(100L, ReceiptStatus.PENDING_RECEIPT);
+        when(receiptRepository.findByIdWithSupplierAndWarehouse(100L)).thenReturn(Optional.of(receipt));
+        when(receiptItemRepository.findByReceiptIdOrderByIdAsc(100L)).thenReturn(List.of());
+        User accountant = user(3L, UserRole.ACCOUNTANT);
+
+        ReceiptResponse response = receiptService.getReceiptById(100L, accountant);
+
+        assertEquals(100L, response.getId());
+        verify(assignmentRepository, never()).findWarehouseIdsByUserId(any());
+    }
+
+    @Test
+    void getReceiptsByWarehouseAndType_allowsAccountantManagerWithoutWarehouseAssignment() {
+        when(receiptRepository.findByWarehouseIdOrderByDocumentDateDescCreatedAtDesc(20L))
+                .thenReturn(List.of());
+        User accountantManager = user(4L, UserRole.ACCOUNTANT_MANAGER);
+
+        List<ReceiptResponse> response = receiptService.getReceiptsByWarehouseAndType(20L, null, accountantManager);
+
+        assertEquals(0, response.size());
+        verify(assignmentRepository, never()).findWarehouseIdsByUserId(any());
     }
 
     @Test

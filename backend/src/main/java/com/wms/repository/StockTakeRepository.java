@@ -10,6 +10,9 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
 import java.util.List;
 import java.util.Optional;
 
@@ -19,6 +22,10 @@ public interface StockTakeRepository extends JpaRepository<StockTake, Long> {
     List<StockTake> findByWarehouseIdOrderByCreatedAtDesc(Long warehouseId);
 
     List<StockTake> findByWarehouseIdAndStatusOrderByCreatedAtDesc(Long warehouseId, StockTakeStatus status);
+
+    Page<StockTake> findByWarehouseIdOrderByCreatedAtDesc(Long warehouseId, Pageable pageable);
+
+    Page<StockTake> findByWarehouseIdAndStatusOrderByCreatedAtDesc(Long warehouseId, StockTakeStatus status, Pageable pageable);
 
     @Query("SELECT st FROM StockTake st " +
            "LEFT JOIN FETCH st.warehouse " +

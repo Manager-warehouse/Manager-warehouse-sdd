@@ -371,7 +371,7 @@ const DealerDebtInvoice = () => {
                           <div>Phát hành: {inv.issue_date}</div>
                           <div>Hạn trả: {inv.due_date}</div>
                           <div className="col-span-2 text-right text-sm font-semibold text-ink">
-                            {inv.total_amount.toLocaleString()}đ
+                            {(inv.total_amount || 0).toLocaleString()}đ
                           </div>
                         </div>
                       </div>
@@ -407,7 +407,7 @@ const DealerDebtInvoice = () => {
                             <td className="p-4 text-shade-60">{inv.issue_date}</td>
                             <td className="p-4 text-shade-60">{inv.due_date}</td>
                             <td className="p-4 text-right font-semibold text-ink">
-                              {inv.total_amount.toLocaleString()}đ
+                              {(inv.total_amount || 0).toLocaleString()}đ
                             </td>
                             <td className="p-4 text-center">
                               <span

@@ -19,6 +19,10 @@ public class ReceiptMapper {
         response.setType(receipt.getType().name());
         response.setStatus(receipt.getStatus().name());
         response.setSupplierId(receipt.getSupplier() != null ? receipt.getSupplier().getId() : null);
+        response.setDealerId(receipt.getDealer() != null ? receipt.getDealer().getId() : null);
+        response.setDealerName(receipt.getDealer() != null ? receipt.getDealer().getName() : null);
+        response.setDeliveryOrderId(receipt.getDeliveryOrder() != null ? receipt.getDeliveryOrder().getId() : null);
+        response.setSourceOrderCode(receipt.getSourceOrderCode());
         response.setWarehouseId(receipt.getWarehouse().getId());
         response.setSourceReference(receipt.getSourceOrderCode());
         response.setSourceChannel(receipt.getSourceChannel());
@@ -26,6 +30,7 @@ public class ReceiptMapper {
         response.setCreatedAt(receipt.getCreatedAt());
         response.setApprovedAt(receipt.getApprovedAt());
         response.setVersion(receipt.getVersion());
+        response.setCreditNoteGenerated(false);
         response.setItems(items.stream().map(this::toItemResponse).toList());
         return response;
     }
@@ -69,4 +74,3 @@ public class ReceiptMapper {
         return response;
     }
 }
-

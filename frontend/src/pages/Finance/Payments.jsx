@@ -347,7 +347,7 @@ const Payments = () => {
                       </option>
                       {invoices.map(i => (
                         <option key={i.id} value={i.id}>
-                          {i.invoice_number} (Còn nợ: {i.total_amount.toLocaleString()}đ)
+                          {i.invoice_number} (Còn nợ: {(i.total_amount || 0).toLocaleString()}đ)
                         </option>
                       ))}
                     </select>
@@ -461,7 +461,7 @@ const Payments = () => {
                               {payment.payment_method === 'BANK_TRANSFER' ? 'Chuyển khoản' : 'Tiền mặt'}
                             </td>
                             <td className="p-4 text-right font-bold text-ink">
-                              {payment.amount.toLocaleString()}đ
+                              {(payment.amount || 0).toLocaleString()}đ
                             </td>
                           </tr>
                         ))

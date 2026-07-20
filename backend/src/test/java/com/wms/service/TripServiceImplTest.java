@@ -120,6 +120,21 @@ class TripServiceImplTest {
     }
 
     @Test
+    void getTrip_returnsVehicleAndDriverDetailsForDispatcherScope() {
+        Trip trip = plannedTrip();
+        when(tripRepository.findWithWarehouseAndResourcesById(900L)).thenReturn(Optional.of(trip));
+        when(assignmentRepository.findWarehouseIdsByUserId(1L)).thenReturn(List.of(20L));
+        when(tripDeliveryOrderRepository.findByTripIdOrderByStopOrderAsc(900L))
+                .thenReturn(List.of(member(trip, order, 1)));
+
+        var response = service.getTrip(900L, dispatcher);
+
+        assertThat(response.getVehiclePlate()).isEqualTo("36C-88888");
+        assertThat(response.getDriverName()).isEqualTo("Driver Test 2");
+        assertThat(response.getDeliveryOrders()).hasSize(1);
+    }
+
+    @Test
     void listTrips_rejectsUnassignedWarehouseScope() {
         when(assignmentRepository.findWarehouseIdsByUserId(1L)).thenReturn(List.of(20L));
 
@@ -559,9 +574,12 @@ class TripServiceImplTest {
         Vehicle vehicle = new Vehicle();
         vehicle.setId(id);
         vehicle.setWarehouse(warehouse);
+        vehicle.setPlateNumber("36C-88888");
+        vehicle.setVehicleType("Xe tai");
         vehicle.setStatus(status);
         vehicle.setIsActive(true);
         vehicle.setMaxWeightKg(new BigDecimal("100.00"));
+        vehicle.setMaxVolumeM3(new BigDecimal("18.000"));
         return vehicle;
     }
 
@@ -572,6 +590,9 @@ class TripServiceImplTest {
         driver.setStatus(status);
         driver.setIsActive(true);
         driver.setUser(user);
+        driver.setFullName("Driver Test 2");
+        driver.setPhone("0900000000");
+        driver.setLicenseNumber("GPLX-001");
         return driver;
     }
 
@@ -691,4 +712,3 @@ class TripServiceImplTest {
         assertThat(transactional.readOnly()).isFalse();
     }
 }
-

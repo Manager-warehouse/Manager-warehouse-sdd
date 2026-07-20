@@ -7,6 +7,7 @@ import { stocktakeService } from '../../services/stocktake.service';
 import { ROLES } from '../../utils/constants';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
+import Pagination from '../../components/common/Pagination';
 
 const STATUS_LABELS = {
   DRAFT: 'Nháp',
@@ -40,7 +41,11 @@ const StocktakeList = () => {
   const [stocktakes, setStocktakes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
-  const [confirmModal, setConfirmModal] = useState(null); // { action, id, label }
+  const [confirmModal, setConfirmModal] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
 
   const canCreate = hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.STOREKEEPER) || hasRole(ROLES.ADMIN);
   const canApprove = hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.CEO) || hasRole(ROLES.ADMIN);
@@ -49,16 +54,36 @@ const StocktakeList = () => {
     if (!activeWarehouse?.id) return;
     setLoading(true);
     try {
-      const data = await stocktakeService.getStockTakes(activeWarehouse.id, statusFilter || undefined);
-      setStocktakes(data);
+      const data = await stocktakeService.getStockTakes(
+        activeWarehouse.id,
+        statusFilter || undefined,
+        currentPage - 1,
+        pageSize
+      );
+      setStocktakes(data.content || []);
+      setTotalPages(data.totalPages || 1);
+      setTotalItems(data.totalElements || 0);
     } catch (err) {
       showToast?.('error', err.message || 'Không thể tải danh sách kiểm kê');
     } finally {
       setLoading(false);
     }
-  }, [activeWarehouse?.id, statusFilter]);
+  }, [activeWarehouse?.id, statusFilter, currentPage, pageSize]);
 
   useEffect(() => { load(); }, [load]);
+
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+  };
+
+  const handlePageSizeChange = (size) => {
+    setPageSize(size);
+    setCurrentPage(1);
+  };
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusFilter]);
 
   const handleStart = async (id) => {
     try {
@@ -164,7 +189,7 @@ const StocktakeList = () => {
                 <tbody className="divide-y divide-hairline-light">
                   {stocktakes.map((st) => (
                     <tr key={st.id} className="hover:bg-canvas-cream/50 transition-colors">
-                      <td className="px-6 py-4 font-mono text-xs text-[#127a3c] font-semibold">
+                      <td className="px-6 py-4 font-mono text-xs text-success-700 font-semibold">
                         {st.stock_take_number}
                       </td>
                       <td className="px-6 py-4 text-xs text-shade-50">{st.stock_take_date}</td>
@@ -188,7 +213,7 @@ const StocktakeList = () => {
                         <div className="flex items-center justify-end gap-1.5">
                           <button
                             onClick={() => navigate(`/stocktake/${st.id}`)}
-                            className="p-1 rounded-full text-shade-50 hover:text-[#127a3c] hover:bg-aloe-10 transition-colors"
+                            className="p-1 rounded-full text-shade-50 hover:text-success-700 hover:bg-aloe-10 transition-colors"
                             title="Xem chi tiết"
                           >
                             <Eye className="w-3.5 h-3.5" />
@@ -233,7 +258,7 @@ const StocktakeList = () => {
               {stocktakes.map((st) => (
                 <div key={st.id} className="rounded-lg border border-hairline-light bg-canvas-cream/30 overflow-hidden">
                   <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center gap-2">
-                    <span className="font-mono text-xs text-[#127a3c] font-semibold">{st.stock_take_number}</span>
+                    <span className="font-mono text-xs text-success-700 font-semibold">{st.stock_take_number}</span>
                     <Badge size="sm" colorClassName={STATUS_STYLES[st.status] || 'bg-canvas-cream text-shade-50 border-hairline-light'}>
                       {STATUS_LABELS[st.status] || st.status}
                     </Badge>
@@ -249,7 +274,7 @@ const StocktakeList = () => {
                   <div className="p-4 border-t border-hairline-light flex items-center justify-end gap-1.5">
                     <button
                       onClick={() => navigate(`/stocktake/${st.id}`)}
-                      className="p-1.5 rounded-full text-shade-50 hover:text-[#127a3c] hover:bg-aloe-10 transition-colors"
+                      className="p-1.5 rounded-full text-shade-50 hover:text-success-700 hover:bg-aloe-10 transition-colors"
                       title="Xem chi tiết"
                     >
                       <Eye className="w-3.5 h-3.5" />
@@ -285,6 +310,16 @@ const StocktakeList = () => {
                 </div>
               ))}
             </div>
+
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={totalItems}
+              pageSize={pageSize}
+              onPageChange={handlePageChange}
+              onPageSizeChange={handlePageSizeChange}
+              pageSizeOptions={[10, 25, 50]}
+            />
           </>
         )}
       </div>

@@ -69,6 +69,13 @@ public class TripController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('DISPATCHER','WAREHOUSE_MANAGER','ADMIN','CEO')")
+    @Operation(summary = "Get outbound trip detail for dispatch planning")
+    public TripResponse getTrip(@PathVariable Long id) {
+        return tripService.getTrip(id, currentUser());
+    }
+
+    @GetMapping("/driver/{id}")
     @PreAuthorize("hasRole('DRIVER')")
     @Operation(summary = "Get assigned trip detail for driver mobile")
     public TripDriverViewResponse getDriverTrip(@PathVariable Long id) {

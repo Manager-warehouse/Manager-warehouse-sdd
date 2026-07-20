@@ -7,7 +7,6 @@ import com.wms.dto.request.DealerPaymentTermUpdateRequest;
 import com.wms.dto.request.DealerUpdateRequest;
 import com.wms.dto.response.DealerResponse;
 import com.wms.entity.User;
-import java.math.BigDecimal;
 import java.util.List;
 
 public interface DealerService {
@@ -20,5 +19,4 @@ public interface DealerService {
     DealerResponse updateCreditLimit(Long id, DealerCreditLimitUpdateRequest request, User actor);
     DealerResponse updatePaymentTerm(Long id, DealerPaymentTermUpdateRequest request, User actor);
     DealerResponse updateCreditStatus(Long id, DealerCreditStatusUpdateRequest request, User actor);
-    void validateDealerTransactionAllowed(Long dealerId, BigDecimal transactionAmount, User actor);
 }

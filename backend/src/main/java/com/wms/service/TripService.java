@@ -13,6 +13,8 @@ import java.util.List;
 public interface TripService {
     List<TripResponse> listTrips(Long warehouseId, TripStatus status, User actor);
 
+    TripResponse getTrip(Long id, User actor);
+
     TripResponse createTrip(TripCreateRequest request, User actor);
 
     TripResponse updateTrip(Long id, TripUpdateRequest request, User actor);

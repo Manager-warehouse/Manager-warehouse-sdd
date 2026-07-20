@@ -139,19 +139,29 @@ const Dashboard = () => {
     });
   }, []);
 
+  // Accountants have no warehouse assignment and no need for warehouse-stock KPIs;
+  // the backend rejects these calls for their role, which otherwise surfaces as a
+  // misleading "cannot load from database" toast instead of sending them to a page
+  // they can actually use.
+  const isAccountingRole = user?.role === ROLES.ACCOUNTANT || user?.role === ROLES.ACCOUNTANT_MANAGER;
+
   useEffect(() => {
-    if (user?.role === ROLES.DRIVER) return;
+    if (user?.role === ROLES.DRIVER || isAccountingRole) return;
     setMobileStockLimit(3);
     loadCrossWarehouseStock();
   }, [debouncedSearchQuery, user?.role]);
 
   useEffect(() => {
-    if (user?.role === ROLES.DRIVER) return;
+    if (user?.role === ROLES.DRIVER || isAccountingRole) return;
     loadStockOverview();
   }, [activeWarehouse?.id, user?.role]);
 
   if (user?.role === ROLES.DRIVER) {
     return <Navigate to="/outbound/driver/trips" replace />;
+  }
+
+  if (isAccountingRole) {
+    return <Navigate to="/finance/invoices" replace />;
   }
 
   const handleOpenTransferModal = (product) => {
@@ -237,7 +247,7 @@ const Dashboard = () => {
 
       {/* KPI Cards section */}
       <div className="grid w-full min-w-0 grid-cols-1 gap-3 md:grid-cols-3 md:gap-6">
-        {mockKpis.map((kpi, idx) => {
+        {overviewKpis.map((kpi, idx) => {
           const isHighlight = kpi.type === 'highlight';
           const isPremium = kpi.type === 'premium';
           const isDanger = kpi.type === 'danger';
@@ -348,8 +358,8 @@ const Dashboard = () => {
                     <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Tên Sản Phẩm</th>
                     <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Đơn vị</th>
                     {physicalWarehouses.map((wh) => (
-                      <th key={wh.id} className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center">
-                        {wh.name}
+                      <th key={wh.id} className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center max-w-[120px]" title={wh.name}>
+                        <span className="block truncate">{wh.name}</span>
                       </th>
                     ))}
                     <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Hành động</th>
@@ -382,13 +392,13 @@ const Dashboard = () => {
                           return (
                             <td
                               key={wh.id}
-                              className={`px-6 py-4 text-center font-semibold ${
+                              className={`px-4 py-4 text-center font-semibold whitespace-nowrap ${
                                 isActiveWh
                                   ? 'bg-canvas-cream/40 border-x border-hairline-light text-ink'
-                                  : qty > 0 ? 'text-[#127a3c]' : 'text-shade-40'
+                                  : qty > 0 ? 'text-success-700' : 'text-shade-40'
                               }`}
                             >
-                              {qty} {prod.unit.toLowerCase()}
+                              {qty} {prod.unit?.toLowerCase()}
                             </td>
                           );
                         })}
@@ -441,11 +451,11 @@ const Dashboard = () => {
                               className={`flex items-center justify-between gap-2 rounded px-2.5 py-2 font-semibold ${
                                 isActiveWh
                                   ? 'bg-canvas-cream border border-hairline-light text-ink'
-                                  : qty > 0 ? 'text-[#127a3c] bg-canvas-light' : 'text-shade-40 bg-canvas-light'
+                                  : qty > 0 ? 'text-success-700 bg-canvas-light' : 'text-shade-40 bg-canvas-light'
                               }`}
                             >
-                              <div className="min-w-0 truncate text-[9px] uppercase tracking-wide font-bold">{wh.name}</div>
-                              <div className="shrink-0">{qty} {prod.unit.toLowerCase()}</div>
+                              <div className="min-w-0 truncate text-[9px] uppercase tracking-wide font-bold" title={wh.name}>{wh.name}</div>
+                              <div className="shrink-0">{qty} {prod.unit?.toLowerCase()}</div>
                             </div>
                           );
                         })}
@@ -516,7 +526,7 @@ const Dashboard = () => {
                       const qty = selectedProduct.stockMap?.[w.id] || 0;
                       return {
                         value: w.id,
-                        label: `${w.name} (Sẵn có: ${qty} ${selectedProduct.unit.toLowerCase()})`,
+                        label: `${w.name} (Sẵn có: ${qty} ${selectedProduct.unit?.toLowerCase()})`,
                         disabled: qty <= 0,
                       };
                     }),

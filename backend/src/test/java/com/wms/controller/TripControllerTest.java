@@ -97,6 +97,32 @@ class TripControllerTest {
 
     @Test
     @WithMockUser(username = "dispatcher@wms.com", roles = "DISPATCHER")
+    void getTrip_dispatcherReturnsVehicleAndDriverDetails() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(dispatcher);
+        when(tripService.getTrip(900L, dispatcher)).thenReturn(response(TripStatus.PLANNED));
+
+        mockMvc.perform(get("/api/v1/trips/900"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.vehiclePlate").value("36C-88888"))
+                .andExpect(jsonPath("$.driverName").value("Driver Test 2"))
+                .andExpect(jsonPath("$.deliveryOrders[0].doNumber").value("DO-101"));
+    }
+
+    @Test
+    @WithMockUser(username = "driver@wms.com", roles = "DRIVER")
+    void getDriverTrip_usesDriverScopedDetailRoute() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(driver);
+        when(driverDeliveryService.getAssignedTrip(900L, driver))
+                .thenReturn(driverTripResponse(TripStatus.PLANNED));
+
+        mockMvc.perform(get("/api/v1/trips/driver/900"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tripId").value(900))
+                .andExpect(jsonPath("$.vehiclePlate").value("36C-88888"));
+    }
+
+    @Test
+    @WithMockUser(username = "dispatcher@wms.com", roles = "DISPATCHER")
     void createTrip_success() throws Exception {
         when(currentUserService.getRequiredCurrentUser()).thenReturn(dispatcher);
         when(tripService.createTrip(any(), eq(dispatcher))).thenReturn(response(TripStatus.PLANNED));
@@ -289,7 +315,14 @@ class TripControllerTest {
                 .tripNumber("TRIP-20260620-0001")
                 .warehouseId(20L)
                 .vehicleId(301L)
+                .vehiclePlate("36C-88888")
+                .vehicleType("Xe tai")
+                .vehicleMaxWeightKg(BigDecimal.valueOf(3500))
+                .vehicleMaxVolumeM3(BigDecimal.valueOf(18))
                 .driverId(401L)
+                .driverName("Driver Test 2")
+                .driverPhone("0900000000")
+                .driverLicenseNumber("GPLX-001")
                 .dispatcherId(1L)
                 .plannedDate(LocalDate.of(2026, 6, 22))
                 .tripType(TripType.DELIVERY)

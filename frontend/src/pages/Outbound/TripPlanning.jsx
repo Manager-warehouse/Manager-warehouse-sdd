@@ -283,9 +283,13 @@ export default function TripPlanning() {
             <div className="grid grid-cols-2 gap-3">
               {[
                 { label: 'Biển số xe', value: detailTrip.vehicle_plate || '-', icon: <Truck className="w-3.5 h-3.5" /> },
+                { label: 'Loại xe', value: detailTrip.vehicle_type || '-', icon: <Truck className="w-3.5 h-3.5" /> },
                 { label: 'Tài xế', value: detailTrip.driver_name || detailTrip.driver_id, icon: <User className="w-3.5 h-3.5" /> },
+                { label: 'SĐT tài xế', value: detailTrip.driver_phone || '-', icon: <User className="w-3.5 h-3.5" /> },
+                { label: 'GPLX', value: detailTrip.driver_license_number || '-', icon: <User className="w-3.5 h-3.5" /> },
                 { label: 'TG Dự kiến', value: detailTrip.planned_start_at ? `${new Date(detailTrip.planned_start_at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })} - ${new Date(detailTrip.planned_end_at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}` : '-', icon: <Calendar className="w-3.5 h-3.5" /> },
                 { label: 'Tổng khối lượng', value: `${detailTrip.total_weight_kg} kg`, icon: <Package className="w-3.5 h-3.5" /> },
+                { label: 'Tải trọng xe', value: detailTrip.vehicle_max_weight_kg ? `${detailTrip.vehicle_max_weight_kg} kg` : '-', icon: <Package className="w-3.5 h-3.5" /> },
               ].map(({ label, value, icon }) => (
                 <div key={label} className="bg-canvas-cream rounded-lg border border-hairline-light p-3.5">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-shade-40 mb-1 flex items-center gap-1">{icon}{label}</p>
