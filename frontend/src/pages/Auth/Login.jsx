@@ -32,11 +32,7 @@ const Login = () => {
       const data = await authService.login(email, password);
       loginStore(data.user, data.accessToken, data.refreshToken);
       addToast('Đăng nhập thành công', 'success');
-      // Accountants have no warehouse assignment and the general dashboard's
-      // widgets are warehouse-stock KPIs they can't access; send them straight
-      // to a page their role actually uses instead of bouncing through /dashboard.
-      const isAccountingRole = data.user?.role === ROLES.ACCOUNTANT || data.user?.role === ROLES.ACCOUNTANT_MANAGER;
-      navigate(isAccountingRole ? '/finance/invoices' : '/dashboard');
+      navigate('/admin/users');
     } catch (err) {
       const message = err.message || '';
       if (message.includes('INVALID_CREDENTIALS')) {
