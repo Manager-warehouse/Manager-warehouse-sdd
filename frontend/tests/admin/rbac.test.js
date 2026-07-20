@@ -1,5 +1,5 @@
 import { useAuthStore } from '../../src/stores/auth.store';
-import { ROLES } from '../../src/utils/constants';
+import { ROLES, getDefaultRouteByRole } from '../../src/utils/constants';
 
 // Mock Zustand to work without a full DOM environment if needed
 describe('RBAC Warehouse and Role Access Tests', () => {
@@ -102,6 +102,20 @@ describe('RBAC Warehouse and Role Access Tests', () => {
     useAuthStore.getState().login(user, 'mock-jwt-token');
     expect(useAuthStore.getState().hasRole(ROLES.ADMIN)).toBe(true);
     expect(useAuthStore.getState().hasRole(ROLES.CEO)).toBe(false);
+  });
+
+  test('getDefaultRouteByRole should return the correct default route for each role', () => {
+    expect(getDefaultRouteByRole(ROLES.ADMIN)).toBe('/admin/users');
+    expect(getDefaultRouteByRole(ROLES.CEO)).toBe('/reports/ceo-dashboard');
+    expect(getDefaultRouteByRole(ROLES.ACCOUNTANT_MANAGER)).toBe('/finance/price-approval');
+    expect(getDefaultRouteByRole(ROLES.ACCOUNTANT)).toBe('/finance/invoices');
+    expect(getDefaultRouteByRole(ROLES.WAREHOUSE_MANAGER)).toBe('/inbound/receipts');
+    expect(getDefaultRouteByRole(ROLES.STOREKEEPER)).toBe('/inbound/receipts');
+    expect(getDefaultRouteByRole(ROLES.WAREHOUSE_STAFF)).toBe('/inbound/receipts');
+    expect(getDefaultRouteByRole(ROLES.PLANNER)).toBe('/inbound/receipts');
+    expect(getDefaultRouteByRole(ROLES.DISPATCHER)).toBe('/outbound/trips');
+    expect(getDefaultRouteByRole(ROLES.DRIVER)).toBe('/outbound/driver/trips');
+    expect(getDefaultRouteByRole('UNKNOWN')).toBe('/profile');
   });
 });
 

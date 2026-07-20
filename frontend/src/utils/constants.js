@@ -191,3 +191,27 @@ export const MOCK_USERS = [
   },
 ];
 
+export const getDefaultRouteByRole = (role) => {
+  switch (role) {
+    case ROLES.ADMIN:
+      return '/admin/users';
+    case ROLES.CEO:
+      return '/reports/ceo-dashboard';
+    case ROLES.ACCOUNTANT_MANAGER:
+      return '/finance/price-approval';
+    case ROLES.ACCOUNTANT:
+      return '/finance/invoices';
+    case ROLES.WAREHOUSE_MANAGER:
+    case ROLES.STOREKEEPER:
+    case ROLES.WAREHOUSE_STAFF:
+    case ROLES.PLANNER:
+      return '/inbound/receipts';
+    case ROLES.DISPATCHER:
+      return '/outbound/trips';
+    case ROLES.DRIVER:
+      return '/outbound/driver/trips';
+    default:
+      return '/profile';
+  }
+};
+
