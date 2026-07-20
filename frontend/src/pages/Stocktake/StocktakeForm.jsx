@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
 import { stocktakeService } from '../../services/stocktake.service';
+import { financeService } from '../../services/finance.service';
 import Button from '../../components/common/Button';
 
 const StocktakeForm = () => {
@@ -16,11 +17,38 @@ const StocktakeForm = () => {
   const [form, setForm] = useState({
     stock_take_date: today,
     document_date: today,
-    accounting_period_id: 1, // default period; real impl would fetch open periods
+    accounting_period_id: '',
     notes: '',
   });
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
+  const [periods, setPeriods] = useState([]);
+  const [loadingPeriods, setLoadingPeriods] = useState(true);
+
+  useEffect(() => {
+    const fetchPeriods = async () => {
+      try {
+        const data = await financeService.getAccountingPeriods();
+        const openPeriods = data.filter((p) => p.status === 'OPEN');
+        setPeriods(openPeriods);
+        if (openPeriods.length > 0) {
+          const current = openPeriods.find((p) => {
+            const month = today.slice(0, 7);
+            return p.period_name === month;
+          });
+          setForm((prev) => ({
+            ...prev,
+            accounting_period_id: current ? current.id : openPeriods[0].id,
+          }));
+        }
+      } catch (err) {
+        showToast?.('error', 'Không thể tải danh sách kỳ kế toán');
+      } finally {
+        setLoadingPeriods(false);
+      }
+    };
+    fetchPeriods();
+  }, []);
 
   const set = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -101,11 +129,22 @@ const StocktakeForm = () => {
             <select
               value={form.accounting_period_id}
               onChange={(e) => set('accounting_period_id', e.target.value)}
+              disabled={loadingPeriods}
               className={`w-full px-3 py-2.5 rounded-md border text-sm outline-none transition-colors ${
                 errors.accounting_period_id ? 'border-danger-400 bg-danger-50' : 'border-hairline-light focus:border-ink'
               }`}
             >
-              <option value={1}>T06/2026 (đang mở)</option>
+              {loadingPeriods ? (
+                <option value="">Đang tải...</option>
+              ) : periods.length === 0 ? (
+                <option value="">Không có kỳ kế toán đang mở</option>
+              ) : (
+                periods.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.period_name} (đang mở)
+                  </option>
+                ))
+              )}
             </select>
             {errors.accounting_period_id && (
               <p className="text-xs text-danger-500">{errors.accounting_period_id}</p>
