@@ -33,10 +33,14 @@ const PartnerManagement = () => {
   const [dlEmail, setDlEmail] = useState('');
   const [dlAddress, setDlAddress] = useState('');
   const [dlRegion, setDlRegion] = useState('');
+  const [dlBankAccountNumber, setDlBankAccountNumber] = useState('');
+  const [dlBankName, setDlBankName] = useState('');
   const [dlPaymentTerms, setDlPaymentTerms] = useState('30');
   const [dlCreditLimit, setDlCreditLimit] = useState('0');
   const [dlOriginalCreditLimit, setDlOriginalCreditLimit] = useState('0');
   const [dlOriginalPaymentTerms, setDlOriginalPaymentTerms] = useState('30');
+  const [dlCreditStatus, setDlCreditStatus] = useState('ACTIVE');
+  const [dlOriginalCreditStatus, setDlOriginalCreditStatus] = useState('ACTIVE');
 
   // Supplier Modal States
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
@@ -84,6 +88,8 @@ const PartnerManagement = () => {
     setDlEmail('');
     setDlAddress('');
     setDlRegion('');
+    setDlBankAccountNumber('');
+    setDlBankName('');
     setDlPaymentTerms('30');
     setDlCreditLimit('50000000');
     setDlOriginalPaymentTerms('30');
@@ -101,25 +107,14 @@ const PartnerManagement = () => {
     setDlEmail(dealer.email || '');
     setDlAddress(dealer.default_delivery_address || '');
     setDlRegion(dealer.region || '');
+    setDlBankAccountNumber(dealer.bank_account_number || '');
+    setDlBankName(dealer.bank_name || '');
     setDlPaymentTerms(String(dealer.payment_term_days || 30));
     setDlCreditLimit(String(dealer.credit_limit || 0));
     setDlOriginalPaymentTerms(String(dealer.payment_term_days || 30));
     setDlOriginalCreditLimit(String(dealer.credit_limit || 0));
-    setDlFormErrors({});
-    setIsDealerModalOpen(true);
-  };
-
-  const handleOpenCreditLimit = (dealer) => {
-    if (!hasRole(ROLES.ACCOUNTANT_MANAGER)) {
-      addToast('Chỉ Kế toán trưởng được phép phê duyệt hạn mức tín dụng', 'warning');
-      return;
-    }
-    setDealerModalType('CREDIT');
-    setSelectedDealer(dealer);
-    setDlCreditLimit(String(dealer.credit_limit || 0));
-    setDlPaymentTerms(String(dealer.payment_term_days || 30));
-    setDlOriginalPaymentTerms(String(dealer.payment_term_days || 30));
-    setDlOriginalCreditLimit(String(dealer.credit_limit || 0));
+    setDlCreditStatus(dealer.credit_status || 'ACTIVE');
+    setDlOriginalCreditStatus(dealer.credit_status || 'ACTIVE');
     setDlFormErrors({});
     setIsDealerModalOpen(true);
   };
@@ -151,6 +146,8 @@ const PartnerManagement = () => {
     const creditChanged =
       dlCreditLimit !== dlOriginalCreditLimit ||
       dlPaymentTerms !== dlOriginalPaymentTerms;
+    const creditStatusChanged =
+      dealerModalType === 'EDIT' && canEditCredit && dlCreditStatus !== dlOriginalCreditStatus;
 
     setDlSubmitting(true);
     try {
@@ -162,6 +159,8 @@ const PartnerManagement = () => {
           email: dlEmail.trim(),
           default_delivery_address: dlAddress.trim(),
           region: dlRegion.trim(),
+          bank_account_number: dlBankAccountNumber.trim(),
+          bank_name: dlBankName.trim(),
           payment_term_days: Number(dlPaymentTerms),
           credit_limit: parseFloat(dlCreditLimit),
         };
@@ -175,6 +174,8 @@ const PartnerManagement = () => {
           email: dlEmail.trim(),
           default_delivery_address: dlAddress.trim(),
           region: dlRegion.trim(),
+          bank_account_number: dlBankAccountNumber.trim(),
+          bank_name: dlBankName.trim(),
         };
         await masterDataService.updateDealer(selectedDealer.id, dlData);
 
@@ -186,6 +187,22 @@ const PartnerManagement = () => {
           };
           await masterDataService.updateDealerCreditLimit(selectedDealer.id, limitData);
         }
+
+        // Credit status manual override (ACCOUNTANT_MANAGER only, if changed). Kept in its own
+        // try/catch so the backend's specific unlock-rule rejection (balance still above the
+        // buffer, or an invoice still overdue) reaches the manager instead of being swallowed
+        // by the generic save-failure toast below.
+        if (creditStatusChanged) {
+          try {
+            await masterDataService.updateDealerCreditStatus(selectedDealer.id, dlCreditStatus);
+          } catch (statusErr) {
+            addToast(statusErr.message || 'Không thể đổi trạng thái tín dụng', 'error');
+            setIsDealerModalOpen(false);
+            fetchData();
+            return;
+          }
+        }
+
         addToast(`Cập nhật thông tin đại lý ${dlName} thành công`, 'success');
       }
       setIsDealerModalOpen(false);
@@ -303,13 +320,13 @@ const PartnerManagement = () => {
 
   // --- FILTERS ---
   const filteredDealers = dealers.filter((d) =>
-    d.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    d.name.toLowerCase().includes(searchTerm.toLowerCase())
+    (d.code || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (d.name || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const filteredSuppliers = suppliers.filter((s) =>
-    s.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.company_name.toLowerCase().includes(searchTerm.toLowerCase())
+    (s.code || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (s.company_name || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -500,6 +517,7 @@ const PartnerManagement = () => {
                       <div className="font-semibold text-ink">{dl.name}</div>
                       {dl.email && <div className="text-shade-50">{dl.email}</div>}
                       <p className="text-shade-50">Vùng miền: <span className="font-medium text-ink">{dl.region || 'N/A'}</span></p>
+                      <p className="text-shade-50">Số TK ngân hàng: <span className="font-medium text-ink font-mono">{dl.bank_account_number ? `${dl.bank_account_number}${dl.bank_name ? ` (${dl.bank_name})` : ''}` : 'N/A'}</span></p>
                       <p className="text-shade-50">Điện thoại: <span className="font-medium text-ink font-mono">{dl.phone || 'N/A'}</span></p>
                       <p className="text-shade-50">Hạn thanh toán: <span className="font-medium text-ink">{dl.payment_term_days} ngày</span></p>
                       <p className="text-shade-50">Dư nợ hiện tại: <span className="font-bold text-ink">{dl.current_balance?.toLocaleString('vi-VN')} VND</span></p>
@@ -729,6 +747,21 @@ const PartnerManagement = () => {
                 placeholder="Nhập địa chỉ giao hàng..."
               />
             </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input
+                label="Số tài khoản ngân hàng"
+                value={dlBankAccountNumber}
+                onChange={(e) => setDlBankAccountNumber(e.target.value)}
+                placeholder="VD: 0123456789"
+              />
+              <Input
+                label="Ngân hàng"
+                value={dlBankName}
+                onChange={(e) => setDlBankName(e.target.value)}
+                placeholder="VD: Techcombank"
+              />
+            </div>
           </div>
 
           {/* Credit Section — visible to ACCOUNTANT_MANAGER or in ADD mode */}
@@ -770,6 +803,26 @@ const PartnerManagement = () => {
                   required
                 />
               </div>
+
+              {dealerModalType === 'EDIT' && (
+                <div className="mt-4">
+                  <label className="text-xs font-semibold text-shade-70 block mb-1">
+                    Trạng thái tín dụng (can thiệp thủ công)
+                  </label>
+                  <select
+                    value={dlCreditStatus}
+                    onChange={(e) => setDlCreditStatus(e.target.value)}
+                    className="bg-canvas-light text-ink text-xs border border-hairline-light rounded px-3 py-2 outline-none focus:border-shade-60 w-full sm:w-auto"
+                  >
+                    <option value="ACTIVE">ACTIVE (Cho phép giao dịch)</option>
+                    <option value="CREDIT_HOLD">CREDIT_HOLD (Khóa công nợ)</option>
+                  </select>
+                  <p className="text-[10px] text-shade-40 mt-1">
+                    Mở khóa thủ công (chuyển sang ACTIVE) yêu cầu dư nợ dưới 80% hạn mức và không còn hóa đơn quá hạn;
+                    hệ thống sẽ từ chối và báo lý do cụ thể nếu chưa đủ điều kiện. Khóa (CREDIT_HOLD) luôn được chấp nhận.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 

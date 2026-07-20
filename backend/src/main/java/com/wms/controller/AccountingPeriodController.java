@@ -1,10 +1,12 @@
 package com.wms.controller;
 
 import com.wms.dto.request.AccountingPeriodCloseRequest;
+import com.wms.dto.request.AccountingPeriodCreateRequest;
 import com.wms.dto.response.AccountingPeriodResponse;
 import com.wms.entity.User;
 import com.wms.repository.UserRepository;
 import com.wms.service.AccountingPeriodService;
+import jakarta.validation.Valid;
 import java.security.Principal;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +29,16 @@ public class AccountingPeriodController {
     public ResponseEntity<List<AccountingPeriodResponse>> getAllPeriods(Principal principal) {
         User actor = getActor(principal);
         return ResponseEntity.ok(accountingPeriodService.getAllPeriods(actor));
+    }
+
+    @PostMapping
+    @PreAuthorize("hasAnyRole('ACCOUNTANT_MANAGER', 'ADMIN')")
+    public ResponseEntity<AccountingPeriodResponse> createPeriod(
+            @Valid @RequestBody AccountingPeriodCreateRequest request,
+            Principal principal) {
+        User actor = getActor(principal);
+        AccountingPeriodResponse response = accountingPeriodService.createPeriod(request, actor);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @PutMapping("/{id}/close")

@@ -13,7 +13,7 @@
 | INV-04 | Mọi thay đổi tồn kho MUST qua receipt/issue/transfer/adjustment/stocktake                                                             | MUST   |
 | INV-05 | `@Version` trên inventory — conflict → HTTP 409 + retry                                                                               | MUST   |
 | INV-06 | `available = total_qty - reserved_qty >= 0`. Check trước khi xuất                                                                     | MUST   |
-| INV-07 | Chênh lệch 5-100M → Trưởng kho duyệt; > 100M → CEO duyệt                                                                              | MUST   |
+| INV-07 | Mọi chênh lệch kiểm kê đều do Trưởng kho phê duyệt trực tiếp, không phân cấp theo giá trị                                             | MUST   |
 | INV-08 | Điều chuyển chỉ được reserve FIFO từ vị trí active, không quarantine/locked, đúng kho nguồn và có available dương                     | MUST   |
 
 ## 2. Batch Rules
@@ -35,7 +35,7 @@
 | QC-03 | Hàng fail QC → chuyển Quarantine, tạo adjustment record, trừ tồn kho hợp lệ và không tính available inventory | MUST   |
 | QC-04 | Hàng Quarantine chỉ được xử lý: Trả NCC (RTV) hoặc Tiêu hủy                                                   | MUST   |
 | QC-05 | RTV → tạo Debit Note đòi bồi hoàn NCC                                                                         | MUST   |
-| QC-06 | Tiêu hủy → áp dụng bảng định mức phê duyệt (5M/100M)                                                          | MUST   |
+| QC-06 | Tiêu hủy → Trưởng kho phê duyệt trực tiếp, không phân cấp theo giá trị                                        | MUST   |
 
 ## 4. Transfer Rules
 
@@ -111,12 +111,8 @@
 
 ## 10. Approval Thresholds
 
-| Giá trị / Loại                          | Người duyệt    | Điều kiện              |
-| --------------------------------------- | -------------- | ---------------------- |
-| Chênh lệch < 5M                         | Tự động        | Có QC/kiểm kê xác nhận |
-| Chênh lệch 5M - 100M                    | Trưởng kho     | —                      |
-| Chênh lệch > 100M hoặc lỗi do nhân viên | CEO            | —                      |
-| Tiêu hủy < 5M                           | Không bán      | —                      |
-| Tiêu hủy 5M - 100M                      | Trưởng kho     | —                      |
-| Tiêu hủy > 100M                         | CEO            | —                      |
-| Credit Limit                            | Kế toán trưởng | Duy nhất               |
+| Giá trị / Loại  | Người duyệt    | Điều kiện |
+| --------------- | -------------- | --------- |
+| Chênh lệch kiểm kê (mọi giá trị) | Trưởng kho | Không phân cấp theo giá trị |
+| Tiêu hủy hàng lỗi (mọi giá trị)  | Trưởng kho | Không phân cấp theo giá trị |
+| Credit Limit     | Kế toán trưởng | Duy nhất  |

@@ -159,6 +159,35 @@
 
 ---
 
+## Phase 8: Driver Trip List Type Labels and Filters
+
+**Purpose**: Make the driver trip list easy to scan when assigned trips include both outbound dealer delivery (`DELIVERY`) and internal transfer (`TRANSFER`) work.
+
+**Independent Test**: Open `/outbound/driver/trips` as a Driver assigned to one `TRIP-*` dealer delivery and one `TTR-*` internal transfer; verify the title is `Chuyen xe cua toi`, the filters `Tat ca`, `Noi bo`, and `Dai ly` work, each card shows the correct type badge, and transfer cards show source/destination route instead of dealer delivery point wording.
+
+### Tests for Driver Trip List Filters
+
+- [X] T063 [P] Add backend response-mapping test proving `GET /api/v1/trips/driver` includes `tripType`, `tripTypeLabel`, and type-specific summary fields in `backend/src/test/java/com/wms/service/DriverDeliveryServiceImplTest.java`.
+- [X] T064 [P] Add controller test for `GET /api/v1/trips/driver` returning assigned mixed `DELIVERY` and `TRANSFER` trip summaries only for the authenticated driver in `backend/src/test/java/com/wms/controller/DriverDeliveryControllerTest.java`.
+- [X] T065 [P] Add frontend test for the three filter buttons and empty-filter states in `frontend/src/pages/Outbound/DriverTrip.test.jsx`.
+- [X] T066 [P] Add frontend test proving transfer cards render route/source-destination wording and do not render dealer POD/OTP wording in `frontend/src/pages/Outbound/DriverTrip.test.jsx`.
+
+### Implementation for Driver Trip List Filters
+
+- [X] T067 [P] Extend `backend/src/main/java/com/wms/dto/response/TripDriverViewResponse.java` or add `DriverTripSummaryResponse.java` with `tripType`, `tripTypeLabel`, `sourceWarehouseCode`, `destinationWarehouseCode`, `deliveryStopCount`, and `transferLineCount`.
+- [X] T068 Update `backend/src/main/java/com/wms/service/impl/DriverDeliveryServiceImpl.java` so `listMyTrips` maps assigned `DELIVERY` and `TRANSFER` trips into the shared driver list summary without exposing trips assigned to other drivers.
+- [X] T069 Update `backend/src/main/java/com/wms/controller/TripController.java` OpenAPI annotations for `GET /api/v1/trips/driver` to document the mixed trip-type list response.
+- [X] T070 Update `frontend/src/services/outbound.service.js` and `frontend/src/services/inter-warehouse-transfer.service.js` normalization so driver list rows consistently expose `tripType`, `tripTypeLabel`, `vehiclePlate`, `plannedStartAt`, `sourceWarehouseCode`, `destinationWarehouseCode`, `deliveryStopCount`, and `transferLineCount`.
+- [X] T071 Update `frontend/src/pages/Outbound/DriverTrip.jsx` list header from delivery-only wording to `Van hanh / Chuyen xe` and `Chuyen xe cua toi`.
+- [X] T072 Update `frontend/src/pages/Outbound/DriverTrip.jsx` to add filter controls `Tat ca`, `Noi bo`, and `Dai ly`, default to `Tat ca`, and filter rows client-side without mutating backend state.
+- [X] T073 Update `frontend/src/pages/Outbound/DriverTrip.jsx` card rendering so `DELIVERY` cards show `Giao dai ly` and dealer stop count, while `TRANSFER` cards show `Dieu chuyen noi bo`, source-to-destination route, and transfer line count.
+- [X] T074 Update backend Swagger annotations in `backend/src/main/java/com/wms/controller/TripController.java` after implementing the mixed assigned-trip list response fields.
+- [X] T075 Update `.sdd/specs/005-inter-warehouse-transfer/quickstart.md`, `Userstory.md`, and `README.md` to cross-reference the shared driver trip list behavior for `TTR-*`.
+
+**Checkpoint**: Driver can visually distinguish internal transfer and dealer delivery trips before opening details.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -170,6 +199,7 @@
 - **Phase 5 US3**: Depends on dispatched `IN_TRANSIT` attempts from upstream outbound flow and shares the current-attempt infrastructure from US1.
 - **Phase 6 US4**: Depends on US2 because OTP reset only matters after lock behavior exists.
 - **Phase 7 Polish**: Depends on whichever user stories are included in the release scope.
+- **Phase 8 Driver Trip List Type Labels and Filters**: Depends on existing driver list/detail APIs and Spec 005 transfer trip summary data; it does not depend on POD/OTP mutation changes.
 
 ### User Story Dependencies
 
@@ -177,6 +207,7 @@
 - **US2**: Depends on US1 POD and OTP-row persistence.
 - **US3**: Depends on driver assignment and current-attempt resolution from US1, but is otherwise independent of successful delivery confirmation.
 - **US4**: Depends on OTP lock semantics from US2.
+- **Driver Trip List Filters**: Cross-cuts US1 and Spec 005 visibility, but remains read-only and independently testable from delivery confirmation.
 
 ### Parallel Opportunities
 
@@ -188,6 +219,7 @@
 - T040 through T045 can be written in parallel for US3 tests.
 - T051 through T053 can be written in parallel for US4 tests.
 - T058 and T059 can run in parallel during polish.
+- T063 through T066 can run in parallel while T067 through T074 are implemented by file ownership.
 
 ## Parallel Example: User Story 1
 
@@ -235,6 +267,7 @@ Task: "T045 [P] [US3] Add service unit test for vehicle/driver release on comple
 3. Deliver US3 failed-delivery flow and trip completion.
 4. Deliver US4 admin OTP reset.
 5. Finish polish verification and OpenAPI alignment.
+6. Deliver the shared driver trip list labels and filters so mixed `TRIP-*`/`TTR-*` assignments are easy to identify.
 
 ### Validation Checklist
 
@@ -247,3 +280,4 @@ Task: "T045 [P] [US3] Add service unit test for vehicle/driver release on comple
 - Failed delivery never changes inventory and keeps goods in virtual `IN_TRANSIT`.
 - Trip completion only happens after all assigned Delivery Orders are `COMPLETED` or `RETURNED`.
 - Service and controller tests cover happy paths and business-error paths for each user story.
+- Driver trip list uses neutral transport wording, exposes `Tat ca` / `Noi bo` / `Dai ly` filters, and renders `DELIVERY` versus `TRANSFER` summaries without enabling the wrong action set.

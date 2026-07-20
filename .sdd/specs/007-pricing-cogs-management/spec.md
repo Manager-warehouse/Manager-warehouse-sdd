@@ -123,6 +123,43 @@ A: Không. Hệ thống chặn tạo DO với lỗi `MISSING_PRICE` nếu bất 
 **Q: Excel import — scope ra sao?**
 A: Kế toán viên có thể import nhiều dòng sản phẩm từ file Excel (`.xlsx`) để tạo hàng loạt bản giá `PENDING`. Mỗi dòng Excel tương ứng một bản ghi `price_history` độc lập. Import không tự duyệt. Khuôn dạng file Excel được quy định trong `feature-accountant-price-import-excel.md`. Validation lỗi trả về danh sách lỗi theo dòng, không chặn toàn bộ file nếu một số dòng hợp lệ.
 
+### Session 2026-07-18
+
+**Q: Có ràng buộc nào giữa `selling_price` và `cost_price` không?**
+A: Có. Hệ thống từ chối tạo/sửa/import một bản giá nếu `selling_price <= cost_price`, lỗi `SELLING_BELOW_COST` (422). Áp dụng ở cả ba luồng: tạo đơn lẻ, sửa `PENDING`, và mỗi dòng import Excel — cùng vị trí với các validation khác (positive price, overlap).
+
+> **Lý do**: Đây là một bất biến khách quan (không có khái niệm bán dưới giá vốn hợp lệ trong scope Sprint 1 — xem mục 10, không có dynamic/promotional pricing hay giá thanh lý), khác với việc chặn theo biên độ % thay đổi (vốn có thể là biến động chi phí NCC hợp lệ, xem `feature-accountant-manager-price-approval.md`). Bổ sung ràng buộc này sau khi rà soát lại: sự cố giá nhập sai lệch bậc (Session 2026-07-12) lẽ ra có thể được chặn ngay từ bước tạo nếu có kiểm tra này.
+
+**Q: `GET /api/v1/price-history` hỗ trợ filter theo `effective_date` như thế nào?**
+A: Hai query param tùy chọn `effectiveDateFrom` và `effectiveDateTo` (inclusive), có thể dùng độc lập hoặc kết hợp với `productId`/`warehouseId`/`status`. Danh sách trả về luôn sắp xếp `created_at ASC` (cùng thứ tự với màn hình duyệt PENDING).
+
+**Q: Endpoint hủy bản giá là `DELETE` hay `PUT`?**
+A: `PUT /api/v1/price-history/{id}/cancel`. Bản đặc tả trước đây ghi `DELETE /api/v1/price-history/{id}` — đây là lỗi tài liệu, không phải hành vi dự kiến; `PUT .../cancel` phản ánh đúng ngữ nghĩa REST cho một soft-cancel (tài nguyên không bị xóa, chỉ đổi trạng thái) và là endpoint đã được frontend tích hợp.
+
+**Q: `previous_approved` trong response chi tiết (`GET /api/v1/price-history/{id}`) có giới hạn theo role người xem không?**
+A: Không. Trường này được trả cho bất kỳ ai có quyền xem bản giá đó (`ACCOUNTANT`, `ACCOUNTANT_MANAGER`, `ADMIN`, `CEO`), không riêng `ACCOUNTANT_MANAGER`. Đây là thông tin so sánh giá read-only, không có rủi ro bảo mật khi hiển thị cho người tạo tự xem lại trước khi bản giá được duyệt.
+
+**Q: `previous_approved` được xác định là bản giá nào khi bản đang xem có `effective_date` nằm giữa hai bản `APPROVED` khác (trường hợp tạo bản giá bù trừ cho quá khứ)?**
+A: Là bản `APPROVED` có `effective_date` lớn nhất nhưng vẫn `<= effective_date` của bản đang xem — tức bản giá mà bản đang xem thực sự sẽ thay thế khi được duyệt — chứ không phải "bản `APPROVED` mới nhất nói chung". Hai giá trị này trùng nhau trong đa số trường hợp (tạo bản giá cho ngày hiện tại/tương lai), nhưng khác nhau khi Kế toán viên tạo một bản giá bù trừ cho một ngày trong quá khứ trong khi đã có bản `APPROVED` mới hơn — trường hợp đó, so sánh với "mới nhất nói chung" sẽ so sánh ngược thời gian và gây hiểu lầm cho người duyệt.
+
+**Q: Khi tra cứu giá cho DO, "ngày hôm nay" là ngày hệ thống (đồng hồ server) hay `document_date` do Planner nhập?**
+A: Là `document_date` của DO (trường bắt buộc trong `DeliveryOrderCreateRequest`, spec 004), không phải đồng hồ server. Điều này cho phép tạo DO cho một giao dịch đã xảy ra trong quá khứ gần (ví dụ nhập liệu trễ) mà vẫn tra đúng giá của thời điểm đó.
+
+> **Giới hạn rủi ro**: `document_date` bị ràng buộc bởi kỳ kế toán đang mở (`AccountingPeriodService.resolveOpenPeriod`, spec 008) — không thể tạo DO với `document_date` thuộc kỳ đã `CLOSED`. Planner vẫn có thể chọn bất kỳ ngày nào trong kỳ đang mở (thường là tháng hiện tại), nên về lý thuyết có thể chọn một ngày sớm hơn trong cùng kỳ để lấy giá cũ hơn nếu giá đã đổi giữa kỳ. Rủi ro này được chấp nhận trong Sprint 1 vì kỳ kế toán là tháng và khối lượng giao dịch/độ tin cậy của Planner trong quy mô vận hành hiện tại thấp; nếu phát sinh lạm dụng thực tế, nên xem xét bổ sung giới hạn `document_date` không được sớm hơn N ngày so với ngày tạo DO.
+
+**Q: Kế toán viên/Kế toán trưởng có bị giới hạn theo kho được assign như các actor vận hành kho khác không?**
+A: Không. Đây là quyết định thiết kế có chủ đích: `ACCOUNTANT` và `ACCOUNTANT_MANAGER` là chức năng tài chính tập trung, không gắn với một kho vật lý cụ thể như Thủ kho/Dispatcher (LESSON-003 trong `CLAUDE.md` áp dụng cho các actor vận hành kho, không áp dụng cho Kế toán). Một Kế toán viên có thể tạo bản giá cho cả 3 kho; một Kế toán trưởng duyệt bản giá cho cả 3 kho. Điều này phù hợp với quy mô vận hành hiện tại (workflow chỉ 2 người, xem `feature-accountant-manager-price-approval.md` §1).
+
+**Q: Hai dòng trong cùng một file Excel import nhắm cùng `(product_id, warehouse_id, effective_date)` thì xử lý thế nào?**
+A: Dòng đầu hợp lệ được tạo bình thường; dòng thứ hai (và các dòng tiếp theo) bị từ chối với `OVERLAPPING_EFFECTIVE_DATE`, cùng mã lỗi với việc trùng một bản ghi đã có sẵn trong DB — vì về bản chất đây là cùng một loại xung đột, chỉ khác nguồn xung đột (trong cùng file thay vì với dữ liệu đã tồn tại).
+
+**Q: `effective_date` của một bản giá có bị giới hạn theo kỳ kế toán không, giống như `document_date` của Đơn xuất?**
+A: Có. Tạo hoặc sửa một bản giá (kể cả từng dòng khi import Excel) bắt buộc `effective_date` phải nằm trong một kỳ kế toán đang `OPEN` — tái sử dụng nguyên `AccountingPeriodService.validateDateInOpenPeriod()` mà `DeliveryOrderServiceImpl` đã dùng cho `document_date` (spec 004/008). Nếu kỳ chứa `effective_date` đã `CLOSED`, hệ thống từ chối với `UNPROCESSABLE_ENTITY` (422, message tiền tố `PERIOD_CLOSED`) khi tạo/sửa đơn lẻ, hoặc lỗi dòng `PERIOD_CLOSED` (không chặn toàn file) khi import Excel.
+
+> **Lý do**: Trước Session 2026-07-18, `price_history.effective_date` hoàn toàn không có ràng buộc kỳ kế toán — có thể tạo và duyệt một bản giá với `effective_date` từ bất kỳ thời điểm nào trong quá khứ, kể cả một kỳ đã `CLOSED` và đã được báo cáo. Việc này không làm sai lệch các giao dịch đã hoàn tất (`unit_price`/`unit_cost` đã snapshot vào `delivery_order_items` là bất biến, xem `feature-system-cogs-calculation.md`), nhưng làm suy yếu vai trò "sổ lịch sử phục vụ kiểm soát nội bộ" của `price_history` (mục 1) — ai đó có thể chèn một bản ghi "giá lịch sử" bất kỳ lúc nào sau này mà không có dấu vết cho biết đó là dữ liệu bổ sung muộn, khác với dữ liệu ghi nhận đồng thời với giao dịch thực tế. Ràng buộc kỳ kế toán đưa `price_history` về cùng mức bảo vệ với các luồng nghiệp vụ khác trong hệ thống (Đơn xuất, Kiểm kê — xem "Monthly Closing" trong `CLAUDE.md`), đồng thời vẫn cho phép tạo bản giá bù trừ cho bất kỳ ngày nào trong kỳ hiện đang mở (đúng như Session 2026-07-09 dự tính khi bỏ `end_date`).
+>
+> Ràng buộc này không ảnh hưởng đến các luồng đã có trong spec: sửa/hủy một bản `PENDING` (feature 14a) và duyệt (feature 14c) không tạo mới `effective_date` nên không bị chặn lại; Scenario 3b của `feature-accountant-price-entry-management.md` (tạo bản giá mới với `effective_date = hôm nay` để supersede một bản `APPROVED` nhập sai) luôn nằm trong kỳ đang mở nên không bị ảnh hưởng.
+
 ---
 
 ## 3. Actors
@@ -199,6 +236,8 @@ Hai trường sau được thêm vào `delivery_order_items` tại thời điể
 
 > Nếu spec 004 đã định nghĩa những trường này, spec 007 chỉ xác nhận rằng giá trị phải được điền từ `price_history` (không để trống, không cho phép override thủ công).
 
+> **Session 2026-07-18**: `unit_cost` từng bị bỏ sót trong luồng tạo DO — chỉ `unit_price` được snapshot, `unit_cost` luôn `NULL`, khiến COGS/gross margin (mục 3.4 của `feature-system-cogs-calculation.md`) không thể tính được cho bất kỳ DO nào. Đã sửa ở tầng service để cả hai trường được snapshot cùng lúc từ cùng một lần tra cứu `price_history`. Cột `unit_cost` trong schema DB (migration `V1`) hiện vẫn `NULLABLE`, chưa được nâng lên `NOT NULL` — việc này cần một migration backfill riêng cho các dòng dữ liệu cũ đã tồn tại trước bản sửa, nằm ngoài phạm vi thay đổi lần này; tính đúng đắn `NOT NULL` hiện được đảm bảo ở tầng application code, không phải constraint DB.
+
 ### notifications (bảng bổ trợ — nếu chưa tồn tại)
 
 | Field | Type | Notes |
@@ -231,11 +270,13 @@ Hai trường sau được thêm vào `delivery_order_items` tại thời điể
 | `OVERLAPPING_EFFECTIVE_DATE` | 409 | Đã tồn tại bản giá `PENDING` hoặc `APPROVED` khác cùng `(product_id, warehouse_id, effective_date)` — chỉ kiểm tra khi tạo/sửa (Session 2026-07-12), không re-check khi duyệt |
 | `PRICE_ALREADY_APPROVED` | 409 | Thao tác sửa/hủy/duyệt trên bản giá đã ở trạng thái `APPROVED` |
 | `PRICE_ALREADY_CANCELLED` | 409 | Thao tác sửa/hủy/duyệt trên bản giá đã ở trạng thái `CANCELLED` |
-| `MISSING_PRICE` | 422 | Không tìm thấy bản giá `APPROVED` cho sản phẩm tại ngày tạo DO |
+| `MISSING_PRICE` | 422 | Không tìm thấy bản giá `APPROVED` cho sản phẩm tại ngày tạo DO — liệt kê toàn bộ `product_id` bị thiếu giá trong cùng DO, không chỉ dòng đầu tiên (Session 2026-07-18) |
 | `PRICE_NOT_FOUND` | 404 | ID bản giá không tồn tại |
 | `FORBIDDEN_APPROVE_OWN` | 403 | Người tạo cố tự duyệt (phòng thủ; RBAC đã chặn qua role) |
+| `SELLING_BELOW_COST` | 422 | `selling_price <= cost_price` — áp dụng khi tạo, sửa, và mỗi dòng import Excel (Session 2026-07-18) |
+| `PERIOD_CLOSED` (dạng `UNPROCESSABLE_ENTITY`, message tiền tố `PERIOD_CLOSED:`) | 422 | `effective_date` nằm trong một kỳ kế toán đã `CLOSED` — áp dụng khi tạo, sửa, và mỗi dòng import Excel (Session 2026-07-18); tái sử dụng `AccountingPeriodService.validateDateInOpenPeriod()` giống spec 004/008 |
 | `EXCEL_FORMAT_INVALID` | 400 | File không phải `.xlsx`, không đọc được, hoặc thiếu cột bắt buộc (A–E) |
-| `EXCEL_TOO_MANY_ROWS` | 400 | File có hơn 1.000 dòng dữ liệu — toàn bộ file bị từ chối |
+| `EXCEL_TOO_MANY_ROWS` | 400 | File có hơn 1.000 dòng dữ liệu (không tính dòng trống cuối file) — toàn bộ file bị từ chối |
 
 ---
 

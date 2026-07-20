@@ -8,15 +8,44 @@
     font-feature-settings: "ss03" 1;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    --app-safe-top: env(safe-area-inset-top, 0px);
+    --app-safe-bottom: env(safe-area-inset-bottom, 0px);
   }
 
   body {
     @apply bg-canvas-cream text-ink font-sans transition-colors duration-200;
   }
 
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html,
+  body,
+  #root {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: clip;
+    overscroll-behavior-x: none;
+    touch-action: pan-y;
+  }
+
+  html,
+  body {
+    position: relative;
+  }
+
+  #root {
+    min-height: 100dvh;
+  }
+
   body.layout-locked {
     overflow: hidden !important;
     height: 100% !important;
+    width: 100% !important;
+    max-width: 100vw !important;
   }
 
   /* Custom fonts setup or fallback styling */
@@ -75,17 +104,182 @@
 
   /* iOS Capacitor safe-area helpers: keep app chrome below the native status bar / Dynamic Island */
   .app-safe-header {
-    height: calc(4rem + env(safe-area-inset-top, 0px));
-    padding-top: env(safe-area-inset-top, 0px);
+    box-sizing: border-box;
+    min-height: calc(4rem + var(--app-safe-top));
+    padding-top: var(--app-safe-top);
   }
 
   .app-safe-drawer-backdrop {
-    top: calc(4rem + env(safe-area-inset-top, 0px));
+    top: calc(4rem + var(--app-safe-top));
   }
 
   .app-safe-drawer {
-    top: calc(4rem + env(safe-area-inset-top, 0px));
-    height: calc(100% - 4rem - env(safe-area-inset-top, 0px));
+    top: calc(4rem + var(--app-safe-top));
+    height: calc(100% - 4rem - var(--app-safe-top));
+  }
+
+  .app-safe-public {
+    padding-top: var(--app-safe-top);
+    padding-bottom: var(--app-safe-bottom);
+  }
+
+  .auth-login-shell {
+    min-height: 100dvh;
+  }
+
+  .auth-login-brand {
+    padding: calc(4.5rem + env(safe-area-inset-top, 0px)) 1.25rem 1.25rem;
+  }
+
+  .mobile-page {
+    @apply flex flex-col gap-6;
+  }
+
+  .mobile-filter-bar {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  @media (max-width: 767px) {
+    :root {
+      --app-safe-top: max(env(safe-area-inset-top, 0px), 3.25rem);
+      --app-safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    .auth-login-shell {
+      min-height: calc(100dvh + env(safe-area-inset-top, 0px));
+    }
+
+    .auth-login-brand {
+      min-height: auto;
+    }
+
+    .auth-login-brand h1 {
+      font-size: clamp(2rem, 11vw, 3.25rem);
+      line-height: 0.98;
+      max-width: 100%;
+      overflow-wrap: anywhere;
+    }
+
+    .auth-login-form {
+      max-width: 100%;
+      padding: 1.25rem;
+    }
+
+    .auth-login-brand,
+    .auth-login-form,
+    .auth-login-form form,
+    .auth-login-form input,
+    .auth-login-trial {
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    .auth-login-trial {
+      max-height: 18rem;
+      overflow-y: auto;
+    }
+
+    .mobile-page {
+      width: min(100%, calc(100vw - 1.5rem));
+      max-width: calc(100vw - 1.5rem);
+      @apply gap-3 overflow-x-clip px-0;
+    }
+
+    .app-main,
+    .app-main-inner,
+    .app-content,
+    .mobile-page {
+      width: 100%;
+      max-width: 100%;
+      overflow-x: hidden !important;
+      overscroll-behavior-x: none;
+    }
+
+    .app-content {
+      contain: inline-size;
+    }
+
+    .mobile-page h1 {
+      font-size: clamp(1.25rem, 5.4vw, 1.55rem);
+      line-height: 1.08;
+      overflow-wrap: anywhere;
+    }
+
+    .mobile-page .dashboard-title {
+      display: -webkit-box;
+      max-width: 100%;
+      overflow: hidden;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      word-break: break-word;
+    }
+
+    .mobile-page .dashboard-subtitle {
+      max-width: 100%;
+      overflow-wrap: anywhere;
+    }
+
+    .mobile-page p {
+      line-height: 1.45;
+    }
+
+    .mobile-page .card-premium,
+    .mobile-page .card-featured-mint {
+      @apply p-4;
+    }
+
+    .mobile-page .card-featured-mint,
+    .mobile-page .mobile-kpi-card,
+    .mobile-page .mobile-stock-card {
+      width: min(100%, calc(100vw - 1.5rem));
+      max-width: calc(100vw - 1.5rem);
+    }
+
+    .mobile-page > * {
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    .mobile-page .mobile-kpi-card {
+      min-height: 5.7rem;
+      height: auto;
+    }
+
+    .mobile-page .mobile-kpi-card .mobile-kpi-value {
+      font-size: 1.18rem;
+      line-height: 1.05;
+    }
+
+    .mobile-page .mobile-kpi-card .mobile-kpi-icon {
+      display: none;
+    }
+
+    .mobile-page .mobile-kpi-card .mobile-kpi-desc {
+      font-size: 0.68rem;
+    }
+
+    .mobile-page .mobile-section-card {
+      @apply rounded-lg;
+    }
+
+    .mobile-filter-bar {
+      @apply grid grid-cols-1 w-full;
+    }
+
+    .mobile-filter-bar > * {
+      min-width: 0;
+      width: 100%;
+    }
+
+    .mobile-compact-list {
+      @apply gap-2 p-3;
+    }
+  }
+
+  @media (min-width: 768px) and (hover: hover) and (pointer: fine) {
+    .auth-login-brand {
+      padding: 4rem;
+    }
   }
 
   /* Custom scrollbar */

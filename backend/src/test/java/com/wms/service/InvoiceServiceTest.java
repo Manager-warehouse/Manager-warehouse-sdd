@@ -4,8 +4,7 @@ import com.wms.dto.request.InvoiceCreateRequest;
 import com.wms.dto.response.InvoiceResponse;
 import com.wms.entity.*;
 import com.wms.enums.*;
-import com.wms.exception.DuplicateResourceException;
-import com.wms.exception.UnprocessableEntityException;
+import com.wms.exception.ResourceNotFoundException;
 import com.wms.repository.*;
 import com.wms.service.impl.InvoiceServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,28 +18,27 @@ import org.springframework.security.access.AccessDeniedException;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.OffsetDateTime;
-import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
+/**
+ * InvoiceServiceImpl is now a thin manual-backfill wrapper (POST /api/v1/invoices):
+ * it only checks the actor role, loads the Delivery Order, and delegates the actual
+ * credit-check / period-stamping / numbering / billing-notification logic to
+ * AutoInvoiceService.createBackfillInvoice — that logic's own preconditions
+ * (DELIVERY_ORDER_NOT_DELIVERED, INVOICE_ALREADY_EXISTS) are covered in
+ * AutoInvoiceServiceImplTest instead.
+ */
 @ExtendWith(MockitoExtension.class)
 class InvoiceServiceTest {
 
     @Mock private InvoiceRepository invoiceRepository;
     @Mock private DeliveryOrderRepository deliveryOrderRepository;
-    @Mock private DeliveryOrderItemRepository deliveryOrderItemRepository;
-    @Mock private DealerRepository dealerRepository;
-    @Mock private AccountingPeriodRepository accountingPeriodRepository;
-    @Mock private BillingNotificationRepository billingNotificationRepository;
-    @Mock private DocumentSequenceRepository sequenceRepository;
-    @Mock private AccountingPeriodService accountingPeriodService;
-    @Mock private AuditLogService auditLogService;
+    @Mock private AutoInvoiceService autoInvoiceService;
 
     @InjectMocks
     private InvoiceServiceImpl invoiceService;
@@ -50,8 +48,6 @@ class InvoiceServiceTest {
     private Dealer dealer;
     private DeliveryOrder deliveryOrder;
     private Warehouse warehouse;
-    private AccountingPeriod period;
-    private DocumentSequence sequence;
 
     @BeforeEach
     void setUp() {
@@ -69,7 +65,7 @@ class InvoiceServiceTest {
         dealer.setId(10L);
         dealer.setCode("DL-001");
         dealer.setName("Dai Ly A");
-        dealer.setCurrentBalance(BigDecimal.valueOf(10000000));
+        dealer.setCurrentBalance(BigDecimal.valueOf(10500000));
         dealer.setCreditLimit(BigDecimal.valueOf(50000000));
         dealer.setPaymentTermDays(30);
         dealer.setCreditStatus(CreditStatus.ACTIVE);
@@ -81,20 +77,9 @@ class InvoiceServiceTest {
         deliveryOrder = new DeliveryOrder();
         deliveryOrder.setId(20L);
         deliveryOrder.setDoNumber("DO-001");
-        deliveryOrder.setStatus(DeliveryOrderStatus.DELIVERED);
+        deliveryOrder.setStatus(DeliveryOrderStatus.COMPLETED);
         deliveryOrder.setDealer(dealer);
         deliveryOrder.setWarehouse(warehouse);
-
-        period = new AccountingPeriod();
-        period.setId(30L);
-        period.setPeriodName("Kỳ 06-2026");
-        period.setStartDate(LocalDate.of(2026, 6, 1));
-        period.setEndDate(LocalDate.of(2026, 6, 30));
-        period.setStatus(AccountingPeriodStatus.OPEN);
-
-        sequence = new DocumentSequence();
-        sequence.setSequenceKey("INVOICE");
-        sequence.setNextValue(100L);
     }
 
     @Test
@@ -105,42 +90,29 @@ class InvoiceServiceTest {
         request.setDocumentDate(LocalDate.of(2026, 6, 15));
         request.setNotes("Notes...");
 
-        DeliveryOrderItem item = new DeliveryOrderItem();
-        item.setId(40L);
-        item.setIssuedQty(BigDecimal.valueOf(10));
-        item.setUnitPrice(BigDecimal.valueOf(50000));
+        Invoice savedInvoice = Invoice.builder()
+                .id(50L)
+                .invoiceNumber("INV-202606-000100")
+                .deliveryOrder(deliveryOrder)
+                .dealer(dealer)
+                .totalAmount(BigDecimal.valueOf(500000))
+                .issueDate(request.getDocumentDate())
+                .dueDate(request.getDocumentDate().plusDays(30))
+                .status(InvoiceStatus.UNPAID)
+                .createdBy(accountantUser)
+                .documentDate(request.getDocumentDate())
+                .build();
 
-        when(invoiceRepository.existsByDeliveryOrderId(20L)).thenReturn(false);
         when(deliveryOrderRepository.findById(20L)).thenReturn(Optional.of(deliveryOrder));
-        when(accountingPeriodRepository.findPeriodByDateAndStatus(request.getDocumentDate(), AccountingPeriodStatus.OPEN))
-                .thenReturn(Optional.of(period));
-        when(deliveryOrderItemRepository.findByDeliveryOrderId(20L)).thenReturn(List.of(item));
-        when(sequenceRepository.findBySequenceKeyForUpdate("INVOICE")).thenReturn(Optional.of(sequence));
-
-        when(invoiceRepository.save(any(Invoice.class))).thenAnswer(invocation -> {
-            Invoice inv = invocation.getArgument(0);
-            inv.setId(50L);
-            return inv;
-        });
+        when(autoInvoiceService.createBackfillInvoice(deliveryOrder, accountantUser, request.getDocumentDate()))
+                .thenReturn(savedInvoice);
 
         InvoiceResponse response = invoiceService.createInvoice(request, accountantUser);
 
         assertThat(response).isNotNull();
         assertThat(response.getInvoiceNumber()).isEqualTo("INV-202606-000100");
         assertThat(response.getTotalAmount()).isEqualByComparingTo(BigDecimal.valueOf(500000));
-        assertThat(dealer.getCurrentBalance()).isEqualByComparingTo(BigDecimal.valueOf(10500000));
-        assertThat(deliveryOrder.getStatus()).isEqualTo(DeliveryOrderStatus.COMPLETED);
-
-        verify(accountingPeriodService).validateDateInOpenPeriod(request.getDocumentDate());
-        verify(dealerRepository).save(dealer);
-        verify(deliveryOrderRepository).save(deliveryOrder);
-        verify(billingNotificationRepository, times(1)).findByDeliveryOrderIdAndInvoiceStatusAndStatus(
-                eq(20L),
-                eq(BillingNotificationInvoiceStatus.NOT_INVOICED),
-                eq(BillingNotificationStatus.ACTIVE)
-        );
-        verify(auditLogService).log(eq(accountantUser), eq(AuditAction.CREATE), eq("INVOICE"),
-                eq(50L), eq("INV-202606-000100"), eq(5L), any(), any());
+        verify(autoInvoiceService).createBackfillInvoice(deliveryOrder, accountantUser, request.getDocumentDate());
     }
 
     @Test
@@ -153,36 +125,22 @@ class InvoiceServiceTest {
         assertThatThrownBy(() -> invoiceService.createInvoice(request, storekeeperUser))
                 .isInstanceOf(AccessDeniedException.class)
                 .hasMessageContaining("Accountant role required");
+
+        verifyNoInteractions(autoInvoiceService);
     }
 
     @Test
-    @DisplayName("Lập hóa đơn thất bại - Hóa đơn cho DO đã tồn tại")
-    void createInvoice_alreadyExists() {
+    @DisplayName("Lập hóa đơn thất bại - Không tìm thấy đơn xuất kho")
+    void createInvoice_deliveryOrderNotFound() {
         InvoiceCreateRequest request = new InvoiceCreateRequest();
         request.setDoId(20L);
         request.setDocumentDate(LocalDate.of(2026, 6, 15));
 
-        when(invoiceRepository.existsByDeliveryOrderId(20L)).thenReturn(true);
+        when(deliveryOrderRepository.findById(20L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> invoiceService.createInvoice(request, accountantUser))
-                .isInstanceOf(DuplicateResourceException.class)
-                .hasMessageContaining("Invoice already exists for this Delivery Order");
-    }
+                .isInstanceOf(ResourceNotFoundException.class);
 
-    @Test
-    @DisplayName("Lập hóa đơn thất bại - DO không ở trạng thái DELIVERED")
-    void createInvoice_doNotDelivered() {
-        InvoiceCreateRequest request = new InvoiceCreateRequest();
-        request.setDoId(20L);
-        request.setDocumentDate(LocalDate.of(2026, 6, 15));
-
-        deliveryOrder.setStatus(DeliveryOrderStatus.PICKING);
-
-        when(invoiceRepository.existsByDeliveryOrderId(20L)).thenReturn(false);
-        when(deliveryOrderRepository.findById(20L)).thenReturn(Optional.of(deliveryOrder));
-
-        assertThatThrownBy(() -> invoiceService.createInvoice(request, accountantUser))
-                .isInstanceOf(UnprocessableEntityException.class)
-                .hasMessageContaining("Delivery Order is not in DELIVERED status");
+        verifyNoInteractions(autoInvoiceService);
     }
 }

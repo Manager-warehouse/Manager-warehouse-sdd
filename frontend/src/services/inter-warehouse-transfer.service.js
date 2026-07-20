@@ -92,6 +92,48 @@ const normalizeTransferTiming = (transfer) => {
 
 const nextId = (rows) => (rows.length ? Math.max(...rows.map((row) => row.id)) + 1 : 1);
 
+export const toTransferDriverTripSummary = (transfer = {}) => ({
+  id: `transfer-${transfer.id}`,
+  transfer_id: transfer.id,
+  transferId: transfer.id,
+  trip_id: transfer.tripId,
+  tripId: transfer.tripId,
+  trip_type: 'TRANSFER',
+  tripType: 'TRANSFER',
+  trip_type_label: 'Dieu chuyen noi bo',
+  tripTypeLabel: 'Dieu chuyen noi bo',
+  trip_number: transfer.tripNumber || transfer.transferNumber,
+  status: transfer.status === 'APPROVED' ? 'PLANNED' : transfer.status,
+  source_warehouse_code: transfer.sourceWarehouseCode,
+  sourceWarehouseCode: transfer.sourceWarehouseCode,
+  destination_warehouse_code: transfer.destinationWarehouseCode,
+  destinationWarehouseCode: transfer.destinationWarehouseCode,
+  vehicle_plate: transfer.vehiclePlate || transfer.trip?.vehiclePlate || '',
+  vehiclePlate: transfer.vehiclePlate || transfer.trip?.vehiclePlate || '',
+  driver_name: transfer.driverName || transfer.trip?.driverName || '',
+  driverName: transfer.driverName || transfer.trip?.driverName || '',
+  planned_date: transfer.tripPlannedStartAt || transfer.plannedDate || transfer.documentDate,
+  planned_start_at: transfer.tripPlannedStartAt || transfer.plannedDate || transfer.documentDate,
+  planned_end_at: transfer.tripPlannedEndAt || null,
+  total_weight_kg: Number(transfer.totalWeightKg || transfer.trip?.totalWeightKg || 0),
+  delivery_stop_count: 0,
+  transfer_line_count: transfer.items?.length || 0,
+  tripWarningActive: transfer.tripWarningActive,
+  tripOverdue: transfer.tripOverdue,
+  tripWarningMessage: transfer.tripWarningMessage,
+  driverArrivedAt: transfer.driverArrivedAt,
+  arrivalHandoverAt: transfer.arrivalHandoverAt,
+  isReturned: Boolean(transfer.isReturned),
+  items: (transfer.items || []).map((item) => ({
+    id: item.id,
+    productSku: item.productSku,
+    productName: item.productName,
+    plannedQty: item.plannedQty,
+    sentQty: item.sentQty,
+  })),
+  delivery_orders: [],
+});
+
 const readMockInventories = () => {
   const raw = localStorage.getItem('wms_db_inventories');
   if (!raw) return [];
@@ -667,6 +709,42 @@ export const interWarehouseTransferService = {
         });
     }
     const response = await apiClient.get('/transfer-requests/stock-lookup', { params: { productId } });
+    return response.data;
+  },
+
+  getStockOverview: async (warehouseId) => {
+    if (useMock) {
+      const inventories = readMockInventories().filter((item) =>
+        Number(item.warehouse_id ?? item.warehouseId) === Number(warehouseId)
+      );
+      const availableQty = inventories.reduce(
+        (sum, item) => sum + (Number(item.total_qty ?? item.totalQty ?? 0) - Number(item.reserved_qty ?? item.reservedQty ?? 0)),
+        0,
+      );
+      const receipts = JSON.parse(localStorage.getItem('wms_db_receipts') || '[]');
+      const deliveryOrders = JSON.parse(localStorage.getItem('wms_db_delivery_orders') || '[]');
+      const alerts = JSON.parse(localStorage.getItem('wms_db_stock_alerts') || '[]');
+      const todayText = today();
+
+      return {
+        warehouseId: Number(warehouseId),
+        availableQty,
+        todayReceiptCount: receipts.filter((row) =>
+          Number(row.warehouse_id ?? row.warehouseId) === Number(warehouseId)
+          && String(row.document_date ?? row.documentDate ?? '').slice(0, 10) === todayText
+        ).length,
+        todayDeliveryOrderCount: deliveryOrders.filter((row) =>
+          Number(row.warehouse_id ?? row.warehouseId) === Number(warehouseId)
+          && String(row.document_date ?? row.documentDate ?? '').slice(0, 10) === todayText
+        ).length,
+        activeLowStockCount: alerts.filter((row) =>
+          Number(row.warehouse_id ?? row.warehouseId) === Number(warehouseId)
+          && (row.is_resolved ?? row.isResolved) === false
+        ).length,
+      };
+    }
+
+    const response = await apiClient.get('/warehouse-stock/overview', { params: { warehouseId } });
     return response.data;
   },
 };

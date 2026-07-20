@@ -9,6 +9,7 @@ import java.util.Optional;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 @Repository
@@ -58,4 +59,12 @@ public interface InterWarehouseTransferRepository extends JpaRepository<InterWar
     @EntityGraph(attributePaths = {"sourceWarehouse", "destinationWarehouse", "createdBy", "approvedBy", "rejectedBy", "confirmedBy", "trip", "accountingPeriod"})
     @Query("select t from InterWarehouseTransfer t where t.id = :id")
     Optional<InterWarehouseTransfer> findWithDetailsById(Long id);
+
+    @EntityGraph(attributePaths = {"sourceWarehouse", "destinationWarehouse", "trip", "items"})
+    @Query("select distinct t from InterWarehouseTransfer t where t.trip.id in :tripIds")
+    List<InterWarehouseTransfer> findByTripIdInWithSummary(@Param("tripIds") Collection<Long> tripIds);
+
+    @EntityGraph(attributePaths = {"sourceWarehouse", "destinationWarehouse", "trip", "items"})
+    @Query("select t from InterWarehouseTransfer t where t.trip.id = :tripId")
+    Optional<InterWarehouseTransfer> findByTripIdWithSummary(@Param("tripId") Long tripId);
 }

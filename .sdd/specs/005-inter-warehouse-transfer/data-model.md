@@ -9,7 +9,7 @@ Fields to add/verify:
 - `transfer_number`
 - `source_warehouse_id`
 - `destination_warehouse_id`
-- `status`: `NEW`, `APPROVED`, `REJECTED`, `IN_TRANSIT`, `COMPLETED`, `COMPLETED_WITH_DISCREPANCY`, `CANCELLED`
+- `status`: `NEW`, `APPROVED`, `REJECTED`, `IN_TRANSIT`, `COMPLETED`, `COMPLETED_WITH_DISCREPANCY`, `CANCELLED`, `QUARANTINED`
 - `is_returned`
 - `return_reason_code`, `return_reason`
 - `outbound_qc_checked_by`, `outbound_qc_checked_at`, `outbound_qc_result`
@@ -191,6 +191,7 @@ Transfer usage:
 - exactly one trip per transfer
 - selected vehicle and driver must be available and not in overlapping trip
 - assigned driver is the only actor allowed to confirm transfer departure
+- assigned transfer trips must be listable in the shared driver mobile screen with `tripType = TRANSFER`, label `Dieu chuyen noi bo`, source/destination route, transfer line count, vehicle, planned time, total weight, and status
 - `total_weight` and `total_volume` for transfer trips are calculated from transfer item quantity and product/package attributes.
 - Trip assignment is rejected if calculated weight or volume exceeds vehicle capacity.
 - Vehicle/driver/trip can be reassigned only before departure.

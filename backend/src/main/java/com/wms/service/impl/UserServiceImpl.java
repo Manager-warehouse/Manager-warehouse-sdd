@@ -66,6 +66,7 @@ public class UserServiceImpl implements UserService {
         }
 
         validatePasswordStrength(request.getPassword());
+        validateWarehouseAssignments(request.getRole(), request.getWarehouses());
 
         User adminUser = userRepository.findById(adminUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("Admin user not found with id: " + adminUserId));
@@ -87,8 +88,10 @@ public class UserServiceImpl implements UserService {
 
         User savedUser = userRepository.save(user);
 
-        if (request.getWarehouses() != null && !request.getWarehouses().isEmpty()) {
-            saveWarehouseAssignments(savedUser, request.getWarehouses(), adminUser);
+        if (request.getRole() != UserRole.ADMIN && request.getRole() != UserRole.CEO) {
+            if (request.getWarehouses() != null && !request.getWarehouses().isEmpty()) {
+                saveWarehouseAssignments(savedUser, request.getWarehouses(), adminUser);
+            }
         }
 
         // Record Audit Log
@@ -121,6 +124,8 @@ public class UserServiceImpl implements UserService {
             throw new IllegalArgumentException("CODE_TAKEN");
         }
 
+        validateWarehouseAssignments(request.getRole(), request.getWarehouses());
+
         User adminUser = userRepository.findById(adminUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("Admin user not found with id: " + adminUserId));
 
@@ -146,8 +151,10 @@ public class UserServiceImpl implements UserService {
 
         // Delete old assignments and save new ones
         userWarehouseAssignmentRepository.deleteByUserId(id);
-        if (request.getWarehouses() != null && !request.getWarehouses().isEmpty()) {
-            saveWarehouseAssignments(savedUser, request.getWarehouses(), adminUser);
+        if (request.getRole() != UserRole.ADMIN && request.getRole() != UserRole.CEO) {
+            if (request.getWarehouses() != null && !request.getWarehouses().isEmpty()) {
+                saveWarehouseAssignments(savedUser, request.getWarehouses(), adminUser);
+            }
         }
 
         // Record Audit Log
@@ -239,6 +246,17 @@ public class UserServiceImpl implements UserService {
 
         List<Long> assignedWarehouseIds = userWarehouseAssignmentRepository.findWarehouseIdsByUserId(savedUser.getId());
         return mapToResponse(savedUser, assignedWarehouseIds);
+    }
+
+    private void validateWarehouseAssignments(UserRole role, List<Long> warehouses) {
+        if (role != UserRole.ADMIN && role != UserRole.CEO) {
+            if (warehouses == null || warehouses.isEmpty()) {
+                throw new IllegalArgumentException("WAREHOUSE_REQUIRED");
+            }
+            if (warehouses.size() > 1) {
+                throw new IllegalArgumentException("MULTIPLE_WAREHOUSES_NOT_ALLOWED");
+            }
+        }
     }
 
     private void validatePasswordStrength(String password) {

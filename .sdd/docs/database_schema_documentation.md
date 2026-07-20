@@ -1,6 +1,10 @@
 # Tài Liệu Đặc Tả & Hướng Dẫn Sử Dụng Database WMS Phúc Anh
 
-Tài liệu này giải thích chi tiết cấu trúc cơ sở dữ liệu PostgreSQL của Hệ thống Quản lý Kho (WMS) Phúc Anh, bao gồm ý nghĩa nghiệp vụ của tất cả các bảng (36 bảng core + 1 bảng bổ trợ), chi tiết từng trường dữ liệu, cách hoạt động và ví dụ thực tế cho mỗi thực thể.
+> **Đồng bộ:** 2026-07-19 · **Đã đối chiếu VPS production:** PostgreSQL container `wms-prod-db-1` · **Nguồn schema triển khai:** `backend/src/main/resources/db/migration/` · **Nguồn nghiệp vụ:** `.sdd/specs/001`–`010`. Flyway migration là nguồn cuối cùng khi tài liệu và database khác nhau.
+
+> **Schema-gap bắt buộc:** Domain chuẩn không quản lý serial, expiry hay quality grade. Tuy nhiên VPS vẫn còn `products.has_expiry`, `products.shelf_life_days`, `products.has_serial`, `batches.expiry_date` và `batches.grade` (default `A`), cùng legacy fields liên quan ở một số line item. Đây là legacy schema cần migration cleanup **forward-only** trong task riêng; service/UI không được dùng chúng để tạo nghiệp vụ mới.
+
+Migration hiện định nghĩa **55 bảng WMS** (sau rename V2 vẫn là một bảng transfer, không phải hai) và Flyway tạo thêm bảng kỹ thuật `flyway_schema_history`; VPS cần có **56 bảng trong `public`** khi toàn bộ migration thành công. Tài liệu này giải thích cấu trúc, quan hệ và quy tắc sử dụng của các bảng nghiệp vụ; các bảng hardening được liệt kê riêng ở phần hỗ trợ.
 
 ---
 
@@ -19,7 +23,7 @@ Tài liệu này giải thích chi tiết cấu trúc cơ sở dữ liệu Postg
 11. [Nhóm 10: Kiểm Kê & Điều Chỉnh Tồn Kho (Stocktake & Adjustments)](#nhóm-10-kiểm-kê--điều-chỉnh-tồn-kho)
 12. [Nhóm 11: Tài Chính & Công Nợ Đại Lý (Billing & Debt Management)](#nhóm-11-tài-chính--công-nợ-đại-lý)
 13. [Nhóm 12: Cấu Hình Hệ Thống & Nhật Ký Bảo Mật (Configs & Audit Logs)](#nhóm-12-cấu-hình-hệ-thống--nhật-ký-bảo-mật)
-14. [Các Trigger Tự Động & View Quan Trọng](#các-trigger-tự-động--view-quan-trọng)
+14. [Cơ Chế Nghiệp Vụ Tự Động & FIFO](#cơ-chế-nghiệp-vụ-tự-động--fifo)
 
 ---
 
@@ -109,7 +113,7 @@ erDiagram
   - `type` (VARCHAR(10)): CHECK: `ZONE` (Phân khu lớn, ví dụ Khu A, Khu B) hoặc `BIN` (Ô/Kệ chứa hàng thực tế).
   - `parent_id` (BIGINT, FK -> warehouse_locations): Trỏ tới Zone cha. Nếu là Zone thì trường này để `NULL`.
   - `capacity_m3` & `capacity_kg` (DECIMAL): Giới hạn thể tích (m3) và tải trọng (kg) tối đa của ô kệ (chỉ áp dụng cho loại `BIN`).
-  - `current_volume_m3` & `current_weight_kg` (DECIMAL): Thể tích và khối lượng hàng hiện tại đang chứa trong ô kệ (tự động cập nhật bằng database trigger).
+  - `current_volume_m3` & `current_weight_kg` (DECIMAL): Thể tích và khối lượng hàng hiện tại trong ô kệ, được service putaway duy trì trong cùng transaction.
   - `is_quarantine` (BOOLEAN, DEFAULT false): Cờ đánh dấu vị trí cách ly (Quarantine Zone/Bin) để giữ hàng lỗi QC hoặc hàng hoàn trả.
 - **Ví dụ thực tế:**
   - Bản ghi 1 (Khu vực): `id = 10`, `type = "ZONE"`, `code = "WH-HP.A"`, `parent_id = NULL`.
@@ -193,7 +197,7 @@ erDiagram
 ### 11. Bảng `price_history`
 
 - **Công dụng:** Quản lý lịch sử thay đổi giá mua (giá vốn `cost_price`) và giá bán (`selling_price`) của từng SKU. Giá bán phải được phê duyệt trước khi có hiệu lực.
-- **Chi tiết các trường:** `effective_date` (ngày hiệu lực), `end_date` (ngày hết hiệu lực), `status` (CHECK: `PENDING`/`APPROVED`), và `approved_by` (ID Kế toán trưởng phê duyệt).
+- **Chi tiết các trường:** `effective_date` (ngày hiệu lực), `status`, `approved_by` (ID Kế toán trưởng phê duyệt). `end_date` **không tồn tại** trên VPS từ migration V6; giá có hiệu lực được chọn theo bản ghi `ACTIVE` mới nhất có `effective_date <= ngày nghiệp vụ`.
 
 ---
 
@@ -201,12 +205,12 @@ erDiagram
 
 ### 12. Bảng `batches`
 
-- **Công dụng:** Quản lý thông tin nguồn gốc của lô hàng nhập kho. Phục vụ quản lý FIFO và phân hạng chất lượng hàng.
+- **Công dụng:** Quản lý nguồn gốc lô hàng để chọn FIFO theo `received_date`; không phân hạng chất lượng trong domain.
 - **Chi tiết các trường:**
   - `batch_number` (VARCHAR(100), UNIQUE): Số lô duy nhất (ví dụ: `LOT-TH-20260601`).
   - `product_id` (BIGINT, FK -> products): SKU của sản phẩm thuộc lô này.
   - `received_date` (DATE): Ngày nhập lô hàng về kho (Dùng để xác định lô cũ nhất cho FIFO).
-  - `grade` (VARCHAR(1)): Phân loại chất lượng của lô. CHECK: `A` (Hàng mới/hoàn hảo), `B` (Hàng móp vỏ nhẹ), `C` (Hàng lỗi hỏng cần thanh lý).
+  - `expiry_date`, `grade` (legacy columns trong migration): không được service/UI Sprint 1 sử dụng để phân lô, FEFO hay phân cấp hàng bán lại. Hàng fail QC phải đi Quarantine.
 - **Ví dụ thực tế:** Lô hàng `LOT-A` nhập ngày `2026-06-01` sẽ được chọn để xuất kho trước lô `LOT-B` nhập ngày `2026-06-05` theo FIFO.
 
 ### 13. Bảng `inventories`
@@ -252,7 +256,7 @@ erDiagram
 - **Chi tiết các trường:**
   - `expected_qty` (DECIMAL): Số lượng nhà cung cấp thông báo giao.
   - `actual_qty` (DECIMAL): Số lượng đếm thực tế khi mở thùng hàng.
-  - `qc_passed_qty` (DECIMAL): Số lượng đạt tiêu chuẩn (hàng loại A $\rightarrow$ sẽ được cất vào các ô kệ thông thường).
+  - `qc_passed_qty` (DECIMAL): Số lượng đạt QC để cất vào bin thường; không gán quality grade.
   - `qc_failed_qty` (DECIMAL): Số lượng lỗi hỏng (sẽ bắt buộc phải cất vào **Khu cách ly Quarantine**).
   - `qc_result` (VARCHAR(20)): Kết quả kiểm định. CHECK: `PENDING`, `PASSED`, `FAILED`, `PARTIAL`.
 
@@ -381,7 +385,7 @@ erDiagram
 [Kho Nguồn] ──(Xuất hàng)──> [Kho ảo IN_TRANSIT] ──(Vận chuyển)──> [Kho Đích]
 ```
 
-### 25. Bảng `transfers`
+### 25. Bảng `inter_warehouse_transfers`
 
 - **Công dụng:** Quản lý yêu cầu điều chuyển hàng hóa giữa 3 kho vật lý của công ty (ví dụ: Chuyển 100 Tivi từ Kho Hà Nội vào Kho Hồ Chí Minh).
 - **Chi tiết các trường:**
@@ -390,7 +394,12 @@ erDiagram
   - `destination_warehouse_id` (FK): Kho nhận hàng đến.
   - `status` (VARCHAR(40)): CHECK: `NEW` (Lập lệnh), `APPROVED` (Trưởng kho duyệt), `IN_TRANSIT` (Hàng đang nằm ở kho ảo/ở trên xe đi đường), `COMPLETED` (Kho đích đã nhận đủ), `COMPLETED_WITH_DISCREPANCY` (Hoàn thành nhưng bị lệch số lượng thực nhận), `CANCELLED`.
 
-### 26. Bảng `transfer_items`
+### 25.1. Bảng `transfer_requests` & `transfer_request_items`
+
+- **Công dụng:** Lưu đề xuất điều chuyển trước khi thành `inter_warehouse_transfers`; tách biệt yêu cầu điều phối khỏi chứng từ vận hành đã được duyệt.
+- **Ràng buộc:** Mỗi dòng yêu cầu xác định SKU/số lượng và kho nguồn–đích theo warehouse scope. Phê duyệt, từ chối và tạo transfer phải ghi audit log; không hard-code trạng thái hoặc warehouse ID.
+
+### 26. Bảng `inter_warehouse_transfer_items`
 
 - **Công dụng:** Chi tiết các lô hàng và số lượng cần điều chuyển. Ghi nhận độc lập số lượng gửi và số lượng nhận thực tế để phát hiện hao hụt.
 - **Chi tiết các trường:**
@@ -398,6 +407,12 @@ erDiagram
   - `sent_qty` (DECIMAL): Số lượng kho nguồn thực xuất lên xe.
   - `received_qty` (DECIMAL): Số lượng kho đích thực tế nhận được khi dỡ hàng xuống.
   - `variance_qty` (DECIMAL): Số lượng chênh lệch hao hụt khi đi đường (`received_qty - sent_qty`). Nếu chênh lệch âm, hệ thống yêu cầu lập phiếu **Adjustment** điều chỉnh hao hụt để ghi nhận lý do.
+
+### 26.1. Bảng hardening transfer
+
+- `inter_warehouse_transfer_allocations`: allocation theo batch/vị trí để duy trì FIFO và optimistic locking khi ship.
+- `wrong_sku_reports`, `wrong_sku_report_items`: ghi nhận SKU sai trong bước nhận kho đích.
+- `discrepancy_incidents`, `discrepancy_hold_entries`: bằng chứng và hàng giữ lại khi có thiếu/thừa; chênh lệch phải dẫn đến adjustment/audit thích hợp.
 
 ---
 
@@ -463,6 +478,23 @@ erDiagram
 
 ---
 
+## BẢNG HỖ TRỢ VÀ HARDENING BẮT BUỘC
+
+Các bảng dưới đây cũng có migration và thuộc catalog schema; chúng không được bỏ qua khi thiết kế API, audit hoặc test integration.
+
+| Table | Vai trò chính |
+| --- | --- |
+| `notifications` | Thông báo in-app chung theo người nhận, loại và bản ghi tham chiếu. |
+| `document_sequences` | Sinh số chứng từ có kiểm soát. |
+| `warehouse_product_reservations` | Tổng reserved quantity theo kho/SKU, có `version` để chống ghi đè cạnh tranh. |
+| `quarantine_records` | Truy vết hàng QC fail trong quarantine và origin (`RECEIPT_QC_FAIL`/`INTERNAL_TRANSFER`/outbound). |
+| `delivery_order_item_replacements` | Lịch sử nguồn tồn kho thay thế khi allocation/QC outbound cần đổi hàng. |
+| `inter_warehouse_transfer_allocations` | Allocation theo batch/vị trí cho điều chuyển, phục vụ FIFO và optimistic locking. |
+| `wrong_sku_reports`, `wrong_sku_report_items` | Expected/actual SKU, quantity và lý do khi nhận sai SKU ở kho đích. |
+| `discrepancy_incidents`, `discrepancy_hold_entries` | Incident và lượng vật lý bị giữ khi transfer thiếu/thừa; không tự cộng vào available inventory. |
+
+`transfer_requests`/`transfer_request_items` và `quarantine_records` là phần không thể thiếu của flow Spec 005/003; `billing_notifications` là worklist đối chiếu hóa đơn, không thay thế invoice lifecycle.
+
 ## NHÓM 12: CẤU HÌNH HỆ THỐNG & NHẬT KÝ BẢO MẬT
 
 ### 35. Bảng `system_configs`
@@ -476,7 +508,7 @@ erDiagram
 
 - **Công dụng:** Lưu nhật ký toàn bộ các hành động thay đổi dữ liệu kho bãi để phục vụ mục đích kiểm toán bảo mật (Audit Trail). **Bảng này được cấu hình Trigger chặn tuyệt đối mọi hành vi UPDATE hoặc DELETE sau khi ghi.**
 - **Chi tiết các trường:**
-  - `actor_id` & `actor_role` (FK): Người thực hiện và vai trò của họ tại thời điểm đó (ví dụ: `Thủ kho`).
+  - `actor_id` & `actor_role`: Người thực hiện và vai trò tại thời điểm đó. `actor_id` là FK **NOT NULL** trong migration; system action phải dùng system actor đã provision thay vì ghi NULL.
   - `action` (VARCHAR): Loại thao tác. CHECK: `LOGIN`, `LOGOUT`, `CREATE`, `UPDATE`, `STATUS_CHANGE`, `APPROVE`, `REJECT`, `CANCEL`, `SOFT_DELETE`, `ASSIGN`, `UNASSIGN`.
   - `entity_type` & `entity_id` (VARCHAR/BIGINT): Đối tượng bị thay đổi (ví dụ: bảng `inventories`, id `55`).
   - `old_value` & `new_value` (JSONB): Bản ghi giá trị trước và sau khi sửa (Chỉ lưu phần thông tin khác nhau - Diff-only và tự động loại bỏ các trường nhạy cảm như password).
@@ -488,18 +520,17 @@ erDiagram
 
 ---
 
-## CÁC TRIGGER TỰ ĐỘNG & VIEW QUAN TRỌNG
+## CƠ CHẾ NGHIỆP VỤ TỰ ĐỘNG & FIFO
 
-### 1. Tự động tính toán sức chứa ô kệ (`trg_inventories_bin_capacity`)
+### 1. Kiểm tra sức chứa ô kệ
 
-- **Cơ chế:** Khi có bất kỳ hành động Nhập, Xuất hoặc Di chuyển hàng làm thay đổi bảng `inventories`, một trigger sẽ tự động nhân số lượng hàng (`total_qty`) với thể tích (`volume_m3`) và khối lượng (`weight_kg`) của SKU đó, sau đó cộng dồn để cập nhật trực tiếp vào cột `current_volume_m3` và `current_weight_kg` của ô kệ (`warehouse_locations`) tương ứng.
-- **Lợi ích:** Hệ thống luôn biết chính xác ô kệ nào còn bao nhiêu m3 trống để đưa ra gợi ý cất hàng tự động mà không cần tính toán thủ công ở backend.
+- **Cơ chế chuẩn:** Service putaway tính/kiểm tra `capacity_m3`, `capacity_kg`, `current_volume_m3` và `current_weight_kg` trong transaction trước khi cập nhật inventory. Không giả định trigger database tồn tại nếu migration chưa khai báo nó.
+- **Lợi ích:** Giữ validation nghiệp vụ trong Spring service/JPA, nhất quán với kiến trúc không dùng raw SQL.
 
-### 2. Tự động cảnh báo tồn kho (`trg_inventories_stock_alert`)
+### 2. Cảnh báo tồn kho thấp
 
-- **Cơ chế:** Mỗi khi số lượng tồn của một sản phẩm thay đổi, hệ thống tự động so sánh tổng tồn kho của sản phẩm đó trong kho với trường `reorder_point` của sản phẩm. Nếu thấp hơn, hệ thống tự động chèn một dòng cảnh báo vào bảng `stock_alerts`.
+- **Cơ chế chuẩn:** Sau biến động tồn kho, service/background process đánh giá `available = total_qty - reserved_qty` so với `reorder_point` hoặc `MIN_INVENTORY_WARNING_THRESHOLD`, rồi tạo/resolve `stock_alerts`. Unique `(warehouse_id, product_id, alert_type, is_resolved)` tránh spam alert mở.
 
-### 3. View xếp hạng tồn kho FIFO (`v_inventory_by_batch`)
+### 3. Lựa chọn FIFO
 
-- **Cơ chế:** View này sắp xếp tồn kho chi tiết theo nguyên tắc ưu tiên lô có ngày nhập kho cũ nhất lên trước (`received_date ASC` - FIFO), chỉ bao gồm tồn kho hợp lệ trong khu vực đạt chất lượng.
-- **Lợi ích:** Khi xuất kho, backend chỉ cần select từ View này để tự động phân bổ hàng xuất tối ưu mà không cần viết thuật toán sắp xếp phức tạp ở code ứng dụng.
+- **Cơ chế chuẩn:** Repository/service chọn batch theo `received_date ASC`, chỉ lấy tồn kho hợp lệ ngoài Quarantine và dùng optimistic locking. Không giả định view SQL `v_inventory_by_batch` tồn tại nếu migration chưa khai báo nó.

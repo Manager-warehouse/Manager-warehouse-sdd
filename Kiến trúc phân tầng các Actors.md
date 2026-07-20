@@ -1,8 +1,8 @@
 # KIẾN TRÚC PHÂN TẦNG CÁC ACTORS - HỆ THỐNG WMS PHÚC ANH
 
-# Phiên bản: 2.0 | Cập nhật: 2026-05-27
+# Phiên bản: 2.1 | Cập nhật: 2026-07-15
 
-# Ghi chú: Hệ thống dùng xe nội bộ Phúc Anh. KHÔNG có quản lý sản xuất, HRM, Barcode/QR, cổng B2B/B2C.
+# Ghi chú: Hệ thống dùng xe nội bộ Phúc Anh. KHÔNG có quản lý sản xuất, HRM, Barcode/QR, cổng B2B/B2C. Nguồn nghiệp vụ chuẩn là `.sdd/specs/001`–`010`; Spec 011–012 bổ sung vai trò chất lượng kỹ thuật, không thay đổi RBAC vận hành 10 actor.
 
 ---
 
@@ -51,7 +51,7 @@
 - Phê duyệt hoặc từ chối yêu cầu điều chuyển liên kho do Trưởng kho đề xuất; CEO approval chỉ tạo cơ sở cho Planner lập `TRF-*`, không giữ chỗ hoặc dịch chuyển inventory.
 
 **User Stories liên quan:** US-WMS-01, US-WMS-11A, US-WMS-18
-
+``
 ---
 
 ### 2. System Admin
@@ -355,8 +355,8 @@ Kế toán trưởng kiểm tra điều kiện → Chốt sổ kỳ T → CLOSED
 
 **Điều kiện khóa tín dụng (CREDIT_HOLD) — kích hoạt khi vi phạm BẤT KỲ điều kiện nào:**
 
-1. `current_balance + giá_trị_đơn_mới >= credit_limit` _(kiểm tra khi Planner tạo đơn)_
-2. `current_balance >= credit_limit` _(kiểm tra sau khi lập hóa đơn)_
+1. `current_balance + giá_trị_đơn_mới > credit_limit` _(kiểm tra khi Planner tạo đơn; bằng hạn mức vẫn cho phép)_
+2. `current_balance > credit_limit` _(kiểm tra sau khi lập hóa đơn; bằng hạn mức vẫn cho phép)_
 3. Đại lý có ít nhất 1 hóa đơn quá ngày Hạn thanh toán > 30 ngày _(Daily Job)_
 
 **Điều kiện mở khóa (ACTIVE):**

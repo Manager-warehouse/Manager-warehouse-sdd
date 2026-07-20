@@ -23,7 +23,9 @@ Import không tự động duyệt. Tất cả bản ghi tạo ra đều ở `PE
 - The system SHALL return HTTP 201 when all rows are valid and all records are created.
 - The system SHALL return HTTP 207 when the file is structurally valid but at least one row fails data validation (including the case where all data rows fail).
 - The system SHALL return HTTP 400 when the file itself is invalid: not `.xlsx`, unreadable, or missing required columns A–E in the header.
-- The system SHALL apply the same validation rules as single-entry creation: required fields, positive prices, product existence, warehouse existence, no conflicting non-`CANCELLED` (`PENDING` or `APPROVED`) entry with the same `(product_id, warehouse_id, effective_date)` (Session 2026-07-12 của `spec.md`). There is no `end_date` and no date-range validation.
+- The system SHALL apply the same validation rules as single-entry creation: required fields, positive prices, `selling_price > cost_price` (Session 2026-07-18, `SELLING_BELOW_COST`), `effective_date` in an `OPEN` accounting period (Session 2026-07-18, `PERIOD_CLOSED`), product existence, warehouse existence, no conflicting non-`CANCELLED` (`PENDING` or `APPROVED`) entry with the same `(product_id, warehouse_id, effective_date)` (Session 2026-07-12 của `spec.md`). There is no `end_date` and no date-range validation.
+- The system SHALL also treat two rows within the same uploaded file as conflicting if they target the same `(product_id, warehouse_id, effective_date)` (Session 2026-07-18 của `spec.md`): the first such row is created normally, the second and any subsequent one fail with `OVERLAPPING_EFFECTIVE_DATE` — this is checked in addition to, not instead of, the pre-existing-DB-row check above, since a not-yet-committed row created earlier in the same batch would not otherwise be visible to a plain DB lookup for a later row.
+- The 1.000-row limit (`EXCEL_TOO_MANY_ROWS`) is counted over actual non-blank data rows, excluding any trailing blank/formatted rows the spreadsheet file may contain after the last real row of data.
 - Every successfully created record SHALL trigger a single aggregated in-app notification to all `ACCOUNTANT_MANAGER` users (not one notification per row).
 - Every created price entry SHALL have `created_by = authenticated user` and `status = PENDING`.
 - Every mutation SHALL create an audit log entry per created record.
@@ -61,6 +63,8 @@ File `.xlsx` phải có header ở **dòng 1** chính xác như sau (case-insens
 
 Cột thừa ngoài A–F: bỏ qua. Cột thiếu trong A–E: toàn bộ file bị reject với `EXCEL_FORMAT_INVALID`.
 
+> **Session 2026-07-18**: `GET /price-history/export` (mục 4) PHẢI xuất đúng header và giá trị cột B là `warehouse_code`/mã kho (`HP`/`HN`/`HCM`) — trước đó xuất nhầm header `warehouse_name` kèm tên đầy đủ (`Kho Hải Phòng`), khiến file export không bao giờ import lại được (bị `EXCEL_FORMAT_INVALID` ngay ở bước đọc header, kể cả khi header trùng khớp thì giá trị tên kho cũng không khớp `warehouses.code`). Cột A–F của export và import PHẢI đồng nhất tuyệt đối để hỗ trợ đúng luồng "xuất → sửa giá → import lại".
+
 ### 3.4 Mã lỗi per-row
 
 | Mã lỗi dòng | Nguyên nhân |
@@ -70,7 +74,9 @@ Cột thừa ngoài A–F: bỏ qua. Cột thiếu trong A–E: toàn bộ file 
 | `WAREHOUSE_NOT_FOUND` | warehouse_code không tồn tại hoặc không active |
 | `INVALID_DATE_FORMAT` | Ngày không parse được |
 | `INVALID_PRICE` | `cost_price` hoặc `selling_price` <= 0 |
-| `OVERLAPPING_EFFECTIVE_DATE` | Đã tồn tại bản giá PENDING hoặc APPROVED khác cùng `(product_id, warehouse_id, effective_date)` |
+| `SELLING_BELOW_COST` | `selling_price <= cost_price` |
+| `PERIOD_CLOSED` | `effective_date` nằm trong một kỳ kế toán đã CLOSED |
+| `OVERLAPPING_EFFECTIVE_DATE` | Đã tồn tại bản giá PENDING hoặc APPROVED khác cùng `(product_id, warehouse_id, effective_date)` — kể cả khi bản trùng đó nằm ở một dòng khác trong cùng file đang import |
 
 ---
 
@@ -80,6 +86,7 @@ Cột thừa ngoài A–F: bỏ qua. Cột thiếu trong A–E: toàn bộ file 
 |--------|------|-------|
 | `POST` | `/api/v1/price-history/import` | Upload file Excel, tạo hàng loạt bản giá PENDING |
 | `GET` | `/api/v1/price-history/import/template` | Download file Excel mẫu với header đúng chuẩn |
+| `GET` | `/api/v1/price-history/export` | Xuất danh sách bản giá hiện có ra Excel (filter: `productId`, `warehouseId`, `status`) — cùng khuôn dạng cột A–F ở mục 3.3, để có thể sửa rồi import lại (Session 2026-07-18 của `spec.md`) |
 
 ### Request — `POST /api/v1/price-history/import`
 
@@ -146,3 +153,20 @@ Cột thừa ngoài A–F: bỏ qua. Cột thiếu trong A–E: toàn bộ file 
 - And không tạo notification (vì không có bản ghi nào được tạo)
 
 > Lý do dùng 207 thay vì 422 khi all rows fail: file hợp lệ về mặt cấu trúc, đây là lỗi data từng dòng, không phải lỗi request. Caller cần danh sách lỗi per-row để sửa, không phải reject toàn bộ không rõ lý do.
+
+**Scenario 7: Hai dòng trong cùng file trùng effective_date**
+- Given file Excel 2 dòng cùng `product_sku`, cùng `warehouse_code`, cùng `effective_date`, không có bản ghi APPROVED/PENDING nào trong DB trùng ngày đó trước khi upload
+- When upload
+- Then dòng đầu tiên được tạo `PENDING` thành công
+- And dòng thứ hai bị từ chối với `OVERLAPPING_EFFECTIVE_DATE`
+- And HTTP 207, `created_count = 1`, `failed_count = 1`
+
+**Scenario 8: Dòng có selling_price <= cost_price**
+- Given file Excel có một dòng với `cost_price = 100000`, `selling_price = 95000`
+- When upload
+- Then dòng đó bị từ chối với `SELLING_BELOW_COST`, các dòng hợp lệ khác vẫn được tạo
+
+**Scenario 9: Dòng có effective_date thuộc kỳ kế toán đã CLOSED**
+- Given kỳ kế toán tháng 01/2026 đã CLOSED, file Excel có một dòng với `effective_date = 15/01/2026`
+- When upload
+- Then dòng đó bị từ chối với `PERIOD_CLOSED`, các dòng hợp lệ khác (effective_date trong kỳ đang mở) vẫn được tạo

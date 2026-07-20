@@ -103,4 +103,17 @@ public class SecurityConfigTest {
                         .header("Authorization", "Bearer " + invalidToken))
                 .andExpect(status().isUnauthorized());
     }
+
+    @Test
+    void admin_canAccessAccountantEndpoints_viaRoleHierarchy() throws Exception {
+        String token = jwtUtil.generateAccessToken("test@wms.com", "ADMIN");
+
+        // POST /api/v1/suppliers requires ROLE_ACCOUNTANT or ROLE_ACCOUNTANT_MANAGER.
+        // With Role Hierarchy, ADMIN should bypass 403 and hit validation or other errors (e.g. 400 Bad Request) instead of 403.
+        mockMvc.perform(post("/api/v1/suppliers")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest()); // validation fails, but not 403 Forbidden
+    }
 }

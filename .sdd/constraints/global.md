@@ -77,7 +77,7 @@ frontend/src/
 | Error format | `{timestamp, status, error, message, path, details}` |
 | Jakarta Validation | `@NotBlank`, `@NotNull`, `@Positive`, `@Size`... trên tất cả POST/PUT |
 | Auth | JWT trong header `Authorization: Bearer {token}` |
-| Public endpoints | Chỉ `/auth/login`, `/auth/refresh` |
+| Public endpoints | Chỉ `/auth/login`, `/auth/refresh`, `/auth/forgot-password`, `/auth/verify-otp` (các endpoint bắt buộc trước khi có JWT) |
 
 ## 6. Code Quality Thresholds
 

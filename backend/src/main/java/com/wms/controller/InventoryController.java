@@ -1,6 +1,7 @@
 package com.wms.controller;
 
 import com.wms.dto.response.InventoryAvailabilityResponse;
+import com.wms.dto.response.WarehouseStockOverviewResponse;
 import com.wms.service.InventoryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -27,5 +28,12 @@ public class InventoryController {
     public InventoryAvailabilityResponse getAvailability(@RequestParam Long warehouseId,
                                                          @RequestParam Long productId) {
         return inventoryService.getAvailability(warehouseId, productId);
+    }
+
+    @GetMapping("/overview")
+    @PreAuthorize("hasAnyRole('ADMIN','CEO','PLANNER','DISPATCHER','WAREHOUSE_MANAGER','STOREKEEPER','WAREHOUSE_STAFF')")
+    @Operation(summary = "Get warehouse overview KPIs from current inventory and transaction data")
+    public WarehouseStockOverviewResponse getOverview(@RequestParam Long warehouseId) {
+        return inventoryService.getOverview(warehouseId);
     }
 }

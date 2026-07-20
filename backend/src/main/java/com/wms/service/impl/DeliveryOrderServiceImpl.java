@@ -28,6 +28,7 @@ import com.wms.entity.DeliveryOrderItemReturnToBinRecord;
 import com.wms.entity.DeliveryOrderWarehouseApproval;
 import com.wms.entity.Inventory;
 import com.wms.entity.OutboundQcRecord;
+import com.wms.entity.PriceHistory;
 import com.wms.entity.Product;
 import com.wms.entity.QuarantineRecord;
 import com.wms.entity.User;
@@ -65,9 +66,12 @@ import com.wms.repository.QuarantineRecordRepository;
 import com.wms.repository.UserWarehouseAssignmentRepository;
 import com.wms.repository.WarehouseProductReservationRepository;
 import com.wms.repository.WarehouseRepository;
+import com.wms.entity.AccountingPeriod;
+import com.wms.service.AccountingPeriodService;
 import com.wms.service.DeliveryOrderService;
 import com.wms.service.PartnerEligibilityService;
 import com.wms.service.PriceHistoryService;
+import com.wms.service.SystemConfigService;
 import com.wms.util.PartnerAuditUtil;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
@@ -98,7 +102,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class DeliveryOrderServiceImpl implements DeliveryOrderService {
 
     private static final BigDecimal ZERO = BigDecimal.ZERO.setScale(2);
-    private static final int CREDIT_HOLD_OVERDUE_DAYS = 30;
+    private static final int DEFAULT_CREDIT_HOLD_OVERDUE_DAYS = 30;
 
     private static final Set<DeliveryOrderStatus> CANCELLABLE_STATUSES = EnumSet.of(
             DeliveryOrderStatus.NEW,
@@ -128,6 +132,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     private final PartnerAuditUtil auditUtil;
     private final EntityManager entityManager;
     private final PriceHistoryService priceHistoryService;
+    private final AccountingPeriodService accountingPeriodService;
+    private final SystemConfigService systemConfigService;
 
     public DeliveryOrderServiceImpl(DeliveryOrderRepository deliveryOrderRepository,
             DeliveryOrderItemRepository deliveryOrderItemRepository,
@@ -150,7 +156,9 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
             DeliveryOrderMapper deliveryOrderMapper,
             PartnerAuditUtil auditUtil,
             EntityManager entityManager,
-            PriceHistoryService priceHistoryService) {
+            PriceHistoryService priceHistoryService,
+            AccountingPeriodService accountingPeriodService,
+            SystemConfigService systemConfigService) {
         this.deliveryOrderRepository = deliveryOrderRepository;
         this.deliveryOrderItemRepository = deliveryOrderItemRepository;
         this.allocationRepository = allocationRepository;
@@ -173,6 +181,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         this.auditUtil = auditUtil;
         this.entityManager = entityManager;
         this.priceHistoryService = priceHistoryService;
+        this.accountingPeriodService = accountingPeriodService;
+        this.systemConfigService = systemConfigService;
     }
 
     @Override
@@ -263,14 +273,31 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         Warehouse warehouse = activeWarehouse(request.getWarehouseId());
         requireWarehouseScope(actor, warehouse.getId());
         partnerEligibilityService.ensureDealerActive(request.getDealerId());
-        Dealer dealer = dealerRepository.findById(request.getDealerId())
+        // Locked for the duration of this transaction so a concurrent order for the same
+        // dealer can't read a stale balance and both pass the credit check.
+        Dealer dealer = dealerRepository.findByIdForUpdate(request.getDealerId())
                 .orElseThrow(() -> new ResourceNotFoundException("Dealer not found with id: " + request.getDealerId()));
+
+        // Validate every line has an approved price before building any plan, in one pass,
+        // so a DO missing prices for several products reports all of them together instead
+        // of failing on just the first one buildItemPlans() would hit.
+        List<Long> missingPrice = request.getItems().stream()
+                .map(DeliveryOrderItemCreateRequest::getProductId)
+                .distinct()
+                .filter(pid -> priceHistoryService
+                        .lookupApproved(pid, request.getWarehouseId(), request.getDocumentDate()).isEmpty())
+                .toList();
+        if (!missingPrice.isEmpty()) {
+            throw PriceHistoryException.missingPrice(missingPrice.toString());
+        }
 
         List<ItemPlan> itemPlans = buildItemPlans(request);
         BigDecimal orderValue = itemPlans.stream()
                 .map(ItemPlan::lineAmount)
                 .reduce(ZERO, BigDecimal::add);
         validateCredit(dealer, orderValue);
+
+        AccountingPeriod accountingPeriod = accountingPeriodService.resolveOpenPeriod(request.getDocumentDate());
 
         Map<Long, BigDecimal> requestedByProduct = itemPlans.stream()
                 .collect(Collectors.toMap(plan -> plan.product().getId(), ItemPlan::requestedQty, BigDecimal::add));
@@ -286,22 +313,10 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         order.setStatus(DeliveryOrderStatus.NEW);
         order.setCreatedBy(actor);
         order.setDocumentDate(request.getDocumentDate());
+        order.setAccountingPeriod(accountingPeriod);
         order.setNotes(request.getNotes());
         order.setCreatedAt(now);
         order.setUpdatedAt(now);
-
-        LocalDate today = request.getDocumentDate();
-        Long warehouseId = request.getWarehouseId();
-        // Validate all lines have an approved price for this warehouse before creating
-        // anything
-        List<Long> missingPrice = request.getItems().stream()
-                .map(i -> i.getProductId())
-                .distinct()
-                .filter(pid -> priceHistoryService.lookupApproved(pid, warehouseId, today).isEmpty())
-                .toList();
-        if (!missingPrice.isEmpty()) {
-            throw PriceHistoryException.missingPrice(missingPrice.toString());
-        }
 
         DeliveryOrder saved = deliveryOrderRepository.save(order);
         List<Map<String, Object>> reservationDeltas = reserveWarehouseProducts(warehouse, requestedByProduct, now);
@@ -554,6 +569,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                 adjustment.setApprovedBy(actor);
                 adjustment.setApprovedAt(now);
                 adjustment.setDocumentDate(LocalDate.now());
+                adjustment.setAccountingPeriod(accountingPeriodService.resolveOpenPeriod(LocalDate.now()));
                 adjustment.setCreatedBy(actor);
                 adjustment.setCreatedAt(now);
 
@@ -965,11 +981,11 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
             Product product = productRepository.findByIdAndIsActiveTrue(item.getProductId())
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "Active product not found with id: " + item.getProductId()));
-            BigDecimal unitPrice = priceHistoryService
+            PriceHistory price = priceHistoryService
                     .lookupApproved(product.getId(), request.getWarehouseId(), request.getDocumentDate())
-                    .map(price -> value(price.getSellingPrice()))
                     .orElseThrow(() -> PriceHistoryException.missingPrice(product.getId().toString()));
-            plans.add(new ItemPlan(product, item.getRequestedQty(), unitPrice));
+            plans.add(new ItemPlan(product, item.getRequestedQty(), value(price.getSellingPrice()),
+                    value(price.getCostPrice())));
         }
         return plans;
     }
@@ -983,11 +999,12 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         if (currentBalance.add(orderValue).compareTo(creditLimit) > 0) {
             throw creditHold("Dealer credit limit exceeded");
         }
-        LocalDate overdueThreshold = LocalDate.now().minusDays(CREDIT_HOLD_OVERDUE_DAYS);
+        int overdueDays = systemConfigService.getIntValue("CREDIT_HOLD_OVERDUE_DAYS", DEFAULT_CREDIT_HOLD_OVERDUE_DAYS);
+        LocalDate overdueThreshold = LocalDate.now().minusDays(overdueDays);
         boolean hasOverdue = invoiceRepository.existsByDealerIdAndStatusInAndDueDateBefore(
                 dealer.getId(), List.of(InvoiceStatus.UNPAID, InvoiceStatus.PARTIALLY_PAID), overdueThreshold);
         if (hasOverdue) {
-            throw creditHold("Dealer has invoice overdue more than 30 days");
+            throw creditHold("Dealer has invoice overdue more than " + overdueDays + " days");
         }
     }
 
@@ -1154,6 +1171,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         item.setQcFailQty(ZERO);
         item.setIssuedQty(ZERO);
         item.setUnitPrice(plan.unitPrice());
+        item.setUnitCost(plan.unitCost());
         return item;
     }
 
@@ -1164,6 +1182,9 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     }
 
     private void requireWarehouseScope(User actor, Long warehouseId) {
+        if (actor.getRole() == UserRole.ADMIN || actor.getRole() == UserRole.CEO) {
+            return;
+        }
         boolean assigned = assignmentRepository.findWarehouseIdsByUserId(actor.getId()).contains(warehouseId);
         if (!assigned) {
             throw new OutboundDeliveryException("WAREHOUSE_SCOPE_FORBIDDEN",
@@ -1984,7 +2005,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         return doItemId + ":" + inventoryId;
     }
 
-    private record ItemPlan(Product product, BigDecimal requestedQty, BigDecimal unitPrice) {
+    private record ItemPlan(Product product, BigDecimal requestedQty, BigDecimal unitPrice, BigDecimal unitCost) {
         BigDecimal lineAmount() {
             return requestedQty.multiply(unitPrice);
         }

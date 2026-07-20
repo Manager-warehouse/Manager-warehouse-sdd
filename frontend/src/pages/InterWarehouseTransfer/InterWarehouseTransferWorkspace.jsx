@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { Plus, RefreshCw, Search, AlertCircle, Info } from 'lucide-react';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
+import Pagination from '../../components/common/Pagination';
 import { masterDataService } from '../../services/masterData.service';
 import { interWarehouseTransferService } from '../../services/inter-warehouse-transfer.service';
 import { useAuthStore } from '../../stores/auth.store';
@@ -30,6 +31,8 @@ const InterWarehouseTransferWorkspace = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [formOpen, setFormOpen] = useState(false);
   const [availabilityByLine, setAvailabilityByLine] = useState({});
   const [selectedAvailabilityByItem, setSelectedAvailabilityByItem] = useState({});
@@ -200,6 +203,14 @@ const InterWarehouseTransferWorkspace = () => {
       && (statusFilter === 'ALL' || transfer.status === statusFilter);
   }), [visibleTransfers, searchTerm, statusFilter]);
 
+  const totalPages = Math.max(1, Math.ceil(filteredTransfers.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedTransfers = filteredTransfers.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, visibleTransfers.length]);
+
   const sourceWarehouseOptions = useMemo(() => {
     const list = warehouses.filter((w) => {
       if (hasRole(ROLES.ADMIN) || hasRole(ROLES.CEO)) return true;
@@ -309,8 +320,8 @@ const InterWarehouseTransferWorkspace = () => {
   };
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 flex-wrap">
+    <div className="mobile-page">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-4 flex-wrap">
         <div className="flex-1 min-w-0">
           <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
             Vận hành / Transfer
@@ -322,7 +333,7 @@ const InterWarehouseTransferWorkspace = () => {
             Lập phiếu thủ công từ lệnh Công ty mẹ, giữ chỗ, xuất hàng, vận chuyển và xác nhận nhận hàng.
           </p>
         </div>
-        <div className="flex gap-2 flex-shrink-0">
+        <div className="mobile-filter-bar sm:flex sm:gap-2 sm:flex-shrink-0">
           <Button icon={RefreshCw} variant="outline-light" onClick={loadData} loading={loading}>Tải lại</Button>
           {canCreateTransfer && (
             <Button icon={Plus} onClick={() => setFormOpen((value) => !value)}>Tạo phiếu</Button>
@@ -331,7 +342,7 @@ const InterWarehouseTransferWorkspace = () => {
       </div>
 
       {formOpen && (
-        <div className="border border-hairline-light rounded-lg bg-canvas-light p-4 grid grid-cols-1 md:grid-cols-4 gap-3">
+        <div className="border border-hairline-light rounded-lg bg-canvas-light p-3 md:p-4 grid grid-cols-1 md:grid-cols-4 gap-3">
           <Input label="Mã lệnh Công ty mẹ" value={form.externalInstructionCode} onChange={(e) => setForm({ ...form, externalInstructionCode: e.target.value })} />
           <Input type="select" label="Kho nguồn" value={form.sourceWarehouseId} onChange={(e) => setForm({ ...form, sourceWarehouseId: e.target.value })}
             options={sourceWarehouseOptions} />
@@ -410,7 +421,7 @@ const InterWarehouseTransferWorkspace = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-hairline-light">
-                    {filteredTransfers.map((transfer) => (
+                    {paginatedTransfers.map((transfer) => (
                       <tr key={transfer.id} onClick={() => setSelectedId(transfer.id)}
                         className={`cursor-pointer hover:bg-canvas-cream/50 transition-colors ${selectedId === transfer.id ? 'bg-aloe-10/30' : ''}`}>
                         <td className="px-6 py-4">
@@ -428,7 +439,7 @@ const InterWarehouseTransferWorkspace = () => {
 
               {/* Mobile: stacked card view */}
               <div className="flex flex-col divide-y divide-hairline-light md:hidden">
-                {filteredTransfers.map((transfer) => (
+                {paginatedTransfers.map((transfer) => (
                   <div
                     key={transfer.id}
                     onClick={() => setSelectedId(transfer.id)}
@@ -444,6 +455,18 @@ const InterWarehouseTransferWorkspace = () => {
                   </div>
                 ))}
               </div>
+              <Pagination
+                currentPage={safePage}
+                totalPages={totalPages}
+                totalItems={filteredTransfers.length}
+                pageSize={pageSize}
+                onPageChange={setCurrentPage}
+                onPageSizeChange={(size) => {
+                  setPageSize(size);
+                  setCurrentPage(1);
+                }}
+                pageSizeOptions={[10, 25, 50]}
+              />
             </>
           )}
         </div>

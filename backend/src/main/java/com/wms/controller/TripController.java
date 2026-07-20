@@ -19,6 +19,8 @@ import com.wms.service.DriverDeliveryService;
 import com.wms.service.TripService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -75,7 +77,17 @@ public class TripController {
 
     @GetMapping("/driver")
     @PreAuthorize("hasRole('DRIVER')")
-    @Operation(summary = "List assigned trips for driver mobile")
+    @Operation(
+            summary = "List assigned trips for driver mobile",
+            description = "Returns mixed DELIVERY and TRANSFER trip summaries assigned to the authenticated driver. "
+                    + "TRANSFER rows include source/destination warehouse codes and transfer line count; "
+                    + "DELIVERY rows include dealer delivery stop count and POD/OTP delivery orders."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Assigned driver trips returned",
+                    content = @Content(array = @ArraySchema(schema = @Schema(implementation = TripDriverViewResponse.class)))),
+            @ApiResponse(responseCode = "403", description = "Authenticated user is not a driver", content = @Content)
+    })
     public List<TripDriverViewResponse> listDriverTrips() {
         return driverDeliveryService.listMyTrips(currentUser());
     }

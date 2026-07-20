@@ -20,6 +20,8 @@ Luot nghiep vu nay la **luong rieng** cua dieu chuyen noi bo:
 
 Moi phieu dieu chuyen gan voi dung **mot** chuyen xe noi bo rieng, gom xe, tai xe, ngay chuyen va cac buoc ship/receive theo trang thai.
 
+Driver mobile visibility note: assigned transfer trips (`trip_type = TRANSFER`, trip number `TTR-*`) SHALL appear in the shared driver screen `Chuyen xe cua toi` together with outbound dealer delivery trips. The list SHALL label transfer trips as `Dieu chuyen noi bo`, support the `Noi bo` filter, and show source warehouse -> destination warehouse route instead of dealer delivery-point wording. Transfer trip detail actions remain governed by this Spec 005 flow; POD, dealer OTP, invoice, and dealer refusal actions from Spec 004 SHALL NOT appear for `TTR-*`.
+
 Bo sung luong tien xu ly cho nhu cau can bang ton kho giua cac kho:
 - Truong kho co the xem ton kho kha dung cua kho khac o che do read-only de phat hien kho khac con hang ma kho minh dang thieu.
 - Truong kho kho dang thieu co the tao **yeu cau dieu chuyen** gui CEO phe duyet, trong do kho dang thieu la kho dich va kho co hang la kho nguon du kien.
@@ -412,6 +414,7 @@ Exception branches SHALL be handled separately:
 - Destination Warehouse Manager SHALL approve or reject a `WRONG_SKU` return request within destination warehouse scope. Approval SHALL set `is_returned = true`, preserve the same transfer/trip/driver assignment, and flip receiving scope to the source warehouse.
 - The assigned driver SHALL turn back with the same physical stock after wrong-SKU return approval. The vehicle, driver, and trip SHALL remain active until source final confirmation.
 - The assigned driver SHALL record return departure and source arrival/handover before source receiving can start.
+- The shared driver trip list SHALL expose `TTR-*` rows with `tripType = TRANSFER`, `tripTypeLabel = Dieu chuyen noi bo`, source/destination route, transfer line count, vehicle, planned time, weight, and status so drivers can distinguish them from dealer delivery trips before opening detail.
 - Source return receiving SHALL repeat the controlled three-step flow: source Staff records count; source Storekeeper checks quantity/QC; source Warehouse Manager final-confirms receipt.
 - On source final confirmation, QC-passed returned quantity SHALL increase source regular inventory, damaged quantity SHALL enter source Quarantine, shortages SHALL create `TRANSFER_DISCREPANCY`, In-Transit SHALL be cleared, and the transfer SHALL finish as `COMPLETED` with `is_returned = true`.
 - A finalized transfer shortage SHALL calculate destination inventory quantity and value only from `received_qty`. Missing quantity SHALL remain a quantity-only `TRANSFER_DISCREPANCY` and SHALL NOT be included in destination receipt value, invoice, revenue, dealer receivable, supplier payable, or supplier Debit Note.

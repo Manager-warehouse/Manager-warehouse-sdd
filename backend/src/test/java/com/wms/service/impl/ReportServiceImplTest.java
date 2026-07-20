@@ -143,4 +143,15 @@ class ReportServiceImplTest {
 
         assertThat(bytes).isNotEmpty();
     }
+
+    @Test
+    void getProductivityReport_invalidWarehouse_throwsException() {
+        when(userRepository.findById(3L)).thenReturn(Optional.of(warehouseManager));
+        when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(10L));
+
+        assertThatThrownBy(() -> service.getProductivityReport(20L, LocalDate.now().minusDays(5), LocalDate.now(), 3L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("WAREHOUSE_SCOPE_FORBIDDEN");
+    }
 }
+

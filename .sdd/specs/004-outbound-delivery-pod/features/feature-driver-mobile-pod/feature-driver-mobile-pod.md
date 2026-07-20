@@ -2,6 +2,8 @@
 
 ## 1. Context and Goal
 
+Driver mobile list is a shared operational entry point for both assigned outbound delivery trips (`trip_type = DELIVERY`, usually `TRIP-*`) and assigned internal transfer trips (`trip_type = TRANSFER`, usually `TTR-*`). The list screen SHALL be titled `Chuyen xe cua toi`, not `Chuyen giao hang cua toi`, so a driver can distinguish dealer delivery work from internal warehouse transfer work before opening a trip detail. The list SHALL expose three visible filters: `Tat ca`, `Noi bo`, and `Dai ly`.
+
 Tài xế sử dụng mobile view để xem chuyến xe hiện tại được gán, giao lần lượt từng Delivery Order trong chuyến và ghi nhận kết quả giao hàng. Tại một thời điểm, mỗi tài xế và mỗi xe chỉ được gán cho tối đa một trip đang hoạt động; một trip có thể chứa nhiều Delivery Order. Khi Đại lý nhận hàng, tài xế phải upload 2 ảnh: ảnh hàng đã bàn giao vào điểm nhận và ảnh phiếu xuất kho/biên nhận có chữ ký xác nhận của Đại lý. Sau khi có đủ bằng chứng POD, hệ thống gửi OTP 6 số ngẫu nhiên tới email Đại lý; Đại lý đọc OTP cho tài xế nhập vào hệ thống.
 
 Khi OTP hợp lệ và còn hạn, hệ thống xác nhận giao hàng thành công cho đúng Delivery Order đó, trừ hàng của Delivery Order đó khỏi kho ảo `IN_TRANSIT`, tự động tạo invoice/công nợ và chuyển Delivery Order sang `COMPLETED`. Các Delivery Order khác trong cùng trip không bị thay đổi bởi thao tác xác nhận này.
@@ -16,6 +18,13 @@ Nếu Đại lý từ chối nhận hàng hoặc giao hàng thất bại, tài x
 ## 3. Functional Requirements (EARS)
 
 - **Ubiquitous:**
+  - The Driver trip list SHALL show all trips assigned to the authenticated driver profile across supported trip types: `DELIVERY` and `TRANSFER`.
+  - The Driver trip list SHALL distinguish trip type using both machine-readable `tripType` and Vietnamese labels: `Giao dai ly` for `DELIVERY`, `Dieu chuyen noi bo` for `TRANSFER`.
+  - The Driver trip list SHALL provide exactly three primary filters: `Tat ca`, `Noi bo`, and `Dai ly`; `Tat ca` is the default.
+  - The `Noi bo` filter SHALL show only `tripType = TRANSFER`; the `Dai ly` filter SHALL show only `tripType = DELIVERY`; filter changes SHALL NOT mutate trip, inventory, delivery attempt, transfer, audit, or resource state.
+  - The Driver trip list SHALL use context-appropriate summary fields: delivery trips show dealer stop count, while transfer trips show source warehouse, destination warehouse, and transfer line count instead of dealer delivery points.
+  - The Driver trip list SHALL hide POD, OTP, dealer refusal, and delivery-confirmation affordances for `TRANSFER` trips.
+  - The Driver trip list SHALL route detail actions by `tripType`: `DELIVERY` opens the Delivery Order POD/OTP workflow, while `TRANSFER` opens the transfer departure/arrival/handover workflow owned by Spec 005.
   - The system SHALL allow Driver users to view and mutate only the current trip assigned to their own driver profile.
   - The system SHALL enforce that a Driver and a vehicle are each assigned to no more than one active trip in status `PLANNED` or `IN_TRANSIT` at a time.
   - The current trip MAY contain multiple Delivery Orders, which the Driver SHALL process individually without changing sibling Delivery Orders that have not yet been completed or returned.
@@ -26,6 +35,13 @@ Nếu Đại lý từ chối nhận hàng hoặc giao hàng thất bại, tài x
   - The system SHALL create audit records for every user action in this flow: POD upload, OTP request/resend, OTP confirmation, delivery failure/return, and trip completion.
 
 - **Event-driven:**
+  - WHEN a driver opens the mobile trip list, the system SHALL:
+    - Return only trips assigned to the authenticated driver profile.
+    - Include `tripType`, `tripTypeLabel`, trip number, status, vehicle plate, planned start/end timestamps, total weight, and the type-specific summary needed by the card.
+    - Include delivery stop count for `DELIVERY` trips.
+    - Include source warehouse, destination warehouse, and transfer line count for `TRANSFER` trips.
+    - Preserve cancelled and completed assigned trips in the list when they are in the normal historical result window, while visually separating their status from active work.
+    - Return an empty list instead of an error when the driver has no assigned trips.
   - WHEN goods are dispatched for a Delivery Order delivery attempt, the system SHALL:
     - Create a new `deliveries` record for the current physical attempt at trip departure.
     - Assign the next `attempt_number` for that Delivery Order.
@@ -108,7 +124,12 @@ Nếu Đại lý từ chối nhận hàng hoặc giao hàng thất bại, tài x
   - Driver-facing errors SHALL explain the problem and next action in plain Vietnamese and SHALL NOT expose error codes, stack traces, or technical terminology.
   - Loading, disabled, success, and error states SHALL be visually distinct.
 - **Flow and layout:**
-  - The primary flow SHALL remain in this order: view the currently assigned trip; view a Delivery Order in that trip; capture two POD images; request OTP; enter OTP; view the delivery result.
+  - The Driver list breadcrumb SHALL read `Van hanh / Chuyen xe` and the list title SHALL read `Chuyen xe cua toi`.
+  - The list description SHALL avoid delivery-only wording and SHALL read as assigned vehicle trips for the current driver.
+  - The list SHALL provide three adjacent filter controls labelled `Tat ca`, `Noi bo`, and `Dai ly`; the active filter SHALL be visually obvious and keyboard/touch accessible.
+  - Every trip card SHALL show a visible trip-type badge near the trip number: `Giao dai ly` or `Dieu chuyen noi bo`.
+  - A `DELIVERY` trip card SHALL show `Diem giao: N dai ly`; a `TRANSFER` trip card SHALL show `Tuyen: Kho nguon -> Kho dich` and MAY show `Dong hang: N`.
+  - The primary delivery flow SHALL remain in this order after a `DELIVERY` trip is opened: view the currently assigned trip; view a Delivery Order in that trip; capture two POD images; request OTP; enter OTP; view the delivery result.
   - If the Driver has no active trip assigned, the interface SHALL show `Hiện không có chuyến xe được giao` and SHALL NOT show delivery actions.
   - The primary action SHALL remain sticky at the bottom and change by step to `Chụp ảnh POD`, `Yêu cầu OTP`, or `Xác nhận giao hàng`.
   - `Báo giao thất bại` SHALL remain available as a visually distinct secondary destructive action for an eligible `IN_TRANSIT` Delivery Order and SHALL open the required `failureReason` form without competing with the sticky primary success action.
@@ -138,6 +159,7 @@ Nếu Đại lý từ chối nhận hàng hoặc giao hàng thất bại, tài x
 
 ## 4. API Endpoints
 
+- `GET /api/v1/trips/driver` - Driver mobile list of all assigned trips for the authenticated Driver, including both `DELIVERY` and `TRANSFER` trip summaries for filtering.
 - `GET /api/v1/trips/{id}` - Driver mobile view for the current trip assigned to the authenticated Driver.
 - `POST /api/v1/trips/{tripId}/delivery-orders/{doId}/pod-evidence` - Upload POD images for one order in the trip.
 - `GET /api/v1/delivery-orders/{doId}/pod-evidence/signed-urls` - Generate fresh 15-minute signed URLs for authorized Delivery Order detail viewers.
@@ -264,6 +286,17 @@ The Driver UI SHALL use this response metadata rather than maintaining its own a
 | `INVENTORY_VERSION_CONFLICT`   | 409  | Concurrent inventory update conflict.                                                                                      |
 
 ## 6. Acceptance Criteria
+
+- **Scenario: Driver filters assigned trip list by type**
+  - Given a Driver is assigned to at least one `DELIVERY` trip and at least one `TRANSFER` trip
+  - When the Driver opens the mobile trip list
+  - Then the interface SHALL show the title `Chuyen xe cua toi`.
+  - And it SHALL show filter controls `Tat ca`, `Noi bo`, and `Dai ly`.
+  - And every trip card SHALL display a type badge: `Giao dai ly` or `Dieu chuyen noi bo`.
+  - When the Driver selects `Noi bo`
+  - Then only `TRANSFER` trips SHALL remain visible and their cards SHALL show route/source-destination information instead of dealer delivery point wording.
+  - When the Driver selects `Dai ly`
+  - Then only `DELIVERY` trips SHALL remain visible and their cards SHALL show dealer stop count.
 
 - **Scenario: Driver sees only the current assigned trip**
   - Given a Driver is assigned to one active trip containing one or more Delivery Orders

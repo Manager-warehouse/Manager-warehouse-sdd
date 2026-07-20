@@ -11,6 +11,8 @@
 ## 3. Functional Requirements (EARS)
 * **Ubiquitous:**
   * The system SHALL always route returned goods through QC before admitting them back into available inventory.
+  * The system SHALL verify the acting Thủ kho is assigned to the return receipt's `warehouse_id`, in addition to the role check, before allowing create/QC actions.
+  * The system SHALL create an audit log entry (actor, actor_role, action, entity_type, entity_id, timestamp, warehouse_id, before/after) for return receipt creation, QC result recording, and Credit Note creation.
 * **Event-driven:**
   * WHEN a Thủ kho creates a Return Receipt from a dealer, the system SHALL create a receipt record with type = 'RETURN' requiring: dealer_id, warehouse_id, contact_person, and source_order_code (DO code).
   * WHEN QC inspects returned goods:

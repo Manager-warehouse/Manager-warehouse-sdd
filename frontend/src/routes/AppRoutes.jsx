@@ -3,7 +3,6 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from './ProtectedRoute';
 import Login from '../pages/Auth/Login';
 import ForgotPassword from '../pages/Auth/ForgotPassword';
-import Dashboard from '../pages/Dashboard';
 import Profile from '../pages/Profile/Profile';
 import Forbidden from '../pages/Forbidden/Forbidden';
 import UserManagement from '../pages/Admin/UserManagement';
@@ -57,7 +56,7 @@ const AppRoutes = () => {
 
       {/* Authenticated views accessible to any user with a valid JWT token */}
       <Route element={<ProtectedRoute />}>
-        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/dashboard" element={<Navigate to="/admin/users" replace />} />
         <Route path="/profile" element={<Profile />} />
       </Route>
 
@@ -89,7 +88,7 @@ const AppRoutes = () => {
       </Route>
 
       {/* Inbound & QC protected routes */}
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.PLANNER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.PLANNER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.WAREHOUSE_MANAGER, ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN, ROLES.CEO]} />}>
         <Route path="/inbound/receipts" element={<ReceiptList />} />
       </Route>
 
@@ -97,7 +96,7 @@ const AppRoutes = () => {
         <Route path="/inbound/create" element={<ReceiptForm />} />
       </Route>
 
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.WAREHOUSE_STAFF, ROLES.ADMIN]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.WAREHOUSE_STAFF, ROLES.STOREKEEPER, ROLES.ADMIN]} />}>
         <Route path="/inbound/receive/:id" element={<ReceiptReceive />} />
       </Route>
 
@@ -120,6 +119,9 @@ const AppRoutes = () => {
       <Route element={<ProtectedRoute allowedRoles={[ROLES.PLANNER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.WAREHOUSE_MANAGER, ROLES.DISPATCHER, ROLES.ADMIN, ROLES.CEO]} />}>
         <Route path="/transfers" element={<InterWarehouseTransferWorkspace />} />
         <Route path="/transfers/:id" element={<InterWarehouseTransferWorkspace />} />
+      </Route>
+
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.PLANNER, ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]} />}>
         <Route path="/transfers/requests" element={<TransferRequestWorkspace />} />
       </Route>
 
@@ -160,13 +162,13 @@ const AppRoutes = () => {
       </Route>
 
       {/* Reports & Alerts (Module 010) */}
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.CEO, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.CEO, ROLES.ADMIN]} />}>
         <Route path="/reports/ceo-dashboard" element={<CeoDashboard />} />
       </Route>
       <Route element={<ProtectedRoute allowedRoles={[ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN]} />}>
         <Route path="/reports/inventory-valuation" element={<InventoryValuation />} />
       </Route>
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.WAREHOUSE_MANAGER, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN]} />}>
         <Route path="/reports/productivity" element={<ProductivityReport />} />
       </Route>
       <Route element={<ProtectedRoute allowedRoles={[ROLES.WAREHOUSE_MANAGER, ROLES.PLANNER, ROLES.ADMIN]} />}>

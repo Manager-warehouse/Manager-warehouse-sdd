@@ -43,6 +43,7 @@ public class QuarantineRtvService {
     private final AuditLogService auditLogService;
     private final QuarantineRecordRepository quarantineRecordRepository;
     private final PriceHistoryRepository priceHistoryRepository;
+    private final AccountingPeriodService accountingPeriodService;
 
     public QuarantineRtvService(ReceiptRepository receiptRepository,
                                  ReceiptItemRepository receiptItemRepository,
@@ -52,7 +53,8 @@ public class QuarantineRtvService {
                                  ReceiptValidationService receiptValidationService,
                                  AuditLogService auditLogService,
                                  QuarantineRecordRepository quarantineRecordRepository,
-                                 PriceHistoryRepository priceHistoryRepository) {
+                                 PriceHistoryRepository priceHistoryRepository,
+                                 AccountingPeriodService accountingPeriodService) {
         this.receiptRepository = receiptRepository;
         this.receiptItemRepository = receiptItemRepository;
         this.adjustmentRepository = adjustmentRepository;
@@ -62,6 +64,7 @@ public class QuarantineRtvService {
         this.auditLogService = auditLogService;
         this.quarantineRecordRepository = quarantineRecordRepository;
         this.priceHistoryRepository = priceHistoryRepository;
+        this.accountingPeriodService = accountingPeriodService;
     }
 
     /**
@@ -121,6 +124,7 @@ public class QuarantineRtvService {
                 .referenceType(RTV_REFERENCE_TYPE)
                 .reason(request.getReason())
                 .documentDate(documentDate)
+                .accountingPeriod(accountingPeriodService.resolveOpenPeriod(documentDate))
                 .createdBy(actor)
                 .createdAt(OffsetDateTime.now())
                 .build();

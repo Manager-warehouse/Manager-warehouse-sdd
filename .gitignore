@@ -10,6 +10,9 @@ run-all.sh
 CLAUDE-Local.md
 .claude/
 
+# ===== DOCS (local only) =====
+tutorial.md
+
 # ===== Class-AI-Agent =====
 # Exclude local AI agent class materials
 Class-AI-Agent/
@@ -39,6 +42,7 @@ frontend/dist/
 # Misc
 .DS_Store
 *.pem
+backend/uploads
 
 # Debug
 npm-debug.log*
@@ -133,6 +137,7 @@ out/
 # Never commit these
 .env
 .env.*
+.env.supabase
 secrets.json
 credentials.json
 *.pem

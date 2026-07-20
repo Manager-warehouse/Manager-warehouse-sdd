@@ -17,7 +17,8 @@ Audit Log là bằng chứng nghiệp vụ bất biến: sau khi được ghi, k
 - **Ubiquitous:**
   - The system SHALL always record an audit log entry for every user action that creates, updates, approves, rejects, cancels, soft-deletes, assigns, unassigns, or changes the status of data in the system.
   - The system SHALL record authentication state-changing actions, including login and logout.
-  - The system SHALL NOT record read-only view actions or export actions in audit log.
+  - The system SHALL NOT record read-only view actions or export actions on ordinary list/detail screens in audit log.
+  - The system SHALL record a view-audit entry whenever a user opens a finance/analytics report (Aging Report, P&L, Inventory Valuation, CEO dashboards, or other business.md AUD-04-scoped reports), capturing viewer, timestamp, and applied filters.
   - The system SHALL store only fields that changed between the before state and after state.
   - The system SHALL NOT store sensitive information in audit log, including passwords, password hashes, JWT tokens, refresh tokens, credentials, secrets, or API keys.
   - The system SHALL NOT allow any user, including System Admin, to update or delete an audit log entry after it has been created.
@@ -41,6 +42,7 @@ The system SHALL audit the following action categories:
 
 - `LOGIN`
 - `LOGOUT`
+- `REPORT_VIEW`
 - `CREATE`
 - `UPDATE`
 - `STATUS_CHANGE`
@@ -55,9 +57,13 @@ The system SHALL audit the following action categories:
 
 The system SHALL NOT create audit log entries for:
 
-- Viewing list or detail screens.
-- Searching or filtering data.
-- Exporting data or reports.
+- Viewing ordinary list or detail screens.
+- Searching or filtering data on ordinary list/detail screens.
+
+The system SHALL create a `REPORT_VIEW` audit log entry (viewer, timestamp, applied filters) for:
+
+- Opening finance/analytics reports (Aging Report, P&L, Inventory Valuation) or CEO/cross-warehouse dashboards, per business.md AUD-04.
+- Exporting a report or dashboard to file.
 
 ### Audited entity groups
 
@@ -157,8 +163,14 @@ The system SHALL audit changes to these entity groups:
 - When the user filters audit log by time range or warehouse
 - Then the system SHALL return matching audit log entries ordered by newest timestamp first.
 
-**Scenario: Read and Export Actions Are Not Audited**
+**Scenario: Read and Export Actions Are Not Audited (Ordinary Screens)**
 
 - Given a valid authenticated session
-- When the user only views, searches, filters, or exports data
+- When the user only views, searches, or filters data on an ordinary list/detail screen
 - Then the system SHALL NOT create an audit log entry for that action.
+
+**Scenario: Report View Is Audited**
+
+- Given a valid authenticated session
+- When the user opens or exports a finance/analytics report or a CEO/cross-warehouse dashboard
+- Then the system SHALL create a `REPORT_VIEW` audit log entry with viewer, timestamp, and applied filters.

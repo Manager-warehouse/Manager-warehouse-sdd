@@ -47,7 +47,7 @@
 - `warehouse_id` (BIGINT, FK→warehouses, NOT NULL)
 - `dealer_id` (BIGINT, FK→dealers)
 - `contact_person` (VARCHAR(255))
-- `status` (VARCHAR(30), CHECK IN ('PENDING_RECEIPT','DRAFT','QC_COMPLETED','APPROVED','REJECTED'))
+- `status` (VARCHAR(30), CHECK IN ('PENDING_RECEIPT','DRAFT','QC_COMPLETED','QC_FAILED','APPROVED','RETURN_TO_SUPPLIER_PENDING','RETURNED_TO_SUPPLIER')) -- same shared `receipts` table/enum as Spec 003; return receipts (type='RETURN') use the same canonical status set
 - `document_date` (DATE, NOT NULL)
 - `accounting_period_id` (BIGINT, FK→accounting_periods)
 - `created_by` (BIGINT, FK→users, NOT NULL)

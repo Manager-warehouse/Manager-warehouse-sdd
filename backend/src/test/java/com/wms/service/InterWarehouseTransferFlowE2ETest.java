@@ -62,6 +62,7 @@ class InterWarehouseTransferFlowE2ETest {
     @Mock private jakarta.persistence.EntityManager entityManager;
     @Mock private AuditLogService auditLogService;
     @Mock private ReceiptValidationService receiptValidationService;
+    @Mock private AccountingPeriodService accountingPeriodService;
     @Mock private ReceiptItemRepository receiptItemRepository;
 
     // Mock Entities
@@ -280,8 +281,11 @@ class InterWarehouseTransferFlowE2ETest {
                 assignmentRepository,
                 receiptValidationService,
                 auditLogService,
-                quarantineRecordRepository
+                quarantineRecordRepository,
+                accountingPeriodService
         );
+        lenient().when(accountingPeriodService.resolveOpenPeriod(any()))
+                .thenReturn(AccountingPeriod.builder().id(1L).periodName("2026-07").build());
 
         // Lenient stubs for saving and finding items to avoid NullPointerExceptions
         lenient().when(transferRepository.save(any(InterWarehouseTransfer.class))).thenAnswer(i -> i.getArgument(0));

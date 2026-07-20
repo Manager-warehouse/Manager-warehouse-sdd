@@ -139,15 +139,14 @@ Mọi thao tác ghi dữ liệu trên kho MUST tạo audit log với:
    `@Version` annotation. Conflict → HTTP 409 + retry.
 6. **INV-06 (Available calculation):** `available = total - reserved >= 0`.
    Kiểm tra reserved quantity trước khi xuất kho. Không cho phép available âm.
-7. **INV-07 (Adjustment thresholds):**
-   - Chênh lệch 5-100 triệu: Trưởng kho duyệt
-   - Chênh lệch > 100 triệu: CEO duyệt
-   - Chênh lệch < 5 triệu: tự động duyệt nếu có QC/kiểm kê xác nhận
+7. **INV-07 (Adjustment approval):** Mọi chênh lệch kiểm kê đều do Trưởng kho phê duyệt
+   trực tiếp trên hệ thống, không phân cấp theo giá trị.
 
 ### 4.2 Batch Rules
 
-1. **BAT-01 (Single grade):** Mỗi batch chỉ có 1 grade (A/B/C). Khác grade
-   MUST tạo batch mới.
+1. **BAT-01 (No quality tier):** Batch gom hàng theo sản phẩm, nguồn nhập/
+   chứng từ và ngày nhận. Domain hàng gia dụng hiện tại KHÔNG phân cấp chất
+   lượng (grade A/B/C) để bán lại; KHÔNG tách batch theo grade.
 2. **BAT-02 (Bin capacity):** Putaway MUST kiểm tra `bin_capacity` trước khi
    đặt hàng vào bin. Không cho phép vượt quá sức chứa.
 3. **BAT-03 (No expired batch handling):** Domain hàng gia dụng hiện tại không
@@ -198,7 +197,8 @@ MUST NOT:
 2. Bỏ qua Jakarta Validation / request DTO validation trên write endpoints.
 3. UPDATE inventory trực tiếp khi thao tác phải đi qua adjustment, receipt,
    issue, hoặc transfer flows.
-4. Trộn lẫn nhiều grade (A/B/C) trong cùng một batch.
+4. Thêm phân cấp chất lượng (grade A/B/C) hoặc serial/expiry-date tracking
+   cho hàng gia dụng khi chưa có spec/migration được duyệt thay đổi domain.
 5. Bỏ qua optimistic locking / version check trên inventory updates.
 6. Hardcode warehouse IDs, role assumptions, hoặc approval state transitions
    mà không có domain constants hoặc lookup rules.

@@ -122,7 +122,7 @@ const DealerDebtInvoice = () => {
   };
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5 md:gap-6 min-w-0">
       <div>
         <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
           Tài chính & Kế toán
@@ -136,9 +136,9 @@ const DealerDebtInvoice = () => {
       </div>
 
       {/* Tabs Menu */}
-      <div className="flex border-b border-hairline-light">
+      <div className="grid grid-cols-3 gap-2 border-b border-hairline-light md:flex md:gap-0">
         <button
-          className={`flex items-center gap-2 px-5 py-3 text-xs font-semibold uppercase tracking-wider border-b-2 transition-colors ${
+          className={`flex flex-col items-center justify-center gap-1 px-2 py-2.5 text-[10px] font-semibold uppercase leading-tight tracking-wider border-b-2 transition-colors md:flex-row md:gap-2 md:px-5 md:py-3 md:text-xs ${
             activeTab === 'notifications'
               ? 'border-ink text-ink font-bold'
               : 'border-transparent text-shade-40 hover:text-ink'
@@ -146,10 +146,11 @@ const DealerDebtInvoice = () => {
           onClick={() => setActiveTab('notifications')}
         >
           <BellRing className="w-4 h-4" />
-          Thông báo lập hóa đơn ({notifications.length})
+          <span className="md:hidden">Chờ lập ({notifications.length})</span>
+          <span className="hidden md:inline">Thông báo lập hóa đơn ({notifications.length})</span>
         </button>
         <button
-          className={`flex items-center gap-2 px-5 py-3 text-xs font-semibold uppercase tracking-wider border-b-2 transition-colors ${
+          className={`flex flex-col items-center justify-center gap-1 px-2 py-2.5 text-[10px] font-semibold uppercase leading-tight tracking-wider border-b-2 transition-colors md:flex-row md:gap-2 md:px-5 md:py-3 md:text-xs ${
             activeTab === 'invoices'
               ? 'border-ink text-ink font-bold'
               : 'border-transparent text-shade-40 hover:text-ink'
@@ -157,10 +158,11 @@ const DealerDebtInvoice = () => {
           onClick={() => setActiveTab('invoices')}
         >
           <FileText className="w-4 h-4" />
-          Danh sách hóa đơn
+          <span className="md:hidden">Hóa đơn</span>
+          <span className="hidden md:inline">Danh sách hóa đơn</span>
         </button>
         <button
-          className={`flex items-center gap-2 px-5 py-3 text-xs font-semibold uppercase tracking-wider border-b-2 transition-colors ${
+          className={`flex flex-col items-center justify-center gap-1 px-2 py-2.5 text-[10px] font-semibold uppercase leading-tight tracking-wider border-b-2 transition-colors md:flex-row md:gap-2 md:px-5 md:py-3 md:text-xs ${
             activeTab === 'periods'
               ? 'border-ink text-ink font-bold'
               : 'border-transparent text-shade-40 hover:text-ink'
@@ -168,7 +170,8 @@ const DealerDebtInvoice = () => {
           onClick={() => setActiveTab('periods')}
         >
           <CalendarDays className="w-4 h-4" />
-          Kỳ kế toán & Khóa sổ
+          <span className="md:hidden">Kỳ kế toán</span>
+          <span className="hidden md:inline">Kỳ kế toán & Khóa sổ</span>
         </button>
       </div>
 
@@ -185,12 +188,59 @@ const DealerDebtInvoice = () => {
         <>
           {activeTab === 'notifications' && (
             <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 overflow-hidden">
-              <div className="p-4 bg-canvas-cream border-b border-hairline-light">
+              <div className="px-4 py-3 bg-canvas-cream border-b border-hairline-light">
                 <span className="text-xs font-semibold text-shade-60 uppercase tracking-wider">
                   Đơn hàng đã giao thành công (Chờ lập hóa đơn)
                 </span>
               </div>
-              <div className="overflow-x-auto">
+              <div className="flex flex-col gap-3 p-3 md:hidden">
+                {notifications.length === 0 ? (
+                  <div className="p-6 text-center text-xs text-shade-40 italic">
+                    Không có thông báo giao hàng mới cần lập hóa đơn.
+                  </div>
+                ) : (
+                  notifications.map(notif => (
+                    <div key={notif.id} className="rounded-lg border border-hairline-light bg-canvas-light overflow-hidden">
+                      <div className="flex items-start justify-between gap-3 bg-canvas-cream p-3 border-b border-hairline-light">
+                        <div className="min-w-0">
+                          <div className="font-semibold text-sm text-ink truncate">{notif.do_number}</div>
+                          <div className="text-[10px] text-shade-40">Mã đại lý: #{notif.dealer_id}</div>
+                        </div>
+                        <div className="shrink-0 text-right text-sm font-semibold text-ink">
+                          {(notif.total_amount_estimate || 0).toLocaleString()}đ
+                        </div>
+                      </div>
+                      <div className="p-3 flex flex-col gap-3 text-xs">
+                        <div>
+                          <div className="font-medium text-ink">{notif.dealer_name}</div>
+                          <div className="text-shade-50 mt-1">{new Date(notif.delivered_at).toLocaleString('vi-VN')}</div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            onClick={() => {
+                              setSelectedNotif(notif);
+                              setShowPodModal(true);
+                            }}
+                            className="inline-flex min-h-10 items-center justify-center gap-1 rounded-md bg-aloe-10 px-2 text-[11px] font-semibold text-ink"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            POD
+                          </button>
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={() => handleOpenInvoiceModal(notif)}
+                            disabled={hasRole(ROLES.ACCOUNTANT) === false && hasRole(ROLES.ADMIN) === false}
+                          >
+                            Lập HĐ
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full border-collapse text-left text-xs">
                   <thead>
                     <tr className="bg-canvas-light border-b border-hairline-light text-shade-60 font-semibold uppercase tracking-wider">
@@ -257,13 +307,13 @@ const DealerDebtInvoice = () => {
           {activeTab === 'invoices' && (
             <div className="flex flex-col gap-4">
               {/* Filters Panel */}
-              <div className="bg-canvas-cream border border-hairline-light rounded-lg p-4 flex flex-wrap gap-4 items-center">
-                <div className="flex flex-col gap-1">
+              <div className="bg-canvas-cream border border-hairline-light rounded-lg p-3 md:p-4 flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center md:gap-4">
+                <div className="flex flex-col gap-1 md:min-w-[200px]">
                   <label className="text-[10px] font-bold text-shade-60 uppercase tracking-widest">Lọc Đại lý</label>
                   <select
                     value={selectedDealer}
                     onChange={e => setSelectedDealer(e.target.value)}
-                    className="bg-canvas-light text-ink text-xs border border-hairline-light rounded px-3 py-2 outline-none focus:border-shade-60 min-w-[200px]"
+                    className="bg-canvas-light text-ink text-xs border border-hairline-light rounded px-3 py-2 outline-none focus:border-shade-60 w-full"
                   >
                     <option value="ALL">Tất cả Đại lý</option>
                     {dealers.map(d => (
@@ -271,12 +321,12 @@ const DealerDebtInvoice = () => {
                     ))}
                   </select>
                 </div>
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-1 md:min-w-[150px]">
                   <label className="text-[10px] font-bold text-shade-60 uppercase tracking-widest">Trạng thái HĐ</label>
                   <select
                     value={selectedStatus}
                     onChange={e => setSelectedStatus(e.target.value)}
-                    className="bg-canvas-light text-ink text-xs border border-hairline-light rounded px-3 py-2 outline-none focus:border-shade-60 min-w-[150px]"
+                    className="bg-canvas-light text-ink text-xs border border-hairline-light rounded px-3 py-2 outline-none focus:border-shade-60 w-full"
                   >
                     <option value="ALL">Tất cả Trạng thái</option>
                     <option value="UNPAID">Chưa thanh toán</option>
@@ -284,14 +334,51 @@ const DealerDebtInvoice = () => {
                     <option value="PAID">Đã thanh toán</option>
                   </select>
                 </div>
-                <div className="ml-auto pt-4">
+                <div className="md:ml-auto md:pt-4">
                   <Button variant="outline-light" onClick={loadInitialData}>Tìm kiếm</Button>
                 </div>
               </div>
 
               {/* Invoices List Table */}
               <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 overflow-hidden">
-                <div className="overflow-x-auto">
+                <div className="flex flex-col gap-3 p-3 md:hidden">
+                  {invoices.length === 0 ? (
+                    <div className="p-6 text-center text-xs text-shade-40 italic">
+                      Không tìm thấy hóa đơn nào phù hợp với bộ lọc.
+                    </div>
+                  ) : (
+                    invoices.map(inv => (
+                      <div key={inv.id} className="rounded-lg border border-hairline-light bg-canvas-light p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="font-semibold text-sm text-ink truncate">{inv.invoice_number}</div>
+                            <div className="text-[10px] text-shade-50 truncate">DO: {inv.do_number}</div>
+                          </div>
+                          <span
+                            className={`shrink-0 px-2 py-0.5 rounded-pill text-[9px] font-bold uppercase border ${
+                              inv.status === 'PAID'
+                                ? 'bg-aloe-10 text-ink border-aloe-10'
+                                : inv.status === 'PARTIALLY_PAID'
+                                ? 'bg-yellow-100 text-yellow-800 border-yellow-200'
+                                : 'bg-red-50 text-red-700 border-red-200'
+                            }`}
+                          >
+                            {inv.status === 'PAID' ? 'Đã thu' : inv.status === 'PARTIALLY_PAID' ? 'Trả một phần' : 'Chưa trả'}
+                          </span>
+                        </div>
+                        <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-shade-60">
+                          <div className="col-span-2 font-medium text-ink truncate">{inv.dealer_name}</div>
+                          <div>Phát hành: {inv.issue_date}</div>
+                          <div>Hạn trả: {inv.due_date}</div>
+                          <div className="col-span-2 text-right text-sm font-semibold text-ink">
+                            {(inv.total_amount || 0).toLocaleString()}đ
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <div className="hidden md:block overflow-x-auto">
                   <table className="w-full border-collapse text-left text-xs">
                     <thead>
                       <tr className="bg-canvas-light border-b border-hairline-light text-shade-60 font-semibold uppercase tracking-wider">
@@ -320,7 +407,7 @@ const DealerDebtInvoice = () => {
                             <td className="p-4 text-shade-60">{inv.issue_date}</td>
                             <td className="p-4 text-shade-60">{inv.due_date}</td>
                             <td className="p-4 text-right font-semibold text-ink">
-                              {inv.total_amount.toLocaleString()}đ
+                              {(inv.total_amount || 0).toLocaleString()}đ
                             </td>
                             <td className="p-4 text-center">
                               <span
@@ -347,7 +434,7 @@ const DealerDebtInvoice = () => {
 
           {activeTab === 'periods' && (
             <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 overflow-hidden">
-              <div className="p-4 bg-canvas-cream border-b border-hairline-light flex justify-between items-center">
+              <div className="p-4 bg-canvas-cream border-b border-hairline-light flex flex-col gap-1 md:flex-row md:justify-between md:items-center">
                 <span className="text-xs font-semibold text-shade-60 uppercase tracking-wider">
                   Kỳ kế toán hệ thống WMS
                 </span>
@@ -355,7 +442,54 @@ const DealerDebtInvoice = () => {
                   * Hệ thống chặn mọi chỉnh sửa khi kỳ kế toán ở trạng thái CLOSED
                 </span>
               </div>
-              <div className="overflow-x-auto">
+              <div className="flex flex-col gap-3 p-3 md:hidden">
+                {periods.map(period => (
+                  <div key={period.id} className="rounded-lg border border-hairline-light bg-canvas-light p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="font-semibold text-sm text-ink">{period.period_name}</div>
+                        <div className="text-[11px] text-shade-50 mt-1">
+                          {period.start_date} - {period.end_date}
+                        </div>
+                      </div>
+                      <span
+                        className={`shrink-0 px-2 py-0.5 rounded-pill text-[9px] font-bold uppercase border ${
+                          period.status === 'CLOSED'
+                            ? 'bg-red-50 text-red-700 border-red-200'
+                            : 'bg-aloe-10 text-ink border-aloe-10'
+                        }`}
+                      >
+                        {period.status === 'CLOSED' ? 'Đã đóng' : 'OPEN'}
+                      </span>
+                    </div>
+                    <div className="mt-3 text-[11px] text-shade-60">
+                      Chốt: {period.closed_at ? new Date(period.closed_at).toLocaleString('vi-VN') : 'Chưa chốt'}
+                    </div>
+                    <div className="mt-1 text-[11px] text-shade-60">
+                      Người chốt: {period.closed_by_name || '—'}
+                    </div>
+                    <div className="mt-3 flex justify-end">
+                      {period.status === 'OPEN' ? (
+                        <Button
+                          variant="outline-light"
+                          size="sm"
+                          icon={Lock}
+                          onClick={() => handleOpenClosePeriodModal(period)}
+                          disabled={!isManager}
+                        >
+                          Khóa sổ
+                        </Button>
+                      ) : (
+                        <span className="text-shade-40 inline-flex items-center gap-1 text-[11px] font-medium">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-shade-40" />
+                          Đã khóa cứng
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full border-collapse text-left text-xs">
                   <thead>
                     <tr className="bg-canvas-light border-b border-hairline-light text-shade-60 font-semibold uppercase tracking-wider">
@@ -433,7 +567,7 @@ const DealerDebtInvoice = () => {
                   <span className="text-xs font-semibold text-ink uppercase tracking-wider">Xác nhận bằng mã OTP (Spec 004)</span>
                 </div>
                 <div className="text-xs text-shade-70 font-light mt-1">
-                  Đại lý đã nhập mã xác thực thành công lúc: <strong className="text-ink font-semibold">{new Date(selectedNotif.otpVerifiedAt).toLocaleString('vi-VN')}</strong>
+                  Đại lý đã nhập mã xác thực thành công lúc: <strong className="text-ink font-semibold">{new Date(selectedNotif.otp_verified_at).toLocaleString('vi-VN')}</strong>
                 </div>
               </div>
 
@@ -444,8 +578,8 @@ const DealerDebtInvoice = () => {
                   Ảnh chụp thực tế lúc giao hàng (POD Photo)
                 </span>
                 <div className="border border-hairline-light rounded overflow-hidden aspect-video bg-canvas-cream relative flex items-center justify-center">
-                  {selectedNotif.podImageUrl ? (
-                    <img src={selectedNotif.podImageUrl} alt="POD Photo" className="object-cover w-full h-full" />
+                  {selectedNotif.pod_image_url ? (
+                    <img src={selectedNotif.pod_image_url} alt="POD Photo" className="object-cover w-full h-full" />
                   ) : (
                     <span className="text-shade-40 text-xs italic">Không tìm thấy ảnh bàn giao</span>
                   )}
@@ -459,8 +593,8 @@ const DealerDebtInvoice = () => {
                   Chữ ký điện tử của Đại lý
                 </span>
                 <div className="border border-hairline-light rounded bg-canvas-cream p-4 h-24 flex items-center justify-center">
-                  {selectedNotif.podSignatureUrl ? (
-                    <img src={selectedNotif.podSignatureUrl} alt="Signature" className="h-full object-contain filter grayscale" />
+                  {selectedNotif.pod_signature_url ? (
+                    <img src={selectedNotif.pod_signature_url} alt="Signature" className="h-full object-contain filter grayscale" />
                   ) : (
                     <span className="text-shade-40 text-xs italic">Ký nhận tại quầy</span>
                   )}
@@ -468,7 +602,7 @@ const DealerDebtInvoice = () => {
               </div>
 
               <div className="text-[11px] text-shade-40 italic text-center">
-                Thời gian tài xế cập nhật POD: {new Date(selectedNotif.podTimestamp).toLocaleString('vi-VN')}
+                Thời gian tài xế cập nhật POD: {new Date(selectedNotif.pod_timestamp).toLocaleString('vi-VN')}
               </div>
             </div>
             <div className="p-4 border-t border-hairline-light bg-canvas-cream flex justify-end">

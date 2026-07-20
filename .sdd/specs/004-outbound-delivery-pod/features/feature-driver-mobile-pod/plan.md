@@ -8,6 +8,8 @@
 
 Driver users work from a mobile-focused trip view to upload POD evidence, request and confirm a dealer OTP, record dealer refusal, and complete the trip after vehicle return. Successful OTP confirmation must update the current delivery attempt, consume the OTP, decrease virtual `IN_TRANSIT` inventory only for the confirmed Delivery Order, auto-create invoice and receivable records, and move that Delivery Order to `COMPLETED` in one transaction. Failed delivery keeps goods in virtual `IN_TRANSIT`, while trip completion only releases the operational trip after every assigned Delivery Order is `COMPLETED` or `RETURNED`.
 
+The driver mobile entry list must now use neutral transport wording rather than delivery-only wording. It must show both assigned `DELIVERY` and `TRANSFER` trips, label each card as `Giao dai ly` or `Dieu chuyen noi bo`, and provide three filters: `Tat ca`, `Noi bo`, and `Dai ly`. Delivery cards continue into the POD/OTP flow in this feature; transfer cards continue into the Spec 005 transfer departure/arrival/handover flow.
+
 ## Technical Context
 
 **Language/Version**: Java 21 for backend, JavaScript/React 18 for frontend.
@@ -25,6 +27,8 @@ Driver users work from a mobile-focused trip view to upload POD evidence, reques
 **Performance Goals**: POD upload validation should reject invalid files before storage, OTP request/confirm should run without extra attempt lookups, and delivery confirmation should commit inventory, OTP, invoice, receivable, and status updates in one transaction.
 
 **Constraints**: Driver may only act on trips assigned to their own driver profile. Sprint 1 uses full Delivery Order delivery only and never uses `OUT_FOR_DELIVERY`. OTP is always backend-generated, exactly 6 digits, valid for 5 minutes, and stored only as a hash/verifier. Only one active OTP row exists per current delivery attempt. Returned goods remain in virtual `IN_TRANSIT` until a separate return flow handles them. Every mutation requires audit logs and optimistic locking on inventory updates.
+
+**Driver Trip List UX Constraint**: `GET /api/v1/trips/driver` remains a read-only list endpoint. It must expose or normalize `tripType`, `tripTypeLabel`, and type-specific summary fields so the frontend can filter locally without causing audit or state changes. If server-side filtering by trip type is later added, it must remain semantically equivalent to the same client-side filters.
 
 **Scale/Scope**: Sprint 1 outbound mobile POD flow for three warehouses, one current delivery attempt per dispatched Delivery Order, OTP resend/reset, failure handling, and trip completion after downstream delivery outcomes.
 
@@ -71,6 +75,7 @@ backend/
     |   |-- dto/request/ResetDeliveryOtpRequest.java
     |   |-- dto/request/TripCompleteRequest.java
     |   |-- dto/response/TripDriverViewResponse.java
+    |   |-- dto/response/DriverTripSummaryResponse.java
     |   |-- dto/response/DeliveryAttemptResponse.java
     |   |-- entity/Trip.java
     |   |-- entity/TripDeliveryOrder.java
@@ -96,6 +101,15 @@ backend/
         |-- controller/DriverDeliveryControllerTest.java
         |-- controller/AdminDeliveryControllerTest.java
         `-- service/DriverDeliveryServiceImplTest.java
+```
+
+```text
+frontend/
+`-- src/
+    |-- pages/Outbound/DriverTrip.jsx
+    |-- services/outbound.service.js
+    |-- services/inter-warehouse-transfer.service.js
+    |-- routes/AppRoutes.jsx
 ```
 
 **Structure Decision**: Implement a dedicated driver-delivery service around the existing `Delivery`, `DeliveryOtpAttempt`, and trip aggregates. Driver/mobile endpoints should live alongside trip endpoints, while admin OTP reset uses a separate admin-facing controller to keep driver-assignment and admin-reset concerns distinct.

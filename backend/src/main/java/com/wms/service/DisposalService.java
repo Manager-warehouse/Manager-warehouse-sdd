@@ -46,6 +46,7 @@ public class DisposalService {
     private final ReceiptValidationService receiptValidationService;
     private final AuditLogService auditLogService;
     private final QuarantineRecordRepository quarantineRecordRepository;
+    private final AccountingPeriodService accountingPeriodService;
 
     private static final BigDecimal AUTO_APPROVAL_THRESHOLD = new BigDecimal("5000000"); // 5,000,000 VND
     private static final BigDecimal CEO_APPROVAL_THRESHOLD = new BigDecimal("100000000"); // 100,000,000 VND
@@ -59,7 +60,8 @@ public class DisposalService {
                            UserWarehouseAssignmentRepository userWarehouseAssignmentRepository,
                            ReceiptValidationService receiptValidationService,
                            AuditLogService auditLogService,
-                           QuarantineRecordRepository quarantineRecordRepository) {
+                           QuarantineRecordRepository quarantineRecordRepository,
+                           AccountingPeriodService accountingPeriodService) {
         this.receiptItemRepository = receiptItemRepository;
         this.damageReportRepository = damageReportRepository;
         this.adjustmentRepository = adjustmentRepository;
@@ -70,6 +72,7 @@ public class DisposalService {
         this.receiptValidationService = receiptValidationService;
         this.auditLogService = auditLogService;
         this.quarantineRecordRepository = quarantineRecordRepository;
+        this.accountingPeriodService = accountingPeriodService;
     }
 
     @Transactional
@@ -154,6 +157,7 @@ public class DisposalService {
                 .reason(request.getCause())
                 .createdBy(actor)
                 .documentDate(LocalDate.now())
+                .accountingPeriod(accountingPeriodService.resolveOpenPeriod(LocalDate.now()))
                 .createdAt(OffsetDateTime.now())
                 .build();
 
@@ -263,6 +267,7 @@ public class DisposalService {
                 .reason(request.getCause())
                 .createdBy(actor)
                 .documentDate(LocalDate.now())
+                .accountingPeriod(accountingPeriodService.resolveOpenPeriod(LocalDate.now()))
                 .createdAt(OffsetDateTime.now())
                 .build();
 

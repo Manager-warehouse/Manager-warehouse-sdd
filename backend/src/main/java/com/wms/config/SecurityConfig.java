@@ -22,6 +22,8 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import java.util.List;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 
 @Configuration
 @EnableWebSecurity
@@ -31,6 +33,20 @@ public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
     private final UserDetailsServiceImpl userDetailsService;
+
+    @Bean
+    public RoleHierarchy roleHierarchy() {
+        return RoleHierarchyImpl.fromHierarchy(
+            "ROLE_ADMIN > ROLE_CEO\n" +
+            "ROLE_ADMIN > ROLE_WAREHOUSE_MANAGER\n" +
+            "ROLE_ADMIN > ROLE_STOREKEEPER\n" +
+            "ROLE_ADMIN > ROLE_WAREHOUSE_STAFF\n" +
+            "ROLE_ADMIN > ROLE_ACCOUNTANT\n" +
+            "ROLE_ADMIN > ROLE_ACCOUNTANT_MANAGER\n" +
+            "ROLE_ADMIN > ROLE_PLANNER\n" +
+            "ROLE_ADMIN > ROLE_DISPATCHER"
+        );
+    }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {

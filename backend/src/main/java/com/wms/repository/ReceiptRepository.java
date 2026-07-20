@@ -3,6 +3,7 @@ package com.wms.repository;
 import com.wms.entity.Receipt;
 import com.wms.enums.ReceiptStatus;
 import com.wms.enums.ReceiptType;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -44,4 +45,6 @@ public interface ReceiptRepository extends JpaRepository<Receipt, Long> {
     boolean existsByReceiptNumber(String receiptNumber);
 
     List<Receipt> findByDeliveryOrderIdAndType(Long deliveryOrderId, ReceiptType type);
+
+    long countByWarehouseIdAndDocumentDate(Long warehouseId, LocalDate documentDate);
 }

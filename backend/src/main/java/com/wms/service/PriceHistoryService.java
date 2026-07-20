@@ -26,7 +26,8 @@ public interface PriceHistoryService {
 
     PriceHistoryResponse getById(Long id, User actor);
 
-    List<PriceHistoryResponse> getAll(Long productId, Long warehouseId, PriceHistoryStatus status);
+    List<PriceHistoryResponse> getAll(Long productId, Long warehouseId, PriceHistoryStatus status,
+            LocalDate effectiveDateFrom, LocalDate effectiveDateTo);
 
     ProductPriceHistoryResponse getByProduct(Long productId);
 

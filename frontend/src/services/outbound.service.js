@@ -436,7 +436,10 @@ const normalizeTripStop = (stop = {}) => {
 
 const normalizeTrip = (trip = {}) => ({
   id: value(trip, 'tripId', 'id', value(trip, 'id', 'id')),
+  transfer_id: value(trip, 'transferId', 'transfer_id'),
   trip_number: value(trip, 'tripNumber', 'trip_number'),
+  trip_type: value(trip, 'tripType', 'trip_type', 'DELIVERY'),
+  trip_type_label: value(trip, 'tripTypeLabel', 'trip_type_label', 'Giao dai ly'),
   warehouse_id: value(trip, 'warehouseId', 'warehouse_id'),
   vehicle_id: value(trip, 'vehicleId', 'vehicle_id'),
   vehicle_plate: value(trip, 'vehiclePlate', 'vehicle_plate', value(trip, 'plateNumber', 'plate_number', '')),
@@ -447,6 +450,10 @@ const normalizeTrip = (trip = {}) => ({
   planned_end_at: value(trip, 'plannedEndAt', 'planned_end_at', value(trip, 'createdAt', 'created_at')),
   status: value(trip, 'status', 'status'),
   total_weight_kg: Number(value(trip, 'totalWeightKg', 'total_weight_kg', 0)),
+  delivery_stop_count: Number(value(trip, 'deliveryStopCount', 'delivery_stop_count', asArray(value(trip, 'deliveryOrders', 'delivery_orders', [])).length)),
+  source_warehouse_code: value(trip, 'sourceWarehouseCode', 'source_warehouse_code'),
+  destination_warehouse_code: value(trip, 'destinationWarehouseCode', 'destination_warehouse_code'),
+  transfer_line_count: Number(value(trip, 'transferLineCount', 'transfer_line_count', 0)),
   delivery_orders: asArray(value(trip, 'deliveryOrders', 'delivery_orders', [])).map(normalizeTripStop),
   created_at: value(trip, 'createdAt', 'created_at'),
 });

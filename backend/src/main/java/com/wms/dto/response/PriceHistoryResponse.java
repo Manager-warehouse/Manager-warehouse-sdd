@@ -29,6 +29,9 @@ public class PriceHistoryResponse {
     @JsonProperty("warehouse_name")
     private String warehouseName;
 
+    @JsonProperty("warehouse_code")
+    private String warehouseCode;
+
     @JsonProperty("effective_date")
     private LocalDate effectiveDate;
 

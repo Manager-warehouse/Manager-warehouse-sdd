@@ -23,6 +23,7 @@ import com.wms.enums.DeliveryOrderStatus;
 import com.wms.enums.DeliveryOtpStatus;
 import com.wms.enums.DeliveryStatus;
 import com.wms.enums.TripStatus;
+import com.wms.enums.TripType;
 import com.wms.enums.UserRole;
 import com.wms.exception.GlobalExceptionHandler;
 import com.wms.exception.OutboundDeliveryException;
@@ -82,6 +83,26 @@ class DriverDeliveryControllerTest {
                 .andExpect(jsonPath("$.driverName").value("Driver Test 2"))
                 .andExpect(jsonPath("$.plannedStartAt").value("2026-07-17T14:06:00"))
                 .andExpect(jsonPath("$.deliveryOrders[0].currentAttempt.status").value("IN_TRANSIT"));
+    }
+
+    @Test
+    @WithMockUser(username = "driver@wms.com", roles = "DRIVER")
+    void listDriverTrips_returnsMixedDeliveryAndTransferTripsForAuthenticatedDriver() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(driver);
+        when(driverDeliveryService.listMyTrips(driver)).thenReturn(List.of(tripView(), transferTripView()));
+
+        mockMvc.perform(get("/api/v1/trips/driver"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].tripType").value("DELIVERY"))
+                .andExpect(jsonPath("$[0].tripTypeLabel").value("Giao dai ly"))
+                .andExpect(jsonPath("$[0].deliveryStopCount").value(1))
+                .andExpect(jsonPath("$[1].tripType").value("TRANSFER"))
+                .andExpect(jsonPath("$[1].tripTypeLabel").value("Dieu chuyen noi bo"))
+                .andExpect(jsonPath("$[1].transferId").value(500))
+                .andExpect(jsonPath("$[1].sourceWarehouseCode").value("HP"))
+                .andExpect(jsonPath("$[1].destinationWarehouseCode").value("HN"))
+                .andExpect(jsonPath("$[1].transferLineCount").value(2))
+                .andExpect(jsonPath("$[1].deliveryOrders").isEmpty());
     }
 
     @Test
@@ -234,6 +255,8 @@ class DriverDeliveryControllerTest {
                 .tripId(900L)
                 .tripNumber("TRIP-1")
                 .status(status)
+                .tripType(TripType.DELIVERY)
+                .tripTypeLabel("Giao dai ly")
                 .driverId(401L)
                 .driverName("Driver Test 2")
                 .vehicleId(301L)
@@ -243,6 +266,7 @@ class DriverDeliveryControllerTest {
                 .plannedEndAt(LocalDateTime.of(2026, 7, 26, 14, 6))
                 .totalWeightKg(new BigDecimal("25.50"))
                 .totalVolumeM3(new BigDecimal("1.250"))
+                .deliveryStopCount(1)
                 .deliveryOrders(List.of(DriverDeliveryOrderResponse.builder()
                         .doId(101L)
                         .doNumber("DO-101")
@@ -250,6 +274,31 @@ class DriverDeliveryControllerTest {
                         .stopOrder(1)
                         .currentAttempt(attempt(DeliveryStatus.IN_TRANSIT))
                         .build()))
+                .build();
+    }
+
+    private TripDriverViewResponse transferTripView() {
+        return TripDriverViewResponse.builder()
+                .tripId(901L)
+                .tripNumber("TTR-20260719-0001")
+                .status(TripStatus.PLANNED)
+                .tripType(TripType.TRANSFER)
+                .tripTypeLabel("Dieu chuyen noi bo")
+                .transferId(500L)
+                .driverId(401L)
+                .driverName("Driver Test 2")
+                .vehicleId(301L)
+                .vehiclePlate("36C-88888")
+                .plannedDate(LocalDate.of(2026, 7, 19))
+                .plannedStartAt(LocalDateTime.of(2026, 7, 19, 8, 0))
+                .plannedEndAt(LocalDateTime.of(2026, 7, 19, 17, 0))
+                .totalWeightKg(new BigDecimal("40.00"))
+                .totalVolumeM3(new BigDecimal("2.000"))
+                .sourceWarehouseCode("HP")
+                .destinationWarehouseCode("HN")
+                .transferLineCount(2)
+                .deliveryStopCount(0)
+                .deliveryOrders(List.of())
                 .build();
     }
 

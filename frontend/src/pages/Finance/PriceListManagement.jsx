@@ -411,8 +411,8 @@ function PriceEntryModal({ entry, replaceSource, warehouseId, warehouseName, onC
       return;
     }
     const filtered = products.filter(p =>
-      p.sku.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
-      p.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
+      (p.sku || '').toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+      (p.name || '').toLowerCase().includes(debouncedSearchQuery.toLowerCase())
     );
     setSearchResults(filtered);
   }, [debouncedSearchQuery, products]);

@@ -35,9 +35,10 @@ class PaymentReceiptServiceTest {
     @Mock private PaymentReceiptRepository paymentReceiptRepository;
     @Mock private InvoiceRepository invoiceRepository;
     @Mock private DealerRepository dealerRepository;
+    @Mock private CreditNoteRepository creditNoteRepository;
     @Mock private AccountingPeriodRepository accountingPeriodRepository;
     @Mock private DocumentSequenceRepository sequenceRepository;
-    @Mock private SystemConfigRepository systemConfigRepository;
+    @Mock private SystemConfigService systemConfigService;
     @Mock private AccountingPeriodService accountingPeriodService;
     @Mock private AuditLogService auditLogService;
 
@@ -111,16 +112,13 @@ class PaymentReceiptServiceTest {
         request.setPaymentMethod(PaymentMethod.BANK_TRANSFER);
         request.setNotes("Paying fully");
 
-        SystemConfig bufferConfig = new SystemConfig();
-        bufferConfig.setConfigKey("CREDIT_UNLOCK_BUFFER_PCT");
-        bufferConfig.setConfigValue("0.8");
-
-        when(dealerRepository.findById(10L)).thenReturn(Optional.of(dealer));
+        when(dealerRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(dealer));
         when(invoiceRepository.findById(50L)).thenReturn(Optional.of(invoice));
         when(paymentReceiptRepository.findByDealerIdOrderByCreatedAtDesc(10L)).thenReturn(Collections.emptyList());
         when(accountingPeriodRepository.findPeriodByDateAndStatus(request.getPaymentDate(), AccountingPeriodStatus.OPEN))
                 .thenReturn(Optional.of(period));
-        when(systemConfigRepository.findByConfigKey("CREDIT_UNLOCK_BUFFER_PCT")).thenReturn(Optional.of(bufferConfig));
+        when(systemConfigService.getDecimalValue(eq("CREDIT_UNLOCK_BUFFER_PCT"), any()))
+                .thenReturn(new BigDecimal("0.8"));
         when(sequenceRepository.findBySequenceKeyForUpdate("PAYMENT")).thenReturn(Optional.of(sequence));
 
         when(paymentReceiptRepository.save(any(PaymentReceipt.class))).thenAnswer(invocation -> {
@@ -143,6 +141,41 @@ class PaymentReceiptServiceTest {
         verify(dealerRepository).save(dealer);
         verify(auditLogService).log(eq(accountantUser), eq(AuditAction.CREATE), eq("PAYMENT_RECEIPT"),
                 eq(60L), eq("PAY-202606-000200"), eq(5L), any(), any());
+    }
+
+    @Test
+    @DisplayName("Không mở khóa tín dụng nếu số dư dưới ngưỡng nhưng còn hóa đơn khác quá hạn")
+    void createPaymentReceipt_doesNotUnlockCreditWhenOtherInvoiceStillOverdue() {
+        PaymentReceiptCreateRequest request = new PaymentReceiptCreateRequest();
+        request.setDealerId(10L);
+        request.setInvoiceId(50L);
+        request.setAmount(BigDecimal.valueOf(20000000));
+        request.setPaymentDate(LocalDate.of(2026, 6, 20));
+        request.setPaymentMethod(PaymentMethod.BANK_TRANSFER);
+
+        when(dealerRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(dealer));
+        when(invoiceRepository.findById(50L)).thenReturn(Optional.of(invoice));
+        when(paymentReceiptRepository.findByDealerIdOrderByCreatedAtDesc(10L)).thenReturn(Collections.emptyList());
+        when(accountingPeriodRepository.findPeriodByDateAndStatus(request.getPaymentDate(), AccountingPeriodStatus.OPEN))
+                .thenReturn(Optional.of(period));
+        when(systemConfigService.getDecimalValue(eq("CREDIT_UNLOCK_BUFFER_PCT"), any()))
+                .thenReturn(new BigDecimal("0.8"));
+        when(systemConfigService.getIntValue(eq("CREDIT_HOLD_OVERDUE_DAYS"), anyInt()))
+                .thenReturn(30);
+        when(invoiceRepository.existsByDealerIdAndStatusInAndDueDateBefore(eq(10L), any(), any()))
+                .thenReturn(true);
+        when(sequenceRepository.findBySequenceKeyForUpdate("PAYMENT")).thenReturn(Optional.of(sequence));
+        when(paymentReceiptRepository.save(any(PaymentReceipt.class))).thenAnswer(invocation -> {
+            PaymentReceipt pr = invocation.getArgument(0);
+            pr.setId(61L);
+            return pr;
+        });
+
+        paymentReceiptService.createPaymentReceipt(request, accountantUser);
+
+        // Balance drops to 10,000,000 (below the 40,000,000 threshold) but another invoice is
+        // still overdue, so the dealer must stay on CREDIT_HOLD.
+        assertThat(dealer.getCreditStatus()).isEqualTo(CreditStatus.CREDIT_HOLD);
     }
 
     @Test
@@ -170,7 +203,7 @@ class PaymentReceiptServiceTest {
 
         invoice.setStatus(InvoiceStatus.PAID);
 
-        when(dealerRepository.findById(10L)).thenReturn(Optional.of(dealer));
+        when(dealerRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(dealer));
         when(invoiceRepository.findById(50L)).thenReturn(Optional.of(invoice));
 
         assertThatThrownBy(() -> paymentReceiptService.createPaymentReceipt(request, accountantUser))
@@ -187,7 +220,7 @@ class PaymentReceiptServiceTest {
         request.setAmount(BigDecimal.valueOf(25000000)); // Hóa đơn chỉ nợ 20000000
         request.setPaymentDate(LocalDate.of(2026, 6, 20));
 
-        when(dealerRepository.findById(10L)).thenReturn(Optional.of(dealer));
+        when(dealerRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(dealer));
         when(invoiceRepository.findById(50L)).thenReturn(Optional.of(invoice));
         when(paymentReceiptRepository.findByDealerIdOrderByCreatedAtDesc(10L)).thenReturn(Collections.emptyList());
 

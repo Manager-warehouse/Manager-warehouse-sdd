@@ -830,6 +830,8 @@ export const masterDataService = {
         email: dlData.email || "",
         default_delivery_address: dlData.default_delivery_address || "",
         region: dlData.region || "",
+        bank_account_number: dlData.bank_account_number || "",
+        bank_name: dlData.bank_name || "",
         payment_term_days: Number(dlData.payment_term_days) || 30,
         credit_limit: parseFloat(dlData.credit_limit) || 0.0,
         current_balance: 0.0,
@@ -866,6 +868,8 @@ export const masterDataService = {
         email: dlData.email || "",
         default_delivery_address: dlData.default_delivery_address || "",
         region: dlData.region || "",
+        bank_account_number: dlData.bank_account_number || "",
+        bank_name: dlData.bank_name || "",
         payment_term_days: Number(dlData.payment_term_days) || 30,
       };
 
@@ -934,6 +938,28 @@ export const masterDataService = {
     const results = await Promise.all(promises);
     const updatedDealer = results[results.length - 1].data;
     return mapToSnakeCase(updatedDealer);
+  },
+
+  updateDealerCreditStatus: async (id, creditStatus) => {
+    if (useMock) {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      const dealers = getDb(KEYS.DEALERS, INITIAL_DEALERS);
+      const idx = dealers.findIndex((d) => d.id === Number(id));
+      if (idx === -1) throw new Error("DEALER_NOT_FOUND");
+
+      const oldStatus = dealers[idx].credit_status;
+      dealers[idx].credit_status = creditStatus;
+      saveDb(KEYS.DEALERS, dealers);
+      addMockAuditLog(
+        "DEALER_CREDIT_STATUS_CHANGED",
+        "Dealer",
+        id,
+        `Đổi trạng thái tín dụng Đại lý ${dealers[idx].code} từ ${oldStatus} sang ${creditStatus}`,
+      );
+      return dealers[idx];
+    }
+    const response = await apiClient.put(`/dealers/${id}/credit-status`, { creditStatus });
+    return mapToSnakeCase(response.data);
   },
 
   toggleDealerStatus: async (id, isActive, name = "") => {

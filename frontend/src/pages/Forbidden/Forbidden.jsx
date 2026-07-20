@@ -36,7 +36,7 @@ const Forbidden = () => {
           </Button>
           <Button
             variant="primary"
-            onClick={() => navigate('/dashboard', { replace: true })}
+            onClick={() => navigate('/admin/users', { replace: true })}
           >
             Về trang chủ
           </Button>

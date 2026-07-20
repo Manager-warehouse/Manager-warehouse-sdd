@@ -22,14 +22,11 @@ Thủ kho tạo phiếu kiểm kê định kỳ, hệ thống khóa sổ vị tr
 * WHEN a Thủ kho enters counted quantities, the system SHALL auto-calculate:
   * `variance_qty = actual_qty − system_qty`
   * `variance_value = variance_qty × cost_price` (cost_price tại thời điểm kiểm kê)
-* WHEN a Thủ kho marks `is_employee_fault = true`, the system SHALL require a non-empty `notes` value on the affected `stock_take_items` row, returning `EMPLOYEE_FAULT_REASON_REQUIRED` otherwise.
 
 ### Hoàn tất đếm & trình duyệt
 * WHEN a Thủ kho completes counting (`PUT .../complete`), the system SHALL:
   * Calculate `total_variance_value = SUM(variance_value)` across all items.
-  * Determine `approval_level` theo bảng routing trong spec.md mục 4.
-  * Transition status to `PENDING_APPROVAL`.
-  * If `approval_level = AUTO`: immediately approve (xem EARS approval tại feature-manager).
+  * Transition status to `PENDING_APPROVAL` and route to the Trưởng kho of the stocktake's warehouse (không phân cấp theo giá trị — xem EARS approval tại feature-manager).
 * WHEN `complete` is called but any `stock_take_item` has no `actual_qty` recorded, the system SHALL reject with `400 INCOMPLETE_COUNT`.
 
 ### Hủy phiếu
@@ -82,8 +79,3 @@ Thủ kho tạo phiếu kiểm kê định kỳ, hệ thống khóa sổ vị tr
 * Given stocktake đang `PENDING_APPROVAL`
 * When Thủ kho gọi cancel
 * Then hệ thống từ chối với lỗi `STOCK_TAKE_NOT_CANCELLABLE`.
-
-**Scenario 7: Lỗi nhân viên phải có ghi chú**
-* Given Thủ kho đánh dấu `is_employee_fault = true` cho một item
-* When không nhập `notes`
-* Then hệ thống từ chối với lỗi `EMPLOYEE_FAULT_REASON_REQUIRED`.

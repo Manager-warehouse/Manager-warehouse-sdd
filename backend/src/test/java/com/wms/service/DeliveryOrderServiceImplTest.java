@@ -24,6 +24,7 @@ import com.wms.dto.request.DeliveryOrderWarehouseApprovalRequest;
 import com.wms.dto.request.DeliveryOrderWarehouseRejectRequest;
 import com.wms.dto.request.DeliveryOrderWarehouseRejectReturnRequest;
 import com.wms.dto.response.DeliveryOrderResponse;
+import com.wms.entity.AccountingPeriod;
 import com.wms.entity.Adjustment;
 import com.wms.entity.Batch;
 import com.wms.entity.Dealer;
@@ -110,6 +111,8 @@ class DeliveryOrderServiceImplTest {
     @Mock private PriceHistoryService priceHistoryService;
     @Mock private PartnerAuditUtil auditUtil;
     @Mock private EntityManager entityManager;
+    @Mock private AccountingPeriodService accountingPeriodService;
+    @Mock private SystemConfigService systemConfigService;
 
     private DeliveryOrderServiceImpl service;
     private User planner;
@@ -135,7 +138,11 @@ class DeliveryOrderServiceImplTest {
                 invoiceRepository, outboundQcRecordRepository, quarantineRecordRepository, adjustmentRepository,
                 priceHistoryRepository, reservationRepository, assignmentRepository,
                 partnerEligibilityService, new DeliveryOrderMapper(), auditUtil, entityManager,
-                priceHistoryService);
+                priceHistoryService, accountingPeriodService, systemConfigService);
+        lenient().when(accountingPeriodService.resolveOpenPeriod(any()))
+                .thenReturn(AccountingPeriod.builder().id(1L).periodName("2026-06").build());
+        lenient().when(systemConfigService.getIntValue(eq("CREDIT_HOLD_OVERDUE_DAYS"), any(Integer.class)))
+                .thenReturn(30);
         planner = user(1L, UserRole.PLANNER);
         manager = user(2L, UserRole.WAREHOUSE_MANAGER);
         dealer = dealer(10L, new BigDecimal("480.00"), new BigDecimal("500.00"), CreditStatus.ACTIVE);
@@ -1113,7 +1120,7 @@ class DeliveryOrderServiceImplTest {
     private void stubCreateUntilCredit() {
         when(warehouseRepository.findById(20L)).thenReturn(Optional.of(warehouse));
         when(assignmentRepository.findWarehouseIdsByUserId(1L)).thenReturn(List.of(20L));
-        when(dealerRepository.findById(10L)).thenReturn(Optional.of(dealer));
+        when(dealerRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(dealer));
         when(productRepository.findByIdAndIsActiveTrue(30L)).thenReturn(Optional.of(product));
         when(priceHistoryService.lookupApproved(30L, 20L, LocalDate.of(2026, 6, 18)))
                 .thenReturn(Optional.of(price));
