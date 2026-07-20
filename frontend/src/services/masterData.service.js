@@ -830,8 +830,6 @@ export const masterDataService = {
         email: dlData.email || "",
         default_delivery_address: dlData.default_delivery_address || "",
         region: dlData.region || "",
-        bank_account_number: dlData.bank_account_number || "",
-        bank_name: dlData.bank_name || "",
         payment_term_days: Number(dlData.payment_term_days) || 30,
         credit_limit: parseFloat(dlData.credit_limit) || 0.0,
         current_balance: 0.0,
@@ -868,8 +866,6 @@ export const masterDataService = {
         email: dlData.email || "",
         default_delivery_address: dlData.default_delivery_address || "",
         region: dlData.region || "",
-        bank_account_number: dlData.bank_account_number || "",
-        bank_name: dlData.bank_name || "",
         payment_term_days: Number(dlData.payment_term_days) || 30,
       };
 

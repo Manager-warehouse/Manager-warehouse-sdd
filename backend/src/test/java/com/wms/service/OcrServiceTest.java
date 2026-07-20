@@ -166,30 +166,7 @@ class OcrServiceTest {
         assertThat(response.getConfidenceScore()).isEqualTo(0.60);
     }
 
-    @Test
-    @DisplayName("processOcr — Khớp đại lý theo số tài khoản ngân hàng dù tên đại lý không xuất hiện trong ảnh")
-    void processOcr_matchesDealerByBankAccountNumber() throws Exception {
-        Dealer dealer = new Dealer();
-        dealer.setId(7L);
-        dealer.setCode("DL-BANKMATCH");
-        dealer.setName("Cong Ty TNHH Khong Xuat Hien Ten");
-        dealer.setIsActive(true);
-        dealer.setBankAccountNumber("0123 4567 890");
 
-        when(dealerRepository.findAll()).thenReturn(List.of(dealer));
-
-        // Văn bản OCR chỉ chứa số tài khoản, không chứa tên/mã đại lý
-        String mockOcrText = "Chuyen tien den STK: 0123456789 0\nSo tien: 2.000.000 VND";
-        when(tesseract.doOCR(any(BufferedImage.class))).thenReturn(mockOcrText);
-
-        MockMultipartFile file = tinyPngFile("bank_match.png");
-
-        PaymentReceiptOcrResponse response = ocrService.processOcr(file, new User());
-
-        assertThat(response.getDealerId()).isEqualTo(7L);
-        assertThat(response.getNotes()).contains("KHONG XUAT HIEN TEN");
-        assertThat(response.getConfidenceScore()).isEqualTo(0.97);
-    }
 
     @Test
     @DisplayName("processOcr — Trả về lỗi 422 khi Tesseract ném exception hoặc không tìm thấy số tiền")
