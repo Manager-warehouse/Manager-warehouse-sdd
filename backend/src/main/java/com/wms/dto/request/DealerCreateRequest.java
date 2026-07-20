@@ -31,9 +31,4 @@ public class DealerCreateRequest {
     @Size(max = 100)
     private String region;
 
-    @Size(max = 50)
-    private String bankAccountNumber;
-
-    @Size(max = 100)
-    private String bankName;
 }

@@ -16,8 +16,6 @@ public class DealerResponse {
     private String email;
     private String defaultDeliveryAddress;
     private String region;
-    private String bankAccountNumber;
-    private String bankName;
     private Integer paymentTermDays;
     private BigDecimal creditLimit;
     private BigDecimal currentBalance;

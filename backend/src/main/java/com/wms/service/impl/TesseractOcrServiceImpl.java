@@ -231,17 +231,8 @@ public class TesseractOcrServiceImpl implements OcrService {
         return LocalDate.now();
     }
 
-    /**
-     * Khớp đại lý theo hai lượt: số tài khoản ngân hàng đã đăng ký (tín hiệu chính xác, không
-     * phụ thuộc ngân hàng cụ thể) trước, sau đó mới rơi về khớp tên/mã đại lý như trước đây.
-     */
     private DealerMatchResult matchDealer(String lowercaseText) {
         List<Dealer> dealers = dealerRepository.findAll();
-
-        DealerMatchResult byAccount = matchByBankAccount(lowercaseText, dealers);
-        if (byAccount != null) {
-            return byAccount;
-        }
 
         DealerMatchResult byNameOrCode = matchByNameOrCode(lowercaseText, dealers);
         if (byNameOrCode != null) {
@@ -249,24 +240,6 @@ public class TesseractOcrServiceImpl implements OcrService {
         }
 
         return new DealerMatchResult(null, "CK TIEN HANG - KHONG RO DAI LY (OCR)", 0.60);
-    }
-
-    private DealerMatchResult matchByBankAccount(String lowercaseText, List<Dealer> dealers) {
-        String normalizedText = lowercaseText.replaceAll("[^0-9]", "");
-        for (Dealer dealer : dealers) {
-            if (!Boolean.TRUE.equals(dealer.getIsActive())) {
-                continue;
-            }
-            String account = dealer.getBankAccountNumber();
-            if (account == null || account.isBlank()) {
-                continue;
-            }
-            String normalizedAccount = account.replaceAll("[^0-9]", "");
-            if (normalizedAccount.length() >= 6 && normalizedText.contains(normalizedAccount)) {
-                return new DealerMatchResult(dealer.getId(), dealerNotes(dealer), 0.97);
-            }
-        }
-        return null;
     }
 
     private DealerMatchResult matchByNameOrCode(String lowercaseText, List<Dealer> dealers) {

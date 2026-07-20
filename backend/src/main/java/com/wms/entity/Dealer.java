@@ -37,12 +37,6 @@ public class Dealer {
     @Column(name = "region", length = 100)
     private String region;
 
-    @Column(name = "bank_account_number", length = 50)
-    private String bankAccountNumber;
-
-    @Column(name = "bank_name", length = 100)
-    private String bankName;
-
     @Column(name = "payment_term_days", nullable = false)
     private Integer paymentTermDays;
 
