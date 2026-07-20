@@ -3,7 +3,6 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from './ProtectedRoute';
 import Login from '../pages/Auth/Login';
 import ForgotPassword from '../pages/Auth/ForgotPassword';
-import Dashboard from '../pages/Dashboard';
 import Profile from '../pages/Profile/Profile';
 import Forbidden from '../pages/Forbidden/Forbidden';
 import UserManagement from '../pages/Admin/UserManagement';
@@ -50,7 +49,7 @@ const AppRoutes = () => {
 
       {/* Authenticated views accessible to any user with a valid JWT token */}
       <Route element={<ProtectedRoute />}>
-        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/dashboard" element={<Navigate to="/admin/users" replace />} />
         <Route path="/profile" element={<Profile />} />
       </Route>
 
@@ -176,8 +175,8 @@ const AppRoutes = () => {
       </Route>
 
       {/* Default Redirects */}
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/" element={<Navigate to="/admin/users" replace />} />
+      <Route path="*" element={<Navigate to="/admin/users" replace />} />
     </Routes>
   );
 };

@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, UserSquare, ShieldAlert, BarChart3, Package2, Settings, History, Box, Warehouse, Handshake, Truck, MapPin, PackageCheck, ClipboardList, DollarSign, CheckSquare, ArrowRightLeft, FileText, Landmark } from 'lucide-react';
+import { Users, UserSquare, ShieldAlert, BarChart3, Package2, Settings, History, Box, Warehouse, Handshake, Truck, MapPin, PackageCheck, ClipboardList, DollarSign, CheckSquare, ArrowRightLeft, FileText, Landmark } from 'lucide-react';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
@@ -19,13 +19,6 @@ const Sidebar = () => {
   }, [location.pathname]);
 
   const menuItems = [
-    {
-      title: 'Tổng quan',
-      path: '/dashboard',
-      icon: LayoutDashboard,
-      roles: [], // All non-driver roles
-      hiddenForRoles: [ROLES.DRIVER]
-    },
     {
       title: 'Quản lý tài khoản',
       path: '/admin/users',

@@ -31,7 +31,7 @@ const Login = () => {
       const data = await authService.login(email, password);
       loginStore(data.user, data.accessToken, data.refreshToken);
       addToast('Đăng nhập thành công', 'success');
-      navigate('/dashboard');
+      navigate('/admin/users');
     } catch (err) {
       const message = err.message || '';
       if (message.includes('INVALID_CREDENTIALS')) {
