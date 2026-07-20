@@ -409,7 +409,7 @@ const Payments = () => {
                       value={formData.notes}
                       onChange={e => setFormData(prev => ({ ...prev, notes: e.target.value }))}
                       className="bg-canvas-light text-ink text-xs border border-hairline-light rounded p-2 outline-none focus:border-shade-60 min-h-[60px]"
-                      placeholder="Số tài khoản, ngân hàng, nội dung..."
+                      placeholder="Nội dung chuyển khoản, ghi chú đối soát..."
                     />
                   </div>
 
