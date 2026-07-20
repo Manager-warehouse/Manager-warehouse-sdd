@@ -25,7 +25,7 @@ public class AccountingPeriodController {
     private final UserRepository userRepository;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ACCOUNTANT', 'ACCOUNTANT_MANAGER', 'ADMIN', 'CEO')")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT', 'ACCOUNTANT_MANAGER', 'ADMIN', 'CEO', 'WAREHOUSE_MANAGER', 'STOREKEEPER')")
     public ResponseEntity<List<AccountingPeriodResponse>> getAllPeriods(Principal principal) {
         User actor = getActor(principal);
         return ResponseEntity.ok(accountingPeriodService.getAllPeriods(actor));
