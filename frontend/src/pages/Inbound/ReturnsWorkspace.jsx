@@ -49,6 +49,7 @@ const ReturnsWorkspace = () => {
   const [creditReason, setCreditReason] = useState('');
 
   const [submitting, setSubmitting] = useState(false);
+  const canManageReturnOperations = ['WAREHOUSE_STAFF', 'STOREKEEPER', 'WAREHOUSE_MANAGER', 'ADMIN', 'CEO'].includes(user?.role);
 
   useEffect(() => {
     if (activeWarehouse) {
@@ -156,17 +157,22 @@ const ReturnsWorkspace = () => {
     try {
       const details = await returnsService.getReturnById(receipt.id);
       setQcReceipt(details);
-      const items = details.items.map(item => ({
-        receiptItemId: item.id,
-        sku: item.product_sku || `SKU-${item.product_id}`,
-        name: item.product_name || `Sản phẩm ${item.product_id}`,
-        expectedQty: item.expected_qty,
-        actualQty: item.expected_qty,
-        passedQty: item.expected_qty,
+      const items = details.items.map(item => {
+        const receiptItemId = item.receipt_item_id ?? item.receiptItemId ?? item.id;
+        const productId = item.product_id ?? item.productId;
+        const expectedQty = item.expected_qty ?? item.expectedQty ?? 0;
+        return {
+        receiptItemId,
+        sku: item.product_sku || item.productSku || `SKU-${productId}`,
+        name: item.product_name || item.productName || `Sản phẩm ${productId}`,
+        expectedQty,
+        actualQty: expectedQty,
+        passedQty: expectedQty,
         failedQty: 0,
         passedLocationId: regularBins[0]?.id || '',
         quarantineLocationId: quarantineBins[0]?.id || ''
-      }));
+        };
+      });
       setQcItems(items);
       setShowQcModal(true);
     } catch (e) {
@@ -270,13 +276,14 @@ const ReturnsWorkspace = () => {
           </p>
         </div>
         {!isAccountingRole && (
-          <Button
-            variant={activeTab === 'CREATE' ? 'outline-light' : 'primary'}
-            icon={activeTab === 'CREATE' ? null : Plus}
-            onClick={() => setActiveTab(activeTab === 'LIST' ? 'CREATE' : 'LIST')}
-          >
-            {activeTab === 'CREATE' ? 'Quay lại danh sách' : 'Lập phiếu trả hàng mới'}
-          </Button>
+        <Button
+          variant={activeTab === 'CREATE' ? 'outline-light' : 'primary'}
+          icon={activeTab === 'CREATE' ? null : Plus}
+          onClick={() => setActiveTab(activeTab === 'LIST' ? 'CREATE' : 'LIST')}
+          disabled={!canManageReturnOperations}
+        >
+          {activeTab === 'CREATE' ? 'Quay lại danh sách' : 'Lập phiếu trả hàng mới'}
+        </Button>
         )}
       </div>
 
@@ -338,7 +345,7 @@ const ReturnsWorkspace = () => {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-2">
-                          {ret.status === 'DRAFT' ? (
+                          {ret.status === 'DRAFT' && canManageReturnOperations ? (
                             <button
                               onClick={() => openQcSplit(ret)}
                               className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill border border-ink bg-canvas-light text-ink hover:bg-canvas-cream text-xs font-semibold transition-colors"
@@ -401,7 +408,7 @@ const ReturnsWorkspace = () => {
 
                   {ret.status === 'DRAFT' || (ret.status === 'APPROVED' && !ret.credit_note_generated) ? (
                     <div className="mt-4 flex flex-col gap-2">
-                      {ret.status === 'DRAFT' && (
+                      {ret.status === 'DRAFT' && canManageReturnOperations && (
                         <button
                           onClick={() => openQcSplit(ret)}
                           className="btn-pill btn-pill-outline-light min-h-[44px] text-xs"

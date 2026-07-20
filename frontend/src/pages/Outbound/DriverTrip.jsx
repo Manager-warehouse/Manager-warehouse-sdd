@@ -167,7 +167,7 @@ export default function DriverTrip() {
         }
         setTrip(toTransferDriverTrip(data));
       } else {
-        const data = await outboundService.getTripById(tripId);
+        const data = await outboundService.getDriverTripById(tripId);
         setTrip({
           ...data,
           trip_type: getTripType(data),

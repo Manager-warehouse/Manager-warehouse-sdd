@@ -22,6 +22,7 @@ import com.wms.exception.ResourceNotFoundException;
 import com.wms.exception.UnprocessableEntityException;
 import com.wms.mapper.ReceiptMapper;
 import com.wms.repository.DocumentSequenceRepository;
+import com.wms.repository.CreditNoteRepository;
 import com.wms.repository.ProductRepository;
 import com.wms.repository.ReceiptItemRepository;
 import com.wms.repository.ReceiptRepository;
@@ -62,6 +63,7 @@ public class ReceiptService {
     private final AuditLogService auditLogService;
     private final ReceiptMapper receiptMapper;
     private final AccountingPeriodService accountingPeriodService;
+    private final CreditNoteRepository creditNoteRepository;
 
     public ReceiptService(DocumentSequenceRepository sequenceRepository,
                           ReceiptRepository receiptRepository,
@@ -72,7 +74,8 @@ public class ReceiptService {
                           UserWarehouseAssignmentRepository assignmentRepository,
                           AuditLogService auditLogService,
                           ReceiptMapper receiptMapper,
-                          AccountingPeriodService accountingPeriodService) {
+                          AccountingPeriodService accountingPeriodService,
+                          CreditNoteRepository creditNoteRepository) {
         this.sequenceRepository = sequenceRepository;
         this.receiptRepository = receiptRepository;
         this.receiptItemRepository = receiptItemRepository;
@@ -83,6 +86,7 @@ public class ReceiptService {
         this.auditLogService = auditLogService;
         this.receiptMapper = receiptMapper;
         this.accountingPeriodService = accountingPeriodService;
+        this.creditNoteRepository = creditNoteRepository;
     }
 
     @Transactional(readOnly = true)
@@ -97,8 +101,8 @@ public class ReceiptService {
                 ? receiptRepository.findByWarehouseIdAndTypeOrderByDocumentDateDescCreatedAtDesc(warehouseId, type)
                 : receiptRepository.findByWarehouseIdOrderByDocumentDateDescCreatedAtDesc(warehouseId);
         return receipts.stream()
-                .map(r -> receiptMapper.toResponse(r,
-                        receiptItemRepository.findByReceiptIdOrderByIdAsc(r.getId())))
+                .map(r -> enrichReceiptResponse(r, receiptMapper.toResponse(r,
+                        receiptItemRepository.findByReceiptIdOrderByIdAsc(r.getId()))))
                 .toList();
     }
 
@@ -108,7 +112,14 @@ public class ReceiptService {
                 .orElseThrow(() -> new ResourceNotFoundException("Receipt not found with id: " + id));
         requireWarehouseAccess(actor, receipt.getWarehouse().getId());
         List<ReceiptItem> items = receiptItemRepository.findByReceiptIdOrderByIdAsc(id);
-        return receiptMapper.toResponse(receipt, items);
+        return enrichReceiptResponse(receipt, receiptMapper.toResponse(receipt, items));
+    }
+
+    private ReceiptResponse enrichReceiptResponse(Receipt receipt, ReceiptResponse response) {
+        if (receipt.getType() == ReceiptType.RETURN) {
+            response.setCreditNoteGenerated(creditNoteRepository.existsByReceiptId(receipt.getId()));
+        }
+        return response;
     }
 
     @Transactional

@@ -30,6 +30,8 @@ Audit Log là bằng chứng nghiệp vụ bất biến: sau khi được ghi, k
   - WHEN a user without System Admin role requests audit log data, the system SHALL reject the request with `FORBIDDEN_AUDIT_ACCESS`.
 - **Query and pagination:**
   - WHEN System Admin opens audit log without filters, the system SHALL return page 1 with 30 newest log entries ordered by timestamp descending.
+  - WHEN System Admin opens or changes an audit log page, the client SHALL request that page from the backend instead of paginating only the first loaded result set.
+  - The audit log page response SHALL include `data`, `page`, `pageSize`, `totalItems`, `totalPages`, `hasNext`, `hasPrevious`, and `requiresFilterForOlder`.
   - WHEN System Admin navigates audit log without filters, the system SHALL allow browsing up to 50 pages of newest logs.
   - WHEN System Admin needs logs older than the default 50-page window, the system SHALL require filters to narrow the query.
   - WHEN System Admin filters audit log, the system SHALL support optional filters by time range and warehouse.
@@ -88,13 +90,13 @@ The system SHALL audit changes to these entity groups:
 
 ## 6. API Endpoints
 
-- `GET /api/v1/audit-logs` - Tra cứu nhật ký hệ thống.
+- `GET /api/v1/admin/audit-logs` - Tra cứu nhật ký hệ thống.
   - Access: System Admin only.
   - Default sort: `timestamp DESC`.
   - Default page size: 30 entries.
   - Default browsing limit without filters: 50 pages.
   - Optional filters: `from`, `to`, `warehouse_id`.
-- `GET /api/v1/audit-logs/{id}` - Xem chi tiết một bản ghi audit log.
+- `GET /api/v1/admin/audit-logs/{id}` - Xem chi tiết một bản ghi audit log.
   - Access: System Admin only.
 
 ## 7. Error Handling
@@ -149,7 +151,13 @@ The system SHALL audit changes to these entity groups:
 
 - Given the authenticated user is System Admin
 - When the user opens audit log without filters
-- Then the system SHALL return 30 newest log entries on page 1.
+- Then the system SHALL return 30 newest log entries on page 1 with total item and total page metadata.
+
+**Scenario: Server-Side Page Navigation**
+
+- Given the authenticated user is System Admin
+- When the user navigates from page 1 to page 2
+- Then the client SHALL request page 2 from the backend and display those audit log entries instead of slicing page 1 locally.
 
 **Scenario: Browse Limit Without Filters**
 

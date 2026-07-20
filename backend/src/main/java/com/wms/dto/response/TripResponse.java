@@ -17,7 +17,14 @@ public class TripResponse {
     private String tripNumber;
     private Long warehouseId;
     private Long vehicleId;
+    private String vehiclePlate;
+    private String vehicleType;
+    private BigDecimal vehicleMaxWeightKg;
+    private BigDecimal vehicleMaxVolumeM3;
     private Long driverId;
+    private String driverName;
+    private String driverPhone;
+    private String driverLicenseNumber;
     private Long dispatcherId;
     private LocalDate plannedDate;
     private LocalDateTime plannedStartAt;

@@ -148,6 +148,14 @@ public class TripServiceImpl implements TripService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public TripResponse getTrip(Long id, User actor) {
+        Trip trip = loadTrip(id);
+        requireWarehouseScope(actor, trip.getWarehouse().getId());
+        return toResponse(trip);
+    }
+
+    @Override
     @Transactional
     public TripResponse createTrip(TripCreateRequest request, User actor) {
         Warehouse warehouse = activeWarehouse(request.getWarehouseId());
@@ -593,7 +601,14 @@ public class TripServiceImpl implements TripService {
                 .tripNumber(trip.getTripNumber())
                 .warehouseId(trip.getWarehouse().getId())
                 .vehicleId(trip.getVehicle().getId())
+                .vehiclePlate(trip.getVehicle().getPlateNumber())
+                .vehicleType(trip.getVehicle().getVehicleType())
+                .vehicleMaxWeightKg(trip.getVehicle().getMaxWeightKg())
+                .vehicleMaxVolumeM3(trip.getVehicle().getMaxVolumeM3())
                 .driverId(trip.getDriver().getId())
+                .driverName(trip.getDriver().getFullName())
+                .driverPhone(trip.getDriver().getPhone())
+                .driverLicenseNumber(trip.getDriver().getLicenseNumber())
                 .dispatcherId(trip.getDispatcher().getId())
                 .plannedDate(trip.getPlannedDate())
                 .plannedStartAt(trip.getPlannedStartAt())
