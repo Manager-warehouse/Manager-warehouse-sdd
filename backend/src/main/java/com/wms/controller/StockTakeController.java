@@ -14,12 +14,13 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 /**
  * REST controller for StockTake & Adjustment operations (Spec 006, US-WMS-13).
@@ -40,7 +41,7 @@ public class StockTakeController {
 
     // ─── List ─────────────────────────────────────────────────────────────────
 
-    @Operation(summary = "Danh sách phiếu kiểm kê", description = "Lấy danh sách phiếu kiểm kê của một kho, lọc theo status tùy chọn. Roles: WAREHOUSE_MANAGER, STOREKEEPER, CEO, ADMIN.")
+    @Operation(summary = "Danh sách phiếu kiểm kê (phân trang)", description = "Lấy danh sách phiếu kiểm kê của một kho, lọc theo status tùy chọn, hỗ trợ phân trang. Roles: WAREHOUSE_MANAGER, STOREKEEPER, CEO, ADMIN.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Thành công"),
         @ApiResponse(responseCode = "401", description = "Chưa xác thực"),
@@ -48,11 +49,14 @@ public class StockTakeController {
     })
     @GetMapping
     @PreAuthorize("hasAnyRole('WAREHOUSE_MANAGER', 'STOREKEEPER', 'CEO', 'ADMIN')")
-    public ResponseEntity<List<StockTakeSummaryResponse>> getStockTakes(
+    public ResponseEntity<Page<StockTakeSummaryResponse>> getStockTakes(
             @RequestParam("warehouse_id") Long warehouseId,
-            @RequestParam(value = "status", required = false) StockTakeStatus status) {
+            @RequestParam(value = "status", required = false) StockTakeStatus status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
         User actor = currentUserService.getRequiredCurrentUser();
-        return ResponseEntity.ok(stockTakeService.getStockTakes(warehouseId, status, actor));
+        PageRequest pageRequest = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        return ResponseEntity.ok(stockTakeService.getStockTakes(warehouseId, status, actor, pageRequest));
     }
 
     // ─── Detail ───────────────────────────────────────────────────────────────
