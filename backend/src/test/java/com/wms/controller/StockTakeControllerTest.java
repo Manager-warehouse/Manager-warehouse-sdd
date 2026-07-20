@@ -34,8 +34,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
@@ -118,8 +119,8 @@ class StockTakeControllerTest {
                                 .status(StockTakeStatus.DRAFT)
                                 .stockTakeDate(LocalDate.of(2026, 6, 17))
                                 .build());
-                when(stockTakeService.getStockTakes(eq(10L), any(), any(), any()))
-                                .thenReturn(new PageImpl<>(List.of(summary), PageRequest.of(0, 10), 1));
+                Page<StockTakeSummaryResponse> page = new PageImpl<>(List.of(summary));
+                when(stockTakeService.getStockTakes(eq(10L), any(), any(), any(Pageable.class))).thenReturn(page);
 
                 mockMvc.perform(get("/api/v1/stocktakes").param("warehouse_id", "10"))
                                 .andExpect(status().isOk())
