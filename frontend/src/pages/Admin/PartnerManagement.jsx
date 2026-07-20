@@ -765,6 +765,7 @@ const PartnerManagement = () => {
                   min="0"
                   step="1000000"
                   required
+                  disabled={dealerModalType === 'ADD'}
                 />
                 <Input
                   label="Kỳ hạn thanh toán (ngày)"
@@ -775,6 +776,7 @@ const PartnerManagement = () => {
                   min="0"
                   step="1"
                   required
+                  disabled={dealerModalType === 'ADD'}
                 />
               </div>
 
