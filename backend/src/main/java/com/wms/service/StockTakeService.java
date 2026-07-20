@@ -11,6 +11,8 @@ import com.wms.entity.*;
 import com.wms.enums.*;
 import com.wms.exception.*;
 import com.wms.repository.*;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -74,6 +76,15 @@ public class StockTakeService {
                 ? stockTakeRepository.findByWarehouseIdAndStatusOrderByCreatedAtDesc(warehouseId, status)
                 : stockTakeRepository.findByWarehouseIdOrderByCreatedAtDesc(warehouseId);
         return list.stream().map(StockTakeSummaryResponse::from).collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public Page<StockTakeSummaryResponse> getStockTakes(Long warehouseId, StockTakeStatus status, User actor, Pageable pageable) {
+        requireWarehouseAccess(actor, warehouseId);
+        Page<StockTake> page = (status != null)
+                ? stockTakeRepository.findByWarehouseIdAndStatusOrderByCreatedAtDesc(warehouseId, status, pageable)
+                : stockTakeRepository.findByWarehouseIdOrderByCreatedAtDesc(warehouseId, pageable);
+        return page.map(StockTakeSummaryResponse::from);
     }
 
     @Transactional(readOnly = true)
