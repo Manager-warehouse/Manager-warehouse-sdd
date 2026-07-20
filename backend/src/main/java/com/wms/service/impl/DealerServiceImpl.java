@@ -83,8 +83,6 @@ public class DealerServiceImpl implements DealerService {
         dealer.setEmail(request.getEmail());
         dealer.setDefaultDeliveryAddress(request.getDefaultDeliveryAddress());
         dealer.setRegion(request.getRegion());
-        dealer.setBankAccountNumber(request.getBankAccountNumber());
-        dealer.setBankName(request.getBankName());
         dealer.setPaymentTermDays(resolveIntConfig(SystemConfigKey.DEFAULT_PAYMENT_TERM_DAYS, NET_30));
         dealer.setCreditLimit(resolveDecimalConfig(SystemConfigKey.DEFAULT_CREDIT_LIMIT, BigDecimal.ZERO));
         dealer.setCurrentBalance(BigDecimal.ZERO);
@@ -120,12 +118,6 @@ public class DealerServiceImpl implements DealerService {
         }
         if (request.getRegion() != null) {
             dealer.setRegion(request.getRegion());
-        }
-        if (request.getBankAccountNumber() != null) {
-            dealer.setBankAccountNumber(request.getBankAccountNumber());
-        }
-        if (request.getBankName() != null) {
-            dealer.setBankName(request.getBankName());
         }
         dealer.setUpdatedBy(actor);
         dealer.setUpdatedAt(OffsetDateTime.now());
@@ -266,8 +258,6 @@ public class DealerServiceImpl implements DealerService {
                 "email", dealer.getEmail(),
                 "defaultDeliveryAddress", dealer.getDefaultDeliveryAddress(),
                 "region", dealer.getRegion(),
-                "bankAccountNumber", dealer.getBankAccountNumber(),
-                "bankName", dealer.getBankName(),
                 "paymentTermDays", dealer.getPaymentTermDays(),
                 "creditLimit", dealer.getCreditLimit(),
                 "currentBalance", dealer.getCurrentBalance(),
