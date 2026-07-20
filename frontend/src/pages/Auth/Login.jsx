@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
 import { authService } from '../../services/auth.service';
+import { ROLES } from '../../utils/constants';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import { Shield, User } from 'lucide-react';
@@ -49,45 +50,45 @@ const Login = () => {
   };
 
   return (
-    <div className="auth-login-shell app-safe-public bg-canvas-night text-onPrimary flex flex-col md:flex-row font-sans">
+    <div className="auth-login-shell app-safe-public flex w-full max-w-[100vw] flex-col overflow-x-hidden bg-canvas-night font-sans text-onPrimary md:flex-row">
       {/* Left panel: Branding / Cinematic */}
-      <div className="auth-login-brand flex-1 flex flex-col justify-between bg-gradient-to-br from-canvas-nightElevated via-canvas-night to-shade-70 relative overflow-hidden border-b md:border-b-0 md:border-r border-hairline-dark">
+      <div className="auth-login-brand relative flex min-w-0 flex-1 flex-col justify-between overflow-hidden border-b border-hairline-dark bg-gradient-to-br from-canvas-nightElevated via-canvas-night to-shade-70 md:border-b-0 md:border-r">
         <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#c1fbd4_1px,transparent_1px)] [background-size:16px_16px]" />
 
         {/* Eyebrow / Logo */}
-        <div className="relative flex items-center gap-3 z-10">
+        <div className="relative z-10 flex min-w-0 items-center gap-3">
           <div className="p-2 bg-onPrimary rounded-lg text-canvas-night">
             <Shield className="w-6 h-6 stroke-[2.5]" />
           </div>
-          <span className="font-display font-semibold text-xl tracking-tight uppercase">
+          <span className="min-w-0 truncate font-display text-xl font-semibold uppercase tracking-tight">
             Phúc Anh WMS
           </span>
         </div>
 
         {/* Cinematic Text */}
-        <div className="relative my-auto py-8 md:py-0 z-10">
+        <div className="relative z-10 my-auto min-w-0 py-8 md:py-0">
           <span className="text-[12px] font-semibold text-aloe-10 uppercase tracking-widest block mb-4">
             Hệ thống Quản lý Kho vận nội bộ
           </span>
-          <h1 className="text-4xl md:text-6xl font-display font-light leading-tight tracking-tight max-w-xl text-onPrimary">
+          <h1 className="max-w-xl break-words font-display text-4xl font-light leading-tight tracking-tight text-onPrimary md:text-6xl">
             Kiểm soát chính xác.
             <br />
             <span className="text-shade-40">Vận hành tối ưu.</span>
           </h1>
-          <p className="text-sm md:text-base text-shade-40 font-light mt-4 md:mt-6 max-w-md leading-relaxed">
+          <p className="mt-4 max-w-md text-sm font-light leading-relaxed text-shade-40 md:mt-6 md:text-base">
             Hệ thống quản lý tồn kho tích hợp nghiệp vụ nhập, xuất, điều chuyển, kiểm định chất lượng (QC) và công nợ đại lý của Phúc Anh.
           </p>
         </div>
 
         {/* Version info */}
-        <div className="relative text-xs text-shade-50 z-10">
+        <div className="relative z-10 max-w-full truncate text-xs text-shade-50">
           &copy; {new Date().getFullYear()} Phúc Anh Computer. Phiên bản 1.0.0 (Sprint 1)
         </div>
       </div>
 
       {/* Right panel: Login Form */}
-      <div className="auth-login-form flex-1 flex flex-col justify-center items-center p-8 md:p-16 bg-canvas-night">
-        <div className="w-full max-w-md flex flex-col gap-6 md:gap-8">
+      <div className="auth-login-form flex min-w-0 flex-1 flex-col items-center justify-center bg-canvas-night p-8 md:p-16">
+        <div className="flex w-full min-w-0 max-w-md flex-col gap-6 md:gap-8">
           <div>
             <h2 className="text-2xl font-display font-semibold tracking-tight">
               Đăng nhập hệ thống

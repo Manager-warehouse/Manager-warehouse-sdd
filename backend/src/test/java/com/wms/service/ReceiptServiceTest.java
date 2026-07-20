@@ -300,6 +300,31 @@ class ReceiptServiceTest {
     }
 
     @Test
+    void getReceiptById_allowsAccountantWithoutWarehouseAssignment() {
+        Receipt receipt = receipt(100L, ReceiptStatus.PENDING_RECEIPT);
+        when(receiptRepository.findByIdWithSupplierAndWarehouse(100L)).thenReturn(Optional.of(receipt));
+        when(receiptItemRepository.findByReceiptIdOrderByIdAsc(100L)).thenReturn(List.of());
+        User accountant = user(3L, UserRole.ACCOUNTANT);
+
+        ReceiptResponse response = receiptService.getReceiptById(100L, accountant);
+
+        assertEquals(100L, response.getId());
+        verify(assignmentRepository, never()).findWarehouseIdsByUserId(any());
+    }
+
+    @Test
+    void getReceiptsByWarehouseAndType_allowsAccountantManagerWithoutWarehouseAssignment() {
+        when(receiptRepository.findByWarehouseIdOrderByDocumentDateDescCreatedAtDesc(20L))
+                .thenReturn(List.of());
+        User accountantManager = user(4L, UserRole.ACCOUNTANT_MANAGER);
+
+        List<ReceiptResponse> response = receiptService.getReceiptsByWarehouseAndType(20L, null, accountantManager);
+
+        assertEquals(0, response.size());
+        verify(assignmentRepository, never()).findWarehouseIdsByUserId(any());
+    }
+
+    @Test
     void receiveReceiptCounts_rejectsUnauthorizedWarehouseStaff() {
         Receipt receipt = receipt(100L, ReceiptStatus.PENDING_RECEIPT);
         when(receiptRepository.findByIdWithWarehouse(100L)).thenReturn(Optional.of(receipt));

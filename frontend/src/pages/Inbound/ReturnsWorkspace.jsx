@@ -8,12 +8,18 @@ import Modal from '../../components/common/Modal';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import Badge from '../../components/common/Badge';
+import { ROLES } from '../../utils/constants';
 import { Loader2, Plus, Receipt, ShieldAlert, Check, Coins, FileText, ArrowRightLeft } from 'lucide-react';
 
 const ReturnsWorkspace = () => {
   const activeWarehouse = useAuthStore((state) => state.activeWarehouse);
   const { user } = useAuthStore();
   const { addToast } = useUiStore();
+
+  // Spec 009 only assigns the accountant the Credit Note step on already-APPROVED
+  // returns; receiving/QC-splitting incoming returns is Thủ kho's job. Scope the
+  // workspace down accordingly instead of exposing the full storekeeper flow.
+  const isAccountingRole = user?.role === ROLES.ACCOUNTANT || user?.role === ROLES.ACCOUNTANT_MANAGER;
 
   const [returns, setReturns] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -54,18 +60,22 @@ const ReturnsWorkspace = () => {
     setLoading(true);
     try {
       const data = await returnsService.getReturns({ warehouse_id: activeWarehouse.id });
-      setReturns(data);
+      // Accountants only act on returns already APPROVED by the storekeeper (the
+      // Credit Note step); DRAFT/pending-QC items are outside their spec'd role.
+      setReturns(isAccountingRole ? data.filter(r => r.status === 'APPROVED') : data);
 
       const dlData = await masterDataService.getDealers();
       setDealers(dlData);
 
-      const locs = await masterDataService.getBinLocations(activeWarehouse.id);
-      setRegularBins(locs.filter(l => !l.is_quarantine));
-      setQuarantineBins(locs.filter(l => l.is_quarantine));
+      if (!isAccountingRole) {
+        const locs = await masterDataService.getBinLocations(activeWarehouse.id);
+        setRegularBins(locs.filter(l => !l.is_quarantine));
+        setQuarantineBins(locs.filter(l => l.is_quarantine));
 
-      const doData = await outboundService.getDeliveryOrders(activeWarehouse.id);
-      const completedDos = doData.filter(d => d.status === 'DELIVERED' || d.status === 'COMPLETED');
-      setDeliveryOrders(completedDos);
+        const doData = await outboundService.getDeliveryOrders(activeWarehouse.id);
+        const completedDos = doData.filter(d => d.status === 'DELIVERED' || d.status === 'COMPLETED');
+        setDeliveryOrders(completedDos);
+      }
     } catch (e) {
       addToast('Lỗi tải dữ liệu hàng trả', 'error');
     } finally {
@@ -254,19 +264,23 @@ const ReturnsWorkspace = () => {
             Nhận hàng hoàn trả & Khấu trừ công nợ
           </h1>
           <p className="text-xs text-shade-50 font-light mt-1">
-            Xử lý hàng đại lý trả lại, phân tách QC (regular/quarantine) và sinh Credit Note khấu trừ công nợ.
+            {isAccountingRole
+              ? 'Sinh Credit Note khấu trừ công nợ cho các phiếu trả hàng đã được Thủ kho duyệt nhập kho.'
+              : 'Xử lý hàng đại lý trả lại, phân tách QC (regular/quarantine) và sinh Credit Note khấu trừ công nợ.'}
           </p>
         </div>
-        <Button
-          variant={activeTab === 'CREATE' ? 'outline-light' : 'primary'}
-          icon={activeTab === 'CREATE' ? null : Plus}
-          onClick={() => setActiveTab(activeTab === 'LIST' ? 'CREATE' : 'LIST')}
-        >
-          {activeTab === 'CREATE' ? 'Quay lại danh sách' : 'Lập phiếu trả hàng mới'}
-        </Button>
+        {!isAccountingRole && (
+          <Button
+            variant={activeTab === 'CREATE' ? 'outline-light' : 'primary'}
+            icon={activeTab === 'CREATE' ? null : Plus}
+            onClick={() => setActiveTab(activeTab === 'LIST' ? 'CREATE' : 'LIST')}
+          >
+            {activeTab === 'CREATE' ? 'Quay lại danh sách' : 'Lập phiếu trả hàng mới'}
+          </Button>
+        )}
       </div>
 
-      {activeTab === 'LIST' ? (
+      {activeTab === 'LIST' || isAccountingRole ? (
         <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden flex flex-col">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3">

@@ -74,8 +74,8 @@ const ReceiptForm = () => {
       return;
     }
     const filtered = products.filter(p =>
-      p.sku.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
-      p.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
+      (p.sku || '').toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+      (p.name || '').toLowerCase().includes(debouncedSearchQuery.toLowerCase())
     );
     setSearchResults(filtered);
   }, [debouncedSearchQuery, products]);

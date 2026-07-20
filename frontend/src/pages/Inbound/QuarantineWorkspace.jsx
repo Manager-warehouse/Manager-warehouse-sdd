@@ -242,7 +242,7 @@ const QuarantineWorkspace = () => {
                       <span className="font-semibold text-shade-50">Lý do lỗi QC:</span> <span className="text-danger-600 font-semibold italic">{item.qc_failure_reason || 'Không rõ'}</span>
                     </div>
                     <div>
-                      <span className="font-semibold text-shade-50">Trị giá hàng lỗi:</span> <span className="font-bold text-ink">{item.total_value.toLocaleString('vi-VN')} VND</span>
+                      <span className="font-semibold text-shade-50">Trị giá hàng lỗi:</span> <span className="font-bold text-ink">{(item.total_value || 0).toLocaleString('vi-VN')} VND</span>
                     </div>
                   </div>
                 </div>
@@ -303,7 +303,7 @@ const QuarantineWorkspace = () => {
                           <span className="text-shade-50 block">{adj.product_name}</span>
                         </td>
                         <td className="px-6 py-4 text-right font-semibold text-danger-600">{adj.failed_qty}</td>
-                        <td className="px-6 py-4 text-right font-bold">{adj.total_value.toLocaleString('vi-VN')} VND</td>
+                        <td className="px-6 py-4 text-right font-bold">{(adj.total_value || 0).toLocaleString('vi-VN')} VND</td>
                         <td className="px-6 py-4 text-shade-60 italic">{adj.cause}</td>
                         <td className="px-6 py-4">{getDisposalThresholdBadge(adj.total_value)}</td>
                         <td className="px-6 py-4 text-right whitespace-nowrap">
@@ -338,7 +338,7 @@ const QuarantineWorkspace = () => {
                     <div className="p-4 flex flex-col gap-2 text-xs">
                       <div className="text-shade-50">{adj.product_name}</div>
                       <p className="text-shade-50">Số lượng hủy: <span className="font-semibold text-danger-600">{adj.failed_qty}</span></p>
-                      <p className="text-shade-50">Trị giá: <span className="font-bold text-ink">{adj.total_value.toLocaleString('vi-VN')} VND</span></p>
+                      <p className="text-shade-50">Trị giá: <span className="font-bold text-ink">{(adj.total_value || 0).toLocaleString('vi-VN')} VND</span></p>
                       <p className="text-shade-50">Lý do: <span className="text-shade-60 italic">{adj.cause}</span></p>
                     </div>
                     <div className="p-4 border-t border-hairline-light flex justify-end">
@@ -379,7 +379,7 @@ const QuarantineWorkspace = () => {
                 <div><span className="text-shade-50">Sản phẩm:</span> <strong className="text-ink">{selectedItem.product_sku} - {selectedItem.product_name}</strong></div>
                 <div><span className="text-shade-50">Nhà cung cấp:</span> <strong>{getSupplierName(selectedItem.supplier_id)}</strong></div>
                 <div><span className="text-shade-50">Số lượng lỗi QC xuất trả:</span> <strong className="text-danger-600">{selectedItem.qc_failed_qty}</strong></div>
-                <div><span className="text-shade-50">Tổng tiền đòi bồi hoàn (Debit Note):</span> <strong className="text-ink text-sm">{selectedItem.total_value.toLocaleString('vi-VN')} VND</strong></div>
+                <div><span className="text-shade-50">Tổng tiền đòi bồi hoàn (Debit Note):</span> <strong className="text-ink text-sm">{(selectedItem.total_value || 0).toLocaleString('vi-VN')} VND</strong></div>
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="font-bold">Ghi chú xuất trả (Không bắt buộc)</label>
@@ -424,7 +424,7 @@ const QuarantineWorkspace = () => {
               <div className="bg-canvas-light p-3 rounded border border-hairline-light shadow-inner flex flex-col gap-2">
                 <div><span className="text-shade-50">Sản phẩm:</span> <strong>{selectedItem.product_sku} - {selectedItem.product_name}</strong></div>
                 <div><span className="text-shade-50">Số lượng hủy:</span> <strong className="text-danger-600">{selectedItem.qc_failed_qty}</strong></div>
-                <div><span className="text-shade-50">Tổng trị giá:</span> <strong>{selectedItem.total_value.toLocaleString('vi-VN')} VND</strong></div>
+                <div><span className="text-shade-50">Tổng trị giá:</span> <strong>{(selectedItem.total_value || 0).toLocaleString('vi-VN')} VND</strong></div>
                 <div className="flex items-center gap-2 mt-1">
                   <span className="text-shade-50">Thẩm quyền:</span>
                   {getDisposalThresholdBadge(selectedItem.total_value)}

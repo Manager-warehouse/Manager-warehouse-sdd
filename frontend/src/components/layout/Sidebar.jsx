@@ -77,7 +77,7 @@ const Sidebar = () => {
       title: 'Phiếu Nhập & QC',
       path: '/inbound/receipts',
       icon: Package2,
-      roles: [ROLES.PLANNER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]
+      roles: [ROLES.PLANNER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.WAREHOUSE_MANAGER, ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN, ROLES.CEO]
     },
     {
       title: 'Xử lý hàng lỗi',
@@ -170,7 +170,7 @@ const Sidebar = () => {
       title: 'Báo cáo quản trị (CEO)',
       path: '/reports/ceo-dashboard',
       icon: BarChart3,
-      roles: [ROLES.CEO, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN]
+      roles: [ROLES.CEO, ROLES.ADMIN]
     },
     {
       title: 'Báo cáo giá trị tồn',
@@ -188,7 +188,7 @@ const Sidebar = () => {
       title: 'Báo cáo năng suất',
       path: '/reports/productivity',
       icon: ClipboardList,
-      roles: [ROLES.WAREHOUSE_MANAGER, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN]
+      roles: [ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN]
     }
   ];
 

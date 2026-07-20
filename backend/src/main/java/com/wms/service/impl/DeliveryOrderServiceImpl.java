@@ -1182,6 +1182,9 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     }
 
     private void requireWarehouseScope(User actor, Long warehouseId) {
+        if (actor.getRole() == UserRole.ADMIN || actor.getRole() == UserRole.CEO) {
+            return;
+        }
         boolean assigned = assignmentRepository.findWarehouseIdsByUserId(actor.getId()).contains(warehouseId);
         if (!assigned) {
             throw new OutboundDeliveryException("WAREHOUSE_SCOPE_FORBIDDEN",
