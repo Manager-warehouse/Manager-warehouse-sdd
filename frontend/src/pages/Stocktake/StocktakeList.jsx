@@ -7,6 +7,7 @@ import { stocktakeService } from '../../services/stocktake.service';
 import { ROLES } from '../../utils/constants';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
+import Pagination from '../../components/common/Pagination';
 
 const STATUS_LABELS = {
   DRAFT: 'Nháp',
@@ -40,7 +41,11 @@ const StocktakeList = () => {
   const [stocktakes, setStocktakes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
-  const [confirmModal, setConfirmModal] = useState(null); // { action, id, label }
+  const [confirmModal, setConfirmModal] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
 
   const canCreate = hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.STOREKEEPER) || hasRole(ROLES.ADMIN);
   const canApprove = hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.CEO) || hasRole(ROLES.ADMIN);
@@ -49,16 +54,36 @@ const StocktakeList = () => {
     if (!activeWarehouse?.id) return;
     setLoading(true);
     try {
-      const data = await stocktakeService.getStockTakes(activeWarehouse.id, statusFilter || undefined);
-      setStocktakes(data);
+      const data = await stocktakeService.getStockTakes(
+        activeWarehouse.id,
+        statusFilter || undefined,
+        currentPage - 1,
+        pageSize
+      );
+      setStocktakes(data.content || []);
+      setTotalPages(data.totalPages || 1);
+      setTotalItems(data.totalElements || 0);
     } catch (err) {
       showToast?.('error', err.message || 'Không thể tải danh sách kiểm kê');
     } finally {
       setLoading(false);
     }
-  }, [activeWarehouse?.id, statusFilter]);
+  }, [activeWarehouse?.id, statusFilter, currentPage, pageSize]);
 
   useEffect(() => { load(); }, [load]);
+
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+  };
+
+  const handlePageSizeChange = (size) => {
+    setPageSize(size);
+    setCurrentPage(1);
+  };
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusFilter]);
 
   const handleStart = async (id) => {
     try {
@@ -285,6 +310,16 @@ const StocktakeList = () => {
                 </div>
               ))}
             </div>
+
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={totalItems}
+              pageSize={pageSize}
+              onPageChange={handlePageChange}
+              onPageSizeChange={handlePageSizeChange}
+              pageSizeOptions={[10, 25, 50]}
+            />
           </>
         )}
       </div>
