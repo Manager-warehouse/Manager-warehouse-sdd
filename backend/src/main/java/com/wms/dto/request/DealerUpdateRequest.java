@@ -24,4 +24,5 @@ public class DealerUpdateRequest {
 
     @Size(max = 100)
     private String region;
+
 }

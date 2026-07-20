@@ -231,9 +231,6 @@ public class TesseractOcrServiceImpl implements OcrService {
         return LocalDate.now();
     }
 
-    /**
-     * Khớp đại lý theo tên hoặc mã đại lý xuất hiện trong hóa đơn.
-     */
     private DealerMatchResult matchDealer(String lowercaseText) {
         List<Dealer> dealers = dealerRepository.findAll();
 

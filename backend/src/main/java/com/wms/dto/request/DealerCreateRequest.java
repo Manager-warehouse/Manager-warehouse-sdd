@@ -30,4 +30,5 @@ public class DealerCreateRequest {
 
     @Size(max = 100)
     private String region;
+
 }

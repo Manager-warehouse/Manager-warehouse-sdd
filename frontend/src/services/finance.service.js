@@ -323,30 +323,14 @@ export const financeService = {
         amount = parseFloat(match[0]);
       }
       
-      // Phân tích tên file ảnh để map đại lý: ưu tiên số tài khoản ngân hàng (nếu có trong tên file
-      // giả lập ảnh chụp), sau đó mới rơi về khớp tên/mã đại lý — mô phỏng lại thứ tự khớp của backend.
       let matchedDealer = null;
-      let matchedByBankAccount = false;
       const filename = file.name.toLowerCase();
-      const filenameDigitsOnly = filename.replace(/[^0-9]/g, '');
       for (const d of dealers) {
-        if (d.bank_account_number) {
-          const cleanAccount = String(d.bank_account_number).replace(/[^0-9]/g, '');
-          if (cleanAccount.length >= 6 && filenameDigitsOnly.includes(cleanAccount)) {
-            matchedDealer = d;
-            matchedByBankAccount = true;
-            break;
-          }
-        }
-      }
-      if (!matchedDealer) {
-        for (const d of dealers) {
-          const cleanName = d.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-          const cleanFilename = filename.replace(/[^a-z0-9]/g, '');
-          if (cleanFilename.includes(cleanName) || filename.includes(d.code.toLowerCase().replace(/-/g, '_'))) {
-            matchedDealer = d;
-            break;
-          }
+        const cleanName = d.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const cleanFilename = filename.replace(/[^a-z0-9]/g, '');
+        if (cleanFilename.includes(cleanName) || filename.includes(d.code.toLowerCase().replace(/-/g, '_'))) {
+          matchedDealer = d;
+          break;
         }
       }
 
@@ -365,7 +349,7 @@ export const financeService = {
         payment_date: new Date().toISOString().slice(0, 10),
         dealer_id: matchedDealer.id,
         notes: `CK TIEN HANG - ${matchedDealer.name.toUpperCase()} - GIAO DICH OCR_MOCK_${Math.floor(Math.random() * 100000)}`,
-        confidence_score: matchedByBankAccount ? 0.97 : 0.95
+        confidence_score: 0.95
       };
     }
     const formData = new FormData();
