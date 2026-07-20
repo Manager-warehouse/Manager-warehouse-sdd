@@ -3108,13 +3108,13 @@ classDiagram
 
 | No  | Method                    | Description                                                                                                            |
 | --- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| 01  | `getAuditLogs(...)`      | `GET /api/v1/admin/audit-logs` — role `ADMIN`. Filter: actor_id, action, entity_type, warehouse_id, from/to date; phân trang. |
+| 01  | `getAuditLogs(...)`      | `GET /api/v1/admin/audit-logs` — role `ADMIN`. Filter: actor_id, action, entity_type, warehouse_id, from/to date; phân trang server-side và trả `totalItems`/`totalPages`. |
 
 **AuditLogService Class**
 
 | No  | Method                                              | Description                                                                                                                                     |
 | --- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 01  | `queryAuditLogs(AuditLogFilterRequest filter, User actor)` | **Input**: filter (actor_id, action, entity_type, warehouse_id, dateFrom, dateTo, page/size), actor (`ADMIN`). **Xử lý nội bộ**: build dynamic query theo filter non-null → sort `created_at DESC`. **Output**: `Page<AuditLogResponse>`. Read-only, không mutate. |
+| 01  | `queryAuditLogs(AuditLogFilterRequest filter, User actor)` | **Input**: filter (actor_id, action, entity_type, warehouse_id, dateFrom, dateTo, page/size), actor (`ADMIN`). **Xử lý nội bộ**: build dynamic query theo filter non-null → sort `created_at DESC`. **Output**: `AuditLogPageResponse` gồm `data`, `page`, `pageSize`, `totalItems`, `totalPages`, `hasNext`, `hasPrevious`, `requiresFilterForOlder`. Read-only, không mutate. |
 | 02 (static/util) | `AuditLogUtil.log(action, entityType, entityId, actor, before, after)` | Utility dùng bởi MỌI service khác để ghi audit; build JSON diff before/after, filter field nhạy cảm (password_hash, otp_hash...). |
 
 #### c. Sequence Diagram(s)

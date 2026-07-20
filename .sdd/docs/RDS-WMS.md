@@ -3112,7 +3112,7 @@ Frontend theo cấu trúc React 18 + Tailwind: `components/` (PascalCase), `page
 | Description:       | System Admin xem danh sách audit log (append-only, không cho sửa/xóa), filter theo actor/entity/time/warehouse                                                                                                                |                   |            |
 | Preconditions:     | PRE-1: User đã đăng nhập với role `ADMIN`.                                                                                                                                                                                   |                   |            |
 | Postconditions:    | POST-1: Trả danh sách audit log theo filter (read-only, không mutate dữ liệu).                                                                                                                                                |                   |            |
-| Normal Flow:       | 4.0 Query Audit Log<br>1. System Admin truy cập Audit Log screen<br>2. System Admin nhập filter (actor email, action, entity_type, date range, warehouse)<br>3. Hệ thống query `audit_logs` theo filter<br>4. Hiển thị kết quả (danh sách + phân trang) |                   |            |
+| Normal Flow:       | 4.0 Query Audit Log<br>1. System Admin truy cập Audit Log screen<br>2. System Admin nhập filter (actor email, action, entity_type, date range, warehouse)<br>3. Hệ thống query `audit_logs` theo filter và page/size<br>4. Hiển thị kết quả từ backend cùng `totalItems`/`totalPages`; khi đổi trang, UI gọi backend cho trang mới thay vì chỉ cắt dữ liệu trang đầu |                   |            |
 | Alternative Flows: | None                                                                                                                                                                                                                          |                   |            |
 | Exceptions:        | None (read-only, không có mutation error)                                                                                                                                                                                    |                   |            |
 | Priority:          | Must Have                                                                                                                                                                                                                     |                   |            |
@@ -4237,7 +4237,7 @@ UI Design
 | Entity Filter  | Combo Box         | Loc theo doi tuong (USER/RECEIPT/DO/...)        |
 | Warehouse Filter| Combo Box        | Loc theo kho                                    |
 | Date Range     | Date Picker (from/to) | Loc theo khoang thoi gian                    |
-| Log Table      | Table (read-only)| actor, action, entity, timestamp, before/after (expand JSON) |
+| Log Table      | Table (read-only)| actor, action, entity, timestamp, before/after (expand JSON); phân trang theo metadata backend `totalItems`/`totalPages` |
 
 Database Access
 

@@ -160,7 +160,7 @@ Nếu Đại lý từ chối nhận hàng hoặc giao hàng thất bại, tài x
 ## 4. API Endpoints
 
 - `GET /api/v1/trips/driver` - Driver mobile list of all assigned trips for the authenticated Driver, including both `DELIVERY` and `TRANSFER` trip summaries for filtering.
-- `GET /api/v1/trips/{id}` - Driver mobile view for the current trip assigned to the authenticated Driver.
+- `GET /api/v1/trips/driver/{id}` - Driver mobile view for the current trip assigned to the authenticated Driver. This route is driver-scoped and separate from dispatcher/manager trip detail.
 - `POST /api/v1/trips/{tripId}/delivery-orders/{doId}/pod-evidence` - Upload POD images for one order in the trip.
 - `GET /api/v1/delivery-orders/{doId}/pod-evidence/signed-urls` - Generate fresh 15-minute signed URLs for authorized Delivery Order detail viewers.
 - `POST /api/v1/trips/{tripId}/delivery-orders/{doId}/delivery-otp` - Generate/resend OTP to dealer email after POD evidence exists.

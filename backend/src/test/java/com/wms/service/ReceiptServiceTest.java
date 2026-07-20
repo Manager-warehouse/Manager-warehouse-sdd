@@ -34,6 +34,7 @@ import com.wms.exception.DuplicateResourceException;
 import com.wms.exception.ReceiptCountException;
 import com.wms.exception.UnprocessableEntityException;
 import com.wms.mapper.ReceiptMapper;
+import com.wms.repository.CreditNoteRepository;
 import com.wms.repository.DocumentSequenceRepository;
 import com.wms.repository.ProductRepository;
 import com.wms.repository.ReceiptItemRepository;
@@ -72,6 +73,8 @@ class ReceiptServiceTest {
     private AuditLogService auditLogService;
     @Mock
     private AccountingPeriodService accountingPeriodService;
+    @Mock
+    private CreditNoteRepository creditNoteRepository;
 
     private ReceiptService receiptService;
     private User planner;
@@ -84,7 +87,8 @@ class ReceiptServiceTest {
     void setUp() {
         receiptService = new ReceiptService(sequenceRepository, receiptRepository, receiptItemRepository,
                 supplierRepository, warehouseRepository, productRepository,
-                assignmentRepository, auditLogService, new ReceiptMapper(), accountingPeriodService);
+                assignmentRepository, auditLogService, new ReceiptMapper(), accountingPeriodService,
+                creditNoteRepository);
         planner = user(1L, UserRole.PLANNER);
         warehouseStaff = user(2L, UserRole.WAREHOUSE_STAFF);
         supplier = supplier(10L, true);

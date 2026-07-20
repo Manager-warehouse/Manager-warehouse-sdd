@@ -188,7 +188,7 @@ public class AuditLogService {
                 .toList();
         boolean requiresFilter = unfiltered && page >= MAX_UNFILTERED_PAGE;
         return new AuditLogPageResponse(
-                data, page, pageSize, result.hasNext(),
+                data, page, pageSize, result.getTotalElements(), result.getTotalPages(), result.hasNext(),
                 result.hasPrevious(), requiresFilter);
     }
 

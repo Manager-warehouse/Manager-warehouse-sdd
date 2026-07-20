@@ -18,6 +18,18 @@ public class ReceiptResponse {
     @JsonProperty("supplier_id")
     private Long supplierId;
 
+    @JsonProperty("dealer_id")
+    private Long dealerId;
+
+    @JsonProperty("dealer_name")
+    private String dealerName;
+
+    @JsonProperty("delivery_order_id")
+    private Long deliveryOrderId;
+
+    @JsonProperty("source_order_code")
+    private String sourceOrderCode;
+
     @JsonProperty("warehouse_id")
     private Long warehouseId;
 
@@ -39,6 +51,9 @@ public class ReceiptResponse {
     private OffsetDateTime approvedAt;
 
     private Integer version;
+
+    @JsonProperty("credit_note_generated")
+    private Boolean creditNoteGenerated;
 
     public Long getId() {
         return id;
@@ -78,6 +93,38 @@ public class ReceiptResponse {
 
     public void setSupplierId(Long supplierId) {
         this.supplierId = supplierId;
+    }
+
+    public Long getDealerId() {
+        return dealerId;
+    }
+
+    public void setDealerId(Long dealerId) {
+        this.dealerId = dealerId;
+    }
+
+    public String getDealerName() {
+        return dealerName;
+    }
+
+    public void setDealerName(String dealerName) {
+        this.dealerName = dealerName;
+    }
+
+    public Long getDeliveryOrderId() {
+        return deliveryOrderId;
+    }
+
+    public void setDeliveryOrderId(Long deliveryOrderId) {
+        this.deliveryOrderId = deliveryOrderId;
+    }
+
+    public String getSourceOrderCode() {
+        return sourceOrderCode;
+    }
+
+    public void setSourceOrderCode(String sourceOrderCode) {
+        this.sourceOrderCode = sourceOrderCode;
     }
 
     public Long getWarehouseId() {
@@ -142,5 +189,13 @@ public class ReceiptResponse {
 
     public void setVersion(Integer version) {
         this.version = version;
+    }
+
+    public Boolean getCreditNoteGenerated() {
+        return creditNoteGenerated;
+    }
+
+    public void setCreditNoteGenerated(Boolean creditNoteGenerated) {
+        this.creditNoteGenerated = creditNoteGenerated;
     }
 }

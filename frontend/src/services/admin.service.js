@@ -119,6 +119,8 @@ const getFilteredMockAuditLogs = ({
     data: filtered.slice(start, start + pageSize),
     page,
     pageSize,
+    totalItems: filtered.length,
+    totalPages: Math.ceil(filtered.length / pageSize) || 1,
     hasNext: start + pageSize < filtered.length,
     hasPrevious: page > 1,
     requiresFilterForOlder: !from && !to && !warehouseId && page >= 50
