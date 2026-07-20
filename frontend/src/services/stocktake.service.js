@@ -137,15 +137,19 @@ const SEED_STOCKTAKES = [
 
 export const stocktakeService = {
 
-  getStockTakes: async (warehouseId, status) => {
+  getStockTakes: async (warehouseId, status, page = 0, size = 10) => {
     if (useMock) {
       await delay();
       let list = getDb(KEYS.STOCKTAKES, SEED_STOCKTAKES);
       list = list.filter((s) => s.warehouse_id === Number(warehouseId));
       if (status) list = list.filter((s) => s.status === status);
-      return list;
+      const totalElements = list.length;
+      const totalPages = Math.max(1, Math.ceil(totalElements / size));
+      const start = page * size;
+      const content = list.slice(start, start + size);
+      return { content, totalElements, totalPages, number: page, size };
     }
-    const params = { warehouse_id: warehouseId };
+    const params = { warehouse_id: warehouseId, page, size };
     if (status) params.status = status;
     const res = await apiClient.get('/stocktakes', { params });
     return res.data;
