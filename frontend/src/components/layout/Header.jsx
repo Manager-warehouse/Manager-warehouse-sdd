@@ -1,8 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Menu, LogOut, User, Warehouse, ChevronDown } from 'lucide-react';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
 import { WAREHOUSES } from '../../utils/constants';
+import { masterDataService } from '../../services/masterData.service';
 import { getAvatarFallback } from '../../utils/format';
 import { useNavigate, useLocation } from 'react-router-dom';
 
@@ -16,23 +17,64 @@ const Header = () => {
   
   const [warehouseDropdownOpen, setWarehouseDropdownOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const [warehousesList, setWarehousesList] = useState(WAREHOUSES);
+
+  const fetchWarehouses = async () => {
+    try {
+      const data = await masterDataService.getWarehouses();
+      if (Array.isArray(data) && data.length > 0) {
+        setWarehousesList(data);
+      }
+    } catch (e) {
+      console.error('Failed to load warehouses in Header', e);
+    }
+  };
+
+  useEffect(() => {
+    fetchWarehouses();
+    const handleUpdate = () => fetchWarehouses();
+    window.addEventListener('warehouse_list_updated', handleUpdate);
+    return () => window.removeEventListener('warehouse_list_updated', handleUpdate);
+  }, []);
+
+  // Filter only physical active warehouses (exclude virtual IN_TRANSIT warehouse)
+  const physicalWarehouses = useMemo(() => {
+    return warehousesList.filter(
+      (w) => w.type !== 'IN_TRANSIT' && w.code !== 'IN_TRANSIT' && w.is_active !== false
+    );
+  }, [warehousesList]);
 
   // Determine allowed warehouses for this user
   const allowedWarehouses = useMemo(() => {
     if (!user) return [];
     if (user.role === 'ADMIN' || user.role === 'CEO') {
-      return WAREHOUSES;
+      return physicalWarehouses;
     }
     if (user.role === 'WAREHOUSE_MANAGER') {
       const isAllowedPage = location.pathname === '/dashboard';
       if (isAllowedPage) {
-        return WAREHOUSES;
+        return physicalWarehouses;
       }
     }
-    return WAREHOUSES.filter(
+    return physicalWarehouses.filter(
       (w) => user.warehouses && user.warehouses.includes(w.id)
     );
-  }, [user, location.pathname]);
+  }, [user, location.pathname, physicalWarehouses]);
+
+  useEffect(() => {
+    if (allowedWarehouses.length > 0) {
+      if (!activeWarehouse) {
+        setActiveWarehouse(allowedWarehouses[0]);
+      } else {
+        const matched = allowedWarehouses.find(w => w.id === activeWarehouse.id);
+        if (matched && (matched.name !== activeWarehouse.name || matched.code !== activeWarehouse.code)) {
+          setActiveWarehouse(matched);
+        } else if (!matched && allowedWarehouses.length > 0) {
+          setActiveWarehouse(allowedWarehouses[0]);
+        }
+      }
+    }
+  }, [allowedWarehouses, activeWarehouse, setActiveWarehouse]);
 
   const isSelectorInteractive = allowedWarehouses.length > 1;
 
@@ -60,7 +102,7 @@ const Header = () => {
           <Menu className="w-5 h-5" />
         </button>
         <span className="font-display font-semibold text-lg tracking-tight text-ink hidden md:inline-block">
-          Phúc Anh <span className="font-light text-shade-50">WMS</span>
+          Quản Lý Kho
         </span>
       </div>
 

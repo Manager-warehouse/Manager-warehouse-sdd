@@ -212,7 +212,7 @@ const Dashboard = () => {
       };
 
       await interWarehouseTransferService.createTransferRequest(payload);
-      addToast('Đã tạo thành công yêu cầu điều chuyển nháp (DRAFT)!', 'success');
+      addToast('Đã tạo thành công yêu cầu điều chuyển nháp!', 'success');
       setShowModal(false);
       loadCrossWarehouseStock(); // Refresh stock
     } catch (error) {
@@ -228,7 +228,7 @@ const Dashboard = () => {
       <div className="dashboard-hero flex w-full min-w-0 max-w-full flex-col items-start justify-between gap-3 md:flex-row md:items-center">
         <div className="min-w-0 max-w-full">
           <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
-            WMS Phúc Anh
+            Hệ Thống Quản Lý Kho
           </span>
           <h1 className="dashboard-title text-xl md:text-3xl font-display font-semibold tracking-tight">
             Xin chào, {welcomeName}

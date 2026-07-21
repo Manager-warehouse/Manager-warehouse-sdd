@@ -3,6 +3,7 @@ import Modal from '../../components/common/Modal';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import { ROLES, ROLE_LABELS, WAREHOUSES } from '../../utils/constants';
+import { masterDataService } from '../../services/masterData.service';
 
 const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }) => {
   const modalType = user ? 'edit' : 'create';
@@ -16,13 +17,34 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
   const [selectedRole, setSelectedRole] = useState(ROLES.WAREHOUSE_STAFF);
   const [shift, setShift] = useState('Ca sáng');
   const [region, setRegion] = useState('');
-  const [selectedWarehouses, setSelectedWarehouses] = useState([]);
+  const [selectedWarehouse, setSelectedWarehouse] = useState('1');
   const [error, setError] = useState('');
+  const [warehousesList, setWarehousesList] = useState(WAREHOUSES);
+
+  useEffect(() => {
+    if (isOpen) {
+      masterDataService.getWarehouses()
+        .then((data) => {
+          if (Array.isArray(data) && data.length > 0) {
+            setWarehousesList(data);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [isOpen]);
+
+  const physicalWarehouses = warehousesList.filter(
+    (w) => w.type !== 'IN_TRANSIT' && w.code !== 'IN_TRANSIT' && w.is_active !== false
+  );
+
+  // Check if current role doesn't need warehouse selection (Only ADMIN and CEO access all warehouses)
+  const noWarehouseSelection = selectedRole === ROLES.ADMIN || selectedRole === ROLES.CEO;
 
   // Reset or fill form when user or isOpen changes
   useEffect(() => {
     if (isOpen) {
       setError('');
+      const defaultWhId = physicalWarehouses.length > 0 ? String(physicalWarehouses[0].id) : '1';
       if (user) {
         setCode(user.code || '');
         setFullName(user.fullName || '');
@@ -32,7 +54,8 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
         setSelectedRole(user.role || ROLES.WAREHOUSE_STAFF);
         setShift(user.shift || 'Ca sáng');
         setRegion(user.region || '');
-        setSelectedWarehouses(user.warehouses || []);
+        const firstWh = Array.isArray(user.warehouses) && user.warehouses.length > 0 ? String(user.warehouses[0]) : defaultWhId;
+        setSelectedWarehouse(firstWh);
       } else {
         setCode('');
         setFullName('');
@@ -42,10 +65,10 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
         setSelectedRole(ROLES.WAREHOUSE_STAFF);
         setShift('Ca sáng');
         setRegion('');
-        setSelectedWarehouses([]);
+        setSelectedWarehouse(defaultWhId);
       }
     }
-  }, [isOpen, user]);
+  }, [isOpen, user, physicalWarehouses.length]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -57,21 +80,17 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
     }
 
     if (!selectedRole) {
-      setError('Vui lòng gán vai trò (Role)');
+      setError('Vui lòng gán vai trò');
       return;
     }
 
-    // Role-based warehouse validation: Non-admin/non-CEO roles must have at least one warehouse assigned
-    const needsWarehouse = selectedRole !== ROLES.ADMIN && selectedRole !== ROLES.CEO;
-    if (needsWarehouse && selectedWarehouses.length === 0) {
-      setError('Nhân viên nghiệp vụ phải được phân công ít nhất một Kho làm việc');
+    if (!noWarehouseSelection && !selectedWarehouse) {
+      setError('Vui lòng chọn Kho làm việc');
       return;
     }
 
-    const getRegionFromWarehouses = (warehouseIds) => {
-      if (!warehouseIds || warehouseIds.length === 0) return 'Toàn quốc';
-      if (warehouseIds.length > 1) return 'Toàn quốc';
-      const id = Number(warehouseIds[0]);
+    const getRegionFromWarehouse = (warehouseId) => {
+      const id = Number(warehouseId);
       if (id === 1) return 'Hải Phòng';
       if (id === 2) return 'Hà Nội';
       if (id === 3) return 'Hồ Chí Minh';
@@ -80,7 +99,7 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
 
     const finalRegion = selectedRole === ROLES.DISPATCHER
       ? region
-      : (needsWarehouse ? getRegionFromWarehouses(selectedWarehouses) : 'Toàn quốc');
+      : (!noWarehouseSelection ? getRegionFromWarehouse(selectedWarehouse) : 'Toàn quốc');
 
     const payload = {
       code,
@@ -91,7 +110,7 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
       jobTitle: ROLE_LABELS[selectedRole],
       shift,
       region: finalRegion,
-      warehouses: needsWarehouse ? selectedWarehouses : []
+      warehouses: !noWarehouseSelection ? [Number(selectedWarehouse)] : []
     };
 
     if (modalType === 'create') {
@@ -150,8 +169,8 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
     label: ROLE_LABELS[ROLES[key]]
   }));
 
-  const warehouseOptions = WAREHOUSES.map((w) => ({
-    value: w.id,
+  const warehouseOptions = physicalWarehouses.map((w) => ({
+    value: String(w.id),
     label: `${w.name} (${w.code})`
   }));
 
@@ -170,7 +189,7 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
         )}
 
         <Input
-          label="Mã nhân viên (Employee Code)"
+          label="Mã nhân viên"
           type="text"
           value={code}
           onChange={(e) => setCode(e.target.value)}
@@ -194,7 +213,7 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="nhanvien@phucanh.vn"
+            placeholder="nhanvien@quanlykho.vn"
             required
           />
 
@@ -228,7 +247,7 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
 
         {/* Role selection dropdown */}
         <Input
-          label="Gán Vai trò (Role)"
+          label="Gán vai trò"
           type="select"
           options={roleOptions}
           value={selectedRole}
@@ -258,14 +277,15 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
           )}
         </div>
 
-        {/* Warehouses Checkbox group (only relevant if not Admin/CEO) */}
-        {selectedRole !== ROLES.ADMIN && selectedRole !== ROLES.CEO && (
+        {/* Single Warehouse Select dropdown (only for roles needing warehouse assignment) */}
+        {!noWarehouseSelection && (
           <Input
             label="Phân công Kho làm việc"
-            type="checkbox-group"
+            type="select"
             options={warehouseOptions}
-            value={selectedWarehouses}
-            onChange={setSelectedWarehouses}
+            value={selectedWarehouse}
+            onChange={(e) => setSelectedWarehouse(e.target.value)}
+            required
           />
         )}
 

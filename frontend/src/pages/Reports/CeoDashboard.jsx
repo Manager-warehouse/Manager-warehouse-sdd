@@ -98,7 +98,7 @@ const CeoDashboard = () => {
           <div className="flex justify-between items-start">
             <div>
               <span className="text-[10px] font-bold uppercase tracking-wider block text-orange-800/80">
-                Tỷ lệ QC lỗi trong tháng
+                Tỷ lệ kiểm định lỗi trong tháng
               </span>
               <span className="text-xl md:text-2xl font-display font-semibold block mt-2 text-orange-800">
                 {(kpis.qc_failure_rate * 100).toFixed(2)}%
@@ -109,7 +109,7 @@ const CeoDashboard = () => {
             </div>
           </div>
           <span className="text-[11px] font-light text-orange-700/60">
-            Tỷ lệ hàng hỏng/lỗi trên tổng sản phẩm kiểm QC đầu ra & đầu vào
+            Tỷ lệ hàng hỏng/lỗi trên tổng sản phẩm kiểm định đầu ra & đầu vào
           </span>
         </div>
 
@@ -162,7 +162,7 @@ const CeoDashboard = () => {
             {/* Giá vốn */}
             <div>
               <div className="flex justify-between items-center text-xs mb-1">
-                <span className="font-medium text-shade-60">Giá vốn hàng bán (COGS)</span>
+                <span className="font-medium text-shade-60">Giá vốn hàng bán</span>
                 <span className="font-semibold text-ink">{formatCurrency(kpis.p_and_l.cogs)}</span>
               </div>
               <div className="w-full bg-canvas-cream h-2 rounded-full overflow-hidden">

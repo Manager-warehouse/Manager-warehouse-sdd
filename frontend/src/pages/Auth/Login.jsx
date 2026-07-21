@@ -3,11 +3,10 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
 import { authService } from '../../services/auth.service';
-import { ROLES } from '../../utils/constants';
+import { getDefaultRouteByRole } from '../../utils/constants';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import { Shield, User } from 'lucide-react';
-import { getDefaultRouteByRole } from '../../utils/constants';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -62,7 +61,7 @@ const Login = () => {
             <Shield className="w-6 h-6 stroke-[2.5]" />
           </div>
           <span className="min-w-0 truncate font-display text-xl font-semibold uppercase tracking-tight">
-            Phúc Anh WMS
+            Quản Lý Kho
           </span>
         </div>
 
@@ -77,13 +76,13 @@ const Login = () => {
             <span className="text-shade-40">Vận hành tối ưu.</span>
           </h1>
           <p className="mt-4 max-w-md text-sm font-light leading-relaxed text-shade-40 md:mt-6 md:text-base">
-            Hệ thống quản lý tồn kho tích hợp nghiệp vụ nhập, xuất, điều chuyển, kiểm định chất lượng (QC) và công nợ đại lý của Phúc Anh.
+            Hệ thống quản lý tồn kho tích hợp nghiệp vụ nhập, xuất, điều chuyển, kiểm định chất lượng (QC) và công nợ đại lý.
           </p>
         </div>
 
         {/* Version info */}
         <div className="relative z-10 max-w-full truncate text-xs text-shade-50">
-          &copy; {new Date().getFullYear()} Phúc Anh Computer. Phiên bản 1.0.0 (Sprint 1)
+          &copy; {new Date().getFullYear()} Quản Lý Kho. Phiên bản 1.0.0 (Sprint 1)
         </div>
       </div>
 
@@ -95,7 +94,7 @@ const Login = () => {
               Đăng nhập hệ thống
             </h2>
             <p className="text-sm text-shade-40 mt-2 font-light">
-              Nhập địa chỉ email được phân quyền bởi System Admin để tiếp tục.
+              Nhập địa chỉ email được phân quyền bởi Quản trị hệ thống để tiếp tục.
             </p>
           </div>
 
@@ -112,7 +111,7 @@ const Login = () => {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="Ví dụ: admin@phucanh.vn"
+                placeholder="Ví dụ: admin@quanlykho.vn"
                 className="!bg-canvas-nightElevated !text-onPrimary !border-hairline-dark focus:!ring-onPrimary focus:!border-onPrimary placeholder-shade-60"
                 required
               />
@@ -147,39 +146,7 @@ const Login = () => {
             </Button>
           </form>
 
-          {/* Quick instructions / Help */}
-          <div className="auth-login-trial p-4 bg-canvas-nightElevated border border-hairline-dark rounded-lg">
-            <span className="text-[10px] font-bold text-aloe-10 uppercase tracking-wider block mb-2">
-              Tài khoản dùng thử
-            </span>
-            <div className="mb-3 rounded-md border border-hairline-dark bg-canvas-night px-3 py-2 text-[11px] text-shade-40">
-              <span className="font-semibold text-onPrimary">Mật khẩu:</span>{' '}
-              <span className="font-mono">password123</span>
-            </div>
-            <div className="grid grid-cols-1 gap-2 text-[11px] text-shade-40 font-mono sm:grid-cols-2">
-              {[
-                ['Admin', 'admin@phucanh.vn'],
-                ['CEO', 'ceo@phucanh.vn'],
-                ['Planner', 'planer@gmail.com'],
-                ['HP Manager', 'manager.hp@phucanh.vn'],
-                ['HN Keeper', 'keeper.hn@phucanh.vn'],
-                ['HP QC Staff', 'qc.hp@phucanh.vn'],
-                ['Account Manager', 'accountmanager@gmail.com'],
-                ['Accountant HP', 'accountantHP@phucanh.vn'],
-                ['Acc Manager HP', 'acc_managerHP@phucanh.vn'],
-              ].map(([role, mail]) => (
-                <div key={role} className="min-w-0 rounded-md border border-hairline-dark bg-canvas-night px-3 py-2">
-                  <strong className="block text-onPrimary">{role}</strong>
-                  <span className="block truncate">{mail}</span>
-                </div>
-              ))}
-            </div>
 
-            <div className="mt-3 rounded-md border border-hairline-dark bg-canvas-night px-3 py-2 text-[11px] text-shade-40">
-              <span className="font-semibold text-onPrimary">Luồng inbound HP:</span>{' '}
-              Planner lập lệnh → Warehouse Staff kiểm đếm → Storekeeper QC/cất kệ → Warehouse Manager duyệt.
-            </div>
-          </div>
         </div>
       </div>
     </div>

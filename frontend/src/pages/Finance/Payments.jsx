@@ -251,7 +251,7 @@ const Payments = () => {
           onClick={() => setActiveTab('aging')}
         >
           <ClipboardList className="w-4 h-4" />
-          Báo cáo phân kỳ công nợ (Aging)
+          Báo cáo phân kỳ công nợ
         </button>
       </div>
 

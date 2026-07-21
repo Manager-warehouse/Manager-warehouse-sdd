@@ -26,9 +26,9 @@ import { ROLES } from '../../utils/constants';
 
 const DO_STATUS_MAP = {
   NEW: { label: 'Mới', color: 'bg-canvas-cream text-shade-70 border-hairline-light' },
-  WAITING_PICKING: { label: 'Chờ lấy hàng/QC', color: 'bg-info-50 text-info-700 border-info-200' },
-  QC_PENDING_APPROVAL: { label: 'Chờ duyệt QC', color: 'bg-violet-50 text-violet-700 border-violet-200' },
-  QC_COMPLETED: { label: 'QC xong', color: 'bg-success-50 text-success-700 border-success-200' },
+  WAITING_PICKING: { label: 'Chờ lấy hàng & kiểm định', color: 'bg-info-50 text-info-700 border-info-200' },
+  QC_PENDING_APPROVAL: { label: 'Chờ duyệt kiểm định', color: 'bg-violet-50 text-violet-700 border-violet-200' },
+  QC_COMPLETED: { label: 'Hoàn tất kiểm định', color: 'bg-success-50 text-success-700 border-success-200' },
   WAREHOUSE_APPROVED: { label: 'Chờ vận chuyển', color: 'bg-warning-50 text-warning-700 border-warning-200' },
   IN_TRANSIT: { label: 'Đang giao', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
   COMPLETED: { label: 'Đã giao', color: 'bg-success-50 text-success-900 border-success-300' },
@@ -40,9 +40,9 @@ const DO_STATUS_MAP = {
 const STATUS_OPTIONS = [
   { value: 'ALL', label: 'Tất cả' },
   { value: 'NEW', label: 'Mới' },
-  { value: 'WAITING_PICKING', label: 'Chờ lấy hàng/QC' },
-  { value: 'QC_PENDING_APPROVAL', label: 'Chờ duyệt QC' },
-  { value: 'QC_COMPLETED', label: 'QC xong' },
+  { value: 'WAITING_PICKING', label: 'Chờ lấy hàng & kiểm định' },
+  { value: 'QC_PENDING_APPROVAL', label: 'Chờ duyệt kiểm định' },
+  { value: 'QC_COMPLETED', label: 'Hoàn tất kiểm định' },
   { value: 'WAREHOUSE_APPROVED', label: 'Chờ vận chuyển' },
   { value: 'IN_TRANSIT', label: 'Đang giao' },
   { value: 'COMPLETED', label: 'Đã giao' },
@@ -105,10 +105,10 @@ const getRoleHint = (order, hasRole) => {
     return 'Thủ kho lập kế hoạch lấy hàng';
   }
   if (hasRole(ROLES.WAREHOUSE_STAFF) && order.status === 'WAITING_PICKING') {
-    return 'Nhân viên kho nhập kết quả lấy hàng/QC';
+    return 'Nhân viên kho nhập kết quả lấy hàng & kiểm định';
   }
   if (hasRole(ROLES.STOREKEEPER) && order.status === 'QC_PENDING_APPROVAL') {
-    return 'Thủ kho duyệt kết quả QC';
+    return 'Thủ kho duyệt kết quả kiểm định';
   }
   if (hasRole(ROLES.WAREHOUSE_MANAGER) && order.status === 'QC_COMPLETED') {
     return 'Quản lý kho phê duyệt xuất kho';
@@ -387,7 +387,7 @@ export default function DeliveryOrders() {
             onClick={() => navigate(`/outbound/delivery-orders/${order.id}`)}
             className="inline-flex items-center justify-center rounded-pill border border-info-300 bg-info-50 px-3 py-1 text-xs font-semibold text-info-700 transition-colors hover:bg-info-100"
           >
-            Nhập kết quả lấy hàng/QC
+            Nhập kết quả lấy hàng & kiểm định
           </button>
         )}
         <button
@@ -421,8 +421,8 @@ export default function DeliveryOrders() {
       <div className="grid grid-cols-2 gap-3 md:gap-4 md:grid-cols-4">
         {[
           { label: 'Tổng đơn', value: totalDO, icon: <PackageCheck className="h-5 w-5" />, accent: 'text-shade-60 bg-canvas-cream' },
-          { label: 'Chờ lấy hàng/QC', value: waitingPickingDO, icon: <Clock className="h-5 w-5" />, accent: 'text-info-600 bg-info-50' },
-          { label: 'Chờ duyệt QC', value: qcPendingDO, icon: <PackageCheck className="h-5 w-5" />, accent: 'text-violet-600 bg-violet-50' },
+          { label: 'Chờ lấy hàng & kiểm định', value: waitingPickingDO, icon: <Clock className="h-5 w-5" />, accent: 'text-info-600 bg-info-50' },
+          { label: 'Chờ duyệt kiểm định', value: qcPendingDO, icon: <PackageCheck className="h-5 w-5" />, accent: 'text-violet-600 bg-violet-50' },
           { label: 'Chờ vận chuyển', value: approvedDO, icon: <Truck className="h-5 w-5" />, accent: 'text-warning-600 bg-warning-50' },
         ].map(({ label, value, icon, accent }) => (
           <div key={label} className="flex items-center gap-2.5 md:gap-3 rounded-lg border border-hairline-light bg-canvas-light p-3 md:p-4 shadow-level-3">

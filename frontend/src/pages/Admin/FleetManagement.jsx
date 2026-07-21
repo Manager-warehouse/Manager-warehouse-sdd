@@ -52,6 +52,22 @@ const FleetManagement = () => {
   const [drStatus, setDrStatus] = useState('AVAILABLE');
   const [drWarehouseId, setDrWarehouseId] = useState('');
 
+  const [warehousesList, setWarehousesList] = useState(WAREHOUSES);
+
+  useEffect(() => {
+    masterDataService.getWarehouses()
+      .then((res) => {
+        if (Array.isArray(res) && res.length > 0) {
+          setWarehousesList(res);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const physicalWarehouses = warehousesList.filter(
+    (w) => w.type !== 'IN_TRANSIT' && w.code !== 'IN_TRANSIT' && w.is_active !== false
+  );
+
   const getUserId = (user) => user?.id;
   const getUserCode = (user) => user?.code;
   const getUserFullName = (user) => user?.full_name || user?.fullName || '';
@@ -71,8 +87,8 @@ const FleetManagement = () => {
     || fleetWarehouseIds.some((id) => (warehouseIds || []).map(Number).includes(id))
   );
   const fleetWarehouses = hasGlobalFleetScope
-    ? WAREHOUSES
-    : WAREHOUSES.filter((warehouse) => fleetWarehouseIds.includes(warehouse.id));
+    ? physicalWarehouses
+    : physicalWarehouses.filter((warehouse) => fleetWarehouseIds.includes(warehouse.id));
 
   useEffect(() => {
     fetchData();
@@ -360,7 +376,7 @@ const FleetManagement = () => {
   const getWarehouseLabels = (warehouseIds = []) => {
     if (!Array.isArray(warehouseIds) || warehouseIds.length === 0) return '-';
     return warehouseIds
-      .map((id) => WAREHOUSES.find((warehouse) => warehouse.id === Number(id))?.code)
+      .map((id) => warehousesList.find((warehouse) => warehouse.id === Number(id))?.code)
       .filter(Boolean)
       .join(', ') || '-';
   };
@@ -434,7 +450,7 @@ const FleetManagement = () => {
             Đội xe & Tài xế nội bộ
           </h1>
           <p className="text-xs text-shade-50 font-light mt-1">
-            Quản lý đội ngũ phương tiện vận tải nội bộ Phúc Anh và thông tin giấy phép lái xe, trạng thái làm việc của tài xế.
+            Quản lý đội ngũ phương tiện vận tải nội bộ và thông tin giấy phép lái xe, trạng thái làm việc của tài xế.
           </p>
         </div>
         <div>
@@ -465,7 +481,7 @@ const FleetManagement = () => {
           }`}
         >
           <Truck className="w-4 h-4" />
-          Phương tiện vận tải (Vehicles)
+          Phương tiện vận tải
         </button>
         <button
           onClick={() => { setActiveTab('DRIVERS'); setSearchTerm(''); }}
@@ -476,7 +492,7 @@ const FleetManagement = () => {
           }`}
         >
           <UserCheck className="w-4 h-4" />
-          Đội ngũ Tài xế (Drivers)
+          Đội ngũ Tài xế
         </button>
       </div>
 
@@ -533,7 +549,7 @@ const FleetManagement = () => {
                         </td>
                         <td className="px-6 py-4 font-semibold text-ink">{vh.vehicle_type}</td>
                         <td className="px-6 py-4 text-shade-60 font-semibold">
-                          {vh.warehouse_code || WAREHOUSES.find((warehouse) => warehouse.id === Number(vh.warehouse_id || vh.warehouseId))?.code || '-'}
+                          {vh.warehouse_code || warehousesList.find((warehouse) => warehouse.id === Number(vh.warehouse_id || vh.warehouseId))?.code || '-'}
                         </td>
                         <td className="px-6 py-4 text-right font-mono text-shade-70 font-semibold">
                           {vh.max_weight_kg?.toLocaleString('vi-VN')} kg
@@ -595,7 +611,7 @@ const FleetManagement = () => {
                   <div className="p-4 flex flex-col gap-2 text-xs">
                     <div className="font-semibold text-ink">{vh.vehicle_type}</div>
                     <p className="text-shade-50">Kho phụ trách: <span className="font-semibold text-ink">
-                      {vh.warehouse_code || WAREHOUSES.find((warehouse) => warehouse.id === Number(vh.warehouse_id || vh.warehouseId))?.code || '-'}
+                      {vh.warehouse_code || warehousesList.find((warehouse) => warehouse.id === Number(vh.warehouse_id || vh.warehouseId))?.code || '-'}
                     </span></p>
                     <p className="text-shade-50">Tải trọng tối đa: <span className="font-mono font-semibold text-ink">{vh.max_weight_kg?.toLocaleString('vi-VN')} kg</span></p>
                     <p className="text-shade-50">Thể tích tối đa: <span className="font-mono text-ink">{vh.max_volume_m3?.toFixed(2)} m³</span></p>
@@ -774,7 +790,7 @@ const FleetManagement = () => {
         <form onSubmit={handleVhSubmit} className="flex flex-col gap-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
-              label="Biển số xe (Unique)"
+              label="Biển số xe"
               value={vhPlateNumber}
               onChange={(e) => setVhPlateNumber(e.target.value.toUpperCase())}
               disabled={vhModalType === 'EDIT'}
