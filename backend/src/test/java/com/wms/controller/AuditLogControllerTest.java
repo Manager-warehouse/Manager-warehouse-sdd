@@ -73,10 +73,10 @@ class AuditLogControllerTest {
                 storekeepUser.setRole(UserRole.STOREKEEPER);
         }
 
-        // ─── GET /api/v1/audit-logs ───────────────────────────────────────────────
+        // ─── GET /api/v1/admin/audit-logs ─────────────────────────────────────────
 
         @Test
-        @DisplayName("GET /audit-logs — 200 OK khi ADMIN truy cập")
+        @DisplayName("GET /admin/audit-logs — 200 OK khi ADMIN truy cập")
         @WithMockUser(username = "admin@wms.com", roles = "ADMIN")
         void getAuditLogs_admin_returns200() throws Exception {
                 when(userRepository.findByEmail("admin@wms.com")).thenReturn(Optional.of(adminUser));
@@ -85,7 +85,7 @@ class AuditLogControllerTest {
                 when(auditLogService.getAuditLogs(any(), any(), any(), any(), any()))
                                 .thenReturn(new AuditLogPageResponse(List.of(item), 1, 30, false, false, false));
 
-                mockMvc.perform(get("/api/v1/audit-logs").contentType(MediaType.APPLICATION_JSON))
+                mockMvc.perform(get("/api/v1/admin/audit-logs").contentType(MediaType.APPLICATION_JSON))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.page").value(1))
                                 .andExpect(jsonPath("$.pageSize").value(30))
@@ -95,30 +95,30 @@ class AuditLogControllerTest {
         }
 
         @Test
-        @DisplayName("GET /audit-logs — 403 FORBIDDEN_AUDIT_ACCESS khi CEO truy cập")
+        @DisplayName("GET /admin/audit-logs — 403 FORBIDDEN_AUDIT_ACCESS khi CEO truy cập")
         @WithMockUser(username = "ceo@wms.com", roles = "CEO")
         void getAuditLogs_ceo_returns403() throws Exception {
-                mockMvc.perform(get("/api/v1/audit-logs").contentType(MediaType.APPLICATION_JSON))
+                mockMvc.perform(get("/api/v1/admin/audit-logs").contentType(MediaType.APPLICATION_JSON))
                                 .andExpect(status().isForbidden());
         }
 
         @Test
-        @DisplayName("GET /audit-logs — 403 khi STOREKEEPER truy cập")
+        @DisplayName("GET /admin/audit-logs — 403 khi STOREKEEPER truy cập")
         @WithMockUser(username = "store@wms.com", roles = "STOREKEEPER")
         void getAuditLogs_storekeeper_returns403() throws Exception {
-                mockMvc.perform(get("/api/v1/audit-logs").contentType(MediaType.APPLICATION_JSON))
+                mockMvc.perform(get("/api/v1/admin/audit-logs").contentType(MediaType.APPLICATION_JSON))
                                 .andExpect(status().isForbidden());
         }
 
         @Test
-        @DisplayName("GET /audit-logs — 401 khi không có token")
+        @DisplayName("GET /admin/audit-logs — 401 khi không có token")
         void getAuditLogs_unauthenticated_returns403() throws Exception {
-                mockMvc.perform(get("/api/v1/audit-logs").contentType(MediaType.APPLICATION_JSON))
+                mockMvc.perform(get("/api/v1/admin/audit-logs").contentType(MediaType.APPLICATION_JSON))
                                 .andExpect(status().isUnauthorized());
         }
 
         @Test
-        @DisplayName("GET /audit-logs — 400 QUERY_RANGE_TOO_LARGE khi page > 50 không có filter")
+        @DisplayName("GET /admin/audit-logs — 400 QUERY_RANGE_TOO_LARGE khi page > 50 không có filter")
         @WithMockUser(username = "admin@wms.com", roles = "ADMIN")
         void getAuditLogs_page51NoFilter_returns400() throws Exception {
                 when(userRepository.findByEmail("admin@wms.com")).thenReturn(Optional.of(adminUser));
@@ -126,19 +126,19 @@ class AuditLogControllerTest {
                                 .thenThrow(new ResponseStatusException(HttpStatus.BAD_REQUEST,
                                                 "QUERY_RANGE_TOO_LARGE"));
 
-                mockMvc.perform(get("/api/v1/audit-logs").param("page", "51").contentType(MediaType.APPLICATION_JSON))
+                mockMvc.perform(get("/api/v1/admin/audit-logs").param("page", "51").contentType(MediaType.APPLICATION_JSON))
                                 .andExpect(status().isBadRequest());
         }
 
         @Test
-        @DisplayName("GET /audit-logs — 400 INVALID_DATE_RANGE khi from > to")
+        @DisplayName("GET /admin/audit-logs — 400 INVALID_DATE_RANGE khi from > to")
         @WithMockUser(username = "admin@wms.com", roles = "ADMIN")
         void getAuditLogs_fromAfterTo_returns400() throws Exception {
                 when(userRepository.findByEmail("admin@wms.com")).thenReturn(Optional.of(adminUser));
                 when(auditLogService.getAuditLogs(any(), any(), any(), any(), any()))
                                 .thenThrow(new ResponseStatusException(HttpStatus.BAD_REQUEST, "INVALID_DATE_RANGE"));
 
-                mockMvc.perform(get("/api/v1/audit-logs")
+                mockMvc.perform(get("/api/v1/admin/audit-logs")
                                 .param("from", "2026-12-31")
                                 .param("to", "2026-01-01")
                                 .contentType(MediaType.APPLICATION_JSON))
@@ -146,7 +146,7 @@ class AuditLogControllerTest {
         }
 
         @Test
-        @DisplayName("GET /audit-logs — 200 với filter from/to và warehouseId")
+        @DisplayName("GET /admin/audit-logs — 200 với filter from/to và warehouseId")
         @WithMockUser(username = "admin@wms.com", roles = "ADMIN")
         void getAuditLogs_withFilters_returns200() throws Exception {
                 when(userRepository.findByEmail("admin@wms.com")).thenReturn(Optional.of(adminUser));
@@ -155,7 +155,7 @@ class AuditLogControllerTest {
                 when(auditLogService.getAuditLogs(any(), any(), eq("2026-01-01"), eq("2026-12-31"), eq(1L)))
                                 .thenReturn(new AuditLogPageResponse(List.of(item), 1, 30, false, false, false));
 
-                mockMvc.perform(get("/api/v1/audit-logs")
+                mockMvc.perform(get("/api/v1/admin/audit-logs")
                                 .param("from", "2026-01-01")
                                 .param("to", "2026-12-31")
                                 .param("warehouseId", "1")
@@ -165,7 +165,7 @@ class AuditLogControllerTest {
         }
 
         @Test
-        @DisplayName("GET /audit-logs — hasNext đúng khi còn trang tiếp theo")
+        @DisplayName("GET /admin/audit-logs — hasNext đúng khi còn trang tiếp theo")
         @WithMockUser(username = "admin@wms.com", roles = "ADMIN")
         void getAuditLogs_hasNextTrue_returnedCorrectly() throws Exception {
                 when(userRepository.findByEmail("admin@wms.com")).thenReturn(Optional.of(adminUser));
@@ -174,14 +174,14 @@ class AuditLogControllerTest {
                                                 List.of(buildListItem(1L, "LOGIN", "User")), 1, 30, true, false,
                                                 false));
 
-                mockMvc.perform(get("/api/v1/audit-logs").contentType(MediaType.APPLICATION_JSON))
+                mockMvc.perform(get("/api/v1/admin/audit-logs").contentType(MediaType.APPLICATION_JSON))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.hasNext").value(true))
                                 .andExpect(jsonPath("$.hasPrevious").value(false));
         }
 
         @Test
-        @DisplayName("GET /audit-logs — Kết quả có đầy đủ các field của list item")
+        @DisplayName("GET /admin/audit-logs — Kết quả có đầy đủ các field của list item")
         @WithMockUser(username = "admin@wms.com", roles = "ADMIN")
         void getAuditLogs_listItemHasAllFields() throws Exception {
                 when(userRepository.findByEmail("admin@wms.com")).thenReturn(Optional.of(adminUser));
@@ -195,7 +195,7 @@ class AuditLogControllerTest {
                 when(auditLogService.getAuditLogs(any(), any(), any(), any(), any()))
                                 .thenReturn(new AuditLogPageResponse(List.of(item), 1, 30, false, false, false));
 
-                mockMvc.perform(get("/api/v1/audit-logs").contentType(MediaType.APPLICATION_JSON))
+                mockMvc.perform(get("/api/v1/admin/audit-logs").contentType(MediaType.APPLICATION_JSON))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.data[0].actorName").value("Nguyen Van A"))
                                 .andExpect(jsonPath("$.data[0].actorRole").value("STOREKEEPER"))
@@ -203,10 +203,10 @@ class AuditLogControllerTest {
                                 .andExpect(jsonPath("$.data[0].entityId").value(99));
         }
 
-        // ─── GET /api/v1/audit-logs/{id} ─────────────────────────────────────────
+        // ─── GET /api/v1/admin/audit-logs/{id} ───────────────────────────────────
 
         @Test
-        @DisplayName("GET /audit-logs/{id} — 200 OK với chi tiết đầy đủ khi ADMIN truy cập")
+        @DisplayName("GET /admin/audit-logs/{id} — 200 OK với chi tiết đầy đủ khi ADMIN truy cập")
         @WithMockUser(username = "admin@wms.com", roles = "ADMIN")
         void getAuditLogById_admin_returns200WithDetail() throws Exception {
                 when(userRepository.findByEmail("admin@wms.com")).thenReturn(Optional.of(adminUser));
@@ -214,7 +214,7 @@ class AuditLogControllerTest {
                 AuditLogDetailResponse detail = buildDetailResponse(10L);
                 when(auditLogService.getAuditLogById(10L)).thenReturn(detail);
 
-                mockMvc.perform(get("/api/v1/audit-logs/10").contentType(MediaType.APPLICATION_JSON))
+                mockMvc.perform(get("/api/v1/admin/audit-logs/10").contentType(MediaType.APPLICATION_JSON))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.id").value(10))
                                 .andExpect(jsonPath("$.actorName").value("System Admin"))
@@ -225,29 +225,29 @@ class AuditLogControllerTest {
         }
 
         @Test
-        @DisplayName("GET /audit-logs/{id} — 404 AUDIT_LOG_NOT_FOUND khi ID không tồn tại")
+        @DisplayName("GET /admin/audit-logs/{id} — 404 AUDIT_LOG_NOT_FOUND khi ID không tồn tại")
         @WithMockUser(username = "admin@wms.com", roles = "ADMIN")
         void getAuditLogById_notFound_returns404() throws Exception {
                 when(userRepository.findByEmail("admin@wms.com")).thenReturn(Optional.of(adminUser));
                 when(auditLogService.getAuditLogById(999L))
                                 .thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "AUDIT_LOG_NOT_FOUND"));
 
-                mockMvc.perform(get("/api/v1/audit-logs/999").contentType(MediaType.APPLICATION_JSON))
+                mockMvc.perform(get("/api/v1/admin/audit-logs/999").contentType(MediaType.APPLICATION_JSON))
                                 .andExpect(status().isNotFound());
         }
 
         @Test
-        @DisplayName("GET /audit-logs/{id} — 403 khi CEO truy cập")
+        @DisplayName("GET /admin/audit-logs/{id} — 403 khi CEO truy cập")
         @WithMockUser(username = "ceo@wms.com", roles = "CEO")
         void getAuditLogById_ceo_returns403() throws Exception {
-                mockMvc.perform(get("/api/v1/audit-logs/1").contentType(MediaType.APPLICATION_JSON))
+                mockMvc.perform(get("/api/v1/admin/audit-logs/1").contentType(MediaType.APPLICATION_JSON))
                                 .andExpect(status().isForbidden());
         }
 
         @Test
-        @DisplayName("GET /audit-logs/{id} — 401 khi không có token")
+        @DisplayName("GET /admin/audit-logs/{id} — 401 khi không có token")
         void getAuditLogById_unauthenticated_returns403() throws Exception {
-                mockMvc.perform(get("/api/v1/audit-logs/1").contentType(MediaType.APPLICATION_JSON))
+                mockMvc.perform(get("/api/v1/admin/audit-logs/1").contentType(MediaType.APPLICATION_JSON))
                                 .andExpect(status().isUnauthorized());
         }
 

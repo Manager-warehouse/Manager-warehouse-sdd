@@ -124,7 +124,7 @@ The existing frontend table can be retained with these columns:
 
 ### Detail View
 
-Opening a row loads `GET /api/v1/audit-logs/{id}` and renders:
+Opening a row loads `GET /api/v1/admin/audit-logs/{id}` and renders:
 
 - Header metadata: timestamp, actor, role, action, entity, warehouse, IP address.
 - Changed fields table: field name, before value, after value.

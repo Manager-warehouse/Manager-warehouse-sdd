@@ -321,7 +321,7 @@ export const adminService = {
       await new Promise((resolve) => setTimeout(resolve, 400));
       return getFilteredMockAuditLogs(params);
     } else {
-      const response = await apiClient.get('/audit-logs', { params });
+      const response = await apiClient.get('/admin/audit-logs', { params });
       return response.data;
     }
   },
@@ -333,7 +333,7 @@ export const adminService = {
       if (!log) throw new Error('AUDIT_LOG_NOT_FOUND');
       return log;
     } else {
-      const response = await apiClient.get(`/audit-logs/${id}`);
+      const response = await apiClient.get(`/admin/audit-logs/${id}`);
       return response.data;
     }
   }
