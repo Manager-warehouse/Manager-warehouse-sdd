@@ -44,7 +44,7 @@ const AuditLogs = () => {
         from: fromDate || undefined,
         to: toDate || undefined,
       });
-      const pageData = response.data || response || [];
+      const pageData = response || {};
       const rows = Array.isArray(pageData) ? pageData : pageData.data || [];
       setLogs(rows);
       setTotalItems(pageData.totalItems ?? rows.length);
