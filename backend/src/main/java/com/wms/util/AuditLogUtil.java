@@ -31,17 +31,17 @@ public final class AuditLogUtil {
     private AuditLogUtil() {
     }
 
-    /**
-     * Removes sensitive fields (passwords, tokens) from a map
-     * before persisting to audit log JSONB columns.
-     */
     public static Map<String, Object> filterSensitiveFields(
             Map<String, Object> values) {
         if (values == null || values.isEmpty()) {
             return values;
         }
         Map<String, Object> filtered = new HashMap<>(values);
-        SENSITIVE_FIELDS.forEach(filtered::remove);
+        SENSITIVE_FIELDS.forEach(field -> {
+            if (filtered.containsKey(field)) {
+                filtered.put(field, null);
+            }
+        });
         return filtered;
     }
 
@@ -91,7 +91,14 @@ public final class AuditLogUtil {
             AuditAction action,
             String entityType,
             String entityCode) {
-        return action.name() + " " + entityType + " " + entityCode;
+        StringBuilder description = new StringBuilder(action.name());
+        if (entityType != null && !entityType.isBlank()) {
+            description.append(" ").append(entityType);
+        }
+        if (entityCode != null && !entityCode.isBlank()) {
+            description.append(" ").append(entityCode);
+        }
+        return description.toString();
     }
 
     /**

@@ -16,8 +16,8 @@ if exist "!ENV_FILE!" (
 )
 
 if not defined VPS_HOST set "VPS_HOST=4.194.232.143"
-if not defined VPS_USER set "VPS_USER=phuong"
-if not defined VPS_KEY_PATH set "VPS_KEY_PATH=%USERPROFILE%\.ssh\id_ed25519"
+if not defined VPS_USER set "VPS_USER=hoanganh"
+if not defined VPS_KEY_PATH set "VPS_KEY_PATH=C:\Users\hoanganh\.ssh\id_ed25519"
 
 echo =========================================================
 echo   KHOI DONG SSH TUNNEL POSTGRESQL (VPS -^> LOCAL 5433)

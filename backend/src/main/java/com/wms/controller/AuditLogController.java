@@ -46,12 +46,14 @@ public class AuditLogController {
             @Parameter(description = "Page size, max 30") @RequestParam(value = "pageSize", required = false) Integer pageSize,
             @Parameter(description = "Start date/datetime inclusive") @RequestParam(value = "from", required = false) String from,
             @Parameter(description = "End date/datetime inclusive") @RequestParam(value = "to", required = false) String to,
-            @Parameter(description = "Filter by warehouse ID") @RequestParam(value = "warehouseId", required = false) Long warehouseId,
+            @Parameter(description = "Filter by warehouse ID") @RequestParam(value = "warehouse_id", required = false) Long warehouseId,
+            @Parameter(description = "Deprecated alias for warehouse_id") @RequestParam(value = "warehouseId", required = false) Long warehouseIdAlias,
             Authentication authentication) {
 
         ensureAdmin(authentication);
+        Long resolvedWarehouseId = warehouseId != null ? warehouseId : warehouseIdAlias;
         return auditLogService.getAuditLogs(
-                page, pageSize, from, to, warehouseId);
+                page, pageSize, from, to, resolvedWarehouseId);
     }
 
     @GetMapping("/{id}")

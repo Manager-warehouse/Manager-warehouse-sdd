@@ -9,7 +9,7 @@ import Modal from '../../components/common/Modal';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import { formatDate } from '../../utils/format';
-import { Search, RotateCcw, Eye } from 'lucide-react';
+import { RotateCcw, Eye } from 'lucide-react';
 
 const AuditLogs = () => {
   const { addToast } = useUiStore();
@@ -18,14 +18,11 @@ const AuditLogs = () => {
 
   // Pagination States
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(30);
+  const pageSize = 30;
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
 
   // Filters State
-  const [search, setSearch] = useState('');
-  const [selectedAction, setSelectedAction] = useState('ALL');
-  const [selectedEntity, setSelectedEntity] = useState('ALL');
   const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
@@ -43,7 +40,7 @@ const AuditLogs = () => {
       const response = await adminService.getAuditLogs({
         page: currentPage,
         pageSize,
-        warehouseId: selectedWarehouseId || undefined,
+        warehouse_id: selectedWarehouseId || undefined,
         from: fromDate || undefined,
         to: toDate || undefined,
       });
@@ -51,7 +48,9 @@ const AuditLogs = () => {
       const rows = Array.isArray(pageData) ? pageData : pageData.data || [];
       setLogs(rows);
       setTotalItems(pageData.totalItems ?? rows.length);
-      setTotalPages(pageData.totalPages ?? (pageData.hasNext ? currentPage + 1 : currentPage));
+      const backendTotalPages = pageData.totalPages ?? (pageData.hasNext ? currentPage + 1 : currentPage);
+      const hasTimeFilter = Boolean(fromDate || toDate);
+      setTotalPages(hasTimeFilter ? backendTotalPages : Math.min(backendTotalPages, 50));
     } catch (err) {
       addToast('Không thể tải nhật ký hoạt động', 'error');
     } finally {
@@ -70,7 +69,7 @@ const AuditLogs = () => {
         const rows = Array.isArray(data) ? data : [];
         setWarehouses(rows.filter((warehouse) => warehouse.is_active !== false));
       } catch {
-        addToast('KhÃ´ng thá»ƒ táº£i danh sÃ¡ch kho', 'error');
+        addToast('Không thấy tất cả danh sách kho', 'error');
       }
     };
 
@@ -78,9 +77,6 @@ const AuditLogs = () => {
   }, [addToast]);
 
   const handleResetFilters = () => {
-    setSearch('');
-    setSelectedAction('ALL');
-    setSelectedEntity('ALL');
     setSelectedWarehouseId('');
     setFromDate('');
     setToDate('');
@@ -101,27 +97,6 @@ const AuditLogs = () => {
     setToDate(value);
     setCurrentPage(1);
   };
-
-  // Filter logs locally
-  const filteredLogs = logs.filter((log) => {
-    // Search filter
-    const matchesSearch =
-      search === '' ||
-      (log.actorName || '').toLowerCase().includes(search.toLowerCase()) ||
-      (log.details || log.description || '').toLowerCase().includes(search.toLowerCase());
-
-    // Action filter
-    const matchesAction = selectedAction === 'ALL' || log.action === selectedAction;
-
-    // Entity filter
-    const matchesEntity = selectedEntity === 'ALL' || log.entityType === selectedEntity;
-
-    return matchesSearch && matchesAction && matchesEntity;
-  });
-
-  // Extract unique actions and entities for filter options
-  const uniqueActions = ['ALL', ...new Set(logs.map((log) => log.action))];
-  const uniqueEntities = ['ALL', ...new Set(logs.map((log) => log.entityType))];
 
   const getBadgeType = (action) => {
     if (!action) return 'info';
@@ -203,50 +178,13 @@ const AuditLogs = () => {
       {/* Filter Bar */}
       <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 p-4 flex flex-col md:flex-row gap-4 items-center justify-between">
         <div className="flex flex-col md:flex-row gap-4 items-center w-full md:w-auto">
-          {/* Search Input */}
-          <div className="w-full md:w-72">
-            <Input
-              type="text"
-              leftIcon={Search}
-              placeholder="Tìm theo người dùng, nội dung..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-
-          {/* Action Filter */}
-          <div className="flex flex-col gap-1 w-full md:w-48">
-            <Input
-              type="select"
-              value={selectedAction}
-              onChange={(e) => setSelectedAction(e.target.value)}
-              options={[
-                { value: 'ALL', label: 'Tất cả thao tác' },
-                ...uniqueActions.filter(a => a !== 'ALL').map((act) => ({ value: act, label: act }))
-              ]}
-            />
-          </div>
-
-          {/* Entity Type Filter */}
-          <div className="flex flex-col gap-1 w-full md:w-48">
-            <Input
-              type="select"
-              value={selectedEntity}
-              onChange={(e) => setSelectedEntity(e.target.value)}
-              options={[
-                { value: 'ALL', label: 'Tất cả đối tượng' },
-                ...uniqueEntities.filter(e => e !== 'ALL').map((ent) => ({ value: ent, label: ent }))
-              ]}
-            />
-          </div>
-
           <div className="flex flex-col gap-1 w-full md:w-56">
             <Input
               type="select"
               value={selectedWarehouseId}
               onChange={(e) => updateWarehouseFilter(e.target.value)}
               options={[
-                { value: '', label: 'Táº¥t cáº£ kho' },
+                { value: '', label: 'Tất cả kho' },
                 ...warehouses.map((warehouse) => ({
                   value: String(warehouse.id),
                   label: `${warehouse.code} - ${warehouse.name}`
@@ -255,17 +193,17 @@ const AuditLogs = () => {
             />
           </div>
 
-          <div className="flex flex-col gap-1 w-full md:w-40">
+          <div className="flex flex-col gap-1 w-full md:w-52">
             <Input
-              type="date"
+              type="datetime-local"
               value={fromDate}
               onChange={(e) => updateFromDateFilter(e.target.value)}
             />
           </div>
 
-          <div className="flex flex-col gap-1 w-full md:w-40">
+          <div className="flex flex-col gap-1 w-full md:w-52">
             <Input
-              type="date"
+              type="datetime-local"
               value={toDate}
               onChange={(e) => updateToDateFilter(e.target.value)}
             />
@@ -286,7 +224,7 @@ const AuditLogs = () => {
       <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 overflow-hidden flex flex-col">
         <Table
           headers={['Thời gian', 'Người thực hiện', 'Thao tác', 'Đối tượng', 'Nội dung', 'Hành động']}
-          data={filteredLogs}
+          data={logs}
           loading={loading}
           emptyMessage="Không tìm thấy nhật ký hoạt động phù hợp"
           renderRow={(log) => (
@@ -303,7 +241,7 @@ const AuditLogs = () => {
                 </Badge>
               </td>
               <td className="px-6 py-4 text-xs text-shade-60 font-medium">
-                {log.entityType} (ID: {log.entityId})
+                {log.entityType || '-'} (ID: {log.entityId ?? '-'})
               </td>
               <td className="px-6 py-4 text-xs font-medium text-shade-70">
                 {log.description || log.details}
@@ -329,7 +267,7 @@ const AuditLogs = () => {
               </div>
               <div className="p-4 flex flex-col gap-2 text-xs">
                 <div className="font-semibold text-ink">{log.actorName}</div>
-                <p className="text-shade-50">Đối tượng: <span className="font-medium text-shade-70">{log.entityType} (ID: {log.entityId})</span></p>
+                <p className="text-shade-50">Đối tượng: <span className="font-medium text-shade-70">{log.entityType || '-'} (ID: {log.entityId ?? '-'})</span></p>
                 <p className="text-shade-50">{log.description || log.details}</p>
               </div>
               <div className="p-4 border-t border-hairline-light flex justify-end">
@@ -350,11 +288,6 @@ const AuditLogs = () => {
           totalItems={totalItems}
           pageSize={pageSize}
           onPageChange={setCurrentPage}
-          onPageSizeChange={(size) => {
-            setPageSize(size);
-            setCurrentPage(1);
-          }}
-          pageSizeOptions={[10, 25, 30]}
         />
       </div>
 
@@ -388,7 +321,7 @@ const AuditLogs = () => {
               </div>
               <div>
                 <span className="font-semibold text-shade-60">Đối tượng:</span>{' '}
-                {auditDetail?.entityType} #{auditDetail?.entityId}
+                {auditDetail?.entityType || '-'} #{auditDetail?.entityId ?? '-'}
               </div>
               <div>
                 <span className="font-semibold text-shade-60">Kho:</span>{' '}

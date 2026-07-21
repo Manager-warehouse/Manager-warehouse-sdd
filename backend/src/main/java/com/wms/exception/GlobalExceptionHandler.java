@@ -145,8 +145,9 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<ApiErrorResponse> handleResponseStatus(ResponseStatusException ex) {
+        String reason = ex.getReason();
         return error(HttpStatus.valueOf(ex.getStatusCode().value()),
-                "REQUEST_ERROR", ex.getReason(), ex.getReason(), null);
+                reason == null ? "REQUEST_ERROR" : reason, reason, reason, null);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

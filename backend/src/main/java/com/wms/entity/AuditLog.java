@@ -32,10 +32,10 @@ public class AuditLog {
     @Column(name = "action", nullable = false, length = 50)
     private AuditAction action;
 
-    @Column(name = "entity_type", nullable = false, length = 100)
+    @Column(name = "entity_type", length = 100)
     private String entityType;
 
-    @Column(name = "entity_id", nullable = false)
+    @Column(name = "entity_id")
     private Long entityId;
 
     @Column(name = "description", nullable = false, columnDefinition = "TEXT")

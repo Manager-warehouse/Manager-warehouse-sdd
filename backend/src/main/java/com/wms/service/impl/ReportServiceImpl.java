@@ -4,7 +4,6 @@ import com.wms.dto.response.CeoDashboardResponse;
 import com.wms.dto.response.InventoryValuationResponse;
 import com.wms.dto.response.ProductivityReportResponse;
 import com.wms.entity.*;
-import com.wms.enums.AuditAction;
 import com.wms.enums.DeliveryOrderStatus;
 import com.wms.enums.InvoiceStatus;
 import com.wms.enums.TripStatus;
@@ -12,7 +11,6 @@ import com.wms.enums.UserRole;
 import com.wms.exception.ResourceNotFoundException;
 import com.wms.repository.*;
 import com.wms.service.ReportService;
-import com.wms.util.AuditLogUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
@@ -46,7 +44,6 @@ public class ReportServiceImpl implements ReportService {
     private final DeliveryOrderItemRepository deliveryOrderItemRepository;
     private final TripRepository tripRepository;
     private final UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
-    private final AuditLogRepository auditLogRepository;
     private final OutboundQcRecordRepository outboundQcRecordRepository;
     private final DeliveryOrderItemAllocationRepository deliveryOrderItemAllocationRepository;
     private final ReceiptItemRepository receiptItemRepository;
@@ -63,8 +60,6 @@ public class ReportServiceImpl implements ReportService {
         }
 
         // Ghi Audit Log ngoại lệ
-        recordReportViewAuditLog(user, "CEO_DASHBOARD", "Truy cập CEO Dashboard quản trị", null, Map.of());
-
         OffsetDateTime now = OffsetDateTime.now();
         LocalDate today = LocalDate.now();
         LocalDate startOfMonth = today.withDayOfMonth(1);
@@ -219,8 +214,6 @@ public class ReportServiceImpl implements ReportService {
         }
 
         // Ghi Audit Log ngoại lệ
-        recordReportViewAuditLog(user, "INVENTORY_VALUATION", "Xem báo cáo Giá trị tồn kho", warehouseId, Map.of());
-
         List<Inventory> inventories = inventoryRepository.findAll().stream()
                 .filter(i -> i.getLocation() != null && !i.getLocation().getIsQuarantine() && i.getTotalQty().compareTo(BigDecimal.ZERO) > 0)
                 .collect(Collectors.toList());
@@ -277,10 +270,6 @@ public class ReportServiceImpl implements ReportService {
         if (user.getRole() != UserRole.WAREHOUSE_MANAGER && user.getRole() != UserRole.ACCOUNTANT_MANAGER && user.getRole() != UserRole.ADMIN && user.getRole() != UserRole.CEO) {
             throw new IllegalArgumentException("ACCESS_DENIED");
         }
-
-        // Ghi Audit Log ngoại lệ
-        recordReportViewAuditLog(user, "PRODUCTIVITY", "Xem báo cáo năng suất nhân viên", warehouseId,
-                Map.of("start_date", startDate.toString(), "end_date", endDate.toString()));
 
         Warehouse warehouse = warehouseRepository.findById(warehouseId)
                 .orElseThrow(() -> new ResourceNotFoundException("Warehouse not found with id: " + warehouseId));
@@ -490,29 +479,4 @@ public class ReportServiceImpl implements ReportService {
         }
     }
 
-    private void recordReportViewAuditLog(User user, String reportType, String description, Long warehouseId, Map<String, Object> filters) {
-        Warehouse warehouse = null;
-        if (warehouseId != null) {
-            warehouse = warehouseRepository.findById(warehouseId).orElse(null);
-        }
-
-        Map<String, Object> newValues = new HashMap<>();
-        newValues.put("report_type", reportType);
-        newValues.put("filters", filters);
-
-        AuditLog auditLog = AuditLog.builder()
-                .actor(user)
-                .actorRole(user.getRole() != null ? user.getRole().name() : "ADMIN")
-                .action(AuditAction.VIEW_REPORT)
-                .entityType("REPORT")
-                .entityId(0L)
-                .description(description)
-                .warehouse(warehouse)
-                .oldValue(null)
-                .newValue(AuditLogUtil.toJson(newValues))
-                .timestamp(OffsetDateTime.now())
-                .build();
-
-        auditLogRepository.save(auditLog);
-    }
 }
