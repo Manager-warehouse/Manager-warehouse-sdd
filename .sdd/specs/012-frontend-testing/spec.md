@@ -25,6 +25,10 @@ Hệ thống Quản lý Kho (WMS) có giao diện người dùng tương tác ph
 - Q: Làm thế nào để xử lý chỉ số đo lường độ bao phủ (coverage) 80% của SonarQube cho dự án hiện tại? → A: Chỉ áp dụng Quality Gate 80% cho New Code (mã nguồn viết mới hoặc sửa đổi) trong Pull Request, đồng thời thiết lập loại trừ (exclusions) cho các tệp UI thuần, config, DTO.
 - Q: Chiến lược viết test cho các hàm/kịch bản có nhiều bộ dữ liệu đầu vào là gì để tránh hardcode? → A: Bắt buộc áp dụng Parameterized Tests (sử dụng JUnit 5 Parameterized Tests cho Backend và Vitest parameterized tests cho Frontend).
 
+### Session 2026-07-22
+- Q: Xử lý phạm vi Test Coverage ở Frontend như thế nào khi trước đó loại trừ toàn bộ UI Pages/Components? → A: Bỏ exclusion UI Pages/Components (không loại trừ src/pages/**, src/components/** trong SonarQube), yêu cầu bổ sung Component Tests cho các màn hình nghiệp vụ WMS chính và đưa vào đo lường SonarQube coverage.
+- Q: Quy trình kiểm thử và nghiệm thu QA ở Frontend được tối ưu như thế nào? → A: Giản lược thủ tục ký duyệt QA Sign-off và môi trường Staging cồng kềnh, chuyển hoàn toàn sang tự động hóa kiểm thử trên CI/CD Pipeline (chặn PR nếu test fail hoặc Quality Gate < 80% trên New Code).
+
 ---
 
 ## 2. Actors
@@ -32,8 +36,8 @@ Hệ thống Quản lý Kho (WMS) có giao diện người dùng tương tác ph
 | Actor | Role | Responsibilities |
 |-------|------|------------------|
 | Developer | Maker | Viết mã nguồn kiểm thử giao diện, thiết lập API Mocking, kiểm tra test cục bộ trước khi gửi PR |
-| QA Engineer | QA Controller | Định nghĩa các kịch bản nghiệm thu giao diện (UAT), chạy regression test trên môi trường QA/Staging, quản lý defect log và ký phê duyệt QA Sign-off |
-| CI/CD Runner | System | Tự động cài đặt dependencies, chạy linter, thực thi toàn bộ bộ test giao diện, sinh báo cáo coverage và đồng bộ chất lượng mã nguồn |
+| Reviewer / Tech Lead | Checker | Đánh giá chất lượng Component tests, API mocks và phê duyệt PR |
+| CI/CD Runner | System | Tự động cài đặt dependencies, chạy linter, thực thi toàn bộ bộ test giao diện, sinh báo cáo coverage, thực thi Quality Gate và chặn merge nếu test fail |
 
 ---
 
@@ -136,7 +140,7 @@ Nhân viên vận hành và thủ kho thường xuyên nhập liệu trên các 
 
 | ID | Requirement | Target |
 |----|-------------|--------|
-| NFR-001 | Code Coverage Target | Line và Branch coverage đạt tối thiểu 80% áp dụng cho **New Code** trong PR đối với các file store, utility, validation và route guard. Loại trừ các file UI thuần, boilerplate qua `sonar.coverage.exclusions`. |
+| NFR-001 | Code Coverage Target | Line và Branch coverage đạt tối thiểu 80% áp dụng cho **New Code** trong PR đối với tất cả tệp nguồn Frontend (bao gồm pages, components, stores, utilities, validation, và route guards). Chỉ loại trừ tệp boilerplate/config qua `sonar.coverage.exclusions`. |
 | NFR-002 | Test Execution Time | Tổng thời gian chạy bộ test giao diện cục bộ không vượt quá 2 phút |
 | NFR-003 | Compatibility | Báo cáo coverage được xuất dưới dạng định dạng LCOV tiêu chuẩn để tích hợp đồng bộ với SonarQube |
 | NFR-004 | Test Code Quality | Sử dụng Vitest Parameterized Tests (`test.each`) cho các kịch bản test có nhiều bộ dữ liệu (edge cases) để loại bỏ trùng lặp code. |

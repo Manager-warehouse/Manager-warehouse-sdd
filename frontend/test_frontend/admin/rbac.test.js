@@ -1,7 +1,6 @@
 import { useAuthStore } from '../../src/stores/auth.store';
 import { ROLES, getDefaultRouteByRole } from '../../src/utils/constants';
 
-// Mock Zustand to work without a full DOM environment if needed
 describe('RBAC Warehouse and Role Access Tests', () => {
   beforeEach(() => {
     useAuthStore.getState().logout();
@@ -79,7 +78,7 @@ describe('RBAC Warehouse and Role Access Tests', () => {
   });
 
   test('login should handle user with invalid warehouse ID (not in constant list)', () => {
-    const user = { id: 7, role: ROLES.STOREKEEPER, warehouses: [999] }; // 999 not in constant list
+    const user = { id: 7, role: ROLES.STOREKEEPER, warehouses: [999] };
     useAuthStore.getState().login(user, 'mock-jwt-token');
     expect(useAuthStore.getState().activeWarehouse).toBeNull();
     expect(sessionStorage.getItem('wms_active_warehouse')).toBeNull();
@@ -93,11 +92,9 @@ describe('RBAC Warehouse and Role Access Tests', () => {
   });
 
   test('hasRole should evaluate role correctly and handle null user', () => {
-    // Null user
     useAuthStore.getState().logout();
     expect(useAuthStore.getState().hasRole(ROLES.ADMIN)).toBe(false);
 
-    // Active user
     const user = { id: 8, role: ROLES.ADMIN, warehouses: [] };
     useAuthStore.getState().login(user, 'mock-jwt-token');
     expect(useAuthStore.getState().hasRole(ROLES.ADMIN)).toBe(true);
@@ -120,4 +117,3 @@ describe('RBAC Warehouse and Role Access Tests', () => {
     expect(getDefaultRouteByRole('UNKNOWN')).toBe('/profile');
   });
 });
-

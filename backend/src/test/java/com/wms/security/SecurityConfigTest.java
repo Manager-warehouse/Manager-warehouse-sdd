@@ -1,4 +1,4 @@
-package com.wms.test;
+package com.wms.security;
 
 import com.wms.entity.User;
 import com.wms.enums.UserRole;

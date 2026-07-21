@@ -53,4 +53,3 @@ describe('interWarehouseTransferStatusLabel', () => {
     expect(interWarehouseTransferStatusLabel(input)).toBe(expected);
   });
 });
-

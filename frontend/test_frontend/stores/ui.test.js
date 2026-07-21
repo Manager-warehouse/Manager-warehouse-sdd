@@ -2,7 +2,6 @@ import { useUiStore } from '../../src/stores/ui.store';
 
 describe('useUiStore', () => {
   beforeEach(() => {
-    // Reset state before each test
     useUiStore.setState({
       sidebarOpen: true,
       toasts: [],
@@ -47,7 +46,6 @@ describe('useUiStore', () => {
     expect(toasts[0].type).toBe('error');
     expect(toasts[0].id).toBeDefined();
 
-    // Fast-forward 3 seconds
     vi.advanceTimersByTime(3000);
     expect(useUiStore.getState().toasts).toHaveLength(0);
   });
@@ -74,7 +72,6 @@ describe('useUiStore', () => {
     expect(toasts[0].message).toBe('Info Toast');
     expect(toasts[0].type).toBe('info');
 
-    // Fast-forward 3 seconds
     vi.advanceTimersByTime(3000);
     expect(useUiStore.getState().toasts).toHaveLength(0);
   });

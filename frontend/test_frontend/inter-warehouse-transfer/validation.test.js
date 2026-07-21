@@ -1,11 +1,3 @@
-/**
- * Inter-Warehouse Transfer Validation Tests
- *
- * Covers validation logic in InterWarehouseTransferWorkspace.jsx and InterWarehouseTransferActionPanel.jsx.
- */
-
-// --- Validators extracted from the components ---
-
 const validateCreateTransfer = (form, warehouses, products, availabilityByLine) => {
   const source = warehouses.find((w) => w.id === Number(form.sourceWarehouseId));
   const destination = warehouses.find((w) => w.id === Number(form.destinationWarehouseId));
@@ -143,8 +135,6 @@ const validateWrongSkuReport = (payload) => {
   }
   return { isValid: true };
 };
-
-// --- Test Suite ---
 
 describe('Inter-Warehouse Transfer Frontend Validations', () => {
   const MOCK_WAREHOUSES = [
@@ -360,7 +350,7 @@ describe('Inter-Warehouse Transfer Frontend Validations', () => {
         confirmedQty: 5,
         qcPassedQty: 5,
         qcFailedQty: 0,
-        destinationLocationId: '11' // quarantine bin ID
+        destinationLocationId: '11'
       }];
       const result = validateReceiveCheck(rows, locations);
       expect(result.isValid).toBe(false);

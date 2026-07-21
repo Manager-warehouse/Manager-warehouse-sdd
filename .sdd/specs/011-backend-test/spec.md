@@ -27,6 +27,11 @@ Hệ thống WMS sử dụng Spring Boot 3.4.5, Java 21, Maven làm nền tảng
 - Q: Làm thế nào để xử lý chỉ số đo lường độ bao phủ (coverage) 80% của SonarQube cho dự án hiện tại? → A: Chỉ áp dụng Quality Gate 80% cho New Code (mã nguồn viết mới hoặc sửa đổi) trong Pull Request, đồng thời thiết lập loại trừ (exclusions) cho các tệp UI thuần, config, DTO.
 - Q: Chiến lược viết test cho các hàm/kịch bản có nhiều bộ dữ liệu đầu vào là gì để tránh hardcode? → A: Bắt buộc áp dụng Parameterized Tests (sử dụng JUnit 5 Parameterized Tests cho Backend và Vitest parameterized tests cho Frontend).
 
+### Session 2026-07-22
+- Q: Quy định tự động chạy test và tự động sửa code/test khi phát hiện bug của AI được điều chỉnh như thế nào? → A: AI được phép tự động chạy lệnh test và tự động đề xuất/sửa mã nguồn/test case để xanh hóa test, nhưng bắt buộc phải tổng hợp và báo cáo rõ các thay đổi (diff/summary) cho người dùng biết.
+- Q: Quy trình kiểm thử và nghiệm thu QA được chuẩn hóa như thế nào để tránh cồng kềnh thủ tục? → A: Tối ưu hóa quy trình QA: Giản lược các thủ tục ký duyệt thủ công (QA Sign-off) và môi trường Staging cồng kềnh, chuyển hoàn toàn sang tự động hóa kiểm thử trên CI/CD Pipeline (chặn PR nếu test fail hoặc Quality Gate < 80% trên New Code).
+- Q: Anh muốn xử lý các tệp test thừa/không đúng mục đích spec như thế nào? → A: Xóa 2 tệp nháp thừa (AuthServiceLoginTest.java, BcryptHashPrinter.java), chuyển SecurityConfigTest.java về đúng gói com.wms.security và loại bỏ thư mục com.wms.test.
+
 ---
 
 ## 2. Actors
@@ -34,9 +39,8 @@ Hệ thống WMS sử dụng Spring Boot 3.4.5, Java 21, Maven làm nền tảng
 | Actor | Vai trò | Trách nhiệm |
 |-------|---------|-------------|
 | Developer | Maker | Viết mã nguồn, triển khai các bộ test unit & integration, chạy kiểm thử cục bộ |
-| Tech Lead / QA | Checker | Đánh giá độ bao phủ kiểm thử (coverage), chất lượng kiểm thử và phê duyệt mã nguồn |
-| QA Engineer | QA Controller | Thực hiện kiểm thử độc lập trên môi trường QA/Staging, quản lý danh sách bug (defect log), thực thi kiểm thử hồi quy (regression testing) và cấp cổng QA Sign-off trước khi release |
-| CI/CD Runner (GitHub Actions) | System | Tự động biên dịch, chạy toàn bộ bộ test, tạo báo cáo coverage và đồng bộ với SonarQube |
+| Tech Lead / Reviewer | Checker | Đánh giá độ bao phủ kiểm thử (coverage), chất lượng kiểm thử và phê duyệt PR |
+| CI/CD Runner (GitHub Actions) | System | Tự động biên dịch, chạy toàn bộ bộ test, tạo báo cáo coverage, thực thi Quality Gate và chặn merge nếu test fail |
 
 ---
 
@@ -56,10 +60,9 @@ Hệ thống WMS sử dụng Spring Boot 3.4.5, Java 21, Maven làm nền tảng
 | NFR-002 | Code Coverage Target | Line coverage tối thiểu 80% áp dụng cho **New Code** trong PR. Loại trừ các DTO, Configuration, Entity và boilerplate code qua exclusions (`sonar.coverage.exclusions`). |
 | NFR-003 | Security compliance | 0 token/credentials được commit trong code test |
 | NFR-004 | Output compatibility | Định dạng báo cáo JaCoCo XML tương thích hoàn toàn với SonarQube Scanner |
-| NFR-005 | QA Environment | Triển khai môi trường QA/Staging độc lập để chạy UAT và Regression test |
-| NFR-006 | Defect Management | 100% lỗi phát hiện phải được log, phân loại mức độ nghiêm trọng và nghiệm thu trước khi đóng |
-| NFR-007 | Release Gate (QA Sign-off) | Mọi phiên bản phát hành (release) phải được QA duyệt và xác nhận đạt yêu cầu chất lượng |
-| NFR-008 | Test Code Quality | Sử dụng JUnit 5 Parameterized Tests cho các kịch bản test có nhiều bộ dữ liệu (edge cases) để loại bỏ trùng lặp code và hardcode. |
+| NFR-005 | Defect Prevention | Tự động phát hiện lỗi qua CI/CD Pipeline và ngăn chặn merge PR chứa test thất bại |
+| NFR-006 | Release Gate (CI Quality Gate) | Mọi PR phát hành phải vượt qua toàn bộ test cases và SonarQube Quality Gate trên New Code (>= 80%) |
+| NFR-007 | Test Code Quality | Sử dụng JUnit 5 Parameterized Tests cho các kịch bản test có nhiều bộ dữ liệu (edge cases) để loại bỏ trùng lặp code và hardcode. |
 
 ---
 
@@ -98,6 +101,5 @@ Hệ thống WMS sử dụng Spring Boot 3.4.5, Java 21, Maven làm nền tảng
 ## 9. Out of Scope
 
 - Kiểm thử hiệu năng tải (Load Testing, Stress Testing).
-- Tự động sửa mã nguồn production bị lỗi logic nghiệp vụ để vượt qua test (chỉ báo cáo phát hiện bug nếu có).
-- Không tự ý chạy lệnh test tự động từ phía AI (để người dùng chạy thủ công).
-- Không được tự ý sửa code nguồn/test khi phát hiện test thất bại (chỉ báo cáo lỗi chi tiết cho người dùng).
+- Tự động sửa mã nguồn production bị lỗi logic nghiệp vụ lớn mà không báo cáo (mọi thay đổi fix bug của AI phải được tổng hợp báo cáo cho người dùng).
+- Cho phép AI tự động thực thi các lệnh kiểm thử (Maven/Vitest) và chủ động sửa lỗi code/test case khi test thất bại, nhưng bắt buộc phải báo cáo tổng hợp đầy đủ các sửa đổi cho người dùng.

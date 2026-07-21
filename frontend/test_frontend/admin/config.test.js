@@ -1,26 +1,9 @@
-/**
- * System Configuration Validation Tests
- *
- * Mirrors the validate() function in SystemConfig.jsx.
- * All rules come from data-model.md (feature-admin-system-config.md).
- *
- * Fields & constraints:
- *   defaultCreditLimit         > 0  (positive integer)
- *   defaultPaymentTermDays     > 0  (positive integer)
- *   creditHoldOverdueDays      > 0  (positive integer)
- *   creditUnlockBufferPct      in (0, 1]  (decimal)
- *   monthlyClosingDay          in [1, 31] (integer)
- *   minInventoryWarningThreshold >= 0 (integer)
- */
-
 import { validate } from '../../src/pages/Admin/SystemConfig';
 
 const validateSystemConfig = (form) => {
   const errs = validate(form);
   return { isValid: Object.keys(errs).length === 0, errors: errs };
 };
-
-// ─── Fixture ─────────────────────────────────────────────────────────────────
 
 const VALID_CONFIG = {
   defaultCreditLimit: 500000000,
@@ -31,8 +14,6 @@ const VALID_CONFIG = {
   minInventoryWarningThreshold: 10
 };
 
-// ─── Tests ───────────────────────────────────────────────────────────────────
-
 describe('SystemConfig — validate()', () => {
 
   test('passes with all valid defaults', () => {
@@ -40,8 +21,6 @@ describe('SystemConfig — validate()', () => {
     expect(isValid).toBe(true);
     expect(Object.keys(errors)).toHaveLength(0);
   });
-
-  // ── defaultCreditLimit ─────────────────────────────────────────────────────
 
   describe('defaultCreditLimit', () => {
     test('fails when zero', () => {
@@ -65,8 +44,6 @@ describe('SystemConfig — validate()', () => {
     });
   });
 
-  // ── defaultPaymentTermDays ─────────────────────────────────────────────────
-
   describe('defaultPaymentTermDays', () => {
     test('fails when zero', () => {
       const { errors } = validateSystemConfig({ ...VALID_CONFIG, defaultPaymentTermDays: 0 });
@@ -84,8 +61,6 @@ describe('SystemConfig — validate()', () => {
     });
   });
 
-  // ── creditHoldOverdueDays ──────────────────────────────────────────────────
-
   describe('creditHoldOverdueDays', () => {
     test('fails when zero', () => {
       const { errors } = validateSystemConfig({ ...VALID_CONFIG, creditHoldOverdueDays: 0 });
@@ -102,8 +77,6 @@ describe('SystemConfig — validate()', () => {
       expect(isValid).toBe(true);
     });
   });
-
-  // ── creditUnlockBufferPct ──────────────────────────────────────────────────
 
   describe('creditUnlockBufferPct', () => {
     test('fails when 0 (exclusive lower bound)', () => {
@@ -132,8 +105,6 @@ describe('SystemConfig — validate()', () => {
     });
   });
 
-  // ── monthlyClosingDay ──────────────────────────────────────────────────────
-
   describe('monthlyClosingDay', () => {
     test('fails when 0 (below lower bound)', () => {
       const { errors } = validateSystemConfig({ ...VALID_CONFIG, monthlyClosingDay: 0 });
@@ -156,8 +127,6 @@ describe('SystemConfig — validate()', () => {
     });
   });
 
-  // ── minInventoryWarningThreshold ───────────────────────────────────────────
-
   describe('minInventoryWarningThreshold', () => {
     test('fails when negative', () => {
       const { errors } = validateSystemConfig({ ...VALID_CONFIG, minInventoryWarningThreshold: -1 });
@@ -179,8 +148,6 @@ describe('SystemConfig — validate()', () => {
       expect(isValid).toBe(true);
     });
   });
-
-  // ── Multiple errors ────────────────────────────────────────────────────────
 
   test('returns all errors simultaneously when multiple fields are invalid', () => {
     const allInvalid = {

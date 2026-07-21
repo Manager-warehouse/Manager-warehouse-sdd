@@ -1,70 +1,59 @@
 # Tasks: Thiết lập & Hoàn thiện Hệ thống Test Giao diện (Frontend Testing System)
 
 **Input**: Design documents from `.sdd/specs/012-frontend-testing/`
-
 **Prerequisites**: `spec.md`, `plan.md`
 
-**Tests**: Yêu cầu cài đặt thành công Vitest, chạy 2 file test giao diện (config, rbac) trên code thật, sinh báo cáo coverage và hoàn thiện CI/CD pipeline.
-
 ---
 
-## Phase 1: Setup & Design Alignment
+## Phase 1: Setup & Testing Infrastructure
 
 - [x] T001 Đọc kỹ tài liệu đặc tả [spec.md](./spec.md) và kế hoạch triển khai [plan.md](./plan.md).
-- [x] T002 Xác nhận trạng thái git (`git status`) để đảm bảo không ghi đè bất kỳ thay đổi chưa commit nào.
-- [x] T003 Kiểm tra sự hiện diện của thư mục [frontend/tests/admin/](file:///d:/swp/Manager-warehouse-sdd/frontend/tests/admin/) và 2 file test nháp.
+- [x] T002 Cài đặt các thư viện kiểm thử `vitest`, `jsdom`, `@testing-library/react`, `@testing-library/jest-dom`, `@testing-library/user-event`, `@vitest/coverage-v8` trong [frontend/package.json](file:///d:/swp/Manager-warehouse-sdd/frontend/package.json).
+- [x] T003 Cấu hình test runner trong [frontend/vite.config.js](file:///d:/swp/Manager-warehouse-sdd/frontend/vite.config.js) và setup mock environment tại [frontend/tests/setup.js](file:///d:/swp/Manager-warehouse-sdd/frontend/tests/setup.js).
 
 ---
 
-## Phase 2: Setup Frontend Testing Infrastructure
+## Phase 2: Foundational Utilities & Store Tests
 
-**Goal**: Cài đặt các dependencies và cấu hình môi trường chạy test Vitest + jsdom ở frontend.
-
-- [x] T010 Cài đặt các thư viện kiểm thử `vitest`, `jsdom`, `@testing-library/react`, `@testing-library/jest-dom`, `@testing-library/user-event`, `@vitest/coverage-v8` vào `devDependencies` của [frontend/package.json](file:///d:/swp/Manager-warehouse-sdd/frontend/package.json), đồng thời định nghĩa các test scripts.
-- [x] T011 Cấu hình phần `test` cho Vitest trong [frontend/vite.config.js](file:///d:/swp/Manager-warehouse-sdd/frontend/vite.config.js).
-- [x] T012 Tạo tệp [frontend/tests/setup.js](file:///d:/swp/Manager-warehouse-sdd/frontend/tests/setup.js) để giả lập môi trường browser (localStorage, jsdom cleanup) và thiết lập custom matchers.
-
-**Checkpoint**: Chạy thử lệnh `npx vitest --run` phát hiện được các file test mà không gặp lỗi cấu hình môi trường.
+- [x] T010 [P] Cập nhật bộ test validation [frontend/tests/admin/config.test.js](file:///d:/swp/Manager-warehouse-sdd/frontend/tests/admin/config.test.js).
+- [x] T011 [P] Cập nhật bộ test auth & rbac store [frontend/tests/admin/rbac.test.js](file:///d:/swp/Manager-warehouse-sdd/frontend/tests/admin/rbac.test.js).
+- [x] T012 [P] Tạo bộ test định dạng dữ liệu [frontend/tests/utils/format.test.js](file:///d:/swp/Manager-warehouse-sdd/frontend/tests/utils/format.test.js).
+- [x] T013 [P] Tạo bộ test UI notification store [frontend/tests/stores/ui.test.js](file:///d:/swp/Manager-warehouse-sdd/frontend/tests/stores/ui.test.js).
 
 ---
 
-## Phase 3: Sửa đổi và Hoàn thiện Test cases
+## Phase 3: User Story 1 - Inbound & Stocktake Component Tests (Priority: P1)
 
-**Goal**: Chuyển đổi 2 file test nháp thành các bài test thực tế chạy trên code production và stores.
-
-- [x] T020 Sửa đổi [frontend/tests/admin/config.test.js](file:///d:/swp/Manager-warehouse-sdd/frontend/tests/admin/config.test.js) để import các hàm kiểm tra validation thực tế từ source code và viết các trường hợp test dữ liệu hợp lệ/lỗi biên.
-- [x] T021 Sửa đổi [frontend/tests/admin/rbac.test.js](file:///d:/swp/Manager-warehouse-sdd/frontend/tests/admin/rbac.test.js) để kiểm tra hoạt động thực tế của auth store (Zustand) và phân quyền kho bãi (Warehouse Scope).
-- [x] T023 Tạo mới bộ test [frontend/tests/utils/format.test.js](file:///d:/swp/Manager-warehouse-sdd/frontend/tests/utils/format.test.js) kiểm thử toàn diện các hàm format ngày tháng, số lượng.
-- [x] T024 Tạo mới bộ test [frontend/tests/stores/ui.test.js](file:///d:/swp/Manager-warehouse-sdd/frontend/tests/stores/ui.test.js) kiểm thử toàn bộ logic đóng mở sidebar, auto-dismiss toast.
-- [x] T022 Chạy kiểm thử cục bộ `npm run test` và `npm run test:coverage` để đảm bảo 100% test cases vượt qua và sinh báo cáo LCOV/HTML.
-
-**Checkpoint**: Toàn bộ test frontend vượt qua, có báo cáo coverage được tạo thành công tại `frontend/coverage/lcov.info`.
+- [x] T020 [P] [US1] Tạo bộ test component Nhập kho & QC [frontend/src/pages/Inbound/ReceiptList.test.jsx](file:///d:/swp/Manager-warehouse-sdd/frontend/src/pages/Inbound/ReceiptList.test.jsx) kiểm tra render bảng phiếu nhập, loading state và filter theo trạng thái.
+- [x] T021 [P] [US1] Tạo bộ test component Kho cách ly [frontend/src/pages/Inbound/QuarantineWorkspace.test.jsx](file:///d:/swp/Manager-warehouse-sdd/frontend/src/pages/Inbound/QuarantineWorkspace.test.jsx) kiểm tra form xử lý hàng lỗi QC và nộp đơn tiêu hủy/RTV.
+- [x] T022 [P] [US1] Tạo bộ test component Kiểm kê tồn kho [frontend/src/pages/Stocktake/StocktakeWorkspace.test.jsx](file:///d:/swp/Manager-warehouse-sdd/frontend/src/pages/Stocktake/StocktakeList.test.jsx) kiểm tra nhập số lượng thực tế, tính chênh lệch variance và disable double submit.
 
 ---
 
-## Phase 4: CI/CD Integration
+## Phase 4: User Story 2 - Outbound & Logistics Component Tests (Priority: P1)
 
-**Goal**: Cấu hình pipeline để chạy test frontend bắt buộc trên môi trường GitHub Actions CI.
-
-- [x] T030 Cập nhật tệp workflow [.github/workflows/test.yml](file:///d:/swp/Manager-warehouse-sdd/.github/workflows/test.yml) để thay thế `npm test --if-present` bằng lệnh chạy test frontend bắt buộc, đồng thời tích hợp `sonarsource/sonarqube-scan-action` đẩy LCOV lên SonarQube.
-
-**Checkpoint**: Pipeline CI chạy thành công cả frontend/backend test mà không bị skip.
+- [x] T030 [P] [US2] Kiểm thử component Chuyến hàng tài xế [frontend/src/pages/Outbound/DriverTrip.test.jsx](file:///d:/swp/Manager-warehouse-sdd/frontend/src/pages/Outbound/DriverTrip.test.jsx).
+- [x] T031 [P] [US2] Tạo bộ test component QC Xuất kho [frontend/src/pages/Outbound/QCOutbound.test.jsx](file:///d:/swp/Manager-warehouse-sdd/frontend/src/pages/Outbound/QCOutbound.test.jsx) kiểm tra xác nhận số lượng picking và phê duyệt DO.
+- [x] T032 [P] [US2] Tạo bộ test component Quản lý Lệnh xuất kho [frontend/src/pages/Outbound/DeliveryOrders.test.jsx](file:///d:/swp/Manager-warehouse-sdd/frontend/src/pages/Outbound/DeliveryOrders.test.jsx) kiểm tra tạo mới phiếu DO và validate thông tin khách hàng/đại lý.
 
 ---
 
-## Phase 6: Cấu hình SonarQube Exclusions & Áp dụng Parameterized Tests
+## Phase 5: User Story 3 - Inter-Warehouse Transfer & Master Data Component Tests (Priority: P1)
 
-**Goal**: Loại bỏ UI pages/components khỏi coverage và chuẩn hóa việc viết test cho utilities/stores.
-
-- [x] T040 Thêm cấu hình `-Dsonar.coverage.exclusions` vào tệp workflow [.github/workflows/test.yml](file:///d:/swp/Manager-warehouse-sdd/.github/workflows/test.yml) ở bước quét SonarQube Frontend để loại bỏ các thư mục UI: `src/pages/**,src/components/**,src/main.jsx,src/App.jsx,src/router.jsx`.
-- [x] T041 Cải tiến các test case của frontend sử dụng Vitest Parameterized Tests (`test.each`) đối với các utilities và stores xử lý nhiều kịch bản đầu vào.
+- [x] T040 [P] [US3] Kiểm thử validation chuyển kho [frontend/tests/inter-warehouse-transfer/validation.test.js](file:///d:/swp/Manager-warehouse-sdd/frontend/tests/inter-warehouse-transfer/validation.test.js).
+- [x] T041 [P] [US3] Tạo bộ test component Phiếu chuyển kho nội bộ [frontend/src/pages/InterWarehouseTransfer/TransferRequestWorkspace.test.jsx](file:///d:/swp/Manager-warehouse-sdd/frontend/src/pages/InterWarehouseTransfer/TransferRequestWorkspace.test.jsx) kiểm tra chọn kho xuất/kho nhập và danh sách vật tư.
+- [x] T042 [P] [US3] Tạo bộ test component Quản lý Sản phẩm [frontend/src/pages/Admin/ProductList.test.jsx](file:///d:/swp/Manager-warehouse-sdd/frontend/src/pages/Admin/ProductManagement.test.jsx) kiểm tra bảng sản phẩm và dialog thêm mới/chỉnh sửa sản phẩm.
 
 ---
 
-## Phase 5: Cross-Cutting Verification
+## Phase 6: User Story 4 - Finance & Billing Component Tests (Priority: P1)
 
-- [x] T900 Chạy lệnh `npm run lint` ở frontend.
-- [x] T901 Chạy lệnh `npm run test` ở frontend.
-- [x] T902 Chạy lệnh `npm run test:coverage` ở frontend.
-- [x] T903 Chạy lệnh `npm run build` ở frontend.
-- [x] T904 Xác nhận không lưu credentials hoặc TODO comments trong các file test.
+- [x] T050 [P] [US4] Tạo bộ test component Hóa đơn & Công nợ Đại lý [frontend/src/pages/Finance/DealerDebtInvoice.test.jsx](file:///d:/swp/Manager-warehouse-sdd/frontend/src/pages/Finance/DealerDebtInvoice.test.jsx) kiểm tra tính toán tổng nợ, hạn thanh toán và tạo mới invoice.
+- [x] T051 [P] [US4] Tạo bộ test component Phiếu thu tiền [frontend/src/pages/Finance/PaymentReceipts.test.jsx](file:///d:/swp/Manager-warehouse-sdd/frontend/src/pages/Finance/PaymentReceipts.test.jsx) kiểm tra ghi nhận thanh toán và gạch nợ.
+
+---
+
+## Phase 7: Polish & CI/CD Pipeline Alignment
+
+- [x] T060 Cập nhật workflow [.github/workflows/test.yml](file:///d:/swp/Manager-warehouse-sdd/.github/workflows/test.yml) để bỏ loại trừ `src/pages/**,src/components/**` trong bước quét SonarQube Frontend.
+- [x] T061 Thẩm định toàn bộ test suite frontend bằng lệnh `npm run test` và `npm run test:coverage` đạt line/branch coverage >= 80% trên New Code.

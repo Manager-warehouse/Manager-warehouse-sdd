@@ -6,8 +6,8 @@
 
 ## Summary
 
-Thiết lập môi trường kiểm thử giao diện bằng Vitest, jsdom và React Testing Library cho module `frontend`. Triển khai cấu hình test runner, sửa đổi 2 tệp test nháp hiện có (`config.test.js` và `rbac.test.js`) để chạy thực tế trên code production, và viết thêm bộ test cho format utility cùng UI store. Hoàn thiện cấu hình CI/CD trên GitHub Actions để chạy test frontend tự động và đẩy báo cáo coverage LCOV lên SonarQube bằng `sonarsource/sonarqube-scan-action`.
-Đồng thời, cấu hình loại trừ các thư mục UI tĩnh (pages, components) để điểm số đo lường phản ánh chính xác chất lượng nghiệp vụ (Zustand stores, Utils) liên quan trực tiếp đến các spec từ 001 đến 010.
+Thiết lập môi trường kiểm thử giao diện bằng Vitest, jsdom và React Testing Library cho module `frontend`. Triển khai cấu hình test runner, sửa đổi 2 tệp test nháp hiện có (`config.test.js` và `rbac.test.js`) để chạy thực tế trên code production, và viết thêm bộ test cho format utility, UI store, cùng các Component/Page WMS nghiệp vụ cốt lõi (Inbound, Outbound, Transfer, Finance, Admin). Hoàn thiện cấu hình CI/CD trên GitHub Actions để chạy test frontend tự động và đẩy báo cáo coverage LCOV lên SonarQube bằng `sonarsource/sonarqube-scan-action`.
+Đồng thời, đo lường độ bao phủ đầy đủ trên các tệp nguồn Frontend (pages, components, stores, utils) để đảm bảo chất lượng giao diện toàn diện cho các spec từ 001 đến 010.
 
 ## Technical Context
 
@@ -84,9 +84,9 @@ Thiết lập môi trường kiểm thử giao diện bằng Vitest, jsdom và R
 ## QA/QC Organization Plan
 
 ### 1. Phân vùng QC (Kiểm soát chất lượng tự động)
-* **Coverage Target**: Đạt tối thiểu 80% line/branch coverage trên các file logic nghiệp vụ (Zustand Stores, Form Validation, Helpers).
-* **SonarQube Quality Gate**: Chỉ áp dụng ngưỡng coverage trên **New Code** trong PR. Loại trừ hoàn toàn các thành phần UI thuần (màn hình hiển thị tĩnh) thông qua tham số loại trừ:
-  `-Dsonar.coverage.exclusions=src/pages/**,src/components/**,src/main.jsx,src/App.jsx,src/router.jsx`
+* **Coverage Target**: Đạt tối thiểu 80% line/branch coverage trên các file logic nghiệp vụ, UI Pages/Components, Zustand Stores, Form Validation, Helpers.
+* **SonarQube Quality Gate**: Áp dụng ngưỡng coverage trên **New Code** trong PR đối với các tệp nguồn Frontend. Chỉ loại trừ các tệp cấu hình/boilerplate:
+  `-Dsonar.coverage.exclusions=src/main.jsx,src/App.jsx,src/router.jsx`
 
 ## Test Strategy
 
