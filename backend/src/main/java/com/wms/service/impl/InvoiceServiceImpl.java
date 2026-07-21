@@ -18,14 +18,17 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     private final InvoiceRepository invoiceRepository;
     private final DeliveryOrderRepository deliveryOrderRepository;
+    private final DeliveryRepository deliveryRepository;
     private final AutoInvoiceService autoInvoiceService;
 
     public InvoiceServiceImpl(
             InvoiceRepository invoiceRepository,
             DeliveryOrderRepository deliveryOrderRepository,
+            DeliveryRepository deliveryRepository,
             AutoInvoiceService autoInvoiceService) {
         this.invoiceRepository = invoiceRepository;
         this.deliveryOrderRepository = deliveryOrderRepository;
+        this.deliveryRepository = deliveryRepository;
         this.autoInvoiceService = autoInvoiceService;
     }
 
@@ -86,6 +89,12 @@ public class InvoiceServiceImpl implements InvoiceService {
     }
 
     private InvoiceResponse toResponse(Invoice entity) {
+        // Đối chứng bàn giao lấy từ lần giao hàng gần nhất của DO gốc, phục vụ Kế toán
+        // đối chiếu hóa đơn tự động sinh với bằng chứng POD thực tế.
+        Delivery delivery = deliveryRepository
+                .findFirstByDeliveryOrderIdOrderByCreatedAtDesc(entity.getDeliveryOrder().getId())
+                .orElse(null);
+
         return InvoiceResponse.builder()
                 .id(entity.getId())
                 .invoiceNumber(entity.getInvoiceNumber())
@@ -104,6 +113,10 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .accountingPeriodName(entity.getAccountingPeriod() != null ? entity.getAccountingPeriod().getPeriodName() : null)
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
+                .otpVerifiedAt(delivery != null ? delivery.getDeliveredAt() : null)
+                .podImageUrl(delivery != null ? delivery.getPodImageUrl() : null)
+                .podSignatureUrl(delivery != null ? delivery.getPodSignatureUrl() : null)
+                .podTimestamp(delivery != null ? delivery.getPodTimestamp() : null)
                 .build();
     }
 }

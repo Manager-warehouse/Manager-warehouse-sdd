@@ -38,6 +38,7 @@ class InvoiceServiceTest {
 
     @Mock private InvoiceRepository invoiceRepository;
     @Mock private DeliveryOrderRepository deliveryOrderRepository;
+    @Mock private DeliveryRepository deliveryRepository;
     @Mock private AutoInvoiceService autoInvoiceService;
 
     @InjectMocks
@@ -113,6 +114,49 @@ class InvoiceServiceTest {
         assertThat(response.getInvoiceNumber()).isEqualTo("INV-202606-000100");
         assertThat(response.getTotalAmount()).isEqualByComparingTo(BigDecimal.valueOf(500000));
         verify(autoInvoiceService).createBackfillInvoice(deliveryOrder, accountantUser, request.getDocumentDate());
+    }
+
+    @Test
+    @DisplayName("Lập hóa đơn thành công - Kèm bằng chứng POD từ lần giao hàng gần nhất")
+    void createInvoice_includesPodEvidenceFromDelivery() {
+        InvoiceCreateRequest request = new InvoiceCreateRequest();
+        request.setDoId(20L);
+        request.setDocumentDate(LocalDate.of(2026, 6, 15));
+
+        Invoice savedInvoice = Invoice.builder()
+                .id(50L)
+                .invoiceNumber("INV-202606-000100")
+                .deliveryOrder(deliveryOrder)
+                .dealer(dealer)
+                .totalAmount(BigDecimal.valueOf(500000))
+                .issueDate(request.getDocumentDate())
+                .dueDate(request.getDocumentDate().plusDays(30))
+                .status(InvoiceStatus.UNPAID)
+                .createdBy(accountantUser)
+                .documentDate(request.getDocumentDate())
+                .build();
+
+        java.time.OffsetDateTime deliveredAt = java.time.OffsetDateTime.parse("2026-06-15T10:00:00Z");
+        Delivery delivery = Delivery.builder()
+                .deliveryOrder(deliveryOrder)
+                .deliveredAt(deliveredAt)
+                .podImageUrl("https://storage/pod/photo.jpg")
+                .podSignatureUrl("https://storage/pod/sig.png")
+                .podTimestamp(deliveredAt)
+                .build();
+
+        when(deliveryOrderRepository.findById(20L)).thenReturn(Optional.of(deliveryOrder));
+        when(autoInvoiceService.createBackfillInvoice(deliveryOrder, accountantUser, request.getDocumentDate()))
+                .thenReturn(savedInvoice);
+        when(deliveryRepository.findFirstByDeliveryOrderIdOrderByCreatedAtDesc(20L))
+                .thenReturn(Optional.of(delivery));
+
+        InvoiceResponse response = invoiceService.createInvoice(request, accountantUser);
+
+        assertThat(response.getOtpVerifiedAt()).isEqualTo(deliveredAt);
+        assertThat(response.getPodImageUrl()).isEqualTo("https://storage/pod/photo.jpg");
+        assertThat(response.getPodSignatureUrl()).isEqualTo("https://storage/pod/sig.png");
+        assertThat(response.getPodTimestamp()).isEqualTo(deliveredAt);
     }
 
     @Test
