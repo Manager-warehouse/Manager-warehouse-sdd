@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 @RestController
-@RequestMapping("/api/v1/audit-logs")
+@RequestMapping("/api/v1/admin/audit-logs")
 @Tag(name = "Audit Log", description = "Read-only system audit log endpoints")
 public class AuditLogController {
 

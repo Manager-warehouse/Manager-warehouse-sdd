@@ -138,7 +138,7 @@ The system SHALL audit changes to these entity groups:
 **Scenario: Audit Log Access Allowed**
 
 - Given the authenticated user is System Admin
-- When the user requests `GET /api/v1/audit-logs`
+- When the user requests `GET /api/v1/admin/audit-logs`
 - Then the system SHALL return audit logs ordered by newest timestamp first.
 
 **Scenario: Audit Log Access Forbidden**

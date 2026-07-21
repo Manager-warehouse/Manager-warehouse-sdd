@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { adminService } from '../../services/admin.service';
+import { masterDataService } from '../../services/masterData.service';
 import { useUiStore } from '../../stores/ui.store';
 import Table from '../../components/common/Table';
 import Pagination from '../../components/common/Pagination';
@@ -17,7 +18,7 @@ const AuditLogs = () => {
 
   // Pagination States
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  const [pageSize, setPageSize] = useState(30);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
 
@@ -25,6 +26,10 @@ const AuditLogs = () => {
   const [search, setSearch] = useState('');
   const [selectedAction, setSelectedAction] = useState('ALL');
   const [selectedEntity, setSelectedEntity] = useState('ALL');
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+  const [warehouses, setWarehouses] = useState([]);
 
   // Detail Modal States
   const [auditDetailOpen, setAuditDetailOpen] = useState(false);
@@ -38,6 +43,9 @@ const AuditLogs = () => {
       const response = await adminService.getAuditLogs({
         page: currentPage,
         pageSize,
+        warehouseId: selectedWarehouseId || undefined,
+        from: fromDate || undefined,
+        to: toDate || undefined,
       });
       const pageData = response.data || response || [];
       const rows = Array.isArray(pageData) ? pageData : pageData.data || [];
@@ -53,12 +61,44 @@ const AuditLogs = () => {
 
   useEffect(() => {
     loadLogs();
-  }, [currentPage, pageSize]);
+  }, [currentPage, pageSize, selectedWarehouseId, fromDate, toDate]);
+
+  useEffect(() => {
+    const loadWarehouses = async () => {
+      try {
+        const data = await masterDataService.getWarehouses();
+        const rows = Array.isArray(data) ? data : [];
+        setWarehouses(rows.filter((warehouse) => warehouse.is_active !== false));
+      } catch {
+        addToast('KhÃ´ng thá»ƒ táº£i danh sÃ¡ch kho', 'error');
+      }
+    };
+
+    loadWarehouses();
+  }, [addToast]);
 
   const handleResetFilters = () => {
     setSearch('');
     setSelectedAction('ALL');
     setSelectedEntity('ALL');
+    setSelectedWarehouseId('');
+    setFromDate('');
+    setToDate('');
+    setCurrentPage(1);
+  };
+
+  const updateWarehouseFilter = (value) => {
+    setSelectedWarehouseId(value);
+    setCurrentPage(1);
+  };
+
+  const updateFromDateFilter = (value) => {
+    setFromDate(value);
+    setCurrentPage(1);
+  };
+
+  const updateToDateFilter = (value) => {
+    setToDate(value);
     setCurrentPage(1);
   };
 
@@ -197,6 +237,37 @@ const AuditLogs = () => {
                 { value: 'ALL', label: 'Tất cả đối tượng' },
                 ...uniqueEntities.filter(e => e !== 'ALL').map((ent) => ({ value: ent, label: ent }))
               ]}
+            />
+          </div>
+
+          <div className="flex flex-col gap-1 w-full md:w-56">
+            <Input
+              type="select"
+              value={selectedWarehouseId}
+              onChange={(e) => updateWarehouseFilter(e.target.value)}
+              options={[
+                { value: '', label: 'Táº¥t cáº£ kho' },
+                ...warehouses.map((warehouse) => ({
+                  value: String(warehouse.id),
+                  label: `${warehouse.code} - ${warehouse.name}`
+                }))
+              ]}
+            />
+          </div>
+
+          <div className="flex flex-col gap-1 w-full md:w-40">
+            <Input
+              type="date"
+              value={fromDate}
+              onChange={(e) => updateFromDateFilter(e.target.value)}
+            />
+          </div>
+
+          <div className="flex flex-col gap-1 w-full md:w-40">
+            <Input
+              type="date"
+              value={toDate}
+              onChange={(e) => updateToDateFilter(e.target.value)}
             />
           </div>
         </div>
