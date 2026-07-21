@@ -73,7 +73,7 @@ const ProductivityReport = () => {
             Năng Suất Hoạt Động Nhân Sự
           </h1>
           <p className="text-xs text-shade-50 font-light mt-1">
-            Thống kê sản lượng bốc xếp, kiểm QC của thủ kho và số chuyến xe hoàn thành của tài xế.
+            Thống kê sản lượng bốc xếp, kiểm định chất lượng của thủ kho và số chuyến xe hoàn thành của tài xế.
           </p>
         </div>
 
@@ -153,7 +153,7 @@ const ProductivityReport = () => {
             >
               <span className="flex items-center gap-2">
                 <CheckSquare className="w-4 h-4" />
-                <span>Thủ kho QC ({data.storekeeper_productivity?.length || 0})</span>
+                <span>Thủ kho kiểm định ({data.storekeeper_productivity?.length || 0})</span>
               </span>
             </button>
 
@@ -184,8 +184,8 @@ const ProductivityReport = () => {
                           <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã nhân viên</th>
                           <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Tên nhân viên</th>
                           <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Vai trò</th>
-                          <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Số lượt soạn hàng (Picking runs)</th>
-                          <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Tổng sản lượng soạn (Qty)</th>
+                          <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Số lượt lấy hàng</th>
+                          <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Tổng sản lượng soạn</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-hairline-light">
@@ -213,7 +213,7 @@ const ProductivityReport = () => {
                         </div>
                         <div className="p-4 flex flex-col gap-2 text-xs">
                           <div className="font-semibold text-ink">{p.full_name}</div>
-                          <p className="text-shade-50">Số lượt soạn hàng: <span className="font-medium text-ink">{p.picking_runs_count} lượt</span></p>
+                          <p className="text-shade-50">Số lượt lấy hàng: <span className="font-medium text-ink">{p.picking_runs_count} lượt</span></p>
                           <p className="text-shade-50">Tổng sản lượng soạn: <span className="font-bold text-ink">{new Intl.NumberFormat('vi-VN').format(p.total_picked_qty)} cái</span></p>
                         </div>
                       </div>
@@ -225,7 +225,7 @@ const ProductivityReport = () => {
 
             {activeTab === 'storekeeper' && (
               data.storekeeper_productivity.length === 0 ? (
-                <div className="px-6 py-8 text-center text-shade-50 text-xs">Không có dữ liệu QC trong dải ngày này.</div>
+                <div className="px-6 py-8 text-center text-shade-50 text-xs">Không có dữ liệu kiểm định trong dải ngày này.</div>
               ) : (
                 <>
                   <div className="hidden md:block overflow-x-auto">
@@ -235,8 +235,8 @@ const ProductivityReport = () => {
                           <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã thủ kho</th>
                           <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Tên thủ kho</th>
                           <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Vai trò</th>
-                          <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Số picking plans lập</th>
-                          <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Tổng số lượng QC checked</th>
+                          <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Số kế hoạch lấy hàng lập</th>
+                          <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Tổng số lượng đã kiểm định</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-hairline-light">
@@ -264,8 +264,8 @@ const ProductivityReport = () => {
                         </div>
                         <div className="p-4 flex flex-col gap-2 text-xs">
                           <div className="font-semibold text-ink">{p.full_name}</div>
-                          <p className="text-shade-50">Số picking plans lập: <span className="font-medium text-ink">{p.picking_plans_created} kế hoạch</span></p>
-                          <p className="text-shade-50">Tổng số lượng QC checked: <span className="font-bold text-ink">{new Intl.NumberFormat('vi-VN').format(p.total_qc_checked_qty)} cái</span></p>
+                          <p className="text-shade-50">Số kế hoạch lấy hàng lập: <span className="font-medium text-ink">{p.picking_plans_created} kế hoạch</span></p>
+                          <p className="text-shade-50">Tổng số lượng đã kiểm định: <span className="font-bold text-ink">{new Intl.NumberFormat('vi-VN').format(p.total_qc_checked_qty)} cái</span></p>
                         </div>
                       </div>
                     ))}

@@ -108,7 +108,7 @@ const ReceiptReceive = () => {
         </button>
 
         <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
-          Vận hành / Inbound
+          Vận hành / Nhập kho
         </span>
         <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">
           Kiểm đếm thực tế nhận hàng
@@ -132,7 +132,7 @@ const ReceiptReceive = () => {
             </div>
             <div>
               <span className="text-shade-50 block mb-0.5 font-normal">Loại nhập:</span>
-              <span>{receipt.type === 'PURCHASE' ? 'Nhập mua (PO)' : 'Trả hàng (DO hoàn)'}</span>
+              <span>{receipt.type === 'PURCHASE' ? 'Nhập mua' : 'Nhập trả'}</span>
             </div>
             <div>
               <span className="text-shade-50 block mb-0.5 font-normal">Kênh tiếp nhận:</span>

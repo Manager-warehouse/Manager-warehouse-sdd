@@ -167,10 +167,10 @@ const TransferRequestWorkspace = () => {
 
       if (editingRequestId) {
         await interWarehouseTransferService.updateTransferRequest(editingRequestId, payload);
-        addToast('Đã cập nhật yêu cầu điều chuyển DRAFT', 'success');
+        addToast('Đã cập nhật yêu cầu điều chuyển nháp', 'success');
       } else {
         await interWarehouseTransferService.createTransferRequest(payload);
-        addToast('Đã tạo yêu cầu điều chuyển thô (DRAFT)', 'success');
+        addToast('Đã tạo yêu cầu điều chuyển nháp', 'success');
       }
       closeRequestModal();
       fetchData();
@@ -207,7 +207,7 @@ const TransferRequestWorkspace = () => {
     setSubmitting(true);
     try {
       await interWarehouseTransferService.cancelTransferRequest(req.id);
-      addToast('Đã xóa/hủy yêu cầu điều chuyển DRAFT', 'success');
+      addToast('Đã xóa/hủy yêu cầu điều chuyển nháp', 'success');
       setShowDetailModal(false);
       fetchData();
     } catch (e) {
@@ -278,15 +278,25 @@ const TransferRequestWorkspace = () => {
 
   const getStatusBadge = (status) => {
     const maps = {
-      DRAFT: { text: 'Bản thô (DRAFT)', class: 'bg-canvas-cream text-shade-60 border-hairline-light' },
-      SUBMITTED: { text: 'Chờ CEO Duyệt', class: 'bg-warning-50 text-warning-700 border-warning-200 animate-pulse' },
-      APPROVED: { text: 'Đã Duyệt', class: 'bg-success-50 text-success-700 border-success-200' },
-      REJECTED: { text: 'Bị Từ Chối', class: 'bg-danger-50 text-danger-700 border-danger-200' },
-      CONVERTED: { text: 'Đã Chuyển TRF', class: 'bg-shade-30 text-ink border-hairline-light' },
+      DRAFT: { text: 'Nháp', class: 'bg-canvas-cream text-shade-60 border-hairline-light' },
+      SUBMITTED: { text: 'Chờ duyệt', class: 'bg-warning-50 text-warning-700 border-warning-200 animate-pulse' },
+      APPROVED: { text: 'Đã duyệt', class: 'bg-success-50 text-success-700 border-success-200' },
+      REJECTED: { text: 'Bị từ chối', class: 'bg-danger-50 text-danger-700 border-danger-200' },
+      CONVERTED: { text: 'Đã lập phiếu', class: 'bg-shade-30 text-ink border-hairline-light' },
       CANCELLED: { text: 'Đã xóa/hủy', class: 'bg-shade-30 text-shade-60 border-hairline-light' }
     };
     const c = maps[status] || { text: status, class: 'bg-shade-30 text-ink' };
     return <Badge size="sm" colorClassName={c.class}>{c.text}</Badge>;
+  };
+
+  const TAB_LABELS = {
+    ALL: 'Tất cả',
+    DRAFT: 'Nháp',
+    SUBMITTED: 'Chờ duyệt',
+    APPROVED: 'Đã duyệt',
+    REJECTED: 'Bị từ chối',
+    CONVERTED: 'Đã lập phiếu',
+    CANCELLED: 'Đã hủy',
   };
 
   return (
@@ -295,13 +305,13 @@ const TransferRequestWorkspace = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
-            Điều phối nội bộ / Spec 005
+            Điều phối nội bộ / Yêu cầu điều chuyển
           </span>
           <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">
             Yêu cầu điều chuyển kho
           </h1>
           <p className="text-xs text-shade-50 font-light mt-1">
-            Tạo đề xuất điều phối hàng hóa từ các kho khác về kho đích hiện tại. Hỗ trợ xem tồn kho khả dụng tức thời, luồng CEO duyệt và Planner lập phiếu TRF tự động.
+            Tạo đề xuất điều phối hàng hóa từ các kho khác về kho đích hiện tại. Hỗ trợ xem tồn kho khả dụng tức thời, luồng Giám đốc duyệt và Quản lý lập phiếu điều chuyển tự động.
           </p>
         </div>
         {hasRole(ROLES.WAREHOUSE_MANAGER) && (
@@ -323,7 +333,7 @@ const TransferRequestWorkspace = () => {
                 : 'border-transparent text-shade-50 hover:text-ink'
             }`}
           >
-            {tab === 'ALL' ? 'Tất cả' : tab}
+            {TAB_LABELS[tab] || tab}
           </button>
         ))}
       </div>
@@ -566,7 +576,7 @@ const TransferRequestWorkspace = () => {
             <div className="p-4 border-t border-hairline-light bg-canvas-cream flex justify-end gap-2">
               <Button variant="outline-light" onClick={closeRequestModal}>Hủy</Button>
               <Button variant="primary" onClick={submitCreateRequest} disabled={submitting} loading={submitting}>
-                {editingRequestId ? 'Lưu thay đổi' : 'Tạo DRAFT'}
+                {editingRequestId ? 'Lưu thay đổi' : 'Tạo bản nháp'}
               </Button>
             </div>
           </div>

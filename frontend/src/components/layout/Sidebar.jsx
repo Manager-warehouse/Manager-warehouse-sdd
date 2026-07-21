@@ -4,7 +4,7 @@ import { Users, UserSquare, ShieldAlert, BarChart3, Package2, Settings, History,
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
-import { ROLES } from '../../utils/constants';
+import { ROLES, ROLE_LABELS } from '../../utils/constants';
 
 const Sidebar = () => {
   const { user, hasRole } = useAuthStore();
@@ -47,7 +47,7 @@ const Sidebar = () => {
 
   const masterDataItems = [
     {
-      title: 'SKU & Sản phẩm',
+      title: 'Mã & Sản phẩm',
       path: '/admin/products',
       icon: Box,
       roles: [ROLES.STOREKEEPER, ROLES.WAREHOUSE_MANAGER, ROLES.PLANNER, ROLES.ADMIN, ROLES.CEO]
@@ -74,7 +74,7 @@ const Sidebar = () => {
 
   const inboundItems = [
     {
-      title: 'Phiếu Nhập & QC',
+      title: 'Phiếu Nhập & Kiểm định',
       path: '/inbound/receipts',
       icon: Package2,
       roles: [ROLES.PLANNER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.WAREHOUSE_MANAGER, ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN, ROLES.CEO]
@@ -158,7 +158,7 @@ const Sidebar = () => {
       roles: [ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN, ROLES.CEO]
     },
     {
-      title: 'Thu nợ & Aging',
+      title: 'Thu nợ & Công nợ',
       path: '/finance/payments',
       icon: Landmark,
       roles: [ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN, ROLES.CEO]
@@ -167,7 +167,7 @@ const Sidebar = () => {
 
   const reportItems = [
     {
-      title: 'Báo cáo quản trị (CEO)',
+      title: 'Báo cáo quản trị (Giám đốc)',
       path: '/reports/ceo-dashboard',
       icon: BarChart3,
       roles: [ROLES.CEO, ROLES.ADMIN]
@@ -239,7 +239,7 @@ const Sidebar = () => {
         {inboundItems.filter(item => item.roles.some(role => hasRole(role))).length > 0 && (
           <div>
             <div className="px-3 py-1.5 text-[10px] font-bold text-shade-40 uppercase tracking-widest mb-2">
-              Nhập hàng & QC
+              Nhập hàng & Kiểm định
             </div>
             <nav className="flex flex-col gap-1">
               {inboundItems
@@ -448,7 +448,7 @@ const Sidebar = () => {
             <span
               className="text-[9px] font-semibold bg-shade-70 text-onPrimary px-2 py-0.5 rounded-pill border border-shade-60"
             >
-              {user.role}
+              {ROLE_LABELS[user.role] || user.role}
             </span>
           )}
         </div>

@@ -57,7 +57,7 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
     }
 
     if (!selectedRole) {
-      setError('Vui lòng gán vai trò (Role)');
+      setError('Vui lòng gán vai trò');
       return;
     }
 
@@ -170,7 +170,7 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
         )}
 
         <Input
-          label="Mã nhân viên (Employee Code)"
+          label="Mã nhân viên"
           type="text"
           value={code}
           onChange={(e) => setCode(e.target.value)}
@@ -194,7 +194,7 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="nhanvien@phucanh.vn"
+            placeholder="nhanvien@quanlykho.vn"
             required
           />
 
@@ -228,7 +228,7 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
 
         {/* Role selection dropdown */}
         <Input
-          label="Gán Vai trò (Role)"
+          label="Gán vai trò"
           type="select"
           options={roleOptions}
           value={selectedRole}

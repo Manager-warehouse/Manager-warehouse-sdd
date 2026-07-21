@@ -234,7 +234,7 @@ export default function DriverTrip() {
 
   const handleUploadPodAndRequestOTP = async () => {
     if (!goodsImage || !signDocumentImage) {
-      addToast('Vui lòng tải đủ ảnh hàng hóa và POD', 'error');
+      addToast('Vui lòng tải đủ ảnh hàng hóa và ảnh biên bản giao nhận', 'error');
       return;
     }
     setSubmitting(true);
@@ -628,7 +628,7 @@ export default function DriverTrip() {
               />
 
               <PhotoCaptureInput
-                label="Ảnh chữ ký/POD"
+                label="Ảnh chữ ký / Biên bản giao nhận"
                 fileName={signDocumentImage?.name}
                 onChange={(file) => setSignDocumentImage(file)}
                 output="file"
@@ -647,7 +647,7 @@ export default function DriverTrip() {
                     disabled={submitting || !goodsImage || !signDocumentImage}
                     loading={submitting}
                   >
-                    Tải POD và gửi mã OTP
+                    Tải biên bản giao nhận & Gửi OTP
                   </Button>
                 ) : (
                   <div className="flex flex-col gap-4">

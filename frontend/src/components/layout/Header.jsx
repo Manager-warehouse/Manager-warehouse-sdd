@@ -60,7 +60,7 @@ const Header = () => {
           <Menu className="w-5 h-5" />
         </button>
         <span className="font-display font-semibold text-lg tracking-tight text-ink hidden md:inline-block">
-          Phúc Anh <span className="font-light text-shade-50">WMS</span>
+          Quản Lý Kho
         </span>
       </div>
 

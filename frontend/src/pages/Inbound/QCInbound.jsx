@@ -211,10 +211,10 @@ const QCInbound = () => {
         </button>
 
         <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
-          Vận hành / Inbound
+          Vận hành / Nhập kho
         </span>
         <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">
-          Kiểm định chất lượng QC Inbound
+          Kiểm định chất lượng hàng nhập
         </h1>
       </div>
 
@@ -235,7 +235,7 @@ const QCInbound = () => {
             </div>
             <div>
               <span className="text-shade-50 block mb-0.5 font-normal">Loại nhập:</span>
-              <span>{receipt.type === 'PURCHASE' ? 'Nhập mua (PO)' : 'Trả hàng (DO hoàn)'}</span>
+              <span>{receipt.type === 'PURCHASE' ? 'Nhập mua' : 'Nhập trả'}</span>
             </div>
             <div>
               <span className="text-shade-50 block mb-0.5 font-normal">Trạng thái kiểm đếm:</span>
@@ -260,8 +260,8 @@ const QCInbound = () => {
                 <tr className="bg-canvas-cream border-b border-hairline-light">
                   <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Sản phẩm</th>
                   <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right w-24">Thực nhận</th>
-                  <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right w-24">Đạt QC</th>
-                  <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right w-24">Lỗi QC</th>
+                  <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right w-24">Đạt kiểm định</th>
+                  <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right w-24">Hàng không đạt</th>
                   <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 w-44">Chi tiết lỗi (Nếu hỏng)</th>
                   <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center w-24">Kết quả</th>
                 </tr>
@@ -352,7 +352,7 @@ const QCInbound = () => {
 
                   <div className="mt-4 grid grid-cols-2 gap-3">
                     <label className="flex flex-col gap-1.5">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-shade-60">Đạt QC</span>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-shade-60">Đạt kiểm định</span>
                       <input
                         type="number"
                         min="0"
@@ -366,7 +366,7 @@ const QCInbound = () => {
                     </label>
 
                     <label className="flex flex-col gap-1.5">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-shade-60">Lỗi QC</span>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-shade-60">Hàng không đạt</span>
                       <input
                         type="number"
                         min="0"
@@ -433,7 +433,7 @@ const QCInbound = () => {
             ) : (
               <>
                 <ShieldCheck className="w-4 h-4" />
-                <span>Gửi kết quả QC</span>
+                <span>Gửi kết quả kiểm định</span>
               </>
             )}
           </button>

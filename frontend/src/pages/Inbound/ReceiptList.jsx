@@ -275,13 +275,13 @@ const ReceiptList = () => {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
-            Vận hành / Inbound
+            Vận hành / Nhập kho
           </span>
           <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">
-            Nhập hàng & QC Inbound
+            Nhập hàng & Kiểm định
           </h1>
           <p className="text-xs text-shade-50 font-light mt-1">
-            Quản lý nhập mua, nhập trả và QC tại kho <span className="font-semibold text-ink">{activeWarehouse?.name} ({activeWarehouse?.code})</span>. Mã `RN` thuộc luồng phiếu nhập; điều chuyển nội bộ `TRF` được xử lý ở màn Điều chuyển nội bộ riêng.
+            Quản lý nhập mua, nhập trả và kiểm định tại kho <span className="font-semibold text-ink">{activeWarehouse?.name} ({activeWarehouse?.code})</span>. Mã phiếu nhập thuộc luồng nhập kho; điều chuyển nội bộ được xử lý ở màn Điều chuyển nội bộ riêng.
           </p>
         </div>
 
@@ -302,7 +302,7 @@ const ReceiptList = () => {
           <Input
             type="text"
             leftIcon={Search}
-            placeholder="Tìm mã phiếu, số PO..."
+            placeholder="Tìm mã phiếu, số chứng từ..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -331,8 +331,8 @@ const ReceiptList = () => {
               onChange={(e) => setTypeFilter(e.target.value)}
               options={[
                 { value: 'ALL', label: 'Tất cả loại' },
-                { value: 'PURCHASE', label: 'Nhập mua (PO)' },
-                { value: 'RETURN', label: 'Nhập trả (DO hoàn)' },
+                { value: 'PURCHASE', label: 'Nhập mua' },
+                { value: 'RETURN', label: 'Nhập trả' },
               ]}
             />
           </div>
@@ -375,9 +375,9 @@ const ReceiptList = () => {
                       <td className="px-6 py-4 text-xs font-bold">{receipt.receipt_number}</td>
                       <td className="px-6 py-4 text-xs font-semibold">
                         {receipt.type === 'PURCHASE' ? (
-                          <span className="text-shade-70">Nhập mua (PO)</span>
+                          <span className="text-shade-70">Nhập mua</span>
                         ) : receipt.type === 'RETURN' ? (
-                          <span className="text-shade-70">Nhập trả (DO hoàn)</span>
+                          <span className="text-shade-70">Nhập trả</span>
                         ) : (
                           <span>-</span>
                         )}
@@ -408,7 +408,7 @@ const ReceiptList = () => {
                 </div>
                 <div className="p-4 flex flex-col gap-2 text-xs">
                   <p className="text-shade-50">Loại: <span className="font-semibold text-ink">
-                    {receipt.type === 'PURCHASE' ? 'Nhập mua (PO)' : receipt.type === 'RETURN' ? 'Nhập trả (DO hoàn)' : '-'}
+                    {receipt.type === 'PURCHASE' ? 'Nhập mua' : receipt.type === 'RETURN' ? 'Nhập trả' : '-'}
                   </span></p>
                   <p className="text-shade-50">Đối tác: <span className="font-semibold text-ink">{getPartnerName(receipt)}</span></p>
                   <p className="text-shade-50">Chứng từ gốc: <span className="font-semibold text-ink">{receipt.source_reference || 'N/A'}</span></p>
@@ -451,7 +451,7 @@ const ReceiptList = () => {
               <div className="grid grid-cols-2 gap-4 text-xs">
                 <div>
                   <span className="text-shade-50 block mb-0.5">Loại nhập kho:</span>
-                  <span className="font-bold">{selectedReceipt.type === 'PURCHASE' ? 'Nhập mua (PO)' : 'Trả hàng (DO hoàn)'}</span>
+                  <span className="font-bold">{selectedReceipt.type === 'PURCHASE' ? 'Nhập mua' : 'Nhập trả'}</span>
                 </div>
                 <div>
                   <span className="text-shade-50 block mb-0.5">Chứng từ gốc:</span>
@@ -489,9 +489,9 @@ const ReceiptList = () => {
                         <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Sản phẩm</th>
                         <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Dự kiến</th>
                         <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Đếm thực tế</th>
-                        <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Đạt QC</th>
-                        <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Lỗi QC</th>
-                        <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Chi tiết QC</th>
+                        <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Đạt kiểm định</th>
+                        <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Hàng không đạt</th>
+                        <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Chi tiết kiểm định</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-hairline-light">

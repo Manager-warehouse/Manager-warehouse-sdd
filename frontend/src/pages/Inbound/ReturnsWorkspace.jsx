@@ -265,7 +265,7 @@ const ReturnsWorkspace = () => {
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">Vận hành / Inbound</span>
+          <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">Vận hành / Nhập kho</span>
           <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">
             Nhận hàng hoàn trả & Khấu trừ công nợ
           </h1>
@@ -447,7 +447,7 @@ const ReturnsWorkspace = () => {
           <form onSubmit={handleCreateReturnReceipt} className="flex flex-col gap-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Chọn đơn xuất hàng (DO) gốc</label>
+                <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Chọn đơn xuất hàng gốc</label>
                 <Input
                   type="select"
                   required

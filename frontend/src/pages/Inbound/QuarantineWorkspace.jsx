@@ -154,13 +154,13 @@ const QuarantineWorkspace = () => {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
-            Vận hành / Inbound
+            Vận hành / Nhập kho
           </span>
           <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">
             Quản lý hàng lỗi cách ly
           </h1>
           <p className="text-xs text-shade-50 font-light mt-1">
-            Xem xét, kiểm soát và ra quyết định xử lý hàng hóa lỗi QC trong Quarantine Zone tại kho <span className="font-semibold text-ink">{activeWarehouse?.name}</span>.
+            Xem xét, kiểm soát và ra quyết định xử lý hàng hóa lỗi QC trong khu vực cách ly tại kho <span className="font-semibold text-ink">{activeWarehouse?.name}</span>.
           </p>
         </div>
       </div>
@@ -175,7 +175,7 @@ const QuarantineWorkspace = () => {
               : 'border-transparent text-shade-50 hover:text-ink'
           }`}
         >
-          Khu vực xử lý (Quarantine Zone)
+          Khu vực xử lý
         </button>
         {(hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.CEO) || hasRole(ROLES.ADMIN)) && (
           <button
@@ -254,7 +254,7 @@ const QuarantineWorkspace = () => {
                       className="btn-pill btn-pill-outline-light text-xs flex items-center gap-1.5 py-1.5"
                     >
                       <ArrowRightLeft className="w-3.5 h-3.5" />
-                      <span>Trả hàng NCC (RTV)</span>
+                      <span>Trả hàng NCC</span>
                     </button>
                   )}
                   <Button
@@ -379,7 +379,7 @@ const QuarantineWorkspace = () => {
                 <div><span className="text-shade-50">Sản phẩm:</span> <strong className="text-ink">{selectedItem.product_sku} - {selectedItem.product_name}</strong></div>
                 <div><span className="text-shade-50">Nhà cung cấp:</span> <strong>{getSupplierName(selectedItem.supplier_id)}</strong></div>
                 <div><span className="text-shade-50">Số lượng lỗi QC xuất trả:</span> <strong className="text-danger-600">{selectedItem.qc_failed_qty}</strong></div>
-                <div><span className="text-shade-50">Tổng tiền đòi bồi hoàn (Debit Note):</span> <strong className="text-ink text-sm">{(selectedItem.total_value || 0).toLocaleString('vi-VN')} VND</strong></div>
+                <div><span className="text-shade-50">Tổng tiền đòi bồi hoàn:</span> <strong className="text-ink text-sm">{(selectedItem.total_value || 0).toLocaleString('vi-VN')} VND</strong></div>
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="font-bold">Ghi chú xuất trả (Không bắt buộc)</label>
@@ -400,7 +400,7 @@ const QuarantineWorkspace = () => {
                 disabled={submitting}
                 className="btn-pill btn-pill-aloe text-xs py-1.5 px-4 font-bold disabled:opacity-50"
               >
-                {submitting ? 'Đang xuất...' : 'Xác nhận RTV & Đòi tiền'}
+                {submitting ? 'Đang xuất...' : 'Xác nhận xuất trả & Đòi tiền'}
               </button>
             </div>
           </div>
