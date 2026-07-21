@@ -29,4 +29,22 @@ public class EmailService {
             log.error("Không thể gửi email OTP (SMTP error): {}", e.getMessage(), e);
         }
     }
+
+    // ACC-02 (business.md): hóa đơn quá hạn tự động CREDIT_HOLD phải cảnh báo Kế toán trưởng.
+    @Async
+    public void sendCreditHoldAlert(String to, String dealerCode, String dealerName,
+            String invoiceNumber, long overdueDays) {
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setTo(to);
+            message.setSubject("[CẢNH BÁO] Đại lý " + dealerCode + " bị khóa tín dụng (CREDIT_HOLD) — WMS Phúc Anh");
+            message.setText("Đại lý " + dealerName + " (" + dealerCode + ") đã tự động chuyển sang trạng thái "
+                    + "CREDIT_HOLD do hóa đơn " + invoiceNumber + " quá hạn thanh toán " + overdueDays + " ngày.\n"
+                    + "Vui lòng kiểm tra công nợ đại lý trên hệ thống WMS.");
+            mailSender.send(message);
+            log.info("Đã gửi email cảnh báo CREDIT_HOLD tới {}", to);
+        } catch (Exception e) {
+            log.error("Không thể gửi email cảnh báo CREDIT_HOLD (SMTP error): {}", e.getMessage(), e);
+        }
+    }
 }

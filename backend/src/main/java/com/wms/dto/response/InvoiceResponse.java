@@ -66,4 +66,18 @@ public class InvoiceResponse {
 
     @JsonProperty("updated_at")
     private OffsetDateTime updatedAt;
+
+    // Proof-of-delivery evidence for reconciliation against this auto-invoiced delivery
+    // (feature-accountant-customer-invoicing.md §4.3).
+    @JsonProperty("otp_verified_at")
+    private OffsetDateTime otpVerifiedAt;
+
+    @JsonProperty("pod_image_url")
+    private String podImageUrl;
+
+    @JsonProperty("pod_signature_url")
+    private String podSignatureUrl;
+
+    @JsonProperty("pod_timestamp")
+    private OffsetDateTime podTimestamp;
 }
