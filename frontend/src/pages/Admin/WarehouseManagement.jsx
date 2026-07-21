@@ -168,6 +168,7 @@ const WarehouseManagement = () => {
       }
       setIsWhModalOpen(false);
       fetchWarehouses();
+      window.dispatchEvent(new Event('warehouse_list_updated'));
     } catch (err) {
       if (err.message === 'DUPLICATE_WAREHOUSE_CODE') {
         setWhFormErrors({ code: 'Mã kho này đã tồn tại trên hệ thống' });
@@ -188,6 +189,7 @@ const WarehouseManagement = () => {
       const updated = await masterDataService.toggleWarehouseStatus(wh.id, !wh.is_active);
       addToast(`${updated.is_active ? 'Kích hoạt' : 'Khóa'} kho ${updated.name || wh.name} thành công`, 'success');
       fetchWarehouses();
+      window.dispatchEvent(new Event('warehouse_list_updated'));
     } catch (e) {
       addToast(`Lỗi thay đổi trạng thái kho: ${e.message}`, 'error');
     }

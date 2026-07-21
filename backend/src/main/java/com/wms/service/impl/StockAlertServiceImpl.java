@@ -175,7 +175,7 @@ public class StockAlertServiceImpl implements StockAlertService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + currentUserId));
 
         // Phân quyền theo kho
-        if (user.getRole() != UserRole.ADMIN && user.getRole() != UserRole.PLANNER && user.getRole() != UserRole.CEO) {
+        if (user.getRole() != UserRole.ADMIN && user.getRole() != UserRole.PLANNER && user.getRole() != UserRole.CEO && user.getRole() != UserRole.WAREHOUSE_MANAGER) {
             List<Long> assignedWarehouseIds = userWarehouseAssignmentRepository.findWarehouseIdsByUserId(currentUserId);
             if (warehouseId != null) {
                 if (!assignedWarehouseIds.contains(warehouseId)) {
