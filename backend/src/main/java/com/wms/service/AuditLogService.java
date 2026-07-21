@@ -26,10 +26,13 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -103,8 +106,9 @@ public class AuditLogService {
         OffsetDateTime toTime = parseBoundary(to, false);
         validateDateRange(fromTime, toTime);
 
-        boolean hasFilter = fromTime != null || toTime != null || warehouseId != null;
-        if (!hasFilter && resolvedPage > MAX_UNFILTERED_PAGE) {
+        boolean hasTimeFilter = fromTime != null || toTime != null;
+        boolean hasFilter = hasTimeFilter || warehouseId != null;
+        if (!hasTimeFilter && resolvedPage > MAX_UNFILTERED_PAGE) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST, "QUERY_RANGE_TOO_LARGE");
         }
@@ -146,9 +150,9 @@ public class AuditLogService {
         entry.setDescription(description);
         entry.setWarehouse(toWarehouseReference(warehouseId));
         entry.setOldValue(AuditLogUtil.toJson(
-                AuditLogUtil.filterSensitiveFields(oldValue)));
+                AuditLogUtil.filterSensitiveFields(normalizeChangedFields(oldValue))));
         entry.setNewValue(AuditLogUtil.toJson(
-                AuditLogUtil.filterSensitiveFields(newValue)));
+                AuditLogUtil.filterSensitiveFields(normalizeChangedFields(newValue))));
         entry.setIpAddress(resolveClientIp());
 
         auditLogRepository.save(entry);
@@ -221,10 +225,7 @@ public class AuditLogService {
     }
 
     private int resolvePageSize(Integer pageSize) {
-        if (pageSize == null || pageSize <= 0) {
-            return DEFAULT_PAGE_SIZE;
-        }
-        return Math.min(pageSize, MAX_PAGE_SIZE);
+        return DEFAULT_PAGE_SIZE;
     }
 
     private OffsetDateTime parseBoundary(String value, boolean startOfDay) {
@@ -233,6 +234,14 @@ public class AuditLogService {
         }
         try {
             return OffsetDateTime.parse(value);
+        } catch (DateTimeParseException ignored) {
+            return parseLocalDateTimeBoundary(value, startOfDay);
+        }
+    }
+
+    private OffsetDateTime parseLocalDateTimeBoundary(String value, boolean startOfDay) {
+        try {
+            return LocalDateTime.parse(value).atZone(ZoneId.systemDefault()).toOffsetDateTime();
         } catch (DateTimeParseException ignored) {
             return parseDateBoundary(value, startOfDay);
         }
@@ -245,7 +254,7 @@ public class AuditLogService {
                 return date.atStartOfDay(ZoneId.systemDefault()).toOffsetDateTime();
             }
             return date.plusDays(1).atStartOfDay(ZoneId.systemDefault())
-                    .toOffsetDateTime().minusNanos(1);
+                    .toOffsetDateTime();
         } catch (DateTimeParseException e) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST, "INVALID_DATE_RANGE");
@@ -257,6 +266,23 @@ public class AuditLogService {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST, "INVALID_DATE_RANGE");
         }
+        if (from != null && to != null) {
+            Duration duration = Duration.between(from, to);
+            if (duration.compareTo(Duration.ofHours(1)) < 0
+                    || duration.toMinutes() % 60 != 0
+                    || duration.getSeconds() % 3600 != 0
+                    || duration.getNano() != 0) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST, "INVALID_DATE_RANGE");
+            }
+        }
+    }
+
+    private Map<String, Object> normalizeChangedFields(Map<String, Object> values) {
+        if (values == null) {
+            return Collections.emptyMap();
+        }
+        return values;
     }
 
     private String resolveClientIp() {

@@ -33,7 +33,6 @@ class ReportServiceImplTest {
     @Mock DeliveryOrderItemRepository deliveryOrderItemRepository;
     @Mock TripRepository tripRepository;
     @Mock UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
-    @Mock AuditLogRepository auditLogRepository;
     @Mock OutboundQcRecordRepository outboundQcRecordRepository;
     @Mock DeliveryOrderItemAllocationRepository deliveryOrderItemAllocationRepository;
     @Mock ReceiptItemRepository receiptItemRepository;
@@ -51,7 +50,7 @@ class ReportServiceImplTest {
         service = new ReportServiceImpl(
                 userRepository, warehouseRepository, inventoryRepository, invoiceRepository,
                 deliveryOrderItemRepository, tripRepository, userWarehouseAssignmentRepository,
-                auditLogRepository, outboundQcRecordRepository, deliveryOrderItemAllocationRepository,
+                outboundQcRecordRepository, deliveryOrderItemAllocationRepository,
                 receiptItemRepository, deliveryRepository
         );
 

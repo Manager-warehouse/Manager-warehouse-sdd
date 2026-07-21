@@ -158,10 +158,24 @@ class AuditLogControllerTest {
                 mockMvc.perform(get("/api/v1/admin/audit-logs")
                                 .param("from", "2026-01-01")
                                 .param("to", "2026-12-31")
-                                .param("warehouseId", "1")
+                                .param("warehouse_id", "1")
                                 .contentType(MediaType.APPLICATION_JSON))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.data[0].entityType").value("Product"));
+        }
+
+        @Test
+        @DisplayName("GET /admin/audit-logs â€” váº«n há»— trá»£ alias warehouseId")
+        @WithMockUser(username = "admin@wms.com", roles = "ADMIN")
+        void getAuditLogs_withWarehouseIdAlias_returns200() throws Exception {
+                when(userRepository.findByEmail("admin@wms.com")).thenReturn(Optional.of(adminUser));
+                when(auditLogService.getAuditLogs(any(), any(), isNull(), isNull(), eq(2L)))
+                                .thenReturn(new AuditLogPageResponse(List.of(), 1, 30, false, false, false));
+
+                mockMvc.perform(get("/api/v1/admin/audit-logs")
+                                .param("warehouseId", "2")
+                                .contentType(MediaType.APPLICATION_JSON))
+                                .andExpect(status().isOk());
         }
 
         @Test
