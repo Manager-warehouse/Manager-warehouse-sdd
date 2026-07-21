@@ -9,10 +9,14 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.wms.dto.request.DealerCreateRequest;
 import com.wms.dto.request.DealerCreditStatusUpdateRequest;
+import com.wms.dto.response.DealerResponse;
 import com.wms.entity.Dealer;
+import com.wms.entity.SystemConfig;
 import com.wms.entity.User;
 import com.wms.enums.CreditStatus;
+import com.wms.enums.SystemConfigKey;
 import com.wms.enums.UserRole;
 import com.wms.exception.BusinessRuleViolationException;
 import com.wms.mapper.DealerMapper;
@@ -73,6 +77,44 @@ class DealerServiceImplTest {
         DealerCreditStatusUpdateRequest request = new DealerCreditStatusUpdateRequest();
         request.setCreditStatus(CreditStatus.ACTIVE);
         return request;
+    }
+
+    private DealerCreateRequest createRequest() {
+        DealerCreateRequest request = new DealerCreateRequest();
+        request.setCode("DL-NEW");
+        request.setName("New Dealer");
+        request.setPhone("0912345678");
+        request.setEmail("dealer@example.com");
+        request.setDefaultDeliveryAddress("Hai Phong");
+        request.setRegion("Hai Phong");
+        request.setPaymentTermDays(60);
+        request.setCreditLimit(BigDecimal.valueOf(999_000_000));
+        return request;
+    }
+
+    @Test
+    void createDealer_usesSystemDefaultsForInitialCreditFields() {
+        when(dealerRepository.existsByCode("DL-NEW")).thenReturn(false);
+        when(systemConfigRepository.findByConfigKey(SystemConfigKey.DEFAULT_PAYMENT_TERM_DAYS.name()))
+                .thenReturn(Optional.of(SystemConfig.builder()
+                        .configKey(SystemConfigKey.DEFAULT_PAYMENT_TERM_DAYS.name())
+                        .configValue("30")
+                        .build()));
+        when(systemConfigRepository.findByConfigKey(SystemConfigKey.DEFAULT_CREDIT_LIMIT.name()))
+                .thenReturn(Optional.of(SystemConfig.builder()
+                        .configKey(SystemConfigKey.DEFAULT_CREDIT_LIMIT.name())
+                        .configValue("50000000")
+                        .build()));
+        when(dealerRepository.save(any(Dealer.class))).thenAnswer(inv -> {
+            Dealer saved = inv.getArgument(0);
+            saved.setId(11L);
+            return saved;
+        });
+
+        DealerResponse response = dealerService.createDealer(createRequest(), accountantManager);
+
+        assertThat(response.getPaymentTermDays()).isEqualTo(30);
+        assertThat(response.getCreditLimit()).isEqualByComparingTo(BigDecimal.valueOf(50_000_000));
     }
 
     @Test

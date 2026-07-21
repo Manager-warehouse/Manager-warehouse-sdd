@@ -1,8 +1,11 @@
 package com.wms.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
+import java.math.BigDecimal;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -30,5 +33,11 @@ public class DealerCreateRequest {
 
     @Size(max = 100)
     private String region;
+
+    @Min(0)
+    private Integer paymentTermDays;
+
+    @DecimalMin(value = "0.0")
+    private BigDecimal creditLimit;
 
 }
