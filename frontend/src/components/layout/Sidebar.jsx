@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Users, UserSquare, ShieldAlert, BarChart3, Package2, Settings, History, Box, Warehouse, Handshake, Truck, MapPin, PackageCheck, ClipboardList, DollarSign, CheckSquare, ArrowRightLeft, FileText, Landmark } from 'lucide-react';
+import { Users, UserSquare, ShieldAlert, BarChart3, Package2, Settings, History, Box, Warehouse, Handshake, Truck, MapPin, PackageCheck, DollarSign, CheckSquare, ArrowRightLeft, FileText, Landmark } from 'lucide-react';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
@@ -183,12 +183,6 @@ const Sidebar = () => {
       path: '/reports/low-stock',
       icon: ShieldAlert,
       roles: [ROLES.WAREHOUSE_MANAGER, ROLES.PLANNER, ROLES.ADMIN]
-    },
-    {
-      title: 'Báo cáo năng suất',
-      path: '/reports/productivity',
-      icon: ClipboardList,
-      roles: [ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN]
     }
   ];
 

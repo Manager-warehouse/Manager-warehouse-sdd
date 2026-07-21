@@ -34,7 +34,6 @@ import PriceApproval from '../pages/Finance/PriceApproval';
 import CeoDashboard from '../pages/Reports/CeoDashboard';
 import InventoryValuation from '../pages/Reports/InventoryValuation';
 import LowStockAlerts from '../pages/Reports/LowStockAlerts';
-import ProductivityReport from '../pages/Reports/ProductivityReport';
 import DealerDebtInvoice from '../pages/Finance/DealerDebtInvoice';
 import Payments from '../pages/Finance/Payments';
 import { ROLES, getDefaultRouteByRole } from '../utils/constants';
@@ -167,9 +166,6 @@ const AppRoutes = () => {
       </Route>
       <Route element={<ProtectedRoute allowedRoles={[ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN]} />}>
         <Route path="/reports/inventory-valuation" element={<InventoryValuation />} />
-      </Route>
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN]} />}>
-        <Route path="/reports/productivity" element={<ProductivityReport />} />
       </Route>
       <Route element={<ProtectedRoute allowedRoles={[ROLES.WAREHOUSE_MANAGER, ROLES.PLANNER, ROLES.ADMIN]} />}>
         <Route path="/reports/low-stock" element={<LowStockAlerts />} />

@@ -421,17 +421,6 @@
 
 ---
 
-### US-WMS-25: Báo cáo Năng suất & Sản lượng Nhân viên Kho (Priority: P3)
-
-**Mô tả:** Là Trưởng kho, tôi muốn xuất báo cáo năng suất làm việc của từng nhân viên để gửi bộ phận HRM bên ngoài làm căn cứ tính lương sản phẩm.
-
-**Tiêu chí nghiệm thu:**
-
-1. Hệ thống ghi nhận sản lượng thực hiện của từng cá nhân: Số đơn bốc xếp/di chuyển hàng (Nhân viên kho), Số đơn soạn hàng và QC hoàn thành (Thủ kho), Số chuyến giao (Tài xế).
-2. Trưởng kho xuất file Excel báo cáo sản lượng theo khoảng thời gian tùy chọn.
-
----
-
 ### US-WMS-26: Cảnh báo tự động Tồn kho dưới định mức (Alerting) (Priority: P1)
 
 **Mô tả:** Là Trưởng kho / Planner, tôi muốn nhận cảnh báo tức thời khi tồn kho khả dụng của sản phẩm chạm hoặc giảm xuống dưới mức tối thiểu.
