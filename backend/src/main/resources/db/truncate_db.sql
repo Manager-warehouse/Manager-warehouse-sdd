@@ -13,9 +13,9 @@ DECLARE
     tbl_record RECORD;
     stmt TEXT;
 BEGIN
-    -- 1. Lưu tạm các tài khoản ADMIN hiện có trước khi truncate
+    -- 1. Lưu tạm tài khoản ADMIN mặc định (admin@phucanh.vn) hiện có trước khi truncate
     CREATE TEMP TABLE temp_admin_users AS 
-    SELECT * FROM users WHERE role = 'ADMIN';
+    SELECT * FROM users WHERE role = 'ADMIN' AND email = 'admin@phucanh.vn';
 
     -- 2. Lặp và Truncate toàn bộ bảng thuộc schema public (ngoại trừ flyway_schema_history)
     FOR tbl_record IN
@@ -29,7 +29,7 @@ BEGIN
         RAISE NOTICE 'Truncated table: %', tbl_record.tablename;
     END LOOP;
 
-    -- 3. Khôi phục lại các tài khoản Admin đã lưu tạm
+    -- 3. Khôi phục lại tài khoản Admin (admin@phucanh.vn) đã lưu tạm
     IF EXISTS (SELECT 1 FROM temp_admin_users) THEN
         INSERT INTO users (id, code, full_name, email, phone, password_hash, role, job_title, shift, region, otp_hash, otp_expires_at, refresh_token_hash, refresh_token_expires_at, is_active, created_at, updated_at)
         SELECT id, code, full_name, email, phone, password_hash, role, job_title, shift, region, otp_hash, otp_expires_at, refresh_token_hash, refresh_token_expires_at, is_active, created_at, updated_at
@@ -37,7 +37,7 @@ BEGIN
 
         -- Đặt lại sequence ID của bảng users theo MAX(id) hiện có
         PERFORM setval('users_id_seq', (SELECT COALESCE(MAX(id), 1) FROM users));
-        RAISE NOTICE 'Restored existing ADMIN user(s).';
+        RAISE NOTICE 'Restored existing admin@phucanh.vn user.';
     ELSE
         -- Nếu chưa có Admin nào trong DB, seed tài khoản Admin mặc định (Mật khẩu: Admin@123)
         INSERT INTO users (code, full_name, email, phone, password_hash, role, job_title, shift, region, is_active)
@@ -80,16 +80,4 @@ INSERT INTO document_sequences (sequence_key, next_value)
 VALUES ('INVOICE', 1), ('PAYMENT', 1)
 ON CONFLICT (sequence_key) DO NOTHING;
 
--- 5. Tạo thêm tài khoản Kế toán phục vụ quy trình kế toán nếu chưa có
-INSERT INTO users (code, full_name, email, phone, password_hash, role, job_title, shift, region, is_active)
-VALUES
-    ('NV-005', 'Nguyễn Kế Toán', 'accountant@phucanh.vn', '0911222333', '$2a$12$zA4J/HnTBBwyUZeMqlVRhulkNPNQMRrAUk/mFXFYYJ2B9JwyVOMRC', 'ACCOUNTANT', 'Kế toán viên', 'Hành chính', 'Toàn quốc', true),
-    ('NV-006', 'Phạm Kế Toán Trưởng', 'acc_manager@phucanh.vn', '0922333444', '$2a$12$zA4J/HnTBBwyUZeMqlVRhulkNPNQMRrAUk/mFXFYYJ2B9JwyVOMRC', 'ACCOUNTANT_MANAGER', 'Kế toán trưởng', 'Hành chính', 'Toàn quốc', true)
-ON CONFLICT (code) DO NOTHING;
 
--- 6. Gán kho cho các tài khoản Kế toán
-INSERT INTO user_warehouse_assignments (user_id, warehouse_id, assigned_by)
-SELECT u.id, w.id, (SELECT id FROM users WHERE role = 'ADMIN' ORDER BY id ASC LIMIT 1)
-FROM users u, warehouses w
-WHERE u.code IN ('NV-005', 'NV-006') AND w.code IN ('WH-HP', 'WH-HN', 'WH-HCM')
-ON CONFLICT (user_id, warehouse_id) DO NOTHING;

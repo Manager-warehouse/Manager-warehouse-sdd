@@ -38,7 +38,7 @@ public class ReportController {
     }
 
     @GetMapping("/reports/inventory-valuation")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT_MANAGER', 'ADMIN', 'CEO', 'WAREHOUSE_MANAGER')")
     @Operation(summary = "Xem báo cáo Giá trị tồn kho cuối kỳ")
     public InventoryValuationResponse getInventoryValuation(
             @RequestParam(required = false) Long warehouseId) {

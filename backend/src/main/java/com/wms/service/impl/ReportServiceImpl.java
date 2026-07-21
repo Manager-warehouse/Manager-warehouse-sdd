@@ -214,7 +214,7 @@ public class ReportServiceImpl implements ReportService {
         User user = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + currentUserId));
 
-        if (user.getRole() != UserRole.ACCOUNTANT_MANAGER && user.getRole() != UserRole.ADMIN) {
+        if (user.getRole() != UserRole.ACCOUNTANT_MANAGER && user.getRole() != UserRole.ADMIN && user.getRole() != UserRole.CEO && user.getRole() != UserRole.WAREHOUSE_MANAGER) {
             throw new IllegalArgumentException("ACCESS_DENIED");
         }
 
@@ -274,15 +274,8 @@ public class ReportServiceImpl implements ReportService {
         User user = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + currentUserId));
 
-        if (user.getRole() != UserRole.WAREHOUSE_MANAGER && user.getRole() != UserRole.ACCOUNTANT_MANAGER && user.getRole() != UserRole.ADMIN) {
+        if (user.getRole() != UserRole.WAREHOUSE_MANAGER && user.getRole() != UserRole.ACCOUNTANT_MANAGER && user.getRole() != UserRole.ADMIN && user.getRole() != UserRole.CEO) {
             throw new IllegalArgumentException("ACCESS_DENIED");
-        }
-
-        if (user.getRole() == UserRole.WAREHOUSE_MANAGER) {
-            List<Long> assignedWarehouseIds = userWarehouseAssignmentRepository.findWarehouseIdsByUserId(currentUserId);
-            if (!assignedWarehouseIds.contains(warehouseId)) {
-                throw new IllegalArgumentException("WAREHOUSE_SCOPE_FORBIDDEN");
-            }
         }
 
         // Ghi Audit Log ngoại lệ

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import reportService from '../../services/report.service';
+import { masterDataService } from '../../services/masterData.service';
 import { DollarSign, RefreshCw, Warehouse, FileSpreadsheet, AlertCircle, Loader2 } from 'lucide-react';
 import { WAREHOUSES } from '../../utils/constants';
 import Input from '../../components/common/Input';
@@ -10,6 +11,17 @@ const InventoryValuation = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedWarehouse, setSelectedWarehouse] = useState('');
+  const [warehousesList, setWarehousesList] = useState(WAREHOUSES);
+
+  useEffect(() => {
+    masterDataService.getWarehouses()
+      .then((res) => {
+        if (Array.isArray(res) && res.length > 0) {
+          setWarehousesList(res);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     fetchData();
@@ -34,7 +46,17 @@ const InventoryValuation = () => {
   };
 
   // Lọc chỉ lấy các kho vật lý
-  const physicalWarehouses = WAREHOUSES ? Object.values(WAREHOUSES).filter(w => w.type !== 'IN_TRANSIT') : [];
+  const physicalWarehouses = warehousesList.filter(
+    (w) => w.type !== 'IN_TRANSIT' && w.code !== 'IN_TRANSIT' && w.is_active !== false
+  );
+
+  const warehouseOptions = [
+    { value: '', label: 'Tất cả kho vật lý' },
+    ...physicalWarehouses.map((w) => ({
+      value: String(w.id),
+      label: w.name,
+    })),
+  ];
 
   return (
     <div className="flex flex-col gap-6">
@@ -59,12 +81,7 @@ const InventoryValuation = () => {
               type="select"
               value={selectedWarehouse}
               onChange={(e) => setSelectedWarehouse(e.target.value)}
-              options={[
-                { value: '', label: 'Tất cả kho vật lý' },
-                { value: '1', label: 'Kho Hải Phòng' },
-                { value: '2', label: 'Kho Hà Nội' },
-                { value: '3', label: 'Kho Hồ Chí Minh' },
-              ]}
+              options={warehouseOptions}
             />
           </div>
 

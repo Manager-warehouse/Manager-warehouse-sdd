@@ -117,7 +117,6 @@ class ReportServiceImplTest {
     @Test
     void getProductivityReport_validRole_returnsResponse() {
         when(userRepository.findById(3L)).thenReturn(Optional.of(warehouseManager));
-        when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(10L));
         when(warehouseRepository.findById(10L)).thenReturn(Optional.of(warehouse));
         when(outboundQcRecordRepository.findByWarehouseIdAndCreatedAtBetween(any(), any(), any())).thenReturn(List.of());
         when(deliveryOrderItemAllocationRepository.findByWarehouseIdAndCreatedAtBetween(any(), any(), any())).thenReturn(List.of());
@@ -145,13 +144,15 @@ class ReportServiceImplTest {
     }
 
     @Test
-    void getProductivityReport_invalidWarehouse_throwsException() {
-        when(userRepository.findById(3L)).thenReturn(Optional.of(warehouseManager));
-        when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(10L));
+    void getProductivityReport_unauthorizedRole_throwsException() {
+        User staff = new User();
+        staff.setId(4L);
+        staff.setRole(UserRole.WAREHOUSE_STAFF);
+        when(userRepository.findById(4L)).thenReturn(Optional.of(staff));
 
-        assertThatThrownBy(() -> service.getProductivityReport(20L, LocalDate.now().minusDays(5), LocalDate.now(), 3L))
+        assertThatThrownBy(() -> service.getProductivityReport(10L, LocalDate.now().minusDays(5), LocalDate.now(), 4L))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("WAREHOUSE_SCOPE_FORBIDDEN");
+                .hasMessage("ACCESS_DENIED");
     }
 }
 
