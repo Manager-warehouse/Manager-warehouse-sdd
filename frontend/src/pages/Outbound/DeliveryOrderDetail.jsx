@@ -23,9 +23,9 @@ import { ROLES } from '../../utils/constants';
 
 const DO_STATUS_MAP = {
   NEW: { label: 'Mới', color: 'bg-canvas-cream text-shade-70 border-hairline-light' },
-  WAITING_PICKING: { label: 'Chờ lấy hàng/QC', color: 'bg-info-50 text-info-700 border-info-200' },
-  QC_PENDING_APPROVAL: { label: 'Chờ duyệt QC', color: 'bg-violet-50 text-violet-700 border-violet-200' },
-  QC_COMPLETED: { label: 'QC xong', color: 'bg-success-50 text-success-700 border-success-200' },
+  WAITING_PICKING: { label: 'Chờ lấy hàng & kiểm định', color: 'bg-info-50 text-info-700 border-info-200' },
+  QC_PENDING_APPROVAL: { label: 'Chờ duyệt kiểm định', color: 'bg-violet-50 text-violet-700 border-violet-200' },
+  QC_COMPLETED: { label: 'Hoàn tất kiểm định', color: 'bg-success-50 text-success-700 border-success-200' },
   WAREHOUSE_APPROVED: { label: 'Chờ vận chuyển', color: 'bg-warning-50 text-warning-700 border-warning-200' },
   IN_TRANSIT: { label: 'Đang giao', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
   COMPLETED: { label: 'Đã giao', color: 'bg-success-50 text-success-900 border-success-300' },
@@ -278,7 +278,7 @@ export default function DeliveryOrderDetail() {
         <div className="flex flex-wrap items-center gap-3 ml-10 md:ml-0">
           {canOpenQc && (
             <button onClick={() => navigate(`/outbound/qc/${id}`)} className="btn-pill btn-pill-primary flex items-center gap-2">
-              <PackageSearch className="w-4 h-4" /> Nhập kết quả lấy hàng/QC
+              <PackageSearch className="w-4 h-4" /> Nhập kết quả lấy hàng & kiểm định
             </button>
           )}
 
@@ -318,7 +318,7 @@ export default function DeliveryOrderDetail() {
         <div className="bg-violet-50 border border-violet-200 rounded-lg p-4 flex items-center gap-3">
           <CheckCircle2 className="w-4 h-4 text-violet-700 shrink-0" />
           <p className="text-xs font-semibold text-violet-900">
-            Nhân viên kho đã gửi kết quả lấy hàng/QC. Thủ kho rà soát và duyệt chất lượng trước khi chuyển bước tiếp.
+            Nhân viên kho đã gửi kết quả lấy hàng & kiểm định. Thủ kho rà soát và duyệt chất lượng trước khi chuyển bước tiếp.
           </p>
         </div>
       )}

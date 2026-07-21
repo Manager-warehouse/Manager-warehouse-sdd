@@ -224,7 +224,7 @@ const DealerDebtInvoice = () => {
                             className="inline-flex min-h-10 items-center justify-center gap-1 rounded-md bg-aloe-10 px-2 text-[11px] font-semibold text-ink"
                           >
                             <Eye className="w-3.5 h-3.5" />
-                            POD
+                            Biên bản giao nhận
                           </button>
                           <Button
                             variant="primary"
@@ -244,11 +244,11 @@ const DealerDebtInvoice = () => {
                 <table className="w-full border-collapse text-left text-xs">
                   <thead>
                     <tr className="bg-canvas-light border-b border-hairline-light text-shade-60 font-semibold uppercase tracking-wider">
-                      <th className="p-4">Số đơn (DO)</th>
+                      <th className="p-4">Số đơn xuất</th>
                       <th className="p-4">Đại lý</th>
                       <th className="p-4">Thời điểm giao</th>
                       <th className="p-4 text-right">Giá trị ước tính (VND)</th>
-                      <th className="p-4 text-center">Bằng chứng POD</th>
+                      <th className="p-4 text-center">Bằng chứng giao hàng</th>
                       <th className="p-4 text-right">Thao tác</th>
                     </tr>
                   </thead>
@@ -383,7 +383,7 @@ const DealerDebtInvoice = () => {
                     <thead>
                       <tr className="bg-canvas-light border-b border-hairline-light text-shade-60 font-semibold uppercase tracking-wider">
                         <th className="p-4">Số hóa đơn</th>
-                        <th className="p-4">Số đơn giao (DO)</th>
+                        <th className="p-4">Số đơn giao hàng</th>
                         <th className="p-4">Đại lý</th>
                         <th className="p-4">Ngày phát hành</th>
                         <th className="p-4">Hạn thanh toán</th>
@@ -564,7 +564,7 @@ const DealerDebtInvoice = () => {
               <div className="flex flex-col gap-2 p-3 bg-aloe-10/10 border border-aloe-10/30 rounded-md">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-ink" />
-                  <span className="text-xs font-semibold text-ink uppercase tracking-wider">Xác nhận bằng mã OTP (Spec 004)</span>
+                  <span className="text-xs font-semibold text-ink uppercase tracking-wider">Xác nhận bằng mã OTP</span>
                 </div>
                 <div className="text-xs text-shade-70 font-light mt-1">
                   Đại lý đã nhập mã xác thực thành công lúc: <strong className="text-ink font-semibold">{new Date(selectedNotif.otp_verified_at).toLocaleString('vi-VN')}</strong>
@@ -575,11 +575,11 @@ const DealerDebtInvoice = () => {
               <div className="flex flex-col gap-2">
                 <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest flex items-center gap-1.5">
                   <ImageIcon className="w-3.5 h-3.5" />
-                  Ảnh chụp thực tế lúc giao hàng (POD Photo)
+                  Ảnh chụp thực tế lúc giao hàng
                 </span>
                 <div className="border border-hairline-light rounded overflow-hidden aspect-video bg-canvas-cream relative flex items-center justify-center">
                   {selectedNotif.pod_image_url ? (
-                    <img src={selectedNotif.pod_image_url} alt="POD Photo" className="object-cover w-full h-full" />
+                    <img src={selectedNotif.pod_image_url} alt="Ảnh biên bản giao nhận" className="object-cover w-full h-full" />
                   ) : (
                     <span className="text-shade-40 text-xs italic">Không tìm thấy ảnh bàn giao</span>
                   )}
@@ -602,7 +602,7 @@ const DealerDebtInvoice = () => {
               </div>
 
               <div className="text-[11px] text-shade-40 italic text-center">
-                Thời gian tài xế cập nhật POD: {new Date(selectedNotif.pod_timestamp).toLocaleString('vi-VN')}
+                Thời gian tài xế cập nhật biên bản giao nhận: {new Date(selectedNotif.pod_timestamp).toLocaleString('vi-VN')}
               </div>
             </div>
             <div className="p-4 border-t border-hairline-light bg-canvas-cream flex justify-end">
@@ -623,7 +623,7 @@ const DealerDebtInvoice = () => {
             <div className="p-6 flex flex-col gap-4">
               <Input
                 id="modalDoNumber"
-                label="Mã đơn giao hàng (DO)"
+                label="Mã đơn giao hàng"
                 value={invoiceForm.doNumber}
                 disabled
               />

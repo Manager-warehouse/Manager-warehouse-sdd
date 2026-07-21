@@ -205,7 +205,7 @@ const ReceiptForm = () => {
         </button>
 
         <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
-          Vận hành / Inbound
+          Vận hành / Nhập kho
         </span>
         <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">
           Lập lệnh nhập kho thô
@@ -229,8 +229,8 @@ const ReceiptForm = () => {
               }}
               className="text-input"
             >
-              <option value="PURCHASE">Nhập mua (PO)</option>
-              <option value="RETURN">Nhập trả (DO hoàn)</option>
+              <option value="PURCHASE">Nhập mua</option>
+              <option value="RETURN">Nhập trả</option>
             </select>
           </div>
 

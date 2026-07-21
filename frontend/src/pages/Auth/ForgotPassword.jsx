@@ -94,7 +94,7 @@ const ForgotPassword = () => {
             <Shield className="w-6 h-6 stroke-[2.5]" />
           </div>
           <span className="font-display font-bold text-xl tracking-tight uppercase">
-            Phúc Anh WMS
+            Quản Lý Kho
           </span>
         </div>
 
@@ -115,7 +115,7 @@ const ForgotPassword = () => {
 
         {/* Version info */}
         <div className="relative text-xs text-shade-50 z-10">
-          &copy; {new Date().getFullYear()} Phúc Anh Computer. Phiên bản 1.0.0 (Sprint 1)
+          &copy; {new Date().getFullYear()} Quản Lý Kho. Phiên bản 1.0.0 (Sprint 1)
         </div>
       </div>
 
@@ -153,7 +153,7 @@ const ForgotPassword = () => {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Ví dụ: admin@phucanh.vn"
+                  placeholder="Ví dụ: admin@quanlykho.vn"
                   className="!bg-canvas-nightElevated !text-onPrimary !border-hairline-dark focus:!ring-onPrimary focus:!border-onPrimary placeholder-shade-60"
                   required
                 />

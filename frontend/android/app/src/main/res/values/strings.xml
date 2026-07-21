@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Phúc Anh WMS</string>
-    <string name="title_activity_main">Phúc Anh WMS</string>
-    <string name="package_name">vn.phucanh.wms</string>
-    <string name="custom_url_scheme">vn.phucanh.wms</string>
+    <string name="app_name">Quản Lý Kho</string>
+    <string name="title_activity_main">Quản Lý Kho</string>
+    <string name="package_name">vn.quanlykho.wms</string>
+    <string name="custom_url_scheme">vn.quanlykho.wms</string>
 </resources>

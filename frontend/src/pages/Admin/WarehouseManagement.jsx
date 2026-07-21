@@ -475,11 +475,11 @@ const WarehouseManagement = () => {
                             {bin.is_quarantine ? (
                               <Badge type="warning">
                                 <span className="inline-flex items-center gap-1">
-                                  <ShieldAlert className="w-2.5 h-2.5" /> Quarantine
+                                  <ShieldAlert className="w-2.5 h-2.5" /> Hàng cách ly
                                 </span>
                               </Badge>
                             ) : (
-                              <Badge type="success">Storage Bin</Badge>
+                              <Badge type="success">Ô cất kệ</Badge>
                             )}
                           </td>
                           <td className="px-6 py-4">
@@ -537,11 +537,11 @@ const WarehouseManagement = () => {
                         {bin.is_quarantine ? (
                           <Badge type="warning">
                             <span className="inline-flex items-center gap-1">
-                              <ShieldAlert className="w-2.5 h-2.5" /> Quarantine
+                              <ShieldAlert className="w-2.5 h-2.5" /> Hàng cách ly
                             </span>
                           </Badge>
                         ) : (
-                          <Badge type="success">Storage Bin</Badge>
+                          <Badge type="success">Ô cất kệ</Badge>
                         )}
                         <Badge type={bin.is_active ? 'success' : 'neutral'} className="text-[9px]">
                           {bin.is_active ? 'Hoạt động' : 'Khóa'}
@@ -598,7 +598,7 @@ const WarehouseManagement = () => {
         <form onSubmit={handleWhSubmit} className="flex flex-col gap-4">
           <div className="grid grid-cols-2 gap-4">
             <Input
-              label="Mã kho (Unique)"
+              label="Mã kho"
               value={whCode}
               onChange={(e) => setWhCode(e.target.value.toUpperCase())}
               disabled={whModalType === 'EDIT'}
@@ -612,8 +612,8 @@ const WarehouseManagement = () => {
               value={whType}
               onChange={(e) => setWhType(e.target.value)}
               options={[
-                { value: 'PHYSICAL', label: 'Vật lý (Physical)' },
-                { value: 'IN_TRANSIT', label: 'Đang đi đường (In-Transit)' },
+                { value: 'PHYSICAL', label: 'Kho vật lý' },
+                { value: 'IN_TRANSIT', label: 'Kho đang đi đường' },
               ]}
             />
           </div>
@@ -622,7 +622,7 @@ const WarehouseManagement = () => {
             value={whName}
             onChange={(e) => setWhName(e.target.value)}
             error={whFormErrors.name}
-            placeholder="VD: Kho Hải Phòng - Phúc Anh"
+            placeholder="VD: Kho Hải Phòng"
             required
           />
           <Input
@@ -733,7 +733,7 @@ const WarehouseManagement = () => {
               className="w-4 h-4 rounded border-hairline-light text-ink focus:ring-ink"
             />
             <div className="flex flex-col">
-              <span className="text-xs font-bold text-ink">Khu vực kiểm định cách ly (Quarantine Zone)</span>
+              <span className="text-xs font-bold text-ink">Khu vực kiểm định cách ly</span>
               <span className="text-[10px] text-shade-50 leading-none">Chỉ dùng để chứa hàng hóa chưa qua QC hoặc QC thất bại</span>
             </div>
           </label>

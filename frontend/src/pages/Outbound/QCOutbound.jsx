@@ -73,7 +73,7 @@ export default function QCOutbound() {
 
   const handleConfirmQC = async () => {
     if (!qcRows.length) {
-      addToast('Đơn này chưa có dòng phân bổ để ghi nhận lấy hàng/QC', 'error');
+      addToast('Đơn này chưa có dòng phân bổ để ghi nhận lấy hàng & kiểm định', 'error');
       return;
     }
 
@@ -85,7 +85,7 @@ export default function QCOutbound() {
 
     const missingFailReason = qcRows.some((row) => row.result === 'FAILED' && !row.reason.trim());
     if (missingFailReason) {
-      addToast('Vui lòng nhập lý do cho các dòng không đạt QC', 'error');
+      addToast('Vui lòng nhập lý do cho các dòng không đạt kiểm định', 'error');
       return;
     }
 
@@ -97,17 +97,17 @@ export default function QCOutbound() {
 
     const missingQuarantineLocation = qcRows.some((row) => row.result === 'FAILED' && !row.quarantine_location_id);
     if (missingQuarantineLocation) {
-      addToast('Vui lòng chọn vị trí cách ly cho các dòng không đạt QC', 'error');
+      addToast('Vui lòng chọn vị trí cách ly cho các dòng không đạt kiểm định', 'error');
       return;
     }
 
     setSubmitting(true);
     try {
       await outboundService.confirmQCOutbound(id, { items: qcRows });
-      addToast('Hoàn tất QC xuất kho', 'success');
+      addToast('Hoàn tất kiểm định xuất kho', 'success');
       navigate(`/outbound/delivery-orders/${id}`);
     } catch (error) {
-      addToast(error.message || 'Lỗi khi hoàn tất QC', 'error');
+      addToast(error.message || 'Lỗi khi hoàn tất kiểm định', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -138,10 +138,10 @@ export default function QCOutbound() {
         </button>
         <div>
           <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
-            Vận hành / Xuất kho / QC Outbound
+            Vận hành / Xuất kho / Kiểm định xuất kho
           </span>
           <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">
-            Ghi nhận lấy hàng/QC theo phân bổ: {order.do_number}
+            Ghi nhận lấy hàng & kiểm định theo phân bổ: {order.do_number}
           </h1>
           <p className="text-xs text-shade-50 font-light mt-1">
             Đại lý: <span className="font-semibold text-ink">{order.dealer_name}</span>
@@ -153,7 +153,7 @@ export default function QCOutbound() {
         <div className="bg-danger-50 border border-danger-200 rounded-lg p-4 flex items-center gap-3">
           <AlertCircle className="w-5 h-5 text-danger-600 shrink-0" />
           <p className="text-sm text-danger-700 font-medium">
-            <span className="font-bold">{failCount}</span> dòng phân bổ đang được đánh dấu không đạt QC.
+            <span className="font-bold">{failCount}</span> dòng phân bổ đang được đánh dấu không đạt kiểm định.
             Nhập đầy đủ lý do và vị trí cách ly.
           </p>
         </div>
@@ -196,7 +196,7 @@ export default function QCOutbound() {
                               : 'bg-canvas-light border-hairline-light text-shade-50 hover:bg-canvas-cream'
                           }`}
                         >
-                          Đạt QC
+                          Đạt kiểm định
                         </button>
                         <button
                           onClick={() => updateRow(row.id, 'result', 'FAILED')}
@@ -206,7 +206,7 @@ export default function QCOutbound() {
                               : 'bg-canvas-light border-hairline-light text-shade-50 hover:bg-canvas-cream'
                           }`}
                         >
-                          Không đạt QC
+                          Không đạt kiểm định
                         </button>
                       </div>
                     </div>
@@ -244,7 +244,7 @@ export default function QCOutbound() {
                     {isFailed && (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-xs font-semibold text-danger-700 mb-1.5">Lý do không đạt QC *</label>
+                          <label className="block text-xs font-semibold text-danger-700 mb-1.5">Lý do không đạt kiểm định *</label>
                           <input
                             type="text"
                             value={row.reason}
@@ -286,7 +286,7 @@ export default function QCOutbound() {
             {submitting ? (
               <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Đang gửi...</>
             ) : (
-              <><Check className="w-3.5 h-3.5" /> Gửi kết quả lấy hàng/QC</>
+              <><Check className="w-3.5 h-3.5" /> Gửi kết quả lấy hàng & kiểm định</>
             )}
           </button>
         </div>

@@ -434,7 +434,7 @@ const FleetManagement = () => {
             Đội xe & Tài xế nội bộ
           </h1>
           <p className="text-xs text-shade-50 font-light mt-1">
-            Quản lý đội ngũ phương tiện vận tải nội bộ Phúc Anh và thông tin giấy phép lái xe, trạng thái làm việc của tài xế.
+            Quản lý đội ngũ phương tiện vận tải nội bộ và thông tin giấy phép lái xe, trạng thái làm việc của tài xế.
           </p>
         </div>
         <div>
@@ -465,7 +465,7 @@ const FleetManagement = () => {
           }`}
         >
           <Truck className="w-4 h-4" />
-          Phương tiện vận tải (Vehicles)
+          Phương tiện vận tải
         </button>
         <button
           onClick={() => { setActiveTab('DRIVERS'); setSearchTerm(''); }}
@@ -476,7 +476,7 @@ const FleetManagement = () => {
           }`}
         >
           <UserCheck className="w-4 h-4" />
-          Đội ngũ Tài xế (Drivers)
+          Đội ngũ Tài xế
         </button>
       </div>
 
@@ -774,7 +774,7 @@ const FleetManagement = () => {
         <form onSubmit={handleVhSubmit} className="flex flex-col gap-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
-              label="Biển số xe (Unique)"
+              label="Biển số xe"
               value={vhPlateNumber}
               onChange={(e) => setVhPlateNumber(e.target.value.toUpperCase())}
               disabled={vhModalType === 'EDIT'}

@@ -66,7 +66,7 @@ const getMockAuditLogs = () => {
       warehouseId: 1,
       warehouseCode: 'HP-01',
       oldValue: null,
-      newValue: { email: 'manager_hp@phucanh.vn', role: 'WAREHOUSE_MANAGER' },
+      newValue: { email: 'manager_hp@quanlykho.vn', role: 'WAREHOUSE_MANAGER' },
       ipAddress: '127.0.0.1'
     }
   ];

@@ -274,7 +274,7 @@ const InterWarehouseTransferWorkspace = () => {
         }),
       };
       const created = await interWarehouseTransferService.createTransfer(payload);
-      addToast('Đã tạo phiếu điều chuyển NEW', 'success');
+      addToast('Đã tạo phiếu điều chuyển thành công', 'success');
       setFormOpen(false);
       await loadData();
       setSelectedId(created.id);
@@ -324,7 +324,7 @@ const InterWarehouseTransferWorkspace = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-4 flex-wrap">
         <div className="flex-1 min-w-0">
           <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
-            Vận hành / Transfer
+            Vận hành / Điều chuyển
           </span>
           <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">
             Điều chuyển nội bộ
@@ -375,7 +375,7 @@ const InterWarehouseTransferWorkspace = () => {
             ))}
             <div className="flex gap-2">
               <Button variant="outline-light" onClick={() => setForm((current) => ({ ...current, items: [...current.items, { productId: '', plannedQty: 1 }] }))}>Thêm dòng</Button>
-              <Button onClick={createTransfer}>Lưu phiếu NEW</Button>
+              <Button onClick={createTransfer}>Lưu phiếu</Button>
             </div>
           </div>
         </div>

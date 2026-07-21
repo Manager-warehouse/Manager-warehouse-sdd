@@ -263,8 +263,8 @@ const PutawayPlan = () => {
             <ArrowLeft className="w-4 h-4" />
             <span>Quay lại danh sách</span>
           </button>
-          <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">Vận hành / Inbound</span>
-          <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">Kế hoạch cất kệ (Putaway)</h1>
+          <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">Vận hành / Nhập kho</span>
+          <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">Kế hoạch cất kệ</h1>
         </div>
 
         {/* Already completed banner */}
@@ -383,10 +383,10 @@ const PutawayPlan = () => {
           </button>
 
           <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
-            Vận hành / Inbound
+            Vận hành / Nhập kho
           </span>
           <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">
-            Kế hoạch cất kệ (Putaway)
+            Kế hoạch cất kệ
           </h1>
         </div>
 
@@ -433,7 +433,7 @@ const PutawayPlan = () => {
                   <tr className="bg-canvas-cream border-b border-hairline-light">
                     <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Sản phẩm</th>
                     <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right w-24">Số lượng đạt</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 w-56">Chọn ô kệ cất hàng (Bin)</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 w-56">Chọn ô kệ cất hàng</th>
                     <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 w-72">Sức chứa ô kệ dự kiến</th>
                   </tr>
                 </thead>
@@ -559,7 +559,7 @@ const PutawayPlan = () => {
               ) : (
                 <>
                   <Check className="w-4 h-4" />
-                  <span>Hoàn tất cất kệ (Putaway)</span>
+                  <span>Hoàn tất cất kệ</span>
                 </>
               )}
             </button>
