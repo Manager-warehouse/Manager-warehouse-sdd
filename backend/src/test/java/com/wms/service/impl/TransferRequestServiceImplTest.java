@@ -264,7 +264,7 @@ class TransferRequestServiceImplTest {
                 null, null, null, null, null, null, null, null, null, false, false, null,
                 null, null, null, null, false, null, null, List.of()
         );
-        when(transferService.createTransfer(any(InterWarehouseTransferCreateRequest.class), eq(planner)))
+        when(transferService.createTransferFromApprovedRequest(any(InterWarehouseTransferCreateRequest.class), eq(planner)))
                 .thenReturn(transferResponse);
         InterWarehouseTransfer transfer = new InterWarehouseTransfer();
         transfer.setId(88L);
@@ -279,7 +279,8 @@ class TransferRequestServiceImplTest {
         assertThat(response.convertedTransferId()).isEqualTo(88L);
         assertThat(request.getConvertedBy()).isEqualTo(planner);
         assertThat(transfer.getTransferRequest()).isEqualTo(request);
-        verify(transferService, times(1)).createTransfer(any(InterWarehouseTransferCreateRequest.class), eq(planner));
+        verify(transferService, times(1))
+                .createTransferFromApprovedRequest(any(InterWarehouseTransferCreateRequest.class), eq(planner));
         verify(interWarehouseTransferRepository).save(transfer);
     }
 
@@ -295,7 +296,7 @@ class TransferRequestServiceImplTest {
                 .isInstanceOf(BusinessRuleViolationException.class)
                 .hasMessageContaining("TRANSFER_REQUEST_ALREADY_CONVERTED");
 
-        verify(transferService, never()).createTransfer(any(), any());
+        verify(transferService, never()).createTransferFromApprovedRequest(any(), any());
     }
 
     @Test

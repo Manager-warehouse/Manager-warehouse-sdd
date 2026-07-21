@@ -61,6 +61,12 @@ public class InterWarehouseTransferServiceImpl implements InterWarehouseTransfer
     }
 
     @Override
+    public InterWarehouseTransferResponse createTransferFromApprovedRequest(InterWarehouseTransferCreateRequest request,
+            User actor) {
+        return planningService.createTransferFromApprovedRequest(request, actor);
+    }
+
+    @Override
     public InterWarehouseTransferResponse updateTransfer(Long id, InterWarehouseTransferUpdateRequest request,
             User actor) {
         return planningService.updateTransfer(id, request, actor);

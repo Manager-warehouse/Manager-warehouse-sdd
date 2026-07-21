@@ -11,19 +11,16 @@ import com.wms.entity.SystemConfig;
 import com.wms.entity.User;
 import com.wms.enums.AuditAction;
 import com.wms.enums.CreditStatus;
-import com.wms.enums.InvoiceStatus;
 import com.wms.enums.SystemConfigKey;
 import com.wms.exception.BusinessRuleViolationException;
 import com.wms.exception.DuplicateResourceException;
 import com.wms.exception.ResourceNotFoundException;
 import com.wms.mapper.DealerMapper;
 import com.wms.repository.DealerRepository;
-import com.wms.repository.InvoiceRepository;
 import com.wms.repository.SystemConfigRepository;
 import com.wms.service.DealerService;
 import com.wms.util.PartnerAuditUtil;
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
@@ -38,18 +35,15 @@ public class DealerServiceImpl implements DealerService {
 
     private final DealerRepository dealerRepository;
     private final SystemConfigRepository systemConfigRepository;
-    private final InvoiceRepository invoiceRepository;
     private final DealerMapper dealerMapper;
     private final PartnerAuditUtil auditUtil;
 
     public DealerServiceImpl(DealerRepository dealerRepository,
                              SystemConfigRepository systemConfigRepository,
-                             InvoiceRepository invoiceRepository,
                              DealerMapper dealerMapper,
                              PartnerAuditUtil auditUtil) {
         this.dealerRepository = dealerRepository;
         this.systemConfigRepository = systemConfigRepository;
-        this.invoiceRepository = invoiceRepository;
         this.dealerMapper = dealerMapper;
         this.auditUtil = auditUtil;
     }
@@ -208,9 +202,9 @@ public class DealerServiceImpl implements DealerService {
         return dealerMapper.toResponse(saved);
     }
 
-    // Manual unlock to ACTIVE must satisfy the same two conditions as the automatic unlock:
-    // balance below the credit-limit buffer AND no invoice still overdue past the hold
-    // threshold. Locking to CREDIT_HOLD has no precondition — a manager can always tighten credit.
+    // Manual unlock to ACTIVE must satisfy the same balance condition as the automatic unlock
+    // (CRD-03, business.md): current balance below the credit-limit buffer. Locking to
+    // CREDIT_HOLD has no precondition — a manager can always tighten credit.
     private void requireUnlockEligible(Dealer dealer) {
         BigDecimal currentBalance = dealer.getCurrentBalance() != null ? dealer.getCurrentBalance() : BigDecimal.ZERO;
         BigDecimal creditLimit = dealer.getCreditLimit() != null ? dealer.getCreditLimit() : BigDecimal.ZERO;
@@ -219,15 +213,6 @@ public class DealerServiceImpl implements DealerService {
         if (currentBalance.compareTo(unlockThreshold) >= 0) {
             throw new BusinessRuleViolationException("Cannot unlock dealer: current balance " + currentBalance
                     + " is not below the unlock threshold " + unlockThreshold);
-        }
-
-        int overdueDays = resolveIntConfig(SystemConfigKey.CREDIT_HOLD_OVERDUE_DAYS, 30);
-        LocalDate overdueThreshold = LocalDate.now().minusDays(overdueDays);
-        boolean hasOverdue = invoiceRepository.existsByDealerIdAndStatusInAndDueDateBefore(
-                dealer.getId(), List.of(InvoiceStatus.UNPAID, InvoiceStatus.PARTIALLY_PAID), overdueThreshold);
-        if (hasOverdue) {
-            throw new BusinessRuleViolationException(
-                    "Cannot unlock dealer: at least one invoice is overdue more than " + overdueDays + " days");
         }
     }
 

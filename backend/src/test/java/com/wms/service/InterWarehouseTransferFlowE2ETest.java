@@ -343,7 +343,7 @@ class InterWarehouseTransferFlowE2ETest {
                 LocalDate.now(), LocalDate.now(), null, null, false, false, null, null, null,
                 null, "Cần chảo gấp cho Hà Nội", false, OffsetDateTime.now(), OffsetDateTime.now(), List.of()
         );
-        when(mockTransferService.createTransfer(any(InterWarehouseTransferCreateRequest.class), eq(planner)))
+        when(mockTransferService.createTransferFromApprovedRequest(any(InterWarehouseTransferCreateRequest.class), eq(planner)))
                 .thenReturn(mockTrfRes);
         when(transferRepository.findById(800L)).thenReturn(Optional.of(transfer));
         TransferRequestResponse convertedResponse = requestService.convertToTransfer(transferRequest.getId(), planner);
