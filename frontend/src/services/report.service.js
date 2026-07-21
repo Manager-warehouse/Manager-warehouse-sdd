@@ -33,23 +33,6 @@ const MOCK_VALUATION = {
   ]
 };
 
-const MOCK_PRODUCTIVITY = {
-  warehouse_id: 1,
-  warehouse_name: 'Kho Hải Phòng',
-  start_date: '2026-06-01',
-  end_date: '2026-06-15',
-  staff_productivity: [
-    { employee_code: 'NV-008', full_name: 'Trần Văn Bằng', role: 'WAREHOUSE_STAFF', picking_runs_count: 45, total_picked_qty: 2350.00 },
-    { employee_code: 'NV-012', full_name: 'Lê Văn Cường', role: 'WAREHOUSE_STAFF', picking_runs_count: 38, total_picked_qty: 1980.00 }
-  ],
-  storekeeper_productivity: [
-    { employee_code: 'TK-002', full_name: 'Nguyễn Thị Mai', role: 'STOREKEEPER', picking_plans_created: 28, total_qc_checked_qty: 4330.00 }
-  ],
-  driver_productivity: [
-    { employee_code: 'TX-005', full_name: 'Phạm Văn Đông', role: 'DRIVER', trips_completed: 15, successful_deliveries: 42 }
-  ]
-};
-
 const MOCK_ALERTS = {
   content: [
     { id: 105, warehouse_id: 1, warehouse_name: 'Kho Hải Phòng', product_id: 42, product_sku: 'POT-001', product_name: 'Nồi inox 3 đáy Supor', current_qty: 45.00, reorder_point: 100.00, alert_type: 'LOW_STOCK', is_resolved: false, resolved_at: null, created_at: new Date().toISOString() },
@@ -129,40 +112,6 @@ const normalizeInventoryValuation = (data = {}) => {
   };
 };
 
-const normalizeProductivityReport = (data = {}) => {
-  const rawStaff = asArray(value(data, 'staffProductivity', 'staff_productivity', []));
-  const rawSk = asArray(value(data, 'storekeeperProductivity', 'storekeeper_productivity', []));
-  const rawDriver = asArray(value(data, 'driverProductivity', 'driver_productivity', []));
-  
-  return {
-    warehouse_id: value(data, 'warehouseId', 'warehouse_id'),
-    warehouse_name: value(data, 'warehouseName', 'warehouse_name', ''),
-    start_date: value(data, 'startDate', 'start_date', ''),
-    end_date: value(data, 'endDate', 'end_date', ''),
-    staff_productivity: rawStaff.map(p => ({
-      employee_code: value(p, 'employeeCode', 'employee_code', ''),
-      full_name: value(p, 'fullName', 'full_name', ''),
-      role: value(p, 'role', 'role', ''),
-      picking_runs_count: Number(value(p, 'pickingRunsCount', 'picking_runs_count', 0)),
-      total_picked_qty: Number(value(p, 'totalPickedQty', 'total_picked_qty', 0))
-    })),
-    storekeeper_productivity: rawSk.map(p => ({
-      employee_code: value(p, 'employeeCode', 'employee_code', ''),
-      full_name: value(p, 'fullName', 'full_name', ''),
-      role: value(p, 'role', 'role', ''),
-      picking_plans_created: Number(value(p, 'pickingPlansCreated', 'picking_plans_created', 0)),
-      total_qc_checked_qty: Number(value(p, 'totalQcCheckedQty', 'total_qc_checked_qty', 0))
-    })),
-    driver_productivity: rawDriver.map(p => ({
-      employee_code: value(p, 'employeeCode', 'employee_code', ''),
-      full_name: value(p, 'fullName', 'full_name', ''),
-      role: value(p, 'role', 'role', ''),
-      trips_completed: Number(value(p, 'tripsCompleted', 'trips_completed', 0)),
-      successful_deliveries: Number(value(p, 'successfulDeliveries', 'successful_deliveries', 0))
-    }))
-  };
-};
-
 const normalizeLowStockAlerts = (data = {}) => {
   const rawContent = asArray(value(data, 'content', 'content', []));
   return {
@@ -205,35 +154,6 @@ const reportService = {
     const query = warehouseId ? `?warehouseId=${warehouseId}` : '';
     const response = await apiClient.get(`/reports/inventory-valuation${query}`);
     return normalizeInventoryValuation(response.data);
-  },
-
-  async getProductivityReport(warehouseId, startDate, endDate) {
-    if (USE_MOCK) {
-      await delay(400);
-      return normalizeProductivityReport(MOCK_PRODUCTIVITY);
-    }
-    const response = await apiClient.get(`/reports/productivity`, {
-      params: { warehouseId, startDate, endDate }
-    });
-    return normalizeProductivityReport(response.data);
-  },
-
-  async exportProductivityExcel(warehouseId, startDate, endDate) {
-    if (USE_MOCK) {
-      await delay(500);
-      alert('Mock Export Excel: Tải file thành công!');
-      return;
-    }
-    const response = await apiClient.get(`/reports/productivity/export`, {
-      params: { warehouseId, startDate, endDate },
-      responseType: 'blob'
-    });
-    const url = URL.createObjectURL(response.data);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Productivity_Report_WH${warehouseId}_${startDate}_${endDate}.xlsx`;
-    a.click();
-    URL.revokeObjectURL(url);
   },
 
   async getLowStockAlerts(params = {}) {

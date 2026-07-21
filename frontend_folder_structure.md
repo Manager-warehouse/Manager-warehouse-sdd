@@ -23,7 +23,7 @@ frontend/
 │   │   ├── Inbound/                 # 003 + 009: receipt, QC, putaway, quarantine, return
 │   │   ├── InterWarehouseTransfer/  # 005: request/workspace/actions/status
 │   │   ├── Outbound/                # 004: DO, picking, QC, trip, driver
-│   │   ├── Reports/                 # 010: CEO dashboard, valuation, alerts, productivity
+│   │   ├── Reports/                 # 010: CEO dashboard, valuation, alerts
 │   │   ├── Stocktake/               # 006: list, form, detail
 │   │   ├── Forbidden/               # RBAC denial state
 │   │   ├── Profile/                 # current user profile
@@ -50,7 +50,7 @@ frontend/
 | 005 | `pages/InterWarehouseTransfer` | Transfer request, ship/receive workflow và trạng thái. |
 | 006 | `pages/Stocktake` | Count, variance, approval. |
 | 007–008 | `pages/Finance`, `services/finance.service.js`, `services/pricing.service.js` | Pricing, COGS, invoice/debt/payment. |
-| 010 | `pages/Reports`, `pages/Dashboard.jsx`, `services/report.service.js` | Dashboard, valuation, alert, productivity. |
+| 010 | `pages/Reports`, `pages/Dashboard.jsx`, `services/report.service.js` | Dashboard, valuation, alert. |
 | 011 | CI/backend concern | Không tạo page frontend. |
 | 012 | `tests/`, `src/**/*.test.js`, `vitest` scripts | Vitest + RTL; utility, store, admin và transfer tests. |
 
