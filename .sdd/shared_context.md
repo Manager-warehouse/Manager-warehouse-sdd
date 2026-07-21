@@ -48,7 +48,7 @@
 | Thuật ngữ         | Định nghĩa                                                                                      |
 | ----------------- | ----------------------------------------------------------------------------------------------- |
 | **Batch**         | Lô hàng gom theo sản phẩm, nguồn nhập/chứng từ và ngày nhận; domain hiện tại không quản lý hạn dùng hoặc grade |
-| **Bin Location**  | Vị trí kệ trong kho — mã hóa WH-Zone.Rack.Shelf.Bin                                             |
+| **Bin Location**  | Vị trí ô kệ trong kho — mã hóa WH-Zone.Bin                                                       |
 | **Putaway**       | Quy trình cất hàng vào Bin sau khi QC đạt                                                       |
 | **FEFO**          | Ngoài phạm vi hiện tại vì hàng gia dụng không quản lý hạn sử dụng                               |
 | **FIFO**          | First In First Out — ưu tiên xuất batch nhập trước                                              |

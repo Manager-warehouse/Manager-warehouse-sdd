@@ -130,6 +130,29 @@ public class ProductServiceImpl implements ProductService {
         auditLogService.log(actor, AuditAction.SOFT_DELETE, "Product", product.getId(), product.getSku(), null, oldMap, toMap(product));
     }
 
+    @Override
+    @Transactional
+    public ProductResponse reactivateProduct(Long id, Long updatedByUserId) {
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("PRODUCT_NOT_FOUND"));
+
+        if (Boolean.TRUE.equals(product.getIsActive())) {
+            return toResponse(product);
+        }
+
+        User actor = resolveUser(updatedByUserId);
+        Map<String, Object> oldMap = toMap(product);
+
+        product.setIsActive(true);
+        product.setUpdatedBy(actor);
+        Product saved = productRepository.save(product);
+        applyPersistenceMetadata(product, saved);
+
+        auditLogService.log(actor, AuditAction.UPDATE, "Product", product.getId(), product.getSku(), null, oldMap, toMap(product));
+
+        return toResponse(product);
+    }
+
     private User resolveUser(Long userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("USER_NOT_FOUND"));

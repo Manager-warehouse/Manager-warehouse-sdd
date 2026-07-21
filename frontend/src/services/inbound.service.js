@@ -166,7 +166,7 @@ const INITIAL_RECEIPT_ITEMS = [
   {
     id: 1,
     receipt_id: 1,
-    product_id: 1, // ASUS Monitor ProArt (has_serial = true)
+    product_id: 1, // ASUS Monitor ProArt
     batch_id: 1,
     location_id: null, // Chưa putaway
     expected_qty: 100.00,
@@ -175,15 +175,13 @@ const INITIAL_RECEIPT_ITEMS = [
     qc_failed_qty: 20.00,
     qc_result: "PARTIAL",
     qc_failure_reason: "20 cái móp méo vỏ bọc",
-    grade: "A",
     unit_cost: 8500000.00,
-    serial_number: "SR-PA278-001,SR-PA278-002,SR-PA278-003", // Serial numbers
     quarantine_status: "PENDING" // PENDING, RTV_COMPLETED, DISPOSED
   },
   {
     id: 2,
     receipt_id: 2,
-    product_id: 2, // Logitech MX Master 3S (has_serial = false)
+    product_id: 2, // Logitech MX Master 3S
     batch_id: null,
     location_id: null,
     expected_qty: 200.00,
@@ -192,9 +190,7 @@ const INITIAL_RECEIPT_ITEMS = [
     qc_failed_qty: 0.00,
     qc_result: "PASSED",
     qc_failure_reason: null,
-    grade: "A",
     unit_cost: 2100000.00,
-    serial_number: null,
     quarantine_status: "PENDING"
   },
   {
@@ -209,9 +205,7 @@ const INITIAL_RECEIPT_ITEMS = [
     qc_failed_qty: null,
     qc_result: "PENDING",
     qc_failure_reason: null,
-    grade: null,
     unit_cost: 8500000.00,
-    serial_number: null,
     quarantine_status: "PENDING"
   },
   {
@@ -226,9 +220,7 @@ const INITIAL_RECEIPT_ITEMS = [
     qc_failed_qty: null,
     qc_result: "PENDING",
     qc_failure_reason: null,
-    grade: null,
     unit_cost: 2100000.00,
-    serial_number: null,
     quarantine_status: "PENDING"
   },
   {
@@ -243,9 +235,7 @@ const INITIAL_RECEIPT_ITEMS = [
     qc_failed_qty: null,
     qc_result: "PENDING",
     qc_failure_reason: null,
-    grade: null,
     unit_cost: 8500000.00,
-    serial_number: null,
     quarantine_status: "PENDING"
   },
   {
@@ -260,9 +250,7 @@ const INITIAL_RECEIPT_ITEMS = [
     qc_failed_qty: 0.00,
     qc_result: "PASSED",
     qc_failure_reason: null,
-    grade: "A",
     unit_cost: 2100000.00,
-    serial_number: null,
     quarantine_status: "PENDING"
   },
   {
@@ -277,9 +265,7 @@ const INITIAL_RECEIPT_ITEMS = [
     qc_failed_qty: null,
     qc_result: "PENDING",
     qc_failure_reason: null,
-    grade: null,
     unit_cost: 8500000.00,
-    serial_number: null,
     quarantine_status: "PENDING"
   }
 ];
@@ -292,8 +278,6 @@ const INITIAL_BATCHES = [
     product_id: 1,
     warehouse_id: 1,
     received_date: "2026-06-01",
-    expiry_date: null,
-    grade: "A",
     quantity: 80.00,
     created_at: "2026-06-01T15:30:00Z"
   },
@@ -303,8 +287,6 @@ const INITIAL_BATCHES = [
     product_id: 1,
     warehouse_id: 1,
     received_date: "2026-06-01",
-    expiry_date: null,
-    grade: "C",
     quantity: 20.00,
     created_at: "2026-06-01T15:30:00Z"
   },
@@ -314,8 +296,6 @@ const INITIAL_BATCHES = [
     product_id: 2,
     warehouse_id: 3,
     received_date: "2026-06-03",
-    expiry_date: null,
-    grade: "A",
     quantity: 120.00,
     created_at: "2026-06-03T11:20:00Z"
   }
@@ -446,9 +426,7 @@ if (typeof window !== 'undefined' && window.localStorage) {
               qc_failed_qty: null,
               qc_result: "PENDING",
               qc_failure_reason: null,
-              grade: null,
               unit_cost: 8500000.00,
-              serial_number: null,
               quarantine_status: "PENDING"
             },
             {
@@ -463,9 +441,7 @@ if (typeof window !== 'undefined' && window.localStorage) {
               qc_failed_qty: 0.00,
               qc_result: "PASSED",
               qc_failure_reason: null,
-              grade: "A",
               unit_cost: 2100000.00,
-              serial_number: null,
               quarantine_status: "PENDING"
             },
             {
@@ -480,9 +456,7 @@ if (typeof window !== 'undefined' && window.localStorage) {
               qc_failed_qty: null,
               qc_result: "PENDING",
               qc_failure_reason: null,
-              grade: null,
               unit_cost: 8500000.00,
-              serial_number: null,
               quarantine_status: "PENDING"
             }
           ];
@@ -498,8 +472,6 @@ if (typeof window !== 'undefined' && window.localStorage) {
             product_id: 2,
             warehouse_id: 3,
             received_date: "2026-06-03",
-            expiry_date: null,
-            grade: "A",
             quantity: 120.00,
             created_at: "2026-06-03T11:20:00Z"
           };
@@ -600,9 +572,7 @@ export const inboundService = {
         qc_failed_qty: null,
         qc_result: 'PENDING',
         qc_failure_reason: null,
-        grade: null,
         unit_cost: parseFloat(item.unit_cost) || 0.0,
-        serial_number: null,
         quarantine_status: 'PENDING'
       }));
 
@@ -629,16 +599,12 @@ export const inboundService = {
       if (rIdx === -1) throw new Error('RECEIPT_NOT_FOUND');
       if (receipts[rIdx].status !== 'PENDING_RECEIPT') throw new Error('RECEIPT_ALREADY_PROCESSED');
 
-      // Update actual counts and serials
+      // Update actual counts
       receiveData.items.forEach(updateItem => {
         const riIdx = receiptItems.findIndex(ri => ri.id === Number(updateItem.receipt_item_id));
         if (riIdx !== -1) {
           const counted = updateItem.counted_qty !== undefined ? updateItem.counted_qty : updateItem.actual_qty;
-          receiptItems[riIdx].actual_qty = parseFloat(counted);
-          if (updateItem.serials) {
-            receiptItems[riIdx].serial_number = updateItem.serials.join(',');
-          }
-        }
+          receiptItems[riIdx].actual_qty = parseFloat(counted);        }
       });
 
       receipts[rIdx].status = 'DRAFT';
@@ -692,7 +658,6 @@ export const inboundService = {
             item.qc_passed_qty = passed;
             item.qc_failed_qty = failed;
             item.qc_failure_reason = updateItem.qc_failure_reason || null;
-            item.grade = updateItem.grade || 'A';
             item.qc_result = failed === 0 ? 'PASSED' : 'FAILED';
           }
         });
@@ -741,8 +706,6 @@ export const inboundService = {
               product_id: item.product_id,
               warehouse_id: receipt.warehouse_id,
               received_date: new Date().toISOString().slice(0, 10),
-              expiry_date: null,
-              grade: null,
               quantity: item.qc_passed_qty,
               created_at: new Date().toISOString()
             };
@@ -767,8 +730,6 @@ export const inboundService = {
               product_id: item.product_id,
               warehouse_id: receipt.warehouse_id,
               received_date: new Date().toISOString().slice(0, 10),
-              expiry_date: null,
-              grade: null,
               quantity: item.qc_failed_qty,
               created_at: new Date().toISOString()
             };

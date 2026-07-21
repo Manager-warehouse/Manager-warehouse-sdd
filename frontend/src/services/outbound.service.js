@@ -69,7 +69,6 @@ const INITIAL_DO_ITEMS = [
     qc_pass_qty: 0,
     qc_fail_qty: 0,
     unit_price: 450000,
-    serial_number: '',
     allocations: [],
   },
   {
@@ -86,7 +85,6 @@ const INITIAL_DO_ITEMS = [
     qc_pass_qty: 0,
     qc_fail_qty: 0,
     unit_price: 320000,
-    serial_number: '',
     allocations: [
       {
         allocation_id: 21,
@@ -113,7 +111,6 @@ const INITIAL_DO_ITEMS = [
     qc_pass_qty: 2,
     qc_fail_qty: 0,
     unit_price: 450000,
-    serial_number: '',
     qc_result: 'PASSED',
     qc_failure_reason: null,
     allocations: [
@@ -821,7 +818,6 @@ export const outboundService = {
         if (idx !== -1) {
           items[idx].issued_qty = Number(picked.issued_qty);
           items[idx].picked_qty = Number(picked.issued_qty);
-          items[idx].serial_number = picked.serial_number || '';
         }
       });
       saveDb(KEYS.DO_ITEMS, items);

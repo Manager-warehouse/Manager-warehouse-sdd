@@ -95,7 +95,6 @@ const ReceiptForm = () => {
         sku: product.sku,
         name: product.name,
         unit: product.unit,
-        has_serial: product.has_serial,
         expected_qty: 1,
         unit_cost: 0.00
       }

@@ -16,4 +16,6 @@ public interface ProductService {
     ProductResponse updateProduct(Long id, ProductRequest request, Long updatedByUserId);
 
     void deactivateProduct(Long id, Long updatedByUserId);
+
+    ProductResponse reactivateProduct(Long id, Long updatedByUserId);
 }

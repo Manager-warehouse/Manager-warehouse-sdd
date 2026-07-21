@@ -2,7 +2,7 @@
 
 > **Đồng bộ:** 2026-07-19 · **Đã đối chiếu VPS production:** PostgreSQL container `wms-prod-db-1` · **Nguồn schema triển khai:** `backend/src/main/resources/db/migration/` · **Nguồn nghiệp vụ:** `.sdd/specs/001`–`010`. Flyway migration là nguồn cuối cùng khi tài liệu và database khác nhau.
 
-> **Schema-gap bắt buộc:** Domain chuẩn không quản lý serial, expiry hay quality grade. Tuy nhiên VPS vẫn còn `products.has_expiry`, `products.shelf_life_days`, `products.has_serial`, `batches.expiry_date` và `batches.grade` (default `A`), cùng legacy fields liên quan ở một số line item. Đây là legacy schema cần migration cleanup **forward-only** trong task riêng; service/UI không được dùng chúng để tạo nghiệp vụ mới.
+> **Schema cleanup:** Domain chuẩn không quản lý serial, expiry hay quality grade. Migration `V17__remove_serial_expiry_grade_legacy_fields.sql` loại bỏ các cột legacy `products.has_expiry`, `products.shelf_life_days`, `products.has_serial`, `batches.expiry_date`, `batches.grade`, và các `serial_number`/`grade` line-item không còn dùng.
 
 Migration hiện định nghĩa **55 bảng WMS** (sau rename V2 vẫn là một bảng transfer, không phải hai) và Flyway tạo thêm bảng kỹ thuật `flyway_schema_history`; VPS cần có **56 bảng trong `public`** khi toàn bộ migration thành công. Tài liệu này giải thích cấu trúc, quan hệ và quy tắc sử dụng của các bảng nghiệp vụ; các bảng hardening được liệt kê riêng ở phần hỗ trợ.
 
@@ -210,7 +210,6 @@ erDiagram
   - `batch_number` (VARCHAR(100), UNIQUE): Số lô duy nhất (ví dụ: `LOT-TH-20260601`).
   - `product_id` (BIGINT, FK -> products): SKU của sản phẩm thuộc lô này.
   - `received_date` (DATE): Ngày nhập lô hàng về kho (Dùng để xác định lô cũ nhất cho FIFO).
-  - `expiry_date`, `grade` (legacy columns trong migration): không được service/UI Sprint 1 sử dụng để phân lô, FEFO hay phân cấp hàng bán lại. Hàng fail QC phải đi Quarantine.
 - **Ví dụ thực tế:** Lô hàng `LOT-A` nhập ngày `2026-06-01` sẽ được chọn để xuất kho trước lô `LOT-B` nhập ngày `2026-06-05` theo FIFO.
 
 ### 13. Bảng `inventories`

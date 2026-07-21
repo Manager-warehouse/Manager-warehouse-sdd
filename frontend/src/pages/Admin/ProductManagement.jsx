@@ -17,7 +17,6 @@ const ProductManagement = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL'); // ALL, ACTIVE, INACTIVE
-  const [serialFilter, setSerialFilter] = useState('ALL'); // ALL, YES, NO
 
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -32,9 +31,6 @@ const ProductManagement = () => {
   const [formUnitPerPack, setFormUnitPerPack] = useState('1');
   const [formWeight, setFormWeight] = useState('0');
   const [formVolume, setFormVolume] = useState('0');
-  const [formHasSerial, setFormHasSerial] = useState(false);
-  const [formHasExpiry, setFormHasExpiry] = useState(false);
-  const [formShelfLifeDays, setFormShelfLifeDays] = useState('0');
   const [formReorderPoint, setFormReorderPoint] = useState('10');
   const [formDescription, setFormDescription] = useState('');
   const [formErrors, setFormErrors] = useState({});
@@ -64,9 +60,6 @@ const ProductManagement = () => {
     setFormUnitPerPack('1');
     setFormWeight('0');
     setFormVolume('0');
-    setFormHasSerial(false);
-    setFormHasExpiry(false);
-    setFormShelfLifeDays('0');
     setFormReorderPoint('10');
     setFormDescription('');
     setFormErrors({});
@@ -82,9 +75,6 @@ const ProductManagement = () => {
     setFormUnitPerPack(String(product.unit_per_pack || 1));
     setFormWeight(String(product.weight_kg || 0));
     setFormVolume(String(product.volume_m3 || 0));
-    setFormHasSerial(!!product.has_serial);
-    setFormHasExpiry(!!product.has_expiry);
-    setFormShelfLifeDays(String(product.shelf_life_days || 0));
     setFormReorderPoint(String(product.reorder_point || 0));
     setFormDescription(product.description || '');
     setFormErrors({});
@@ -99,9 +89,6 @@ const ProductManagement = () => {
     if (Number(formWeight) < 0) errors.weight = 'Trọng lượng không được âm';
     if (Number(formVolume) < 0) errors.volume = 'Thể tích không được âm';
     if (Number(formReorderPoint) < 0) errors.reorder_point = 'Định mức tồn kho không được âm';
-    if (formHasExpiry && (!formShelfLifeDays.trim() || Number(formShelfLifeDays) <= 0)) {
-      errors.shelf_life_days = 'Số ngày sử dụng phải lớn hơn 0';
-    }
 
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -154,10 +141,11 @@ const ProductManagement = () => {
 
     try {
       const updated = await masterDataService.toggleProductStatus(id, !currentStatus);
-      addToast(`${updated.is_active ? 'Kích hoạt' : 'Khóa'} sản phẩm ${updated.sku} thành công`, 'success');
+      const product = products.find((item) => item.id === id);
+      addToast(`${updated.is_active ? 'Kích hoạt' : 'Khóa'} sản phẩm ${updated.sku || product?.sku || ''} thành công`, 'success');
       fetchProducts();
     } catch (e) {
-      addToast('Lỗi thay đổi trạng thái sản phẩm', 'error');
+      addToast(`Lỗi thay đổi trạng thái sản phẩm: ${e.message}`, 'error');
     }
   };
 
@@ -171,12 +159,7 @@ const ProductManagement = () => {
       (statusFilter === 'ACTIVE' && prod.is_active) ||
       (statusFilter === 'INACTIVE' && !prod.is_active);
 
-    const matchesSerial =
-      serialFilter === 'ALL' ||
-      (serialFilter === 'YES' && prod.has_serial) ||
-      (serialFilter === 'NO' && !prod.has_serial);
-
-    return matchesSearch && matchesStatus && matchesSerial;
+    return matchesSearch && matchesStatus;
   });
 
   return (
@@ -191,7 +174,7 @@ const ProductManagement = () => {
             Danh mục SKU & Sản phẩm
           </h1>
           <p className="text-xs text-shade-50 font-light mt-1">
-            Quản lý tập trung thông tin SKU sản phẩm, định mức tồn kho, trọng lượng, thể tích và các thuộc tính quản lý (Serial/QC).
+            Quản lý tập trung thông tin SKU sản phẩm, định mức tồn kho, trọng lượng và thể tích.
           </p>
         </div>
         {hasRole(ROLES.STOREKEEPER) || hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.ADMIN) ? (

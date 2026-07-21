@@ -44,8 +44,6 @@ const WarehouseManagement = () => {
   const [binSubmitting, setBinSubmitting] = useState(false);
   // Bin Fields
   const [binZone, setBinZone] = useState('');
-  const [binRack, setBinRack] = useState('');
-  const [binShelf, setBinShelf] = useState('');
   const [binName, setBinName] = useState('');
   const [binCapacityM3, setBinCapacityM3] = useState('10');
   const [binCapacityKg, setBinCapacityKg] = useState('1000');
@@ -188,10 +186,10 @@ const WarehouseManagement = () => {
     }
     try {
       const updated = await masterDataService.toggleWarehouseStatus(wh.id, !wh.is_active);
-      addToast(`${updated.is_active ? 'Kích hoạt' : 'Khóa'} kho ${updated.name} thành công`, 'success');
+      addToast(`${updated.is_active ? 'Kích hoạt' : 'Khóa'} kho ${updated.name || wh.name} thành công`, 'success');
       fetchWarehouses();
     } catch (e) {
-      addToast('Lỗi thay đổi trạng thái kho', 'error');
+      addToast(`Lỗi thay đổi trạng thái kho: ${e.message}`, 'error');
     }
   };
 
@@ -200,8 +198,6 @@ const WarehouseManagement = () => {
     setBinModalType('ADD');
     setSelectedBin(null);
     setBinZone('');
-    setBinRack('');
-    setBinShelf('');
     setBinName('');
     setBinCapacityM3('10');
     setBinCapacityKg('1000');
@@ -225,8 +221,6 @@ const WarehouseManagement = () => {
     const errors = {};
     if (binModalType === 'ADD') {
       if (!binZone.trim()) errors.zone = 'Zone bắt buộc (ví dụ: Z1)';
-      if (!binRack.trim()) errors.rack = 'Rack bắt buộc (ví dụ: R1)';
-      if (!binShelf.trim()) errors.shelf = 'Shelf bắt buộc (ví dụ: S1)';
       if (!binName.trim()) errors.bin = 'Bin bắt buộc (ví dụ: B01)';
     }
     if (Number(binCapacityM3) <= 0) errors.capacity_m3 = 'Thể tích phải lớn hơn 0';
@@ -246,8 +240,6 @@ const WarehouseManagement = () => {
         const binData = {
           warehouse_id: selectedWh.id,
           zone: binZone,
-          rack: binRack,
-          shelf: binShelf,
           bin: binName,
           capacity_m3: parseFloat(binCapacityM3),
           capacity_kg: parseFloat(binCapacityKg),
@@ -281,10 +273,10 @@ const WarehouseManagement = () => {
   const handleToggleBinStatus = async (bin) => {
     try {
       const updated = await masterDataService.toggleBinStatus(bin.id, !bin.is_active);
-      addToast(`${updated.is_active ? 'Kích hoạt' : 'Khóa'} vị trí ${updated.code} thành công`, 'success');
+      addToast(`${updated.is_active ? 'Kích hoạt' : 'Khóa'} vị trí ${updated.code || bin.code} thành công`, 'success');
       fetchBins(selectedWh.id);
     } catch (e) {
-      addToast('Lỗi đổi trạng thái vị trí ô kệ', 'error');
+      addToast(`Lỗi đổi trạng thái vị trí ô kệ: ${e.message}`, 'error');
     }
   };
 
@@ -340,7 +332,7 @@ const WarehouseManagement = () => {
             Quản lý kho & Vị trí ô kệ
           </h1>
           <p className="text-xs text-shade-50 font-light mt-1">
-            Cấu hình kho vật lý, phân khu vực (Zones), các hàng kệ (Racks), tầng kệ (Shelves) và quản lý chi tiết sức chứa tối đa của từng Bin.
+            Cấu hình kho vật lý, phân khu vực (Zone) và quản lý sức chứa tối đa của từng ô kệ.
           </p>
         </div>
       </div>
@@ -682,29 +674,13 @@ const WarehouseManagement = () => {
           {binModalType === 'ADD' ? (
             <div className="flex flex-col gap-3">
               <span className="text-[10px] text-shade-40 block uppercase font-bold tracking-wider leading-none">Cấu trúc phân cấp ô kệ:</span>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <Input
                   label="Zone"
                   value={binZone}
                   onChange={(e) => setBinZone(e.target.value)}
                   error={binFormErrors.zone}
                   placeholder="VD: Z1"
-                  required
-                />
-                <Input
-                  label="Rack"
-                  value={binRack}
-                  onChange={(e) => setBinRack(e.target.value)}
-                  error={binFormErrors.rack}
-                  placeholder="VD: R1"
-                  required
-                />
-                <Input
-                  label="Shelf"
-                  value={binShelf}
-                  onChange={(e) => setBinShelf(e.target.value)}
-                  error={binFormErrors.shelf}
-                  placeholder="VD: S1"
                   required
                 />
                 <Input
@@ -717,7 +693,7 @@ const WarehouseManagement = () => {
                 />
               </div>
               <div className="bg-canvas-cream border border-hairline-light p-2.5 rounded font-mono text-[10px] text-center text-shade-60">
-                Mã định danh tự động: <strong className="text-ink">{selectedWh?.code}.{binZone.toUpperCase() || '?'}.{binRack.toUpperCase() || '?'}.{binShelf.toUpperCase() || '?'}.{binName.toUpperCase() || '?'}</strong>
+                Mã định danh tự động: <strong className="text-ink">{selectedWh?.code}.{binZone.toUpperCase() || '?'}.{binName.toUpperCase() || '?'}</strong>
               </div>
             </div>
           ) : (

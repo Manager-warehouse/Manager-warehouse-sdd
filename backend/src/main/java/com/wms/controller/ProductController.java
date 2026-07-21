@@ -78,6 +78,16 @@ public class ProductController {
         return ResponseEntity.noContent().build();
     }
 
+    @PutMapping("/{id}/reactivate")
+    @PreAuthorize("hasAnyRole('STOREKEEPER', 'WAREHOUSE_MANAGER', 'ADMIN')")
+    @Operation(summary = "Kích hoạt lại sản phẩm")
+    public ProductResponse reactivateProduct(
+            @PathVariable Long id,
+            Authentication authentication) {
+        Long userId = resolveUserId(authentication);
+        return productService.reactivateProduct(id, userId);
+    }
+
     private Long resolveUserId(Authentication authentication) {
         String username = authentication.getName();
         User user = userRepository.findByEmail(username)

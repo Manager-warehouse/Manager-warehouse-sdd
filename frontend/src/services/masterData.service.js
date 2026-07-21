@@ -53,7 +53,6 @@ const INITIAL_PRODUCTS = [
     image_url: "",
     weight_kg: 8.5,
     volume_m3: 0.085,
-    has_serial: true,
     reorder_point: 10.0,
     is_active: true,
     created_at: "2026-05-30T10:00:00Z",
@@ -69,7 +68,6 @@ const INITIAL_PRODUCTS = [
     image_url: "",
     weight_kg: 0.35,
     volume_m3: 0.0015,
-    has_serial: false,
     reorder_point: 50.0,
     is_active: true,
     created_at: "2026-05-30T10:05:00Z",
@@ -377,7 +375,6 @@ export const masterDataService = {
         image_url: productData.image_url || "",
         weight_kg: parseFloat(productData.weight_kg) || 0,
         volume_m3: parseFloat(productData.volume_m3) || 0,
-        has_serial: !!productData.has_serial,
         reorder_point: parseFloat(productData.reorder_point) || 0,
         is_active: true,
         created_at: new Date().toISOString(),
@@ -422,7 +419,6 @@ export const masterDataService = {
         image_url: productData.image_url || "",
         weight_kg: parseFloat(productData.weight_kg) || 0,
         volume_m3: parseFloat(productData.volume_m3) || 0,
-        has_serial: !!productData.has_serial,
         reorder_point: parseFloat(productData.reorder_point) || 0,
         updated_at: new Date().toISOString(),
       };
@@ -462,10 +458,11 @@ export const masterDataService = {
       return products[idx];
     }
     if (!isActive) {
-      const response = await apiClient.delete(`/products/${id}`);
+      await apiClient.delete(`/products/${id}`);
       return { id, is_active: false };
     } else {
-      throw new Error("ACTIVATION_NOT_SUPPORTED_ON_BACKEND");
+      const response = await apiClient.put(`/products/${id}/reactivate`);
+      return mapToSnakeCase(response.data);
     }
   },
 
@@ -626,8 +623,8 @@ export const masterDataService = {
       const wh = warehouses.find((w) => w.id === Number(binData.warehouse_id));
       if (!wh) throw new Error("WAREHOUSE_NOT_FOUND");
 
-      // Auto-generate code: {warehouse_code}.{zone}.{rack}.{shelf}.{bin}
-      const code = `${wh.code}.${binData.zone.toUpperCase()}.${binData.rack.toUpperCase()}.${binData.shelf.toUpperCase()}.${binData.bin.toUpperCase()}`;
+      // Domain location hierarchy is Warehouse -> Zone -> Bin.
+      const code = `${wh.code}.${binData.zone.toUpperCase()}.${binData.bin.toUpperCase()}`;
 
       const exists = locations.some((l) => l.code === code);
       if (exists) throw new Error("DUPLICATE_BIN_CODE");
@@ -698,7 +695,7 @@ export const masterDataService = {
     // 2. Create the bin location under the parent zone
     const binPayload = {
       warehouseId: Number(binData.warehouse_id),
-      code: `${binData.rack.toUpperCase()}.${binData.shelf.toUpperCase()}.${binData.bin.toUpperCase()}`,
+      code: binData.bin.toUpperCase(),
       type: "BIN",
       parentId: zoneId,
       capacityM3: parseFloat(binData.capacity_m3),
