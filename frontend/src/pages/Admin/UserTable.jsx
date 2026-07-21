@@ -1,19 +1,37 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Table from '../../components/common/Table';
 import Badge from '../../components/common/Badge';
 import { ROLES, ROLE_LABELS, WAREHOUSES } from '../../utils/constants';
+import { masterDataService } from '../../services/masterData.service';
 import { Edit, ToggleLeft, ToggleRight } from 'lucide-react';
 
 const UserTable = ({ users, loading, onEdit, onToggleStatus }) => {
+  const [warehousesList, setWarehousesList] = useState(WAREHOUSES);
+
+  useEffect(() => {
+    masterDataService.getWarehouses()
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setWarehousesList(data);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const getAssignedWHNames = (user) => {
+    return warehousesList
+      .filter((w) => user.warehouses?.includes(w.id))
+      .map((w) => w.code)
+      .join(', ');
+  };
+
   return (
     <Table
       headers={['Mã NV / Họ tên', 'Tài khoản / SĐT', 'Vai trò', 'Kho phụ trách', 'Trạng thái', 'Hành động']}
       data={users}
       loading={loading}
       renderRow={(user) => {
-        const assignedWHNames = WAREHOUSES.filter((w) => user.warehouses?.includes(w.id))
-          .map((w) => w.code)
-          .join(', ');
+        const assignedWHNames = getAssignedWHNames(user);
 
         return (
           <tr key={user.id} className="hover:bg-canvas-cream/50 transition-colors">
@@ -74,9 +92,7 @@ const UserTable = ({ users, loading, onEdit, onToggleStatus }) => {
         );
       }}
       renderCard={(user) => {
-        const assignedWHNames = WAREHOUSES.filter((w) => user.warehouses?.includes(w.id))
-          .map((w) => w.code)
-          .join(', ');
+        const assignedWHNames = getAssignedWHNames(user);
 
         return (
           <div key={user.id} className="rounded-lg border border-hairline-light bg-canvas-cream/30 overflow-hidden">
