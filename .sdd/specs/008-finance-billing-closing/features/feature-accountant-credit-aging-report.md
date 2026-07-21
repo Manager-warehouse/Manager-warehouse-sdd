@@ -17,9 +17,7 @@ Kế toán trưởng (`ACCOUNTANT_MANAGER`) cần theo dõi và đánh giá rủ
 
 ### 4.1 Xem báo cáo công nợ phân kỳ
 * **Protocol & Path**: `GET /api/v1/credit/aging-report`
-* **Query Params**:
-  * `dealerId`: BIGINT (Optional - lọc theo đại lý cụ thể)
-  * `region`: String (Optional - lọc theo vùng miền)
+* **Query Params**: Không có. Endpoint luôn trả về toàn bộ đại lý đang hoạt động (`is_active = true`); lọc theo đại lý/vùng miền thực hiện phía client trên tập kết quả trả về.
 * **Response 200 OK**:
   ```json
   [

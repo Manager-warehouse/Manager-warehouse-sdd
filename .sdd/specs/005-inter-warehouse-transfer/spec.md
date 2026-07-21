@@ -114,7 +114,7 @@ The canonical execution flow SHALL be:
 11. Storekeeper checks count, performs QC, validates destination bin capacity, and approves receive check.
 12. Warehouse Manager final-confirms receipt and settlement.
 
-Exception branches SHALL be handled separately:
+Exception branches SHALL be handled as explicit branches in the same operational workflow:
 - Shortage: create incident/discrepancy record plus `TRANSFER_DISCREPANCY` adjustment; missing quantity never becomes quarantine stock.
 - Over-receipt: block regular inventory posting and record a discrepancy-hold/incident for the physical excess goods; do not silently ignore physical overage.
 - QC failure: move physical failed quantity to Quarantine with internal-transfer origin for Spec 009 disposal.

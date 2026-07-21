@@ -11,6 +11,8 @@ public interface InterWarehouseTransferService {
     List<InterWarehouseTransferResponse> getAllTransfers(User actor);
     InterWarehouseTransferResponse getTransferById(Long id, User actor);
     InterWarehouseTransferResponse createTransfer(InterWarehouseTransferCreateRequest request, User actor);
+    InterWarehouseTransferResponse createTransferFromApprovedRequest(InterWarehouseTransferCreateRequest request,
+            User actor);
     InterWarehouseTransferResponse updateTransfer(Long id, InterWarehouseTransferUpdateRequest request, User actor);
     InterWarehouseTransferResponse cancelTransfer(Long id, InterWarehouseTransferReasonRequest request, User actor);
     InterWarehouseTransferResponse approveTransfer(Long id, User actor);
