@@ -1,0 +1,226 @@
+@startuml
+skinparam shadowing false
+skinparam activity {
+  BackgroundColor White
+  BorderColor Black
+  FontSize 12
+}
+skinparam ArrowColor Black
+skinparam defaultTextAlignment center
+title Điều chuyển kho nội bộ - Swimlane nghiệp vụ đầy đủ
+
+|Trưởng kho yêu cầu|
+start
+:View cross-warehouse stock\nread-only;
+|System|
+:Tính available\nloại quarantine và IN_TRANSIT;
+|Trưởng kho yêu cầu|
+:Create TRQ [DRAFT];
+if (Draft action?) then (Edit)
+  :Edit TRQ draft;
+  :Back to TRQ [DRAFT];
+elseif (Delete)
+  :Soft-cancel TRQ;
+  |System|
+  :TRQ [CANCELLED]\nkhông delete DB;
+  stop
+else (Submit)
+  :Submit TRQ;
+endif
+
+|System|
+:TRQ [SUBMITTED];
+|CEO|
+:Review submitted TRQ;
+if (Approve TRQ?) then (No)
+  :Reject with reason;
+  |System|
+  :TRQ [REJECTED];
+  stop
+else (Yes)
+  :Approve TRQ;
+  |System|
+  :TRQ [APPROVED]\nchưa reserve stock;
+endif
+
+|Planner|
+if (Instruction source?) then (Approved TRQ)
+  :Convert approved TRQ\nto TRF;
+else (External instruction)
+  :Create TRF from\nexternal instruction;
+endif
+:Validate TRF draft;
+if (TRF valid?) then (No)
+  :Fix TRF draft;
+  :Validate again;
+elseif (Cancel NEW)
+  |System|
+  :TRF [CANCELLED];
+  stop
+else (Yes)
+  |System|
+  :TRF [NEW];
+endif
+
+|Trưởng kho nguồn|
+:Review NEW TRF\nand source stock;
+if (Approve TRF?) then (Reject)
+  :Reject with reason;
+  |System|
+  :TRF [REJECTED];
+  stop
+else (Approve)
+endif
+if (Enough FIFO stock?) then (No)
+  |Planner|
+  :Fix TRF lines/date/qty;
+  |Trưởng kho nguồn|
+  :Review corrected TRF;
+else (Yes)
+  |System|
+  :Reserve FIFO-eligible stock;
+  :TRF [APPROVED];
+endif
+if (Cancel before loading?) then (Yes)
+  |Trưởng kho nguồn|
+  :Cancel APPROVED TRF;
+  |System|
+  :Release reserve\nTRF [CANCELLED];
+  stop
+else (No)
+endif
+
+|Dispatcher nguồn|
+:Assign transfer trip TTR;
+if (Vehicle/driver/capacity OK?) then (No)
+  :Pick another vehicle,\ndriver or date;
+  :Re-check assignment;
+else (Yes)
+  |System|
+  :TTR assigned\ncheck scope/overlap/load;
+endif
+
+|Thủ kho nguồn|
+:Pick goods by TRF lines\nkhông dùng Barcode/QR;
+:Record outbound QC + photo;
+if (Outbound QC pass?) then (No)
+  :Unload/unship goods\nredo outbound QC;
+  :Record outbound QC + photo;
+else (Yes)
+endif
+:Record sent_qty;
+if (sent_qty = planned_qty?) then (No)
+  :Correct sent quantity;
+  :Record sent_qty again;
+else (Yes)
+endif
+:Load handover + photo\nto assigned driver;
+
+|Tài xế|
+:Confirm departure;
+|System|
+:Move source stock to IN_TRANSIT\nrelease reserved qty\nTRF [IN_TRANSIT];
+if (Trip overdue before arrival?) then (Yes)
+  :Block destination receive-count\nand receive-check;
+  |Trưởng kho nguồn|
+  :Authorize Return to Source\nwith reason/photo if any;
+  |Tài xế|
+  :Confirm return departure;
+  :Confirm return arrival at source;
+  |Thủ kho nguồn|
+  :Receive return handover + photo;
+  |Trưởng kho nguồn|
+  :Final receive returned goods;
+  |System|
+  :Close return leg\nkeep audit trail;
+  stop
+else (No)
+  |Tài xế|
+  :Confirm arrival\nat receiving warehouse;
+endif
+
+|Nhân viên kho nhận|
+:Arrival handover + photo;
+if (Photo exists?) then (No)
+  :Add required photo;
+  :Arrival handover + photo;
+else (Yes)
+endif
+:Blind count received qty;
+if (Received qty > sent qty?) then (Yes)
+  |System|
+  :Create overage hold/incident\nblock regular inventory;
+  |Nhân viên kho nhận|
+  :Fix count;
+  :Blind count received qty;
+else (No)
+endif
+if (Shortage/issue has reason?) then (No)
+  :Add issue reason;
+  :Blind count received qty;
+else (Yes)
+endif
+
+|Thủ kho nhận|
+:Check worker count;
+:Receive QC + destination bin check;
+if (Receive check valid?) then (No)
+  :Fix count/QC/bin/reason;
+  :Receive QC + destination bin check;
+else (Yes)
+endif
+if (Wrong SKU intact?) then (Yes)
+  :Report WRONG_SKU line\nexpected/actual SKU, qty, reason/photo;
+  |Trưởng kho nhận|
+  if (Approve wrong-SKU return?) then (No)
+    :Reject return\ncontinue receive flow;
+    |Thủ kho nhận|
+    :Receive QC + destination bin check;
+  else (Yes)
+    :Approve return to source;
+    |Tài xế|
+    :Confirm return departure;
+    :Confirm return arrival at source;
+    |Thủ kho nguồn|
+    :Receive return handover + photo;
+    |Trưởng kho nguồn|
+    :Final receive returned goods;
+    |System|
+    :Keep stock in IN_TRANSIT\nuntil source receive completes;
+    stop
+  endif
+else (No)
+endif
+
+|Thủ kho nhận|
+if (Reject whole transfer to quarantine?) then (Yes)
+  :Approve quarantine rejection;
+  |System|
+  :Move entire transfer to Quarantine\norigin INTERNAL_TRANSFER;
+  :TRF [QUARANTINED];
+  stop
+else (No, partial/normal receive)
+  :Approve receive check;
+endif
+
+|Trưởng kho nhận|
+:Final receive confirmation;
+if (Final result?) then (Received = sent, QC pass)
+  |System|
+  :Post inventory to destination\nTRF [COMPLETED];
+  stop
+elseif (Shortage, no QC fail)
+  |System|
+  :Create TRANSFER_DISCREPANCY\nadjustment/incident\nTRF [COMPLETED_WITH_DISCREPANCY];
+  stop
+else (Partial QC fail)
+  |System|
+  :Move QC-failed qty to Quarantine\npost accepted qty to destination;
+  if (Shortage also exists?) then (Yes)
+    :TRF [COMPLETED_WITH_DISCREPANCY];
+  else (No)
+    :TRF [COMPLETED];
+  endif
+  stop
+endif
+@enduml

@@ -325,6 +325,31 @@ class InterWarehouseTransferServiceImplTest {
     }
 
     @Test
+    void approvedRequestConversion_allowsPlannerScopedToDestinationWarehouse() {
+        User destinationPlanner = user(998L, UserRole.PLANNER);
+        assignments.put(destinationPlanner.getId(), List.of(destinationWarehouse.getId()));
+
+        InterWarehouseTransferCreateRequest createRequest = new InterWarehouseTransferCreateRequest(
+                "TRQ-DESTINATION-PLANNER",
+                sourceWarehouse.getId(),
+                destinationWarehouse.getId(),
+                LocalDate.of(2026, 6, 17),
+                LocalDate.of(2026, 6, 18),
+                "approved destination request",
+                List.of(new InterWarehouseTransferItemRequest(product.getId(), null, null, new BigDecimal("4.00"))));
+
+        assertThatThrownBy(() -> service.createTransfer(createRequest, destinationPlanner))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("WAREHOUSE_SCOPE_REQUIRED");
+
+        InterWarehouseTransferResponse created = service.createTransferFromApprovedRequest(createRequest,
+                destinationPlanner);
+
+        assertThat(created.status()).isEqualTo(InterWarehouseTransferStatus.NEW);
+        assertThat(created.externalInstructionCode()).isEqualTo("TRQ-DESTINATION-PLANNER");
+    }
+
+    @Test
     void canViewTransfer_plannerFiltersSuccessfully() {
         assertThat(service.getAllTransfers(planner)).hasSize(1);
 

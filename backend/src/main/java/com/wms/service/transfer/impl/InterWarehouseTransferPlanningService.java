@@ -8,6 +8,7 @@ import com.wms.dto.response.InterWarehouseTransferResponse;
 import com.wms.entity.*;
 import com.wms.enums.InterWarehouseTransferStatus;
 import com.wms.enums.AuditAction;
+import com.wms.enums.UserRole;
 import com.wms.exception.BusinessRuleViolationException;
 import com.wms.repository.InterWarehouseTransferItemRepository;
 import com.wms.repository.InterWarehouseTransferRepository;
@@ -31,7 +32,18 @@ public class InterWarehouseTransferPlanningService {
 
     @Transactional
     public InterWarehouseTransferResponse createTransfer(InterWarehouseTransferCreateRequest request, User actor) {
-        helper.ensureWarehouseScope(actor, request.sourceWarehouseId());
+        return createTransfer(request, actor, false);
+    }
+
+    @Transactional
+    public InterWarehouseTransferResponse createTransferFromApprovedRequest(InterWarehouseTransferCreateRequest request,
+            User actor) {
+        return createTransfer(request, actor, true);
+    }
+
+    private InterWarehouseTransferResponse createTransfer(InterWarehouseTransferCreateRequest request, User actor,
+            boolean allowDestinationScopedPlanner) {
+        ensureCreateScope(actor, request, allowDestinationScopedPlanner);
         ensureDifferentWarehouses(request.sourceWarehouseId(), request.destinationWarehouseId());
         ensureUniqueExternalInstruction(request.externalInstructionCode(), request.sourceWarehouseId(),
                 request.destinationWarehouseId(), request.documentDate(), null);
@@ -50,6 +62,22 @@ public class InterWarehouseTransferPlanningService {
         replaceItems(saved, request.items());
         helper.audit(saved, actor, AuditAction.CREATE, Map.of(), helper.snapshot(saved));
         return helper.toResponse(saved);
+    }
+
+    private void ensureCreateScope(User actor, InterWarehouseTransferCreateRequest request,
+            boolean allowDestinationScopedPlanner) {
+        if (!allowDestinationScopedPlanner) {
+            helper.ensureWarehouseScope(actor, request.sourceWarehouseId());
+            return;
+        }
+        if (actor.getRole() == UserRole.ADMIN || actor.getRole() == UserRole.CEO) {
+            return;
+        }
+        List<Long> assignedWarehouseIds = helper.loadWarehouseIds(actor);
+        if (!assignedWarehouseIds.contains(request.sourceWarehouseId())
+                && !assignedWarehouseIds.contains(request.destinationWarehouseId())) {
+            throw new BusinessRuleViolationException("WAREHOUSE_SCOPE_REQUIRED");
+        }
     }
 
     @Transactional

@@ -49,6 +49,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
   const [arrivalHandoverPhotoFile, setArrivalHandoverPhotoFile] = useState(null);
   const [returnPhotoFile, setReturnPhotoFile] = useState(null);
   const [wrongSkuItems, setWrongSkuItems] = useState([]);
+  const [showWrongSkuForm, setShowWrongSkuForm] = useState(false);
   const [newWrongSku, setNewWrongSku] = useState({
     transferItemId: '',
     actualProductSku: '',
@@ -71,6 +72,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
     setArrivalHandoverPhotoFile(null);
     setReturnPhotoFile(null);
     setWrongSkuItems([]);
+    setShowWrongSkuForm(false);
     setNewWrongSku({
       transferItemId: '',
       actualProductSku: '',
@@ -521,16 +523,31 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
                   <PhotoCaptureInput
                     label="Ảnh bàn giao nhận hàng"
                     output="file"
-                    onChange={(file) => setArrivalHandoverPhotoFile(file)}
+                    onChange={(file) => {
+                      setArrivalHandoverPhotoFile(file);
+                      setShowWrongSkuForm(false);
+                    }}
                     required
                   />
-                  <Button loading={busy} size="sm" disabled={!arrivalHandoverPhotoFile} onClick={() => {
-                    if (!arrivalHandoverPhotoFile) {
-                      addToast('Vui lòng chọn hoặc chụp ảnh bàn giao!', 'error');
-                      return;
-                    }
-                    run('receivingHandover', { photoFile: arrivalHandoverPhotoFile });
-                  }}>Xác nhận Nhận bàn giao</Button>
+                  {arrivalHandoverPhotoFile && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      <Button loading={busy} size="sm" icon={Send} onClick={() => {
+                        run('receivingHandover', { photoFile: arrivalHandoverPhotoFile });
+                      }}>
+                        Gửi cho nhân viên nhập count
+                      </Button>
+                      <Button
+                        loading={busy}
+                        size="sm"
+                        variant="outline-light"
+                        icon={RotateCcw}
+                        className="text-danger-700 border-danger-300 hover:bg-danger-50"
+                        onClick={() => setShowWrongSkuForm((value) => !value)}
+                      >
+                        Báo sai SKU / quay đầu
+                      </Button>
+                    </div>
+                  )}
                 </>
               ) : (
                 <div className="text-xs text-warning-700 italic">Đang chờ thủ kho kho đích xác nhận nhận bàn giao xe...</div>
@@ -640,7 +657,9 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
       )}
 
       {/* Wrong SKU submission form */}
-      {transfer.status === 'IN_TRANSIT' && !transfer.isReturned && activeReceivingHandoverDone && !allItemsCounted && !transfer.returnRequested && hasAny(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && (
+      {transfer.status === 'IN_TRANSIT' && !transfer.isReturned && !allItemsCounted && !transfer.returnRequested
+        && (activeReceivingHandoverDone || showWrongSkuForm)
+        && hasAny(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && (
         <div className="rounded-lg border border-hairline-light bg-canvas-cream p-4 text-sm flex flex-col gap-3 mb-2">
           <div className="text-xs text-ink font-semibold flex items-center gap-1.5 text-danger-700">
             Báo sai SKU & Yêu cầu quay đầu xe
@@ -771,7 +790,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
         </div>
       )}
 
-      {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && hasAny(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && allItemsCounted && (
+      {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && hasAny(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && allItemsCounted && !allItemsChecked && (
         <div className="flex flex-col gap-3">
           {transfer.tripOverdue && !transfer.isReturned ? (
             <div className="rounded-md border border-danger-200 bg-danger-50 p-3 text-xs text-danger-700 font-medium">
@@ -825,6 +844,24 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
               })}
             </>
           )}
+        </div>
+      )}
+
+      {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && hasAny(hasRole, [ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && allItemsChecked && (
+        <div className="rounded-md border border-success-200 bg-success-50 p-3 text-xs text-success-700 flex flex-col gap-2">
+          <div className="font-semibold flex items-center gap-1">
+            <Check className="w-4 h-4" /> Đã hoàn tất kiểm tra count/QC
+          </div>
+          <div>Chờ quản lý kho đích {transfer.destinationWarehouseCode} xác nhận cuối phiếu.</div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+            {(transfer.items || []).map((item) => (
+              <div key={item.id} className="rounded border border-success-200 bg-canvas-light px-2 py-1.5">
+                <div className="font-mono font-semibold text-ink">{item.productSku}</div>
+                <div>SL chốt: {item.receivedQty ?? '-'}</div>
+                <div>QC đạt/lỗi: {item.qcPassedQty ?? '-'} / {item.qcFailedQty ?? '-'}</div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

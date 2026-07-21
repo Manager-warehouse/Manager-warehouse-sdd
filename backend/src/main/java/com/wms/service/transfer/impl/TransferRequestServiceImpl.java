@@ -266,7 +266,8 @@ public class TransferRequestServiceImpl implements TransferRequestService {
         );
 
         // Call the executable transfer creation service
-        InterWarehouseTransferResponse transferResponse = transferService.createTransfer(createRequest, actor);
+        InterWarehouseTransferResponse transferResponse = transferService.createTransferFromApprovedRequest(createRequest,
+                actor);
 
         Map<String, Object> before = snapshot(req);
         req.setStatus(TransferRequestStatus.CONVERTED);
