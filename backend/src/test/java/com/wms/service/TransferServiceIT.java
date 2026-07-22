@@ -375,7 +375,8 @@ public class TransferServiceIT {
                 "",
                 ""
         );
-        InterWarehouseTransferReceiveCheckRequest checkReq = new InterWarehouseTransferReceiveCheckRequest(List.of(checkItem));
+        InterWarehouseTransferReceiveCheckRequest checkReq = new InterWarehouseTransferReceiveCheckRequest(
+                List.of(checkItem), "transfer/receive-qc/trf-001.jpg");
 
         trf = transferService.receiveCheck(trf.id(), checkReq, storekeeper);
         assertThat(trf.status()).isEqualTo(InterWarehouseTransferStatus.IN_TRANSIT);

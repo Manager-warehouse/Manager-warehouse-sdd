@@ -112,6 +112,9 @@ public class InterWarehouseTransferReceivingService {
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.requireStatus(transfer, InterWarehouseTransferStatus.IN_TRANSIT);
         helper.ensureWarehouseScope(actor, transfer.isReturned() ? transfer.getSourceWarehouse().getId() : transfer.getDestinationWarehouse().getId());
+        if (helper.isBlank(request.qcPhotoRef())) {
+            throw new BusinessRuleViolationException("RECEIVE_QC_PHOTO_REQUIRED");
+        }
         Map<Long, InterWarehouseTransferItem> itemById = helper.itemMap(transfer);
         Map<String, Object> before = helper.snapshot(transfer);
         for (InterWarehouseTransferReceiveCheckItemRequest line : request.items()) {
@@ -130,6 +133,8 @@ public class InterWarehouseTransferReceivingService {
             item.setVarianceQty(line.confirmedQty().subtract(item.getSentQty()));
             transferItemRepository.save(item);
         }
+        transfer.setReceiveQcPhotoRef(request.qcPhotoRef());
+        transfer.setUpdatedAt(OffsetDateTime.now());
         helper.audit(transfer, actor, AuditAction.TRANSFER_RECEIVE_CHECK, before, helper.snapshot(transfer));
         return helper.toResponse(transfer);
     }

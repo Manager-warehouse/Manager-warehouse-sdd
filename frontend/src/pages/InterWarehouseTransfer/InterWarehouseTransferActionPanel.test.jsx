@@ -142,4 +142,69 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
       wrongSkuItems: [],
     }));
   });
+
+  it('allows source warehouse staff to confirm return handover after driver arrives back', async () => {
+    const onAction = renderPanel({
+      roles: [ROLES.WAREHOUSE_STAFF],
+      activeWarehouse: { id: 1, code: 'WH-HN' },
+      warehouseAccessIds: [1],
+      transfer: {
+        ...baseTransfer,
+        status: 'IN_TRANSIT',
+        isReturned: true,
+        returnDepartedAt: '2026-07-22T10:00:00Z',
+        returnArrivedAt: '2026-07-22T10:30:00Z',
+        returnArrivalHandoverAt: null,
+      },
+    });
+
+    expect(screen.getByText('BƯỚC 3: BÀN GIAO QUAY ĐẦU TẠI KHO NGUỒN')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Ảnh bàn giao quay đầu'));
+    fireEvent.click(screen.getByRole('button', { name: 'Xác nhận Nhận bàn giao quay đầu' }));
+
+    await waitFor(() => expect(onAction).toHaveBeenCalledWith('returnHandover', {
+      photoFile: expect.any(File),
+    }));
+  });
+
+  it('shows only wrong-SKU approval actions when a return request is pending', () => {
+    renderPanel({
+      roles: [ROLES.WAREHOUSE_MANAGER],
+      activeWarehouse: { id: 2, code: 'WH-HP' },
+      warehouseAccessIds: [2],
+      transfer: {
+        ...baseTransfer,
+        status: 'IN_TRANSIT',
+        driverArrivedAt: '2026-07-22T10:00:00Z',
+        arrivalHandoverAt: '2026-07-22T10:05:00Z',
+        returnRequested: true,
+        returnReason: 'Sai SKU',
+      },
+    });
+
+    expect(screen.getByText('YÊU CẦU QUAY ĐẦU DO SAI SKU ĐANG CHỜ PHÊ DUYỆT')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Duyệt quay xe' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Quay đầu về kho nguồn' })).not.toBeInTheDocument();
+  });
+
+  it('keeps return receiving QC scoped to source warehouse and hides full quarantine reject', () => {
+    renderPanel({
+      roles: [ROLES.STOREKEEPER],
+      activeWarehouse: { id: 1, code: 'WH-HN' },
+      warehouseAccessIds: [1],
+      transfer: {
+        ...baseTransfer,
+        status: 'IN_TRANSIT',
+        isReturned: true,
+        returnDepartedAt: '2026-07-22T10:00:00Z',
+        returnArrivedAt: '2026-07-22T10:30:00Z',
+        returnArrivalHandoverAt: '2026-07-22T10:35:00Z',
+        items: [{ ...baseTransfer.items[0], sentQty: 10, workerReceivedQty: 10 }],
+      },
+    });
+
+    expect(screen.getByText('Quay đầu: Chờ kiểm tra count/QC tại kho nguồn')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Từ chối & Cách ly toàn bộ' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Kiểm tra count/QC' })).toBeInTheDocument();
+  });
 });
