@@ -124,6 +124,10 @@ export const toTransferDriverTripSummary = (transfer = {}) => ({
   driverArrivedAt: transfer.driverArrivedAt,
   arrivalHandoverAt: transfer.arrivalHandoverAt,
   isReturned: Boolean(transfer.isReturned),
+  returnReason: transfer.returnReason,
+  returnDepartedAt: transfer.returnDepartedAt,
+  returnArrivedAt: transfer.returnArrivedAt,
+  returnArrivalHandoverAt: transfer.returnArrivalHandoverAt,
   items: (transfer.items || []).map((item) => ({
     id: item.id,
     productSku: item.productSku,

@@ -16,6 +16,8 @@ vi.mock('../../services/inter-warehouse-transfer.service', () => ({
   interWarehouseTransferService: {
     getTransfers: vi.fn(),
     getTransferById: vi.fn(),
+    returnDepart: vi.fn(),
+    returnArrive: vi.fn(),
   },
   toTransferDriverTripSummary: (transfer = {}) => ({
     id: `transfer-${transfer.id}`,
@@ -33,6 +35,11 @@ vi.mock('../../services/inter-warehouse-transfer.service', () => ({
     total_weight_kg: transfer.totalWeightKg || 0,
     transfer_line_count: transfer.items?.length || 0,
     items: transfer.items || [],
+    isReturned: Boolean(transfer.isReturned),
+    returnReason: transfer.returnReason,
+    returnDepartedAt: transfer.returnDepartedAt,
+    returnArrivedAt: transfer.returnArrivedAt,
+    returnArrivalHandoverAt: transfer.returnArrivalHandoverAt,
     delivery_orders: [],
   }),
 }));
@@ -135,5 +142,63 @@ describe('DriverTrip list filters', () => {
     expect(screen.getByText('3')).toBeInTheDocument();
     expect(screen.queryByText(/Giao hang \(OTP\)/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/POD/i)).not.toBeInTheDocument();
+  });
+
+  it('lets assigned transfer driver confirm return departure after manager return request', async () => {
+    const returnedTransfer = {
+      ...transferTrip,
+      id: 500,
+      status: 'IN_TRANSIT',
+      driverUserId: 10,
+      isReturned: true,
+      returnReason: 'Xe gặp sự cố giữa đường',
+      returnDepartedAt: null,
+      returnArrivedAt: null,
+      items: [{ id: 1, productSku: 'SKU-1', productName: 'Noi', plannedQty: 10, sentQty: 10 }],
+    };
+    interWarehouseTransferService.getTransferById.mockResolvedValue(returnedTransfer);
+    interWarehouseTransferService.returnDepart.mockResolvedValueOnce({});
+
+    render(
+      <MemoryRouter initialEntries={['/outbound/driver/trips/transfer-500']}>
+        <Routes>
+          <Route path="/outbound/driver/trips/:id" element={<DriverTrip />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    const button = await screen.findByRole('button', { name: /Xác nhận quay đầu về kho nguồn/i });
+    fireEvent.click(button);
+
+    await waitFor(() => expect(interWarehouseTransferService.returnDepart).toHaveBeenCalledWith(500));
+  });
+
+  it('lets assigned transfer driver confirm arrival back at source warehouse', async () => {
+    const returnedTransfer = {
+      ...transferTrip,
+      id: 500,
+      status: 'IN_TRANSIT',
+      driverUserId: 10,
+      isReturned: true,
+      returnReason: 'Xe gặp sự cố giữa đường',
+      returnDepartedAt: '2026-07-22T10:00:00',
+      returnArrivedAt: null,
+      items: [{ id: 1, productSku: 'SKU-1', productName: 'Noi', plannedQty: 10, sentQty: 10 }],
+    };
+    interWarehouseTransferService.getTransferById.mockResolvedValue(returnedTransfer);
+    interWarehouseTransferService.returnArrive.mockResolvedValueOnce({});
+
+    render(
+      <MemoryRouter initialEntries={['/outbound/driver/trips/transfer-500']}>
+        <Routes>
+          <Route path="/outbound/driver/trips/:id" element={<DriverTrip />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    const button = await screen.findByRole('button', { name: /Xác nhận đã về tới kho nguồn/i });
+    fireEvent.click(button);
+
+    await waitFor(() => expect(interWarehouseTransferService.returnArrive).toHaveBeenCalledWith(500));
   });
 });
