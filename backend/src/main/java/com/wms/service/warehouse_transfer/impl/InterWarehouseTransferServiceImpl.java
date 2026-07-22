@@ -131,6 +131,11 @@ public class InterWarehouseTransferServiceImpl implements InterWarehouseTransfer
     }
 
     @Override
+    public InterWarehouseTransferResponse recordSourceLoadReport(Long id, SourceLoadReportRequest request, User actor) {
+        return shippingService.recordSourceLoadReport(id, request, actor);
+    }
+
+    @Override
     public InterWarehouseTransferResponse shipTransfer(Long id, User actor) {
         return shippingService.shipTransfer(id, actor);
     }

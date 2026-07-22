@@ -42,7 +42,7 @@ WMS quản lý các nghiệp vụ cốt lõi của kho trong một luồng khép
 | Danh mục nền tảng | Quản lý sản phẩm/SKU, kho, zone/bin, đại lý, nhà cung cấp, xe tải và tài xế |
 | Nhập hàng & QC | Lập lệnh nhập, đếm hàng, QC inbound, quarantine, RTV và putaway |
 | Xuất hàng & giao hàng | Delivery Order, credit check, reserve tồn kho, picking FIFO, outbound QC, trip, POD/OTP |
-| Điều chuyển liên kho | Transfer request, CEO approval, phiếu TRF, chuyến TTR, In-Transit, nhận hàng kho đích |
+| Điều chuyển liên kho | Transfer request, CEO approval, phiếu TRF, công nhân xếp/báo số lượng, QC xuất, chuyến TTR, In-Transit, nhận hàng kho đích |
 | Kiểm kê & điều chỉnh | Stocktake, variance, phê duyệt điều chỉnh tồn kho |
 | Giá vốn & tài chính | Bảng giá, price history, COGS snapshot, invoice, payment, aging report, period closing |
 | Hàng hoàn & tiêu hủy | Nhận hàng hoàn từ đại lý, credit note, xử lý hàng lỗi trong quarantine |

@@ -80,6 +80,11 @@ public record InterWarehouseTransferResponse(
         Long outboundQcById,
         String outboundQcByName,
         OffsetDateTime outboundQcAt,
+        Long sourceLoadedReportedById,
+        String sourceLoadedReportedByName,
+        OffsetDateTime sourceLoadedReportedAt,
+        Boolean sourceLoadReworkRequired,
+        String sourceLoadReworkReason,
 
         // Load Handover
         String loadHandoverPhotoRef,
@@ -147,6 +152,11 @@ public record InterWarehouseTransferResponse(
                 transfer.getOutboundQcBy() == null ? null : transfer.getOutboundQcBy().getId(),
                 transfer.getOutboundQcBy() == null ? null : transfer.getOutboundQcBy().getFullName(),
                 transfer.getOutboundQcAt(),
+                transfer.getSourceLoadedReportedBy() == null ? null : transfer.getSourceLoadedReportedBy().getId(),
+                transfer.getSourceLoadedReportedBy() == null ? null : transfer.getSourceLoadedReportedBy().getFullName(),
+                transfer.getSourceLoadedReportedAt(),
+                transfer.isSourceLoadReworkRequired(),
+                transfer.getSourceLoadReworkReason(),
 
                 // Load Handover
                 transfer.getLoadHandoverPhotoRef(),
@@ -209,7 +219,7 @@ public record InterWarehouseTransferResponse(
                 vehicleId, vehiclePlate, driverId, driverUserId, driverName, documentDate, plannedDate,
                 tripPlannedStartAt, tripPlannedEndAt, tripWarningActive, tripOverdue, tripWarningMessage,
                 actualReceivedDate, discrepancyReason, rejectionReason, notes, isReturned, createdAt, updatedAt,
-                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
                 (List<InterWarehouseTransferItemResponse>) items);
     }
 }

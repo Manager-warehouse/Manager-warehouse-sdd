@@ -133,9 +133,17 @@ public class InterWarehouseTransferController {
         return transferService.assignTrip(id, request, currentUser());
     }
 
+    @PostMapping("/{id}/source-load-report")
+    @PreAuthorize("hasAnyRole('WAREHOUSE_STAFF','STOREKEEPER','ADMIN','CEO')")
+    @Operation(summary = "Source worker reports loaded quantities before outbound QC")
+    public InterWarehouseTransferResponse recordSourceLoadReport(@PathVariable Long id,
+                                                                 @Valid @RequestBody SourceLoadReportRequest request) {
+        return transferService.recordSourceLoadReport(id, request, currentUser());
+    }
+
     @PostMapping("/{id}/ship")
     @PreAuthorize("hasAnyRole('STOREKEEPER','ADMIN','CEO')")
-    @Operation(summary = "Source storekeeper loads exact planned quantity")
+    @Operation(summary = "Source storekeeper confirms exact loaded quantity after outbound QC")
     public InterWarehouseTransferResponse shipTransfer(@PathVariable Long id) {
         return transferService.shipTransfer(id, currentUser());
     }
@@ -218,7 +226,7 @@ public class InterWarehouseTransferController {
     }
 
     @PostMapping("/{id}/return-to-source")
-    @PreAuthorize("hasAnyRole('WAREHOUSE_MANAGER','ADMIN','CEO','PLANNER')")
+    @PreAuthorize("hasAnyRole('WAREHOUSE_MANAGER','ADMIN','CEO')")
     @Operation(summary = "Mark the in-transit transfer as returning/returned to source warehouse")
     public InterWarehouseTransferResponse returnToSource(@PathVariable Long id,
                                                          @Valid @RequestBody TransferReturnRequest request) {

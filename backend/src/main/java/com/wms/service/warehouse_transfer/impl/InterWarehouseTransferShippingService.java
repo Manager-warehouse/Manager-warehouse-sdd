@@ -37,6 +37,7 @@ import com.wms.enums.warehouse_transfer.*;
 import com.wms.dto.request.InterWarehouseTransferTripAssignRequest;
 import com.wms.dto.request.OutboundQcRequest;
 import com.wms.dto.request.LoadHandoverRequest;
+import com.wms.dto.request.SourceLoadReportRequest;
 import com.wms.dto.response.InterWarehouseTransferResponse;
 import com.wms.exception.BusinessRuleViolationException;
 import com.wms.exception.ResourceNotFoundException;
@@ -47,6 +48,8 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -153,17 +156,71 @@ public class InterWarehouseTransferShippingService {
     }
 
     @Transactional
+    public InterWarehouseTransferResponse recordSourceLoadReport(Long id, SourceLoadReportRequest request, User actor) {
+        InterWarehouseTransfer transfer = helper.findTransfer(id);
+        helper.requireStatus(transfer, InterWarehouseTransferStatus.APPROVED);
+        helper.ensureWarehouseScope(actor, transfer.getSourceWarehouse().getId());
+        ensureSingleTransferTrip(transfer);
+
+        Map<Long, InterWarehouseTransferItem> itemsById = helper.items(transfer).stream()
+                .collect(Collectors.toMap(InterWarehouseTransferItem::getId, Function.identity()));
+        if (request.items().size() != itemsById.size()) {
+            throw new BusinessRuleViolationException("SOURCE_LOAD_ITEMS_REQUIRED");
+        }
+
+        boolean wasReworkRequired = transfer.isSourceLoadReworkRequired();
+        Map<String, Object> before = helper.snapshot(transfer);
+        OffsetDateTime now = OffsetDateTime.now();
+        boolean hasLoadedQtyMismatch = false;
+        for (var row : request.items()) {
+            InterWarehouseTransferItem item = itemsById.get(row.transferItemId());
+            if (item == null) {
+                throw new BusinessRuleViolationException("TRANSFER_ITEM_NOT_FOUND");
+            }
+            if (row.loadedQty().compareTo(item.getPlannedQty()) != 0) {
+                hasLoadedQtyMismatch = true;
+            }
+            item.setLoadedQty(row.loadedQty());
+            item.setLoadedReportedBy(actor);
+            item.setLoadedReportedAt(now);
+            item.setSentQty(null);
+            transferItemRepository.save(item);
+        }
+
+        transfer.setSourceLoadedReportedBy(actor);
+        transfer.setSourceLoadedReportedAt(now);
+        transfer.setSourceLoadReworkRequired(hasLoadedQtyMismatch);
+        transfer.setSourceLoadReworkReason(hasLoadedQtyMismatch ? request.reworkReason() : null);
+        transfer.setOutboundQcPassed(null);
+        transfer.setOutboundQcNote(null);
+        transfer.setOutboundQcPhotoRef(null);
+        transfer.setOutboundQcBy(null);
+        transfer.setOutboundQcAt(null);
+        transfer.setLoadHandoverPhotoRef(null);
+        transfer.setLoadHandoverBy(null);
+        transfer.setLoadHandoverAt(null);
+        transfer.setUpdatedAt(now);
+
+        InterWarehouseTransfer saved = transferRepository.save(transfer);
+        helper.audit(saved, actor, wasReworkRequired ? AuditAction.TRANSFER_SOURCE_LOAD_REWORK : AuditAction.TRANSFER_SOURCE_LOAD_REPORT,
+                before, helper.snapshot(saved));
+        return helper.toResponse(saved);
+    }
+
+    @Transactional
     public InterWarehouseTransferResponse shipTransfer(Long id, User actor) {
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.requireStatus(transfer, InterWarehouseTransferStatus.APPROVED);
         helper.ensureWarehouseScope(actor, transfer.getSourceWarehouse().getId());
         ensureSingleTransferTrip(transfer);
+        ensureSourceLoadReadyForQc(transfer);
+        ensureNoSourceLoadRework(transfer);
         if (transfer.getOutboundQcPassed() == null || !transfer.getOutboundQcPassed()) {
             throw new BusinessRuleViolationException("OUTBOUND_QC_NOT_PASSED");
         }
         Map<String, Object> before = helper.snapshot(transfer);
         for (InterWarehouseTransferItem item : helper.items(transfer)) {
-            item.setSentQty(item.getPlannedQty());
+            item.setSentQty(item.getLoadedQty());
             transferItemRepository.save(item);
         }
         transfer.setUpdatedAt(OffsetDateTime.now());
@@ -193,6 +250,7 @@ public class InterWarehouseTransferShippingService {
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.requireStatus(transfer, InterWarehouseTransferStatus.APPROVED);
         helper.ensureWarehouseScope(actor, transfer.getSourceWarehouse().getId());
+        ensureSourceLoadReadyForQc(transfer);
 
         Map<String, Object> before = helper.snapshot(transfer);
         transfer.setOutboundQcPassed(request.passed());
@@ -200,6 +258,8 @@ public class InterWarehouseTransferShippingService {
         transfer.setOutboundQcPhotoRef(request.photoRef());
         transfer.setOutboundQcBy(actor);
         transfer.setOutboundQcAt(OffsetDateTime.now());
+        transfer.setSourceLoadReworkRequired(!Boolean.TRUE.equals(request.passed()));
+        transfer.setSourceLoadReworkReason(Boolean.TRUE.equals(request.passed()) ? null : request.note());
         transfer.setUpdatedAt(OffsetDateTime.now());
 
         InterWarehouseTransfer saved = transferRepository.save(transfer);
@@ -213,6 +273,8 @@ public class InterWarehouseTransferShippingService {
         helper.requireStatus(transfer, InterWarehouseTransferStatus.APPROVED);
         helper.ensureWarehouseScope(actor, transfer.getSourceWarehouse().getId());
 
+        ensureSourceLoadReadyForQc(transfer);
+        ensureNoSourceLoadRework(transfer);
         if (transfer.getOutboundQcPassed() == null || !transfer.getOutboundQcPassed()) {
             throw new BusinessRuleViolationException("OUTBOUND_QC_REQUIRED");
         }
@@ -233,6 +295,8 @@ public class InterWarehouseTransferShippingService {
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.requireStatus(transfer, InterWarehouseTransferStatus.APPROVED);
         ensureAssignedDriver(transfer, actor);
+        ensureSourceLoadReadyForQc(transfer);
+        ensureNoSourceLoadRework(transfer);
         ensureAllSent(transfer);
 
         if (transfer.getOutboundQcPassed() == null || !transfer.getOutboundQcPassed()) {
@@ -317,6 +381,22 @@ public class InterWarehouseTransferShippingService {
         if (helper.items(transfer).stream().anyMatch(item -> item.getSentQty() == null
                 || item.getSentQty().compareTo(item.getPlannedQty()) != 0)) {
             throw new BusinessRuleViolationException("SENT_QTY_REQUIRED");
+        }
+    }
+
+    private void ensureSourceLoadReadyForQc(InterWarehouseTransfer transfer) {
+        if (helper.items(transfer).stream().anyMatch(item -> item.getLoadedQty() == null)) {
+            throw new BusinessRuleViolationException("SOURCE_LOAD_REPORT_REQUIRED");
+        }
+        if (helper.items(transfer).stream()
+                .anyMatch(item -> item.getLoadedQty().compareTo(item.getPlannedQty()) != 0)) {
+            throw new BusinessRuleViolationException("SENT_QTY_MISMATCH");
+        }
+    }
+
+    private void ensureNoSourceLoadRework(InterWarehouseTransfer transfer) {
+        if (transfer.isSourceLoadReworkRequired()) {
+            throw new BusinessRuleViolationException("SOURCE_LOAD_REWORK_REQUIRED");
         }
     }
 

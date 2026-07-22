@@ -165,11 +165,11 @@ public class InterWarehouseTransferReceivingService {
     public InterWarehouseTransferResponse returnToSource(Long id, TransferReturnRequest request, User actor) {
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.requireStatus(transfer, InterWarehouseTransferStatus.IN_TRANSIT);
-        if (actor.getRole() != UserRole.ADMIN && actor.getRole() != UserRole.CEO && actor.getRole() != UserRole.PLANNER) {
+        if (actor.getRole() != UserRole.ADMIN && actor.getRole() != UserRole.CEO) {
             if (actor.getRole() != UserRole.WAREHOUSE_MANAGER) {
                 throw new BusinessRuleViolationException("WAREHOUSE_MANAGER_ROLE_REQUIRED");
             }
-            helper.ensureWarehouseScope(actor, transfer.getSourceWarehouse().getId());
+            ensureManagerCanRequestReturn(transfer, actor);
         }
 
         if (helper.isBlank(request.reason())) {
@@ -216,6 +216,15 @@ public class InterWarehouseTransferReceivingService {
         InterWarehouseTransfer saved = transferRepository.save(transfer);
         helper.audit(saved, actor, AuditAction.TRANSFER_RETURN_TO_SOURCE, before, helper.snapshot(saved));
         return helper.toResponse(saved);
+    }
+
+    private void ensureManagerCanRequestReturn(InterWarehouseTransfer transfer, User actor) {
+        List<Long> warehouseIds = helper.loadWarehouseIds(actor);
+        Long sourceWarehouseId = transfer.getSourceWarehouse().getId();
+        Long destinationWarehouseId = transfer.getDestinationWarehouse().getId();
+        if (!warehouseIds.contains(sourceWarehouseId) && !warehouseIds.contains(destinationWarehouseId)) {
+            throw new BusinessRuleViolationException("WAREHOUSE_SCOPE_REQUIRED");
+        }
     }
 
     @Transactional

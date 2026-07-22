@@ -20,4 +20,12 @@ export const INTER_WAREHOUSE_TRANSFER_STATUS_LABELS = {
   [INTER_WAREHOUSE_TRANSFER_STATUS.QUARANTINED]: 'QC lỗi - Cách ly',
 };
 
+export const INTER_WAREHOUSE_TRANSFER_STEP_LABELS = {
+  SOURCE_LOAD_PENDING: 'Chờ công nhân xếp/báo số lượng',
+  OUTBOUND_QC_PENDING: 'Chờ QC xuất',
+  SOURCE_LOAD_REWORK_REQUIRED: 'Cần xử lý lại hàng xếp',
+};
+
 export const interWarehouseTransferStatusLabel = (status) => INTER_WAREHOUSE_TRANSFER_STATUS_LABELS[status] || status;
+
+export const interWarehouseTransferStepLabel = (step) => INTER_WAREHOUSE_TRANSFER_STEP_LABELS[step] || step;
