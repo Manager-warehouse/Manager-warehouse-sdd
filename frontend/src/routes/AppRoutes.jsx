@@ -91,7 +91,7 @@ const AppRoutes = () => {
         <Route path="/inbound/receipts" element={<ReceiptList />} />
       </Route>
 
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.PLANNER, ROLES.ADMIN]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.PLANNER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN]} />}>
         <Route path="/inbound/create" element={<ReceiptForm />} />
       </Route>
 
