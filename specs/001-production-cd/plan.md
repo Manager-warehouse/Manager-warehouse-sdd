@@ -126,7 +126,7 @@ scripts/deploy/
 └── rollback-release.sh
 
 compose.prod.yaml
-DEPLOY_GUIDE.md
+docs/deployment/deployment-guide.md
 frontend/package.json
 frontend/src/**/*.test.jsx
 ```

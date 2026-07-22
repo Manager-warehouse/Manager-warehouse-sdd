@@ -180,7 +180,7 @@ Active specs:
 - `CLAUDE.md` — hệ thống kiến trúc, workflow, lessons learned, anti-patterns
 - `.specify/memory/constitution.md` — canonical project law, testing requirements, immutable stack rules
 - .sdd/specs/ (10 specs, 35 features, 30 P1) — feature specs chi tiết theo từng domain
-- `Userstory.md` — 27 user stories được định nghĩa
+- `docs/overview/user-stories.md` — 27 user stories vận hành và 3 story chất lượng kỹ thuật
 
 ## 14. GITNEXUS INTEGRATION
 
