@@ -1,0 +1,210 @@
+openapi: 3.0.3
+info:
+  title: System Audit Logging API
+  version: 1.0.0
+  description: Contracts for System Admin audit log query and detail endpoints.
+paths:
+  /api/v1/admin/audit-logs:
+    get:
+      summary: Query audit logs
+      operationId: getAuditLogs
+      tags:
+        - Audit Log
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: 1-based page number. Defaults to 1.
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          description: Fixed at 30. Values above 30 are clamped or ignored by implementation.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 30
+            default: 30
+        - name: from
+          in: query
+          required: false
+          description: Inclusive ISO 8601 date or datetime lower bound.
+          schema:
+            type: string
+        - name: to
+          in: query
+          required: false
+          description: Inclusive ISO 8601 date or datetime upper bound. When paired with from, duration must be at least 1 hour and an exact 1-hour increment.
+          schema:
+            type: string
+        - name: warehouse_id
+          in: query
+          required: false
+          description: Optional warehouse filter.
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: Audit log page returned newest first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditLogPageResponse"
+        "400":
+          description: Invalid date range, pagination, or unfiltered page beyond newest 1,500 records
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: User is not System Admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/admin/audit-logs/{id}:
+    get:
+      summary: Get audit log detail
+      operationId: getAuditLogById
+      tags:
+        - Audit Log
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: Audit log detail returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditLogDetailResponse"
+        "403":
+          description: User is not System Admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Audit log entry not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    AuditLogPageResponse:
+      type: object
+      required:
+        - data
+        - page
+        - pageSize
+        - totalItems
+        - totalPages
+        - hasNext
+        - hasPrevious
+        - requiresFilterForOlder
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditLogListItemResponse"
+        page:
+          type: integer
+        pageSize:
+          type: integer
+          enum: [30]
+        totalItems:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+        hasNext:
+          type: boolean
+        hasPrevious:
+          type: boolean
+        requiresFilterForOlder:
+          type: boolean
+          description: True when unfiltered browsing would go beyond the newest 1,500 records.
+    AuditLogListItemResponse:
+      type: object
+      required:
+        - id
+        - timestamp
+        - actorId
+        - actorRole
+        - action
+        - description
+      properties:
+        id:
+          type: integer
+          format: int64
+        timestamp:
+          type: string
+          format: date-time
+        actorId:
+          type: integer
+          format: int64
+        actorName:
+          type: string
+        actorRole:
+          type: string
+        action:
+          type: string
+          description: Must match backend AuditAction.java.
+        entityType:
+          type: string
+          nullable: true
+        entityId:
+          type: integer
+          format: int64
+          nullable: true
+        description:
+          type: string
+        warehouseId:
+          type: integer
+          format: int64
+          nullable: true
+        warehouseCode:
+          type: string
+          nullable: true
+    AuditLogDetailResponse:
+      allOf:
+        - $ref: "#/components/schemas/AuditLogListItemResponse"
+        - type: object
+          properties:
+            oldValue:
+              type: object
+              additionalProperties: true
+              nullable: true
+            newValue:
+              type: object
+              additionalProperties: true
+              nullable: true
+            ipAddress:
+              type: string
+              nullable: true
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: string
+          example: FORBIDDEN_AUDIT_ACCESS
+        message:
+          type: string

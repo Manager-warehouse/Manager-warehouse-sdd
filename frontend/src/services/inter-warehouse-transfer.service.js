@@ -124,6 +124,10 @@ export const toTransferDriverTripSummary = (transfer = {}) => ({
   driverArrivedAt: transfer.driverArrivedAt,
   arrivalHandoverAt: transfer.arrivalHandoverAt,
   isReturned: Boolean(transfer.isReturned),
+  returnReason: transfer.returnReason,
+  returnDepartedAt: transfer.returnDepartedAt,
+  returnArrivedAt: transfer.returnArrivedAt,
+  returnArrivalHandoverAt: transfer.returnArrivalHandoverAt,
   items: (transfer.items || []).map((item) => ({
     id: item.id,
     productSku: item.productSku,
@@ -218,6 +222,7 @@ export const interWarehouseTransferService = {
         items: payload.items.map((item, index) => ({
           ...item,
           id: id * 100 + index + 1,
+          loadedQty: null,
           sentQty: null,
           workerReceivedQty: null,
           receivedQty: null,
@@ -283,6 +288,30 @@ export const interWarehouseTransferService = {
     return response.data;
   },
 
+  recordSourceLoadReport: async (id, items, reworkReason = '') => {
+    if (useMock) {
+      const transfer = await interWarehouseTransferService.getTransferById(id);
+      const byId = Object.fromEntries(items.map((item) => [Number(item.transferItemId), item]));
+      const hasLoadedQtyMismatch = transfer.items.some((item) => Number(byId[item.id]?.loadedQty ?? item.loadedQty) !== Number(item.plannedQty));
+      return updateMockStatus(id, 'APPROVED', {
+        sourceLoadedReportedAt: new Date().toISOString(),
+        sourceLoadReworkRequired: hasLoadedQtyMismatch,
+        sourceLoadReworkReason: hasLoadedQtyMismatch ? reworkReason : null,
+        outboundQcPassed: null,
+        outboundQcNote: null,
+        outboundQcPhotoRef: null,
+        loadHandoverPhotoRef: null,
+        items: transfer.items.map((item) => ({
+          ...item,
+          loadedQty: byId[item.id]?.loadedQty ?? item.loadedQty,
+          sentQty: null,
+        })),
+      });
+    }
+    const response = await apiClient.post(`/inter-warehouse-transfers/${id}/source-load-report`, { items, reworkReason });
+    return response.data;
+  },
+
   shipTransfer: async (id) => {
     if (useMock) {
       const transfer = await interWarehouseTransferService.getTransferById(id);
@@ -290,7 +319,7 @@ export const interWarehouseTransferService = {
         throw new Error('OUTBOUND_QC_NOT_PASSED');
       }
       return updateMockStatus(id, 'APPROVED', {
-        items: transfer.items.map((item) => ({ ...item, sentQty: item.plannedQty })),
+        items: transfer.items.map((item) => ({ ...item, sentQty: item.loadedQty ?? item.plannedQty })),
       });
     }
     const response = await apiClient.post(`/inter-warehouse-transfers/${id}/ship`);
@@ -371,11 +400,11 @@ export const interWarehouseTransferService = {
     return response.data;
   },
 
-  returnToSource: async (id) => {
+  returnToSource: async (id, payload = {}) => {
     if (useMock) {
-      return updateMockStatus(id, 'IN_TRANSIT', { isReturned: true });
+      return updateMockStatus(id, 'IN_TRANSIT', { isReturned: true, returnReason: payload.reason || '' });
     }
-    const response = await apiClient.post(`/inter-warehouse-transfers/${id}/return-to-source`);
+    const response = await apiClient.post(`/inter-warehouse-transfers/${id}/return-to-source`, payload);
     return response.data;
   },
 
@@ -428,6 +457,8 @@ export const interWarehouseTransferService = {
         outboundQcPassed: request.passed,
         outboundQcNote: request.note,
         outboundQcPhotoRef: request.photoRef,
+        sourceLoadReworkRequired: !request.passed,
+        sourceLoadReworkReason: request.passed ? null : request.note,
       });
     }
     const response = await apiClient.post(`/inter-warehouse-transfers/${id}/outbound-qc`, request);

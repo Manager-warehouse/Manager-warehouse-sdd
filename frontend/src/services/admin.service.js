@@ -100,30 +100,33 @@ const getFilteredMockAuditLogs = ({
   pageSize = 30,
   from,
   to,
+  warehouse_id,
   warehouseId
 } = {}) => {
   const fromTime = from ? new Date(from).getTime() : null;
   const toTime = to ? new Date(to).getTime() : null;
+  const resolvedWarehouseId = warehouse_id || warehouseId;
   const filtered = getMockAuditLogs()
     .filter((log) => {
       const logTime = new Date(log.timestamp).getTime();
       const matchesFrom = !fromTime || logTime >= fromTime;
       const matchesTo = !toTime || logTime <= toTime;
-      const matchesWarehouse = !warehouseId || String(log.warehouseId) === String(warehouseId);
+      const matchesWarehouse = !resolvedWarehouseId || String(log.warehouseId) === String(resolvedWarehouseId);
       return matchesFrom && matchesTo && matchesWarehouse;
     })
     .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
-  const start = (page - 1) * pageSize;
+  const fixedPageSize = 30;
+  const start = (page - 1) * fixedPageSize;
   return {
-    data: filtered.slice(start, start + pageSize),
+    data: filtered.slice(start, start + fixedPageSize),
     page,
-    pageSize,
+    pageSize: fixedPageSize,
     totalItems: filtered.length,
-    totalPages: Math.ceil(filtered.length / pageSize) || 1,
-    hasNext: start + pageSize < filtered.length,
+    totalPages: Math.ceil(filtered.length / fixedPageSize) || 1,
+    hasNext: start + fixedPageSize < filtered.length,
     hasPrevious: page > 1,
-    requiresFilterForOlder: !from && !to && !warehouseId && page >= 50
+    requiresFilterForOlder: !from && !to && page >= 50
   };
 };
 
@@ -321,7 +324,19 @@ export const adminService = {
       await new Promise((resolve) => setTimeout(resolve, 400));
       return getFilteredMockAuditLogs(params);
     } else {
-      const response = await apiClient.get('/audit-logs', { params });
+      const allowedParams = {
+        page: params.page,
+        pageSize: params.pageSize,
+        from: params.from,
+        to: params.to,
+        warehouse_id: params.warehouse_id,
+      };
+      Object.keys(allowedParams).forEach((key) => {
+        if (allowedParams[key] === undefined || allowedParams[key] === '') {
+          delete allowedParams[key];
+        }
+      });
+      const response = await apiClient.get('/admin/audit-logs', { params: allowedParams });
       return response.data;
     }
   },
@@ -333,7 +348,7 @@ export const adminService = {
       if (!log) throw new Error('AUDIT_LOG_NOT_FOUND');
       return log;
     } else {
-      const response = await apiClient.get(`/audit-logs/${id}`);
+      const response = await apiClient.get(`/admin/audit-logs/${id}`);
       return response.data;
     }
   }

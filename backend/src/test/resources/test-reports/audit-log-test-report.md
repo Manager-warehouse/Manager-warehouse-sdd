@@ -55,19 +55,19 @@
 
 | # | Endpoint | Tên test | Mô tả | HTTP | Kết quả |
 |---|----------|----------|-------|------|---------|
-| 1 | `GET /audit-logs` | `getAuditLogs_admin_returns200` | ADMIN truy cập → 200 + data + page + pageSize đúng | 200 | ✅ PASS |
-| 2 | `GET /audit-logs` | `getAuditLogs_ceo_returns403` | CEO truy cập → 403 | 403 | ✅ PASS |
-| 3 | `GET /audit-logs` | `getAuditLogs_storekeeper_returns403` | STOREKEEPER truy cập → 403 | 403 | ✅ PASS |
-| 4 | `GET /audit-logs` | `getAuditLogs_unauthenticated_returns403` | Không có token → 403 | 403 | ✅ PASS |
-| 5 | `GET /audit-logs` | `getAuditLogs_page51NoFilter_returns400` | ADMIN, page > 50, không filter → 400 | 400 | ✅ PASS |
-| 6 | `GET /audit-logs` | `getAuditLogs_fromAfterTo_returns400` | from > to → 400 | 400 | ✅ PASS |
-| 7 | `GET /audit-logs` | `getAuditLogs_withFilters_returns200` | ADMIN với filter from/to/warehouseId → 200 | 200 | ✅ PASS |
-| 8 | `GET /audit-logs` | `getAuditLogs_hasNextTrue_returnedCorrectly` | hasNext/hasPrevious đúng trong response | 200 | ✅ PASS |
-| 9 | `GET /audit-logs` | `getAuditLogs_listItemHasAllFields` | List item có đủ actorName, actorRole, description, entityId | 200 | ✅ PASS |
-| 10 | `GET /audit-logs/{id}` | `getAuditLogById_admin_returns200WithDetail` | ADMIN xem chi tiết → 200 + oldValue + newValue | 200 | ✅ PASS |
-| 11 | `GET /audit-logs/{id}` | `getAuditLogById_notFound_returns404` | ID không tồn tại → 404 | 404 | ✅ PASS |
-| 12 | `GET /audit-logs/{id}` | `getAuditLogById_ceo_returns403` | CEO xem chi tiết → 403 | 403 | ✅ PASS |
-| 13 | `GET /audit-logs/{id}` | `getAuditLogById_unauthenticated_returns403` | Không có token → 403 | 403 | ✅ PASS |
+| 1 | `GET /admin/audit-logs` | `getAuditLogs_admin_returns200` | ADMIN truy cập → 200 + data + page + pageSize đúng | 200 | ✅ PASS |
+| 2 | `GET /admin/audit-logs` | `getAuditLogs_ceo_returns403` | CEO truy cập → 403 | 403 | ✅ PASS |
+| 3 | `GET /admin/audit-logs` | `getAuditLogs_storekeeper_returns403` | STOREKEEPER truy cập → 403 | 403 | ✅ PASS |
+| 4 | `GET /admin/audit-logs` | `getAuditLogs_unauthenticated_returns403` | Không có token → 403 | 403 | ✅ PASS |
+| 5 | `GET /admin/audit-logs` | `getAuditLogs_page51NoFilter_returns400` | ADMIN, page > 50, không filter → 400 | 400 | ✅ PASS |
+| 6 | `GET /admin/audit-logs` | `getAuditLogs_fromAfterTo_returns400` | from > to → 400 | 400 | ✅ PASS |
+| 7 | `GET /admin/audit-logs` | `getAuditLogs_withFilters_returns200` | ADMIN với filter from/to/warehouseId → 200 | 200 | ✅ PASS |
+| 8 | `GET /admin/audit-logs` | `getAuditLogs_hasNextTrue_returnedCorrectly` | hasNext/hasPrevious đúng trong response | 200 | ✅ PASS |
+| 9 | `GET /admin/audit-logs` | `getAuditLogs_listItemHasAllFields` | List item có đủ actorName, actorRole, description, entityId | 200 | ✅ PASS |
+| 10 | `GET /admin/audit-logs/{id}` | `getAuditLogById_admin_returns200WithDetail` | ADMIN xem chi tiết → 200 + oldValue + newValue | 200 | ✅ PASS |
+| 11 | `GET /admin/audit-logs/{id}` | `getAuditLogById_notFound_returns404` | ID không tồn tại → 404 | 404 | ✅ PASS |
+| 12 | `GET /admin/audit-logs/{id}` | `getAuditLogById_ceo_returns403` | CEO xem chi tiết → 403 | 403 | ✅ PASS |
+| 13 | `GET /admin/audit-logs/{id}` | `getAuditLogById_unauthenticated_returns403` | Không có token → 403 | 403 | ✅ PASS |
 
 ---
 

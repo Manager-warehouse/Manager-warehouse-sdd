@@ -1,6 +1,41 @@
 package com.wms.util;
 
-import com.wms.enums.AuditAction;
+
+import com.wms.entity.access_control.*;
+import com.wms.entity.audit_trail.*;
+import com.wms.entity.billing_payment.*;
+import com.wms.entity.dealer_management.*;
+import com.wms.entity.document_numbering.*;
+import com.wms.entity.driver_management.*;
+import com.wms.entity.fleet_management.*;
+import com.wms.entity.notification_delivery.*;
+import com.wms.entity.order_fulfillment.*;
+import com.wms.entity.price_management.*;
+import com.wms.entity.product_catalog.*;
+import com.wms.entity.stock_control.*;
+import com.wms.entity.stock_counting.*;
+import com.wms.entity.stock_receiving.*;
+import com.wms.entity.supplier_management.*;
+import com.wms.entity.user_configuration.*;
+import com.wms.entity.warehouse_location.*;
+import com.wms.entity.warehouse_transfer.*;
+import com.wms.enums.access_control.*;
+import com.wms.enums.audit_trail.*;
+import com.wms.enums.billing_payment.*;
+import com.wms.enums.dealer_management.*;
+import com.wms.enums.driver_management.*;
+import com.wms.enums.fleet_management.*;
+import com.wms.enums.notification_delivery.*;
+import com.wms.enums.order_fulfillment.*;
+import com.wms.enums.price_management.*;
+import com.wms.enums.stock_control.*;
+import com.wms.enums.stock_counting.*;
+import com.wms.enums.stock_receiving.*;
+import com.wms.enums.supplier_management.*;
+import com.wms.enums.user_configuration.*;
+import com.wms.enums.warehouse_location.*;
+import com.wms.enums.warehouse_transfer.*;
+import com.wms.enums.audit_trail.AuditAction;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -17,20 +52,20 @@ class AuditLogUtilTest {
 
     @Test
     @DisplayName("Xóa passwordHash khỏi map")
-    void filterSensitiveFields_removesPasswordHash() {
+    void filterSensitiveFields_keepsPasswordHashWithNullValue() {
         Map<String, Object> input = new HashMap<>();
         input.put("passwordHash", "secret");
         input.put("email", "user@wms.com");
 
         Map<String, Object> result = AuditLogUtil.filterSensitiveFields(input);
 
-        assertThat(result).doesNotContainKey("passwordHash");
+        assertThat(result).containsEntry("passwordHash", null);
         assertThat(result).containsEntry("email", "user@wms.com");
     }
 
     @Test
     @DisplayName("Xóa tất cả sensitive fields: password, accessToken, refreshToken, token")
-    void filterSensitiveFields_removesAllSensitiveKeys() {
+    void filterSensitiveFields_omitsAllSensitiveValues() {
         Map<String, Object> input = new HashMap<>();
         input.put("password", "pass");
         input.put("password_hash", "hash");
@@ -41,7 +76,12 @@ class AuditLogUtilTest {
 
         Map<String, Object> result = AuditLogUtil.filterSensitiveFields(input);
 
-        assertThat(result).doesNotContainKeys("password", "password_hash", "accessToken", "refreshToken", "token");
+        assertThat(result)
+                .containsEntry("password", null)
+                .containsEntry("password_hash", null)
+                .containsEntry("accessToken", null)
+                .containsEntry("refreshToken", null)
+                .containsEntry("token", null);
         assertThat(result).containsEntry("fullName", "Nguyen Van A");
     }
 
@@ -106,7 +146,7 @@ class AuditLogUtilTest {
 
     @Test
     @DisplayName("buildDiff loại bỏ sensitive fields khỏi kết quả diff")
-    void buildDiff_removesSensitiveFieldsFromDiff() {
+    void buildDiff_keepsSensitiveFieldNamesAndOmitsValues() {
         Map<String, Object> old = new HashMap<>();
         old.put("passwordHash", "old-hash");
         old.put("email", "a@wms.com");
@@ -117,8 +157,8 @@ class AuditLogUtilTest {
 
         Map<String, Object>[] result = AuditLogUtil.buildDiff(old, updated);
 
-        assertThat(result[0]).doesNotContainKey("passwordHash").containsEntry("email", "a@wms.com");
-        assertThat(result[1]).doesNotContainKey("passwordHash").containsEntry("email", "b@wms.com");
+        assertThat(result[0]).containsEntry("passwordHash", null).containsEntry("email", "a@wms.com");
+        assertThat(result[1]).containsEntry("passwordHash", null).containsEntry("email", "b@wms.com");
     }
 
     @Test
@@ -211,5 +251,12 @@ class AuditLogUtilTest {
     void generateDescription_createAction() {
         String desc = AuditLogUtil.generateDescription(AuditAction.CREATE, "Product", "P001");
         assertThat(desc).isEqualTo("CREATE Product P001");
+    }
+
+    @Test
+    @DisplayName("generateDescription cháº¥p nháº­n entity null")
+    void generateDescription_nullEntity_returnsActionOnly() {
+        String desc = AuditLogUtil.generateDescription(AuditAction.LOGIN, null, null);
+        assertThat(desc).isEqualTo("LOGIN");
     }
 }

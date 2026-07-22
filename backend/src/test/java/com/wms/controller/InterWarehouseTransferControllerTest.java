@@ -1,5 +1,56 @@
 package com.wms.controller;
 
+
+import com.wms.entity.access_control.*;
+import com.wms.entity.audit_trail.*;
+import com.wms.entity.billing_payment.*;
+import com.wms.entity.dealer_management.*;
+import com.wms.entity.document_numbering.*;
+import com.wms.entity.driver_management.*;
+import com.wms.entity.fleet_management.*;
+import com.wms.entity.notification_delivery.*;
+import com.wms.entity.order_fulfillment.*;
+import com.wms.entity.price_management.*;
+import com.wms.entity.product_catalog.*;
+import com.wms.entity.stock_control.*;
+import com.wms.entity.stock_counting.*;
+import com.wms.entity.stock_receiving.*;
+import com.wms.entity.supplier_management.*;
+import com.wms.entity.user_configuration.*;
+import com.wms.entity.warehouse_location.*;
+import com.wms.entity.warehouse_transfer.*;
+import com.wms.enums.access_control.*;
+import com.wms.enums.audit_trail.*;
+import com.wms.enums.billing_payment.*;
+import com.wms.enums.dealer_management.*;
+import com.wms.enums.driver_management.*;
+import com.wms.enums.fleet_management.*;
+import com.wms.enums.notification_delivery.*;
+import com.wms.enums.order_fulfillment.*;
+import com.wms.enums.price_management.*;
+import com.wms.enums.stock_control.*;
+import com.wms.enums.stock_counting.*;
+import com.wms.enums.stock_receiving.*;
+import com.wms.enums.supplier_management.*;
+import com.wms.enums.user_configuration.*;
+import com.wms.enums.warehouse_location.*;
+import com.wms.enums.warehouse_transfer.*;
+import com.wms.controller.user_configuration.*;
+import com.wms.controller.audit_trail.*;
+import com.wms.controller.access_control.*;
+import com.wms.controller.billing_payment.*;
+import com.wms.controller.stock_receiving.*;
+import com.wms.controller.stock_control.*;
+import com.wms.controller.notification_delivery.*;
+import com.wms.controller.order_fulfillment.*;
+import com.wms.controller.price_management.*;
+import com.wms.controller.reporting_alerting.*;
+import com.wms.controller.return_disposal.*;
+import com.wms.controller.stock_counting.*;
+import com.wms.controller.fleet_management.*;
+import com.wms.controller.warehouse_location.*;
+import com.wms.controller.warehouse_transfer.*;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
@@ -16,12 +67,12 @@ import com.wms.config.SecurityConfig;
 import com.wms.dto.request.*;
 import com.wms.dto.response.InterWarehouseTransferResponse;
 import com.wms.dto.response.TransferPhotoUploadResponse;
-import com.wms.entity.User;
-import com.wms.enums.InterWarehouseTransferStatus;
-import com.wms.enums.UserRole;
+import com.wms.entity.access_control.User;
+import com.wms.enums.warehouse_transfer.InterWarehouseTransferStatus;
+import com.wms.enums.access_control.UserRole;
 import com.wms.exception.GlobalExceptionHandler;
-import com.wms.service.CurrentUserService;
-import com.wms.service.transfer.InterWarehouseTransferService;
+import com.wms.service.user_context.CurrentUserService;
+import com.wms.service.warehouse_transfer.InterWarehouseTransferService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -207,6 +258,37 @@ class InterWarehouseTransferControllerTest {
         mockMvc.perform(post("/api/v1/inter-warehouse-transfers/1/ship")
                 .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(username = "staff@wms.com", roles = "WAREHOUSE_STAFF")
+    void sourceLoadReport_success() throws Exception {
+        SourceLoadReportRequest request = new SourceLoadReportRequest(List.of(
+                new SourceLoadReportItemRequest(101L, new BigDecimal("5.00"))), null);
+        InterWarehouseTransferResponse response = createMockResponse(1L, "TRF-20260711-0001", InterWarehouseTransferStatus.APPROVED);
+
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(staff);
+        when(transferService.recordSourceLoadReport(eq(1L), any(SourceLoadReportRequest.class), eq(staff)))
+                .thenReturn(response);
+
+        mockMvc.perform(post("/api/v1/inter-warehouse-transfers/1/source-load-report")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request))
+                .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(username = "staff@wms.com", roles = "WAREHOUSE_STAFF")
+    void sourceLoadReport_validationFailure_negativeQty() throws Exception {
+        SourceLoadReportRequest request = new SourceLoadReportRequest(List.of(
+                new SourceLoadReportItemRequest(101L, new BigDecimal("-1.00"))), null);
+
+        mockMvc.perform(post("/api/v1/inter-warehouse-transfers/1/source-load-report")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request))
+                .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

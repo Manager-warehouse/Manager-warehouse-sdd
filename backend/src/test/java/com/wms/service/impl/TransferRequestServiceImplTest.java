@@ -1,4 +1,48 @@
 package com.wms.service.impl;
+import com.wms.entity.access_control.*;
+import com.wms.entity.audit_trail.*;
+import com.wms.entity.billing_payment.*;
+import com.wms.entity.dealer_management.*;
+import com.wms.entity.document_numbering.*;
+import com.wms.entity.driver_management.*;
+import com.wms.entity.fleet_management.*;
+import com.wms.entity.notification_delivery.*;
+import com.wms.entity.order_fulfillment.*;
+import com.wms.entity.price_management.*;
+import com.wms.entity.product_catalog.*;
+import com.wms.entity.stock_control.*;
+import com.wms.entity.stock_counting.*;
+import com.wms.entity.stock_receiving.*;
+import com.wms.entity.supplier_management.*;
+import com.wms.entity.user_configuration.*;
+import com.wms.entity.warehouse_location.*;
+import com.wms.entity.warehouse_transfer.*;
+
+import com.wms.service.user_configuration.*;
+import com.wms.service.user_configuration.impl.*;
+import com.wms.service.audit_trail.*;
+import com.wms.service.access_control.*;
+import com.wms.service.dealer_management.*;
+import com.wms.service.dealer_management.impl.*;
+import com.wms.service.billing_payment.*;
+import com.wms.service.billing_payment.impl.*;
+import com.wms.service.stock_receiving.*;
+import com.wms.service.stock_control.*;
+import com.wms.service.stock_control.impl.*;
+import com.wms.service.notification_delivery.*;
+import com.wms.service.notification_delivery.impl.*;
+import com.wms.service.order_fulfillment.*;
+import com.wms.service.order_fulfillment.impl.*;
+import com.wms.service.price_management.*;
+import com.wms.service.price_management.impl.*;
+import com.wms.service.reporting_alerting.*;
+import com.wms.service.reporting_alerting.impl.*;
+import com.wms.service.return_disposal.*;
+import com.wms.service.stock_counting.*;
+import com.wms.service.fleet_management.*;
+import com.wms.service.fleet_management.impl.*;
+import com.wms.service.warehouse_location.*;
+import com.wms.service.warehouse_location.impl.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -12,14 +56,14 @@ import com.wms.dto.request.InterWarehouseTransferCreateRequest;
 import com.wms.dto.response.WarehouseStockLookupResponse;
 import com.wms.dto.response.TransferRequestResponse;
 import com.wms.dto.response.InterWarehouseTransferResponse;
-import com.wms.entity.*;
-import com.wms.enums.TransferRequestStatus;
-import com.wms.enums.UserRole;
+import com.wms.enums.warehouse_transfer.TransferRequestStatus;
+import com.wms.enums.access_control.UserRole;
 import com.wms.exception.BusinessRuleViolationException;
 import com.wms.exception.ResourceNotFoundException;
 import com.wms.repository.*;
-import com.wms.service.transfer.InterWarehouseTransferService;
-import com.wms.service.transfer.impl.TransferRequestServiceImpl;
+import com.wms.repository.product_catalog.ProductRepository;
+import com.wms.service.warehouse_transfer.InterWarehouseTransferService;
+import com.wms.service.warehouse_transfer.impl.TransferRequestServiceImpl;
 import com.wms.util.PartnerAuditUtil;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -264,7 +308,7 @@ class TransferRequestServiceImplTest {
                 null, null, null, null, null, null, null, null, null, false, false, null,
                 null, null, null, null, false, null, null, List.of()
         );
-        when(transferService.createTransfer(any(InterWarehouseTransferCreateRequest.class), eq(planner)))
+        when(transferService.createTransferFromApprovedRequest(any(InterWarehouseTransferCreateRequest.class), eq(planner)))
                 .thenReturn(transferResponse);
         InterWarehouseTransfer transfer = new InterWarehouseTransfer();
         transfer.setId(88L);
@@ -279,7 +323,8 @@ class TransferRequestServiceImplTest {
         assertThat(response.convertedTransferId()).isEqualTo(88L);
         assertThat(request.getConvertedBy()).isEqualTo(planner);
         assertThat(transfer.getTransferRequest()).isEqualTo(request);
-        verify(transferService, times(1)).createTransfer(any(InterWarehouseTransferCreateRequest.class), eq(planner));
+        verify(transferService, times(1))
+                .createTransferFromApprovedRequest(any(InterWarehouseTransferCreateRequest.class), eq(planner));
         verify(interWarehouseTransferRepository).save(transfer);
     }
 
@@ -295,7 +340,7 @@ class TransferRequestServiceImplTest {
                 .isInstanceOf(BusinessRuleViolationException.class)
                 .hasMessageContaining("TRANSFER_REQUEST_ALREADY_CONVERTED");
 
-        verify(transferService, never()).createTransfer(any(), any());
+        verify(transferService, never()).createTransferFromApprovedRequest(any(), any());
     }
 
     @Test

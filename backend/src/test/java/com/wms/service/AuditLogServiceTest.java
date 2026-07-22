@@ -1,11 +1,72 @@
 package com.wms.service;
 
+
+import com.wms.entity.access_control.*;
+import com.wms.entity.audit_trail.*;
+import com.wms.entity.billing_payment.*;
+import com.wms.entity.dealer_management.*;
+import com.wms.entity.document_numbering.*;
+import com.wms.entity.driver_management.*;
+import com.wms.entity.fleet_management.*;
+import com.wms.entity.notification_delivery.*;
+import com.wms.entity.order_fulfillment.*;
+import com.wms.entity.price_management.*;
+import com.wms.entity.product_catalog.*;
+import com.wms.entity.stock_control.*;
+import com.wms.entity.stock_counting.*;
+import com.wms.entity.stock_receiving.*;
+import com.wms.entity.supplier_management.*;
+import com.wms.entity.user_configuration.*;
+import com.wms.entity.warehouse_location.*;
+import com.wms.entity.warehouse_transfer.*;
+import com.wms.enums.access_control.*;
+import com.wms.enums.audit_trail.*;
+import com.wms.enums.billing_payment.*;
+import com.wms.enums.dealer_management.*;
+import com.wms.enums.driver_management.*;
+import com.wms.enums.fleet_management.*;
+import com.wms.enums.notification_delivery.*;
+import com.wms.enums.order_fulfillment.*;
+import com.wms.enums.price_management.*;
+import com.wms.enums.stock_control.*;
+import com.wms.enums.stock_counting.*;
+import com.wms.enums.stock_receiving.*;
+import com.wms.enums.supplier_management.*;
+import com.wms.enums.user_configuration.*;
+import com.wms.enums.warehouse_location.*;
+import com.wms.enums.warehouse_transfer.*;
+import com.wms.service.user_configuration.*;
+import com.wms.service.user_configuration.impl.*;
+import com.wms.service.audit_trail.*;
+import com.wms.service.access_control.*;
+import com.wms.service.dealer_management.*;
+import com.wms.service.dealer_management.impl.*;
+import com.wms.service.billing_payment.*;
+import com.wms.service.billing_payment.impl.*;
+import com.wms.service.stock_receiving.*;
+import com.wms.service.stock_control.*;
+import com.wms.service.stock_control.impl.*;
+import com.wms.service.notification_delivery.*;
+import com.wms.service.notification_delivery.impl.*;
+import com.wms.service.order_fulfillment.*;
+import com.wms.service.order_fulfillment.impl.*;
+import com.wms.service.price_management.*;
+import com.wms.service.price_management.impl.*;
+import com.wms.service.reporting_alerting.*;
+import com.wms.service.reporting_alerting.impl.*;
+import com.wms.service.return_disposal.*;
+import com.wms.service.stock_counting.*;
+import com.wms.service.fleet_management.*;
+import com.wms.service.fleet_management.impl.*;
+import com.wms.service.warehouse_location.*;
+import com.wms.service.warehouse_location.impl.*;
+
 import com.wms.dto.response.AuditLogDetailResponse;
 import com.wms.dto.response.AuditLogPageResponse;
-import com.wms.entity.AuditLog;
-import com.wms.entity.User;
-import com.wms.enums.AuditAction;
-import com.wms.enums.UserRole;
+import com.wms.entity.audit_trail.AuditLog;
+import com.wms.entity.access_control.User;
+import com.wms.enums.audit_trail.AuditAction;
+import com.wms.enums.access_control.UserRole;
 import com.wms.repository.AuditLogRepository;
 import com.wms.repository.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
@@ -128,7 +189,7 @@ class AuditLogServiceTest {
 
     @Test
     @DisplayName("Không lưu password, token vào audit log (sensitive field exclusion)")
-    void log_sensitiveFields_areExcluded() {
+    void log_sensitiveFields_keepFieldNamesButOmitValues() {
         auditLogService.log(
                 adminActor, AuditAction.UPDATE, "User", 1L, "1",
                 null,
@@ -139,8 +200,8 @@ class AuditLogServiceTest {
         verify(auditLogRepository).save(captor.capture());
         AuditLog saved = captor.getValue();
 
-        assertThat(saved.getOldValue()).doesNotContain("passwordHash").doesNotContain("old-hash");
-        assertThat(saved.getNewValue()).doesNotContain("passwordHash").doesNotContain("new-hash");
+        assertThat(saved.getOldValue()).contains("passwordHash").doesNotContain("old-hash");
+        assertThat(saved.getNewValue()).contains("passwordHash").doesNotContain("new-hash");
         assertThat(saved.getOldValue()).contains("old@wms.com");
         assertThat(saved.getNewValue()).contains("new@wms.com");
         assertThat(saved.getWarehouse()).isNull();
@@ -160,10 +221,40 @@ class AuditLogServiceTest {
         AuditLog saved = captor.getValue();
 
         assertThat(saved.getNewValue())
-                .doesNotContain("accessToken")
-                .doesNotContain("refreshToken")
+                .contains("accessToken")
+                .contains("refreshToken")
                 .doesNotContain("jwt-abc")
                 .contains("u@wms.com");
+    }
+
+    @Test
+    @DisplayName("Cho phÃ©p audit event khÃ´ng cÃ³ entity_type/entity_id")
+    void log_withoutEntityReference_savesNullEntityFields() {
+        auditLogService.log(
+                adminActor, AuditAction.LOGIN, null, null, null,
+                null, null, null);
+
+        ArgumentCaptor<AuditLog> captor = ArgumentCaptor.forClass(AuditLog.class);
+        verify(auditLogRepository).save(captor.capture());
+        AuditLog saved = captor.getValue();
+
+        assertThat(saved.getEntityType()).isNull();
+        assertThat(saved.getEntityId()).isNull();
+        assertThat(saved.getDescription()).isEqualTo("LOGIN");
+        assertThat(saved.getOldValue()).isEqualTo("{}");
+        assertThat(saved.getNewValue()).isEqualTo("{}");
+    }
+
+    @Test
+    @DisplayName("Persist Ä‘Æ°á»£c action domain-specific tá»« AuditAction.java")
+    void log_domainSpecificAuditAction_savesCanonicalAction() {
+        auditLogService.log(
+                adminActor, AuditAction.TRANSFER_RETURN_HANDOVER, "TRANSFER", 10L, "TRF-10",
+                1L, Map.of("status", "IN_TRANSIT"), Map.of("status", "RETURNED"));
+
+        ArgumentCaptor<AuditLog> captor = ArgumentCaptor.forClass(AuditLog.class);
+        verify(auditLogRepository).save(captor.capture());
+        assertThat(captor.getValue().getAction()).isEqualTo(AuditAction.TRANSFER_RETURN_HANDOVER);
     }
 
     @Test
@@ -252,12 +343,13 @@ class AuditLogServiceTest {
     @SuppressWarnings("unchecked")
     @Test
     @DisplayName("Trang > 50 nhưng có filter warehouseId → được phép")
-    void getAuditLogs_page51WithWarehouseFilter_allowed() {
-        when(auditLogRepository.findAll(any(Specification.class), any(Pageable.class)))
-                .thenReturn(new PageImpl<>(List.of()));
+    void getAuditLogs_page51WithOnlyWarehouseFilter_throwsQueryRangeTooLarge() {
+        var ex = catchThrowableOfType(
+                () -> auditLogService.getAuditLogs(51, 30, null, null, 1L),
+                ResponseStatusException.class);
 
-        assertThatCode(() -> auditLogService.getAuditLogs(51, 30, null, null, 1L))
-                .doesNotThrowAnyException();
+        assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(ex.getReason()).isEqualTo("QUERY_RANGE_TOO_LARGE");
     }
 
     @SuppressWarnings("deprecation")
@@ -282,6 +374,60 @@ class AuditLogServiceTest {
 
         assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(ex.getReason()).isEqualTo("INVALID_DATE_RANGE");
+    }
+
+    @SuppressWarnings("deprecation")
+    @Test
+    @DisplayName("Khoáº£ng thá»i gian nhá» hÆ¡n 1 giá» â†’ 400 INVALID_DATE_RANGE")
+    void getAuditLogs_timeRangeUnderOneHour_throwsInvalidDateRange() {
+        var ex = catchThrowableOfType(
+                () -> auditLogService.getAuditLogs(1, 30,
+                        "2026-07-22T08:00:00+07:00",
+                        "2026-07-22T08:30:00+07:00", null),
+                ResponseStatusException.class);
+
+        assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(ex.getReason()).isEqualTo("INVALID_DATE_RANGE");
+    }
+
+    @SuppressWarnings("deprecation")
+    @Test
+    @DisplayName("Khoáº£ng thá»i gian khÃ´ng tÄƒng theo 1 giá» â†’ 400 INVALID_DATE_RANGE")
+    void getAuditLogs_timeRangeNotOneHourIncrement_throwsInvalidDateRange() {
+        var ex = catchThrowableOfType(
+                () -> auditLogService.getAuditLogs(1, 30,
+                        "2026-07-22T08:00:00+07:00",
+                        "2026-07-22T09:30:00+07:00", null),
+                ResponseStatusException.class);
+
+        assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(ex.getReason()).isEqualTo("INVALID_DATE_RANGE");
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    @DisplayName("Khoáº£ng thá»i gian Ä‘Ãºng 1 giá» â†’ Ä‘Æ°á»£c phÃ©p")
+    void getAuditLogs_oneHourTimeRange_allowed() {
+        when(auditLogRepository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        assertThatCode(() -> auditLogService.getAuditLogs(51, 30,
+                "2026-07-22T08:00:00+07:00",
+                "2026-07-22T09:00:00+07:00", null))
+                .doesNotThrowAnyException();
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    @DisplayName("Browser datetime-local range one hour -> allowed")
+    void getAuditLogs_datetimeLocalOneHourRange_allowed() {
+        when(auditLogRepository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        assertThatCode(() -> auditLogService.getAuditLogs(51, 30,
+                "2026-07-22T08:00",
+                "2026-07-22T09:00", null))
+                .doesNotThrowAnyException();
     }
 
     @SuppressWarnings("unchecked")

@@ -2,10 +2,10 @@
 
 **Input**: `.sdd/specs/005-inter-warehouse-transfer/spec.md`, `plan.md`, `data-model.md`, `contracts/openapi.yaml`, `quickstart.md`
 
-**Last updated**: 2026-07-13
+**Last updated**: 2026-07-22
 
 **Purpose**: Replace the stale, duplicate task list with an executable remediation backlog for the production-correct internal transfer flow:
-`TRQ draft -> submit -> CEO approve -> Planner revalidate & convert once -> Source manager reserve FIFO eligible -> Dispatcher capacity/overlap plan -> pick + outbound QC + load/handover -> driver depart -> IN_TRANSIT -> driver arrive/handover -> blind count -> storekeeper count/QC/bin-capacity check -> manager final confirmation`.
+`TRQ draft -> submit -> CEO approve -> Planner revalidate & convert once -> Source manager reserve FIFO eligible -> Dispatcher capacity/overlap plan -> source worker pick/load/report loaded quantity -> source storekeeper outbound QC -> QC fail returns to worker rework/re-report -> QC pass -> load/handover -> driver depart -> IN_TRANSIT -> driver arrive/handover -> blind count -> storekeeper count/QC/bin-capacity check -> manager final confirmation`.
 
 **Important**: Do not edit, rename, or delete already-applied Flyway migrations. Schema fixes must use the next additive migration after the latest deployed version.
 
@@ -27,6 +27,7 @@
 | Frontend action buttons | role/state visibility tests + successful click + failed API response + post-success refresh for every primary transfer button |
 | Transfer request edit/delete | backend service/controller tests for DRAFT update and soft-cancel; frontend button visibility and modal save/cancel behavior |
 | Photo-gated actions | UI tests or manual smoke proving outbound QC, load handover, arrival handover, return handover, and driver POD buttons stay disabled until image selection/capture |
+| Source worker load report before outbound QC | service/controller/frontend tests proving QC is blocked before load report, QC fail blocks handover/departure, worker re-report allows QC retry |
 | Frontend-to-backend smoke | full-stack happy path from `TRQ` to final receive plus backend assertions for inventory, audit, and DB state |
 | Deploy gate | backend unit/controller/integration + real DB migration + frontend tests/build + backend compile must all pass |
 
@@ -200,6 +201,26 @@
 - [X] T109 Add backend or service mapping coverage proving assigned transfer trips cannot be listed for another driver in `backend/src/test/java/com/wms/service/InterWarehouseTransferServiceImplTest.java` or `DriverDeliveryServiceImplTest.java`.
 - [X] T110 Update `.sdd/specs/004-outbound-delivery-pod/features/feature-driver-mobile-pod/contracts/driver-pod.openapi.yaml` and backend Swagger annotations if transfer summary fields are added to the shared driver trip response.
 
+## Phase 13: Source Worker Load Report Before Outbound QC
+
+**Purpose**: Split physical loading responsibility from source outbound QC, so workers report actual loaded quantities first and QC failure returns to worker rework/re-report before the storekeeper can QC again.
+
+- [x] T111 Update additive Flyway migration or create the next migration for source load report fields: transfer header `source_loaded_reported_by`, `source_loaded_reported_at`, `source_load_rework_required`, `source_load_rework_reason`, and transfer item `loaded_qty`, `loaded_reported_by`, `loaded_reported_at` in `backend/src/main/resources/db/migration/`.
+- [x] T112 Add source load report request/response DTOs in `backend/src/main/java/com/wms/dto/request/` and `backend/src/main/java/com/wms/dto/response/`, requiring item-level `transferItemId` and `loadedQty`.
+- [x] T113 Update `backend/src/main/java/com/wms/entity/InterWarehouseTransfer.java` and `backend/src/main/java/com/wms/entity/InterWarehouseTransferItem.java` with source load report fields and version-safe mappings.
+- [x] T114 Add `TRANSFER_SOURCE_LOAD_REPORT` and `TRANSFER_SOURCE_LOAD_REWORK` to `backend/src/main/java/com/wms/enums/AuditAction.java`.
+- [x] T115 Implement `recordSourceLoadReport` in `backend/src/main/java/com/wms/service/transfer/impl/InterWarehouseTransferShippingService.java`, scoped to source workers/staff, requiring `APPROVED`, saving item-level loaded quantities, and clearing failed-QC rework marker after corrected report.
+- [x] T116 Update outbound QC logic in `backend/src/main/java/com/wms/service/transfer/impl/InterWarehouseTransferShippingService.java` to require source worker loaded quantities before QC, reject QC pass when loaded quantity differs from planned quantity, and set rework required when QC fails.
+- [x] T117 Update shipment/load-handover/departure guards in `backend/src/main/java/com/wms/service/transfer/impl/InterWarehouseTransferShippingService.java` so they block while source load report is missing or rework is required.
+- [x] T118 Add `POST /api/v1/inter-warehouse-transfers/{id}/source-load-report` to `backend/src/main/java/com/wms/controller/InterWarehouseTransferController.java` with validation and Swagger/OpenAPI annotations.
+- [x] T119 Update generated Swagger/OpenAPI annotations and contract-alignment tests for source load report, `SOURCE_LOAD_REPORT_REQUIRED`, and `SOURCE_LOAD_REWORK_REQUIRED`.
+- [x] T120 Add backend service/controller tests in `backend/src/test/java/com/wms/service/InterWarehouseTransferServiceImplTest.java` and `backend/src/test/java/com/wms/controller/InterWarehouseTransferControllerTest.java` for load report happy path, QC before report blocked, QC fail sets rework, handover/depart blocked during rework, re-report clears rework, and mismatch rejects QC pass.
+- [x] T121 Update `frontend/src/services/inter-warehouse-transfer.service.js` with the source load report API.
+- [x] T122 Update `frontend/src/pages/InterWarehouseTransfer/InterWarehouseTransferActionPanel.jsx` to show source worker load report before outbound QC and, after QC failure, show only worker unload/rework/re-report actions before QC retry.
+- [x] T123 Update `frontend/src/utils/interWarehouseTransferStatus.js` and `frontend/src/pages/InterWarehouseTransfer/InterWarehouseTransferStatusBadge.jsx` with labels for `Chờ công nhân xếp/báo số lượng`, `Chờ QC xuất`, and `Cần xử lý lại hàng xếp`.
+- [x] T124 Add frontend workflow tests in `frontend/src/pages/InterWarehouseTransfer/InterWarehouseTransferActionPanel.test.jsx` proving QC is disabled before load report, QC fail hides handover/departure and shows rework, and re-report enables QC retry.
+- [x] T125 Update `docs/overview/features-summary.md`, `docs/overview/user-stories.md`, `docs/overview/actors.md`, `README.md`, and `CLAUDE.md` with the source worker load report before outbound QC flow.
+
 ## Dependencies
 
 - Phase 2 blocks backend behavior phases because schema and optimistic locking must exist first.
@@ -208,6 +229,7 @@
 - Phase 8 depends on Phase 7 arrival/handover concepts.
 - Phase 11 depends on backend contract shape from Phases 6-10.
 - Phase 12 is the final acceptance gate.
+- Phase 13 must be implemented before any code is considered aligned with the 2026-07-22 outbound QC decision; it touches Phase 6 and Phase 11 behavior and therefore requires refreshed backend/frontend tests.
 - No backend or frontend implementation task is complete unless its matching happy-path and unhappy-path tests are added or updated in the same slice.
 
 ## Implementation Strategy

@@ -8,7 +8,9 @@ This guide details how to integrate audit logging into any warehouse business se
 
 1. **Immutability**: Audit logs are read-only. There are no delete or update methods.
 2. **Diff-Only JSONB**: Only record the fields that changed. This minimizes database storage and clarifies the changes.
-3. **Sensitive Field Exclusion**: Always sanitize credential fields (e.g., `passwordHash`, tokens) before logging.
+3. **Sensitive Field Exclusion**: Keep credential field names (e.g., `passwordHash`, tokens) but omit before/after values.
+4. **No Read-Only Audit**: Do not create audit entries for read-only view, search, filter, report, dashboard, or export actions in Sprint 1.
+5. **Nullable Entity References**: Use null `entityType`/`entityId` when an action has no natural affected entity row.
 
 ---
 
@@ -136,3 +138,34 @@ public void processTransfer(Transfer transfer, User actor) {
     );
 }
 ```
+
+---
+
+## 4. Non-Entity Events
+
+Authentication state-changing actions such as login/logout may be logged without
+a business entity reference:
+
+```java
+auditLogService.log(
+        actor,
+        AuditAction.LOGIN,
+        null,
+        null,
+        null,
+        null,
+        Map.of(),
+        Map.of()
+);
+```
+
+The persisted row must still include actor, actor role, action, timestamp, and
+description. `entity_type` and `entity_id` may remain null.
+
+---
+
+## 5. Read-Only Screens
+
+Do not call `AuditLogService` from read-only list/detail/report/dashboard/export
+flows. Audit logging is reserved for mutations and authentication
+state-changing actions in Sprint 1.

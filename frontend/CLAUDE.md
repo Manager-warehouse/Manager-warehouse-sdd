@@ -105,7 +105,7 @@ Hệ thống điều hướng sử dụng **React Router DOM v6** tại [AppRout
 
 ## THIẾT KẾ GIAO DIỆN & STYLING (DESIGN SYSTEM)
 
-Quy chuẩn thiết kế được định nghĩa trong [DESIGN.md](file:///d:/swp/Manager-warehouse-sdd/DESIGN.md) và cấu hình Tailwind tại [tailwind.config.js](file:///d:/swp/Manager-warehouse-sdd/frontend/tailwind.config.js):
+Quy chuẩn thiết kế được định nghĩa trong [docs/architecture/design-system.md](../docs/architecture/design-system.md) và cấu hình Tailwind tại [tailwind.config.js](tailwind.config.js):
 
 ### 1. Phông chữ & Typography
 * Phông chữ hiển thị tiêu đề (Display): **Neue Haas Grotesk Display** (hoặc Helvetica Neue/Arial), mặc định ở độ dày mỏng **weight 330** (`font-display`).

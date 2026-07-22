@@ -1,0 +1,145 @@
+import React from 'react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import InterWarehouseTransferActionPanel from './InterWarehouseTransferActionPanel';
+import { ROLES } from '../../utils/constants';
+
+vi.mock('../../stores/ui.store', () => ({
+  useUiStore: () => ({ addToast: vi.fn() }),
+}));
+
+vi.mock('../../components/common/PhotoCaptureInput', () => ({
+  default: ({ label, onChange }) => (
+    <button type="button" onClick={() => onChange(new File(['x'], 'qc.jpg', { type: 'image/jpeg' }))}>
+      {label}
+    </button>
+  ),
+}));
+
+const baseTransfer = {
+  id: 1,
+  transferNumber: 'TRF-20260722-0001',
+  sourceWarehouseId: 1,
+  sourceWarehouseCode: 'WH-HN',
+  destinationWarehouseId: 2,
+  destinationWarehouseCode: 'WH-HP',
+  status: 'APPROVED',
+  tripId: 10,
+  driverUserId: 50,
+  driverName: 'Tai xe',
+  items: [
+    {
+      id: 101,
+      productSku: 'SKU-001',
+      productName: 'Noi lau dien',
+      plannedQty: 10,
+      loadedQty: null,
+      sentQty: null,
+    },
+  ],
+};
+
+const renderPanel = ({
+  transfer = baseTransfer,
+  roles = [ROLES.WAREHOUSE_STAFF],
+  activeWarehouse = { id: 1, code: 'WH-HN' },
+  warehouseAccessIds = [1],
+  onAction = vi.fn(),
+} = {}) => {
+  const roleSet = new Set(roles);
+  const warehouseAccessSet = new Set(warehouseAccessIds.map(Number));
+  render(
+    <InterWarehouseTransferActionPanel
+      transfer={transfer}
+      currentUser={{ id: 20 }}
+      activeWarehouse={activeWarehouse}
+      hasRole={(role) => roleSet.has(role)}
+      hasWarehouseAccess={(warehouseId) => warehouseAccessSet.has(Number(warehouseId))}
+      vehicles={[]}
+      drivers={[]}
+      locations={[]}
+      onAction={onAction}
+    />
+  );
+  return onAction;
+};
+
+describe('InterWarehouseTransferActionPanel source load report workflow', () => {
+  afterEach(() => cleanup());
+
+  it('shows worker load report before source outbound QC', async () => {
+    const onAction = renderPanel();
+
+    expect(screen.getByText('Chờ công nhân xếp/báo số lượng')).toBeInTheDocument();
+    expect(screen.queryByText('QC Đạt')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Báo cáo số lượng đã xếp' }));
+
+    await waitFor(() => expect(onAction).toHaveBeenCalledWith('recordSourceLoadReport', {
+      items: [{ transferItemId: 101, loadedQty: 10 }],
+      reworkReason: '',
+    }));
+  });
+
+  it('allows storekeeper QC only after loaded quantity is reported', () => {
+    renderPanel({
+      roles: [ROLES.STOREKEEPER],
+      transfer: {
+        ...baseTransfer,
+        sourceLoadedReportedAt: '2026-07-22T10:00:00Z',
+        items: [{ ...baseTransfer.items[0], loadedQty: 10 }],
+      },
+    });
+
+    expect(screen.getByText('Chờ kiểm tra outbound QC')).toBeInTheDocument();
+    expect(screen.getByText('QC Đạt')).toBeDisabled();
+    fireEvent.click(screen.getByText('Ảnh xác nhận QC'));
+    expect(screen.getByText('QC Đạt')).not.toBeDisabled();
+  });
+
+  it('shows only worker rework report after QC failure', async () => {
+    const onAction = renderPanel({
+      transfer: {
+        ...baseTransfer,
+        outboundQcPassed: false,
+        outboundQcNote: 'Mop meo',
+        sourceLoadReworkRequired: true,
+        sourceLoadReworkReason: 'Mop meo',
+        items: [{ ...baseTransfer.items[0], loadedQty: 10 }],
+      },
+    });
+
+    expect(screen.getByText('QC xuất kho thất bại')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Báo cáo lại số lượng xếp' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Xác nhận bàn giao lên xe' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Báo cáo lại số lượng xếp' }));
+    await waitFor(() => expect(onAction).toHaveBeenCalledWith('recordSourceLoadReport', {
+      items: [{ transferItemId: 101, loadedQty: 10 }],
+      reworkReason: '',
+    }));
+  });
+
+  it('lets destination manager request direct return to source with reason', async () => {
+    const onAction = renderPanel({
+      roles: [ROLES.WAREHOUSE_MANAGER],
+      activeWarehouse: { id: 2, code: 'WH-HP' },
+      warehouseAccessIds: [2],
+      transfer: {
+        ...baseTransfer,
+        status: 'IN_TRANSIT',
+        driverArrivedAt: null,
+      },
+    });
+
+    fireEvent.change(screen.getByPlaceholderText('Lý do quay đầu bắt buộc...'), {
+      target: { value: 'Xe gap su co' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Quay đầu về kho nguồn' }));
+
+    await waitFor(() => expect(onAction).toHaveBeenCalledWith('returnToSource', {
+      reason: 'Xe gap su co',
+      wrongSkuItems: [],
+    }));
+  });
+});

@@ -198,7 +198,11 @@ const PartnerManagement = () => {
       setIsDealerModalOpen(false);
       fetchData();
     } catch (err) {
-      if (err.message === 'DUPLICATE_DEALER_CODE') {
+      const message = err.message || '';
+      if (
+        message === 'DUPLICATE_DEALER_CODE' ||
+        (message.includes('DUPLICATE_RESOURCE') && message.includes('Dealer code already exists'))
+      ) {
         setDlFormErrors({ code: 'Mã đại lý này đã được sử dụng' });
       } else {
         addToast('Lỗi lưu trữ thông tin Đại lý', 'error');
