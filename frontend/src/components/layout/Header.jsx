@@ -9,6 +9,33 @@ import { useNavigate, useLocation } from 'react-router-dom';
 
 import BillingNotificationMenu from './BillingNotificationMenu';
 
+const ADMIN_WAREHOUSE_ROLES = new Set(['ADMIN', 'CEO']);
+
+const enrichWarehousesFromUser = (user) => {
+  if (!user) return WAREHOUSES;
+  const assignedIds = Array.isArray(user.warehouses) ? user.warehouses.map(Number) : [];
+  const assignedWarehouses = Array.isArray(user.assignedWarehouses) ? user.assignedWarehouses : [];
+
+  if (assignedWarehouses.length > 0) {
+    return assignedWarehouses.map((warehouse) => {
+      const fallback = WAREHOUSES.find((item) => Number(item.id) === Number(warehouse.id)) || {};
+      return {
+        ...fallback,
+        ...warehouse,
+        id: Number(warehouse.id),
+        code: warehouse.code || fallback.code || `WH-${warehouse.id}`,
+        name: warehouse.name || fallback.name || `Kho ${warehouse.id}`,
+      };
+    });
+  }
+
+  if (assignedIds.length > 0) {
+    return WAREHOUSES.filter((warehouse) => assignedIds.includes(Number(warehouse.id)));
+  }
+
+  return WAREHOUSES;
+};
+
 const Header = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -18,8 +45,16 @@ const Header = () => {
   const [warehouseDropdownOpen, setWarehouseDropdownOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [warehousesList, setWarehousesList] = useState(WAREHOUSES);
+  const userWarehouseIdsKey = Array.isArray(user?.warehouses) ? user.warehouses.map(Number).join(',') : '';
+  const userAssignedWarehousesKey = Array.isArray(user?.assignedWarehouses)
+    ? user.assignedWarehouses.map((warehouse) => `${warehouse.id}:${warehouse.code || ''}:${warehouse.name || ''}`).join('|')
+    : '';
 
   const fetchWarehouses = async () => {
+    if (!ADMIN_WAREHOUSE_ROLES.has(user?.role)) {
+      setWarehousesList(enrichWarehousesFromUser(user));
+      return;
+    }
     try {
       const data = await masterDataService.getWarehouses();
       if (Array.isArray(data) && data.length > 0) {
@@ -27,6 +62,7 @@ const Header = () => {
       }
     } catch (e) {
       console.error('Failed to load warehouses in Header', e);
+      setWarehousesList(enrichWarehousesFromUser(user));
     }
   };
 
@@ -35,7 +71,7 @@ const Header = () => {
     const handleUpdate = () => fetchWarehouses();
     window.addEventListener('warehouse_list_updated', handleUpdate);
     return () => window.removeEventListener('warehouse_list_updated', handleUpdate);
-  }, []);
+  }, [user?.role, userWarehouseIdsKey, userAssignedWarehousesKey]);
 
   // Filter only physical active warehouses (exclude virtual IN_TRANSIT warehouse)
   const physicalWarehouses = useMemo(() => {

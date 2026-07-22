@@ -15,7 +15,7 @@
 - [x] T001 Review `.specify/memory/constitution.md`, `AGENTS.md`, and `specs/001-production-cd/spec.md`; record any conflict in `specs/001-production-cd/plan.md`
 - [x] T002 Run GitNexus impact analysis for every existing script/config symbol or execution flow before editing `.github/workflows/deploy.yml`, `compose.prod.yaml`, and deployment scripts
 - [x] T003 [P] Validate the current production Compose model using `compose.prod.yaml` with non-secret placeholder environment values
-- [x] T004 [P] Inventory existing GitHub workflow permissions, secrets, variables, environment gates, and artifact retention in `.github/workflows/deploy.yml` and `DEPLOY_GUIDE.md`
+- [x] T004 [P] Inventory existing GitHub workflow permissions, secrets, variables, environment gates, and artifact retention in `.github/workflows/deploy.yml` and `docs/deployment/deployment-guide.md`
 - [x] T005 [P] Inventory frontend lint/test capability in `frontend/package.json` and existing tests under `frontend/src/`
 
 ---
@@ -74,7 +74,7 @@
 - [x] T021 [US2] Implement PostgreSQL custom-format backup, checksum, metadata, retention and atomic completion in `scripts/deploy/backup-database.sh`
 - [x] T022 [US2] Add pre-deploy disk-capacity, backup-integrity and migration-policy gates before application mutation in `scripts/deploy/deploy-release.sh`
 - [x] T023 [US2] Preserve backup metadata and reference its identifier in the release manifest from `.github/workflows/deploy.yml`
-- [x] T024 [US2] Document forward-only expand/contract migration review and approved restore boundaries in `DEPLOY_GUIDE.md`
+- [x] T024 [US2] Document forward-only expand/contract migration review and approved restore boundaries in `docs/deployment/deployment-guide.md`
 
 **Checkpoint**: US2 blocks deploy before mutation whenever backup or migration evidence is unsafe.
 
@@ -117,7 +117,7 @@
 
 - [x] T033 [US4] Persist current, previous and timestamped append-only release manifests with requester/approver and gate timestamps in `scripts/deploy/deploy-release.sh`
 - [ ] T034 [US4] Upload bounded non-secret test, scan and release evidence with explicit retention in `.github/workflows/deploy.yml`
-- [x] T035 [US4] Expand production setup, release, rollback, incident and evidence reconstruction procedures in `DEPLOY_GUIDE.md`
+- [x] T035 [US4] Expand production setup, release, rollback, incident and evidence reconstruction procedures in `docs/deployment/deployment-guide.md`
 
 **Checkpoint**: US4 provides complete evidence without exposing credentials or business data.
 
@@ -131,7 +131,7 @@
 - [ ] T039 Rehearse healthy deployment and intentionally unhealthy rollback on a non-production environment using `specs/001-production-cd/quickstart.md`
 - [ ] T040 Review logs/artifacts for secrets, ensure no TODO/unsafe debug output remains, and update `specs/001-production-cd/checklists/cd-readiness.md`
 - [ ] T041 Run `gitnexus_detect_changes()` and review affected execution flows before any commit
-- [x] T042 Review branch/commit/PR compliance and document GitHub environment/branch-protection settings in `DEPLOY_GUIDE.md`
+- [x] T042 Review branch/commit/PR compliance and document GitHub environment/branch-protection settings in `docs/deployment/deployment-guide.md`
 
 ## Dependencies
 

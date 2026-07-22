@@ -1,5 +1,66 @@
 package com.wms.service;
 
+
+import com.wms.entity.access_control.*;
+import com.wms.entity.audit_trail.*;
+import com.wms.entity.billing_payment.*;
+import com.wms.entity.dealer_management.*;
+import com.wms.entity.document_numbering.*;
+import com.wms.entity.driver_management.*;
+import com.wms.entity.fleet_management.*;
+import com.wms.entity.notification_delivery.*;
+import com.wms.entity.order_fulfillment.*;
+import com.wms.entity.price_management.*;
+import com.wms.entity.product_catalog.*;
+import com.wms.entity.stock_control.*;
+import com.wms.entity.stock_counting.*;
+import com.wms.entity.stock_receiving.*;
+import com.wms.entity.supplier_management.*;
+import com.wms.entity.user_configuration.*;
+import com.wms.entity.warehouse_location.*;
+import com.wms.entity.warehouse_transfer.*;
+import com.wms.enums.access_control.*;
+import com.wms.enums.audit_trail.*;
+import com.wms.enums.billing_payment.*;
+import com.wms.enums.dealer_management.*;
+import com.wms.enums.driver_management.*;
+import com.wms.enums.fleet_management.*;
+import com.wms.enums.notification_delivery.*;
+import com.wms.enums.order_fulfillment.*;
+import com.wms.enums.price_management.*;
+import com.wms.enums.stock_control.*;
+import com.wms.enums.stock_counting.*;
+import com.wms.enums.stock_receiving.*;
+import com.wms.enums.supplier_management.*;
+import com.wms.enums.user_configuration.*;
+import com.wms.enums.warehouse_location.*;
+import com.wms.enums.warehouse_transfer.*;
+import com.wms.service.user_configuration.*;
+import com.wms.service.user_configuration.impl.*;
+import com.wms.service.audit_trail.*;
+import com.wms.service.access_control.*;
+import com.wms.service.dealer_management.*;
+import com.wms.service.dealer_management.impl.*;
+import com.wms.service.billing_payment.*;
+import com.wms.service.billing_payment.impl.*;
+import com.wms.service.stock_receiving.*;
+import com.wms.service.stock_control.*;
+import com.wms.service.stock_control.impl.*;
+import com.wms.service.notification_delivery.*;
+import com.wms.service.notification_delivery.impl.*;
+import com.wms.service.order_fulfillment.*;
+import com.wms.service.order_fulfillment.impl.*;
+import com.wms.service.price_management.*;
+import com.wms.service.price_management.impl.*;
+import com.wms.service.reporting_alerting.*;
+import com.wms.service.reporting_alerting.impl.*;
+import com.wms.service.return_disposal.*;
+import com.wms.service.stock_counting.*;
+import com.wms.service.fleet_management.*;
+import com.wms.service.fleet_management.impl.*;
+import com.wms.service.warehouse_location.*;
+import com.wms.service.warehouse_location.impl.*;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -18,34 +79,36 @@ import com.wms.dto.request.TransferReturnRequest;
 import com.wms.dto.request.TransferReturnRejectRequest;
 import com.wms.dto.request.LoadHandoverRequest;
 import com.wms.dto.request.OutboundQcRequest;
+import com.wms.dto.request.SourceLoadReportItemRequest;
+import com.wms.dto.request.SourceLoadReportRequest;
 import com.wms.dto.request.AccountingPeriodCloseRequest;
 import com.wms.dto.request.AccountingPeriodCreateRequest;
 import com.wms.dto.response.AccountingPeriodResponse;
 import com.wms.dto.response.InterWarehouseTransferResponse;
-import com.wms.entity.AccountingPeriod;
-import com.wms.entity.Batch;
-import com.wms.entity.Driver;
-import com.wms.entity.Inventory;
-import com.wms.entity.Product;
-import com.wms.entity.InterWarehouseTransfer;
-import com.wms.entity.InterWarehouseTransferAllocation;
-import com.wms.entity.InterWarehouseTransferItem;
-import com.wms.entity.Trip;
-import com.wms.entity.User;
-import com.wms.entity.Vehicle;
-import com.wms.entity.Warehouse;
-import com.wms.entity.WarehouseLocation;
-import com.wms.enums.AuditAction;
-import com.wms.enums.DriverStatus;
-import com.wms.enums.InterWarehouseTransferStatus;
-import com.wms.enums.TripStatus;
-import com.wms.enums.UserRole;
-import com.wms.enums.VehicleStatus;
-import com.wms.enums.LocationType;
+import com.wms.entity.billing_payment.AccountingPeriod;
+import com.wms.entity.stock_control.Batch;
+import com.wms.entity.driver_management.Driver;
+import com.wms.entity.stock_control.Inventory;
+import com.wms.entity.product_catalog.Product;
+import com.wms.entity.warehouse_transfer.InterWarehouseTransfer;
+import com.wms.entity.warehouse_transfer.InterWarehouseTransferAllocation;
+import com.wms.entity.warehouse_transfer.InterWarehouseTransferItem;
+import com.wms.entity.order_fulfillment.Trip;
+import com.wms.entity.access_control.User;
+import com.wms.entity.fleet_management.Vehicle;
+import com.wms.entity.warehouse_location.Warehouse;
+import com.wms.entity.warehouse_location.WarehouseLocation;
+import com.wms.enums.audit_trail.AuditAction;
+import com.wms.enums.driver_management.DriverStatus;
+import com.wms.enums.warehouse_transfer.InterWarehouseTransferStatus;
+import com.wms.enums.order_fulfillment.TripStatus;
+import com.wms.enums.access_control.UserRole;
+import com.wms.enums.fleet_management.VehicleStatus;
+import com.wms.enums.warehouse_location.LocationType;
 import com.wms.exception.ResourceNotFoundException;
 import com.wms.exception.BusinessRuleViolationException;
 import com.wms.repository.AdjustmentRepository;
-import com.wms.repository.DriverRepository;
+import com.wms.repository.driver_management.DriverRepository;
 import com.wms.repository.QuarantineRecordRepository;
 import com.wms.repository.InventoryRepository;
 import com.wms.repository.InterWarehouseTransferAllocationRepository;
@@ -56,7 +119,7 @@ import com.wms.repository.UserWarehouseAssignmentRepository;
 import com.wms.repository.VehicleRepository;
 import com.wms.repository.WarehouseLocationRepository;
 import com.wms.repository.WarehouseRepository;
-import com.wms.service.transfer.impl.*;
+import com.wms.service.warehouse_transfer.impl.*;
 import com.wms.mapper.InterWarehouseTransferMapper;
 import com.wms.util.PartnerAuditUtil;
 import jakarta.persistence.EntityManager;
@@ -94,7 +157,7 @@ class InterWarehouseTransferServiceImplTest {
     private QuarantineRecordRepository quarantineRecordRepository;
     private com.wms.repository.DiscrepancyIncidentRepository discrepancyIncidentRepository;
     private com.wms.repository.DiscrepancyHoldEntryRepository discrepancyHoldEntryRepository;
-    private com.wms.repository.ProductRepository productRepository;
+    private com.wms.repository.product_catalog.ProductRepository productRepository;
     private com.wms.repository.WrongSkuReportRepository wrongSkuReportRepository;
     private com.wms.repository.WrongSkuReportItemRepository wrongSkuReportItemRepository;
     private TrackingAuditUtil auditUtil;
@@ -182,7 +245,7 @@ class InterWarehouseTransferServiceImplTest {
         quarantineRecordRepository = proxy(QuarantineRecordRepository.class, new QuarantineRecordRepoHandler());
         discrepancyIncidentRepository = proxy(com.wms.repository.DiscrepancyIncidentRepository.class, new DefaultRepoHandler());
         discrepancyHoldEntryRepository = proxy(com.wms.repository.DiscrepancyHoldEntryRepository.class, new DefaultRepoHandler());
-        productRepository = proxy(com.wms.repository.ProductRepository.class, new ProductRepoHandler());
+        productRepository = proxy(com.wms.repository.product_catalog.ProductRepository.class, new ProductRepoHandler());
         wrongSkuReportRepository = proxy(com.wms.repository.WrongSkuReportRepository.class, new DefaultRepoHandler());
         wrongSkuReportItemRepository = proxy(com.wms.repository.WrongSkuReportItemRepository.class, new DefaultRepoHandler());
         auditUtil = new TrackingAuditUtil();
@@ -246,6 +309,8 @@ class InterWarehouseTransferServiceImplTest {
     }
 
     private void recordPassingOutboundQcAndHandover() {
+        service.recordSourceLoadReport(1L, new SourceLoadReportRequest(List.of(
+                new SourceLoadReportItemRequest(transferItem.getId(), transferItem.getPlannedQty())), null), sourceManager);
         service.recordOutboundQc(1L, new OutboundQcRequest(true, "QC passed", "outbound-qc.jpg"), sourceManager);
         service.loadHandover(1L, new LoadHandoverRequest("load-handover.jpg"), sourceManager);
     }
@@ -381,23 +446,77 @@ class InterWarehouseTransferServiceImplTest {
 
         assertThatThrownBy(() -> service.shipTransfer(1L, sourceManager))
                 .isInstanceOf(BusinessRuleViolationException.class)
-                .hasMessageContaining("OUTBOUND_QC_NOT_PASSED");
+                .hasMessageContaining("SOURCE_LOAD_REPORT_REQUIRED");
 
         recordPassingOutboundQcAndHandover();
         InterWarehouseTransferResponse shipped = service.shipTransfer(1L, sourceManager);
+        assertThat(shipped.items().get(0).loadedQty()).isEqualByComparingTo("5.00");
         assertThat(shipped.items().get(0).sentQty()).isEqualByComparingTo("5.00");
 
         InterWarehouseTransferResponse unshipped = service.unshipTransfer(1L, sourceManager);
         assertThat(unshipped.items().get(0).sentQty()).isNull();
 
+        service.recordSourceLoadReport(1L, new SourceLoadReportRequest(List.of(
+                new SourceLoadReportItemRequest(transferItem.getId(), transferItem.getPlannedQty())), null), sourceManager);
         service.recordOutboundQc(1L, new OutboundQcRequest(true, "QC passed again", "outbound-qc-2.jpg"), sourceManager);
         service.shipTransfer(1L, sourceManager);
+        service.loadHandover(1L, new LoadHandoverRequest("load-handover-2.jpg"), sourceManager);
         InterWarehouseTransferResponse departed = service.departTransfer(1L, driverUser);
         assertThat(departed.status()).isEqualTo(InterWarehouseTransferStatus.IN_TRANSIT);
         assertThat(sourceInventory.getTotalQty()).isEqualByComparingTo("15.00");
         assertThat(transitInventory).isNotNull();
         assertThat(transitInventory.getTotalQty()).isEqualByComparingTo("5.00");
         assertThat(transfer.getTrip().getStatus()).isEqualTo(TripStatus.IN_TRANSIT);
+    }
+
+    @Test
+    void sourceFlow_requiresWorkerLoadReportBeforeOutboundQcAndAllowsReworkRetry() {
+        service.approveTransfer(1L, sourceManager);
+        service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
+                VALID_TRIP_START, VALID_TRIP_END), dispatcher);
+
+        assertThatThrownBy(() -> service.recordOutboundQc(1L,
+                new OutboundQcRequest(true, "QC too early", "qc.jpg"), sourceManager))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("SOURCE_LOAD_REPORT_REQUIRED");
+
+        service.recordSourceLoadReport(1L, new SourceLoadReportRequest(List.of(
+                new SourceLoadReportItemRequest(transferItem.getId(), transferItem.getPlannedQty())), null), sourceManager);
+        InterWarehouseTransferResponse failedQc = service.recordOutboundQc(1L,
+                new OutboundQcRequest(false, "Mop meo vo hop", "qc-fail.jpg"), sourceManager);
+        assertThat(failedQc.sourceLoadReworkRequired()).isTrue();
+
+        assertThatThrownBy(() -> service.loadHandover(1L, new LoadHandoverRequest("handover.jpg"), sourceManager))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("SOURCE_LOAD_REWORK_REQUIRED");
+        assertThatThrownBy(() -> service.departTransfer(1L, driverUser))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("SOURCE_LOAD_REWORK_REQUIRED");
+
+        InterWarehouseTransferResponse reloaded = service.recordSourceLoadReport(1L, new SourceLoadReportRequest(List.of(
+                new SourceLoadReportItemRequest(transferItem.getId(), transferItem.getPlannedQty())), "Da doi hang"), sourceManager);
+        assertThat(reloaded.sourceLoadReworkRequired()).isFalse();
+        assertThat(reloaded.outboundQcPassed()).isNull();
+
+        service.recordOutboundQc(1L, new OutboundQcRequest(true, "QC passed after rework", "qc-pass.jpg"), sourceManager);
+        service.loadHandover(1L, new LoadHandoverRequest("handover.jpg"), sourceManager);
+        InterWarehouseTransferResponse shipped = service.shipTransfer(1L, sourceManager);
+        assertThat(shipped.items().get(0).sentQty()).isEqualByComparingTo("5.00");
+    }
+
+    @Test
+    void sourceFlow_rejectsQcPassWhenLoadedQuantityDiffersFromPlanned() {
+        service.approveTransfer(1L, sourceManager);
+        service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
+                VALID_TRIP_START, VALID_TRIP_END), dispatcher);
+
+        service.recordSourceLoadReport(1L, new SourceLoadReportRequest(List.of(
+                new SourceLoadReportItemRequest(transferItem.getId(), new BigDecimal("4.00"))), "short one"), sourceManager);
+
+        assertThatThrownBy(() -> service.recordOutboundQc(1L,
+                new OutboundQcRequest(true, "QC pass impossible", "qc.jpg"), sourceManager))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("SENT_QTY_MISMATCH");
     }
 
     @Test
@@ -549,7 +668,7 @@ class InterWarehouseTransferServiceImplTest {
     }
 
     @Test
-    void returnToSource_setsIsReturnedTrueAndRestrictsReceivingToSourceWarehouse() {
+    void returnToSource_allowsDestinationOrSourceManagerThenRestrictsReceivingToSourceWarehouse() {
         service.approveTransfer(1L, sourceManager);
         service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
                 VALID_TRIP_START, VALID_TRIP_END), dispatcher);
@@ -563,13 +682,12 @@ class InterWarehouseTransferServiceImplTest {
                 .isInstanceOf(BusinessRuleViolationException.class)
                 .hasMessageContaining("WAREHOUSE_MANAGER_ROLE_REQUIRED");
 
-        // Destination Manager must be blocked
-        assertThatThrownBy(() -> service.returnToSource(1L, req, destinationManager))
+        assertThatThrownBy(() -> service.returnToSource(1L, req, planner))
                 .isInstanceOf(BusinessRuleViolationException.class)
-                .hasMessageContaining("WAREHOUSE_SCOPE_REQUIRED");
+                .hasMessageContaining("WAREHOUSE_MANAGER_ROLE_REQUIRED");
 
-        // Source Manager succeeds
-        InterWarehouseTransferResponse response = service.returnToSource(1L, req, sourceManager);
+        // Destination Manager can request the operational return while the truck is in transit.
+        InterWarehouseTransferResponse response = service.returnToSource(1L, req, destinationManager);
         assertThat(response.isReturned()).isTrue();
 
         // T058: Execute return leg steps: driver departs, arrives, and hands over back to source warehouse

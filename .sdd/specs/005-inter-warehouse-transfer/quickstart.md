@@ -4,7 +4,7 @@
 
 - Backend runs with Java 21 and Spring Boot 3.4.5.
 - Frontend runs with React 18.
-- A test user exists for each role: Planner, requesting warehouse manager, CEO, source warehouse manager, Dispatcher, source storekeeper, assigned driver, destination worker, destination storekeeper, destination manager.
+- A test user exists for each role: Planner, requesting warehouse manager, CEO, source warehouse manager, Dispatcher, source worker, source storekeeper, assigned driver, destination worker, destination storekeeper, destination manager.
 - Warehouses exist for Hải Phòng, Hà Nội, Hồ Chí Minh, one In-Transit warehouse, and at least one active quarantine location for each destination warehouse.
 - `RN-*` supplier inbound receipts are available in `/inbound/receipts`.
 - `TRF-*` internal transfer documents are available in `/inter-warehouse-transfers` and stay in that module through the full receive flow.
@@ -50,14 +50,17 @@
    - use an available vehicle and a driver whose warehouse scope includes the transfer source warehouse.
    - expect one `TRANSFER` trip linked to the transfer and trip number format `TTR-YYYYMMDD-####`.
 
-8. Outbound QC, ship, and handover as source storekeeper:
+8. Source load report, outbound QC, ship, and handover:
+   - as source worker, call `POST /api/v1/inter-warehouse-transfers/{id}/source-load-report`
+   - include every transfer item and the physical `loadedQty` placed on the vehicle.
    - `POST /api/v1/inter-warehouse-transfers/{id}/outbound-qc`
    - `POST /api/v1/inter-warehouse-transfers/{id}/ship`
    - `POST /api/v1/inter-warehouse-transfers/{id}/load-handover`
    - outbound QC and load/handover require photo references; no Barcode/QR scan is required.
+   - outbound QC must be blocked before the source worker load report.
    - UI must keep QC pass/fail disabled until an image is selected or captured.
-   - UI must expose only unship/unload when outbound QC fails; shipment remains blocked.
-   - the shipment step records exact approved quantity for every line.
+   - if outbound QC fails, UI must expose only source worker unload/rework/re-report actions; load handover and driver departure remain blocked until the worker re-reports corrected loaded quantities and the storekeeper passes QC.
+   - the shipment step confirms exact approved quantity from worker-reported loaded quantity for every line.
    - sending less or more must return `SENT_QTY_MISMATCH`.
 
 9. Cancel after ship:
@@ -118,20 +121,21 @@
 7. Source manager sees approval/rejection actions only for source-scoped transfers.
 8. Dispatcher sees trip assignment actions only for approved transfers whose source warehouse is in dispatcher scope.
 9. Dispatcher can choose only vehicles and drivers valid for the source warehouse scope.
-10. Source storekeeper cannot press outbound QC pass/fail until selecting/capturing an image; QC pass enables shipment, QC fail only allows unload.
-11. Source storekeeper ships exact approved quantity and sees mismatch validation.
-12. Driver sees only the assigned transfer trip in the driver trip screen and can depart only that trip.
+10. Source worker reports item-level loaded quantities before outbound QC.
+11. Source storekeeper cannot press outbound QC pass/fail until selecting/capturing an image; QC pass enables shipment/load handover, QC fail only allows worker unload/rework/re-report.
+12. Source storekeeper ships exact approved quantity from worker-reported loaded quantities and sees mismatch validation.
+13. Driver sees only the assigned transfer trip in the driver trip screen and can depart only that trip.
     - The shared driver list is titled `Chuyen xe cua toi`, not delivery-only wording.
     - Selecting `Noi bo` shows this `TTR-*` transfer trip and hides dealer delivery trips.
     - The transfer card shows `Dieu chuyen noi bo` and source warehouse -> destination warehouse route instead of `Diem giao`.
     - The transfer detail does not expose POD, dealer OTP, dealer refusal, invoice, or confirm-delivery actions.
-13. Destination handover and return handover confirmation buttons stay disabled until selecting/capturing an image.
-14. Destination worker records initial count inside the transfer module, not inside the supplier inbound receipt list.
-15. Destination storekeeper checks count/QC and selects destination location for passed stock.
-16. Destination manager final-confirms completion/discrepancy in the same transfer module.
-17. Quarantine Workspace displays transfer origin and offers disposal only for damaged internal-transfer stock.
-18. Destination Storekeeper sees “Báo gửi nhầm SKU”; destination Manager sees approve/reject; neither action is shown outside destination warehouse scope.
-19. After approval, the driver sees the return instruction and source-side roles see the same three-step receiving workflow.
+14. Destination handover and return handover confirmation buttons stay disabled until selecting/capturing an image.
+15. Destination worker records initial count inside the transfer module, not inside the supplier inbound receipt list.
+16. Destination storekeeper checks count/QC and selects destination location for passed stock.
+17. Destination manager final-confirms completion/discrepancy in the same transfer module.
+18. Quarantine Workspace displays transfer origin and offers disposal only for damaged internal-transfer stock.
+19. Destination Storekeeper sees “Báo gửi nhầm SKU”; destination Manager sees approve/reject; neither action is shown outside destination warehouse scope.
+20. After approval, the driver sees the return instruction and source-side roles see the same three-step receiving workflow.
 
 ## Required Checks Before Coding Is Done
 
@@ -139,6 +143,7 @@
 - Backend controller/integration tests cover every transfer and transfer-request endpoint with happy path, validation failure, invalid state, authorization/scope failure, and stale-version conflict where applicable.
 - PostgreSQL/Flyway tests run against the real migration set and prove the latest additive migration works from a clean database.
 - Frontend tests/build pass.
+- Source load report tests prove outbound QC is blocked before worker loaded quantities, and QC fail returns to worker rework before QC can pass again.
 - Frontend tests cover every primary action button in the transfer workspace: visible/enabled role-state, hidden/disabled role-state, successful click, failed API response, and post-success refresh.
 - At least one frontend-to-backend smoke path passes from `TRQ` creation through final receive, including outbound QC photo refs, load handover photo refs, arrival/handover, receive-check, final receive, inventory movement, and audit assertion.
 - OpenAPI/Swagger exposes all transfer endpoints.

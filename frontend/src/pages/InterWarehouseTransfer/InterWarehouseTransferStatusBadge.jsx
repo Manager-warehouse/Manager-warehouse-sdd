@@ -1,6 +1,6 @@
 import React from 'react';
 import Badge from '../../components/common/Badge';
-import { interWarehouseTransferStatusLabel } from '../../utils/interWarehouseTransferStatus';
+import { interWarehouseTransferStatusLabel, interWarehouseTransferStepLabel } from '../../utils/interWarehouseTransferStatus';
 
 const statusMap = {
   NEW: 'bg-canvas-cream text-shade-70 border-hairline-light',
@@ -11,11 +11,14 @@ const statusMap = {
   REJECTED: 'bg-danger-50 text-danger-700 border-danger-200',
   CANCELLED: 'bg-shade-30 text-shade-70 border-hairline-light',
   QUARANTINED: 'bg-danger-100 text-danger-900 border-danger-300',
+  SOURCE_LOAD_PENDING: 'bg-warning-50 text-warning-800 border-warning-200',
+  OUTBOUND_QC_PENDING: 'bg-info-50 text-info-700 border-info-200',
+  SOURCE_LOAD_REWORK_REQUIRED: 'bg-danger-50 text-danger-700 border-danger-200',
 };
 
-const InterWarehouseTransferStatusBadge = ({ status }) => (
-  <Badge size="sm" colorClassName={statusMap[status] || statusMap.NEW}>
-    {interWarehouseTransferStatusLabel(status)}
+const InterWarehouseTransferStatusBadge = ({ status, step }) => (
+  <Badge size="sm" colorClassName={statusMap[step || status] || statusMap.NEW}>
+    {step ? interWarehouseTransferStepLabel(step) : interWarehouseTransferStatusLabel(status)}
   </Badge>
 );
 
