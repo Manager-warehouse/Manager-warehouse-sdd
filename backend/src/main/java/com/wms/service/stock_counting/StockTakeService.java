@@ -553,7 +553,13 @@ public class StockTakeService {
 
     private String generateStockTakeNumber() {
         DocumentSequence seq = documentSequenceRepository.findBySequenceKeyForUpdate("ST")
-                .orElseThrow(() -> new ResourceNotFoundException("DocumentSequence not found for key: ST"));
+                .orElseGet(() -> {
+                    DocumentSequence newSeq = new DocumentSequence();
+                    newSeq.setSequenceKey("ST");
+                    newSeq.setNextValue(1L);
+                    newSeq.setUpdatedAt(OffsetDateTime.now());
+                    return documentSequenceRepository.save(newSeq);
+                });
         long next = seq.getNextValue();
         seq.setNextValue(next + 1);
         seq.setUpdatedAt(OffsetDateTime.now());
