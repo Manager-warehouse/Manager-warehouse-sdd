@@ -120,7 +120,7 @@ public class ReceiptController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasRole('PLANNER')")
+    @PreAuthorize("hasAnyRole('PLANNER', 'STOREKEEPER', 'WAREHOUSE_MANAGER', 'ADMIN')")
     @Operation(summary = "Create supplier purchase receipt draft")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Receipt created",

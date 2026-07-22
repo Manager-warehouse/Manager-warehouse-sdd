@@ -215,8 +215,11 @@ public class ReceiptService {
     }
 
     private void requirePlanner(User actor) {
-        if (actor == null || actor.getRole() != UserRole.PLANNER) {
-            throw new AccessDeniedException("Planner role is required");
+        if (actor == null || (actor.getRole() != UserRole.PLANNER
+                && actor.getRole() != UserRole.STOREKEEPER
+                && actor.getRole() != UserRole.WAREHOUSE_MANAGER
+                && actor.getRole() != UserRole.ADMIN)) {
+            throw new AccessDeniedException("Planner, Storekeeper, Warehouse Manager, or Admin role is required");
         }
     }
 
