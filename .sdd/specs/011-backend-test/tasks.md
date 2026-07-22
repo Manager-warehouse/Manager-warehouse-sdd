@@ -44,9 +44,15 @@
 
 ---
 
+## Phase 4.5: US-WMS-TEST-04: MockMvc Controller API Endpoint Test Suite
+
+- [x] T037 [P] Viết MockMvc Controller Tests cho 12 REST Controllers còn thiếu: `AccountingPeriodControllerTest`, `BillingNotificationControllerTest`, `CreditControllerTest`, `DealerControllerTest`, `DisposalControllerTest`, `InventoryControllerTest`, `PriceHistoryControllerTest`, `QuarantineRtvControllerTest`, `ReportControllerTest`, `ReturnsControllerTest`, `StockAlertControllerTest`, `SupplierControllerTest`.
+
+---
+
 ## Phase 5: SonarQube Exclusions & Parameterized Tests Standard
 
-- [x] T040 Thêm cấu hình `<sonar.coverage.exclusions>` vào [backend/pom.xml](file:///d:/swp/Manager-warehouse-sdd/backend/pom.xml) để loại bỏ các lớp Entity, DTO, Config, Mapper, Exception, Controller, Enums.
+- [x] T040 Cập nhật cấu hình `<sonar.coverage.exclusions>` trong [backend/pom.xml](file:///d:/swp/Manager-warehouse-sdd/backend/pom.xml) để loại bỏ `com/wms/controller/**` khỏi danh sách exclusions (đưa Controllers vào đo lường coverage).
 - [x] T041 Áp dụng JUnit 5 Parameterized Tests (`@ParameterizedTest`) cho các service/util có nhiều bộ kịch bản test.
 
 ---
@@ -54,4 +60,4 @@
 ## Phase 6: Verification & Automated CI Gates
 
 - [x] T050 Chạy `mvn clean verify` từ root `backend/` để đảm bảo 100% test suite passed. AI chủ động chạy lệnh và tổng hợp báo cáo thay đổi cho người dùng nếu phát hiện lỗi cần fix.
-- [x] T051 Xác nhận JaCoCo HTML report đạt line coverage >= 80% áp dụng cho New Code.
+- [x] T051 Xác nhận JaCoCo HTML report đạt line coverage >= 80% áp dụng cho New Code bao gồm Controller API layer.

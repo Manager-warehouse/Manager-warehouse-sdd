@@ -31,6 +31,7 @@ Hệ thống WMS sử dụng Spring Boot 3.4.5, Java 21, Maven làm nền tảng
 - Q: Quy định tự động chạy test và tự động sửa code/test khi phát hiện bug của AI được điều chỉnh như thế nào? → A: AI được phép tự động chạy lệnh test và tự động đề xuất/sửa mã nguồn/test case để xanh hóa test, nhưng bắt buộc phải tổng hợp và báo cáo rõ các thay đổi (diff/summary) cho người dùng biết.
 - Q: Quy trình kiểm thử và nghiệm thu QA được chuẩn hóa như thế nào để tránh cồng kềnh thủ tục? → A: Tối ưu hóa quy trình QA: Giản lược các thủ tục ký duyệt thủ công (QA Sign-off) và môi trường Staging cồng kềnh, chuyển hoàn toàn sang tự động hóa kiểm thử trên CI/CD Pipeline (chặn PR nếu test fail hoặc Quality Gate < 80% trên New Code).
 - Q: Anh muốn xử lý các tệp test thừa/không đúng mục đích spec như thế nào? → A: Xóa 2 tệp nháp thừa (AuthServiceLoginTest.java, BcryptHashPrinter.java), chuyển SecurityConfigTest.java về đúng gói com.wms.security và loại bỏ thư mục com.wms.test.
+- Q: Kiểm tra và bổ sung phạm vi test API Call cho Backend như thế nào? → A: Bổ sung đầy đủ MockMvc Controller Integration Tests cho 12 REST Controllers chưa có test (AccountingPeriod, BillingNotification, Credit, Dealer, Disposal, Inventory, PriceHistory, QuarantineRtv, Report, Returns, StockAlert, SupplierController), đồng thời loại bỏ com/wms/controller/** khỏi sonar.coverage.exclusions để đưa Controller vào đo lường SonarQube.
 
 ---
 

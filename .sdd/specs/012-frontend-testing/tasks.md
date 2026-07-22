@@ -53,6 +53,13 @@
 
 ---
 
+## Phase 6.5: User Story 5 - Core API Client & Full Service Coverage (Priority: P1)
+
+- [x] T052 [P] Tạo bộ test Unit cho Axios Interceptor [frontend/test_frontend/services/apiClient.test.js](file:///d:/swp/Manager-warehouse-sdd/frontend/test_frontend/services/apiClient.test.js) kiểm tra gắn Bearer JWT token, xử lý refresh token 401, redirect và catch lỗi network.
+- [x] T053 [P] Tạo bộ test API Service & Component cho các phân vùng còn thiếu: Pricing/COGS (`pricing.service.js`), Returns/Scrap (`returns.service.js`), Reports/Alerts (`report.service.js`), Master Data Suppliers/Dealers/Warehouses/Vehicles (`masterData.service.js`), và Accounting Period.
+
+---
+
 ## Phase 7: Polish & CI/CD Pipeline Alignment
 
 - [x] T060 Cập nhật workflow [.github/workflows/test.yml](file:///d:/swp/Manager-warehouse-sdd/.github/workflows/test.yml) để bỏ loại trừ `src/pages/**,src/components/**` trong bước quét SonarQube Frontend.

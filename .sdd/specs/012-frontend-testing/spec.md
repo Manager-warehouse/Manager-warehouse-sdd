@@ -28,6 +28,7 @@ Hệ thống Quản lý Kho (WMS) có giao diện người dùng tương tác ph
 ### Session 2026-07-22
 - Q: Xử lý phạm vi Test Coverage ở Frontend như thế nào khi trước đó loại trừ toàn bộ UI Pages/Components? → A: Bỏ exclusion UI Pages/Components (không loại trừ src/pages/**, src/components/** trong SonarQube), yêu cầu bổ sung Component Tests cho các màn hình nghiệp vụ WMS chính và đưa vào đo lường SonarQube coverage.
 - Q: Quy trình kiểm thử và nghiệm thu QA ở Frontend được tối ưu như thế nào? → A: Giản lược thủ tục ký duyệt QA Sign-off và môi trường Staging cồng kềnh, chuyển hoàn toàn sang tự động hóa kiểm thử trên CI/CD Pipeline (chặn PR nếu test fail hoặc Quality Gate < 80% trên New Code).
+- Q: Kiểm tra và bổ sung phạm vi test API Call cho Frontend như thế nào? → A: Bổ sung Unit Test cho Axios Interceptor (api.client.js) và bổ sung Component/Service API Call Tests cho 5 phân vùng còn thiếu (Pricing/COGS, Returns/Scrap, Reports/Alerts, Master Data Suppliers/Dealers/Warehouses/Vehicles, Accounting Period).
 
 ---
 

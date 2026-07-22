@@ -25,7 +25,6 @@
             **/config/**,
             **/mapper/**,
             **/exception/**,
-            **/controller/**,
             **/enums/**,
             **/WmsApplication.java
         </sonar.coverage.exclusions>
