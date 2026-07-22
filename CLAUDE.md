@@ -19,7 +19,7 @@
 ### Đọc trước
 
 1. `AGENTS.md` → Project context đầy đủ (Tech stack, forbidden patterns, domain model)
-2. `README.md` → User Stories, requirements, key entities
+2. `README.md` → Project overview, quickstart, and documentation map
 3. File này → Workflow, patterns, và conventions
 4. `.specify/memory/constitution.md`
 
@@ -109,10 +109,11 @@ Manager-warehouse-sdd/
 ├── .git/                        # Git metadata
 ├── AGENTS.md                    # Agent policy, tech stack, forbidden patterns
 ├── CLAUDE.md                    # Kiến trúc, workflow, conventions (file này)
-├── Kiến trúc phân tầng các Actors.md  # 10 Actors, nghiệp vụ, quy trình
-├── README.md                    # User Stories, requirements, key entities
-├── DESIGN.md                    # UI design tokens (Apple design system)
-├── Userstory.md                 # User Stories bổ sung
+├── README.md                    # Project overview, quickstart, documentation map
+├── docs/
+│   ├── overview/                # Actors, user stories, feature catalog, project structure
+│   ├── architecture/            # Design system, frontend structure
+│   └── deployment/              # Deployment, Docker Compose, mobile build guides
 ├── backend/                     # Spring Boot 3.4.5 + Java 21
 ├── frontend/                    # React 18 + Tailwind CSS
 ├── specs/                       # Feature specifications (SDD)
@@ -833,7 +834,7 @@ DebitNote (Phiếu đòi bồi hoàn)
 | Monthly Closing            | Lock previous monthly periods (CLOSED), only Adjustment Vouchers allowed in open period |
 | Phúc Anh Internal Fleet    | All deliveries use internal fleet & drivers. No 3PL or delivery cost approvals |
 
-### Actor Reference (10 Actors — xem chi tiết tại `Kiến trúc phân tầng các Actors.md`)
+### Actor Reference (10 Actors — xem chi tiết tại `docs/overview/actors.md`)
 
 | Tầng      | Actor                   | Loại    | Trách nhiệm chính                                                                           |
 | --------- | ----------------------- | ------- | ------------------------------------------------------------------------------------------- |

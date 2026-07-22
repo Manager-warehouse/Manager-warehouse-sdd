@@ -1,0 +1,67 @@
+package com.wms.service.order_fulfillment;
+
+
+import com.wms.entity.access_control.*;
+import com.wms.entity.audit_trail.*;
+import com.wms.entity.billing_payment.*;
+import com.wms.entity.dealer_management.*;
+import com.wms.entity.document_numbering.*;
+import com.wms.entity.driver_management.*;
+import com.wms.entity.fleet_management.*;
+import com.wms.entity.notification_delivery.*;
+import com.wms.entity.order_fulfillment.*;
+import com.wms.entity.price_management.*;
+import com.wms.entity.product_catalog.*;
+import com.wms.entity.stock_control.*;
+import com.wms.entity.stock_counting.*;
+import com.wms.entity.stock_receiving.*;
+import com.wms.entity.supplier_management.*;
+import com.wms.entity.user_configuration.*;
+import com.wms.entity.warehouse_location.*;
+import com.wms.entity.warehouse_transfer.*;
+import com.wms.enums.access_control.*;
+import com.wms.enums.audit_trail.*;
+import com.wms.enums.billing_payment.*;
+import com.wms.enums.dealer_management.*;
+import com.wms.enums.driver_management.*;
+import com.wms.enums.fleet_management.*;
+import com.wms.enums.notification_delivery.*;
+import com.wms.enums.order_fulfillment.*;
+import com.wms.enums.price_management.*;
+import com.wms.enums.stock_control.*;
+import com.wms.enums.stock_counting.*;
+import com.wms.enums.stock_receiving.*;
+import com.wms.enums.supplier_management.*;
+import com.wms.enums.user_configuration.*;
+import com.wms.enums.warehouse_location.*;
+import com.wms.enums.warehouse_transfer.*;
+import com.wms.dto.request.DeliveryOrderAllocationRequest;
+import com.wms.dto.request.DeliveryOrderCreateRequest;
+import com.wms.dto.request.DeliveryOrderCancelRequest;
+import com.wms.dto.request.DeliveryOrderPickingPlanRequest;
+import com.wms.dto.request.DeliveryOrderPickQcResultRequest;
+import com.wms.dto.request.DeliveryOrderQualityApprovalRequest;
+import com.wms.dto.request.DeliveryOrderReplacementPlanRequest;
+import com.wms.dto.request.DeliveryOrderUpdateRequest;
+import com.wms.dto.request.DeliveryOrderWarehouseApprovalRequest;
+import com.wms.dto.request.DeliveryOrderWarehouseRejectRequest;
+import com.wms.dto.response.DeliveryOrderResponse;
+import com.wms.dto.response.PickingCandidateResponse;
+import com.wms.entity.access_control.User;
+import java.util.List;
+import java.util.Map;
+
+public interface DeliveryOrderService {
+    List<DeliveryOrderResponse> getAllDeliveryOrders(User actor);
+    Map<Long, List<PickingCandidateResponse>> getPickingCandidates(Long doId, User actor);
+    DeliveryOrderResponse getDeliveryOrderById(Long id, User actor);
+    DeliveryOrderResponse createDeliveryOrder(DeliveryOrderCreateRequest request, User actor);
+    DeliveryOrderResponse updateDeliveryOrder(Long id, DeliveryOrderUpdateRequest request, User actor);
+    DeliveryOrderResponse cancelDeliveryOrder(Long id, DeliveryOrderCancelRequest request, User actor);
+    DeliveryOrderResponse saveDeliveryOrderPickingPlan(Long id, DeliveryOrderPickingPlanRequest request, User actor);
+    DeliveryOrderResponse saveDeliveryOrderPickQcResult(Long id, DeliveryOrderPickQcResultRequest request, User actor);
+    DeliveryOrderResponse saveDeliveryOrderReplacementPlan(Long id, DeliveryOrderReplacementPlanRequest request, User actor);
+    DeliveryOrderResponse approveDeliveryOrderQuality(Long id, DeliveryOrderQualityApprovalRequest request, User actor);
+    DeliveryOrderResponse approveDeliveryOrderWarehouseRelease(Long id, DeliveryOrderWarehouseApprovalRequest request, User actor);
+    DeliveryOrderResponse rejectDeliveryOrderWarehouseRelease(Long id, DeliveryOrderWarehouseRejectRequest request, User actor);
+}
