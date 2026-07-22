@@ -77,7 +77,7 @@ INSERT INTO system_configs (config_key, config_value, description) VALUES
 
 -- 4. Document Sequences
 INSERT INTO document_sequences (sequence_key, next_value)
-VALUES ('INVOICE', 1), ('PAYMENT', 1)
+VALUES ('RECEIPT', 1), ('ST', 1), ('INVOICE', 1), ('PAYMENT', 1)
 ON CONFLICT (sequence_key) DO NOTHING;
 
 
