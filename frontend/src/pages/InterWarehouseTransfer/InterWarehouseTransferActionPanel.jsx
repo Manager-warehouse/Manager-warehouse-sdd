@@ -650,11 +650,11 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
           {/* Return Depart step */}
           {!transfer.returnDepartedAt && (
             <div className="border border-hairline-light rounded p-3 bg-canvas-cream flex flex-col gap-2">
-              <div className="text-xs font-semibold text-ink">BƯỚC 1: XUẤT PHÁT QUAY ĐẦU (TỪ KHO ĐÍCH)</div>
+              <div className="text-xs font-semibold text-ink">BƯỚC 1: TÀI XẾ XÁC NHẬN QUAY ĐẦU</div>
               {isAssignedDriver ? (
-                <Button loading={busy} icon={Send} onClick={() => run('returnDepart')}>Tài xế rời kho đích (Quay đầu)</Button>
+                <Button loading={busy} icon={Send} onClick={() => run('returnDepart')}>Tài xế xác nhận quay đầu về kho nguồn</Button>
               ) : (
-                <div className="text-xs text-warning-700 italic">Đang chờ tài xế xác nhận rời kho đích để quay đầu...</div>
+                <div className="text-xs text-warning-700 italic">Đang chờ tài xế xác nhận quay đầu về kho nguồn...</div>
               )}
             </div>
           )}
