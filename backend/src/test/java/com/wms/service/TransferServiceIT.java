@@ -301,7 +301,17 @@ public class TransferServiceIT {
         assertThat(trf.status()).isEqualTo(InterWarehouseTransferStatus.APPROVED);
         assertThat(trf.tripId()).isNotNull();
 
-        // 4. Outbound QC and load handover with photo confirmation
+        // 4. Source worker reports actual loaded quantity before outbound QC
+        trf = transferService.recordSourceLoadReport(
+                trf.id(),
+                new SourceLoadReportRequest(List.of(
+                        new SourceLoadReportItemRequest(trf.items().get(0).id(), new BigDecimal("30.00"))
+                ), null),
+                storekeeper
+        );
+        assertThat(trf.items().get(0).loadedQty()).isEqualByComparingTo(new BigDecimal("30.00"));
+
+        // 5. Outbound QC and load handover with photo confirmation
         trf = transferService.recordOutboundQc(
                 trf.id(),
                 new OutboundQcRequest(true, "Outbound QC passed", "transfer/outbound-qc/trf-001.jpg"),
@@ -316,11 +326,11 @@ public class TransferServiceIT {
         );
         assertThat(trf.loadHandoverPhotoRef()).isEqualTo("transfer/load-handover/trf-001.jpg");
 
-        // 5. Ship Transfer (keeps status APPROVED)
+        // 6. Ship Transfer (keeps status APPROVED)
         trf = transferService.shipTransfer(trf.id(), storekeeper);
         assertThat(trf.status()).isEqualTo(InterWarehouseTransferStatus.APPROVED);
 
-        // 6. Depart Transfer (driver departs) - transitions status to IN_TRANSIT
+        // 7. Depart Transfer (driver departs) - transitions status to IN_TRANSIT
         trf = transferService.departTransfer(trf.id(), driverUser);
         assertThat(trf.status()).isEqualTo(InterWarehouseTransferStatus.IN_TRANSIT);
 
