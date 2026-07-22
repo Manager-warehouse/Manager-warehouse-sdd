@@ -437,7 +437,7 @@ class InterWarehouseTransferFlowE2ETest {
         );
         InterWarehouseTransferResponse checkResponse = receivingService.receiveCheck(
                 transfer.getId(),
-                new InterWarehouseTransferReceiveCheckRequest(checkItems),
+                new InterWarehouseTransferReceiveCheckRequest(checkItems, "transfer/receive-qc/1.jpg"),
                 storekeeper
         );
         assertThat(checkResponse.status()).isEqualTo(InterWarehouseTransferStatus.IN_TRANSIT);
@@ -499,7 +499,8 @@ class InterWarehouseTransferFlowE2ETest {
                         BigDecimal.ZERO, destinationLocation.getId(), "", ""
                 )
         );
-        receivingService.receiveCheck(transfer.getId(), new InterWarehouseTransferReceiveCheckRequest(checkItems), storekeeper);
+        receivingService.receiveCheck(transfer.getId(),
+                new InterWarehouseTransferReceiveCheckRequest(checkItems, "transfer/receive-qc/1.jpg"), storekeeper);
 
         // --- Final Receive with Shortage -> Status is COMPLETED_WITH_DISCREPANCY ---
         when(assignmentRepository.findWarehouseIdsByUserId(manager.getId())).thenReturn(List.of(destinationWarehouse.getId()));
@@ -586,7 +587,8 @@ class InterWarehouseTransferFlowE2ETest {
                         new BigDecimal("5.00"), destinationLocation.getId(), "Méo móp nặng", "Méo móp nặng"
                 )
         );
-        receivingService.receiveCheck(transfer.getId(), new InterWarehouseTransferReceiveCheckRequest(checkItems), storekeeper);
+        receivingService.receiveCheck(transfer.getId(),
+                new InterWarehouseTransferReceiveCheckRequest(checkItems, "transfer/receive-qc/1.jpg"), storekeeper);
 
         // Mock QuarantineRecord save
         QuarantineRecord mockRecord = new QuarantineRecord();

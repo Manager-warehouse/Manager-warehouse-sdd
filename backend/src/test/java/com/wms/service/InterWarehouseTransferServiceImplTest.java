@@ -595,7 +595,8 @@ class InterWarehouseTransferServiceImplTest {
                                 new BigDecimal("1.00"),
                                 destinationLocation.getId(),
                                 "checker adjusted count",
-                                "one damaged"))),
+                                "one damaged")),
+                        "transfer/receive-qc/1.jpg"),
                 destinationStorekeeper);
         assertThat(checked.items().get(0).receivedQty()).isEqualByComparingTo("4.00");
         assertThat(checked.items().get(0).qcPassedQty()).isEqualByComparingTo("3.00");
@@ -755,7 +756,8 @@ class InterWarehouseTransferServiceImplTest {
                         BigDecimal.ZERO,
                         destinationLocation.getId(),
                         "Everything counted",
-                        null))),
+                        null)),
+                "transfer/receive-qc/1.jpg"),
                 destinationStorekeeper);
 
         InterWarehouseTransferRejectRequest request = new InterWarehouseTransferRejectRequest();
@@ -841,7 +843,8 @@ class InterWarehouseTransferServiceImplTest {
                         BigDecimal.ZERO,
                         destinationLocation.getId(),
                         "Check ok",
-                        null))),
+                        null)),
+                "transfer/receive-qc/1.jpg"),
                 destinationStorekeeper);
 
         // finalReceive should throw BIN_CAPACITY_EXCEEDED because 5.00 * 1.00 > 0.01

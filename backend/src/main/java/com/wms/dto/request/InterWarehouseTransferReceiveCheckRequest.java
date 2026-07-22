@@ -40,4 +40,5 @@ import jakarta.validation.constraints.NotEmpty;
 import java.util.List;
 
 public record InterWarehouseTransferReceiveCheckRequest(
-        @NotEmpty List<@Valid InterWarehouseTransferReceiveCheckItemRequest> items) {}
+        @NotEmpty List<@Valid InterWarehouseTransferReceiveCheckItemRequest> items,
+        String qcPhotoRef) {}

@@ -98,6 +98,7 @@ public record InterWarehouseTransferResponse(
         String arrivalHandoverPhotoRef,
         Long arrivalHandoverById,
         String arrivalHandoverByName,
+        String receiveQcPhotoRef,
 
         // Return leg
         OffsetDateTime returnDepartedAt,
@@ -170,6 +171,7 @@ public record InterWarehouseTransferResponse(
                 transfer.getArrivalHandoverPhotoRef(),
                 transfer.getArrivalHandoverBy() == null ? null : transfer.getArrivalHandoverBy().getId(),
                 transfer.getArrivalHandoverBy() == null ? null : transfer.getArrivalHandoverBy().getFullName(),
+                transfer.getReceiveQcPhotoRef(),
 
                 // Return leg
                 transfer.getReturnDepartedAt(),
@@ -219,7 +221,7 @@ public record InterWarehouseTransferResponse(
                 vehicleId, vehiclePlate, driverId, driverUserId, driverName, documentDate, plannedDate,
                 tripPlannedStartAt, tripPlannedEndAt, tripWarningActive, tripOverdue, tripWarningMessage,
                 actualReceivedDate, discrepancyReason, rejectionReason, notes, isReturned, createdAt, updatedAt,
-                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
                 (List<InterWarehouseTransferItemResponse>) items);
     }
 }
