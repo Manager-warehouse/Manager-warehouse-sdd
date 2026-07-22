@@ -79,6 +79,8 @@ import com.wms.dto.request.TransferReturnRequest;
 import com.wms.dto.request.TransferReturnRejectRequest;
 import com.wms.dto.request.LoadHandoverRequest;
 import com.wms.dto.request.OutboundQcRequest;
+import com.wms.dto.request.SourceLoadReportItemRequest;
+import com.wms.dto.request.SourceLoadReportRequest;
 import com.wms.dto.request.AccountingPeriodCloseRequest;
 import com.wms.dto.request.AccountingPeriodCreateRequest;
 import com.wms.dto.response.AccountingPeriodResponse;
@@ -307,6 +309,8 @@ class InterWarehouseTransferServiceImplTest {
     }
 
     private void recordPassingOutboundQcAndHandover() {
+        service.recordSourceLoadReport(1L, new SourceLoadReportRequest(List.of(
+                new SourceLoadReportItemRequest(transferItem.getId(), transferItem.getPlannedQty())), null), sourceManager);
         service.recordOutboundQc(1L, new OutboundQcRequest(true, "QC passed", "outbound-qc.jpg"), sourceManager);
         service.loadHandover(1L, new LoadHandoverRequest("load-handover.jpg"), sourceManager);
     }
@@ -442,23 +446,77 @@ class InterWarehouseTransferServiceImplTest {
 
         assertThatThrownBy(() -> service.shipTransfer(1L, sourceManager))
                 .isInstanceOf(BusinessRuleViolationException.class)
-                .hasMessageContaining("OUTBOUND_QC_NOT_PASSED");
+                .hasMessageContaining("SOURCE_LOAD_REPORT_REQUIRED");
 
         recordPassingOutboundQcAndHandover();
         InterWarehouseTransferResponse shipped = service.shipTransfer(1L, sourceManager);
+        assertThat(shipped.items().get(0).loadedQty()).isEqualByComparingTo("5.00");
         assertThat(shipped.items().get(0).sentQty()).isEqualByComparingTo("5.00");
 
         InterWarehouseTransferResponse unshipped = service.unshipTransfer(1L, sourceManager);
         assertThat(unshipped.items().get(0).sentQty()).isNull();
 
+        service.recordSourceLoadReport(1L, new SourceLoadReportRequest(List.of(
+                new SourceLoadReportItemRequest(transferItem.getId(), transferItem.getPlannedQty())), null), sourceManager);
         service.recordOutboundQc(1L, new OutboundQcRequest(true, "QC passed again", "outbound-qc-2.jpg"), sourceManager);
         service.shipTransfer(1L, sourceManager);
+        service.loadHandover(1L, new LoadHandoverRequest("load-handover-2.jpg"), sourceManager);
         InterWarehouseTransferResponse departed = service.departTransfer(1L, driverUser);
         assertThat(departed.status()).isEqualTo(InterWarehouseTransferStatus.IN_TRANSIT);
         assertThat(sourceInventory.getTotalQty()).isEqualByComparingTo("15.00");
         assertThat(transitInventory).isNotNull();
         assertThat(transitInventory.getTotalQty()).isEqualByComparingTo("5.00");
         assertThat(transfer.getTrip().getStatus()).isEqualTo(TripStatus.IN_TRANSIT);
+    }
+
+    @Test
+    void sourceFlow_requiresWorkerLoadReportBeforeOutboundQcAndAllowsReworkRetry() {
+        service.approveTransfer(1L, sourceManager);
+        service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
+                VALID_TRIP_START, VALID_TRIP_END), dispatcher);
+
+        assertThatThrownBy(() -> service.recordOutboundQc(1L,
+                new OutboundQcRequest(true, "QC too early", "qc.jpg"), sourceManager))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("SOURCE_LOAD_REPORT_REQUIRED");
+
+        service.recordSourceLoadReport(1L, new SourceLoadReportRequest(List.of(
+                new SourceLoadReportItemRequest(transferItem.getId(), transferItem.getPlannedQty())), null), sourceManager);
+        InterWarehouseTransferResponse failedQc = service.recordOutboundQc(1L,
+                new OutboundQcRequest(false, "Mop meo vo hop", "qc-fail.jpg"), sourceManager);
+        assertThat(failedQc.sourceLoadReworkRequired()).isTrue();
+
+        assertThatThrownBy(() -> service.loadHandover(1L, new LoadHandoverRequest("handover.jpg"), sourceManager))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("SOURCE_LOAD_REWORK_REQUIRED");
+        assertThatThrownBy(() -> service.departTransfer(1L, driverUser))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("SOURCE_LOAD_REWORK_REQUIRED");
+
+        InterWarehouseTransferResponse reloaded = service.recordSourceLoadReport(1L, new SourceLoadReportRequest(List.of(
+                new SourceLoadReportItemRequest(transferItem.getId(), transferItem.getPlannedQty())), "Da doi hang"), sourceManager);
+        assertThat(reloaded.sourceLoadReworkRequired()).isFalse();
+        assertThat(reloaded.outboundQcPassed()).isNull();
+
+        service.recordOutboundQc(1L, new OutboundQcRequest(true, "QC passed after rework", "qc-pass.jpg"), sourceManager);
+        service.loadHandover(1L, new LoadHandoverRequest("handover.jpg"), sourceManager);
+        InterWarehouseTransferResponse shipped = service.shipTransfer(1L, sourceManager);
+        assertThat(shipped.items().get(0).sentQty()).isEqualByComparingTo("5.00");
+    }
+
+    @Test
+    void sourceFlow_rejectsQcPassWhenLoadedQuantityDiffersFromPlanned() {
+        service.approveTransfer(1L, sourceManager);
+        service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
+                VALID_TRIP_START, VALID_TRIP_END), dispatcher);
+
+        service.recordSourceLoadReport(1L, new SourceLoadReportRequest(List.of(
+                new SourceLoadReportItemRequest(transferItem.getId(), new BigDecimal("4.00"))), "short one"), sourceManager);
+
+        assertThatThrownBy(() -> service.recordOutboundQc(1L,
+                new OutboundQcRequest(true, "QC pass impossible", "qc.jpg"), sourceManager))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("SENT_QTY_MISMATCH");
     }
 
     @Test
@@ -610,7 +668,7 @@ class InterWarehouseTransferServiceImplTest {
     }
 
     @Test
-    void returnToSource_setsIsReturnedTrueAndRestrictsReceivingToSourceWarehouse() {
+    void returnToSource_allowsDestinationOrSourceManagerThenRestrictsReceivingToSourceWarehouse() {
         service.approveTransfer(1L, sourceManager);
         service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
                 VALID_TRIP_START, VALID_TRIP_END), dispatcher);
@@ -624,13 +682,12 @@ class InterWarehouseTransferServiceImplTest {
                 .isInstanceOf(BusinessRuleViolationException.class)
                 .hasMessageContaining("WAREHOUSE_MANAGER_ROLE_REQUIRED");
 
-        // Destination Manager must be blocked
-        assertThatThrownBy(() -> service.returnToSource(1L, req, destinationManager))
+        assertThatThrownBy(() -> service.returnToSource(1L, req, planner))
                 .isInstanceOf(BusinessRuleViolationException.class)
-                .hasMessageContaining("WAREHOUSE_SCOPE_REQUIRED");
+                .hasMessageContaining("WAREHOUSE_MANAGER_ROLE_REQUIRED");
 
-        // Source Manager succeeds
-        InterWarehouseTransferResponse response = service.returnToSource(1L, req, sourceManager);
+        // Destination Manager can request the operational return while the truck is in transit.
+        InterWarehouseTransferResponse response = service.returnToSource(1L, req, destinationManager);
         assertThat(response.isReturned()).isTrue();
 
         // T058: Execute return leg steps: driver departs, arrives, and hands over back to source warehouse

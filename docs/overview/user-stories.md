@@ -224,9 +224,10 @@
    - Hệ thống phải tính tải trọng/thể tích từ dòng hàng, kiểm tra xe/tài xế không bị trùng lịch, kiểm tra tải trọng xe theo khối lượng; thể tích chỉ kiểm tra khi xe có cấu hình thể tích.
    - Chỉ được đổi xe/tài xế/lịch trước khi tài xế departure; sau departure trip bị khóa.
    - Chuyến điều chuyển `TTR-*` xuất hiện trong màn **Chuyến xe của tôi** của tài xế với nhãn **Điều chuyển nội bộ** và filter **Nội bộ**; detail của chuyến này đi theo luồng depart/arrive/handover của điều chuyển, không dùng POD/OTP đại lý.
-4. Thủ kho kho nguồn kiểm outbound QC bằng mắt/đối chiếu phiếu, chụp ảnh xác nhận, ghi nhận số lượng xuất, bốc xếp lên xe và chụp ảnh bàn giao cho tài xế; Tài xế xác nhận đã nhận hàng và xe rời kho → Hệ thống **trừ tồn kho nguồn, giải phóng giữ chỗ, cộng vào Kho ảo In-Transit** → Trạng thái: **Đang vận chuyển (In-Transit)**.
-   - Thủ kho nguồn phải ghi đúng số lượng đã duyệt; không được xuất thừa hoặc thiếu.
+4. Công nhân/Nhân viên kho nguồn lấy hàng, bốc xếp lên xe và báo cáo số lượng thực xếp theo từng dòng; Thủ kho kho nguồn kiểm outbound QC bằng mắt/đối chiếu phiếu dựa trên số lượng đã xếp, chụp ảnh xác nhận, chốt số lượng xuất và chụp ảnh bàn giao cho tài xế; Tài xế xác nhận đã nhận hàng và xe rời kho → Hệ thống **trừ tồn kho nguồn, giải phóng giữ chỗ, cộng vào Kho ảo In-Transit** → Trạng thái: **Đang vận chuyển (In-Transit)**.
+   - Công nhân kho nguồn phải báo số lượng thực xếp trước khi Thủ kho QC; số lượng đủ điều kiện QC đạt phải khớp số đã duyệt.
    - Outbound QC và load/handover là bắt buộc trước khi tài xế departure, xác nhận bằng ảnh; hệ thống không yêu cầu Barcode/QR.
+   - Nếu QC xuất thất bại, phiếu quay lại bước công nhân hạ hàng/đổi hàng/xếp lại/báo cáo lại số lượng; hệ thống chặn bàn giao tài xế và departure cho tới khi QC lại đạt.
    - Nếu đã ghi hàng lên xe nhưng chưa rời kho mà cần hủy, hệ thống bắt buộc hạ hàng/unship trước rồi mới cho Trưởng kho nguồn hủy phiếu và nhả giữ chỗ.
 5. Tài xế được gán phải ghi nhận xe đến kho nhận và bàn giao vật lý trước khi kho nhận được kiểm đếm. Công nhân kho đích nhập blind count số lượng thực nhận; nếu số nhận thiếu/thừa so với số gửi thì phải nhập lý do. Thủ kho kho đích kiểm tra lại số lượng, có thể điều chỉnh số xác nhận kèm ghi chú, nhập/chốt QC, kiểm tra sức chứa Bin và chọn vị trí nhập hàng đạt; Trưởng kho đích xác nhận cuối cùng:
    - Nếu khớp và QC đạt → Hệ thống **trừ Kho ảo In-Transit, cộng vào kho đích** → Trạng thái: **Hoàn thành**.

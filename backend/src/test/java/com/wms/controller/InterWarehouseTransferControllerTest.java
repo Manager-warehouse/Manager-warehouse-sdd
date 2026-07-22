@@ -261,6 +261,37 @@ class InterWarehouseTransferControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "staff@wms.com", roles = "WAREHOUSE_STAFF")
+    void sourceLoadReport_success() throws Exception {
+        SourceLoadReportRequest request = new SourceLoadReportRequest(List.of(
+                new SourceLoadReportItemRequest(101L, new BigDecimal("5.00"))), null);
+        InterWarehouseTransferResponse response = createMockResponse(1L, "TRF-20260711-0001", InterWarehouseTransferStatus.APPROVED);
+
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(staff);
+        when(transferService.recordSourceLoadReport(eq(1L), any(SourceLoadReportRequest.class), eq(staff)))
+                .thenReturn(response);
+
+        mockMvc.perform(post("/api/v1/inter-warehouse-transfers/1/source-load-report")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request))
+                .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(username = "staff@wms.com", roles = "WAREHOUSE_STAFF")
+    void sourceLoadReport_validationFailure_negativeQty() throws Exception {
+        SourceLoadReportRequest request = new SourceLoadReportRequest(List.of(
+                new SourceLoadReportItemRequest(101L, new BigDecimal("-1.00"))), null);
+
+        mockMvc.perform(post("/api/v1/inter-warehouse-transfers/1/source-load-report")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request))
+                .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
     void uploadPhotoEvidence_success() throws Exception {
         MockMultipartFile file = new MockMultipartFile(

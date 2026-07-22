@@ -53,6 +53,7 @@ public interface InterWarehouseTransferService {
     InterWarehouseTransferResponse approveTransfer(Long id, User actor);
     InterWarehouseTransferResponse rejectTransfer(Long id, InterWarehouseTransferReasonRequest request, User actor);
     InterWarehouseTransferResponse assignTrip(Long id, InterWarehouseTransferTripAssignRequest request, User actor);
+    InterWarehouseTransferResponse recordSourceLoadReport(Long id, SourceLoadReportRequest request, User actor);
     InterWarehouseTransferResponse shipTransfer(Long id, User actor);
     InterWarehouseTransferResponse unshipTransfer(Long id, User actor);
     InterWarehouseTransferResponse departTransfer(Long id, User actor);

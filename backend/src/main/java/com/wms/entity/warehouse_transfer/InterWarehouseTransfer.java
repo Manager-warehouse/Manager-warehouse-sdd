@@ -185,6 +185,20 @@ public class InterWarehouseTransfer {
     @Column(name = "outbound_qc_at")
     private OffsetDateTime outboundQcAt;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "source_loaded_reported_by")
+    private User sourceLoadedReportedBy;
+
+    @Column(name = "source_loaded_reported_at")
+    private OffsetDateTime sourceLoadedReportedAt;
+
+    @Column(name = "source_load_rework_required", nullable = false)
+    @Builder.Default
+    private boolean sourceLoadReworkRequired = false;
+
+    @Column(name = "source_load_rework_reason", columnDefinition = "TEXT")
+    private String sourceLoadReworkReason;
+
     // Load handover fields (T011)
     @Column(name = "load_handover_photo_ref")
     private String loadHandoverPhotoRef;

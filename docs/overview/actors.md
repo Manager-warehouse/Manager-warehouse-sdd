@@ -172,7 +172,7 @@
 
 **Điều chuyển:**
 
-- Ở kho nguồn: outbound QC bằng mắt/đối chiếu phiếu, chụp ảnh xác nhận, xác nhận xuất hàng lên xe nội bộ và chụp ảnh load/handover cho tài xế khi Phiếu điều chuyển đã được duyệt.
+- Ở kho nguồn: công nhân/Nhân viên kho nguồn xếp hàng và báo số lượng thực xếp trước; Thủ kho outbound QC bằng mắt/đối chiếu phiếu trên số đã xếp, chụp ảnh xác nhận, QC đạt mới chốt xuất/bàn giao tài xế, QC thất bại thì quay lại công nhân hạ/đổi/xếp lại và báo cáo lại.
 - Ở kho đích: kiểm tra lại blind count của công nhân, chốt QC, kiểm tra sức chứa Bin, chọn vị trí nhập kho cho hàng đạt, duyệt receive-check.
 - Khi phát hiện wrong-SKU còn nguyên: báo cáo theo line gồm SKU kỳ vọng, SKU thực tế, số lượng ảnh hưởng, lý do và ảnh nếu có.
 

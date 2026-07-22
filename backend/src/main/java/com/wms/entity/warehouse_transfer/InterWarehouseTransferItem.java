@@ -83,6 +83,16 @@ public class InterWarehouseTransferItem {
     @Column(name = "sent_qty", precision = 10, scale = 2)
     private BigDecimal sentQty;
 
+    @Column(name = "loaded_qty", precision = 10, scale = 2)
+    private BigDecimal loadedQty;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "loaded_reported_by")
+    private User loadedReportedBy;
+
+    @Column(name = "loaded_reported_at")
+    private java.time.OffsetDateTime loadedReportedAt;
+
     @Column(name = "received_qty", precision = 10, scale = 2)
     private BigDecimal receivedQty;
 
