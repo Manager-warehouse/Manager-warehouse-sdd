@@ -227,8 +227,10 @@ public class InterWarehouseTransferReceivingService {
         if (helper.isBlank(request.getRejectionReason())) {
             throw new BusinessRuleViolationException("REJECTION_REASON_REQUIRED");
         }
+        ensureQuarantineRejectGate(transfer);
 
         Map<String, Object> before = helper.snapshot(transfer);
+        transfer.setRejectionReason(request.getRejectionReason());
 
         moveTransitToQuarantine(transfer, actor);
 
@@ -248,7 +250,6 @@ public class InterWarehouseTransferReceivingService {
         transfer.setStatus(InterWarehouseTransferStatus.QUARANTINED);
         transfer.setRejectedBy(actor);
         transfer.setRejectedAt(OffsetDateTime.now());
-        transfer.setRejectionReason(request.getRejectionReason());
         transfer.setUpdatedAt(OffsetDateTime.now());
 
         if (transfer.getTrip() != null) {
@@ -296,6 +297,27 @@ public class InterWarehouseTransferReceivingService {
             if (!hasQuarantine) {
                 throw new BusinessRuleViolationException("QUARANTINE_LOCATION_NOT_CONFIGURED");
             }
+        }
+    }
+
+    private void ensureQuarantineRejectGate(InterWarehouseTransfer transfer) {
+        if (Boolean.TRUE.equals(transfer.isReturned())) {
+            if (transfer.getReturnArrivedAt() == null) {
+                throw new BusinessRuleViolationException("RETURN_ARRIVE_REQUIRED");
+            }
+            if (transfer.getReturnArrivalHandoverAt() == null) {
+                throw new BusinessRuleViolationException("RETURN_HANDOVER_REQUIRED");
+            }
+        } else {
+            if (transfer.getDriverArrivedAt() == null) {
+                throw new BusinessRuleViolationException("DRIVER_ARRIVE_REQUIRED");
+            }
+            if (transfer.getArrivalHandoverAt() == null) {
+                throw new BusinessRuleViolationException("ARRIVAL_HANDOVER_REQUIRED");
+            }
+        }
+        if (helper.items(transfer).stream().anyMatch(item -> item.getWorkerReceivedQty() == null)) {
+            throw new BusinessRuleViolationException("WORKER_COUNT_REQUIRED");
         }
     }
 

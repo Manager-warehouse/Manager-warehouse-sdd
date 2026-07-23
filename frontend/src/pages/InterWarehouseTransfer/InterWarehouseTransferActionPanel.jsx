@@ -134,9 +134,17 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
   const sourceLoadReworkRequired = Boolean(transfer.sourceLoadReworkRequired || transfer.source_load_rework_required);
   const loadHandoverDone = Boolean(transfer.loadHandoverPhotoRef || transfer.load_handover_photo_ref || false);
   const outboundQcStoredPhotoRef = transfer.outboundQcPhotoRef || transfer.outbound_qc_photo_ref || '';
+  const arrivalHandoverDone = Boolean(transfer.arrivalHandoverAt
+    || transfer.arrival_handover_at
+    || transfer.arrivalHandoverPhotoRef
+    || transfer.arrival_handover_photo_ref);
+  const returnHandoverDone = Boolean(transfer.returnArrivalHandoverAt
+    || transfer.return_arrival_handover_at
+    || transfer.returnArrivalHandoverPhotoRef
+    || transfer.return_arrival_handover_photo_ref);
   const activeReceivingHandoverDone = transfer.isReturned
-    ? Boolean(transfer.returnArrivedAt && transfer.returnArrivalHandoverAt)
-    : Boolean(transfer.driverArrivedAt && transfer.arrivalHandoverAt);
+    ? Boolean(transfer.returnArrivedAt && returnHandoverDone)
+    : Boolean(transfer.driverArrivedAt && arrivalHandoverDone);
   const isAssignedDriver = hasRole(ROLES.DRIVER)
     && Number(transfer.driverUserId || 0) === Number(currentUser?.id || 0);
   const canDriverDepart = hasTrip && allItemsSent && isAssignedDriver && outboundQcPassed && loadHandoverDone && !sourceLoadReworkRequired;
@@ -161,8 +169,8 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
     loadedQty: item.loadedQty ?? item.plannedQty,
   }));
   const pendingReturnRequest = transfer.status === 'IN_TRANSIT' && !transfer.isReturned && Boolean(transfer.returnRequested);
-  const normalReceivingHandoverDone = Boolean(transfer.driverArrivedAt && transfer.arrivalHandoverAt);
-  const returnReceivingHandoverDone = Boolean(transfer.returnArrivedAt && transfer.returnArrivalHandoverAt);
+  const normalReceivingHandoverDone = Boolean(transfer.driverArrivedAt && arrivalHandoverDone);
+  const returnReceivingHandoverDone = Boolean(transfer.returnArrivedAt && returnHandoverDone);
   const countReady = countRows.length
     && countRows.every((row) => {
       const item = transfer.items.find((line) => line.id === row.transferItemId);
@@ -670,7 +678,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
           )}
 
           {/* Receiving Handover step */}
-          {transfer.driverArrivedAt && !transfer.arrivalHandoverAt && !transfer.returnRequested && (
+          {transfer.driverArrivedAt && !arrivalHandoverDone && !transfer.returnRequested && (
             <div className="border border-hairline-light rounded p-3 bg-canvas-cream flex flex-col gap-2">
               <div className="text-xs font-semibold text-ink">BƯỚC 2: BÀN GIAO TẠI KHO ĐÍCH</div>
               {hasAny(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse ? (
@@ -742,7 +750,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
           )}
 
           {/* Return Handover step */}
-          {transfer.returnArrivedAt && !transfer.returnArrivalHandoverAt && (
+          {transfer.returnArrivedAt && !returnHandoverDone && (
             <div className="border border-hairline-light rounded p-3 bg-canvas-cream flex flex-col gap-2">
               <div className="text-xs font-semibold text-ink">BƯỚC 3: BÀN GIAO QUAY ĐẦU TẠI KHO NGUỒN</div>
               {hasAny(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]) && canManageSourceWarehouse ? (
@@ -963,18 +971,9 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
                     <div className="flex-1">
                       <Button variant="outline-light" icon={ClipboardCheck} onClick={ensureCheckRows}>Kiểm tra count/QC</Button>
                     </div>
-                    {!transfer.isReturned && (
-                      <div className="flex-1 md:flex-initial flex gap-2 items-end">
-                        <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Lý do từ chối cách ly bắt buộc" />
-                        <Button loading={busy} variant="outline-light" className="text-danger-600 border-danger-600 hover:bg-danger-50" icon={X} onClick={() => {
-                          if (!reason.trim()) {
-                            addToast('Vui lòng nhập lý do từ chối cách ly!', 'error');
-                            return;
-                          }
-                          run('quarantineReject', reason);
-                        }}>Từ chối & Cách ly toàn bộ</Button>
-                      </div>
-                    )}
+                    <div className="text-xs text-shade-60">
+                      QC lỗi thì nhập số lượng lỗi theo từng dòng và lý do, hệ thống sẽ đưa phần lỗi vào quarantine khi quản lý xác nhận cuối.
+                    </div>
                   </div>
             {checkRows.map((row) => {
                 const item = transfer.items.find((line) => line.id === row.transferItemId);
@@ -1057,15 +1056,6 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
               </div>
               <div className="flex gap-2">
                 <Button loading={busy} icon={Check} onClick={() => run('finalReceive', reason)}>Xác nhận cuối</Button>
-                {!transfer.isReturned && (
-                  <Button loading={busy} variant="outline-light" className="text-danger-600 border-danger-600 hover:bg-danger-50" icon={X} onClick={() => {
-                    if (!reason.trim()) {
-                      addToast('Vui lòng nhập lý do từ chối cách ly vào ô văn bản!', 'error');
-                      return;
-                    }
-                    run('quarantineReject', reason);
-                  }}>Từ chối & Cách ly toàn bộ</Button>
-                )}
               </div>
             </div>
         </div>

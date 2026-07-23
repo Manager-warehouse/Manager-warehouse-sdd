@@ -198,6 +198,27 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
     expect(screen.queryByRole('button', { name: 'Quay đầu về kho nguồn' })).not.toBeInTheDocument();
   });
 
+  it('treats receiving handover photo as the handover gate and hides return forms during count', () => {
+    renderPanel({
+      roles: [ROLES.WAREHOUSE_STAFF],
+      activeWarehouse: { id: 2, code: 'WH-HP' },
+      warehouseAccessIds: [2],
+      transfer: {
+        ...baseTransfer,
+        status: 'IN_TRANSIT',
+        driverArrivedAt: '2026-07-22T10:00:00Z',
+        arrivalHandoverAt: null,
+        arrivalHandoverPhotoRef: 'uploads/handover.jpg',
+        items: [{ ...baseTransfer.items[0], sentQty: 10 }],
+      },
+    });
+
+    expect(screen.getByText('Chờ nhập số lượng thực nhận')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Nhập số lượng thực nhận' })).toBeInTheDocument();
+    expect(screen.queryByText('Báo sai SKU & Yêu cầu quay đầu xe')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Quay đầu về kho nguồn' })).not.toBeInTheDocument();
+  });
+
   it('does not prefill destination count before warehouse staff enters quantity', () => {
     renderPanel({
       roles: [ROLES.WAREHOUSE_STAFF],
@@ -414,5 +435,26 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
     expect(screen.getByText('Quay đầu: Chờ kiểm tra count/QC tại kho nguồn')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Từ chối & Cách ly toàn bộ' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Kiểm tra count/QC' })).toBeInTheDocument();
+  });
+
+  it('does not show whole-transfer quarantine reject after destination count', () => {
+    renderPanel({
+      roles: [ROLES.STOREKEEPER],
+      activeWarehouse: { id: 2, code: 'WH-HP' },
+      warehouseAccessIds: [2],
+      transfer: {
+        ...baseTransfer,
+        status: 'IN_TRANSIT',
+        driverArrivedAt: '2026-07-22T10:00:00Z',
+        arrivalHandoverAt: '2026-07-22T10:05:00Z',
+        arrivalHandoverPhotoRef: 'uploads/handover.jpg',
+        items: [{ ...baseTransfer.items[0], sentQty: 10, workerReceivedQty: 10 }],
+      },
+    });
+
+    expect(screen.getByText('Chờ kiểm tra count/QC')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Kiểm tra count/QC' })).toBeInTheDocument();
+    expect(screen.getByText('QC lỗi thì nhập số lượng lỗi theo từng dòng và lý do, hệ thống sẽ đưa phần lỗi vào quarantine khi quản lý xác nhận cuối.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Từ chối & Cách ly toàn bộ' })).not.toBeInTheDocument();
   });
 });
