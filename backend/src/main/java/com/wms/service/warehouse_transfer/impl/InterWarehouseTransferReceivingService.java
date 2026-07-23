@@ -226,8 +226,7 @@ public class InterWarehouseTransferReceivingService {
     private void ensureManagerCanRequestReturn(InterWarehouseTransfer transfer, User actor) {
         List<Long> warehouseIds = helper.loadWarehouseIds(actor);
         Long sourceWarehouseId = transfer.getSourceWarehouse().getId();
-        Long destinationWarehouseId = transfer.getDestinationWarehouse().getId();
-        if (!warehouseIds.contains(sourceWarehouseId) && !warehouseIds.contains(destinationWarehouseId)) {
+        if (!warehouseIds.contains(sourceWarehouseId)) {
             throw new BusinessRuleViolationException("WAREHOUSE_SCOPE_REQUIRED");
         }
     }

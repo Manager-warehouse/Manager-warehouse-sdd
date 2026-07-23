@@ -120,11 +120,24 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
     }));
   });
 
-  it('lets destination manager request direct return to source with reason', async () => {
-    const onAction = renderPanel({
+  it('keeps direct return-to-source action for source manager only', async () => {
+    renderPanel({
       roles: [ROLES.WAREHOUSE_MANAGER],
       activeWarehouse: { id: 2, code: 'WH-HP' },
       warehouseAccessIds: [2],
+      transfer: {
+        ...baseTransfer,
+        status: 'IN_TRANSIT',
+        driverArrivedAt: null,
+      },
+    });
+
+    expect(screen.queryByRole('button', { name: 'Quay đầu về kho nguồn' })).not.toBeInTheDocument();
+
+    const onAction = renderPanel({
+      roles: [ROLES.WAREHOUSE_MANAGER],
+      activeWarehouse: { id: 1, code: 'WH-HN' },
+      warehouseAccessIds: [1],
       transfer: {
         ...baseTransfer,
         status: 'IN_TRANSIT',
@@ -143,8 +156,8 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
     }));
   });
 
-  it('allows source warehouse staff to confirm return handover after driver arrives back', async () => {
-    const onAction = renderPanel({
+  it('keeps return handover photo confirmation for source storekeeper, not warehouse staff', async () => {
+    renderPanel({
       roles: [ROLES.WAREHOUSE_STAFF],
       activeWarehouse: { id: 1, code: 'WH-HN' },
       warehouseAccessIds: [1],
@@ -159,6 +172,25 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
     });
 
     expect(screen.getByText('BƯỚC 3: BÀN GIAO QUAY ĐẦU TẠI KHO NGUỒN')).toBeInTheDocument();
+    expect(screen.queryByText('Ảnh bàn giao quay đầu')).not.toBeInTheDocument();
+    expect(screen.getByText('Đang chờ thủ kho kho nguồn xác nhận bàn giao quay đầu...')).toBeInTheDocument();
+  });
+
+  it('allows source storekeeper to confirm return handover photo after driver arrives back', async () => {
+    const onAction = renderPanel({
+      roles: [ROLES.STOREKEEPER],
+      activeWarehouse: { id: 1, code: 'WH-HN' },
+      warehouseAccessIds: [1],
+      transfer: {
+        ...baseTransfer,
+        status: 'IN_TRANSIT',
+        isReturned: true,
+        returnDepartedAt: '2026-07-22T10:00:00Z',
+        returnArrivedAt: '2026-07-22T10:30:00Z',
+        returnArrivalHandoverAt: null,
+      },
+    });
+
     fireEvent.click(screen.getByText('Ảnh bàn giao quay đầu'));
     fireEvent.click(screen.getByRole('button', { name: 'Xác nhận Nhận bàn giao quay đầu' }));
 
