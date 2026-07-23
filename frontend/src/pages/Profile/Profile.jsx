@@ -96,11 +96,12 @@ const Profile = () => {
       return;
     }
 
-    // Event-driven validation rule: mixed case + digits
-    const hasLetter = /[a-zA-Z]/.test(newPassword);
+    // Must match backend ChangePasswordRequest.newPassword @Pattern rule
+    const hasUpper = /[A-Z]/.test(newPassword);
+    const hasLower = /[a-z]/.test(newPassword);
     const hasDigit = /[0-9]/.test(newPassword);
-    if (!hasLetter || !hasDigit) {
-      setPassError('Mật khẩu phải chứa cả chữ cái và chữ số');
+    if (!hasUpper || !hasLower || !hasDigit) {
+      setPassError('Mật khẩu phải chứa ít nhất 1 chữ hoa, 1 chữ thường và 1 chữ số');
       return;
     }
 

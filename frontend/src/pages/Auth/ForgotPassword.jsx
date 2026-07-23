@@ -73,6 +73,14 @@ const ForgotPassword = () => {
       setError('Mật khẩu mới phải có tối thiểu 8 ký tự');
       return;
     }
+    // Must match backend VerifyOtpRequest.newPassword @Pattern rule
+    const hasUpper = /[A-Z]/.test(newPassword);
+    const hasLower = /[a-z]/.test(newPassword);
+    const hasDigit = /[0-9]/.test(newPassword);
+    if (!hasUpper || !hasLower || !hasDigit) {
+      setError('Mật khẩu phải chứa ít nhất 1 chữ hoa, 1 chữ thường và 1 chữ số');
+      return;
+    }
     if (newPassword !== confirmPassword) {
       setError('Mật khẩu xác nhận không khớp');
       return;
