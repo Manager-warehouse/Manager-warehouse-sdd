@@ -706,7 +706,7 @@ export const outboundService = {
       saveDb(KEYS.DELIVERY_ORDERS, orders);
       return orders[idx];
     }
-    const response = await apiClient.put(`/delivery-orders/${id}/cancel`, { reason });
+    const response = await apiClient.put(`/delivery-orders/${id}/cancel`, { cancelReason: reason });
     return normalizeDeliveryOrder(response.data);
   },
 
