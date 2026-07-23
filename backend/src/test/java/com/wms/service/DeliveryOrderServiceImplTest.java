@@ -90,6 +90,7 @@ import com.wms.dto.request.ReturnedGoodsCountQcRequest;
 import com.wms.dto.request.ReturnedGoodsPutawayCompleteRequest;
 import com.wms.dto.request.ReturnedGoodsPutawayPlanItemRequest;
 import com.wms.dto.request.ReturnedGoodsPutawayPlanRequest;
+import com.wms.dto.request.ReturnedGoodsReceiveRequest;
 import com.wms.dto.response.DeliveryOrderResponse;
 import com.wms.dto.response.ReturnedGoodsFlowResponse;
 import com.wms.entity.billing_payment.AccountingPeriod;
@@ -119,7 +120,7 @@ import com.wms.enums.dealer_management.CreditStatus;
 import com.wms.enums.order_fulfillment.DeliveryOrderStatus;
 import com.wms.enums.order_fulfillment.DeliveryOrderType;
 import com.wms.enums.order_fulfillment.ReturnedDeliveryFlowStatus;
-import com.wms.enums.order_fulfillment.ReturnedGoodsQualityResult;
+import com.wms.enums.order_fulfillment.ReturnedGoodsQcDecision;
 import com.wms.enums.billing_payment.InvoiceStatus;
 import com.wms.enums.warehouse_location.LocationType;
 import com.wms.enums.price_management.PriceHistoryStatus;
@@ -1179,13 +1180,13 @@ class DeliveryOrderServiceImplTest {
     }
 
     @Test
-    void submitReturnedGoodsCountQc_createsReturnedFlowFromShippedQcPassLines() {
+    void confirmReturnedGoodsReceived_opensCountQcPendingFlowFromShippedQcPassLines() {
         DeliveryOrder order = order(100L, DeliveryOrderStatus.RETURNED);
         DeliveryOrderItem item = item(order, product, new BigDecimal("8.00"));
         OutboundQcRecord shipped = outboundQcRecord(item, new BigDecimal("8.00"));
 
         when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
-        when(assignmentRepository.findWarehouseIdsByUserId(4L)).thenReturn(List.of(20L));
+        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
         when(returnedDeliveryFlowRepository.existsByDeliveryOrderId(100L)).thenReturn(false);
         when(outboundQcRecordRepository.findPassedRecordsByDeliveryOrderIdIn(List.of(100L))).thenReturn(List.of(shipped));
         when(returnedDeliveryFlowRepository.save(any(ReturnedDeliveryFlow.class))).thenAnswer(invocation -> {
@@ -1194,48 +1195,93 @@ class DeliveryOrderServiceImplTest {
             return flow;
         });
 
-        ReturnedGoodsFlowResponse response = service.submitReturnedGoodsCountQc(
-                100L, returnedCountQcRequest(new BigDecimal("8.00"), ReturnedGoodsQualityResult.PASSED),
-                warehouseStaff);
+        ReturnedGoodsFlowResponse response = service.confirmReturnedGoodsReceived(
+                100L, new ReturnedGoodsReceiveRequest(), storekeeper);
 
-        assertThat(response.getFlowStatus()).isEqualTo(ReturnedDeliveryFlowStatus.COUNT_QC_SUBMITTED);
+        assertThat(response.getFlowStatus()).isEqualTo(ReturnedDeliveryFlowStatus.COUNT_QC_PENDING);
         assertThat(response.getItems()).hasSize(1);
         assertThat(response.getItems().get(0).getExpectedQty()).isEqualByComparingTo("8.00");
-        assertThat(response.getItems().get(0).getCountedQty()).isEqualByComparingTo("8.00");
+        assertThat(response.getItems().get(0).getActualQty()).isNull();
     }
 
     @Test
-    void approveReturnedGoods_blocksQuantityMismatchUntilStaffRechecks() {
+    void submitReturnedGoodsCountQc_blocksBeforeStorekeeperArrivalConfirmation() {
         DeliveryOrder order = order(100L, DeliveryOrderStatus.RETURNED);
-        DeliveryOrderItem item = item(order, product, new BigDecimal("8.00"));
-        ReturnedDeliveryFlow flow = returnedFlow(order, item, ReturnedDeliveryFlowStatus.COUNT_QC_SUBMITTED,
-                new BigDecimal("8.00"), new BigDecimal("7.00"), ReturnedGoodsQualityResult.PASSED, null);
 
         when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
-        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
-        when(returnedDeliveryFlowRepository.findByDeliveryOrderId(100L)).thenReturn(Optional.of(flow));
+        when(assignmentRepository.findWarehouseIdsByUserId(4L)).thenReturn(List.of(20L));
+        when(returnedDeliveryFlowRepository.findByDeliveryOrderId(100L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.approveReturnedGoods(100L, new ReturnedGoodsApprovalRequest(), storekeeper))
+        assertThatThrownBy(() -> service.submitReturnedGoodsCountQc(
+                100L, returnedCountQcRequest(new BigDecimal("8.00"), new BigDecimal("8.00"), ZERO, null),
+                warehouseStaff))
                 .isInstanceOf(OutboundDeliveryException.class)
                 .extracting("code")
-                .isEqualTo("RETURN_QTY_MISMATCH");
+                .isEqualTo("RETURN_FLOW_NOT_FOUND");
     }
 
     @Test
-    void approveReturnedGoods_marksFlowApprovedAfterCompleteCountQc() {
+    void submitReturnedGoodsCountQc_validatesActualPassFailSplitAndFailureReason() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.RETURNED);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("8.00"));
+        ReturnedDeliveryFlow flow = returnedFlow(order, item, ReturnedDeliveryFlowStatus.COUNT_QC_PENDING,
+                new BigDecimal("8.00"), null, null, null, null);
+
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(4L)).thenReturn(List.of(20L));
+        when(returnedDeliveryFlowRepository.findByDeliveryOrderId(100L)).thenReturn(Optional.of(flow));
+
+        assertThatThrownBy(() -> service.submitReturnedGoodsCountQc(
+                100L, returnedCountQcRequest(new BigDecimal("8.00"), new BigDecimal("7.00"), new BigDecimal("1.00"), null),
+                warehouseStaff))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code")
+                .isEqualTo("RETURN_QUALITY_REASON_REQUIRED");
+    }
+
+    @Test
+    void approveReturnedGoods_rejectsWithReasonAndBlocksPutawayPlanning() {
         DeliveryOrder order = order(100L, DeliveryOrderStatus.RETURNED);
         DeliveryOrderItem item = item(order, product, new BigDecimal("8.00"));
         ReturnedDeliveryFlow flow = returnedFlow(order, item, ReturnedDeliveryFlowStatus.COUNT_QC_SUBMITTED,
-                new BigDecimal("8.00"), new BigDecimal("8.00"), ReturnedGoodsQualityResult.PASSED, null);
+                new BigDecimal("8.00"), new BigDecimal("8.00"), new BigDecimal("7.00"), new BigDecimal("1.00"), null);
+        ReturnedGoodsApprovalRequest rejectRequest = new ReturnedGoodsApprovalRequest();
+        rejectRequest.setDecision(ReturnedGoodsQcDecision.REJECT);
+        rejectRequest.setRejectionReason("Count and QC photos do not match");
 
         when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
         when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
         when(returnedDeliveryFlowRepository.findByDeliveryOrderId(100L)).thenReturn(Optional.of(flow));
         when(returnedDeliveryFlowRepository.save(any(ReturnedDeliveryFlow.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        ReturnedGoodsFlowResponse response = service.approveReturnedGoods(100L, new ReturnedGoodsApprovalRequest(), storekeeper);
+        ReturnedGoodsFlowResponse response = service.approveReturnedGoods(100L, rejectRequest, storekeeper);
 
-        assertThat(response.getFlowStatus()).isEqualTo(ReturnedDeliveryFlowStatus.APPROVED);
+        assertThat(response.getFlowStatus()).isEqualTo(ReturnedDeliveryFlowStatus.QC_REJECTED);
+        assertThat(response.getRejectionReason()).isEqualTo("Count and QC photos do not match");
+        assertThatThrownBy(() -> service.planReturnedGoodsPutaway(
+                100L, returnedPutawayPlanRequest(new BigDecimal("8.00")), storekeeper))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code")
+                .isEqualTo("RETURN_FLOW_STATUS_INVALID");
+    }
+
+    @Test
+    void approveReturnedGoods_marksFlowAcceptedAfterCompleteCountQc() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.RETURNED);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("8.00"));
+        ReturnedDeliveryFlow flow = returnedFlow(order, item, ReturnedDeliveryFlowStatus.COUNT_QC_SUBMITTED,
+                new BigDecimal("8.00"), new BigDecimal("8.00"), new BigDecimal("8.00"), ZERO, null);
+        ReturnedGoodsApprovalRequest acceptRequest = new ReturnedGoodsApprovalRequest();
+        acceptRequest.setDecision(ReturnedGoodsQcDecision.ACCEPT);
+
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
+        when(returnedDeliveryFlowRepository.findByDeliveryOrderId(100L)).thenReturn(Optional.of(flow));
+        when(returnedDeliveryFlowRepository.save(any(ReturnedDeliveryFlow.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ReturnedGoodsFlowResponse response = service.approveReturnedGoods(100L, acceptRequest, storekeeper);
+
+        assertThat(response.getFlowStatus()).isEqualTo(ReturnedDeliveryFlowStatus.QC_APPROVED);
         assertThat(order.getStatus()).isEqualTo(DeliveryOrderStatus.RETURNED);
         assertThat(flow.getApprovedByStorekeeper()).isEqualTo(storekeeper);
     }
@@ -1244,8 +1290,8 @@ class DeliveryOrderServiceImplTest {
     void planReturnedGoodsPutaway_setsStorekeeperDestinationLocation() {
         DeliveryOrder order = order(100L, DeliveryOrderStatus.RETURNED);
         DeliveryOrderItem item = item(order, product, new BigDecimal("8.00"));
-        ReturnedDeliveryFlow flow = returnedFlow(order, item, ReturnedDeliveryFlowStatus.APPROVED,
-                new BigDecimal("8.00"), new BigDecimal("8.00"), ReturnedGoodsQualityResult.PASSED, null);
+        ReturnedDeliveryFlow flow = returnedFlow(order, item, ReturnedDeliveryFlowStatus.QC_APPROVED,
+                new BigDecimal("8.00"), new BigDecimal("8.00"), new BigDecimal("8.00"), ZERO, null);
 
         when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
         when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
@@ -1267,7 +1313,7 @@ class DeliveryOrderServiceImplTest {
         DeliveryOrder order = order(100L, DeliveryOrderStatus.RETURNED);
         DeliveryOrderItem item = item(order, product, new BigDecimal("8.00"));
         ReturnedDeliveryFlow flow = returnedFlow(order, item, ReturnedDeliveryFlowStatus.PUTAWAY_PLANNED,
-                new BigDecimal("8.00"), new BigDecimal("8.00"), ReturnedGoodsQualityResult.PASSED, bin);
+                new BigDecimal("8.00"), new BigDecimal("8.00"), new BigDecimal("8.00"), ZERO, bin);
         Inventory transitInventory = inventory(900L, warehouse(99L, "INTRANSIT"), product, batch, bin,
                 new BigDecimal("8.00"), ZERO);
 
@@ -1410,15 +1456,18 @@ class DeliveryOrderServiceImplTest {
         return request;
     }
 
-    private ReturnedGoodsCountQcRequest returnedCountQcRequest(BigDecimal countedQty,
-                                                               ReturnedGoodsQualityResult qualityResult) {
+    private ReturnedGoodsCountQcRequest returnedCountQcRequest(BigDecimal actualQty,
+                                                               BigDecimal passQty,
+                                                               BigDecimal failQty,
+                                                               String failureReason) {
         ReturnedGoodsCountQcItemRequest item = new ReturnedGoodsCountQcItemRequest();
         item.setDoItemId(200L);
         item.setProductId(30L);
         item.setBatchId(71L);
-        item.setCountedQty(countedQty);
-        item.setQualityResult(qualityResult);
-        item.setQualityReason(qualityResult == ReturnedGoodsQualityResult.FAILED ? "Damaged on return" : null);
+        item.setActualQty(actualQty);
+        item.setQualityPassQty(passQty);
+        item.setQualityFailQty(failQty);
+        item.setQualityFailureReason(failureReason);
         ReturnedGoodsCountQcRequest request = new ReturnedGoodsCountQcRequest();
         request.setItems(List.of(item));
         return request;
@@ -1587,8 +1636,9 @@ class DeliveryOrderServiceImplTest {
                                               DeliveryOrderItem item,
                                               ReturnedDeliveryFlowStatus status,
                                               BigDecimal expectedQty,
-                                              BigDecimal countedQty,
-                                              ReturnedGoodsQualityResult qualityResult,
+                                              BigDecimal actualQty,
+                                              BigDecimal passQty,
+                                              BigDecimal failQty,
                                               WarehouseLocation destinationLocation) {
         ReturnedDeliveryFlow flow = new ReturnedDeliveryFlow();
         flow.setId(300L);
@@ -1603,10 +1653,11 @@ class DeliveryOrderServiceImplTest {
         flowItem.setProduct(product);
         flowItem.setBatch(batch);
         flowItem.setExpectedQty(expectedQty);
-        flowItem.setCountedQty(countedQty);
-        flowItem.setQualityResult(qualityResult);
+        flowItem.setActualQty(actualQty);
+        flowItem.setQualityPassQty(passQty);
+        flowItem.setQualityFailQty(failQty);
         flowItem.setDestinationLocation(destinationLocation);
-        flowItem.setPlannedQty(destinationLocation == null ? null : countedQty);
+        flowItem.setPlannedQty(destinationLocation == null ? null : actualQty);
         flow.getItems().add(flowItem);
         return flow;
     }

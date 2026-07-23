@@ -73,7 +73,6 @@ import com.wms.entity.access_control.User;
 import com.wms.enums.order_fulfillment.DeliveryOrderStatus;
 import com.wms.enums.order_fulfillment.DeliveryOrderType;
 import com.wms.enums.order_fulfillment.ReturnedDeliveryFlowStatus;
-import com.wms.enums.order_fulfillment.ReturnedGoodsQualityResult;
 import com.wms.enums.access_control.UserRole;
 import com.wms.exception.GlobalExceptionHandler;
 import com.wms.exception.OutboundDeliveryException;
@@ -415,7 +414,23 @@ class DeliveryOrderControllerTest {
                         .content(returnedCountQcJson()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.flowStatus").value("COUNT_QC_SUBMITTED"))
-                .andExpect(jsonPath("$.items[0].qualityResult").value("PASSED"));
+                .andExpect(jsonPath("$.items[0].qualityPassQty").value(8));
+    }
+
+    @Test
+    @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
+    void confirmReturnedGoodsReceived_success() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(storekeeper);
+        when(deliveryOrderService.confirmReturnedGoodsReceived(eq(100L), any(), eq(storekeeper)))
+                .thenReturn(returnedFlowResponse(ReturnedDeliveryFlowStatus.COUNT_QC_PENDING,
+                        DeliveryOrderStatus.RETURNED));
+
+        mockMvc.perform(put("/api/v1/delivery-orders/100/returned-goods/receive")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"notes\":\"Returned goods arrived\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.flowStatus").value("COUNT_QC_PENDING"));
     }
 
     @Test
@@ -443,7 +458,7 @@ class DeliveryOrderControllerTest {
         mockMvc.perform(put("/api/v1/delivery-orders/100/returned-goods/approval")
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"notes\":\"Approve returned goods\"}"))
+                        .content("{\"decision\":\"ACCEPT\",\"notes\":\"Approve returned goods\"}"))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.code").value("RETURN_QTY_MISMATCH"));
     }
@@ -620,8 +635,9 @@ class DeliveryOrderControllerTest {
                       "doItemId": 200,
                       "productId": 30,
                       "batchId": 71,
-                      "countedQty": 8,
-                      "qualityResult": "PASSED"
+                      "actualQty": 8,
+                      "qualityPassQty": 8,
+                      "qualityFailQty": 0
                     }
                   ]
                 }
@@ -686,8 +702,9 @@ class DeliveryOrderControllerTest {
                         .productId(30L)
                         .batchId(71L)
                         .expectedQty(java.math.BigDecimal.valueOf(8))
-                        .countedQty(java.math.BigDecimal.valueOf(8))
-                        .qualityResult(ReturnedGoodsQualityResult.PASSED)
+                        .actualQty(java.math.BigDecimal.valueOf(8))
+                        .qualityPassQty(java.math.BigDecimal.valueOf(8))
+                        .qualityFailQty(java.math.BigDecimal.ZERO)
                         .destinationLocationId(801L)
                         .plannedQty(java.math.BigDecimal.valueOf(8))
                         .putawayCompletedQty(flowStatus == ReturnedDeliveryFlowStatus.PUTAWAY_COMPLETED

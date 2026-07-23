@@ -113,15 +113,19 @@ Nếu Đại lý từ chối nhận hàng hoặc giao hàng thất bại, tài x
     - Keep any returned goods in virtual `IN_TRANSIT` inventory for the separate return flow.
     - Create `COMPLETE_TRIP` audit log.
   - WHEN the separate return flow handles a `RETURNED` Delivery Order, the system SHALL:
-    - Allow warehouse staff to submit returned-goods quantity count and quality inspection results by Delivery Order item/product/batch.
-    - Keep the Delivery Order in `RETURNED` while staff count/QC, Storekeeper approval, putaway planning, or putaway confirmation is pending.
-    - Allow Storekeeper to approve or reject the returned quantity and quality results.
-    - Require Storekeeper approval before any returned-goods putaway plan can be created.
-    - Allow Storekeeper to create a putaway plan that selects the destination warehouse location for the returned goods.
+    - Allow Storekeeper to confirm the returned goods have physically arrived back at the warehouse before warehouse staff can enter inspection results.
+    - Keep the Delivery Order in `RETURNED` and move the returned-goods flow to `COUNT_QC_PENDING` after Storekeeper confirms goods arrival.
+    - Allow warehouse staff to submit returned-goods inspection by Delivery Order item/product/batch with actual received quantity, quality-passed quantity, quality-failed quantity, and failure reason for failed quantity.
+    - Validate that passed quantity plus failed quantity equals actual received quantity for each returned item/product/batch.
+    - Keep the Delivery Order in `RETURNED` while staff count/QC, Storekeeper QC decision, putaway planning, or putaway confirmation is pending.
+    - Allow Storekeeper to accept or reject the staff count/QC result; rejection SHALL require a rejection reason and SHALL return the flow to staff rework.
+    - Allow warehouse staff to revise and resubmit count/QC after Storekeeper rejection until Storekeeper accepts the result.
+    - Require Storekeeper acceptance before any returned-goods putaway plan can be created.
+    - Allow Storekeeper to create a putaway plan that selects destination warehouse locations for passed goods and failed/quarantine goods according to quality result.
     - Allow warehouse staff to confirm putaway completion only against the Storekeeper-approved plan.
-    - Move returned goods out of virtual `IN_TRANSIT` inventory into the planned destination location only when staff confirms putaway success.
-    - Move the Delivery Order from `RETURNED` to `DELIVERY_FAILED` only after staff count/QC, Storekeeper approval, Storekeeper putaway planning, and staff putaway confirmation are all complete.
-    - Create audit logs for returned-goods count/QC submission, Storekeeper approval, putaway planning, and putaway completion.
+    - Move returned goods out of virtual `IN_TRANSIT` inventory into the planned destination locations only when staff confirms putaway success.
+    - Move the Delivery Order from `RETURNED` to `DELIVERY_FAILED` only after Storekeeper goods-arrival confirmation, staff count/QC, Storekeeper QC acceptance, Storekeeper putaway planning, and staff putaway confirmation are all complete.
+    - Create audit logs for returned-goods arrival confirmation, count/QC submission, QC acceptance/rejection, putaway planning, and putaway completion.
   - WHEN Admin resets a locked delivery OTP, the system SHALL:
     - Validate the OTP row belongs to the latest current delivery attempt of the Delivery Order.
     - Require `resetReason`.
@@ -179,9 +183,10 @@ Nếu Đại lý từ chối nhận hàng hoặc giao hàng thất bại, tài x
 - `PUT /api/v1/trips/{tripId}/delivery-orders/{doId}/fail-delivery` - Record dealer refusal or delivery failure.
 - `PUT /api/v1/trips/{tripId}/complete` - Assigned driver confirms the vehicle has returned to the source warehouse.
 - `GET /api/v1/delivery-orders/{doId}/returned-goods` - Warehouse-scoped viewer reads the current returned-goods flow state so frontend can resume the correct staff/storekeeper step.
-- `PUT /api/v1/delivery-orders/{doId}/returned-goods/count-qc` - Warehouse staff submit returned quantity count and quality inspection results for a `RETURNED` Delivery Order.
-- `PUT /api/v1/delivery-orders/{doId}/returned-goods/approval` - Storekeeper approves returned quantity and quality results.
-- `PUT /api/v1/delivery-orders/{doId}/returned-goods/putaway-plan` - Storekeeper creates the destination-location putaway plan for returned goods.
+- `PUT /api/v1/delivery-orders/{doId}/returned-goods/receive` - Storekeeper confirms the returned goods have physically arrived back at the warehouse and opens staff count/QC.
+- `PUT /api/v1/delivery-orders/{doId}/returned-goods/count-qc` - Warehouse staff submit or resubmit actual, quality-passed, and quality-failed returned quantities with failure reasons for a `RETURNED` Delivery Order.
+- `PUT /api/v1/delivery-orders/{doId}/returned-goods/approval` - Storekeeper accepts or rejects returned count/QC; rejection requires a reason and sends the flow back for staff rework.
+- `PUT /api/v1/delivery-orders/{doId}/returned-goods/putaway-plan` - Storekeeper creates the destination-location putaway plan for accepted returned goods.
 - `PUT /api/v1/delivery-orders/{doId}/returned-goods/putaway-complete` - Warehouse staff confirm returned goods were put away successfully and close the Delivery Order as `DELIVERY_FAILED`.
 - `POST /api/v1/admin/delivery-orders/{doId}/delivery-otp/reset` - Admin resets a locked OTP for the current delivery attempt.
 
@@ -398,13 +403,24 @@ The Driver UI SHALL use this response metadata rather than maintaining its own a
 - **Scenario: Warehouse completes returned-goods flow after failed delivery**
   - Given a Delivery Order is `RETURNED` because dealer refused delivery or delivery failed
   - And the returned goods are still tracked in virtual In-Transit inventory
-  - When warehouse staff submit returned quantity count and quality inspection results for every returned item/product/batch
-  - And Storekeeper approves the returned quantity and quality results
+  - When Storekeeper confirms the goods have physically arrived back at the warehouse
+  - And warehouse staff submit actual received quantity, quality-passed quantity, quality-failed quantity, and failure reason for every returned item/product/batch
+  - And Storekeeper accepts the returned quantity and quality results
   - And Storekeeper creates a putaway plan with the destination warehouse location
   - And warehouse staff confirm the returned goods were put away successfully according to that plan
   - Then the system SHALL move the returned goods from virtual In-Transit inventory to the planned destination location.
   - And the system SHALL move the Delivery Order from `RETURNED` to `DELIVERY_FAILED`.
-  - And the system SHALL create audit logs for count/QC submission, Storekeeper approval, putaway planning, and putaway completion.
+  - And the system SHALL create audit logs for arrival confirmation, count/QC submission, Storekeeper acceptance, putaway planning, and putaway completion.
+
+- **Scenario: Storekeeper rejects returned-goods QC and staff reworks**
+  - Given a Delivery Order is `RETURNED`
+  - And Storekeeper has confirmed the goods arrived back at the warehouse
+  - And warehouse staff have submitted returned count/QC results
+  - When Storekeeper rejects the count/QC result with a rejection reason
+  - Then the Delivery Order SHALL remain `RETURNED`
+  - And the returned-goods flow SHALL move back to staff rework for count/QC resubmission
+  - And warehouse staff SHALL be able to submit corrected actual, quality-passed, quality-failed, and failure-reason values
+  - And Storekeeper SHALL be able to review the corrected result again until accepted.
 
 - **Scenario: Sticky primary action follows the delivery step**
   - Given the Driver is completing a Delivery Order

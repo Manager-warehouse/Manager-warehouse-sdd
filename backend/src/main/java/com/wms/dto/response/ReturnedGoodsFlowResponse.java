@@ -13,5 +13,6 @@ public class ReturnedGoodsFlowResponse {
     private String doNumber;
     private DeliveryOrderStatus deliveryOrderStatus;
     private ReturnedDeliveryFlowStatus flowStatus;
+    private String rejectionReason;
     private List<ReturnedGoodsFlowItemResponse> items;
 }

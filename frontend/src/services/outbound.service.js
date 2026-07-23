@@ -413,14 +413,16 @@ const normalizeReturnedGoodsFlow = (flow = {}) => ({
   do_number: value(flow, 'doNumber', 'do_number'),
   delivery_order_status: normalizeDoStatus(value(flow, 'deliveryOrderStatus', 'delivery_order_status')),
   flow_status: value(flow, 'flowStatus', 'flow_status'),
+  rejection_reason: value(flow, 'rejectionReason', 'rejection_reason', ''),
   items: asArray(value(flow, 'items', 'items', [])).map((item) => ({
     do_item_id: value(item, 'doItemId', 'do_item_id'),
     product_id: value(item, 'productId', 'product_id'),
     batch_id: value(item, 'batchId', 'batch_id'),
     expected_qty: Number(value(item, 'expectedQty', 'expected_qty', 0)),
-    counted_qty: Number(value(item, 'countedQty', 'counted_qty', 0)),
-    quality_result: value(item, 'qualityResult', 'quality_result'),
-    quality_reason: value(item, 'qualityReason', 'quality_reason', ''),
+    actual_qty: Number(value(item, 'actualQty', 'actual_qty', value(item, 'countedQty', 'counted_qty', 0))),
+    quality_pass_qty: Number(value(item, 'qualityPassQty', 'quality_pass_qty', 0)),
+    quality_fail_qty: Number(value(item, 'qualityFailQty', 'quality_fail_qty', 0)),
+    quality_failure_reason: value(item, 'qualityFailureReason', 'quality_failure_reason', value(item, 'qualityReason', 'quality_reason', '')),
     destination_location_id: value(item, 'destinationLocationId', 'destination_location_id'),
     planned_qty: Number(value(item, 'plannedQty', 'planned_qty', 0)),
     putaway_completed_qty: Number(value(item, 'putawayCompletedQty', 'putaway_completed_qty', 0)),
@@ -958,6 +960,21 @@ export const outboundService = {
     return normalizeDeliveryOrder(response.data);
   },
 
+  confirmReturnedGoodsReceived: async (id, notes = '') => {
+    if (useMock) {
+      await mockDelay();
+      return {
+        do_id: Number(id),
+        do_number: `DO-${id}`,
+        delivery_order_status: 'RETURNED',
+        flow_status: 'COUNT_QC_PENDING',
+        items: [],
+      };
+    }
+    const response = await apiClient.put(`/delivery-orders/${id}/returned-goods/receive`, { notes });
+    return normalizeReturnedGoodsFlow(response.data);
+  },
+
   submitReturnedGoodsCountQc: async (id, data) => {
     if (useMock) {
       await mockDelay();
@@ -970,10 +987,11 @@ export const outboundService = {
           do_item_id: item.do_item_id,
           product_id: item.product_id,
           batch_id: item.batch_id,
-          expected_qty: Number(item.counted_qty || 0),
-          counted_qty: Number(item.counted_qty || 0),
-          quality_result: item.quality_result,
-          quality_reason: item.quality_reason || '',
+          expected_qty: Number(item.expected_qty || item.actual_qty || 0),
+          actual_qty: Number(item.actual_qty || 0),
+          quality_pass_qty: Number(item.quality_pass_qty || 0),
+          quality_fail_qty: Number(item.quality_fail_qty || 0),
+          quality_failure_reason: item.quality_failure_reason || '',
         })),
       };
     }
@@ -983,9 +1001,10 @@ export const outboundService = {
         doItemId: item.do_item_id,
         productId: item.product_id,
         batchId: item.batch_id,
-        countedQty: Number(item.counted_qty || 0),
-        qualityResult: item.quality_result,
-        qualityReason: item.quality_reason || null,
+        actualQty: Number(item.actual_qty || 0),
+        qualityPassQty: Number(item.quality_pass_qty || 0),
+        qualityFailQty: Number(item.quality_fail_qty || 0),
+        qualityFailureReason: item.quality_failure_reason || null,
       })),
     });
     return normalizeReturnedGoodsFlow(response.data);
@@ -1003,9 +1022,28 @@ export const outboundService = {
   approveReturnedGoods: async (id, notes = '') => {
     if (useMock) {
       await mockDelay();
-      return { do_id: Number(id), delivery_order_status: 'RETURNED', flow_status: 'APPROVED', items: [] };
+      return { do_id: Number(id), delivery_order_status: 'RETURNED', flow_status: 'QC_APPROVED', items: [] };
     }
-    const response = await apiClient.put(`/delivery-orders/${id}/returned-goods/approval`, { notes });
+    const response = await apiClient.put(`/delivery-orders/${id}/returned-goods/approval`, { decision: 'ACCEPT', notes });
+    return normalizeReturnedGoodsFlow(response.data);
+  },
+
+  rejectReturnedGoodsQc: async (id, rejectionReason, notes = '') => {
+    if (useMock) {
+      await mockDelay();
+      return {
+        do_id: Number(id),
+        delivery_order_status: 'RETURNED',
+        flow_status: 'QC_REJECTED',
+        rejection_reason: rejectionReason,
+        items: [],
+      };
+    }
+    const response = await apiClient.put(`/delivery-orders/${id}/returned-goods/approval`, {
+      decision: 'REJECT',
+      rejectionReason,
+      notes,
+    });
     return normalizeReturnedGoodsFlow(response.data);
   },
 

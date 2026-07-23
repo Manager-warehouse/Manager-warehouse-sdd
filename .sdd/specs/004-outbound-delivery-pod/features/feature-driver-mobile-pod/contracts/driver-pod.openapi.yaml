@@ -450,9 +450,43 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/delivery-orders/{doId}/returned-goods/receive:
+    put:
+      summary: Storekeeper confirms returned goods arrived back at the warehouse
+      operationId: confirmReturnedGoodsReceived
+      tags:
+        - Returned Delivery Goods
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: doId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReturnedGoodsReceiveRequest"
+      responses:
+        "200":
+          description: Returned goods arrival confirmed; staff count/QC is now pending while Delivery Order remains RETURNED
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReturnedGoodsFlowResponse"
+        "422":
+          description: Delivery Order is not RETURNED or returned-goods flow is not in a receivable state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/v1/delivery-orders/{doId}/returned-goods/count-qc:
     put:
-      summary: Submit returned-goods count and quality inspection
+      summary: Submit or resubmit returned-goods count and quality inspection
       operationId: submitReturnedGoodsCountQc
       tags:
         - Returned Delivery Goods
@@ -473,7 +507,7 @@ paths:
               $ref: "#/components/schemas/ReturnedGoodsCountQcRequest"
       responses:
         "200":
-          description: Returned goods count/QC submitted while Delivery Order remains RETURNED
+          description: Returned goods actual/pass/fail count/QC submitted while Delivery Order remains RETURNED
           content:
             application/json:
               schema:
@@ -486,8 +520,8 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
   /api/v1/delivery-orders/{doId}/returned-goods/approval:
     put:
-      summary: Storekeeper approves returned-goods count and quality
-      operationId: approveReturnedGoods
+      summary: Storekeeper accepts or rejects returned-goods count and quality
+      operationId: decideReturnedGoodsQc
       tags:
         - Returned Delivery Goods
       security:
@@ -507,13 +541,13 @@ paths:
               $ref: "#/components/schemas/ReturnedGoodsApprovalRequest"
       responses:
         "200":
-          description: Returned goods quantity and quality approved while Delivery Order remains RETURNED
+          description: Returned goods quantity and quality accepted, or rejected back to staff rework, while Delivery Order remains RETURNED
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ReturnedGoodsFlowResponse"
         "422":
-          description: Count/QC result is incomplete or cannot be approved
+          description: Count/QC result is incomplete, rejection reason is missing, or decision cannot be applied
           content:
             application/json:
               schema:
@@ -547,7 +581,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ReturnedGoodsFlowResponse"
         "422":
-          description: Storekeeper approval or destination-location validation failed
+          description: Storekeeper QC acceptance or destination-location validation failed
           content:
             application/json:
               schema:
@@ -643,6 +677,12 @@ components:
         notes:
           type: string
           maxLength: 1000
+    ReturnedGoodsReceiveRequest:
+      type: object
+      properties:
+        notes:
+          type: string
+          maxLength: 1000
     ReturnedGoodsCountQcRequest:
       type: object
       required:
@@ -662,8 +702,9 @@ components:
         - doItemId
         - productId
         - batchId
-        - countedQty
-        - qualityResult
+        - actualQty
+        - qualityPassQty
+        - qualityFailQty
       properties:
         doItemId:
           type: integer
@@ -674,20 +715,33 @@ components:
         batchId:
           type: integer
           format: int64
-        countedQty:
+        actualQty:
           type: number
           minimum: 0
-        qualityResult:
-          type: string
-          enum:
-            - PASSED
-            - FAILED
-        qualityReason:
+        qualityPassQty:
+          type: number
+          minimum: 0
+        qualityFailQty:
+          type: number
+          minimum: 0
+        qualityFailureReason:
           type: string
           maxLength: 1000
+          description: Required when qualityFailQty is greater than zero
     ReturnedGoodsApprovalRequest:
       type: object
+      required:
+        - decision
       properties:
+        decision:
+          type: string
+          enum:
+            - ACCEPT
+            - REJECT
+        rejectionReason:
+          type: string
+          maxLength: 1000
+          description: Required when decision is REJECT
         notes:
           type: string
           maxLength: 1000
@@ -743,7 +797,17 @@ components:
           example: RETURNED
         flowStatus:
           type: string
+          enum:
+            - COUNT_QC_PENDING
+            - COUNT_QC_SUBMITTED
+            - QC_REJECTED
+            - QC_APPROVED
+            - PUTAWAY_PLANNED
+            - PUTAWAY_COMPLETED
           example: PUTAWAY_PLANNED
+        rejectionReason:
+          type: string
+          nullable: true
         items:
           type: array
           items:
@@ -760,9 +824,15 @@ components:
         batchId:
           type: integer
           format: int64
-        countedQty:
+        expectedQty:
           type: number
-        qualityResult:
+        actualQty:
+          type: number
+        qualityPassQty:
+          type: number
+        qualityFailQty:
+          type: number
+        qualityFailureReason:
           type: string
         destinationLocationId:
           type: integer
@@ -919,8 +989,11 @@ components:
             - TRIP_NOT_READY_TO_COMPLETE
             - RETURN_FLOW_STATUS_INVALID
             - RETURN_COUNT_QC_INCOMPLETE
+            - RETURN_QC_REJECTION_REASON_REQUIRED
+            - RETURN_QC_REWORK_REQUIRED
+            - RETURN_QTY_SPLIT_MISMATCH
             - RETURN_QTY_MISMATCH
-            - RETURN_APPROVAL_REQUIRED
+            - RETURN_QC_ACCEPTANCE_REQUIRED
             - RETURN_PUTAWAY_PLAN_REQUIRED
             - RETURN_PUTAWAY_MISMATCH
             - INVENTORY_VERSION_CONFLICT

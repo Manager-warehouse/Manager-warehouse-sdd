@@ -48,6 +48,7 @@ import com.wms.dto.request.ReturnedGoodsApprovalRequest;
 import com.wms.dto.request.ReturnedGoodsCountQcRequest;
 import com.wms.dto.request.ReturnedGoodsPutawayCompleteRequest;
 import com.wms.dto.request.ReturnedGoodsPutawayPlanRequest;
+import com.wms.dto.request.ReturnedGoodsReceiveRequest;
 import com.wms.dto.response.DeliveryOrderResponse;
 import com.wms.dto.response.PickingCandidateResponse;
 import com.wms.dto.response.ReturnedGoodsFlowResponse;
@@ -273,9 +274,18 @@ public class DeliveryOrderController {
         return deliveryOrderService.rejectDeliveryOrderWarehouseRelease(id, request, currentUser());
     }
 
+    @PutMapping("/{id}/returned-goods/receive")
+    @PreAuthorize("hasRole('STOREKEEPER')")
+    @Operation(summary = "Confirm returned goods arrived back at the warehouse")
+    public ReturnedGoodsFlowResponse confirmReturnedGoodsReceived(@PathVariable Long id,
+                                                                  @Valid @RequestBody(required = false) ReturnedGoodsReceiveRequest request) {
+        ReturnedGoodsReceiveRequest safeRequest = request == null ? new ReturnedGoodsReceiveRequest() : request;
+        return deliveryOrderService.confirmReturnedGoodsReceived(id, safeRequest, currentUser());
+    }
+
     @PutMapping("/{id}/returned-goods/count-qc")
     @PreAuthorize("hasRole('WAREHOUSE_STAFF')")
-    @Operation(summary = "Submit returned goods count and QC for a failed delivery")
+    @Operation(summary = "Submit or resubmit returned goods count and QC for a failed delivery")
     public ReturnedGoodsFlowResponse submitReturnedGoodsCountQc(@PathVariable Long id,
                                                                 @Valid @RequestBody ReturnedGoodsCountQcRequest request) {
         return deliveryOrderService.submitReturnedGoodsCountQc(id, request, currentUser());
@@ -290,7 +300,7 @@ public class DeliveryOrderController {
 
     @PutMapping("/{id}/returned-goods/approval")
     @PreAuthorize("hasRole('STOREKEEPER')")
-    @Operation(summary = "Approve returned goods quantity and quality")
+    @Operation(summary = "Accept or reject returned goods quantity and quality")
     public ReturnedGoodsFlowResponse approveReturnedGoods(@PathVariable Long id,
                                                           @Valid @RequestBody ReturnedGoodsApprovalRequest request) {
         return deliveryOrderService.approveReturnedGoods(id, request, currentUser());

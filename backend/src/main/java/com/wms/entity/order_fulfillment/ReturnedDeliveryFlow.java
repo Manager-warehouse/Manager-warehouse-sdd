@@ -43,12 +43,20 @@ public class ReturnedDeliveryFlow {
     private ReturnedDeliveryFlowStatus status;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "received_confirmed_by_storekeeper_id")
+    private User receivedConfirmedByStorekeeper;
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "counted_by_staff_id")
     private User countedByStaff;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "approved_by_storekeeper_id")
     private User approvedByStorekeeper;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "rejected_by_storekeeper_id")
+    private User rejectedByStorekeeper;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "putaway_planned_by_storekeeper_id")
@@ -63,6 +71,9 @@ public class ReturnedDeliveryFlow {
 
     @Column(name = "approval_notes", columnDefinition = "TEXT")
     private String approvalNotes;
+
+    @Column(name = "rejection_reason", columnDefinition = "TEXT")
+    private String rejectionReason;
 
     @Column(name = "putaway_notes", columnDefinition = "TEXT")
     private String putawayNotes;

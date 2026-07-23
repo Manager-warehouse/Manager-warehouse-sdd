@@ -42,6 +42,8 @@ const getStatusBadge = (status) => {
   return <Badge size="sm" colorClassName={color}>{label}</Badge>;
 };
 
+const canStaffSubmitReturnedQc = (status) => ['COUNT_QC_PENDING', 'QC_REJECTED'].includes(status);
+
 const buildReturnedRows = (items = []) => items.flatMap((item) => {
   const allocations = item.allocations?.length
     ? item.allocations
@@ -58,9 +60,10 @@ const buildReturnedRows = (items = []) => items.flatMap((item) => {
         sku: item.sku,
         batch_id: allocation.batch_id,
         expected_qty: qty,
-        counted_qty: qty,
-        quality_result: 'PASSED',
-        quality_reason: '',
+        actual_qty: qty,
+        quality_pass_qty: qty,
+        quality_fail_qty: 0,
+        quality_failure_reason: '',
         destination_location_id: '',
         planned_qty: qty,
       };
@@ -77,9 +80,11 @@ const mergeReturnedFlowRows = (rows, flow) => {
     return matched
       ? {
           ...row,
-          counted_qty: matched.counted_qty || row.counted_qty,
-          quality_result: matched.quality_result || row.quality_result,
-          quality_reason: matched.quality_reason || row.quality_reason,
+          expected_qty: matched.expected_qty || row.expected_qty,
+          actual_qty: matched.actual_qty || row.actual_qty,
+          quality_pass_qty: matched.quality_pass_qty ?? row.quality_pass_qty,
+          quality_fail_qty: matched.quality_fail_qty ?? row.quality_fail_qty,
+          quality_failure_reason: matched.quality_failure_reason || row.quality_failure_reason,
           destination_location_id: matched.destination_location_id || row.destination_location_id,
           planned_qty: matched.planned_qty || row.planned_qty,
         }
@@ -104,6 +109,7 @@ export default function DeliveryOrderDetail() {
   const [returnedFlow, setReturnedFlow] = useState(null);
   const [returnRows, setReturnRows] = useState([]);
   const [returnNotes, setReturnNotes] = useState('');
+  const [returnRejectReason, setReturnRejectReason] = useState('');
 
   useEffect(() => {
     fetchOrder();
@@ -229,11 +235,28 @@ export default function DeliveryOrderDetail() {
     )));
   };
 
+  const handleConfirmReturnedGoodsReceived = async () => {
+    setSubmitting(true);
+    try {
+      const flow = await outboundService.confirmReturnedGoodsReceived(id, returnNotes);
+      setReturnedFlow(flow);
+      setReturnRows((previous) => mergeReturnedFlowRows(previous, flow));
+      setReturnRejectReason('');
+      addToast('Da xac nhan hang hoan ve kho. Staff co the nhap ket qua kiem tra.', 'success');
+    } catch (error) {
+      addToast(error.message || 'Khong the xac nhan hang hoan ve kho', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleSubmitReturnedCountQc = async () => {
     const invalid = returnRows.some((row) => (
-      Number(row.counted_qty) < 0
-      || !row.quality_result
-      || (row.quality_result === 'FAILED' && !String(row.quality_reason || '').trim())
+      Number(row.actual_qty) < 0
+      || Number(row.quality_pass_qty) < 0
+      || Number(row.quality_fail_qty) < 0
+      || Number(row.quality_pass_qty || 0) + Number(row.quality_fail_qty || 0) !== Number(row.actual_qty || 0)
+      || (Number(row.quality_fail_qty || 0) > 0 && !String(row.quality_failure_reason || '').trim())
     ));
     if (invalid) {
       addToast('Vui lòng nhập đủ số lượng, chất lượng và lý do khi hàng không đạt.', 'error');
@@ -247,9 +270,11 @@ export default function DeliveryOrderDetail() {
           do_item_id: row.do_item_id,
           product_id: row.product_id,
           batch_id: row.batch_id,
-          counted_qty: Number(row.counted_qty || 0),
-          quality_result: row.quality_result,
-          quality_reason: row.quality_reason,
+          expected_qty: Number(row.expected_qty || 0),
+          actual_qty: Number(row.actual_qty || 0),
+          quality_pass_qty: Number(row.quality_pass_qty || 0),
+          quality_fail_qty: Number(row.quality_fail_qty || 0),
+          quality_failure_reason: row.quality_failure_reason,
         })),
       });
       setReturnedFlow(flow);
@@ -274,8 +299,30 @@ export default function DeliveryOrderDetail() {
     }
   };
 
+  const handleRejectReturnedGoodsQc = async () => {
+    if (!returnRejectReason.trim()) {
+      addToast('Vui long nhap ly do tu choi ket qua QC.', 'error');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const flow = await outboundService.rejectReturnedGoodsQc(id, returnRejectReason.trim(), returnNotes);
+      setReturnedFlow(flow);
+      setReturnRows((previous) => mergeReturnedFlowRows(previous, flow));
+      addToast('Da tu choi ket qua QC. Staff can kiem tra va gui lai.', 'success');
+    } catch (error) {
+      addToast(error.message || 'Khong the tu choi ket qua QC hang hoan', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handlePlanReturnedPutaway = async () => {
-    const invalid = returnRows.some((row) => !row.destination_location_id || Number(row.planned_qty || 0) <= 0);
+    const invalid = returnRows.some((row) => (
+      !row.destination_location_id
+      || Number(row.planned_qty || 0) <= 0
+      || Number(row.planned_qty || 0) !== Number(row.actual_qty || 0)
+    ));
     if (invalid) {
       addToast('Vui lòng chọn vị trí cất và số lượng cất cho từng dòng hàng hoàn.', 'error');
       return;
@@ -515,9 +562,10 @@ export default function DeliveryOrderDetail() {
                   <th className="px-3 py-2">Sản phẩm</th>
                   <th className="px-3 py-2">Batch</th>
                   <th className="px-3 py-2">SL dự kiến</th>
-                  <th className="px-3 py-2">SL đếm</th>
-                  <th className="px-3 py-2">Chất lượng</th>
-                  <th className="px-3 py-2">Lý do</th>
+                  <th className="px-3 py-2">SL thực</th>
+                  <th className="px-3 py-2">SL đạt</th>
+                  <th className="px-3 py-2">SL lỗi</th>
+                  <th className="px-3 py-2">Lý do lỗi</th>
                   <th className="px-3 py-2">Vị trí cất</th>
                   <th className="px-3 py-2">SL cất</th>
                 </tr>
@@ -525,12 +573,12 @@ export default function DeliveryOrderDetail() {
               <tbody className="divide-y divide-hairline-light">
                 {returnRows.map((row) => {
                   const locationOptions = locations.filter((location) => (
-                    row.quality_result === 'FAILED'
+                    Number(row.quality_fail_qty || 0) > 0
                       ? location.is_quarantine === true
                       : location.is_quarantine !== true
                   ));
-                  const countDisabled = !hasRole(ROLES.WAREHOUSE_STAFF) || Boolean(returnFlowStatus);
-                  const planDisabled = !hasRole(ROLES.STOREKEEPER) || returnFlowStatus !== 'APPROVED';
+                  const countDisabled = !hasRole(ROLES.WAREHOUSE_STAFF) || !canStaffSubmitReturnedQc(returnFlowStatus);
+                  const planDisabled = !hasRole(ROLES.STOREKEEPER) || returnFlowStatus !== 'QC_APPROVED';
                   return (
                     <tr key={row.key}>
                       <td className="px-3 py-3">
@@ -545,28 +593,39 @@ export default function DeliveryOrderDetail() {
                           min="0"
                           step="0.01"
                           disabled={countDisabled}
-                          value={row.counted_qty}
-                          onChange={(event) => handleReturnRowChange(row.key, 'counted_qty', event.target.value)}
+                          value={row.actual_qty}
+                          onChange={(event) => handleReturnRowChange(row.key, 'actual_qty', event.target.value)}
                           className="w-24 rounded-md border border-hairline-light bg-canvas-light px-2 py-1.5 text-xs disabled:bg-canvas-cream"
                         />
                       </td>
                       <td className="px-3 py-3">
-                        <select
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
                           disabled={countDisabled}
-                          value={row.quality_result}
-                          onChange={(event) => handleReturnRowChange(row.key, 'quality_result', event.target.value)}
+                          value={row.quality_pass_qty}
+                          onChange={(event) => handleReturnRowChange(row.key, 'quality_pass_qty', event.target.value)}
                           className="w-28 rounded-md border border-hairline-light bg-canvas-light px-2 py-1.5 text-xs disabled:bg-canvas-cream"
-                        >
-                          <option value="PASSED">Đạt</option>
-                          <option value="FAILED">Không đạt</option>
-                        </select>
+                        />
                       </td>
                       <td className="px-3 py-3">
                         <input
-                          disabled={countDisabled || row.quality_result !== 'FAILED'}
-                          value={row.quality_reason}
-                          onChange={(event) => handleReturnRowChange(row.key, 'quality_reason', event.target.value)}
-                          placeholder="Khi không đạt"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          disabled={countDisabled}
+                          value={row.quality_fail_qty}
+                          onChange={(event) => handleReturnRowChange(row.key, 'quality_fail_qty', event.target.value)}
+                          className="w-24 rounded-md border border-hairline-light bg-canvas-light px-2 py-1.5 text-xs disabled:bg-canvas-cream"
+                        />
+                      </td>
+                      <td className="px-3 py-3">
+                        <input
+                          disabled={countDisabled || Number(row.quality_fail_qty || 0) <= 0}
+                          value={row.quality_failure_reason}
+                          onChange={(event) => handleReturnRowChange(row.key, 'quality_failure_reason', event.target.value)}
+                          placeholder="Khi co hang loi"
                           className="w-40 rounded-md border border-hairline-light bg-canvas-light px-2 py-1.5 text-xs disabled:bg-canvas-cream"
                         />
                       </td>
@@ -614,17 +673,33 @@ export default function DeliveryOrderDetail() {
               />
             </div>
             <div className="flex flex-wrap justify-end gap-2">
-              {hasRole(ROLES.WAREHOUSE_STAFF) && !returnFlowStatus && (
+              {hasRole(ROLES.STOREKEEPER) && !returnFlowStatus && (
+                <Button disabled={submitting || returnRows.length === 0} onClick={handleConfirmReturnedGoodsReceived} variant="primary">
+                  Xác nhận hàng về kho
+                </Button>
+              )}
+              {hasRole(ROLES.WAREHOUSE_STAFF) && canStaffSubmitReturnedQc(returnFlowStatus) && (
                 <Button disabled={submitting || returnRows.length === 0} onClick={handleSubmitReturnedCountQc} variant="primary">
                   Gửi kiểm đếm
                 </Button>
               )}
               {hasRole(ROLES.STOREKEEPER) && returnFlowStatus === 'COUNT_QC_SUBMITTED' && (
-                <Button disabled={submitting} onClick={handleApproveReturnedGoods} variant="primary">
-                  Duyệt hàng hoàn
-                </Button>
+                <>
+                  <input
+                    value={returnRejectReason}
+                    onChange={(event) => setReturnRejectReason(event.target.value)}
+                    placeholder="Lý do từ chối QC"
+                    className="min-w-[180px] rounded-md border border-hairline-light bg-canvas-light px-3 py-2 text-xs"
+                  />
+                  <Button disabled={submitting || !returnRejectReason.trim()} onClick={handleRejectReturnedGoodsQc} variant="outline-light">
+                    Từ chối QC
+                  </Button>
+                  <Button disabled={submitting} onClick={handleApproveReturnedGoods} variant="primary">
+                    Duyệt QC
+                  </Button>
+                </>
               )}
-              {hasRole(ROLES.STOREKEEPER) && returnFlowStatus === 'APPROVED' && (
+              {hasRole(ROLES.STOREKEEPER) && returnFlowStatus === 'QC_APPROVED' && (
                 <Button disabled={submitting} onClick={handlePlanReturnedPutaway} variant="primary">
                   Lưu vị trí cất
                 </Button>
