@@ -132,12 +132,15 @@ public class QuarantineRtvService {
                     "NO_QUARANTINE_ITEMS: Receipt " + receiptId + " has no items to process for RTV.");
         }
 
+        // Quarantine inventory was added using sampleFailedQty (ReceiptQcService.confirmQc),
+        // not the full actualQty received — the RTV must return exactly what is in
+        // quarantine, not the entire receipt line.
         BigDecimal totalFailedQty = items.stream()
-                .map(i -> i.getActualQty() != null ? BigDecimal.valueOf(i.getActualQty()) : BigDecimal.ZERO)
+                .map(i -> i.getSampleFailedQty() != null ? BigDecimal.valueOf(i.getSampleFailedQty()) : BigDecimal.ZERO)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal totalAmount = items.stream()
                 .map(i -> {
-                    BigDecimal qty = i.getActualQty() != null ? BigDecimal.valueOf(i.getActualQty()) : BigDecimal.ZERO;
+                    BigDecimal qty = i.getSampleFailedQty() != null ? BigDecimal.valueOf(i.getSampleFailedQty()) : BigDecimal.ZERO;
                     BigDecimal cost = i.getUnitCost() != null ? i.getUnitCost() : BigDecimal.ZERO;
                     return qty.multiply(cost);
                 })
