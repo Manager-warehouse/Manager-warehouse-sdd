@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Calendar, Eye, Loader2, Package, Plus, Search, Truck, User } from 'lucide-react';
+import { Calendar, Eye, Loader2, MapPin, Package, Plus, Search, Truck, User } from 'lucide-react';
 import { outboundService } from '../../services/outbound.service';
 import { masterDataService } from '../../services/masterData.service';
 import { useAuthStore } from '../../stores/auth.store';
@@ -326,6 +326,12 @@ export default function TripPlanning() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-bold text-ink">{stop.dealer_name || stop.do_number}</p>
                         <p className="text-xs text-shade-40 mt-0.5 font-mono">{stop.do_number}</p>
+                        {stop.dealer_address && (
+                          <p className="text-xs text-shade-50 mt-1 flex items-start gap-1">
+                            <MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                            <span>{stop.dealer_address}</span>
+                          </p>
+                        )}
                       </div>
                       <div className="shrink-0 text-xs font-semibold text-shade-50">
                         {DELIVERY_ORDER_STATUS_LABELS[stop.raw_status || stop.status] || stop.raw_status || stop.status || '-'}

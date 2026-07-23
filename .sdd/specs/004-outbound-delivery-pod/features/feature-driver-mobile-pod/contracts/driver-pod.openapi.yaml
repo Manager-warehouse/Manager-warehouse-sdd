@@ -548,6 +548,10 @@ components:
           format: int64
         doNumber:
           type: string
+        dealerName:
+          type: string
+        dealerAddress:
+          type: string
         status:
           type: string
           example: IN_TRANSIT
