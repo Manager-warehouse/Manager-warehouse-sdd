@@ -170,6 +170,8 @@ public class ReceiptQcService {
                                 "QUARANTINE_LOCATION_NOT_CONFIGURED: Active quarantine location not found for warehouse " 
                                 + receipt.getWarehouse().getId()));
 
+            assertQuarantineCapacity(quarantineLoc, items);
+
             for (ReceiptItem item : items) {
                 Integer failedQtyInt = item.getSampleFailedQty();
                 if (failedQtyInt == null || failedQtyInt <= 0) {
@@ -236,6 +238,30 @@ public class ReceiptQcService {
         );
 
         return buildResponse(receipt);
+    }
+
+    private void assertQuarantineCapacity(WarehouseLocation location, List<ReceiptItem> items) {
+        BigDecimal addedVol = BigDecimal.ZERO;
+        BigDecimal addedWt = BigDecimal.ZERO;
+        for (ReceiptItem item : items) {
+            Integer failedQty = item.getSampleFailedQty();
+            if (failedQty == null || failedQty <= 0) continue;
+            BigDecimal qty = BigDecimal.valueOf(failedQty);
+            BigDecimal vol = item.getProduct().getVolumeM3() != null ? item.getProduct().getVolumeM3() : BigDecimal.ZERO;
+            BigDecimal wt = item.getProduct().getWeightKg() != null ? item.getProduct().getWeightKg() : BigDecimal.ZERO;
+            addedVol = addedVol.add(qty.multiply(vol));
+            addedWt = addedWt.add(qty.multiply(wt));
+        }
+        BigDecimal curVol = location.getCurrentVolumeM3() != null ? location.getCurrentVolumeM3() : BigDecimal.ZERO;
+        BigDecimal curWt = location.getCurrentWeightKg() != null ? location.getCurrentWeightKg() : BigDecimal.ZERO;
+        if (location.getCapacityM3() != null && curVol.add(addedVol).compareTo(location.getCapacityM3()) > 0) {
+            throw new BusinessRuleViolationException(
+                    "QUARANTINE_BIN_CAPACITY_EXCEEDED: Volume overflow for quarantine location " + location.getId());
+        }
+        if (location.getCapacityKg() != null && curWt.add(addedWt).compareTo(location.getCapacityKg()) > 0) {
+            throw new BusinessRuleViolationException(
+                    "QUARANTINE_BIN_CAPACITY_EXCEEDED: Weight overflow for quarantine location " + location.getId());
+        }
     }
 
     private Batch resolveOrCreateBatch(ReceiptItem item, Receipt receipt) {
