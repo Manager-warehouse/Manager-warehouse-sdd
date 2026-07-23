@@ -227,8 +227,10 @@ public class GlobalExceptionHandler {
 
         if (msg != null) {
             if (msg.contains("ACCOUNT_INACTIVE")) {
-                status = HttpStatus.UNAUTHORIZED;
-                code = "UNAUTHORIZED";
+                // Credentials are correct but the account is suspended — that is
+                // an authorization problem (403), not an authentication one (401).
+                status = HttpStatus.FORBIDDEN;
+                code = "ACCOUNT_INACTIVE";
             } else if (msg.contains("MAIL_SEND_FAILED")) {
                 status = HttpStatus.INTERNAL_SERVER_ERROR;
                 code = "MAIL_SEND_FAILED";
