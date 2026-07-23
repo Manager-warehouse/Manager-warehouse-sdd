@@ -44,6 +44,12 @@
 
 ## Decision: Keep failed or refused deliveries in virtual `IN_TRANSIT`
 
-**Rationale**: Dealer refusal or failed delivery moves the Delivery Order to `RETURNED` but does not receive stock back into regular inventory. That handoff belongs to the separate return flow, so the POD feature should only close the current attempt and preserve the `IN_TRANSIT` stock position.
+**Rationale**: Dealer refusal or failed delivery moves the Delivery Order to `RETURNED` but does not receive stock back into regular inventory. That handoff belongs to the separate return flow, so the POD feature should only close the current attempt and preserve the `IN_TRANSIT` stock position. The separate return flow requires warehouse staff to count returned quantity and inspect quality, Storekeeper to approve the quantity/quality and create a putaway plan, and warehouse staff to confirm putaway before goods leave virtual `IN_TRANSIT` and the Delivery Order moves to `DELIVERY_FAILED`.
 
 **Alternatives considered**: Automatically returning failed goods to warehouse inventory was rejected because it bypasses the separate returns and classification workflow.
+
+## Decision: Close returned Delivery Orders only after returned-goods putaway
+
+**Rationale**: Driver trip completion confirms that the vehicle and driver are operationally back, not that returned goods have been counted, quality-checked, approved, and stored. Keeping the Delivery Order in `RETURNED` until staff putaway confirmation preserves stock accuracy and makes Storekeeper accountable for returned-goods location planning.
+
+**Alternatives considered**: Moving the Delivery Order to `DELIVERY_FAILED` when the driver confirms vehicle return was rejected because it would close the outbound order before warehouse custody, quantity, quality, and storage location are verified.

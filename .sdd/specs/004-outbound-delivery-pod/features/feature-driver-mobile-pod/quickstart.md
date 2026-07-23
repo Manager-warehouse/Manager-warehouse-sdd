@@ -149,7 +149,25 @@ Expected result:
 - Keep goods in virtual `IN_TRANSIT`.
 - Write `FAIL_DELIVERY` audit.
 
-### 5. Admin resets locked OTP
+### 5. Warehouse processes returned goods for a failed delivery
+
+Expected sequence:
+
+1. Warehouse staff opens the returned Delivery Order in `RETURNED`.
+2. Warehouse staff submits returned quantity count and quality inspection results by item/product/batch.
+3. Storekeeper reviews and approves the returned quantity and quality result.
+4. Storekeeper creates a putaway plan selecting the destination warehouse location for the returned goods.
+5. Warehouse staff confirms the returned goods were put away successfully according to the plan.
+
+Expected result:
+
+- Delivery Order remains `RETURNED` during staff count/QC, Storekeeper approval, and Storekeeper putaway planning.
+- Goods remain in virtual `IN_TRANSIT` until putaway completion.
+- Putaway completion moves goods from virtual `IN_TRANSIT` to the Storekeeper-approved destination location.
+- Putaway completion moves Delivery Order from `RETURNED` to `DELIVERY_FAILED`.
+- The system writes audit records for count/QC submission, Storekeeper approval, putaway planning, and putaway completion.
+
+### 6. Admin resets locked OTP
 
 ```http
 POST /api/v1/admin/delivery-orders/101/delivery-otp/reset
@@ -182,6 +200,9 @@ Expected result:
 - Service test: successful confirmation updates attempt, consumes OTP, decrements `IN_TRANSIT` inventory, creates invoice/receivable, and moves Delivery Order to `COMPLETED` in one transaction.
 - Service test: failed delivery moves Delivery Order to `RETURNED` without changing inventory.
 - Service test: trip completion only works when every assigned Delivery Order is `COMPLETED` or `RETURNED`.
+- Service test: returned goods flow keeps Delivery Order `RETURNED` during staff count/QC, Storekeeper approval, and Storekeeper putaway planning.
+- Service test: returned goods putaway completion moves inventory from virtual `IN_TRANSIT` to the Storekeeper-approved location and moves Delivery Order to `DELIVERY_FAILED`.
+- Controller integration test: returned goods count/QC submit, Storekeeper approval, putaway planning, and staff putaway completion endpoints enforce role and state validations.
 - Controller integration test: POD upload, OTP request, confirm-delivery, fail-delivery, trip-complete, and admin-reset endpoints return expected happy-path and business-error responses.
 - Frontend test: driver list filters `Tat ca`, `Noi bo`, and `Dai ly` render the expected card subset and type-specific wording.
 

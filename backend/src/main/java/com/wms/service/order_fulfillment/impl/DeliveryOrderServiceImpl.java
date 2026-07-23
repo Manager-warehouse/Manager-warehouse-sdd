@@ -50,8 +50,16 @@ import com.wms.dto.request.DeliveryOrderUpdateRequest;
 import com.wms.dto.request.DeliveryOrderWarehouseApprovalRequest;
 import com.wms.dto.request.DeliveryOrderWarehouseRejectRequest;
 import com.wms.dto.request.DeliveryOrderWarehouseRejectReturnRequest;
+import com.wms.dto.request.ReturnedGoodsApprovalRequest;
+import com.wms.dto.request.ReturnedGoodsCountQcItemRequest;
+import com.wms.dto.request.ReturnedGoodsCountQcRequest;
+import com.wms.dto.request.ReturnedGoodsPutawayCompleteRequest;
+import com.wms.dto.request.ReturnedGoodsPutawayPlanItemRequest;
+import com.wms.dto.request.ReturnedGoodsPutawayPlanRequest;
 import com.wms.dto.response.DeliveryOrderResponse;
 import com.wms.dto.response.PickingCandidateResponse;
+import com.wms.dto.response.ReturnedGoodsFlowItemResponse;
+import com.wms.dto.response.ReturnedGoodsFlowResponse;
 import com.wms.entity.stock_control.Adjustment;
 import com.wms.entity.stock_control.Batch;
 import com.wms.entity.dealer_management.Dealer;
@@ -63,6 +71,8 @@ import com.wms.entity.order_fulfillment.DeliveryOrderItemReturnToBinRecord;
 import com.wms.entity.order_fulfillment.DeliveryOrderWarehouseApproval;
 import com.wms.entity.stock_control.Inventory;
 import com.wms.entity.order_fulfillment.OutboundQcRecord;
+import com.wms.entity.order_fulfillment.ReturnedDeliveryFlow;
+import com.wms.entity.order_fulfillment.ReturnedDeliveryFlowItem;
 import com.wms.entity.price_management.PriceHistory;
 import com.wms.entity.product_catalog.Product;
 import com.wms.entity.stock_receiving.QuarantineRecord;
@@ -76,6 +86,8 @@ import com.wms.enums.stock_control.AllocationStatus;
 import com.wms.enums.order_fulfillment.ApprovalResult;
 import com.wms.enums.dealer_management.CreditStatus;
 import com.wms.enums.order_fulfillment.DeliveryOrderStatus;
+import com.wms.enums.order_fulfillment.ReturnedDeliveryFlowStatus;
+import com.wms.enums.order_fulfillment.ReturnedGoodsQualityResult;
 import com.wms.enums.billing_payment.InvoiceStatus;
 import com.wms.enums.warehouse_location.LocationType;
 import com.wms.enums.access_control.UserRole;
@@ -96,6 +108,7 @@ import com.wms.repository.InventoryRepository;
 import com.wms.repository.InvoiceRepository;
 import com.wms.repository.OutboundQcRecordRepository;
 import com.wms.repository.PriceHistoryRepository;
+import com.wms.repository.ReturnedDeliveryFlowRepository;
 import com.wms.repository.product_catalog.ProductRepository;
 import com.wms.repository.QuarantineRecordRepository;
 import com.wms.repository.UserWarehouseAssignmentRepository;
@@ -155,6 +168,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     private final InventoryRepository inventoryRepository;
     private final InvoiceRepository invoiceRepository;
     private final OutboundQcRecordRepository outboundQcRecordRepository;
+    private final ReturnedDeliveryFlowRepository returnedDeliveryFlowRepository;
     private final QuarantineRecordRepository quarantineRecordRepository;
     private final AdjustmentRepository adjustmentRepository;
     private final PriceHistoryRepository priceHistoryRepository;
@@ -180,6 +194,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
             InventoryRepository inventoryRepository,
             InvoiceRepository invoiceRepository,
             OutboundQcRecordRepository outboundQcRecordRepository,
+            ReturnedDeliveryFlowRepository returnedDeliveryFlowRepository,
             QuarantineRecordRepository quarantineRecordRepository,
             AdjustmentRepository adjustmentRepository,
             PriceHistoryRepository priceHistoryRepository,
@@ -204,6 +219,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         this.inventoryRepository = inventoryRepository;
         this.invoiceRepository = invoiceRepository;
         this.outboundQcRecordRepository = outboundQcRecordRepository;
+        this.returnedDeliveryFlowRepository = returnedDeliveryFlowRepository;
         this.quarantineRecordRepository = quarantineRecordRepository;
         this.adjustmentRepository = adjustmentRepository;
         this.priceHistoryRepository = priceHistoryRepository;
@@ -970,10 +986,297 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         return deliveryOrderMapper.toResponse(saved, orderItems, orderAllocations);
     }
 
+    @Override
+    @Transactional
+    public ReturnedGoodsFlowResponse submitReturnedGoodsCountQc(Long id,
+            ReturnedGoodsCountQcRequest request,
+            User actor) {
+        requireRole(actor, UserRole.WAREHOUSE_STAFF, "Only Warehouse Staff can submit returned goods count/QC");
+        DeliveryOrder order = findOrder(id);
+        requireReturnedOrderScope(order, actor);
+        if (returnedDeliveryFlowRepository.existsByDeliveryOrderId(order.getId())) {
+            throw new OutboundDeliveryException("RETURN_FLOW_ALREADY_EXISTS", HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Returned goods count/QC has already been submitted");
+        }
+
+        Map<ReturnedLineKey, ReturnedExpectedLine> expectedByKey = expectedReturnedLines(order);
+        Map<ReturnedLineKey, ReturnedGoodsCountQcItemRequest> requestByKey = countQcRequestByKey(request);
+        if (!requestByKey.keySet().equals(expectedByKey.keySet())) {
+            throw new OutboundDeliveryException("RETURN_FLOW_LINE_MISMATCH", HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Returned count/QC lines must match the delivery order shipped product batches");
+        }
+
+        OffsetDateTime now = OffsetDateTime.now();
+        ReturnedDeliveryFlow flow = new ReturnedDeliveryFlow();
+        flow.setDeliveryOrder(order);
+        flow.setStatus(ReturnedDeliveryFlowStatus.COUNT_QC_SUBMITTED);
+        flow.setCountedByStaff(actor);
+        flow.setNotes(request.getNotes());
+        flow.setCreatedAt(now);
+        flow.setUpdatedAt(now);
+        for (Map.Entry<ReturnedLineKey, ReturnedExpectedLine> entry : expectedByKey.entrySet()) {
+            ReturnedGoodsCountQcItemRequest row = requestByKey.get(entry.getKey());
+            if (row.getQualityResult() == ReturnedGoodsQualityResult.FAILED
+                    && (row.getQualityReason() == null || row.getQualityReason().isBlank())) {
+                throw new OutboundDeliveryException("RETURN_QUALITY_REASON_REQUIRED", HttpStatus.UNPROCESSABLE_ENTITY,
+                        "qualityReason is required when returned goods fail quality check");
+            }
+            ReturnedExpectedLine expected = entry.getValue();
+            ReturnedDeliveryFlowItem item = new ReturnedDeliveryFlowItem();
+            item.setFlow(flow);
+            item.setDeliveryOrderItem(expected.item());
+            item.setProduct(expected.item().getProduct());
+            item.setBatch(expected.batch());
+            item.setExpectedQty(expected.expectedQty());
+            item.setCountedQty(value(row.getCountedQty()));
+            item.setQualityResult(row.getQualityResult());
+            item.setQualityReason(blankToNull(row.getQualityReason()));
+            flow.getItems().add(item);
+        }
+
+        ReturnedDeliveryFlow saved = returnedDeliveryFlowRepository.save(flow);
+        auditUtil.logChange(actor, AuditAction.RETURN_FLOW_COUNT_QC_SUBMIT, "DELIVERY_ORDER",
+                order.getId(), order.getDoNumber(), Map.of(), returnedFlowSnapshot(saved));
+        return toReturnedGoodsFlowResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public ReturnedGoodsFlowResponse approveReturnedGoods(Long id,
+            ReturnedGoodsApprovalRequest request,
+            User actor) {
+        requireRole(actor, UserRole.STOREKEEPER, "Only Storekeeper can approve returned goods");
+        DeliveryOrder order = findOrder(id);
+        requireReturnedOrderScope(order, actor);
+        ReturnedDeliveryFlow flow = returnedFlow(order.getId());
+        if (flow.getStatus() != ReturnedDeliveryFlowStatus.COUNT_QC_SUBMITTED) {
+            throw new OutboundDeliveryException("RETURN_FLOW_STATUS_INVALID", HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Returned goods approval is only allowed after staff count/QC submission");
+        }
+        for (ReturnedDeliveryFlowItem item : flow.getItems()) {
+            if (value(item.getCountedQty()).compareTo(value(item.getExpectedQty())) != 0) {
+                throw new OutboundDeliveryException("RETURN_QTY_MISMATCH", HttpStatus.UNPROCESSABLE_ENTITY,
+                        "Storekeeper cannot approve returned goods when counted quantity differs from shipped quantity");
+            }
+        }
+
+        Map<String, Object> before = returnedFlowSnapshot(flow);
+        flow.setStatus(ReturnedDeliveryFlowStatus.APPROVED);
+        flow.setApprovedByStorekeeper(actor);
+        flow.setApprovalNotes(request.getNotes());
+        flow.setUpdatedAt(OffsetDateTime.now());
+        ReturnedDeliveryFlow saved = returnedDeliveryFlowRepository.save(flow);
+        auditUtil.logChange(actor, AuditAction.RETURN_FLOW_APPROVE, "DELIVERY_ORDER",
+                order.getId(), order.getDoNumber(), before, returnedFlowSnapshot(saved));
+        return toReturnedGoodsFlowResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public ReturnedGoodsFlowResponse planReturnedGoodsPutaway(Long id,
+            ReturnedGoodsPutawayPlanRequest request,
+            User actor) {
+        requireRole(actor, UserRole.STOREKEEPER, "Only Storekeeper can plan returned goods putaway");
+        DeliveryOrder order = findOrder(id);
+        requireReturnedOrderScope(order, actor);
+        ReturnedDeliveryFlow flow = returnedFlow(order.getId());
+        if (flow.getStatus() != ReturnedDeliveryFlowStatus.APPROVED) {
+            throw new OutboundDeliveryException("RETURN_FLOW_STATUS_INVALID", HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Returned goods putaway planning is only allowed after Storekeeper approval");
+        }
+
+        Map<ReturnedLineKey, ReturnedDeliveryFlowItem> itemsByKey = flow.getItems().stream()
+                .collect(Collectors.toMap(item -> new ReturnedLineKey(item.getDeliveryOrderItem().getId(),
+                        null, item.getBatch().getId()), Function.identity()));
+        Map<ReturnedLineKey, ReturnedGoodsPutawayPlanItemRequest> requestByKey = putawayRequestByKey(request);
+        if (!requestByKey.keySet().equals(itemsByKey.keySet())) {
+            throw new OutboundDeliveryException("RETURN_FLOW_LINE_MISMATCH", HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Returned putaway plan lines must match the approved returned goods lines");
+        }
+
+        Map<String, Object> before = returnedFlowSnapshot(flow);
+        for (Map.Entry<ReturnedLineKey, ReturnedGoodsPutawayPlanItemRequest> entry : requestByKey.entrySet()) {
+            ReturnedDeliveryFlowItem item = itemsByKey.get(entry.getKey());
+            ReturnedGoodsPutawayPlanItemRequest row = entry.getValue();
+            if (value(row.getPlannedQty()).compareTo(value(item.getCountedQty())) != 0) {
+                throw new OutboundDeliveryException("RETURN_PUTAWAY_QTY_MISMATCH", HttpStatus.UNPROCESSABLE_ENTITY,
+                        "Returned putaway planned quantity must equal counted quantity");
+            }
+            WarehouseLocation destination = resolveWarehouseLocation(order, row.getDestinationLocationId(),
+                    item.getQualityResult() == ReturnedGoodsQualityResult.FAILED, "returned putaway");
+            item.setDestinationLocation(destination);
+            item.setPlannedQty(value(row.getPlannedQty()));
+        }
+        flow.setStatus(ReturnedDeliveryFlowStatus.PUTAWAY_PLANNED);
+        flow.setPutawayPlannedByStorekeeper(actor);
+        flow.setPutawayNotes(request.getNotes());
+        flow.setUpdatedAt(OffsetDateTime.now());
+        ReturnedDeliveryFlow saved = returnedDeliveryFlowRepository.save(flow);
+        auditUtil.logChange(actor, AuditAction.RETURN_FLOW_PUTAWAY_PLAN, "DELIVERY_ORDER",
+                order.getId(), order.getDoNumber(), before, returnedFlowSnapshot(saved));
+        return toReturnedGoodsFlowResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public ReturnedGoodsFlowResponse completeReturnedGoodsPutaway(Long id,
+            ReturnedGoodsPutawayCompleteRequest request,
+            User actor) {
+        requireRole(actor, UserRole.WAREHOUSE_STAFF, "Only Warehouse Staff can complete returned goods putaway");
+        DeliveryOrder order = findOrder(id);
+        requireReturnedOrderScope(order, actor);
+        ReturnedDeliveryFlow flow = returnedFlow(order.getId());
+        if (flow.getStatus() != ReturnedDeliveryFlowStatus.PUTAWAY_PLANNED) {
+            throw new OutboundDeliveryException("RETURN_FLOW_STATUS_INVALID", HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Returned goods putaway completion is only allowed after Storekeeper planning");
+        }
+
+        Map<String, Object> before = returnedFlowSnapshot(flow);
+        OffsetDateTime now = OffsetDateTime.now();
+        for (ReturnedDeliveryFlowItem item : flow.getItems()) {
+            if (item.getDestinationLocation() == null || value(item.getPlannedQty()).compareTo(ZERO) <= 0) {
+                throw new OutboundDeliveryException("RETURN_PUTAWAY_PLAN_REQUIRED", HttpStatus.UNPROCESSABLE_ENTITY,
+                        "Every returned goods line must have a destination location and planned quantity");
+            }
+            Inventory transitInventory = inventoryRepository
+                    .findTransitRowForDeliveryConfirmation(item.getProduct().getId(), item.getBatch().getId())
+                    .orElseThrow(() -> new OutboundDeliveryException("INVENTORY_ROW_INVALID", HttpStatus.CONFLICT,
+                            "Returned goods are not available in in-transit inventory"));
+            transitInventory.setTotalQty(subtractOrThrow(value(transitInventory.getTotalQty()),
+                    item.getPlannedQty(), "INVENTORY_ROW_INVALID",
+                    "In-transit inventory does not have enough returned quantity"));
+            transitInventory.setUpdatedAt(now);
+            saveInventoryWithConflictHandling(transitInventory);
+
+            Inventory destinationInventory = loadOrCreateInventoryRow(order, item.getProduct(), item.getBatch(),
+                    item.getDestinationLocation(), transitInventory,
+                    item.getQualityResult() == ReturnedGoodsQualityResult.FAILED, now);
+            destinationInventory.setTotalQty(value(destinationInventory.getTotalQty()).add(item.getPlannedQty()));
+            destinationInventory.setUpdatedAt(now);
+            saveInventoryWithConflictHandling(destinationInventory);
+            item.setPutawayCompletedQty(item.getPlannedQty());
+        }
+        flow.setStatus(ReturnedDeliveryFlowStatus.PUTAWAY_COMPLETED);
+        flow.setPutawayCompletedByStaff(actor);
+        flow.setCompletionNotes(request.getNotes());
+        flow.setUpdatedAt(now);
+        order.setStatus(DeliveryOrderStatus.DELIVERY_FAILED);
+        order.setUpdatedAt(now);
+        deliveryOrderRepository.save(order);
+
+        ReturnedDeliveryFlow saved = returnedDeliveryFlowRepository.save(flow);
+        auditUtil.logChange(actor, AuditAction.RETURN_FLOW_PUTAWAY_COMPLETE, "DELIVERY_ORDER",
+                order.getId(), order.getDoNumber(), before, returnedFlowSnapshot(saved));
+        return toReturnedGoodsFlowResponse(saved);
+    }
+
     private DeliveryOrderResponse toResponse(DeliveryOrder order) {
         List<DeliveryOrderItem> orderItems = items(order.getId());
         List<DeliveryOrderItemAllocation> orderAllocations = allocations(order.getId());
         return deliveryOrderMapper.toResponse(order, orderItems, orderAllocations);
+    }
+
+    private void requireReturnedOrderScope(DeliveryOrder order, User actor) {
+        requireWarehouseScope(actor, order.getWarehouse().getId());
+        if (order.getStatus() != DeliveryOrderStatus.RETURNED) {
+            throw new OutboundDeliveryException("DELIVERY_ORDER_STATUS_INVALID",
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Returned goods handling is only allowed while delivery order status is RETURNED");
+        }
+    }
+
+    private ReturnedDeliveryFlow returnedFlow(Long orderId) {
+        return returnedDeliveryFlowRepository.findByDeliveryOrderId(orderId)
+                .orElseThrow(() -> new OutboundDeliveryException("RETURN_FLOW_NOT_FOUND",
+                        HttpStatus.UNPROCESSABLE_ENTITY,
+                        "Returned goods flow has not been submitted for this delivery order"));
+    }
+
+    private Map<ReturnedLineKey, ReturnedExpectedLine> expectedReturnedLines(DeliveryOrder order) {
+        List<OutboundQcRecord> rows = outboundQcRecordRepository.findPassedRecordsByDeliveryOrderIdIn(List.of(order.getId()));
+        if (rows.isEmpty()) {
+            throw new OutboundDeliveryException("RETURN_FLOW_LINE_MISMATCH", HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Returned delivery order has no shipped product batches to receive back");
+        }
+        Map<ReturnedLineKey, ReturnedExpectedLine> expected = new LinkedHashMap<>();
+        for (OutboundQcRecord row : rows) {
+            ReturnedLineKey key = new ReturnedLineKey(row.getDeliveryOrderItem().getId(),
+                    row.getDeliveryOrderItem().getProduct().getId(), row.getBatch().getId());
+            expected.merge(key,
+                    new ReturnedExpectedLine(row.getDeliveryOrderItem(), row.getBatch(), value(row.getQcPassQty())),
+                    (left, right) -> new ReturnedExpectedLine(left.item(), left.batch(),
+                            value(left.expectedQty()).add(value(right.expectedQty()))));
+        }
+        return expected;
+    }
+
+    private Map<ReturnedLineKey, ReturnedGoodsCountQcItemRequest> countQcRequestByKey(
+            ReturnedGoodsCountQcRequest request) {
+        return request.getItems().stream()
+                .collect(Collectors.toMap(row -> new ReturnedLineKey(row.getDoItemId(), row.getProductId(),
+                                row.getBatchId()),
+                        Function.identity(),
+                        (left, right) -> {
+                            throw new OutboundDeliveryException("RETURN_FLOW_LINE_MISMATCH", HttpStatus.BAD_REQUEST,
+                                    "Duplicate returned count/QC lines are not allowed");
+                        },
+                        LinkedHashMap::new));
+    }
+
+    private Map<ReturnedLineKey, ReturnedGoodsPutawayPlanItemRequest> putawayRequestByKey(
+            ReturnedGoodsPutawayPlanRequest request) {
+        return request.getItems().stream()
+                .collect(Collectors.toMap(row -> new ReturnedLineKey(row.getDoItemId(), null, row.getBatchId()),
+                        Function.identity(),
+                        (left, right) -> {
+                            throw new OutboundDeliveryException("RETURN_FLOW_LINE_MISMATCH", HttpStatus.BAD_REQUEST,
+                                    "Duplicate returned putaway lines are not allowed");
+                        },
+                        LinkedHashMap::new));
+    }
+
+    private ReturnedGoodsFlowResponse toReturnedGoodsFlowResponse(ReturnedDeliveryFlow flow) {
+        DeliveryOrder order = flow.getDeliveryOrder();
+        return ReturnedGoodsFlowResponse.builder()
+                .doId(order.getId())
+                .doNumber(order.getDoNumber())
+                .deliveryOrderStatus(order.getStatus())
+                .flowStatus(flow.getStatus())
+                .items(flow.getItems().stream()
+                        .map(item -> ReturnedGoodsFlowItemResponse.builder()
+                                .doItemId(item.getDeliveryOrderItem().getId())
+                                .productId(item.getProduct().getId())
+                                .batchId(item.getBatch().getId())
+                                .expectedQty(item.getExpectedQty())
+                                .countedQty(item.getCountedQty())
+                                .qualityResult(item.getQualityResult())
+                                .qualityReason(item.getQualityReason())
+                                .destinationLocationId(item.getDestinationLocation() == null ? null
+                                        : item.getDestinationLocation().getId())
+                                .plannedQty(item.getPlannedQty())
+                                .putawayCompletedQty(item.getPutawayCompletedQty())
+                                .build())
+                        .toList())
+                .build();
+    }
+
+    private Map<String, Object> returnedFlowSnapshot(ReturnedDeliveryFlow flow) {
+        return PartnerAuditUtil.values(
+                "flowId", flow.getId(),
+                "status", flow.getStatus(),
+                "items", flow.getItems().stream()
+                        .map(item -> PartnerAuditUtil.values(
+                                "doItemId", item.getDeliveryOrderItem().getId(),
+                                "productId", item.getProduct().getId(),
+                                "batchId", item.getBatch().getId(),
+                                "expectedQty", item.getExpectedQty(),
+                                "countedQty", item.getCountedQty(),
+                                "qualityResult", item.getQualityResult(),
+                                "destinationLocationId", item.getDestinationLocation() == null ? null
+                                        : item.getDestinationLocation().getId(),
+                                "plannedQty", item.getPlannedQty(),
+                                "putawayCompletedQty", item.getPutawayCompletedQty()))
+                        .toList());
     }
 
     private DeliveryOrder findOrder(Long id) {
@@ -2016,6 +2319,12 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         BigDecimal lineAmount() {
             return requestedQty.multiply(unitPrice);
         }
+    }
+
+    private record ReturnedLineKey(Long doItemId, Long productId, Long batchId) {
+    }
+
+    private record ReturnedExpectedLine(DeliveryOrderItem item, Batch batch, BigDecimal expectedQty) {
     }
 
     private record ResolvedAllocationSelection(DeliveryOrderItem item,

@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: Driver Mobile POD API
   version: 1.0.0
-  description: Contracts for driver mobile POD upload, OTP confirmation, failed delivery, trip completion, and admin OTP reset in Sprint 1.
+  description: Contracts for driver mobile POD upload, OTP confirmation, failed delivery, trip completion, returned-goods warehouse processing, and admin OTP reset in Sprint 1.
 paths:
   /api/v1/trips/driver:
     get:
@@ -422,6 +422,142 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/delivery-orders/{doId}/returned-goods/count-qc:
+    post:
+      summary: Submit returned-goods count and quality inspection
+      operationId: submitReturnedGoodsCountQc
+      tags:
+        - Returned Delivery Goods
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: doId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReturnedGoodsCountQcRequest"
+      responses:
+        "200":
+          description: Returned goods count/QC submitted while Delivery Order remains RETURNED
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReturnedGoodsFlowResponse"
+        "422":
+          description: Delivery Order state, quantity, or quality result validation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/delivery-orders/{doId}/returned-goods/approve:
+    post:
+      summary: Storekeeper approves returned-goods count and quality
+      operationId: approveReturnedGoods
+      tags:
+        - Returned Delivery Goods
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: doId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReturnedGoodsApprovalRequest"
+      responses:
+        "200":
+          description: Returned goods quantity and quality approved while Delivery Order remains RETURNED
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReturnedGoodsFlowResponse"
+        "422":
+          description: Count/QC result is incomplete or cannot be approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/delivery-orders/{doId}/returned-goods/putaway-plan:
+    post:
+      summary: Storekeeper creates returned-goods putaway plan
+      operationId: planReturnedGoodsPutaway
+      tags:
+        - Returned Delivery Goods
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: doId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReturnedGoodsPutawayPlanRequest"
+      responses:
+        "200":
+          description: Returned goods putaway plan created while Delivery Order remains RETURNED
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReturnedGoodsFlowResponse"
+        "422":
+          description: Storekeeper approval or destination-location validation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/delivery-orders/{doId}/returned-goods/putaway-complete:
+    post:
+      summary: Warehouse staff confirms returned-goods putaway completion
+      operationId: completeReturnedGoodsPutaway
+      tags:
+        - Returned Delivery Goods
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: doId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReturnedGoodsPutawayCompleteRequest"
+      responses:
+        "200":
+          description: Returned goods put away; inventory moved from IN_TRANSIT and Delivery Order moved to DELIVERY_FAILED
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReturnedGoodsFlowResponse"
+        "422":
+          description: Putaway plan is missing or completion does not match the plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   securitySchemes:
     bearerAuth:
@@ -479,6 +615,132 @@ components:
         notes:
           type: string
           maxLength: 1000
+    ReturnedGoodsCountQcRequest:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/ReturnedGoodsCountQcItem"
+        notes:
+          type: string
+          maxLength: 1000
+    ReturnedGoodsCountQcItem:
+      type: object
+      required:
+        - doItemId
+        - productId
+        - batchId
+        - countedQty
+        - qualityResult
+      properties:
+        doItemId:
+          type: integer
+          format: int64
+        productId:
+          type: integer
+          format: int64
+        batchId:
+          type: integer
+          format: int64
+        countedQty:
+          type: number
+          minimum: 0
+        qualityResult:
+          type: string
+          enum:
+            - PASSED
+            - FAILED
+        qualityReason:
+          type: string
+          maxLength: 1000
+    ReturnedGoodsApprovalRequest:
+      type: object
+      properties:
+        notes:
+          type: string
+          maxLength: 1000
+    ReturnedGoodsPutawayPlanRequest:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/ReturnedGoodsPutawayPlanItem"
+        notes:
+          type: string
+          maxLength: 1000
+    ReturnedGoodsPutawayPlanItem:
+      type: object
+      required:
+        - doItemId
+        - batchId
+        - destinationLocationId
+        - plannedQty
+      properties:
+        doItemId:
+          type: integer
+          format: int64
+        batchId:
+          type: integer
+          format: int64
+        destinationLocationId:
+          type: integer
+          format: int64
+        plannedQty:
+          type: number
+          minimum: 0
+    ReturnedGoodsPutawayCompleteRequest:
+      type: object
+      properties:
+        notes:
+          type: string
+          maxLength: 1000
+    ReturnedGoodsFlowResponse:
+      type: object
+      properties:
+        doId:
+          type: integer
+          format: int64
+        doNumber:
+          type: string
+        deliveryOrderStatus:
+          type: string
+          example: RETURNED
+        flowStatus:
+          type: string
+          example: PUTAWAY_PLANNED
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReturnedGoodsFlowItemResponse"
+    ReturnedGoodsFlowItemResponse:
+      type: object
+      properties:
+        doItemId:
+          type: integer
+          format: int64
+        productId:
+          type: integer
+          format: int64
+        batchId:
+          type: integer
+          format: int64
+        countedQty:
+          type: number
+        qualityResult:
+          type: string
+        destinationLocationId:
+          type: integer
+          format: int64
+        putawayCompletedQty:
+          type: number
     TripDriverViewResponse:
       type: object
       properties:
@@ -627,6 +889,12 @@ components:
             - IN_TRANSIT_STOCK_NOT_FOUND
             - INVOICE_ALREADY_EXISTS
             - TRIP_NOT_READY_TO_COMPLETE
+            - RETURN_FLOW_STATUS_INVALID
+            - RETURN_COUNT_QC_INCOMPLETE
+            - RETURN_QTY_MISMATCH
+            - RETURN_APPROVAL_REQUIRED
+            - RETURN_PUTAWAY_PLAN_REQUIRED
+            - RETURN_PUTAWAY_MISMATCH
             - INVENTORY_VERSION_CONFLICT
         message:
           type: string

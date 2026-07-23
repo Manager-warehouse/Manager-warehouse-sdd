@@ -124,6 +124,30 @@
 
 ---
 
+## Future User Story 5 - Warehouse processes returned goods after failed delivery (Priority: P1)
+
+**Goal**: Warehouse staff and Storekeeper complete the separate return flow for a `RETURNED` Delivery Order so goods move out of virtual `IN_TRANSIT` and the Delivery Order closes as `DELIVERY_FAILED`.
+
+**Independent Test**: Starting from a Delivery Order in `RETURNED`, submit staff returned-goods count/QC results, approve them as Storekeeper, create a Storekeeper putaway plan, then confirm putaway as warehouse staff; verify inventory moves from virtual `IN_TRANSIT` to the planned destination location and the Delivery Order moves to `DELIVERY_FAILED`.
+
+### Tests for User Story 5
+
+- [X] T076 [P] [US5] Add service unit test for staff returned-goods count/QC submission keeping Delivery Order `RETURNED` and inventory in virtual `IN_TRANSIT`.
+- [X] T077 [P] [US5] Add service unit test for Storekeeper approving returned quantity/quality only after all returned items have count and quality results.
+- [X] T078 [P] [US5] Add service unit test for Storekeeper creating a returned-goods putaway plan with a valid destination location in the source warehouse.
+- [X] T079 [P] [US5] Add service unit test for staff putaway completion moving goods from virtual `IN_TRANSIT` to the planned destination location and changing Delivery Order to `DELIVERY_FAILED`.
+- [X] T080 [US5] Add controller integration tests for returned-goods count/QC submit, Storekeeper approval, putaway planning, and putaway completion role/state validation.
+
+### Implementation for User Story 5
+
+- [X] T081 [P] [US5] Add returned-goods flow request/response DTOs for count/QC submission, Storekeeper approval, putaway planning, and putaway completion.
+- [X] T082 [P] [US5] Add returned-goods flow entities/repositories to track flow status, item count/QC results, approved destination locations, and putaway completion.
+- [X] T083 [US5] Add warehouse-scoped endpoints for staff returned-goods count/QC submission and Storekeeper approval/putaway planning.
+- [X] T084 [US5] Implement returned-goods inventory movement from virtual `IN_TRANSIT` to planned warehouse location on staff putaway completion with optimistic locking and non-negative validation.
+- [X] T085 [US5] Add audit logs for `RETURN_FLOW_COUNT_QC_SUBMIT`, `RETURN_FLOW_APPROVE`, `RETURN_FLOW_PUTAWAY_PLAN`, and `RETURN_FLOW_PUTAWAY_COMPLETE`.
+
+---
+
 ## Phase 6: User Story 4 - Admin resets a locked delivery OTP (Priority: P1)
 
 **Goal**: Admin can reset a locked OTP row for the latest current delivery attempt so the driver can request a new OTP on the same row.
@@ -207,6 +231,7 @@
 - **US2**: Depends on US1 POD and OTP-row persistence.
 - **US3**: Depends on driver assignment and current-attempt resolution from US1, but is otherwise independent of successful delivery confirmation.
 - **US4**: Depends on OTP lock semantics from US2.
+- **US5**: Depends on US3 because returned-goods processing starts only after a failed/refused delivery has moved the Delivery Order to `RETURNED`.
 - **Driver Trip List Filters**: Cross-cuts US1 and Spec 005 visibility, but remains read-only and independently testable from delivery confirmation.
 
 ### Parallel Opportunities
@@ -220,6 +245,8 @@
 - T051 through T053 can be written in parallel for US4 tests.
 - T058 and T059 can run in parallel during polish.
 - T063 through T066 can run in parallel while T067 through T074 are implemented by file ownership.
+- T076 through T080 can be written in parallel for US5 tests.
+- T081 and T082 can run in parallel before T083 through T085.
 
 ## Parallel Example: User Story 1
 
@@ -268,6 +295,7 @@ Task: "T045 [P] [US3] Add service unit test for vehicle/driver release on comple
 4. Deliver US4 admin OTP reset.
 5. Finish polish verification and OpenAPI alignment.
 6. Deliver the shared driver trip list labels and filters so mixed `TRIP-*`/`TTR-*` assignments are easy to identify.
+7. Deliver US5 returned-goods processing so `RETURNED` orders close as `DELIVERY_FAILED` only after staff count/QC, Storekeeper approval, Storekeeper putaway planning, and staff putaway completion.
 
 ### Validation Checklist
 
@@ -279,5 +307,7 @@ Task: "T045 [P] [US3] Add service unit test for vehicle/driver release on comple
 - Successful delivery confirmation remains transactional, version-safe, and only decrements virtual `IN_TRANSIT` stock for the confirmed Delivery Order.
 - Failed delivery never changes inventory and keeps goods in virtual `IN_TRANSIT`.
 - Trip completion only happens after all assigned Delivery Orders are `COMPLETED` or `RETURNED`.
+- Delivery Order `RETURNED` moves to `DELIVERY_FAILED` only after the separate returned-goods flow completes staff count/QC, Storekeeper approval, Storekeeper putaway planning, and staff putaway confirmation.
+- Returned-goods putaway completion moves inventory from virtual `IN_TRANSIT` to the Storekeeper-approved destination location with non-negative quantity and version checks.
 - Service and controller tests cover happy paths and business-error paths for each user story.
 - Driver trip list uses neutral transport wording, exposes `Tat ca` / `Noi bo` / `Dai ly` filters, and renders `DELIVERY` versus `TRANSFER` summaries without enabling the wrong action set.

@@ -45,8 +45,13 @@ import com.wms.dto.request.DeliveryOrderReplacementPlanRequest;
 import com.wms.dto.request.DeliveryOrderUpdateRequest;
 import com.wms.dto.request.DeliveryOrderWarehouseApprovalRequest;
 import com.wms.dto.request.DeliveryOrderWarehouseRejectRequest;
+import com.wms.dto.request.ReturnedGoodsApprovalRequest;
+import com.wms.dto.request.ReturnedGoodsCountQcRequest;
+import com.wms.dto.request.ReturnedGoodsPutawayCompleteRequest;
+import com.wms.dto.request.ReturnedGoodsPutawayPlanRequest;
 import com.wms.dto.response.DeliveryOrderResponse;
 import com.wms.dto.response.PickingCandidateResponse;
+import com.wms.dto.response.ReturnedGoodsFlowResponse;
 import com.wms.entity.access_control.User;
 import java.util.List;
 import java.util.Map;
@@ -64,4 +69,8 @@ public interface DeliveryOrderService {
     DeliveryOrderResponse approveDeliveryOrderQuality(Long id, DeliveryOrderQualityApprovalRequest request, User actor);
     DeliveryOrderResponse approveDeliveryOrderWarehouseRelease(Long id, DeliveryOrderWarehouseApprovalRequest request, User actor);
     DeliveryOrderResponse rejectDeliveryOrderWarehouseRelease(Long id, DeliveryOrderWarehouseRejectRequest request, User actor);
+    ReturnedGoodsFlowResponse submitReturnedGoodsCountQc(Long id, ReturnedGoodsCountQcRequest request, User actor);
+    ReturnedGoodsFlowResponse approveReturnedGoods(Long id, ReturnedGoodsApprovalRequest request, User actor);
+    ReturnedGoodsFlowResponse planReturnedGoodsPutaway(Long id, ReturnedGoodsPutawayPlanRequest request, User actor);
+    ReturnedGoodsFlowResponse completeReturnedGoodsPutaway(Long id, ReturnedGoodsPutawayCompleteRequest request, User actor);
 }
