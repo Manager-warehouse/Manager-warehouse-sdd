@@ -11,6 +11,12 @@
 
 Xuất hàng là quy trình tạo doanh thu cho Phúc Anh. Planner nhận yêu cầu từ Công ty mẹ, hệ thống kiểm tra công nợ và tồn kho trước khi tạo Đơn xuất. Sau khi tạo thành công, Thủ kho lập kế hoạch lấy hàng theo danh sách batch/bin/zone hợp lệ trong kho, sắp theo FIFO cho domain đồ gia dụng không quản lý hạn sử dụng; Nhân viên kho lấy hàng thực tế, kiểm tra chất lượng từng sản phẩm và nhập số lượng đạt/không đạt theo item/allocation/batch/location/zone. Thủ kho phê duyệt chất lượng, xử lý hàng không đạt vào quarantine và chọn hàng thay thế nếu cần. Trưởng kho duyệt xuất kho trước khi Dispatcher xếp xe và tài xế. Khi giao thành công bằng POD + OTP, hệ thống tự động tạo invoice và cộng công nợ cho Đại lý; thông báo kế toán và xử lý thanh toán/cấn trừ công nợ thuộc các luồng riêng.
 
+## Clarifications
+
+### Session 2026-07-23
+
+- Q: Phân quyền quy trình Xuất hàng & Giao hàng (`004-outbound-delivery-pod`) -> A: Tuân thủ phân quyền theo `role.md`: `PLANNER` lập Đơn xuất DO; `WH_MANAGER` và `STOREKEEPER` phê duyệt DO (`✓ (duyệt)`); `STOREKEEPER` và `WH_STAFF` QC Outbound; `DISPATCHER` độc quyền điều phối chuyến xe; và `DRIVER` thực hiện Giao hàng trên app mobile.
+
 ### Features List
 
 - [US-WMS-06: Lập Đơn xuất hàng & Tự động Kiểm tra Công nợ](features/feature-planner-delivery-order/feature-planner-delivery-order.md)
