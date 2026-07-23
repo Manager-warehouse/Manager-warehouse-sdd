@@ -115,5 +115,16 @@ export const authService = {
       const response = await apiClient.post('/auth/verify-otp', { email, otp, newPassword });
       return response.data;
     }
+  },
+
+  checkOtp: async (email, otp) => {
+    if (useMock) {
+      await new Promise(resolve => setTimeout(resolve, 400));
+      if (otp !== '123456') throw new Error('INVALID_OTP');
+      return { success: true };
+    } else {
+      const response = await apiClient.post('/auth/otp/check', { email, otp });
+      return response.data;
+    }
   }
 };
