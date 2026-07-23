@@ -140,6 +140,22 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
     expect(screen.queryByRole('button', { name: 'Hạ hàng khỏi xe' })).not.toBeInTheDocument();
   });
 
+  it('does not show unship action during load handover after outbound QC passed', () => {
+    renderPanel({
+      roles: [ROLES.STOREKEEPER],
+      transfer: {
+        ...baseTransfer,
+        outboundQcPassed: true,
+        outboundQcPhotoRef: 'uploads/qc.jpg',
+        items: [{ ...baseTransfer.items[0], loadedQty: 10, sentQty: 10 }],
+      },
+    });
+
+    expect(screen.getByText('Chờ hoàn tất xếp hàng')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Xác nhận bàn giao lên xe' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Hạ hàng khỏi xe' })).not.toBeInTheDocument();
+  });
+
   it('keeps direct return-to-source action for source manager only', async () => {
     renderPanel({
       roles: [ROLES.WAREHOUSE_MANAGER],
