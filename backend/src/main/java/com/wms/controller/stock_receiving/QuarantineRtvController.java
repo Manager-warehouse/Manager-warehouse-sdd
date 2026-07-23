@@ -49,6 +49,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -82,6 +83,7 @@ public class QuarantineRtvController {
         @ApiResponse(responseCode = "409", description = "RTV_ALREADY_EXISTS — RTV đã tồn tại cho phiếu này"),
         @ApiResponse(responseCode = "422", description = "Phiếu không ở trạng thái QC_FAILED hoặc không có items")
     })
+    @PreAuthorize("hasAnyRole('WAREHOUSE_MANAGER', 'ADMIN', 'CEO')")
     @PostMapping("/{id}/rtv")
     public ResponseEntity<RtvActionResponse> createRtv(
             @Parameter(description = "ID phiếu nhập QC_FAILED") @PathVariable Long id,
@@ -105,6 +107,7 @@ public class QuarantineRtvController {
         @ApiResponse(responseCode = "409", description = "RTV đã được xác nhận trước đó (RTV_ALREADY_CONFIRMED)"),
         @ApiResponse(responseCode = "422", description = "RTV_QUANTITY_MISMATCH — số lượng trả không khớp với quarantine")
     })
+    @PreAuthorize("hasAnyRole('STOREKEEPER', 'WAREHOUSE_MANAGER', 'ADMIN', 'CEO')")
     @PutMapping("/{id}/rtv/confirm")
     public ResponseEntity<RtvActionResponse> confirmRtv(
             @Parameter(description = "ID phiếu nhập QC_FAILED") @PathVariable Long id,

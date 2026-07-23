@@ -54,6 +54,9 @@ public class ReceiptItemQcResponse {
     @JsonProperty("product_name")
     private String productName;
 
+    @JsonProperty("product_sku")
+    private String productSku;
+
     @JsonProperty("expected_qty")
     private Integer expectedQty;
 

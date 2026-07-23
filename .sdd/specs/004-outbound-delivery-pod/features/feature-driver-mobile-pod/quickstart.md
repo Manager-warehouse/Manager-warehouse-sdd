@@ -149,7 +149,30 @@ Expected result:
 - Keep goods in virtual `IN_TRANSIT`.
 - Write `FAIL_DELIVERY` audit.
 
-### 5. Admin resets locked OTP
+### 5. Warehouse processes returned goods for a failed delivery
+
+Expected sequence:
+
+1. Storekeeper opens the returned Delivery Order in `RETURNED` and confirms the goods have physically arrived back at the warehouse with `PUT /api/v1/delivery-orders/{doId}/returned-goods/receive`.
+2. Frontend calls `GET /api/v1/delivery-orders/{doId}/returned-goods` to resume the returned-goods flow and show the current staff/storekeeper step.
+3. Warehouse staff submits actual returned quantity, quality-passed quantity, quality-failed quantity, and failure reason by item/product/batch with `PUT /api/v1/delivery-orders/{doId}/returned-goods/count-qc`.
+4. Storekeeper reviews the count/QC result with `PUT /api/v1/delivery-orders/{doId}/returned-goods/approval`.
+5. If Storekeeper rejects the result, the request includes `decision = REJECT` and `rejectionReason`; the flow returns to staff count/QC rework and staff resubmits corrected values.
+6. If Storekeeper accepts the result, the request includes `decision = ACCEPT`; Storekeeper can then create a putaway plan selecting destination warehouse locations with `PUT /api/v1/delivery-orders/{doId}/returned-goods/putaway-plan`.
+7. Warehouse staff confirms the returned goods were put away successfully with `PUT /api/v1/delivery-orders/{doId}/returned-goods/putaway-complete`.
+
+Expected result:
+
+- Delivery Order remains `RETURNED` during Storekeeper goods-arrival confirmation, staff count/QC, Storekeeper QC decision, Storekeeper putaway planning, and staff putaway execution.
+- Staff can enter count/QC only after Storekeeper has confirmed goods arrival.
+- Staff must enter actual quantity, quality-passed quantity, quality-failed quantity, and failure reason when failed quantity is greater than zero.
+- Storekeeper rejection requires a reason and sends the flow back to staff rework.
+- Goods remain in virtual `IN_TRANSIT` until putaway completion.
+- Putaway completion moves goods from virtual `IN_TRANSIT` to the Storekeeper-approved destination location.
+- Putaway completion moves Delivery Order from `RETURNED` to `DELIVERY_FAILED`.
+- The system writes audit records for arrival confirmation, count/QC submission, Storekeeper acceptance/rejection, putaway planning, and putaway completion.
+
+### 6. Admin resets locked OTP
 
 ```http
 POST /api/v1/admin/delivery-orders/101/delivery-otp/reset
@@ -182,13 +205,17 @@ Expected result:
 - Service test: successful confirmation updates attempt, consumes OTP, decrements `IN_TRANSIT` inventory, creates invoice/receivable, and moves Delivery Order to `COMPLETED` in one transaction.
 - Service test: failed delivery moves Delivery Order to `RETURNED` without changing inventory.
 - Service test: trip completion only works when every assigned Delivery Order is `COMPLETED` or `RETURNED`.
+- Service test: returned goods flow keeps Delivery Order `RETURNED` during Storekeeper arrival confirmation, staff count/QC, Storekeeper QC decision, and Storekeeper putaway planning.
+- Service test: Storekeeper QC rejection requires a reason and allows staff count/QC rework before acceptance.
+- Service test: returned goods putaway completion moves inventory from virtual `IN_TRANSIT` to the Storekeeper-approved location and moves Delivery Order to `DELIVERY_FAILED`.
+- Controller integration test: returned goods flow state read, Storekeeper arrival confirmation, count/QC submit/resubmit, Storekeeper accept/reject, putaway planning, and staff putaway completion endpoints enforce role and state validations.
 - Controller integration test: POD upload, OTP request, confirm-delivery, fail-delivery, trip-complete, and admin-reset endpoints return expected happy-path and business-error responses.
 - Frontend test: driver list filters `Tat ca`, `Noi bo`, and `Dai ly` render the expected card subset and type-specific wording.
 
 ## Definition of done reminders
 
 - Never store raw OTP in application persistence.
-- Keep all POD and OTP endpoints documented in OpenAPI.
+- Keep all POD, OTP, and returned-goods endpoints documented in OpenAPI.
 - Do not change inventory for failed delivery; only successful confirmation decrements virtual `IN_TRANSIT`.
 - Ensure every driver and admin action writes audit logs with before/after context.
 - Keep driver list filters read-only: no inventory, delivery attempt, transfer, trip status, resource, or audit mutation occurs when filtering.

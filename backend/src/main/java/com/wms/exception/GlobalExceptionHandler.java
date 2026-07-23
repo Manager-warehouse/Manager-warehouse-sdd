@@ -195,6 +195,15 @@ public class GlobalExceptionHandler {
             if (msg.contains("INVALID_CREDENTIALS") || msg.contains("TOKEN_INVALID") || msg.contains("TOKEN_EXPIRED")) {
                 status = HttpStatus.UNAUTHORIZED;
                 code = "UNAUTHORIZED";
+            } else if (msg.contains("OTP_LOCKED")) {
+                status = HttpStatus.TOO_MANY_REQUESTS;
+                code = "OTP_LOCKED";
+            } else if (msg.contains("OTP_EXPIRED") || msg.contains("OTP_INVALID")) {
+                status = HttpStatus.BAD_REQUEST;
+                code = msg;
+            } else if (msg.contains("NEW_PASSWORD_SAME_AS_CURRENT")) {
+                status = HttpStatus.UNPROCESSABLE_ENTITY;
+                code = "NEW_PASSWORD_SAME_AS_CURRENT";
             } else if (msg.contains("DUPLICATE") || msg.contains("ALREADY_EXISTS")) {
                 status = HttpStatus.CONFLICT;
                 code = "DUPLICATE_RESOURCE";
@@ -218,8 +227,10 @@ public class GlobalExceptionHandler {
 
         if (msg != null) {
             if (msg.contains("ACCOUNT_INACTIVE")) {
-                status = HttpStatus.UNAUTHORIZED;
-                code = "UNAUTHORIZED";
+                // Credentials are correct but the account is suspended — that is
+                // an authorization problem (403), not an authentication one (401).
+                status = HttpStatus.FORBIDDEN;
+                code = "ACCOUNT_INACTIVE";
             } else if (msg.contains("MAIL_SEND_FAILED")) {
                 status = HttpStatus.INTERNAL_SERVER_ERROR;
                 code = "MAIL_SEND_FAILED";

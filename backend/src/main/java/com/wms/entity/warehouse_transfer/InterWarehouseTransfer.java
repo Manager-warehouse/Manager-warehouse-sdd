@@ -224,6 +224,9 @@ public class InterWarehouseTransfer {
     @JoinColumn(name = "arrival_handover_by")
     private User arrivalHandoverBy;
 
+    @Column(name = "receive_qc_photo_ref", columnDefinition = "TEXT")
+    private String receiveQcPhotoRef;
+
     // Return leg fields (T011)
     @Column(name = "return_departed_at")
     private OffsetDateTime returnDepartedAt;

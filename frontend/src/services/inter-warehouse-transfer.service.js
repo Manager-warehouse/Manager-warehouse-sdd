@@ -123,6 +123,7 @@ export const toTransferDriverTripSummary = (transfer = {}) => ({
   tripWarningMessage: transfer.tripWarningMessage,
   driverArrivedAt: transfer.driverArrivedAt,
   arrivalHandoverAt: transfer.arrivalHandoverAt,
+  receiveQcPhotoRef: transfer.receiveQcPhotoRef,
   isReturned: Boolean(transfer.isReturned),
   returnReason: transfer.returnReason,
   returnDepartedAt: transfer.returnDepartedAt,
@@ -366,11 +367,17 @@ export const interWarehouseTransferService = {
     return response.data;
   },
 
-  receiveCheck: async (id, items) => {
+  receiveCheck: async (id, payload) => {
+    const items = Array.isArray(payload) ? payload : payload.items;
+    const uploaded = payload?.photoFile
+      ? await interWarehouseTransferService.uploadPhotoEvidence(id, payload.photoFile)
+      : null;
+    const qcPhotoRef = uploaded?.photoRef || payload?.qcPhotoRef || payload?.receiveQcPhotoRef;
     if (useMock) {
       const transfer = await interWarehouseTransferService.getTransferById(id);
       const byId = Object.fromEntries(items.map((item) => [Number(item.transferItemId), item]));
       return updateMockStatus(id, 'IN_TRANSIT', {
+        receiveQcPhotoRef: qcPhotoRef || null,
         items: transfer.items.map((item) => ({
           ...item,
           receivedQty: byId[item.id]?.confirmedQty ?? item.receivedQty,
@@ -383,15 +390,15 @@ export const interWarehouseTransferService = {
         })),
       });
     }
-    const response = await apiClient.put(`/inter-warehouse-transfers/${id}/receive-check`, { items });
+    const response = await apiClient.put(`/inter-warehouse-transfers/${id}/receive-check`, { items, qcPhotoRef });
     return response.data;
   },
 
   finalReceive: async (id, discrepancyReason) => {
     if (useMock) {
       const transfer = await interWarehouseTransferService.getTransferById(id);
-      const hasShortage = transfer.items.some((item) => Number(item.receivedQty) < Number(item.sentQty));
-      return updateMockStatus(id, hasShortage ? 'COMPLETED_WITH_DISCREPANCY' : 'COMPLETED', {
+      const hasDiscrepancy = transfer.items.some((item) => Number(item.receivedQty) !== Number(item.sentQty));
+      return updateMockStatus(id, hasDiscrepancy ? 'COMPLETED_WITH_DISCREPANCY' : 'COMPLETED', {
         discrepancyReason,
         actualReceivedDate: today(),
       });

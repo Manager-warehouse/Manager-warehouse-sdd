@@ -623,13 +623,19 @@ public class TripServiceImpl implements TripService {
         List<TripDeliveryOrderResponse> orders = tripDeliveryOrderRepository
                 .findByTripIdOrderByStopOrderAsc(trip.getId())
                 .stream()
-                .map(row -> TripDeliveryOrderResponse.builder()
-                        .doId(row.getDeliveryOrder().getId())
-                        .doNumber(row.getDeliveryOrder().getDoNumber())
-                        .warehouseId(row.getDeliveryOrder().getWarehouse().getId())
-                        .status(row.getDeliveryOrder().getStatus())
-                        .stopOrder(row.getStopOrder())
-                        .build())
+                .map(row -> {
+                    DeliveryOrder order = row.getDeliveryOrder();
+                    Dealer dealer = order.getDealer();
+                    return TripDeliveryOrderResponse.builder()
+                            .doId(order.getId())
+                            .doNumber(order.getDoNumber())
+                            .dealerName(dealer == null ? null : dealer.getName())
+                            .dealerAddress(dealer == null ? null : dealer.getDefaultDeliveryAddress())
+                            .warehouseId(order.getWarehouse().getId())
+                            .status(order.getStatus())
+                            .stopOrder(row.getStopOrder())
+                            .build();
+                })
                 .toList();
         return TripResponse.builder()
                 .id(trip.getId())

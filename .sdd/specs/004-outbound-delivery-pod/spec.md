@@ -11,6 +11,12 @@
 
 Xuất hàng là quy trình tạo doanh thu cho Phúc Anh. Planner nhận yêu cầu từ Công ty mẹ, hệ thống kiểm tra công nợ và tồn kho trước khi tạo Đơn xuất. Sau khi tạo thành công, Thủ kho lập kế hoạch lấy hàng theo danh sách batch/bin/zone hợp lệ trong kho, sắp theo FIFO cho domain đồ gia dụng không quản lý hạn sử dụng; Nhân viên kho lấy hàng thực tế, kiểm tra chất lượng từng sản phẩm và nhập số lượng đạt/không đạt theo item/allocation/batch/location/zone. Thủ kho phê duyệt chất lượng, xử lý hàng không đạt vào quarantine và chọn hàng thay thế nếu cần. Trưởng kho duyệt xuất kho trước khi Dispatcher xếp xe và tài xế. Khi giao thành công bằng POD + OTP, hệ thống tự động tạo invoice và cộng công nợ cho Đại lý; thông báo kế toán và xử lý thanh toán/cấn trừ công nợ thuộc các luồng riêng.
 
+## Clarifications
+
+### Session 2026-07-23
+
+- Q: Phân quyền quy trình Xuất hàng & Giao hàng (`004-outbound-delivery-pod`) -> A: Tuân thủ phân quyền theo `role.md`: `PLANNER` lập Đơn xuất DO; `WH_MANAGER` và `STOREKEEPER` phê duyệt DO (`✓ (duyệt)`); `STOREKEEPER` và `WH_STAFF` QC Outbound; `DISPATCHER` độc quyền điều phối chuyến xe; và `DRIVER` thực hiện Giao hàng trên app mobile.
+
 ### Features List
 
 - [US-WMS-06: Lập Đơn xuất hàng & Tự động Kiểm tra Công nợ](features/feature-planner-delivery-order/feature-planner-delivery-order.md)
@@ -25,8 +31,8 @@ Xuất hàng là quy trình tạo doanh thu cho Phúc Anh. Planner nhận yêu c
 | Actor          | Vai trò | Nghiệp vụ liên quan                                                                                                                                                              |
 | -------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Planner        | Maker   | Lập Đơn xuất hàng (Delivery Order), kiểm tra tồn kho khả dụng và trạng thái công nợ Đại lý                                                                                       |
-| Thủ kho        | Maker   | Lập kế hoạch lấy hàng, chọn một hoặc nhiều batch/bin/zone từ danh sách FIFO trong kho được gán, phê duyệt chất lượng outbound và chọn hàng thay thế khi QC fail                  |
-| Nhân viên kho  | Maker   | Lấy hàng thực tế theo kế hoạch trong kho được gán, kiểm tra chất lượng từng sản phẩm, nhập số lượng đã lấy, đạt QC và không đạt QC theo từng item/allocation/batch/location/zone |
+| Thủ kho        | Maker/Checker | Lập kế hoạch lấy hàng, chọn một hoặc nhiều batch/bin/zone từ danh sách FIFO trong kho được gán, phê duyệt chất lượng outbound, chọn hàng thay thế khi QC fail, duyệt số lượng/chất lượng hàng hoàn và lập kế hoạch cất hàng hoàn |
+| Nhân viên kho  | Maker   | Lấy hàng thực tế theo kế hoạch trong kho được gán, kiểm tra chất lượng từng sản phẩm, nhập số lượng đã lấy, đạt QC/không đạt QC theo từng item/allocation/batch/location/zone, đếm/QC hàng hoàn và xác nhận cất hàng hoàn |
 | Dispatcher     | Maker   | Lập Chuyến xe nội bộ, gán xe và tài xế rảnh, sắp xếp thứ tự giao hàng                                                                                                            |
 | Tài xế         | Maker   | Sử dụng smartphone xem chuyến xe, xác nhận nhận hàng (xe rời kho), giao hàng và ký nhận POD, báo cáo giao thất bại                                                               |
 | Kế toán viên   | Maker   | Xử lý thanh toán và theo dõi công nợ trong luồng tài chính riêng                                                                                                                 |
@@ -339,6 +345,8 @@ All outbound mutations that update `inventories.total_qty`, `inventories.reserve
 - If invoice/receivable persistence fails before commit because of a technical or database error, the whole delivery confirmation transaction SHALL roll back; the Delivery Order SHALL remain `IN_TRANSIT`, no invoice SHALL be created, and Dealer `current_balance` SHALL NOT change.
 - Auto-created invoices SHALL set `issue_date` to the backend's current local date at invoice creation time and `due_date` to 30 calendar days after `issue_date`; payment due-date extension belongs to the separate finance/payment flow.
 - Delivery failure SHALL NOT change inventory quantity; goods remain in virtual In-Transit inventory until handled by the separate return flow.
+- Returned delivery goods flow SHALL be separate from driver trip completion. Warehouse staff SHALL count returned quantity and inspect returned quality by Delivery Order item/product/batch after the vehicle has returned. Storekeeper SHALL review and approve the counted quantity and quality result before any putaway plan is created. After Storekeeper approval, Storekeeper SHALL create a putaway plan that selects the destination warehouse location for the returned goods. Warehouse staff SHALL confirm putaway completion against that plan. Only after returned goods are counted, quality-approved, putaway-planned, and put away successfully SHALL the Delivery Order move from `RETURNED` to `DELIVERY_FAILED`.
+- Returned delivery goods SHALL remain in virtual In-Transit inventory while staff counting/QC and Storekeeper approval are pending. The final staff putaway confirmation SHALL move the returned goods out of virtual In-Transit and into the Storekeeper-approved destination location, preserving product/batch lineage, enforcing non-negative inventory and optimistic locking, and creating audit records for count/QC submission, Storekeeper approval, putaway planning, and putaway completion.
 - Invoice/receivable creation after successful delivery SHALL NOT change inventory beyond the delivery confirmation movement already handled in the same transaction.
 - Accountant notification, due-date extension, payment collection, payment approval, receivable deduction, and Delivery Order `CLOSED` transition are handled by separate flows and are out of scope for this outbound POD auto-invoice feature.
 - On any version conflict, the system SHALL rollback the whole mutation and return `409 INVENTORY_VERSION_CONFLICT`.
@@ -363,8 +371,10 @@ All outbound mutations that update `inventories.total_qty`, `inventories.reserve
 - Dispatcher MAY update or cancel a trip only while the trip is `PLANNED`; updates MAY add/remove Delivery Orders by submitting the final revised Delivery Order list and SHALL re-run all trip validations while ignoring the current trip for active-trip checks. Cancellation keeps Delivery Orders in `WAREHOUSE_APPROVED`, keeps historical vehicle/driver references, and releases vehicle/driver from active assignment.
 - Assigned driver departure SHALL move the trip and Delivery Orders to `IN_TRANSIT`, move staged goods to virtual In-Transit inventory, create delivery attempts in `IN_TRANSIT`, and mark vehicle/driver `ON_TRIP`.
 - Warehouse manager rejection SHALL move the Delivery Order to `REJECTED`; the flow ends and any later outbound attempt for the same business request must use a new Delivery Order.
-- Dealer refusal at delivery SHALL move the Delivery Order to `RETURNED`; the goods remain in virtual In-Transit inventory until the separate return flow receives them.
-- When the separate return flow confirms returned goods back into warehouse custody, the Delivery Order SHALL move to `DELIVERY_FAILED`.
+- Dealer refusal at delivery SHALL move the Delivery Order to `RETURNED`; the goods remain in virtual In-Transit inventory until the separate return flow receives, counts, quality-checks, approves, plans putaway, and completes putaway for them.
+- When warehouse staff submits returned goods count and quality results, the Delivery Order SHALL remain `RETURNED` until Storekeeper approval and putaway completion are also done.
+- When Storekeeper approves returned quantity/quality and creates a returned-goods putaway plan, the Delivery Order SHALL remain `RETURNED`; the plan SHALL define the destination warehouse location where returned goods must be stored.
+- When warehouse staff confirms the returned goods were put away successfully according to the Storekeeper plan, the separate return flow SHALL move the Delivery Order from `RETURNED` to `DELIVERY_FAILED`.
 - After successful POD + OTP confirmation, the system SHALL auto-create invoice/receivable and move the Delivery Order directly to `COMPLETED`.
 - The Delivery Order SHALL move to `CLOSED` only when a separate finance/payment flow confirms the invoice receivable has been fully paid and approved.
 
@@ -377,7 +387,7 @@ All outbound mutations that update `inventories.total_qty`, `inventories.reserve
 - The current delivery attempt SHALL be the latest `deliveries` record for the given `trip_id`, `do_id`, and authenticated `driver_id` that is not terminal.
 - POD upload and delivery confirmation SHALL update only the current attempt's `deliveries` record and SHALL NOT overwrite previous `FAILED`, `RETURNED`, or `DELIVERED` attempts.
 - If a dealer refuses receipt or delivery fails at the delivery point, the current `deliveries` record SHALL be closed with status `FAILED` and the Delivery Order SHALL move to `RETURNED` while goods remain tracked in virtual In-Transit inventory.
-- If the goods are later returned to a warehouse, the same `deliveries` record MAY be marked `RETURNED` or linked to the separate return record created by the return flow.
+- If the goods are later returned to a warehouse, the same `deliveries` record MAY be marked `RETURNED` or linked to the separate return record created by the return flow. That return record SHALL capture staff count/QC results, Storekeeper quantity/quality approval, Storekeeper putaway plan, and staff putaway confirmation.
 - After a returned Delivery Order is closed as `DELIVERY_FAILED`, any later outbound attempt for the same business request SHALL use a new Delivery Order.
 
 ### Trip Completion Rules
@@ -390,8 +400,8 @@ All outbound mutations that update `inventories.total_qty`, `inventories.reserve
 ### Delivery Order Status Semantics
 
 - `WAREHOUSE_APPROVED`: the warehouse manager approved outbound release and the Delivery Order is eligible for dispatcher trip planning.
-- `RETURNED`: the dealer refused or the delivery attempt failed; goods remain in virtual In-Transit inventory until the separate return flow receives them.
-- `DELIVERY_FAILED`: returned goods have been received back by the separate return flow and the outbound order is closed as unsuccessful.
+- `RETURNED`: the dealer refused or the delivery attempt failed; goods remain in virtual In-Transit inventory while waiting for staff count/QC, Storekeeper approval, Storekeeper putaway planning, and staff putaway confirmation.
+- `DELIVERY_FAILED`: returned goods have completed the separate return flow: staff counted and quality-checked them, Storekeeper approved the quantity/quality, Storekeeper planned their destination location, staff confirmed putaway success, and the outbound order is closed as unsuccessful.
 - `COMPLETED`: the dealer received goods, POD + OTP verification succeeded, invoice was auto-created, and receivable was recognized.
 - `CLOSED`: the invoice receivable for the order has been fully paid and approved by accounting.
 
@@ -453,6 +463,12 @@ _Vui lòng xem chi tiết API endpoints tại các tài liệu đặc tả tính
 | OTP_RESET_REQUIRED           | 423  | OTP is locked and must be reset by Admin before a new code can be generated                                                                 |
 | PARTIAL_DELIVERY_NOT_ALLOWED | 422  | Request attempts to deliver less than the full Delivery Order                                                                               |
 | IN_TRANSIT_STOCK_NOT_FOUND   | 422  | Required In-Transit inventory rows are missing or insufficient for this DO                                                                  |
+| RETURN_FLOW_STATUS_INVALID   | 422  | Returned goods flow action is attempted while the Delivery Order or return flow is not in the required state                                |
+| RETURN_COUNT_QC_INCOMPLETE   | 422  | Returned goods count or quality result is missing for one or more expected items/product/batches                                            |
+| RETURN_QTY_MISMATCH          | 422  | Returned counted quantity does not match the expected returned quantity and cannot be approved without a discrepancy handling path           |
+| RETURN_APPROVAL_REQUIRED     | 422  | Storekeeper has not approved returned quantity and quality results before putaway planning or completion                                    |
+| RETURN_PUTAWAY_PLAN_REQUIRED | 422  | Returned goods putaway cannot be completed until Storekeeper creates a destination-location plan                                            |
+| RETURN_PUTAWAY_MISMATCH      | 422  | Staff putaway confirmation does not match the Storekeeper-approved destination location or quantity                                         |
 | INVENTORY_VERSION_CONFLICT   | 409  | Concurrent inventory update                                                                                                                 |
 | WAREHOUSE_SCOPE_FORBIDDEN    | 403  | User role is valid but user is not assigned to the target warehouse, trip, or delivery attempt                                              |
 
@@ -480,7 +496,10 @@ _Vui lòng xem chi tiết API endpoints tại các tài liệu đặc tả tính
 - `CONFIRM_DELIVERY`: verify OTP against the active `delivery_otp_attempts` record, increment `attempt_count` on incorrect submissions, lock confirmation after 3 incorrect submissions with `OTP_MAX_ATTEMPTS_EXCEEDED` until Admin reset, mark status `VERIFIED`, mark the attempt consumed, store verification timestamp, close the current delivery attempt as `DELIVERED`, decrease virtual In-Transit inventory only for that DO, auto-create invoice/receivable, move only that DO to `COMPLETED`, and keep other DOs in the same trip unchanged.
 - `RESET_DELIVERY_OTP`: Admin resets a locked OTP row for the current delivery attempt by requiring a reset reason, marking the current row `EXPIRED`, resetting `attempt_count` to 0, preserving before/after state, and allowing Driver to request a new code on the same row.
 - `FAIL_DELIVERY`: store failure reason, close the current delivery attempt as `FAILED`, and move DO to `RETURNED`; returned goods remain tracked in virtual In-Transit inventory until a separate return flow receives and classifies them.
-- `RETURN_FLOW_CONFIRMED`: separate return flow confirms returned goods back into warehouse custody and moves DO to `DELIVERY_FAILED`.
+- `RETURN_FLOW_COUNT_QC_SUBMIT`: warehouse staff submits returned goods quantity count and quality inspection results while DO remains `RETURNED`.
+- `RETURN_FLOW_APPROVE`: Storekeeper approves returned quantity and quality results while DO remains `RETURNED`.
+- `RETURN_FLOW_PUTAWAY_PLAN`: Storekeeper creates the destination-location putaway plan for returned goods while DO remains `RETURNED`.
+- `RETURN_FLOW_PUTAWAY_COMPLETE`: warehouse staff confirms returned goods were put away successfully according to the plan; goods move from virtual In-Transit to the approved destination location and DO moves to `DELIVERY_FAILED`.
 - `COMPLETE_TRIP`: mark trip `COMPLETED` only after vehicle returns to source warehouse and all assigned DOs are `COMPLETED` or `RETURNED`; mark vehicle/driver `AVAILABLE`.
 - Payment submission, approval, rejection, receivable deduction, and DO `CLOSED` audit actions belong to the separate finance/payment flow.
 

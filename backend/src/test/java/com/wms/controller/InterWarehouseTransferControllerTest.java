@@ -388,7 +388,8 @@ class InterWarehouseTransferControllerTest {
         InterWarehouseTransferReceiveCheckItemRequest item = new InterWarehouseTransferReceiveCheckItemRequest(
                 101L, new BigDecimal("5.00"), new BigDecimal("4.00"), new BigDecimal("1.00"), 12L, "check ok", "damaged"
         );
-        InterWarehouseTransferReceiveCheckRequest request = new InterWarehouseTransferReceiveCheckRequest(List.of(item));
+        InterWarehouseTransferReceiveCheckRequest request = new InterWarehouseTransferReceiveCheckRequest(
+                List.of(item), "transfer/receive-qc/1.jpg");
 
         InterWarehouseTransferResponse response = createMockResponse(1L, "TRF-20260711-0001", InterWarehouseTransferStatus.IN_TRANSIT);
 
@@ -410,7 +411,8 @@ class InterWarehouseTransferControllerTest {
         InterWarehouseTransferReceiveCheckItemRequest item = new InterWarehouseTransferReceiveCheckItemRequest(
                 101L, new BigDecimal("5.00"), new BigDecimal("-1.00"), new BigDecimal("1.00"), 12L, "check ok", "damaged"
         );
-        InterWarehouseTransferReceiveCheckRequest request = new InterWarehouseTransferReceiveCheckRequest(List.of(item));
+        InterWarehouseTransferReceiveCheckRequest request = new InterWarehouseTransferReceiveCheckRequest(
+                List.of(item), "transfer/receive-qc/1.jpg");
 
         mockMvc.perform(put("/api/v1/inter-warehouse-transfers/1/receive-check")
                 .contentType(MediaType.APPLICATION_JSON)

@@ -189,6 +189,7 @@ class ReceiptBackendGuardTest {
         request.setReason("Hàng lỗi");
 
         when(receiptRepository.findById(2L)).thenReturn(Optional.of(qcFailedReceipt));
+        when(receiptRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(qcFailedReceipt));
         when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
 
         BusinessRuleViolationException ex = assertThrows(BusinessRuleViolationException.class,
@@ -206,6 +207,7 @@ class ReceiptBackendGuardTest {
         request.setReturnedQty(java.math.BigDecimal.TEN);
 
         when(receiptRepository.findById(2L)).thenReturn(Optional.of(qcFailedReceipt));
+        when(receiptRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(qcFailedReceipt));
         when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(6L)).thenReturn(List.of(10L));
 
         BusinessRuleViolationException ex = assertThrows(BusinessRuleViolationException.class,

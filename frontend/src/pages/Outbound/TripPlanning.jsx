@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Calendar, Eye, Loader2, Package, Plus, Search, Truck, User } from 'lucide-react';
+import { Calendar, Eye, Loader2, MapPin, Package, Plus, Search, Truck, User } from 'lucide-react';
 import { outboundService } from '../../services/outbound.service';
 import { masterDataService } from '../../services/masterData.service';
 import { useAuthStore } from '../../stores/auth.store';
@@ -17,6 +17,14 @@ const TRIP_STATUS_MAP = {
   IN_TRANSIT: { label: 'Đang giao', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
   COMPLETED: { label: 'Hoàn thành', color: 'bg-success-50 text-success-900 border-success-300' },
   CANCELLED: { label: 'Đã hủy', color: 'bg-danger-50 text-danger-700 border-danger-200' },
+};
+
+const DELIVERY_ORDER_STATUS_LABELS = {
+  WAREHOUSE_APPROVED: 'Đã duyệt xuất kho',
+  IN_TRANSIT: 'Đang giao',
+  COMPLETED: 'Hoàn thành',
+  RETURNED: 'Chờ hoàn về kho',
+  DELIVERY_FAILED: 'Giao hàng thất bại',
 };
 
 const emptyForm = { vehicle_id: '', driver_id: '', planned_start_at: '', planned_end_at: '', notes: '', delivery_orders: [] };
@@ -280,6 +288,10 @@ export default function TripPlanning() {
       <Modal isOpen={!!detailTrip} onClose={closeDetailModal} title={detailTrip?.trip_number ?? 'Chi tiết chuyến xe'} maxWidth="max-w-2xl">
         {detailTrip && (
           <div className="flex flex-col gap-6">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-widest text-shade-40">Trạng thái chuyến xe</span>
+              {getTripStatusBadge(detailTrip.status)}
+            </div>
             <div className="grid grid-cols-2 gap-3">
               {[
                 { label: 'Biển số xe', value: detailTrip.vehicle_plate || '-', icon: <Truck className="w-3.5 h-3.5" /> },
@@ -314,8 +326,16 @@ export default function TripPlanning() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-bold text-ink">{stop.dealer_name || stop.do_number}</p>
                         <p className="text-xs text-shade-40 mt-0.5 font-mono">{stop.do_number}</p>
+                        {stop.dealer_address && (
+                          <p className="text-xs text-shade-50 mt-1 flex items-start gap-1">
+                            <MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                            <span>{stop.dealer_address}</span>
+                          </p>
+                        )}
                       </div>
-                      <div className="shrink-0 text-xs font-semibold text-shade-50">{stop.raw_status || stop.status || '-'}</div>
+                      <div className="shrink-0 text-xs font-semibold text-shade-50">
+                        {DELIVERY_ORDER_STATUS_LABELS[stop.raw_status || stop.status] || stop.raw_status || stop.status || '-'}
+                      </div>
                     </div>
                   ))}
                 </div>

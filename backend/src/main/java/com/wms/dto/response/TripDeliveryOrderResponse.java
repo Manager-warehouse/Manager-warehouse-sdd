@@ -44,6 +44,8 @@ import lombok.Getter;
 public class TripDeliveryOrderResponse {
     private Long doId;
     private String doNumber;
+    private String dealerName;
+    private String dealerAddress;
     private Long warehouseId;
     private DeliveryOrderStatus status;
     private Integer stopOrder;

@@ -384,7 +384,13 @@ public class PaymentReceiptServiceImpl implements PaymentReceiptService {
         String datePart = docDate.format(PAYMENT_NUMBER_DATE);
         DocumentSequence sequence = sequenceRepository
                 .findBySequenceKeyForUpdate(PAYMENT_SEQUENCE_KEY)
-                .orElseThrow(() -> new IllegalStateException("Payment sequence is not configured"));
+                .orElseGet(() -> {
+                    DocumentSequence newSeq = new DocumentSequence();
+                    newSeq.setSequenceKey(PAYMENT_SEQUENCE_KEY);
+                    newSeq.setNextValue(1L);
+                    newSeq.setUpdatedAt(OffsetDateTime.now());
+                    return sequenceRepository.save(newSeq);
+                });
         long value = sequence.getNextValue();
         sequence.setNextValue(value + 1);
         sequence.setUpdatedAt(OffsetDateTime.now());

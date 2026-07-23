@@ -84,7 +84,15 @@ import com.wms.dto.request.DeliveryOrderReturnToBinRequest;
 import com.wms.dto.request.DeliveryOrderWarehouseApprovalRequest;
 import com.wms.dto.request.DeliveryOrderWarehouseRejectRequest;
 import com.wms.dto.request.DeliveryOrderWarehouseRejectReturnRequest;
+import com.wms.dto.request.ReturnedGoodsApprovalRequest;
+import com.wms.dto.request.ReturnedGoodsCountQcItemRequest;
+import com.wms.dto.request.ReturnedGoodsCountQcRequest;
+import com.wms.dto.request.ReturnedGoodsPutawayCompleteRequest;
+import com.wms.dto.request.ReturnedGoodsPutawayPlanItemRequest;
+import com.wms.dto.request.ReturnedGoodsPutawayPlanRequest;
+import com.wms.dto.request.ReturnedGoodsReceiveRequest;
 import com.wms.dto.response.DeliveryOrderResponse;
+import com.wms.dto.response.ReturnedGoodsFlowResponse;
 import com.wms.entity.billing_payment.AccountingPeriod;
 import com.wms.entity.stock_control.Adjustment;
 import com.wms.entity.stock_control.Batch;
@@ -94,6 +102,8 @@ import com.wms.entity.order_fulfillment.DeliveryOrderItem;
 import com.wms.entity.order_fulfillment.DeliveryOrderItemAllocation;
 import com.wms.entity.order_fulfillment.DeliveryOrderItemReplacement;
 import com.wms.entity.order_fulfillment.OutboundQcRecord;
+import com.wms.entity.order_fulfillment.ReturnedDeliveryFlow;
+import com.wms.entity.order_fulfillment.ReturnedDeliveryFlowItem;
 import com.wms.entity.stock_control.Inventory;
 import com.wms.entity.price_management.PriceHistory;
 import com.wms.entity.product_catalog.Product;
@@ -109,6 +119,8 @@ import com.wms.repository.DeliveryOrderWarehouseApprovalRepository;
 import com.wms.enums.dealer_management.CreditStatus;
 import com.wms.enums.order_fulfillment.DeliveryOrderStatus;
 import com.wms.enums.order_fulfillment.DeliveryOrderType;
+import com.wms.enums.order_fulfillment.ReturnedDeliveryFlowStatus;
+import com.wms.enums.order_fulfillment.ReturnedGoodsQcDecision;
 import com.wms.enums.billing_payment.InvoiceStatus;
 import com.wms.enums.warehouse_location.LocationType;
 import com.wms.enums.price_management.PriceHistoryStatus;
@@ -123,6 +135,7 @@ import com.wms.repository.InventoryRepository;
 import com.wms.repository.InvoiceRepository;
 import com.wms.repository.OutboundQcRecordRepository;
 import com.wms.repository.PriceHistoryRepository;
+import com.wms.repository.ReturnedDeliveryFlowRepository;
 import com.wms.repository.product_catalog.ProductRepository;
 import com.wms.repository.QuarantineRecordRepository;
 import com.wms.repository.UserWarehouseAssignmentRepository;
@@ -163,6 +176,7 @@ class DeliveryOrderServiceImplTest {
     @Mock private InventoryRepository inventoryRepository;
     @Mock private InvoiceRepository invoiceRepository;
     @Mock private OutboundQcRecordRepository outboundQcRecordRepository;
+    @Mock private ReturnedDeliveryFlowRepository returnedDeliveryFlowRepository;
     @Mock private QuarantineRecordRepository quarantineRecordRepository;
     @Mock private AdjustmentRepository adjustmentRepository;
     @Mock private PriceHistoryRepository priceHistoryRepository;
@@ -196,14 +210,13 @@ class DeliveryOrderServiceImplTest {
                 allocationRepository, returnToBinRecordRepository, replacementRepository,
                 deliveryOrderWarehouseApprovalRepository,
                 dealerRepository, warehouseRepository, productRepository, inventoryRepository,
-                invoiceRepository, outboundQcRecordRepository, quarantineRecordRepository, adjustmentRepository,
+                invoiceRepository, outboundQcRecordRepository, returnedDeliveryFlowRepository,
+                quarantineRecordRepository, adjustmentRepository,
                 priceHistoryRepository, reservationRepository, assignmentRepository,
                 partnerEligibilityService, new DeliveryOrderMapper(), auditUtil, entityManager,
                 priceHistoryService, accountingPeriodService, systemConfigService);
         lenient().when(accountingPeriodService.resolveOpenPeriod(any()))
                 .thenReturn(AccountingPeriod.builder().id(1L).periodName("2026-06").build());
-        lenient().when(systemConfigService.getIntValue(eq("CREDIT_HOLD_OVERDUE_DAYS"), any(Integer.class)))
-                .thenReturn(30);
         planner = user(1L, UserRole.PLANNER);
         manager = user(2L, UserRole.WAREHOUSE_MANAGER);
         dealer = dealer(10L, new BigDecimal("480.00"), new BigDecimal("500.00"), CreditStatus.ACTIVE);
@@ -307,6 +320,16 @@ class DeliveryOrderServiceImplTest {
     }
 
     @Test
+    void createDeliveryOrder_allowsStockAvailabilityEquality() {
+        stubSuccessfulCreate(new BigDecimal("15.00"));
+
+        DeliveryOrderResponse response = service.createDeliveryOrder(validRequest(new BigDecimal("10.00")), planner);
+
+        assertThat(response.getStatus()).isEqualTo(DeliveryOrderStatus.NEW);
+        verify(deliveryOrderRepository).save(any(DeliveryOrder.class));
+    }
+
+    @Test
     void createDeliveryOrder_rejectsCreditHoldDealer() {
         dealer.setCreditStatus(CreditStatus.CREDIT_HOLD);
         stubCreateUntilCredit();
@@ -320,6 +343,7 @@ class DeliveryOrderServiceImplTest {
 
     @Test
     void createDeliveryOrder_rejectsOverdueInvoice() {
+        dealer.setPaymentTermDays(15);
         stubCreateUntilCredit();
         when(invoiceRepository.existsByDealerIdAndStatusInAndDueDateBefore(
                 eq(10L), eq(List.of(InvoiceStatus.UNPAID, InvoiceStatus.PARTIALLY_PAID)), any(LocalDate.class)))
@@ -332,7 +356,7 @@ class DeliveryOrderServiceImplTest {
         ArgumentCaptor<LocalDate> thresholdCaptor = ArgumentCaptor.forClass(LocalDate.class);
         verify(invoiceRepository).existsByDealerIdAndStatusInAndDueDateBefore(
                 eq(10L), eq(List.of(InvoiceStatus.UNPAID, InvoiceStatus.PARTIALLY_PAID)), thresholdCaptor.capture());
-        assertThat(thresholdCaptor.getValue()).isEqualTo(LocalDate.now().minusDays(30));
+        assertThat(thresholdCaptor.getValue()).isEqualTo(LocalDate.now().minusDays(15));
         verify(deliveryOrderRepository, never()).save(any());
     }
 
@@ -351,24 +375,30 @@ class DeliveryOrderServiceImplTest {
     @Test
     void createDeliveryOrder_subtractsAggregateReservationFromAvailability() {
         stubCreateUntilAvailability(new BigDecimal("12.00"), new BigDecimal("5.00"));
-        when(warehouseRepository.findByIsActive(true)).thenReturn(List.of());
 
         assertThatThrownBy(() -> service.createDeliveryOrder(validRequest(new BigDecimal("10.00")), planner))
                 .isInstanceOf(OutboundDeliveryException.class)
-                .extracting("code")
-                .isEqualTo("INSUFFICIENT_STOCK");
+                .satisfies(ex -> {
+                    OutboundDeliveryException outbound = (OutboundDeliveryException) ex;
+                    assertThat(outbound.getCode()).isEqualTo("INSUFFICIENT_STOCK");
+                    assertThat(outbound.getDetails()).containsKey("availableByProduct");
+                    assertThat(outbound.getDetails()).doesNotContainKey("suggestedWarehouses");
+                });
         verify(deliveryOrderRepository, never()).save(any());
     }
 
     @Test
     void createDeliveryOrder_rejectsWhenValidInventoryAvailabilityIsInsufficient() {
         stubCreateUntilAvailability(new BigDecimal("9.00"), BigDecimal.ZERO);
-        when(warehouseRepository.findByIsActive(true)).thenReturn(List.of());
 
         assertThatThrownBy(() -> service.createDeliveryOrder(validRequest(new BigDecimal("10.00")), planner))
                 .isInstanceOf(OutboundDeliveryException.class)
-                .extracting("code")
-                .isEqualTo("INSUFFICIENT_STOCK");
+                .satisfies(ex -> {
+                    OutboundDeliveryException outbound = (OutboundDeliveryException) ex;
+                    assertThat(outbound.getCode()).isEqualTo("INSUFFICIENT_STOCK");
+                    assertThat(outbound.getDetails()).containsKey("availableByProduct");
+                    assertThat(outbound.getDetails()).doesNotContainKey("suggestedWarehouses");
+                });
         verify(deliveryOrderRepository, never()).save(any());
     }
 
@@ -1149,6 +1179,166 @@ class DeliveryOrderServiceImplTest {
                 .isEqualTo("PICKED_GOODS_RETURN_REQUIRED");
     }
 
+    @Test
+    void confirmReturnedGoodsReceived_opensCountQcPendingFlowFromShippedQcPassLines() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.RETURNED);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("8.00"));
+        OutboundQcRecord shipped = outboundQcRecord(item, new BigDecimal("8.00"));
+
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
+        when(returnedDeliveryFlowRepository.existsByDeliveryOrderId(100L)).thenReturn(false);
+        when(outboundQcRecordRepository.findPassedRecordsByDeliveryOrderIdIn(List.of(100L))).thenReturn(List.of(shipped));
+        when(returnedDeliveryFlowRepository.save(any(ReturnedDeliveryFlow.class))).thenAnswer(invocation -> {
+            ReturnedDeliveryFlow flow = invocation.getArgument(0);
+            flow.setId(300L);
+            return flow;
+        });
+
+        ReturnedGoodsFlowResponse response = service.confirmReturnedGoodsReceived(
+                100L, new ReturnedGoodsReceiveRequest(), storekeeper);
+
+        assertThat(response.getFlowStatus()).isEqualTo(ReturnedDeliveryFlowStatus.COUNT_QC_PENDING);
+        assertThat(response.getItems()).hasSize(1);
+        assertThat(response.getItems().get(0).getExpectedQty()).isEqualByComparingTo("8.00");
+        assertThat(response.getItems().get(0).getActualQty()).isNull();
+    }
+
+    @Test
+    void submitReturnedGoodsCountQc_blocksBeforeStorekeeperArrivalConfirmation() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.RETURNED);
+
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(4L)).thenReturn(List.of(20L));
+        when(returnedDeliveryFlowRepository.findByDeliveryOrderId(100L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.submitReturnedGoodsCountQc(
+                100L, returnedCountQcRequest(new BigDecimal("8.00"), new BigDecimal("8.00"), ZERO, null),
+                warehouseStaff))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code")
+                .isEqualTo("RETURN_FLOW_NOT_FOUND");
+    }
+
+    @Test
+    void submitReturnedGoodsCountQc_validatesActualPassFailSplitAndFailureReason() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.RETURNED);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("8.00"));
+        ReturnedDeliveryFlow flow = returnedFlow(order, item, ReturnedDeliveryFlowStatus.COUNT_QC_PENDING,
+                new BigDecimal("8.00"), null, null, null, null);
+
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(4L)).thenReturn(List.of(20L));
+        when(returnedDeliveryFlowRepository.findByDeliveryOrderId(100L)).thenReturn(Optional.of(flow));
+
+        assertThatThrownBy(() -> service.submitReturnedGoodsCountQc(
+                100L, returnedCountQcRequest(new BigDecimal("8.00"), new BigDecimal("7.00"), new BigDecimal("1.00"), null),
+                warehouseStaff))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code")
+                .isEqualTo("RETURN_QUALITY_REASON_REQUIRED");
+    }
+
+    @Test
+    void approveReturnedGoods_rejectsWithReasonAndBlocksPutawayPlanning() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.RETURNED);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("8.00"));
+        ReturnedDeliveryFlow flow = returnedFlow(order, item, ReturnedDeliveryFlowStatus.COUNT_QC_SUBMITTED,
+                new BigDecimal("8.00"), new BigDecimal("8.00"), new BigDecimal("7.00"), new BigDecimal("1.00"), null);
+        ReturnedGoodsApprovalRequest rejectRequest = new ReturnedGoodsApprovalRequest();
+        rejectRequest.setDecision(ReturnedGoodsQcDecision.REJECT);
+        rejectRequest.setRejectionReason("Count and QC photos do not match");
+
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
+        when(returnedDeliveryFlowRepository.findByDeliveryOrderId(100L)).thenReturn(Optional.of(flow));
+        when(returnedDeliveryFlowRepository.save(any(ReturnedDeliveryFlow.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ReturnedGoodsFlowResponse response = service.approveReturnedGoods(100L, rejectRequest, storekeeper);
+
+        assertThat(response.getFlowStatus()).isEqualTo(ReturnedDeliveryFlowStatus.QC_REJECTED);
+        assertThat(response.getRejectionReason()).isEqualTo("Count and QC photos do not match");
+        assertThatThrownBy(() -> service.planReturnedGoodsPutaway(
+                100L, returnedPutawayPlanRequest(new BigDecimal("8.00")), storekeeper))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code")
+                .isEqualTo("RETURN_FLOW_STATUS_INVALID");
+    }
+
+    @Test
+    void approveReturnedGoods_marksFlowAcceptedAfterCompleteCountQc() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.RETURNED);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("8.00"));
+        ReturnedDeliveryFlow flow = returnedFlow(order, item, ReturnedDeliveryFlowStatus.COUNT_QC_SUBMITTED,
+                new BigDecimal("8.00"), new BigDecimal("8.00"), new BigDecimal("8.00"), ZERO, null);
+        ReturnedGoodsApprovalRequest acceptRequest = new ReturnedGoodsApprovalRequest();
+        acceptRequest.setDecision(ReturnedGoodsQcDecision.ACCEPT);
+
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
+        when(returnedDeliveryFlowRepository.findByDeliveryOrderId(100L)).thenReturn(Optional.of(flow));
+        when(returnedDeliveryFlowRepository.save(any(ReturnedDeliveryFlow.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ReturnedGoodsFlowResponse response = service.approveReturnedGoods(100L, acceptRequest, storekeeper);
+
+        assertThat(response.getFlowStatus()).isEqualTo(ReturnedDeliveryFlowStatus.QC_APPROVED);
+        assertThat(order.getStatus()).isEqualTo(DeliveryOrderStatus.RETURNED);
+        assertThat(flow.getApprovedByStorekeeper()).isEqualTo(storekeeper);
+    }
+
+    @Test
+    void planReturnedGoodsPutaway_setsStorekeeperDestinationLocation() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.RETURNED);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("8.00"));
+        ReturnedDeliveryFlow flow = returnedFlow(order, item, ReturnedDeliveryFlowStatus.QC_APPROVED,
+                new BigDecimal("8.00"), new BigDecimal("8.00"), new BigDecimal("8.00"), ZERO, null);
+
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
+        when(returnedDeliveryFlowRepository.findByDeliveryOrderId(100L)).thenReturn(Optional.of(flow));
+        when(entityManager.find(WarehouseLocation.class, 801L)).thenReturn(bin);
+        when(returnedDeliveryFlowRepository.save(any(ReturnedDeliveryFlow.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ReturnedGoodsFlowResponse response = service.planReturnedGoodsPutaway(
+                100L, returnedPutawayPlanRequest(new BigDecimal("8.00")), storekeeper);
+
+        assertThat(response.getFlowStatus()).isEqualTo(ReturnedDeliveryFlowStatus.PUTAWAY_PLANNED);
+        assertThat(response.getItems().get(0).getDestinationLocationId()).isEqualTo(801L);
+        assertThat(flow.getPutawayPlannedByStorekeeper()).isEqualTo(storekeeper);
+        assertThat(flow.getItems().get(0).getPlannedQty()).isEqualByComparingTo("8.00");
+    }
+
+    @Test
+    void completeReturnedGoodsPutaway_movesInventoryBackAndMarksDeliveryFailed() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.RETURNED);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("8.00"));
+        ReturnedDeliveryFlow flow = returnedFlow(order, item, ReturnedDeliveryFlowStatus.PUTAWAY_PLANNED,
+                new BigDecimal("8.00"), new BigDecimal("8.00"), new BigDecimal("8.00"), ZERO, bin);
+        Inventory transitInventory = inventory(900L, warehouse(99L, "INTRANSIT"), product, batch, bin,
+                new BigDecimal("8.00"), ZERO);
+
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(4L)).thenReturn(List.of(20L));
+        when(returnedDeliveryFlowRepository.findByDeliveryOrderId(100L)).thenReturn(Optional.of(flow));
+        when(inventoryRepository.findTransitRowForDeliveryConfirmation(30L, 71L))
+                .thenReturn(Optional.of(transitInventory));
+        when(inventoryRepository.findConcreteReservationRowForUpdate(20L, 30L, 71L, 801L))
+                .thenReturn(Optional.of(inventory));
+        when(inventoryRepository.save(any(Inventory.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(deliveryOrderRepository.save(any(DeliveryOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(returnedDeliveryFlowRepository.save(any(ReturnedDeliveryFlow.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ReturnedGoodsFlowResponse response = service.completeReturnedGoodsPutaway(
+                100L, new ReturnedGoodsPutawayCompleteRequest(), warehouseStaff);
+
+        assertThat(response.getFlowStatus()).isEqualTo(ReturnedDeliveryFlowStatus.PUTAWAY_COMPLETED);
+        assertThat(response.getDeliveryOrderStatus()).isEqualTo(DeliveryOrderStatus.DELIVERY_FAILED);
+        assertThat(order.getStatus()).isEqualTo(DeliveryOrderStatus.DELIVERY_FAILED);
+        assertThat(transitInventory.getTotalQty()).isEqualByComparingTo("0.00");
+        assertThat(inventory.getTotalQty()).isEqualByComparingTo("23.00");
+        assertThat(flow.getItems().get(0).getPutawayCompletedQty()).isEqualByComparingTo("8.00");
+    }
+
     private void stubSuccessfulCreate(BigDecimal inventoryAvailable) {
         stubCreateUntilAvailability(inventoryAvailable, reservation.getReservedQty());
         when(deliveryOrderRepository.existsByDoNumber("DO-" + LocalDate.now().toString().replace("-", "") + "-0001"))
@@ -1266,6 +1456,35 @@ class DeliveryOrderServiceImplTest {
         return request;
     }
 
+    private ReturnedGoodsCountQcRequest returnedCountQcRequest(BigDecimal actualQty,
+                                                               BigDecimal passQty,
+                                                               BigDecimal failQty,
+                                                               String failureReason) {
+        ReturnedGoodsCountQcItemRequest item = new ReturnedGoodsCountQcItemRequest();
+        item.setDoItemId(200L);
+        item.setProductId(30L);
+        item.setBatchId(71L);
+        item.setActualQty(actualQty);
+        item.setQualityPassQty(passQty);
+        item.setQualityFailQty(failQty);
+        item.setQualityFailureReason(failureReason);
+        ReturnedGoodsCountQcRequest request = new ReturnedGoodsCountQcRequest();
+        request.setItems(List.of(item));
+        return request;
+    }
+
+    private ReturnedGoodsPutawayPlanRequest returnedPutawayPlanRequest(BigDecimal plannedQty) {
+        ReturnedGoodsPutawayPlanItemRequest item = new ReturnedGoodsPutawayPlanItemRequest();
+        item.setDoItemId(200L);
+        item.setBatchId(71L);
+        item.setDestinationLocationId(801L);
+        item.setPlannedQty(plannedQty);
+        ReturnedGoodsPutawayPlanRequest request = new ReturnedGoodsPutawayPlanRequest();
+        request.setItems(List.of(item));
+        request.setNotes("Plan returned goods putaway");
+        return request;
+    }
+
     private DeliveryOrderAllocationRequest allocationRequest(Long doItemId,
                                                              Long inventoryId,
                                                              Long batchId,
@@ -1337,6 +1556,7 @@ class DeliveryOrderServiceImplTest {
         dealer.setCreditStatus(status);
         dealer.setCurrentBalance(balance);
         dealer.setCreditLimit(limit);
+        dealer.setPaymentTermDays(30);
         dealer.setIsActive(true);
         return dealer;
     }
@@ -1401,6 +1621,45 @@ class DeliveryOrderServiceImplTest {
         batch.setWarehouse(warehouse);
         batch.setReceivedDate(LocalDate.of(2026, 6, 1));
         return batch;
+    }
+
+    private OutboundQcRecord outboundQcRecord(DeliveryOrderItem item, BigDecimal passQty) {
+        OutboundQcRecord record = new OutboundQcRecord();
+        record.setDeliveryOrder(item.getDeliveryOrder());
+        record.setDeliveryOrderItem(item);
+        record.setBatch(batch);
+        record.setQcPassQty(passQty);
+        return record;
+    }
+
+    private ReturnedDeliveryFlow returnedFlow(DeliveryOrder order,
+                                              DeliveryOrderItem item,
+                                              ReturnedDeliveryFlowStatus status,
+                                              BigDecimal expectedQty,
+                                              BigDecimal actualQty,
+                                              BigDecimal passQty,
+                                              BigDecimal failQty,
+                                              WarehouseLocation destinationLocation) {
+        ReturnedDeliveryFlow flow = new ReturnedDeliveryFlow();
+        flow.setId(300L);
+        flow.setDeliveryOrder(order);
+        flow.setStatus(status);
+        flow.setCreatedAt(OffsetDateTime.now());
+        flow.setUpdatedAt(OffsetDateTime.now());
+        ReturnedDeliveryFlowItem flowItem = new ReturnedDeliveryFlowItem();
+        flowItem.setId(301L);
+        flowItem.setFlow(flow);
+        flowItem.setDeliveryOrderItem(item);
+        flowItem.setProduct(product);
+        flowItem.setBatch(batch);
+        flowItem.setExpectedQty(expectedQty);
+        flowItem.setActualQty(actualQty);
+        flowItem.setQualityPassQty(passQty);
+        flowItem.setQualityFailQty(failQty);
+        flowItem.setDestinationLocation(destinationLocation);
+        flowItem.setPlannedQty(destinationLocation == null ? null : actualQty);
+        flow.getItems().add(flowItem);
+        return flow;
     }
 
     private Inventory inventory(Long id,

@@ -124,6 +124,37 @@
 
 ---
 
+## Future User Story 5 - Warehouse processes returned goods after failed delivery (Priority: P1)
+
+**Goal**: Warehouse staff and Storekeeper complete the separate return flow for a `RETURNED` Delivery Order so goods move out of virtual `IN_TRANSIT` and the Delivery Order closes as `DELIVERY_FAILED`.
+
+**Independent Test**: Starting from a Delivery Order in `RETURNED`, Storekeeper confirms the goods have physically arrived back at the warehouse, staff submit actual returned quantity plus quality-passed and quality-failed quantities with failure reasons, Storekeeper rejects once with a reason and staff resubmits, Storekeeper accepts the corrected result, Storekeeper creates a putaway plan, then staff confirm putaway; verify inventory moves from virtual `IN_TRANSIT` to the planned destination location and the Delivery Order moves to `DELIVERY_FAILED`.
+
+### Tests for User Story 5
+
+- [X] T076 [P] [US5] Add service unit test for Storekeeper returned-goods arrival confirmation opening `COUNT_QC_PENDING` while Delivery Order remains `RETURNED` and inventory remains virtual `IN_TRANSIT`.
+- [X] T077 [P] [US5] Add service unit test for blocking staff count/QC before Storekeeper arrival confirmation.
+- [X] T078 [P] [US5] Add service unit test for staff count/QC actual/pass/fail quantity validation, including pass + fail = actual and failure reason required when failed quantity is greater than zero.
+- [X] T079 [P] [US5] Add service unit test for Storekeeper QC acceptance only after all returned items have valid actual/pass/fail count/QC results.
+- [X] T080 [P] [US5] Add service unit test for Storekeeper QC rejection requiring a rejection reason and returning the flow to staff rework without allowing putaway planning.
+- [X] T081 [P] [US5] Add service unit test for staff resubmitting count/QC after Storekeeper rejection and Storekeeper accepting the corrected result.
+- [X] T082 [P] [US5] Add service unit test for Storekeeper creating a returned-goods putaway plan with valid destination locations after QC acceptance.
+- [X] T083 [P] [US5] Add service unit test for staff putaway completion moving goods from virtual `IN_TRANSIT` to the planned destination locations and changing Delivery Order to `DELIVERY_FAILED`.
+- [X] T084 [US5] Add controller integration tests for returned-goods arrival confirmation, count/QC submit/resubmit, Storekeeper accept/reject, putaway planning, and putaway completion role/state validation.
+
+### Implementation for User Story 5
+
+- [X] T085 [P] [US5] Add returned-goods receive endpoint and service method for Storekeeper goods-arrival confirmation before staff count/QC.
+- [X] T086 [P] [US5] Extend returned-goods DTOs, entities, migrations, and response mapping for `actualQty`, `qualityPassQty`, `qualityFailQty`, `qualityFailureReason`, QC decision, rejection reason, and rework status.
+- [X] T087 [US5] Update staff count/QC endpoint to allow initial submission only from `COUNT_QC_PENDING` and resubmission from `QC_REJECTED`.
+- [X] T088 [US5] Update returned-goods QC decision logic to support `ACCEPT` and `REJECT`, require rejection reason for rejection, and require accepted QC before putaway planning.
+- [X] T089 [US5] Update returned-goods putaway planning/completion to use Storekeeper-accepted pass/fail quantities and destination locations while keeping Delivery Order `RETURNED` until final putaway completion.
+- [X] T090 [US5] Add warehouse-scoped `GET /api/v1/delivery-orders/{doId}/returned-goods` contract and frontend resume behavior for all returned-goods flow statuses, including arrival pending, QC rejected, QC accepted, putaway planned, and completed.
+- [X] T091 [US5] Update frontend returned-goods panel so Storekeeper first confirms goods arrival, staff enters actual/pass/fail quantities and failure reasons, Storekeeper accepts/rejects with reason, staff can rework rejected QC, Storekeeper plans putaway after acceptance, and staff confirms putaway completion.
+- [X] T092 [US5] Add audit logs for returned-goods arrival confirmation, QC submission/resubmission, QC acceptance, QC rejection, putaway planning, and putaway completion.
+
+---
+
 ## Phase 6: User Story 4 - Admin resets a locked delivery OTP (Priority: P1)
 
 **Goal**: Admin can reset a locked OTP row for the latest current delivery attempt so the driver can request a new OTP on the same row.
@@ -207,6 +238,7 @@
 - **US2**: Depends on US1 POD and OTP-row persistence.
 - **US3**: Depends on driver assignment and current-attempt resolution from US1, but is otherwise independent of successful delivery confirmation.
 - **US4**: Depends on OTP lock semantics from US2.
+- **US5**: Depends on US3 because returned-goods processing starts only after a failed/refused delivery has moved the Delivery Order to `RETURNED`.
 - **Driver Trip List Filters**: Cross-cuts US1 and Spec 005 visibility, but remains read-only and independently testable from delivery confirmation.
 
 ### Parallel Opportunities
@@ -220,6 +252,8 @@
 - T051 through T053 can be written in parallel for US4 tests.
 - T058 and T059 can run in parallel during polish.
 - T063 through T066 can run in parallel while T067 through T074 are implemented by file ownership.
+- T076 through T084 can be written in parallel for US5 tests.
+- T085 and T086 can run in parallel before T087 through T092.
 
 ## Parallel Example: User Story 1
 
@@ -268,6 +302,7 @@ Task: "T045 [P] [US3] Add service unit test for vehicle/driver release on comple
 4. Deliver US4 admin OTP reset.
 5. Finish polish verification and OpenAPI alignment.
 6. Deliver the shared driver trip list labels and filters so mixed `TRIP-*`/`TTR-*` assignments are easy to identify.
+7. Deliver US5 returned-goods processing so `RETURNED` orders close as `DELIVERY_FAILED` only after Storekeeper goods-arrival confirmation, staff actual/pass/fail count/QC, Storekeeper QC acceptance, Storekeeper putaway planning, and staff putaway completion.
 
 ### Validation Checklist
 
@@ -279,5 +314,8 @@ Task: "T045 [P] [US3] Add service unit test for vehicle/driver release on comple
 - Successful delivery confirmation remains transactional, version-safe, and only decrements virtual `IN_TRANSIT` stock for the confirmed Delivery Order.
 - Failed delivery never changes inventory and keeps goods in virtual `IN_TRANSIT`.
 - Trip completion only happens after all assigned Delivery Orders are `COMPLETED` or `RETURNED`.
+- Delivery Order `RETURNED` moves to `DELIVERY_FAILED` only after the separate returned-goods flow completes Storekeeper goods-arrival confirmation, staff actual/pass/fail count/QC, Storekeeper QC acceptance, Storekeeper putaway planning, and staff putaway confirmation.
+- Storekeeper QC rejection requires a reason and returns the flow to staff rework without moving inventory or allowing putaway planning.
+- Returned-goods putaway completion moves inventory from virtual `IN_TRANSIT` to the Storekeeper-approved destination location with non-negative quantity and version checks.
 - Service and controller tests cover happy paths and business-error paths for each user story.
 - Driver trip list uses neutral transport wording, exposes `Tat ca` / `Noi bo` / `Dai ly` filters, and renders `DELIVERY` versus `TRANSFER` summaries without enabling the wrong action set.

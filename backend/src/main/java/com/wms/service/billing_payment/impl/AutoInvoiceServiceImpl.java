@@ -247,7 +247,13 @@ public class AutoInvoiceServiceImpl implements AutoInvoiceService {
         String datePart = documentDate.format(INVOICE_NUMBER_DATE);
         DocumentSequence sequence = sequenceRepository
                 .findBySequenceKeyForUpdate(INVOICE_SEQUENCE_KEY)
-                .orElseThrow(() -> new IllegalStateException("Invoice sequence is not configured"));
+                .orElseGet(() -> {
+                    DocumentSequence newSeq = new DocumentSequence();
+                    newSeq.setSequenceKey(INVOICE_SEQUENCE_KEY);
+                    newSeq.setNextValue(1L);
+                    newSeq.setUpdatedAt(OffsetDateTime.now());
+                    return sequenceRepository.save(newSeq);
+                });
         long value = sequence.getNextValue();
         sequence.setNextValue(value + 1);
         sequence.setUpdatedAt(OffsetDateTime.now());

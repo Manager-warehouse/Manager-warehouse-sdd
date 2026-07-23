@@ -25,7 +25,7 @@
 
 - [x] T005 Add or verify outbound error codes for `WAREHOUSE_SCOPE_FORBIDDEN`, `CREDIT_HOLD`, `INSUFFICIENT_STOCK`, `DELIVERY_ORDER_CANCEL_FORBIDDEN`, and `INVENTORY_VERSION_CONFLICT` in `backend/src/main/java/com/wms/exception`
 - [x] T006 Add repository query for active regular quality-valid inventory availability by warehouse/product in `backend/src/main/java/com/wms/repository/InventoryRepository.java`
-- [x] T007 Add repository query for overdue unpaid dealer invoices older than 30 days in `backend/src/main/java/com/wms/repository/InvoiceRepository.java`
+- [x] T007 Add repository query for unpaid dealer invoices overdue beyond the dealer's configured payment term days in `backend/src/main/java/com/wms/repository/InvoiceRepository.java`
 - [x] T008 Add warehouse assignment validation helper for Planner and Warehouse Manager scope in `backend/src/main/java/com/wms/service/impl/DeliveryOrderServiceImpl.java`
 - [x] T009 Add server-side order value calculation helper using backend pricing data in `backend/src/main/java/com/wms/service/impl/DeliveryOrderServiceImpl.java`
 - [x] T010 Add reservation delta helper for warehouse/product aggregate reservations with optimistic locking in `backend/src/main/java/com/wms/service/impl/DeliveryOrderServiceImpl.java`
@@ -78,8 +78,8 @@
 ### Implementation for User Story 2
 
 - [x] T027 [US2] Return `WAREHOUSE_SCOPE_FORBIDDEN` when Planner is not assigned to selected warehouse in `backend/src/main/java/com/wms/service/impl/DeliveryOrderServiceImpl.java`
-- [x] T028 [US2] Return `CREDIT_HOLD` for dealer credit hold, credit limit exceeded, or overdue invoice over 30 days in `backend/src/main/java/com/wms/service/impl/DeliveryOrderServiceImpl.java`
-- [x] T029 [US2] Return `INSUFFICIENT_STOCK` with suggested warehouses that have enough valid availability in `backend/src/main/java/com/wms/service/impl/DeliveryOrderServiceImpl.java`
+- [x] T028 [US2] Return `CREDIT_HOLD` for dealer credit hold, credit limit exceeded, or unpaid invoice overdue beyond the dealer's configured payment term days in `backend/src/main/java/com/wms/service/order_fulfillment/impl/DeliveryOrderServiceImpl.java`
+- [x] T029 [US2] Return `INSUFFICIENT_STOCK` without suggested alternative warehouses when the selected warehouse lacks enough valid availability in `backend/src/main/java/com/wms/service/order_fulfillment/impl/DeliveryOrderServiceImpl.java`
 - [x] T030 [US2] Ensure rejected create requests do not persist Delivery Order, DeliveryOrderItem, reservation delta, or success audit in `backend/src/main/java/com/wms/service/impl/DeliveryOrderServiceImpl.java`
 - [x] T031 [US2] Document create error responses in `backend/src/main/java/com/wms/controller/DeliveryOrderController.java`
 

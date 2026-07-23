@@ -111,8 +111,11 @@ public class ReceiptQcService {
 
             Integer passed = req.getQcPassedQty();
             Integer failed = req.getQcFailedQty();
-            Integer total = req.getSampleQty() != null ? req.getSampleQty() : (passed + failed);
-            if (passed + failed != total) {
+            if (passed == null || failed == null) {
+                throw new IllegalArgumentException("QC_QUANTITIES_REQUIRED for item " + req.getReceiptItemId());
+            }
+            Integer total = req.getSampleQty() != null ? req.getSampleQty() : item.getActualQty();
+            if (total == null || passed + failed != total) {
                 throw new IllegalArgumentException("QC_SAMPLE_SUM_MISMATCH for item " + req.getReceiptItemId());
             }
 
@@ -166,6 +169,8 @@ public class ReceiptQcService {
                         .orElseThrow(() -> new BusinessRuleViolationException(
                                 "QUARANTINE_LOCATION_NOT_CONFIGURED: Active quarantine location not found for warehouse " 
                                 + receipt.getWarehouse().getId()));
+
+            assertQuarantineCapacity(quarantineLoc, items);
 
             for (ReceiptItem item : items) {
                 Integer failedQtyInt = item.getSampleFailedQty();
@@ -235,6 +240,30 @@ public class ReceiptQcService {
         return buildResponse(receipt);
     }
 
+    private void assertQuarantineCapacity(WarehouseLocation location, List<ReceiptItem> items) {
+        BigDecimal addedVol = BigDecimal.ZERO;
+        BigDecimal addedWt = BigDecimal.ZERO;
+        for (ReceiptItem item : items) {
+            Integer failedQty = item.getSampleFailedQty();
+            if (failedQty == null || failedQty <= 0) continue;
+            BigDecimal qty = BigDecimal.valueOf(failedQty);
+            BigDecimal vol = item.getProduct().getVolumeM3() != null ? item.getProduct().getVolumeM3() : BigDecimal.ZERO;
+            BigDecimal wt = item.getProduct().getWeightKg() != null ? item.getProduct().getWeightKg() : BigDecimal.ZERO;
+            addedVol = addedVol.add(qty.multiply(vol));
+            addedWt = addedWt.add(qty.multiply(wt));
+        }
+        BigDecimal curVol = location.getCurrentVolumeM3() != null ? location.getCurrentVolumeM3() : BigDecimal.ZERO;
+        BigDecimal curWt = location.getCurrentWeightKg() != null ? location.getCurrentWeightKg() : BigDecimal.ZERO;
+        if (location.getCapacityM3() != null && curVol.add(addedVol).compareTo(location.getCapacityM3()) > 0) {
+            throw new BusinessRuleViolationException(
+                    "QUARANTINE_BIN_CAPACITY_EXCEEDED: Volume overflow for quarantine location " + location.getId());
+        }
+        if (location.getCapacityKg() != null && curWt.add(addedWt).compareTo(location.getCapacityKg()) > 0) {
+            throw new BusinessRuleViolationException(
+                    "QUARANTINE_BIN_CAPACITY_EXCEEDED: Weight overflow for quarantine location " + location.getId());
+        }
+    }
+
     private Batch resolveOrCreateBatch(ReceiptItem item, Receipt receipt) {
         Long productId = item.getProduct().getId();
         Long warehouseId = receipt.getWarehouse().getId();
@@ -266,6 +295,7 @@ public class ReceiptQcService {
                         .id(i.getId())
                         .productId(i.getProduct().getId())
                         .productName(i.getProduct().getName())
+                        .productSku(i.getProduct().getSku())
                         .expectedQty(i.getExpectedQty())
                         .actualQty(i.getActualQty())
                         .sampleQty(i.getSampleQty())

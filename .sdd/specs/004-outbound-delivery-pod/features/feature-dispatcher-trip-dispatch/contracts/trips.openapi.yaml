@@ -462,11 +462,15 @@ components:
         doId:
           type: integer
           format: int64
-        doNumber:
-          type: string
-        warehouseId:
-          type: integer
-          format: int64
+      doNumber:
+        type: string
+      dealerName:
+        type: string
+      dealerAddress:
+        type: string
+      warehouseId:
+        type: integer
+        format: int64
         status:
           type: string
           example: WAREHOUSE_APPROVED

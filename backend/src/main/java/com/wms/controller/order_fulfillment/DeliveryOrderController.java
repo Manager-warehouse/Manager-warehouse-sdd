@@ -44,8 +44,14 @@ import com.wms.dto.request.DeliveryOrderReplacementPlanRequest;
 import com.wms.dto.request.DeliveryOrderUpdateRequest;
 import com.wms.dto.request.DeliveryOrderWarehouseApprovalRequest;
 import com.wms.dto.request.DeliveryOrderWarehouseRejectRequest;
+import com.wms.dto.request.ReturnedGoodsApprovalRequest;
+import com.wms.dto.request.ReturnedGoodsCountQcRequest;
+import com.wms.dto.request.ReturnedGoodsPutawayCompleteRequest;
+import com.wms.dto.request.ReturnedGoodsPutawayPlanRequest;
+import com.wms.dto.request.ReturnedGoodsReceiveRequest;
 import com.wms.dto.response.DeliveryOrderResponse;
 import com.wms.dto.response.PickingCandidateResponse;
+import com.wms.dto.response.ReturnedGoodsFlowResponse;
 import com.wms.entity.access_control.User;
 import com.wms.service.user_context.CurrentUserService;
 import com.wms.service.order_fulfillment.DeliveryOrderService;
@@ -266,6 +272,54 @@ public class DeliveryOrderController {
     public DeliveryOrderResponse rejectDeliveryOrderWarehouseRelease(@PathVariable Long id,
                                                                     @Valid @RequestBody DeliveryOrderWarehouseRejectRequest request) {
         return deliveryOrderService.rejectDeliveryOrderWarehouseRelease(id, request, currentUser());
+    }
+
+    @PutMapping("/{id}/returned-goods/receive")
+    @PreAuthorize("hasRole('STOREKEEPER')")
+    @Operation(summary = "Confirm returned goods arrived back at the warehouse")
+    public ReturnedGoodsFlowResponse confirmReturnedGoodsReceived(@PathVariable Long id,
+                                                                  @Valid @RequestBody(required = false) ReturnedGoodsReceiveRequest request) {
+        ReturnedGoodsReceiveRequest safeRequest = request == null ? new ReturnedGoodsReceiveRequest() : request;
+        return deliveryOrderService.confirmReturnedGoodsReceived(id, safeRequest, currentUser());
+    }
+
+    @PutMapping("/{id}/returned-goods/count-qc")
+    @PreAuthorize("hasRole('WAREHOUSE_STAFF')")
+    @Operation(summary = "Submit or resubmit returned goods count and QC for a failed delivery")
+    public ReturnedGoodsFlowResponse submitReturnedGoodsCountQc(@PathVariable Long id,
+                                                                @Valid @RequestBody ReturnedGoodsCountQcRequest request) {
+        return deliveryOrderService.submitReturnedGoodsCountQc(id, request, currentUser());
+    }
+
+    @GetMapping("/{id}/returned-goods")
+    @PreAuthorize("hasAnyRole('WAREHOUSE_STAFF','STOREKEEPER','WAREHOUSE_MANAGER')")
+    @Operation(summary = "Get returned goods flow state")
+    public ReturnedGoodsFlowResponse getReturnedGoodsFlow(@PathVariable Long id) {
+        return deliveryOrderService.getReturnedGoodsFlow(id, currentUser());
+    }
+
+    @PutMapping("/{id}/returned-goods/approval")
+    @PreAuthorize("hasRole('STOREKEEPER')")
+    @Operation(summary = "Accept or reject returned goods quantity and quality")
+    public ReturnedGoodsFlowResponse approveReturnedGoods(@PathVariable Long id,
+                                                          @Valid @RequestBody ReturnedGoodsApprovalRequest request) {
+        return deliveryOrderService.approveReturnedGoods(id, request, currentUser());
+    }
+
+    @PutMapping("/{id}/returned-goods/putaway-plan")
+    @PreAuthorize("hasRole('STOREKEEPER')")
+    @Operation(summary = "Plan putaway for approved returned goods")
+    public ReturnedGoodsFlowResponse planReturnedGoodsPutaway(@PathVariable Long id,
+                                                              @Valid @RequestBody ReturnedGoodsPutawayPlanRequest request) {
+        return deliveryOrderService.planReturnedGoodsPutaway(id, request, currentUser());
+    }
+
+    @PutMapping("/{id}/returned-goods/putaway-complete")
+    @PreAuthorize("hasRole('WAREHOUSE_STAFF')")
+    @Operation(summary = "Confirm returned goods putaway and close failed delivery")
+    public ReturnedGoodsFlowResponse completeReturnedGoodsPutaway(@PathVariable Long id,
+                                                                  @Valid @RequestBody ReturnedGoodsPutawayCompleteRequest request) {
+        return deliveryOrderService.completeReturnedGoodsPutaway(id, request, currentUser());
     }
 
     private User currentUser() {

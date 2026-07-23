@@ -382,7 +382,7 @@ const QuarantineWorkspace = () => {
                 <div><span className="text-shade-50">Tổng tiền đòi bồi hoàn:</span> <strong className="text-ink text-sm">{(selectedItem.total_value || 0).toLocaleString('vi-VN')} VND</strong></div>
               </div>
               <div className="flex flex-col gap-1.5">
-                <label className="font-bold">Ghi chú xuất trả (Không bắt buộc)</label>
+                <label className="font-bold">Lý do xuất trả <span className="text-danger-600">*</span></label>
                 <textarea
                   value={actionNotes}
                   onChange={(e) => setActionNotes(e.target.value)}
@@ -397,7 +397,7 @@ const QuarantineWorkspace = () => {
               </button>
               <button
                 onClick={submitRtv}
-                disabled={submitting}
+                disabled={submitting || !actionNotes.trim()}
                 className="btn-pill btn-pill-aloe text-xs py-1.5 px-4 font-bold disabled:opacity-50"
               >
                 {submitting ? 'Đang xuất...' : 'Xác nhận xuất trả & Đòi tiền'}

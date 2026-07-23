@@ -133,11 +133,11 @@ public class QuarantineRtvService {
         }
 
         BigDecimal totalFailedQty = items.stream()
-                .map(i -> i.getActualQty() != null ? BigDecimal.valueOf(i.getActualQty()) : BigDecimal.ZERO)
+                .map(i -> i.getSampleFailedQty() != null ? BigDecimal.valueOf(i.getSampleFailedQty()) : BigDecimal.ZERO)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal totalAmount = items.stream()
                 .map(i -> {
-                    BigDecimal qty = i.getActualQty() != null ? BigDecimal.valueOf(i.getActualQty()) : BigDecimal.ZERO;
+                    BigDecimal qty = i.getSampleFailedQty() != null ? BigDecimal.valueOf(i.getSampleFailedQty()) : BigDecimal.ZERO;
                     BigDecimal cost = i.getUnitCost() != null ? i.getUnitCost() : BigDecimal.ZERO;
                     return qty.multiply(cost);
                 })
@@ -147,22 +147,33 @@ public class QuarantineRtvService {
                 ? request.getDocumentDate()
                 : LocalDate.now();
 
-        String adjustmentNumber = generateAdjustmentNumber();
-        Adjustment rtv = Adjustment.builder()
-                .adjustmentNumber(adjustmentNumber)
-                .warehouse(receipt.getWarehouse())
-                .product(items.get(0).getProduct())
-                .quantityAdjustment(totalFailedQty.negate())
-                .type(AdjustmentType.RETURN_TO_VENDOR)
-                .referenceId(receiptId)
-                .referenceType(RTV_REFERENCE_TYPE)
-                .reason(request.getReason())
-                .documentDate(documentDate)
-                .accountingPeriod(accountingPeriodService.resolveOpenPeriod(documentDate))
-                .createdBy(actor)
-                .createdAt(OffsetDateTime.now())
-                .build();
-        adjustmentRepository.save(rtv);
+        String firstAdjNumber = null;
+        Long firstAdjId = null;
+        for (ReceiptItem item : items) {
+            BigDecimal itemFailedQty = item.getSampleFailedQty() != null
+                    ? BigDecimal.valueOf(item.getSampleFailedQty()) : BigDecimal.ZERO;
+            if (itemFailedQty.compareTo(BigDecimal.ZERO) <= 0) continue;
+
+            String adjustmentNumber = generateAdjustmentNumber();
+            if (firstAdjNumber == null) firstAdjNumber = adjustmentNumber;
+
+            Adjustment rtv = Adjustment.builder()
+                    .adjustmentNumber(adjustmentNumber)
+                    .warehouse(receipt.getWarehouse())
+                    .product(item.getProduct())
+                    .quantityAdjustment(itemFailedQty.negate())
+                    .type(AdjustmentType.RETURN_TO_VENDOR)
+                    .referenceId(receiptId)
+                    .referenceType(RTV_REFERENCE_TYPE)
+                    .reason(request.getReason())
+                    .documentDate(documentDate)
+                    .accountingPeriod(accountingPeriodService.resolveOpenPeriod(documentDate))
+                    .createdBy(actor)
+                    .createdAt(OffsetDateTime.now())
+                    .build();
+            adjustmentRepository.save(rtv);
+            if (firstAdjId == null) firstAdjId = rtv.getId();
+        }
 
         String debitNoteNumber = generateDebitNoteNumber();
         DebitNote debitNote = DebitNote.builder()
@@ -180,11 +191,11 @@ public class QuarantineRtvService {
 
         auditLogService.log(
                 actor, AuditAction.QUARANTINE_RTV_CREATE, ADJUSTMENT_ENTITY,
-                rtv.getId(), adjustmentNumber,
+                firstAdjId, firstAdjNumber,
                 receipt.getWarehouse().getId(),
                 null,
                 Map.of("receiptId", receiptId,
-                       "adjustmentNumber", adjustmentNumber,
+                       "adjustmentNumber", firstAdjNumber,
                        "debitNoteNumber", debitNoteNumber,
                        "failedQty", totalFailedQty,
                        "amount", totalAmount,
@@ -192,11 +203,11 @@ public class QuarantineRtvService {
         );
 
         log.info("RTV {} created for receipt {} by user {}. Debit Note {} generated.",
-                adjustmentNumber, receiptId, actor.getId(), debitNoteNumber);
+                firstAdjNumber, receiptId, actor.getId(), debitNoteNumber);
 
         return RtvActionResponse.builder()
-                .adjustmentId(rtv.getId())
-                .adjustmentNumber(adjustmentNumber)
+                .adjustmentId(firstAdjId)
+                .adjustmentNumber(firstAdjNumber)
                 .debitNoteId(debitNote.getId())
                 .debitNoteNumber(debitNoteNumber)
                 .quarantineQty(totalFailedQty)
@@ -230,8 +241,10 @@ public class QuarantineRtvService {
                         "No pending RTV adjustment found for receipt: " + receiptId));
 
         List<ReceiptItem> items = receiptItemRepository.findByReceiptId(receiptId);
+        // Must match the quantity actually held in quarantine (sampleFailedQty),
+        // not the full received actualQty — see createRtv() for the same fix.
         BigDecimal quarantineQty = items.stream()
-                .map(i -> i.getActualQty() != null ? BigDecimal.valueOf(i.getActualQty()) : BigDecimal.ZERO)
+                .map(i -> i.getSampleFailedQty() != null ? BigDecimal.valueOf(i.getSampleFailedQty()) : BigDecimal.ZERO)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         if (request.getReturnedQty().compareTo(quarantineQty) != 0) {
@@ -278,7 +291,10 @@ public class QuarantineRtvService {
 
 
     private void deductQuarantineInventory(Receipt receipt, ReceiptItem item, User actor) {
-        BigDecimal qty = item.getActualQty() != null ? BigDecimal.valueOf(item.getActualQty()) : BigDecimal.ZERO;
+        // Only the QC-failed portion of this item ever entered quarantine
+        // inventory (see ReceiptQcService.confirmQc); deducting actualQty here
+        // would try to remove more than what was ever added.
+        BigDecimal qty = item.getSampleFailedQty() != null ? BigDecimal.valueOf(item.getSampleFailedQty()) : BigDecimal.ZERO;
         if (qty.compareTo(BigDecimal.ZERO) <= 0) {
             return;
         }
@@ -354,7 +370,7 @@ public class QuarantineRtvService {
                     .receiptNumber(item.getReceipt().getReceiptNumber())
                     .supplierId(item.getReceipt().getSupplier() != null ? item.getReceipt().getSupplier().getId() : null)
                     .totalValue(totalValue)
-                    .unit("cái")
+                    .unit(item.getProduct().getUnit() != null ? item.getProduct().getUnit() : "cái")
                     .receiptId(item.getReceipt().getId())
                     .receiptVersion(item.getReceipt().getVersion())
                     .originType("RECEIPT")
@@ -382,7 +398,7 @@ public class QuarantineRtvService {
                     .receiptNumber(qr.getTransfer() != null ? qr.getTransfer().getTransferNumber() : "N/A")
                     .supplierId(null)
                     .totalValue(totalValue)
-                    .unit("cái")
+                    .unit(qr.getProduct().getUnit() != null ? qr.getProduct().getUnit() : "cái")
                     .receiptId(null)
                     .receiptVersion(0)
                     .originType(qr.getOriginType())

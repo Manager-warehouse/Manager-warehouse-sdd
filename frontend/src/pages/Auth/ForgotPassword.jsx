@@ -38,14 +38,29 @@ const ForgotPassword = () => {
     }
   };
 
-  const handleVerifyOtp = (e) => {
+  const handleVerifyOtp = async (e) => {
     e.preventDefault();
     if (!otp || otp.length < 6) {
       setError('Vui lòng nhập đủ mã OTP 6 số');
       return;
     }
+    setLoading(true);
     setError('');
-    setStep(3);
+    try {
+      await authService.checkOtp(email, otp);
+      setStep(3);
+    } catch (err) {
+      const code = err?.response?.data?.code;
+      if (code === 'OTP_LOCKED') {
+        setError('Bạn đã nhập sai mã OTP quá nhiều lần. Vui lòng yêu cầu gửi lại mã mới.');
+      } else if (code === 'OTP_EXPIRED') {
+        setError('Mã OTP đã hết hạn. Vui lòng yêu cầu gửi lại mã mới.');
+      } else {
+        setError('Mã OTP không chính xác. Vui lòng thử lại.');
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleResetPassword = async (e) => {
@@ -56,6 +71,14 @@ const ForgotPassword = () => {
     }
     if (newPassword.length < 8) {
       setError('Mật khẩu mới phải có tối thiểu 8 ký tự');
+      return;
+    }
+    // Must match backend VerifyOtpRequest.newPassword @Pattern rule
+    const hasUpper = /[A-Z]/.test(newPassword);
+    const hasLower = /[a-z]/.test(newPassword);
+    const hasDigit = /[0-9]/.test(newPassword);
+    if (!hasUpper || !hasLower || !hasDigit) {
+      setError('Mật khẩu phải chứa ít nhất 1 chữ hoa, 1 chữ thường và 1 chữ số');
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -194,6 +217,7 @@ const ForgotPassword = () => {
               <Button
                 type="submit"
                 variant="outline-dark"
+                loading={loading}
                 className="w-full mt-2 min-h-[44px]"
               >
                 Xác nhận mã OTP

@@ -81,6 +81,7 @@ import com.wms.dto.request.LoadHandoverRequest;
 import com.wms.dto.request.OutboundQcRequest;
 import com.wms.dto.request.SourceLoadReportItemRequest;
 import com.wms.dto.request.SourceLoadReportRequest;
+import com.wms.dto.request.WrongSkuItemRequest;
 import com.wms.dto.request.AccountingPeriodCloseRequest;
 import com.wms.dto.request.AccountingPeriodCreateRequest;
 import com.wms.dto.response.AccountingPeriodResponse;
@@ -173,6 +174,7 @@ class InterWarehouseTransferServiceImplTest {
     private WarehouseLocation destinationLocation;
     private WarehouseLocation quarantineLocation;
     private Product product;
+    private Product actualWrongSkuProduct;
     private User planner;
     private User sourceManager;
     private User destinationWorker;
@@ -189,6 +191,7 @@ class InterWarehouseTransferServiceImplTest {
     private Inventory transitInventory;
     private Inventory destinationInventory;
     private Inventory quarantineInventory;
+    private QuarantineRecord savedQuarantineRecord;
     private Trip transferTrip;
     private final Map<Long, List<Long>> assignments = new HashMap<>();
     private final TrackingAllocationRepository allocationState = new TrackingAllocationRepository();
@@ -202,7 +205,8 @@ class InterWarehouseTransferServiceImplTest {
         transitLocation = location(11L, transitWarehouse, "INT-01", false);
         destinationLocation = location(12L, destinationWarehouse, "HN-01-B01", false);
         quarantineLocation = location(13L, destinationWarehouse, "HN-01-Q01", true);
-        product = product();
+        product = product(21L, "SKU-001", "Nồi inox");
+        actualWrongSkuProduct = product(22L, "SKU-002", "Chảo chống dính");
         planner = user(7L, UserRole.PLANNER);
         sourceManager = user(8L, UserRole.WAREHOUSE_MANAGER);
         destinationWorker = user(9L, UserRole.WAREHOUSE_STAFF);
@@ -595,7 +599,8 @@ class InterWarehouseTransferServiceImplTest {
                                 new BigDecimal("1.00"),
                                 destinationLocation.getId(),
                                 "checker adjusted count",
-                                "one damaged"))),
+                                "one damaged")),
+                        "transfer/receive-qc/1.jpg"),
                 destinationStorekeeper);
         assertThat(checked.items().get(0).receivedQty()).isEqualByComparingTo("4.00");
         assertThat(checked.items().get(0).qcPassedQty()).isEqualByComparingTo("3.00");
@@ -675,6 +680,8 @@ class InterWarehouseTransferServiceImplTest {
         recordPassingOutboundQcAndHandover();
         service.shipTransfer(1L, sourceManager);
         service.departTransfer(1L, driverUser);
+        transfer.setDriverArrivedAt(null);
+        transfer.setArrivalHandoverAt(null);
 
         // Driver must be blocked
         TransferReturnRequest req = new TransferReturnRequest("Overdue return");
@@ -686,18 +693,28 @@ class InterWarehouseTransferServiceImplTest {
                 .isInstanceOf(BusinessRuleViolationException.class)
                 .hasMessageContaining("WAREHOUSE_MANAGER_ROLE_REQUIRED");
 
-        // Destination Manager can request the operational return while the truck is in transit.
-        InterWarehouseTransferResponse response = service.returnToSource(1L, req, destinationManager);
+        assertThatThrownBy(() -> service.returnToSource(1L, req, destinationManager))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("WAREHOUSE_SCOPE_REQUIRED");
+
+        // Source Manager can request the operational return while the truck is in transit.
+        InterWarehouseTransferResponse response = service.returnToSource(1L, req, sourceManager);
         assertThat(response.isReturned()).isTrue();
 
-        // T058: Execute return leg steps: driver departs, arrives, and hands over back to source warehouse
+        // T058: Execute return leg steps: driver departs, arrives, and storekeeper hands over back to source warehouse
         service.returnDepart(1L, driverUser);
         service.returnArrive(1L, driverUser);
 
         User sourceWorker = user(999L, UserRole.WAREHOUSE_STAFF);
+        User sourceStorekeeper = user(1000L, UserRole.STOREKEEPER);
         assignments.put(sourceWorker.getId(), List.of(sourceWarehouse.getId()));
+        assignments.put(sourceStorekeeper.getId(), List.of(sourceWarehouse.getId()));
 
-        service.returnHandover(1L, new LoadHandoverRequest("return_handover.jpg"), sourceWorker);
+        assertThatThrownBy(() -> service.returnHandover(1L, new LoadHandoverRequest("return_handover.jpg"), sourceWorker))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("RETURN_HANDOVER_STOREKEEPER_REQUIRED");
+
+        service.returnHandover(1L, new LoadHandoverRequest("return_handover.jpg"), sourceStorekeeper);
 
         assertThatThrownBy(() -> service.receiveCount(1L, new InterWarehouseTransferReceiveCountRequest(List.of(
                 new InterWarehouseTransferReceiveCountItemRequest(transferItem.getId(), new BigDecimal("5.00"),
@@ -722,6 +739,9 @@ class InterWarehouseTransferServiceImplTest {
         recordPassingOutboundQcAndHandover();
         service.shipTransfer(1L, sourceManager);
         service.departTransfer(1L, driverUser);
+        service.receiveCount(1L, new InterWarehouseTransferReceiveCountRequest(List.of(
+                new InterWarehouseTransferReceiveCountItemRequest(transferItem.getId(), new BigDecimal("5.00"), null))),
+                destinationWorker);
 
         InterWarehouseTransferRejectRequest request = new InterWarehouseTransferRejectRequest();
         request.setRejectionReason("Storekeeper found completely broken boxes on arrival");
@@ -732,6 +752,38 @@ class InterWarehouseTransferServiceImplTest {
         assertThat(response.rejectionReason()).isEqualTo("Storekeeper found completely broken boxes on arrival");
         assertThat(quarantineInventory).isNotNull();
         assertThat(quarantineInventory.getTotalQty()).isEqualByComparingTo("5.00");
+        assertThat(savedQuarantineRecord.getReason()).isEqualTo("Storekeeper found completely broken boxes on arrival");
+    }
+
+    @Test
+    void quarantineReject_requiresArrivalHandoverAndWorkerCount() {
+        service.approveTransfer(1L, sourceManager);
+        service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
+                VALID_TRIP_START, VALID_TRIP_END), dispatcher);
+        recordPassingOutboundQcAndHandover();
+        service.shipTransfer(1L, sourceManager);
+        service.departTransfer(1L, driverUser);
+
+        InterWarehouseTransferRejectRequest request = new InterWarehouseTransferRejectRequest();
+        request.setRejectionReason("Broken before receiving");
+        transfer.setDriverArrivedAt(null);
+        transfer.setArrivalHandoverAt(null);
+
+        assertThatThrownBy(() -> service.quarantineReject(1L, request, destinationStorekeeper))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("DRIVER_ARRIVE_REQUIRED");
+
+        transfer.setDriverArrivedAt(OffsetDateTime.now());
+
+        assertThatThrownBy(() -> service.quarantineReject(1L, request, destinationStorekeeper))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("ARRIVAL_HANDOVER_REQUIRED");
+
+        transfer.setArrivalHandoverAt(OffsetDateTime.now());
+
+        assertThatThrownBy(() -> service.quarantineReject(1L, request, destinationStorekeeper))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("WORKER_COUNT_REQUIRED");
     }
 
     @Test
@@ -755,7 +807,8 @@ class InterWarehouseTransferServiceImplTest {
                         BigDecimal.ZERO,
                         destinationLocation.getId(),
                         "Everything counted",
-                        null))),
+                        null)),
+                "transfer/receive-qc/1.jpg"),
                 destinationStorekeeper);
 
         InterWarehouseTransferRejectRequest request = new InterWarehouseTransferRejectRequest();
@@ -841,7 +894,8 @@ class InterWarehouseTransferServiceImplTest {
                         BigDecimal.ZERO,
                         destinationLocation.getId(),
                         "Check ok",
-                        null))),
+                        null)),
+                "transfer/receive-qc/1.jpg"),
                 destinationStorekeeper);
 
         // finalReceive should throw BIN_CAPACITY_EXCEEDED because 5.00 * 1.00 > 0.01
@@ -858,10 +912,19 @@ class InterWarehouseTransferServiceImplTest {
         recordPassingOutboundQcAndHandover();
         service.shipTransfer(1L, sourceManager);
         service.departTransfer(1L, driverUser);
+        transfer.setDriverArrivedAt(OffsetDateTime.now());
+        transfer.setArrivalHandoverAt(null);
 
         // 1. Request return first
-        TransferReturnRequest req = new TransferReturnRequest("Giao sai mã SKU chảo");
-        service.requestReturn(1L, req, destinationManager);
+        TransferReturnRequest req = new TransferReturnRequest("Giao sai mã SKU chảo", List.of(
+                new WrongSkuItemRequest(
+                        transferItem.getId(),
+                        product.getId(),
+                        actualWrongSkuProduct.getId(),
+                        new BigDecimal("1.00"),
+                        "Nhận thực tế SKU chảo",
+                        null)));
+        service.requestReturn(1L, req, destinationStorekeeper);
 
         assertThat(transfer.isReturnRequested()).isTrue();
 
@@ -920,11 +983,11 @@ class InterWarehouseTransferServiceImplTest {
         return value;
     }
 
-    private Product product() {
+    private Product product(Long id, String sku, String name) {
         Product value = new Product();
-        value.setId(21L);
-        value.setSku("SKU-001");
-        value.setName("Nồi inox");
+        value.setId(id);
+        value.setSku(sku);
+        value.setName(name);
         return value;
     }
 
@@ -1246,6 +1309,7 @@ class InterWarehouseTransferServiceImplTest {
         @Override
         public Object invoke(Object proxy, Method method, Object[] args) {
             if ("save".equals(method.getName())) {
+                savedQuarantineRecord = (QuarantineRecord) args[0];
                 return args[0];
             }
             return defaultValue(method.getReturnType());
@@ -1285,7 +1349,14 @@ class InterWarehouseTransferServiceImplTest {
         @Override
         public Object invoke(Object proxy, Method method, Object[] args) {
             if ("findById".equals(method.getName())) {
-                return Optional.of(product);
+                Long id = (Long) args[0];
+                if (product.getId().equals(id)) {
+                    return Optional.of(product);
+                }
+                if (actualWrongSkuProduct.getId().equals(id)) {
+                    return Optional.of(actualWrongSkuProduct);
+                }
+                return Optional.empty();
             }
             return defaultValue(method.getReturnType());
         }

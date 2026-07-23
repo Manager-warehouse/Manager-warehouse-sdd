@@ -118,6 +118,7 @@ class AuthServiceTest {
     @BeforeEach
     void setUp() {
         ReflectionTestUtils.setField(authService, "refreshTokenExpiry", 604800L);
+        ReflectionTestUtils.setField(authService, "accessTokenExpiry", 900L);
 
         lenient().when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(any())).thenReturn(java.util.Collections.emptyList());
         lenient().when(warehouseRepository.findAllById(any())).thenReturn(java.util.Collections.emptyList());

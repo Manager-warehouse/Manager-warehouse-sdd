@@ -1,0 +1,13 @@
+# Local/generated mobile build artifacts. GitNexus only reads ignore files from
+# the repo root, so repeat nested iOS/Android ignores here.
+frontend/ios/DerivedData/
+frontend/ios/DerivedData/**
+frontend/ios/App/build/
+frontend/ios/App/Pods/
+frontend/ios/App/output/
+frontend/ios/App/App/public/
+frontend/ios/App/App/capacitor.config.json
+frontend/ios/App/App/config.xml
+frontend/ios/capacitor-cordova-ios-plugins/
+frontend/android/app/build/
+frontend/android/.gradle/

@@ -215,8 +215,11 @@ public class ReceiptService {
     }
 
     private void requirePlanner(User actor) {
-        if (actor == null || actor.getRole() != UserRole.PLANNER) {
-            throw new AccessDeniedException("Planner role is required");
+        if (actor == null || (actor.getRole() != UserRole.PLANNER
+                && actor.getRole() != UserRole.STOREKEEPER
+                && actor.getRole() != UserRole.WAREHOUSE_MANAGER
+                && actor.getRole() != UserRole.ADMIN)) {
+            throw new AccessDeniedException("Planner, Storekeeper, Warehouse Manager, or Admin role is required");
         }
     }
 
@@ -364,10 +367,17 @@ public class ReceiptService {
         String date = LocalDate.now().format(RECEIPT_NUMBER_DATE);
         DocumentSequence sequence = sequenceRepository
                 .findBySequenceKeyForUpdate(RECEIPT_SEQUENCE_KEY)
-                .orElseThrow(() -> new IllegalStateException("Receipt sequence is not configured"));
+                .orElseGet(() -> {
+                    DocumentSequence newSeq = new DocumentSequence();
+                    newSeq.setSequenceKey(RECEIPT_SEQUENCE_KEY);
+                    newSeq.setNextValue(1L);
+                    newSeq.setUpdatedAt(OffsetDateTime.now());
+                    return sequenceRepository.save(newSeq);
+                });
         long value = sequence.getNextValue();
         sequence.setNextValue(value + 1);
         sequence.setUpdatedAt(OffsetDateTime.now());
+        sequenceRepository.save(sequence);
         return "RN-" + date + "-" + String.format("%06d", value);
     }
 

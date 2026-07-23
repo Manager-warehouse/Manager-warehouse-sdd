@@ -59,7 +59,7 @@ public class ReportController {
     private final CurrentUserService currentUserService;
 
     @GetMapping("/dashboard/ceo")
-    @PreAuthorize("hasAnyRole('CEO', 'ADMIN')")
+    @PreAuthorize("hasRole('CEO')")
     @Operation(summary = "Xem 5 chỉ số KPI chiến lược trên CEO Dashboard")
     public CeoDashboardResponse getCeoDashboard() {
         Long currentUserId = currentUserService.getRequiredCurrentUser().getId();
@@ -67,7 +67,7 @@ public class ReportController {
     }
 
     @GetMapping("/reports/inventory-valuation")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT_MANAGER', 'ADMIN', 'CEO', 'WAREHOUSE_MANAGER')")
+    @PreAuthorize("hasAnyRole('CEO', 'WAREHOUSE_MANAGER', 'ACCOUNTANT_MANAGER')")
     @Operation(summary = "Xem báo cáo Giá trị tồn kho cuối kỳ")
     public InventoryValuationResponse getInventoryValuation(
             @RequestParam(required = false) Long warehouseId) {

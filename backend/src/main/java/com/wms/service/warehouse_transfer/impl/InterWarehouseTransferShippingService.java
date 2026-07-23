@@ -449,6 +449,9 @@ public class InterWarehouseTransferShippingService {
         if (transfer.getDriverArrivedAt() == null) {
             throw new BusinessRuleViolationException("DRIVER_ARRIVE_REQUIRED");
         }
+        if (!Boolean.TRUE.equals(transfer.isReturned()) && Boolean.TRUE.equals(transfer.isReturnRequested())) {
+            throw new BusinessRuleViolationException("RETURN_REQUEST_PENDING");
+        }
 
         Map<String, Object> before = helper.snapshot(transfer);
         transfer.setArrivalHandoverAt(OffsetDateTime.now());
@@ -506,6 +509,12 @@ public class InterWarehouseTransferShippingService {
         helper.requireStatus(transfer, InterWarehouseTransferStatus.IN_TRANSIT);
         if (!Boolean.TRUE.equals(transfer.isReturned())) {
             throw new BusinessRuleViolationException("TRANSFER_NOT_RETURNED_LEG");
+        }
+        if (actor.getRole() != UserRole.STOREKEEPER
+                && actor.getRole() != UserRole.WAREHOUSE_MANAGER
+                && actor.getRole() != UserRole.ADMIN
+                && actor.getRole() != UserRole.CEO) {
+            throw new BusinessRuleViolationException("RETURN_HANDOVER_STOREKEEPER_REQUIRED");
         }
         helper.ensureWarehouseScope(actor, transfer.getSourceWarehouse().getId());
         if (transfer.getReturnArrivedAt() == null) {

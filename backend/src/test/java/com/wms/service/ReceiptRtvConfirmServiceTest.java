@@ -163,6 +163,9 @@ class ReceiptRtvConfirmServiceTest {
                 failedItem.setId(10L);
                 failedItem.setProduct(product);
                 failedItem.setActualQty(20);
+                // Fully QC-failed item: sampleFailedQty must match actualQty here since
+                // quarantine deduction is keyed off sampleFailedQty, not actualQty.
+                failedItem.setSampleFailedQty(20);
                 failedItem.setUnitCost(BigDecimal.valueOf(50));
                 failedItem.setBatch(quarantineBatch);
                 failedItem.setLocation(quarantineLocation);
@@ -215,6 +218,7 @@ class ReceiptRtvConfirmServiceTest {
                 request.setReturnedQty(BigDecimal.valueOf(20)); // Exact match
 
                 when(receiptRepository.findById(1L)).thenReturn(Optional.of(qcFailedReceipt));
+                when(receiptRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(qcFailedReceipt));
                 when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(6L)).thenReturn(List.of(10L));
                 when(adjustmentRepository.findConfirmedRtvByReference("RECEIPT", 1L, AdjustmentType.RETURN_TO_VENDOR))
                                 .thenReturn(Optional.empty());
@@ -251,6 +255,7 @@ class ReceiptRtvConfirmServiceTest {
                 request.setReturnedQty(BigDecimal.valueOf(20));
 
                 when(receiptRepository.findById(1L)).thenReturn(Optional.of(qcFailedReceipt));
+                when(receiptRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(qcFailedReceipt));
                 when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(6L)).thenReturn(List.of(10L));
                 when(adjustmentRepository.findConfirmedRtvByReference(any(), any(), any()))
                                 .thenReturn(Optional.empty());
@@ -281,6 +286,7 @@ class ReceiptRtvConfirmServiceTest {
                 request.setReturnedQty(BigDecimal.valueOf(18)); // Only 18 of 20 units
 
                 when(receiptRepository.findById(1L)).thenReturn(Optional.of(qcFailedReceipt));
+                when(receiptRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(qcFailedReceipt));
                 when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(6L)).thenReturn(List.of(10L));
                 when(adjustmentRepository.findConfirmedRtvByReference(any(), any(), any()))
                                 .thenReturn(Optional.empty());
@@ -302,6 +308,7 @@ class ReceiptRtvConfirmServiceTest {
                 request.setReturnedQty(BigDecimal.valueOf(25)); // More than 20
 
                 when(receiptRepository.findById(1L)).thenReturn(Optional.of(qcFailedReceipt));
+                when(receiptRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(qcFailedReceipt));
                 when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(6L)).thenReturn(List.of(10L));
                 when(adjustmentRepository.findConfirmedRtvByReference(any(), any(), any()))
                                 .thenReturn(Optional.empty());
@@ -330,6 +337,7 @@ class ReceiptRtvConfirmServiceTest {
                 confirmedRtv.setApprovedAt(OffsetDateTime.now()); // Already confirmed
 
                 when(receiptRepository.findById(1L)).thenReturn(Optional.of(qcFailedReceipt));
+                when(receiptRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(qcFailedReceipt));
                 when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(6L)).thenReturn(List.of(10L));
                 when(adjustmentRepository.findConfirmedRtvByReference("RECEIPT", 1L, AdjustmentType.RETURN_TO_VENDOR))
                                 .thenReturn(Optional.of(confirmedRtv));
@@ -355,6 +363,7 @@ class ReceiptRtvConfirmServiceTest {
                 request.setReturnedQty(BigDecimal.valueOf(20));
 
                 when(receiptRepository.findById(1L)).thenReturn(Optional.of(qcFailedReceipt));
+                when(receiptRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(qcFailedReceipt));
                 when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(6L)).thenReturn(List.of(10L));
                 when(adjustmentRepository.findConfirmedRtvByReference(any(), any(), any()))
                                 .thenReturn(Optional.empty());
@@ -379,6 +388,7 @@ class ReceiptRtvConfirmServiceTest {
                 request.setReturnedQty(BigDecimal.valueOf(20));
 
                 when(receiptRepository.findById(1L)).thenReturn(Optional.of(qcFailedReceipt));
+                when(receiptRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(qcFailedReceipt));
                 when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(6L)).thenReturn(List.of(10L));
                 when(adjustmentRepository.findConfirmedRtvByReference(any(), any(), any()))
                                 .thenReturn(Optional.empty());

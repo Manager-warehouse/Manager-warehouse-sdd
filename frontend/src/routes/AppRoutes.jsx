@@ -36,6 +36,9 @@ import InventoryValuation from '../pages/Reports/InventoryValuation';
 import LowStockAlerts from '../pages/Reports/LowStockAlerts';
 import DealerDebtInvoice from '../pages/Finance/DealerDebtInvoice';
 import Payments from '../pages/Finance/Payments';
+import SupplierInvoices from '../pages/Finance/SupplierInvoices';
+import PeriodClosing from '../pages/Finance/PeriodClosing';
+import CreditAgingReport from '../pages/Reports/CreditAgingReport';
 import { ROLES, getDefaultRouteByRole } from '../utils/constants';
 import { useAuthStore } from '../stores/auth.store';
 
@@ -70,111 +73,114 @@ const AppRoutes = () => {
       </Route>
 
       {/* Master Data Management protected routes */}
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.STOREKEEPER, ROLES.WAREHOUSE_MANAGER, ROLES.PLANNER, ROLES.ADMIN, ROLES.CEO]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.STOREKEEPER, ROLES.WAREHOUSE_MANAGER, ROLES.PLANNER, ROLES.CEO]} />}>
         <Route path="/admin/products" element={<ProductManagement />} />
       </Route>
       
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.STOREKEEPER, ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.CEO, ROLES.WAREHOUSE_MANAGER, ROLES.STOREKEEPER]} />}>
         <Route path="/admin/warehouses" element={<WarehouseManagement />} />
       </Route>
 
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN, ROLES.CEO]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.CEO, ROLES.WAREHOUSE_MANAGER, ROLES.ACCOUNTANT_MANAGER, ROLES.ACCOUNTANT]} />}>
         <Route path="/admin/partners" element={<PartnerManagement />} />
       </Route>
 
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.DISPATCHER, ROLES.ADMIN, ROLES.CEO]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.CEO, ROLES.WAREHOUSE_MANAGER, ROLES.DISPATCHER]} />}>
         <Route path="/admin/fleet" element={<FleetManagement />} />
       </Route>
 
       {/* Inbound & QC protected routes */}
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.PLANNER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.WAREHOUSE_MANAGER, ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN, ROLES.CEO]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.CEO, ROLES.WAREHOUSE_MANAGER, ROLES.ACCOUNTANT_MANAGER, ROLES.PLANNER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.ACCOUNTANT]} />}>
         <Route path="/inbound/receipts" element={<ReceiptList />} />
       </Route>
 
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.PLANNER, ROLES.ADMIN]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.PLANNER]} />}>
         <Route path="/inbound/create" element={<ReceiptForm />} />
       </Route>
 
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.WAREHOUSE_STAFF, ROLES.STOREKEEPER, ROLES.ADMIN]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF]} />}>
         <Route path="/inbound/receive/:id" element={<ReceiptReceive />} />
       </Route>
 
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.STOREKEEPER, ROLES.ADMIN]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.STOREKEEPER]} />}>
         <Route path="/inbound/putaway/:id" element={<PutawayPlan />} />
       </Route>
 
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.WAREHOUSE_STAFF, ROLES.STOREKEEPER, ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.WAREHOUSE_MANAGER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF]} />}>
         <Route path="/inbound/qc/:id" element={<QCInbound />} />
       </Route>
 
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.STOREKEEPER, ROLES.WAREHOUSE_MANAGER, ROLES.CEO, ROLES.ADMIN]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.CEO, ROLES.WAREHOUSE_MANAGER, ROLES.STOREKEEPER]} />}>
         <Route path="/inbound/quarantine" element={<QuarantineWorkspace />} />
       </Route>
 
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.WAREHOUSE_STAFF, ROLES.STOREKEEPER, ROLES.WAREHOUSE_MANAGER, ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.CEO, ROLES.ADMIN]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.CEO, ROLES.WAREHOUSE_MANAGER, ROLES.ACCOUNTANT_MANAGER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.ACCOUNTANT]} />}>
         <Route path="/inbound/returns" element={<ReturnsWorkspace />} />
       </Route>
 
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.PLANNER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.WAREHOUSE_MANAGER, ROLES.DISPATCHER, ROLES.ADMIN, ROLES.CEO]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.CEO, ROLES.WAREHOUSE_MANAGER, ROLES.PLANNER, ROLES.DISPATCHER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF]} />}>
         <Route path="/transfers" element={<InterWarehouseTransferWorkspace />} />
         <Route path="/transfers/:id" element={<InterWarehouseTransferWorkspace />} />
       </Route>
 
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.PLANNER, ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.CEO, ROLES.WAREHOUSE_MANAGER, ROLES.PLANNER, ROLES.DISPATCHER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF]} />}>
         <Route path="/transfers/requests" element={<TransferRequestWorkspace />} />
       </Route>
 
       {/* Outbound & Delivery protected routes */}
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.PLANNER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.WAREHOUSE_MANAGER, ROLES.DISPATCHER, ROLES.ACCOUNTANT, ROLES.ADMIN, ROLES.CEO]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.CEO, ROLES.WAREHOUSE_MANAGER, ROLES.PLANNER, ROLES.DISPATCHER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.ACCOUNTANT]} />}>
         <Route path="/outbound/delivery-orders" element={<DeliveryOrders />} />
         <Route path="/outbound/delivery-orders/:id" element={<DeliveryOrderDetail />} />
       </Route>
 
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.ADMIN]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.WAREHOUSE_MANAGER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF]} />}>
         <Route path="/outbound/qc/:id" element={<QCOutbound />} />
       </Route>
 
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.DISPATCHER, ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.CEO, ROLES.WAREHOUSE_MANAGER, ROLES.DISPATCHER]} />}>
         <Route path="/outbound/trips" element={<TripPlanning />} />
         <Route path="/outbound/trips/:id" element={<TripPlanning />} />
       </Route>
 
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.DRIVER, ROLES.ADMIN]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.DRIVER]} />}>
         <Route path="/outbound/driver/trips" element={<DriverTrip />} />
         <Route path="/outbound/driver/trips/:id" element={<DriverTrip />} />
       </Route>
 
       {/* Stocktake protected routes */}
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.WAREHOUSE_MANAGER, ROLES.STOREKEEPER, ROLES.CEO, ROLES.ADMIN]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.CEO, ROLES.WAREHOUSE_MANAGER, ROLES.STOREKEEPER]} />}>
         <Route path="/stocktake" element={<StocktakeList />} />
         <Route path="/stocktake/new" element={<StocktakeForm />} />
         <Route path="/stocktake/:id" element={<StocktakeDetail />} />
       </Route>
 
       {/* Finance — Pricing & COGS */}
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN, ROLES.CEO]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.CEO, ROLES.ACCOUNTANT_MANAGER, ROLES.ACCOUNTANT]} />}>
         <Route path="/finance/price-list" element={<PriceListManagement />} />
       </Route>
 
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.ACCOUNTANT_MANAGER]} />}>
         <Route path="/finance/price-approval" element={<PriceApproval />} />
       </Route>
 
       {/* Reports & Alerts (Module 010) */}
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.CEO, ROLES.ADMIN]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.CEO]} />}>
         <Route path="/reports/ceo-dashboard" element={<CeoDashboard />} />
       </Route>
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.CEO, ROLES.WAREHOUSE_MANAGER, ROLES.ACCOUNTANT_MANAGER]} />}>
         <Route path="/reports/inventory-valuation" element={<InventoryValuation />} />
       </Route>
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.WAREHOUSE_MANAGER, ROLES.PLANNER, ROLES.ADMIN]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.CEO, ROLES.WAREHOUSE_MANAGER, ROLES.PLANNER]} />}>
         <Route path="/reports/low-stock" element={<LowStockAlerts />} />
       </Route>
 
-      {/* Finance & Credit protected routes */}
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN, ROLES.CEO]} />}>
+      {/* Finance & Credit protected routes (Module 008) */}
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.CEO, ROLES.ACCOUNTANT_MANAGER, ROLES.ACCOUNTANT]} />}>
         <Route path="/finance/invoices" element={<DealerDebtInvoice />} />
-        <Route path="/finance/payments" element={<Payments />} />
+        <Route path="/finance/payments" element={<DealerDebtInvoice />} />
+        <Route path="/finance/supplier-invoices" element={<SupplierInvoices />} />
+        <Route path="/finance/periods" element={<PeriodClosing />} />
+        <Route path="/reports/credit-aging" element={<CreditAgingReport />} />
       </Route>
 
       {/* Default Redirects */}

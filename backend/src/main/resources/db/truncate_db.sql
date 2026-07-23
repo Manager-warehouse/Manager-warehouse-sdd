@@ -77,7 +77,15 @@ INSERT INTO system_configs (config_key, config_value, description) VALUES
 
 -- 4. Document Sequences
 INSERT INTO document_sequences (sequence_key, next_value)
-VALUES ('INVOICE', 1), ('PAYMENT', 1)
+VALUES ('RECEIPT', 1), ('ST', 1), ('INVOICE', 1), ('PAYMENT', 1)
 ON CONFLICT (sequence_key) DO NOTHING;
+
+-- 5. Nhà cung cấp mẫu
+INSERT INTO suppliers (code, name, contact_person, phone, email, is_active)
+VALUES
+    ('SUP-001', 'Công Ty Cung Cấp Chảo Sunhouse', 'Nguyen van B', '0912345678', 'contact@sunhouse.vn', true),
+    ('SUP-002', 'Công Ty Thiết Bị Gia Dụng Việt', 'Trần Văn C', '0987654321', 'contact@giadungviet.vn', true)
+ON CONFLICT (code) DO NOTHING;
+
 
 

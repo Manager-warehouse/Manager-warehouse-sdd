@@ -156,6 +156,10 @@ class ReceiptRtvCreateServiceTest {
         failedItem.setId(10L);
         failedItem.setProduct(product);
         failedItem.setActualQty(20);
+        // Fully QC-failed item: sampleFailedQty must match actualQty here since
+        // quarantine inventory (and therefore the RTV quantity) is keyed off
+        // sampleFailedQty, not actualQty.
+        failedItem.setSampleFailedQty(20);
         failedItem.setUnitCost(BigDecimal.valueOf(50));
         failedItem.setQcResult(QcResult.FAILED);
 
@@ -186,6 +190,7 @@ class ReceiptRtvCreateServiceTest {
         request.setReason("Hàng bị lỗi ngoại quan — trả lại NCC");
 
         when(receiptRepository.findById(1L)).thenReturn(Optional.of(qcFailedReceipt));
+        when(receiptRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(qcFailedReceipt));
         when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
         when(adjustmentRepository.existsByReferenceTypeAndReferenceIdAndType(
                 "RECEIPT", 1L, AdjustmentType.RETURN_TO_VENDOR)).thenReturn(false);
@@ -229,6 +234,7 @@ class ReceiptRtvCreateServiceTest {
         request.setReason("Hàng lỗi");
 
         when(receiptRepository.findById(1L)).thenReturn(Optional.of(qcFailedReceipt));
+        when(receiptRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(qcFailedReceipt));
         when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
         when(adjustmentRepository.existsByReferenceTypeAndReferenceIdAndType(any(), any(), any())).thenReturn(false);
         when(receiptItemRepository.findByReceiptId(1L)).thenReturn(List.of(failedItem));
@@ -257,6 +263,7 @@ class ReceiptRtvCreateServiceTest {
         request.setReason("Lỗi");
 
         when(receiptRepository.findById(1L)).thenReturn(Optional.of(qcFailedReceipt));
+        when(receiptRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(qcFailedReceipt));
         when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
         when(adjustmentRepository.existsByReferenceTypeAndReferenceIdAndType(any(), any(), any())).thenReturn(false);
         when(receiptItemRepository.findByReceiptId(1L)).thenReturn(List.of(failedItem));
@@ -289,6 +296,7 @@ class ReceiptRtvCreateServiceTest {
         request.setReason("Lý do");
 
         when(receiptRepository.findById(1L)).thenReturn(Optional.of(qcFailedReceipt));
+        when(receiptRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(qcFailedReceipt));
         when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
         when(adjustmentRepository.existsByReferenceTypeAndReferenceIdAndType(
                 "RECEIPT", 1L, AdjustmentType.RETURN_TO_VENDOR)).thenReturn(true); // Already exists
@@ -312,6 +320,7 @@ class ReceiptRtvCreateServiceTest {
         request.setReason("Lý do");
 
         when(receiptRepository.findById(1L)).thenReturn(Optional.of(qcFailedReceipt));
+        when(receiptRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(qcFailedReceipt));
         when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
 
         BusinessRuleViolationException ex = assertThrows(BusinessRuleViolationException.class,
@@ -328,6 +337,7 @@ class ReceiptRtvCreateServiceTest {
         request.setReason("Lý do");
 
         when(receiptRepository.findById(1L)).thenReturn(Optional.of(qcFailedReceipt));
+        when(receiptRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(qcFailedReceipt));
         when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
 
         assertThrows(BusinessRuleViolationException.class,
@@ -345,6 +355,7 @@ class ReceiptRtvCreateServiceTest {
         request.setReason("Lý do");
 
         when(receiptRepository.findById(1L)).thenReturn(Optional.of(qcFailedReceipt));
+        when(receiptRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(qcFailedReceipt));
         when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
         when(adjustmentRepository.existsByReferenceTypeAndReferenceIdAndType(any(), any(), any())).thenReturn(false);
         when(receiptItemRepository.findByReceiptId(1L)).thenReturn(List.of()); // Empty
@@ -383,6 +394,7 @@ class ReceiptRtvCreateServiceTest {
         request.setReason("Hàng lỗi trả từ đại lý — trả NCC");
 
         when(receiptRepository.findById(1L)).thenReturn(Optional.of(qcFailedReceipt));
+        when(receiptRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(qcFailedReceipt));
         when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
         when(adjustmentRepository.existsByReferenceTypeAndReferenceIdAndType(
                 "RECEIPT", 1L, AdjustmentType.RETURN_TO_VENDOR)).thenReturn(false);

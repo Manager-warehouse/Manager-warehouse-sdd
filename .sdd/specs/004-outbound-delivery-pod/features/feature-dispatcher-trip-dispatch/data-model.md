@@ -117,6 +117,7 @@
 - Departure increases virtual `IN_TRANSIT` `total_qty` with `reserved_qty = 0`.
 - All inventory updates must keep rows non-negative and pass optimistic locking.
 - Trip completion does not move returned goods back to regular inventory.
+- Returned goods remain in virtual `IN_TRANSIT` until warehouse staff submit returned count/QC, Storekeeper approves quantity/quality, Storekeeper creates a putaway plan, and warehouse staff confirms putaway completion.
 
 ## Delivery
 
