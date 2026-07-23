@@ -295,6 +295,7 @@ public class ReceiptQcService {
                         .id(i.getId())
                         .productId(i.getProduct().getId())
                         .productName(i.getProduct().getName())
+                        .productSku(i.getProduct().getSku())
                         .expectedQty(i.getExpectedQty())
                         .actualQty(i.getActualQty())
                         .sampleQty(i.getSampleQty())
