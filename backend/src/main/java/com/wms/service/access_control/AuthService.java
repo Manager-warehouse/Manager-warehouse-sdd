@@ -227,12 +227,15 @@ public class AuthService {
         return me(savedUser.getEmail());
     }
 
+    private static final int MAX_OTP_ATTEMPTS = 5;
+
     @Transactional
     public void forgotPassword(ForgotPasswordRequest request) {
         userRepository.findByEmail(request.getEmail()).ifPresent(user -> {
             String otp = String.format("%06d", new SecureRandom().nextInt(1_000_000));
             user.setOtpHash(sha256(otp));
             user.setOtpExpiresAt(OffsetDateTime.now().plusMinutes(10));
+            user.setOtpAttemptCount(0);
             userRepository.saveAndFlush(user);
             emailService.sendOtpEmail(user.getEmail(), otp);
         });
@@ -244,17 +247,24 @@ public class AuthService {
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new IllegalArgumentException("OTP_INVALID"));
 
-        if (user.getOtpHash() == null || !user.getOtpHash().equals(sha256(request.getOtp()))) {
-            throw new IllegalArgumentException("OTP_INVALID");
-        }
-
         if (user.getOtpExpiresAt() == null || user.getOtpExpiresAt().isBefore(OffsetDateTime.now())) {
             throw new IllegalArgumentException("OTP_EXPIRED");
+        }
+
+        if (user.getOtpAttemptCount() != null && user.getOtpAttemptCount() >= MAX_OTP_ATTEMPTS) {
+            throw new IllegalArgumentException("OTP_LOCKED");
+        }
+
+        if (user.getOtpHash() == null || !user.getOtpHash().equals(sha256(request.getOtp()))) {
+            user.setOtpAttemptCount((user.getOtpAttemptCount() == null ? 0 : user.getOtpAttemptCount()) + 1);
+            userRepository.save(user);
+            throw new IllegalArgumentException("OTP_INVALID");
         }
 
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
         user.setOtpHash(null);
         user.setOtpExpiresAt(null);
+        user.setOtpAttemptCount(0);
         // Invalidate any active sessions after password reset
         user.setRefreshTokenHash(null);
         user.setRefreshTokenExpiresAt(null);

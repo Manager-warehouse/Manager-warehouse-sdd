@@ -195,6 +195,12 @@ public class GlobalExceptionHandler {
             if (msg.contains("INVALID_CREDENTIALS") || msg.contains("TOKEN_INVALID") || msg.contains("TOKEN_EXPIRED")) {
                 status = HttpStatus.UNAUTHORIZED;
                 code = "UNAUTHORIZED";
+            } else if (msg.contains("OTP_LOCKED")) {
+                status = HttpStatus.TOO_MANY_REQUESTS;
+                code = "OTP_LOCKED";
+            } else if (msg.contains("OTP_EXPIRED") || msg.contains("OTP_INVALID")) {
+                status = HttpStatus.BAD_REQUEST;
+                code = msg;
             } else if (msg.contains("DUPLICATE") || msg.contains("ALREADY_EXISTS")) {
                 status = HttpStatus.CONFLICT;
                 code = "DUPLICATE_RESOURCE";
