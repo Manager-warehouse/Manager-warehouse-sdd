@@ -154,10 +154,11 @@ Expected result:
 Expected sequence:
 
 1. Warehouse staff opens the returned Delivery Order in `RETURNED`.
-2. Warehouse staff submits returned quantity count and quality inspection results by item/product/batch.
-3. Storekeeper reviews and approves the returned quantity and quality result.
-4. Storekeeper creates a putaway plan selecting the destination warehouse location for the returned goods.
-5. Warehouse staff confirms the returned goods were put away successfully according to the plan.
+2. Frontend calls `GET /api/v1/delivery-orders/{doId}/returned-goods` to resume the returned-goods flow if staff has already submitted count/QC.
+3. Warehouse staff submits returned quantity count and quality inspection results by item/product/batch with `PUT /api/v1/delivery-orders/{doId}/returned-goods/count-qc`.
+4. Storekeeper reviews and approves the returned quantity and quality result with `PUT /api/v1/delivery-orders/{doId}/returned-goods/approval`.
+5. Storekeeper creates a putaway plan selecting the destination warehouse location with `PUT /api/v1/delivery-orders/{doId}/returned-goods/putaway-plan`.
+6. Warehouse staff confirms the returned goods were put away successfully with `PUT /api/v1/delivery-orders/{doId}/returned-goods/putaway-complete`.
 
 Expected result:
 
@@ -202,14 +203,14 @@ Expected result:
 - Service test: trip completion only works when every assigned Delivery Order is `COMPLETED` or `RETURNED`.
 - Service test: returned goods flow keeps Delivery Order `RETURNED` during staff count/QC, Storekeeper approval, and Storekeeper putaway planning.
 - Service test: returned goods putaway completion moves inventory from virtual `IN_TRANSIT` to the Storekeeper-approved location and moves Delivery Order to `DELIVERY_FAILED`.
-- Controller integration test: returned goods count/QC submit, Storekeeper approval, putaway planning, and staff putaway completion endpoints enforce role and state validations.
+- Controller integration test: returned goods flow state read, count/QC submit, Storekeeper approval, putaway planning, and staff putaway completion endpoints enforce role and state validations.
 - Controller integration test: POD upload, OTP request, confirm-delivery, fail-delivery, trip-complete, and admin-reset endpoints return expected happy-path and business-error responses.
 - Frontend test: driver list filters `Tat ca`, `Noi bo`, and `Dai ly` render the expected card subset and type-specific wording.
 
 ## Definition of done reminders
 
 - Never store raw OTP in application persistence.
-- Keep all POD and OTP endpoints documented in OpenAPI.
+- Keep all POD, OTP, and returned-goods endpoints documented in OpenAPI.
 - Do not change inventory for failed delivery; only successful confirmation decrements virtual `IN_TRANSIT`.
 - Ensure every driver and admin action writes audit logs with before/after context.
 - Keep driver list filters read-only: no inventory, delivery attempt, transfer, trip status, resource, or audit mutation occurs when filtering.

@@ -1041,6 +1041,14 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public ReturnedGoodsFlowResponse getReturnedGoodsFlow(Long id, User actor) {
+        DeliveryOrder order = findOrder(id);
+        requireWarehouseScope(actor, order.getWarehouse().getId());
+        return toReturnedGoodsFlowResponse(returnedFlow(order.getId()));
+    }
+
+    @Override
     @Transactional
     public ReturnedGoodsFlowResponse approveReturnedGoods(Long id,
             ReturnedGoodsApprovalRequest request,

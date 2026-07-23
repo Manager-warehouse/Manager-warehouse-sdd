@@ -419,6 +419,20 @@ class DeliveryOrderControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "staff@wms.com", roles = "WAREHOUSE_STAFF")
+    void getReturnedGoodsFlow_success() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(warehouseStaff);
+        when(deliveryOrderService.getReturnedGoodsFlow(100L, warehouseStaff))
+                .thenReturn(returnedFlowResponse(ReturnedDeliveryFlowStatus.COUNT_QC_SUBMITTED,
+                        DeliveryOrderStatus.RETURNED));
+
+        mockMvc.perform(get("/api/v1/delivery-orders/100/returned-goods"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.deliveryOrderStatus").value("RETURNED"))
+                .andExpect(jsonPath("$.flowStatus").value("COUNT_QC_SUBMITTED"));
+    }
+
+    @Test
     @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
     void approveReturnedGoods_rejectsStateError() throws Exception {
         when(currentUserService.getRequiredCurrentUser()).thenReturn(storekeeper);

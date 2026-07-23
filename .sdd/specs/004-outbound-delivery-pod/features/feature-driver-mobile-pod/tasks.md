@@ -145,6 +145,7 @@
 - [X] T083 [US5] Add warehouse-scoped endpoints for staff returned-goods count/QC submission and Storekeeper approval/putaway planning.
 - [X] T084 [US5] Implement returned-goods inventory movement from virtual `IN_TRANSIT` to planned warehouse location on staff putaway completion with optimistic locking and non-negative validation.
 - [X] T085 [US5] Add audit logs for `RETURN_FLOW_COUNT_QC_SUBMIT`, `RETURN_FLOW_APPROVE`, `RETURN_FLOW_PUTAWAY_PLAN`, and `RETURN_FLOW_PUTAWAY_COMPLETE`.
+- [X] T086 [US5] Add warehouse-scoped `GET /api/v1/delivery-orders/{doId}/returned-goods` contract and frontend resume behavior for the current returned-goods flow step.
 
 ---
 

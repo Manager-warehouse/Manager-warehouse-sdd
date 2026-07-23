@@ -1222,6 +1222,47 @@ class DeliveryOrderServiceImplTest {
     }
 
     @Test
+    void approveReturnedGoods_marksFlowApprovedAfterCompleteCountQc() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.RETURNED);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("8.00"));
+        ReturnedDeliveryFlow flow = returnedFlow(order, item, ReturnedDeliveryFlowStatus.COUNT_QC_SUBMITTED,
+                new BigDecimal("8.00"), new BigDecimal("8.00"), ReturnedGoodsQualityResult.PASSED, null);
+
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
+        when(returnedDeliveryFlowRepository.findByDeliveryOrderId(100L)).thenReturn(Optional.of(flow));
+        when(returnedDeliveryFlowRepository.save(any(ReturnedDeliveryFlow.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ReturnedGoodsFlowResponse response = service.approveReturnedGoods(100L, new ReturnedGoodsApprovalRequest(), storekeeper);
+
+        assertThat(response.getFlowStatus()).isEqualTo(ReturnedDeliveryFlowStatus.APPROVED);
+        assertThat(order.getStatus()).isEqualTo(DeliveryOrderStatus.RETURNED);
+        assertThat(flow.getApprovedByStorekeeper()).isEqualTo(storekeeper);
+    }
+
+    @Test
+    void planReturnedGoodsPutaway_setsStorekeeperDestinationLocation() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.RETURNED);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("8.00"));
+        ReturnedDeliveryFlow flow = returnedFlow(order, item, ReturnedDeliveryFlowStatus.APPROVED,
+                new BigDecimal("8.00"), new BigDecimal("8.00"), ReturnedGoodsQualityResult.PASSED, null);
+
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
+        when(returnedDeliveryFlowRepository.findByDeliveryOrderId(100L)).thenReturn(Optional.of(flow));
+        when(entityManager.find(WarehouseLocation.class, 801L)).thenReturn(bin);
+        when(returnedDeliveryFlowRepository.save(any(ReturnedDeliveryFlow.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ReturnedGoodsFlowResponse response = service.planReturnedGoodsPutaway(
+                100L, returnedPutawayPlanRequest(new BigDecimal("8.00")), storekeeper);
+
+        assertThat(response.getFlowStatus()).isEqualTo(ReturnedDeliveryFlowStatus.PUTAWAY_PLANNED);
+        assertThat(response.getItems().get(0).getDestinationLocationId()).isEqualTo(801L);
+        assertThat(flow.getPutawayPlannedByStorekeeper()).isEqualTo(storekeeper);
+        assertThat(flow.getItems().get(0).getPlannedQty()).isEqualByComparingTo("8.00");
+    }
+
+    @Test
     void completeReturnedGoodsPutaway_movesInventoryBackAndMarksDeliveryFailed() {
         DeliveryOrder order = order(100L, DeliveryOrderStatus.RETURNED);
         DeliveryOrderItem item = item(order, product, new BigDecimal("8.00"));
@@ -1380,6 +1421,18 @@ class DeliveryOrderServiceImplTest {
         item.setQualityReason(qualityResult == ReturnedGoodsQualityResult.FAILED ? "Damaged on return" : null);
         ReturnedGoodsCountQcRequest request = new ReturnedGoodsCountQcRequest();
         request.setItems(List.of(item));
+        return request;
+    }
+
+    private ReturnedGoodsPutawayPlanRequest returnedPutawayPlanRequest(BigDecimal plannedQty) {
+        ReturnedGoodsPutawayPlanItemRequest item = new ReturnedGoodsPutawayPlanItemRequest();
+        item.setDoItemId(200L);
+        item.setBatchId(71L);
+        item.setDestinationLocationId(801L);
+        item.setPlannedQty(plannedQty);
+        ReturnedGoodsPutawayPlanRequest request = new ReturnedGoodsPutawayPlanRequest();
+        request.setItems(List.of(item));
+        request.setNotes("Plan returned goods putaway");
         return request;
     }
 
