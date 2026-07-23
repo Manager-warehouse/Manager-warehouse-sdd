@@ -66,8 +66,13 @@ apiClient.interceptors.response.use(
         const response = await axios.post('/api/v1/auth/refresh', {
           refreshToken: sessionStorage.getItem('wms_refresh_token')
         });
-        const { accessToken } = response.data;
+        const { accessToken, refreshToken } = response.data;
         sessionStorage.setItem('wms_token', accessToken);
+        // Backend rotates the refresh token on every use; persist the new
+        // one or the next refresh call will be replaying an invalidated token.
+        if (refreshToken) {
+          sessionStorage.setItem('wms_refresh_token', refreshToken);
+        }
         apiClient.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
         return apiClient(originalRequest);
       } catch (refreshError) {
