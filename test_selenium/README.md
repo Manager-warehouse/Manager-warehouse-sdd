@@ -11,25 +11,29 @@ Thư mục `test_selenium` chứa bộ kịch bản kiểm thử tự động En
 ## 3. Cấu trúc Thư mục
 ```text
 test_selenium/
-├── config/              # Cấu hình môi trường (staging_url, credentials, browser options)
-├── drivers/             # ChromeDriver / Selenium Manager
-├── pages/               # Page Object Model (POM) cho từng màn hình WMS
-│   ├── LoginPage.py
-│   ├── ProductPage.py
-│   ├── ReceiptPage.py
-│   ├── DeliveryPage.py
-│   └── TransferPage.py
-├── tests/               # Các kịch bản test theo 10 Module WMS
-│   ├── test_001_auth.py
-│   ├── test_002_mdm.py
-│   ├── test_003_receipt.py
-│   └── ...
-├── utils/               # Excel report writer, screenshot capturer, logger
-└── requirements.txt     # Dependencies (selenium, pytest, openpyxl, webdriver-manager)
+├── config/              # config.py: APP_URL/API_URL, headless flag, role credentials (env-overridable)
+├── pages/               # Page Object Model (POM)
+│   ├── base_page.py     # BasePage: find/click/type/is_visible helpers
+│   └── wms_pages.py      # LoginPage + generic ModulePage.check_page_loaded()
+├── run_selenium_round2.py  # Runner: logs in per module's required role, verifies
+│                           # the module landing page isn't bounced to /login or /forbidden
+├── utils/               # excel_reporter.py (writes test_final.xlsx/result_test.md),
+│                         # error_tracer.py (selenium_error_report.md/.xlsx)
+└── requirements.txt     # selenium, webdriver-manager, pytest, openpyxl, requests
 ```
 
 ## 4. Hướng dẫn chạy Test
 ```bash
 pip install -r test_selenium/requirements.txt
-pytest test_selenium/tests/ --html=test_selenium/report.html
+python test_selenium/run_selenium_round2.py
 ```
+
+Mặc định dùng `admin@phucanh.vn` cho module Auth/RBAC và `ceo@phucanh.vn`
+cho 9 module còn lại (CEO có quyền truy cập gần như mọi route theo
+`AppRoutes.jsx`). Có thể override bằng biến môi trường
+`WMS_ADMIN_EMAIL`/`WMS_ADMIN_PASSWORD`/`WMS_CEO_EMAIL`/`WMS_CEO_PASSWORD`
+nếu tài khoản thật khác.
+
+Đây là smoke test ở mức trang (đăng nhập đúng role, vào được trang module
+mà không bị bounce về `/login` hoặc `/forbidden`) — không thực thi từng
+assertion nghiệp vụ chi tiết của mỗi dòng test case trong `test_final.xlsx`.

@@ -9,7 +9,9 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Application URLs
-APP_URL = os.environ.get("WMS_APP_URL", "http://localhost:3000")
+# frontend/vite.config.js hardcodes the dev server to port 3001; 3000 is
+# assumed to be a separate deployed/live instance, not `npm run dev`.
+APP_URL = os.environ.get("WMS_APP_URL", "http://localhost:3001")
 API_URL = os.environ.get("WMS_API_URL", "http://localhost:8080/api/v1")
 
 # Excel Report Path
@@ -22,15 +24,15 @@ EXPLICIT_WAIT = 10  # seconds
 IMPLICIT_WAIT = 5   # seconds
 
 # Test Users
+# Login is by email (see frontend/src/pages/Auth/Login.jsx), not a "username".
+# ADMIN_USER only unlocks /admin/users, /admin/config, /admin/audit-logs per
+# AppRoutes.jsx RBAC. CEO_USER is used for the other 9 modules because CEO is
+# allowed on nearly every protected route.
 ADMIN_USER = {
-    "username": "admin",
-    "password": "Password123!",
+    "username": os.environ.get("WMS_ADMIN_EMAIL", "admin@phucanh.vn"),
+    "password": os.environ.get("WMS_ADMIN_PASSWORD", "password123"),
 }
-MANAGER_USER = {
-    "username": "wh_manager_hp",
-    "password": "Password123!",
-}
-STOREKEEPER_USER = {
-    "username": "storekeeper_hp",
-    "password": "Password123!",
+CEO_USER = {
+    "username": os.environ.get("WMS_CEO_EMAIL", "ceo@phucanh.vn"),
+    "password": os.environ.get("WMS_CEO_PASSWORD", "password123"),
 }
