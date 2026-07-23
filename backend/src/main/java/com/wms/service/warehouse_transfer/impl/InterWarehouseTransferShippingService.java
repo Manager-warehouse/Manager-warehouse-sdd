@@ -507,6 +507,12 @@ public class InterWarehouseTransferShippingService {
         if (!Boolean.TRUE.equals(transfer.isReturned())) {
             throw new BusinessRuleViolationException("TRANSFER_NOT_RETURNED_LEG");
         }
+        if (actor.getRole() != UserRole.STOREKEEPER
+                && actor.getRole() != UserRole.WAREHOUSE_MANAGER
+                && actor.getRole() != UserRole.ADMIN
+                && actor.getRole() != UserRole.CEO) {
+            throw new BusinessRuleViolationException("RETURN_HANDOVER_STOREKEEPER_REQUIRED");
+        }
         helper.ensureWarehouseScope(actor, transfer.getSourceWarehouse().getId());
         if (transfer.getReturnArrivedAt() == null) {
             throw new BusinessRuleViolationException("RETURN_ARRIVE_REQUIRED");

@@ -691,14 +691,20 @@ class InterWarehouseTransferServiceImplTest {
         InterWarehouseTransferResponse response = service.returnToSource(1L, req, destinationManager);
         assertThat(response.isReturned()).isTrue();
 
-        // T058: Execute return leg steps: driver departs, arrives, and hands over back to source warehouse
+        // T058: Execute return leg steps: driver departs, arrives, and storekeeper hands over back to source warehouse
         service.returnDepart(1L, driverUser);
         service.returnArrive(1L, driverUser);
 
         User sourceWorker = user(999L, UserRole.WAREHOUSE_STAFF);
+        User sourceStorekeeper = user(1000L, UserRole.STOREKEEPER);
         assignments.put(sourceWorker.getId(), List.of(sourceWarehouse.getId()));
+        assignments.put(sourceStorekeeper.getId(), List.of(sourceWarehouse.getId()));
 
-        service.returnHandover(1L, new LoadHandoverRequest("return_handover.jpg"), sourceWorker);
+        assertThatThrownBy(() -> service.returnHandover(1L, new LoadHandoverRequest("return_handover.jpg"), sourceWorker))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("RETURN_HANDOVER_STOREKEEPER_REQUIRED");
+
+        service.returnHandover(1L, new LoadHandoverRequest("return_handover.jpg"), sourceStorekeeper);
 
         assertThatThrownBy(() -> service.receiveCount(1L, new InterWarehouseTransferReceiveCountRequest(List.of(
                 new InterWarehouseTransferReceiveCountItemRequest(transferItem.getId(), new BigDecimal("5.00"),

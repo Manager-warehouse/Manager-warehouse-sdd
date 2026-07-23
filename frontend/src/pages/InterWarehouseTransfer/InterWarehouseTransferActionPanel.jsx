@@ -679,7 +679,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
           {transfer.returnArrivedAt && !transfer.returnArrivalHandoverAt && (
             <div className="border border-hairline-light rounded p-3 bg-canvas-cream flex flex-col gap-2">
               <div className="text-xs font-semibold text-ink">BƯỚC 3: BÀN GIAO QUAY ĐẦU TẠI KHO NGUỒN</div>
-              {hasAny(hasRole, [ROLES.WAREHOUSE_STAFF, ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]) && canManageSourceWarehouse ? (
+              {hasAny(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]) && canManageSourceWarehouse ? (
                 <>
                   <PhotoCaptureInput
                     label="Ảnh bàn giao quay đầu"
@@ -696,7 +696,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
                   }}>Xác nhận Nhận bàn giao quay đầu</Button>
                 </>
               ) : (
-                <div className="text-xs text-warning-700 italic">Đang chờ kho nguồn xác nhận bàn giao quay đầu...</div>
+                <div className="text-xs text-warning-700 italic">Đang chờ thủ kho kho nguồn xác nhận bàn giao quay đầu...</div>
               )}
             </div>
           )}
