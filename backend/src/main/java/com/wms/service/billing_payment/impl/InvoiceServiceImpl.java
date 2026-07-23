@@ -80,6 +80,13 @@ public class InvoiceServiceImpl implements InvoiceService {
         return toResponse(savedInvoice);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public InvoiceResponse getInvoiceById(Long id, User actor) {
+        requireAccountantOrManager(actor);
+        Invoice invoice = invoiceRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Invoice not found with id: " + id));
+        return toResponse(invoice);
     }
 
     @Override
