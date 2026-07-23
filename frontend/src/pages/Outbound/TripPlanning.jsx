@@ -19,6 +19,14 @@ const TRIP_STATUS_MAP = {
   CANCELLED: { label: 'Đã hủy', color: 'bg-danger-50 text-danger-700 border-danger-200' },
 };
 
+const DELIVERY_ORDER_STATUS_LABELS = {
+  WAREHOUSE_APPROVED: 'Đã duyệt xuất kho',
+  IN_TRANSIT: 'Đang giao',
+  COMPLETED: 'Hoàn thành',
+  DELIVERY_FAILED: 'Giao thất bại',
+  RETURNED: 'Đã hoàn hàng',
+};
+
 const emptyForm = { vehicle_id: '', driver_id: '', planned_start_at: '', planned_end_at: '', notes: '', delivery_orders: [] };
 
 const getTripStatusBadge = (status) => {
@@ -280,6 +288,10 @@ export default function TripPlanning() {
       <Modal isOpen={!!detailTrip} onClose={closeDetailModal} title={detailTrip?.trip_number ?? 'Chi tiết chuyến xe'} maxWidth="max-w-2xl">
         {detailTrip && (
           <div className="flex flex-col gap-6">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-widest text-shade-40">Trạng thái chuyến xe</span>
+              {getTripStatusBadge(detailTrip.status)}
+            </div>
             <div className="grid grid-cols-2 gap-3">
               {[
                 { label: 'Biển số xe', value: detailTrip.vehicle_plate || '-', icon: <Truck className="w-3.5 h-3.5" /> },
@@ -315,7 +327,9 @@ export default function TripPlanning() {
                         <p className="text-sm font-bold text-ink">{stop.dealer_name || stop.do_number}</p>
                         <p className="text-xs text-shade-40 mt-0.5 font-mono">{stop.do_number}</p>
                       </div>
-                      <div className="shrink-0 text-xs font-semibold text-shade-50">{stop.raw_status || stop.status || '-'}</div>
+                      <div className="shrink-0 text-xs font-semibold text-shade-50">
+                        {DELIVERY_ORDER_STATUS_LABELS[stop.raw_status || stop.status] || stop.raw_status || stop.status || '-'}
+                      </div>
                     </div>
                   ))}
                 </div>

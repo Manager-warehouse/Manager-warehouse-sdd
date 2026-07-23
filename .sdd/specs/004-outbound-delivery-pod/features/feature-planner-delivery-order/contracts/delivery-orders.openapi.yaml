@@ -216,17 +216,3 @@ components:
             - INVENTORY_VERSION_CONFLICT
         message:
           type: string
-        suggestedWarehouses:
-          type: array
-          items:
-            $ref: "#/components/schemas/WarehouseStockSuggestion"
-    WarehouseStockSuggestion:
-      type: object
-      properties:
-        warehouseId:
-          type: integer
-          format: int64
-        warehouseCode:
-          type: string
-        availableQty:
-          type: number

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { financeService } from '../../services/finance.service';
 import { masterDataService } from '../../services/masterData.service';
 import { useUiStore } from '../../stores/ui.store';
@@ -6,294 +7,432 @@ import { useAuthStore } from '../../stores/auth.store';
 import { ROLES } from '../../utils/constants';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
-import { FileText, BellRing, CalendarDays, Eye, Lock, CheckCircle2, AlertTriangle, Image as ImageIcon, PenTool } from 'lucide-react';
+import PhotoCaptureInput from '../../components/common/PhotoCaptureInput';
+import { FileText, Landmark, BellRing, ShieldAlert, Plus, Eye, Image as ImageIcon, PenTool, UploadCloud, CheckCircle2 } from 'lucide-react';
+
+const OCR_LOW_CONFIDENCE_THRESHOLD = 0.75;
 
 const DealerDebtInvoice = () => {
   const { addToast } = useUiStore();
-  const { user, hasRole } = useAuthStore();
-  const isManager = hasRole(ROLES.ACCOUNTANT_MANAGER) || hasRole(ROLES.ADMIN);
+  const { hasRole } = useAuthStore();
+  const isAccountant = hasRole(ROLES.ACCOUNTANT) || hasRole(ROLES.ADMIN);
 
-  const [activeTab, setActiveTab] = useState('notifications');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab') || 'notifications';
+  const [activeTab, setActiveTab] = useState(initialTab); // 'notifications' | 'invoices' | 'payments'
   const [loading, setLoading] = useState(false);
-  
+
   // Data States
+  const [dealers, setDealers] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [invoices, setInvoices] = useState([]);
-  const [periods, setPeriods] = useState([]);
-  const [dealers, setDealers] = useState([]);
+  const [paymentReceipts, setPaymentReceipts] = useState([]);
 
-  // Filters
-  const [selectedDealer, setSelectedDealer] = useState('ALL');
-  const [selectedStatus, setSelectedStatus] = useState('ALL');
-
-  // Modal States
-  const [showPodModal, setShowPodModal] = useState(false);
+  // Modal States - Create Invoice from Delivery Notification
+  const [showCreateInvoiceModal, setShowCreateInvoiceModal] = useState(false);
   const [selectedNotif, setSelectedNotif] = useState(null);
-
-  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
-  const [invoiceForm, setInvoiceForm] = useState({
-    doId: null,
-    doNumber: '',
+  const [invoiceFormData, setInvoiceFormData] = useState({
+    doId: '',
     documentDate: new Date().toISOString().slice(0, 10),
     notes: ''
   });
 
-  const [showClosePeriodModal, setShowClosePeriodModal] = useState(false);
-  const [selectedPeriod, setSelectedPeriod] = useState(null);
-  const [closePeriodNotes, setClosePeriodNotes] = useState('');
+  // Modal States - POD View
+  const [showPodModal, setShowPodModal] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
 
-  const loadInitialData = useCallback(async () => {
+  // Modal States - Create Payment Receipt & OCR
+  const [showCreatePaymentModal, setShowCreatePaymentModal] = useState(false);
+  const [selectedInvoiceForPayment, setSelectedInvoiceForPayment] = useState(null);
+  const [paymentFormData, setPaymentFormData] = useState({
+    dealerId: '',
+    invoiceId: '',
+    amount: '',
+    paymentDate: new Date().toISOString().slice(0, 10),
+    paymentMethod: 'BANK_TRANSFER',
+    notes: ''
+  });
+
+  // OCR States for AR Receipt Scan
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const [ocrFileName, setOcrFileName] = useState('');
+  const [ocrConfidence, setOcrConfidence] = useState(null);
+  const [ocrResetKey, setOcrResetKey] = useState(0);
+  const ocrLowConfidence = ocrConfidence !== null && ocrConfidence < OCR_LOW_CONFIDENCE_THRESHOLD;
+
+  // Sync tab with search param if changed externally
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam && ['notifications', 'invoices', 'payments'].includes(tabParam)) {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
+
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    setSearchParams({ tab });
+  };
+
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const dealersList = await masterDataService.getDealers();
+      const [dealersList, invs] = await Promise.all([
+        masterDataService.getDealers(),
+        financeService.getInvoices()
+      ]);
       setDealers(dealersList || []);
+      setInvoices(invs || []);
 
       if (activeTab === 'notifications') {
         const notifs = await financeService.getBillingNotifications();
         setNotifications(notifs || []);
-      } else if (activeTab === 'invoices') {
-        const filters = {};
-        if (selectedDealer !== 'ALL') filters.dealerId = selectedDealer;
-        if (selectedStatus !== 'ALL') filters.status = selectedStatus;
-        const invs = await financeService.getInvoices(filters);
-        setInvoices(invs || []);
-      } else if (activeTab === 'periods') {
-        const perds = await financeService.getAccountingPeriods();
-        setPeriods(perds || []);
+      } else if (activeTab === 'payments') {
+        const pmts = await financeService.getPaymentReceipts();
+        setPaymentReceipts(pmts || []);
       }
     } catch (err) {
-      console.error('Error loading finance data:', err);
-      addToast('Không thể tải dữ liệu tài chính', 'error');
+      console.error('Failed to load AR finance data:', err);
+      addToast('Không thể tải dữ liệu hóa đơn bán hàng', 'error');
     } finally {
       setLoading(false);
     }
-  }, [activeTab, selectedDealer, selectedStatus, addToast]);
+  }, [activeTab, addToast]);
 
   useEffect(() => {
-    loadInitialData();
-  }, [loadInitialData]);
+    loadData();
+  }, [loadData]);
 
-  // Handle Invoice Creation
-  const handleOpenInvoiceModal = (notif) => {
-    setInvoiceForm({
-      doId: notif.do_id,
-      doNumber: notif.do_number,
+  // Open modal to create invoice from delivery notification
+  const handleOpenCreateInvoice = (notif) => {
+    setSelectedNotif(notif);
+    setInvoiceFormData({
+      doId: notif.do_id || notif.doId,
       documentDate: new Date().toISOString().slice(0, 10),
+      notes: `Lập hóa đơn bán hàng cho đơn xuất ${notif.do_number || notif.doNumber}`
+    });
+    setShowCreateInvoiceModal(true);
+  };
+
+  const handleSubmitInvoice = async (e) => {
+    e.preventDefault();
+    try {
+      await financeService.createInvoice(invoiceFormData.doId, invoiceFormData.documentDate, invoiceFormData.notes);
+      addToast('Lập Hóa đơn Bán hàng & Ghi nhận nợ Đại lý thành công!', 'success');
+      setShowCreateInvoiceModal(false);
+      loadData();
+    } catch (err) {
+      console.error('Create invoice failed:', err);
+      addToast(err.message || 'Không thể tạo hóa đơn bán hàng', 'error');
+    }
+  };
+
+  // Open modal to create payment receipt for specific invoice
+  const handleOpenCreatePayment = (inv) => {
+    setSelectedInvoiceForPayment(inv);
+    const remaining = Number(inv.total_amount || inv.totalAmount || 0) - Number(inv.paid_amount || inv.paidAmount || 0);
+    setPaymentFormData({
+      dealerId: String(inv.dealer_id || inv.dealerId || ''),
+      invoiceId: String(inv.id),
+      amount: String(remaining > 0 ? remaining : (inv.total_amount || inv.totalAmount || 0)),
+      paymentDate: new Date().toISOString().slice(0, 10),
+      paymentMethod: 'BANK_TRANSFER',
+      notes: `Thu tiền hóa đơn ${inv.invoice_number || inv.invoiceNumber}`
+    });
+    setOcrFileName('');
+    setOcrConfidence(null);
+    setOcrResetKey(prev => prev + 1);
+    setShowCreatePaymentModal(true);
+  };
+
+  // Open modal standalone
+  const handleOpenCreatePaymentStandalone = () => {
+    setSelectedInvoiceForPayment(null);
+    const initialDealerId = dealers.length > 0 ? String(dealers[0].id) : '';
+    let initialInvoiceId = '';
+    let initialAmount = '';
+
+    if (initialDealerId) {
+      const unpaidInvs = invoices.filter(inv =>
+        String(inv.dealer_id || inv.dealerId) === String(initialDealerId) && inv.status !== 'PAID'
+      );
+      if (unpaidInvs.length > 0) {
+        initialInvoiceId = String(unpaidInvs[0].id);
+        const remaining = Number(unpaidInvs[0].total_amount || unpaidInvs[0].totalAmount || 0) - Number(unpaidInvs[0].paid_amount || unpaidInvs[0].paidAmount || 0);
+        initialAmount = String(remaining > 0 ? remaining : (unpaidInvs[0].total_amount || unpaidInvs[0].totalAmount || 0));
+      }
+    }
+
+    setPaymentFormData({
+      dealerId: initialDealerId,
+      invoiceId: initialInvoiceId,
+      amount: initialAmount,
+      paymentDate: new Date().toISOString().slice(0, 10),
+      paymentMethod: 'BANK_TRANSFER',
       notes: ''
     });
-    setShowInvoiceModal(true);
+    setOcrFileName('');
+    setOcrConfidence(null);
+    setOcrResetKey(prev => prev + 1);
+    setShowCreatePaymentModal(true);
   };
 
-  const handleCreateInvoice = async (e) => {
-    e.preventDefault();
-    try {
-      await financeService.createInvoice(
-        invoiceForm.doId,
-        invoiceForm.documentDate,
-        invoiceForm.notes
+  const handleDealerChangeInPayment = (dId) => {
+    let autoInvoiceId = '';
+    let autoAmount = '';
+    if (dId) {
+      const unpaidInvs = invoices.filter(inv =>
+        String(inv.dealer_id || inv.dealerId) === String(dId) && inv.status !== 'PAID'
       );
-      addToast('Lập hóa đơn thành công và ghi nhận công nợ đại lý', 'success');
-      setShowInvoiceModal(false);
-      loadInitialData();
-    } catch (err) {
-      console.error('Invoice creation failed:', err);
-      addToast(err.message || 'Không thể lập hóa đơn', 'error');
+      if (unpaidInvs.length > 0) {
+        autoInvoiceId = String(unpaidInvs[0].id);
+        const remaining = Number(unpaidInvs[0].total_amount || unpaidInvs[0].totalAmount || 0) - Number(unpaidInvs[0].paid_amount || unpaidInvs[0].paidAmount || 0);
+        autoAmount = String(remaining > 0 ? remaining : (unpaidInvs[0].total_amount || unpaidInvs[0].totalAmount || 0));
+      }
     }
+    setPaymentFormData(prev => ({
+      ...prev,
+      dealerId: dId,
+      invoiceId: autoInvoiceId,
+      amount: autoAmount || prev.amount
+    }));
   };
 
-  // Handle Period Closing
-  const handleOpenClosePeriodModal = (period) => {
-    setSelectedPeriod(period);
-    setClosePeriodNotes('');
-    setShowClosePeriodModal(true);
+  const handleInvoiceChangeInPayment = (invId) => {
+    const selectedInv = invoices.find(i => String(i.id) === String(invId));
+    let newAmount = paymentFormData.amount;
+    if (selectedInv) {
+      const remaining = Number(selectedInv.total_amount || selectedInv.totalAmount || 0) - Number(selectedInv.paid_amount || selectedInv.paidAmount || 0);
+      newAmount = String(remaining > 0 ? remaining : (selectedInv.total_amount || selectedInv.totalAmount || 0));
+    }
+    setPaymentFormData(prev => ({
+      ...prev,
+      invoiceId: invId,
+      amount: newAmount
+    }));
   };
 
-  const handleClosePeriod = async (e) => {
-    e.preventDefault();
+  // OCR Upload AR Payment Receipt
+  const handleOcrFileSelected = async (file) => {
+    if (!file) return;
+
+    if (!['image/png', 'image/jpeg', 'image/jpg'].includes(file.type)) {
+      addToast('Chỉ hỗ trợ file ảnh PNG, JPEG, JPG', 'error');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      addToast('Dung lượng ảnh tối đa 5MB', 'error');
+      return;
+    }
+
+    setOcrLoading(true);
+    setOcrFileName(file.name);
+    setOcrConfidence(null);
     try {
-      await financeService.closeAccountingPeriod(selectedPeriod.id, closePeriodNotes);
-      addToast(`Đã khóa thành công kỳ kế toán ${selectedPeriod.period_name}`, 'success');
-      setShowClosePeriodModal(false);
-      loadInitialData();
+      const result = await financeService.scanPaymentReceiptOcr(file);
+      const matchedDealerId = result.dealer_id || result.dealerId ? String(result.dealer_id || result.dealerId) : paymentFormData.dealerId;
+
+      let matchedInvoiceId = '';
+      if (matchedDealerId) {
+        const unpaidInvs = invoices.filter(inv =>
+          String(inv.dealer_id || inv.dealerId) === String(matchedDealerId) && inv.status !== 'PAID'
+        );
+        if (unpaidInvs.length > 0) {
+          matchedInvoiceId = String(unpaidInvs[0].id);
+        }
+      }
+
+      setPaymentFormData(prev => ({
+        ...prev,
+        dealerId: matchedDealerId || prev.dealerId,
+        invoiceId: matchedInvoiceId || prev.invoiceId,
+        amount: result.amount ? String(result.amount) : prev.amount,
+        paymentDate: result.payment_date || result.paymentDate || prev.paymentDate,
+        notes: result.notes || prev.notes
+      }));
+      setOcrConfidence(result.confidence_score ?? result.confidenceScore ?? null);
+
+      const confidencePercent = Math.round((result.confidence_score || result.confidenceScore || 0) * 100);
+      if ((result.confidence_score ?? result.confidenceScore ?? 1) < OCR_LOW_CONFIDENCE_THRESHOLD) {
+        addToast(`Độ tin cậy nhận diện thấp (${confidencePercent}%). Vui lòng kiểm tra kỹ số tiền thu.`, 'warning');
+      } else {
+        addToast(`Quét OCR hóa đơn thành công! Độ chính xác: ${confidencePercent}%`, 'success');
+      }
     } catch (err) {
-      console.error('Period close failed:', err);
-      addToast(err.message || 'Không thể đóng kỳ kế toán dở dang', 'error');
+      console.error('OCR AR scan failed:', err);
+      addToast(err.message || 'Không thể quét OCR hóa đơn thu nợ', 'error');
+      setOcrFileName('');
+    } finally {
+      setOcrLoading(false);
     }
   };
+
+  const handleSubmitPayment = async (e) => {
+    e.preventDefault();
+    if (!paymentFormData.dealerId) {
+      addToast('Vui lòng chọn Đại lý nộp tiền', 'error');
+      return;
+    }
+    if (!paymentFormData.invoiceId) {
+      addToast('Vui lòng chọn Hóa đơn cần cấn trừ', 'error');
+      return;
+    }
+    if (Number(paymentFormData.amount) <= 0) {
+      addToast('Số tiền thu phải lớn hơn 0', 'error');
+      return;
+    }
+    try {
+      await financeService.createPaymentReceipt(paymentFormData);
+      addToast('Ghi nhận Phiếu thu và cấn trừ công nợ thành công!', 'success');
+      setShowCreatePaymentModal(false);
+      loadData();
+    } catch (err) {
+      console.error('Create AR payment failed:', err);
+      addToast(err.message || 'Không thể ghi nhận phiếu thu', 'error');
+    }
+  };
+
+  const availableInvoicesForDealer = invoices.filter(inv =>
+    String(inv.dealer_id || inv.dealerId) === String(paymentFormData.dealerId) &&
+    inv.status !== 'PAID'
+  );
 
   return (
-    <div className="flex flex-col gap-5 md:gap-6 min-w-0">
-      <div>
-        <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
-          Tài chính & Kế toán
-        </span>
-        <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">
-          Hóa đơn & Công nợ Đại lý
-        </h1>
-        <p className="text-xs text-shade-50 font-light mt-1">
-          Quản lý thông báo lập hóa đơn từ đơn hàng đã giao (Proof of Delivery), lập hóa đơn hạch toán công nợ và quản lý các kỳ kế toán.
-        </p>
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
+            Tài chính / Quản lý Phải thu (AR)
+          </span>
+          <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">
+            Hóa đơn Bán hàng & Công nợ Đại lý
+          </h1>
+          <p className="text-xs text-shade-50 font-light mt-1">
+            Tiếp nhận thông báo đơn xuất `DELIVERED`, lập Hóa đơn Bán hàng ghi nhận nợ Đại lý, quét OCR hóa đơn thu tiền và lập Phiếu thu cấn trừ công nợ.
+          </p>
+        </div>
+        {isAccountant && (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="primary"
+              onClick={handleOpenCreatePaymentStandalone}
+              className="flex items-center gap-2 shadow-sm"
+            >
+              <UploadCloud className="w-4 h-4" />
+              Ghi nhận Phiếu thu (Quét OCR)
+            </Button>
+          </div>
+        )}
       </div>
 
-      {/* Tabs Menu */}
-      <div className="grid grid-cols-3 gap-2 border-b border-hairline-light md:flex md:gap-0">
+      {/* Navigation Tabs */}
+      <div className="flex border-b border-hairline-light">
         <button
-          className={`flex flex-col items-center justify-center gap-1 px-2 py-2.5 text-[10px] font-semibold uppercase leading-tight tracking-wider border-b-2 transition-colors md:flex-row md:gap-2 md:px-5 md:py-3 md:text-xs ${
+          className={`flex items-center gap-2 px-5 py-3 text-xs font-semibold uppercase tracking-wider border-b-2 transition-colors ${
             activeTab === 'notifications'
               ? 'border-ink text-ink font-bold'
               : 'border-transparent text-shade-40 hover:text-ink'
           }`}
-          onClick={() => setActiveTab('notifications')}
+          onClick={() => handleTabChange('notifications')}
         >
           <BellRing className="w-4 h-4" />
-          <span className="md:hidden">Chờ lập ({notifications.length})</span>
-          <span className="hidden md:inline">Thông báo lập hóa đơn ({notifications.length})</span>
+          Thông báo Lập Hóa đơn Bán
         </button>
         <button
-          className={`flex flex-col items-center justify-center gap-1 px-2 py-2.5 text-[10px] font-semibold uppercase leading-tight tracking-wider border-b-2 transition-colors md:flex-row md:gap-2 md:px-5 md:py-3 md:text-xs ${
+          className={`flex items-center gap-2 px-5 py-3 text-xs font-semibold uppercase tracking-wider border-b-2 transition-colors ${
             activeTab === 'invoices'
               ? 'border-ink text-ink font-bold'
               : 'border-transparent text-shade-40 hover:text-ink'
           }`}
-          onClick={() => setActiveTab('invoices')}
+          onClick={() => handleTabChange('invoices')}
         >
           <FileText className="w-4 h-4" />
-          <span className="md:hidden">Hóa đơn</span>
-          <span className="hidden md:inline">Danh sách hóa đơn</span>
+          Hóa đơn Bán hàng (SINV)
         </button>
         <button
-          className={`flex flex-col items-center justify-center gap-1 px-2 py-2.5 text-[10px] font-semibold uppercase leading-tight tracking-wider border-b-2 transition-colors md:flex-row md:gap-2 md:px-5 md:py-3 md:text-xs ${
-            activeTab === 'periods'
+          className={`flex items-center gap-2 px-5 py-3 text-xs font-semibold uppercase tracking-wider border-b-2 transition-colors ${
+            activeTab === 'payments'
               ? 'border-ink text-ink font-bold'
               : 'border-transparent text-shade-40 hover:text-ink'
           }`}
-          onClick={() => setActiveTab('periods')}
+          onClick={() => handleTabChange('payments')}
         >
-          <CalendarDays className="w-4 h-4" />
-          <span className="md:hidden">Kỳ kế toán</span>
-          <span className="hidden md:inline">Kỳ kế toán & Khóa sổ</span>
+          <Landmark className="w-4 h-4" />
+          Phiếu thu AR & Quét OCR
         </button>
       </div>
 
-      {/* Main Content Area */}
       {loading ? (
         <div className="flex items-center justify-center py-20 text-shade-50">
           <svg className="animate-spin h-6 w-6 text-ink mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
           </svg>
-          <span>Đang tải dữ liệu...</span>
+          <span>Đang tải dữ liệu Phải thu AR...</span>
         </div>
       ) : (
         <>
+          {/* TAB 1: WORKLIST THÔNG BÁO LẬP HÓA ĐƠN BÁN */}
           {activeTab === 'notifications' && (
             <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 overflow-hidden">
-              <div className="px-4 py-3 bg-canvas-cream border-b border-hairline-light">
+              <div className="p-4 bg-canvas-cream border-b border-hairline-light flex items-center justify-between">
                 <span className="text-xs font-semibold text-shade-60 uppercase tracking-wider">
-                  Đơn hàng đã giao thành công (Chờ lập hóa đơn)
+                  Danh sách Đơn xuất kho đã giao (DELIVERED) chờ lập Hóa đơn
+                </span>
+                <span className="text-[10px] bg-shade-70 text-onPrimary px-2.5 py-0.5 rounded-pill font-bold">
+                  {notifications.filter(n => n.invoice_status === 'NOT_INVOICED').length} Đơn chờ
                 </span>
               </div>
-              <div className="flex flex-col gap-3 p-3 md:hidden">
-                {notifications.length === 0 ? (
-                  <div className="p-6 text-center text-xs text-shade-40 italic">
-                    Không có thông báo giao hàng mới cần lập hóa đơn.
-                  </div>
-                ) : (
-                  notifications.map(notif => (
-                    <div key={notif.id} className="rounded-lg border border-hairline-light bg-canvas-light overflow-hidden">
-                      <div className="flex items-start justify-between gap-3 bg-canvas-cream p-3 border-b border-hairline-light">
-                        <div className="min-w-0">
-                          <div className="font-semibold text-sm text-ink truncate">{notif.do_number}</div>
-                          <div className="text-[10px] text-shade-40">Mã đại lý: #{notif.dealer_id}</div>
-                        </div>
-                        <div className="shrink-0 text-right text-sm font-semibold text-ink">
-                          {(notif.total_amount_estimate || 0).toLocaleString()}đ
-                        </div>
-                      </div>
-                      <div className="p-3 flex flex-col gap-3 text-xs">
-                        <div>
-                          <div className="font-medium text-ink">{notif.dealer_name}</div>
-                          <div className="text-shade-50 mt-1">{new Date(notif.delivered_at).toLocaleString('vi-VN')}</div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <button
-                            onClick={() => {
-                              setSelectedNotif(notif);
-                              setShowPodModal(true);
-                            }}
-                            className="inline-flex min-h-10 items-center justify-center gap-1 rounded-md bg-aloe-10 px-2 text-[11px] font-semibold text-ink"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                            Biên bản giao nhận
-                          </button>
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            onClick={() => handleOpenInvoiceModal(notif)}
-                            disabled={hasRole(ROLES.ACCOUNTANT) === false && hasRole(ROLES.ADMIN) === false}
-                          >
-                            Lập HĐ
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-              <div className="hidden md:block overflow-x-auto">
+
+              <div className="overflow-x-auto">
                 <table className="w-full border-collapse text-left text-xs">
                   <thead>
                     <tr className="bg-canvas-light border-b border-hairline-light text-shade-60 font-semibold uppercase tracking-wider">
-                      <th className="p-4">Số đơn xuất</th>
+                      <th className="p-4">Số Đơn Xuất Kho (DO)</th>
                       <th className="p-4">Đại lý</th>
-                      <th className="p-4">Thời điểm giao</th>
-                      <th className="p-4 text-right">Giá trị ước tính (VND)</th>
-                      <th className="p-4 text-center">Bằng chứng giao hàng</th>
-                      <th className="p-4 text-right">Thao tác</th>
+                      <th className="p-4">Kho xuất</th>
+                      <th className="p-4">Thời gian giao</th>
+                      <th className="p-4 text-right">Ước tính giá trị</th>
+                      <th className="p-4 text-center">Trạng thái HĐ</th>
+                      <th className="p-4 text-center">Thao tác</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-hairline-light">
                     {notifications.length === 0 ? (
                       <tr>
-                        <td colSpan="6" className="p-8 text-center text-shade-40 italic">
-                          Không có thông báo giao hàng mới cần lập hóa đơn.
+                        <td colSpan="7" className="p-8 text-center text-shade-40 italic">
+                          Không có thông báo lập hóa đơn bán hàng nào cần xử lý.
                         </td>
                       </tr>
                     ) : (
                       notifications.map(notif => (
                         <tr key={notif.id} className="hover:bg-canvas-cream/50">
-                          <td className="p-4 font-semibold text-ink">{notif.do_number}</td>
-                          <td className="p-4">
-                            <div className="font-medium text-ink">{notif.dealer_name}</div>
-                            <div className="text-[10px] text-shade-40">Mã đại lý: #{notif.dealer_id}</div>
-                          </td>
-                          <td className="p-4 text-shade-60">
-                            {new Date(notif.delivered_at).toLocaleString('vi-VN')}
-                          </td>
-                          <td className="p-4 text-right font-semibold text-ink">
+                          <td className="p-4 font-bold text-ink">{notif.do_number || notif.doNumber}</td>
+                          <td className="p-4 font-medium text-ink">{notif.dealer_name || notif.dealerName}</td>
+                          <td className="p-4 text-shade-60">Kho #{notif.warehouse_id || notif.warehouseId}</td>
+                          <td className="p-4 text-shade-60">{notif.delivered_at || 'Mới hoàn tất'}</td>
+                          <td className="p-4 text-right font-bold text-ink">
                             {(notif.total_amount_estimate || 0).toLocaleString()}đ
                           </td>
                           <td className="p-4 text-center">
-                            <button
-                              onClick={() => {
-                                setSelectedNotif(notif);
-                                setShowPodModal(true);
-                              }}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-pill bg-aloe-10 text-ink hover:opacity-80 transition-opacity font-semibold text-[10px]"
-                            >
-                              <Eye className="w-3 h-3" />
-                              Xem đối chứng
-                            </button>
+                            <span className={`px-2.5 py-0.5 rounded-pill text-[9px] font-bold uppercase ${
+                              notif.invoice_status === 'INVOICED'
+                                ? 'bg-aloe-10 text-ink'
+                                : 'bg-amber-100 text-amber-800 border border-amber-200'
+                            }`}>
+                              {notif.invoice_status === 'INVOICED' ? 'Đã lập HĐ' : 'Chưa lập HĐ'}
+                            </span>
                           </td>
-                          <td className="p-4 text-right">
-                            <Button
-                              variant="primary"
-                              size="sm"
-                              onClick={() => handleOpenInvoiceModal(notif)}
-                              disabled={hasRole(ROLES.ACCOUNTANT) === false && hasRole(ROLES.ADMIN) === false}
-                            >
-                              Lập hóa đơn
-                            </Button>
+                          <td className="p-4 text-center">
+                            {notif.invoice_status !== 'INVOICED' && isAccountant && (
+                              <Button
+                                size="sm"
+                                variant="primary"
+                                onClick={() => handleOpenCreateInvoice(notif)}
+                              >
+                                <Plus className="w-3.5 h-3.5 mr-1" />
+                                Lập Hóa đơn Bán
+                              </Button>
+                            )}
                           </td>
                         </tr>
                       ))
@@ -304,245 +443,130 @@ const DealerDebtInvoice = () => {
             </div>
           )}
 
+          {/* TAB 2: SỔ HÓA ĐƠN BÁN HÀNG */}
           {activeTab === 'invoices' && (
-            <div className="flex flex-col gap-4">
-              {/* Filters Panel */}
-              <div className="bg-canvas-cream border border-hairline-light rounded-lg p-3 md:p-4 flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center md:gap-4">
-                <div className="flex flex-col gap-1 md:min-w-[200px]">
-                  <label className="text-[10px] font-bold text-shade-60 uppercase tracking-widest">Lọc Đại lý</label>
-                  <select
-                    value={selectedDealer}
-                    onChange={e => setSelectedDealer(e.target.value)}
-                    className="bg-canvas-light text-ink text-xs border border-hairline-light rounded px-3 py-2 outline-none focus:border-shade-60 w-full"
-                  >
-                    <option value="ALL">Tất cả Đại lý</option>
-                    {dealers.map(d => (
-                      <option key={d.id} value={d.id}>{d.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex flex-col gap-1 md:min-w-[150px]">
-                  <label className="text-[10px] font-bold text-shade-60 uppercase tracking-widest">Trạng thái HĐ</label>
-                  <select
-                    value={selectedStatus}
-                    onChange={e => setSelectedStatus(e.target.value)}
-                    className="bg-canvas-light text-ink text-xs border border-hairline-light rounded px-3 py-2 outline-none focus:border-shade-60 w-full"
-                  >
-                    <option value="ALL">Tất cả Trạng thái</option>
-                    <option value="UNPAID">Chưa thanh toán</option>
-                    <option value="PARTIALLY_PAID">Thanh toán một phần</option>
-                    <option value="PAID">Đã thanh toán</option>
-                  </select>
-                </div>
-                <div className="md:ml-auto md:pt-4">
-                  <Button variant="outline-light" onClick={loadInitialData}>Tìm kiếm</Button>
-                </div>
+            <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 overflow-hidden">
+              <div className="p-4 bg-canvas-cream border-b border-hairline-light flex items-center justify-between">
+                <span className="text-xs font-semibold text-shade-60 uppercase tracking-wider">
+                  Sổ Hóa đơn Bán hàng & Dư nợ Phải thu Đại lý
+                </span>
               </div>
 
-              {/* Invoices List Table */}
-              <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 overflow-hidden">
-                <div className="flex flex-col gap-3 p-3 md:hidden">
-                  {invoices.length === 0 ? (
-                    <div className="p-6 text-center text-xs text-shade-40 italic">
-                      Không tìm thấy hóa đơn nào phù hợp với bộ lọc.
-                    </div>
-                  ) : (
-                    invoices.map(inv => (
-                      <div key={inv.id} className="rounded-lg border border-hairline-light bg-canvas-light p-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="font-semibold text-sm text-ink truncate">{inv.invoice_number}</div>
-                            <div className="text-[10px] text-shade-50 truncate">DO: {inv.do_number}</div>
-                          </div>
-                          <span
-                            className={`shrink-0 px-2 py-0.5 rounded-pill text-[9px] font-bold uppercase border ${
-                              inv.status === 'PAID'
-                                ? 'bg-aloe-10 text-ink border-aloe-10'
-                                : inv.status === 'PARTIALLY_PAID'
-                                ? 'bg-yellow-100 text-yellow-800 border-yellow-200'
-                                : 'bg-red-50 text-red-700 border-red-200'
-                            }`}
-                          >
-                            {inv.status === 'PAID' ? 'Đã thu' : inv.status === 'PARTIALLY_PAID' ? 'Trả một phần' : 'Chưa trả'}
-                          </span>
-                        </div>
-                        <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-shade-60">
-                          <div className="col-span-2 font-medium text-ink truncate">{inv.dealer_name}</div>
-                          <div>Phát hành: {inv.issue_date}</div>
-                          <div>Hạn trả: {inv.due_date}</div>
-                          <div className="col-span-2 text-right text-sm font-semibold text-ink">
-                            {(inv.total_amount || 0).toLocaleString()}đ
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-                <div className="hidden md:block overflow-x-auto">
-                  <table className="w-full border-collapse text-left text-xs">
-                    <thead>
-                      <tr className="bg-canvas-light border-b border-hairline-light text-shade-60 font-semibold uppercase tracking-wider">
-                        <th className="p-4">Số hóa đơn</th>
-                        <th className="p-4">Số đơn giao hàng</th>
-                        <th className="p-4">Đại lý</th>
-                        <th className="p-4">Ngày phát hành</th>
-                        <th className="p-4">Hạn thanh toán</th>
-                        <th className="p-4 text-right">Tổng số tiền</th>
-                        <th className="p-4 text-center">Trạng thái</th>
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse text-left text-xs">
+                  <thead>
+                    <tr className="bg-canvas-light border-b border-hairline-light text-shade-60 font-semibold uppercase tracking-wider">
+                      <th className="p-4">Số Hóa đơn</th>
+                      <th className="p-4">Số Đơn giao hàng (DO)</th>
+                      <th className="p-4">Đại lý</th>
+                      <th className="p-4">Ngày phát hành</th>
+                      <th className="p-4">Hạn thanh toán</th>
+                      <th className="p-4 text-right">Tổng số tiền</th>
+                      <th className="p-4 text-center">Trạng thái</th>
+                      <th className="p-4 text-center">Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-hairline-light">
+                    {invoices.length === 0 ? (
+                      <tr>
+                        <td colSpan="8" className="p-8 text-center text-shade-40 italic">
+                          Chưa có hóa đơn bán hàng nào trong hệ thống.
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody className="divide-y divide-hairline-light">
-                      {invoices.length === 0 ? (
-                        <tr>
-                          <td colSpan="7" className="p-8 text-center text-shade-40 italic">
-                            Không tìm thấy hóa đơn nào phù hợp với bộ lọc.
+                    ) : (
+                      invoices.map(inv => (
+                        <tr key={inv.id} className="hover:bg-canvas-cream/50">
+                          <td className="p-4 font-bold text-ink">{inv.invoice_number}</td>
+                          <td className="p-4 font-semibold text-shade-70">{inv.do_number}</td>
+                          <td className="p-4 font-medium text-ink">{inv.dealer_name}</td>
+                          <td className="p-4 text-shade-60">{inv.issue_date}</td>
+                          <td className="p-4 text-shade-60">{inv.due_date}</td>
+                          <td className="p-4 text-right font-bold text-ink">
+                            {(inv.total_amount || 0).toLocaleString()}đ
+                          </td>
+                          <td className="p-4 text-center">
+                            <span className={`px-2.5 py-0.5 rounded-pill text-[9px] font-bold uppercase ${
+                              inv.status === 'PAID'
+                                ? 'bg-aloe-10 text-ink'
+                                : inv.status === 'PARTIALLY_PAID'
+                                ? 'bg-yellow-100 text-yellow-800'
+                                : 'bg-red-100 text-red-700 border border-red-200'
+                            }`}>
+                              {inv.status === 'PAID' ? 'Đã thu' : inv.status === 'PARTIALLY_PAID' ? 'Thu 1 Phần' : 'Chưa thu'}
+                            </span>
+                          </td>
+                          <td className="p-4 text-center flex items-center justify-center gap-2">
+                            <button
+                              onClick={() => { setSelectedInvoice(inv); setShowPodModal(true); }}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-canvas-cream text-ink text-[11px] font-semibold hover:bg-hairline-light"
+                            >
+                              <Eye className="w-3 h-3" />
+                              POD
+                            </button>
+                            {inv.status !== 'PAID' && isAccountant && (
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => handleOpenCreatePayment(inv)}
+                              >
+                                <Landmark className="w-3.5 h-3.5 mr-1" />
+                                Thu tiền
+                              </Button>
+                            )}
                           </td>
                         </tr>
-                      ) : (
-                        invoices.map(inv => (
-                          <tr key={inv.id} className="hover:bg-canvas-cream/50">
-                            <td className="p-4 font-semibold text-ink">{inv.invoice_number}</td>
-                            <td className="p-4 text-shade-60">{inv.do_number}</td>
-                            <td className="p-4 font-medium text-ink">{inv.dealer_name}</td>
-                            <td className="p-4 text-shade-60">{inv.issue_date}</td>
-                            <td className="p-4 text-shade-60">{inv.due_date}</td>
-                            <td className="p-4 text-right font-semibold text-ink">
-                              {(inv.total_amount || 0).toLocaleString()}đ
-                            </td>
-                            <td className="p-4 text-center">
-                              <span
-                                className={`px-2 py-0.5 rounded-pill text-[9px] font-bold uppercase border ${
-                                  inv.status === 'PAID'
-                                    ? 'bg-aloe-10 text-ink border-aloe-10'
-                                    : inv.status === 'PARTIALLY_PAID'
-                                    ? 'bg-yellow-100 text-yellow-800 border-yellow-200'
-                                    : 'bg-red-50 text-red-700 border-red-200'
-                                }`}
-                              >
-                                {inv.status === 'PAID' ? 'Đã thu tiền' : inv.status === 'PARTIALLY_PAID' ? 'Trả một phần' : 'Chưa trả'}
-                              </span>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
 
-          {activeTab === 'periods' && (
+          {/* TAB 3: PHIẾU THU AR & QUÉT OCR */}
+          {activeTab === 'payments' && (
             <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 overflow-hidden">
-              <div className="p-4 bg-canvas-cream border-b border-hairline-light flex flex-col gap-1 md:flex-row md:justify-between md:items-center">
+              <div className="p-4 bg-canvas-cream border-b border-hairline-light flex items-center justify-between">
                 <span className="text-xs font-semibold text-shade-60 uppercase tracking-wider">
-                  Kỳ kế toán hệ thống WMS
-                </span>
-                <span className="text-[10px] text-shade-40 italic">
-                  * Hệ thống chặn mọi chỉnh sửa khi kỳ kế toán ở trạng thái CLOSED
+                  Nhật ký Phiếu thu Công nợ Đại lý
                 </span>
               </div>
-              <div className="flex flex-col gap-3 p-3 md:hidden">
-                {periods.map(period => (
-                  <div key={period.id} className="rounded-lg border border-hairline-light bg-canvas-light p-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="font-semibold text-sm text-ink">{period.period_name}</div>
-                        <div className="text-[11px] text-shade-50 mt-1">
-                          {period.start_date} - {period.end_date}
-                        </div>
-                      </div>
-                      <span
-                        className={`shrink-0 px-2 py-0.5 rounded-pill text-[9px] font-bold uppercase border ${
-                          period.status === 'CLOSED'
-                            ? 'bg-red-50 text-red-700 border-red-200'
-                            : 'bg-aloe-10 text-ink border-aloe-10'
-                        }`}
-                      >
-                        {period.status === 'CLOSED' ? 'Đã đóng' : 'OPEN'}
-                      </span>
-                    </div>
-                    <div className="mt-3 text-[11px] text-shade-60">
-                      Chốt: {period.closed_at ? new Date(period.closed_at).toLocaleString('vi-VN') : 'Chưa chốt'}
-                    </div>
-                    <div className="mt-1 text-[11px] text-shade-60">
-                      Người chốt: {period.closed_by_name || '—'}
-                    </div>
-                    <div className="mt-3 flex justify-end">
-                      {period.status === 'OPEN' ? (
-                        <Button
-                          variant="outline-light"
-                          size="sm"
-                          icon={Lock}
-                          onClick={() => handleOpenClosePeriodModal(period)}
-                          disabled={!isManager}
-                        >
-                          Khóa sổ
-                        </Button>
-                      ) : (
-                        <span className="text-shade-40 inline-flex items-center gap-1 text-[11px] font-medium">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-shade-40" />
-                          Đã khóa cứng
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="hidden md:block overflow-x-auto">
+
+              <div className="overflow-x-auto">
                 <table className="w-full border-collapse text-left text-xs">
                   <thead>
                     <tr className="bg-canvas-light border-b border-hairline-light text-shade-60 font-semibold uppercase tracking-wider">
-                      <th className="p-4">Tên kỳ</th>
-                      <th className="p-4">Ngày bắt đầu</th>
-                      <th className="p-4">Ngày kết thúc</th>
-                      <th className="p-4 text-center">Trạng thái</th>
-                      <th className="p-4">Thời điểm chốt</th>
-                      <th className="p-4">Người chốt</th>
-                      <th className="p-4 text-right">Khóa kỳ</th>
+                      <th className="p-4">Số Phiếu Thu</th>
+                      <th className="p-4">Đại lý</th>
+                      <th className="p-4">Hóa đơn cấn trừ</th>
+                      <th className="p-4">Ngày thu</th>
+                      <th className="p-4">Hình thức</th>
+                      <th className="p-4 text-right">Số tiền thu</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-hairline-light">
-                    {periods.map(period => (
-                      <tr key={period.id} className="hover:bg-canvas-cream/50">
-                        <td className="p-4 font-semibold text-ink">{period.period_name}</td>
-                        <td className="p-4 text-shade-60">{period.start_date}</td>
-                        <td className="p-4 text-shade-60">{period.end_date}</td>
-                        <td className="p-4 text-center">
-                          <span
-                            className={`px-2 py-0.5 rounded-pill text-[9px] font-bold uppercase border ${
-                              period.status === 'CLOSED'
-                                ? 'bg-red-50 text-red-700 border-red-200'
-                                : 'bg-aloe-10 text-ink border-aloe-10'
-                            }`}
-                          >
-                            {period.status === 'CLOSED' ? 'Đã đóng' : 'Đang mở (OPEN)'}
-                          </span>
-                        </td>
-                        <td className="p-4 text-shade-50">
-                          {period.closed_at ? new Date(period.closed_at).toLocaleString('vi-VN') : '—'}
-                        </td>
-                        <td className="p-4 text-shade-60 font-medium">{period.closed_by_name || '—'}</td>
-                        <td className="p-4 text-right">
-                          {period.status === 'OPEN' ? (
-                            <Button
-                              variant="outline-light"
-                              size="sm"
-                              icon={Lock}
-                              onClick={() => handleOpenClosePeriodModal(period)}
-                              disabled={!isManager}
-                            >
-                              Khóa sổ
-                            </Button>
-                          ) : (
-                            <span className="text-shade-40 inline-flex items-center gap-1 text-[11px] font-medium pr-3">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-shade-40" />
-                              Đã khóa cứng
-                            </span>
-                          )}
+                    {paymentReceipts.length === 0 ? (
+                      <tr>
+                        <td colSpan="6" className="p-8 text-center text-shade-40 italic">
+                          Chưa có phiếu thu công nợ đại lý nào.
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      paymentReceipts.map(pr => (
+                        <tr key={pr.id} className="hover:bg-canvas-cream/50">
+                          <td className="p-4 font-bold text-ink">{pr.payment_number}</td>
+                          <td className="p-4 font-medium text-ink">{pr.dealer_name || 'Đại lý #' + pr.dealer_id}</td>
+                          <td className="p-4 text-shade-60">{pr.invoice_number || '#' + pr.invoice_id}</td>
+                          <td className="p-4 text-shade-60">{pr.payment_date}</td>
+                          <td className="p-4 text-shade-50">
+                            {pr.payment_method === 'BANK_TRANSFER' ? 'Chuyển khoản' : 'Tiền mặt'}
+                          </td>
+                          <td className="p-4 text-right font-bold text-emerald-600">
+                            +{(pr.amount || 0).toLocaleString()}đ
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -551,158 +575,249 @@ const DealerDebtInvoice = () => {
         </>
       )}
 
-      {/* --- MODAL 1: XEM ĐỐI CHỨNG POD --- */}
-      {showPodModal && selectedNotif && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
-          <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-4 max-w-lg w-full overflow-hidden flex flex-col">
-            <div className="p-5 border-b border-hairline-light bg-canvas-cream flex justify-between items-center">
-              <h3 className="font-semibold text-sm uppercase tracking-wider text-ink">Bằng chứng bàn giao (Proof of Delivery - DO: {selectedNotif.do_number})</h3>
-              <button onClick={() => setShowPodModal(false)} className="text-shade-40 hover:text-ink font-bold text-sm">✕</button>
-            </div>
-            <div className="p-6 flex flex-col gap-6 overflow-y-auto max-h-[70vh]">
-              {/* Lịch sử OTP */}
-              <div className="flex flex-col gap-2 p-3 bg-aloe-10/10 border border-aloe-10/30 rounded-md">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-ink" />
-                  <span className="text-xs font-semibold text-ink uppercase tracking-wider">Xác nhận bằng mã OTP</span>
-                </div>
-                <div className="text-xs text-shade-70 font-light mt-1">
-                  Đại lý đã nhập mã xác thực thành công lúc: <strong className="text-ink font-semibold">{new Date(selectedNotif.otp_verified_at).toLocaleString('vi-VN')}</strong>
-                </div>
+      {/* MODAL 1: LẬP HÓA ĐƠN BÁN HÀNG */}
+      {showCreateInvoiceModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-4 w-full max-w-lg p-6 flex flex-col gap-4">
+            <h2 className="text-base font-bold uppercase tracking-wider text-ink pb-2 border-b border-hairline-light">
+              Lập Hóa đơn Bán hàng từ Đơn giao hàng (DO)
+            </h2>
+
+            <form onSubmit={handleSubmitInvoice} className="flex flex-col gap-4 text-xs">
+              <div>
+                <label className="font-semibold text-shade-60">Số đơn giao hàng (DO)</label>
+                <input
+                  type="text"
+                  value={selectedNotif?.do_number || selectedNotif?.doNumber || ''}
+                  disabled
+                  className="w-full bg-canvas-cream border border-hairline-light rounded p-2 text-ink font-bold mt-1"
+                />
               </div>
 
-              {/* Ảnh chụp POD */}
-              <div className="flex flex-col gap-2">
-                <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest flex items-center gap-1.5">
-                  <ImageIcon className="w-3.5 h-3.5" />
-                  Ảnh chụp thực tế lúc giao hàng
-                </span>
-                <div className="border border-hairline-light rounded overflow-hidden aspect-video bg-canvas-cream relative flex items-center justify-center">
-                  {selectedNotif.pod_image_url ? (
-                    <img src={selectedNotif.pod_image_url} alt="Ảnh biên bản giao nhận" className="object-cover w-full h-full" />
-                  ) : (
-                    <span className="text-shade-40 text-xs italic">Không tìm thấy ảnh bàn giao</span>
-                  )}
-                </div>
+              <div>
+                <label className="font-semibold text-shade-60">Đại lý mua hàng</label>
+                <input
+                  type="text"
+                  value={selectedNotif?.dealer_name || selectedNotif?.dealerName || ''}
+                  disabled
+                  className="w-full bg-canvas-cream border border-hairline-light rounded p-2 text-ink mt-1"
+                />
               </div>
 
-              {/* Chữ ký đại lý */}
-              <div className="flex flex-col gap-2">
-                <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest flex items-center gap-1.5">
-                  <PenTool className="w-3.5 h-3.5" />
-                  Chữ ký điện tử của Đại lý
-                </span>
-                <div className="border border-hairline-light rounded bg-canvas-cream p-4 h-24 flex items-center justify-center">
-                  {selectedNotif.pod_signature_url ? (
-                    <img src={selectedNotif.pod_signature_url} alt="Signature" className="h-full object-contain filter grayscale" />
-                  ) : (
-                    <span className="text-shade-40 text-xs italic">Ký nhận tại quầy</span>
-                  )}
-                </div>
+              <Input
+                id="documentDate"
+                label="Ngày hạch toán"
+                type="date"
+                value={invoiceFormData.documentDate}
+                onChange={e => setInvoiceFormData(prev => ({ ...prev, documentDate: e.target.value }))}
+                required
+              />
+
+              <div className="flex flex-col gap-1">
+                <label className="font-semibold text-ink">Ghi chú</label>
+                <textarea
+                  value={invoiceFormData.notes}
+                  onChange={e => setInvoiceFormData(prev => ({ ...prev, notes: e.target.value }))}
+                  className="bg-canvas-light border border-hairline-light rounded p-2 text-ink min-h-[60px]"
+                />
               </div>
 
-              <div className="text-[11px] text-shade-40 italic text-center">
-                Thời gian tài xế cập nhật biên bản giao nhận: {new Date(selectedNotif.pod_timestamp).toLocaleString('vi-VN')}
+              <div className="flex justify-end gap-3 mt-4 pt-3 border-t border-hairline-light">
+                <Button type="button" variant="secondary" onClick={() => setShowCreateInvoiceModal(false)}>
+                  Hủy bỏ
+                </Button>
+                <Button type="submit" variant="primary">
+                  Lưu Hóa đơn & Ghi nợ
+                </Button>
               </div>
-            </div>
-            <div className="p-4 border-t border-hairline-light bg-canvas-cream flex justify-end">
-              <Button variant="outline-light" onClick={() => setShowPodModal(false)}>Đóng đối soát</Button>
-            </div>
+            </form>
           </div>
         </div>
       )}
 
-      {/* --- MODAL 2: LẬP HÓA ĐƠN --- */}
-      {showInvoiceModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
-          <form onSubmit={handleCreateInvoice} className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-4 max-w-md w-full overflow-hidden flex flex-col">
-            <div className="p-5 border-b border-hairline-light bg-canvas-cream flex justify-between items-center">
-              <h3 className="font-semibold text-sm uppercase tracking-wider text-ink">Lập hóa đơn bán hàng</h3>
-              <button type="button" onClick={() => setShowInvoiceModal(false)} className="text-shade-40 hover:text-ink font-bold text-sm">✕</button>
-            </div>
-            <div className="p-6 flex flex-col gap-4">
-              <Input
-                id="modalDoNumber"
-                label="Mã đơn giao hàng"
-                value={invoiceForm.doNumber}
-                disabled
+      {/* MODAL 2: GHI NHẬN PHIẾU THU & QUÉT OCR HÓA ĐƠN */}
+      {showCreatePaymentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-4 w-full max-w-xl p-6 flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-base font-bold uppercase tracking-wider text-ink pb-2 border-b border-hairline-light flex items-center justify-between">
+              <span>Ghi nhận Phiếu Thu AR</span>
+              {selectedInvoiceForPayment && (
+                <span className="text-xs text-shade-50 font-normal">HĐ: {selectedInvoiceForPayment?.invoice_number}</span>
+              )}
+            </h2>
+
+            {/* AREA QUÉT OCR HÓA ĐƠN CHUYỂN KHOẢN */}
+            <div className="flex flex-col gap-2 border border-dashed border-hairline rounded p-4 bg-canvas-cream/40">
+              <PhotoCaptureInput
+                key={ocrResetKey}
+                label="Quét hóa đơn chuyển khoản (OCR AR)"
+                output="file"
+                disabled={ocrLoading}
+                onChange={handleOcrFileSelected}
               />
+              {ocrLoading && (
+                <div className="flex items-center justify-center py-1 text-shade-50 gap-2">
+                  <svg className="animate-spin h-4 w-4 text-ink" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  <span className="text-[11px] font-medium">Đang trích xuất dữ liệu hóa đơn...</span>
+                </div>
+              )}
+              {ocrLowConfidence && !ocrLoading && (
+                <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded px-2.5 py-2">
+                  <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <span className="text-[10px] text-amber-800 font-medium leading-snug">
+                    Độ tin cậy OCR ({Math.round(ocrConfidence * 100)}%). Vui lòng kiểm tra lại thông tin thu trước khi lưu.
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <form onSubmit={handleSubmitPayment} className="flex flex-col gap-4 text-xs">
+              {/* SELECTOR ĐẠI LÝ */}
+              <div className="flex flex-col gap-1">
+                <label className="font-semibold text-ink">
+                  Đại lý nộp tiền <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={paymentFormData.dealerId}
+                  onChange={e => handleDealerChangeInPayment(e.target.value)}
+                  required
+                  className="bg-canvas-light text-ink text-xs border border-hairline-light rounded px-3 py-2 outline-none focus:border-ink"
+                >
+                  <option value="">-- Chọn Đại lý --</option>
+                  {dealers.map(d => (
+                    <option key={d.id} value={d.id}>
+                      {d.name} ({d.code})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* SELECTOR HÓA ĐƠN BÁN HÀNG */}
+              <div className="flex flex-col gap-1">
+                <label className="font-semibold text-ink">
+                  Hóa đơn cấn trừ <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={paymentFormData.invoiceId}
+                  onChange={e => handleInvoiceChangeInPayment(e.target.value)}
+                  required
+                  className="bg-canvas-light text-ink text-xs border border-hairline-light rounded px-3 py-2 outline-none focus:border-ink"
+                >
+                  <option value="">-- Chọn Hóa đơn --</option>
+                  {availableInvoicesForDealer.map(inv => {
+                    const remaining = Number(inv.total_amount || inv.totalAmount || 0) - Number(inv.paid_amount || inv.paidAmount || 0);
+                    return (
+                      <option key={inv.id} value={inv.id}>
+                        {inv.invoice_number || inv.invoiceNumber} - Dư nợ: {remaining.toLocaleString()}đ [{inv.status}]
+                      </option>
+                    );
+                  })}
+                </select>
+                {paymentFormData.dealerId && availableInvoicesForDealer.length === 0 && (
+                  <span className="text-[11px] text-amber-700 italic">
+                    Đại lý này hiện không có Hóa đơn nợ nào cần thanh toán.
+                  </span>
+                )}
+              </div>
 
               <Input
-                id="modalDocDate"
-                label="Ngày hạch toán hóa đơn"
-                type="date"
-                value={invoiceForm.documentDate}
-                onChange={e => setInvoiceForm(prev => ({ ...prev, documentDate: e.target.value }))}
+                id="amount"
+                label="Số tiền thu nợ (VND)"
+                type="number"
+                value={paymentFormData.amount}
+                onChange={e => setPaymentFormData(prev => ({ ...prev, amount: e.target.value }))}
                 required
               />
 
-              <div className="flex flex-col gap-1.5">
-                <label htmlFor="modalNotes" className="text-xs font-semibold text-ink">Ghi chú hóa đơn</label>
+              <div className="grid grid-cols-2 gap-4">
+                <Input
+                  id="paymentDate"
+                  label="Ngày thu tiền"
+                  type="date"
+                  value={paymentFormData.paymentDate}
+                  onChange={e => setPaymentFormData(prev => ({ ...prev, paymentDate: e.target.value }))}
+                  required
+                />
+                <div className="flex flex-col gap-1">
+                  <label className="font-semibold text-ink">Hình thức thu</label>
+                  <select
+                    value={paymentFormData.paymentMethod}
+                    onChange={e => setPaymentFormData(prev => ({ ...prev, paymentMethod: e.target.value }))}
+                    className="bg-canvas-light text-ink text-xs border border-hairline-light rounded px-3 py-2 outline-none"
+                  >
+                    <option value="BANK_TRANSFER">Chuyển khoản ngân hàng</option>
+                    <option value="CASH">Tiền mặt</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="font-semibold text-ink">Nội dung / Ghi chú</label>
                 <textarea
-                  id="modalNotes"
-                  value={invoiceForm.notes}
-                  onChange={e => setInvoiceForm(prev => ({ ...prev, notes: e.target.value }))}
-                  className="bg-canvas-light text-ink text-xs border border-hairline-light rounded p-3 outline-none focus:border-shade-60 min-h-[80px]"
-                  placeholder="Nhập thông tin bổ sung nếu có..."
+                  value={paymentFormData.notes}
+                  onChange={e => setPaymentFormData(prev => ({ ...prev, notes: e.target.value }))}
+                  className="bg-canvas-light border border-hairline-light rounded p-2 text-ink min-h-[60px]"
                 />
               </div>
 
-              <div className="flex items-start gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded text-[11px] text-yellow-800 font-light mt-2">
-                <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-                <span>
-                  <strong>Lưu ý:</strong> Hành động này sẽ hạch toán nợ vào tài khoản Đại lý. Đơn xuất kho sẽ chuyển sang trạng thái <strong>COMPLETED</strong> để khóa cứng thông tin.
-                </span>
+              <div className="flex justify-end gap-3 mt-4 pt-3 border-t border-hairline-light">
+                <Button type="button" variant="secondary" onClick={() => setShowCreatePaymentModal(false)}>
+                  Hủy bỏ
+                </Button>
+                <Button type="submit" variant="primary">
+                  Ghi nhận Phiếu thu
+                </Button>
               </div>
-            </div>
-            <div className="p-4 border-t border-hairline-light bg-canvas-cream flex justify-end gap-3">
-              <Button type="button" variant="outline-light" onClick={() => setShowInvoiceModal(false)}>Hủy bỏ</Button>
-              <Button type="submit" variant="primary">Xác nhận Lập hóa đơn</Button>
-            </div>
-          </form>
+            </form>
+          </div>
         </div>
       )}
 
-      {/* --- MODAL 3: KHÓA SỔ KỲ KẾ TOÁN --- */}
-      {showClosePeriodModal && selectedPeriod && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
-          <form onSubmit={handleClosePeriod} className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-4 max-w-md w-full overflow-hidden flex flex-col">
-            <div className="p-5 border-b border-hairline-light bg-canvas-cream flex justify-between items-center">
-              <h3 className="font-semibold text-sm uppercase tracking-wider text-ink flex items-center gap-2">
-                <Lock className="w-4 h-4 text-red-600" />
-                Khóa sổ Kỳ kế toán: {selectedPeriod.period_name}
-              </h3>
-              <button type="button" onClick={() => setShowClosePeriodModal(false)} className="text-shade-40 hover:text-ink font-bold text-sm">✕</button>
-            </div>
-            <div className="p-6 flex flex-col gap-4">
-              <div className="text-xs text-shade-70 leading-relaxed font-light">
-                Bạn đang chuẩn bị thực hiện <strong>KHÓA SỔ</strong> kỳ kế toán từ ngày <strong className="text-ink">{selectedPeriod.start_date}</strong> đến ngày <strong className="text-ink">{selectedPeriod.end_date}</strong>.
+      {/* MODAL 3: XEM BẰNG CHỨNG GIAO HÀNG POD */}
+      {showPodModal && selectedInvoice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-4 w-full max-w-lg p-6 flex flex-col gap-4 max-h-[85vh] overflow-y-auto">
+            <h2 className="text-base font-bold uppercase tracking-wider text-ink pb-2 border-b border-hairline-light flex items-center justify-between">
+              <span>Bằng chứng Bàn giao POD</span>
+              <span className="text-xs text-shade-50">DO: {selectedInvoice.do_number}</span>
+            </h2>
+
+            <div className="flex flex-col gap-4 text-xs">
+              <div className="flex items-center gap-2 p-3 bg-aloe-10/20 border border-aloe-10 rounded">
+                <CheckCircle2 className="w-4 h-4 text-ink shrink-0" />
+                <span>Mã OTP đã được đại lý xác nhận giao hàng thành công.</span>
               </div>
 
-              <div className="flex flex-col gap-1.5">
-                <label htmlFor="periodCloseNotes" className="text-xs font-semibold text-ink">Ghi chú khóa sổ (Bắt buộc)</label>
-                <textarea
-                  id="periodCloseNotes"
-                  value={closePeriodNotes}
-                  onChange={e => setClosePeriodNotes(e.target.value)}
-                  className="bg-canvas-light text-ink text-xs border border-hairline-light rounded p-3 outline-none focus:border-shade-60 min-h-[80px]"
-                  placeholder="Nhập lý do chốt sổ hoặc ghi chú..."
-                  required
-                />
-              </div>
+              {selectedInvoice.pod_image_url ? (
+                <div className="flex flex-col gap-1">
+                  <label className="font-semibold text-shade-60 flex items-center gap-1">
+                    <ImageIcon className="w-3.5 h-3.5" /> Ảnh giao nhận thực tế
+                  </label>
+                  <img src={selectedInvoice.pod_image_url} alt="POD" className="rounded border border-hairline-light max-h-48 object-cover w-full" />
+                </div>
+              ) : (
+                <span className="text-shade-40 italic">Không có ảnh chụp POD.</span>
+              )}
 
-              <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded text-[11px] text-red-800 font-light mt-2">
-                <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-                <span>
-                  <strong>HÀNH ĐỘNG CÓ RỦI RO CAO:</strong> Khóa sổ kỳ kế toán sẽ <strong>KHÓA CỨNG</strong> vĩnh viễn toàn bộ chứng từ (Nhập, Xuất, Điều chuyển, Kiểm kê, Thanh toán) thuộc kỳ này. Không thể đảo ngược thao tác này.
-                </span>
-              </div>
+              {selectedInvoice.pod_signature_url && (
+                <div className="flex flex-col gap-1">
+                  <label className="font-semibold text-shade-60 flex items-center gap-1">
+                    <PenTool className="w-3.5 h-3.5" /> Chữ ký đại lý
+                  </label>
+                  <img src={selectedInvoice.pod_signature_url} alt="Signature" className="rounded border border-hairline-light max-h-24 object-contain bg-canvas-cream p-2" />
+                </div>
+              )}
             </div>
-            <div className="p-4 border-t border-hairline-light bg-canvas-cream flex justify-end gap-3">
-              <Button type="button" variant="outline-light" onClick={() => setShowClosePeriodModal(false)}>Hủy bỏ</Button>
-              <Button type="submit" variant="primary" className="bg-red-600 hover:bg-red-700 text-white border-red-600">Xác nhận Khóa sổ</Button>
+
+            <div className="flex justify-end mt-4 pt-3 border-t border-hairline-light">
+              <Button variant="secondary" onClick={() => setShowPodModal(false)}>
+                Đóng
+              </Button>
             </div>
-          </form>
+          </div>
         </div>
       )}
     </div>

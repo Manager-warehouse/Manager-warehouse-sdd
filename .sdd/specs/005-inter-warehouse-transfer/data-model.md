@@ -13,6 +13,8 @@ Fields to add/verify:
 - `is_returned`
 - `return_reason_code`, `return_reason`
 - `outbound_qc_checked_by`, `outbound_qc_checked_at`, `outbound_qc_result`
+- `source_loaded_reported_by`, `source_loaded_reported_at`
+- `source_load_rework_required`, `source_load_rework_reason`
 - `load_handover_by`, `load_handover_at`
 - `outbound_qc_photo_ref`
 - `load_handover_photo_ref`
@@ -46,6 +48,8 @@ Validation:
 - GET/list/detail reads must not mutate status or persist overdue transitions.
 - Receive-count is blocked until driver arrival and receiving-warehouse handover are recorded.
 - Return receiving is blocked until return departure and source arrival/handover are recorded.
+- Source outbound QC is blocked until worker-reported loaded quantities exist.
+- Source load handover and departure are blocked while `source_load_rework_required = true`.
 
 ## TransferRequest
 
@@ -124,12 +128,18 @@ Fields to add/verify:
 - `receive_checked_at`
 - `receive_checker_note`
 - `batch_id` nullable on planned item; FIFO allocation rows store actual batch after approval
+- `loaded_qty`
+- `loaded_reported_by`
+- `loaded_reported_at`
 - `outbound_qc_result`
 - `outbound_qc_note`
 
 Validation:
 - `planned_qty > 0`.
 - `sent_qty = planned_qty` when shipping.
+- `loaded_qty` is entered by source worker before outbound QC and must equal `planned_qty` before outbound QC can pass.
+- If outbound QC fails, source worker must unload/replace/correct/re-report loaded quantities before load handover or departure.
+- `sent_qty` is confirmed from `loaded_qty` only after outbound QC passes.
 - `sent_qty == null` means not loaded; `sent_qty != null` means loaded but not necessarily departed.
 - Receive count can be edited by destination worker until `receive_checked_at` is set.
 - `receive_issue_reason` is required per item if initial received quantity is less/greater than sent quantity or worker reports issue.
@@ -259,6 +269,8 @@ Required transfer actions:
 - `TRANSFER_REJECT`
 - `TRANSFER_TRIP_ASSIGN`
 - `TRANSFER_TRIP_REASSIGN`
+- `TRANSFER_SOURCE_LOAD_REPORT`
+- `TRANSFER_SOURCE_LOAD_REWORK`
 - `TRANSFER_OUTBOUND_QC`
 - `TRANSFER_SHIP`
 - `TRANSFER_LOAD_HANDOVER`

@@ -1,11 +1,71 @@
 package com.wms.service;
+import com.wms.entity.access_control.*;
+import com.wms.entity.audit_trail.*;
+import com.wms.entity.billing_payment.*;
+import com.wms.entity.dealer_management.*;
+import com.wms.entity.document_numbering.*;
+import com.wms.entity.driver_management.*;
+import com.wms.entity.fleet_management.*;
+import com.wms.entity.notification_delivery.*;
+import com.wms.entity.order_fulfillment.*;
+import com.wms.entity.price_management.*;
+import com.wms.entity.product_catalog.*;
+import com.wms.entity.stock_control.*;
+import com.wms.entity.stock_counting.*;
+import com.wms.entity.stock_receiving.*;
+import com.wms.entity.supplier_management.*;
+import com.wms.entity.user_configuration.*;
+import com.wms.entity.warehouse_location.*;
+import com.wms.entity.warehouse_transfer.*;
+import com.wms.enums.access_control.*;
+import com.wms.enums.audit_trail.*;
+import com.wms.enums.billing_payment.*;
+import com.wms.enums.dealer_management.*;
+import com.wms.enums.driver_management.*;
+import com.wms.enums.fleet_management.*;
+import com.wms.enums.notification_delivery.*;
+import com.wms.enums.order_fulfillment.*;
+import com.wms.enums.price_management.*;
+import com.wms.enums.stock_control.*;
+import com.wms.enums.stock_counting.*;
+import com.wms.enums.stock_receiving.*;
+import com.wms.enums.supplier_management.*;
+import com.wms.enums.user_configuration.*;
+import com.wms.enums.warehouse_location.*;
+import com.wms.enums.warehouse_transfer.*;
+
+import com.wms.service.user_configuration.*;
+import com.wms.service.user_configuration.impl.*;
+import com.wms.service.audit_trail.*;
+import com.wms.service.access_control.*;
+import com.wms.service.dealer_management.*;
+import com.wms.service.dealer_management.impl.*;
+import com.wms.service.billing_payment.*;
+import com.wms.service.billing_payment.impl.*;
+import com.wms.service.stock_receiving.*;
+import com.wms.service.stock_control.*;
+import com.wms.service.stock_control.impl.*;
+import com.wms.service.notification_delivery.*;
+import com.wms.service.notification_delivery.impl.*;
+import com.wms.service.order_fulfillment.*;
+import com.wms.service.order_fulfillment.impl.*;
+import com.wms.service.price_management.*;
+import com.wms.service.price_management.impl.*;
+import com.wms.service.reporting_alerting.*;
+import com.wms.service.reporting_alerting.impl.*;
+import com.wms.service.return_disposal.*;
+import com.wms.service.stock_counting.*;
+import com.wms.service.fleet_management.*;
+import com.wms.service.fleet_management.impl.*;
+import com.wms.service.warehouse_location.*;
+import com.wms.service.warehouse_location.impl.*;
 
 import com.wms.dto.request.*;
 import com.wms.dto.response.InterWarehouseTransferResponse;
-import com.wms.entity.*;
-import com.wms.enums.*;
 import com.wms.repository.*;
-import com.wms.service.transfer.InterWarehouseTransferService;
+import com.wms.repository.driver_management.DriverRepository;
+import com.wms.repository.product_catalog.ProductRepository;
+import com.wms.service.warehouse_transfer.InterWarehouseTransferService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -241,7 +301,17 @@ public class TransferServiceIT {
         assertThat(trf.status()).isEqualTo(InterWarehouseTransferStatus.APPROVED);
         assertThat(trf.tripId()).isNotNull();
 
-        // 4. Outbound QC and load handover with photo confirmation
+        // 4. Source worker reports actual loaded quantity before outbound QC
+        trf = transferService.recordSourceLoadReport(
+                trf.id(),
+                new SourceLoadReportRequest(List.of(
+                        new SourceLoadReportItemRequest(trf.items().get(0).id(), new BigDecimal("30.00"))
+                ), null),
+                storekeeper
+        );
+        assertThat(trf.items().get(0).loadedQty()).isEqualByComparingTo(new BigDecimal("30.00"));
+
+        // 5. Outbound QC and load handover with photo confirmation
         trf = transferService.recordOutboundQc(
                 trf.id(),
                 new OutboundQcRequest(true, "Outbound QC passed", "transfer/outbound-qc/trf-001.jpg"),
@@ -256,11 +326,11 @@ public class TransferServiceIT {
         );
         assertThat(trf.loadHandoverPhotoRef()).isEqualTo("transfer/load-handover/trf-001.jpg");
 
-        // 5. Ship Transfer (keeps status APPROVED)
+        // 6. Ship Transfer (keeps status APPROVED)
         trf = transferService.shipTransfer(trf.id(), storekeeper);
         assertThat(trf.status()).isEqualTo(InterWarehouseTransferStatus.APPROVED);
 
-        // 6. Depart Transfer (driver departs) - transitions status to IN_TRANSIT
+        // 7. Depart Transfer (driver departs) - transitions status to IN_TRANSIT
         trf = transferService.departTransfer(trf.id(), driverUser);
         assertThat(trf.status()).isEqualTo(InterWarehouseTransferStatus.IN_TRANSIT);
 
@@ -305,7 +375,8 @@ public class TransferServiceIT {
                 "",
                 ""
         );
-        InterWarehouseTransferReceiveCheckRequest checkReq = new InterWarehouseTransferReceiveCheckRequest(List.of(checkItem));
+        InterWarehouseTransferReceiveCheckRequest checkReq = new InterWarehouseTransferReceiveCheckRequest(
+                List.of(checkItem), "transfer/receive-qc/trf-001.jpg");
 
         trf = transferService.receiveCheck(trf.id(), checkReq, storekeeper);
         assertThat(trf.status()).isEqualTo(InterWarehouseTransferStatus.IN_TRANSIT);

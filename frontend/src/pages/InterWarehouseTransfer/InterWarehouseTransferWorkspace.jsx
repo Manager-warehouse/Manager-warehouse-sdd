@@ -48,6 +48,7 @@ const InterWarehouseTransferWorkspace = () => {
   const canCreateTransfer = hasRole(ROLES.PLANNER);
   const needsFleetData = hasAnyRole(hasRole, [ROLES.DISPATCHER, ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]);
   const needsLocationData = hasAnyRole(hasRole, [ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]);
+  const needsProductData = canCreateTransfer || hasAnyRole(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]);
 
   useEffect(() => {
     loadData();
@@ -94,7 +95,7 @@ const InterWarehouseTransferWorkspace = () => {
       const [transferRows, warehouseRows, productRows, locationRows, vehicleRows, driverRows] = await Promise.all([
         interWarehouseTransferService.getTransfers(),
         canCreateTransfer ? masterDataService.getWarehouses() : Promise.resolve([]),
-        canCreateTransfer ? masterDataService.getProducts() : Promise.resolve([]),
+        needsProductData ? masterDataService.getProducts() : Promise.resolve([]),
         needsLocationData ? masterDataService.getBinLocations() : Promise.resolve([]),
         needsFleetData ? masterDataService.getVehicles() : Promise.resolve([]),
         needsFleetData ? masterDataService.getDrivers() : Promise.resolve([]),
@@ -291,6 +292,7 @@ const InterWarehouseTransferWorkspace = () => {
         reject: () => interWarehouseTransferService.rejectTransfer(id, payload),
         cancel: () => interWarehouseTransferService.cancelTransfer(id, payload),
         assignTrip: () => interWarehouseTransferService.assignTrip(id, payload),
+        recordSourceLoadReport: () => interWarehouseTransferService.recordSourceLoadReport(id, payload.items, payload.reworkReason),
         ship: () => interWarehouseTransferService.shipTransfer(id),
         unship: () => interWarehouseTransferService.unshipTransfer(id),
         recordOutboundQc: () => interWarehouseTransferService.recordOutboundQc(id, payload),
@@ -301,7 +303,7 @@ const InterWarehouseTransferWorkspace = () => {
         receiveCount: () => interWarehouseTransferService.receiveCount(id, payload),
         receiveCheck: () => interWarehouseTransferService.receiveCheck(id, payload),
         finalReceive: () => interWarehouseTransferService.finalReceive(id, payload),
-        returnToSource: () => interWarehouseTransferService.returnToSource(id),
+        returnToSource: () => interWarehouseTransferService.returnToSource(id, payload),
         quarantineReject: () => interWarehouseTransferService.quarantineReject(id, payload),
         requestReturn: () => interWarehouseTransferService.requestReturn(id, payload),
         approveReturn: () => interWarehouseTransferService.approveReturn(id),
@@ -503,7 +505,7 @@ const InterWarehouseTransferWorkspace = () => {
                 <div className="mb-3 rounded-md border border-danger-200 bg-danger-50/80 px-3.5 py-2.5 text-xs text-danger-700 shadow-level-3 flex items-start gap-2 animate-in fade-in duration-200">
                   <AlertCircle className="w-4 h-4 text-danger-500 shrink-0 mt-0.5" />
                   <div>
-                    <span className="font-bold block mb-0.5">Phát hiện chênh lệch thiếu hàng</span>
+                    <span className="font-bold block mb-0.5">Phát hiện chênh lệch nhận hàng</span>
                     <span className="font-normal text-danger-600">Lý do: "{selectedTransfer.discrepancyReason}"</span>
                   </div>
                 </div>
@@ -545,6 +547,7 @@ const InterWarehouseTransferWorkspace = () => {
             hasWarehouseAccess={hasWarehouseAccess}
             vehicles={vehicles}
             drivers={drivers}
+            products={products}
             activeWarehouse={activeWarehouse}
             locations={locations}
             onAction={handleAction}

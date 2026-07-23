@@ -1,11 +1,46 @@
 package com.wms.util;
 
+
+import com.wms.entity.access_control.*;
+import com.wms.entity.audit_trail.*;
+import com.wms.entity.billing_payment.*;
+import com.wms.entity.dealer_management.*;
+import com.wms.entity.document_numbering.*;
+import com.wms.entity.driver_management.*;
+import com.wms.entity.fleet_management.*;
+import com.wms.entity.notification_delivery.*;
+import com.wms.entity.order_fulfillment.*;
+import com.wms.entity.price_management.*;
+import com.wms.entity.product_catalog.*;
+import com.wms.entity.stock_control.*;
+import com.wms.entity.stock_counting.*;
+import com.wms.entity.stock_receiving.*;
+import com.wms.entity.supplier_management.*;
+import com.wms.entity.user_configuration.*;
+import com.wms.entity.warehouse_location.*;
+import com.wms.entity.warehouse_transfer.*;
+import com.wms.enums.access_control.*;
+import com.wms.enums.audit_trail.*;
+import com.wms.enums.billing_payment.*;
+import com.wms.enums.dealer_management.*;
+import com.wms.enums.driver_management.*;
+import com.wms.enums.fleet_management.*;
+import com.wms.enums.notification_delivery.*;
+import com.wms.enums.order_fulfillment.*;
+import com.wms.enums.price_management.*;
+import com.wms.enums.stock_control.*;
+import com.wms.enums.stock_counting.*;
+import com.wms.enums.stock_receiving.*;
+import com.wms.enums.supplier_management.*;
+import com.wms.enums.user_configuration.*;
+import com.wms.enums.warehouse_location.*;
+import com.wms.enums.warehouse_transfer.*;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.wms.enums.AuditAction;
+import com.wms.enums.audit_trail.AuditAction;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -31,17 +66,17 @@ public final class AuditLogUtil {
     private AuditLogUtil() {
     }
 
-    /**
-     * Removes sensitive fields (passwords, tokens) from a map
-     * before persisting to audit log JSONB columns.
-     */
     public static Map<String, Object> filterSensitiveFields(
             Map<String, Object> values) {
         if (values == null || values.isEmpty()) {
             return values;
         }
         Map<String, Object> filtered = new HashMap<>(values);
-        SENSITIVE_FIELDS.forEach(filtered::remove);
+        SENSITIVE_FIELDS.forEach(field -> {
+            if (filtered.containsKey(field)) {
+                filtered.put(field, null);
+            }
+        });
         return filtered;
     }
 
@@ -91,7 +126,14 @@ public final class AuditLogUtil {
             AuditAction action,
             String entityType,
             String entityCode) {
-        return action.name() + " " + entityType + " " + entityCode;
+        StringBuilder description = new StringBuilder(action.name());
+        if (entityType != null && !entityType.isBlank()) {
+            description.append(" ").append(entityType);
+        }
+        if (entityCode != null && !entityCode.isBlank()) {
+            description.append(" ").append(entityCode);
+        }
+        return description.toString();
     }
 
     /**

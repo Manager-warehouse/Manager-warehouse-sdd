@@ -1,5 +1,66 @@
 package com.wms.service;
 
+
+import com.wms.entity.access_control.*;
+import com.wms.entity.audit_trail.*;
+import com.wms.entity.billing_payment.*;
+import com.wms.entity.dealer_management.*;
+import com.wms.entity.document_numbering.*;
+import com.wms.entity.driver_management.*;
+import com.wms.entity.fleet_management.*;
+import com.wms.entity.notification_delivery.*;
+import com.wms.entity.order_fulfillment.*;
+import com.wms.entity.price_management.*;
+import com.wms.entity.product_catalog.*;
+import com.wms.entity.stock_control.*;
+import com.wms.entity.stock_counting.*;
+import com.wms.entity.stock_receiving.*;
+import com.wms.entity.supplier_management.*;
+import com.wms.entity.user_configuration.*;
+import com.wms.entity.warehouse_location.*;
+import com.wms.entity.warehouse_transfer.*;
+import com.wms.enums.access_control.*;
+import com.wms.enums.audit_trail.*;
+import com.wms.enums.billing_payment.*;
+import com.wms.enums.dealer_management.*;
+import com.wms.enums.driver_management.*;
+import com.wms.enums.fleet_management.*;
+import com.wms.enums.notification_delivery.*;
+import com.wms.enums.order_fulfillment.*;
+import com.wms.enums.price_management.*;
+import com.wms.enums.stock_control.*;
+import com.wms.enums.stock_counting.*;
+import com.wms.enums.stock_receiving.*;
+import com.wms.enums.supplier_management.*;
+import com.wms.enums.user_configuration.*;
+import com.wms.enums.warehouse_location.*;
+import com.wms.enums.warehouse_transfer.*;
+import com.wms.service.user_configuration.*;
+import com.wms.service.user_configuration.impl.*;
+import com.wms.service.audit_trail.*;
+import com.wms.service.access_control.*;
+import com.wms.service.dealer_management.*;
+import com.wms.service.dealer_management.impl.*;
+import com.wms.service.billing_payment.*;
+import com.wms.service.billing_payment.impl.*;
+import com.wms.service.stock_receiving.*;
+import com.wms.service.stock_control.*;
+import com.wms.service.stock_control.impl.*;
+import com.wms.service.notification_delivery.*;
+import com.wms.service.notification_delivery.impl.*;
+import com.wms.service.order_fulfillment.*;
+import com.wms.service.order_fulfillment.impl.*;
+import com.wms.service.price_management.*;
+import com.wms.service.price_management.impl.*;
+import com.wms.service.reporting_alerting.*;
+import com.wms.service.reporting_alerting.impl.*;
+import com.wms.service.return_disposal.*;
+import com.wms.service.stock_counting.*;
+import com.wms.service.fleet_management.*;
+import com.wms.service.fleet_management.impl.*;
+import com.wms.service.warehouse_location.*;
+import com.wms.service.warehouse_location.impl.*;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -24,37 +85,37 @@ import com.wms.dto.request.DeliveryOrderWarehouseApprovalRequest;
 import com.wms.dto.request.DeliveryOrderWarehouseRejectRequest;
 import com.wms.dto.request.DeliveryOrderWarehouseRejectReturnRequest;
 import com.wms.dto.response.DeliveryOrderResponse;
-import com.wms.entity.AccountingPeriod;
-import com.wms.entity.Adjustment;
-import com.wms.entity.Batch;
-import com.wms.entity.Dealer;
-import com.wms.entity.DeliveryOrder;
-import com.wms.entity.DeliveryOrderItem;
-import com.wms.entity.DeliveryOrderItemAllocation;
-import com.wms.entity.DeliveryOrderItemReplacement;
-import com.wms.entity.OutboundQcRecord;
-import com.wms.entity.Inventory;
-import com.wms.entity.PriceHistory;
-import com.wms.entity.Product;
-import com.wms.entity.QuarantineRecord;
-import com.wms.entity.User;
-import com.wms.entity.Warehouse;
-import com.wms.entity.WarehouseLocation;
-import com.wms.entity.WarehouseProductReservation;
+import com.wms.entity.billing_payment.AccountingPeriod;
+import com.wms.entity.stock_control.Adjustment;
+import com.wms.entity.stock_control.Batch;
+import com.wms.entity.dealer_management.Dealer;
+import com.wms.entity.order_fulfillment.DeliveryOrder;
+import com.wms.entity.order_fulfillment.DeliveryOrderItem;
+import com.wms.entity.order_fulfillment.DeliveryOrderItemAllocation;
+import com.wms.entity.order_fulfillment.DeliveryOrderItemReplacement;
+import com.wms.entity.order_fulfillment.OutboundQcRecord;
+import com.wms.entity.stock_control.Inventory;
+import com.wms.entity.price_management.PriceHistory;
+import com.wms.entity.product_catalog.Product;
+import com.wms.entity.stock_receiving.QuarantineRecord;
+import com.wms.entity.access_control.User;
+import com.wms.entity.warehouse_location.Warehouse;
+import com.wms.entity.warehouse_location.WarehouseLocation;
+import com.wms.entity.stock_control.WarehouseProductReservation;
 import com.wms.repository.AdjustmentRepository;
 import com.wms.repository.DeliveryOrderItemAllocationRepository;
 import com.wms.repository.DeliveryOrderItemReplacementRepository;
 import com.wms.repository.DeliveryOrderWarehouseApprovalRepository;
-import com.wms.enums.CreditStatus;
-import com.wms.enums.DeliveryOrderStatus;
-import com.wms.enums.DeliveryOrderType;
-import com.wms.enums.InvoiceStatus;
-import com.wms.enums.LocationType;
-import com.wms.enums.PriceHistoryStatus;
-import com.wms.enums.UserRole;
+import com.wms.enums.dealer_management.CreditStatus;
+import com.wms.enums.order_fulfillment.DeliveryOrderStatus;
+import com.wms.enums.order_fulfillment.DeliveryOrderType;
+import com.wms.enums.billing_payment.InvoiceStatus;
+import com.wms.enums.warehouse_location.LocationType;
+import com.wms.enums.price_management.PriceHistoryStatus;
+import com.wms.enums.access_control.UserRole;
 import com.wms.exception.OutboundDeliveryException;
 import com.wms.mapper.DeliveryOrderMapper;
-import com.wms.repository.DealerRepository;
+import com.wms.repository.dealer_management.DealerRepository;
 import com.wms.repository.DeliveryOrderItemRepository;
 import com.wms.repository.DeliveryOrderItemReturnToBinRecordRepository;
 import com.wms.repository.DeliveryOrderRepository;
@@ -62,13 +123,13 @@ import com.wms.repository.InventoryRepository;
 import com.wms.repository.InvoiceRepository;
 import com.wms.repository.OutboundQcRecordRepository;
 import com.wms.repository.PriceHistoryRepository;
-import com.wms.repository.ProductRepository;
+import com.wms.repository.product_catalog.ProductRepository;
 import com.wms.repository.QuarantineRecordRepository;
 import com.wms.repository.UserWarehouseAssignmentRepository;
 import com.wms.repository.WarehouseProductReservationRepository;
 import com.wms.repository.WarehouseRepository;
-import com.wms.service.PriceHistoryService;
-import com.wms.service.impl.DeliveryOrderServiceImpl;
+import com.wms.service.price_management.PriceHistoryService;
+import com.wms.service.order_fulfillment.impl.DeliveryOrderServiceImpl;
 import com.wms.util.PartnerAuditUtil;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
@@ -141,8 +202,6 @@ class DeliveryOrderServiceImplTest {
                 priceHistoryService, accountingPeriodService, systemConfigService);
         lenient().when(accountingPeriodService.resolveOpenPeriod(any()))
                 .thenReturn(AccountingPeriod.builder().id(1L).periodName("2026-06").build());
-        lenient().when(systemConfigService.getIntValue(eq("CREDIT_HOLD_OVERDUE_DAYS"), any(Integer.class)))
-                .thenReturn(30);
         planner = user(1L, UserRole.PLANNER);
         manager = user(2L, UserRole.WAREHOUSE_MANAGER);
         dealer = dealer(10L, new BigDecimal("480.00"), new BigDecimal("500.00"), CreditStatus.ACTIVE);
@@ -246,6 +305,16 @@ class DeliveryOrderServiceImplTest {
     }
 
     @Test
+    void createDeliveryOrder_allowsStockAvailabilityEquality() {
+        stubSuccessfulCreate(new BigDecimal("15.00"));
+
+        DeliveryOrderResponse response = service.createDeliveryOrder(validRequest(new BigDecimal("10.00")), planner);
+
+        assertThat(response.getStatus()).isEqualTo(DeliveryOrderStatus.NEW);
+        verify(deliveryOrderRepository).save(any(DeliveryOrder.class));
+    }
+
+    @Test
     void createDeliveryOrder_rejectsCreditHoldDealer() {
         dealer.setCreditStatus(CreditStatus.CREDIT_HOLD);
         stubCreateUntilCredit();
@@ -259,6 +328,7 @@ class DeliveryOrderServiceImplTest {
 
     @Test
     void createDeliveryOrder_rejectsOverdueInvoice() {
+        dealer.setPaymentTermDays(15);
         stubCreateUntilCredit();
         when(invoiceRepository.existsByDealerIdAndStatusInAndDueDateBefore(
                 eq(10L), eq(List.of(InvoiceStatus.UNPAID, InvoiceStatus.PARTIALLY_PAID)), any(LocalDate.class)))
@@ -271,7 +341,7 @@ class DeliveryOrderServiceImplTest {
         ArgumentCaptor<LocalDate> thresholdCaptor = ArgumentCaptor.forClass(LocalDate.class);
         verify(invoiceRepository).existsByDealerIdAndStatusInAndDueDateBefore(
                 eq(10L), eq(List.of(InvoiceStatus.UNPAID, InvoiceStatus.PARTIALLY_PAID)), thresholdCaptor.capture());
-        assertThat(thresholdCaptor.getValue()).isEqualTo(LocalDate.now().minusDays(30));
+        assertThat(thresholdCaptor.getValue()).isEqualTo(LocalDate.now().minusDays(15));
         verify(deliveryOrderRepository, never()).save(any());
     }
 
@@ -290,24 +360,30 @@ class DeliveryOrderServiceImplTest {
     @Test
     void createDeliveryOrder_subtractsAggregateReservationFromAvailability() {
         stubCreateUntilAvailability(new BigDecimal("12.00"), new BigDecimal("5.00"));
-        when(warehouseRepository.findByIsActive(true)).thenReturn(List.of());
 
         assertThatThrownBy(() -> service.createDeliveryOrder(validRequest(new BigDecimal("10.00")), planner))
                 .isInstanceOf(OutboundDeliveryException.class)
-                .extracting("code")
-                .isEqualTo("INSUFFICIENT_STOCK");
+                .satisfies(ex -> {
+                    OutboundDeliveryException outbound = (OutboundDeliveryException) ex;
+                    assertThat(outbound.getCode()).isEqualTo("INSUFFICIENT_STOCK");
+                    assertThat(outbound.getDetails()).containsKey("availableByProduct");
+                    assertThat(outbound.getDetails()).doesNotContainKey("suggestedWarehouses");
+                });
         verify(deliveryOrderRepository, never()).save(any());
     }
 
     @Test
     void createDeliveryOrder_rejectsWhenValidInventoryAvailabilityIsInsufficient() {
         stubCreateUntilAvailability(new BigDecimal("9.00"), BigDecimal.ZERO);
-        when(warehouseRepository.findByIsActive(true)).thenReturn(List.of());
 
         assertThatThrownBy(() -> service.createDeliveryOrder(validRequest(new BigDecimal("10.00")), planner))
                 .isInstanceOf(OutboundDeliveryException.class)
-                .extracting("code")
-                .isEqualTo("INSUFFICIENT_STOCK");
+                .satisfies(ex -> {
+                    OutboundDeliveryException outbound = (OutboundDeliveryException) ex;
+                    assertThat(outbound.getCode()).isEqualTo("INSUFFICIENT_STOCK");
+                    assertThat(outbound.getDetails()).containsKey("availableByProduct");
+                    assertThat(outbound.getDetails()).doesNotContainKey("suggestedWarehouses");
+                });
         verify(deliveryOrderRepository, never()).save(any());
     }
 
@@ -1276,6 +1352,7 @@ class DeliveryOrderServiceImplTest {
         dealer.setCreditStatus(status);
         dealer.setCurrentBalance(balance);
         dealer.setCreditLimit(limit);
+        dealer.setPaymentTermDays(30);
         dealer.setIsActive(true);
         return dealer;
     }

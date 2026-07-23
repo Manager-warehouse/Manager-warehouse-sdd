@@ -18,9 +18,9 @@
 | id | Long | BIGSERIAL | No | Primary key |
 | actor | User | BIGINT FK | No | Authenticated user who performed the action |
 | actorRole | String | VARCHAR(50) | No | Snapshot role at action time |
-| action | AuditAction | VARCHAR(50) | No | LOGIN, LOGOUT, CREATE, UPDATE, STATUS_CHANGE, APPROVE, REJECT, CANCEL, SOFT_DELETE, ASSIGN, UNASSIGN |
-| entityType | String | VARCHAR(100) | No | Affected entity group/type |
-| entityId | Long | BIGINT | No | Affected entity ID |
+| action | AuditAction | VARCHAR(50) | No | Must match backend `AuditAction.java`; includes generic and domain-specific audit actions such as receipt, delivery, transfer, stocktake, price, and quarantine actions |
+| entityType | String | VARCHAR(100) | Yes | Affected entity group/type; nullable when the action has no natural affected entity row |
+| entityId | Long | BIGINT | Yes | Affected entity ID; nullable when the action has no natural affected entity row |
 | description | String | TEXT | No | Auto-generated summary for table display |
 | warehouse | Warehouse | BIGINT FK | Yes | Optional warehouse filter context |
 | oldValue | Map/String JSON | JSONB | Yes | Changed fields before value |
@@ -49,9 +49,10 @@ AuditLog * -> 0..1 Warehouse
 ### Validation Rules
 
 - `actor_id` must reference an authenticated user.
-- `action` must match the audit action enum.
+- `action` must match backend `AuditAction.java`.
 - `old_value` and `new_value` must contain only changed fields.
-- Sensitive fields must be omitted from `old_value` and `new_value`.
+- If no entity field changed, `old_value` and `new_value` are empty.
+- Sensitive field names remain auditable, but their before/after values are omitted from `old_value` and `new_value`.
 - AuditLog cannot be updated or deleted.
 
 ---
@@ -68,8 +69,8 @@ Used by the existing Audit Trail table in `UserManagement`.
 | actorName | String | From actor full name |
 | actorRole | String | Snapshot role |
 | action | String | Enum value from DB |
-| entityType | String | |
-| entityId | Long | |
+| entityType | String | Nullable |
+| entityId | Long | Nullable |
 | description | String | Table summary text |
 | warehouseId | Long | Nullable |
 | warehouseCode | String | Nullable display value |
@@ -86,8 +87,8 @@ Returned when the user opens detail for a row.
 | actorName | String | |
 | actorRole | String | |
 | action | String | |
-| entityType | String | |
-| entityId | Long | |
+| entityType | String | Nullable |
+| entityId | Long | Nullable |
 | description | String | |
 | warehouseId | Long | Nullable |
 | warehouseCode | String | Nullable |
@@ -101,10 +102,10 @@ Returned when the user opens detail for a row.
 |-------|------|-------|
 | data | List<AuditLogListItemResponse> | Current page rows |
 | page | Integer | 1-based page number |
-| pageSize | Integer | Defaults to 30 |
+| pageSize | Integer | Fixed at 30 |
 | hasNext | Boolean | True if another page is available |
 | hasPrevious | Boolean | True if page > 1 |
-| requiresFilterForOlder | Boolean | True when user reaches page 50 without filters |
+| requiresFilterForOlder | Boolean | True when unfiltered browsing would go beyond the newest 1,500 entries |
 
 ---
 
@@ -124,7 +125,7 @@ The existing frontend table can be retained with these columns:
 
 ### Detail View
 
-Opening a row loads `GET /api/v1/audit-logs/{id}` and renders:
+Opening a row loads `GET /api/v1/admin/audit-logs/{id}` and renders:
 
 - Header metadata: timestamp, actor, role, action, entity, warehouse, IP address.
 - Changed fields table: field name, before value, after value.

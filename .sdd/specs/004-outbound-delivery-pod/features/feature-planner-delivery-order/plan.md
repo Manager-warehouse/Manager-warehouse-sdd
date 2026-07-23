@@ -1,108 +1,134 @@
-# Implementation Plan: Planner Lập Delivery Order & Credit/Stock Reservation
+# Implementation Plan: [FEATURE]
 
-**Branch**: `ha-004` | **Date**: 2026-06-17 | **Spec**: [feature-planner-delivery-order.md](feature-planner-delivery-order.md)
+**Branch**: `[###-feature-name]` | **Date**: [DATE] | **Spec**: [link]
 
-**Input**: Feature specification from `.sdd/specs/004-outbound-delivery-pod/features/feature-planner-delivery-order/feature-planner-delivery-order.md`
+**Input**: Feature specification from `.sdd/specs/[###-feature-name]/spec.md`
 
 ## Summary
 
-Planner creates outbound Delivery Orders only for assigned warehouses after automatic dealer credit validation and warehouse-level stock availability validation. Successful creation creates a `NEW` Delivery Order, reserves requested product quantities at warehouse/product level through `warehouse_product_reservations`, and leaves final batch/bin/zone allocation to the Storekeeper picking-plan feature. Warehouse Manager may cancel the Delivery Order before `WAREHOUSE_APPROVED`, releasing any planner-level and concrete reservations that exist at the current lifecycle step.
+[Primary business outcome + affected WMS flow/state transition.]
 
 ## Technical Context
 
-**Language/Version**: Java 21 for backend, JavaScript/React 18 for frontend.
+**Language/Version**: Java 21 / Spring Boot 3.4.5; React 18 + JavaScript when UI is touched
 
-**Primary Dependencies**: Spring Boot 3.4.5, Spring Data JPA/Hibernate, Jakarta Validation, Spring Security JWT/RBAC, OpenAPI/Swagger.
+**Primary Dependencies**: Spring Web, Spring Data JPA, Hibernate, Spring Security, Lombok, Springdoc OpenAPI, React, Tailwind CSS
 
-**Storage**: PostgreSQL 18 with Flyway migrations.
+**Storage**: PostgreSQL 18 via Flyway migrations and Spring Data JPA
 
-**Testing**: JUnit 5 + Mockito for service/business rules; Spring integration tests for REST endpoints; Jest for frontend only if planner UI changes are implemented.
+**Testing**: JUnit 5 + Mockito for backend; Spring integration tests for APIs; Jest + React Testing Library for frontend business UI
 
-**Target Platform**: WMS web application and REST API.
+**Target Platform**: Full-stack WMS web application and REST API
 
-**Project Type**: Full-stack web application with REST backend; this feature is primarily backend API/service work.
+**Project Type**: Backend + frontend web application
 
-**Performance Goals**: Create/cancel Delivery Order mutations should complete in one database transaction and use indexed warehouse/product reservation lookups.
+**Performance Goals**: [Use spec NFRs, e.g. <= 500ms search, <= 2s inventory mutation]
 
-**Constraints**: No negative inventory or over-reservation; optimistic locking required for reservation updates; no direct raw SQL in application code; audit log required for successful create/cancel; RBAC must check both role and assigned warehouse.
+**Constraints**: Must preserve WMS invariants: no negative inventory, QC gates, audit logs, role + warehouse authorization, no raw SQL in application code
 
-**Scale/Scope**: Sprint 1 outbound Delivery Order creation and pre-approval cancellation for three physical warehouses.
+**Scale/Scope**: 3 physical warehouses, In-Transit warehouse, 1000+ products, 50+ dealers, 1000+ transactions/month
 
 ## Constitution Check
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-| Principle | Status | Notes |
-|-----------|--------|-------|
-| Layered Architecture | PASS | Controller delegates to service; service owns credit, stock, reservation, cancellation rules; repositories remain persistence-only. |
-| Inventory Integrity | PASS | Reservation updates use optimistic locking and must not make available quantity negative. |
-| FIFO Batch Selection | PASS | Planner feature only validates warehouse-level availability; concrete FIFO batch/bin/zone selection is deferred to picking plan. |
-| QC Gate & Quarantine | PASS | Availability excludes quarantine and non-quality stock. |
-| In-Transit Tracking | PASS | Not reached by this feature. |
-| Auth & RBAC | PASS | Planner create and Warehouse Manager cancel require role plus warehouse assignment checks. |
-| Test Coverage | PASS | Plan includes unit and integration tests for credit, stock, reservation, warehouse scope, cancellation, and audit. |
+- [ ] Layered architecture preserved: Controller -> Service -> Repository -> Entity.
+- [ ] Write endpoints use request DTOs with Jakarta Validation.
+- [ ] Service methods own business rules, transactions, authorization, and audit logging.
+- [ ] All DB access goes through Spring Data JPA/Hibernate; no raw SQL in application code.
+- [ ] Inventory invariants preserved if touched: `total_qty >= 0`, `reserved_qty >= 0`, `available = total_qty - reserved_qty >= 0`, `@Version`.
+- [ ] QC/quarantine/transfer/accounting state rules listed when touched.
+- [ ] Audit action, entity type, before/after payload, and warehouse scope identified.
+- [ ] OpenAPI/Swagger impact identified for every new or changed endpoint.
+- [ ] Flyway migration impact identified; no duplicate migration version in runnable history.
+- [ ] Unit and integration test strategy covers happy path and error paths.
+
+## Domain Impact
+
+**Actors/Roles**: [Roles and warehouse scope]
+
+**State Changes**: [Entity statuses before -> after]
+
+**Inventory Impact**: [None or exact total/reserved/quarantine/In-Transit mutation]
+
+**Audit Actions**: [Action names and payload]
+
+**Security/Authorization**: [JWT role + warehouse checks]
+
+**Accounting Impact**: [None or invoice/payment/period/debt effect]
+
+## Data Model / Migration Impact
+
+- Entities/tables touched: [list]
+- New/changed columns or constraints: [list]
+- Flyway plan: [new migration / no migration / pre-shared cleanup]
+- Backfill/seed data: [none or list]
+
+## API / Contract Impact
+
+- Endpoints added/changed: [list]
+- Request DTOs: [list validation rules]
+- Response DTOs: [list]
+- Error codes/statuses: [400/401/403/404/409/422/500 as applicable]
+- OpenAPI path/schema updates: [list]
+
+## Test Strategy
+
+- Service unit tests: [business rules and edge cases]
+- Repository/query tests: [if needed]
+- Controller/API integration tests: [happy + error paths]
+- Frontend tests: [if UI business logic touched]
+- Regression tests for invariants: [inventory/QC/audit/auth/accounting]
 
 ## Project Structure
 
-### Documentation (this feature)
+### Documentation
 
 ```text
-.sdd/specs/004-outbound-delivery-pod/features/feature-planner-delivery-order/
-├── feature-planner-delivery-order.md
+.sdd/specs/[###-feature]/
+├── spec.md
 ├── plan.md
 ├── research.md
 ├── data-model.md
 ├── quickstart.md
-└── contracts/
-    └── delivery-orders.openapi.yaml
+├── contracts/
+└── tasks.md
 ```
 
-### Source Code (repository root)
+### Source Code
 
 ```text
-backend/
-└── src/
-    ├── main/java/com/wms/
-    │   ├── controller/DeliveryOrderController.java
-    │   ├── dto/request/DeliveryOrderCreateRequest.java
-    │   ├── dto/request/DeliveryOrderItemCreateRequest.java
-    │   ├── dto/request/DeliveryOrderCancelRequest.java
-    │   ├── dto/response/DeliveryOrderResponse.java
-    │   ├── entity/DeliveryOrder.java
-    │   ├── entity/DeliveryOrderItem.java
-    │   ├── entity/WarehouseProductReservation.java
-    │   ├── enums/DeliveryOrderStatus.java
-    │   ├── repository/DeliveryOrderRepository.java
-    │   ├── repository/WarehouseProductReservationRepository.java
-    │   ├── service/DeliveryOrderService.java
-    │   └── service/impl/DeliveryOrderServiceImpl.java
-    └── test/java/com/wms/
-        ├── controller/DeliveryOrderControllerIntegrationTest.java
-        └── service/DeliveryOrderServiceImplTest.java
+backend/src/main/java/com/wms/
+├── controller/
+├── dto/request/
+├── dto/response/
+├── entity/
+├── enums/
+├── exception/
+├── mapper/
+├── repository/
+├── service/
+└── service/impl/
+
+backend/src/main/resources/db/migration/
+
+backend/src/test/java/com/wms/
+
+frontend/src/
+├── components/
+├── hooks/
+├── pages/
+├── services/
+├── stores/
+└── utils/
 ```
 
-**Structure Decision**: Implement inside the existing backend layered architecture and existing Delivery Order module. Add only DTO/repository/service helpers needed for reservation and cancel reason handling.
-
-## Phase 0: Research Summary
-
-See [research.md](research.md).
-
-## Phase 1: Design Summary
-
-See [data-model.md](data-model.md), [quickstart.md](quickstart.md), and [contracts/delivery-orders.openapi.yaml](contracts/delivery-orders.openapi.yaml).
-
-## Post-Design Constitution Check
-
-| Principle | Status | Notes |
-|-----------|--------|-------|
-| Layered Architecture | PASS | Data model and contracts map to existing Controller -> Service -> Repository -> Entity flow. |
-| Inventory Integrity | PASS | Reservation deltas and availability checks are transaction-scoped and versioned. |
-| FIFO Batch Selection | PASS | FIFO remains in picking-plan; planner does not assign final inventory rows. |
-| QC Gate & Quarantine | PASS | Availability definition includes only quality-valid regular inventory. |
-| In-Transit Tracking | PASS | Not applicable in this feature. |
-| Auth & RBAC | PASS | Contracts require Planner/Warehouse Manager role and warehouse scope checks. |
-| Test Coverage | PASS | Quickstart defines required unit/integration tests. |
+**Structure Decision**: [Specific files for this feature]
 
 ## Complexity Tracking
 
-No constitution violations.
+> Fill only if a constitution gate is violated and justify why the simpler path is not viable.
+
+| Violation | Why Needed | Simpler Alternative Rejected Because |
+|-----------|------------|-------------------------------------|
+| [None] | [N/A] | [N/A] |

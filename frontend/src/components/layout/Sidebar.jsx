@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Users, UserSquare, ShieldAlert, BarChart3, Package2, Settings, History, Box, Warehouse, Handshake, Truck, MapPin, PackageCheck, ClipboardList, DollarSign, CheckSquare, ArrowRightLeft, FileText, Landmark } from 'lucide-react';
+import { Users, SquareUser, ShieldAlert, BarChart3, Package2, Settings, History, Box, Warehouse, Handshake, Truck, MapPin, PackageCheck, ClipboardList, DollarSign, CheckSquare, ArrowRightLeft, FileText, Landmark, Calendar, PieChart } from 'lucide-react';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
@@ -40,7 +40,7 @@ const Sidebar = () => {
     {
       title: 'Trang cá nhân',
       path: '/profile',
-      icon: UserSquare,
+      icon: SquareUser,
       roles: []
     }
   ];
@@ -50,7 +50,7 @@ const Sidebar = () => {
       title: 'Mã & Sản phẩm',
       path: '/admin/products',
       icon: Box,
-      roles: [ROLES.STOREKEEPER, ROLES.WAREHOUSE_MANAGER, ROLES.PLANNER, ROLES.ADMIN, ROLES.CEO]
+      roles: [ROLES.STOREKEEPER, ROLES.WAREHOUSE_MANAGER, ROLES.PLANNER, ROLES.CEO]
     },
     {
       title: 'Kho & Vị trí',
@@ -62,13 +62,13 @@ const Sidebar = () => {
       title: 'Đại lý & Nhà CC',
       path: '/admin/partners',
       icon: Handshake,
-      roles: [ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN, ROLES.CEO]
+      roles: [ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.WAREHOUSE_MANAGER, ROLES.CEO]
     },
     {
       title: 'Đội xe & Tài xế',
       path: '/admin/fleet',
       icon: Truck,
-      roles: [ROLES.DISPATCHER, ROLES.ADMIN, ROLES.CEO]
+      roles: [ROLES.DISPATCHER, ROLES.WAREHOUSE_MANAGER, ROLES.CEO]
     }
   ];
 
@@ -77,19 +77,19 @@ const Sidebar = () => {
       title: 'Phiếu Nhập & Kiểm định',
       path: '/inbound/receipts',
       icon: Package2,
-      roles: [ROLES.PLANNER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.WAREHOUSE_MANAGER, ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN, ROLES.CEO]
+      roles: [ROLES.PLANNER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.WAREHOUSE_MANAGER, ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.CEO]
     },
     {
       title: 'Xử lý hàng lỗi',
       path: '/inbound/quarantine',
       icon: ShieldAlert,
-      roles: [ROLES.STOREKEEPER, ROLES.WAREHOUSE_MANAGER, ROLES.CEO, ROLES.ADMIN]
+      roles: [ROLES.STOREKEEPER, ROLES.WAREHOUSE_MANAGER, ROLES.CEO]
     },
     {
       title: 'Đại lý trả hàng',
       path: '/inbound/returns',
       icon: ArrowRightLeft,
-      roles: [ROLES.WAREHOUSE_STAFF, ROLES.STOREKEEPER, ROLES.WAREHOUSE_MANAGER, ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.CEO, ROLES.ADMIN]
+      roles: [ROLES.WAREHOUSE_STAFF, ROLES.STOREKEEPER, ROLES.WAREHOUSE_MANAGER, ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.CEO]
     }
   ];
 
@@ -98,13 +98,14 @@ const Sidebar = () => {
       title: 'Yêu cầu điều chuyển',
       path: '/transfers/requests',
       icon: ClipboardList,
-      roles: [ROLES.PLANNER, ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]
+      roles: [ROLES.PLANNER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.WAREHOUSE_MANAGER, ROLES.DISPATCHER, ROLES.CEO]
     },
     {
       title: 'Phiếu điều chuyển',
       path: '/transfers',
       icon: Package2,
-      roles: [ROLES.PLANNER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.WAREHOUSE_MANAGER, ROLES.DISPATCHER, ROLES.ADMIN, ROLES.CEO]
+      end: true,
+      roles: [ROLES.PLANNER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.WAREHOUSE_MANAGER, ROLES.DISPATCHER, ROLES.CEO]
     }
   ];
 
@@ -113,19 +114,19 @@ const Sidebar = () => {
       title: 'Đơn xuất hàng',
       path: '/outbound/delivery-orders',
       icon: PackageCheck,
-      roles: [ROLES.PLANNER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.WAREHOUSE_MANAGER, ROLES.DISPATCHER, ROLES.ACCOUNTANT, ROLES.ADMIN, ROLES.CEO]
+      roles: [ROLES.PLANNER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.WAREHOUSE_MANAGER, ROLES.DISPATCHER, ROLES.ACCOUNTANT, ROLES.CEO]
     },
     {
       title: 'Quản lý chuyến xe',
       path: '/outbound/trips',
       icon: Truck,
-      roles: [ROLES.DISPATCHER, ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]
+      roles: [ROLES.DISPATCHER, ROLES.WAREHOUSE_MANAGER, ROLES.CEO]
     },
     {
       title: 'Giao hàng của tôi',
       path: '/outbound/driver/trips',
       icon: MapPin,
-      roles: [ROLES.DRIVER, ROLES.ADMIN]
+      roles: [ROLES.DRIVER]
     }
   ];
 
@@ -134,7 +135,7 @@ const Sidebar = () => {
       title: 'Danh sách kiểm kê',
       path: '/stocktake',
       icon: ClipboardList,
-      roles: [ROLES.WAREHOUSE_MANAGER, ROLES.STOREKEEPER, ROLES.CEO, ROLES.ADMIN],
+      roles: [ROLES.WAREHOUSE_MANAGER, ROLES.STOREKEEPER, ROLES.CEO],
     },
   ];
 
@@ -143,25 +144,31 @@ const Sidebar = () => {
       title: 'Bảng giá',
       path: '/finance/price-list',
       icon: DollarSign,
-      roles: [ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN, ROLES.CEO]
+      roles: [ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.CEO]
     },
     {
       title: 'Duyệt bảng giá',
       path: '/finance/price-approval',
       icon: CheckSquare,
-      roles: [ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN]
+      roles: [ROLES.ACCOUNTANT_MANAGER]
     },
     {
-      title: 'Hóa đơn & Kỳ kế toán',
+      title: 'Thu Tiền Đại lý (AR)',
       path: '/finance/invoices',
       icon: FileText,
-      roles: [ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN, ROLES.CEO]
+      roles: [ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.CEO]
     },
     {
-      title: 'Thu nợ & Công nợ',
-      path: '/finance/payments',
+      title: 'Trả Tiền NCC (AP)',
+      path: '/finance/supplier-invoices',
       icon: Landmark,
-      roles: [ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN, ROLES.CEO]
+      roles: [ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.CEO]
+    },
+    {
+      title: 'Kỳ kế toán & Khóa sổ',
+      path: '/finance/periods',
+      icon: Calendar,
+      roles: [ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.CEO]
     }
   ];
 
@@ -170,25 +177,19 @@ const Sidebar = () => {
       title: 'Báo cáo quản trị (Giám đốc)',
       path: '/reports/ceo-dashboard',
       icon: BarChart3,
-      roles: [ROLES.CEO, ROLES.ADMIN]
+      roles: [ROLES.CEO]
     },
     {
       title: 'Báo cáo giá trị tồn',
       path: '/reports/inventory-valuation',
       icon: DollarSign,
-      roles: [ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN]
+      roles: [ROLES.ACCOUNTANT_MANAGER, ROLES.WAREHOUSE_MANAGER, ROLES.CEO]
     },
     {
       title: 'Cảnh báo tồn kho',
       path: '/reports/low-stock',
       icon: ShieldAlert,
-      roles: [ROLES.WAREHOUSE_MANAGER, ROLES.PLANNER, ROLES.ADMIN]
-    },
-    {
-      title: 'Báo cáo năng suất',
-      path: '/reports/productivity',
-      icon: ClipboardList,
-      roles: [ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN]
+      roles: [ROLES.WAREHOUSE_MANAGER, ROLES.PLANNER, ROLES.CEO]
     }
   ];
 
@@ -221,10 +222,11 @@ const Sidebar = () => {
                 <NavLink
                   key={item.path}
                   to={item.path}
+                  end
                   className={({ isActive }) =>
                     `flex items-center gap-3 px-3 py-2.5 rounded-pill text-xs font-semibold uppercase tracking-wider transition-colors ${
                       isActive
-                        ? 'bg-canvas-nightElevated text-onPrimary'
+                        ? 'bg-onPrimary text-canvas-night'
                         : 'text-shade-40 hover:text-onPrimary hover:bg-canvas-nightElevated'
                     }`
                   }
@@ -248,10 +250,11 @@ const Sidebar = () => {
                   <NavLink
                     key={item.path}
                     to={item.path}
+                    end
                     className={({ isActive }) =>
                       `flex items-center gap-3 px-3 py-2.5 rounded-pill text-xs font-semibold uppercase tracking-wider transition-colors ${
                         isActive
-                          ? 'bg-canvas-nightElevated text-onPrimary'
+                          ? 'bg-onPrimary text-canvas-night'
                           : 'text-shade-40 hover:text-onPrimary hover:bg-canvas-nightElevated'
                       }`
                     }
@@ -276,10 +279,11 @@ const Sidebar = () => {
                   <NavLink
                     key={item.path}
                     to={item.path}
+                    end={!!item.end}
                     className={({ isActive }) =>
                       `flex items-center gap-3 px-3 py-2.5 rounded-pill text-xs font-semibold uppercase tracking-wider transition-colors ${
                         isActive
-                          ? 'bg-canvas-nightElevated text-onPrimary'
+                          ? 'bg-onPrimary text-canvas-night'
                           : 'text-shade-40 hover:text-onPrimary hover:bg-canvas-nightElevated'
                       }`
                     }
@@ -304,10 +308,11 @@ const Sidebar = () => {
                   <NavLink
                     key={item.path}
                     to={item.path}
+                    end
                     className={({ isActive }) =>
                       `flex items-center gap-3 px-3 py-2.5 rounded-pill text-xs font-semibold uppercase tracking-wider transition-colors ${
                         isActive
-                          ? 'bg-canvas-nightElevated text-onPrimary'
+                          ? 'bg-onPrimary text-canvas-night'
                           : 'text-shade-40 hover:text-onPrimary hover:bg-canvas-nightElevated'
                       }`
                     }
@@ -332,10 +337,11 @@ const Sidebar = () => {
                   <NavLink
                     key={item.path}
                     to={item.path}
+                    end
                     className={({ isActive }) =>
                       `flex items-center gap-3 px-3 py-2.5 rounded-pill text-xs font-semibold uppercase tracking-wider transition-colors ${
                         isActive
-                          ? 'bg-canvas-nightElevated text-onPrimary'
+                          ? 'bg-onPrimary text-canvas-night'
                           : 'text-shade-40 hover:text-onPrimary hover:bg-canvas-nightElevated'
                       }`
                     }
@@ -360,10 +366,11 @@ const Sidebar = () => {
                   <NavLink
                     key={item.path}
                     to={item.path}
+                    end
                     className={({ isActive }) =>
                       `flex items-center gap-3 px-3 py-2.5 rounded-pill text-xs font-semibold uppercase tracking-wider transition-colors ${
                         isActive
-                          ? 'bg-canvas-nightElevated text-onPrimary'
+                          ? 'bg-onPrimary text-canvas-night'
                           : 'text-shade-40 hover:text-onPrimary hover:bg-canvas-nightElevated'
                       }`
                     }
@@ -388,10 +395,11 @@ const Sidebar = () => {
                   <NavLink
                     key={item.path}
                     to={item.path}
+                    end
                     className={({ isActive }) =>
                       `flex items-center gap-3 px-3 py-2.5 rounded-pill text-xs font-semibold uppercase tracking-wider transition-colors ${
                         isActive
-                          ? 'bg-canvas-nightElevated text-onPrimary'
+                          ? 'bg-onPrimary text-canvas-night'
                           : 'text-shade-40 hover:text-onPrimary hover:bg-canvas-nightElevated'
                       }`
                     }
@@ -416,6 +424,7 @@ const Sidebar = () => {
                   <NavLink
                     key={item.path}
                     to={item.path}
+                    end
                     className={({ isActive }) =>
                       `flex items-center gap-3 px-3 py-2.5 rounded-pill text-xs font-semibold uppercase tracking-wider transition-colors ${
                         isActive

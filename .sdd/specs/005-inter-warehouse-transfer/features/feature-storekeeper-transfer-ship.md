@@ -1,14 +1,15 @@
 # Feature: Thu kho Nguon Soan & Xuat hang Dieu chuyen (US-WMS-12)
 
 ## 1. Context and Goal
-Thu kho tai kho nguon chiu trach nhiem soan hang theo phieu dieu chuyen da duoc phe duyet, boc xep len xe tai noi bo va ghi nhan so luong gui di. Dispatcher kho nguon phai lap mot chuyen xe noi bo rieng cho phieu dieu chuyen, va Tai xe duoc gan vao chuyen do xac nhan da nhan hang, xe roi kho de he thong chuyen ton kho sang trang thai `IN_TRANSIT`.
+Cong nhan/Nhan vien kho nguon chiu trach nhiem lay hang, boc xep len xe noi bo va bao cao so luong thuc xep theo phieu dieu chuyen da duoc phe duyet. Thu kho tai kho nguon chiu trach nhiem QC xuat sau khi co bao cao so luong xep, yeu cau cong nhan xu ly lai khi QC that bai, va chi cho phep ban giao tai xe khi QC da dat. Dispatcher kho nguon phai lap mot chuyen xe noi bo rieng cho phieu dieu chuyen, va Tai xe duoc gan vao chuyen do xac nhan da nhan hang, xe roi kho de he thong chuyen ton kho sang trang thai `IN_TRANSIT`.
 
 Luot ship nay thuoc man **Dieu chuyen noi bo** va chi ap dung cho ma `TRF-*`, khong lien quan den luong `RN-*` cua nhap NCC.
 Trang thai dieu phoi cua tai xe la du lieu van hanh/danh muc. Tai xe khong tu doi trang thai san sang/ban/khong kha dung trong luong ship transfer; Dispatcher/admin quan ly lich ranh, con he thong co the tu dong chuyen sang `ON_TRIP` khi tai xe xac nhan roi kho.
-Kho Phuc Anh khong dung Barcode/QR trong Sprint 1. Buoc pick, outbound QC va load/handover cua dieu chuyen duoc xac nhan bang dong phieu tren he thong, so luong nhap/xac nhan va anh chup lam bang chung. UI Sprint 1 khong nhap link anh thu cong; nguoi dung phai chon file anh tu may tinh/dien thoai hoac chup anh truc tiep bang camera thiet bi truoc khi nut xac nhan/duyet duoc kich hoat.
+Kho Phuc Anh khong dung Barcode/QR trong Sprint 1. Buoc pick/load report cua cong nhan, outbound QC cua thu kho va load/handover duoc xac nhan bang dong phieu tren he thong, so luong nhap/xac nhan va anh chup lam bang chung. UI Sprint 1 khong nhap link anh thu cong; nguoi dung phai chon file anh tu may tinh/dien thoai hoac chup anh truc tiep bang camera thiet bi truoc khi nut xac nhan/duyet duoc kich hoat.
 
 ## 2. Actors
-- **Thu kho (Kho nguon)**: Soan hang, xac nhan xuat hang len xe tai.
+- **Cong nhan/Nhan vien kho nguon**: Lay hang, boc xep len xe va bao cao so luong thuc xep theo tung dong phieu.
+- **Thu kho (Kho nguon)**: QC xuat sau bao cao so luong xep, yeu cau xu ly lai khi QC that bai, xac nhan hang dat dieu kien ban giao tai xe.
 - **Truong kho nguon**: Duyet hoac tu choi phieu dieu chuyen.
 - **Dispatcher (Kho nguon)**: Lap chuyen xe noi bo rieng cho phieu dieu chuyen, gan xe va tai xe kha dung trong pham vi kho nguon.
 - **Tai xe**: Xac nhan nhan hang va xe roi kho nguon.
@@ -46,19 +47,29 @@ Kho Phuc Anh khong dung Barcode/QR trong Sprint 1. Buoc pick, outbound QC va loa
     * Create a `TRANSFER_TRIP_ASSIGN` audit log entry.
     * Allow changing vehicle, driver, or planned date only before departure; after departure the trip assignment becomes immutable in Sprint 1.
 
+  * WHEN a Cong nhan/Nhan vien kho nguon reports loaded quantities, the system SHALL:
+    * Allow the action only while the transfer is `APPROVED`.
+    * Allow the action only when the actor is assigned to the transfer source warehouse.
+    * Record `loaded_qty` for every item before outbound QC.
+    * Require `loaded_qty = planned_qty` for every item before QC can pass; otherwise keep the transfer in source-load rework with a required reason.
+    * Clear any previous failed-QC rework marker after a corrected load report is saved.
+    * Create a `TRANSFER_SOURCE_LOAD_REPORT` audit log entry.
+
   * WHEN a Thu kho nguon performs outbound QC, the system SHALL:
     * Allow the action only while the transfer is `APPROVED`.
+    * Require worker-reported loaded quantities to exist for every transfer item.
     * Verify correct SKU, physical condition, packaging integrity, and readiness for the exact loaded quantity.
     * Require selected/captured photo confirmation for the QC result; Barcode/QR scan and manual photo-link entry SHALL NOT be required in the Sprint 1 UI.
     * Keep `QC Dat` and `QC That bai` actions disabled until a photo has been selected or captured.
     * Block shipment/departure if outbound QC is missing or failed.
-    * If outbound QC failed, expose only the unload/unship action and do not allow shipment preparation until QC is redone and passed.
+    * If outbound QC failed, expose only source worker rework/unload and re-report actions; do not allow load handover or driver departure until QC is redone and passed.
     * Create a `TRANSFER_OUTBOUND_QC` audit log entry.
 
   * WHEN a Thu kho nguon confirms shipment preparation, the system SHALL:
     * Allow the action only while the transfer is `APPROVED`.
     * Allow the action only when the actor is assigned to the transfer source warehouse.
     * Require outbound QC to have passed.
+    * Confirm `sent_qty` from worker-reported `loaded_qty`.
     * Require `sent_qty = planned_qty` for every item.
     * Create a `TRANSFER_SHIP` audit log entry.
 
@@ -97,8 +108,9 @@ Kho Phuc Anh khong dung Barcode/QR trong Sprint 1. Buoc pick, outbound QC va loa
 - `POST /api/v1/inter-warehouse-transfers/{id}/approve` - Duyet dieu chuyen va giu cho hang (Truong kho nguon).
 - `POST /api/v1/inter-warehouse-transfers/{id}/reject` - Tu choi phieu dieu chuyen khi con `NEW`, bat buoc nhap ly do (Truong kho nguon).
 - `POST /api/v1/inter-warehouse-transfers/{id}/trip` - Lap chuyen xe noi bo rieng cho phieu dieu chuyen (Dispatcher kho nguon).
-- `POST /api/v1/inter-warehouse-transfers/{id}/outbound-qc` - Thu kho nguon kiem tra QC xuat truoc khi boc xep/giao tai xe.
-- `POST /api/v1/inter-warehouse-transfers/{id}/ship` - Thu kho nguon ghi nhan so luong gui di va boc xep len xe.
+- `POST /api/v1/inter-warehouse-transfers/{id}/source-load-report` - Cong nhan/Nhan vien kho nguon bao cao so luong thuc xep len xe truoc QC.
+- `POST /api/v1/inter-warehouse-transfers/{id}/outbound-qc` - Thu kho nguon kiem tra QC xuat sau khi cong nhan bao cao so luong xep.
+- `POST /api/v1/inter-warehouse-transfers/{id}/ship` - Thu kho nguon chot so luong gui di tu so luong da xep sau khi QC dat.
 - `POST /api/v1/inter-warehouse-transfers/{id}/load-handover` - Ghi nhan ban giao hang da boc xep cho tai xe duoc gan.
 - `POST /api/v1/inter-warehouse-transfers/{id}/unship` - Ha hang tu xe xuong kho truoc khi tai xe xac nhan roi kho; xoa so luong da ghi len xe va giu phieu o `APPROVED`.
 - `POST /api/v1/inter-warehouse-transfers/{id}/depart` - Tai xe duoc gan xac nhan da nhan hang, xe roi kho, giai phong giu cho va chuyen sang In-Transit.
@@ -113,6 +125,8 @@ Kho Phuc Anh khong dung Barcode/QR trong Sprint 1. Buoc pick, outbound QC va loa
 - `TRIP_CAPACITY_EXCEEDED` (HTTP 422): calculated transfer weight or volume exceeds selected vehicle capacity.
 - `WAREHOUSE_SCOPE_REQUIRED` (HTTP 403): Dispatcher/manager/storekeeper acts outside source warehouse scope.
 - `OUTBOUND_QC_REQUIRED` (HTTP 409): shipment/departure is attempted before outbound QC passed.
+- `SOURCE_LOAD_REPORT_REQUIRED` (HTTP 409): outbound QC, load handover, or departure is attempted before worker reports loaded quantities.
+- `SOURCE_LOAD_REWORK_REQUIRED` (HTTP 409): previous outbound QC failed and source worker must unload/replace/correct/re-report before QC can pass.
 - `TRANSFER_PHOTO_REQUIRED` (HTTP 400): outbound QC or load/handover is confirmed without required photo reference.
 - `ASSIGNED_DRIVER_REQUIRED` (HTTP 409): departure actor is not the driver assigned to the transfer trip.
 - `TRANSFER_SHIP_NOT_ALLOWED` (HTTP 409): transfer is not `APPROVED`, actor is not in source warehouse scope, or shipment has already been recorded.
@@ -127,7 +141,9 @@ Kho Phuc Anh khong dung Barcode/QR trong Sprint 1. Buoc pick, outbound QC va loa
 - `TRANSFER_REJECT`: Truong kho nguon rejects a `NEW` transfer with a required reason and changes status to `REJECTED`.
 - `TRANSFER_TRIP_ASSIGN`: Dispatcher assigns one dedicated transfer trip with source-scoped vehicle and driver.
 - `TRANSFER_TRIP_REASSIGN`: Dispatcher changes vehicle/driver/schedule before departure.
-- `TRANSFER_OUTBOUND_QC`: Thu kho nguon records outbound QC result and photo references before loading/departure.
+- `TRANSFER_SOURCE_LOAD_REPORT`: Cong nhan/Nhan vien kho nguon records item-level loaded quantities before outbound QC.
+- `TRANSFER_SOURCE_LOAD_REWORK`: Cong nhan/Nhan vien kho nguon records unload/replacement/correction and re-reports loaded quantities after outbound QC failure.
+- `TRANSFER_OUTBOUND_QC`: Thu kho nguon records outbound QC result and photo references after worker load report and before handover/departure.
 - `TRANSFER_SHIP`: Thu kho nguon records exact approved quantities as loaded onto vehicle.
 - `TRANSFER_LOAD_HANDOVER`: Thu kho nguon records handover to the assigned driver with photo confirmation.
 - `TRANSFER_UNSHIP`: Thu kho nguon/authorized manager unloads goods before departure and clears recorded sent quantities.
@@ -161,9 +177,19 @@ Kho Phuc Anh khong dung Barcode/QR trong Sprint 1. Buoc pick, outbound QC va loa
   - When Truong kho nguon cancels the transfer
   - Then the system SHALL set transfer status to `CANCELLED`, release the reserved quantity, and create a `TRANSFER_CANCEL` audit log entry.
 
+- **Scenario: Worker reports loaded quantity before QC**
+  - Given a transfer is in `APPROVED` status for 30 units
+  - When Cong nhan kho nguon reports `loaded_qty = 30`
+  - Then the system SHALL store the worker-reported loaded quantity and allow Thu kho nguon to perform outbound QC.
+
+- **Scenario: QC fail returns to worker rework**
+  - Given Cong nhan kho nguon has reported loaded quantities
+  - When Thu kho nguon records outbound QC failed with photo evidence
+  - Then the system SHALL block load handover and driver departure, show only worker rework/re-report actions, and require QC to be redone after corrected loaded quantities are saved.
+
 - **Scenario: Reject shipment quantity mismatch**
   - Given a transfer is in `APPROVED` status for 30 units
-  - When Thu kho HP records shipment of 29 or 31 units
+  - When Cong nhan kho nguon reports loaded quantity of 29 or 31 units and Thu kho HP tries to pass QC/ship
   - Then the system SHALL reject the request with `SENT_QTY_MISMATCH`.
 
 - **Scenario: Block cancel after shipment preparation**

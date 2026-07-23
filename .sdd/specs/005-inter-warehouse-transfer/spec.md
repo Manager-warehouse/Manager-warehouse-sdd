@@ -2,8 +2,8 @@
 
 **Spec ID**: 005-inter-warehouse-transfer
 **Created**: 2026-05-30
-**Updated**: 2026-07-12
-**Status**: Change requested - harden production transfer flow, fix P0 gaps, and align contracts/tasks with actual implementation
+**Updated**: 2026-07-22
+**Status**: Change requested - add source worker load/count step before outbound QC and make QC-failed transfer return to worker rework
 **Features**: US-WMS-11, US-WMS-12
 
 ---
@@ -47,7 +47,7 @@ Bo sung luong tien xu ly cho nhu cau can bang ton kho giua cac kho:
 - Q: Can drivers manually change their own dispatch availability status inside transfer flow? -> A: No; driver dispatch status is managed by dispatcher/admin scheduling and by system auto-transition when a transfer trip starts/ends. Driver only confirms the assigned trip departure inside spec 005.
 
 ### Session 2026-06-19
-- Q: Who can initiate return-to-source for an overdue trip? -> A: Only WAREHOUSE_MANAGER of the source warehouse, ADMIN, CEO, or PLANNER. Destination storekeeper and destination manager do NOT have this right; only the source manager or authorized role can reverse a transfer direction.
+- Q: Who can initiate return-to-source for an in-transit trip? -> A: Only WAREHOUSE_MANAGER of the source or destination warehouse, ADMIN, or CEO. PLANNER, DRIVER, STOREKEEPER, and WAREHOUSE_STAFF do NOT have direct return-to-source authority.
 - Q: What happens when trip planned_end_at is in the past while the transfer is still IN_TRANSIT? -> A: The system marks `tripOverdue = true` on the transfer response. The source manager must use the Return to Source action to send goods back. The system blocks receive-count and receive-check actions at the destination and shows an overdue warning in the UI.
 - Q: What happens to QC-failed items in internal transfer receiving? -> A: QC-failed quantity is automatically routed to the destination warehouse quarantine bin (is_quarantine = true) at finalReceive. The storekeeper does NOT manually select the quarantine bin; the system selects it automatically. QC-failed items are excluded from available inventory.
 - Q: Should the system validate quarantine existence early (at receiveCheck) rather than at finalReceive? -> A: Yes. If qcFailedQty > 0, the system validates at receiveCheck time that the destination warehouse has at least one active quarantine bin. This prevents the storekeeper from completing the check step only to fail at the final confirmation step.
@@ -64,7 +64,7 @@ Bo sung luong tien xu ly cho nhu cau can bang ton kho giua cac kho:
 - Q: Does manager-initiated request replace Planner-created transfers from company instructions? -> A: No. It adds a pre-approval request flow. Existing Planner `TRF` creation and source approval/ship/receive flow remain unchanged.
 
 ### Session 2026-07-12
-- Q: What is the required complete operational flow for internal transfer? -> A: `TRQ draft -> submit -> CEO approve -> Planner revalidate & convert once -> Source manager reserve FIFO eligible -> Dispatcher capacity/overlap plan -> pick + outbound QC + load/handover -> driver depart -> IN_TRANSIT -> driver arrive/handover -> blind count -> storekeeper count/QC/bin-capacity check -> manager final confirmation`.
+- Q: What is the required complete operational flow for internal transfer? -> A: `TRQ draft -> submit -> CEO approve -> Planner revalidate & convert once -> Source manager reserve FIFO eligible -> Dispatcher capacity/overlap plan -> source worker pick/load/report loaded quantity -> source storekeeper outbound QC -> QC fail returns to worker rework/re-report -> QC pass -> load/handover -> driver depart -> IN_TRANSIT -> driver arrive/handover -> blind count -> storekeeper count/QC/bin-capacity check -> manager final confirmation`.
 - Q: Which P0 production gaps must be covered before the flow is accepted? -> A: database schema/code status alignment, nullable transfer-item batch during planning, FIFO eligibility excluding quarantine/inactive locations, outbound QC, destination bin capacity, optimistic locking/concurrency, immutable line-level audit snapshots, and PostgreSQL/Flyway integration tests.
 - Q: Is destination receiving allowed immediately after `IN_TRANSIT`? -> A: No. The assigned driver must record arrival and physical handover at the target warehouse before worker blind count, except when an approved return leg flips the target back to the source warehouse.
 - Q: How is the return leg controlled? -> A: Wrong-SKU return and overdue return both require explicit reason and photo references when available, driver return departure, return arrival/handover, and source-side count/check/final confirmation. The system must not only toggle `is_returned`.
@@ -83,7 +83,8 @@ Bo sung luong tien xu ly cho nhu cau can bang ton kho giua cac kho:
 | CEO | Approver | Phe duyet hoac tu choi yeu cau dieu chuyen do Truong kho de xuat truoc khi Planner kho nguon tao phieu `TRF` |
 | Truong kho (Kho nguon) | Checker | Kiem tra ton kho kha dung tai kho nguon va phe duyet/tu choi phieu dieu chuyen |
 | Dispatcher (Kho nguon) | Maker | Lap chuyen xe noi bo rieng cho phieu dieu chuyen, gan xe va tai xe trong pham vi kho nguon |
-| Thu kho (Kho nguon) | Maker | Nhan lenh xuat dieu chuyen, soan hang va xac nhan xuat hang len xe |
+| Nhan vien kho/Cong nhan kho nguon | Maker | Lay hang, boc xep len xe noi bo va bao cao so luong thuc xep theo tung dong phieu truoc khi Thu kho nguon QC |
+| Thu kho (Kho nguon) | Checker | Kiem tra QC xuat sau khi cong nhan bao cao so luong xep, yeu cau xu ly lai khi QC that bai, va xac nhan hang du dieu kien ban giao tai xe |
 | Tai xe | Maker | Xac nhan da nhan hang, xe roi kho nguon va van chuyen hang hoa giua cac kho |
 | Nhan vien kho/Cong nhan kho dich | Maker | Kiem dem mat so luong thuc nhan ban dau tai kho dich |
 | Thu kho (Kho dich) | Checker | Kiem tra lai so luong cong nhan nhap, nhap/chot QC, chon vi tri nhap kho cho hang dat va duyet receive-check |
@@ -107,14 +108,17 @@ The canonical execution flow SHALL be:
 4. Planner revalidates the approved request, converts it at most once into `TRF`, or creates a manual `TRF` from an external instruction.
 5. Source Warehouse Manager approves the `TRF` and reserves FIFO-eligible inventory only.
 6. Dispatcher assigns or updates one dedicated `TRANSFER` trip before departure, with capacity and overlap checks.
-7. Source Storekeeper picks goods, selects/captures required outbound-QC photo evidence, performs outbound QC, records exact loaded quantities only after QC passes, and records photo-based load/handover evidence before driver departure.
-8. Assigned Driver confirms departure; system moves stock to the virtual `IN_TRANSIT` warehouse.
-9. Assigned Driver records arrival and the receiving warehouse records physical handover with selected/captured photo evidence before receive-count is enabled.
-10. Receiving worker performs blind count.
-11. Storekeeper checks count, performs QC, validates destination bin capacity, and approves receive check.
-12. Warehouse Manager final-confirms receipt and settlement.
+7. Source warehouse worker picks/loads goods and reports exact loaded quantities for each transfer line.
+8. Source Storekeeper selects/captures required outbound-QC photo evidence and performs outbound QC against the worker-reported loaded quantities.
+9. If outbound QC fails, the transfer returns to source worker rework/loading so workers can unload, replace, correct, or re-report loaded quantities; shipment, load handover, and driver departure remain blocked until QC is redone and passed.
+10. Source Storekeeper records photo-based load/handover evidence after outbound QC passes and before driver departure.
+11. Assigned Driver confirms departure; system moves stock to the virtual `IN_TRANSIT` warehouse.
+12. Assigned Driver records arrival and the receiving warehouse records physical handover with selected/captured photo evidence before receive-count is enabled.
+13. Receiving worker performs blind count.
+14. Storekeeper checks count, performs QC, validates destination bin capacity, and approves receive check.
+15. Warehouse Manager final-confirms receipt and settlement.
 
-Exception branches SHALL be handled separately:
+Exception branches SHALL be handled as explicit branches in the same operational workflow:
 - Shortage: create incident/discrepancy record plus `TRANSFER_DISCREPANCY` adjustment; missing quantity never becomes quarantine stock.
 - Over-receipt: block regular inventory posting and record a discrepancy-hold/incident for the physical excess goods; do not silently ignore physical overage.
 - QC failure: move physical failed quantity to Quarantine with internal-transfer origin for Spec 009 disposal.
@@ -175,6 +179,10 @@ Exception branches SHALL be handled separately:
 - `outbound_qc_checked_at` (TIMESTAMPTZ)
 - `outbound_qc_result` (VARCHAR(20), CHECK IN ('PASSED','FAILED'))
 - `outbound_qc_photo_ref` (TEXT, NOT NULL before outbound QC pass/fail)
+- `source_loaded_reported_by` (BIGINT, FK->users)
+- `source_loaded_reported_at` (TIMESTAMPTZ)
+- `source_load_rework_required` (BOOLEAN, DEFAULT false)
+- `source_load_rework_reason` (TEXT)
 - `load_handover_by` (BIGINT, FK->users)
 - `load_handover_at` (TIMESTAMPTZ)
 - `load_handover_photo_ref` (TEXT, NOT NULL before load handover confirmation)
@@ -235,6 +243,9 @@ Exception branches SHALL be handled separately:
 - `receive_checked_at` (TIMESTAMPTZ)
 - `receive_checker_note` (TEXT)
 - `batch_id` (BIGINT, FK->batches, NULLABLE) -- nullable on planned item; batch fidelity is recorded by transfer allocations after FIFO reservation
+- `loaded_qty` (DECIMAL(10,2)) -- worker-reported quantity loaded before outbound QC; `sent_qty` is confirmed from loaded quantity only after QC passes
+- `loaded_reported_by` (BIGINT, FK->users)
+- `loaded_reported_at` (TIMESTAMPTZ)
 - `outbound_qc_result` (VARCHAR(20), CHECK IN ('PENDING','PASSED','FAILED'))
 - `outbound_qc_note` (TEXT)
 
@@ -323,6 +334,8 @@ Exception branches SHALL be handled separately:
 | TRANSFER_DB_SCHEMA_MISMATCH | 500 | Runtime schema cannot persist a documented transfer status or nullable planned batch field |
 | OUTBOUND_QC_REQUIRED | 409 | Shipment/departure attempted before source outbound QC is passed |
 | OUTBOUND_QC_FAILED | 409 | Source outbound QC failed and goods cannot be loaded |
+| SOURCE_LOAD_REPORT_REQUIRED | 409 | Outbound QC, load handover, or departure attempted before source worker reports loaded quantities |
+| SOURCE_LOAD_REWORK_REQUIRED | 409 | Previous outbound QC failed; source worker must unload, replace, correct, or re-report loaded quantities before QC can pass |
 | BIN_CAPACITY_EXCEEDED | 422 | QC-passed destination bin does not have enough remaining capacity |
 | TRIP_CAPACITY_EXCEEDED | 422 | Calculated transfer weight or volume exceeds vehicle capacity |
 | TRANSFER_ARRIVAL_REQUIRED | 409 | Receive-count attempted before driver arrival/handover is recorded |
@@ -381,13 +394,16 @@ Exception branches SHALL be handled separately:
 - Dispatcher SHALL calculate transfer trip weight and volume from product/package data and planned quantities, reject overloaded vehicles, and store the calculated totals on the trip.
 - Driver candidates for a transfer trip SHALL belong to the transfer source warehouse scope; drivers assigned only to unrelated warehouses SHALL NOT be selectable.
 - Drivers SHALL NOT manually change their own dispatch availability status from the transfer flow. Dispatcher/admin manages driver readiness, and the system MAY auto-switch driver status to `ON_TRIP` on departure and back to `READY` when the transfer trip is completed or cancelled without another active assignment.
-- Thu kho nguon SHALL record shipment only for transfers in `APPROVED` status and only when assigned to the transfer source warehouse.
-- Thu kho nguon SHALL complete outbound QC before shipment can be loaded or departed. Outbound QC SHALL verify correct SKU, physical condition, packaging integrity, and loaded quantity readiness.
+- Nhan vien kho/Cong nhan kho nguon SHALL pick/load approved transfer goods and report `loaded_qty` per transfer item before source outbound QC.
+- Worker-reported `loaded_qty` SHALL equal approved `planned_qty` for every transfer item before the shipment can be considered ready for QC pass; mismatch SHALL be rejected or kept in rework with a required reason.
+- Thu kho nguon SHALL perform outbound QC only after worker-reported loaded quantities exist and only when assigned to the transfer source warehouse.
+- Thu kho nguon SHALL complete outbound QC before shipment can be handed over or departed. Outbound QC SHALL verify correct SKU, physical condition, packaging integrity, and loaded quantity readiness.
+- If outbound QC fails, the system SHALL set source load rework required, block load handover and driver departure, and expose the worker rework/re-report step so goods can be unloaded, replaced, corrected, or reloaded before QC is redone.
 - Outbound QC SHALL be confirmed by user-entered result and required photos, not by Barcode/QR scanning.
 - Selected/captured transfer photos SHALL be uploaded as multipart files first. The business action payload SHALL store only the returned short `photoRef`; raw base64/data URLs SHALL NOT be sent in `photoRef` because camera images can exceed request timeout and audit payload limits.
 - Pick confirmation SHALL use the selected transfer line and quantity in the system; the system SHALL NOT require scanning SKU, bin, carton, or pallet barcodes.
 - Load/handover to the assigned driver SHALL be recorded before departure and SHALL require at least one photo of the loaded goods or handover condition.
-- `sent_qty` SHALL equal approved `planned_qty` for every transfer item.
+- After outbound QC passes, `sent_qty` SHALL be confirmed from worker-reported `loaded_qty` and SHALL equal approved `planned_qty` for every transfer item.
 - Sprint 1 supports one shipment record and one final receiving cycle per transfer. Split shipment, split receive, or multiple partial departure/arrival legs are not included.
 - Driver reassignment or trip reschedule is supported only before departure. After the assigned driver departs and the transfer reaches `IN_TRANSIT`, changing driver or rescheduling the same trip is out of scope for Sprint 1.
 - Multiple unfinished receive attempts MAY overwrite the worker draft before receive-check approval, but once receive-check is approved the flow continues toward a single final confirmation.
@@ -427,7 +443,7 @@ Exception branches SHALL be handled separately:
 - If `received_qty < sent_qty`, the system SHALL create a `TRANSFER_DISCREPANCY` adjustment and set status to `COMPLETED_WITH_DISCREPANCY`.
 - Transfer cancellation SHALL be rejected for `REJECTED`, `IN_TRANSIT`, `COMPLETED`, `COMPLETED_WITH_DISCREPANCY`, `CANCELLED`, or `QUARANTINED` transfers.
 - **Return to Source**:
-  - For `TRIP_OVERDUE`, the source manager (WAREHOUSE_MANAGER scoped to the source warehouse, ADMIN, CEO, or PLANNER) MAY approve return while the transfer remains `IN_TRANSIT` only when the trip is overdue and a non-blank reason is recorded. Photo references SHOULD be attached when available.
+  - For `TRIP_OVERDUE` or an in-transit operational incident, a WAREHOUSE_MANAGER scoped to either the source or destination warehouse, ADMIN, or CEO MAY approve return while the transfer remains `IN_TRANSIT` when a non-blank reason is recorded. PLANNER cannot initiate or approve this return-to-source decision. Photo references SHOULD be attached when available.
   - For `WRONG_SKU`, destination Storekeeper SHALL submit a return report and destination Warehouse Manager SHALL approve or reject it. Destination Staff/Storekeeper SHALL NOT final-receive the wrong SKU into regular inventory before the decision.
   - After approval, `is_returned = true`; the same driver turns back and receiving scope flips to the source warehouse.
   - Source Staff, source Storekeeper, and source Warehouse Manager SHALL execute receive-count, receive-check/QC, and final-receive respectively.
@@ -466,6 +482,8 @@ Exception branches SHALL be handled separately:
 - `TRANSFER_REJECT`: Truong kho nguon rejects a `NEW` transfer with a required reason and changes status to `REJECTED`.
 - `TRANSFER_TRIP_ASSIGN`: Dispatcher assigns dedicated vehicle and driver trip for the transfer.
 - `TRANSFER_TRIP_REASSIGN`: Dispatcher changes vehicle, driver, or schedule before departure.
+- `TRANSFER_SOURCE_LOAD_REPORT`: Source worker records loaded quantities for each transfer item before outbound QC.
+- `TRANSFER_SOURCE_LOAD_REWORK`: Source worker unloads/replaces/corrects and re-reports loaded quantities after outbound QC failure.
 - `TRANSFER_OUTBOUND_QC`: Source Storekeeper records outbound QC result and photo references before load/departure.
 - `TRANSFER_SHIP`: Thu kho nguon records sent quantities and loading details.
 - `TRANSFER_LOAD_HANDOVER`: Source Storekeeper hands loaded stock to the assigned driver with required photo confirmation.
@@ -564,7 +582,7 @@ Exception branches SHALL be handled separately:
 ### 11.1 is_returned field and Return-to-Source flow
 - Field `is_returned BOOLEAN DEFAULT false` was added to `transfers` table.
 - When `is_returned = true`, all receive scope checks use `sourceWarehouseId` instead of `destinationWarehouseId`.
-- Overdue Return to Source may be triggered by WAREHOUSE_MANAGER scoped to **source** warehouse, ADMIN, CEO, or PLANNER.
+- Return to Source may be triggered by WAREHOUSE_MANAGER scoped to the source or destination warehouse, ADMIN, or CEO. PLANNER is not authorized for this action.
 - Wrong-SKU Return to Source requires a destination Storekeeper report followed by destination Warehouse Manager approval.
 - After either approval path, the assigned driver returns the goods and the source warehouse repeats count, check/QC, and final confirmation.
 - API: `POST /api/v1/inter-warehouse-transfers/{id}/return-to-source`

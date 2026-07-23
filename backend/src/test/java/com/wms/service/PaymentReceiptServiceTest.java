@@ -1,12 +1,71 @@
 package com.wms.service;
+import com.wms.entity.access_control.*;
+import com.wms.entity.audit_trail.*;
+import com.wms.entity.billing_payment.*;
+import com.wms.entity.dealer_management.*;
+import com.wms.entity.document_numbering.*;
+import com.wms.entity.driver_management.*;
+import com.wms.entity.fleet_management.*;
+import com.wms.entity.notification_delivery.*;
+import com.wms.entity.order_fulfillment.*;
+import com.wms.entity.price_management.*;
+import com.wms.entity.product_catalog.*;
+import com.wms.entity.stock_control.*;
+import com.wms.entity.stock_counting.*;
+import com.wms.entity.stock_receiving.*;
+import com.wms.entity.supplier_management.*;
+import com.wms.entity.user_configuration.*;
+import com.wms.entity.warehouse_location.*;
+import com.wms.entity.warehouse_transfer.*;
+import com.wms.enums.access_control.*;
+import com.wms.enums.audit_trail.*;
+import com.wms.enums.billing_payment.*;
+import com.wms.enums.dealer_management.*;
+import com.wms.enums.driver_management.*;
+import com.wms.enums.fleet_management.*;
+import com.wms.enums.notification_delivery.*;
+import com.wms.enums.order_fulfillment.*;
+import com.wms.enums.price_management.*;
+import com.wms.enums.stock_control.*;
+import com.wms.enums.stock_counting.*;
+import com.wms.enums.stock_receiving.*;
+import com.wms.enums.supplier_management.*;
+import com.wms.enums.user_configuration.*;
+import com.wms.enums.warehouse_location.*;
+import com.wms.enums.warehouse_transfer.*;
+
+import com.wms.service.user_configuration.*;
+import com.wms.service.user_configuration.impl.*;
+import com.wms.service.audit_trail.*;
+import com.wms.service.access_control.*;
+import com.wms.service.dealer_management.*;
+import com.wms.service.dealer_management.impl.*;
+import com.wms.service.billing_payment.*;
+import com.wms.service.billing_payment.impl.*;
+import com.wms.service.stock_receiving.*;
+import com.wms.service.stock_control.*;
+import com.wms.service.stock_control.impl.*;
+import com.wms.service.notification_delivery.*;
+import com.wms.service.notification_delivery.impl.*;
+import com.wms.service.order_fulfillment.*;
+import com.wms.service.order_fulfillment.impl.*;
+import com.wms.service.price_management.*;
+import com.wms.service.price_management.impl.*;
+import com.wms.service.reporting_alerting.*;
+import com.wms.service.reporting_alerting.impl.*;
+import com.wms.service.return_disposal.*;
+import com.wms.service.stock_counting.*;
+import com.wms.service.fleet_management.*;
+import com.wms.service.fleet_management.impl.*;
+import com.wms.service.warehouse_location.*;
+import com.wms.service.warehouse_location.impl.*;
 
 import com.wms.dto.request.PaymentReceiptCreateRequest;
 import com.wms.dto.response.PaymentReceiptResponse;
-import com.wms.entity.*;
-import com.wms.enums.*;
 import com.wms.exception.UnprocessableEntityException;
 import com.wms.repository.*;
-import com.wms.service.impl.PaymentReceiptServiceImpl;
+import com.wms.repository.dealer_management.DealerRepository;
+import com.wms.service.billing_payment.impl.PaymentReceiptServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -41,6 +100,8 @@ class PaymentReceiptServiceTest {
     @Mock private SystemConfigService systemConfigService;
     @Mock private AccountingPeriodService accountingPeriodService;
     @Mock private AuditLogService auditLogService;
+    @Mock private UserRepository userRepository;
+    @Mock private EmailService emailService;
 
     @InjectMocks
     private PaymentReceiptServiceImpl paymentReceiptService;
@@ -144,38 +205,31 @@ class PaymentReceiptServiceTest {
     }
 
     @Test
-    @DisplayName("Không mở khóa tín dụng nếu số dư dưới ngưỡng nhưng còn hóa đơn khác quá hạn")
-    void createPaymentReceipt_doesNotUnlockCreditWhenOtherInvoiceStillOverdue() {
-        PaymentReceiptCreateRequest request = new PaymentReceiptCreateRequest();
-        request.setDealerId(10L);
-        request.setInvoiceId(50L);
-        request.setAmount(BigDecimal.valueOf(20000000));
-        request.setPaymentDate(LocalDate.of(2026, 6, 20));
-        request.setPaymentMethod(PaymentMethod.BANK_TRANSFER);
+    @DisplayName("Job quét cuối ngày khóa tín dụng đại lý quá hạn và cảnh báo Kế toán trưởng (ACC-02)")
+    void runDailyOverdueHoldJob_locksDealerAndAlertsAccountantManagers() {
+        dealer.setCreditStatus(CreditStatus.ACTIVE);
+        invoice.setStatus(InvoiceStatus.UNPAID);
+        invoice.setDueDate(LocalDate.now().minusDays(45));
 
+        User manager = new User();
+        manager.setId(6L);
+        manager.setEmail("acc_manager@phucanh.vn");
+        manager.setRole(UserRole.ACCOUNTANT_MANAGER);
+
+        when(invoiceRepository.findByStatusOrderByCreatedAtDesc(InvoiceStatus.UNPAID))
+                .thenReturn(List.of(invoice));
+        when(invoiceRepository.findByStatusOrderByCreatedAtDesc(InvoiceStatus.PARTIALLY_PAID))
+                .thenReturn(Collections.emptyList());
+        when(systemConfigService.getIntValue(eq("CREDIT_HOLD_OVERDUE_DAYS"), anyInt())).thenReturn(30);
         when(dealerRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(dealer));
-        when(invoiceRepository.findById(50L)).thenReturn(Optional.of(invoice));
-        when(paymentReceiptRepository.findByDealerIdOrderByCreatedAtDesc(10L)).thenReturn(Collections.emptyList());
-        when(accountingPeriodRepository.findPeriodByDateAndStatus(request.getPaymentDate(), AccountingPeriodStatus.OPEN))
-                .thenReturn(Optional.of(period));
-        when(systemConfigService.getDecimalValue(eq("CREDIT_UNLOCK_BUFFER_PCT"), any()))
-                .thenReturn(new BigDecimal("0.8"));
-        when(systemConfigService.getIntValue(eq("CREDIT_HOLD_OVERDUE_DAYS"), anyInt()))
-                .thenReturn(30);
-        when(invoiceRepository.existsByDealerIdAndStatusInAndDueDateBefore(eq(10L), any(), any()))
-                .thenReturn(true);
-        when(sequenceRepository.findBySequenceKeyForUpdate("PAYMENT")).thenReturn(Optional.of(sequence));
-        when(paymentReceiptRepository.save(any(PaymentReceipt.class))).thenAnswer(invocation -> {
-            PaymentReceipt pr = invocation.getArgument(0);
-            pr.setId(61L);
-            return pr;
-        });
+        when(userRepository.findByRole(UserRole.ACCOUNTANT_MANAGER)).thenReturn(List.of(manager));
 
-        paymentReceiptService.createPaymentReceipt(request, accountantUser);
+        paymentReceiptService.runDailyOverdueHoldJob();
 
-        // Balance drops to 10,000,000 (below the 40,000,000 threshold) but another invoice is
-        // still overdue, so the dealer must stay on CREDIT_HOLD.
         assertThat(dealer.getCreditStatus()).isEqualTo(CreditStatus.CREDIT_HOLD);
+        verify(dealerRepository).save(dealer);
+        verify(emailService).sendCreditHoldAlert(eq("acc_manager@phucanh.vn"), eq("DL-001"), eq("Dai Ly A"),
+                eq("INV-202606-000100"), eq(45L));
     }
 
     @Test

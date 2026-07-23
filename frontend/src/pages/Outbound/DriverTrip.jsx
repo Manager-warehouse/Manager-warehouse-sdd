@@ -232,6 +232,36 @@ export default function DriverTrip() {
     }
   };
 
+  const handleTransferReturnDepart = async () => {
+    if (!getTransferId(trip)) return;
+
+    setSubmitting(true);
+    try {
+      await interWarehouseTransferService.returnDepart(getTransferId(trip));
+      addToast('Đã xác nhận tài xế quay đầu về kho nguồn', 'success');
+      fetchTrip(trip.id);
+    } catch (error) {
+      addToast(error.message || 'Lỗi khi xác nhận quay đầu', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleTransferReturnArrive = async () => {
+    if (!getTransferId(trip)) return;
+
+    setSubmitting(true);
+    try {
+      await interWarehouseTransferService.returnArrive(getTransferId(trip));
+      addToast('Đã xác nhận xe về đến kho nguồn', 'success');
+      fetchTrip(trip.id);
+    } catch (error) {
+      addToast(error.message || 'Lỗi khi xác nhận về kho nguồn', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleUploadPodAndRequestOTP = async () => {
     if (!goodsImage || !signDocumentImage) {
       addToast('Vui lòng tải đủ ảnh hàng hóa và ảnh biên bản giao nhận', 'error');
@@ -491,6 +521,45 @@ export default function DriverTrip() {
               ) : (
                 <p className="text-[11px] leading-relaxed text-success-700 font-semibold">
                   Đã xác nhận đến kho đích. Chờ kho đích nhận bàn giao hàng.
+                </p>
+              )}
+            </div>
+          )}
+
+          {isTransferTrip && trip.status === 'IN_TRANSIT' && trip.isReturned && (
+            <div className="mt-4 pt-4 border-t border-hairline-light">
+              <div className="bg-danger-50 border border-danger-200 rounded-lg p-3 text-xs text-danger-700 mb-3">
+                <p className="font-bold">Quản lý kho đã yêu cầu quay đầu về kho nguồn.</p>
+                {trip.returnReason && <p className="mt-1">Lý do: {trip.returnReason}</p>}
+              </div>
+              {!trip.returnDepartedAt && (
+                <button
+                  onClick={handleTransferReturnDepart}
+                  disabled={submitting}
+                  className="w-full btn-pill btn-pill-primary flex items-center justify-center gap-2 py-2.5 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                  Xác nhận quay đầu về kho nguồn
+                </button>
+              )}
+              {trip.returnDepartedAt && !trip.returnArrivedAt && (
+                <button
+                  onClick={handleTransferReturnArrive}
+                  disabled={submitting}
+                  className="w-full btn-pill btn-pill-primary flex items-center justify-center gap-2 py-2.5 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                  Xác nhận đã về tới kho nguồn
+                </button>
+              )}
+              {trip.returnArrivedAt && !trip.returnArrivalHandoverAt && (
+                <p className="text-[11px] leading-relaxed text-warning-700 font-semibold">
+                  Đã về kho nguồn. Chờ kho nguồn nhận bàn giao để nhân viên đếm hàng.
+                </p>
+              )}
+              {trip.returnArrivalHandoverAt && (
+                <p className="text-[11px] leading-relaxed text-success-700 font-semibold">
+                  Kho nguồn đã nhận bàn giao. Chờ nhân viên đếm và thủ kho QC trước khi nhập lại tồn.
                 </p>
               )}
             </div>

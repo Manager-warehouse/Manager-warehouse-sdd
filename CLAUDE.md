@@ -19,7 +19,7 @@
 ### Đọc trước
 
 1. `AGENTS.md` → Project context đầy đủ (Tech stack, forbidden patterns, domain model)
-2. `README.md` → User Stories, requirements, key entities
+2. `README.md` → Project overview, quickstart, and documentation map
 3. File này → Workflow, patterns, và conventions
 4. `.specify/memory/constitution.md`
 
@@ -109,10 +109,11 @@ Manager-warehouse-sdd/
 ├── .git/                        # Git metadata
 ├── AGENTS.md                    # Agent policy, tech stack, forbidden patterns
 ├── CLAUDE.md                    # Kiến trúc, workflow, conventions (file này)
-├── Kiến trúc phân tầng các Actors.md  # 10 Actors, nghiệp vụ, quy trình
-├── README.md                    # User Stories, requirements, key entities
-├── DESIGN.md                    # UI design tokens (Apple design system)
-├── Userstory.md                 # User Stories bổ sung
+├── README.md                    # Project overview, quickstart, documentation map
+├── docs/
+│   ├── overview/                # Actors, user stories, feature catalog, project structure
+│   ├── architecture/            # Design system, frontend structure
+│   └── deployment/              # Deployment, Docker Compose, mobile build guides
 ├── backend/                     # Spring Boot 3.4.5 + Java 21
 ├── frontend/                    # React 18 + Tailwind CSS
 ├── specs/                       # Feature specifications (SDD)
@@ -833,7 +834,7 @@ DebitNote (Phiếu đòi bồi hoàn)
 | Monthly Closing            | Lock previous monthly periods (CLOSED), only Adjustment Vouchers allowed in open period |
 | Phúc Anh Internal Fleet    | All deliveries use internal fleet & drivers. No 3PL or delivery cost approvals |
 
-### Actor Reference (10 Actors — xem chi tiết tại `Kiến trúc phân tầng các Actors.md`)
+### Actor Reference (10 Actors — xem chi tiết tại `docs/overview/actors.md`)
 
 | Tầng      | Actor                   | Loại    | Trách nhiệm chính                                                                           |
 | --------- | ----------------------- | ------- | ------------------------------------------------------------------------------------------- |
@@ -1027,7 +1028,8 @@ Truong kho kho thieu hang xem ton lien kho read-only, tao transfer request neu c
 Planner nhap phieu `TRF-*` theo lenh ngoai hoac request da duoc CEO duyet
     -> Truong kho nguon duyet/tu choi va giu cho FIFO-eligible stock
     -> Dispatcher kho nguon lap chuyen `TTR-*`, gan xe va tai xe thuoc pham vi kho nguon, kiem tra trung lich, tai trong va the tich neu co cau hinh
-    -> Thu kho nguon outbound QC bang mat/doi chieu phieu, bat buoc chon/chup anh xac nhan truoc khi bam QC, QC dat moi duoc ghi so gui/boc xep; QC that bai chi cho ha hang khoi xe
+    -> Cong nhan/Nhan vien kho nguon lay hang, boc xep len xe va bao cao so luong thuc xep tung dong
+    -> Thu kho nguon outbound QC bang mat/doi chieu phieu dua tren so luong cong nhan da bao cao, bat buoc chon/chup anh xac nhan truoc khi bam QC; QC dat moi duoc chot so gui va ban giao tai xe; QC that bai quay lai buoc cong nhan ha hang/doi hang/xep lai/bao cao lai
     -> Thu kho nguon chup/chon anh ban giao hang len xe truoc khi xac nhan handover cho tai xe
     -> Tai xe duoc gan xac nhan nhan hang va roi kho
         -> System tru ton kho nguon, giai phong reserved, cong kho ao `IN_TRANSIT`
@@ -1045,95 +1047,243 @@ Planner nhap phieu `TRF-*` theo lenh ngoai hoac request da duoc CEO duyet
 
 **Swimlane điều chuyển nội bộ chuẩn:**
 
-```
-┌──────────────┬────────┬─────────┬──────────────┬────────────┬──────────────┬────────┬──────────────┬────────────────────┐
-│ TRƯỞNG KHO   │  CEO   │ PLANNER │ TRƯỞNG KHO   │ DISPATCHER │ THỦ KHO      │ TÀI XẾ │ KHO NHẬN     │       SYSTEM       │
-│ KHO THIẾU    │        │         │ KHO NGUỒN    │ KHO NGUỒN  │ KHO NGUỒN    │        │              │                    │
-├──────────────┼────────┼─────────┼──────────────┼────────────┼──────────────┼────────┼──────────────┼────────────────────┤
-│ Xem tồn liên │        │         │              │            │              │        │              │ Tính available,     │
-│ kho read-only│        │         │              │            │              │        │              │ loại Quarantine/    │
-│              │        │         │              │            │              │        │              │ In-Transit          │
-│ Tạo TRQ      │        │         │              │            │              │        │              │                    │
-│ [DRAFT]      │        │         │              │            │              │        │              │                    │
-│ Sửa hoặc xóa │        │         │              │            │              │        │              │ Xóa = CANCELLED,   │
-│ mềm khi DRAFT│        │         │              │            │              │        │              │ không delete DB    │
-│ Submit ──────┼───────►│         │              │            │              │        │              │ TRQ [SUBMITTED]    │
-│              │ Duyệt/ │         │              │            │              │        │              │                    │
-│              │ từ chối│         │              │            │              │        │              │ Nếu duyệt:          │
-│              │ ───────┼────────►│              │            │              │        │              │ TRQ [APPROVED],    │
-│              │        │ Convert │              │            │              │        │              │ chưa reserve        │
-│              │        │ TRQ hoặc│              │            │              │        │              │                    │
-│              │        │ tạo TRF │              │            │              │        │              │ TRF [NEW]          │
-│              │        │ thủ công│              │            │              │        │              │                    │
-│              │        │─────────┼─────────────►│            │              │        │              │                    │
-│              │        │         │ Duyệt/từ chối│            │              │        │              │ Nếu duyệt: reserve │
-│              │        │         │ TRF [NEW]    │            │              │        │              │ FIFO eligible,      │
-│              │        │         │──────────────┼───────────►│              │        │              │ TRF [APPROVED]     │
-│              │        │         │              │ Gán hoặc   │              │        │              │ Tạo/gán TTR,       │
-│              │        │         │              │ đổi trip   │              │        │              │ check scope,        │
-│              │        │         │              │ trước depart│             │        │              │ overlap, tải/trọng │
-│              │        │         │              │────────────┼─────────────►│        │              │                    │
-│              │        │         │              │            │ Pick theo    │        │              │                    │
-│              │        │         │              │            │ phiếu, không │        │              │                    │
-│              │        │         │              │            │ Barcode/QR   │        │              │                    │
-│              │        │         │              │            │ Outbound QC  │        │              │ Chọn/chụp ảnh      │
-│              │        │         │              │            │ + ảnh        │        │              │ trước khi bấm QC;  │
-│              │        │         │              │            │              │        │              │ QC pass mới ship   │
-│              │        │         │              │            │ Ship đúng SL │        │              │ sent=planned       │
-│              │        │         │              │            │ Handover ảnh ├──────►│              │ Handover photo     │
-│              │        │         │              │            │ cho tài xế   │        │              │ required           │
-│              │        │         │              │            │ cho tài xế   │ Depart │              │                    │
-│              │        │         │              │            │              │───────►│              │ Trừ kho nguồn,     │
-│              │        │         │              │            │              │        │              │ release reserved,  │
-│              │        │         │              │            │              │        │              │ cộng IN_TRANSIT,   │
-│              │        │         │              │            │              │        │              │ TRF [IN_TRANSIT]   │
-│              │        │         │              │            │              │ Arrive │              │                    │
-│              │        │         │              │            │              │───────┼─────────────► Ghi arrival        │
-│              │        │         │              │            │              │        │ Handover     │ Chọn/chụp ảnh      │
-│              │        │         │              │            │              │        │ nhận hàng ───► trước handover,    │
-│              │        │         │              │            │              │        │              │ mở receive-count   │
-│              │        │         │              │            │              │        │ Blind count  │                    │
-│              │        │         │              │            │              │        │─────────────► Lưu received draft  │
-│              │        │         │              │            │              │        │ Storekeeper  │                    │
-│              │        │         │              │            │              │        │ check/QC/bin │ Check QC total,     │
-│              │        │         │              │            │              │        │ capacity ───► quarantine/bin cap  │
-│              │        │         │              │            │              │        │ Manager      │                    │
-│              │        │         │              │            │              │        │ final receive│ Trừ IN_TRANSIT,    │
-│              │        │         │              │            │              │        │─────────────► cộng kho/Quarantine │
-│              │        │         │              │            │              │        │              │ hoặc discrepancy,  │
-│              │        │         │              │            │              │        │              │ [COMPLETED/*]      │
-└──────────────┴────────┴─────────┴──────────────┴────────────┴──────────────┴────────┴──────────────┴────────────────────┘
+![Swimlane điều chuyển kho nội bộ](.sdd/docs/assets/internal-transfer-swimlane.svg)
+
+```plantuml
+@startuml
+skinparam shadowing false
+skinparam activity {
+  BackgroundColor White
+  BorderColor Black
+  FontSize 12
+}
+skinparam ArrowColor Black
+skinparam defaultTextAlignment center
+title Điều chuyển kho nội bộ - Swimlane nghiệp vụ đầy đủ
+
+|Trưởng kho yêu cầu|
+start
+:View cross-warehouse stock\nread-only;
+|System|
+:Tính available\nloại quarantine và IN_TRANSIT;
+|Trưởng kho yêu cầu|
+:Create TRQ [DRAFT];
+if (Draft action?) then (Edit)
+  :Edit TRQ draft;
+  :Back to TRQ [DRAFT];
+elseif (Delete)
+  :Soft-cancel TRQ;
+  |System|
+  :TRQ [CANCELLED]\nkhông delete DB;
+  stop
+else (Submit)
+  :Submit TRQ;
+endif
+
+|System|
+:TRQ [SUBMITTED];
+|CEO|
+:Review submitted TRQ;
+if (Approve TRQ?) then (No)
+  :Reject with reason;
+  |System|
+  :TRQ [REJECTED];
+  stop
+else (Yes)
+  :Approve TRQ;
+  |System|
+  :TRQ [APPROVED]\nchưa reserve stock;
+endif
+
+|Planner|
+if (Instruction source?) then (Approved TRQ)
+  :Convert approved TRQ\nto TRF;
+else (External instruction)
+  :Create TRF from\nexternal instruction;
+endif
+:Validate TRF draft;
+if (TRF valid?) then (No)
+  :Fix TRF draft;
+  :Validate again;
+elseif (Cancel NEW)
+  |System|
+  :TRF [CANCELLED];
+  stop
+else (Yes)
+  |System|
+  :TRF [NEW];
+endif
+
+|Trưởng kho nguồn|
+:Review NEW TRF\nand source stock;
+if (Approve TRF?) then (Reject)
+  :Reject with reason;
+  |System|
+  :TRF [REJECTED];
+  stop
+else (Approve)
+endif
+if (Enough FIFO stock?) then (No)
+  |Planner|
+  :Fix TRF lines/date/qty;
+  |Trưởng kho nguồn|
+  :Review corrected TRF;
+else (Yes)
+  |System|
+  :Reserve FIFO-eligible stock;
+  :TRF [APPROVED];
+endif
+if (Cancel before loading?) then (Yes)
+  |Trưởng kho nguồn|
+  :Cancel APPROVED TRF;
+  |System|
+  :Release reserve\nTRF [CANCELLED];
+  stop
+else (No)
+endif
+
+|Dispatcher nguồn|
+:Assign transfer trip TTR;
+if (Vehicle/driver/capacity OK?) then (No)
+  :Pick another vehicle,\ndriver or date;
+  :Re-check assignment;
+else (Yes)
+  |System|
+  :TTR assigned\ncheck scope/overlap/load;
+endif
+
+|Thủ kho nguồn|
+:Pick goods by TRF lines\nkhông dùng Barcode/QR;
+|Công nhân kho nguồn|
+:Load goods and report loaded_qty;
+|Thủ kho nguồn|
+:Record outbound QC + photo\nagainst loaded_qty;
+if (Outbound QC pass?) then (No)
+  |Công nhân kho nguồn|
+  :Unload/replace/reload\nreport loaded_qty again;
+  |Thủ kho nguồn|
+  :Record outbound QC + photo;
+else (Yes)
+endif
+:Record sent_qty;
+if (sent_qty = planned_qty?) then (No)
+  :Correct sent quantity;
+  :Record sent_qty again;
+else (Yes)
+endif
+:Load handover + photo\nto assigned driver;
+
+|Tài xế|
+:Confirm departure;
+|System|
+:Move source stock to IN_TRANSIT\nrelease reserved qty\nTRF [IN_TRANSIT];
+if (Trip overdue before arrival?) then (Yes)
+  :Block destination receive-count\nand receive-check;
+  |Trưởng kho nguồn|
+  :Authorize Return to Source\nwith reason/photo if any;
+  |Tài xế|
+  :Confirm return departure;
+  :Confirm return arrival at source;
+  |Thủ kho nguồn|
+  :Receive return handover + photo;
+  |Trưởng kho nguồn|
+  :Final receive returned goods;
+  |System|
+  :Close return leg\nkeep audit trail;
+  stop
+else (No)
+  |Tài xế|
+  :Confirm arrival\nat receiving warehouse;
+endif
+
+|Nhân viên kho nhận|
+:Arrival handover + photo;
+if (Photo exists?) then (No)
+  :Add required photo;
+  :Arrival handover + photo;
+else (Yes)
+endif
+:Blind count received qty;
+if (Received qty > sent qty?) then (Yes)
+  |System|
+  :Create overage hold/incident\nblock regular inventory;
+  |Nhân viên kho nhận|
+  :Fix count;
+  :Blind count received qty;
+else (No)
+endif
+if (Shortage/issue has reason?) then (No)
+  :Add issue reason;
+  :Blind count received qty;
+else (Yes)
+endif
+
+|Thủ kho nhận|
+:Check worker count;
+:Receive QC + destination bin check;
+if (Receive check valid?) then (No)
+  :Fix count/QC/bin/reason;
+  :Receive QC + destination bin check;
+else (Yes)
+endif
+if (Wrong SKU intact?) then (Yes)
+  :Report WRONG_SKU line\nexpected/actual SKU, qty, reason/photo;
+  |Trưởng kho nhận|
+  if (Approve wrong-SKU return?) then (No)
+    :Reject return\ncontinue receive flow;
+    |Thủ kho nhận|
+    :Receive QC + destination bin check;
+  else (Yes)
+    :Approve return to source;
+    |Tài xế|
+    :Confirm return departure;
+    :Confirm return arrival at source;
+    |Thủ kho nguồn|
+    :Receive return handover + photo;
+    |Trưởng kho nguồn|
+    :Final receive returned goods;
+    |System|
+    :Keep stock in IN_TRANSIT\nuntil source receive completes;
+    stop
+  endif
+else (No)
+endif
+
+|Thủ kho nhận|
+if (Reject whole transfer to quarantine?) then (Yes)
+  :Approve quarantine rejection;
+  |System|
+  :Move entire transfer to Quarantine\norigin INTERNAL_TRANSFER;
+  :TRF [QUARANTINED];
+  stop
+else (No, partial/normal receive)
+  :Approve receive check;
+endif
+
+|Trưởng kho nhận|
+:Final receive confirmation;
+if (Final result?) then (Received = sent, QC pass)
+  |System|
+  :Post inventory to destination\nTRF [COMPLETED];
+  stop
+elseif (Shortage, no QC fail)
+  |System|
+  :Create TRANSFER_DISCREPANCY\nadjustment/incident\nTRF [COMPLETED_WITH_DISCREPANCY];
+  stop
+else (Partial QC fail)
+  |System|
+  :Move QC-failed qty to Quarantine\npost accepted qty to destination;
+  if (Shortage also exists?) then (Yes)
+    :TRF [COMPLETED_WITH_DISCREPANCY];
+  else (No)
+    :TRF [COMPLETED];
+  endif
+  stop
+endif
+@enduml
 ```
 
-**Swimlane ngoại lệ chính:**
-
-```
-┌──────────────┬──────────────┬──────────────┬────────┬──────────────┬────────────────────┐
-│  KHO NHẬN    │ TRƯỞNG KHO   │ TRƯỞNG KHO   │ TÀI XẾ │ KHO NGUỒN    │       SYSTEM       │
-│              │ KHO NHẬN     │ KHO NGUỒN    │        │              │                    │
-├──────────────┼──────────────┼──────────────┼────────┼──────────────┼────────────────────┤
-│ Thiếu hàng   │              │              │        │              │ Tạo incident +     │
-│ khi nhận ───►│ Final approve│              │        │              │ adjustment, không  │
-│              │              │              │        │              │ tạo Quarantine     │
-│              │              │              │        │              │                    │
-│ Nhận thừa ──►│              │              │        │              │ Chặn regular       │
-│              │              │              │        │              │ inventory, tạo hold│
-│              │              │              │        │              │                    │
-│ QC lỗi nặng ─┼─────────────►│              │        │              │ Chuyển Quarantine │
-│              │ Từ chối &    │              │        │              │ origin INTERNAL_   │
-│              │ cách ly      │              │        │              │ TRANSFER           │
-│              │              │              │        │              │                    │
-│ Wrong SKU ──►│ Duyệt/từ chối│              │ Return │ Source       │ Giữ IN_TRANSIT,    │
-│ report line  │ quay về      │              │ depart │ arrival/     │ không tạo TRF mới, │
-│ expected/    │              │              │ +      │ handover +   │ source receive     │
-│ actual SKU   │              │              │ arrive │ receive      │                    │
-│              │              │              │        │              │                    │
-│ Trip overdue │              │ Return to    │ Return │ Source       │ Block receive      │
-│              │              │ Source + lý  │ depart │ arrival/     │ kho đích, yêu cầu  │
-│              │              │ do/photo nếu │ +      │ handover +   │ lý do, giữ audit   │
-│              │              │ có           │ arrive │ receive      │                    │
-└──────────────┴──────────────┴──────────────┴────────┴──────────────┴────────────────────┘
-```
+Ghi chú đọc sơ đồ: đây là một swimlane duy nhất; các nhánh ngoại lệ nằm đúng tại bước phát sinh và mũi tên đi tới bước xử lý tiếp theo. Từ chối TRQ/TRF kết thúc `REJECTED`; sửa/hủy trước khi đi tiếp quay lại đúng bước; nhận thừa tạo overage hold rồi quay lại count; thiếu hàng yêu cầu lý do và đi discrepancy; wrong SKU được duyệt thì xe quay về kho nguồn; trip overdue bị chặn receive kho đích và chỉ role có thẩm quyền kích hoạt return; QC fail toàn bộ mới `QUARANTINED`, còn QC fail một phần chỉ đưa phần lỗi vào Quarantine.
 
 **Luồng trạng thái phiếu điều chuyển:**
 `NEW` (Planner nhap phieu nhieu dong hang theo lenh tu Cong ty me/bo phan dieu phoi trung tam hoac transfer request da duoc CEO duyet; Planner duoc sua dong hang hoac huy phieu khi con `NEW`) -> `APPROVED` (Truong kho nguon duyet va giu cho hang ngay) hoac `REJECTED` (Truong kho nguon tu choi va bat buoc nhap ly do; phieu rejected khong duoc sua/gui lai, phai tao phieu moi neu can tiep tuc) -> `IN_TRANSIT` (Dispatcher da lap chuyen xe rieng, Thu kho nguon ghi so gui, Tai xe duoc gan xac nhan roi kho; he thong dich chuyen ton kho vao kho trung chuyen `IN_TRANSIT`) -> `COMPLETED` (Cong nhan kho dich nhap so nhan, Thu kho dich kiem tra + QC + chon vi tri, Truong kho dich xac nhan cuoi cung va khop so luong) / `COMPLETED_WITH_DISCREPANCY` (Nhan thieu, tao phieu dieu chinh bu tru va log audit) / `QUARANTINED` (hang dieu chuyen bi tu choi toan bo do hu hong/QC loi va dua vao Quarantine). Sau `APPROVED` khong cho sua header/dong hang; chi Truong kho nguon/manager duoc huy truoc khi `IN_TRANSIT` va phai giai phong reserved quantity. Neu `received_qty > sent_qty` he thong chan xac nhan; neu QC loi thi phan loi vao Quarantine va khong tinh available. Hang thieu khong tao Quarantine/disposal candidate vi khong ton tai vat ly. Khong ho tro huy phieu sau khi da `IN_TRANSIT`.
@@ -1157,7 +1307,7 @@ Planner nhap phieu `TRF-*` theo lenh ngoai hoac request da duoc CEO duyet
 - Gửi nhầm SKU nhưng hàng còn nguyên được xử lý bằng Return to Source: Storekeeper kho đích báo cáo line-level expected SKU, actual SKU, quantity, reason và photo refs nếu có; Trưởng kho đích duyệt, cùng tài xế/xe quay về kho nguồn, hàng vẫn nằm trong `IN_TRANSIT` cho tới khi kho nguồn count/check/QC/final receive.
 - Nếu chuyến quá hạn khi phiếu còn `IN_TRANSIT`, hệ thống đánh dấu overdue, chặn receive-count/receive-check ở kho đích và yêu cầu WAREHOUSE_MANAGER kho nguồn, ADMIN, CEO hoặc PLANNER kích hoạt Return to Source với lý do, kèm photo refs nếu có.
 - Hàng đạt QC khi nhập vào kho đích hoặc kho nguồn sau Return to Source phải chọn Bin hợp lệ, không phải quarantine bin, và phải kiểm tra bin capacity trước khi cộng tồn.
-- Pick/outbound QC/load handover trong điều chuyển không dùng Barcode/QR; xác nhận bằng chọn line phiếu, nhập/xác nhận số lượng và ảnh chụp.
+- Pick/load report/outbound QC/load handover trong điều chuyển không dùng Barcode/QR; công nhân chọn line phiếu và nhập số lượng thực xếp trước, thủ kho QC theo số đã xếp kèm ảnh, QC fail thì quay lại công nhân hạ/đổi/xếp lại và báo cáo lại trước khi QC lại.
 - Các bước có ảnh trong UI phải dùng nút chọn file/chọn ảnh trên điện thoại/máy tính hoặc chụp trực tiếp bằng camera; không nhập link ảnh thủ công. UI nén ảnh camera lớn, upload multipart trước, rồi các action chỉ gửi `photoRef` ngắn; không gửi base64/data URL trong JSON. Nút QC/xác nhận bàn giao/POD chỉ được bật sau khi đã có ảnh.
 - Transfer/request/trip/resource/inventory mutations phải có version/concurrency guard; GET/list/detail không được mutate trạng thái nghiệp vụ.
 - Audit transfer phải đủ header, items, allocation, QC, wrong-SKU lines, trip/resource state và inventory movement để tái dựng nghiệp vụ.
@@ -1361,7 +1511,7 @@ Quy trình đối chiếu số liệu tồn kho thực tế, tính toán chênh 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **Manager-warehouse-sdd** (16221 symbols, 34140 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **Manager-warehouse-sdd** (13437 symbols, 33133 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
