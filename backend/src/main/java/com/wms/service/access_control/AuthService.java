@@ -139,8 +139,16 @@ public class AuthService {
 
         String newAccessToken = jwtUtil.generateAccessToken(user.getEmail(), user.getRole().name());
 
+        // Rotate the refresh token on every use so a stolen token cannot be
+        // replayed indefinitely — the old hash stops working immediately.
+        String newRawRefreshToken = UUID.randomUUID().toString();
+        user.setRefreshTokenHash(sha256(newRawRefreshToken));
+        user.setRefreshTokenExpiresAt(OffsetDateTime.now().plusSeconds(refreshTokenExpiry));
+        userRepository.save(user);
+
         return RefreshTokenResponse.builder()
                 .accessToken(newAccessToken)
+                .refreshToken(newRawRefreshToken)
                 .tokenType("Bearer")
                 .expiresIn(900)
                 .build();
