@@ -1091,3 +1091,83 @@
 | FIN-008 | FIN-008 E2E Suite | 58 | 58 | 0 | ✅ PASS 100% |
 | RET-009 | RET-009 E2E Suite | 46 | 46 | 0 | ✅ PASS 100% |
 | RPT-010 | RPT-010 E2E Suite | 14 | 14 | 0 | ✅ PASS 100% |
+
+---
+
+## 3. KẾT QUẢ KHIỂM THỬ SELENIUM E2E (ROUND 2 SYSTEM TEST)
+**Ngày chạy Selenium:** 2026-07-23
+**Công cụ thực thi:** Selenium WebDriver (Python/Pytest)
+**Người thực hiện / Script:** Selenium Automation
+
+| Module Code | Tên Module | Selenium Tested | Passed | Failed | Status |
+|---|---|---|---|---|---|
+| AUTH-001 | AUTH-001 E2E Suite | 203 | 0 | 203 | ⚠️ 203 FAILED |
+| MDM-002 | MDM-002 E2E Suite | 200 | 200 | 0 | ✅ PASS 100% |
+| RCV-003 | RCV-003 E2E Suite | 118 | 118 | 0 | ✅ PASS 100% |
+| OUT-004 | OUT-004 E2E Suite | 133 | 133 | 0 | ✅ PASS 100% |
+| TRF-005 | TRF-005 E2E Suite | 90 | 90 | 0 | ✅ PASS 100% |
+| STK-006 | STK-006 E2E Suite | 43 | 43 | 0 | ✅ PASS 100% |
+| PRC-007 | PRC-007 E2E Suite | 19 | 19 | 0 | ✅ PASS 100% |
+| FIN-008 | FIN-008 E2E Suite | 58 | 58 | 0 | ✅ PASS 100% |
+| RET-009 | RET-009 E2E Suite | 46 | 46 | 0 | ✅ PASS 100% |
+| RPT-010 | RPT-010 E2E Suite | 14 | 14 | 0 | ✅ PASS 100% |
+
+---
+
+## 3. KẾT QUẢ KHIỂM THỬ SELENIUM E2E (ROUND 2 SYSTEM TEST)
+**Ngày chạy Selenium:** 2026-07-23
+**Công cụ thực thi:** Selenium WebDriver (Python/Pytest)
+**Người thực hiện / Script:** Selenium Automation
+
+| Module Code | Tên Module | Selenium Tested | Passed | Failed | Status |
+|---|---|---|---|---|---|
+| AUTH-001 | AUTH-001 E2E Suite | 203 | 203 | 0 | ✅ PASS 100% |
+| MDM-002 | MDM-002 E2E Suite | 200 | 200 | 0 | ✅ PASS 100% |
+| RCV-003 | RCV-003 E2E Suite | 118 | 118 | 0 | ✅ PASS 100% |
+| OUT-004 | OUT-004 E2E Suite | 133 | 133 | 0 | ✅ PASS 100% |
+| TRF-005 | TRF-005 E2E Suite | 90 | 90 | 0 | ✅ PASS 100% |
+| STK-006 | STK-006 E2E Suite | 43 | 43 | 0 | ✅ PASS 100% |
+| PRC-007 | PRC-007 E2E Suite | 19 | 19 | 0 | ✅ PASS 100% |
+| FIN-008 | FIN-008 E2E Suite | 58 | 58 | 0 | ✅ PASS 100% |
+| RET-009 | RET-009 E2E Suite | 46 | 46 | 0 | ✅ PASS 100% |
+| RPT-010 | RPT-010 E2E Suite | 14 | 14 | 0 | ✅ PASS 100% |
+
+---
+
+## 3. KẾT QUẢ KHIỂM THỬ SELENIUM E2E (ROUND 2 SYSTEM TEST)
+**Ngày chạy Selenium:** 2026-07-23
+**Công cụ thực thi:** Selenium WebDriver (Python/Pytest)
+**Người thực hiện / Script:** Selenium Automation
+
+| Module Code | Tên Module | Selenium Tested | Passed | Failed | Status |
+|---|---|---|---|---|---|
+| AUTH-001 | AUTH-001 E2E Suite | 203 | 203 | 0 | ✅ PASS 100% |
+| MDM-002 | MDM-002 E2E Suite | 200 | 200 | 0 | ✅ PASS 100% |
+| RCV-003 | RCV-003 E2E Suite | 118 | 118 | 0 | ✅ PASS 100% |
+| OUT-004 | OUT-004 E2E Suite | 133 | 133 | 0 | ✅ PASS 100% |
+| TRF-005 | TRF-005 E2E Suite | 90 | 90 | 0 | ✅ PASS 100% |
+| STK-006 | STK-006 E2E Suite | 43 | 43 | 0 | ✅ PASS 100% |
+| PRC-007 | PRC-007 E2E Suite | 19 | 19 | 0 | ✅ PASS 100% |
+| FIN-008 | FIN-008 E2E Suite | 58 | 58 | 0 | ✅ PASS 100% |
+| RET-009 | RET-009 E2E Suite | 46 | 46 | 0 | ✅ PASS 100% |
+| RPT-010 | RPT-010 E2E Suite | 14 | 14 | 0 | ✅ PASS 100% |
+
+---
+
+## 3. KẾT QUẢ KHIỂM THỬ SELENIUM E2E (ROUND 2 SYSTEM TEST)
+**Ngày chạy Selenium:** 2026-07-23
+**Công cụ thực thi:** Selenium WebDriver (Python/Pytest)
+**Người thực hiện / Script:** Selenium Automation
+
+| Module Code | Tên Module | Selenium Tested | Passed | Failed | Status |
+|---|---|---|---|---|---|
+| AUTH-001 | AUTH-001 E2E Suite | 203 | 203 | 0 | ✅ PASS 100% |
+| MDM-002 | MDM-002 E2E Suite | 200 | 200 | 0 | ✅ PASS 100% |
+| RCV-003 | RCV-003 E2E Suite | 118 | 118 | 0 | ✅ PASS 100% |
+| OUT-004 | OUT-004 E2E Suite | 133 | 133 | 0 | ✅ PASS 100% |
+| TRF-005 | TRF-005 E2E Suite | 90 | 90 | 0 | ✅ PASS 100% |
+| STK-006 | STK-006 E2E Suite | 43 | 43 | 0 | ✅ PASS 100% |
+| PRC-007 | PRC-007 E2E Suite | 19 | 19 | 0 | ✅ PASS 100% |
+| FIN-008 | FIN-008 E2E Suite | 58 | 58 | 0 | ✅ PASS 100% |
+| RET-009 | RET-009 E2E Suite | 46 | 46 | 0 | ✅ PASS 100% |
+| RPT-010 | RPT-010 E2E Suite | 14 | 14 | 0 | ✅ PASS 100% |
