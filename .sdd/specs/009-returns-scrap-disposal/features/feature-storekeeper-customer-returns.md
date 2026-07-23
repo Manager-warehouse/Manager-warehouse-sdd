@@ -1,23 +1,28 @@
 # Feature: Thủ kho & Kế toán Xử lý Hàng hoàn trả từ Đại lý (US-WMS-24)
 
 ## 1. Context and Goal
-Đại lý thực hiện trả hàng (lỗi hoặc thừa). Thủ kho lập phiếu nhận hàng hoàn (receipt type = 'RETURN') và kiểm QC để phân loại hàng Đạt (vào kho thường) / Lỗi (vào Quarantine). Kế toán lập Credit Note cấn trừ công nợ Đại lý.
+Đại lý thực hiện trả hàng (lỗi hoặc thừa). Thủ kho hoặc Trưởng kho lập phiếu nhận hàng hoàn (receipt type = 'RETURN') và kiểm QC để phân loại hàng Đạt (vào kho thường) / Lỗi (vào Quarantine). Kế toán viên hoặc Kế toán trưởng lập Credit Note cấn trừ công nợ Đại lý.
+
+## Clarifications
+
+### Session 2026-07-23
+- Q: Chuẩn hóa mã Role Kế toán trưởng và phân quyền Returns Workspace → A: Chuẩn hóa tên mã role hệ thống thành `ACCT_MANAGER` (Kế toán trưởng). `WH_STAFF` chỉ có quyền xem (View only) đối với Returns Workspace. Tạo & QC phiếu trả hàng do `STOREKEEPER` và `WH_MANAGER` thực hiện. Tạo Credit Note do `ACCOUNTANT` và `ACCT_MANAGER` đảm nhiệm (Đúng chuẩn `role.md`).
 
 ## 2. Actors
-* **Thủ kho kiêm QC**: Nhập phiếu trả hàng, kiểm QC và chỉ định xử lý hàng Đạt / Lỗi.
-* **Nhân viên kho**: Hỗ trợ bốc xếp, di chuyển hàng hoàn theo chỉ dẫn của Thủ kho.
-* **Kế toán viên**: Tạo Credit Note cấn trừ tiền.
+* **Thủ kho / Trưởng kho (`STOREKEEPER`, `WH_MANAGER`)**: Nhập phiếu trả hàng, kiểm QC và chỉ định xử lý hàng Đạt / Lỗi.
+* **Nhân viên kho (`WH_STAFF`)**: Xem thông tin phiếu trả hàng (`View only`), hỗ trợ bốc xếp/di chuyển vật lý theo chỉ dẫn.
+* **Kế toán viên / Kế toán trưởng (`ACCOUNTANT`, `ACCT_MANAGER`)**: Tạo Credit Note cấn trừ tiền công nợ.
 
 ## 3. Functional Requirements (EARS)
 * **Ubiquitous:**
   * The system SHALL always route returned goods through QC before admitting them back into available inventory.
-  * The system SHALL verify the acting Thủ kho is assigned to the return receipt's `warehouse_id`, in addition to the role check, before allowing create/QC actions.
-  * The system SHALL allow return receipt create and return QC actions only for warehouse operation roles (`WAREHOUSE_STAFF`, `STOREKEEPER`, `WAREHOUSE_MANAGER`, `ADMIN`, `CEO`); Accountant roles SHALL create Credit Notes only and SHALL NOT create/QC return receipts.
+  * The system SHALL verify the acting Thủ kho / Trưởng kho is assigned to the return receipt's `warehouse_id`, in addition to the role check, before allowing create/QC actions.
+  * The system SHALL allow return receipt create and return QC actions only for warehouse management roles (`STOREKEEPER`, `WH_MANAGER`, `ADMIN`, `CEO`); `WH_STAFF` SHALL have read-only access (`View only`); Accountant roles (`ACCOUNTANT`, `ACCT_MANAGER`) SHALL create Credit Notes only and SHALL NOT create/QC return receipts.
   * Return receipt item responses SHALL expose the canonical `receipt_item_id` used by the QC request payload; clients SHALL submit this identifier as `receiptItemId`.
   * Return receipt list/detail responses SHALL include dealer/source context needed by the UI and accounting handoff: `dealer_id`, `dealer_name`, `delivery_order_id`, `source_order_code`, and `credit_note_generated`.
   * The system SHALL create an audit log entry (actor, actor_role, action, entity_type, entity_id, timestamp, warehouse_id, before/after) for return receipt creation, QC result recording, and Credit Note creation.
 * **Event-driven:**
-  * WHEN a Thủ kho creates a Return Receipt from a dealer, the system SHALL create a receipt record with type = 'RETURN' requiring: dealer_id, warehouse_id, contact_person, and source_order_code (DO code).
+  * WHEN a Thủ kho (`STOREKEEPER`) or Trưởng kho (`WH_MANAGER`) creates a Return Receipt from a dealer, the system SHALL create a receipt record with type = 'RETURN' requiring: dealer_id, warehouse_id, contact_person, and source_order_code (DO code).
   * WHEN QC inspects returned goods:
     * IF goods pass QC: add to regular inventories, update location_id to a regular bin.
     * IF goods fail QC: move to Quarantine locations.
