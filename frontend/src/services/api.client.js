@@ -20,13 +20,30 @@ const buildBackendErrorMessage = (status, data, fallbackMessage) => {
   return status ? `HTTP ${status}` : fallbackMessage;
 };
 
+const API_BASE_URL = import.meta['env'].VITE_API_BASE_URL || '/api/v1';
+
 const apiClient = axios.create({
-  baseURL: import.meta['env'].VITE_API_BASE_URL || '/api/v1',
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
   timeout: 30000,
 });
+
+// Plain axios instance (no interceptors) for the refresh call itself, so it
+// always targets the configured API base URL and never recurses into the
+// 401 handler below.
+const refreshClient = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  timeout: 30000,
+});
+
+// Shared in-flight refresh promise so concurrent 401s trigger a single
+// refresh call instead of racing each other with independent requests.
+let refreshPromise = null;
 
 // Interceptor to add JWT authorization header
 apiClient.interceptors.request.use(
@@ -60,12 +77,17 @@ apiClient.interceptors.response.use(
     if (error.response && error.response.status === 401 && !originalRequest._retry && !isAuthRequest) {
       originalRequest._retry = true;
       try {
-        // Attempt to refresh token (mock or actual)
-        // If we are using mock, this won't happen since mock won't throw 401.
-        // For real API:
-        const response = await axios.post('/api/v1/auth/refresh', {
-          refreshToken: sessionStorage.getItem('wms_refresh_token')
-        });
+        // Reuse an in-flight refresh instead of firing a new one per
+        // concurrent 401 — the backend rotates the refresh token on every
+        // call, so a second parallel call would invalidate the first.
+        if (!refreshPromise) {
+          refreshPromise = refreshClient.post('/auth/refresh', {
+            refreshToken: sessionStorage.getItem('wms_refresh_token')
+          }).finally(() => {
+            refreshPromise = null;
+          });
+        }
+        const response = await refreshPromise;
         const { accessToken, refreshToken } = response.data;
         sessionStorage.setItem('wms_token', accessToken);
         // Backend rotates the refresh token on every use; persist the new
@@ -74,6 +96,7 @@ apiClient.interceptors.response.use(
           sessionStorage.setItem('wms_refresh_token', refreshToken);
         }
         apiClient.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+        originalRequest.headers.Authorization = `Bearer ${accessToken}`;
         return apiClient(originalRequest);
       } catch (refreshError) {
         // Clear session and redirect to login
