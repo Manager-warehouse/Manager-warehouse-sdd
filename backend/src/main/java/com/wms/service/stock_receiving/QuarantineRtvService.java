@@ -132,9 +132,6 @@ public class QuarantineRtvService {
                     "NO_QUARANTINE_ITEMS: Receipt " + receiptId + " has no items to process for RTV.");
         }
 
-        // Quarantine inventory was added using sampleFailedQty (ReceiptQcService.confirmQc),
-        // not the full actualQty received — the RTV must return exactly what is in
-        // quarantine, not the entire receipt line.
         BigDecimal totalFailedQty = items.stream()
                 .map(i -> i.getSampleFailedQty() != null ? BigDecimal.valueOf(i.getSampleFailedQty()) : BigDecimal.ZERO)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -150,22 +147,33 @@ public class QuarantineRtvService {
                 ? request.getDocumentDate()
                 : LocalDate.now();
 
-        String adjustmentNumber = generateAdjustmentNumber();
-        Adjustment rtv = Adjustment.builder()
-                .adjustmentNumber(adjustmentNumber)
-                .warehouse(receipt.getWarehouse())
-                .product(items.get(0).getProduct())
-                .quantityAdjustment(totalFailedQty.negate())
-                .type(AdjustmentType.RETURN_TO_VENDOR)
-                .referenceId(receiptId)
-                .referenceType(RTV_REFERENCE_TYPE)
-                .reason(request.getReason())
-                .documentDate(documentDate)
-                .accountingPeriod(accountingPeriodService.resolveOpenPeriod(documentDate))
-                .createdBy(actor)
-                .createdAt(OffsetDateTime.now())
-                .build();
-        adjustmentRepository.save(rtv);
+        String firstAdjNumber = null;
+        Long firstAdjId = null;
+        for (ReceiptItem item : items) {
+            BigDecimal itemFailedQty = item.getSampleFailedQty() != null
+                    ? BigDecimal.valueOf(item.getSampleFailedQty()) : BigDecimal.ZERO;
+            if (itemFailedQty.compareTo(BigDecimal.ZERO) <= 0) continue;
+
+            String adjustmentNumber = generateAdjustmentNumber();
+            if (firstAdjNumber == null) firstAdjNumber = adjustmentNumber;
+
+            Adjustment rtv = Adjustment.builder()
+                    .adjustmentNumber(adjustmentNumber)
+                    .warehouse(receipt.getWarehouse())
+                    .product(item.getProduct())
+                    .quantityAdjustment(itemFailedQty.negate())
+                    .type(AdjustmentType.RETURN_TO_VENDOR)
+                    .referenceId(receiptId)
+                    .referenceType(RTV_REFERENCE_TYPE)
+                    .reason(request.getReason())
+                    .documentDate(documentDate)
+                    .accountingPeriod(accountingPeriodService.resolveOpenPeriod(documentDate))
+                    .createdBy(actor)
+                    .createdAt(OffsetDateTime.now())
+                    .build();
+            adjustmentRepository.save(rtv);
+            if (firstAdjId == null) firstAdjId = rtv.getId();
+        }
 
         String debitNoteNumber = generateDebitNoteNumber();
         DebitNote debitNote = DebitNote.builder()
@@ -183,11 +191,11 @@ public class QuarantineRtvService {
 
         auditLogService.log(
                 actor, AuditAction.QUARANTINE_RTV_CREATE, ADJUSTMENT_ENTITY,
-                rtv.getId(), adjustmentNumber,
+                firstAdjId, firstAdjNumber,
                 receipt.getWarehouse().getId(),
                 null,
                 Map.of("receiptId", receiptId,
-                       "adjustmentNumber", adjustmentNumber,
+                       "adjustmentNumber", firstAdjNumber,
                        "debitNoteNumber", debitNoteNumber,
                        "failedQty", totalFailedQty,
                        "amount", totalAmount,
@@ -195,11 +203,11 @@ public class QuarantineRtvService {
         );
 
         log.info("RTV {} created for receipt {} by user {}. Debit Note {} generated.",
-                adjustmentNumber, receiptId, actor.getId(), debitNoteNumber);
+                firstAdjNumber, receiptId, actor.getId(), debitNoteNumber);
 
         return RtvActionResponse.builder()
-                .adjustmentId(rtv.getId())
-                .adjustmentNumber(adjustmentNumber)
+                .adjustmentId(firstAdjId)
+                .adjustmentNumber(firstAdjNumber)
                 .debitNoteId(debitNote.getId())
                 .debitNoteNumber(debitNoteNumber)
                 .quarantineQty(totalFailedQty)
