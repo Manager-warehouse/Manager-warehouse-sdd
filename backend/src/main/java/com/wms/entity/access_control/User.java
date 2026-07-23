@@ -103,4 +103,9 @@ public class User {
 
     @Column(name = "otp_expires_at")
     private OffsetDateTime otpExpiresAt;
+
+    // Auth: number of failed OTP verification attempts for the current OTP
+    @Column(name = "otp_attempt_count", nullable = false)
+    @Builder.Default
+    private Integer otpAttemptCount = 0;
 }
