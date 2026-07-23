@@ -81,6 +81,7 @@ import com.wms.dto.request.LoadHandoverRequest;
 import com.wms.dto.request.OutboundQcRequest;
 import com.wms.dto.request.SourceLoadReportItemRequest;
 import com.wms.dto.request.SourceLoadReportRequest;
+import com.wms.dto.request.WrongSkuItemRequest;
 import com.wms.dto.request.AccountingPeriodCloseRequest;
 import com.wms.dto.request.AccountingPeriodCreateRequest;
 import com.wms.dto.response.AccountingPeriodResponse;
@@ -173,6 +174,7 @@ class InterWarehouseTransferServiceImplTest {
     private WarehouseLocation destinationLocation;
     private WarehouseLocation quarantineLocation;
     private Product product;
+    private Product actualWrongSkuProduct;
     private User planner;
     private User sourceManager;
     private User destinationWorker;
@@ -202,7 +204,8 @@ class InterWarehouseTransferServiceImplTest {
         transitLocation = location(11L, transitWarehouse, "INT-01", false);
         destinationLocation = location(12L, destinationWarehouse, "HN-01-B01", false);
         quarantineLocation = location(13L, destinationWarehouse, "HN-01-Q01", true);
-        product = product();
+        product = product(21L, "SKU-001", "Nồi inox");
+        actualWrongSkuProduct = product(22L, "SKU-002", "Chảo chống dính");
         planner = user(7L, UserRole.PLANNER);
         sourceManager = user(8L, UserRole.WAREHOUSE_MANAGER);
         destinationWorker = user(9L, UserRole.WAREHOUSE_STAFF);
@@ -676,6 +679,8 @@ class InterWarehouseTransferServiceImplTest {
         recordPassingOutboundQcAndHandover();
         service.shipTransfer(1L, sourceManager);
         service.departTransfer(1L, driverUser);
+        transfer.setDriverArrivedAt(null);
+        transfer.setArrivalHandoverAt(null);
 
         // Driver must be blocked
         TransferReturnRequest req = new TransferReturnRequest("Overdue return");
@@ -871,10 +876,19 @@ class InterWarehouseTransferServiceImplTest {
         recordPassingOutboundQcAndHandover();
         service.shipTransfer(1L, sourceManager);
         service.departTransfer(1L, driverUser);
+        transfer.setDriverArrivedAt(OffsetDateTime.now());
+        transfer.setArrivalHandoverAt(null);
 
         // 1. Request return first
-        TransferReturnRequest req = new TransferReturnRequest("Giao sai mã SKU chảo");
-        service.requestReturn(1L, req, destinationManager);
+        TransferReturnRequest req = new TransferReturnRequest("Giao sai mã SKU chảo", List.of(
+                new WrongSkuItemRequest(
+                        transferItem.getId(),
+                        product.getId(),
+                        actualWrongSkuProduct.getId(),
+                        new BigDecimal("1.00"),
+                        "Nhận thực tế SKU chảo",
+                        null)));
+        service.requestReturn(1L, req, destinationStorekeeper);
 
         assertThat(transfer.isReturnRequested()).isTrue();
 
@@ -933,11 +947,11 @@ class InterWarehouseTransferServiceImplTest {
         return value;
     }
 
-    private Product product() {
+    private Product product(Long id, String sku, String name) {
         Product value = new Product();
-        value.setId(21L);
-        value.setSku("SKU-001");
-        value.setName("Nồi inox");
+        value.setId(id);
+        value.setSku(sku);
+        value.setName(name);
         return value;
     }
 
@@ -1298,7 +1312,14 @@ class InterWarehouseTransferServiceImplTest {
         @Override
         public Object invoke(Object proxy, Method method, Object[] args) {
             if ("findById".equals(method.getName())) {
-                return Optional.of(product);
+                Long id = (Long) args[0];
+                if (product.getId().equals(id)) {
+                    return Optional.of(product);
+                }
+                if (actualWrongSkuProduct.getId().equals(id)) {
+                    return Optional.of(actualWrongSkuProduct);
+                }
+                return Optional.empty();
             }
             return defaultValue(method.getReturnType());
         }

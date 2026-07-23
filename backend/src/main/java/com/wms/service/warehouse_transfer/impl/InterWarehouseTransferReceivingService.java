@@ -145,13 +145,13 @@ public class InterWarehouseTransferReceivingService {
         helper.requireStatus(transfer, InterWarehouseTransferStatus.IN_TRANSIT);
         helper.ensureWarehouseScope(actor, transfer.isReturned() ? transfer.getSourceWarehouse().getId() : transfer.getDestinationWarehouse().getId());
         ensureAllChecked(transfer);
-        boolean shortage = helper.items(transfer).stream().anyMatch(item -> item.getVarianceQty().compareTo(BigDecimal.ZERO) < 0);
-        if (shortage && helper.isBlank(request.discrepancyReason())) {
+        boolean discrepancy = helper.items(transfer).stream().anyMatch(item -> item.getVarianceQty().compareTo(BigDecimal.ZERO) != 0);
+        if (discrepancy && helper.isBlank(request.discrepancyReason())) {
             throw new BusinessRuleViolationException("DISCREPANCY_REASON_REQUIRED");
         }
         Map<String, Object> before = helper.snapshot(transfer);
         moveTransitToDestination(transfer, request, actor);
-        transfer.setStatus(shortage ? InterWarehouseTransferStatus.COMPLETED_WITH_DISCREPANCY : InterWarehouseTransferStatus.COMPLETED);
+        transfer.setStatus(discrepancy ? InterWarehouseTransferStatus.COMPLETED_WITH_DISCREPANCY : InterWarehouseTransferStatus.COMPLETED);
         transfer.setDiscrepancyReason(request.discrepancyReason());
         transfer.setConfirmedBy(actor);
         transfer.setConfirmedAt(OffsetDateTime.now());
@@ -180,6 +180,10 @@ public class InterWarehouseTransferReceivingService {
         if (helper.isBlank(request.reason())) {
             throw new BusinessRuleViolationException("RETURN_REASON_REQUIRED");
         }
+        ensureReturnNotAlreadyInProgress(transfer);
+        if (transfer.getDriverArrivedAt() != null || transfer.getArrivalHandoverAt() != null) {
+            throw new BusinessRuleViolationException("SOURCE_RETURN_ONLY_BEFORE_DESTINATION_ARRIVAL");
+        }
 
         Map<String, Object> before = helper.snapshot(transfer);
         transfer.setReturned(true);
@@ -197,25 +201,7 @@ public class InterWarehouseTransferReceivingService {
                     .build();
             report = wrongSkuReportRepository.save(report);
 
-            for (WrongSkuItemRequest line : request.wrongSkuItems()) {
-                InterWarehouseTransferItem item = transferItemRepository.findById(line.transferItemId())
-                        .orElseThrow(() -> new ResourceNotFoundException("Transfer item not found: " + line.transferItemId()));
-                Product expected = productRepository.findById(line.expectedProductId())
-                        .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + line.expectedProductId()));
-                Product actual = productRepository.findById(line.actualProductId())
-                        .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + line.actualProductId()));
-
-                WrongSkuReportItem reportItem = WrongSkuReportItem.builder()
-                        .report(report)
-                        .transferItem(item)
-                        .expectedProduct(expected)
-                        .actualProduct(actual)
-                        .affectedQty(line.affectedQty())
-                        .reason(line.reason())
-                        .photoRef(line.photoRef())
-                        .build();
-                wrongSkuReportItemRepository.save(reportItem);
-            }
+            saveWrongSkuItems(transfer, report, request.wrongSkuItems());
         }
 
         InterWarehouseTransfer saved = transferRepository.save(transfer);
@@ -539,6 +525,17 @@ public class InterWarehouseTransferReceivingService {
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.requireStatus(transfer, InterWarehouseTransferStatus.IN_TRANSIT);
         helper.ensureWarehouseScope(actor, transfer.getDestinationWarehouse().getId());
+        ensureReturnNotAlreadyInProgress(transfer);
+        if (transfer.getDriverArrivedAt() == null) {
+            throw new BusinessRuleViolationException("DRIVER_ARRIVE_REQUIRED");
+        }
+        if (transfer.getArrivalHandoverAt() != null) {
+            throw new BusinessRuleViolationException("RETURN_REQUEST_ONLY_BEFORE_HANDOVER");
+        }
+        ensureNoReceiveCountOrCheck(transfer);
+        if (request.wrongSkuItems() == null || request.wrongSkuItems().isEmpty()) {
+            throw new BusinessRuleViolationException("WRONG_SKU_ITEMS_REQUIRED");
+        }
 
         Map<String, Object> before = helper.snapshot(transfer);
         transfer.setReturnRequested(true);
@@ -547,35 +544,14 @@ public class InterWarehouseTransferReceivingService {
         transfer.setReturnRequestedAt(OffsetDateTime.now());
         transfer.setUpdatedAt(OffsetDateTime.now());
 
-        if (request.wrongSkuItems() != null && !request.wrongSkuItems().isEmpty()) {
-            WrongSkuReport report = WrongSkuReport.builder()
-                    .transfer(transfer)
-                    .status("PENDING")
-                    .reportedBy(actor)
-                    .reportedAt(OffsetDateTime.now())
-                    .build();
-            report = wrongSkuReportRepository.save(report);
-
-            for (WrongSkuItemRequest line : request.wrongSkuItems()) {
-                InterWarehouseTransferItem item = transferItemRepository.findById(line.transferItemId())
-                        .orElseThrow(() -> new ResourceNotFoundException("Transfer item not found: " + line.transferItemId()));
-                Product expected = productRepository.findById(line.expectedProductId())
-                        .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + line.expectedProductId()));
-                Product actual = productRepository.findById(line.actualProductId())
-                        .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + line.actualProductId()));
-
-                WrongSkuReportItem reportItem = WrongSkuReportItem.builder()
-                        .report(report)
-                        .transferItem(item)
-                        .expectedProduct(expected)
-                        .actualProduct(actual)
-                        .affectedQty(line.affectedQty())
-                        .reason(line.reason())
-                        .photoRef(line.photoRef())
-                        .build();
-                wrongSkuReportItemRepository.save(reportItem);
-            }
-        }
+        WrongSkuReport report = WrongSkuReport.builder()
+                .transfer(transfer)
+                .status("PENDING")
+                .reportedBy(actor)
+                .reportedAt(OffsetDateTime.now())
+                .build();
+        report = wrongSkuReportRepository.save(report);
+        saveWrongSkuItems(transfer, report, request.wrongSkuItems());
 
         InterWarehouseTransfer saved = transferRepository.save(transfer);
         helper.audit(saved, actor, AuditAction.UPDATE, before, helper.snapshot(saved));
@@ -588,6 +564,10 @@ public class InterWarehouseTransferReceivingService {
         helper.requireStatus(transfer, InterWarehouseTransferStatus.IN_TRANSIT);
         if (!transfer.isReturnRequested()) {
             throw new BusinessRuleViolationException("NO_RETURN_REQUESTED");
+        }
+        ensureNoReceiveCountOrCheck(transfer);
+        if (transfer.getArrivalHandoverAt() != null) {
+            throw new BusinessRuleViolationException("RETURN_REQUEST_ONLY_BEFORE_HANDOVER");
         }
         helper.ensureWarehouseScope(actor, transfer.getDestinationWarehouse().getId());
         if (actor.getRole() != UserRole.WAREHOUSE_MANAGER && actor.getRole() != UserRole.ADMIN && actor.getRole() != UserRole.CEO) {
@@ -624,6 +604,10 @@ public class InterWarehouseTransferReceivingService {
         if (!transfer.isReturnRequested()) {
             throw new BusinessRuleViolationException("NO_RETURN_REQUESTED");
         }
+        ensureNoReceiveCountOrCheck(transfer);
+        if (transfer.getArrivalHandoverAt() != null) {
+            throw new BusinessRuleViolationException("RETURN_REQUEST_ONLY_BEFORE_HANDOVER");
+        }
         helper.ensureWarehouseScope(actor, transfer.getDestinationWarehouse().getId());
         if (actor.getRole() != UserRole.WAREHOUSE_MANAGER && actor.getRole() != UserRole.ADMIN && actor.getRole() != UserRole.CEO) {
             throw new BusinessRuleViolationException("WAREHOUSE_MANAGER_ROLE_REQUIRED");
@@ -656,6 +640,54 @@ public class InterWarehouseTransferReceivingService {
     private String generateAdjustmentNumber() {
         return "ADJ-" + java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd"))
                + "-" + java.util.UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+    }
+
+    private void ensureReturnNotAlreadyInProgress(InterWarehouseTransfer transfer) {
+        if (Boolean.TRUE.equals(transfer.isReturned()) || Boolean.TRUE.equals(transfer.isReturnRequested())) {
+            throw new BusinessRuleViolationException("RETURN_ALREADY_IN_PROGRESS");
+        }
+    }
+
+    private void ensureNoReceiveCountOrCheck(InterWarehouseTransfer transfer) {
+        if (helper.items(transfer).stream().anyMatch(item -> item.getWorkerReceivedQty() != null
+                || item.getReceivedQty() != null
+                || item.getQcPassedQty() != null
+                || item.getQcFailedQty() != null)) {
+            throw new BusinessRuleViolationException("RETURN_REQUEST_ONLY_BEFORE_COUNT");
+        }
+    }
+
+    private void saveWrongSkuItems(InterWarehouseTransfer transfer, WrongSkuReport report, List<WrongSkuItemRequest> lines) {
+        Map<Long, InterWarehouseTransferItem> itemById = helper.itemMap(transfer);
+        for (WrongSkuItemRequest line : lines) {
+            InterWarehouseTransferItem item = helper.requireItem(itemById, line.transferItemId());
+            if (!Objects.equals(item.getProduct().getId(), line.expectedProductId())) {
+                throw new BusinessRuleViolationException("EXPECTED_PRODUCT_MISMATCH");
+            }
+            if (Objects.equals(line.expectedProductId(), line.actualProductId())) {
+                throw new BusinessRuleViolationException("ACTUAL_PRODUCT_MUST_DIFFER");
+            }
+            if (line.affectedQty() == null || line.affectedQty().signum() <= 0) {
+                throw new BusinessRuleViolationException("AFFECTED_QTY_MUST_BE_POSITIVE");
+            }
+            BigDecimal maxQty = item.getSentQty() != null ? item.getSentQty() : item.getPlannedQty();
+            if (line.affectedQty().compareTo(maxQty) > 0) {
+                throw new BusinessRuleViolationException("AFFECTED_QTY_EXCEEDS_SENT_QTY");
+            }
+            Product actual = productRepository.findById(line.actualProductId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + line.actualProductId()));
+
+            WrongSkuReportItem reportItem = WrongSkuReportItem.builder()
+                    .report(report)
+                    .transferItem(item)
+                    .expectedProduct(item.getProduct())
+                    .actualProduct(actual)
+                    .affectedQty(line.affectedQty())
+                    .reason(line.reason())
+                    .photoRef(line.photoRef())
+                    .build();
+            wrongSkuReportItemRepository.save(reportItem);
+        }
     }
 
     private void assertLocationCapacity(WarehouseLocation location, Product product, BigDecimal qty) {

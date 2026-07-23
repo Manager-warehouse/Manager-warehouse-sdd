@@ -544,15 +544,30 @@ class InterWarehouseTransferFlowE2ETest {
     @Test
     void testE2ETransferFlow_wrongSkuReturnLeg() {
         transfer.setStatus(InterWarehouseTransferStatus.IN_TRANSIT);
+        transfer.setDriverArrivedAt(OffsetDateTime.now());
+        transfer.setArrivalHandoverAt(null);
+        transferItem.setSentQty(new BigDecimal("30.00"));
+        Product actualProduct = new Product();
+        actualProduct.setId(501L);
+        actualProduct.setSku("POT-001");
+        actualProduct.setName("Nồi inox");
         when(transferRepository.findWithDetailsById(transfer.getId())).thenReturn(Optional.of(transfer));
         when(assignmentRepository.findWarehouseIdsByUserId(manager.getId())).thenReturn(List.of(destinationWarehouse.getId()));
+        when(assignmentRepository.findWarehouseIdsByUserId(storekeeper.getId())).thenReturn(List.of(destinationWarehouse.getId()));
+        when(productRepository.findById(actualProduct.getId())).thenReturn(Optional.of(actualProduct));
         when(wrongSkuReportRepository.findByTransferId(transfer.getId())).thenReturn(Collections.emptyList());
 
-        // 1. Destination Manager requests return to source because of wrong SKU
+        // 1. Destination storekeeper requests return to source because of wrong SKU at handover.
         InterWarehouseTransferResponse returnRequested = receivingService.requestReturn(
                 transfer.getId(),
-                new TransferReturnRequest("Giao sai mã SKU chảo"),
-                manager
+                new TransferReturnRequest("Giao sai mã SKU chảo", List.of(new WrongSkuItemRequest(
+                        transferItem.getId(),
+                        product.getId(),
+                        actualProduct.getId(),
+                        new BigDecimal("5.00"),
+                        "Hàng thực tế không đúng SKU dự kiến",
+                        null))),
+                storekeeper
         );
         assertThat(transfer.isReturnRequested()).isTrue();
         assertThat(transfer.getReturnReason()).isEqualTo("Giao sai mã SKU chảo");

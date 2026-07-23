@@ -449,6 +449,9 @@ public class InterWarehouseTransferShippingService {
         if (transfer.getDriverArrivedAt() == null) {
             throw new BusinessRuleViolationException("DRIVER_ARRIVE_REQUIRED");
         }
+        if (!Boolean.TRUE.equals(transfer.isReturned()) && Boolean.TRUE.equals(transfer.isReturnRequested())) {
+            throw new BusinessRuleViolationException("RETURN_REQUEST_PENDING");
+        }
 
         Map<String, Object> before = helper.snapshot(transfer);
         transfer.setArrivalHandoverAt(OffsetDateTime.now());
