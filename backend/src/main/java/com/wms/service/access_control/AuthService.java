@@ -83,6 +83,9 @@ public class AuthService {
     @Value("${jwt.refresh-token-expiry}")
     private long refreshTokenExpiry;
 
+    @Value("${jwt.access-token-expiry}")
+    private long accessTokenExpiry;
+
     @Transactional
     public LoginResponse login(LoginRequest request) {
         try {
@@ -113,7 +116,7 @@ public class AuthService {
                 .accessToken(accessToken)
                 .refreshToken(rawRefreshToken)
                 .tokenType("Bearer")
-                .expiresIn(900)
+                .expiresIn(accessTokenExpiry)
                 .user(LoginResponse.UserInfo.builder()
                         .id(user.getId())
                         .fullName(user.getFullName())
@@ -150,7 +153,7 @@ public class AuthService {
                 .accessToken(newAccessToken)
                 .refreshToken(newRawRefreshToken)
                 .tokenType("Bearer")
-                .expiresIn(900)
+                .expiresIn(accessTokenExpiry)
                 .build();
     }
 
