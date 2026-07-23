@@ -24,7 +24,7 @@
 - Planner must be assigned to `warehouse_id`.
 - Dealer must be active and not `CREDIT_HOLD`.
 - `current_balance + order_value <= credit_limit`.
-- Dealer must not have invoices overdue more than 30 days.
+- Dealer must not have unpaid invoices overdue beyond the dealer's configured payment term days for one order.
 - On create, status must be `NEW`.
 - On cancel, status must be before `WAREHOUSE_APPROVED`.
 
@@ -106,12 +106,13 @@
 - `status`
 - `current_balance`
 - `credit_limit`
+- `payment_term_days`: maximum allowed overdue days for any unpaid invoice before new Delivery Orders are blocked.
 
 **Validation rules**
 
 - `status != CREDIT_HOLD`.
 - `current_balance + order_value <= credit_limit`.
-- No invoice overdue more than 30 days.
+- No unpaid invoice overdue beyond `payment_term_days`.
 
 ## AuditLog
 

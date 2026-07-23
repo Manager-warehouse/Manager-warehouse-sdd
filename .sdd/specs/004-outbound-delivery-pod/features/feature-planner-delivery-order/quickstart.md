@@ -27,7 +27,7 @@
 1. Set selected warehouse availability below requested quantity after subtracting planner-level reservations.
 2. Call create endpoint.
 3. Expect `422 INSUFFICIENT_STOCK`.
-4. Response may include suggested warehouses with enough availability.
+4. Response explains that selected warehouse stock is insufficient and does not suggest alternative warehouses.
 5. Verify no reservation mutation occurred.
 
 ## Happy Path: Cancel Before Warehouse Approval
@@ -43,7 +43,7 @@
 
 - Unit: credit limit equality is allowed.
 - Unit: `CREDIT_HOLD` dealer is rejected.
-- Unit: invoices overdue more than 30 days reject create.
+- Unit: unpaid invoices overdue beyond the dealer's configured maximum debt days per order reject create.
 - Unit: planner warehouse scope is enforced.
 - Unit: availability subtracts `warehouse_product_reservations.reserved_qty`.
 - Unit: quarantine/non-quality inventory is excluded.
