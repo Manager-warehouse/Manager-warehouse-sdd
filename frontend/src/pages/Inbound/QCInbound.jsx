@@ -162,15 +162,11 @@ const QCInbound = () => {
   };
 
   const getProductName = (item) => {
-    if (item && item.product_name) return item.product_name;
-    const productId = typeof item === 'object' ? item.product_id : item;
-    return productId === 1 ? 'Màn hình ASUS ProArt 27K' : 'Chuột Logitech MX Master 3S';
+    return item?.product_name || 'N/A';
   };
 
   const getProductSku = (item) => {
-    if (item && item.product_sku) return item.product_sku;
-    const productId = typeof item === 'object' ? item.product_id : item;
-    return productId === 1 ? 'SKU-PA-001' : 'SKU-LOGI-MX3';
+    return item?.product_sku || 'N/A';
   };
 
   const getRowResultBadge = (item) => {
