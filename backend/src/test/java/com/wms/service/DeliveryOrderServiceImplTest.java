@@ -202,8 +202,6 @@ class DeliveryOrderServiceImplTest {
                 priceHistoryService, accountingPeriodService, systemConfigService);
         lenient().when(accountingPeriodService.resolveOpenPeriod(any()))
                 .thenReturn(AccountingPeriod.builder().id(1L).periodName("2026-06").build());
-        lenient().when(systemConfigService.getIntValue(eq("CREDIT_HOLD_OVERDUE_DAYS"), any(Integer.class)))
-                .thenReturn(30);
         planner = user(1L, UserRole.PLANNER);
         manager = user(2L, UserRole.WAREHOUSE_MANAGER);
         dealer = dealer(10L, new BigDecimal("480.00"), new BigDecimal("500.00"), CreditStatus.ACTIVE);
@@ -307,6 +305,16 @@ class DeliveryOrderServiceImplTest {
     }
 
     @Test
+    void createDeliveryOrder_allowsStockAvailabilityEquality() {
+        stubSuccessfulCreate(new BigDecimal("15.00"));
+
+        DeliveryOrderResponse response = service.createDeliveryOrder(validRequest(new BigDecimal("10.00")), planner);
+
+        assertThat(response.getStatus()).isEqualTo(DeliveryOrderStatus.NEW);
+        verify(deliveryOrderRepository).save(any(DeliveryOrder.class));
+    }
+
+    @Test
     void createDeliveryOrder_rejectsCreditHoldDealer() {
         dealer.setCreditStatus(CreditStatus.CREDIT_HOLD);
         stubCreateUntilCredit();
@@ -320,6 +328,7 @@ class DeliveryOrderServiceImplTest {
 
     @Test
     void createDeliveryOrder_rejectsOverdueInvoice() {
+        dealer.setPaymentTermDays(15);
         stubCreateUntilCredit();
         when(invoiceRepository.existsByDealerIdAndStatusInAndDueDateBefore(
                 eq(10L), eq(List.of(InvoiceStatus.UNPAID, InvoiceStatus.PARTIALLY_PAID)), any(LocalDate.class)))
@@ -332,7 +341,7 @@ class DeliveryOrderServiceImplTest {
         ArgumentCaptor<LocalDate> thresholdCaptor = ArgumentCaptor.forClass(LocalDate.class);
         verify(invoiceRepository).existsByDealerIdAndStatusInAndDueDateBefore(
                 eq(10L), eq(List.of(InvoiceStatus.UNPAID, InvoiceStatus.PARTIALLY_PAID)), thresholdCaptor.capture());
-        assertThat(thresholdCaptor.getValue()).isEqualTo(LocalDate.now().minusDays(30));
+        assertThat(thresholdCaptor.getValue()).isEqualTo(LocalDate.now().minusDays(15));
         verify(deliveryOrderRepository, never()).save(any());
     }
 
@@ -351,24 +360,30 @@ class DeliveryOrderServiceImplTest {
     @Test
     void createDeliveryOrder_subtractsAggregateReservationFromAvailability() {
         stubCreateUntilAvailability(new BigDecimal("12.00"), new BigDecimal("5.00"));
-        when(warehouseRepository.findByIsActive(true)).thenReturn(List.of());
 
         assertThatThrownBy(() -> service.createDeliveryOrder(validRequest(new BigDecimal("10.00")), planner))
                 .isInstanceOf(OutboundDeliveryException.class)
-                .extracting("code")
-                .isEqualTo("INSUFFICIENT_STOCK");
+                .satisfies(ex -> {
+                    OutboundDeliveryException outbound = (OutboundDeliveryException) ex;
+                    assertThat(outbound.getCode()).isEqualTo("INSUFFICIENT_STOCK");
+                    assertThat(outbound.getDetails()).containsKey("availableByProduct");
+                    assertThat(outbound.getDetails()).doesNotContainKey("suggestedWarehouses");
+                });
         verify(deliveryOrderRepository, never()).save(any());
     }
 
     @Test
     void createDeliveryOrder_rejectsWhenValidInventoryAvailabilityIsInsufficient() {
         stubCreateUntilAvailability(new BigDecimal("9.00"), BigDecimal.ZERO);
-        when(warehouseRepository.findByIsActive(true)).thenReturn(List.of());
 
         assertThatThrownBy(() -> service.createDeliveryOrder(validRequest(new BigDecimal("10.00")), planner))
                 .isInstanceOf(OutboundDeliveryException.class)
-                .extracting("code")
-                .isEqualTo("INSUFFICIENT_STOCK");
+                .satisfies(ex -> {
+                    OutboundDeliveryException outbound = (OutboundDeliveryException) ex;
+                    assertThat(outbound.getCode()).isEqualTo("INSUFFICIENT_STOCK");
+                    assertThat(outbound.getDetails()).containsKey("availableByProduct");
+                    assertThat(outbound.getDetails()).doesNotContainKey("suggestedWarehouses");
+                });
         verify(deliveryOrderRepository, never()).save(any());
     }
 
@@ -1337,6 +1352,7 @@ class DeliveryOrderServiceImplTest {
         dealer.setCreditStatus(status);
         dealer.setCurrentBalance(balance);
         dealer.setCreditLimit(limit);
+        dealer.setPaymentTermDays(30);
         dealer.setIsActive(true);
         return dealer;
     }

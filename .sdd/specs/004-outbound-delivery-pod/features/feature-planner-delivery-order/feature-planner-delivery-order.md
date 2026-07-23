@@ -16,7 +16,8 @@ Planner tiếp nhận yêu cầu xuất hàng từ Công ty mẹ cho kho mà Pla
   * Hệ thống SHALL cho phép tạo đơn khi `current_balance + order_value <= credit_limit`, bao gồm trường hợp số dư sau tạo đơn bằng đúng credit limit.
   * IF dealer status là `CREDIT_HOLD`, hệ thống SHALL chặn tạo đơn và hiển thị lý do rõ ràng.
   * Hệ thống SHALL chặn tạo đơn khi `current_balance + order_value > credit_limit`.
-  * Hệ thống SHALL chặn tạo đơn khi đại lý có bất kỳ invoice nào quá hạn trên 30 ngày.
+  * Hệ thống SHALL chặn tạo đơn khi đại lý có bất kỳ invoice chưa thanh toán nào quá hạn quá số ngày nợ tối đa được cấu hình cho đại lý đó trên một đơn hàng (`dealers.payment_term_days`).
+  * Hệ thống SHALL chỉ cho phép Planner tạo Delivery Order mới cho đại lý sau khi toàn bộ invoice quá hạn quá `dealers.payment_term_days` đã được thanh toán hoặc tất toán.
   * Hệ thống SHALL chặn tạo đơn khi Planner không được gán vào kho đã chọn.
   * Hệ thống SHALL reserve số lượng sản phẩm yêu cầu tại kho đã chọn trên Delivery Order items sau khi tạo Delivery Order thành công.
   * Hệ thống SHALL NOT tăng `inventories.reserved_qty` hoặc gán batch, bin, zone cuối cùng khi tạo Delivery Order; Storekeeper SHALL tạo picking list với batch/bin/zone cụ thể và số lượng theo từng vị trí trong feature picking-plan.
@@ -30,7 +31,8 @@ Planner tiếp nhận yêu cầu xuất hàng từ Công ty mẹ cho kho mà Pla
 * **Event-driven:**
   * WHEN Planner tạo Delivery Order, hệ thống SHALL:
     * Validate `available_qty >= requested_qty` bằng tồn kho hợp lệ đã đạt chất lượng tại kho, sau khi trừ `warehouse_product_reservations.reserved_qty`.
-    * IF tồn kho không đủ, chặn tạo đơn và gợi ý các kho khác có đủ available stock.
+    * IF tồn kho không đủ, chặn tạo đơn và hiển thị lý do `INSUFFICIENT_STOCK` hoặc thông báo tương đương rằng tồn kho không đủ.
+    * Hệ thống SHALL NOT gợi ý, liệt kê, hoặc đề xuất các kho khác có đủ hàng khi tồn kho tại kho đã chọn không đủ.
     * Với domain hiện tại là hàng gia dụng, áp dụng FIFO bằng cách xếp hạng hàng nhập kho cũ hơn trước hàng nhập kho mới hơn.
     * Không yêu cầu expiry date hoặc FEFO selection vì hàng gia dụng hiện tại như nồi, chảo, đồ nhựa không quản lý hạn sử dụng.
     * Tăng `delivery_order_items.reserved_qty` theo số lượng yêu cầu.
@@ -52,20 +54,29 @@ Planner tiếp nhận yêu cầu xuất hàng từ Công ty mẹ cho kho mà Pla
 * When Planner tạo Delivery Order trị giá `30M`
 * Then hệ thống SHALL chặn tạo đơn và hiển thị lỗi credit check.
 
-**Scenario 1b: Chặn tạo đơn do nợ quá hạn**
-* Given đại lý có invoice quá hạn trên 30 ngày
+**Scenario 1b: Chặn tạo đơn do invoice quá hạn vượt số ngày nợ tối đa của đại lý**
+* Given đại lý có `payment_term_days = N`
+* And đại lý có ít nhất một invoice chưa thanh toán quá hạn hơn `N` ngày
 * When Planner tạo Delivery Order
-* Then hệ thống SHALL chặn tạo đơn và hiển thị lý do quá hạn.
+* Then hệ thống SHALL chặn tạo đơn và hiển thị lý do invoice quá hạn vượt số ngày nợ tối đa của đại lý.
 
-**Scenario 1c: Cho phép tạo đơn khi vừa đúng hạn mức công nợ**
+**Scenario 1c: Cho phép tạo đơn sau khi đại lý thanh toán hết invoice quá hạn**
+* Given đại lý từng có invoice quá hạn vượt số ngày nợ tối đa
+* And các invoice quá hạn đó đã được thanh toán hoặc tất toán
+* And hạn mức công nợ và tồn kho đều hợp lệ
+* When Planner tạo Delivery Order
+* Then hệ thống SHALL cho phép tạo đơn.
+
+**Scenario 1d: Cho phép tạo đơn khi vừa đúng hạn mức công nợ**
 * Given đại lý có `current_balance = 480M` và `credit_limit = 500M`
 * When Planner tạo Delivery Order trị giá `20M`
 * Then hệ thống SHALL cho phép tạo đơn vì `current_balance + order_value = credit_limit`.
 
-**Scenario 2: Gợi ý kho khác khi thiếu tồn kho**
+**Scenario 2: Chặn tạo đơn khi thiếu tồn kho tại kho đã chọn**
 * Given product X có `total_qty = 100` và `reserved_qty = 30` tại warehouse HP
 * When Planner tạo Delivery Order cho `80` đơn vị tại warehouse HP
-* Then hệ thống SHALL chặn tạo đơn và gợi ý kho khác có đủ available stock.
+* Then hệ thống SHALL chặn tạo đơn và hiển thị lý do tồn kho không đủ.
+* And hệ thống SHALL NOT gợi ý kho khác có đủ available stock.
 
 **Scenario 2b: Chặn Planner thao tác ngoài kho được gán**
 * Given Planner chỉ được gán vào warehouse HP
