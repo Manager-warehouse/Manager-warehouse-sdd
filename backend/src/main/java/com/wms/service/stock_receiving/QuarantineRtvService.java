@@ -233,8 +233,10 @@ public class QuarantineRtvService {
                         "No pending RTV adjustment found for receipt: " + receiptId));
 
         List<ReceiptItem> items = receiptItemRepository.findByReceiptId(receiptId);
+        // Must match the quantity actually held in quarantine (sampleFailedQty),
+        // not the full received actualQty — see createRtv() for the same fix.
         BigDecimal quarantineQty = items.stream()
-                .map(i -> i.getActualQty() != null ? BigDecimal.valueOf(i.getActualQty()) : BigDecimal.ZERO)
+                .map(i -> i.getSampleFailedQty() != null ? BigDecimal.valueOf(i.getSampleFailedQty()) : BigDecimal.ZERO)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         if (request.getReturnedQty().compareTo(quarantineQty) != 0) {
@@ -281,7 +283,10 @@ public class QuarantineRtvService {
 
 
     private void deductQuarantineInventory(Receipt receipt, ReceiptItem item, User actor) {
-        BigDecimal qty = item.getActualQty() != null ? BigDecimal.valueOf(item.getActualQty()) : BigDecimal.ZERO;
+        // Only the QC-failed portion of this item ever entered quarantine
+        // inventory (see ReceiptQcService.confirmQc); deducting actualQty here
+        // would try to remove more than what was ever added.
+        BigDecimal qty = item.getSampleFailedQty() != null ? BigDecimal.valueOf(item.getSampleFailedQty()) : BigDecimal.ZERO;
         if (qty.compareTo(BigDecimal.ZERO) <= 0) {
             return;
         }
