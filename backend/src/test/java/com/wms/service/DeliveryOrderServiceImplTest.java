@@ -855,6 +855,7 @@ class DeliveryOrderServiceImplTest {
         DeliveryOrderItemAllocation allocation = allocation(900L, item, inventory, zone,
                 new BigDecimal("10.00"), ZERO, false);
         WarehouseLocation stagingBin = bin(880L, warehouse, zone);
+        stagingBin.setIsStaging(true);
         WarehouseLocation quarantineZone = zone(91L, warehouse);
         quarantineZone.setIsQuarantine(true);
         WarehouseLocation quarantineBin = bin(990L, warehouse, quarantineZone);
@@ -1043,6 +1044,7 @@ class DeliveryOrderServiceImplTest {
         DeliveryOrderItemAllocation replacement = allocation(901L, item, replacementInventory, zone2,
                 new BigDecimal("2.00"), ZERO, true);
         WarehouseLocation stagingBin = bin(880L, warehouse, zone2);
+        stagingBin.setIsStaging(true);
 
         OutboundQcRecord oldRow = new OutboundQcRecord();
         oldRow.setAllocation(oldPassed);
@@ -1126,6 +1128,7 @@ class DeliveryOrderServiceImplTest {
         DeliveryOrderItemAllocation allocation = allocation(900L, item, inventory, zone,
                 new BigDecimal("10.00"), new BigDecimal("10.00"), false);
         WarehouseLocation stagingBin = bin(880L, warehouse, zone);
+        stagingBin.setIsStaging(true);
         Inventory stagingInventory = inventory(700L, warehouse, product, batch, stagingBin,
                 new BigDecimal("8.00"), new BigDecimal("8.00"));
         OutboundQcRecord qcRecord = new OutboundQcRecord();

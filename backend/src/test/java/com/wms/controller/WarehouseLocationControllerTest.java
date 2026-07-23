@@ -113,7 +113,7 @@ public class WarehouseLocationControllerTest {
     @Test
     @WithMockUser(username = "manager@wms.com", roles = "WAREHOUSE_MANAGER")
     void getAllLocations_Manager_Returns200() throws Exception {
-        when(locationService.getAllLocations(any(), any(), any(), any()))
+        when(locationService.getAllLocations(any(), any(), any(), any(), any()))
                 .thenReturn(List.of(new WarehouseLocationResponse()));
 
         mockMvc.perform(get("/api/v1/admin/warehouse-locations"))
