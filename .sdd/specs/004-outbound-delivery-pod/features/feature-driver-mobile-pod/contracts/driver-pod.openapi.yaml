@@ -422,8 +422,36 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/delivery-orders/{doId}/returned-goods:
+    get:
+      summary: Get returned-goods flow state
+      operationId: getReturnedGoodsFlow
+      tags:
+        - Returned Delivery Goods
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: doId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: Current returned-goods flow state for the Delivery Order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReturnedGoodsFlowResponse"
+        "422":
+          description: Returned-goods flow has not been submitted yet or Delivery Order state is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/v1/delivery-orders/{doId}/returned-goods/count-qc:
-    post:
+    put:
       summary: Submit returned-goods count and quality inspection
       operationId: submitReturnedGoodsCountQc
       tags:
@@ -456,8 +484,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-  /api/v1/delivery-orders/{doId}/returned-goods/approve:
-    post:
+  /api/v1/delivery-orders/{doId}/returned-goods/approval:
+    put:
       summary: Storekeeper approves returned-goods count and quality
       operationId: approveReturnedGoods
       tags:
@@ -491,7 +519,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
   /api/v1/delivery-orders/{doId}/returned-goods/putaway-plan:
-    post:
+    put:
       summary: Storekeeper creates returned-goods putaway plan
       operationId: planReturnedGoodsPutaway
       tags:
@@ -525,7 +553,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
   /api/v1/delivery-orders/{doId}/returned-goods/putaway-complete:
-    post:
+    put:
       summary: Warehouse staff confirms returned-goods putaway completion
       operationId: completeReturnedGoodsPutaway
       tags:

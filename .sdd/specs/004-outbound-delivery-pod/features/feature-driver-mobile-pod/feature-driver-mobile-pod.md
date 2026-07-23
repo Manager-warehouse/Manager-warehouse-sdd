@@ -178,10 +178,11 @@ Nếu Đại lý từ chối nhận hàng hoặc giao hàng thất bại, tài x
 - `PUT /api/v1/trips/{tripId}/delivery-orders/{doId}/confirm-delivery` - Confirm full Delivery Order delivery using dealer OTP.
 - `PUT /api/v1/trips/{tripId}/delivery-orders/{doId}/fail-delivery` - Record dealer refusal or delivery failure.
 - `PUT /api/v1/trips/{tripId}/complete` - Assigned driver confirms the vehicle has returned to the source warehouse.
-- `POST /api/v1/delivery-orders/{doId}/returned-goods/count-qc` - Warehouse staff submit returned quantity count and quality inspection results for a `RETURNED` Delivery Order.
-- `POST /api/v1/delivery-orders/{doId}/returned-goods/approve` - Storekeeper approves returned quantity and quality results.
-- `POST /api/v1/delivery-orders/{doId}/returned-goods/putaway-plan` - Storekeeper creates the destination-location putaway plan for returned goods.
-- `POST /api/v1/delivery-orders/{doId}/returned-goods/putaway-complete` - Warehouse staff confirm returned goods were put away successfully and close the Delivery Order as `DELIVERY_FAILED`.
+- `GET /api/v1/delivery-orders/{doId}/returned-goods` - Warehouse-scoped viewer reads the current returned-goods flow state so frontend can resume the correct staff/storekeeper step.
+- `PUT /api/v1/delivery-orders/{doId}/returned-goods/count-qc` - Warehouse staff submit returned quantity count and quality inspection results for a `RETURNED` Delivery Order.
+- `PUT /api/v1/delivery-orders/{doId}/returned-goods/approval` - Storekeeper approves returned quantity and quality results.
+- `PUT /api/v1/delivery-orders/{doId}/returned-goods/putaway-plan` - Storekeeper creates the destination-location putaway plan for returned goods.
+- `PUT /api/v1/delivery-orders/{doId}/returned-goods/putaway-complete` - Warehouse staff confirm returned goods were put away successfully and close the Delivery Order as `DELIVERY_FAILED`.
 - `POST /api/v1/admin/delivery-orders/{doId}/delivery-otp/reset` - Admin resets a locked OTP for the current delivery attempt.
 
 ### POD evidence request payload

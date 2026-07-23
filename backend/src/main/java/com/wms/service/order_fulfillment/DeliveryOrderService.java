@@ -70,6 +70,7 @@ public interface DeliveryOrderService {
     DeliveryOrderResponse approveDeliveryOrderWarehouseRelease(Long id, DeliveryOrderWarehouseApprovalRequest request, User actor);
     DeliveryOrderResponse rejectDeliveryOrderWarehouseRelease(Long id, DeliveryOrderWarehouseRejectRequest request, User actor);
     ReturnedGoodsFlowResponse submitReturnedGoodsCountQc(Long id, ReturnedGoodsCountQcRequest request, User actor);
+    ReturnedGoodsFlowResponse getReturnedGoodsFlow(Long id, User actor);
     ReturnedGoodsFlowResponse approveReturnedGoods(Long id, ReturnedGoodsApprovalRequest request, User actor);
     ReturnedGoodsFlowResponse planReturnedGoodsPutaway(Long id, ReturnedGoodsPutawayPlanRequest request, User actor);
     ReturnedGoodsFlowResponse completeReturnedGoodsPutaway(Long id, ReturnedGoodsPutawayCompleteRequest request, User actor);

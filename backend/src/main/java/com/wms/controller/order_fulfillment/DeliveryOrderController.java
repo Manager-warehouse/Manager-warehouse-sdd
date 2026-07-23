@@ -281,6 +281,13 @@ public class DeliveryOrderController {
         return deliveryOrderService.submitReturnedGoodsCountQc(id, request, currentUser());
     }
 
+    @GetMapping("/{id}/returned-goods")
+    @PreAuthorize("hasAnyRole('WAREHOUSE_STAFF','STOREKEEPER','WAREHOUSE_MANAGER')")
+    @Operation(summary = "Get returned goods flow state")
+    public ReturnedGoodsFlowResponse getReturnedGoodsFlow(@PathVariable Long id) {
+        return deliveryOrderService.getReturnedGoodsFlow(id, currentUser());
+    }
+
     @PutMapping("/{id}/returned-goods/approval")
     @PreAuthorize("hasRole('STOREKEEPER')")
     @Operation(summary = "Approve returned goods quantity and quality")
