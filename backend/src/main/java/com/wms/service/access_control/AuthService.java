@@ -255,7 +255,31 @@ public class AuthService {
 
     @Transactional
     public void verifyOtp(VerifyOtpRequest request) {
-        User user = userRepository.findByEmail(request.getEmail())
+        User user = validateOtpOrThrow(request.getEmail(), request.getOtp());
+
+        user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        user.setOtpHash(null);
+        user.setOtpExpiresAt(null);
+        user.setOtpAttemptCount(0);
+        // Invalidate any active sessions after password reset
+        user.setRefreshTokenHash(null);
+        user.setRefreshTokenExpiresAt(null);
+        userRepository.save(user);
+    }
+
+    /**
+     * Validates an OTP without consuming it, so the forgot-password wizard
+     * can confirm the code on its own step before asking for a new password.
+     * Still counts failed guesses toward the same lockout as verifyOtp so it
+     * cannot be used to bypass brute-force protection.
+     */
+    @Transactional
+    public void checkOtp(CheckOtpRequest request) {
+        validateOtpOrThrow(request.getEmail(), request.getOtp());
+    }
+
+    private User validateOtpOrThrow(String email, String otp) {
+        User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("OTP_INVALID"));
 
         if (user.getOtpExpiresAt() == null || user.getOtpExpiresAt().isBefore(OffsetDateTime.now())) {
@@ -266,20 +290,13 @@ public class AuthService {
             throw new IllegalArgumentException("OTP_LOCKED");
         }
 
-        if (user.getOtpHash() == null || !user.getOtpHash().equals(sha256(request.getOtp()))) {
+        if (user.getOtpHash() == null || !user.getOtpHash().equals(sha256(otp))) {
             user.setOtpAttemptCount((user.getOtpAttemptCount() == null ? 0 : user.getOtpAttemptCount()) + 1);
             userRepository.save(user);
             throw new IllegalArgumentException("OTP_INVALID");
         }
 
-        user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
-        user.setOtpHash(null);
-        user.setOtpExpiresAt(null);
-        user.setOtpAttemptCount(0);
-        // Invalidate any active sessions after password reset
-        user.setRefreshTokenHash(null);
-        user.setRefreshTokenExpiresAt(null);
-        userRepository.save(user);
+        return user;
     }
 
     @Transactional
