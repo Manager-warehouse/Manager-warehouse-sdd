@@ -207,11 +207,21 @@ public class AuthService {
                 "email", user.getEmail(),
                 "phone", user.getPhone() != null ? user.getPhone() : "");
 
+        boolean emailChanged = !user.getEmail().equalsIgnoreCase(request.getEmail());
+
         // Perform update
         user.setFullName(request.getFullName());
         user.setEmail(request.getEmail());
         user.setPhone(request.getPhone());
         user.setUpdatedAt(OffsetDateTime.now());
+
+        if (emailChanged) {
+            // The current JWT's subject is the old email; extractEmail() would
+            // no longer resolve to any user once it changes. Force re-login
+            // instead of leaving a token that silently fails on next use.
+            user.setRefreshTokenHash(null);
+            user.setRefreshTokenExpiresAt(null);
+        }
 
         User savedUser = userRepository.save(user);
 
