@@ -336,6 +336,7 @@ const normalizeDoStatus = (status) => {
     COMPLETED: 'COMPLETED',
     DELIVERED: 'COMPLETED',
     RETURNED: 'RETURNED',
+    DELIVERY_FAILED: 'DELIVERY_FAILED',
     REJECTED: 'REJECTED',
     CANCELLED: 'CANCELLED',
   };
@@ -344,7 +345,7 @@ const normalizeDoStatus = (status) => {
 
 const normalizeDeliveryStatus = (status, attempt) => {
   if (attempt?.status === 'DELIVERED') return 'COMPLETED';
-  if (attempt?.status === 'FAILED') return 'FAILED';
+  if (attempt?.status === 'FAILED') return 'RETURNED';
   return normalizeDoStatus(status);
 };
 
@@ -1120,7 +1121,7 @@ export const outboundService = {
       await mockDelay(300);
       const stops = getDb(KEYS.TRIP_DOS, INITIAL_TRIP_DOS);
       const idx = stops.findIndex((stop) => stop.trip_id === Number(tripId) && stop.do_id === Number(doId));
-      if (idx !== -1) stops[idx] = { ...stops[idx], delivery_status: 'FAILED', failure_reason: failureReason };
+      if (idx !== -1) stops[idx] = { ...stops[idx], delivery_status: 'RETURNED', raw_status: 'RETURNED', failure_reason: failureReason };
       saveDb(KEYS.TRIP_DOS, stops);
       return { success: true };
     }

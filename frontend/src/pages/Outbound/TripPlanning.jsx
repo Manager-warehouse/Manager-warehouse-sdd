@@ -23,8 +23,8 @@ const DELIVERY_ORDER_STATUS_LABELS = {
   WAREHOUSE_APPROVED: 'Đã duyệt xuất kho',
   IN_TRANSIT: 'Đang giao',
   COMPLETED: 'Hoàn thành',
-  DELIVERY_FAILED: 'Giao thất bại',
-  RETURNED: 'Đã hoàn hàng',
+  RETURNED: 'Chờ hoàn về kho',
+  DELIVERY_FAILED: 'Giao hàng thất bại',
 };
 
 const emptyForm = { vehicle_id: '', driver_id: '', planned_start_at: '', planned_end_at: '', notes: '', delivery_orders: [] };
