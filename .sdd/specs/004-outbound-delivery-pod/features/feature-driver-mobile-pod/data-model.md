@@ -145,7 +145,55 @@
 - Driver mobile actions only operate while the Delivery Order is `IN_TRANSIT`.
 - Successful OTP confirmation moves the Delivery Order to `COMPLETED`.
 - Failure or dealer refusal moves the Delivery Order to `RETURNED`.
-- Outbound flow later allows `RETURNED -> DELIVERY_FAILED` only through the separate return flow.
+- Outbound flow later allows `RETURNED -> DELIVERY_FAILED` only through the separate return flow after staff count/QC, Storekeeper approval, Storekeeper putaway planning, and staff putaway confirmation are complete.
+
+## ReturnedDeliveryFlow
+
+**Purpose**: Tracks returned goods for a failed/refused Delivery Order while the Delivery Order remains `RETURNED`.
+
+**Fields used/updated**
+
+- `delivery_order_id`
+- `status` (`COUNT_QC_PENDING`, `COUNT_QC_SUBMITTED`, `APPROVED`, `PUTAWAY_PLANNED`, `PUTAWAY_COMPLETED`)
+- `counted_by_staff_id`
+- `approved_by_storekeeper_id`
+- `putaway_planned_by_storekeeper_id`
+- `putaway_completed_by_staff_id`
+- `notes`
+- `created_at`
+- `updated_at`
+
+**Validation rules**
+
+- A returned flow can be opened only for a Delivery Order in `RETURNED`.
+- Warehouse staff submit returned quantity count and quality result by item/product/batch.
+- Storekeeper approval is required after staff count/QC and before putaway planning.
+- Storekeeper selects the destination warehouse location in the putaway plan.
+- Warehouse staff can confirm putaway only for a Storekeeper-approved putaway plan.
+- The Delivery Order remains `RETURNED` until putaway is confirmed complete.
+- Putaway completion moves returned goods from virtual `IN_TRANSIT` to the planned warehouse location and moves the Delivery Order to `DELIVERY_FAILED`.
+
+## ReturnedDeliveryItemResult
+
+**Purpose**: Captures staff count and quality inspection result for each returned Delivery Order item/product/batch.
+
+**Fields used/updated**
+
+- `returned_flow_id`
+- `delivery_order_item_id`
+- `product_id`
+- `batch_id`
+- `expected_qty`
+- `counted_qty`
+- `quality_result` (`PASSED`, `FAILED`)
+- `quality_reason`
+- `destination_location_id`
+
+**Validation rules**
+
+- `counted_qty` must be non-negative and must be reviewed by Storekeeper.
+- Storekeeper cannot approve the return flow until every expected item/product/batch has a count and quality result.
+- Putaway confirmation must match the Storekeeper-approved destination location and approved quantity.
 
 ## DeliveryOrderItem
 

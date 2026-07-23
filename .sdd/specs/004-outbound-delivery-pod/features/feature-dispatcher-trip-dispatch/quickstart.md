@@ -149,6 +149,7 @@ Expected result:
 - Mark trip `COMPLETED`.
 - Mark vehicle and driver `AVAILABLE`.
 - Leave any returned goods in virtual `IN_TRANSIT`.
+- Keep returned Delivery Orders in `RETURNED` until staff count/QC, Storekeeper approval, Storekeeper putaway planning, and staff putaway completion close them as `DELIVERY_FAILED`.
 - Write `COMPLETE_TRIP` audit.
 
 ## Required tests
