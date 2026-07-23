@@ -535,17 +535,14 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
               Xếp hàng đã xong. Xác nhận bàn giao hàng cho tài xế trước khi tài xế rời kho.
             </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-            <Button
-              loading={busy}
-              size="sm"
-              disabled={!outboundQcStoredPhotoRef}
-              onClick={() => run('loadHandover', { photoRef: outboundQcStoredPhotoRef })}
-            >
-              Xác nhận bàn giao lên xe
-            </Button>
-            <Button loading={busy} icon={RotateCcw} variant="outline-light" onClick={() => run('unship')}>Hạ hàng khỏi xe</Button>
-          </div>
+          <Button
+            loading={busy}
+            size="sm"
+            disabled={!outboundQcStoredPhotoRef}
+            onClick={() => run('loadHandover', { photoRef: outboundQcStoredPhotoRef })}
+          >
+            Xác nhận bàn giao lên xe
+          </Button>
         </div>
       )}
 
