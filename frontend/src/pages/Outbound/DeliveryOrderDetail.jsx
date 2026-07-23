@@ -575,7 +575,7 @@ export default function DeliveryOrderDetail() {
                   const locationOptions = locations.filter((location) => (
                     Number(row.quality_fail_qty || 0) > 0
                       ? location.is_quarantine === true
-                      : location.is_quarantine !== true
+                      : (location.is_quarantine !== true && location.is_staging !== true)
                   ));
                   const countDisabled = !hasRole(ROLES.WAREHOUSE_STAFF) || !canStaffSubmitReturnedQc(returnFlowStatus);
                   const planDisabled = !hasRole(ROLES.STOREKEEPER) || returnFlowStatus !== 'QC_APPROVED';

@@ -42,7 +42,7 @@ import com.wms.dto.response.WarehouseLocationResponse;
 import java.util.List;
 
 public interface WarehouseLocationService {
-    List<WarehouseLocationResponse> getAllLocations(Long warehouseId, String type, Boolean isQuarantine, Boolean isActive);
+    List<WarehouseLocationResponse> getAllLocations(Long warehouseId, String type, Boolean isQuarantine, Boolean isStaging, Boolean isActive);
     WarehouseLocationResponse getLocationById(Long id);
     WarehouseLocationResponse createLocation(WarehouseLocationRequest request, Long userId);
     WarehouseLocationResponse updateLocation(Long id, WarehouseLocationRequest request, Long userId);

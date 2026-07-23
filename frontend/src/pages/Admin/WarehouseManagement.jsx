@@ -48,6 +48,7 @@ const WarehouseManagement = () => {
   const [binCapacityM3, setBinCapacityM3] = useState('10');
   const [binCapacityKg, setBinCapacityKg] = useState('1000');
   const [binIsQuarantine, setBinIsQuarantine] = useState(false);
+  const [binIsStaging, setBinIsStaging] = useState(false);
 
   useEffect(() => {
     fetchWarehouses();
@@ -204,6 +205,7 @@ const WarehouseManagement = () => {
     setBinCapacityM3('10');
     setBinCapacityKg('1000');
     setBinIsQuarantine(false);
+    setBinIsStaging(false);
     setBinFormErrors({});
     setIsBinModalOpen(true);
   };
@@ -215,6 +217,7 @@ const WarehouseManagement = () => {
     setBinCapacityM3(String(bin.capacity_m3));
     setBinCapacityKg(String(bin.capacity_kg));
     setBinIsQuarantine(!!bin.is_quarantine);
+    setBinIsStaging(!!bin.is_staging);
     setBinFormErrors({});
     setIsBinModalOpen(true);
   };
@@ -246,6 +249,7 @@ const WarehouseManagement = () => {
           capacity_m3: parseFloat(binCapacityM3),
           capacity_kg: parseFloat(binCapacityKg),
           is_quarantine: binIsQuarantine,
+          is_staging: binIsStaging,
         };
         await masterDataService.createBinLocation(binData);
         addToast('Tạo vị trí ô kệ thành công', 'success');
@@ -254,6 +258,7 @@ const WarehouseManagement = () => {
           capacity_m3: parseFloat(binCapacityM3),
           capacity_kg: parseFloat(binCapacityKg),
           is_quarantine: binIsQuarantine,
+          is_staging: binIsStaging,
         };
         await masterDataService.updateBinLocation(selectedBin.id, binData);
         addToast(`Cập nhật ô kệ ${selectedBin.code} thành công`, 'success');
@@ -468,7 +473,7 @@ const WarehouseManagement = () => {
                       {bins.map((bin) => (
                         <tr
                           key={bin.id}
-                          className={`hover:bg-canvas-cream/50 transition-colors ${bin.is_quarantine ? 'bg-warning-50/20' : ''} ${!bin.is_active ? 'opacity-50' : ''}`}
+                          className={`hover:bg-canvas-cream/50 transition-colors ${bin.is_quarantine ? 'bg-warning-50/20' : bin.is_staging ? 'bg-primary-50/10' : ''} ${!bin.is_active ? 'opacity-50' : ''}`}
                         >
                           <td className="px-6 py-4">
                             <span className="font-mono font-bold text-xs text-ink">{bin.code}</span>
@@ -478,6 +483,12 @@ const WarehouseManagement = () => {
                               <Badge type="warning">
                                 <span className="inline-flex items-center gap-1">
                                   <ShieldAlert className="w-2.5 h-2.5" /> Hàng cách ly
+                                </span>
+                              </Badge>
+                            ) : bin.is_staging ? (
+                              <Badge type="info">
+                                <span className="inline-flex items-center gap-1">
+                                  <ArrowRightLeft className="w-2.5 h-2.5" /> Tập kết (Staging)
                                 </span>
                               </Badge>
                             ) : (
@@ -531,7 +542,7 @@ const WarehouseManagement = () => {
                 {bins.map((bin) => (
                   <div
                     key={bin.id}
-                    className={`bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden ${bin.is_quarantine ? 'bg-warning-50/20' : ''} ${!bin.is_active ? 'opacity-50' : ''}`}
+                    className={`bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden ${bin.is_quarantine ? 'bg-warning-50/20' : bin.is_staging ? 'bg-primary-50/10' : ''} ${!bin.is_active ? 'opacity-50' : ''}`}
                   >
                     <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center gap-2">
                       <span className="font-mono font-bold text-xs text-ink">{bin.code}</span>
@@ -540,6 +551,12 @@ const WarehouseManagement = () => {
                           <Badge type="warning">
                             <span className="inline-flex items-center gap-1">
                               <ShieldAlert className="w-2.5 h-2.5" /> Hàng cách ly
+                            </span>
+                          </Badge>
+                        ) : bin.is_staging ? (
+                          <Badge type="info">
+                            <span className="inline-flex items-center gap-1">
+                              <ArrowRightLeft className="w-2.5 h-2.5" /> Tập kết (Staging)
                             </span>
                           </Badge>
                         ) : (
@@ -737,6 +754,19 @@ const WarehouseManagement = () => {
             <div className="flex flex-col">
               <span className="text-xs font-bold text-ink">Khu vực kiểm định cách ly</span>
               <span className="text-[10px] text-shade-50 leading-none">Chỉ dùng để chứa hàng hóa chưa qua QC hoặc QC thất bại</span>
+            </div>
+          </label>
+
+          <label className="flex items-center gap-2 cursor-pointer bg-canvas-cream p-3.5 rounded border border-hairline-light mt-1">
+            <input
+              type="checkbox"
+              checked={binIsStaging}
+              onChange={(e) => setBinIsStaging(e.target.checked)}
+              className="w-4 h-4 rounded border-hairline-light text-ink focus:ring-ink"
+            />
+            <div className="flex flex-col">
+              <span className="text-xs font-bold text-ink">Khu vực tập kết (Staging)</span>
+              <span className="text-[10px] text-shade-50 leading-none">Dùng làm vị trí trung chuyển sau khi lấy hàng xuất kho</span>
             </div>
           </label>
 

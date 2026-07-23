@@ -55,6 +55,7 @@ public class WarehouseLocationResponse {
     private BigDecimal currentVolumeM3;
     private BigDecimal currentWeightKg;
     private Boolean isQuarantine;
+    private Boolean isStaging;
     private Boolean isActive;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;

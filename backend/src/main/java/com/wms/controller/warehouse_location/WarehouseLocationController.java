@@ -65,8 +65,9 @@ public class WarehouseLocationController {
             @RequestParam(required = false) Long warehouseId,
             @RequestParam(required = false) String type,
             @RequestParam(required = false) Boolean isQuarantine,
+            @RequestParam(required = false) Boolean isStaging,
             @RequestParam(required = false) Boolean isActive) {
-        return ResponseEntity.ok(locationService.getAllLocations(warehouseId, type, isQuarantine, isActive));
+        return ResponseEntity.ok(locationService.getAllLocations(warehouseId, type, isQuarantine, isStaging, isActive));
     }
 
     @GetMapping("/{id}")
