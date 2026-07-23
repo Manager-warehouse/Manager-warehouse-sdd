@@ -112,14 +112,6 @@ public class SupplierPaymentServiceImpl implements SupplierPaymentService {
         invoice.setUpdatedAt(OffsetDateTime.now());
         supplierInvoiceRepository.save(invoice);
 
-        // 6. Decrease supplier balance
-        BigDecimal oldBalance = supplier.getCurrentBalance() != null ? supplier.getCurrentBalance() : BigDecimal.ZERO;
-        supplier.setCurrentBalance(oldBalance.subtract(request.getAmount()));
-        supplierRepository.save(supplier);
-
-        // 7. Generate payment number
-        String paymentNumber = generateSupplierPaymentNumber(request.getDocumentDate());
-
         // 8. Create and save payment
         OffsetDateTime now = OffsetDateTime.now();
         SupplierPayment payment = SupplierPayment.builder()
