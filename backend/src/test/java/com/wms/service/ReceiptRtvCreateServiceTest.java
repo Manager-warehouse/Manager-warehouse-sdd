@@ -156,6 +156,10 @@ class ReceiptRtvCreateServiceTest {
         failedItem.setId(10L);
         failedItem.setProduct(product);
         failedItem.setActualQty(20);
+        // Fully QC-failed item: sampleFailedQty must match actualQty here since
+        // quarantine inventory (and therefore the RTV quantity) is keyed off
+        // sampleFailedQty, not actualQty.
+        failedItem.setSampleFailedQty(20);
         failedItem.setUnitCost(BigDecimal.valueOf(50));
         failedItem.setQcResult(QcResult.FAILED);
 
