@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import { financeService } from '../../services/finance.service';
 import { masterDataService } from '../../services/masterData.service';
 import { useUiStore } from '../../stores/ui.store';
@@ -8,91 +7,76 @@ import { ROLES } from '../../utils/constants';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import PhotoCaptureInput from '../../components/common/PhotoCaptureInput';
-import { FileText, Landmark, BellRing, ShieldAlert, Plus, Eye, Image as ImageIcon, PenTool, UploadCloud, CheckCircle2 } from 'lucide-react';
+import { FileText, Landmark, BellRing, ShieldAlert, Plus, CheckCircle2, TrendingDown, Building2, UploadCloud } from 'lucide-react';
 
 const OCR_LOW_CONFIDENCE_THRESHOLD = 0.75;
 
-const DealerDebtInvoice = () => {
+const SupplierInvoices = () => {
   const { addToast } = useUiStore();
   const { hasRole } = useAuthStore();
   const isAccountant = hasRole(ROLES.ACCOUNTANT) || hasRole(ROLES.ADMIN);
 
-  const [searchParams, setSearchParams] = useSearchParams();
-  const initialTab = searchParams.get('tab') || 'notifications';
-  const [activeTab, setActiveTab] = useState(initialTab); // 'notifications' | 'invoices' | 'payments'
+  const [activeTab, setActiveTab] = useState('notifications'); // 'notifications' | 'invoices' | 'payments'
   const [loading, setLoading] = useState(false);
 
   // Data States
-  const [dealers, setDealers] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
   const [notifications, setNotifications] = useState([]);
-  const [invoices, setInvoices] = useState([]);
-  const [paymentReceipts, setPaymentReceipts] = useState([]);
+  const [supplierInvoices, setSupplierInvoices] = useState([]);
+  const [supplierPayments, setSupplierPayments] = useState([]);
 
-  // Modal States - Create Invoice from Delivery Notification
+  // Modal States
   const [showCreateInvoiceModal, setShowCreateInvoiceModal] = useState(false);
-  const [selectedNotif, setSelectedNotif] = useState(null);
+  const [selectedNotification, setSelectedNotification] = useState(null);
   const [invoiceFormData, setInvoiceFormData] = useState({
-    doId: '',
+    receiptId: '',
+    supplierInvoiceNumber: '',
+    documentDate: new Date().toISOString().slice(0, 10),
+    dueDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+    notes: ''
+  });
+
+  const [showCreatePaymentModal, setShowCreatePaymentModal] = useState(false);
+  const [selectedInvoiceForPayment, setSelectedInvoiceForPayment] = useState(null);
+  const [paymentFormData, setPaymentFormData] = useState({
+    supplierId: '',
+    supplierInvoiceId: '',
+    amount: '',
+    paymentDate: new Date().toISOString().slice(0, 10),
+    paymentMethod: 'BANK_TRANSFER',
     documentDate: new Date().toISOString().slice(0, 10),
     notes: ''
   });
 
-  // Modal States - POD View
-  const [showPodModal, setShowPodModal] = useState(false);
-  const [selectedInvoice, setSelectedInvoice] = useState(null);
-
-  // Modal States - Create Payment Receipt & OCR
-  const [showCreatePaymentModal, setShowCreatePaymentModal] = useState(false);
-  const [selectedInvoiceForPayment, setSelectedInvoiceForPayment] = useState(null);
-  const [paymentFormData, setPaymentFormData] = useState({
-    dealerId: '',
-    invoiceId: '',
-    amount: '',
-    paymentDate: new Date().toISOString().slice(0, 10),
-    paymentMethod: 'BANK_TRANSFER',
-    notes: ''
-  });
-
-  // OCR States for AR Receipt Scan
+  // OCR states for UNC Payment Scan
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrFileName, setOcrFileName] = useState('');
   const [ocrConfidence, setOcrConfidence] = useState(null);
   const [ocrResetKey, setOcrResetKey] = useState(0);
   const ocrLowConfidence = ocrConfidence !== null && ocrConfidence < OCR_LOW_CONFIDENCE_THRESHOLD;
 
-  // Sync tab with search param if changed externally
-  useEffect(() => {
-    const tabParam = searchParams.get('tab');
-    if (tabParam && ['notifications', 'invoices', 'payments'].includes(tabParam)) {
-      setActiveTab(tabParam);
-    }
-  }, [searchParams]);
-
-  const handleTabChange = (tab) => {
-    setActiveTab(tab);
-    setSearchParams({ tab });
-  };
-
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [dealersList, invs] = await Promise.all([
-        masterDataService.getDealers(),
-        financeService.getInvoices()
+      const [suppList, invs] = await Promise.all([
+        masterDataService.getSuppliers(),
+        financeService.getSupplierInvoices()
       ]);
-      setDealers(dealersList || []);
-      setInvoices(invs || []);
+      setSuppliers(suppList || []);
+      setSupplierInvoices(invs || []);
 
       if (activeTab === 'notifications') {
-        const notifs = await financeService.getBillingNotifications();
+        const notifs = await financeService.getSupplierBillingNotifications();
         setNotifications(notifs || []);
+      } else if (activeTab === 'invoices') {
+        // supplierInvoices already loaded
       } else if (activeTab === 'payments') {
-        const pmts = await financeService.getPaymentReceipts();
-        setPaymentReceipts(pmts || []);
+        const pmts = await financeService.getSupplierPayments();
+        setSupplierPayments(pmts || []);
       }
     } catch (err) {
-      console.error('Failed to load AR finance data:', err);
-      addToast('Không thể tải dữ liệu hóa đơn bán hàng', 'error');
+      console.error('Failed to load supplier finance data:', err);
+      addToast('Không thể tải dữ liệu hóa đơn mua hàng', 'error');
     } finally {
       setLoading(false);
     }
@@ -102,41 +86,45 @@ const DealerDebtInvoice = () => {
     loadData();
   }, [loadData]);
 
-  // Open modal to create invoice from delivery notification
+  // Open modal to create invoice from receipt notification
   const handleOpenCreateInvoice = (notif) => {
-    setSelectedNotif(notif);
+    setSelectedNotification(notif);
     setInvoiceFormData({
-      doId: notif.do_id || notif.doId,
+      receiptId: notif.receipt_id || notif.receiptId,
+      supplierInvoiceNumber: `VAT-${Math.floor(100000 + Math.random() * 900000)}`,
       documentDate: new Date().toISOString().slice(0, 10),
-      notes: `Lập hóa đơn bán hàng cho đơn xuất ${notif.do_number || notif.doNumber}`
+      dueDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+      notes: `Lập hóa đơn mua hàng từ phiếu nhập ${notif.receipt_number || notif.receiptNumber}`
     });
     setShowCreateInvoiceModal(true);
   };
 
+  // Submit Supplier Invoice Creation
   const handleSubmitInvoice = async (e) => {
     e.preventDefault();
     try {
-      await financeService.createInvoice(invoiceFormData.doId, invoiceFormData.documentDate, invoiceFormData.notes);
-      addToast('Lập Hóa đơn Bán hàng & Ghi nhận nợ Đại lý thành công!', 'success');
+      await financeService.createSupplierInvoice(invoiceFormData);
+      addToast('Lập Hóa đơn Mua hàng & Ghi nhận nợ NCC thành công!', 'success');
       setShowCreateInvoiceModal(false);
       loadData();
     } catch (err) {
-      console.error('Create invoice failed:', err);
-      addToast(err.message || 'Không thể tạo hóa đơn bán hàng', 'error');
+      console.error('Create supplier invoice failed:', err);
+      addToast(err.message || 'Không thể tạo hóa đơn mua hàng', 'error');
     }
   };
 
-  // Open modal to create payment receipt for specific invoice
+  // Open modal to create payment for supplier invoice (from specific invoice)
   const handleOpenCreatePayment = (inv) => {
     setSelectedInvoiceForPayment(inv);
     const remaining = Number(inv.total_amount || inv.totalAmount || 0) - Number(inv.paid_amount || inv.paidAmount || 0);
     setPaymentFormData({
-      dealerId: String(inv.dealer_id || inv.dealerId || ''),
-      invoiceId: String(inv.id),
+      supplierId: String(inv.supplier_id || inv.supplierId || ''),
+      supplierInvoiceId: String(inv.id),
       amount: String(remaining > 0 ? remaining : (inv.total_amount || inv.totalAmount || 0)),
       paymentDate: new Date().toISOString().slice(0, 10),
       paymentMethod: 'BANK_TRANSFER',
-      notes: `Thu tiền hóa đơn ${inv.invoice_number || inv.invoiceNumber}`
+      documentDate: new Date().toISOString().slice(0, 10),
+      notes: `Thanh toán cho hóa đơn ${inv.invoice_number || inv.invoiceNumber}`
     });
     setOcrFileName('');
     setOcrConfidence(null);
@@ -144,16 +132,16 @@ const DealerDebtInvoice = () => {
     setShowCreatePaymentModal(true);
   };
 
-  // Open modal standalone
+  // Open modal to create payment standalone (e.g. from Header / OCR button)
   const handleOpenCreatePaymentStandalone = () => {
     setSelectedInvoiceForPayment(null);
-    const initialDealerId = dealers.length > 0 ? String(dealers[0].id) : '';
+    const initialSupplierId = suppliers.length > 0 ? String(suppliers[0].id) : '';
     let initialInvoiceId = '';
     let initialAmount = '';
 
-    if (initialDealerId) {
-      const unpaidInvs = invoices.filter(inv =>
-        String(inv.dealer_id || inv.dealerId) === String(initialDealerId) && inv.status !== 'PAID'
+    if (initialSupplierId) {
+      const unpaidInvs = supplierInvoices.filter(inv =>
+        String(inv.supplier_id || inv.supplierId) === String(initialSupplierId) && inv.status !== 'PAID'
       );
       if (unpaidInvs.length > 0) {
         initialInvoiceId = String(unpaidInvs[0].id);
@@ -163,11 +151,12 @@ const DealerDebtInvoice = () => {
     }
 
     setPaymentFormData({
-      dealerId: initialDealerId,
-      invoiceId: initialInvoiceId,
+      supplierId: initialSupplierId,
+      supplierInvoiceId: initialInvoiceId,
       amount: initialAmount,
       paymentDate: new Date().toISOString().slice(0, 10),
       paymentMethod: 'BANK_TRANSFER',
+      documentDate: new Date().toISOString().slice(0, 10),
       notes: ''
     });
     setOcrFileName('');
@@ -176,12 +165,13 @@ const DealerDebtInvoice = () => {
     setShowCreatePaymentModal(true);
   };
 
-  const handleDealerChangeInPayment = (dId) => {
+  // Handle supplier change in payment form
+  const handleSupplierChangeInPayment = (suppId) => {
     let autoInvoiceId = '';
     let autoAmount = '';
-    if (dId) {
-      const unpaidInvs = invoices.filter(inv =>
-        String(inv.dealer_id || inv.dealerId) === String(dId) && inv.status !== 'PAID'
+    if (suppId) {
+      const unpaidInvs = supplierInvoices.filter(inv =>
+        String(inv.supplier_id || inv.supplierId) === String(suppId) && inv.status !== 'PAID'
       );
       if (unpaidInvs.length > 0) {
         autoInvoiceId = String(unpaidInvs[0].id);
@@ -191,14 +181,15 @@ const DealerDebtInvoice = () => {
     }
     setPaymentFormData(prev => ({
       ...prev,
-      dealerId: dId,
-      invoiceId: autoInvoiceId,
+      supplierId: suppId,
+      supplierInvoiceId: autoInvoiceId,
       amount: autoAmount || prev.amount
     }));
   };
 
+  // Handle invoice change in payment form
   const handleInvoiceChangeInPayment = (invId) => {
-    const selectedInv = invoices.find(i => String(i.id) === String(invId));
+    const selectedInv = supplierInvoices.find(i => String(i.id) === String(invId));
     let newAmount = paymentFormData.amount;
     if (selectedInv) {
       const remaining = Number(selectedInv.total_amount || selectedInv.totalAmount || 0) - Number(selectedInv.paid_amount || selectedInv.paidAmount || 0);
@@ -206,12 +197,12 @@ const DealerDebtInvoice = () => {
     }
     setPaymentFormData(prev => ({
       ...prev,
-      invoiceId: invId,
+      supplierInvoiceId: invId,
       amount: newAmount
     }));
   };
 
-  // OCR Upload AR Payment Receipt
+  // OCR Upload UNC File Selected
   const handleOcrFileSelected = async (file) => {
     if (!file) return;
 
@@ -228,13 +219,13 @@ const DealerDebtInvoice = () => {
     setOcrFileName(file.name);
     setOcrConfidence(null);
     try {
-      const result = await financeService.scanPaymentReceiptOcr(file);
-      const matchedDealerId = result.dealer_id || result.dealerId ? String(result.dealer_id || result.dealerId) : paymentFormData.dealerId;
+      const result = await financeService.scanSupplierPaymentOcr(file);
+      const matchedSuppId = result.supplierId ? String(result.supplierId) : paymentFormData.supplierId;
 
-      let matchedInvoiceId = '';
-      if (matchedDealerId) {
-        const unpaidInvs = invoices.filter(inv =>
-          String(inv.dealer_id || inv.dealerId) === String(matchedDealerId) && inv.status !== 'PAID'
+      let matchedInvoiceId = result.supplierInvoiceId ? String(result.supplierInvoiceId) : '';
+      if (!matchedInvoiceId && matchedSuppId) {
+        const unpaidInvs = supplierInvoices.filter(inv =>
+          String(inv.supplier_id || inv.supplierId) === String(matchedSuppId) && inv.status !== 'PAID'
         );
         if (unpaidInvs.length > 0) {
           matchedInvoiceId = String(unpaidInvs[0].id);
@@ -243,56 +234,58 @@ const DealerDebtInvoice = () => {
 
       setPaymentFormData(prev => ({
         ...prev,
-        dealerId: matchedDealerId || prev.dealerId,
-        invoiceId: matchedInvoiceId || prev.invoiceId,
+        supplierId: matchedSuppId || prev.supplierId,
+        supplierInvoiceId: matchedInvoiceId || prev.supplierInvoiceId,
         amount: result.amount ? String(result.amount) : prev.amount,
-        paymentDate: result.payment_date || result.paymentDate || prev.paymentDate,
+        paymentDate: result.paymentDate || prev.paymentDate,
         notes: result.notes || prev.notes
       }));
-      setOcrConfidence(result.confidence_score ?? result.confidenceScore ?? null);
+      setOcrConfidence(result.confidenceScore ?? null);
 
-      const confidencePercent = Math.round((result.confidence_score || result.confidenceScore || 0) * 100);
-      if ((result.confidence_score ?? result.confidenceScore ?? 1) < OCR_LOW_CONFIDENCE_THRESHOLD) {
-        addToast(`Độ tin cậy nhận diện thấp (${confidencePercent}%). Vui lòng kiểm tra kỹ số tiền thu.`, 'warning');
+      const confidencePercent = Math.round((result.confidenceScore || 0) * 100);
+      if ((result.confidenceScore ?? 1) < OCR_LOW_CONFIDENCE_THRESHOLD) {
+        addToast(`Độ tin cậy nhận diện thấp (${confidencePercent}%). Vui lòng kiểm tra kỹ trước khi lưu.`, 'warning');
       } else {
-        addToast(`Quét OCR hóa đơn thành công! Độ chính xác: ${confidencePercent}%`, 'success');
+        addToast(`Quét OCR ủy nhiệm chi thành công! Độ chính xác: ${confidencePercent}%`, 'success');
       }
     } catch (err) {
-      console.error('OCR AR scan failed:', err);
-      addToast(err.message || 'Không thể quét OCR hóa đơn thu nợ', 'error');
+      console.error('OCR UNC scan failed:', err);
+      addToast(err.message || 'Không thể quét OCR ủy nhiệm chi', 'error');
       setOcrFileName('');
     } finally {
       setOcrLoading(false);
     }
   };
 
+  // Submit Supplier Payment
   const handleSubmitPayment = async (e) => {
     e.preventDefault();
-    if (!paymentFormData.dealerId) {
-      addToast('Vui lòng chọn Đại lý nộp tiền', 'error');
+    if (!paymentFormData.supplierId) {
+      addToast('Vui lòng chọn Nhà cung cấp', 'error');
       return;
     }
-    if (!paymentFormData.invoiceId) {
-      addToast('Vui lòng chọn Hóa đơn cần cấn trừ', 'error');
+    if (!paymentFormData.supplierInvoiceId) {
+      addToast('Vui lòng chọn Hóa đơn mua hàng cần thanh toán', 'error');
       return;
     }
     if (Number(paymentFormData.amount) <= 0) {
-      addToast('Số tiền thu phải lớn hơn 0', 'error');
+      addToast('Số tiền chi phải lớn hơn 0', 'error');
       return;
     }
     try {
-      await financeService.createPaymentReceipt(paymentFormData);
-      addToast('Ghi nhận Phiếu thu và cấn trừ công nợ thành công!', 'success');
+      await financeService.createSupplierPayment(paymentFormData);
+      addToast('Ghi nhận Phiếu chi thanh toán NCC thành công!', 'success');
       setShowCreatePaymentModal(false);
       loadData();
     } catch (err) {
-      console.error('Create AR payment failed:', err);
-      addToast(err.message || 'Không thể ghi nhận phiếu thu', 'error');
+      console.error('Create supplier payment failed:', err);
+      addToast(err.message || 'Không thể lập phiếu chi thanh toán NCC', 'error');
     }
   };
 
-  const availableInvoicesForDealer = invoices.filter(inv =>
-    String(inv.dealer_id || inv.dealerId) === String(paymentFormData.dealerId) &&
+  // Available unpaid invoices for currently selected supplier in modal
+  const availableInvoicesForSupplier = supplierInvoices.filter(inv =>
+    String(inv.supplier_id || inv.supplierId) === String(paymentFormData.supplierId) &&
     inv.status !== 'PAID'
   );
 
@@ -301,13 +294,13 @@ const DealerDebtInvoice = () => {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
-            Tài chính / Quản lý Phải thu (AR)
+            Tài chính / Quản lý Phải trả (AP)
           </span>
           <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">
-            Hóa đơn Bán hàng & Công nợ Đại lý
+            Hóa đơn Mua hàng & Công nợ Nhà cung cấp
           </h1>
           <p className="text-xs text-shade-50 font-light mt-1">
-            Tiếp nhận thông báo đơn xuất `DELIVERED`, lập Hóa đơn Bán hàng ghi nhận nợ Đại lý, quét OCR hóa đơn thu tiền và lập Phiếu thu cấn trừ công nợ.
+            Tiếp nhận thông báo phiếu nhập kho `COMPLETED`, lập Hóa đơn Mua hàng ghi nhận nợ NCC, quét OCR ủy nhiệm chi (UNC) và lập Phiếu chi thanh toán.
           </p>
         </div>
         {isAccountant && (
@@ -318,13 +311,13 @@ const DealerDebtInvoice = () => {
               className="flex items-center gap-2 shadow-sm"
             >
               <UploadCloud className="w-4 h-4" />
-              Ghi nhận Phiếu thu (Quét OCR)
+              Lập Phiếu Chi (Quét OCR UNC)
             </Button>
           </div>
         )}
       </div>
 
-      {/* Navigation Tabs */}
+      {/* Tabs */}
       <div className="flex border-b border-hairline-light">
         <button
           className={`flex items-center gap-2 px-5 py-3 text-xs font-semibold uppercase tracking-wider border-b-2 transition-colors ${
@@ -332,10 +325,10 @@ const DealerDebtInvoice = () => {
               ? 'border-ink text-ink font-bold'
               : 'border-transparent text-shade-40 hover:text-ink'
           }`}
-          onClick={() => handleTabChange('notifications')}
+          onClick={() => setActiveTab('notifications')}
         >
           <BellRing className="w-4 h-4" />
-          Thông báo Lập Hóa đơn Bán
+          Thông báo Lập Hóa đơn Mua
         </button>
         <button
           className={`flex items-center gap-2 px-5 py-3 text-xs font-semibold uppercase tracking-wider border-b-2 transition-colors ${
@@ -343,10 +336,10 @@ const DealerDebtInvoice = () => {
               ? 'border-ink text-ink font-bold'
               : 'border-transparent text-shade-40 hover:text-ink'
           }`}
-          onClick={() => handleTabChange('invoices')}
+          onClick={() => setActiveTab('invoices')}
         >
           <FileText className="w-4 h-4" />
-          Hóa đơn Bán hàng (SINV)
+          Hóa đơn Mua hàng (SINV)
         </button>
         <button
           className={`flex items-center gap-2 px-5 py-3 text-xs font-semibold uppercase tracking-wider border-b-2 transition-colors ${
@@ -354,10 +347,10 @@ const DealerDebtInvoice = () => {
               ? 'border-ink text-ink font-bold'
               : 'border-transparent text-shade-40 hover:text-ink'
           }`}
-          onClick={() => handleTabChange('payments')}
+          onClick={() => setActiveTab('payments')}
         >
           <Landmark className="w-4 h-4" />
-          Phiếu thu AR & Quét OCR
+          Phiếu chi Thanh toán NCC
         </button>
       </div>
 
@@ -367,19 +360,19 @@ const DealerDebtInvoice = () => {
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
           </svg>
-          <span>Đang tải dữ liệu Phải thu AR...</span>
+          <span>Đang tải dữ liệu...</span>
         </div>
       ) : (
         <>
-          {/* TAB 1: WORKLIST THÔNG BÁO LẬP HÓA ĐƠN BÁN */}
+          {/* TAB 1: WORKLIST THÔNG BÁO LẬP HÓA ĐƠN MUA */}
           {activeTab === 'notifications' && (
             <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 overflow-hidden">
               <div className="p-4 bg-canvas-cream border-b border-hairline-light flex items-center justify-between">
                 <span className="text-xs font-semibold text-shade-60 uppercase tracking-wider">
-                  Danh sách Đơn xuất kho đã giao (DELIVERED) chờ lập Hóa đơn
+                  Danh sách Phiếu nhập kho cần lập Hóa đơn Mua hàng
                 </span>
                 <span className="text-[10px] bg-shade-70 text-onPrimary px-2.5 py-0.5 rounded-pill font-bold">
-                  {notifications.filter(n => n.invoice_status === 'NOT_INVOICED').length} Đơn chờ
+                  {notifications.filter(n => n.invoiceStatus === 'NOT_INVOICED').length} Phiếu chờ
                 </span>
               </div>
 
@@ -387,10 +380,10 @@ const DealerDebtInvoice = () => {
                 <table className="w-full border-collapse text-left text-xs">
                   <thead>
                     <tr className="bg-canvas-light border-b border-hairline-light text-shade-60 font-semibold uppercase tracking-wider">
-                      <th className="p-4">Số Đơn Xuất Kho (DO)</th>
-                      <th className="p-4">Đại lý</th>
-                      <th className="p-4">Kho xuất</th>
-                      <th className="p-4">Thời gian giao</th>
+                      <th className="p-4">Số Phiếu Nhập</th>
+                      <th className="p-4">Nhà cung cấp</th>
+                      <th className="p-4">Kho nhập</th>
+                      <th className="p-4">Thời gian hoàn thành</th>
                       <th className="p-4 text-right">Ước tính giá trị</th>
                       <th className="p-4 text-center">Trạng thái HĐ</th>
                       <th className="p-4 text-center">Thao tác</th>
@@ -400,37 +393,37 @@ const DealerDebtInvoice = () => {
                     {notifications.length === 0 ? (
                       <tr>
                         <td colSpan="7" className="p-8 text-center text-shade-40 italic">
-                          Không có thông báo lập hóa đơn bán hàng nào cần xử lý.
+                          Không có thông báo lập hóa đơn mua hàng nào cần xử lý.
                         </td>
                       </tr>
                     ) : (
                       notifications.map(notif => (
                         <tr key={notif.id} className="hover:bg-canvas-cream/50">
-                          <td className="p-4 font-bold text-ink">{notif.do_number || notif.doNumber}</td>
-                          <td className="p-4 font-medium text-ink">{notif.dealer_name || notif.dealerName}</td>
-                          <td className="p-4 text-shade-60">Kho #{notif.warehouse_id || notif.warehouseId}</td>
-                          <td className="p-4 text-shade-60">{notif.delivered_at || 'Mới hoàn tất'}</td>
+                          <td className="p-4 font-bold text-ink">{notif.receiptOrderNumber || notif.receipt_number}</td>
+                          <td className="p-4 font-medium text-ink">{notif.supplierName || notif.supplier_name}</td>
+                          <td className="p-4 text-shade-60">Kho #{notif.warehouseId || notif.warehouse_id}</td>
+                          <td className="p-4 text-shade-60">{notif.completedAt || 'Mới hoàn tất'}</td>
                           <td className="p-4 text-right font-bold text-ink">
-                            {(notif.total_amount_estimate || 0).toLocaleString()}đ
+                            {(notif.totalAmountEstimate || 0).toLocaleString()}đ
                           </td>
                           <td className="p-4 text-center">
                             <span className={`px-2.5 py-0.5 rounded-pill text-[9px] font-bold uppercase ${
-                              notif.invoice_status === 'INVOICED'
+                              notif.invoiceStatus === 'INVOICED'
                                 ? 'bg-aloe-10 text-ink'
                                 : 'bg-amber-100 text-amber-800 border border-amber-200'
                             }`}>
-                              {notif.invoice_status === 'INVOICED' ? 'Đã lập HĐ' : 'Chưa lập HĐ'}
+                              {notif.invoiceStatus === 'INVOICED' ? 'Đã lập HĐ' : 'Chưa lập HĐ'}
                             </span>
                           </td>
                           <td className="p-4 text-center">
-                            {notif.invoice_status !== 'INVOICED' && isAccountant && (
+                            {notif.invoiceStatus !== 'INVOICED' && isAccountant && (
                               <Button
                                 size="sm"
                                 variant="primary"
                                 onClick={() => handleOpenCreateInvoice(notif)}
                               >
                                 <Plus className="w-3.5 h-3.5 mr-1" />
-                                Lập Hóa đơn Bán
+                                Lập Hóa đơn Mua
                               </Button>
                             )}
                           </td>
@@ -443,12 +436,12 @@ const DealerDebtInvoice = () => {
             </div>
           )}
 
-          {/* TAB 2: SỔ HÓA ĐƠN BÁN HÀNG */}
+          {/* TAB 2: HÓA ĐƠN MUA HÀNG */}
           {activeTab === 'invoices' && (
             <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 overflow-hidden">
               <div className="p-4 bg-canvas-cream border-b border-hairline-light flex items-center justify-between">
                 <span className="text-xs font-semibold text-shade-60 uppercase tracking-wider">
-                  Sổ Hóa đơn Bán hàng & Dư nợ Phải thu Đại lý
+                  Sổ Hóa đơn Mua hàng & Dư nợ Phải trả NCC
                 </span>
               </div>
 
@@ -456,10 +449,10 @@ const DealerDebtInvoice = () => {
                 <table className="w-full border-collapse text-left text-xs">
                   <thead>
                     <tr className="bg-canvas-light border-b border-hairline-light text-shade-60 font-semibold uppercase tracking-wider">
-                      <th className="p-4">Số Hóa đơn</th>
-                      <th className="p-4">Số Đơn giao hàng (DO)</th>
-                      <th className="p-4">Đại lý</th>
-                      <th className="p-4">Ngày phát hành</th>
+                      <th className="p-4">Mã HĐ Nội bộ</th>
+                      <th className="p-4">Số HĐ VAT (NCC)</th>
+                      <th className="p-4">Nhà cung cấp</th>
+                      <th className="p-4">Ngày hạch toán</th>
                       <th className="p-4">Hạn thanh toán</th>
                       <th className="p-4 text-right">Tổng số tiền</th>
                       <th className="p-4 text-center">Trạng thái</th>
@@ -467,19 +460,19 @@ const DealerDebtInvoice = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-hairline-light">
-                    {invoices.length === 0 ? (
+                    {supplierInvoices.length === 0 ? (
                       <tr>
                         <td colSpan="8" className="p-8 text-center text-shade-40 italic">
-                          Chưa có hóa đơn bán hàng nào trong hệ thống.
+                          Chưa có hóa đơn mua hàng nào trong hệ thống.
                         </td>
                       </tr>
                     ) : (
-                      invoices.map(inv => (
+                      supplierInvoices.map(inv => (
                         <tr key={inv.id} className="hover:bg-canvas-cream/50">
                           <td className="p-4 font-bold text-ink">{inv.invoice_number}</td>
-                          <td className="p-4 font-semibold text-shade-70">{inv.do_number}</td>
-                          <td className="p-4 font-medium text-ink">{inv.dealer_name}</td>
-                          <td className="p-4 text-shade-60">{inv.issue_date}</td>
+                          <td className="p-4 font-semibold text-shade-70">{inv.supplier_invoice_number}</td>
+                          <td className="p-4 font-medium text-ink">{inv.supplier_name || 'NCC #' + inv.supplier_id}</td>
+                          <td className="p-4 text-shade-60">{inv.document_date}</td>
                           <td className="p-4 text-shade-60">{inv.due_date}</td>
                           <td className="p-4 text-right font-bold text-ink">
                             {(inv.total_amount || 0).toLocaleString()}đ
@@ -492,17 +485,10 @@ const DealerDebtInvoice = () => {
                                 ? 'bg-yellow-100 text-yellow-800'
                                 : 'bg-red-100 text-red-700 border border-red-200'
                             }`}>
-                              {inv.status === 'PAID' ? 'Đã thu' : inv.status === 'PARTIALLY_PAID' ? 'Thu 1 Phần' : 'Chưa thu'}
+                              {inv.status === 'PAID' ? 'Đã TT' : inv.status === 'PARTIALLY_PAID' ? 'TT 1 Phần' : 'Chưa TT'}
                             </span>
                           </td>
-                          <td className="p-4 text-center flex items-center justify-center gap-2">
-                            <button
-                              onClick={() => { setSelectedInvoice(inv); setShowPodModal(true); }}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-canvas-cream text-ink text-[11px] font-semibold hover:bg-hairline-light"
-                            >
-                              <Eye className="w-3 h-3" />
-                              POD
-                            </button>
+                          <td className="p-4 text-center">
                             {inv.status !== 'PAID' && isAccountant && (
                               <Button
                                 size="sm"
@@ -510,7 +496,7 @@ const DealerDebtInvoice = () => {
                                 onClick={() => handleOpenCreatePayment(inv)}
                               >
                                 <Landmark className="w-3.5 h-3.5 mr-1" />
-                                Thu tiền
+                                Chi thanh toán
                               </Button>
                             )}
                           </td>
@@ -523,12 +509,12 @@ const DealerDebtInvoice = () => {
             </div>
           )}
 
-          {/* TAB 3: PHIẾU THU AR & QUÉT OCR */}
+          {/* TAB 3: PHIẾU CHI THANH TOÁN NCC */}
           {activeTab === 'payments' && (
             <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 overflow-hidden">
               <div className="p-4 bg-canvas-cream border-b border-hairline-light flex items-center justify-between">
                 <span className="text-xs font-semibold text-shade-60 uppercase tracking-wider">
-                  Nhật ký Phiếu thu Công nợ Đại lý
+                  Nhật ký Phiếu chi Thanh toán Nhà cung cấp
                 </span>
               </div>
 
@@ -536,33 +522,33 @@ const DealerDebtInvoice = () => {
                 <table className="w-full border-collapse text-left text-xs">
                   <thead>
                     <tr className="bg-canvas-light border-b border-hairline-light text-shade-60 font-semibold uppercase tracking-wider">
-                      <th className="p-4">Số Phiếu Thu</th>
-                      <th className="p-4">Đại lý</th>
-                      <th className="p-4">Hóa đơn cấn trừ</th>
-                      <th className="p-4">Ngày thu</th>
+                      <th className="p-4">Số Phiếu Chi</th>
+                      <th className="p-4">Nhà cung cấp</th>
+                      <th className="p-4">Hóa đơn mua</th>
+                      <th className="p-4">Ngày chi</th>
                       <th className="p-4">Hình thức</th>
-                      <th className="p-4 text-right">Số tiền thu</th>
+                      <th className="p-4 text-right">Số tiền chi</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-hairline-light">
-                    {paymentReceipts.length === 0 ? (
+                    {supplierPayments.length === 0 ? (
                       <tr>
                         <td colSpan="6" className="p-8 text-center text-shade-40 italic">
-                          Chưa có phiếu thu công nợ đại lý nào.
+                          Chưa có phiếu chi thanh toán NCC nào.
                         </td>
                       </tr>
                     ) : (
-                      paymentReceipts.map(pr => (
-                        <tr key={pr.id} className="hover:bg-canvas-cream/50">
-                          <td className="p-4 font-bold text-ink">{pr.payment_number}</td>
-                          <td className="p-4 font-medium text-ink">{pr.dealer_name || 'Đại lý #' + pr.dealer_id}</td>
-                          <td className="p-4 text-shade-60">{pr.invoice_number || '#' + pr.invoice_id}</td>
-                          <td className="p-4 text-shade-60">{pr.payment_date}</td>
+                      supplierPayments.map(sp => (
+                        <tr key={sp.id} className="hover:bg-canvas-cream/50">
+                          <td className="p-4 font-bold text-ink">{sp.payment_number}</td>
+                          <td className="p-4 font-medium text-ink">{sp.supplier_name || 'NCC #' + sp.supplier_id}</td>
+                          <td className="p-4 text-shade-60">{sp.invoice_number || '#' + sp.supplier_invoice_id}</td>
+                          <td className="p-4 text-shade-60">{sp.payment_date}</td>
                           <td className="p-4 text-shade-50">
-                            {pr.payment_method === 'BANK_TRANSFER' ? 'Chuyển khoản' : 'Tiền mặt'}
+                            {sp.payment_method === 'BANK_TRANSFER' ? 'Chuyển khoản (UNC)' : 'Tiền mặt'}
                           </td>
-                          <td className="p-4 text-right font-bold text-emerald-600">
-                            +{(pr.amount || 0).toLocaleString()}đ
+                          <td className="p-4 text-right font-bold text-red-600">
+                            -{(sp.amount || 0).toLocaleString()}đ
                           </td>
                         </tr>
                       ))
@@ -575,43 +561,62 @@ const DealerDebtInvoice = () => {
         </>
       )}
 
-      {/* MODAL 1: LẬP HÓA ĐƠN BÁN HÀNG */}
+      {/* MODAL 1: LẬP HÓA ĐƠN MUA HÀNG */}
       {showCreateInvoiceModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-4 w-full max-w-lg p-6 flex flex-col gap-4">
             <h2 className="text-base font-bold uppercase tracking-wider text-ink pb-2 border-b border-hairline-light">
-              Lập Hóa đơn Bán hàng từ Đơn giao hàng (DO)
+              Lập Hóa đơn Mua hàng từ Phiếu nhập kho
             </h2>
 
             <form onSubmit={handleSubmitInvoice} className="flex flex-col gap-4 text-xs">
               <div>
-                <label className="font-semibold text-shade-60">Số đơn giao hàng (DO)</label>
+                <label className="font-semibold text-shade-60">Phiếu nhập kho</label>
                 <input
                   type="text"
-                  value={selectedNotif?.do_number || selectedNotif?.doNumber || ''}
+                  value={selectedNotification?.receiptOrderNumber || selectedNotification?.receipt_number || ''}
                   disabled
                   className="w-full bg-canvas-cream border border-hairline-light rounded p-2 text-ink font-bold mt-1"
                 />
               </div>
 
               <div>
-                <label className="font-semibold text-shade-60">Đại lý mua hàng</label>
+                <label className="font-semibold text-shade-60">Nhà cung cấp</label>
                 <input
                   type="text"
-                  value={selectedNotif?.dealer_name || selectedNotif?.dealerName || ''}
+                  value={selectedNotification?.supplierName || selectedNotification?.supplier_name || ''}
                   disabled
                   className="w-full bg-canvas-cream border border-hairline-light rounded p-2 text-ink mt-1"
                 />
               </div>
 
               <Input
-                id="documentDate"
-                label="Ngày hạch toán"
-                type="date"
-                value={invoiceFormData.documentDate}
-                onChange={e => setInvoiceFormData(prev => ({ ...prev, documentDate: e.target.value }))}
+                id="supplierInvoiceNumber"
+                label="Số Hóa đơn VAT do NCC phát hành"
+                value={invoiceFormData.supplierInvoiceNumber}
+                onChange={e => setInvoiceFormData(prev => ({ ...prev, supplierInvoiceNumber: e.target.value }))}
                 required
+                placeholder="ví dụ: VAT-88392"
               />
+
+              <div className="grid grid-cols-2 gap-4">
+                <Input
+                  id="documentDate"
+                  label="Ngày hạch toán"
+                  type="date"
+                  value={invoiceFormData.documentDate}
+                  onChange={e => setInvoiceFormData(prev => ({ ...prev, documentDate: e.target.value }))}
+                  required
+                />
+                <Input
+                  id="dueDate"
+                  label="Hạn thanh toán"
+                  type="date"
+                  value={invoiceFormData.dueDate}
+                  onChange={e => setInvoiceFormData(prev => ({ ...prev, dueDate: e.target.value }))}
+                  required
+                />
+              </div>
 
               <div className="flex flex-col gap-1">
                 <label className="font-semibold text-ink">Ghi chú</label>
@@ -635,22 +640,22 @@ const DealerDebtInvoice = () => {
         </div>
       )}
 
-      {/* MODAL 2: GHI NHẬN PHIẾU THU & QUÉT OCR HÓA ĐƠN */}
+      {/* MODAL 2: LẬP PHIẾU CHI THANH TOÁN NCC + QUÉT OCR ỦY NHIỆM CHI */}
       {showCreatePaymentModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-4 w-full max-w-xl p-6 flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
             <h2 className="text-base font-bold uppercase tracking-wider text-ink pb-2 border-b border-hairline-light flex items-center justify-between">
-              <span>Ghi nhận Phiếu Thu AR</span>
+              <span>Lập Phiếu Chi Thanh Toán NCC</span>
               {selectedInvoiceForPayment && (
                 <span className="text-xs text-shade-50 font-normal">HĐ: {selectedInvoiceForPayment?.invoice_number}</span>
               )}
             </h2>
 
-            {/* AREA QUÉT OCR HÓA ĐƠN CHUYỂN KHOẢN */}
+            {/* AREA QUÉT OCR ỦY NHIỆM CHI (UNC) */}
             <div className="flex flex-col gap-2 border border-dashed border-hairline rounded p-4 bg-canvas-cream/40">
               <PhotoCaptureInput
                 key={ocrResetKey}
-                label="Quét hóa đơn chuyển khoản (OCR AR)"
+                label="Quét ảnh ủy nhiệm chi / Giấy báo Nợ (OCR UNC)"
                 output="file"
                 disabled={ocrLoading}
                 onChange={handleOcrFileSelected}
@@ -661,71 +666,71 @@ const DealerDebtInvoice = () => {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                   </svg>
-                  <span className="text-[11px] font-medium">Đang trích xuất dữ liệu hóa đơn...</span>
+                  <span className="text-[11px] font-medium">Đang trích xuất dữ liệu UNC...</span>
                 </div>
               )}
               {ocrLowConfidence && !ocrLoading && (
                 <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded px-2.5 py-2">
                   <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                   <span className="text-[10px] text-amber-800 font-medium leading-snug">
-                    Độ tin cậy OCR ({Math.round(ocrConfidence * 100)}%). Vui lòng kiểm tra lại thông tin thu trước khi lưu.
+                    Độ tin cậy OCR ({Math.round(ocrConfidence * 100)}%). Vui lòng kiểm tra lại thông tin chi trước khi lưu.
                   </span>
                 </div>
               )}
             </div>
 
             <form onSubmit={handleSubmitPayment} className="flex flex-col gap-4 text-xs">
-              {/* SELECTOR ĐẠI LÝ */}
+              {/* SELECTOR NHÀ CUNG CẤP */}
               <div className="flex flex-col gap-1">
                 <label className="font-semibold text-ink">
-                  Đại lý nộp tiền <span className="text-red-500">*</span>
+                  Nhà cung cấp <span className="text-red-500">*</span>
                 </label>
                 <select
-                  value={paymentFormData.dealerId}
-                  onChange={e => handleDealerChangeInPayment(e.target.value)}
+                  value={paymentFormData.supplierId}
+                  onChange={e => handleSupplierChangeInPayment(e.target.value)}
                   required
                   className="bg-canvas-light text-ink text-xs border border-hairline-light rounded px-3 py-2 outline-none focus:border-ink"
                 >
-                  <option value="">-- Chọn Đại lý --</option>
-                  {dealers.map(d => (
-                    <option key={d.id} value={d.id}>
-                      {d.name} ({d.code})
+                  <option value="">-- Chọn Nhà cung cấp --</option>
+                  {suppliers.map(s => (
+                    <option key={s.id} value={s.id}>
+                      {s.companyName || s.company_name || s.name || `NCC #${s.id}`}
                     </option>
                   ))}
                 </select>
               </div>
 
-              {/* SELECTOR HÓA ĐƠN BÁN HÀNG */}
+              {/* SELECTOR HÓA ĐƠN MUA HÀNG */}
               <div className="flex flex-col gap-1">
                 <label className="font-semibold text-ink">
-                  Hóa đơn cấn trừ <span className="text-red-500">*</span>
+                  Hóa đơn Mua hàng (SINV) <span className="text-red-500">*</span>
                 </label>
                 <select
-                  value={paymentFormData.invoiceId}
+                  value={paymentFormData.supplierInvoiceId}
                   onChange={e => handleInvoiceChangeInPayment(e.target.value)}
                   required
                   className="bg-canvas-light text-ink text-xs border border-hairline-light rounded px-3 py-2 outline-none focus:border-ink"
                 >
-                  <option value="">-- Chọn Hóa đơn --</option>
-                  {availableInvoicesForDealer.map(inv => {
+                  <option value="">-- Chọn Hóa đơn Mua hàng --</option>
+                  {availableInvoicesForSupplier.map(inv => {
                     const remaining = Number(inv.total_amount || inv.totalAmount || 0) - Number(inv.paid_amount || inv.paidAmount || 0);
                     return (
                       <option key={inv.id} value={inv.id}>
-                        {inv.invoice_number || inv.invoiceNumber} - Dư nợ: {remaining.toLocaleString()}đ [{inv.status}]
+                        {inv.invoice_number || inv.invoiceNumber} (VAT: {inv.supplier_invoice_number || inv.supplierInvoiceNumber || 'N/A'}) - Dư nợ: {remaining.toLocaleString()}đ [{inv.status}]
                       </option>
                     );
                   })}
                 </select>
-                {paymentFormData.dealerId && availableInvoicesForDealer.length === 0 && (
+                {paymentFormData.supplierId && availableInvoicesForSupplier.length === 0 && (
                   <span className="text-[11px] text-amber-700 italic">
-                    Đại lý này hiện không có Hóa đơn nợ nào cần thanh toán.
+                    Nhà cung cấp này chưa có Hóa đơn mua hàng nào cần thanh toán.
                   </span>
                 )}
               </div>
 
               <Input
                 id="amount"
-                label="Số tiền thu nợ (VND)"
+                label="Số tiền thanh toán (VND)"
                 type="number"
                 value={paymentFormData.amount}
                 onChange={e => setPaymentFormData(prev => ({ ...prev, amount: e.target.value }))}
@@ -735,27 +740,27 @@ const DealerDebtInvoice = () => {
               <div className="grid grid-cols-2 gap-4">
                 <Input
                   id="paymentDate"
-                  label="Ngày thu tiền"
+                  label="Ngày chi tiền"
                   type="date"
                   value={paymentFormData.paymentDate}
                   onChange={e => setPaymentFormData(prev => ({ ...prev, paymentDate: e.target.value }))}
                   required
                 />
                 <div className="flex flex-col gap-1">
-                  <label className="font-semibold text-ink">Hình thức thu</label>
+                  <label className="font-semibold text-ink">Hình thức chi</label>
                   <select
                     value={paymentFormData.paymentMethod}
                     onChange={e => setPaymentFormData(prev => ({ ...prev, paymentMethod: e.target.value }))}
                     className="bg-canvas-light text-ink text-xs border border-hairline-light rounded px-3 py-2 outline-none"
                   >
-                    <option value="BANK_TRANSFER">Chuyển khoản ngân hàng</option>
+                    <option value="BANK_TRANSFER">Chuyển khoản (ủy nhiệm chi)</option>
                     <option value="CASH">Tiền mặt</option>
                   </select>
                 </div>
               </div>
 
               <div className="flex flex-col gap-1">
-                <label className="font-semibold text-ink">Nội dung / Ghi chú</label>
+                <label className="font-semibold text-ink">Nội dung / Ghi chú UNC</label>
                 <textarea
                   value={paymentFormData.notes}
                   onChange={e => setPaymentFormData(prev => ({ ...prev, notes: e.target.value }))}
@@ -768,55 +773,10 @@ const DealerDebtInvoice = () => {
                   Hủy bỏ
                 </Button>
                 <Button type="submit" variant="primary">
-                  Ghi nhận Phiếu thu
+                  Ghi nhận Phiếu chi
                 </Button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 3: XEM BẰNG CHỨNG GIAO HÀNG POD */}
-      {showPodModal && selectedInvoice && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-4 w-full max-w-lg p-6 flex flex-col gap-4 max-h-[85vh] overflow-y-auto">
-            <h2 className="text-base font-bold uppercase tracking-wider text-ink pb-2 border-b border-hairline-light flex items-center justify-between">
-              <span>Bằng chứng Bàn giao POD</span>
-              <span className="text-xs text-shade-50">DO: {selectedInvoice.do_number}</span>
-            </h2>
-
-            <div className="flex flex-col gap-4 text-xs">
-              <div className="flex items-center gap-2 p-3 bg-aloe-10/20 border border-aloe-10 rounded">
-                <CheckCircle2 className="w-4 h-4 text-ink shrink-0" />
-                <span>Mã OTP đã được đại lý xác nhận giao hàng thành công.</span>
-              </div>
-
-              {selectedInvoice.pod_image_url ? (
-                <div className="flex flex-col gap-1">
-                  <label className="font-semibold text-shade-60 flex items-center gap-1">
-                    <ImageIcon className="w-3.5 h-3.5" /> Ảnh giao nhận thực tế
-                  </label>
-                  <img src={selectedInvoice.pod_image_url} alt="POD" className="rounded border border-hairline-light max-h-48 object-cover w-full" />
-                </div>
-              ) : (
-                <span className="text-shade-40 italic">Không có ảnh chụp POD.</span>
-              )}
-
-              {selectedInvoice.pod_signature_url && (
-                <div className="flex flex-col gap-1">
-                  <label className="font-semibold text-shade-60 flex items-center gap-1">
-                    <PenTool className="w-3.5 h-3.5" /> Chữ ký đại lý
-                  </label>
-                  <img src={selectedInvoice.pod_signature_url} alt="Signature" className="rounded border border-hairline-light max-h-24 object-contain bg-canvas-cream p-2" />
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-end mt-4 pt-3 border-t border-hairline-light">
-              <Button variant="secondary" onClick={() => setShowPodModal(false)}>
-                Đóng
-              </Button>
-            </div>
           </div>
         </div>
       )}
@@ -824,4 +784,4 @@ const DealerDebtInvoice = () => {
   );
 };
 
-export default DealerDebtInvoice;
+export default SupplierInvoices;

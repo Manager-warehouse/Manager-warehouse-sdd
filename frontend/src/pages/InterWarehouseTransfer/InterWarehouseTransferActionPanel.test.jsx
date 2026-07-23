@@ -109,15 +109,51 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
       },
     });
 
-    expect(screen.getByText('QC xuất kho thất bại')).toBeInTheDocument();
+    expect(screen.getByText('QC xuất kho thất bại - chờ xử lý lại')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Báo cáo lại số lượng xếp' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Xác nhận bàn giao lên xe' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Hạ hàng khỏi xe' })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Báo cáo lại số lượng xếp' }));
     await waitFor(() => expect(onAction).toHaveBeenCalledWith('recordSourceLoadReport', {
       items: [{ transferItemId: 101, loadedQty: 10 }],
       reworkReason: '',
     }));
+  });
+
+  it('shows storekeeper a waiting message instead of unship action after outbound QC failure', () => {
+    renderPanel({
+      roles: [ROLES.STOREKEEPER],
+      transfer: {
+        ...baseTransfer,
+        outboundQcPassed: false,
+        outboundQcNote: 'Mop meo',
+        sourceLoadReworkRequired: true,
+        sourceLoadReworkReason: 'Mop meo',
+        items: [{ ...baseTransfer.items[0], loadedQty: 10 }],
+      },
+    });
+
+    expect(screen.getByText('QC xuất kho thất bại - chờ xử lý lại')).toBeInTheDocument();
+    expect(screen.getByText('QC xuất kho thất bại. Chờ công nhân hạ/đổi/xếp lại hàng và báo cáo lại số lượng trước khi thủ kho QC lại.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Báo cáo lại số lượng xếp' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Hạ hàng khỏi xe' })).not.toBeInTheDocument();
+  });
+
+  it('does not show unship action during load handover after outbound QC passed', () => {
+    renderPanel({
+      roles: [ROLES.STOREKEEPER],
+      transfer: {
+        ...baseTransfer,
+        outboundQcPassed: true,
+        outboundQcPhotoRef: 'uploads/qc.jpg',
+        items: [{ ...baseTransfer.items[0], loadedQty: 10, sentQty: 10 }],
+      },
+    });
+
+    expect(screen.getByText('Chờ hoàn tất xếp hàng')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Xác nhận bàn giao lên xe' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Hạ hàng khỏi xe' })).not.toBeInTheDocument();
   });
 
   it('keeps direct return-to-source action for source manager only', async () => {

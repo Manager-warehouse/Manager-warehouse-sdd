@@ -174,7 +174,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
     }
     if (transfer.status === 'APPROVED' && hasTrip && outboundQcFailed) {
       return {
-        title: 'QC xuất kho thất bại',
+        title: 'QC xuất kho thất bại - chờ xử lý lại',
         detail: 'Công nhân kho nguồn cần hạ hàng, đổi hàng hoặc xếp lại rồi báo cáo lại số lượng trước khi thủ kho QC lại.',
       };
     }
@@ -414,7 +414,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
         </div>
       )}
 
-      {transfer.status === 'APPROVED' && hasAny(hasRole, [ROLES.WAREHOUSE_STAFF, ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]) && canManageSourceWarehouse && hasTrip && (!allItemsLoadedReported || sourceLoadReworkRequired || outboundQcFailed) && (
+      {transfer.status === 'APPROVED' && hasAny(hasRole, [ROLES.WAREHOUSE_STAFF, ROLES.ADMIN, ROLES.CEO]) && canManageSourceWarehouse && hasTrip && (!allItemsLoadedReported || sourceLoadReworkRequired || outboundQcFailed) && (
         <div className="border border-hairline-light rounded p-3 bg-canvas-cream flex flex-col gap-3">
           <div>
             <div className="text-xs font-semibold text-ink">
@@ -473,6 +473,18 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
         </div>
       )}
 
+      {transfer.status === 'APPROVED' && hasRole(ROLES.STOREKEEPER) && canManageSourceWarehouse && hasTrip && (!allItemsLoadedReported || sourceLoadReworkRequired || outboundQcFailed) && (
+        <div className={`rounded-md border px-3 py-2 text-xs ${
+          sourceLoadReworkRequired || outboundQcFailed
+            ? 'border-danger-200 bg-danger-50 text-danger-700'
+            : 'border-hairline-light bg-canvas-cream/60 text-shade-60'
+        }`}>
+          {sourceLoadReworkRequired || outboundQcFailed
+            ? 'QC xuất kho thất bại. Chờ công nhân hạ/đổi/xếp lại hàng và báo cáo lại số lượng trước khi thủ kho QC lại.'
+            : 'Chờ công nhân kho nguồn xếp hàng và báo cáo số lượng thực xếp trước khi thủ kho QC.'}
+        </div>
+      )}
+
       {transfer.status === 'APPROVED' && hasAny(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]) && canManageSourceWarehouse && hasTrip && allItemsLoadedReported && !outboundQcDone && !sourceLoadReworkRequired && (
         <div className="flex flex-col gap-3">
           <div className="border border-hairline-light rounded p-3 bg-canvas-cream flex flex-col gap-2">
@@ -501,20 +513,6 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
         </div>
       )}
 
-      {transfer.status === 'APPROVED' && hasAny(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]) && canManageSourceWarehouse && hasTrip && outboundQcFailed && !sourceLoadReworkRequired && (
-        <div className="flex flex-col gap-3">
-          <div className="border border-danger-200 rounded p-3 bg-danger-50 flex flex-col gap-2">
-            <div className="text-xs font-semibold text-danger-700">BƯỚC 1: QC XUẤT KHO THẤT BẠI</div>
-            <div className="text-xs text-danger-700">
-              Không được xác nhận xếp hàng. Chỉ hạ hàng khỏi xe để xử lý lại phiếu.
-            </div>
-            <Button loading={busy} disabled={!allItemsSent} icon={RotateCcw} variant="outline-light" onClick={() => run('unship')}>
-              Hạ hàng khỏi xe
-            </Button>
-          </div>
-        </div>
-      )}
-
       {transfer.status === 'APPROVED' && hasAny(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]) && canManageSourceWarehouse && hasTrip && outboundQcPassed && !allItemsSent && (
         <div className="border border-hairline-light rounded p-3 bg-canvas-cream flex flex-col gap-3">
           <div>
@@ -537,17 +535,14 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
               Xếp hàng đã xong. Xác nhận bàn giao hàng cho tài xế trước khi tài xế rời kho.
             </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-            <Button
-              loading={busy}
-              size="sm"
-              disabled={!outboundQcStoredPhotoRef}
-              onClick={() => run('loadHandover', { photoRef: outboundQcStoredPhotoRef })}
-            >
-              Xác nhận bàn giao lên xe
-            </Button>
-            <Button loading={busy} icon={RotateCcw} variant="outline-light" onClick={() => run('unship')}>Hạ hàng khỏi xe</Button>
-          </div>
+          <Button
+            loading={busy}
+            size="sm"
+            disabled={!outboundQcStoredPhotoRef}
+            onClick={() => run('loadHandover', { photoRef: outboundQcStoredPhotoRef })}
+          >
+            Xác nhận bàn giao lên xe
+          </Button>
         </div>
       )}
 

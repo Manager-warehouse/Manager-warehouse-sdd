@@ -2,15 +2,15 @@
 
 **Spec ID**: 008-finance-billing-closing
 **Created**: 2026-05-30
-**Updated**: 2026-06-17
+**Updated**: 2026-07-23
 **Status**: Approved
-**Features**: US-WMS-10, US-WMS-15, US-WMS-16, US-WMS-17, US-WMS-18
+**Features**: US-WMS-10, US-WMS-15, US-WMS-16, US-WMS-17, US-WMS-18, US-WMS-28
 
 ---
 
 ## 1. Context and Goal
 
-Sau khi đơn hàng được giao thành công (trạng thái `DELIVERED`), hệ thống tạo một thông báo lập hóa đơn (`billing_notifications`). Kế toán viên lập hóa đơn bán hàng dựa trên thông tin này, ghi nhận và cộng dồn công nợ Đại lý. Hệ thống tự động kiểm tra hạn mức tín dụng (Credit Limit) và khóa/chặn việc tạo đơn mới nếu vi phạm. Cuối kỳ kế toán, Kế toán trưởng thực hiện chốt sổ tháng, khóa kỳ kế toán để tránh sửa đổi dữ liệu quá khứ.
+Sau khi đơn hàng được giao thành công (trạng thái `DELIVERED`), hệ thống tạo một thông báo lập hóa đơn (`billing_notifications`). Kế toán viên lập hóa đơn bán hàng dựa trên thông tin này, ghi nhận và cộng dồn công nợ Đại lý. Hệ thống tự động kiểm tra hạn mức tín dụng (Credit Limit) và khóa/chặn việc tạo đơn mới nếu vi phạm. Bên cạnh luồng xuất hàng, hệ thống hỗ trợ ghi nhận Hóa đơn mua hàng & Công nợ Nhà cung cấp (Supplier Invoicing & AP) khi nhập hàng thành công. Cuối kỳ kế toán, Kế toán trưởng thực hiện chốt sổ tháng, khóa kỳ kế toán để tránh sửa đổi dữ liệu quá khứ.
 
 ### Features List
 * [US-WMS-10: Lập Hóa đơn Bán hàng & Ghi nhận Công nợ](./features/feature-accountant-customer-invoicing.md)
@@ -18,22 +18,45 @@ Sau khi đơn hàng được giao thành công (trạng thái `DELIVERED`), hệ
 * [US-WMS-16: Báo cáo Công nợ Phân kỳ (Aging Report)](./features/feature-accountant-credit-aging-report.md)
 * [US-WMS-17: Chốt sổ Kế toán & Khóa Kỳ](./features/feature-accountant-period-closing.md)
 * [US-WMS-18: Quét hóa đơn chuyển khoản bằng OCR](./features/feature-ocr-payment-receipt-scanning.md)
+* [US-WMS-28: Lập Hóa đơn Mua hàng & Ghi nhận Công nợ Nhà cung cấp](./features/feature-accountant-supplier-invoicing.md)
+
+## Clarifications
+
+### Session 2026-07-23
+- Q: Quy định ghi nhận hóa đơn kế toán khi nhập hàng (Hóa đơn Mua hàng / Công nợ NCC - AP) như thế nào trong Spec 008? → A: Bổ sung đặc tả tính năng ghi nhận Hóa đơn Mua hàng & Công nợ Nhà cung cấp (Supplier Invoicing & AP) trực tiếp vào Spec 008.
+- Q: Quy định tách 2 chế độ nhận dạng OCR chứng từ ngân hàng cho Đại lý (Thu) và Nhà cung cấp (Chi) như thế nào? → A: Tách riêng 2 endpoint OCR: POST /api/v1/payment-receipts/ocr cho Phiếu thu Đại lý và POST /api/v1/supplier-payments/ocr cho Ủy nhiệm chi thanh toán NCC.
+- Q: Quy chuẩn tổ chức kiến trúc giao diện UX/UI và phân nhóm menu Sidebar cho phân hệ Tài chính (Spec 008) như thế nào để tránh rối và chồng chéo? → A: Phân nhóm Sidebar thành 4 sub-module rõ ràng (Quản lý Bảng giá, Phải thu AR, Phải trả AP, Kỳ kế toán & Báo cáo), đồng thời chuẩn hóa giao diện Unified Tab View đồng nhất cho cả Phải thu (AR) và Phải trả (AP).
+- Q: Quy định hợp nhất các màn hình Phải thu Đại lý (AR) trên Frontend (`DealerDebtInvoice.jsx` và `Payments.jsx`) như thế nào? → A: Gộp thành một trang Unified AR View duy nhất tại đường dẫn `/finance/invoices` với 3 Tab (`Thông báo HĐ Bán`, `Hóa đơn Bán (SINV)`, `Phiếu thu AR & Quét OCR`). Nút menu "Thu nợ Đại lý (AR)" trỏ về `/finance/invoices?tab=payments`.
+- Q: Quy định vị trí điều hướng cho tính năng "Chốt sổ & Khóa Kỳ Kế toán" và "Báo cáo Phân kỳ Công nợ (Aging Report)" trên Menu Sidebar như thế nào? → A: Đặt trực tiếp trong sub-group "Kế toán tổng hợp & Khóa kỳ" thuộc khối menu "Tài chính & Bảng giá" trên Sidebar (`/finance/periods` và `/reports/credit-aging`) cho vai trò ACCOUNTANT_MANAGER và ADMIN.
 
 ## 2. Actors
 
 | Actor | Vai trò hệ thống | Nghiệp vụ liên quan |
 |-------|------------------|---------------------|
-| Kế toán viên | `ACCOUNTANT` | Maker: Tiếp nhận thông báo lập hóa đơn, lập Hóa đơn (Invoice), tạo Phiếu thu (Payment Receipt) cấn trừ công nợ đại lý. |
-| Kế toán trưởng | `ACCOUNTANT_MANAGER` | Checker: Phê duyệt Credit Limit cho Đại lý, xem báo cáo phân kỳ công nợ (Aging Report), thực hiện chốt sổ tháng và khóa kỳ kế toán. |
+| Kế toán viên | `ACCOUNTANT` | Maker: Tiếp nhận thông báo lập hóa đơn bán/mua hàng, lập Hóa đơn bán hàng (`invoices`), Hóa đơn mua hàng (`supplier_invoices`), tạo Phiếu thu cấn trừ công nợ đại lý và Phiếu chi thanh toán cho NCC. |
+| Kế toán trưởng | `ACCOUNTANT_MANAGER` | Checker: Phê duyệt Credit Limit cho Đại lý, xem báo cáo phân kỳ công nợ, xem công nợ NCC, thực hiện chốt sổ tháng và khóa kỳ kế toán. |
 | Hệ thống (Daily Job) | System | Quét định kỳ cuối ngày các hóa đơn quá hạn quá số ngày quy định để tự động chuyển trạng thái đại lý sang `CREDIT_HOLD`. |
 
-## 3. Functional Requirements (EARS)
+## 3. UX/UI Navigation & Layout Standards
+
+1. **Cấu trúc Sidebar (Tài chính & Bảng giá)**:
+   - **Quản lý Bảng giá**: Bảng giá (`/finance/price-list`), Duyệt bảng giá (`/finance/price-approval`) (Spec 007)
+   - **Phải thu Đại lý (AR)**: Gom toàn bộ luồng Hóa đơn Bán & Thu nợ đại lý vào màn hình Unified AR View (`/finance/invoices`) với 3 tab (`Thông báo HĐ Bán`, `Hóa đơn Bán (SINV)`, `Phiếu thu AR & Quét OCR`).
+   - **Phải trả Nhà cung cấp (AP)**: Gom toàn bộ luồng Hóa đơn Mua & Chi trả NCC vào màn hình Unified AP View (`/finance/supplier-invoices`) với 3 tab (`Thông báo HĐ Mua`, `Hóa đơn Mua (SINV)`, `Phiếu chi AP & Quét OCR`).
+   - **Kế toán tổng hợp & Báo cáo**: Quản lý Kỳ kế toán / Khóa sổ (`/finance/periods`) và Báo cáo tuổi nợ / Phân kỳ công nợ (`/reports/credit-aging`).
+
+2. **Quy chuẩn Giao diện Tab nhất quán**:
+   - Mọi trang quản lý chứng từ Tài chính (AR/AP) đều có chung layout: Header có nút khởi tạo nhanh chứng từ kèm OCR + 3 Tab theo dõi thứ tự theo nghiệp vụ (Thông báo chờ → Sổ Hóa đơn → Nhật ký Thanh toán).
+   - Trang AR (`/finance/invoices`) hợp nhất `DealerDebtInvoice.jsx` và `Payments.jsx`, truy cập tab Phiếu thu qua query string `?tab=payments`.
+
+## 4. Functional Requirements (EARS)
 *Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đặc tả tính năng:*
 * [EARS - Customer Invoicing](./features/feature-accountant-customer-invoicing.md#3-functional-requirements-ears)
 * [EARS - Payment Collection](./features/feature-accountant-payment-collection.md#3-functional-requirements-ears)
 * [EARS - Credit Aging Report](./features/feature-accountant-credit-aging-report.md#3-functional-requirements-ears)
 * [EARS - Period Closing](./features/feature-accountant-period-closing.md#3-functional-requirements-ears)
 * [EARS - OCR Payment Receipt Scanning](./features/feature-ocr-payment-receipt-scanning.md#3-functional-requirements-ears)
+* [EARS - Supplier Invoicing & AP](./features/feature-accountant-supplier-invoicing.md#3-functional-requirements-ears)
 
 ## 4. Non-functional Requirements
 
@@ -107,6 +130,36 @@ Sau khi đơn hàng được giao thành công (trạng thái `DELIVERED`), hệ
 * `read_at` (TIMESTAMPTZ)
 * `created_at` (TIMESTAMPTZ, DEFAULT NOW())
 
+### supplier_invoices (Hóa đơn mua hàng từ Nhà cung cấp)
+* `id` (BIGSERIAL, PK)
+* `invoice_number` (VARCHAR(50), UNIQUE, NOT NULL) - Số hóa đơn mua hàng nội bộ
+* `supplier_invoice_number` (VARCHAR(100), NOT NULL) - Số hóa đơn gốc từ NCC
+* `receipt_order_id` (BIGINT, FK→receipt_orders, NOT NULL) - Liên kết phiếu nhập kho COMPLETED
+* `supplier_id` (BIGINT, FK→suppliers, NOT NULL) - Nhà cung cấp
+* `total_amount` (DECIMAL(18,2), NOT NULL) - Tổng tiền hóa đơn mua hàng
+* `issue_date` (DATE, NOT NULL) - Ngày phát hành hóa đơn
+* `due_date` (DATE, NOT NULL) - Hạn thanh toán
+* `status` (VARCHAR(20), DEFAULT 'UNPAID', CHECK IN ('UNPAID','PARTIALLY_PAID','PAID'), NOT NULL)
+* `created_by` (BIGINT, FK→users, NOT NULL)
+* `document_date` (DATE, NOT NULL) - Ngày hạch toán chứng từ
+* `accounting_period_id` (BIGINT, FK→accounting_periods, NOT NULL) - Kỳ kế toán phát sinh
+* `created_at` (TIMESTAMPTZ, DEFAULT NOW())
+* `updated_at` (TIMESTAMPTZ, DEFAULT NOW())
+
+### supplier_payments (Phiếu chi thanh toán cho NCC)
+* `id` (BIGSERIAL, PK)
+* `payment_number` (VARCHAR(50), UNIQUE, NOT NULL) - Số phiếu chi tự sinh
+* `supplier_id` (BIGINT, FK→suppliers, NOT NULL) - Nhà cung cấp
+* `supplier_invoice_id` (BIGINT, FK→supplier_invoices, NOT NULL) - Hóa đơn mua hàng được cấn trừ
+* `amount` (DECIMAL(18,2), NOT NULL) - Số tiền chi thanh toán
+* `payment_date` (DATE, NOT NULL) - Ngày chi tiền
+* `payment_method` (VARCHAR(30), CHECK IN ('BANK_TRANSFER','CASH'), NOT NULL)
+* `created_by` (BIGINT, FK→users, NOT NULL)
+* `document_date` (DATE, NOT NULL) - Ngày chứng từ
+* `accounting_period_id` (BIGINT, FK→accounting_periods, NOT NULL) - Kỳ kế toán phát sinh
+* `notes` (TEXT)
+* `created_at` (TIMESTAMPTZ, DEFAULT NOW())
+
 ## 6. API Spec (Đồng bộ Frontend - Backend)
 
 Các endpoints được cấu hình thông qua base API prefix `/api/v1`:
@@ -121,7 +174,14 @@ Các endpoints được cấu hình thông qua base API prefix `/api/v1`:
 | **POST** | `/api/v1/payment-receipts` | `ACCOUNTANT` | Ghi nhận phiếu thu cấn trừ công nợ đại lý |
 | **POST** | `/api/v1/payment-receipts/ocr` | `ACCOUNTANT` | Upload và phân tích hóa đơn chuyển khoản qua OCR |
 | **GET** | `/api/v1/payment-receipts` | `ACCOUNTANT`, `ACCOUNTANT_MANAGER` | Danh sách phiếu thu công nợ |
-| **GET** | `/api/v1/credit/aging-report` | `ACCOUNTANT`, `ACCOUNTANT_MANAGER` | Báo cáo công nợ phân kỳ của đại lý (Kế toán viên xem để đốc thúc thu hồi công nợ; Kế toán trưởng dùng cho quyết định Credit Limit) |
+| **GET** | `/api/v1/supplier-billing-notifications` | `ACCOUNTANT` | Danh sách thông báo lập hóa đơn mua hàng từ phiếu nhập COMPLETED |
+| **POST** | `/api/v1/supplier-invoices` | `ACCOUNTANT` | Lập hóa đơn mua hàng từ phiếu nhập kho COMPLETED |
+| **GET** | `/api/v1/supplier-invoices` | `ACCOUNTANT`, `ACCOUNTANT_MANAGER` | Danh sách hóa đơn mua hàng từ Nhà cung cấp |
+| **GET** | `/api/v1/supplier-invoices/{id}` | `ACCOUNTANT`, `ACCOUNTANT_MANAGER` | Chi tiết hóa đơn mua hàng |
+| **POST** | `/api/v1/supplier-payments` | `ACCOUNTANT` | Ghi nhận phiếu chi thanh toán cho Nhà cung cấp |
+| **POST** | `/api/v1/supplier-payments/ocr` | `ACCOUNTANT` | Upload và quét OCR Ủy nhiệm chi thanh toán cho Nhà cung cấp |
+| **GET** | `/api/v1/supplier-payments` | `ACCOUNTANT`, `ACCOUNTANT_MANAGER` | Danh sách phiếu chi thanh toán NCC |
+| **GET** | `/api/v1/credit/aging-report` | `ACCOUNTANT`, `ACCOUNTANT_MANAGER` | Báo cáo công nợ phân kỳ của đại lý |
 | **GET** | `/api/v1/accounting-periods` | `ACCOUNTANT`, `ACCOUNTANT_MANAGER` | Danh sách kỳ kế toán |
 | **PUT** | `/api/v1/accounting-periods/{id}/close` | `ACCOUNTANT_MANAGER` | Thực hiện khóa kỳ kế toán |
 
@@ -134,6 +194,8 @@ Các endpoints được cấu hình thông qua base API prefix `/api/v1`:
 | `INVOICE_ALREADY_PAID` | 409 Conflict | Thực hiện thanh toán cho hóa đơn đã có trạng thái `PAID` |
 | `OVERPAYMENT_EXCEEDS_INVOICE` | 422 Unprocessable Entity | Số tiền thanh toán cấn trừ lớn hơn dư nợ còn lại của hóa đơn |
 | `DELIVERY_ORDER_NOT_DELIVERED` | 400 Bad Request | Lập hóa đơn từ DO chưa chuyển sang trạng thái `DELIVERED` |
+| `RECEIPT_ORDER_NOT_COMPLETED` | 400 Bad Request | Lập hóa đơn mua hàng từ phiếu nhập chưa ở trạng thái `COMPLETED` |
+| `SUPPLIER_INVOICE_ALREADY_EXISTS` | 409 Conflict | Lập hóa đơn mua hàng cho phiếu nhập đã có hóa đơn |
 
 ## 8. Acceptance Criteria
 *Vui lòng xem chi tiết kịch bản kiểm thử tại các tài liệu đặc tả tính năng:*
@@ -142,6 +204,7 @@ Các endpoints được cấu hình thông qua base API prefix `/api/v1`:
 * [Acceptance - Credit Aging Report](./features/feature-accountant-credit-aging-report.md#5-acceptance-criteria)
 * [Acceptance - Period Closing](./features/feature-accountant-period-closing.md#5-acceptance-criteria)
 * [Acceptance - OCR Payment Receipt Scanning](./features/feature-ocr-payment-receipt-scanning.md#5-acceptance-criteria)
+* [Acceptance - Supplier Invoicing & AP](./features/feature-accountant-supplier-invoicing.md#5-acceptance-criteria)
 
 ## 9. Out of Scope
 

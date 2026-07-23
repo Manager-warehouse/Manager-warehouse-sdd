@@ -36,6 +36,9 @@ import InventoryValuation from '../pages/Reports/InventoryValuation';
 import LowStockAlerts from '../pages/Reports/LowStockAlerts';
 import DealerDebtInvoice from '../pages/Finance/DealerDebtInvoice';
 import Payments from '../pages/Finance/Payments';
+import SupplierInvoices from '../pages/Finance/SupplierInvoices';
+import PeriodClosing from '../pages/Finance/PeriodClosing';
+import CreditAgingReport from '../pages/Reports/CreditAgingReport';
 import { ROLES, getDefaultRouteByRole } from '../utils/constants';
 import { useAuthStore } from '../stores/auth.store';
 
@@ -171,10 +174,13 @@ const AppRoutes = () => {
         <Route path="/reports/low-stock" element={<LowStockAlerts />} />
       </Route>
 
-      {/* Finance & Credit protected routes */}
+      {/* Finance & Credit protected routes (Module 008) */}
       <Route element={<ProtectedRoute allowedRoles={[ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN, ROLES.CEO]} />}>
         <Route path="/finance/invoices" element={<DealerDebtInvoice />} />
-        <Route path="/finance/payments" element={<Payments />} />
+        <Route path="/finance/payments" element={<DealerDebtInvoice />} />
+        <Route path="/finance/supplier-invoices" element={<SupplierInvoices />} />
+        <Route path="/finance/periods" element={<PeriodClosing />} />
+        <Route path="/reports/credit-aging" element={<CreditAgingReport />} />
       </Route>
 
       {/* Default Redirects */}
