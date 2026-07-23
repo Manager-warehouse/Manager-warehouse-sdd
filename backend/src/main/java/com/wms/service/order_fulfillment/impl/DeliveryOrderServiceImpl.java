@@ -137,8 +137,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class DeliveryOrderServiceImpl implements DeliveryOrderService {
 
     private static final BigDecimal ZERO = BigDecimal.ZERO.setScale(2);
-    private static final int DEFAULT_CREDIT_HOLD_OVERDUE_DAYS = 30;
-
     private static final Set<DeliveryOrderStatus> CANCELLABLE_STATUSES = EnumSet.of(
             DeliveryOrderStatus.NEW,
             DeliveryOrderStatus.WAITING_PICKING,
@@ -1034,12 +1032,13 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         if (currentBalance.add(orderValue).compareTo(creditLimit) > 0) {
             throw creditHold("Dealer credit limit exceeded");
         }
-        int overdueDays = systemConfigService.getIntValue("CREDIT_HOLD_OVERDUE_DAYS", DEFAULT_CREDIT_HOLD_OVERDUE_DAYS);
-        LocalDate overdueThreshold = LocalDate.now().minusDays(overdueDays);
+        int maxDebtDays = dealer.getPaymentTermDays();
+        LocalDate overdueThreshold = LocalDate.now().minusDays(maxDebtDays);
         boolean hasOverdue = invoiceRepository.existsByDealerIdAndStatusInAndDueDateBefore(
                 dealer.getId(), List.of(InvoiceStatus.UNPAID, InvoiceStatus.PARTIALLY_PAID), overdueThreshold);
         if (hasOverdue) {
-            throw creditHold("Dealer has invoice overdue more than " + overdueDays + " days");
+            throw creditHold("Dealer has unpaid invoice overdue more than dealer payment term of "
+                    + maxDebtDays + " days");
         }
     }
 
@@ -1051,7 +1050,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         Map<Long, BigDecimal> insufficient = new LinkedHashMap<>();
         for (Map.Entry<Long, BigDecimal> entry : requestedByProduct.entrySet()) {
             BigDecimal available = availableQty(warehouse.getId(), entry.getKey());
-            if (available.compareTo(entry.getValue()) <= 0) {
+            if (available.compareTo(entry.getValue()) < 0) {
                 insufficient.put(entry.getKey(), available);
             }
         }
@@ -1059,8 +1058,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
             throw new OutboundDeliveryException("INSUFFICIENT_STOCK",
                     HttpStatus.UNPROCESSABLE_ENTITY,
                     "Insufficient stock in selected warehouse",
-                    Map.of("availableByProduct", insufficient,
-                            "suggestedWarehouses", stockSuggestions(insufficient.keySet(), requestedByProduct)));
+                    Map.of("availableByProduct", insufficient));
         }
     }
 
@@ -1071,32 +1069,6 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                 .map(WarehouseProductReservation::getReservedQty)
                 .orElse(ZERO);
         return value(inventoryAvailable).subtract(value(plannerReserved));
-    }
-
-    private List<Map<String, Object>> stockSuggestions(Set<Long> productIds, Map<Long, BigDecimal> requestedByProduct) {
-        return warehouseRepository.findByIsActive(true).stream()
-                .map(warehouse -> suggestionForWarehouse(warehouse, productIds, requestedByProduct))
-                .filter(suggestion -> !suggestion.isEmpty())
-                .toList();
-    }
-
-    private Map<String, Object> suggestionForWarehouse(Warehouse warehouse,
-            Set<Long> productIds,
-            Map<Long, BigDecimal> requestedByProduct) {
-        Map<Long, BigDecimal> availableByProduct = new LinkedHashMap<>();
-        for (Long productId : productIds) {
-            BigDecimal available = availableQty(warehouse.getId(), productId);
-            if (available.compareTo(value(requestedByProduct.get(productId))) >= 0) {
-                availableByProduct.put(productId, available);
-            }
-        }
-        if (availableByProduct.isEmpty()) {
-            return Map.of();
-        }
-        return PartnerAuditUtil.values(
-                "warehouseId", warehouse.getId(),
-                "warehouseCode", warehouse.getCode(),
-                "availableByProduct", availableByProduct);
     }
 
     private List<Map<String, Object>> reserveWarehouseProducts(Warehouse warehouse,

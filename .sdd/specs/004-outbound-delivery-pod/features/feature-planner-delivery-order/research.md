@@ -36,8 +36,8 @@
 
 **Alternatives considered**: Allowing Planner cancellation was rejected because the spec assigns cancellation authority to Warehouse Manager.
 
-## Decision: Cross-warehouse stock suggestions are read-only hints
+## Decision: Insufficient stock rejection does not suggest other warehouses
 
-**Rationale**: When selected warehouse stock is insufficient, the API should reject creation and may return candidate warehouses with enough availability. It must not auto-switch warehouse because Planner warehouse scope and business intent are explicit.
+**Rationale**: When selected warehouse stock is insufficient, the API rejects creation with a clear insufficient-stock reason only. It does not return candidate warehouses with enough availability because Planner warehouse scope and business intent are explicit, and this feature must not redirect planning decisions to another warehouse.
 
-**Alternatives considered**: Auto-routing to another warehouse was rejected because it can violate planner assignment and fulfillment policy.
+**Alternatives considered**: Returning read-only cross-warehouse hints was rejected because it can encourage creating the order against a different warehouse outside this feature's selected-warehouse flow.
