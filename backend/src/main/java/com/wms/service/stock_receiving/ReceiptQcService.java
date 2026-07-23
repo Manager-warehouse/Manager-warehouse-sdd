@@ -111,11 +111,9 @@ public class ReceiptQcService {
 
             Integer passed = req.getQcPassedQty();
             Integer failed = req.getQcFailedQty();
-            // Defaulting to (passed + failed) here would make this check a
-            // tautology whenever the caller omits sampleQty (the frontend
-            // never sends it) — it must default to the full received qty
-            // for this line (FULL_INSPECTION), the only case sampleQty can
-            // legitimately be absent.
+            if (passed == null || failed == null) {
+                throw new IllegalArgumentException("QC_QUANTITIES_REQUIRED for item " + req.getReceiptItemId());
+            }
             Integer total = req.getSampleQty() != null ? req.getSampleQty() : item.getActualQty();
             if (total == null || passed + failed != total) {
                 throw new IllegalArgumentException("QC_SAMPLE_SUM_MISMATCH for item " + req.getReceiptItemId());
