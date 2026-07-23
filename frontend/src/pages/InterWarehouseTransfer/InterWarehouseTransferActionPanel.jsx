@@ -110,10 +110,13 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
     return <div className="border border-hairline-light rounded-lg p-4 text-sm text-shade-50">Chọn một phiếu điều chuyển để thao tác.</div>;
   }
 
-  const canManageSourceWarehouse = hasWarehouseAccess?.(transfer.sourceWarehouseId);
-  const canManageDestinationWarehouse = transfer.isReturned
-    ? hasWarehouseAccess?.(transfer.sourceWarehouseId)
-    : hasWarehouseAccess?.(transfer.destinationWarehouseId);
+  const activeWarehouseId = Number(activeWarehouse?.id || 0);
+  const sourceWarehouseId = Number(transfer.sourceWarehouseId || 0);
+  const targetReceivingWarehouseId = Number(transfer.isReturned ? transfer.sourceWarehouseId : transfer.destinationWarehouseId);
+  const isActiveSourceWarehouse = activeWarehouseId === sourceWarehouseId;
+  const isActiveReceivingWarehouse = activeWarehouseId === targetReceivingWarehouseId;
+  const canManageSourceWarehouse = isActiveSourceWarehouse && hasWarehouseAccess?.(transfer.sourceWarehouseId);
+  const canManageDestinationWarehouse = isActiveReceivingWarehouse && hasWarehouseAccess?.(targetReceivingWarehouseId);
   const activeReceiveWarehouseCode = transfer.isReturned ? transfer.sourceWarehouseCode : transfer.destinationWarehouseCode;
   const activeReceiveWarehouseLabel = transfer.isReturned ? 'kho nguồn' : 'kho đích';
   const allItemsSent = transfer.items?.every((item) => Number(item.sentQty) === Number(item.plannedQty));
@@ -137,7 +140,6 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
   const isAssignedDriver = hasRole(ROLES.DRIVER)
     && Number(transfer.driverUserId || 0) === Number(currentUser?.id || 0);
   const canDriverDepart = hasTrip && allItemsSent && isAssignedDriver && outboundQcPassed && loadHandoverDone && !sourceLoadReworkRequired;
-  const sourceWarehouseId = Number(transfer.sourceWarehouseId || 0);
   const sourceVehicles = vehicles.filter((vehicle) => {
     const warehouseId = Number(vehicle.warehouse_id || vehicle.warehouseId || 0);
     const active = vehicle.is_active !== false && vehicle.isActive !== false;
@@ -192,7 +194,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
     }
     if (transfer.status === 'APPROVED' && hasTrip && outboundQcPassed && !allItemsSent) {
       return {
-        title: 'QC đạt - chờ xếp hàng',
+        title: 'QC đạt - chờ chốt số lượng xuất',
         detail: `Thủ kho nguồn ${transfer.sourceWarehouseCode} xác nhận số lượng xuất lên xe.`,
       };
     }

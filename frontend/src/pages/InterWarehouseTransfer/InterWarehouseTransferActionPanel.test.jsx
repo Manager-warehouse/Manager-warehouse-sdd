@@ -156,6 +156,24 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
     expect(screen.queryByRole('button', { name: 'Hạ hàng khỏi xe' })).not.toBeInTheDocument();
   });
 
+  it('hides source warehouse actions when viewing an outbound step from destination warehouse', () => {
+    renderPanel({
+      roles: [ROLES.STOREKEEPER],
+      activeWarehouse: { id: 2, code: 'WH-HP' },
+      warehouseAccessIds: [2],
+      transfer: {
+        ...baseTransfer,
+        outboundQcPassed: true,
+        outboundQcPhotoRef: 'uploads/qc.jpg',
+        items: [{ ...baseTransfer.items[0], loadedQty: 10, sentQty: null }],
+      },
+    });
+
+    expect(screen.getByText('QC đạt - chờ chốt số lượng xuất')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Hoàn tất xếp hàng' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Xác nhận bàn giao lên xe' })).not.toBeInTheDocument();
+  });
+
   it('shows only worker count action after destination handover is sent to staff', () => {
     renderPanel({
       roles: [ROLES.ADMIN],
@@ -175,6 +193,26 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
     expect(screen.queryByText('Báo sai SKU & Yêu cầu quay đầu xe')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Gửi yêu cầu quay đầu' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Quay đầu về kho nguồn' })).not.toBeInTheDocument();
+  });
+
+  it('hides destination receive QC action when viewing from source warehouse', () => {
+    renderPanel({
+      roles: [ROLES.STOREKEEPER],
+      activeWarehouse: { id: 1, code: 'WH-HN' },
+      warehouseAccessIds: [1],
+      transfer: {
+        ...baseTransfer,
+        status: 'IN_TRANSIT',
+        driverArrivedAt: '2026-07-22T10:00:00Z',
+        arrivalHandoverAt: '2026-07-22T10:05:00Z',
+        arrivalHandoverPhotoRef: 'uploads/handover.jpg',
+        items: [{ ...baseTransfer.items[0], sentQty: 10, workerReceivedQty: 10 }],
+      },
+    });
+
+    expect(screen.getByText('Chờ kiểm tra count/QC')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Kiểm tra count/QC' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Duyệt QC' })).not.toBeInTheDocument();
   });
 
   it('keeps direct return-to-source action for source manager only', async () => {
