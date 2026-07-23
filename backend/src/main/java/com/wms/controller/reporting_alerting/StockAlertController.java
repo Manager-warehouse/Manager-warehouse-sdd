@@ -58,7 +58,7 @@ public class StockAlertController {
     private final CurrentUserService currentUserService;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('WAREHOUSE_MANAGER', 'PLANNER', 'ADMIN', 'CEO')")
+    @PreAuthorize("hasAnyRole('CEO', 'WAREHOUSE_MANAGER', 'PLANNER')")
     @Operation(summary = "Xem danh sách cảnh báo tồn kho thấp")
     public Page<StockAlertResponse> getLowStockAlerts(
             @RequestParam(required = false) Long warehouseId,

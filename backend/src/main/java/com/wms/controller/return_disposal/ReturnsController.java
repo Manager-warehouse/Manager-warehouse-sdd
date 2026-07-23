@@ -51,6 +51,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -79,6 +80,7 @@ public class ReturnsController {
             @ApiResponse(responseCode = "409", description = "Đại lý trả hàng không khớp với DO gốc")
     })
     @PostMapping
+    @PreAuthorize("hasAnyRole('STOREKEEPER', 'WAREHOUSE_MANAGER', 'ADMIN', 'CEO')")
     public ResponseEntity<ReceiptActionResponse> createReturnReceipt(
             @Valid @RequestBody CreateReturnRequest request) {
         User actor = currentUserService.getRequiredCurrentUser();
@@ -100,6 +102,7 @@ public class ReturnsController {
             @ApiResponse(responseCode = "409", description = "Xung đột phiên bản dữ liệu (optimistic locking)")
     })
     @PutMapping("/{id}/qc")
+    @PreAuthorize("hasAnyRole('STOREKEEPER', 'WAREHOUSE_MANAGER', 'ADMIN', 'CEO')")
     public ResponseEntity<ReceiptActionResponse> processReturnQc(
             @Parameter(description = "ID của phiếu trả hàng") @PathVariable Long id,
             @Valid @RequestBody ReturnQcRequest request) {
@@ -121,6 +124,7 @@ public class ReturnsController {
             @ApiResponse(responseCode = "409", description = "Credit Note đã tồn tại cho phiếu hoàn trả này (CREDIT_NOTE_ALREADY_EXISTS)")
     })
     @PostMapping("/{id}/credit-note")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT', 'ACCOUNTANT_MANAGER', 'ADMIN', 'CEO')")
     public ResponseEntity<CreditNoteResponse> createCreditNote(
             @Parameter(description = "ID của phiếu trả hàng") @PathVariable Long id,
             @Valid @RequestBody CreateCreditNoteRequest request) {

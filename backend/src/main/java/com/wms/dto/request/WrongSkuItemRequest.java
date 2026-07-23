@@ -35,6 +35,7 @@ import com.wms.enums.supplier_management.*;
 import com.wms.enums.user_configuration.*;
 import com.wms.enums.warehouse_location.*;
 import com.wms.enums.warehouse_transfer.*;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
 
@@ -51,6 +52,7 @@ public record WrongSkuItemRequest(
     @NotNull(message = "AFFECTED_QTY_REQUIRED")
     BigDecimal affectedQty,
 
+    @NotBlank(message = "WRONG_SKU_REASON_REQUIRED")
     String reason,
 
     String photoRef

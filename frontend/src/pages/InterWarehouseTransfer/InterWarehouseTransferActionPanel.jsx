@@ -31,7 +31,7 @@ const getDriverWarehouseIds = (driver) => {
   return Array.isArray(ids) ? ids.map(Number) : [];
 };
 
-const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWarehouse, hasRole, hasWarehouseAccess, vehicles, drivers, locations, onAction }) => {
+const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWarehouse, hasRole, hasWarehouseAccess, vehicles, drivers, locations, products = [], onAction }) => {
   const { addToast } = useUiStore();
   const [reason, setReason] = useState('');
   const [trip, setTrip] = useState({
@@ -55,8 +55,8 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
   const [showWrongSkuForm, setShowWrongSkuForm] = useState(false);
   const [newWrongSku, setNewWrongSku] = useState({
     transferItemId: '',
-    actualProductSku: '',
-    quantity: '',
+    actualProductId: '',
+    affectedQty: '',
     reason: '',
   });
 
@@ -81,8 +81,8 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
     setShowWrongSkuForm(false);
     setNewWrongSku({
       transferItemId: '',
-      actualProductSku: '',
-      quantity: '',
+      actualProductId: '',
+      affectedQty: '',
       reason: '',
     });
   }, [transfer?.id, transfer?.tripPlannedStartAt, transfer?.tripPlannedEndAt]);
@@ -110,10 +110,13 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
     return <div className="border border-hairline-light rounded-lg p-4 text-sm text-shade-50">Chọn một phiếu điều chuyển để thao tác.</div>;
   }
 
-  const canManageSourceWarehouse = hasWarehouseAccess?.(transfer.sourceWarehouseId);
-  const canManageDestinationWarehouse = transfer.isReturned
-    ? hasWarehouseAccess?.(transfer.sourceWarehouseId)
-    : hasWarehouseAccess?.(transfer.destinationWarehouseId);
+  const activeWarehouseId = Number(activeWarehouse?.id || 0);
+  const sourceWarehouseId = Number(transfer.sourceWarehouseId || 0);
+  const targetReceivingWarehouseId = Number(transfer.isReturned ? transfer.sourceWarehouseId : transfer.destinationWarehouseId);
+  const isActiveSourceWarehouse = activeWarehouseId === sourceWarehouseId;
+  const isActiveReceivingWarehouse = activeWarehouseId === targetReceivingWarehouseId;
+  const canManageSourceWarehouse = isActiveSourceWarehouse && hasWarehouseAccess?.(transfer.sourceWarehouseId);
+  const canManageDestinationWarehouse = isActiveReceivingWarehouse && hasWarehouseAccess?.(targetReceivingWarehouseId);
   const activeReceiveWarehouseCode = transfer.isReturned ? transfer.sourceWarehouseCode : transfer.destinationWarehouseCode;
   const activeReceiveWarehouseLabel = transfer.isReturned ? 'kho nguồn' : 'kho đích';
   const allItemsSent = transfer.items?.every((item) => Number(item.sentQty) === Number(item.plannedQty));
@@ -131,13 +134,20 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
   const sourceLoadReworkRequired = Boolean(transfer.sourceLoadReworkRequired || transfer.source_load_rework_required);
   const loadHandoverDone = Boolean(transfer.loadHandoverPhotoRef || transfer.load_handover_photo_ref || false);
   const outboundQcStoredPhotoRef = transfer.outboundQcPhotoRef || transfer.outbound_qc_photo_ref || '';
+  const arrivalHandoverDone = Boolean(transfer.arrivalHandoverAt
+    || transfer.arrival_handover_at
+    || transfer.arrivalHandoverPhotoRef
+    || transfer.arrival_handover_photo_ref);
+  const returnHandoverDone = Boolean(transfer.returnArrivalHandoverAt
+    || transfer.return_arrival_handover_at
+    || transfer.returnArrivalHandoverPhotoRef
+    || transfer.return_arrival_handover_photo_ref);
   const activeReceivingHandoverDone = transfer.isReturned
-    ? Boolean(transfer.returnArrivedAt && transfer.returnArrivalHandoverAt)
-    : Boolean(transfer.driverArrivedAt && transfer.arrivalHandoverAt);
+    ? Boolean(transfer.returnArrivedAt && returnHandoverDone)
+    : Boolean(transfer.driverArrivedAt && arrivalHandoverDone);
   const isAssignedDriver = hasRole(ROLES.DRIVER)
     && Number(transfer.driverUserId || 0) === Number(currentUser?.id || 0);
   const canDriverDepart = hasTrip && allItemsSent && isAssignedDriver && outboundQcPassed && loadHandoverDone && !sourceLoadReworkRequired;
-  const sourceWarehouseId = Number(transfer.sourceWarehouseId || 0);
   const sourceVehicles = vehicles.filter((vehicle) => {
     const warehouseId = Number(vehicle.warehouse_id || vehicle.warehouseId || 0);
     const active = vehicle.is_active !== false && vehicle.isActive !== false;
@@ -158,6 +168,36 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
     transferItemId: item.id,
     loadedQty: item.loadedQty ?? item.plannedQty,
   }));
+  const pendingReturnRequest = transfer.status === 'IN_TRANSIT' && !transfer.isReturned && Boolean(transfer.returnRequested);
+  const normalReceivingHandoverDone = Boolean(transfer.driverArrivedAt && arrivalHandoverDone);
+  const returnReceivingHandoverDone = Boolean(transfer.returnArrivedAt && returnHandoverDone);
+  const countReady = countRows.length
+    && countRows.every((row) => {
+      const item = transfer.items.find((line) => line.id === row.transferItemId);
+      const receivedQty = Number(row.receivedQty);
+      return row.receivedQty !== ''
+        && Number.isFinite(receivedQty)
+        && receivedQty >= 0
+        && (receivedQty === Number(item?.sentQty) || String(row.issueReason || '').trim());
+    });
+  const checkReady = checkRows.length
+    && Boolean(receiveQcPhotoFile)
+    && checkRows.every((row) => {
+      const confirmedQty = Number(row.confirmedQty);
+      const qcPassedQty = Number(row.qcPassedQty);
+      const qcFailedQty = Number(row.qcFailedQty);
+      const item = transfer.items.find((line) => line.id === row.transferItemId);
+      return Number.isFinite(confirmedQty)
+        && Number.isFinite(qcPassedQty)
+        && Number.isFinite(qcFailedQty)
+        && confirmedQty >= 0
+        && qcPassedQty >= 0
+        && qcFailedQty >= 0
+        && qcPassedQty + qcFailedQty === confirmedQty
+        && (qcPassedQty === 0 || Boolean(row.destinationLocationId))
+        && (qcFailedQty === 0 || String(row.qcFailureReason || '').trim())
+        && (confirmedQty === Number(item?.workerReceivedQty) || String(row.checkerNote || '').trim());
+    });
 
   const flowInfo = (() => {
     if (transfer.status === 'NEW') {
@@ -192,7 +232,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
     }
     if (transfer.status === 'APPROVED' && hasTrip && outboundQcPassed && !allItemsSent) {
       return {
-        title: 'QC đạt - chờ xếp hàng',
+        title: 'QC đạt - chờ chốt số lượng xuất',
         detail: `Thủ kho nguồn ${transfer.sourceWarehouseCode} xác nhận số lượng xuất lên xe.`,
       };
     }
@@ -206,6 +246,42 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
       return {
         title: 'Đã hoàn tất xếp hàng',
         detail: `${transfer.driverName || 'Tài xế được gán'} xác nhận rời ${transfer.sourceWarehouseCode}.`,
+      };
+    }
+    if (pendingReturnRequest) {
+      return {
+        title: 'Chờ duyệt yêu cầu quay đầu',
+        detail: `Quản lý kho đích ${transfer.destinationWarehouseCode} duyệt hoặc từ chối yêu cầu quay đầu do sai SKU.`,
+      };
+    }
+    if (transfer.status === 'IN_TRANSIT' && !transfer.isReturned && !transfer.driverArrivedAt) {
+      return {
+        title: 'Đang vận chuyển - chờ tài xế đến kho đích',
+        detail: `${transfer.driverName || 'Tài xế'} cần xác nhận đã đến ${transfer.destinationWarehouseCode}.`,
+      };
+    }
+    if (transfer.status === 'IN_TRANSIT' && !transfer.isReturned && transfer.driverArrivedAt && !normalReceivingHandoverDone) {
+      return {
+        title: 'Chờ thủ kho kho đích nhận bàn giao',
+        detail: `Thủ kho kho đích ${transfer.destinationWarehouseCode} chụp ảnh bàn giao rồi gửi cho công nhân count, hoặc báo sai SKU để yêu cầu quay đầu.`,
+      };
+    }
+    if (transfer.status === 'IN_TRANSIT' && transfer.isReturned && !transfer.returnDepartedAt) {
+      return {
+        title: 'Quay đầu: Chờ tài xế xác nhận quay đầu',
+        detail: `${transfer.driverName || 'Tài xế'} xác nhận bắt đầu quay về kho nguồn ${transfer.sourceWarehouseCode}.`,
+      };
+    }
+    if (transfer.status === 'IN_TRANSIT' && transfer.isReturned && transfer.returnDepartedAt && !transfer.returnArrivedAt) {
+      return {
+        title: 'Quay đầu: Đang về kho nguồn',
+        detail: `Chờ tài xế xác nhận đã về đến ${transfer.sourceWarehouseCode}.`,
+      };
+    }
+    if (transfer.status === 'IN_TRANSIT' && transfer.isReturned && transfer.returnArrivedAt && !returnReceivingHandoverDone) {
+      return {
+        title: 'Quay đầu: Chờ thủ kho nguồn nhận bàn giao',
+        detail: `Thủ kho nguồn ${transfer.sourceWarehouseCode} chụp ảnh bàn giao hàng quay đầu trước khi gửi cho công nhân count.`,
       };
     }
     if (transfer.status === 'IN_TRANSIT' && !allItemsCounted) {
@@ -234,6 +310,9 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
     }
     if (transfer.status === 'COMPLETED' || transfer.status === 'COMPLETED_WITH_DISCREPANCY') {
       return { title: 'Đã hoàn tất', detail: 'Phiếu đã kết thúc luồng điều chuyển.' };
+    }
+    if (transfer.status === 'QUARANTINED') {
+      return { title: 'Đã cách ly toàn bộ', detail: transfer.rejectionReason || 'Hàng điều chuyển đã được đưa vào khu cách ly.' };
     }
     if (transfer.status === 'REJECTED') {
       return { title: 'Đã từ chối', detail: transfer.rejectionReason || 'Phiếu không tiếp tục xử lý.' };
@@ -270,7 +349,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
     if (countRows.length) return countRows;
     const rows = transfer.items.map((item) => ({
       transferItemId: item.id,
-      receivedQty: item.sentQty ?? item.plannedQty,
+      receivedQty: '',
       issueReason: '',
     }));
     setCountRows(rows);
@@ -599,7 +678,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
           )}
 
           {/* Receiving Handover step */}
-          {transfer.driverArrivedAt && !transfer.arrivalHandoverAt && (
+          {transfer.driverArrivedAt && !arrivalHandoverDone && !transfer.returnRequested && (
             <div className="border border-hairline-light rounded p-3 bg-canvas-cream flex flex-col gap-2">
               <div className="text-xs font-semibold text-ink">BƯỚC 2: BÀN GIAO TẠI KHO ĐÍCH</div>
               {hasAny(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse ? (
@@ -671,7 +750,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
           )}
 
           {/* Return Handover step */}
-          {transfer.returnArrivedAt && !transfer.returnArrivalHandoverAt && (
+          {transfer.returnArrivedAt && !returnHandoverDone && (
             <div className="border border-hairline-light rounded p-3 bg-canvas-cream flex flex-col gap-2">
               <div className="text-xs font-semibold text-ink">BƯỚC 3: BÀN GIAO QUAY ĐẦU TẠI KHO NGUỒN</div>
               {hasAny(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]) && canManageSourceWarehouse ? (
@@ -699,7 +778,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
       )}
 
       {/* Wrong SKU return request waiting for approval */}
-      {transfer.status === 'IN_TRANSIT' && !transfer.isReturned && activeReceivingHandoverDone && transfer.returnRequested && (
+      {pendingReturnRequest && (
         <div className="rounded-md border border-danger-200 bg-danger-50 p-3 flex flex-col gap-2.5 mb-2">
           <div className="text-xs text-danger-700 font-bold flex items-center gap-1.5">
             <span className="relative flex h-2 w-2">
@@ -742,7 +821,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
 
       {/* Wrong SKU submission form */}
       {transfer.status === 'IN_TRANSIT' && !transfer.isReturned && !allItemsCounted && !transfer.returnRequested
-        && (activeReceivingHandoverDone || showWrongSkuForm)
+        && showWrongSkuForm && !activeReceivingHandoverDone
         && hasAny(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && (
         <div className="rounded-lg border border-hairline-light bg-canvas-cream p-4 text-sm flex flex-col gap-3 mb-2">
           <div className="text-xs text-ink font-semibold flex items-center gap-1.5 text-danger-700">
@@ -756,22 +835,38 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
                 { value: '', label: 'Chọn dòng hàng' },
                 ...(transfer.items || []).map((item) => ({ value: item.id, label: `${item.productSku} (Yêu cầu: ${item.plannedQty})` }))
               ]} />
-            <Input label="SKU thực tế nhận" value={newWrongSku.actualProductSku} onChange={(e) => setNewWrongSku({ ...newWrongSku, actualProductSku: e.target.value })} placeholder="Nhập SKU..." />
-            <Input label="Số lượng sai" type="number" value={newWrongSku.quantity} onChange={(e) => setNewWrongSku({ ...newWrongSku, quantity: e.target.value })} />
+            <Input type="select" label="SKU thực tế nhận" value={newWrongSku.actualProductId} onChange={(e) => setNewWrongSku({ ...newWrongSku, actualProductId: e.target.value })}
+              options={[
+                { value: '', label: 'Chọn SKU thực tế' },
+                ...(products || []).map((product) => ({ value: product.id, label: `${product.sku} - ${product.name}` }))
+              ]} />
+            <Input label="Số lượng sai" type="number" min="0" step="0.01" value={newWrongSku.affectedQty} onChange={(e) => setNewWrongSku({ ...newWrongSku, affectedQty: e.target.value })} />
             <Input label="Lý do" value={newWrongSku.reason} onChange={(e) => setNewWrongSku({ ...newWrongSku, reason: e.target.value })} placeholder="Nhập lý do..." />
             <div className="md:col-span-4 flex justify-end">
               <Button size="sm" variant="outline-light" onClick={() => {
-                if (!newWrongSku.transferItemId || !newWrongSku.actualProductSku.trim() || !newWrongSku.quantity || !newWrongSku.reason.trim()) {
+                const originalItem = transfer.items.find((line) => Number(line.id) === Number(newWrongSku.transferItemId));
+                const affectedQty = Number(newWrongSku.affectedQty);
+                if (!originalItem || !newWrongSku.actualProductId || !newWrongSku.affectedQty || !newWrongSku.reason.trim()) {
                   addToast('Vui lòng nhập đầy đủ thông tin dòng hàng sai!', 'error');
                   return;
                 }
+                if (Number(originalItem.productId) === Number(newWrongSku.actualProductId)) {
+                  addToast('SKU thực tế phải khác SKU dự kiến.', 'error');
+                  return;
+                }
+                if (!Number.isFinite(affectedQty) || affectedQty <= 0 || affectedQty > Number(originalItem.sentQty ?? originalItem.plannedQty)) {
+                  addToast('Số lượng sai phải lớn hơn 0 và không vượt số lượng đã gửi.', 'error');
+                  return;
+                }
                 setWrongSkuItems([...wrongSkuItems, {
-                  transferItemId: Number(newWrongSku.transferItemId),
-                  actualProductSku: newWrongSku.actualProductSku.trim(),
-                  quantity: Number(newWrongSku.quantity),
+                  transferItemId: Number(originalItem.id),
+                  expectedProductId: Number(originalItem.productId),
+                  actualProductId: Number(newWrongSku.actualProductId),
+                  affectedQty,
                   reason: newWrongSku.reason.trim(),
+                  photoRef: null,
                 }]);
-                setNewWrongSku({ transferItemId: '', actualProductSku: '', quantity: '', reason: '' });
+                setNewWrongSku({ transferItemId: '', actualProductId: '', affectedQty: '', reason: '' });
               }}>Thêm dòng</Button>
             </div>
           </div>
@@ -782,9 +877,10 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
               <div className="font-semibold">Danh sách hàng sai SKU cần trả về:</div>
               {wrongSkuItems.map((item, idx) => {
                 const orig = transfer.items.find((line) => line.id === item.transferItemId);
+                const actual = products.find((product) => Number(product.id) === Number(item.actualProductId));
                 return (
                   <div key={idx} className="flex justify-between items-center text-[11px] text-shade-60 border-b border-hairline-light pb-1">
-                    <span>- {orig?.productSku} → {item.actualProductSku} (SL: {item.quantity}): {item.reason}</span>
+                    <span>- {orig?.productSku} → {actual?.sku || item.actualProductId} (SL: {item.affectedQty}): {item.reason}</span>
                     <button className="text-danger-600 hover:underline" onClick={() => setWrongSkuItems(wrongSkuItems.filter((_, i) => i !== idx))}>Xóa</button>
                   </div>
                 );
@@ -816,7 +912,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
         </div>
       )}
 
-      {transfer.status === 'IN_TRANSIT' && !transfer.isReturned && !transfer.returnRequested && hasAny(hasRole, [ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]) && canManageSourceWarehouse && (
+      {transfer.status === 'IN_TRANSIT' && !transfer.isReturned && !transfer.returnRequested && !transfer.driverArrivedAt && hasAny(hasRole, [ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]) && canManageSourceWarehouse && (
         <div className="rounded-md border border-warning-200 bg-warning-50/50 p-3 flex flex-col gap-2 mb-2">
           <div className="text-xs text-warning-800 font-medium">Chuyến xe có sự cố hoặc cần quay đầu về kho nguồn? (Yêu cầu lý do)</div>
           <div className="flex gap-2">
@@ -835,75 +931,55 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
       )}
 
       {/* Receive counting steps */}
-      {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && hasAny(hasRole, [ROLES.WAREHOUSE_STAFF, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && !allItemsCounted && (
+      {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && !transfer.returnRequested && hasAny(hasRole, [ROLES.WAREHOUSE_STAFF, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && !allItemsCounted && (
         <div className="flex flex-col gap-3">
-          {transfer.tripOverdue && !transfer.isReturned ? (
-            <div className="rounded-md border border-danger-200 bg-danger-50 p-3 text-xs text-danger-700 font-medium">
-              Chuyến đi đã quá hạn giao hàng. Vui lòng liên hệ tài xế hoặc điều phối kho nguồn để thực hiện quay đầu xe về kho nguồn.
-            </div>
-          ) : (
-            <>
-              <Button variant="outline-light" icon={ClipboardCheck} onClick={ensureCountRows}>Nhập số lượng thực nhận</Button>
-              {countRows.map((row) => {
-                const item = transfer.items.find((line) => line.id === row.transferItemId);
-                return (
-                  <div key={row.transferItemId} className="grid grid-cols-1 md:grid-cols-4 gap-2 items-end">
-                    <div className="text-xs font-semibold">{item.productSku}<br /><span className="text-shade-50">Gửi: {item.sentQty}</span></div>
-                    <Input label="Số lượng nhận" type="number" value={row.receivedQty} onChange={(e) => setRow(countRows, setCountRows, row.transferItemId, { receivedQty: Number(e.target.value) })} />
-                    <Input label="Lý do nếu lệch" value={row.issueReason} onChange={(e) => setRow(countRows, setCountRows, row.transferItemId, { issueReason: e.target.value })} />
-                    <Button loading={busy} className="py-2.5 px-4 text-xs" onClick={() => run('receiveCount', countRows)}>Lưu count</Button>
-                  </div>
-                );
-              })}
-            </>
+          <Button variant="outline-light" icon={ClipboardCheck} onClick={ensureCountRows}>Nhập số lượng thực nhận</Button>
+          {countRows.map((row) => {
+            const item = transfer.items.find((line) => line.id === row.transferItemId);
+            return (
+              <div key={row.transferItemId} className="grid grid-cols-1 md:grid-cols-3 gap-2 items-end">
+                <div className="text-xs font-semibold">{item.productSku}<br /><span className="text-shade-50">Gửi: {item.sentQty}</span></div>
+                <Input label="Số lượng nhận" type="number" min="0" step="0.01" value={row.receivedQty} onChange={(e) => setRow(countRows, setCountRows, row.transferItemId, { receivedQty: e.target.value })} />
+                <Input label="Lý do nếu lệch" value={row.issueReason} onChange={(e) => setRow(countRows, setCountRows, row.transferItemId, { issueReason: e.target.value })} />
+              </div>
+            );
+          })}
+          {countRows.length > 0 && (
+            <Button loading={busy} disabled={!countReady} className="py-2.5 px-4 text-xs" onClick={() => run('receiveCount', countRows.map((row) => ({ ...row, receivedQty: Number(row.receivedQty) })))}>
+              Hoàn tất báo cáo số lượng
+            </Button>
           )}
         </div>
       )}
 
-      {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && hasAny(hasRole, [ROLES.WAREHOUSE_STAFF, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && allItemsCounted && !allItemsChecked && (
+      {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && !transfer.returnRequested && hasAny(hasRole, [ROLES.WAREHOUSE_STAFF, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && allItemsCounted && !allItemsChecked && (
         <div className="rounded-md border border-success-200 bg-success-50 px-3 py-2 text-xs text-success-700">
           Đã lưu số lượng thực nhận. Chờ thủ kho kiểm tra count/QC.
         </div>
       )}
 
-      {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && hasAny(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && !allItemsCounted && (
+      {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && !transfer.returnRequested && hasAny(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && !allItemsCounted && (
         <div className="rounded-md border border-hairline-light bg-canvas-cream/60 px-3 py-2 text-xs text-shade-60">
-          {transfer.tripOverdue && !transfer.isReturned
-            ? 'Chuyến đi đã quá hạn giao hàng. Yêu cầu thực hiện quay đầu xe về kho nguồn.'
-            : `Chờ công nhân ${activeReceiveWarehouseLabel} nhập số lượng thực nhận trước khi thủ kho kiểm tra count/QC.`}
+          {`Chờ công nhân ${activeReceiveWarehouseLabel} nhập số lượng thực nhận trước khi thủ kho kiểm tra count/QC.`}
         </div>
       )}
 
-      {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && hasAny(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && allItemsCounted && !allItemsChecked && (
+      {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && !transfer.returnRequested && hasAny(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && allItemsCounted && !allItemsChecked && (
         <div className="flex flex-col gap-3">
-          {transfer.tripOverdue && !transfer.isReturned ? (
-            <div className="rounded-md border border-danger-200 bg-danger-50 p-3 text-xs text-danger-700 font-medium">
-              Chuyến đi đã quá hạn giao hàng. Yêu cầu thực hiện quay đầu xe về kho nguồn.
-            </div>
-          ) : (
-            <>
-              <div className="flex flex-col md:flex-row md:items-end gap-2 border-b border-hairline-light pb-3">
+          <>
+            <div className="flex flex-col md:flex-row md:items-end gap-2 border-b border-hairline-light pb-3">
                     <div className="flex-1">
                       <Button variant="outline-light" icon={ClipboardCheck} onClick={ensureCheckRows}>Kiểm tra count/QC</Button>
                     </div>
-                    {!transfer.isReturned && (
-                      <div className="flex-1 md:flex-initial flex gap-2 items-end">
-                        <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Lý do từ chối cách ly bắt buộc" />
-                        <Button loading={busy} variant="outline-light" className="text-danger-600 border-danger-600 hover:bg-danger-50" icon={X} onClick={() => {
-                          if (!reason.trim()) {
-                            addToast('Vui lòng nhập lý do từ chối cách ly!', 'error');
-                            return;
-                          }
-                          run('quarantineReject', reason);
-                        }}>Từ chối & Cách ly toàn bộ</Button>
-                      </div>
-                    )}
+                    <div className="text-xs text-shade-60">
+                      QC lỗi thì nhập số lượng lỗi theo từng dòng và lý do, hệ thống sẽ đưa phần lỗi vào quarantine khi quản lý xác nhận cuối.
+                    </div>
                   </div>
-              {checkRows.map((row) => {
+            {checkRows.map((row) => {
                 const item = transfer.items.find((line) => line.id === row.transferItemId);
                 return (
                   <div key={row.transferItemId} className="flex flex-col gap-2">
-                         <div className="grid grid-cols-1 md:grid-cols-6 gap-2 items-end">
+                         <div className="grid grid-cols-1 md:grid-cols-5 gap-2 items-end">
                            <div className="text-xs font-semibold">{item.productSku}<br /><span className="text-shade-50">CN nhập: {item.workerReceivedQty ?? '-'}</span></div>
                            <Input label="SL chốt" type="number" value={row.confirmedQty} onChange={(e) => setRow(checkRows, setCheckRows, row.transferItemId, { confirmedQty: Number(e.target.value) })} />
                            <Input label="QC đạt" type="number" value={row.qcPassedQty} onChange={(e) => setRow(checkRows, setCheckRows, row.transferItemId, { qcPassedQty: Number(e.target.value) })} />
@@ -919,16 +995,6 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
                            </div>
                            <Input type="select" label="Bin đạt QC" value={row.destinationLocationId} onChange={(e) => setRow(checkRows, setCheckRows, row.transferItemId, { destinationLocationId: e.target.value })}
                              options={[{ value: '', label: 'Chọn bin' }, ...destinationBins.map((loc) => ({ value: loc.id, label: loc.code }))]} />
-                           <Button loading={busy} className="py-2.5 px-4 text-xs" onClick={() => {
-                             if (!receiveQcPhotoFile) {
-                               addToast('Vui lòng chọn hoặc chụp ảnh QC.', 'error');
-                               return;
-                             }
-                             run('receiveCheck', {
-                               items: checkRows.map((line) => ({ ...line, destinationLocationId: Number(line.destinationLocationId) })),
-                               photoFile: receiveQcPhotoFile,
-                             });
-                           }}>Duyệt QC</Button>
                          </div>
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                            <Input label="Checker note nếu sửa count" value={row.checkerNote} onChange={(e) => setRow(checkRows, setCheckRows, row.transferItemId, { checkerNote: e.target.value })} />
@@ -946,12 +1012,19 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
               {!receiveQcPhotoFile && (
                 <div className="text-[10px] text-warning-700">Cần chụp/chọn ảnh QC trước khi duyệt.</div>
               )}
-            </>
-          )}
+              {checkRows.length > 0 && (
+                <Button loading={busy} disabled={!checkReady} className="py-2.5 px-4 text-xs" onClick={() => run('receiveCheck', {
+                  items: checkRows.map((line) => ({ ...line, destinationLocationId: Number(line.destinationLocationId) })),
+                  photoFile: receiveQcPhotoFile,
+                })}>
+                  Duyệt QC
+                </Button>
+              )}
+          </>
         </div>
       )}
 
-      {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && hasAny(hasRole, [ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && allItemsChecked && (
+      {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && !transfer.returnRequested && hasAny(hasRole, [ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && allItemsChecked && (
         <div className="rounded-md border border-success-200 bg-success-50 p-3 text-xs text-success-700 flex flex-col gap-2">
           <div className="font-semibold flex items-center gap-1">
             <Check className="w-4 h-4" /> Đã hoàn tất kiểm tra count/QC
@@ -969,39 +1042,22 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
         </div>
       )}
 
-      {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && hasAny(hasRole, [ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && !allItemsChecked && (
+      {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && !transfer.returnRequested && hasAny(hasRole, [ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && !allItemsChecked && (
         <div className="rounded-md border border-hairline-light bg-canvas-cream/60 px-3 py-2 text-xs text-shade-60">
-          {transfer.tripOverdue && !transfer.isReturned
-            ? 'Chuyến đi đã quá hạn giao hàng. Yêu cầu thực hiện quay đầu xe về kho nguồn.'
-            : `Chờ thủ kho ${activeReceiveWarehouseLabel} hoàn tất kiểm tra count/QC trước khi quản lý xác nhận cuối.`}
+          {`Chờ thủ kho ${activeReceiveWarehouseLabel} hoàn tất kiểm tra count/QC trước khi quản lý xác nhận cuối.`}
         </div>
       )}
 
-      {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && hasAny(hasRole, [ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && allItemsChecked && (
+      {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && !transfer.returnRequested && hasAny(hasRole, [ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && allItemsChecked && (
         <div className="flex gap-2">
-          {transfer.tripOverdue && !transfer.isReturned ? (
-            <div className="rounded-md border border-danger-200 bg-danger-50 p-3 text-xs text-danger-700 font-medium">
-              Chuyến đi đã quá hạn giao hàng. Yêu cầu thực hiện quay đầu xe về kho nguồn.
-            </div>
-          ) : (
-            <div className="flex-1 flex flex-col md:flex-row gap-2 items-end">
+          <div className="flex-1 flex flex-col md:flex-row gap-2 items-end">
               <div className="flex-1">
-                <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder={transfer.isReturned ? 'Lý do nếu hàng quay đầu bị lệch/thiếu' : 'Lý do nếu lệch/thiếu hoặc lý do từ chối cách ly'} />
+                <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder={transfer.isReturned ? 'Lý do nếu hàng quay đầu bị lệch' : 'Lý do nếu lệch hoặc lý do từ chối cách ly'} />
               </div>
               <div className="flex gap-2">
                 <Button loading={busy} icon={Check} onClick={() => run('finalReceive', reason)}>Xác nhận cuối</Button>
-                {!transfer.isReturned && (
-                  <Button loading={busy} variant="outline-light" className="text-danger-600 border-danger-600 hover:bg-danger-50" icon={X} onClick={() => {
-                    if (!reason.trim()) {
-                      addToast('Vui lòng nhập lý do từ chối cách ly vào ô văn bản!', 'error');
-                      return;
-                    }
-                    run('quarantineReject', reason);
-                  }}>Từ chối & Cách ly toàn bộ</Button>
-                )}
               </div>
             </div>
-          )}
         </div>
       )}
     </div>

@@ -13,6 +13,10 @@ Quy trình nhập hàng là đầu vào của toàn bộ hệ thống tồn kho.
 
 ## Clarifications
 
+### Session 2026-07-23
+
+- Q: Phân quyền quy trình Nhập hàng Inbound (`003-inbound-receipt-qc`) -> A: Tuân thủ phân quyền 4 giai đoạn theo `role.md`: `PLANNER` tạo Lệnh nhập kho (`Receipt Create`); `STOREKEEPER` và `WH_STAFF` tiếp nhận hàng thực tế (`Receipt Receive`) và QC Inbound; `STOREKEEPER` độc quyền lập kế hoạch xếp bin (`Putaway Plan`). `WH_MANAGER` phê duyệt phiếu nhập và xử lý Quarantine.
+
 ### Session 2026-06-11
 
 - Q: Putaway should happen before or after Trưởng kho approval? -> A: After approval; approval unlocks putaway.

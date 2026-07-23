@@ -1,16 +1,16 @@
-# Implementation Plan: [FEATURE]
+# Implementation Plan: System Admin, RBAC & Audit Alignment
 
-**Branch**: `[###-feature-name]` | **Date**: [DATE] | **Spec**: [link]
+**Branch**: `feat/accountant-supplier-invoicing` | **Date**: 2026-07-23 | **Spec**: [.sdd/specs/001-security-auth-rbac-audit/spec.md](file:///d:/swp/Manager-warehouse-sdd/.sdd/specs/001-security-auth-rbac-audit/spec.md)
 
-**Input**: Feature specification from `.sdd/specs/[###-feature-name]/spec.md`
+**Input**: Feature specification from `.sdd/specs/001-security-auth-rbac-audit/spec.md` and role matrix from `.sdd/role.md`
 
 ## Summary
 
-[Primary business outcome + affected WMS flow/state transition.]
+Lập kế hoạch thiết kế và đồng bộ phân quyền RBAC, vai trò hệ thống, và Nhật ký hoạt động Audit Log trên 3 kho vật lý. Đảm bảo 10 vai trò chuẩn (`ADMIN`, `CEO`, `WH_MANAGER`, `ACCT_MANAGER`, `PLANNER`, `DISPATCHER`, `STOREKEEPER`, `WH_STAFF`, `ACCOUNTANT`, `DRIVER`) tuân thủ đúng ma trận phân quyền màn hình và kiểm soát truy cập API theo phạm vi kho được gán.
 
 ## Technical Context
 
-**Language/Version**: Java 21 / Spring Boot 3.4.5; React 18 + JavaScript when UI is touched
+**Language/Version**: Java 21 / Spring Boot 3.4.5; React 18 + JavaScript
 
 **Primary Dependencies**: Spring Web, Spring Data JPA, Hibernate, Spring Security, Lombok, Springdoc OpenAPI, React, Tailwind CSS
 
@@ -22,40 +22,40 @@
 
 **Project Type**: Backend + frontend web application
 
-**Performance Goals**: [Use spec NFRs, e.g. <= 500ms search, <= 2s inventory mutation]
+**Performance Goals**: Auth check overhead <= 10ms, Auth response p95 <= 500ms, Audit log query <= 2s
 
 **Constraints**: Must preserve WMS invariants: no negative inventory, QC gates, audit logs, role + warehouse authorization, no raw SQL in application code
 
-**Scale/Scope**: 3 physical warehouses, In-Transit warehouse, 1000+ products, 50+ dealers, 1000+ transactions/month
+**Scale/Scope**: 3 physical warehouses, 10 canonical roles, 1000+ products, 50+ dealers, 1000+ transactions/month
 
 ## Constitution Check
 
-*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
+*GATE: Passed Phase 0 research & Phase 1 design.*
 
-- [ ] Layered architecture preserved: Controller -> Service -> Repository -> Entity.
-- [ ] Write endpoints use request DTOs with Jakarta Validation.
-- [ ] Service methods own business rules, transactions, authorization, and audit logging.
-- [ ] All DB access goes through Spring Data JPA/Hibernate; no raw SQL in application code.
-- [ ] Inventory invariants preserved if touched: `total_qty >= 0`, `reserved_qty >= 0`, `available = total_qty - reserved_qty >= 0`, `@Version`.
-- [ ] QC/quarantine/transfer/accounting state rules listed when touched.
-- [ ] Audit action, entity type, before/after payload, and warehouse scope identified.
-- [ ] OpenAPI/Swagger impact identified for every new or changed endpoint.
-- [ ] Flyway migration impact identified; no duplicate migration version in runnable history.
-- [ ] Unit and integration test strategy covers happy path and error paths.
+- [x] Layered architecture preserved: Controller -> Service -> Repository -> Entity.
+- [x] Write endpoints use request DTOs with Jakarta Validation.
+- [x] Service methods own business rules, transactions, authorization, and audit logging.
+- [x] All DB access goes through Spring Data JPA/Hibernate; no raw SQL in application code.
+- [x] Inventory invariants preserved if touched: `total_qty >= 0`, `reserved_qty >= 0`, `available = total_qty - reserved_qty >= 0`, `@Version`.
+- [x] QC/quarantine/transfer/accounting state rules listed when touched.
+- [x] Audit action, entity type, before/after payload, and warehouse scope identified.
+- [x] OpenAPI/Swagger impact identified for every new or changed endpoint.
+- [x] Flyway migration impact identified; no duplicate migration version in runnable history.
+- [x] Unit and integration test strategy covers happy path and error paths.
 
 ## Domain Impact
 
-**Actors/Roles**: [Roles and warehouse scope]
+**Actors/Roles**: 10 canonical roles (`ADMIN`, `CEO`, `WH_MANAGER`, `ACCT_MANAGER`, `PLANNER`, `DISPATCHER`, `STOREKEEPER`, `WH_STAFF`, `ACCOUNTANT`, `DRIVER`)
 
-**State Changes**: [Entity statuses before -> after]
+**State Changes**: User active/inactive status, password updates, warehouse assignment mapping
 
-**Inventory Impact**: [None or exact total/reserved/quarantine/In-Transit mutation]
+**Inventory Impact**: Read-only cross-warehouse visibility for `WH_MANAGER` on available stock; physical mutations scoped to assigned warehouse
 
-**Audit Actions**: [Action names and payload]
+**Audit Actions**: `USER_CREATE`, `USER_UPDATE`, `USER_ROLE_CHANGE`, `WAREHOUSE_ASSIGN`, `SYSTEM_CONFIG_UPDATE`
 
-**Security/Authorization**: [JWT role + warehouse checks]
+**Security/Authorization**: Centralized `RoleHierarchy` for `ADMIN`; JWT role + warehouse scope validation for operations
 
-**Accounting Impact**: [None or invoice/payment/period/debt effect]
+**Accounting Impact**: Scoped access for `ACCOUNTANT` and `ACCT_MANAGER` (Maker-Checker pricing & credit notes)
 
 ## Data Model / Migration Impact
 
