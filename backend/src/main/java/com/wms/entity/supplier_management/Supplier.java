@@ -73,6 +73,10 @@ public class Supplier {
     @Column(name = "is_active", nullable = false)
     private Boolean isActive;
 
+    @Column(name = "current_balance", nullable = false, precision = 18, scale = 2)
+    @Builder.Default
+    private java.math.BigDecimal currentBalance = java.math.BigDecimal.ZERO;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by")
     private User createdBy;

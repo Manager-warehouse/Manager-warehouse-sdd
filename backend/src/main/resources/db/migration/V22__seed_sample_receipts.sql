@@ -1,3 +1,13 @@
+-- Seed sample user if not present
+INSERT INTO users (code, full_name, email, phone, password_hash, role, is_active)
+VALUES ('NV-001', 'Hệ Thống Admin', 'admin@phucanh.vn', '0900000001', '$2a$12$zA4J/HnTBBwyUZeMqlVRhulkNPNQMRrAUk/mFXFYYJ2B9JwyVOMRC', 'ADMIN', true)
+ON CONFLICT (code) DO NOTHING;
+
+-- Seed sample products if not present
+INSERT INTO products (sku, name, unit, unit_per_pack, description, weight_kg, volume_m3, reorder_point, is_active)
+VALUES ('PROD-001', 'Nồi lẩu điện Sunhouse 3L', 'cái', 4, 'Nồi lẩu điện đa năng Sunhouse dung tích 3 lít', 2.50, 0.01200, 10.00, true)
+ON CONFLICT (sku) DO NOTHING;
+
 -- Seed sample suppliers if not present
 INSERT INTO suppliers (code, company_name, contact_person, phone, is_active)
 VALUES
