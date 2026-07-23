@@ -1,8 +1,8 @@
 -- Seed sample suppliers if not present
-INSERT INTO suppliers (code, name, contact_person, phone, email, is_active)
+INSERT INTO suppliers (code, company_name, contact_person, phone, is_active)
 VALUES
-    ('SUP-001', 'Công Ty Cung Cấp Chảo Sunhouse', 'Nguyen van B', '0912345678', 'contact@sunhouse.vn', true),
-    ('SUP-002', 'Công Ty Thiết Bị Gia Dụng Việt', 'Trần Văn C', '0987654321', 'contact@giadungviet.vn', true)
+    ('SUP-001', 'Công Ty Cung Cấp Chảo Sunhouse', 'Nguyen van B', '0912345678', true),
+    ('SUP-002', 'Công Ty Thiết Bị Gia Dụng Việt', 'Trần Văn C', '0987654321', true)
 ON CONFLICT (code) DO NOTHING;
 
 -- Seed sample receipts for physical warehouses
@@ -16,7 +16,7 @@ VALUES
         'RN-20260722-000001', 'PO-24126', 'PURCHASE',
         (SELECT id FROM warehouses WHERE code = 'WH-HP'),
         (SELECT id FROM suppliers WHERE code = 'SUP-001'),
-        'Nguyen van B', 'Zalo', 'PENDING_RECEIPT', CURRENT_DATE,
+        'Nguyen van B', 'ZALO', 'PENDING_RECEIPT', CURRENT_DATE,
         (SELECT id FROM accounting_periods ORDER BY start_date DESC LIMIT 1),
         (SELECT id FROM users WHERE code = 'NV-001'),
         'Lệnh nhập chảo inox mẫu cho kho Hải Phòng', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
@@ -25,7 +25,7 @@ VALUES
         'RN-20260722-000002', 'PO-24127', 'PURCHASE',
         (SELECT id FROM warehouses WHERE code = 'WH-HN'),
         (SELECT id FROM suppliers WHERE code = 'SUP-002'),
-        'Trần Văn C', 'Email', 'APPROVED', CURRENT_DATE,
+        'Trần Văn C', 'EMAIL', 'APPROVED', CURRENT_DATE,
         (SELECT id FROM accounting_periods ORDER BY start_date DESC LIMIT 1),
         (SELECT id FROM users WHERE code = 'NV-001'),
         'Lệnh nhập đồ gia dụng cho kho Hà Nội', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
