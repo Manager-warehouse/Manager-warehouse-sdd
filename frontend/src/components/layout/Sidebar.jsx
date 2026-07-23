@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Users, SquareUser, ShieldAlert, BarChart3, Package2, Settings, History, Box, Warehouse, Handshake, Truck, MapPin, PackageCheck, ClipboardList, DollarSign, CheckSquare, ArrowRightLeft, FileText, Landmark } from 'lucide-react';
+import { Users, SquareUser, ShieldAlert, BarChart3, Package2, Settings, History, Box, Warehouse, Handshake, Truck, MapPin, PackageCheck, ClipboardList, DollarSign, CheckSquare, ArrowRightLeft, FileText, Landmark, Calendar, PieChart } from 'lucide-react';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
@@ -104,6 +104,7 @@ const Sidebar = () => {
       title: 'Phiếu điều chuyển',
       path: '/transfers',
       icon: Package2,
+      end: true,
       roles: [ROLES.PLANNER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.WAREHOUSE_MANAGER, ROLES.DISPATCHER, ROLES.ADMIN, ROLES.CEO]
     }
   ];
@@ -152,15 +153,21 @@ const Sidebar = () => {
       roles: [ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN]
     },
     {
-      title: 'Hóa đơn & Kỳ kế toán',
+      title: 'Thu Tiền Đại lý (AR)',
       path: '/finance/invoices',
       icon: FileText,
       roles: [ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN, ROLES.CEO]
     },
     {
-      title: 'Thu nợ & Công nợ',
-      path: '/finance/payments',
+      title: 'Trả Tiền NCC (AP)',
+      path: '/finance/supplier-invoices',
       icon: Landmark,
+      roles: [ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN, ROLES.CEO]
+    },
+    {
+      title: 'Kỳ kế toán & Khóa sổ',
+      path: '/finance/periods',
+      icon: Calendar,
       roles: [ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.ADMIN, ROLES.CEO]
     }
   ];
@@ -215,10 +222,11 @@ const Sidebar = () => {
                 <NavLink
                   key={item.path}
                   to={item.path}
+                  end
                   className={({ isActive }) =>
                     `flex items-center gap-3 px-3 py-2.5 rounded-pill text-xs font-semibold uppercase tracking-wider transition-colors ${
                       isActive
-                        ? 'bg-canvas-nightElevated text-onPrimary'
+                        ? 'bg-onPrimary text-canvas-night'
                         : 'text-shade-40 hover:text-onPrimary hover:bg-canvas-nightElevated'
                     }`
                   }
@@ -242,10 +250,11 @@ const Sidebar = () => {
                   <NavLink
                     key={item.path}
                     to={item.path}
+                    end
                     className={({ isActive }) =>
                       `flex items-center gap-3 px-3 py-2.5 rounded-pill text-xs font-semibold uppercase tracking-wider transition-colors ${
                         isActive
-                          ? 'bg-canvas-nightElevated text-onPrimary'
+                          ? 'bg-onPrimary text-canvas-night'
                           : 'text-shade-40 hover:text-onPrimary hover:bg-canvas-nightElevated'
                       }`
                     }
@@ -270,10 +279,11 @@ const Sidebar = () => {
                   <NavLink
                     key={item.path}
                     to={item.path}
+                    end={!!item.end}
                     className={({ isActive }) =>
                       `flex items-center gap-3 px-3 py-2.5 rounded-pill text-xs font-semibold uppercase tracking-wider transition-colors ${
                         isActive
-                          ? 'bg-canvas-nightElevated text-onPrimary'
+                          ? 'bg-onPrimary text-canvas-night'
                           : 'text-shade-40 hover:text-onPrimary hover:bg-canvas-nightElevated'
                       }`
                     }
@@ -298,10 +308,11 @@ const Sidebar = () => {
                   <NavLink
                     key={item.path}
                     to={item.path}
+                    end
                     className={({ isActive }) =>
                       `flex items-center gap-3 px-3 py-2.5 rounded-pill text-xs font-semibold uppercase tracking-wider transition-colors ${
                         isActive
-                          ? 'bg-canvas-nightElevated text-onPrimary'
+                          ? 'bg-onPrimary text-canvas-night'
                           : 'text-shade-40 hover:text-onPrimary hover:bg-canvas-nightElevated'
                       }`
                     }
@@ -326,10 +337,11 @@ const Sidebar = () => {
                   <NavLink
                     key={item.path}
                     to={item.path}
+                    end
                     className={({ isActive }) =>
                       `flex items-center gap-3 px-3 py-2.5 rounded-pill text-xs font-semibold uppercase tracking-wider transition-colors ${
                         isActive
-                          ? 'bg-canvas-nightElevated text-onPrimary'
+                          ? 'bg-onPrimary text-canvas-night'
                           : 'text-shade-40 hover:text-onPrimary hover:bg-canvas-nightElevated'
                       }`
                     }
@@ -354,10 +366,11 @@ const Sidebar = () => {
                   <NavLink
                     key={item.path}
                     to={item.path}
+                    end
                     className={({ isActive }) =>
                       `flex items-center gap-3 px-3 py-2.5 rounded-pill text-xs font-semibold uppercase tracking-wider transition-colors ${
                         isActive
-                          ? 'bg-canvas-nightElevated text-onPrimary'
+                          ? 'bg-onPrimary text-canvas-night'
                           : 'text-shade-40 hover:text-onPrimary hover:bg-canvas-nightElevated'
                       }`
                     }
@@ -382,10 +395,11 @@ const Sidebar = () => {
                   <NavLink
                     key={item.path}
                     to={item.path}
+                    end
                     className={({ isActive }) =>
                       `flex items-center gap-3 px-3 py-2.5 rounded-pill text-xs font-semibold uppercase tracking-wider transition-colors ${
                         isActive
-                          ? 'bg-canvas-nightElevated text-onPrimary'
+                          ? 'bg-onPrimary text-canvas-night'
                           : 'text-shade-40 hover:text-onPrimary hover:bg-canvas-nightElevated'
                       }`
                     }
@@ -410,6 +424,7 @@ const Sidebar = () => {
                   <NavLink
                     key={item.path}
                     to={item.path}
+                    end
                     className={({ isActive }) =>
                       `flex items-center gap-3 px-3 py-2.5 rounded-pill text-xs font-semibold uppercase tracking-wider transition-colors ${
                         isActive

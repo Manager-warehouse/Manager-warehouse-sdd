@@ -427,23 +427,88 @@ export const financeService = {
     return response.data;
   },
 
-  closeAccountingPeriod: async (id, notes) => {
+  // --- SUPPLIER INVOICES & PAYMENTS (US-WMS-28) ---
+  getSupplierBillingNotifications: async () => {
     if (useMock) {
-      await new Promise(resolve => setTimeout(resolve, 400));
-      const list = getDb(KEYS.PERIODS, INITIAL_PERIODS);
-      const idx = list.findIndex(p => p.id === Number(id));
-      if (idx === -1) throw new Error('PERIOD_NOT_FOUND');
-
-      list[idx].status = 'CLOSED';
-      list[idx].closed_by_name = 'Phạm Kế Toán Trưởng';
-      list[idx].closed_at = new Date().toISOString();
-      list[idx].notes = notes;
-
-      saveDb(KEYS.PERIODS, list);
-      addMockAuditLog('PERIOD_CLOSED', 'AccountingPeriod', id, `Chốt sổ kỳ kế toán: ${list[idx].period_name}`);
-      return list[idx];
+      return [];
     }
-    const response = await apiClient.put(`/accounting-periods/${id}/close`, { notes });
+    const response = await apiClient.get('/supplier-billing-notifications');
+    return response.data;
+  },
+
+  getSupplierInvoices: async (filters = {}) => {
+    if (useMock) {
+      return [];
+    }
+    let url = '/supplier-invoices';
+    const params = [];
+    if (filters.supplierId) params.push(`supplierId=${filters.supplierId}`);
+    if (filters.status) params.push(`status=${filters.status}`);
+    if (params.length > 0) url += `?${params.join('&')}`;
+    const response = await apiClient.get(url);
+    return response.data;
+  },
+
+  createSupplierInvoice: async (data) => {
+    if (useMock) {
+      return { id: 1, ...data, status: 'UNPAID' };
+    }
+    const response = await apiClient.post('/supplier-invoices', {
+      receiptId: data.receiptId,
+      supplierInvoiceNumber: data.supplierInvoiceNumber,
+      documentDate: data.documentDate,
+      dueDate: data.dueDate,
+      notes: data.notes
+    });
+    return response.data;
+  },
+
+  getSupplierPayments: async (filters = {}) => {
+    if (useMock) {
+      return [];
+    }
+    let url = '/supplier-payments';
+    const params = [];
+    if (filters.supplierId) params.push(`supplierId=${filters.supplierId}`);
+    if (filters.invoiceId) params.push(`invoiceId=${filters.invoiceId}`);
+    if (params.length > 0) url += `?${params.join('&')}`;
+    const response = await apiClient.get(url);
+    return response.data;
+  },
+
+  createSupplierPayment: async (data) => {
+    if (useMock) {
+      return { id: 1, ...data };
+    }
+    const response = await apiClient.post('/supplier-payments', {
+      supplierId: data.supplierId,
+      supplierInvoiceId: data.supplierInvoiceId,
+      amount: data.amount,
+      paymentDate: data.paymentDate,
+      paymentMethod: data.paymentMethod,
+      documentDate: data.documentDate,
+      notes: data.notes
+    });
+    return response.data;
+  },
+
+  scanSupplierPaymentOcr: async (file) => {
+    if (useMock) {
+      return {
+        amount: 20000000.00,
+        paymentDate: new Date().toISOString().slice(0, 10),
+        supplierId: 1,
+        notes: `UNC CHI TIEN HANG - NCC GIA DUNG PHUNG - GD ${Math.floor(Math.random() * 100000)}`,
+        confidenceScore: 0.94
+      };
+    }
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await apiClient.post('/supplier-payments/ocr', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
     return response.data;
   }
 };
