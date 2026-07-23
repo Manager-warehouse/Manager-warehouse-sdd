@@ -44,6 +44,8 @@ import lombok.Getter;
 public class DriverDeliveryOrderResponse {
     private Long doId;
     private String doNumber;
+    private String dealerName;
+    private String dealerAddress;
     private DeliveryOrderStatus status;
     private Integer stopOrder;
     private DeliveryAttemptResponse currentAttempt;
