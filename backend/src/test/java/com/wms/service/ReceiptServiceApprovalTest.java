@@ -177,6 +177,7 @@ class ReceiptServiceApprovalTest {
                 request.setExpectedVersion(3);
 
                 when(receiptRepository.findById(1L)).thenReturn(Optional.of(qcCompletedReceipt));
+                when(receiptRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(qcCompletedReceipt));
                 when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
                 when(receiptItemRepository.findByReceiptId(1L)).thenReturn(List.of(receiptItem));
                 when(batchRepository.findByProductWarehouseAndReceivedDate(100L, 10L, LocalDate.of(2026, 6, 11)))
@@ -203,6 +204,7 @@ class ReceiptServiceApprovalTest {
                 request.setExpectedVersion(3);
 
                 when(receiptRepository.findById(1L)).thenReturn(Optional.of(qcCompletedReceipt));
+                when(receiptRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(qcCompletedReceipt));
                 when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
                 when(receiptItemRepository.findByReceiptId(1L)).thenReturn(List.of(receiptItem));
                 when(batchRepository.findByProductWarehouseAndReceivedDate(any(), any(), any()))
@@ -229,6 +231,7 @@ class ReceiptServiceApprovalTest {
                 request.setExpectedVersion(3);
 
                 when(receiptRepository.findById(1L)).thenReturn(Optional.of(qcCompletedReceipt));
+                when(receiptRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(qcCompletedReceipt));
                 when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
 
                 assertThrows(BusinessRuleViolationException.class,
@@ -249,6 +252,7 @@ class ReceiptServiceApprovalTest {
                 request.setExpectedVersion(3);
 
                 when(receiptRepository.findById(1L)).thenReturn(Optional.of(qcCompletedReceipt));
+                when(receiptRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(qcCompletedReceipt));
                 when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
 
                 assertThrows(ReceiptAlreadyDecidedException.class,
@@ -262,6 +266,7 @@ class ReceiptServiceApprovalTest {
                 request.setExpectedVersion(3);
 
                 when(receiptRepository.findById(1L)).thenReturn(Optional.of(qcCompletedReceipt));
+                when(receiptRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(qcCompletedReceipt));
                 when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
 
                 assertThrows(ReceiptAlreadyDecidedException.class,
@@ -278,6 +283,7 @@ class ReceiptServiceApprovalTest {
                 request.setExpectedVersion(99); // Client has old version 99, current is 3
 
                 when(receiptRepository.findById(1L)).thenReturn(Optional.of(qcCompletedReceipt));
+                when(receiptRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(qcCompletedReceipt));
                 when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
 
                 BusinessRuleViolationException ex = assertThrows(BusinessRuleViolationException.class,
@@ -323,6 +329,7 @@ class ReceiptServiceApprovalTest {
                 request.setExpectedVersion(3);
 
                 when(receiptRepository.findById(1L)).thenReturn(Optional.of(qcCompletedReceipt));
+                when(receiptRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(qcCompletedReceipt));
                 when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
                 when(receiptItemRepository.findByReceiptId(1L)).thenReturn(List.of(receiptItem));
                 when(batchRepository.findByProductWarehouseAndReceivedDate(100L, 10L, LocalDate.of(2026, 6, 11)))

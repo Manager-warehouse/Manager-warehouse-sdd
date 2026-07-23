@@ -175,6 +175,7 @@ class ReceiptServiceReturnToSupplierTest {
         request.setReason("Hàng bị ẩm, không đạt tiêu chuẩn chất lượng");
 
         when(receiptRepository.findById(1L)).thenReturn(Optional.of(qcCompletedReceipt));
+        when(receiptRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(qcCompletedReceipt));
         when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
         when(receiptRepository.save(any(Receipt.class))).thenAnswer(i -> i.getArgument(0));
 
@@ -196,6 +197,7 @@ class ReceiptServiceReturnToSupplierTest {
         request.setReason("Hàng lỗi mẫu");
 
         when(receiptRepository.findById(1L)).thenReturn(Optional.of(qcCompletedReceipt));
+        when(receiptRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(qcCompletedReceipt));
         when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
         when(receiptRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
@@ -248,6 +250,7 @@ class ReceiptServiceReturnToSupplierTest {
         request.setReason("reason");
 
         when(receiptRepository.findById(1L)).thenReturn(Optional.of(qcCompletedReceipt));
+        when(receiptRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(qcCompletedReceipt));
         when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
 
         assertThrows(ReceiptAlreadyDecidedException.class,
@@ -262,6 +265,7 @@ class ReceiptServiceReturnToSupplierTest {
         request.setReason("reason");
 
         when(receiptRepository.findById(1L)).thenReturn(Optional.of(qcCompletedReceipt));
+        when(receiptRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(qcCompletedReceipt));
         when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
 
         assertThrows(BusinessRuleViolationException.class,
@@ -279,6 +283,7 @@ class ReceiptServiceReturnToSupplierTest {
         request.setHandoverNote("Tài xế Nguyễn Văn A, xe 51A-12345");
 
         when(receiptRepository.findById(2L)).thenReturn(Optional.of(returnPendingReceipt));
+        when(receiptRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(returnPendingReceipt));
         when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(6L)).thenReturn(List.of(10L));
         when(receiptRepository.save(any(Receipt.class))).thenAnswer(i -> i.getArgument(0));
 
@@ -298,6 +303,7 @@ class ReceiptServiceReturnToSupplierTest {
         request.setExpectedVersion(4);
 
         when(receiptRepository.findById(2L)).thenReturn(Optional.of(returnPendingReceipt));
+        when(receiptRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(returnPendingReceipt));
         when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(6L)).thenReturn(List.of(10L));
         when(receiptRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
@@ -320,6 +326,7 @@ class ReceiptServiceReturnToSupplierTest {
         request.setExpectedVersion(4);
 
         when(receiptRepository.findById(2L)).thenReturn(Optional.of(returnPendingReceipt));
+        when(receiptRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(returnPendingReceipt));
         when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(6L)).thenReturn(List.of(10L));
 
         BusinessRuleViolationException ex = assertThrows(BusinessRuleViolationException.class,
@@ -335,6 +342,7 @@ class ReceiptServiceReturnToSupplierTest {
         request.setExpectedVersion(99); // Stale
 
         when(receiptRepository.findById(2L)).thenReturn(Optional.of(returnPendingReceipt));
+        when(receiptRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(returnPendingReceipt));
         when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(6L)).thenReturn(List.of(10L));
 
         BusinessRuleViolationException ex = assertThrows(BusinessRuleViolationException.class,
