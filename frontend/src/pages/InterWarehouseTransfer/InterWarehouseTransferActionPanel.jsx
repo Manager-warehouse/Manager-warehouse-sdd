@@ -742,7 +742,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
 
       {/* Wrong SKU submission form */}
       {transfer.status === 'IN_TRANSIT' && !transfer.isReturned && !allItemsCounted && !transfer.returnRequested
-        && (activeReceivingHandoverDone || showWrongSkuForm)
+        && showWrongSkuForm && !activeReceivingHandoverDone
         && hasAny(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && (
         <div className="rounded-lg border border-hairline-light bg-canvas-cream p-4 text-sm flex flex-col gap-3 mb-2">
           <div className="text-xs text-ink font-semibold flex items-center gap-1.5 text-danger-700">
@@ -816,7 +816,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
         </div>
       )}
 
-      {transfer.status === 'IN_TRANSIT' && !transfer.isReturned && !transfer.returnRequested && hasAny(hasRole, [ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]) && canManageSourceWarehouse && (
+      {transfer.status === 'IN_TRANSIT' && !transfer.isReturned && !transfer.returnRequested && !transfer.driverArrivedAt && hasAny(hasRole, [ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]) && canManageSourceWarehouse && (
         <div className="rounded-md border border-warning-200 bg-warning-50/50 p-3 flex flex-col gap-2 mb-2">
           <div className="text-xs text-warning-800 font-medium">Chuyến xe có sự cố hoặc cần quay đầu về kho nguồn? (Yêu cầu lý do)</div>
           <div className="flex gap-2">

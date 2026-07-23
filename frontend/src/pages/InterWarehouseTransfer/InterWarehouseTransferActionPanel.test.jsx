@@ -156,6 +156,27 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
     expect(screen.queryByRole('button', { name: 'Hạ hàng khỏi xe' })).not.toBeInTheDocument();
   });
 
+  it('shows only worker count action after destination handover is sent to staff', () => {
+    renderPanel({
+      roles: [ROLES.ADMIN],
+      activeWarehouse: { id: 2, code: 'WH-HP' },
+      warehouseAccessIds: [1, 2],
+      transfer: {
+        ...baseTransfer,
+        status: 'IN_TRANSIT',
+        driverArrivedAt: '2026-07-22T10:00:00Z',
+        arrivalHandoverAt: '2026-07-22T10:05:00Z',
+        arrivalHandoverPhotoRef: 'uploads/handover.jpg',
+      },
+    });
+
+    expect(screen.getByText('Chờ nhập số lượng thực nhận')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Nhập số lượng thực nhận' })).toBeInTheDocument();
+    expect(screen.queryByText('Báo sai SKU & Yêu cầu quay đầu xe')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Gửi yêu cầu quay đầu' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Quay đầu về kho nguồn' })).not.toBeInTheDocument();
+  });
+
   it('keeps direct return-to-source action for source manager only', async () => {
     renderPanel({
       roles: [ROLES.WAREHOUSE_MANAGER],
