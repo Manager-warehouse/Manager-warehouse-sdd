@@ -1,6 +1,5 @@
 package com.wms.dto.request;
 
-import com.wms.enums.order_fulfillment.ReturnedGoodsQualityResult;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
@@ -22,10 +21,15 @@ public class ReturnedGoodsCountQcItemRequest {
 
     @NotNull
     @DecimalMin(value = "0.00")
-    private BigDecimal countedQty;
+    private BigDecimal actualQty;
 
     @NotNull
-    private ReturnedGoodsQualityResult qualityResult;
+    @DecimalMin(value = "0.00")
+    private BigDecimal qualityPassQty;
 
-    private String qualityReason;
+    @NotNull
+    @DecimalMin(value = "0.00")
+    private BigDecimal qualityFailQty;
+
+    private String qualityFailureReason;
 }

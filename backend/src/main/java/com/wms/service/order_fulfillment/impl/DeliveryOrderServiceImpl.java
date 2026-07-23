@@ -56,6 +56,7 @@ import com.wms.dto.request.ReturnedGoodsCountQcRequest;
 import com.wms.dto.request.ReturnedGoodsPutawayCompleteRequest;
 import com.wms.dto.request.ReturnedGoodsPutawayPlanItemRequest;
 import com.wms.dto.request.ReturnedGoodsPutawayPlanRequest;
+import com.wms.dto.request.ReturnedGoodsReceiveRequest;
 import com.wms.dto.response.DeliveryOrderResponse;
 import com.wms.dto.response.PickingCandidateResponse;
 import com.wms.dto.response.ReturnedGoodsFlowItemResponse;
@@ -87,7 +88,7 @@ import com.wms.enums.order_fulfillment.ApprovalResult;
 import com.wms.enums.dealer_management.CreditStatus;
 import com.wms.enums.order_fulfillment.DeliveryOrderStatus;
 import com.wms.enums.order_fulfillment.ReturnedDeliveryFlowStatus;
-import com.wms.enums.order_fulfillment.ReturnedGoodsQualityResult;
+import com.wms.enums.order_fulfillment.ReturnedGoodsQcDecision;
 import com.wms.enums.billing_payment.InvoiceStatus;
 import com.wms.enums.warehouse_location.LocationType;
 import com.wms.enums.access_control.UserRole;
@@ -988,55 +989,100 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
 
     @Override
     @Transactional
-    public ReturnedGoodsFlowResponse submitReturnedGoodsCountQc(Long id,
-            ReturnedGoodsCountQcRequest request,
+    public ReturnedGoodsFlowResponse confirmReturnedGoodsReceived(Long id,
+            ReturnedGoodsReceiveRequest request,
             User actor) {
-        requireRole(actor, UserRole.WAREHOUSE_STAFF, "Only Warehouse Staff can submit returned goods count/QC");
+        requireRole(actor, UserRole.STOREKEEPER, "Only Storekeeper can confirm returned goods arrival");
         DeliveryOrder order = findOrder(id);
         requireReturnedOrderScope(order, actor);
         if (returnedDeliveryFlowRepository.existsByDeliveryOrderId(order.getId())) {
             throw new OutboundDeliveryException("RETURN_FLOW_ALREADY_EXISTS", HttpStatus.UNPROCESSABLE_ENTITY,
-                    "Returned goods count/QC has already been submitted");
+                    "Returned goods flow has already been opened");
         }
 
         Map<ReturnedLineKey, ReturnedExpectedLine> expectedByKey = expectedReturnedLines(order);
-        Map<ReturnedLineKey, ReturnedGoodsCountQcItemRequest> requestByKey = countQcRequestByKey(request);
-        if (!requestByKey.keySet().equals(expectedByKey.keySet())) {
-            throw new OutboundDeliveryException("RETURN_FLOW_LINE_MISMATCH", HttpStatus.UNPROCESSABLE_ENTITY,
-                    "Returned count/QC lines must match the delivery order shipped product batches");
-        }
-
         OffsetDateTime now = OffsetDateTime.now();
         ReturnedDeliveryFlow flow = new ReturnedDeliveryFlow();
         flow.setDeliveryOrder(order);
-        flow.setStatus(ReturnedDeliveryFlowStatus.COUNT_QC_SUBMITTED);
-        flow.setCountedByStaff(actor);
+        flow.setStatus(ReturnedDeliveryFlowStatus.COUNT_QC_PENDING);
+        flow.setReceivedConfirmedByStorekeeper(actor);
         flow.setNotes(request.getNotes());
         flow.setCreatedAt(now);
         flow.setUpdatedAt(now);
-        for (Map.Entry<ReturnedLineKey, ReturnedExpectedLine> entry : expectedByKey.entrySet()) {
-            ReturnedGoodsCountQcItemRequest row = requestByKey.get(entry.getKey());
-            if (row.getQualityResult() == ReturnedGoodsQualityResult.FAILED
-                    && (row.getQualityReason() == null || row.getQualityReason().isBlank())) {
-                throw new OutboundDeliveryException("RETURN_QUALITY_REASON_REQUIRED", HttpStatus.UNPROCESSABLE_ENTITY,
-                        "qualityReason is required when returned goods fail quality check");
-            }
-            ReturnedExpectedLine expected = entry.getValue();
+        for (ReturnedExpectedLine expected : expectedByKey.values()) {
             ReturnedDeliveryFlowItem item = new ReturnedDeliveryFlowItem();
             item.setFlow(flow);
             item.setDeliveryOrderItem(expected.item());
             item.setProduct(expected.item().getProduct());
             item.setBatch(expected.batch());
             item.setExpectedQty(expected.expectedQty());
-            item.setCountedQty(value(row.getCountedQty()));
-            item.setQualityResult(row.getQualityResult());
-            item.setQualityReason(blankToNull(row.getQualityReason()));
             flow.getItems().add(item);
         }
 
         ReturnedDeliveryFlow saved = returnedDeliveryFlowRepository.save(flow);
-        auditUtil.logChange(actor, AuditAction.RETURN_FLOW_COUNT_QC_SUBMIT, "DELIVERY_ORDER",
+        auditUtil.logChange(actor, AuditAction.RETURN_FLOW_RECEIVE_CONFIRM, "DELIVERY_ORDER",
                 order.getId(), order.getDoNumber(), Map.of(), returnedFlowSnapshot(saved));
+        return toReturnedGoodsFlowResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public ReturnedGoodsFlowResponse submitReturnedGoodsCountQc(Long id,
+            ReturnedGoodsCountQcRequest request,
+            User actor) {
+        requireRole(actor, UserRole.WAREHOUSE_STAFF, "Only Warehouse Staff can submit returned goods count/QC");
+        DeliveryOrder order = findOrder(id);
+        requireReturnedOrderScope(order, actor);
+        ReturnedDeliveryFlow flow = returnedFlow(order.getId());
+        if (flow.getStatus() != ReturnedDeliveryFlowStatus.COUNT_QC_PENDING
+                && flow.getStatus() != ReturnedDeliveryFlowStatus.QC_REJECTED) {
+            throw new OutboundDeliveryException("RETURN_FLOW_STATUS_INVALID", HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Returned goods count/QC is only allowed after Storekeeper arrival confirmation or QC rejection");
+        }
+
+        Map<ReturnedLineKey, ReturnedDeliveryFlowItem> itemsByKey = flow.getItems().stream()
+                .collect(Collectors.toMap(item -> new ReturnedLineKey(item.getDeliveryOrderItem().getId(),
+                        item.getProduct().getId(), item.getBatch().getId()), Function.identity()));
+        Map<ReturnedLineKey, ReturnedGoodsCountQcItemRequest> requestByKey = countQcRequestByKey(request);
+        if (!requestByKey.keySet().equals(itemsByKey.keySet())) {
+            throw new OutboundDeliveryException("RETURN_FLOW_LINE_MISMATCH", HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Returned count/QC lines must match the delivery order shipped product batches");
+        }
+
+        Map<String, Object> before = returnedFlowSnapshot(flow);
+        OffsetDateTime now = OffsetDateTime.now();
+        for (Map.Entry<ReturnedLineKey, ReturnedGoodsCountQcItemRequest> entry : requestByKey.entrySet()) {
+            ReturnedDeliveryFlowItem item = itemsByKey.get(entry.getKey());
+            ReturnedGoodsCountQcItemRequest row = entry.getValue();
+            BigDecimal actualQty = value(row.getActualQty());
+            BigDecimal passQty = value(row.getQualityPassQty());
+            BigDecimal failQty = value(row.getQualityFailQty());
+            if (passQty.add(failQty).compareTo(actualQty) != 0) {
+                throw new OutboundDeliveryException("RETURN_QTY_SPLIT_MISMATCH", HttpStatus.UNPROCESSABLE_ENTITY,
+                        "Quality passed quantity plus failed quantity must equal actual returned quantity");
+            }
+            if (failQty.compareTo(ZERO) > 0 && blankToNull(row.getQualityFailureReason()) == null) {
+                throw new OutboundDeliveryException("RETURN_QUALITY_REASON_REQUIRED", HttpStatus.UNPROCESSABLE_ENTITY,
+                        "qualityFailureReason is required when returned goods fail quality check");
+            }
+            item.setActualQty(actualQty);
+            item.setQualityPassQty(passQty);
+            item.setQualityFailQty(failQty);
+            item.setQualityFailureReason(blankToNull(row.getQualityFailureReason()));
+            item.setDestinationLocation(null);
+            item.setPlannedQty(null);
+            item.setPutawayCompletedQty(null);
+        }
+        flow.setStatus(ReturnedDeliveryFlowStatus.COUNT_QC_SUBMITTED);
+        flow.setCountedByStaff(actor);
+        flow.setRejectedByStorekeeper(null);
+        flow.setRejectionReason(null);
+        flow.setNotes(request.getNotes());
+        flow.setUpdatedAt(now);
+
+        ReturnedDeliveryFlow saved = returnedDeliveryFlowRepository.save(flow);
+        auditUtil.logChange(actor, AuditAction.RETURN_FLOW_COUNT_QC_SUBMIT, "DELIVERY_ORDER",
+                order.getId(), order.getDoNumber(), before, returnedFlowSnapshot(saved));
         return toReturnedGoodsFlowResponse(saved);
     }
 
@@ -1059,22 +1105,40 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         ReturnedDeliveryFlow flow = returnedFlow(order.getId());
         if (flow.getStatus() != ReturnedDeliveryFlowStatus.COUNT_QC_SUBMITTED) {
             throw new OutboundDeliveryException("RETURN_FLOW_STATUS_INVALID", HttpStatus.UNPROCESSABLE_ENTITY,
-                    "Returned goods approval is only allowed after staff count/QC submission");
+                    "Returned goods QC decision is only allowed after staff count/QC submission");
         }
-        for (ReturnedDeliveryFlowItem item : flow.getItems()) {
-            if (value(item.getCountedQty()).compareTo(value(item.getExpectedQty())) != 0) {
-                throw new OutboundDeliveryException("RETURN_QTY_MISMATCH", HttpStatus.UNPROCESSABLE_ENTITY,
-                        "Storekeeper cannot approve returned goods when counted quantity differs from shipped quantity");
+        if (request.getDecision() == ReturnedGoodsQcDecision.REJECT) {
+            if (blankToNull(request.getRejectionReason()) == null) {
+                throw new OutboundDeliveryException("RETURN_QC_REJECTION_REASON_REQUIRED",
+                        HttpStatus.UNPROCESSABLE_ENTITY, "rejectionReason is required when Storekeeper rejects QC");
             }
+            Map<String, Object> before = returnedFlowSnapshot(flow);
+            flow.setStatus(ReturnedDeliveryFlowStatus.QC_REJECTED);
+            flow.setRejectedByStorekeeper(actor);
+            flow.setRejectionReason(request.getRejectionReason().trim());
+            flow.setApprovalNotes(request.getNotes());
+            flow.setUpdatedAt(OffsetDateTime.now());
+            ReturnedDeliveryFlow saved = returnedDeliveryFlowRepository.save(flow);
+            auditUtil.logChange(actor, AuditAction.RETURN_FLOW_QC_REJECT, "DELIVERY_ORDER",
+                    order.getId(), order.getDoNumber(), before, returnedFlowSnapshot(saved));
+            return toReturnedGoodsFlowResponse(saved);
         }
 
+        for (ReturnedDeliveryFlowItem item : flow.getItems()) {
+            if (item.getActualQty() == null || item.getQualityPassQty() == null || item.getQualityFailQty() == null) {
+                throw new OutboundDeliveryException("RETURN_COUNT_QC_INCOMPLETE", HttpStatus.UNPROCESSABLE_ENTITY,
+                        "Storekeeper cannot accept returned goods before every line has actual/pass/fail quantities");
+            }
+        }
         Map<String, Object> before = returnedFlowSnapshot(flow);
-        flow.setStatus(ReturnedDeliveryFlowStatus.APPROVED);
+        flow.setStatus(ReturnedDeliveryFlowStatus.QC_APPROVED);
         flow.setApprovedByStorekeeper(actor);
+        flow.setRejectedByStorekeeper(null);
+        flow.setRejectionReason(null);
         flow.setApprovalNotes(request.getNotes());
         flow.setUpdatedAt(OffsetDateTime.now());
         ReturnedDeliveryFlow saved = returnedDeliveryFlowRepository.save(flow);
-        auditUtil.logChange(actor, AuditAction.RETURN_FLOW_APPROVE, "DELIVERY_ORDER",
+        auditUtil.logChange(actor, AuditAction.RETURN_FLOW_QC_ACCEPT, "DELIVERY_ORDER",
                 order.getId(), order.getDoNumber(), before, returnedFlowSnapshot(saved));
         return toReturnedGoodsFlowResponse(saved);
     }
@@ -1088,9 +1152,9 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         DeliveryOrder order = findOrder(id);
         requireReturnedOrderScope(order, actor);
         ReturnedDeliveryFlow flow = returnedFlow(order.getId());
-        if (flow.getStatus() != ReturnedDeliveryFlowStatus.APPROVED) {
+        if (flow.getStatus() != ReturnedDeliveryFlowStatus.QC_APPROVED) {
             throw new OutboundDeliveryException("RETURN_FLOW_STATUS_INVALID", HttpStatus.UNPROCESSABLE_ENTITY,
-                    "Returned goods putaway planning is only allowed after Storekeeper approval");
+                    "Returned goods putaway planning is only allowed after Storekeeper QC acceptance");
         }
 
         Map<ReturnedLineKey, ReturnedDeliveryFlowItem> itemsByKey = flow.getItems().stream()
@@ -1106,12 +1170,12 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         for (Map.Entry<ReturnedLineKey, ReturnedGoodsPutawayPlanItemRequest> entry : requestByKey.entrySet()) {
             ReturnedDeliveryFlowItem item = itemsByKey.get(entry.getKey());
             ReturnedGoodsPutawayPlanItemRequest row = entry.getValue();
-            if (value(row.getPlannedQty()).compareTo(value(item.getCountedQty())) != 0) {
+            if (value(row.getPlannedQty()).compareTo(value(item.getActualQty())) != 0) {
                 throw new OutboundDeliveryException("RETURN_PUTAWAY_QTY_MISMATCH", HttpStatus.UNPROCESSABLE_ENTITY,
-                        "Returned putaway planned quantity must equal counted quantity");
+                        "Returned putaway planned quantity must equal actual returned quantity");
             }
             WarehouseLocation destination = resolveWarehouseLocation(order, row.getDestinationLocationId(),
-                    item.getQualityResult() == ReturnedGoodsQualityResult.FAILED, "returned putaway");
+                    value(item.getQualityFailQty()).compareTo(ZERO) > 0, "returned putaway");
             item.setDestinationLocation(destination);
             item.setPlannedQty(value(row.getPlannedQty()));
         }
@@ -1158,7 +1222,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
 
             Inventory destinationInventory = loadOrCreateInventoryRow(order, item.getProduct(), item.getBatch(),
                     item.getDestinationLocation(), transitInventory,
-                    item.getQualityResult() == ReturnedGoodsQualityResult.FAILED, now);
+                    value(item.getQualityFailQty()).compareTo(ZERO) > 0, now);
             destinationInventory.setTotalQty(value(destinationInventory.getTotalQty()).add(item.getPlannedQty()));
             destinationInventory.setUpdatedAt(now);
             saveInventoryWithConflictHandling(destinationInventory);
@@ -1250,15 +1314,17 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                 .doNumber(order.getDoNumber())
                 .deliveryOrderStatus(order.getStatus())
                 .flowStatus(flow.getStatus())
+                .rejectionReason(flow.getRejectionReason())
                 .items(flow.getItems().stream()
                         .map(item -> ReturnedGoodsFlowItemResponse.builder()
                                 .doItemId(item.getDeliveryOrderItem().getId())
                                 .productId(item.getProduct().getId())
                                 .batchId(item.getBatch().getId())
                                 .expectedQty(item.getExpectedQty())
-                                .countedQty(item.getCountedQty())
-                                .qualityResult(item.getQualityResult())
-                                .qualityReason(item.getQualityReason())
+                                .actualQty(item.getActualQty())
+                                .qualityPassQty(item.getQualityPassQty())
+                                .qualityFailQty(item.getQualityFailQty())
+                                .qualityFailureReason(item.getQualityFailureReason())
                                 .destinationLocationId(item.getDestinationLocation() == null ? null
                                         : item.getDestinationLocation().getId())
                                 .plannedQty(item.getPlannedQty())
@@ -1272,14 +1338,17 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         return PartnerAuditUtil.values(
                 "flowId", flow.getId(),
                 "status", flow.getStatus(),
+                "rejectionReason", flow.getRejectionReason(),
                 "items", flow.getItems().stream()
                         .map(item -> PartnerAuditUtil.values(
                                 "doItemId", item.getDeliveryOrderItem().getId(),
                                 "productId", item.getProduct().getId(),
                                 "batchId", item.getBatch().getId(),
                                 "expectedQty", item.getExpectedQty(),
-                                "countedQty", item.getCountedQty(),
-                                "qualityResult", item.getQualityResult(),
+                                "actualQty", item.getActualQty(),
+                                "qualityPassQty", item.getQualityPassQty(),
+                                "qualityFailQty", item.getQualityFailQty(),
+                                "qualityFailureReason", item.getQualityFailureReason(),
                                 "destinationLocationId", item.getDestinationLocation() == null ? null
                                         : item.getDestinationLocation().getId(),
                                 "plannedQty", item.getPlannedQty(),

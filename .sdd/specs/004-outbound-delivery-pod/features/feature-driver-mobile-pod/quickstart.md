@@ -153,20 +153,24 @@ Expected result:
 
 Expected sequence:
 
-1. Warehouse staff opens the returned Delivery Order in `RETURNED`.
-2. Frontend calls `GET /api/v1/delivery-orders/{doId}/returned-goods` to resume the returned-goods flow if staff has already submitted count/QC.
-3. Warehouse staff submits returned quantity count and quality inspection results by item/product/batch with `PUT /api/v1/delivery-orders/{doId}/returned-goods/count-qc`.
-4. Storekeeper reviews and approves the returned quantity and quality result with `PUT /api/v1/delivery-orders/{doId}/returned-goods/approval`.
-5. Storekeeper creates a putaway plan selecting the destination warehouse location with `PUT /api/v1/delivery-orders/{doId}/returned-goods/putaway-plan`.
-6. Warehouse staff confirms the returned goods were put away successfully with `PUT /api/v1/delivery-orders/{doId}/returned-goods/putaway-complete`.
+1. Storekeeper opens the returned Delivery Order in `RETURNED` and confirms the goods have physically arrived back at the warehouse with `PUT /api/v1/delivery-orders/{doId}/returned-goods/receive`.
+2. Frontend calls `GET /api/v1/delivery-orders/{doId}/returned-goods` to resume the returned-goods flow and show the current staff/storekeeper step.
+3. Warehouse staff submits actual returned quantity, quality-passed quantity, quality-failed quantity, and failure reason by item/product/batch with `PUT /api/v1/delivery-orders/{doId}/returned-goods/count-qc`.
+4. Storekeeper reviews the count/QC result with `PUT /api/v1/delivery-orders/{doId}/returned-goods/approval`.
+5. If Storekeeper rejects the result, the request includes `decision = REJECT` and `rejectionReason`; the flow returns to staff count/QC rework and staff resubmits corrected values.
+6. If Storekeeper accepts the result, the request includes `decision = ACCEPT`; Storekeeper can then create a putaway plan selecting destination warehouse locations with `PUT /api/v1/delivery-orders/{doId}/returned-goods/putaway-plan`.
+7. Warehouse staff confirms the returned goods were put away successfully with `PUT /api/v1/delivery-orders/{doId}/returned-goods/putaway-complete`.
 
 Expected result:
 
-- Delivery Order remains `RETURNED` during staff count/QC, Storekeeper approval, and Storekeeper putaway planning.
+- Delivery Order remains `RETURNED` during Storekeeper goods-arrival confirmation, staff count/QC, Storekeeper QC decision, Storekeeper putaway planning, and staff putaway execution.
+- Staff can enter count/QC only after Storekeeper has confirmed goods arrival.
+- Staff must enter actual quantity, quality-passed quantity, quality-failed quantity, and failure reason when failed quantity is greater than zero.
+- Storekeeper rejection requires a reason and sends the flow back to staff rework.
 - Goods remain in virtual `IN_TRANSIT` until putaway completion.
 - Putaway completion moves goods from virtual `IN_TRANSIT` to the Storekeeper-approved destination location.
 - Putaway completion moves Delivery Order from `RETURNED` to `DELIVERY_FAILED`.
-- The system writes audit records for count/QC submission, Storekeeper approval, putaway planning, and putaway completion.
+- The system writes audit records for arrival confirmation, count/QC submission, Storekeeper acceptance/rejection, putaway planning, and putaway completion.
 
 ### 6. Admin resets locked OTP
 
@@ -201,9 +205,10 @@ Expected result:
 - Service test: successful confirmation updates attempt, consumes OTP, decrements `IN_TRANSIT` inventory, creates invoice/receivable, and moves Delivery Order to `COMPLETED` in one transaction.
 - Service test: failed delivery moves Delivery Order to `RETURNED` without changing inventory.
 - Service test: trip completion only works when every assigned Delivery Order is `COMPLETED` or `RETURNED`.
-- Service test: returned goods flow keeps Delivery Order `RETURNED` during staff count/QC, Storekeeper approval, and Storekeeper putaway planning.
+- Service test: returned goods flow keeps Delivery Order `RETURNED` during Storekeeper arrival confirmation, staff count/QC, Storekeeper QC decision, and Storekeeper putaway planning.
+- Service test: Storekeeper QC rejection requires a reason and allows staff count/QC rework before acceptance.
 - Service test: returned goods putaway completion moves inventory from virtual `IN_TRANSIT` to the Storekeeper-approved location and moves Delivery Order to `DELIVERY_FAILED`.
-- Controller integration test: returned goods flow state read, count/QC submit, Storekeeper approval, putaway planning, and staff putaway completion endpoints enforce role and state validations.
+- Controller integration test: returned goods flow state read, Storekeeper arrival confirmation, count/QC submit/resubmit, Storekeeper accept/reject, putaway planning, and staff putaway completion endpoints enforce role and state validations.
 - Controller integration test: POD upload, OTP request, confirm-delivery, fail-delivery, trip-complete, and admin-reset endpoints return expected happy-path and business-error responses.
 - Frontend test: driver list filters `Tat ca`, `Noi bo`, and `Dai ly` render the expected card subset and type-specific wording.
 

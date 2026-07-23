@@ -3,11 +3,8 @@ package com.wms.entity.order_fulfillment;
 import com.wms.entity.product_catalog.Product;
 import com.wms.entity.stock_control.Batch;
 import com.wms.entity.warehouse_location.WarehouseLocation;
-import com.wms.enums.order_fulfillment.ReturnedGoodsQualityResult;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -49,15 +46,17 @@ public class ReturnedDeliveryFlowItem {
     @Column(name = "expected_qty", nullable = false, precision = 10, scale = 2)
     private BigDecimal expectedQty;
 
-    @Column(name = "counted_qty", nullable = false, precision = 10, scale = 2)
-    private BigDecimal countedQty;
+    @Column(name = "actual_qty", precision = 10, scale = 2)
+    private BigDecimal actualQty;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "quality_result", nullable = false, length = 20)
-    private ReturnedGoodsQualityResult qualityResult;
+    @Column(name = "quality_pass_qty", precision = 10, scale = 2)
+    private BigDecimal qualityPassQty;
 
-    @Column(name = "quality_reason", columnDefinition = "TEXT")
-    private String qualityReason;
+    @Column(name = "quality_fail_qty", precision = 10, scale = 2)
+    private BigDecimal qualityFailQty;
+
+    @Column(name = "quality_failure_reason", columnDefinition = "TEXT")
+    private String qualityFailureReason;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "destination_location_id")
