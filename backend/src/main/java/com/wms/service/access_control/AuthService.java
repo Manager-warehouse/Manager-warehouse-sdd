@@ -288,7 +288,16 @@ public class AuthService {
             throw new IllegalArgumentException("INVALID_CREDENTIALS");
         }
 
+        if (passwordEncoder.matches(request.getNewPassword(), user.getPasswordHash())) {
+            throw new IllegalArgumentException("NEW_PASSWORD_SAME_AS_CURRENT");
+        }
+
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        // Invalidate any active sessions — if the current one was compromised,
+        // the attacker's refresh token must stop working the moment the
+        // legitimate owner changes their password.
+        user.setRefreshTokenHash(null);
+        user.setRefreshTokenExpiresAt(null);
         userRepository.save(user);
     }
 

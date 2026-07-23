@@ -201,6 +201,9 @@ public class GlobalExceptionHandler {
             } else if (msg.contains("OTP_EXPIRED") || msg.contains("OTP_INVALID")) {
                 status = HttpStatus.BAD_REQUEST;
                 code = msg;
+            } else if (msg.contains("NEW_PASSWORD_SAME_AS_CURRENT")) {
+                status = HttpStatus.UNPROCESSABLE_ENTITY;
+                code = "NEW_PASSWORD_SAME_AS_CURRENT";
             } else if (msg.contains("DUPLICATE") || msg.contains("ALREADY_EXISTS")) {
                 status = HttpStatus.CONFLICT;
                 code = "DUPLICATE_RESOURCE";
