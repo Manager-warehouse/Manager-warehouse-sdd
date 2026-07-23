@@ -43,7 +43,7 @@ const QCInbound = () => {
   };
 
   const handlePassedQtyChange = (itemId, value) => {
-    const qty = parseFloat(value);
+    const qty = parseInt(value);
     const updated = items.map(item => {
       if (item.id === itemId) {
         const newPassed = isNaN(qty) ? '' : qty;
@@ -62,7 +62,7 @@ const QCInbound = () => {
   };
 
   const handleFailedQtyChange = (itemId, value) => {
-    const qty = parseFloat(value);
+    const qty = parseInt(value);
     const updated = items.map(item => {
       if (item.id === itemId) {
         const newFailed = isNaN(qty) ? '' : qty;
@@ -93,9 +93,9 @@ const QCInbound = () => {
   const checkValidationErrors = () => {
     let hasError = false;
     items.forEach(item => {
-      const passed = parseFloat(item.qc_passed_qty) || 0;
-      const failed = parseFloat(item.qc_failed_qty) || 0;
-      const actual = parseFloat(item.actual_qty) || 0;
+      const passed = parseInt(item.qc_passed_qty) || 0;
+      const failed = parseInt(item.qc_failed_qty) || 0;
+      const actual = parseInt(item.actual_qty) || 0;
       
       if (passed + failed !== actual) {
         hasError = true;
@@ -112,9 +112,9 @@ const QCInbound = () => {
 
     // Check errors again
     for (const item of items) {
-      const passed = parseFloat(item.qc_passed_qty);
-      const failed = parseFloat(item.qc_failed_qty);
-      const actual = parseFloat(item.actual_qty);
+      const passed = parseInt(item.qc_passed_qty);
+      const failed = parseInt(item.qc_failed_qty);
+      const actual = parseInt(item.actual_qty);
 
       if (isNaN(passed) || isNaN(failed)) {
         addToast('Vui lòng điền đầy đủ số lượng đạt và lỗi', 'warning');
@@ -170,9 +170,9 @@ const QCInbound = () => {
   };
 
   const getRowResultBadge = (item) => {
-    const passed = parseFloat(item.qc_passed_qty) || 0;
-    const failed = parseFloat(item.qc_failed_qty) || 0;
-    const actual = parseFloat(item.actual_qty) || 0;
+    const passed = parseInt(item.qc_passed_qty) || 0;
+    const failed = parseInt(item.qc_failed_qty) || 0;
+    const actual = parseInt(item.actual_qty) || 0;
 
     if (passed + failed !== actual) {
       return <Badge size="sm" type="danger">Lỗi lệch</Badge>;
@@ -264,9 +264,9 @@ const QCInbound = () => {
               </thead>
               <tbody className="divide-y divide-hairline-light">
                 {items.map((item) => {
-                  const passed = parseFloat(item.qc_passed_qty) || 0;
-                  const failed = parseFloat(item.qc_failed_qty) || 0;
-                  const actual = parseFloat(item.actual_qty) || 0;
+                  const passed = parseInt(item.qc_passed_qty) || 0;
+                  const failed = parseInt(item.qc_failed_qty) || 0;
+                  const actual = parseInt(item.actual_qty) || 0;
                   const isMismatch = passed + failed !== actual;
 
                   return (
@@ -281,7 +281,7 @@ const QCInbound = () => {
                           type="number"
                           min="0"
                           max={item.actual_qty}
-                          step="any"
+                          step="1"
                           value={item.qc_passed_qty}
                           onChange={(e) => handlePassedQtyChange(item.id, e.target.value)}
                           className="text-input text-right font-bold w-20 py-1"
@@ -293,7 +293,7 @@ const QCInbound = () => {
                           type="number"
                           min="0"
                           max={item.actual_qty}
-                          step="any"
+                          step="1"
                           value={item.qc_failed_qty}
                           onChange={(e) => handleFailedQtyChange(item.id, e.target.value)}
                           className="text-input text-right font-bold w-20 py-1 text-danger-600 border-danger-200"
@@ -322,9 +322,9 @@ const QCInbound = () => {
 
           <div className="flex flex-col gap-3 p-4 md:hidden">
             {items.map((item) => {
-              const passed = parseFloat(item.qc_passed_qty) || 0;
-              const failed = parseFloat(item.qc_failed_qty) || 0;
-              const actual = parseFloat(item.actual_qty) || 0;
+              const passed = parseInt(item.qc_passed_qty) || 0;
+              const failed = parseInt(item.qc_failed_qty) || 0;
+              const actual = parseInt(item.actual_qty) || 0;
               const isMismatch = passed + failed !== actual;
 
               return (
@@ -353,7 +353,7 @@ const QCInbound = () => {
                         type="number"
                         min="0"
                         max={item.actual_qty}
-                        step="any"
+                        step="1"
                         value={item.qc_passed_qty}
                         onChange={(e) => handlePassedQtyChange(item.id, e.target.value)}
                         className="text-input min-h-[44px] text-right font-bold"
@@ -367,7 +367,7 @@ const QCInbound = () => {
                         type="number"
                         min="0"
                         max={item.actual_qty}
-                        step="any"
+                        step="1"
                         value={item.qc_failed_qty}
                         onChange={(e) => handleFailedQtyChange(item.id, e.target.value)}
                         className="text-input min-h-[44px] text-right font-bold text-danger-600 border-danger-200"
