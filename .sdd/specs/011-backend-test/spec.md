@@ -33,6 +33,9 @@ Hệ thống WMS sử dụng Spring Boot 3.4.5, Java 21, Maven làm nền tảng
 - Q: Anh muốn xử lý các tệp test thừa/không đúng mục đích spec như thế nào? → A: Xóa 2 tệp nháp thừa (AuthServiceLoginTest.java, BcryptHashPrinter.java), chuyển SecurityConfigTest.java về đúng gói com.wms.security và loại bỏ thư mục com.wms.test.
 - Q: Kiểm tra và bổ sung phạm vi test API Call cho Backend như thế nào? → A: Bổ sung đầy đủ MockMvc Controller Integration Tests cho 12 REST Controllers chưa có test (AccountingPeriod, BillingNotification, Credit, Dealer, Disposal, Inventory, PriceHistory, QuarantineRtv, Report, Returns, StockAlert, SupplierController), đồng thời loại bỏ com/wms/controller/** khỏi sonar.coverage.exclusions để đưa Controller vào đo lường SonarQube.
 
+### Session 2026-07-23
+- Q: Bổ sung bộ kiểm thử Selenium E2E Automation Testing vào hệ thống như thế nào? → A: Tạo thư mục `test_selenium/` chứa khung kiểm thử E2E (Selenium WebDriver), tự động kiểm thử luồng tương tác giữa Frontend và Backend cho Round 2 System Testing, tự động ghi nhận kết quả Passed/Failed vào cột Round 2 của file `docs/test/test_final.xlsx`.
+
 ---
 
 ## 2. Actors

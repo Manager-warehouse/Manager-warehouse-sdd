@@ -28,7 +28,8 @@ Hệ thống Quản lý Kho (WMS) có giao diện người dùng tương tác ph
 ### Session 2026-07-22
 - Q: Xử lý phạm vi Test Coverage ở Frontend như thế nào khi trước đó loại trừ toàn bộ UI Pages/Components? → A: Bỏ exclusion UI Pages/Components (không loại trừ src/pages/**, src/components/** trong SonarQube), yêu cầu bổ sung Component Tests cho các màn hình nghiệp vụ WMS chính và đưa vào đo lường SonarQube coverage.
 - Q: Quy trình kiểm thử và nghiệm thu QA ở Frontend được tối ưu như thế nào? → A: Giản lược thủ tục ký duyệt QA Sign-off và môi trường Staging cồng kềnh, chuyển hoàn toàn sang tự động hóa kiểm thử trên CI/CD Pipeline (chặn PR nếu test fail hoặc Quality Gate < 80% trên New Code).
-- Q: Kiểm tra và bổ sung phạm vi test API Call cho Frontend như thế nào? → A: Bổ sung Unit Test cho Axios Interceptor (api.client.js) và bổ sung Component/Service API Call Tests cho 5 phân vùng còn thiếu (Pricing/COGS, Returns/Scrap, Reports/Alerts, Master Data Suppliers/Dealers/Warehouses/Vehicles, Accounting Period).
+### Session 2026-07-23
+- Q: Bổ sung Selenium E2E Automation Testing cho kiểm thử System Test Round 2 như thế nào? → A: Đưa Selenium E2E Testing vào phạm vi (In-Scope), tạo thư mục `test_selenium/` chứa các kịch bản E2E WebDriver giả lập người dùng thật trên trình duyệt Chrome để chạy và ghi nhận kết quả Round 2 vào file `docs/test/test_final.xlsx`.
 
 ---
 
@@ -170,8 +171,9 @@ Nhân viên vận hành và thủ kho thường xuyên nhập liệu trên các 
 
 ---
 
-## 9. Out Of Scope
+## 9. Scope Update & Integration
 
-- Kiểm thử giao diện tương thích trên nhiều trình duyệt khác nhau (Cross-browser testing).
-- Kiểm thử hiệu năng kết xuất của các component đồ họa (UI Performance / Profiling).
-- Kiểm thử tích hợp E2E sử dụng trình duyệt thật (Selenium, Cypress, Playwright).
+- **Selenium E2E Testing (In-Scope)**: Bổ sung bộ test tự động E2E sử dụng Selenium WebDriver tại thư mục `test_selenium/` để thực hiện Round 2 System Test tự động trên giao diện web thật.
+- **Out of Scope**:
+  - Kiểm thử giao diện tương thích trên nhiều trình duyệt khác nhau (Cross-browser matrix).
+  - Kiểm thử hiệu năng kết xuất của các component đồ họa (UI Profiling).

@@ -64,3 +64,12 @@
 
 - [x] T060 Cập nhật workflow [.github/workflows/test.yml](file:///d:/swp/Manager-warehouse-sdd/.github/workflows/test.yml) để bỏ loại trừ `src/pages/**,src/components/**` trong bước quét SonarQube Frontend.
 - [x] T061 Thẩm định toàn bộ test suite frontend bằng lệnh `npm run test` và `npm run test:coverage` đạt line/branch coverage >= 80% trên New Code.
+
+---
+
+## Phase 8: Selenium E2E Automation Testing (Round 2 System Test)
+
+- [ ] T070 Khởi tạo thư mục `test_selenium/` chứa khung kiểm thử E2E Selenium WebDriver độc lập.
+- [ ] T071 Xây dựng kịch bản Selenium E2E mô phỏng luồng người dùng thật trên các trang WMS chính (Login, Products, Receipts, Outbound, Transfer, Stocktake, Finance, Reports).
+- [ ] T072 Xuất báo cáo Selenium E2E tự động (Passed/Failed) và tự động ghi nhận dữ liệu vào cột Round 2 của `docs/test/test_final.xlsx`.
+

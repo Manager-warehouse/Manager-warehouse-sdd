@@ -12,12 +12,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.wms.config.JwtAuthFilter;
 import com.wms.config.SecurityConfig;
 import com.wms.config.UserDetailsServiceImpl;
+import com.wms.controller.stock_receiving.QuarantineRtvController;
 import com.wms.dto.response.RtvActionResponse;
-import com.wms.entity.User;
-import com.wms.enums.UserRole;
+import com.wms.entity.access_control.User;
+import com.wms.enums.access_control.UserRole;
 import com.wms.exception.GlobalExceptionHandler;
-import com.wms.service.CurrentUserService;
-import com.wms.service.QuarantineRtvService;
+import com.wms.service.stock_receiving.QuarantineRtvService;
+import com.wms.service.user_context.CurrentUserService;
 import com.wms.util.JwtUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

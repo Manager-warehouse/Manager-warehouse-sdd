@@ -199,21 +199,3 @@ public class PriceHistoryController {
         }
     }
 }
-
-@RestController
-@RequestMapping("/api/v1/products")
-class ProductPriceHistoryController {
-
-    private final PriceHistoryService priceHistoryService;
-
-    ProductPriceHistoryController(PriceHistoryService priceHistoryService) {
-        this.priceHistoryService = priceHistoryService;
-    }
-
-    @GetMapping("/{id}/price-history")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT', 'ACCOUNTANT_MANAGER', 'ADMIN', 'CEO')")
-    @Operation(summary = "Lịch sử tất cả bản giá của một sản phẩm")
-    public ProductPriceHistoryResponse getByProduct(@PathVariable Long id) {
-        return priceHistoryService.getByProduct(id);
-    }
-}

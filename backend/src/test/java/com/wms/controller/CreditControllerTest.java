@@ -9,12 +9,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.wms.config.JwtAuthFilter;
 import com.wms.config.SecurityConfig;
 import com.wms.config.UserDetailsServiceImpl;
+import com.wms.controller.billing_payment.CreditController;
 import com.wms.dto.response.CreditAgingReportResponse;
-import com.wms.entity.User;
-import com.wms.enums.UserRole;
+import com.wms.entity.access_control.User;
+import com.wms.enums.access_control.UserRole;
 import com.wms.exception.GlobalExceptionHandler;
 import com.wms.repository.UserRepository;
-import com.wms.service.PaymentReceiptService;
+import com.wms.service.billing_payment.PaymentReceiptService;
 import com.wms.util.JwtUtil;
 import java.math.BigDecimal;
 import java.util.List;

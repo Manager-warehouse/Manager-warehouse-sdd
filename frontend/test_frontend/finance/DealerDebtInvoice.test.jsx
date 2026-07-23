@@ -88,7 +88,7 @@ describe('DealerDebtInvoice Component', () => {
   it('renders title and invoices section', async () => {
     renderComponent();
 
-    expect(await screen.findByText('Hóa đơn & Công nợ Đại lý')).toBeInTheDocument();
+    expect(await screen.findByText('Hóa đơn Bán hàng & Công nợ Đại lý')).toBeInTheDocument();
     const invoiceTab = screen.getByRole('button', { name: /Danh sách hóa đơn/i });
     fireEvent.click(invoiceTab);
 
@@ -100,7 +100,7 @@ describe('DealerDebtInvoice Component', () => {
   it('switches to aging report tab', async () => {
     renderComponent();
 
-    await screen.findByText('Hóa đơn & Công nợ Đại lý');
+    await screen.findByText('Hóa đơn Bán hàng & Công nợ Đại lý');
     const tabBtn = screen.getByRole('button', { name: /Danh sách hóa đơn/i });
     fireEvent.click(tabBtn);
 

@@ -61,3 +61,12 @@
 
 - [x] T050 Chạy `mvn clean verify` từ root `backend/` để đảm bảo 100% test suite passed. AI chủ động chạy lệnh và tổng hợp báo cáo thay đổi cho người dùng nếu phát hiện lỗi cần fix.
 - [x] T051 Xác nhận JaCoCo HTML report đạt line coverage >= 80% áp dụng cho New Code bao gồm Controller API layer.
+
+---
+
+## Phase 7: US-WMS-TEST-05: Selenium E2E System Testing (Round 2)
+
+- [ ] T060 Tạo thư mục `test_selenium/` chứa khung kiểm thử Selenium WebDriver cho WMS System Test.
+- [ ] T061 Thiết lập Page Object Model (POM) và kịch bản Selenium E2E cho 10 Module WMS (Auth, MDM, Inbound, Outbound, Transfer, Stocktake, Pricing, Finance, Returns, Reports).
+- [ ] T062 Tự động thu thập kết quả chạy Selenium Round 2 và cập nhật vào file `docs/test/test_final.xlsx`.
+

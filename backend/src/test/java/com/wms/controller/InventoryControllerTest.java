@@ -9,10 +9,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.wms.config.JwtAuthFilter;
 import com.wms.config.SecurityConfig;
 import com.wms.config.UserDetailsServiceImpl;
+import com.wms.controller.stock_control.InventoryController;
 import com.wms.dto.response.InventoryAvailabilityResponse;
 import com.wms.dto.response.WarehouseStockOverviewResponse;
 import com.wms.exception.GlobalExceptionHandler;
-import com.wms.service.InventoryService;
+import com.wms.service.stock_control.InventoryService;
 import com.wms.util.JwtUtil;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;

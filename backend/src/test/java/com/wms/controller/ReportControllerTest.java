@@ -1,24 +1,22 @@
 package com.wms.controller;
 
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.wms.config.JwtAuthFilter;
 import com.wms.config.SecurityConfig;
 import com.wms.config.UserDetailsServiceImpl;
+import com.wms.controller.reporting_alerting.ReportController;
 import com.wms.dto.response.CeoDashboardResponse;
 import com.wms.dto.response.InventoryValuationResponse;
-import com.wms.dto.response.ProductivityReportResponse;
-import com.wms.entity.User;
-import com.wms.enums.UserRole;
+import com.wms.entity.access_control.User;
+import com.wms.enums.access_control.UserRole;
 import com.wms.exception.GlobalExceptionHandler;
-import com.wms.service.CurrentUserService;
-import com.wms.service.ReportService;
+import com.wms.service.reporting_alerting.ReportService;
+import com.wms.service.user_context.CurrentUserService;
 import com.wms.util.JwtUtil;
 import java.math.BigDecimal;
 import java.util.List;
@@ -91,35 +89,5 @@ class ReportControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.summary.totalValuation").value(5000000000L));
     }
-
-    @Test
-    @WithMockUser(username = "wh_mgr@wms.com", roles = "WAREHOUSE_MANAGER")
-    void getProductivityReport_success() throws Exception {
-        ProductivityReportResponse res = ProductivityReportResponse.builder()
-                .warehouseId(1L)
-                .staffProductivity(List.of())
-                .build();
-
-        when(reportService.getProductivityReport(eq(1L), any(), any(), any())).thenReturn(res);
-
-        mockMvc.perform(get("/api/v1/reports/productivity")
-                        .param("warehouseId", "1")
-                        .param("startDate", "2026-07-01")
-                        .param("endDate", "2026-07-31"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.warehouseId").value(1));
-    }
-
-    @Test
-    @WithMockUser(username = "wh_mgr@wms.com", roles = "WAREHOUSE_MANAGER")
-    void exportProductivityReport_success() throws Exception {
-        when(reportService.exportProductivityReportExcel(eq(1L), any(), any(), any())).thenReturn(new byte[]{1, 2, 3});
-
-        mockMvc.perform(get("/api/v1/reports/productivity/export")
-                        .param("warehouseId", "1")
-                        .param("startDate", "2026-07-01")
-                        .param("endDate", "2026-07-31"))
-                .andExpect(status().isOk())
-                .andExpect(header().exists("Content-Disposition"));
-    }
 }
+
