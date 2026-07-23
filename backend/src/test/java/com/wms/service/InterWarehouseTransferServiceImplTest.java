@@ -687,8 +687,12 @@ class InterWarehouseTransferServiceImplTest {
                 .isInstanceOf(BusinessRuleViolationException.class)
                 .hasMessageContaining("WAREHOUSE_MANAGER_ROLE_REQUIRED");
 
-        // Destination Manager can request the operational return while the truck is in transit.
-        InterWarehouseTransferResponse response = service.returnToSource(1L, req, destinationManager);
+        assertThatThrownBy(() -> service.returnToSource(1L, req, destinationManager))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("WAREHOUSE_SCOPE_REQUIRED");
+
+        // Source Manager can request the operational return while the truck is in transit.
+        InterWarehouseTransferResponse response = service.returnToSource(1L, req, sourceManager);
         assertThat(response.isReturned()).isTrue();
 
         // T058: Execute return leg steps: driver departs, arrives, and storekeeper hands over back to source warehouse

@@ -120,11 +120,24 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
     }));
   });
 
-  it('lets destination manager request direct return to source with reason', async () => {
-    const onAction = renderPanel({
+  it('keeps direct return-to-source action for source manager only', async () => {
+    renderPanel({
       roles: [ROLES.WAREHOUSE_MANAGER],
       activeWarehouse: { id: 2, code: 'WH-HP' },
       warehouseAccessIds: [2],
+      transfer: {
+        ...baseTransfer,
+        status: 'IN_TRANSIT',
+        driverArrivedAt: null,
+      },
+    });
+
+    expect(screen.queryByRole('button', { name: 'Quay đầu về kho nguồn' })).not.toBeInTheDocument();
+
+    const onAction = renderPanel({
+      roles: [ROLES.WAREHOUSE_MANAGER],
+      activeWarehouse: { id: 1, code: 'WH-HN' },
+      warehouseAccessIds: [1],
       transfer: {
         ...baseTransfer,
         status: 'IN_TRANSIT',
