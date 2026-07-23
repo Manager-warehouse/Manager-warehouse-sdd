@@ -397,8 +397,8 @@ export const interWarehouseTransferService = {
   finalReceive: async (id, discrepancyReason) => {
     if (useMock) {
       const transfer = await interWarehouseTransferService.getTransferById(id);
-      const hasShortage = transfer.items.some((item) => Number(item.receivedQty) < Number(item.sentQty));
-      return updateMockStatus(id, hasShortage ? 'COMPLETED_WITH_DISCREPANCY' : 'COMPLETED', {
+      const hasDiscrepancy = transfer.items.some((item) => Number(item.receivedQty) !== Number(item.sentQty));
+      return updateMockStatus(id, hasDiscrepancy ? 'COMPLETED_WITH_DISCREPANCY' : 'COMPLETED', {
         discrepancyReason,
         actualReceivedDate: today(),
       });
