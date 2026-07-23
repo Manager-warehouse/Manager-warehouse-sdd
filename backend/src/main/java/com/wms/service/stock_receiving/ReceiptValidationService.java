@@ -63,9 +63,15 @@ public class ReceiptValidationService {
         this.userWarehouseAssignmentRepository = userWarehouseAssignmentRepository;
     }
 
-    @Transactional(readOnly = true)
+    // Must run inside the caller's write transaction (not readOnly) — a
+    // PESSIMISTIC_WRITE lock acquired here is only held for the duration of
+    // the enclosing transaction, and a read-only one would defeat the point:
+    // two concurrent approve/reject calls on the same receipt could both
+    // load the pre-mutation state and race past each other before either
+    // commits, previously undetected until the version check at save time.
+    @Transactional
     public Receipt loadReceiptForUpdate(Long receiptId) {
-        return receiptRepository.findById(receiptId)
+        return receiptRepository.findByIdForUpdate(receiptId)
                 .orElseThrow(() -> new ResourceNotFoundException("Receipt not found: " + receiptId));
     }
 
