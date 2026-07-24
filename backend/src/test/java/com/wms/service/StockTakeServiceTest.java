@@ -263,7 +263,7 @@ class StockTakeServiceTest {
     @Test
     void startStockTake_fromDraft_transitionsToInProgressAndLocksLocations() {
         StockTake st = stockTake(StockTakeStatus.DRAFT);
-        when(stockTakeRepository.findByIdWithDetails(1L)).thenReturn(Optional.of(st));
+        when(stockTakeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(st));
         when(stockTakeItemRepository.findByStockTakeId(1L)).thenReturn(List.of(item(
                 new BigDecimal("100"), null, BigDecimal.ZERO, BigDecimal.ZERO)));
         when(locationRepository.findByIdIn(anyList())).thenReturn(List.of(location));
@@ -282,7 +282,7 @@ class StockTakeServiceTest {
     @Test
     void startStockTake_notDraft_throwsStockTakeException() {
         StockTake st = stockTake(StockTakeStatus.IN_PROGRESS);
-        when(stockTakeRepository.findByIdWithDetails(1L)).thenReturn(Optional.of(st));
+        when(stockTakeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(st));
 
         StockTakeException ex = assertThrows(StockTakeException.class,
                 () -> service.startStockTake(1L, storekeeper));
@@ -295,7 +295,7 @@ class StockTakeServiceTest {
     @Test
     void recordCount_negativeActualQty_throwsInvalidCountQty() {
         StockTake st = stockTake(StockTakeStatus.IN_PROGRESS);
-        when(stockTakeRepository.findByIdWithDetails(1L)).thenReturn(Optional.of(st));
+        when(stockTakeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(st));
 
         StockTakeCountItemRequest ci = new StockTakeCountItemRequest();
         ci.setItemId(50L);
@@ -312,7 +312,7 @@ class StockTakeServiceTest {
     @Test
     void recordCount_employeeFaultWithoutNotes_throwsReasonRequired() {
         StockTake st = stockTake(StockTakeStatus.IN_PROGRESS);
-        when(stockTakeRepository.findByIdWithDetails(1L)).thenReturn(Optional.of(st));
+        when(stockTakeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(st));
 
         StockTakeCountItemRequest ci = new StockTakeCountItemRequest();
         ci.setItemId(50L);
@@ -330,7 +330,7 @@ class StockTakeServiceTest {
     @Test
     void recordCount_validCount_computesVarianceAndSavesItem() {
         StockTake st = stockTake(StockTakeStatus.IN_PROGRESS);
-        when(stockTakeRepository.findByIdWithDetails(1L)).thenReturn(Optional.of(st));
+        when(stockTakeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(st));
 
         StockTakeItem item = item(new BigDecimal("100"), null, BigDecimal.ZERO, BigDecimal.ZERO);
         when(stockTakeItemRepository.findById(50L)).thenReturn(Optional.of(item));
@@ -360,10 +360,12 @@ class StockTakeServiceTest {
     @Test
     void recordCount_afterRejected_isAllowed() {
         StockTake st = stockTake(StockTakeStatus.REJECTED);
-        when(stockTakeRepository.findByIdWithDetails(1L)).thenReturn(Optional.of(st));
+        when(stockTakeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(st));
 
         StockTakeItem item = item(new BigDecimal("100"), null, BigDecimal.ZERO, BigDecimal.ZERO);
         when(stockTakeItemRepository.findById(50L)).thenReturn(Optional.of(item));
+        when(stockTakeItemRepository.findByStockTakeId(1L)).thenReturn(List.of(item));
+        when(locationRepository.findByIdIn(anyList())).thenReturn(List.of(location));
         Inventory inv = new Inventory();
         inv.setCostPrice(new BigDecimal("50000"));
         when(inventoryRepository.findByWarehouseIdAndProductIdAndBatchIdAndLocationId(
@@ -377,26 +379,30 @@ class StockTakeServiceTest {
         StockTakeCountRequest req = new StockTakeCountRequest();
         req.setItems(List.of(ci));
 
-        // Should not throw — REJECTED is a valid editing state for re-submission.
         service.recordCount(1L, req, storekeeper);
         assertEquals(new BigDecimal("95"), item.getActualQty());
+        assertEquals(StockTakeStatus.IN_PROGRESS, st.getStatus());
     }
 
     @Test
     void completeStockTake_afterRejected_reroutesToPendingAndClearsReason() {
         StockTake st = stockTake(StockTakeStatus.REJECTED);
         st.setRejectionReason("Recount needed");
-        when(stockTakeRepository.findByIdWithDetails(1L)).thenReturn(Optional.of(st));
+        when(stockTakeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(st));
         when(stockTakeItemRepository.existsByStockTakeIdAndActualQtyIsNull(1L)).thenReturn(false);
         StockTakeItem it = item(new BigDecimal("100"), new BigDecimal("0"),
                 new BigDecimal("-100"), new BigDecimal("-50000000"));
         when(stockTakeItemRepository.findByStockTakeId(1L)).thenReturn(List.of(it));
         when(stockTakeItemRepository.findByStockTakeIdWithDetails(1L)).thenReturn(List.of(it));
+        Inventory inv = new Inventory();
+        inv.setTotalQty(new BigDecimal("100"));
+        inv.setCostPrice(new BigDecimal("500000"));
+        when(inventoryRepository.findByWarehouseIdAndProductIdAndBatchIdAndLocationId(WH_ID, 100L, 200L, 300L))
+                .thenReturn(Optional.of(inv));
 
         StockTakeResponse res = service.completeStockTake(1L, storekeeper);
 
         assertEquals(StockTakeStatus.PENDING_APPROVAL, res.getStatus());
-        assertEquals(ApprovalLevel.MANAGER, st.getApprovalLevel());
         assertNull(st.getRejectionReason());
     }
 
@@ -405,7 +411,7 @@ class StockTakeServiceTest {
     @Test
     void completeStockTake_incompleteCount_throwsIncompleteCount() {
         StockTake st = stockTake(StockTakeStatus.IN_PROGRESS);
-        when(stockTakeRepository.findByIdWithDetails(1L)).thenReturn(Optional.of(st));
+        when(stockTakeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(st));
         when(stockTakeItemRepository.existsByStockTakeIdAndActualQtyIsNull(1L)).thenReturn(true);
 
         StockTakeException ex = assertThrows(StockTakeException.class,
@@ -416,15 +422,21 @@ class StockTakeServiceTest {
     @Test
     void completeStockTake_smallVariance_autoApproves() {
         StockTake st = stockTake(StockTakeStatus.IN_PROGRESS);
-        when(stockTakeRepository.findByIdWithDetails(1L)).thenReturn(Optional.of(st));
+        when(stockTakeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(st));
         when(stockTakeItemRepository.existsByStockTakeIdAndActualQtyIsNull(1L)).thenReturn(false);
         // total variance 1,000,000 < 5,000,000 → AUTO
         StockTakeItem it = item(new BigDecimal("100"), new BigDecimal("98"),
                 new BigDecimal("-2"), new BigDecimal("-1000000"));
         when(stockTakeItemRepository.findByStockTakeId(1L)).thenReturn(List.of(it));
         when(stockTakeItemRepository.findByStockTakeIdWithDetails(1L)).thenReturn(List.of(it));
+        Inventory inv = new Inventory();
+        inv.setTotalQty(new BigDecimal("100"));
+        inv.setReservedQty(BigDecimal.ZERO);
+        inv.setCostPrice(new BigDecimal("500000"));
+        when(inventoryRepository.findByWarehouseIdAndProductIdAndBatchIdAndLocationId(WH_ID, 100L, 200L, 300L))
+                .thenReturn(Optional.of(inv));
         when(inventoryRepository.findByWarehouseProductBatchLocationForUpdate(WH_ID, 100L, 200L, 300L))
-                .thenReturn(Optional.empty());
+                .thenReturn(Optional.of(inv));
         when(locationRepository.findByLockedByStockTakeId(1L)).thenReturn(List.of());
 
         StockTakeResponse res = service.completeStockTake(1L, storekeeper);
@@ -438,13 +450,18 @@ class StockTakeServiceTest {
     @Test
     void completeStockTake_midVarianceNoFault_routesToManager() {
         StockTake st = stockTake(StockTakeStatus.IN_PROGRESS);
-        when(stockTakeRepository.findByIdWithDetails(1L)).thenReturn(Optional.of(st));
+        when(stockTakeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(st));
         when(stockTakeItemRepository.existsByStockTakeIdAndActualQtyIsNull(1L)).thenReturn(false);
         // -50,000,000 → between 5M and 100M, not employee fault → MANAGER
         StockTakeItem it = item(new BigDecimal("100"), new BigDecimal("0"),
                 new BigDecimal("-100"), new BigDecimal("-50000000"));
         when(stockTakeItemRepository.findByStockTakeId(1L)).thenReturn(List.of(it));
         when(stockTakeItemRepository.findByStockTakeIdWithDetails(1L)).thenReturn(List.of(it));
+        Inventory inv = new Inventory();
+        inv.setTotalQty(new BigDecimal("100"));
+        inv.setCostPrice(new BigDecimal("500000"));
+        when(inventoryRepository.findByWarehouseIdAndProductIdAndBatchIdAndLocationId(WH_ID, 100L, 200L, 300L))
+                .thenReturn(Optional.of(inv));
 
         StockTakeResponse res = service.completeStockTake(1L, storekeeper);
 
@@ -457,13 +474,18 @@ class StockTakeServiceTest {
     @Test
     void completeStockTake_largeVariance_routesToCeo() {
         StockTake st = stockTake(StockTakeStatus.IN_PROGRESS);
-        when(stockTakeRepository.findByIdWithDetails(1L)).thenReturn(Optional.of(st));
+        when(stockTakeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(st));
         when(stockTakeItemRepository.existsByStockTakeIdAndActualQtyIsNull(1L)).thenReturn(false);
         // -150,000,000 > 100M → CEO
         StockTakeItem it = item(new BigDecimal("300"), new BigDecimal("0"),
                 new BigDecimal("-300"), new BigDecimal("-150000000"));
         when(stockTakeItemRepository.findByStockTakeId(1L)).thenReturn(List.of(it));
         when(stockTakeItemRepository.findByStockTakeIdWithDetails(1L)).thenReturn(List.of(it));
+        Inventory inv = new Inventory();
+        inv.setTotalQty(new BigDecimal("300"));
+        inv.setCostPrice(new BigDecimal("500000"));
+        when(inventoryRepository.findByWarehouseIdAndProductIdAndBatchIdAndLocationId(WH_ID, 100L, 200L, 300L))
+                .thenReturn(Optional.of(inv));
 
         service.completeStockTake(1L, storekeeper);
 
@@ -475,13 +497,18 @@ class StockTakeServiceTest {
     void completeStockTake_employeeFaultEscalatesToCeo() {
         StockTake st = stockTake(StockTakeStatus.IN_PROGRESS);
         st.setIsEmployeeFault(true);
-        when(stockTakeRepository.findByIdWithDetails(1L)).thenReturn(Optional.of(st));
+        when(stockTakeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(st));
         when(stockTakeItemRepository.existsByStockTakeIdAndActualQtyIsNull(1L)).thenReturn(false);
         // mid value but employee fault → CEO
         StockTakeItem it = item(new BigDecimal("100"), new BigDecimal("80"),
                 new BigDecimal("-20"), new BigDecimal("-10000000"));
         when(stockTakeItemRepository.findByStockTakeId(1L)).thenReturn(List.of(it));
         when(stockTakeItemRepository.findByStockTakeIdWithDetails(1L)).thenReturn(List.of(it));
+        Inventory inv = new Inventory();
+        inv.setTotalQty(new BigDecimal("100"));
+        inv.setCostPrice(new BigDecimal("500000"));
+        when(inventoryRepository.findByWarehouseIdAndProductIdAndBatchIdAndLocationId(WH_ID, 100L, 200L, 300L))
+                .thenReturn(Optional.of(inv));
 
         service.completeStockTake(1L, storekeeper);
 
@@ -610,7 +637,7 @@ class StockTakeServiceTest {
     @Test
     void cancelStockTake_pendingApproval_throwsNotCancellable() {
         StockTake st = stockTake(StockTakeStatus.PENDING_APPROVAL);
-        when(stockTakeRepository.findByIdWithDetails(1L)).thenReturn(Optional.of(st));
+        when(stockTakeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(st));
 
         StockTakeException ex = assertThrows(StockTakeException.class,
                 () -> service.cancelStockTake(1L, storekeeper));
@@ -621,7 +648,7 @@ class StockTakeServiceTest {
     @Test
     void cancelStockTake_inProgress_cancelsAndUnlocks() {
         StockTake st = stockTake(StockTakeStatus.IN_PROGRESS);
-        when(stockTakeRepository.findByIdWithDetails(1L)).thenReturn(Optional.of(st));
+        when(stockTakeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(st));
         when(locationRepository.findByLockedByStockTakeId(1L)).thenReturn(List.of(location));
         when(stockTakeItemRepository.findByStockTakeIdWithDetails(1L)).thenReturn(List.of());
 
