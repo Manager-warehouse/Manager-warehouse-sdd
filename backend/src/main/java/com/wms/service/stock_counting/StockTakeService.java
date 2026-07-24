@@ -283,9 +283,7 @@ public class StockTakeService {
             }
         }
 
-        if (anyEmployeeFault) {
-            st.setIsEmployeeFault(true);
-        }
+        st.setIsEmployeeFault(anyEmployeeFault);
         st.setUpdatedAt(OffsetDateTime.now());
         stockTakeRepository.save(st);
 
