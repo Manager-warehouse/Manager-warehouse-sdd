@@ -605,10 +605,9 @@ public class StockTakeService {
 
     private void requireStockTakeRole(User actor) {
         UserRole role = actor.getRole();
-        if (role != UserRole.WAREHOUSE_MANAGER && role != UserRole.STOREKEEPER
-                && role != UserRole.ADMIN && role != UserRole.CEO) {
+        if (role != UserRole.STOREKEEPER && role != UserRole.ADMIN) {
             throw new org.springframework.security.access.AccessDeniedException(
-                    "Role " + role + " is not authorized for stocktake operations");
+                    "Role " + role + " is not authorized for stocktake count operations");
         }
     }
 
