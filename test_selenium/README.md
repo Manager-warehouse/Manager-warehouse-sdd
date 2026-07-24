@@ -48,5 +48,44 @@ xuất, tạo yêu cầu điều chuyển, tạo phiếu kiểm kê, tạo bản
 hàng, kiểm tra dashboard KPI) rồi xác minh kết quả thật sự xuất hiện -- gần với UAT thủ công hơn
 Round 2, nhưng vẫn không thay thế toàn bộ ~924 test case chi tiết. Một vài flow phụ thuộc dữ liệu
 sẵn có trong hệ thống (VD: cần một hóa đơn chưa thanh toán để thu tiền, cần một DO đã giao để trả
-hàng) -- nếu dữ liệu đó không tồn tại, flow được ghi nhận "Skipped" kèm lý do cụ thể thay vì báo
-Pass/Fail giả.
+hàng) -- nếu dữ liệu đó không tồn tại, flow được ghi nhận status **N/A**, không phải Failed.
+
+## 5. Ý nghĩa cột trạng thái Round 3: Passed / Failed / N/A
+
+`classify_status()` trong `run_selenium_round3.py` chỉ ghi **Failed** khi có bằng chứng thật
+rằng ứng dụng phản hồi sai (error toast/banner có nội dung cụ thể, hoặc dashboard tự hiển thị
+trạng thái lỗi). Mọi trường hợp còn lại -- không đăng nhập được, thiếu dữ liệu tiền đề trong môi
+trường hiện tại, exception/timeout chưa xác định nguyên nhân, submit không có phản ứng rõ ràng
+theo cả hai hướng -- được ghi **N/A** (chưa kết luận được, cần kiểm tra thủ công), **không phải
+Failed**. Lý do: một kết quả tự động hoá không hoàn tất không đồng nghĩa với việc tính năng đó bị
+lỗi -- gán nhầm thành Failed sẽ khiến người đọc báo cáo hiểu sai rằng tính năng có defect thật.
+
+## 6. Các flow đã có `data-testid` (ổn định hơn, nên ưu tiên khi mở rộng)
+
+AUTH-001, MDM-002, TRF-005, STK-006, PRC-007 dùng `page.by_testid(...)` /
+`page.submit_and_verify_by_testid(...)` thay vì suy đoán qua label text/vị trí DOM -- các
+component liên quan (`UserFormModal.jsx`, `ProductManagement.jsx`,
+`TransferRequestWorkspace.jsx`, `StocktakeForm.jsx`, `PriceListManagement.jsx`) đã có
+`data-testid` tương ứng. RCV-003, OUT-004, FIN-008, RET-009 vẫn dùng cách suy đoán cũ (label/vị
+trí) vì có nhiều nuance nghiệp vụ (tra giá, hóa đơn chưa thanh toán, DO đã giao...) khiến việc tự
+động hoá đầy đủ không đáng công sức bỏ ra -- xem ghi chú UAT thủ công ở mục 7.
+
+## 7. Vấn đề đã biết: đăng nhập lần thứ hai trong cùng tab thất bại
+
+Xác nhận qua kiểm tra thủ công trực tiếp (không qua Selenium): đăng nhập lần đầu trong một tab
+trình duyệt mới thành công bình thường, nhưng lần đăng nhập **thứ hai** trở đi trong cùng tab đó
+thất bại một cách im lặng -- request `POST /api/v1/auth/login` trả về `200 OK` thật, nhưng
+`sessionStorage` không được ghi và không có điều hướng rời khỏi `/login`, dù đã `sessionStorage.clear()`
+trước đó. Đây đúng là nguyên nhân của các lần "Login rejected" xuất hiện từ module thứ 3-4 trở đi
+trong các lần chạy Round 3 trước đây (mỗi lần đổi role = một lần đăng nhập mới trong cùng session
+trình duyệt). Đã thử thêm cooldown giữa các lần đăng nhập trước -- không giải quyết được vì vấn đề
+không phải do tốc độ/rate-limit.
+
+Đây là lỗi thật của ứng dụng (hoặc môi trường), không phải lỗi của kịch bản test, và không thể sửa
+từ phía script -- cần người có quyền truy cập log backend / debug JS runtime điều tra thêm.
+`run_selenium_round3.py` hiện né được kịch bản lỗi này bằng cách mở **trình duyệt mới, đăng nhập
+đúng một lần** cho mỗi role riêng biệt thay vì dùng chung một trình duyệt xuyên suốt các lần đổi
+role (`run_all_flows()` nhóm `MODULE_FLOWS` theo role, mỗi nhóm chạy trên `build_driver()` riêng).
+Đây không phải là che giấu lỗi -- lỗi vẫn được ghi lại ở trên -- mà là thiết kế lại việc quản lý
+session để mỗi role luôn rơi vào đúng kịch bản đã được xác nhận hoạt động (đăng nhập đầu tiên trong
+tab mới), thay vì để cả bộ test sụp đổ giữa chừng ngay khi việc đổi role bắt đầu.

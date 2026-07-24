@@ -16,14 +16,20 @@ class LoginPage(BasePage):
     LOGIN_BUTTON = (By.CSS_SELECTOR, "button[type='submit']")
 
     def login(self, username, password):
+        """Returns a diagnostic string on early exit, or None if it got as
+        far as submitting -- lets the caller tell "form never rendered"
+        apart from "submitted, still on /login, no visible error" (which
+        looked identical before and made a rate-limiter theory unfalsifiable)."""
         self.open(f"{APP_URL}/login")
         # 20s covers a cold Vite/Spring first request; a warm one resolves
         # near-instantly since wait_for/is_visible return as soon as met.
-        if self.is_visible(*self.EMAIL_INPUT, timeout=20):
-            self.type(*self.EMAIL_INPUT, username)
-            self.type(*self.PASSWORD_INPUT, password)
-            self.click(*self.LOGIN_BUTTON)
-            self.wait_for(lambda d: "/login" not in d.current_url, timeout=20)
+        if not self.is_visible(*self.EMAIL_INPUT, timeout=20):
+            return "login form never rendered (email field not found within 20s)"
+        self.type(*self.EMAIL_INPUT, username)
+        self.type(*self.PASSWORD_INPUT, password)
+        self.click(*self.LOGIN_BUTTON)
+        self.wait_for(lambda d: "/login" not in d.current_url, timeout=20)
+        return None
 
 
 class ModulePage(BasePage):

@@ -127,7 +127,7 @@ export default function PriceListManagement() {
               <Button onClick={() => pricingService.downloadTemplate().catch(() => addToast('Không tải được file mẫu', 'error'))} variant="outline-light" icon={Upload} className="flex-none">
                 Tải mẫu
               </Button>
-              <Button onClick={() => { setEditTarget(null); setShowForm(true); }} variant="primary" icon={Plus} className="flex-none">
+              <Button onClick={() => { setEditTarget(null); setShowForm(true); }} variant="primary" icon={Plus} className="flex-none" data-testid="open-create-price-modal">
                 Thêm bản giá
               </Button>
             </>
@@ -537,6 +537,7 @@ function PriceEntryModal({ entry, replaceSource, warehouseId, warehouseName, onC
                   }}
                   onFocus={() => setShowSearchResults(true)}
                   className="w-full text-input pl-9"
+                  data-testid="price-product-search"
                 />
                 {loadingProducts && (
                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -555,6 +556,7 @@ function PriceEntryModal({ entry, replaceSource, warehouseId, warehouseName, onC
                         key={prod.id}
                         onClick={() => handleSelectProduct(prod)}
                         className="p-2.5 hover:bg-canvas-cream cursor-pointer transition-colors border-b border-hairline-light last:border-0 flex items-center justify-between text-xs"
+                        data-testid="price-product-search-result"
                       >
                         <div>
                           <span className="font-bold block text-ink">{prod.sku}</span>
@@ -585,7 +587,7 @@ function PriceEntryModal({ entry, replaceSource, warehouseId, warehouseName, onC
               Hiệu lực từ ngày <span className="text-danger-500">*</span>
             </label>
             <input type="date" value={form.effective_date} onChange={e => set('effective_date', e.target.value)}
-              className="text-input w-full" />
+              className="text-input w-full" data-testid="price-effective-date" />
             <p className="text-[11px] text-shade-50 mt-1">
               Bản giá có hiệu lực kể từ ngày này cho đến khi có bản giá APPROVED khác mới hơn thay thế.
             </p>
@@ -597,14 +599,14 @@ function PriceEntryModal({ entry, replaceSource, warehouseId, warehouseName, onC
                 Giá vốn (VNĐ) <span className="text-danger-500">*</span>
               </label>
               <input type="number" min="1" value={form.cost_price} onChange={e => set('cost_price', e.target.value)}
-                className="text-input w-full" placeholder="0" />
+                className="text-input w-full" placeholder="0" data-testid="price-cost-price" />
             </div>
             <div>
               <label className="block text-xs font-bold text-shade-60 uppercase tracking-wider mb-1.5">
                 Giá bán (VNĐ) <span className="text-danger-500">*</span>
               </label>
               <input type="number" min="1" value={form.selling_price} onChange={e => set('selling_price', e.target.value)}
-                className="text-input w-full" placeholder="0" />
+                className="text-input w-full" placeholder="0" data-testid="price-selling-price" />
             </div>
           </div>
 
@@ -618,7 +620,8 @@ function PriceEntryModal({ entry, replaceSource, warehouseId, warehouseName, onC
         <div className="p-4 border-t border-hairline-light bg-canvas-cream flex justify-between gap-3">
           <button type="button" onClick={onClose} className="btn-pill btn-pill-outline-light text-xs">Đóng</button>
           <button onClick={handleSubmit} disabled={submitting}
-            className="btn-pill btn-pill-primary text-xs py-1.5 px-5 disabled:opacity-50 flex items-center gap-1.5">
+            className="btn-pill btn-pill-primary text-xs py-1.5 px-5 disabled:opacity-50 flex items-center gap-1.5"
+            data-testid="price-submit">
             {submitting ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Đang lưu...</> : isEdit ? 'Cập nhật' : isReplace ? 'Cập nhật giá' : 'Tạo bản giá'}
           </button>
         </div>

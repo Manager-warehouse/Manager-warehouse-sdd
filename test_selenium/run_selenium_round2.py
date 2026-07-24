@@ -80,6 +80,11 @@ def build_driver():
     options.add_argument("--window-size=1440,900")
     options.add_argument("--disable-gpu")
     options.add_argument("--no-sandbox")
+    # Without this, we're blind to actual JS runtime errors -- e.g. an
+    # onClick handler throwing, which would silently prevent a modal from
+    # opening while every DOM-based Selenium check still says the button
+    # is present and clickable. This is what OUT-004 needs to diagnose.
+    options.set_capability("goog:loggingPrefs", {"browser": "ALL"})
     service = Service(ChromeDriverManager().install())
     return webdriver.Chrome(service=service, options=options)
 
@@ -90,9 +95,23 @@ def login_as(driver, role_name, credentials):
             f"No credentials configured for role {role_name} "
             f"(set WMS_{role_name}_EMAIL / WMS_{role_name}_PASSWORD)"
         )
-    LoginPage(driver).login(credentials["username"], credentials["password"])
+    login_page = LoginPage(driver)
+    early_exit = login_page.login(credentials["username"], credentials["password"])
     if "/login" in driver.current_url:
-        return False, f"Login rejected for {credentials['username']} (check credentials)"
+        if early_exit:
+            return False, f"Login failed for {credentials['username']}: {early_exit}"
+        inline_err = login_page.get_visible_error_text()
+        reason = f"Login rejected for {credentials['username']}"
+        if inline_err:
+            reason += f": {inline_err}"
+        else:
+            reason += (
+                " (submitted, still on /login, no visible error banner -- "
+                "likely a network-level failure, CORS, or unhandled response "
+                "format the frontend doesn't turn into an error message; "
+                "check backend logs/network tab for the actual auth response)"
+            )
+        return False, reason
     return True, "ok"
 
 

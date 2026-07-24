@@ -25,24 +25,33 @@ def _tag():
     return str(int(time.time()))
 
 
+def _short_exc(e):
+    """Selenium exceptions stringify to their full message PLUS the raw
+    multi-line ChromeDriver native stacktrace (that's what dumped a wall of
+    `chromedriver!GetHandleVerifier [...]` lines for OUT-004) -- keep just
+    the exception type and the first real message line."""
+    first_line = str(e).splitlines()[0].strip() if str(e).strip() else "(no message)"
+    return f"Exception: {type(e).__name__}: {first_line}"
+
+
 def flow_auth001(driver):
     """ADMIN creates a new user on /admin/users."""
     page = ModulePage(driver)
     page.navigate_to("/admin/users")
     tag = _tag()
     try:
-        page.click_by_text("Tạo tài khoản")
+        page.by_testid_clickable("open-create-user-modal").click()
         page.wait_for(lambda d: len(d.find_elements(
-            By.XPATH, "//label[contains(normalize-space(.), 'Mã nhân viên')]")) > 0, timeout=10)
+            By.CSS_SELECTOR, "[data-testid='user-form-code']")) > 0, timeout=10)
 
-        page.type_by_label("Mã nhân viên", f"AUTOTEST-{tag}")
-        page.type_by_label("Họ và tên nhân viên", "Selenium AutoTest")
-        page.type_by_label("Địa chỉ Email", f"autotest.{tag}@example.com")
-        page.type_by_label("Mật khẩu khởi tạo", "AutoTest123")
+        page.type_by_testid("user-form-code", f"AUTOTEST-{tag}")
+        page.type_by_testid("user-form-full-name", "Selenium AutoTest")
+        page.type_by_testid("user-form-email", f"autotest.{tag}@example.com")
+        page.type_by_testid("user-form-password", "AutoTest123")
 
-        return page.submit_and_verify("Lưu lại", "Mã nhân viên")
+        return page.submit_and_verify_by_testid("user-form-submit", "user-form-code")
     except Exception as e:
-        return False, f"Exception: {e}"
+        return False, _short_exc(e)
 
 
 def flow_mdm002(driver):
@@ -51,18 +60,18 @@ def flow_mdm002(driver):
     page.navigate_to("/admin/products")
     tag = _tag()
     try:
-        page.click_by_text("Thêm sản phẩm mới")
+        page.by_testid_clickable("open-create-product-modal").click()
         page.wait_for(lambda d: len(d.find_elements(
-            By.XPATH, "//label[contains(normalize-space(.), 'Mã SKU')]")) > 0, timeout=10)
+            By.CSS_SELECTOR, "[data-testid='product-form-sku']")) > 0, timeout=10)
 
-        page.type_by_label("Mã SKU", f"AUTOTEST-{tag}")
-        page.type_by_label("Tên sản phẩm", "Selenium AutoTest Product")
+        page.type_by_testid("product-form-sku", f"AUTOTEST-{tag}")
+        page.type_by_testid("product-form-name", "Selenium AutoTest Product")
         # unit/unit_per_pack/weight/volume/reorder_point all have valid
         # defaults already (Cái/1/0/0/10), no need to touch them.
 
-        return page.submit_and_verify("Tạo mới", "Mã SKU")
+        return page.submit_and_verify_by_testid("product-form-submit", "product-form-sku")
     except Exception as e:
-        return False, f"Exception: {e}"
+        return False, _short_exc(e)
 
 
 def flow_rcv003(driver):
@@ -75,15 +84,30 @@ def flow_rcv003(driver):
         page.type_by_label("Người liên hệ", "Selenium AutoTest")
         page.type_by_label("Mã chứng từ nguồn", f"AUTOTEST-{tag}")
 
-        found = page.search_and_pick_first_result("Tìm kiếm sản phẩm", "PROD-001")
+        # Search a broad, near-universal substring instead of a specific
+        # SKU: this flow only needs *some* valid product on the receipt to
+        # prove creation works end-to-end, and ReceiptForm.jsx searches a
+        # locally-fetched (size=200, presumably newest-first) product list
+        # client-side -- a single hardcoded old SKU is exactly the kind of
+        # thing that can silently fall outside that window as the catalog
+        # grows (including from this suite's own AUTOTEST-* product runs).
+        found, reason = page.search_and_pick_first_result(
+            "Tìm kiếm sản phẩm", "a",
+            input_testid="receipt-product-search", result_testid="receipt-product-search-result",
+        )
         if not found:
-            return False, "No product found via search (seed product PROD-001 missing?)"
+            # "a" failing too means it's not about which SKU -- ask the
+            # backend directly what /products actually returns for this
+            # session instead of theorizing further.
+            status, body = page.fetch_authenticated("/api/v1/products?page=0&size=200")
+            api_summary = f"GET /products -> status={status}, body[:300]={str(body)[:300]}"
+            return False, f"{reason} | {api_summary}"
         # expected_qty defaults to 1, unit_cost defaults to 0.00 -- both
         # already pass ReceiptForm's client validation as-is.
 
         return page.submit_and_verify("Lập Lệnh Nhập Kho", "Người liên hệ")
     except Exception as e:
-        return False, f"Exception: {e}"
+        return False, _short_exc(e)
 
 
 def flow_out004(driver):
@@ -91,28 +115,24 @@ def flow_out004(driver):
     page = ModulePage(driver)
     page.navigate_to("/outbound/delivery-orders")
     try:
-        page.click_by_text("Lập đơn xuất mới")
+        page.by_testid_clickable("open-create-do-modal").click()
         page.wait_for(lambda d: len(d.find_elements(
-            By.XPATH, "//label[contains(normalize-space(.), 'Đại lý nhận hàng')]")) > 0, timeout=10)
+            By.CSS_SELECTOR, "[data-testid='do-dealer-select']")) > 0, timeout=10)
 
-        page.select_first_real_option_by_label("Đại lý nhận hàng")
+        page.select_first_real_option_by_testid("do-dealer-select")
         future_date = time.strftime("%Y-%m-%d", time.localtime(time.time() + 7 * 86400))
-        page.set_date_by_label("Ngày giao dự kiến", future_date)
+        page.set_date_by_testid("do-delivery-date", future_date)
 
-        # The item product select has no `label` prop (rendered bare
-        # inside the items table), so it's the first <select> in the
-        # only <table> on this modal -- pick the first real product.
-        product_select = page.find_element(By.XPATH, "(//table//select)[1]")
-        page.wait_for(lambda d: len(Select(product_select).options) > 1, timeout=15)
-        Select(page.find_element(By.XPATH, "(//table//select)[1]")).select_by_index(1)
+        # First item row is always present on open, so index 0 always exists.
+        page.select_first_real_option_by_testid("do-item-product-0")
 
         page.wait_network_idle(idle_ms=500, timeout=10)
-        if page.is_button_disabled("Tạo đơn xuất"):
+        if not page.by_testid("do-submit").is_enabled():
             return False, "Skipped: submit disabled, likely no APPROVED price entry for the picked product/warehouse"
 
-        return page.submit_and_verify("Tạo đơn xuất", "Đại lý nhận hàng")
+        return page.submit_and_verify_by_testid("do-submit", "do-dealer-select")
     except Exception as e:
-        return False, f"Exception: {e}"
+        return False, _short_exc(e)
 
 
 def flow_trf005(driver):
@@ -120,31 +140,24 @@ def flow_trf005(driver):
     page = ModulePage(driver)
     page.navigate_to("/transfers/requests")
     try:
-        page.click_by_text("Tạo yêu cầu")
+        page.by_testid_clickable("open-create-transfer-modal").click()
         page.wait_for(lambda d: len(d.find_elements(
-            By.XPATH, "//label[contains(normalize-space(.), 'Kho nguồn')]")) > 0, timeout=10)
+            By.CSS_SELECTOR, "[data-testid='transfer-source-warehouse']")) > 0, timeout=10)
 
-        page.select_first_real_option_by_label("Kho nguồn")
+        page.select_first_real_option_by_testid("transfer-source-warehouse")
         future_date = time.strftime("%Y-%m-%d", time.localtime(time.time() + 7 * 86400))
-        page.set_date_by_label("Ngày cần hàng", future_date)
-        page.type_by_label("Lý do nghiệp vụ", "Selenium AutoTest transfer request")
+        page.set_date_by_testid("transfer-needed-date", future_date)
+        page.type_by_testid("transfer-business-reason", "Selenium AutoTest transfer request")
 
-        # The item product select has no dedicated <label> (rendered bare
-        # inside the item row), so it's the first <select> in the item row
-        # container -- pick the first real product.
-        product_select = page.find_element(By.XPATH, "(//div[contains(@class,'p-3.5')]//select)[1]")
-        page.wait_for(lambda d: len(Select(product_select).options) > 1, timeout=15)
-        Select(page.find_element(By.XPATH, "(//div[contains(@class,'p-3.5')]//select)[1]")).select_by_index(1)
+        # First item row is always present on open, so index 0 always exists.
+        page.select_first_real_option_by_testid("transfer-item-product-0")
+        qty_field = page.by_testid("transfer-item-qty-0")
+        qty_field.clear()
+        qty_field.send_keys("1")
 
-        # Quantity input sits next to the product select in the same row,
-        # has no label, and no stable class -- it's the first number input.
-        qty_input = page.find_element(By.XPATH, "(//div[contains(@class,'p-3.5')]//input[@type='number'])[1]")
-        qty_input.clear()
-        qty_input.send_keys("1")
-
-        return page.submit_and_verify("Tạo bản nháp", "Kho nguồn")
+        return page.submit_and_verify_by_testid("transfer-submit", "transfer-source-warehouse")
     except Exception as e:
-        return False, f"Exception: {e}"
+        return False, _short_exc(e)
 
 
 def flow_stk006(driver):
@@ -153,12 +166,12 @@ def flow_stk006(driver):
     page.navigate_to("/stocktake/new")
     try:
         page.wait_network_idle(idle_ms=500, timeout=10)
-        if page.is_button_disabled("Tạo phiếu kiểm kê"):
+        if not page.by_testid("stocktake-submit").is_enabled():
             return False, "Skipped: submit disabled (no open accounting period, or no warehouse selected)"
 
-        return page.submit_and_verify("Tạo phiếu kiểm kê", "Kỳ kế toán")
+        return page.submit_and_verify_by_testid("stocktake-submit", "stocktake-period-select")
     except Exception as e:
-        return False, f"Exception: {e}"
+        return False, _short_exc(e)
 
 
 def flow_prc007(driver):
@@ -166,19 +179,31 @@ def flow_prc007(driver):
     page = ModulePage(driver)
     page.navigate_to("/finance/price-list")
     try:
-        page.click_by_text("Thêm bản giá")
-        found = page.search_and_pick_first_result("Nhập tên sản phẩm", "PROD-001")
+        page.by_testid_clickable("open-create-price-modal").click()
+        # The modal fetches its own product list on mount (separate from
+        # anything else this flow waits on, unlike flow_rcv003 which
+        # incidentally waits on a shared Promise.all via the supplier
+        # select) -- give it a moment to actually populate before typing
+        # into the search box, or the search runs against an empty list.
+        page.wait_network_idle(idle_ms=500, timeout=10)
+        # Same reasoning as flow_rcv003 -- any valid product proves the
+        # price-entry flow works, so search broadly instead of assuming a
+        # specific SKU is within whatever page of products got fetched.
+        found, reason = page.search_and_pick_first_result(
+            "Nhập tên sản phẩm", "a",
+            input_testid="price-product-search", result_testid="price-product-search-result",
+        )
         if not found:
-            return False, "No product found via search (seed product PROD-001 missing?)"
+            return False, reason
 
         future_date = time.strftime("%Y-%m-%d", time.localtime(time.time() + 1 * 86400))
-        page.set_date_by_label("Hiệu lực từ ngày", future_date)
-        page.type_by_label("Giá vốn", "100000")
-        page.type_by_label("Giá bán", "150000")
+        page.set_date_by_testid("price-effective-date", future_date)
+        page.type_by_testid("price-cost-price", "100000")
+        page.type_by_testid("price-selling-price", "150000")
 
-        return page.submit_and_verify("Tạo bản giá", "Hiệu lực từ ngày")
+        return page.submit_and_verify_by_testid("price-submit", "price-effective-date")
     except Exception as e:
-        return False, f"Exception: {e}"
+        return False, _short_exc(e)
 
 
 def flow_fin008(driver):
@@ -206,7 +231,7 @@ def flow_fin008(driver):
         form_scope = "//form[.//label[contains(normalize-space(.), 'Đại lý nộp tiền')]]"
         return page.submit_and_verify("Ghi nhận Phiếu thu", "Đại lý nộp tiền", scope_xpath=form_scope)
     except Exception as e:
-        return False, f"Exception: {e}"
+        return False, _short_exc(e)
 
 
 def flow_ret009(driver):
@@ -232,7 +257,7 @@ def flow_ret009(driver):
 
         return page.submit_and_verify("Lập phiếu trả hàng", "Chọn đơn xuất hàng gốc")
     except Exception as e:
-        return False, f"Exception: {e}"
+        return False, _short_exc(e)
 
 
 def flow_rpt010(driver):
@@ -242,11 +267,20 @@ def flow_rpt010(driver):
     page = ModulePage(driver)
     page.navigate_to("/reports/ceo-dashboard")
     try:
-        page.wait_network_idle(idle_ms=500, timeout=15)
+        # wait_network_idle only tracks whether *new* requests started
+        # recently -- a single slow aggregation query (P&L, top debtors,
+        # KPIs computed across the whole system) that's already in flight
+        # doesn't trip it, so it can return well before the dashboard
+        # actually has data. Wait for the loading spinner itself to clear.
+        page.wait_for(lambda d: "Đang tải dữ liệu báo cáo quản trị" not in
+                      d.find_element(By.TAG_NAME, "body").text, timeout=30)
+
         if page.has_error_toast():
             return False, "Error toast shown while loading dashboard"
 
         body_text = page.driver.find_element(By.TAG_NAME, "body").text
+        if "Đang tải dữ liệu báo cáo quản trị" in body_text:
+            return False, "Dashboard still showing its loading spinner after 30s (aggregation query never returned)"
         if "Lỗi Truy Cập Báo Cáo" in body_text:
             return False, "Dashboard rendered its own error state (report API call failed)"
         if "VNĐ" not in body_text and "Top 5" not in body_text:
@@ -254,4 +288,4 @@ def flow_rpt010(driver):
 
         return True, "ok"
     except Exception as e:
-        return False, f"Exception: {e}"
+        return False, _short_exc(e)
