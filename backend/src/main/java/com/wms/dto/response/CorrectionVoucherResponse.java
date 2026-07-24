@@ -56,6 +56,16 @@ public class CorrectionVoucherResponse {
     @JsonProperty("accounting_period_name")
     private String accountingPeriodName;
 
+    // The CLOSED period the reference document originally belonged to - distinct from
+    // accountingPeriodId above, which is the currently-OPEN period this voucher itself
+    // is posted in. Lets /finance/periods show corrections nested under the closed
+    // period they relate to.
+    @JsonProperty("original_period_id")
+    private Long originalPeriodId;
+
+    @JsonProperty("original_period_name")
+    private String originalPeriodName;
+
     @JsonProperty("approved_by")
     private Long approvedById;
 

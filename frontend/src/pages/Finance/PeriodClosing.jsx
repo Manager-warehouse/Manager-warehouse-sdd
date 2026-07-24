@@ -4,7 +4,14 @@ import { useUiStore } from '../../stores/ui.store';
 import { useAuthStore } from '../../stores/auth.store';
 import { ROLES } from '../../utils/constants';
 import Button from '../../components/common/Button';
-import { Calendar, Lock, Unlock, CheckCircle2, AlertCircle, Clock } from 'lucide-react';
+import { Calendar, Lock, Unlock, CheckCircle2, AlertCircle, Clock, ChevronDown, ChevronRight, Wrench } from 'lucide-react';
+
+const REFERENCE_TYPE_LABELS = {
+  INVOICE: 'Hóa đơn Bán',
+  PAYMENT_RECEIPT: 'Phiếu thu AR',
+  SUPPLIER_INVOICE: 'Hóa đơn Mua',
+  SUPPLIER_PAYMENT: 'Phiếu chi AP'
+};
 
 const PeriodClosing = () => {
   const { addToast } = useUiStore();
@@ -12,15 +19,21 @@ const PeriodClosing = () => {
   const isAccountantManager = hasRole(ROLES.ACCOUNTANT_MANAGER) || hasRole(ROLES.ADMIN);
 
   const [periods, setPeriods] = useState([]);
+  const [correctionVouchers, setCorrectionVouchers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [closingPeriodId, setClosingPeriodId] = useState(null);
   const [confirmModalPeriod, setConfirmModalPeriod] = useState(null);
+  const [expandedPeriodId, setExpandedPeriodId] = useState(null);
 
   const loadPeriods = useCallback(async () => {
     setLoading(true);
     try {
-      const list = await financeService.getAccountingPeriods();
-      setPeriods(list || []);
+      const [periodList, voucherList] = await Promise.all([
+        financeService.getAccountingPeriods(),
+        financeService.getCorrectionVouchers()
+      ]);
+      setPeriods(periodList || []);
+      setCorrectionVouchers(voucherList || []);
     } catch (err) {
       console.error('Failed to load accounting periods:', err);
       addToast('Không thể tải danh sách Kỳ kế toán', 'error');
@@ -32,6 +45,14 @@ const PeriodClosing = () => {
   useEffect(() => {
     loadPeriods();
   }, [loadPeriods]);
+
+  // Correction vouchers reference the CLOSED period they fixed via original_period_id -
+  // distinct from accounting_period_id, which is the currently-OPEN period the voucher
+  // itself was posted in. Grouping here avoids a separate backend filter for what is,
+  // by design, a rare/small dataset.
+  const vouchersForPeriod = (periodId) => correctionVouchers.filter(
+    v => (v.original_period_id ?? v.originalPeriodId) === periodId
+  );
 
   const handleClosePeriod = async (periodId) => {
     setClosingPeriodId(periodId);
@@ -103,10 +124,28 @@ const PeriodClosing = () => {
                     </td>
                   </tr>
                 ) : (
-                  periods.map((p) => (
-                    <tr key={p.id} className="hover:bg-canvas-cream/50">
+                  periods.map((p) => {
+                    const periodVouchers = p.status === 'CLOSED' ? vouchersForPeriod(p.id) : [];
+                    const isExpanded = expandedPeriodId === p.id;
+                    return (
+                    <React.Fragment key={p.id}>
+                    <tr className="hover:bg-canvas-cream/50">
                       <td className="p-4 font-bold text-ink flex items-center gap-2">
+                        {p.status === 'CLOSED' && (
+                          <button
+                            onClick={() => setExpandedPeriodId(isExpanded ? null : p.id)}
+                            className="text-shade-40 hover:text-ink"
+                            title="Xem lịch sử bút toán điều chỉnh"
+                          >
+                            {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                          </button>
+                        )}
                         {p.period_name || p.periodName}
+                        {periodVouchers.length > 0 && (
+                          <span className="text-[9px] bg-shade-70 text-onPrimary px-2 py-0.5 rounded-pill font-bold">
+                            {periodVouchers.length} điều chỉnh
+                          </span>
+                        )}
                       </td>
                       <td className="p-4 text-shade-60">{p.start_date || p.startDate}</td>
                       <td className="p-4 text-shade-60">{p.end_date || p.endDate}</td>
@@ -151,7 +190,60 @@ const PeriodClosing = () => {
                         )}
                       </td>
                     </tr>
-                  ))
+                    {isExpanded && (
+                      <tr>
+                        <td colSpan="7" className="p-0 bg-canvas-cream/40">
+                          <div className="p-4 flex flex-col gap-2">
+                            <span className="text-[10px] font-bold text-shade-60 uppercase tracking-wider flex items-center gap-1.5">
+                              <Wrench className="w-3.5 h-3.5" />
+                              Bút toán Điều chỉnh cho kỳ {p.period_name || p.periodName}
+                            </span>
+                            {periodVouchers.length === 0 ? (
+                              <span className="text-[11px] text-shade-40 italic">
+                                Chưa có bút toán điều chỉnh nào phát sinh cho kỳ này.
+                              </span>
+                            ) : (
+                              <table className="w-full border-collapse text-left text-[11px]">
+                                <thead>
+                                  <tr className="text-shade-50 uppercase tracking-wider">
+                                    <th className="py-1.5 pr-4">Mã Bút toán</th>
+                                    <th className="py-1.5 pr-4">Chứng từ gốc</th>
+                                    <th className="py-1.5 pr-4">Đối tượng</th>
+                                    <th className="py-1.5 pr-4 text-right">Số tiền</th>
+                                    <th className="py-1.5 pr-4">Lý do</th>
+                                    <th className="py-1.5 pr-4">Người lập</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-hairline-light/60">
+                                  {periodVouchers.map(v => (
+                                    <tr key={v.id}>
+                                      <td className="py-1.5 pr-4 font-bold text-ink">{v.adjustment_number || v.adjustmentNumber}</td>
+                                      <td className="py-1.5 pr-4 text-shade-60">
+                                        {REFERENCE_TYPE_LABELS[v.reference_type || v.referenceType] || v.reference_type} #{v.reference_id || v.referenceId}
+                                      </td>
+                                      <td className="py-1.5 pr-4 text-shade-70">
+                                        {v.dealer_name || v.dealerName || v.supplier_name || v.supplierName || '—'}
+                                      </td>
+                                      <td className={`py-1.5 pr-4 text-right font-bold ${
+                                        Number(v.amount_delta ?? v.amountDelta) < 0 ? 'text-emerald-600' : 'text-red-600'
+                                      }`}>
+                                        {Number(v.amount_delta ?? v.amountDelta) > 0 ? '+' : ''}
+                                        {Number(v.amount_delta ?? v.amountDelta).toLocaleString()}đ
+                                      </td>
+                                      <td className="py-1.5 pr-4 text-shade-60 max-w-xs truncate" title={v.reason}>{v.reason}</td>
+                                      <td className="py-1.5 pr-4 text-shade-60">{v.approved_by_name || v.approvedByName || '—'}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    </React.Fragment>
+                    );
+                  })
                 )}
               </tbody>
             </table>
