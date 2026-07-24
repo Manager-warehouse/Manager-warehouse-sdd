@@ -463,19 +463,19 @@ public class StockTakeService {
                     item.getProduct().getId(),
                     item.getBatch().getId(),
                     item.getLocation().getId())
-                    .orElse(null);
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "INVENTORY_NOT_FOUND: No inventory row for product "
+                                    + item.getProduct().getSku() + " at location " + item.getLocation().getId()));
 
-            if (inv != null) {
-                BigDecimal newQty = item.getActualQty();
-                if (newQty.subtract(inv.getReservedQty()).compareTo(BigDecimal.ZERO) < 0) {
-                    throw new BusinessRuleViolationException(
-                            "INVENTORY_INVARIANT_VIOLATED: Cannot set qty below reserved for product "
-                                    + item.getProduct().getSku());
-                }
-                inv.setTotalQty(newQty);
-                inv.setUpdatedAt(OffsetDateTime.now());
-                inventoryRepository.save(inv);
+            BigDecimal newQty = item.getActualQty();
+            if (newQty.subtract(inv.getReservedQty()).compareTo(BigDecimal.ZERO) < 0) {
+                throw new BusinessRuleViolationException(
+                        "INVENTORY_INVARIANT_VIOLATED: Cannot set qty below reserved for product "
+                                + item.getProduct().getSku());
             }
+            inv.setTotalQty(newQty);
+            inv.setUpdatedAt(OffsetDateTime.now());
+            inventoryRepository.save(inv);
 
             // Create adjustment record
             String adjNumber = "ADJ-ST-" + st.getId() + "-" + item.getId();
