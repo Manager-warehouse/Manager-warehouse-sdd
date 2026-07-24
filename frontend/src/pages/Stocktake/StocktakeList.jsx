@@ -109,7 +109,8 @@ const StocktakeList = () => {
 
   const handleApprove = async (id) => {
     try {
-      if (hasRole(ROLES.CEO)) {
+      const target = stocktakes.find(st => st.id === id);
+      if (target?.approval_level === 'CEO') {
         await stocktakeService.approveCeoStockTake(id);
       } else {
         await stocktakeService.approveStockTake(id);
