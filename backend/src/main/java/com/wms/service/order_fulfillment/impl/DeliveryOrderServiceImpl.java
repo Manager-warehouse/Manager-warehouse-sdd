@@ -565,6 +565,11 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
 
             WarehouseLocation stagingLocation = resolveWarehouseLocation(order, row.getStagingLocationId(), false,
                     "staging");
+            if (!Boolean.TRUE.equals(stagingLocation.getIsStaging())) {
+                throw new OutboundDeliveryException("INVENTORY_ROW_INVALID",
+                        HttpStatus.UNPROCESSABLE_ENTITY,
+                        "Staging location must have isStaging flag set to true");
+            }
             Inventory stagingInventory = null;
             if (value(row.getQcPassQty()).compareTo(ZERO) > 0) {
                 stagingInventory = loadOrCreateInventoryRow(order, item.getProduct(), allocation.getBatch(),

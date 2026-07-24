@@ -70,4 +70,6 @@ public class WarehouseLocationRequest {
     private BigDecimal capacityKg;
 
     private Boolean isQuarantine;
+
+    private Boolean isStaging;
 }

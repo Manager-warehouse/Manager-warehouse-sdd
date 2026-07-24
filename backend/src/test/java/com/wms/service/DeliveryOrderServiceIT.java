@@ -238,7 +238,7 @@ public class DeliveryOrderServiceIT {
 
         stagingLoc = locationRepository.save(WarehouseLocation.builder()
                 .warehouse(warehouse).code("STAGE-01").type(LocationType.BIN)
-                .isQuarantine(false).isActive(true)
+                .isQuarantine(false).isActive(true).isStaging(true)
                 .currentVolumeM3(BigDecimal.ZERO).currentWeightKg(BigDecimal.ZERO)
                 .createdAt(OffsetDateTime.now()).updatedAt(OffsetDateTime.now()).build());
 

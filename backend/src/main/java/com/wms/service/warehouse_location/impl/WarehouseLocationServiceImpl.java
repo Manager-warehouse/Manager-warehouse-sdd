@@ -75,12 +75,13 @@ public class WarehouseLocationServiceImpl implements WarehouseLocationService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<WarehouseLocationResponse> getAllLocations(Long warehouseId, String type, Boolean isQuarantine, Boolean isActive) {
+    public List<WarehouseLocationResponse> getAllLocations(Long warehouseId, String type, Boolean isQuarantine, Boolean isStaging, Boolean isActive) {
         // Query filter logic
         List<WarehouseLocation> list = locationRepository.findAll().stream()
                 .filter(loc -> warehouseId == null || loc.getWarehouse().getId().equals(warehouseId))
                 .filter(loc -> type == null || loc.getType().name().equals(type))
                 .filter(loc -> isQuarantine == null || loc.getIsQuarantine().equals(isQuarantine))
+                .filter(loc -> isStaging == null || loc.getIsStaging().equals(isStaging))
                 .filter(loc -> isActive == null || loc.getIsActive().equals(isActive))
                 .collect(Collectors.toList());
         return list.stream().map(mapper::toResponse).collect(Collectors.toList());
@@ -144,6 +145,7 @@ public class WarehouseLocationServiceImpl implements WarehouseLocationService {
         location.setCurrentVolumeM3(BigDecimal.ZERO);
         location.setCurrentWeightKg(BigDecimal.ZERO);
         location.setIsQuarantine(request.getIsQuarantine() != null ? request.getIsQuarantine() : false);
+        location.setIsStaging(request.getIsStaging() != null ? request.getIsStaging() : false);
         location.setIsActive(true);
         location.setCreatedBy(actor);
         location.setUpdatedBy(actor);
@@ -222,6 +224,7 @@ public class WarehouseLocationServiceImpl implements WarehouseLocationService {
         location.setCapacityM3(request.getCapacityM3());
         location.setCapacityKg(request.getCapacityKg());
         location.setIsQuarantine(request.getIsQuarantine() != null ? request.getIsQuarantine() : location.getIsQuarantine());
+        location.setIsStaging(request.getIsStaging() != null ? request.getIsStaging() : location.getIsStaging());
         location.setUpdatedBy(actor);
         location.setUpdatedAt(OffsetDateTime.now());
 
@@ -359,6 +362,7 @@ public class WarehouseLocationServiceImpl implements WarehouseLocationService {
         map.put("capacityM3", loc.getCapacityM3());
         map.put("capacityKg", loc.getCapacityKg());
         map.put("isQuarantine", loc.getIsQuarantine());
+        map.put("isStaging", loc.getIsStaging());
         map.put("isActive", loc.getIsActive());
         return map;
     }

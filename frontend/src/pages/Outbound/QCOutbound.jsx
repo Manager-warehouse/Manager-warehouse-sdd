@@ -8,7 +8,7 @@ import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 
 const buildAllocationRows = (order, locations) => {
-  const stagingLocations = locations.filter((location) => location.is_quarantine !== true);
+  const stagingLocations = locations.filter((location) => location.is_quarantine !== true && location.is_staging === true);
   const quarantineLocations = locations.filter((location) => location.is_quarantine === true);
   const defaultStagingId = stagingLocations.length === 1 ? stagingLocations[0].id : '';
   const defaultQuarantineId = quarantineLocations.length === 1 ? quarantineLocations[0].id : '';
@@ -114,7 +114,7 @@ export default function QCOutbound() {
   };
 
   const failCount = qcRows.filter((row) => row.result === 'FAILED').length;
-  const stagingOptions = locations.filter((location) => location.is_quarantine !== true);
+  const stagingOptions = locations.filter((location) => location.is_quarantine !== true && location.is_staging === true);
   const quarantineOptions = locations.filter((location) => location.is_quarantine === true);
 
   if (loading) {
