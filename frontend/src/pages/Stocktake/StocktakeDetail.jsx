@@ -179,7 +179,7 @@ const StocktakeDetail = () => {
     return <div className="p-12 text-center text-danger-500">Không tìm thấy phiếu kiểm kê.</div>;
   }
 
-  const isInProgress = stocktake.status === 'IN_PROGRESS';
+  const isInProgress = stocktake.status === 'IN_PROGRESS' || stocktake.status === 'REJECTED';
   const isPendingApproval = stocktake.status === 'PENDING_APPROVAL';
   const isDraft = stocktake.status === 'DRAFT';
 
