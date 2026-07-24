@@ -319,8 +319,22 @@ public class StockTakeService {
                     "All items must have actual_qty recorded before completing");
         }
 
-        // Recalculate total variance
+        // Refresh systemQty from current inventory and recalculate variance
         List<StockTakeItem> items = stockTakeItemRepository.findByStockTakeId(id);
+        for (StockTakeItem item : items) {
+            Inventory inv = inventoryRepository.findByWarehouseIdAndProductIdAndBatchIdAndLocationId(
+                    st.getWarehouse().getId(), item.getProduct().getId(),
+                    item.getBatch().getId(), item.getLocation().getId())
+                    .orElse(null);
+            BigDecimal currentSystemQty = (inv != null) ? inv.getTotalQty() : BigDecimal.ZERO;
+            item.setSystemQty(currentSystemQty);
+            BigDecimal costPrice = (inv != null) ? inv.getCostPrice() : BigDecimal.ZERO;
+            BigDecimal varianceQty = item.getActualQty().subtract(currentSystemQty);
+            item.setVarianceQty(varianceQty);
+            item.setVarianceValue(varianceQty.multiply(costPrice));
+            stockTakeItemRepository.save(item);
+        }
+
         BigDecimal totalVariance = items.stream()
                 .map(StockTakeItem::getVarianceValue)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
