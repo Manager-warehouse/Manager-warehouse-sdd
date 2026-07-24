@@ -43,7 +43,8 @@ import { ROLES, getDefaultRouteByRole } from '../utils/constants';
 import { useAuthStore } from '../stores/auth.store';
 
 const DefaultRedirect = () => {
-  const { user } = useAuthStore();n" replace />;
+  const { user } = useAuthStore();
+  if (!user) return <Navigate to="/login" replace />;
   return <Navigate to={getDefaultRouteByRole(user.role)} replace />;
 };
 

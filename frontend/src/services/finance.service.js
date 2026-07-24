@@ -510,5 +510,69 @@ export const financeService = {
       }
     });
     return response.data;
+  },
+
+  // --- CORRECTION VOUCHERS (US-WMS-29) ---
+  // ACCOUNTANT_MANAGER-only, single-step: corrects an invoice/payment_receipt/
+  // supplier_invoice/supplier_payment whose own accounting period is already CLOSED,
+  // without ever editing that original document.
+  getCorrectionVouchers: async (referenceType) => {
+    if (useMock) {
+      await new Promise(resolve => setTimeout(resolve, 200));
+      const list = JSON.parse(localStorage.getItem('wms_db_correction_vouchers')) || [];
+      return referenceType ? list.filter(v => v.reference_type === referenceType) : list;
+    }
+    let url = '/correction-vouchers';
+    if (referenceType) url += `?referenceType=${referenceType}`;
+    const response = await apiClient.get(url);
+    return response.data;
+  },
+
+  createCorrectionVoucher: async ({ referenceType, referenceId, amountDelta, reason, documentDate }) => {
+    if (useMock) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const list = JSON.parse(localStorage.getItem('wms_db_correction_vouchers')) || [];
+
+      // Mirror the backend's lookup: derive the CLOSED original period + dealer/supplier
+      // from the referenced document, rather than storing them redundantly.
+      let originalPeriodId = null;
+      let dealerName = null;
+      let supplierName = null;
+      if (referenceType === 'INVOICE') {
+        const inv = getDb(KEYS.INVOICES, []).find(i => i.id === Number(referenceId));
+        originalPeriodId = inv?.accounting_period_id ?? null;
+        dealerName = inv?.dealer_name ?? null;
+      } else if (referenceType === 'PAYMENT_RECEIPT') {
+        const pr = getDb(KEYS.PAYMENTS, []).find(p => p.id === Number(referenceId));
+        originalPeriodId = pr?.accounting_period_id ?? null;
+        dealerName = pr?.dealer_name ?? null;
+      }
+
+      const newVoucher = {
+        id: list.length > 0 ? Math.max(...list.map(v => v.id)) + 1 : 1,
+        adjustment_number: `ADJ-${documentDate.replace(/-/g, '')}-MOCK${Math.floor(Math.random() * 1000)}`,
+        reference_type: referenceType,
+        reference_id: Number(referenceId),
+        amount_delta: Number(amountDelta),
+        reason,
+        document_date: documentDate,
+        original_period_id: originalPeriodId,
+        dealer_name: dealerName,
+        supplier_name: supplierName,
+        approved_by_name: (JSON.parse(localStorage.getItem('wms_user') || 'null'))?.fullName || null,
+        created_at: new Date().toISOString()
+      };
+      list.push(newVoucher);
+      localStorage.setItem('wms_db_correction_vouchers', JSON.stringify(list));
+      return newVoucher;
+    }
+    const response = await apiClient.post('/correction-vouchers', {
+      reference_type: referenceType,
+      reference_id: Number(referenceId),
+      amount_delta: Number(amountDelta),
+      reason,
+      document_date: documentDate
+    });
+    return response.data;
   }
 };
