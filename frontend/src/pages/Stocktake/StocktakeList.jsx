@@ -47,7 +47,7 @@ const StocktakeList = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
 
-  const canCreate = hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.STOREKEEPER) || hasRole(ROLES.ADMIN);
+  const canCreate = hasRole(ROLES.STOREKEEPER) || hasRole(ROLES.ADMIN);
   const canApprove = hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.CEO) || hasRole(ROLES.ADMIN);
 
   const load = useCallback(async () => {
