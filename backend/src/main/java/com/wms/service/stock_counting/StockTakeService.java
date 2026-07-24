@@ -233,6 +233,11 @@ public class StockTakeService {
                     "Count can only be recorded while IN_PROGRESS or REJECTED, current: " + st.getStatus());
         }
 
+        if (st.getStatus() == StockTakeStatus.REJECTED) {
+            st.setStatus(StockTakeStatus.IN_PROGRESS);
+            lockLocations(st);
+        }
+
         boolean anyEmployeeFault = false;
         for (StockTakeCountItemRequest countReq : req.getItems()) {
             if (countReq.getActualQty().compareTo(BigDecimal.ZERO) < 0) {
