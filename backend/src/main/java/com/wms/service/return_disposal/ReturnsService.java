@@ -44,6 +44,7 @@ import com.wms.repository.dealer_management.DealerRepository;
 import com.wms.service.audit_trail.AuditLogService;
 import com.wms.service.billing_payment.AccountingPeriodService;
 import com.wms.service.stock_receiving.ReceiptValidationService;
+import com.wms.service.user_configuration.SystemConfigService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -80,6 +81,7 @@ public class ReturnsService {
     private final ReceiptValidationService receiptValidationService;
     private final AuditLogService auditLogService;
     private final AccountingPeriodService accountingPeriodService;
+    private final SystemConfigService systemConfigService;
 
     public ReturnsService(ReceiptRepository receiptRepository,
                           ReceiptItemRepository receiptItemRepository,
@@ -91,7 +93,8 @@ public class ReturnsService {
                           CreditNoteRepository creditNoteRepository,
                           ReceiptValidationService receiptValidationService,
                           AuditLogService auditLogService,
-                          AccountingPeriodService accountingPeriodService) {
+                          AccountingPeriodService accountingPeriodService,
+                          SystemConfigService systemConfigService) {
         this.receiptRepository = receiptRepository;
         this.receiptItemRepository = receiptItemRepository;
         this.deliveryOrderRepository = deliveryOrderRepository;
@@ -103,6 +106,7 @@ public class ReturnsService {
         this.receiptValidationService = receiptValidationService;
         this.auditLogService = auditLogService;
         this.accountingPeriodService = accountingPeriodService;
+        this.systemConfigService = systemConfigService;
     }
 
     @Transactional
@@ -475,6 +479,18 @@ public class ReturnsService {
         BigDecimal newBalance = oldBalance.subtract(totalRefundAmount); // Refund reduces outstanding balance dealer owes us
 
         dealer.setCurrentBalance(newBalance);
+
+        // A return can bring a CREDIT_HOLD dealer back under the unlock threshold just
+        // like a cash payment does (US-WMS-15) - without this, a dealer whose balance
+        // only ever drops via returns (no cash payment) would stay incorrectly locked.
+        if (dealer.getCreditStatus() == CreditStatus.CREDIT_HOLD) {
+            BigDecimal creditLimit = dealer.getCreditLimit() != null ? dealer.getCreditLimit() : BigDecimal.ZERO;
+            BigDecimal bufferPct = systemConfigService.getDecimalValue("CREDIT_UNLOCK_BUFFER_PCT", new BigDecimal("0.8"));
+            if (newBalance.compareTo(creditLimit.multiply(bufferPct)) < 0) {
+                dealer.setCreditStatus(CreditStatus.ACTIVE);
+            }
+        }
+
         dealerRepository.save(dealer);
 
         // Generate Credit Note Number

@@ -44,19 +44,19 @@ Hệ thống tự động kiểm tra hạn mức tín dụng và khóa tín dụ
   [
     {
       "id": 12,
-      "doId": 45,
-      "doNumber": "DO-20260612-003",
-      "dealerId": 3,
-      "dealerName": "Đại lý Minh Trí",
-      "warehouseId": 1,
-      "deliveredAt": "2026-06-16T10:00:00Z",
-      "totalAmountEstimate": 17000000.00,
-      "invoiceStatus": "NOT_INVOICED",
+      "do_id": 45,
+      "do_number": "DO-20260612-003",
+      "dealer_id": 3,
+      "dealer_name": "Đại lý Minh Trí",
+      "warehouse_id": 1,
+      "delivered_at": "2026-06-16T10:00:00Z",
+      "total_amount_estimate": 17000000.00,
+      "invoice_status": "NOT_INVOICED",
       "status": "ACTIVE",
-      "otpVerifiedAt": "2026-06-16T09:58:30Z",
-      "podImageUrl": "https://storage.phucanh.vn/pod/photos/DO-20260612-003_delivered.jpg",
-      "podSignatureUrl": "https://storage.phucanh.vn/pod/signatures/DO-20260612-003_sig.png",
-      "podTimestamp": "2026-06-16T10:00:00Z"
+      "otp_verified_at": "2026-06-16T09:58:30Z",
+      "pod_image_url": "https://storage.phucanh.vn/pod/photos/DO-20260612-003_delivered.jpg",
+      "pod_signature_url": "https://storage.phucanh.vn/pod/signatures/DO-20260612-003_sig.png",
+      "pod_timestamp": "2026-06-16T10:00:00Z"
     }
   ]
   ```
@@ -67,8 +67,8 @@ Hệ thống tự động kiểm tra hạn mức tín dụng và khóa tín dụ
 * **Request Body**:
   ```json
   {
-    "doId": 45,
-    "documentDate": "2026-06-17",
+    "do_id": 45,
+    "document_date": "2026-06-17",
     "notes": "Lập hóa đơn cho đơn giao hàng Minh Trí"
   }
   ```
@@ -76,16 +76,16 @@ Hệ thống tự động kiểm tra hạn mức tín dụng và khóa tín dụ
   ```json
   {
     "id": 101,
-    "invoiceNumber": "INV-202606-0005",
-    "doId": 45,
-    "dealerId": 3,
-    "totalAmount": 17000000.00,
-    "issueDate": "2026-06-17",
-    "dueDate": "2026-07-17",
+    "invoice_number": "INV-202606-0005",
+    "do_id": 45,
+    "dealer_id": 3,
+    "total_amount": 17000000.00,
+    "issue_date": "2026-06-17",
+    "due_date": "2026-07-17",
     "status": "UNPAID",
-    "accountingPeriodId": 2,
-    "documentDate": "2026-06-17",
-    "createdAt": "2026-06-17T00:30:00Z"
+    "accounting_period_id": 2,
+    "document_date": "2026-06-17",
+    "created_at": "2026-06-17T00:30:00Z"
   }
   ```
 

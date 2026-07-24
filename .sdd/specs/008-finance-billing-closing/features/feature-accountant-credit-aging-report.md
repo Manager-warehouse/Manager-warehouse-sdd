@@ -22,32 +22,32 @@ Kế toán trưởng (`ACCOUNTANT_MANAGER`) cần theo dõi và đánh giá rủ
   ```json
   [
     {
-      "dealerId": 3,
-      "dealerCode": "DL-MINHTRI",
-      "dealerName": "Đại lý Minh Trí",
-      "creditLimit": 500000000.00,
-      "currentBalance": 120000000.00,
-      "creditStatus": "ACTIVE",
-      "inTermAmount": 80000000.00,
-      "overdue1to30": 30000000.00,
-      "overdue31to60": 10000000.00,
-      "overdue61to90": 0.00,
-      "overdueOver90": 0.00,
-      "riskLevel": "NORMAL"
+      "dealer_id": 3,
+      "dealer_code": "DL-MINHTRI",
+      "dealer_name": "Đại lý Minh Trí",
+      "credit_limit": 500000000.00,
+      "current_balance": 120000000.00,
+      "credit_status": "ACTIVE",
+      "in_term_amount": 80000000.00,
+      "overdue_1_to_30": 30000000.00,
+      "overdue_31_to_60": 10000000.00,
+      "overdue_61_to_90": 0.00,
+      "overdue_over_90": 0.00,
+      "risk_level": "NORMAL"
     },
     {
-      "dealerId": 1,
-      "dealerCode": "DL-HOANGPHAT",
-      "dealerName": "Đại lý Hoàng Phát",
-      "creditLimit": 500000000.00,
-      "currentBalance": 450000000.00,
-      "creditStatus": "CREDIT_HOLD",
-      "inTermAmount": 100000000.00,
-      "overdue1to30": 150000000.00,
-      "overdue31to60": 50000000.00,
-      "overdue61to90": 100000000.00,
-      "overdueOver90": 50000000.00,
-      "riskLevel": "HIGH_RISK"
+      "dealer_id": 1,
+      "dealer_code": "DL-HOANGPHAT",
+      "dealer_name": "Đại lý Hoàng Phát",
+      "credit_limit": 500000000.00,
+      "current_balance": 450000000.00,
+      "credit_status": "CREDIT_HOLD",
+      "in_term_amount": 100000000.00,
+      "overdue_1_to_30": 150000000.00,
+      "overdue_31_to_60": 50000000.00,
+      "overdue_61_to_90": 100000000.00,
+      "overdue_over_90": 50000000.00,
+      "risk_level": "HIGH_RISK"
     }
   ]
   ```

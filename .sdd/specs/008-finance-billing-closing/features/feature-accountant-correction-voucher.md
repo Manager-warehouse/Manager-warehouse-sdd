@@ -51,29 +51,31 @@ Migration cần: nới ràng buộc trên 3 cột, thêm 1 cột `amount_delta`,
 * **Request Body**:
   ```json
   {
-    "referenceType": "INVOICE",
-    "referenceId": 101,
-    "amountDelta": -2000000.00,
+    "reference_type": "INVOICE",
+    "reference_id": 101,
+    "amount_delta": -2000000.00,
     "reason": "Hóa đơn INV-202606-0005 ghi nhầm đơn giá, kỳ 2026-06 đã chốt sổ",
-    "documentDate": "2026-07-24"
+    "document_date": "2026-07-24"
   }
   ```
 * **Response 201 Created**:
   ```json
   {
     "id": 5,
-    "adjustmentNumber": "ADJ-202607-0012",
-    "type": "CORRECTION_VOUCHER",
-    "referenceType": "INVOICE",
-    "referenceId": 101,
-    "dealerId": 3,
-    "amountDelta": -2000000.00,
+    "adjustment_number": "ADJ-202607-0012",
+    "reference_type": "INVOICE",
+    "reference_id": 101,
+    "dealer_id": 3,
+    "amount_delta": -2000000.00,
     "reason": "Hóa đơn INV-202606-0005 ghi nhầm đơn giá, kỳ 2026-06 đã chốt sổ",
-    "documentDate": "2026-07-24",
-    "accountingPeriodId": 3,
-    "approvedBy": 6,
-    "approvedAt": "2026-07-24T09:00:00Z",
-    "createdAt": "2026-07-24T09:00:00Z"
+    "document_date": "2026-07-24",
+    "accounting_period_id": 3,
+    "original_period_id": 2,
+    "original_period_name": "2026-06",
+    "approved_by": 6,
+    "approved_by_name": "Kế toán trưởng",
+    "approved_at": "2026-07-24T09:00:00Z",
+    "created_at": "2026-07-24T09:00:00Z"
   }
   ```
 

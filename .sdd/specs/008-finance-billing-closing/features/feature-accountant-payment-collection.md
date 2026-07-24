@@ -32,11 +32,11 @@ Hệ thống tự động kiểm tra và mở khóa tín dụng (chuyển sang t
 * **Request Body**:
   ```json
   {
-    "dealerId": 3,
-    "invoiceId": 101,
+    "dealer_id": 3,
+    "invoice_id": 101,
     "amount": 10000000.00,
-    "paymentDate": "2026-06-17",
-    "paymentMethod": "BANK_TRANSFER",
+    "payment_date": "2026-06-17",
+    "payment_method": "BANK_TRANSFER",
     "notes": "Đại lý Minh Trí chuyển khoản thanh toán đợt 1"
   }
   ```
@@ -44,16 +44,16 @@ Hệ thống tự động kiểm tra và mở khóa tín dụng (chuyển sang t
   ```json
   {
     "id": 201,
-    "paymentNumber": "PAY-202606-0003",
-    "dealerId": 3,
-    "invoiceId": 101,
+    "payment_number": "PAY-202606-0003",
+    "dealer_id": 3,
+    "invoice_id": 101,
     "amount": 10000000.00,
-    "paymentDate": "2026-06-17",
-    "paymentMethod": "BANK_TRANSFER",
-    "accountingPeriodId": 2,
-    "documentDate": "2026-06-17",
+    "payment_date": "2026-06-17",
+    "payment_method": "BANK_TRANSFER",
+    "accounting_period_id": 2,
+    "document_date": "2026-06-17",
     "notes": "Đại lý Minh Trí chuyển khoản thanh toán đợt 1",
-    "createdAt": "2026-06-17T01:00:00Z"
+    "created_at": "2026-06-17T01:00:00Z"
   }
   ```
 

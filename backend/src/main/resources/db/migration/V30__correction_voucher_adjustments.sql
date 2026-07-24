@@ -1,4 +1,4 @@
--- V28__correction_voucher_adjustments.sql
+-- V30__correction_voucher_adjustments.sql
 -- Support for Correction Voucher (US-WMS-29, Spec 008): financial-only corrections
 -- posted against invoices/payment_receipts/supplier_invoices/supplier_payments whose
 -- original accounting period is already CLOSED. Reuses the existing adjustments table

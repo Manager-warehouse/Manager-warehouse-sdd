@@ -14,6 +14,7 @@ import com.wms.enums.audit_trail.AuditAction;
 import com.wms.enums.billing_payment.AccountingPeriodStatus;
 import com.wms.enums.billing_payment.InvoiceStatus;
 import com.wms.enums.stock_receiving.ReceiptStatus;
+import com.wms.exception.BusinessRuleViolationException;
 import com.wms.exception.ResourceNotFoundException;
 import com.wms.exception.UnprocessableEntityException;
 import com.wms.repository.*;
@@ -80,11 +81,14 @@ public class SupplierInvoiceServiceImpl implements SupplierInvoiceService {
                 .orElseThrow(() -> new ResourceNotFoundException("Receipt not found with id: " + request.getReceiptId()));
 
         if (receipt.getStatus() != ReceiptStatus.APPROVED) {
-            throw new UnprocessableEntityException("Receipt order must be in APPROVED status before creating a supplier invoice");
+            // 400: wrong document status for this action (ReceiptStatus has no COMPLETED
+            // value - APPROVED is the real terminal/putaway-unlocked state per Spec 003).
+            throw new BusinessRuleViolationException("RECEIPT_NOT_APPROVED: Receipt must be in APPROVED status before creating a supplier invoice");
         }
 
         if (supplierInvoiceRepository.findByReceiptId(receipt.getId()).isPresent()) {
-            throw new UnprocessableEntityException("Supplier invoice already exists for receipt id: " + receipt.getId());
+            // 409: state conflict (already invoiced), not a malformed request.
+            throw new BusinessRuleViolationException("SUPPLIER_INVOICE_ALREADY_EXISTS: Supplier invoice already exists for receipt id: " + receipt.getId());
         }
 
         Supplier supplier = receipt.getSupplier();

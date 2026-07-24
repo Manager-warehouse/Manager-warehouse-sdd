@@ -62,6 +62,7 @@ import com.wms.service.warehouse_location.impl.*;
 
 import com.wms.dto.request.PaymentReceiptCreateRequest;
 import com.wms.dto.response.PaymentReceiptResponse;
+import com.wms.exception.BusinessRuleViolationException;
 import com.wms.exception.UnprocessableEntityException;
 import com.wms.repository.*;
 import com.wms.repository.dealer_management.DealerRepository;
@@ -261,7 +262,7 @@ class PaymentReceiptServiceTest {
         when(invoiceRepository.findById(50L)).thenReturn(Optional.of(invoice));
 
         assertThatThrownBy(() -> paymentReceiptService.createPaymentReceipt(request, accountantUser))
-                .isInstanceOf(UnprocessableEntityException.class)
+                .isInstanceOf(BusinessRuleViolationException.class)
                 .hasMessageContaining("Invoice is already fully paid");
     }
 

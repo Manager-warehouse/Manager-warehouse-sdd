@@ -68,7 +68,7 @@ Sau khi đơn hàng được giao thành công (trạng thái `DELIVERED`), hệ
 * [EARS - Supplier Invoicing & AP](./features/feature-accountant-supplier-invoicing.md#3-functional-requirements-ears)
 * [EARS - Correction Voucher](./features/feature-accountant-correction-voucher.md#3-functional-requirements-ears)
 
-## 4. Non-functional Requirements
+## 5. Non-functional Requirements
 
 | ID | Requirement | Target |
 |----|------------|--------|
@@ -78,7 +78,7 @@ Sau khi đơn hàng được giao thành công (trạng thái `DELIVERED`), hệ
 | NFR-004 | Monthly closing validation & execution | ≤ 10s |
 | NFR-005 | Daily credit check batch job | Run off-peak, duration ≤ 30s |
 
-## 5. Data Model (Đồng bộ với DB Migration V1 & V17)
+## 6. Data Model (Đồng bộ với DB Migration V1 & V17)
 
 ### dealers (Bổ sung thông tin quản lý công nợ)
 * `credit_limit` (DECIMAL(18,2), NOT NULL, DEFAULT 0) - Hạn mức nợ tối đa
@@ -144,7 +144,7 @@ Sau khi đơn hàng được giao thành công (trạng thái `DELIVERED`), hệ
 * `id` (BIGSERIAL, PK)
 * `invoice_number` (VARCHAR(50), UNIQUE, NOT NULL) - Số hóa đơn mua hàng nội bộ
 * `supplier_invoice_number` (VARCHAR(100), NOT NULL) - Số hóa đơn gốc từ NCC
-* `receipt_order_id` (BIGINT, FK→receipt_orders, NOT NULL) - Liên kết phiếu nhập kho COMPLETED
+* `receipt_id` (BIGINT, FK→receipts, NOT NULL) - Liên kết phiếu nhập kho `APPROVED` (Spec 003 không có trạng thái `COMPLETED` riêng — `APPROVED` là trạng thái cuối sau khi Trưởng kho duyệt, mở khóa putaway)
 * `supplier_id` (BIGINT, FK→suppliers, NOT NULL) - Nhà cung cấp
 * `total_amount` (DECIMAL(18,2), NOT NULL) - Tổng tiền hóa đơn mua hàng
 * `issue_date` (DATE, NOT NULL) - Ngày phát hành hóa đơn
@@ -177,7 +177,7 @@ Không tạo bảng mới. Bảng `adjustments` (Spec 006) được mở rộng 
 * `reference_type`/`reference_id` (đã có sẵn) nhận thêm giá trị `'INVOICE'`, `'PAYMENT_RECEIPT'`, `'SUPPLIER_INVOICE'`, `'SUPPLIER_PAYMENT'` để trỏ về chứng từ tài chính gốc.
 * `approved_by`/`approved_at` (đã có sẵn) được set ngay tại thời điểm tạo bởi `ACCOUNTANT_MANAGER` — không có bước duyệt riêng.
 
-## 6. API Spec (Đồng bộ Frontend - Backend)
+## 7. API Spec (Đồng bộ Frontend - Backend)
 
 Các endpoints được cấu hình thông qua base API prefix `/api/v1`:
 
@@ -191,8 +191,8 @@ Các endpoints được cấu hình thông qua base API prefix `/api/v1`:
 | **POST** | `/api/v1/payment-receipts` | `ACCOUNTANT` | Ghi nhận phiếu thu cấn trừ công nợ đại lý |
 | **POST** | `/api/v1/payment-receipts/ocr` | `ACCOUNTANT` | Upload và phân tích hóa đơn chuyển khoản qua OCR |
 | **GET** | `/api/v1/payment-receipts` | `ACCOUNTANT`, `ACCOUNTANT_MANAGER` | Danh sách phiếu thu công nợ |
-| **GET** | `/api/v1/supplier-billing-notifications` | `ACCOUNTANT` | Danh sách thông báo lập hóa đơn mua hàng từ phiếu nhập COMPLETED |
-| **POST** | `/api/v1/supplier-invoices` | `ACCOUNTANT` | Lập hóa đơn mua hàng từ phiếu nhập kho COMPLETED |
+| **GET** | `/api/v1/supplier-billing-notifications` | `ACCOUNTANT` | Danh sách thông báo lập hóa đơn mua hàng từ phiếu nhập `APPROVED` |
+| **POST** | `/api/v1/supplier-invoices` | `ACCOUNTANT` | Lập hóa đơn mua hàng từ phiếu nhập kho `APPROVED` |
 | **GET** | `/api/v1/supplier-invoices` | `ACCOUNTANT`, `ACCOUNTANT_MANAGER` | Danh sách hóa đơn mua hàng từ Nhà cung cấp |
 | **GET** | `/api/v1/supplier-invoices/{id}` | `ACCOUNTANT`, `ACCOUNTANT_MANAGER` | Chi tiết hóa đơn mua hàng |
 | **POST** | `/api/v1/supplier-payments` | `ACCOUNTANT` | Ghi nhận phiếu chi thanh toán cho Nhà cung cấp |
@@ -204,7 +204,7 @@ Các endpoints được cấu hình thông qua base API prefix `/api/v1`:
 | **POST** | `/api/v1/correction-vouchers` | `ACCOUNTANT_MANAGER` | Lập bút toán điều chỉnh cho chứng từ thuộc kỳ đã `CLOSED`, cập nhật số dư công nợ ngay lập tức |
 | **GET** | `/api/v1/correction-vouchers` | `ACCOUNTANT`, `ACCOUNTANT_MANAGER` | Danh sách bút toán điều chỉnh |
 
-## 7. Error Handling
+## 8. Error Handling
 
 | Error Code | HTTP Status | Điều kiện kích hoạt |
 |------------|-------------|---------------------|
@@ -213,11 +213,11 @@ Các endpoints được cấu hình thông qua base API prefix `/api/v1`:
 | `INVOICE_ALREADY_PAID` | 409 Conflict | Thực hiện thanh toán cho hóa đơn đã có trạng thái `PAID` |
 | `OVERPAYMENT_EXCEEDS_INVOICE` | 422 Unprocessable Entity | Số tiền thanh toán cấn trừ lớn hơn dư nợ còn lại của hóa đơn |
 | `DELIVERY_ORDER_NOT_DELIVERED` | 400 Bad Request | Lập hóa đơn từ DO chưa chuyển sang trạng thái `DELIVERED` |
-| `RECEIPT_ORDER_NOT_COMPLETED` | 400 Bad Request | Lập hóa đơn mua hàng từ phiếu nhập chưa ở trạng thái `COMPLETED` |
+| `RECEIPT_NOT_APPROVED` | 400 Bad Request | Lập hóa đơn mua hàng từ phiếu nhập chưa ở trạng thái `APPROVED` |
 | `SUPPLIER_INVOICE_ALREADY_EXISTS` | 409 Conflict | Lập hóa đơn mua hàng cho phiếu nhập đã có hóa đơn |
 | `ORIGINAL_PERIOD_NOT_CLOSED` | 422 Unprocessable Entity | Lập bút toán điều chỉnh cho chứng từ thuộc kỳ kế toán chưa `CLOSED` |
 
-## 8. Acceptance Criteria
+## 9. Acceptance Criteria
 *Vui lòng xem chi tiết kịch bản kiểm thử tại các tài liệu đặc tả tính năng:*
 * [Acceptance - Customer Invoicing](./features/feature-accountant-customer-invoicing.md#5-acceptance-criteria)
 * [Acceptance - Payment Collection](./features/feature-accountant-payment-collection.md#5-acceptance-criteria)
@@ -227,7 +227,7 @@ Các endpoints được cấu hình thông qua base API prefix `/api/v1`:
 * [Acceptance - Supplier Invoicing & AP](./features/feature-accountant-supplier-invoicing.md#5-acceptance-criteria)
 * [Acceptance - Correction Voucher](./features/feature-accountant-correction-voucher.md#7-acceptance-criteria)
 
-## 9. Out of Scope
+## 10. Out of Scope
 
 - Hạch toán kép General Ledger (GL) kế toán tổng hợp.
 - Kê khai và tính toán thuế VAT chi tiết (chỉ lưu tổng tiền hóa đơn).
