@@ -138,7 +138,7 @@ class AuthControllerTest {
 
     @Test
     @DisplayName("POST /login — 401 khi tài khoản bị vô hiệu hóa")
-    void login_inactiveAccount_returns401() throws Exception {
+    void login_inactiveAccount_returns403() throws Exception {
         when(authService.login(any()))
                 .thenThrow(new IllegalStateException("ACCOUNT_INACTIVE"));
 
@@ -147,7 +147,7 @@ class AuthControllerTest {
                         .content("""
                                 {"email":"inactive@wms.com","password":"Password@123"}
                                 """))
-                .andExpect(status().isUnauthorized())
+                .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error").value("ACCOUNT_INACTIVE"));
     }
 

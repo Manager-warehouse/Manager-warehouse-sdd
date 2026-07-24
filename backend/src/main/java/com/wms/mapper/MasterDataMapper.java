@@ -59,6 +59,7 @@ public class MasterDataMapper {
         response.setCurrentVolumeM3(entity.getCurrentVolumeM3());
         response.setCurrentWeightKg(entity.getCurrentWeightKg());
         response.setIsQuarantine(entity.getIsQuarantine());
+        response.setIsStaging(entity.getIsStaging());
         response.setIsActive(entity.getIsActive());
         response.setCreatedAt(entity.getCreatedAt());
         response.setUpdatedAt(entity.getUpdatedAt());

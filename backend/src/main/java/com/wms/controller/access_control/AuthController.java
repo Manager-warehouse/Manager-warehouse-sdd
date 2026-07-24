@@ -95,6 +95,13 @@ public class AuthController {
         return ResponseEntity.ok(Map.of("message", "Mật khẩu đã được đặt lại thành công."));
     }
 
+    @Operation(summary = "Kiểm tra mã OTP hợp lệ (không tiêu thụ, dùng cho bước xác nhận OTP)")
+    @PostMapping("/otp/check")
+    public ResponseEntity<Map<String, String>> checkOtp(@Valid @RequestBody CheckOtpRequest request) {
+        authService.checkOtp(request);
+        return ResponseEntity.ok(Map.of("message", "Mã OTP hợp lệ."));
+    }
+
     @Operation(summary = "Đổi mật khẩu")
     @PutMapping("/change-password")
     public ResponseEntity<Void> changePassword(

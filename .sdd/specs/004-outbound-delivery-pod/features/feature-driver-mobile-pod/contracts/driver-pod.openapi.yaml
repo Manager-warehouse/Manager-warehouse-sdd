@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: Driver Mobile POD API
   version: 1.0.0
-  description: Contracts for driver mobile POD upload, OTP confirmation, failed delivery, trip completion, and admin OTP reset in Sprint 1.
+  description: Contracts for driver mobile POD upload, OTP confirmation, failed delivery, trip completion, returned-goods warehouse processing, and admin OTP reset in Sprint 1.
 paths:
   /api/v1/trips/driver:
     get:
@@ -422,6 +422,204 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/delivery-orders/{doId}/returned-goods:
+    get:
+      summary: Get returned-goods flow state
+      operationId: getReturnedGoodsFlow
+      tags:
+        - Returned Delivery Goods
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: doId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: Current returned-goods flow state for the Delivery Order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReturnedGoodsFlowResponse"
+        "422":
+          description: Returned-goods flow has not been submitted yet or Delivery Order state is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/delivery-orders/{doId}/returned-goods/receive:
+    put:
+      summary: Storekeeper confirms returned goods arrived back at the warehouse
+      operationId: confirmReturnedGoodsReceived
+      tags:
+        - Returned Delivery Goods
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: doId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReturnedGoodsReceiveRequest"
+      responses:
+        "200":
+          description: Returned goods arrival confirmed; staff count/QC is now pending while Delivery Order remains RETURNED
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReturnedGoodsFlowResponse"
+        "422":
+          description: Delivery Order is not RETURNED or returned-goods flow is not in a receivable state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/delivery-orders/{doId}/returned-goods/count-qc:
+    put:
+      summary: Submit or resubmit returned-goods count and quality inspection
+      operationId: submitReturnedGoodsCountQc
+      tags:
+        - Returned Delivery Goods
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: doId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReturnedGoodsCountQcRequest"
+      responses:
+        "200":
+          description: Returned goods actual/pass/fail count/QC submitted while Delivery Order remains RETURNED
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReturnedGoodsFlowResponse"
+        "422":
+          description: Delivery Order state, quantity, or quality result validation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/delivery-orders/{doId}/returned-goods/approval:
+    put:
+      summary: Storekeeper accepts or rejects returned-goods count and quality
+      operationId: decideReturnedGoodsQc
+      tags:
+        - Returned Delivery Goods
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: doId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReturnedGoodsApprovalRequest"
+      responses:
+        "200":
+          description: Returned goods quantity and quality accepted, or rejected back to staff rework, while Delivery Order remains RETURNED
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReturnedGoodsFlowResponse"
+        "422":
+          description: Count/QC result is incomplete, rejection reason is missing, or decision cannot be applied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/delivery-orders/{doId}/returned-goods/putaway-plan:
+    put:
+      summary: Storekeeper creates returned-goods putaway plan
+      operationId: planReturnedGoodsPutaway
+      tags:
+        - Returned Delivery Goods
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: doId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReturnedGoodsPutawayPlanRequest"
+      responses:
+        "200":
+          description: Returned goods putaway plan created while Delivery Order remains RETURNED
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReturnedGoodsFlowResponse"
+        "422":
+          description: Storekeeper QC acceptance or destination-location validation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/delivery-orders/{doId}/returned-goods/putaway-complete:
+    put:
+      summary: Warehouse staff confirms returned-goods putaway completion
+      operationId: completeReturnedGoodsPutaway
+      tags:
+        - Returned Delivery Goods
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: doId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReturnedGoodsPutawayCompleteRequest"
+      responses:
+        "200":
+          description: Returned goods put away; inventory moved from IN_TRANSIT and Delivery Order moved to DELIVERY_FAILED
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReturnedGoodsFlowResponse"
+        "422":
+          description: Putaway plan is missing or completion does not match the plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   securitySchemes:
     bearerAuth:
@@ -479,6 +677,168 @@ components:
         notes:
           type: string
           maxLength: 1000
+    ReturnedGoodsReceiveRequest:
+      type: object
+      properties:
+        notes:
+          type: string
+          maxLength: 1000
+    ReturnedGoodsCountQcRequest:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/ReturnedGoodsCountQcItem"
+        notes:
+          type: string
+          maxLength: 1000
+    ReturnedGoodsCountQcItem:
+      type: object
+      required:
+        - doItemId
+        - productId
+        - batchId
+        - actualQty
+        - qualityPassQty
+        - qualityFailQty
+      properties:
+        doItemId:
+          type: integer
+          format: int64
+        productId:
+          type: integer
+          format: int64
+        batchId:
+          type: integer
+          format: int64
+        actualQty:
+          type: number
+          minimum: 0
+        qualityPassQty:
+          type: number
+          minimum: 0
+        qualityFailQty:
+          type: number
+          minimum: 0
+        qualityFailureReason:
+          type: string
+          maxLength: 1000
+          description: Required when qualityFailQty is greater than zero
+    ReturnedGoodsApprovalRequest:
+      type: object
+      required:
+        - decision
+      properties:
+        decision:
+          type: string
+          enum:
+            - ACCEPT
+            - REJECT
+        rejectionReason:
+          type: string
+          maxLength: 1000
+          description: Required when decision is REJECT
+        notes:
+          type: string
+          maxLength: 1000
+    ReturnedGoodsPutawayPlanRequest:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/ReturnedGoodsPutawayPlanItem"
+        notes:
+          type: string
+          maxLength: 1000
+    ReturnedGoodsPutawayPlanItem:
+      type: object
+      required:
+        - doItemId
+        - batchId
+        - destinationLocationId
+        - plannedQty
+      properties:
+        doItemId:
+          type: integer
+          format: int64
+        batchId:
+          type: integer
+          format: int64
+        destinationLocationId:
+          type: integer
+          format: int64
+        plannedQty:
+          type: number
+          minimum: 0
+    ReturnedGoodsPutawayCompleteRequest:
+      type: object
+      properties:
+        notes:
+          type: string
+          maxLength: 1000
+    ReturnedGoodsFlowResponse:
+      type: object
+      properties:
+        doId:
+          type: integer
+          format: int64
+        doNumber:
+          type: string
+        deliveryOrderStatus:
+          type: string
+          example: RETURNED
+        flowStatus:
+          type: string
+          enum:
+            - COUNT_QC_PENDING
+            - COUNT_QC_SUBMITTED
+            - QC_REJECTED
+            - QC_APPROVED
+            - PUTAWAY_PLANNED
+            - PUTAWAY_COMPLETED
+          example: PUTAWAY_PLANNED
+        rejectionReason:
+          type: string
+          nullable: true
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReturnedGoodsFlowItemResponse"
+    ReturnedGoodsFlowItemResponse:
+      type: object
+      properties:
+        doItemId:
+          type: integer
+          format: int64
+        productId:
+          type: integer
+          format: int64
+        batchId:
+          type: integer
+          format: int64
+        expectedQty:
+          type: number
+        actualQty:
+          type: number
+        qualityPassQty:
+          type: number
+        qualityFailQty:
+          type: number
+        qualityFailureReason:
+          type: string
+        destinationLocationId:
+          type: integer
+          format: int64
+        putawayCompletedQty:
+          type: number
     TripDriverViewResponse:
       type: object
       properties:
@@ -547,6 +907,10 @@ components:
           type: integer
           format: int64
         doNumber:
+          type: string
+        dealerName:
+          type: string
+        dealerAddress:
           type: string
         status:
           type: string
@@ -623,6 +987,15 @@ components:
             - IN_TRANSIT_STOCK_NOT_FOUND
             - INVOICE_ALREADY_EXISTS
             - TRIP_NOT_READY_TO_COMPLETE
+            - RETURN_FLOW_STATUS_INVALID
+            - RETURN_COUNT_QC_INCOMPLETE
+            - RETURN_QC_REJECTION_REASON_REQUIRED
+            - RETURN_QC_REWORK_REQUIRED
+            - RETURN_QTY_SPLIT_MISMATCH
+            - RETURN_QTY_MISMATCH
+            - RETURN_QC_ACCEPTANCE_REQUIRED
+            - RETURN_PUTAWAY_PLAN_REQUIRED
+            - RETURN_PUTAWAY_MISMATCH
             - INVENTORY_VERSION_CONFLICT
         message:
           type: string

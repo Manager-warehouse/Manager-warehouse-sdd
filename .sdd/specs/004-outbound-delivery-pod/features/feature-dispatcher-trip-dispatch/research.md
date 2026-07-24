@@ -32,7 +32,7 @@
 
 ## Decision: Complete trips only from `IN_TRANSIT` after all Delivery Orders are terminal
 
-**Rationale**: A trip is an operational route. The feature should not complete until the vehicle is back and every assigned Delivery Order is either `COMPLETED` or `RETURNED`. Returned goods remain in virtual `IN_TRANSIT` for the separate return flow, so trip completion must not touch regular inventory.
+**Rationale**: A trip is an operational route. The feature should not complete until the vehicle is back and every assigned Delivery Order is either `COMPLETED` or `RETURNED`. Returned goods remain in virtual `IN_TRANSIT` for the separate return flow, so trip completion must not touch regular inventory or change returned Delivery Orders to `DELIVERY_FAILED`. That later closure requires staff count/QC, Storekeeper quantity/quality approval, Storekeeper putaway planning, and staff putaway confirmation.
 
 **Alternatives considered**: Completing a trip when the last delivery is marked terminal was rejected because the spec requires explicit driver return confirmation and resource release at the warehouse.
 

@@ -12,6 +12,7 @@ import com.wms.enums.access_control.UserRole;
 import com.wms.enums.billing_payment.AccountingPeriodStatus;
 import com.wms.enums.billing_payment.InvoiceStatus;
 import com.wms.enums.stock_receiving.ReceiptStatus;
+import com.wms.exception.BusinessRuleViolationException;
 import com.wms.exception.ResourceNotFoundException;
 import com.wms.exception.UnprocessableEntityException;
 import com.wms.repository.*;
@@ -137,7 +138,7 @@ class SupplierInvoiceServiceImplTest {
         when(receiptRepository.findById(100L)).thenReturn(Optional.of(receipt));
 
         assertThatThrownBy(() -> supplierInvoiceService.createSupplierInvoice(request, accountantUser))
-                .isInstanceOf(UnprocessableEntityException.class)
+                .isInstanceOf(BusinessRuleViolationException.class)
                 .hasMessageContaining("APPROVED status");
     }
 

@@ -336,6 +336,7 @@ const normalizeDoStatus = (status) => {
     COMPLETED: 'COMPLETED',
     DELIVERED: 'COMPLETED',
     RETURNED: 'RETURNED',
+    DELIVERY_FAILED: 'DELIVERY_FAILED',
     REJECTED: 'REJECTED',
     CANCELLED: 'CANCELLED',
   };
@@ -344,7 +345,7 @@ const normalizeDoStatus = (status) => {
 
 const normalizeDeliveryStatus = (status, attempt) => {
   if (attempt?.status === 'DELIVERED') return 'COMPLETED';
-  if (attempt?.status === 'FAILED') return 'FAILED';
+  if (attempt?.status === 'FAILED') return 'RETURNED';
   return normalizeDoStatus(status);
 };
 
@@ -406,6 +407,27 @@ const normalizeDeliveryOrder = (order = {}) => {
     updated_at: value(order, 'updatedAt', 'updated_at'),
   };
 };
+
+const normalizeReturnedGoodsFlow = (flow = {}) => ({
+  do_id: value(flow, 'doId', 'do_id'),
+  do_number: value(flow, 'doNumber', 'do_number'),
+  delivery_order_status: normalizeDoStatus(value(flow, 'deliveryOrderStatus', 'delivery_order_status')),
+  flow_status: value(flow, 'flowStatus', 'flow_status'),
+  rejection_reason: value(flow, 'rejectionReason', 'rejection_reason', ''),
+  items: asArray(value(flow, 'items', 'items', [])).map((item) => ({
+    do_item_id: value(item, 'doItemId', 'do_item_id'),
+    product_id: value(item, 'productId', 'product_id'),
+    batch_id: value(item, 'batchId', 'batch_id'),
+    expected_qty: Number(value(item, 'expectedQty', 'expected_qty', 0)),
+    actual_qty: Number(value(item, 'actualQty', 'actual_qty', value(item, 'countedQty', 'counted_qty', 0))),
+    quality_pass_qty: Number(value(item, 'qualityPassQty', 'quality_pass_qty', 0)),
+    quality_fail_qty: Number(value(item, 'qualityFailQty', 'quality_fail_qty', 0)),
+    quality_failure_reason: value(item, 'qualityFailureReason', 'quality_failure_reason', value(item, 'qualityReason', 'quality_reason', '')),
+    destination_location_id: value(item, 'destinationLocationId', 'destination_location_id'),
+    planned_qty: Number(value(item, 'plannedQty', 'planned_qty', 0)),
+    putaway_completed_qty: Number(value(item, 'putawayCompletedQty', 'putaway_completed_qty', 0)),
+  })),
+});
 
 const normalizeTripStop = (stop = {}) => {
   const attempt = value(stop, 'currentAttempt', 'current_attempt');
@@ -938,6 +960,125 @@ export const outboundService = {
     return normalizeDeliveryOrder(response.data);
   },
 
+  confirmReturnedGoodsReceived: async (id, notes = '') => {
+    if (useMock) {
+      await mockDelay();
+      return {
+        do_id: Number(id),
+        do_number: `DO-${id}`,
+        delivery_order_status: 'RETURNED',
+        flow_status: 'COUNT_QC_PENDING',
+        items: [],
+      };
+    }
+    const response = await apiClient.put(`/delivery-orders/${id}/returned-goods/receive`, { notes });
+    return normalizeReturnedGoodsFlow(response.data);
+  },
+
+  submitReturnedGoodsCountQc: async (id, data) => {
+    if (useMock) {
+      await mockDelay();
+      return {
+        do_id: Number(id),
+        do_number: `DO-${id}`,
+        delivery_order_status: 'RETURNED',
+        flow_status: 'COUNT_QC_SUBMITTED',
+        items: data.items.map((item) => ({
+          do_item_id: item.do_item_id,
+          product_id: item.product_id,
+          batch_id: item.batch_id,
+          expected_qty: Number(item.expected_qty || item.actual_qty || 0),
+          actual_qty: Number(item.actual_qty || 0),
+          quality_pass_qty: Number(item.quality_pass_qty || 0),
+          quality_fail_qty: Number(item.quality_fail_qty || 0),
+          quality_failure_reason: item.quality_failure_reason || '',
+        })),
+      };
+    }
+    const response = await apiClient.put(`/delivery-orders/${id}/returned-goods/count-qc`, {
+      notes: data.notes || '',
+      items: data.items.map((item) => ({
+        doItemId: item.do_item_id,
+        productId: item.product_id,
+        batchId: item.batch_id,
+        actualQty: Number(item.actual_qty || 0),
+        qualityPassQty: Number(item.quality_pass_qty || 0),
+        qualityFailQty: Number(item.quality_fail_qty || 0),
+        qualityFailureReason: item.quality_failure_reason || null,
+      })),
+    });
+    return normalizeReturnedGoodsFlow(response.data);
+  },
+
+  getReturnedGoodsFlow: async (id) => {
+    if (useMock) {
+      await mockDelay(120);
+      return null;
+    }
+    const response = await apiClient.get(`/delivery-orders/${id}/returned-goods`);
+    return normalizeReturnedGoodsFlow(response.data);
+  },
+
+  approveReturnedGoods: async (id, notes = '') => {
+    if (useMock) {
+      await mockDelay();
+      return { do_id: Number(id), delivery_order_status: 'RETURNED', flow_status: 'QC_APPROVED', items: [] };
+    }
+    const response = await apiClient.put(`/delivery-orders/${id}/returned-goods/approval`, { decision: 'ACCEPT', notes });
+    return normalizeReturnedGoodsFlow(response.data);
+  },
+
+  rejectReturnedGoodsQc: async (id, rejectionReason, notes = '') => {
+    if (useMock) {
+      await mockDelay();
+      return {
+        do_id: Number(id),
+        delivery_order_status: 'RETURNED',
+        flow_status: 'QC_REJECTED',
+        rejection_reason: rejectionReason,
+        items: [],
+      };
+    }
+    const response = await apiClient.put(`/delivery-orders/${id}/returned-goods/approval`, {
+      decision: 'REJECT',
+      rejectionReason,
+      notes,
+    });
+    return normalizeReturnedGoodsFlow(response.data);
+  },
+
+  planReturnedGoodsPutaway: async (id, data) => {
+    if (useMock) {
+      await mockDelay();
+      return { do_id: Number(id), delivery_order_status: 'RETURNED', flow_status: 'PUTAWAY_PLANNED', items: data.items };
+    }
+    const response = await apiClient.put(`/delivery-orders/${id}/returned-goods/putaway-plan`, {
+      notes: data.notes || '',
+      items: data.items.map((item) => ({
+        doItemId: item.do_item_id,
+        batchId: item.batch_id,
+        destinationLocationId: item.destination_location_id,
+        plannedQty: Number(item.planned_qty || 0),
+      })),
+    });
+    return normalizeReturnedGoodsFlow(response.data);
+  },
+
+  completeReturnedGoodsPutaway: async (id, notes = '') => {
+    if (useMock) {
+      await mockDelay();
+      const orders = getDb(KEYS.DELIVERY_ORDERS, INITIAL_DELIVERY_ORDERS);
+      const idx = orders.findIndex((order) => order.id === Number(id));
+      if (idx !== -1) {
+        orders[idx] = { ...orders[idx], status: 'DELIVERY_FAILED', raw_status: 'DELIVERY_FAILED' };
+        saveDb(KEYS.DELIVERY_ORDERS, orders);
+      }
+      return { do_id: Number(id), delivery_order_status: 'DELIVERY_FAILED', flow_status: 'PUTAWAY_COMPLETED', items: [] };
+    }
+    const response = await apiClient.put(`/delivery-orders/${id}/returned-goods/putaway-complete`, { notes });
+    return normalizeReturnedGoodsFlow(response.data);
+  },
+
   getTrips: async (warehouseId, filters = {}) => {
     if (useMock) {
       await mockDelay();
@@ -1120,7 +1261,7 @@ export const outboundService = {
       await mockDelay(300);
       const stops = getDb(KEYS.TRIP_DOS, INITIAL_TRIP_DOS);
       const idx = stops.findIndex((stop) => stop.trip_id === Number(tripId) && stop.do_id === Number(doId));
-      if (idx !== -1) stops[idx] = { ...stops[idx], delivery_status: 'FAILED', failure_reason: failureReason };
+      if (idx !== -1) stops[idx] = { ...stops[idx], delivery_status: 'RETURNED', raw_status: 'RETURNED', failure_reason: failureReason };
       saveDb(KEYS.TRIP_DOS, stops);
       return { success: true };
     }

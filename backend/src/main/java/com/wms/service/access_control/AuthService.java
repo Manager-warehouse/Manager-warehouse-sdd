@@ -83,6 +83,9 @@ public class AuthService {
     @Value("${jwt.refresh-token-expiry}")
     private long refreshTokenExpiry;
 
+    @Value("${jwt.access-token-expiry}")
+    private long accessTokenExpiry;
+
     @Transactional
     public LoginResponse login(LoginRequest request) {
         try {
@@ -113,7 +116,7 @@ public class AuthService {
                 .accessToken(accessToken)
                 .refreshToken(rawRefreshToken)
                 .tokenType("Bearer")
-                .expiresIn(900)
+                .expiresIn(accessTokenExpiry)
                 .user(LoginResponse.UserInfo.builder()
                         .id(user.getId())
                         .fullName(user.getFullName())
@@ -139,10 +142,18 @@ public class AuthService {
 
         String newAccessToken = jwtUtil.generateAccessToken(user.getEmail(), user.getRole().name());
 
+        // Rotate the refresh token on every use so a stolen token cannot be
+        // replayed indefinitely — the old hash stops working immediately.
+        String newRawRefreshToken = UUID.randomUUID().toString();
+        user.setRefreshTokenHash(sha256(newRawRefreshToken));
+        user.setRefreshTokenExpiresAt(OffsetDateTime.now().plusSeconds(refreshTokenExpiry));
+        userRepository.save(user);
+
         return RefreshTokenResponse.builder()
                 .accessToken(newAccessToken)
+                .refreshToken(newRawRefreshToken)
                 .tokenType("Bearer")
-                .expiresIn(900)
+                .expiresIn(accessTokenExpiry)
                 .build();
     }
 
@@ -196,11 +207,21 @@ public class AuthService {
                 "email", user.getEmail(),
                 "phone", user.getPhone() != null ? user.getPhone() : "");
 
+        boolean emailChanged = !user.getEmail().equalsIgnoreCase(request.getEmail());
+
         // Perform update
         user.setFullName(request.getFullName());
         user.setEmail(request.getEmail());
         user.setPhone(request.getPhone());
         user.setUpdatedAt(OffsetDateTime.now());
+
+        if (emailChanged) {
+            // The current JWT's subject is the old email; extractEmail() would
+            // no longer resolve to any user once it changes. Force re-login
+            // instead of leaving a token that silently fails on next use.
+            user.setRefreshTokenHash(null);
+            user.setRefreshTokenExpiresAt(null);
+        }
 
         User savedUser = userRepository.save(user);
 
@@ -227,12 +248,15 @@ public class AuthService {
         return me(savedUser.getEmail());
     }
 
+    private static final int MAX_OTP_ATTEMPTS = 5;
+
     @Transactional
     public void forgotPassword(ForgotPasswordRequest request) {
         userRepository.findByEmail(request.getEmail()).ifPresent(user -> {
             String otp = String.format("%06d", new SecureRandom().nextInt(1_000_000));
             user.setOtpHash(sha256(otp));
             user.setOtpExpiresAt(OffsetDateTime.now().plusMinutes(10));
+            user.setOtpAttemptCount(0);
             userRepository.saveAndFlush(user);
             emailService.sendOtpEmail(user.getEmail(), otp);
         });
@@ -241,24 +265,48 @@ public class AuthService {
 
     @Transactional
     public void verifyOtp(VerifyOtpRequest request) {
-        User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new IllegalArgumentException("OTP_INVALID"));
+        User user = validateOtpOrThrow(request.getEmail(), request.getOtp());
 
-        if (user.getOtpHash() == null || !user.getOtpHash().equals(sha256(request.getOtp()))) {
-            throw new IllegalArgumentException("OTP_INVALID");
-        }
+        user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        user.setOtpHash(null);
+        user.setOtpExpiresAt(null);
+        user.setOtpAttemptCount(0);
+        // Invalidate any active sessions after password reset
+        user.setRefreshTokenHash(null);
+        user.setRefreshTokenExpiresAt(null);
+        userRepository.save(user);
+    }
+
+    /**
+     * Validates an OTP without consuming it, so the forgot-password wizard
+     * can confirm the code on its own step before asking for a new password.
+     * Still counts failed guesses toward the same lockout as verifyOtp so it
+     * cannot be used to bypass brute-force protection.
+     */
+    @Transactional
+    public void checkOtp(CheckOtpRequest request) {
+        validateOtpOrThrow(request.getEmail(), request.getOtp());
+    }
+
+    private User validateOtpOrThrow(String email, String otp) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("OTP_INVALID"));
 
         if (user.getOtpExpiresAt() == null || user.getOtpExpiresAt().isBefore(OffsetDateTime.now())) {
             throw new IllegalArgumentException("OTP_EXPIRED");
         }
 
-        user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
-        user.setOtpHash(null);
-        user.setOtpExpiresAt(null);
-        // Invalidate any active sessions after password reset
-        user.setRefreshTokenHash(null);
-        user.setRefreshTokenExpiresAt(null);
-        userRepository.save(user);
+        if (user.getOtpAttemptCount() != null && user.getOtpAttemptCount() >= MAX_OTP_ATTEMPTS) {
+            throw new IllegalArgumentException("OTP_LOCKED");
+        }
+
+        if (user.getOtpHash() == null || !user.getOtpHash().equals(sha256(otp))) {
+            user.setOtpAttemptCount((user.getOtpAttemptCount() == null ? 0 : user.getOtpAttemptCount()) + 1);
+            userRepository.save(user);
+            throw new IllegalArgumentException("OTP_INVALID");
+        }
+
+        return user;
     }
 
     @Transactional
@@ -270,7 +318,16 @@ public class AuthService {
             throw new IllegalArgumentException("INVALID_CREDENTIALS");
         }
 
+        if (passwordEncoder.matches(request.getNewPassword(), user.getPasswordHash())) {
+            throw new IllegalArgumentException("NEW_PASSWORD_SAME_AS_CURRENT");
+        }
+
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        // Invalidate any active sessions — if the current one was compromised,
+        // the attacker's refresh token must stop working the moment the
+        // legitimate owner changes their password.
+        user.setRefreshTokenHash(null);
+        user.setRefreshTokenExpiresAt(null);
         userRepository.save(user);
     }
 

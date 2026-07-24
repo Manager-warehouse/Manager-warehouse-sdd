@@ -597,19 +597,25 @@ export const masterDataService = {
   },
 
   // --- BIN LOCATIONS ---
-  getBinLocations: async (warehouseId) => {
+  getBinLocations: async (warehouseId, isStaging = undefined) => {
     if (useMock) {
       await new Promise((resolve) => setTimeout(resolve, 300));
       const locations = getDb(KEYS.LOCATIONS, INITIAL_LOCATIONS);
-      const filtered = locations.filter((l) => l.type === "BIN");
+      let filtered = locations.filter((l) => l.type === "BIN");
       if (warehouseId) {
-        return filtered.filter((l) => l.warehouse_id === Number(warehouseId));
+        filtered = filtered.filter((l) => l.warehouse_id === Number(warehouseId));
+      }
+      if (isStaging !== undefined) {
+        filtered = filtered.filter((l) => !!l.is_staging === isStaging);
       }
       return filtered;
     }
-    const url = warehouseId
+    let url = warehouseId
       ? `/admin/warehouse-locations?warehouseId=${warehouseId}&type=BIN`
       : "/admin/warehouse-locations?type=BIN";
+    if (isStaging !== undefined) {
+      url += `&isStaging=${isStaging}`;
+    }
     const response = await apiClient.get(url);
     return mapToSnakeCase(response.data);
   },
@@ -701,6 +707,7 @@ export const masterDataService = {
       capacityM3: parseFloat(binData.capacity_m3),
       capacityKg: parseFloat(binData.capacity_kg),
       isQuarantine: !!binData.is_quarantine,
+      isStaging: !!binData.is_staging,
     };
 
     const response = await apiClient.post(
@@ -726,6 +733,10 @@ export const masterDataService = {
           binData.is_quarantine !== undefined
             ? !!binData.is_quarantine
             : oldBin.is_quarantine,
+        is_staging:
+          binData.is_staging !== undefined
+            ? !!binData.is_staging
+            : oldBin.is_staging,
       };
 
       locations[idx] = updatedBin;
@@ -760,6 +771,10 @@ export const masterDataService = {
         binData.is_quarantine !== undefined
           ? !!binData.is_quarantine
           : existing.isQuarantine,
+      isStaging:
+        binData.is_staging !== undefined
+          ? !!binData.is_staging
+          : existing.isStaging,
     };
 
     const response = await apiClient.put(

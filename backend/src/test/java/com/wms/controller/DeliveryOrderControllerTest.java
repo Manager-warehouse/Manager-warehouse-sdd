@@ -67,9 +67,12 @@ import com.wms.config.UserDetailsServiceImpl;
 import com.wms.dto.response.DeliveryOrderAllocationResponse;
 import com.wms.dto.response.DeliveryOrderItemResponse;
 import com.wms.dto.response.DeliveryOrderResponse;
+import com.wms.dto.response.ReturnedGoodsFlowItemResponse;
+import com.wms.dto.response.ReturnedGoodsFlowResponse;
 import com.wms.entity.access_control.User;
 import com.wms.enums.order_fulfillment.DeliveryOrderStatus;
 import com.wms.enums.order_fulfillment.DeliveryOrderType;
+import com.wms.enums.order_fulfillment.ReturnedDeliveryFlowStatus;
 import com.wms.enums.access_control.UserRole;
 import com.wms.exception.GlobalExceptionHandler;
 import com.wms.exception.OutboundDeliveryException;
@@ -397,6 +400,102 @@ class DeliveryOrderControllerTest {
                 .andExpect(jsonPath("$.status").value("REJECTED"));
     }
 
+    @Test
+    @WithMockUser(username = "staff@wms.com", roles = "WAREHOUSE_STAFF")
+    void submitReturnedGoodsCountQc_success() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(warehouseStaff);
+        when(deliveryOrderService.submitReturnedGoodsCountQc(eq(100L), any(), eq(warehouseStaff)))
+                .thenReturn(returnedFlowResponse(ReturnedDeliveryFlowStatus.COUNT_QC_SUBMITTED,
+                        DeliveryOrderStatus.RETURNED));
+
+        mockMvc.perform(put("/api/v1/delivery-orders/100/returned-goods/count-qc")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(returnedCountQcJson()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.flowStatus").value("COUNT_QC_SUBMITTED"))
+                .andExpect(jsonPath("$.items[0].qualityPassQty").value(8));
+    }
+
+    @Test
+    @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
+    void confirmReturnedGoodsReceived_success() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(storekeeper);
+        when(deliveryOrderService.confirmReturnedGoodsReceived(eq(100L), any(), eq(storekeeper)))
+                .thenReturn(returnedFlowResponse(ReturnedDeliveryFlowStatus.COUNT_QC_PENDING,
+                        DeliveryOrderStatus.RETURNED));
+
+        mockMvc.perform(put("/api/v1/delivery-orders/100/returned-goods/receive")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"notes\":\"Returned goods arrived\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.flowStatus").value("COUNT_QC_PENDING"));
+    }
+
+    @Test
+    @WithMockUser(username = "staff@wms.com", roles = "WAREHOUSE_STAFF")
+    void getReturnedGoodsFlow_success() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(warehouseStaff);
+        when(deliveryOrderService.getReturnedGoodsFlow(100L, warehouseStaff))
+                .thenReturn(returnedFlowResponse(ReturnedDeliveryFlowStatus.COUNT_QC_SUBMITTED,
+                        DeliveryOrderStatus.RETURNED));
+
+        mockMvc.perform(get("/api/v1/delivery-orders/100/returned-goods"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.deliveryOrderStatus").value("RETURNED"))
+                .andExpect(jsonPath("$.flowStatus").value("COUNT_QC_SUBMITTED"));
+    }
+
+    @Test
+    @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
+    void approveReturnedGoods_rejectsStateError() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(storekeeper);
+        when(deliveryOrderService.approveReturnedGoods(eq(100L), any(), eq(storekeeper)))
+                .thenThrow(new OutboundDeliveryException("RETURN_QTY_MISMATCH",
+                        HttpStatus.UNPROCESSABLE_ENTITY, "Returned quantity mismatch"));
+
+        mockMvc.perform(put("/api/v1/delivery-orders/100/returned-goods/approval")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"decision\":\"ACCEPT\",\"notes\":\"Approve returned goods\"}"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("RETURN_QTY_MISMATCH"));
+    }
+
+    @Test
+    @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
+    void planReturnedGoodsPutaway_success() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(storekeeper);
+        when(deliveryOrderService.planReturnedGoodsPutaway(eq(100L), any(), eq(storekeeper)))
+                .thenReturn(returnedFlowResponse(ReturnedDeliveryFlowStatus.PUTAWAY_PLANNED,
+                        DeliveryOrderStatus.RETURNED));
+
+        mockMvc.perform(put("/api/v1/delivery-orders/100/returned-goods/putaway-plan")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(returnedPutawayPlanJson()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.flowStatus").value("PUTAWAY_PLANNED"));
+    }
+
+    @Test
+    @WithMockUser(username = "staff@wms.com", roles = "WAREHOUSE_STAFF")
+    void completeReturnedGoodsPutaway_success() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(warehouseStaff);
+        when(deliveryOrderService.completeReturnedGoodsPutaway(eq(100L), any(), eq(warehouseStaff)))
+                .thenReturn(returnedFlowResponse(ReturnedDeliveryFlowStatus.PUTAWAY_COMPLETED,
+                        DeliveryOrderStatus.DELIVERY_FAILED));
+
+        mockMvc.perform(put("/api/v1/delivery-orders/100/returned-goods/putaway-complete")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"notes\":\"Putaway completed\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.deliveryOrderStatus").value("DELIVERY_FAILED"))
+                .andExpect(jsonPath("$.flowStatus").value("PUTAWAY_COMPLETED"));
+    }
+
     private String createJson() {
         return """
                 {
@@ -527,6 +626,40 @@ class DeliveryOrderControllerTest {
                 """;
     }
 
+    private String returnedCountQcJson() {
+        return """
+                {
+                  "notes": "Returned goods counted",
+                  "items": [
+                    {
+                      "doItemId": 200,
+                      "productId": 30,
+                      "batchId": 71,
+                      "actualQty": 8,
+                      "qualityPassQty": 8,
+                      "qualityFailQty": 0
+                    }
+                  ]
+                }
+                """;
+    }
+
+    private String returnedPutawayPlanJson() {
+        return """
+                {
+                  "notes": "Plan returned goods putaway",
+                  "items": [
+                    {
+                      "doItemId": 200,
+                      "batchId": 71,
+                      "destinationLocationId": 801,
+                      "plannedQty": 8
+                    }
+                  ]
+                }
+                """;
+    }
+
     private DeliveryOrderResponse response(DeliveryOrderStatus status) {
         return DeliveryOrderResponse.builder()
                 .id(100L)
@@ -553,6 +686,30 @@ class DeliveryOrderControllerTest {
                                 .pickedQty(java.math.BigDecimal.ZERO)
                                 .replacement(false)
                                 .build()))
+                        .build()))
+                .build();
+    }
+
+    private ReturnedGoodsFlowResponse returnedFlowResponse(ReturnedDeliveryFlowStatus flowStatus,
+                                                           DeliveryOrderStatus deliveryOrderStatus) {
+        return ReturnedGoodsFlowResponse.builder()
+                .doId(100L)
+                .doNumber("DO-20260618-0001")
+                .deliveryOrderStatus(deliveryOrderStatus)
+                .flowStatus(flowStatus)
+                .items(List.of(ReturnedGoodsFlowItemResponse.builder()
+                        .doItemId(200L)
+                        .productId(30L)
+                        .batchId(71L)
+                        .expectedQty(java.math.BigDecimal.valueOf(8))
+                        .actualQty(java.math.BigDecimal.valueOf(8))
+                        .qualityPassQty(java.math.BigDecimal.valueOf(8))
+                        .qualityFailQty(java.math.BigDecimal.ZERO)
+                        .destinationLocationId(801L)
+                        .plannedQty(java.math.BigDecimal.valueOf(8))
+                        .putawayCompletedQty(flowStatus == ReturnedDeliveryFlowStatus.PUTAWAY_COMPLETED
+                                ? java.math.BigDecimal.valueOf(8)
+                                : null)
                         .build()))
                 .build();
     }

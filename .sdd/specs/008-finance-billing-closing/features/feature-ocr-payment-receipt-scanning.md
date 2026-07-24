@@ -30,10 +30,10 @@
   ```json
   {
     "amount": 25000000.00,
-    "paymentDate": "2026-06-17",
-    "dealerId": 3,
+    "payment_date": "2026-06-17",
+    "dealer_id": 3,
     "notes": "CK TIEN HANG - DAI LY MINH TRI - GIAO DICH 983274298",
-    "confidenceScore": 0.92
+    "confidence_score": 0.92
   }
   ```
 * **Response 400 Bad Request**: Trả về khi file không đúng định dạng hoặc dung lượng vượt quá giới hạn.

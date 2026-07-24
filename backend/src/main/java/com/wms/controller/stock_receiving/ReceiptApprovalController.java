@@ -49,6 +49,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -81,6 +82,7 @@ public class ReceiptApprovalController {
         @ApiResponse(responseCode = "404", description = "Phiếu nhập không tồn tại"),
         @ApiResponse(responseCode = "409", description = "Phiếu đã được duyệt/từ chối hoặc version conflict")
     })
+    @PreAuthorize("hasAnyRole('WAREHOUSE_MANAGER', 'ADMIN', 'CEO')")
     @PutMapping("/{id}/approve")
     public ResponseEntity<ReceiptActionResponse> approveReceipt(
             @Parameter(description = "ID phiếu nhập") @PathVariable Long id,
@@ -102,6 +104,7 @@ public class ReceiptApprovalController {
         @ApiResponse(responseCode = "404", description = "Phiếu nhập không tồn tại"),
         @ApiResponse(responseCode = "409", description = "RECEIPT_ALREADY_DECIDED hoặc version conflict")
     })
+    @PreAuthorize("hasAnyRole('WAREHOUSE_MANAGER', 'ADMIN', 'CEO')")
     @PutMapping("/{id}/reject")
     public ResponseEntity<ReceiptActionResponse> rejectReceipt(
             @Parameter(description = "ID phiếu nhập") @PathVariable Long id,
@@ -122,6 +125,7 @@ public class ReceiptApprovalController {
         @ApiResponse(responseCode = "404", description = "Phiếu nhập không tồn tại"),
         @ApiResponse(responseCode = "409", description = "Phiếu không ở trạng thái RETURN_TO_SUPPLIER_PENDING hoặc version conflict")
     })
+    @PreAuthorize("hasAnyRole('STOREKEEPER', 'WAREHOUSE_MANAGER', 'ADMIN', 'CEO')")
     @PutMapping("/{id}/return-to-supplier/confirm")
     public ResponseEntity<ReceiptActionResponse> confirmReturnToSupplier(
             @Parameter(description = "ID phiếu nhập") @PathVariable Long id,
@@ -144,6 +148,7 @@ public class ReceiptApprovalController {
         @ApiResponse(responseCode = "409", description = "Phiếu không ở trạng thái APPROVED hoặc version conflict"),
         @ApiResponse(responseCode = "422", description = "Location là Quarantine hoặc inventory invariant bị vi phạm")
     })
+    @PreAuthorize("hasAnyRole('STOREKEEPER', 'WAREHOUSE_MANAGER', 'ADMIN', 'CEO')")
     @PutMapping("/{id}/complete")
     public ResponseEntity<ReceiptActionResponse> completePutaway(
             @Parameter(description = "ID phiếu nhập") @PathVariable Long id,

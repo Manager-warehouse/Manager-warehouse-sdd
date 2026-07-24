@@ -456,13 +456,19 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
                 .destinationWarehouseCode(transfer == null ? null : transfer.getDestinationWarehouse().getCode())
                 .transferLineCount(transfer == null ? null : transfer.getItems().size())
                 .deliveryOrders(rows.stream()
-                        .map(row -> DriverDeliveryOrderResponse.builder()
-                                .doId(row.getDeliveryOrder().getId())
-                                .doNumber(row.getDeliveryOrder().getDoNumber())
-                                .status(row.getDeliveryOrder().getStatus())
-                                .stopOrder(row.getStopOrder())
-                                .currentAttempt(toAttemptResponseOrNull(attempts.get(row.getDeliveryOrder().getId())))
-                                .build())
+                        .map(row -> {
+                            DeliveryOrder order = row.getDeliveryOrder();
+                            Dealer dealer = order.getDealer();
+                            return DriverDeliveryOrderResponse.builder()
+                                    .doId(order.getId())
+                                    .doNumber(order.getDoNumber())
+                                    .dealerName(dealer == null ? null : dealer.getName())
+                                    .dealerAddress(dealer == null ? null : dealer.getDefaultDeliveryAddress())
+                                    .status(order.getStatus())
+                                    .stopOrder(row.getStopOrder())
+                                    .currentAttempt(toAttemptResponseOrNull(attempts.get(order.getId())))
+                                    .build();
+                        })
                         .toList())
                 .build();
     }

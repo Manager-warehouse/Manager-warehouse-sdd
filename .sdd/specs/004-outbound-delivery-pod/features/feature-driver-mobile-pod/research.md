@@ -44,6 +44,12 @@
 
 ## Decision: Keep failed or refused deliveries in virtual `IN_TRANSIT`
 
-**Rationale**: Dealer refusal or failed delivery moves the Delivery Order to `RETURNED` but does not receive stock back into regular inventory. That handoff belongs to the separate return flow, so the POD feature should only close the current attempt and preserve the `IN_TRANSIT` stock position.
+**Rationale**: Dealer refusal or failed delivery moves the Delivery Order to `RETURNED` but does not receive stock back into regular inventory. That handoff belongs to the separate return flow, so the POD feature should only close the current attempt and preserve the `IN_TRANSIT` stock position. The separate return flow requires Storekeeper to confirm the goods physically arrived back at the warehouse, warehouse staff to count actual returned quantity and split quality-passed versus quality-failed quantity with failure reasons, Storekeeper to accept or reject the QC result, Storekeeper to create a putaway plan after acceptance, and warehouse staff to confirm putaway before goods leave virtual `IN_TRANSIT` and the Delivery Order moves to `DELIVERY_FAILED`. Storekeeper rejection keeps the Delivery Order `RETURNED` and sends the result back for staff rework.
 
 **Alternatives considered**: Automatically returning failed goods to warehouse inventory was rejected because it bypasses the separate returns and classification workflow.
+
+## Decision: Close returned Delivery Orders only after returned-goods putaway
+
+**Rationale**: Driver trip completion confirms that the vehicle and driver are operationally back, not that returned goods have been received by Storekeeper, counted, quality-checked, accepted, and stored. Keeping the Delivery Order in `RETURNED` until staff putaway confirmation preserves stock accuracy and makes Storekeeper accountable for returned-goods receipt, QC decision, and location planning.
+
+**Alternatives considered**: Moving the Delivery Order to `DELIVERY_FAILED` when the driver confirms vehicle return was rejected because it would close the outbound order before warehouse custody, quantity, quality, and storage location are verified.

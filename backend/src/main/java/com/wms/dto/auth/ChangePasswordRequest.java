@@ -36,6 +36,7 @@ import com.wms.enums.user_configuration.*;
 import com.wms.enums.warehouse_location.*;
 import com.wms.enums.warehouse_transfer.*;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
@@ -49,5 +50,8 @@ public class ChangePasswordRequest {
 
     @NotBlank
     @Size(min = 8, message = "Mật khẩu phải có ít nhất 8 ký tự")
+    @Pattern(
+            regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).+$",
+            message = "Mật khẩu phải chứa ít nhất 1 chữ hoa, 1 chữ thường và 1 chữ số")
     private String newPassword;
 }

@@ -232,6 +232,7 @@ class ReceiptPutawayServiceTest {
         ReceiptPutawayRequest request = request();
 
         when(receiptRepository.findById(1L)).thenReturn(Optional.of(approvedReceipt));
+        when(receiptRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(approvedReceipt));
         when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(6L)).thenReturn(List.of(10L));
         when(warehouseLocationRepository.findById(50L)).thenReturn(Optional.of(regularBin));
         when(receiptItemRepository.findByReceiptId(1L)).thenReturn(List.of(item));
@@ -250,6 +251,7 @@ class ReceiptPutawayServiceTest {
         ReceiptPutawayRequest request = request();
 
         when(receiptRepository.findById(1L)).thenReturn(Optional.of(approvedReceipt));
+        when(receiptRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(approvedReceipt));
         when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(6L)).thenReturn(List.of(10L));
         when(receiptItemRepository.findByReceiptId(1L)).thenReturn(List.of(item));
 
@@ -262,6 +264,7 @@ class ReceiptPutawayServiceTest {
 
     private void commonStubs() {
         when(receiptRepository.findById(1L)).thenReturn(Optional.of(approvedReceipt));
+        when(receiptRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(approvedReceipt));
         when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(6L)).thenReturn(List.of(10L));
         when(warehouseLocationRepository.findById(50L)).thenReturn(Optional.of(regularBin));
         when(receiptItemRepository.findByReceiptId(1L)).thenReturn(List.of(item));

@@ -84,4 +84,15 @@ public interface AdjustmentRepository extends JpaRepository<Adjustment, Long> {
             @Param("type") AdjustmentType type);
 
     java.util.List<Adjustment> findByTypeAndApprovedAtIsNull(AdjustmentType type);
+
+    /**
+     * List correction vouchers (type = CORRECTION_VOUCHER), optionally filtered by
+     * referenceType, newest first. Used by GET /api/v1/correction-vouchers.
+     */
+    @Query("SELECT a FROM Adjustment a WHERE a.type = :type " +
+            "AND (:referenceType IS NULL OR a.referenceType = :referenceType) " +
+            "ORDER BY a.createdAt DESC")
+    java.util.List<Adjustment> findByTypeAndOptionalReferenceType(
+            @Param("type") AdjustmentType type,
+            @Param("referenceType") String referenceType);
 }

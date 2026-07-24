@@ -145,7 +145,64 @@
 - Driver mobile actions only operate while the Delivery Order is `IN_TRANSIT`.
 - Successful OTP confirmation moves the Delivery Order to `COMPLETED`.
 - Failure or dealer refusal moves the Delivery Order to `RETURNED`.
-- Outbound flow later allows `RETURNED -> DELIVERY_FAILED` only through the separate return flow.
+- Outbound flow later allows `RETURNED -> DELIVERY_FAILED` only through the separate return flow after Storekeeper goods-arrival confirmation, staff count/QC, Storekeeper QC acceptance, Storekeeper putaway planning, and staff putaway confirmation are complete.
+
+## ReturnedDeliveryFlow
+
+**Purpose**: Tracks returned goods for a failed/refused Delivery Order while the Delivery Order remains `RETURNED`.
+
+**Fields used/updated**
+
+- `delivery_order_id`
+- `status` (`COUNT_QC_PENDING`, `COUNT_QC_SUBMITTED`, `QC_REJECTED`, `QC_APPROVED`, `PUTAWAY_PLANNED`, `PUTAWAY_COMPLETED`)
+- `received_confirmed_by_storekeeper_id`
+- `counted_by_staff_id`
+- `approved_by_storekeeper_id`
+- `rejected_by_storekeeper_id`
+- `rejection_reason`
+- `putaway_planned_by_storekeeper_id`
+- `putaway_completed_by_staff_id`
+- `notes`
+- `created_at`
+- `updated_at`
+
+**Validation rules**
+
+- A returned flow can be opened only for a Delivery Order in `RETURNED` when Storekeeper confirms the goods have physically arrived back at the warehouse.
+- Warehouse staff can submit returned count/QC only after Storekeeper goods-arrival confirmation.
+- Warehouse staff submit actual received quantity, quality-passed quantity, quality-failed quantity, and failure reason by item/product/batch.
+- Storekeeper can accept or reject staff count/QC. Rejection requires `rejection_reason` and moves the flow back to staff rework.
+- Staff can revise and resubmit count/QC after rejection until Storekeeper accepts it.
+- Storekeeper QC acceptance is required after staff count/QC and before putaway planning.
+- Storekeeper selects destination warehouse locations in the putaway plan.
+- Warehouse staff can confirm putaway only for a Storekeeper-approved putaway plan.
+- The Delivery Order remains `RETURNED` until putaway is confirmed complete.
+- Putaway completion moves returned goods from virtual `IN_TRANSIT` to the planned warehouse location and moves the Delivery Order to `DELIVERY_FAILED`.
+
+## ReturnedDeliveryItemResult
+
+**Purpose**: Captures staff count and quality inspection result for each returned Delivery Order item/product/batch.
+
+**Fields used/updated**
+
+- `returned_flow_id`
+- `delivery_order_item_id`
+- `product_id`
+- `batch_id`
+- `expected_qty`
+- `actual_qty`
+- `quality_pass_qty`
+- `quality_fail_qty`
+- `quality_failure_reason`
+- `destination_location_id`
+
+**Validation rules**
+
+- `actual_qty`, `quality_pass_qty`, and `quality_fail_qty` must be non-negative.
+- `quality_pass_qty + quality_fail_qty` must equal `actual_qty`.
+- `quality_failure_reason` is required when `quality_fail_qty > 0`.
+- Storekeeper cannot accept the return flow until every expected item/product/batch has actual/pass/fail quantities and required failure reasons.
+- Putaway confirmation must match the Storekeeper-approved destination location and approved quantity.
 
 ## DeliveryOrderItem
 
@@ -254,5 +311,11 @@
 - `REQUEST_OTP`: first OTP issue or valid resend after expiry.
 - `CONFIRM_DELIVERY`: OTP verified, attempt delivered, `IN_TRANSIT` inventory decremented, invoice/receivable created, Delivery Order completed.
 - `FAIL_DELIVERY`: current attempt failed and Delivery Order moved to `RETURNED`.
+- `RETURN_FLOW_RECEIVE_CONFIRM`: Storekeeper confirmed returned goods physically arrived back at the warehouse.
+- `RETURN_FLOW_COUNT_QC_SUBMIT`: warehouse staff submitted or resubmitted actual/pass/fail returned-goods count/QC.
+- `RETURN_FLOW_QC_ACCEPT`: Storekeeper accepted returned-goods count/QC.
+- `RETURN_FLOW_QC_REJECT`: Storekeeper rejected returned-goods count/QC with a rejection reason.
+- `RETURN_FLOW_PUTAWAY_PLAN`: Storekeeper planned returned-goods destination locations after QC acceptance.
+- `RETURN_FLOW_PUTAWAY_COMPLETE`: warehouse staff confirmed putaway completion and Delivery Order moved to `DELIVERY_FAILED`.
 - `RESET_DELIVERY_OTP`: admin reset of a locked OTP row with before/after state.
 - `COMPLETE_TRIP`: driver-confirmed vehicle return after all assigned Delivery Orders are terminal.

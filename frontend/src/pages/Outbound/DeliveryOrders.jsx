@@ -32,7 +32,8 @@ const DO_STATUS_MAP = {
   WAREHOUSE_APPROVED: { label: 'Chờ vận chuyển', color: 'bg-warning-50 text-warning-700 border-warning-200' },
   IN_TRANSIT: { label: 'Đang giao', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
   COMPLETED: { label: 'Đã giao', color: 'bg-success-50 text-success-900 border-success-300' },
-  RETURNED: { label: 'Hoàn trả', color: 'bg-orange-50 text-orange-700 border-orange-200' },
+  RETURNED: { label: 'Chờ hoàn về kho', color: 'bg-orange-50 text-orange-700 border-orange-200' },
+  DELIVERY_FAILED: { label: 'Giao hàng thất bại', color: 'bg-danger-50 text-danger-700 border-danger-200' },
   REJECTED: { label: 'Bị từ chối', color: 'bg-rose-50 text-rose-700 border-rose-200' },
   CANCELLED: { label: 'Đã hủy', color: 'bg-danger-50 text-danger-700 border-danger-200' },
 };
@@ -46,7 +47,8 @@ const STATUS_OPTIONS = [
   { value: 'WAREHOUSE_APPROVED', label: 'Chờ vận chuyển' },
   { value: 'IN_TRANSIT', label: 'Đang giao' },
   { value: 'COMPLETED', label: 'Đã giao' },
-  { value: 'RETURNED', label: 'Hoàn trả' },
+  { value: 'RETURNED', label: 'Chờ hoàn về kho' },
+  { value: 'DELIVERY_FAILED', label: 'Giao hàng thất bại' },
   { value: 'REJECTED', label: 'Bị từ chối' },
   { value: 'CANCELLED', label: 'Đã hủy' },
 ];

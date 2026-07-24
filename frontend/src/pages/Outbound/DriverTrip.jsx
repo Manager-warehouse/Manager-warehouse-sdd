@@ -28,9 +28,12 @@ const DELIVERY_STATUS_MAP = {
   WAREHOUSE_APPROVED: { label: 'Chờ giao', color: 'bg-warning-50 text-warning-700 border-warning-200' },
   IN_TRANSIT: { label: 'Đang giao', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
   COMPLETED: { label: 'Đã giao', color: 'bg-success-50 text-success-900 border-success-300' },
-  FAILED: { label: 'Thất bại', color: 'bg-danger-50 text-danger-700 border-danger-200' },
-  RETURNED: { label: 'Hoàn trả', color: 'bg-orange-50 text-orange-700 border-orange-200' },
+  RETURNED: { label: 'Chờ hoàn về kho', color: 'bg-orange-50 text-orange-700 border-orange-200' },
+  DELIVERY_FAILED: { label: 'Giao hàng thất bại', color: 'bg-danger-50 text-danger-700 border-danger-200' },
 };
+
+const TERMINAL_DELIVERY_STATUSES = new Set(['COMPLETED', 'RETURNED']);
+const isDeliveryStopTerminal = (status) => TERMINAL_DELIVERY_STATUSES.has(status);
 
 const StatusBadge = ({ status }) => {
   const { label, color } = DELIVERY_STATUS_MAP[status] ?? { label: status, color: 'bg-canvas-cream text-shade-70 border-hairline-light' };
@@ -431,8 +434,9 @@ export default function DriverTrip() {
   if (!trip) return null;
 
   const isTransferTrip = isTransfer(trip);
-  const deliveredCount = trip.delivery_orders?.filter(d => d.delivery_status === 'COMPLETED').length ?? 0;
-  const totalCount = isTransferTrip ? (trip.items?.length ?? trip.transfer_line_count ?? 0) : (trip.delivery_orders?.length ?? 0);
+  const deliveryOrders = trip.delivery_orders ?? [];
+  const processedStopCount = deliveryOrders.filter(d => isDeliveryStopTerminal(d.delivery_status)).length;
+  const totalCount = isTransferTrip ? (trip.items?.length ?? trip.transfer_line_count ?? 0) : deliveryOrders.length;
   const transferLoaded = !isTransferTrip || (
     trip.items?.length > 0
     && trip.items.every((item) => (
@@ -442,8 +446,8 @@ export default function DriverTrip() {
   );
 
   const allStopsTerminal = !isTransferTrip
-    && (trip.delivery_orders?.length > 0)
-    && trip.delivery_orders.every((d) => ['COMPLETED', 'RETURNED'].includes(d.delivery_status));
+    && deliveryOrders.length > 0
+    && deliveryOrders.every((d) => isDeliveryStopTerminal(d.delivery_status));
 
   return (
     <div className="flex flex-col gap-6">
@@ -461,7 +465,7 @@ export default function DriverTrip() {
             <StatusBadge status={trip.status} />
           </div>
           <p className="text-xs text-shade-50 font-light mt-1">
-            {isTransferTrip ? `${getSourceWarehouseCode(trip)} → ${getDestinationWarehouseCode(trip)}` : `${deliveredCount}/${totalCount} điểm đã giao`}
+            {isTransferTrip ? `${getSourceWarehouseCode(trip)} → ${getDestinationWarehouseCode(trip)}` : `${processedStopCount}/${totalCount} điểm đã xử lý`}
           </p>
         </div>
       </div>
@@ -569,13 +573,13 @@ export default function DriverTrip() {
           {!isTransferTrip && totalCount > 0 && (
             <div className="mt-4 pt-4 border-t border-hairline-light">
               <div className="flex justify-between text-[11px] text-shade-50 mb-2">
-                <span>Tiến độ giao hàng</span>
-                <span className="font-semibold text-ink">{deliveredCount}/{totalCount}</span>
+                <span>Tiến độ xử lý điểm giao</span>
+                <span className="font-semibold text-ink">{processedStopCount}/{totalCount}</span>
               </div>
               <div className="w-full bg-canvas-cream rounded-full h-2">
                 <div
                   className="bg-success-500 h-2 rounded-full transition-all duration-500"
-                  style={{ width: `${totalCount > 0 ? (deliveredCount / totalCount) * 100 : 0}%` }}
+                  style={{ width: `${totalCount > 0 ? (processedStopCount / totalCount) * 100 : 0}%` }}
                 />
               </div>
             </div>
@@ -599,7 +603,7 @@ export default function DriverTrip() {
 
           {trip.status === 'IN_TRANSIT' && !isTransferTrip && !allStopsTerminal && totalCount > 0 && (
             <div className="mt-3 text-[11px] text-shade-50 bg-canvas-cream rounded-md p-2.5">
-              Hoàn tất giao tất cả {totalCount} điểm để mở nút xác nhận về kho.
+              Hoàn tất xử lý tất cả {totalCount} điểm để mở nút xác nhận về kho.
             </div>
           )}
 
@@ -638,13 +642,15 @@ export default function DriverTrip() {
 
         {!isTransferTrip && trip.delivery_orders?.map((doItem, index) => {
             const isDelivered = doItem.delivery_status === 'COMPLETED';
-            const isFailed = doItem.delivery_status === 'FAILED';
-            const isPending = !isDelivered && !isFailed;
+            const isReturned = doItem.delivery_status === 'RETURNED';
+            const isDeliveryFailed = doItem.delivery_status === 'DELIVERY_FAILED';
+            const isUnsuccessful = isReturned || isDeliveryFailed;
+            const isPending = !isDelivered && !isUnsuccessful;
 
             return (
-              <div key={`${doItem.do_id}-${index}`} className={`rounded-lg border overflow-hidden ${isDelivered ? 'bg-success-50 border-success-300' : isFailed ? 'bg-danger-50 border-danger-200' : 'bg-canvas-light border-hairline-light shadow-level-3'}`}>
+              <div key={`${doItem.do_id}-${index}`} className={`rounded-lg border overflow-hidden ${isDelivered ? 'bg-success-50 border-success-300' : isUnsuccessful ? 'bg-danger-50 border-danger-200' : 'bg-canvas-light border-hairline-light shadow-level-3'}`}>
                 <div className="p-4 flex gap-3">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 font-bold text-sm ${isDelivered ? 'bg-success-600 text-white' : isFailed ? 'bg-danger-500 text-white' : 'bg-ink text-white'}`}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 font-bold text-sm ${isDelivered ? 'bg-success-600 text-white' : isUnsuccessful ? 'bg-danger-500 text-white' : 'bg-ink text-white'}`}>
                     {isDelivered ? <CheckCircle2 className="w-4 h-4" /> : index + 1}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -666,7 +672,7 @@ export default function DriverTrip() {
                       </div>
                     )}
 
-                    {isFailed && doItem.failure_reason && <p className="text-xs text-danger-600 mt-2 flex items-center gap-1"><X className="w-3.5 h-3.5 shrink-0" /> Thất bại: {doItem.failure_reason}</p>}
+                    {isUnsuccessful && doItem.failure_reason && <p className="text-xs text-danger-600 mt-2 flex items-center gap-1"><X className="w-3.5 h-3.5 shrink-0" /> Thất bại: {doItem.failure_reason}</p>}
                   </div>
                 </div>
               </div>
