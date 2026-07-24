@@ -10,8 +10,8 @@ navigate to the module's landing page, confirm RBAC didn't bounce us to
 /login or /forbidden). It does NOT execute the individual business-flow
 assertions described by each test case row (e.g. "create receipt", "QC
 fail triggers quarantine") -- that would need dedicated per-flow Selenium
-scripts and locators that do not exist yet. Every TC under a module is
-recorded with the same module-level result.
+scripts and locators. See run_selenium_round3.py for that deeper pass.
+Every TC under a module is recorded with the same module-level result.
 """
 
 import os

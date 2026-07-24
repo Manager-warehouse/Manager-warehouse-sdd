@@ -184,7 +184,7 @@ MODULES = [
         "name": "Finance, Billing & Closing",
         "short": "FIN",
         "spec_dir": "008-finance-billing-closing",
-        "be_keywords": ["Invoice", "Payment", "AccountingPeriod", "AutoInvoice", "SupplierInvoice", "SupplierPayment", "BillingNotification"],
+        "be_keywords": ["Invoice", "Payment", "AccountingPeriod", "AutoInvoice", "SupplierInvoice", "SupplierPayment", "BillingNotification", "CorrectionVoucher", "OcrService", "OcrImagePreprocessor"],
         "fe_keywords": ["PeriodClosing", "SupplierInvoices", "DealerDebtInvoice", "PaymentReceipts", "finance"],
         "scenarios": [
             ("FIN-01", "Tạo hóa đơn tự động (Auto Invoice)", "Invoice tự động khi delivery xác nhận hoàn thành"),

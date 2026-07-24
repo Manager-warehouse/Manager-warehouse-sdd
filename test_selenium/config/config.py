@@ -25,9 +25,9 @@ IMPLICIT_WAIT = 5   # seconds
 
 # Test Users
 # Login is by email (see frontend/src/pages/Auth/Login.jsx), not a "username".
-# ADMIN_USER only unlocks /admin/users, /admin/config, /admin/audit-logs per
-# AppRoutes.jsx RBAC. CEO_USER is used for the other 9 modules because CEO is
-# allowed on nearly every protected route.
+# All 10 role accounts below are real HP-warehouse-scoped seed accounts,
+# sharing the password "password123", supplied directly by the user.
+# Each is overridable via its own env var pair if the account ever changes.
 ADMIN_USER = {
     "username": os.environ.get("WMS_ADMIN_EMAIL", "admin@phucanh.vn"),
     "password": os.environ.get("WMS_ADMIN_PASSWORD", "password123"),
@@ -35,4 +35,36 @@ ADMIN_USER = {
 CEO_USER = {
     "username": os.environ.get("WMS_CEO_EMAIL", "ceo@phucanh.vn"),
     "password": os.environ.get("WMS_CEO_PASSWORD", "password123"),
+}
+STOREKEEPER_USER = {
+    "username": os.environ.get("WMS_STOREKEEPER_EMAIL", "storekeeperHP@gmail.com"),
+    "password": os.environ.get("WMS_STOREKEEPER_PASSWORD", "password123"),
+}
+WAREHOUSE_MANAGER_USER = {
+    "username": os.environ.get("WMS_WAREHOUSE_MANAGER_EMAIL", "manager.hp@phucanh.vn"),
+    "password": os.environ.get("WMS_WAREHOUSE_MANAGER_PASSWORD", "password123"),
+}
+WAREHOUSE_STAFF_USER = {
+    "username": os.environ.get("WMS_WAREHOUSE_STAFF_EMAIL", "hpwhstaff@gmail.com"),
+    "password": os.environ.get("WMS_WAREHOUSE_STAFF_PASSWORD", "password123"),
+}
+PLANNER_USER = {
+    "username": os.environ.get("WMS_PLANNER_EMAIL", "planer@gmail.com"),
+    "password": os.environ.get("WMS_PLANNER_PASSWORD", "password123"),
+}
+DISPATCHER_USER = {
+    "username": os.environ.get("WMS_DISPATCHER_EMAIL", "dispatcher-HP@gmail.com"),
+    "password": os.environ.get("WMS_DISPATCHER_PASSWORD", "password123"),
+}
+DRIVER_USER = {
+    "username": os.environ.get("WMS_DRIVER_EMAIL", "driverHP@gmail.com"),
+    "password": os.environ.get("WMS_DRIVER_PASSWORD", "password123"),
+}
+ACCOUNTANT_USER = {
+    "username": os.environ.get("WMS_ACCOUNTANT_EMAIL", "accountantHP@phucanh.vn"),
+    "password": os.environ.get("WMS_ACCOUNTANT_PASSWORD", "password123"),
+}
+ACCOUNTANT_MANAGER_USER = {
+    "username": os.environ.get("WMS_ACCOUNTANT_MANAGER_EMAIL", "acc_managerHP@phucanh.vn"),
+    "password": os.environ.get("WMS_ACCOUNTANT_MANAGER_PASSWORD", "password123"),
 }
