@@ -97,6 +97,7 @@ class ReturnsServiceTest {
     @Mock private ReceiptValidationService receiptValidationService;
     @Mock private AuditLogService auditLogService;
     @Mock private AccountingPeriodService accountingPeriodService;
+    @Mock private com.wms.service.user_configuration.SystemConfigService systemConfigService;
 
     @InjectMocks
     private ReturnsService returnsService;
@@ -274,5 +275,90 @@ class ReturnsServiceTest {
         
         verify(dealerRepository).save(dealer);
         verify(creditNoteRepository).save(any(CreditNote.class));
+    }
+
+    @Test
+    void createCreditNote_unlocksDealerCreditWhenBalanceDropsBelowThreshold() {
+        dealer.setCreditLimit(BigDecimal.valueOf(10000000));
+        dealer.setCreditStatus(CreditStatus.CREDIT_HOLD);
+        dealer.setCurrentBalance(BigDecimal.valueOf(9000000)); // above 80% threshold (8M)
+
+        Receipt approvedReceipt = Receipt.builder()
+                .id(101L)
+                .receiptNumber("REC-RET-002")
+                .type(ReceiptType.RETURN)
+                .warehouse(warehouse)
+                .dealer(dealer)
+                .status(ReceiptStatus.APPROVED)
+                .build();
+
+        ReceiptItem item1 = ReceiptItem.builder()
+                .actualQty(10)
+                .unitCost(BigDecimal.valueOf(200000)) // refund = 2M -> new balance 7M < 8M threshold
+                .build();
+
+        when(receiptRepository.findById(101L)).thenReturn(Optional.of(approvedReceipt));
+        when(creditNoteRepository.findByReceiptId(101L)).thenReturn(Optional.empty());
+        when(receiptItemRepository.findByReceiptId(101L)).thenReturn(List.of(item1));
+        when(dealerRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(dealer));
+        when(accountingPeriodService.resolveOpenPeriod(any()))
+                .thenReturn(AccountingPeriod.builder().id(1L).periodName("2026-06").build());
+        when(systemConfigService.getDecimalValue(eq("CREDIT_UNLOCK_BUFFER_PCT"), any()))
+                .thenReturn(new BigDecimal("0.8"));
+        when(creditNoteRepository.save(any(CreditNote.class))).thenAnswer(invocation -> {
+            CreditNote cn = invocation.getArgument(0);
+            cn.setId(601L);
+            return cn;
+        });
+
+        CreateCreditNoteRequest req = CreateCreditNoteRequest.builder().reason("Trả hàng lỗi số lượng lớn").build();
+        User accountant = User.builder().id(4L).role(UserRole.ACCOUNTANT).build();
+
+        returnsService.createCreditNote(101L, req, accountant);
+
+        assertThat(dealer.getCurrentBalance()).isEqualByComparingTo(BigDecimal.valueOf(7000000));
+        assertThat(dealer.getCreditStatus()).isEqualTo(CreditStatus.ACTIVE);
+    }
+
+    @Test
+    void createCreditNote_staysOnCreditHoldWhenBalanceStillAboveThreshold() {
+        dealer.setCreditLimit(BigDecimal.valueOf(10000000));
+        dealer.setCreditStatus(CreditStatus.CREDIT_HOLD);
+        dealer.setCurrentBalance(BigDecimal.valueOf(9000000));
+
+        Receipt approvedReceipt = Receipt.builder()
+                .id(102L)
+                .receiptNumber("REC-RET-003")
+                .type(ReceiptType.RETURN)
+                .warehouse(warehouse)
+                .dealer(dealer)
+                .status(ReceiptStatus.APPROVED)
+                .build();
+
+        ReceiptItem item1 = ReceiptItem.builder()
+                .actualQty(1)
+                .unitCost(BigDecimal.valueOf(100000)) // refund = 100K -> new balance 8.9M, still >= 8M threshold
+                .build();
+
+        when(receiptRepository.findById(102L)).thenReturn(Optional.of(approvedReceipt));
+        when(creditNoteRepository.findByReceiptId(102L)).thenReturn(Optional.empty());
+        when(receiptItemRepository.findByReceiptId(102L)).thenReturn(List.of(item1));
+        when(dealerRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(dealer));
+        when(accountingPeriodService.resolveOpenPeriod(any()))
+                .thenReturn(AccountingPeriod.builder().id(1L).periodName("2026-06").build());
+        when(systemConfigService.getDecimalValue(eq("CREDIT_UNLOCK_BUFFER_PCT"), any()))
+                .thenReturn(new BigDecimal("0.8"));
+        when(creditNoteRepository.save(any(CreditNote.class))).thenAnswer(invocation -> {
+            CreditNote cn = invocation.getArgument(0);
+            cn.setId(602L);
+            return cn;
+        });
+
+        CreateCreditNoteRequest req = CreateCreditNoteRequest.builder().reason("Trả hàng lỗi số lượng nhỏ").build();
+        User accountant = User.builder().id(4L).role(UserRole.ACCOUNTANT).build();
+
+        returnsService.createCreditNote(102L, req, accountant);
+
+        assertThat(dealer.getCreditStatus()).isEqualTo(CreditStatus.CREDIT_HOLD);
     }
 }

@@ -93,6 +93,15 @@ public class GlobalExceptionHandler {
                 code = "LOCATION_LOCKED";
             } else if (msg.contains("ACCOUNTING_PERIOD_CLOSED")) {
                 code = "ACCOUNTING_PERIOD_CLOSED";
+            } else if (msg.contains("INVOICE_ALREADY_PAID")) {
+                status = HttpStatus.CONFLICT;
+                code = "INVOICE_ALREADY_PAID";
+            } else if (msg.contains("SUPPLIER_INVOICE_ALREADY_EXISTS")) {
+                status = HttpStatus.CONFLICT;
+                code = "SUPPLIER_INVOICE_ALREADY_EXISTS";
+            } else if (msg.contains("RECEIPT_NOT_APPROVED")) {
+                status = HttpStatus.BAD_REQUEST;
+                code = "RECEIPT_NOT_APPROVED";
             }
         }
 
@@ -101,7 +110,23 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(UnprocessableEntityException.class)
     public ResponseEntity<ApiErrorResponse> handleUnprocessable(UnprocessableEntityException ex) {
-        return error(HttpStatus.UNPROCESSABLE_ENTITY, "UNPROCESSABLE_ENTITY", ex.getMessage(), null, null);
+        return error(HttpStatus.UNPROCESSABLE_ENTITY, extractLeadingCode(ex.getMessage()), ex.getMessage(), null, null);
+    }
+
+    // Many UnprocessableEntityException call sites already write "SOME_CODE: detail message"
+    // (e.g. "PERIOD_CLOSED: ...", "ORIGINAL_PERIOD_NOT_CLOSED: ..."). Extracting that prefix
+    // lets the specific code reach ApiErrorResponse.code instead of a single generic
+    // "UNPROCESSABLE_ENTITY" for every 422 - callers can then branch on `code` the way the
+    // API spec documents, without a hardcoded per-code list here (contrast handleBusinessRule,
+    // which does need one because BusinessRuleViolationException messages aren't code-prefixed).
+    private static final java.util.regex.Pattern LEADING_CODE = java.util.regex.Pattern.compile("^([A-Z][A-Z0-9_]*): .+");
+
+    private String extractLeadingCode(String message) {
+        if (message == null) {
+            return "UNPROCESSABLE_ENTITY";
+        }
+        var matcher = LEADING_CODE.matcher(message);
+        return matcher.matches() ? matcher.group(1) : "UNPROCESSABLE_ENTITY";
     }
 
     @ExceptionHandler(ReceiptCountException.class)

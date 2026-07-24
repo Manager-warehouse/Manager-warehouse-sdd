@@ -8,6 +8,7 @@ import { ROLES } from '../../utils/constants';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import PhotoCaptureInput from '../../components/common/PhotoCaptureInput';
+import CorrectionVoucherButton from '../../components/common/CorrectionVoucherButton';
 import { FileText, Landmark, BellRing, ShieldAlert, Plus, Eye, Image as ImageIcon, PenTool, UploadCloud, CheckCircle2 } from 'lucide-react';
 
 const OCR_LOW_CONFIDENCE_THRESHOLD = 0.75;
@@ -27,6 +28,7 @@ const DealerDebtInvoice = () => {
   const [notifications, setNotifications] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [paymentReceipts, setPaymentReceipts] = useState([]);
+  const [closedPeriodIds, setClosedPeriodIds] = useState(new Set());
 
   // Modal States - Create Invoice from Delivery Notification
   const [showCreateInvoiceModal, setShowCreateInvoiceModal] = useState(false);
@@ -76,12 +78,16 @@ const DealerDebtInvoice = () => {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [dealersList, invs] = await Promise.all([
+      const [dealersList, invs, periods] = await Promise.all([
         masterDataService.getDealers(),
-        financeService.getInvoices()
+        financeService.getInvoices(),
+        financeService.getAccountingPeriods()
       ]);
       setDealers(dealersList || []);
       setInvoices(invs || []);
+      setClosedPeriodIds(new Set(
+        (periods || []).filter(p => p.status === 'CLOSED').map(p => p.id)
+      ));
 
       if (activeTab === 'notifications') {
         const notifs = await financeService.getBillingNotifications();
@@ -513,6 +519,13 @@ const DealerDebtInvoice = () => {
                                 Thu tiền
                               </Button>
                             )}
+                            <CorrectionVoucherButton
+                              referenceType="INVOICE"
+                              referenceId={inv.id}
+                              documentLabel={inv.invoice_number}
+                              isPeriodClosed={closedPeriodIds.has(inv.accounting_period_id ?? inv.accountingPeriodId)}
+                              onSuccess={loadData}
+                            />
                           </td>
                         </tr>
                       ))
@@ -542,12 +555,13 @@ const DealerDebtInvoice = () => {
                       <th className="p-4">Ngày thu</th>
                       <th className="p-4">Hình thức</th>
                       <th className="p-4 text-right">Số tiền thu</th>
+                      <th className="p-4 text-center">Thao tác</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-hairline-light">
                     {paymentReceipts.length === 0 ? (
                       <tr>
-                        <td colSpan="6" className="p-8 text-center text-shade-40 italic">
+                        <td colSpan="7" className="p-8 text-center text-shade-40 italic">
                           Chưa có phiếu thu công nợ đại lý nào.
                         </td>
                       </tr>
@@ -563,6 +577,15 @@ const DealerDebtInvoice = () => {
                           </td>
                           <td className="p-4 text-right font-bold text-emerald-600">
                             +{(pr.amount || 0).toLocaleString()}đ
+                          </td>
+                          <td className="p-4 text-center">
+                            <CorrectionVoucherButton
+                              referenceType="PAYMENT_RECEIPT"
+                              referenceId={pr.id}
+                              documentLabel={pr.payment_number}
+                              isPeriodClosed={closedPeriodIds.has(pr.accounting_period_id ?? pr.accountingPeriodId)}
+                              onSuccess={loadData}
+                            />
                           </td>
                         </tr>
                       ))

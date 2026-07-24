@@ -37,6 +37,7 @@ import com.wms.enums.warehouse_transfer.*;
 import com.wms.dto.request.PaymentReceiptCreateRequest;
 import com.wms.dto.response.CreditAgingReportResponse;
 import com.wms.dto.response.PaymentReceiptResponse;
+import com.wms.exception.BusinessRuleViolationException;
 import com.wms.exception.ResourceNotFoundException;
 import com.wms.exception.UnprocessableEntityException;
 import com.wms.repository.*;
@@ -124,7 +125,9 @@ public class PaymentReceiptServiceImpl implements PaymentReceiptService {
         }
 
         if (invoice.getStatus() == InvoiceStatus.PAID) {
-            throw new UnprocessableEntityException("Invoice is already fully paid");
+            // 409, not 422: this is a state conflict (someone already settled it), not a
+            // malformed/invalid request - matches spec.md's error table for this code.
+            throw new BusinessRuleViolationException("INVOICE_ALREADY_PAID: Invoice is already fully paid");
         }
 
         // 3. Tính toán dư nợ còn lại của hóa đơn
@@ -139,7 +142,8 @@ public class PaymentReceiptServiceImpl implements PaymentReceiptService {
         
         BigDecimal remainingAmount = invoice.getTotalAmount().subtract(totalPaidSoFar);
         if (request.getAmount().compareTo(remainingAmount) > 0) {
-            throw new UnprocessableEntityException("Payment amount exceeds invoice remaining balance of " + remainingAmount);
+            throw new UnprocessableEntityException(
+                    "OVERPAYMENT_EXCEEDS_INVOICE: Payment amount exceeds invoice remaining balance of " + remainingAmount);
         }
 
         // 4. Tìm kỳ kế toán cho ngày chứng từ

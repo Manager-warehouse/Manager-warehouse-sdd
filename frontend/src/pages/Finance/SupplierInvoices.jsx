@@ -7,6 +7,7 @@ import { ROLES } from '../../utils/constants';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import PhotoCaptureInput from '../../components/common/PhotoCaptureInput';
+import CorrectionVoucherButton from '../../components/common/CorrectionVoucherButton';
 import { FileText, Landmark, BellRing, ShieldAlert, Plus, CheckCircle2, TrendingDown, Building2, UploadCloud } from 'lucide-react';
 
 const OCR_LOW_CONFIDENCE_THRESHOLD = 0.75;
@@ -24,6 +25,7 @@ const SupplierInvoices = () => {
   const [notifications, setNotifications] = useState([]);
   const [supplierInvoices, setSupplierInvoices] = useState([]);
   const [supplierPayments, setSupplierPayments] = useState([]);
+  const [closedPeriodIds, setClosedPeriodIds] = useState(new Set());
 
   // Modal States
   const [showCreateInvoiceModal, setShowCreateInvoiceModal] = useState(false);
@@ -58,12 +60,16 @@ const SupplierInvoices = () => {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [suppList, invs] = await Promise.all([
+      const [suppList, invs, periods] = await Promise.all([
         masterDataService.getSuppliers(),
-        financeService.getSupplierInvoices()
+        financeService.getSupplierInvoices(),
+        financeService.getAccountingPeriods()
       ]);
       setSuppliers(suppList || []);
       setSupplierInvoices(invs || []);
+      setClosedPeriodIds(new Set(
+        (periods || []).filter(p => p.status === 'CLOSED').map(p => p.id)
+      ));
 
       if (activeTab === 'notifications') {
         const notifs = await financeService.getSupplierBillingNotifications();
@@ -488,7 +494,7 @@ const SupplierInvoices = () => {
                               {inv.status === 'PAID' ? 'Đã TT' : inv.status === 'PARTIALLY_PAID' ? 'TT 1 Phần' : 'Chưa TT'}
                             </span>
                           </td>
-                          <td className="p-4 text-center">
+                          <td className="p-4 text-center flex items-center justify-center gap-2">
                             {inv.status !== 'PAID' && isAccountant && (
                               <Button
                                 size="sm"
@@ -499,6 +505,13 @@ const SupplierInvoices = () => {
                                 Chi thanh toán
                               </Button>
                             )}
+                            <CorrectionVoucherButton
+                              referenceType="SUPPLIER_INVOICE"
+                              referenceId={inv.id}
+                              documentLabel={inv.invoice_number}
+                              isPeriodClosed={closedPeriodIds.has(inv.accounting_period_id ?? inv.accountingPeriodId)}
+                              onSuccess={loadData}
+                            />
                           </td>
                         </tr>
                       ))
@@ -528,12 +541,13 @@ const SupplierInvoices = () => {
                       <th className="p-4">Ngày chi</th>
                       <th className="p-4">Hình thức</th>
                       <th className="p-4 text-right">Số tiền chi</th>
+                      <th className="p-4 text-center">Thao tác</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-hairline-light">
                     {supplierPayments.length === 0 ? (
                       <tr>
-                        <td colSpan="6" className="p-8 text-center text-shade-40 italic">
+                        <td colSpan="7" className="p-8 text-center text-shade-40 italic">
                           Chưa có phiếu chi thanh toán NCC nào.
                         </td>
                       </tr>
@@ -549,6 +563,15 @@ const SupplierInvoices = () => {
                           </td>
                           <td className="p-4 text-right font-bold text-red-600">
                             -{(sp.amount || 0).toLocaleString()}đ
+                          </td>
+                          <td className="p-4 text-center">
+                            <CorrectionVoucherButton
+                              referenceType="SUPPLIER_PAYMENT"
+                              referenceId={sp.id}
+                              documentLabel={sp.payment_number}
+                              isPeriodClosed={closedPeriodIds.has(sp.accounting_period_id ?? sp.accountingPeriodId)}
+                              onSuccess={loadData}
+                            />
                           </td>
                         </tr>
                       ))

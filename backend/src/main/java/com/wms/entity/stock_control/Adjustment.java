@@ -58,12 +58,15 @@ public class Adjustment {
     @Column(name = "adjustment_number", nullable = false, unique = true, length = 50)
     private String adjustmentNumber;
 
+    // Nullable at the JPA level too: required for the 4 inventory adjustment types
+    // (enforced by the DB's chk_adjustments_inventory_fields_required CHECK), but
+    // absent for type = CORRECTION_VOUCHER, which has no warehouse/product context.
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "warehouse_id", nullable = false)
+    @JoinColumn(name = "warehouse_id")
     private Warehouse warehouse;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "product_id", nullable = false)
+    @JoinColumn(name = "product_id")
     private Product product;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -94,12 +97,19 @@ public class Adjustment {
     @JoinColumn(name = "quarantine_record_id")
     private QuarantineRecord quarantineRecord;
 
-    @Column(name = "quantity_adjustment", nullable = false, precision = 10, scale = 2)
+    // Nullable for type = CORRECTION_VOUCHER (see chk_adjustments_inventory_fields_required).
+    @Column(name = "quantity_adjustment", precision = 10, scale = 2)
     private BigDecimal quantityAdjustment;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "type", nullable = false, length = 30)
     private AdjustmentType type;
+
+    // Signed monetary delta for type = CORRECTION_VOUCHER only; applied to
+    // dealers.current_balance / suppliers.current_balance. Not reused from
+    // quantityAdjustment, which is a unit count rather than a currency amount.
+    @Column(name = "amount_delta", precision = 18, scale = 2)
+    private BigDecimal amountDelta;
 
     @Column(name = "reference_id")
     private Long referenceId;
