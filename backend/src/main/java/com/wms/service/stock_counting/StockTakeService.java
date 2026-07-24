@@ -608,7 +608,7 @@ public class StockTakeService {
     }
 
     private StockTake loadStockTake(Long id) {
-        return stockTakeRepository.findByIdWithDetails(id)
+        return stockTakeRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResourceNotFoundException("StockTake not found: " + id));
     }
 
