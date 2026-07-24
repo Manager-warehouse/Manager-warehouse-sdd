@@ -150,7 +150,7 @@ public class CorrectionVoucherServiceImpl implements CorrectionVoucherService {
                 Map.of("balance", oldBalance),
                 snapshot(adjustment, oldBalance, newBalance));
 
-        return toResponse(adjustment, resolved.dealer(), resolved.supplier());
+        return toResponse(adjustment, resolved.dealer(), resolved.supplier(), resolved.originalPeriod());
     }
 
     // Same balance-transition logic as PaymentReceiptServiceImpl's unlock check and
@@ -226,17 +226,38 @@ public class CorrectionVoucherServiceImpl implements CorrectionVoucherService {
                 CorrectionVoucherReferenceType.valueOf(adjustment.getReferenceType());
         Dealer dealer = null;
         Supplier supplier = null;
+        AccountingPeriod originalPeriod = null;
         switch (referenceType) {
-            case INVOICE -> dealer = invoiceRepository.findById(adjustment.getReferenceId())
-                    .map(Invoice::getDealer).orElse(null);
-            case PAYMENT_RECEIPT -> dealer = paymentReceiptRepository.findById(adjustment.getReferenceId())
-                    .map(PaymentReceipt::getDealer).orElse(null);
-            case SUPPLIER_INVOICE -> supplier = supplierInvoiceRepository.findById(adjustment.getReferenceId())
-                    .map(SupplierInvoice::getSupplier).orElse(null);
-            case SUPPLIER_PAYMENT -> supplier = supplierPaymentRepository.findById(adjustment.getReferenceId())
-                    .map(SupplierPayment::getSupplier).orElse(null);
+            case INVOICE -> {
+                Invoice invoice = invoiceRepository.findById(adjustment.getReferenceId()).orElse(null);
+                if (invoice != null) {
+                    dealer = invoice.getDealer();
+                    originalPeriod = invoice.getAccountingPeriod();
+                }
+            }
+            case PAYMENT_RECEIPT -> {
+                PaymentReceipt paymentReceipt = paymentReceiptRepository.findById(adjustment.getReferenceId()).orElse(null);
+                if (paymentReceipt != null) {
+                    dealer = paymentReceipt.getDealer();
+                    originalPeriod = paymentReceipt.getAccountingPeriod();
+                }
+            }
+            case SUPPLIER_INVOICE -> {
+                SupplierInvoice supplierInvoice = supplierInvoiceRepository.findById(adjustment.getReferenceId()).orElse(null);
+                if (supplierInvoice != null) {
+                    supplier = supplierInvoice.getSupplier();
+                    originalPeriod = supplierInvoice.getAccountingPeriod();
+                }
+            }
+            case SUPPLIER_PAYMENT -> {
+                SupplierPayment supplierPayment = supplierPaymentRepository.findById(adjustment.getReferenceId()).orElse(null);
+                if (supplierPayment != null) {
+                    supplier = supplierPayment.getSupplier();
+                    originalPeriod = supplierPayment.getAccountingPeriod();
+                }
+            }
         }
-        return toResponse(adjustment, dealer, supplier);
+        return toResponse(adjustment, dealer, supplier, originalPeriod);
     }
 
     private String generateAdjustmentNumber() {
@@ -254,7 +275,8 @@ public class CorrectionVoucherServiceImpl implements CorrectionVoucherService {
         return values;
     }
 
-    private CorrectionVoucherResponse toResponse(Adjustment adjustment, Dealer dealer, Supplier supplier) {
+    private CorrectionVoucherResponse toResponse(
+            Adjustment adjustment, Dealer dealer, Supplier supplier, AccountingPeriod originalPeriod) {
         return CorrectionVoucherResponse.builder()
                 .id(adjustment.getId())
                 .adjustmentNumber(adjustment.getAdjustmentNumber())
@@ -269,6 +291,8 @@ public class CorrectionVoucherServiceImpl implements CorrectionVoucherService {
                 .documentDate(adjustment.getDocumentDate())
                 .accountingPeriodId(adjustment.getAccountingPeriod() != null ? adjustment.getAccountingPeriod().getId() : null)
                 .accountingPeriodName(adjustment.getAccountingPeriod() != null ? adjustment.getAccountingPeriod().getPeriodName() : null)
+                .originalPeriodId(originalPeriod != null ? originalPeriod.getId() : null)
+                .originalPeriodName(originalPeriod != null ? originalPeriod.getPeriodName() : null)
                 .approvedById(adjustment.getApprovedBy() != null ? adjustment.getApprovedBy().getId() : null)
                 .approvedByName(adjustment.getApprovedBy() != null ? adjustment.getApprovedBy().getFullName() : null)
                 .approvedAt(adjustment.getApprovedAt())
