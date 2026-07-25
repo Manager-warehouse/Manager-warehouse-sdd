@@ -93,22 +93,28 @@ role (`run_all_flows()` nhóm `MODULE_FLOWS` theo role, mỗi nhóm chạy trên
 session để mỗi role luôn rơi vào đúng kịch bản đã được xác nhận hoạt động (đăng nhập đầu tiên trong
 tab mới), thay vì để cả bộ test sụp đổ giữa chừng ngay khi việc đổi role bắt đầu.
 
-## 8. Vấn đề đã biết: RCV-003 và OUT-004 chỉ thất bại khi chạy qua ChromeDriver headless
+## 8. Đã xử lý: RCV-003/OUT-004 từng thất bại do WebDriver native click/send_keys, không phải do app
 
-Cả hai flow này đã được nâng cấp lên `data-testid` và vẫn thất bại giống hệt nhau qua 3 lần chạy
-liên tiếp: RCV-003 báo ô tìm sản phẩm giữ giá trị rỗng sau nhiều lần `send_keys`, OUT-004 báo modal
-"Lập đơn xuất hàng" không mở sau cả hai lần click. Đã loại trừ lần lượt: race chờ hiển thị (đã có
-wait trước khi tương tác), race debounce 250ms (đã fix ở mục search chung), và click rơi vào giữa
-transition (đã thêm click tường minh + retry click kèm kiểm tra modal đã mở chưa trước khi click
-lại). Quan trọng nhất: đã tái hiện thủ công **chính xác cùng một chuỗi thao tác** (chọn nhà cung
-cấp, nhập người liên hệ, nhập mã chứng từ, rồi click + gõ vào ô tìm sản phẩm cho RCV-003; click mở
-modal cho OUT-004) trực tiếp trong trình duyệt thật (không headless), ở đúng kích thước viewport
-`1440x900` mà `build_driver()` dùng -- cả hai đều hoạt động bình thường, không lỗi.
+RCV-003 và OUT-004 từng thất bại giống hệt nhau qua nhiều lần chạy liên tiếp (ô tìm sản phẩm giữ
+giá trị rỗng, modal "Lập đơn xuất hàng" không mở dù nút được xác nhận present/enabled/displayed).
+Đã loại trừ lần lượt qua nhiều lần chạy thật: headless vs có giao diện, thứ tự chạy role (PLANNER
+chạy đầu tiên vs thứ ba), tắt popup gốc của Chrome (lưu mật khẩu, dịch trang), và khởi động lại
+toàn bộ frontend + backend -- không cái nào thay đổi kết quả. Chẩn đoán bổ sung
+(`document.activeElement` ngay tại thời điểm lỗi) cho thấy bằng chứng rõ nhất: sau khi
+`element.click()` của WebDriver chạy trên nút "Lập đơn xuất mới", `document.activeElement` vẫn là
+`BODY` -- tức là ngay cả hành vi focus mặc định của trình duyệt khi click cũng không xảy ra. Trong
+khi đó, tái hiện thủ công chính xác cùng tài khoản/trang/chuỗi thao tác qua một cơ chế automation
+khác (CDP, không qua WebDriver) luôn thành công.
 
-Vì lỗi không tái hiện được trong trình duyệt có giao diện nhưng lặp lại giống hệt nhau qua nhiều
-lần chạy headless thật, nhiều khả năng đây là hành vi đặc thù của `--headless=new` (một dạng quirk
-đã biết của ChromeDriver, không phải lỗi logic trong flow hay trong ứng dụng). Không thể điều tra
-sâu hơn từ môi trường hiện tại vì không có Python/ChromeDriver để tự chạy lại. Hướng kiểm tra tiếp
-theo nếu muốn xác nhận: tạm tắt `HEADLESS` trong `config.py` và chạy lại riêng hai module này -- nếu
-chuyển sang Passed thì xác nhận chắc chắn là vấn đề headless-only, không cần điều tra thêm ở tầng
-ứng dụng.
+Kết luận: đây là lỗi ở tầng dispatch native click/send_keys của WebDriver cho riêng session này,
+không phải lỗi ứng dụng. Đã sửa bằng cách chuyển toàn bộ tương tác của hai flow này sang cơ chế
+JS-driven (`element.click()` qua `execute_script`, set value qua native property setter + dispatch
+`input`/`change` -- xem `click_via_js`, `type_by_label_js` trong `base_page.py`) thay vì dùng
+`send_keys`/`.click()` native của WebDriver. Sau khi đổi, RCV-003 Passed ổn định. OUT-004 giờ tương
+tác đầy đủ (mở modal, chọn đại lý/ngày/sản phẩm) và dừng lại đúng ở một điều kiện nghiệp vụ thật:
+chưa có bản giá **APPROVED** cho sản phẩm/kho được chọn (bản giá do PRC-007 tạo chỉ ở trạng thái
+PENDING, cần Kế toán trưởng duyệt) -- đây là N/A do thiếu dữ liệu tiền đề, không phải lỗi tooling.
+
+Các flow khác vẫn dùng cơ chế native `send_keys`/`.click()` mặc định vì chúng hoạt động ổn định;
+`use_js=True` chỉ nên bật cho flow nào thật sự gặp lại đúng dạng lỗi này (native click/send_keys
+không có tác dụng quan sát được, kể cả `document.activeElement` cũng không đổi).

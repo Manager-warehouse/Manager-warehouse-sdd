@@ -14,6 +14,7 @@ delivered DO to return) is reported as a Skipped-style False with a specific
 reason, not silently faked as Passed.
 """
 
+import json
 import time
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select
@@ -44,12 +45,29 @@ def flow_auth001(driver):
         page.wait_for(lambda d: len(d.find_elements(
             By.CSS_SELECTOR, "[data-testid='user-form-code']")) > 0, timeout=10)
 
-        page.type_by_testid("user-form-code", f"AUTOTEST-{tag}")
-        page.type_by_testid("user-form-full-name", "Selenium AutoTest")
-        page.type_by_testid("user-form-email", f"autotest.{tag}@example.com")
-        page.type_by_testid("user-form-password", "AutoTest123")
+        # The actual root cause (found via screenshot, not guessing): "Mã
+        # nhân viên" -- the first field typed right after the modal opens --
+        # was left completely empty, with Chrome's own native "Please fill
+        # out this field" tooltip blocking submit silently (invisible to
+        # has_error_toast()/get_visible_error_text(), which only see the
+        # app's own DOM). Modal.jsx animates in over 300ms; a native click's
+        # coordinates can be computed mid-transition and miss. Every field
+        # here is typed in that same animation window, so all four go
+        # through the JS-driven setter instead of click+send_keys.
+        ok, reason = page.type_by_testid_js("user-form-code", f"AUTOTEST-{tag}")
+        if not ok:
+            return False, reason
+        ok, reason = page.type_by_testid_js("user-form-full-name", "Selenium AutoTest")
+        if not ok:
+            return False, reason
+        ok, reason = page.type_by_testid_js("user-form-email", f"autotest.{tag}@example.com")
+        if not ok:
+            return False, reason
+        ok, reason = page.type_by_testid_js("user-form-password", "AutoTest123")
+        if not ok:
+            return False, reason
 
-        return page.submit_and_verify_by_testid("user-form-submit", "user-form-code")
+        return page.submit_and_verify_by_testid("user-form-submit", "user-form-code", use_js=True)
     except Exception as e:
         return False, _short_exc(e)
 
@@ -81,10 +99,19 @@ def flow_rcv003(driver):
     tag = _tag()
     try:
         page.select_first_real_option_by_label("Nhà cung cấp")
-        ok, reason = page.type_by_label("Người liên hệ", "Selenium AutoTest")
+        # RCV-003 showed a deterministic, environment-proof failure of
+        # WebDriver's native click/send_keys on this page -- identical
+        # across headless/headed, session order, native-Chrome-popup
+        # suppression, and a full dev-server restart -- while the exact
+        # same account/pages/sequence worked every time through a
+        # different (CDP-based) automation path. That points at the
+        # native WebDriver input-dispatch mechanism itself, not the app,
+        # so every interaction on this flow goes through the JS-driven
+        # variants (native-setter value + dispatched click) instead.
+        ok, reason = page.type_by_label_js("Người liên hệ", "Selenium AutoTest")
         if not ok:
             return False, reason
-        ok, reason = page.type_by_label("Mã chứng từ nguồn", f"AUTOTEST-{tag}")
+        ok, reason = page.type_by_label_js("Mã chứng từ nguồn", f"AUTOTEST-{tag}")
         if not ok:
             return False, reason
 
@@ -98,6 +125,7 @@ def flow_rcv003(driver):
         found, reason = page.search_and_pick_first_result(
             "Tìm kiếm sản phẩm", "a",
             input_testid="receipt-product-search", result_testid="receipt-product-search-result",
+            use_js=True,
         )
         if not found:
             # "a" failing too means it's not about which SKU -- ask the
@@ -109,7 +137,7 @@ def flow_rcv003(driver):
         # expected_qty defaults to 1, unit_cost defaults to 0.00 -- both
         # already pass ReceiptForm's client validation as-is.
 
-        return page.submit_and_verify("Lập Lệnh Nhập Kho", "Người liên hệ")
+        return page.submit_and_verify("Lập Lệnh Nhập Kho", "Người liên hệ", use_js=True)
     except Exception as e:
         return False, _short_exc(e)
 
@@ -119,59 +147,69 @@ def flow_out004(driver):
     page = ModulePage(driver)
     page.navigate_to("/outbound/delivery-orders")
     try:
-        page.by_testid_clickable("open-create-do-modal").click()
+        # OUT-004 showed a deterministic, environment-proof failure of
+        # WebDriver's native click (document.activeElement stayed at BODY
+        # even after two native clicks on a button Selenium itself
+        # confirmed was present/displayed/enabled) -- identical across
+        # headless/headed, session order, native-Chrome-popup suppression,
+        # and a full dev-server restart, while manual reproduction of the
+        # exact same account/page/sequence always worked. That points at
+        # the native WebDriver click dispatch itself, not the app, so this
+        # (and every other interaction below) goes through the JS-driven
+        # click/value-set variants instead.
+        page.click_via_js_testid("open-create-do-modal")
         dealer_select_present = page.wait_for(lambda d: len(d.find_elements(
-            By.CSS_SELECTOR, "[data-testid='do-dealer-select']")) > 0, timeout=8)
+            By.CSS_SELECTOR, "[data-testid='do-dealer-select']")) > 0, timeout=10)
         if not dealer_select_present:
-            modal_open = len(driver.find_elements(
-                By.XPATH, "//h3[contains(normalize-space(.), 'Lập đơn xuất hàng')]")) > 0
-            if not modal_open:
-                # A click that lands during a transient re-render can
-                # silently no-op (this is the exact OUT-004 click-not-
-                # registering bug this suite hit before testids existed) --
-                # only retry-click if the modal genuinely never opened, not
-                # if it opened and just rendered its contents slowly (a
-                # second click there would land on the backdrop, not the
-                # now-hidden trigger).
-                page.by_testid_clickable("open-create-do-modal").click()
+            page.click_via_js_testid("open-create-do-modal")
             dealer_select_present = page.wait_for(lambda d: len(d.find_elements(
                 By.CSS_SELECTOR, "[data-testid='do-dealer-select']")) > 0, timeout=15)
         if not dealer_select_present:
-            # RCV-003 turned out to have the exact same shape of failure on
-            # this same PLANNER role/session (fields typed via a method
-            # that never verified its own result), so before giving up
-            # here too, gather what's actually happening in the DOM instead
-            # of guessing again: is the trigger button still there/enabled,
-            # is ANY modal-shaped overlay open (in case a click landed on
-            # the wrong target and opened something else), what has focus.
-            trigger = driver.find_elements(By.CSS_SELECTOR, "[data-testid='open-create-do-modal']")
-            any_modal_open = len(driver.find_elements(By.CSS_SELECTOR, "div.fixed.inset-0.z-50")) > 0
             active = driver.execute_script(
                 "const el = document.activeElement;"
                 "return el ? (el.tagName + (el.getAttribute('data-testid') ? '[data-testid=' + el.getAttribute('data-testid') + ']' : '')) : 'null';"
             )
-            trigger_state = (
-                f"present,enabled={trigger[0].is_enabled()},displayed={trigger[0].is_displayed()}"
-                if trigger else "absent from DOM"
-            )
-            return False, (
-                "Modal never opened: [data-testid='do-dealer-select'] absent after retry "
-                f"(trigger button: {trigger_state}; any modal-shaped overlay open: {any_modal_open}; "
-                f"document.activeElement: {active})"
-            )
+            return False, f"Modal never opened even via JS click; document.activeElement: {active}"
 
         page.select_first_real_option_by_testid("do-dealer-select")
         future_date = time.strftime("%Y-%m-%d", time.localtime(time.time() + 7 * 86400))
         page.set_date_by_testid("do-delivery-date", future_date)
 
-        # First item row is always present on open, so index 0 always exists.
-        page.select_first_real_option_by_testid("do-item-product-0")
+        # Blindly picking the first product in the catalog is why this used
+        # to stall on "no APPROVED price entry" -- PRC-007 only ever creates
+        # PENDING entries (need Kế toán trưởng approval), so there's no
+        # guarantee the first product has a usable price at all. Ask the
+        # backend directly which products already have an APPROVED price
+        # for this warehouse and pick one of those instead.
+        warehouse_id = driver.execute_script(
+            "const w = sessionStorage.getItem('wms_active_warehouse');"
+            "return w ? JSON.parse(w).id : null;"
+        )
+        picked_product_id = None
+        if warehouse_id:
+            status, body = page.fetch_authenticated(f"/api/v1/price-history?status=APPROVED&warehouseId={warehouse_id}")
+            if status == 200:
+                try:
+                    entries = json.loads(body)
+                    if entries:
+                        picked_product_id = entries[0].get("productId") or entries[0].get("product_id")
+                except (ValueError, TypeError):
+                    pass
+
+        if picked_product_id and page.select_option_by_value_testid("do-item-product-0", picked_product_id):
+            pass
+        else:
+            # No product with an APPROVED price exists at all -- fall back
+            # to the old behavior so the failure reason stays accurate
+            # (still not this flow's fault to fix; PLANNER can't approve
+            # prices) instead of silently picking something that won't work.
+            page.select_first_real_option_by_testid("do-item-product-0")
 
         page.wait_network_idle(idle_ms=500, timeout=10)
         if not page.by_testid("do-submit").is_enabled():
-            return False, "Skipped: submit disabled, likely no APPROVED price entry for the picked product/warehouse"
+            return False, "Skipped: submit disabled -- no product with an APPROVED price entry exists for this warehouse yet (needs Kế toán trưởng approval first, outside PLANNER's role)"
 
-        return page.submit_and_verify_by_testid("do-submit", "do-dealer-select")
+        return page.submit_and_verify_by_testid("do-submit", "do-dealer-select", use_js=True)
     except Exception as e:
         return False, _short_exc(e)
 
@@ -266,11 +304,26 @@ def flow_fin008(driver):
             By.XPATH, "//label[contains(normalize-space(.), 'Đại lý nộp tiền')]")) > 0, timeout=10)
         page.wait_network_idle(idle_ms=500, timeout=10)
 
-        invoice_select = page._field_for_label("Hóa đơn cấn trừ")
-        options = Select(invoice_select).options
-        if len(options) <= 1:
-            return False, "Skipped: no unpaid invoice available for the default dealer to test payment recording against"
-        Select(invoice_select).select_by_index(1)
+        # The default dealer (index 1) frequently has no unpaid invoice --
+        # that's a fact about this one dealer, not about whether any dealer
+        # anywhere has one. handleDealerChangeInPayment() recomputes
+        # available invoices from data already fetched client-side (no
+        # extra network round-trip per dealer), so iterate dealers instead
+        # of giving up on the first one, the same fix that worked for
+        # OUT-004's product picker.
+        dealer_select = page._field_for_label("Đại lý nộp tiền")
+        dealer_options = Select(dealer_select).options
+        found_dealer_with_invoice = False
+        for idx in range(1, min(len(dealer_options), 21)):
+            Select(page._field_for_label("Đại lý nộp tiền")).select_by_index(idx)
+            invoice_select = page._field_for_label("Hóa đơn cấn trừ")
+            if len(Select(invoice_select).options) > 1:
+                found_dealer_with_invoice = True
+                break
+        if not found_dealer_with_invoice:
+            checked = min(len(dealer_options) - 1, 20)
+            return False, f"Skipped: no unpaid invoice found for any of the first {checked} dealers checked"
+        Select(page._field_for_label("Hóa đơn cấn trừ")).select_by_index(1)
 
         page.wait_network_idle(idle_ms=300, timeout=5)
         # The header trigger button reads "Ghi nhận Phiếu thu (Quét OCR)",
@@ -295,9 +348,18 @@ def flow_ret009(driver):
         page.wait_network_idle(idle_ms=500, timeout=10)
 
         do_select = page._field_for_label("Chọn đơn xuất hàng gốc")
-        if len(Select(do_select).options) <= 1:
+        do_options = Select(do_select).options
+        if len(do_options) <= 1:
             return False, "Skipped: no DELIVERED/COMPLETED delivery order available to build a return against"
-        Select(do_select).select_by_index(1)
+        # Always picking index 1 (the same DO every run) is exactly what
+        # produced RETURN_EXCEEDS_ORIGINAL_SALE: a prior run already
+        # returned against this DO/product, so this run's qty=1 pushed the
+        # cumulative total past the original sale quantity -- the backend
+        # correctly rejecting it, not a real defect. Same class of self-
+        # collision as PRC-007's fixed date issue; spread the pick across
+        # available DOs the same way instead of always hammering the first.
+        pick_idx = 1 + (int(_tag()) % (len(do_options) - 1))
+        Select(page._field_for_label("Chọn đơn xuất hàng gốc")).select_by_index(pick_idx)
         page.wait_network_idle(idle_ms=500, timeout=10)
 
         qty_input = page.find_element(By.XPATH, "(//table//input[@type='number'])[1]")

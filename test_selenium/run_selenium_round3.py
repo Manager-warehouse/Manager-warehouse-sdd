@@ -62,18 +62,22 @@ ROLE_CREDENTIALS = {
 # route -- several buttons are gated more narrowly than the route itself,
 # e.g. CEO can view /admin/products but can't see the "Add product" button)
 MODULE_FLOWS = [
-    # PLANNER (RCV-003/OUT-004) was temporarily moved to run first to test
-    # whether its interaction failures were caused by sequence position --
-    # they weren't (identical failures running first too), which is why
-    # build_driver() now disables Chrome's native password-save/translate
-    # prompts instead. See run_selenium_round2.build_driver() for why.
+    # PRC-007 deliberately runs before RCV-003/OUT-004, and FIN-008 after --
+    # OUT-004 needs an APPROVED price entry to exist, and PRC-007 is the
+    # only flow that creates one (see flow_out004's own product-picker fix,
+    # which now queries for an already-APPROVED price rather than assuming
+    # order helps -- PRC-007 only ever creates a PENDING entry, so running
+    # it first doesn't by itself unblock OUT-004, but there's no reason to
+    # run it later either). FIN-008 stays a separate ACCOUNTANT session
+    # after PLANNER's group specifically so it doesn't merge with PRC-007's
+    # session -- see run_all_flows()'s consecutive-run grouping below.
     ("AUTH-001", "Security, Auth & RBAC", "ADMIN", flow_auth001),
     ("MDM-002", "Master Data Management", "STOREKEEPER", flow_mdm002),
+    ("PRC-007", "Pricing & COGS", "ACCOUNTANT", flow_prc007),
     ("RCV-003", "Inbound Receipt & QC", "PLANNER", flow_rcv003),
     ("OUT-004", "Outbound Delivery & POD", "PLANNER", flow_out004),
     ("TRF-005", "Inter-Warehouse Transfer", "WAREHOUSE_MANAGER", flow_trf005),
     ("STK-006", "Stocktake & Adjustment", "STOREKEEPER", flow_stk006),
-    ("PRC-007", "Pricing & COGS", "ACCOUNTANT", flow_prc007),
     ("FIN-008", "Finance, Billing & Closing", "ACCOUNTANT", flow_fin008),
     ("RET-009", "Returns, Scrap & Disposal", "STOREKEEPER", flow_ret009),
     ("RPT-010", "Reports, Dashboard & Alerts", "CEO", flow_rpt010),
@@ -84,16 +88,24 @@ def run_all_flows():
     """Returns {code: (passed: bool, detail: str)}. Runs each distinct
     role's modules under its own fresh browser with exactly one login,
     instead of one browser reused across every role switch -- see the
-    module docstring above for why."""
+    module docstring above for why.
+
+    Groups by CONSECUTIVE runs of the same role in MODULE_FLOWS order, not
+    by role globally -- PRC-007 and FIN-008 are both ACCOUNTANT but are
+    deliberately non-adjacent (PLANNER's group runs between them), so they
+    get two separate sessions at the two separate points they're listed,
+    instead of being merged into one session at PRC-007's position."""
     results = {}
 
-    roles_in_order = []
-    for _, _, role, _ in MODULE_FLOWS:
-        if role not in roles_in_order:
-            roles_in_order.append(role)
+    role_groups = []
+    for entry in MODULE_FLOWS:
+        role = entry[2]
+        if role_groups and role_groups[-1][0] == role:
+            role_groups[-1][1].append(entry)
+        else:
+            role_groups.append((role, [entry]))
 
-    for role in roles_in_order:
-        role_modules = [m for m in MODULE_FLOWS if m[2] == role]
+    for role, role_modules in role_groups:
         print(f"\n=== Fresh session for role {role} ({len(role_modules)} module(s)) ===")
 
         driver = build_driver()

@@ -41,6 +41,25 @@ class BasePage:
     def click(self, by, value):
         self._wait_clickable(by, value).click()
 
+    def click_via_js(self, by, value):
+        """Dispatches a click via the JS `element.click()` API instead of
+        WebDriver's native "Element Click" command. RCV-003/OUT-004 showed a
+        deterministic, environment-proof failure (identical across
+        headless/headed, session order, native-popup suppression, dev
+        server restart) where WebDriver's native click/send_keys had zero
+        observable effect -- not even document.activeElement moved -- while
+        the exact same account/pages/sequence worked every time through a
+        CDP-based automation path. That points at the native WebDriver
+        dispatch mechanism itself, not the app, so this sidesteps it by
+        going through the DOM API directly instead of WebDriver's input
+        pipeline."""
+        element = self._wait_clickable(by, value)
+        self.driver.execute_script("arguments[0].click();", element)
+        return element
+
+    def click_via_js_testid(self, testid):
+        return self.click_via_js(By.CSS_SELECTOR, f"[data-testid='{testid}']")
+
     def type(self, by, value, text):
         element = self.find_element(by, value)
         element.clear()
@@ -154,6 +173,21 @@ class BasePage:
             f"attempts (expected '{value}'); document.activeElement was {active}"
         )
 
+    def type_by_label_js(self, label_text, value):
+        """JS-driven counterpart to type_by_label -- sets the value through
+        the native property setter + dispatches input/change (same
+        mechanism already relied on for date fields) instead of a real
+        click + send_keys. Returns (ok, reason)."""
+        field = self._field_for_label(label_text)
+        self._set_react_value(field, value)
+        actual_value = field.get_attribute("value")
+        if actual_value == value:
+            return True, "ok"
+        return False, (
+            f"Field for label '{label_text}' still shows '{actual_value}' after JS value-set "
+            f"(expected '{value}')"
+        )
+
     def _field_by_testid(self, testid):
         field = self.by_testid(testid)
         self.wait_for(lambda d: field.is_displayed(), timeout=5)
@@ -167,6 +201,26 @@ class BasePage:
             field = self._field_by_testid(testid)
             field.clear()
             field.send_keys(value)
+
+    def type_by_testid_js(self, testid, value):
+        """JS-driven counterpart to type_by_testid -- sets the value via the
+        native property setter instead of click+send_keys. AUTH-001's
+        screenshot showed the "Mã nhân viên" field (the first field typed
+        right after the modal opens) left completely empty, with Chrome's
+        own native "Please fill out this field" tooltip blocking submit --
+        invisible to has_error_toast()/get_visible_error_text() since it's
+        not part of the app's DOM at all. Modal.jsx animates in over 300ms
+        (`transform transition-all duration-300`); is_displayed() only
+        checks CSS visibility, not whether that transform has settled, so a
+        native click's coordinates can be computed mid-animation and miss.
+        Setting the value directly sidesteps click coordinates entirely.
+        Returns (ok, reason)."""
+        field = self._field_by_testid(testid)
+        self._set_react_value(field, value)
+        actual_value = field.get_attribute("value")
+        if actual_value == value:
+            return True, "ok"
+        return False, f"Field for testid '{testid}' still shows '{actual_value}' after JS value-set (expected '{value}')"
 
     def set_date_by_testid(self, testid, iso_date):
         self._set_react_value(self._field_by_testid(testid), iso_date)
@@ -214,6 +268,19 @@ class BasePage:
         self.wait_for(lambda d: len(Select(self.by_testid(testid)).options) > 1, timeout=timeout)
         Select(self.by_testid(testid)).select_by_index(1)
 
+    def select_option_by_value_testid(self, testid, value, timeout=15):
+        """Select a specific <option value=...> instead of just the first
+        real one -- for pickers where "any product" isn't good enough
+        (e.g. OUT-004 needs one with an APPROVED price, not just any
+        product in the catalog). Returns True if that value was an
+        available option, False otherwise (caller decides the fallback)."""
+        self.wait_for(lambda d: len(Select(self.by_testid(testid)).options) > 1, timeout=timeout)
+        sel = Select(self.by_testid(testid))
+        if not any(opt.get_attribute("value") == str(value) for opt in sel.options):
+            return False
+        sel.select_by_value(str(value))
+        return True
+
     def click_by_text(self, text, tag="button"):
         # Was find_element (presence only) + .click() -- clicking a button
         # that's present but not yet clickable (mid-transition, or still
@@ -226,14 +293,19 @@ class BasePage:
         el = self.find_element(By.XPATH, f"//{tag}[contains(normalize-space(.), '{text}')]")
         return not el.is_enabled()
 
-    def search_and_pick_first_result(self, placeholder_substr, search_term, timeout=10, input_testid=None, result_testid=None):
+    def search_and_pick_first_result(self, placeholder_substr, search_term, timeout=10, input_testid=None, result_testid=None, use_js=False):
         """For the custom product search-dropdown pattern (ReceiptForm,
         PriceEntryModal): type into the input, then click the first
         rendered result row. Returns (found, reason) so a caller can tell
         "search input missing" apart from "zero matches" apart from
         "dropdown never rendered". Pass `input_testid`/`result_testid`
         where the page has them (PRC-007) -- falls back to placeholder
-        text + a generic `.cursor-pointer` class match otherwise."""
+        text + a generic `.cursor-pointer` class match otherwise. Pass
+        `use_js=True` (RCV-003) to set the value via the native-setter JS
+        trick and dispatch the result click via `element.click()` instead
+        of WebDriver's native click/send_keys -- RCV-003 showed a
+        deterministic, environment-proof failure of native dispatch (see
+        click_via_js's docstring) that this sidesteps."""
         result_selector = f"[data-testid='{result_testid}']" if result_testid else "div.cursor-pointer"
 
         def locate():
@@ -249,27 +321,32 @@ class BasePage:
         except Exception:
             return False, f"Search input not found (placeholder containing '{placeholder_substr}')"
 
-        # Manually reproduced this exact scenario in a real (non-headless)
-        # browser: the JS native-setter trick worked fine there, so this
-        # isn't a React-tracker problem. The real gap was that this method
-        # -- unlike _field_for_label -- never waited for the field to be
-        # visible before interacting, the same modal/render race that hit
-        # AUTH-001. Real send_keys (proven reliable everywhere else once
-        # that wait exists) instead of a JS-dispatched event is also just
-        # less exposed to whatever headless-vs-headed event-timing
-        # difference made the JS approach unreliable under ChromeDriver.
-        actual_value = ""
-        for attempt in range(3):
-            input_el = locate() if attempt > 0 else input_el
-            input_el.click()
-            input_el.clear()
-            input_el.send_keys(search_term)
+        if use_js:
+            self._set_react_value(input_el, search_term)
             actual_value = input_el.get_attribute("value")
-            if actual_value == search_term:
-                break
-            time.sleep(0.15)
+        else:
+            # Manually reproduced this exact scenario in a real (non-
+            # headless) browser: the JS native-setter trick worked fine
+            # there, so this isn't a React-tracker problem. The real gap
+            # was that this method -- unlike _field_for_label -- never
+            # waited for the field to be visible before interacting, the
+            # same modal/render race that hit AUTH-001. Real send_keys
+            # (proven reliable everywhere else once that wait exists)
+            # instead of a JS-dispatched event is also just less exposed to
+            # whatever headless-vs-headed event-timing difference made the
+            # JS approach unreliable under ChromeDriver.
+            actual_value = ""
+            for attempt in range(3):
+                input_el = locate() if attempt > 0 else input_el
+                input_el.click()
+                input_el.clear()
+                input_el.send_keys(search_term)
+                actual_value = input_el.get_attribute("value")
+                if actual_value == search_term:
+                    break
+                time.sleep(0.15)
         if actual_value != search_term:
-            return False, f"Search input still shows '{actual_value}' after {attempt + 1} send_keys attempts (expected '{search_term}')"
+            return False, f"Search input still shows '{actual_value}' after send_keys attempts (expected '{search_term}')"
 
         # ReceiptForm/PriceEntryModal both filter through a 250ms
         # useDebounce, and BOTH show the exact same "Không tìm thấy sản
@@ -293,10 +370,13 @@ class BasePage:
                 f"No product matched search term '{search_term}' (input actually held '{actual_value}'; "
                 "dropdown rendered but showed no results)"
             )
-        results[0].click()
+        if use_js:
+            self.driver.execute_script("arguments[0].click();", results[0])
+        else:
+            results[0].click()
         return True, "ok"
 
-    def submit_and_verify(self, submit_button_text, marker_label_text, timeout=15, scope_xpath=None):
+    def submit_and_verify(self, submit_button_text, marker_label_text, timeout=15, scope_xpath=None, use_js=False):
         """Click submit, then verify by waiting for EITHER the form/modal to
         close (marker label disappears -- real success signal, since these
         forms only unmount on a successful API response) OR an error toast.
@@ -306,9 +386,15 @@ class BasePage:
         needed where a trigger button's text is a superset of the actual
         submit button's text (e.g. header "Ghi nhận Phiếu thu (Quét OCR)"
         vs modal submit "Ghi nhận Phiếu thu"), since the trigger stays in
-        the DOM behind the modal and would otherwise match first."""
+        the DOM behind the modal and would otherwise match first.
+
+        `use_js=True` dispatches the click via the JS DOM API instead of
+        WebDriver's native click (see click_via_js's docstring for why)."""
         if scope_xpath:
-            self._wait_clickable(By.XPATH, f"{scope_xpath}//button[contains(normalize-space(.), '{submit_button_text}')]").click()
+            btn = self._wait_clickable(By.XPATH, f"{scope_xpath}//button[contains(normalize-space(.), '{submit_button_text}')]")
+            self.driver.execute_script("arguments[0].click();", btn) if use_js else btn.click()
+        elif use_js:
+            self.click_via_js(By.XPATH, f"//button[contains(normalize-space(.), '{submit_button_text}')]")
         else:
             self.click_by_text(submit_button_text)
 
@@ -319,7 +405,10 @@ class BasePage:
         self.wait_network_idle(idle_ms=500, timeout=10)
 
         if self.has_error_toast():
-            return False, "Error toast shown after submit"
+            toast_text = self.get_toast_text()
+            detail = "Error toast shown after submit"
+            detail += f": {toast_text}" if toast_text else " (no toast text found -- check screenshot)"
+            return False, detail
         if not marker_gone(self.driver):
             inline_err = self.get_visible_error_text()
             detail = "Form/modal still open after submit"
@@ -327,12 +416,18 @@ class BasePage:
             return False, detail
         return True, "ok"
 
-    def submit_and_verify_by_testid(self, submit_testid, marker_testid, timeout=15):
+    def submit_and_verify_by_testid(self, submit_testid, marker_testid, timeout=15, use_js=False):
         """testid version of submit_and_verify. No scope_xpath needed --
         unlike button text, a trigger and its modal's submit always get
         distinct testids by construction, so there's no equivalent of the
-        "Ghi nhận Phiếu thu (Quét OCR)" collision to work around."""
-        self.by_testid_clickable(submit_testid).click()
+        "Ghi nhận Phiếu thu (Quét OCR)" collision to work around.
+
+        `use_js=True` dispatches the click via the JS DOM API instead of
+        WebDriver's native click (see click_via_js's docstring for why)."""
+        if use_js:
+            self.click_via_js_testid(submit_testid)
+        else:
+            self.by_testid_clickable(submit_testid).click()
 
         def marker_gone(d):
             return len(d.find_elements(By.CSS_SELECTOR, f"[data-testid='{marker_testid}']")) == 0
@@ -341,7 +436,10 @@ class BasePage:
         self.wait_network_idle(idle_ms=500, timeout=10)
 
         if self.has_error_toast():
-            return False, "Error toast shown after submit"
+            toast_text = self.get_toast_text()
+            detail = "Error toast shown after submit"
+            detail += f": {toast_text}" if toast_text else " (no toast text found -- check screenshot)"
+            return False, detail
         if not marker_gone(self.driver):
             inline_err = self.get_visible_error_text()
             detail = "Form/modal still open after submit"
@@ -356,6 +454,21 @@ class BasePage:
         channel per frontend/CLAUDE.md, so this is a reliable generic
         signal that an API call failed and surfaced to the user."""
         return len(self.find_elements(By.CSS_SELECTOR, "[role='alert'][class*='danger']")) > 0
+
+    def get_toast_text(self):
+        """The actual message inside the error toast (Toast.jsx renders it
+        in a plain text div, e.g. addToast(err.message || '...', 'error')).
+        'Error toast shown after submit' alone doesn't say WHY -- for a 422
+        this is very likely the real backend validation message (e.g. "already
+        fully returned", "exceeds remaining quantity"), which tells us
+        whether a flow's own arbitrary input (a hardcoded qty=1, a blindly
+        picked first DO) tripped a real business rule instead of proving a
+        defect. Returns the first non-empty match's text, or None."""
+        for el in self.find_elements(By.CSS_SELECTOR, "[role='alert'][class*='danger']"):
+            text = el.text.strip()
+            if text:
+                return text
+        return None
 
     def get_visible_error_text(self):
         """Several forms (Login.jsx, UserFormModal.jsx) render their own
