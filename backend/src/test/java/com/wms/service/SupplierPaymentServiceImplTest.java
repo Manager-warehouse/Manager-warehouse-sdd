@@ -18,6 +18,7 @@ import com.wms.repository.*;
 import com.wms.repository.supplier_management.SupplierRepository;
 import com.wms.service.audit_trail.AuditLogService;
 import com.wms.service.billing_payment.AccountingPeriodService;
+import com.wms.service.billing_payment.OcrService;
 import com.wms.service.billing_payment.impl.SupplierPaymentServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -49,6 +50,7 @@ class SupplierPaymentServiceImplTest {
     @Mock private DocumentSequenceRepository sequenceRepository;
     @Mock private AccountingPeriodService accountingPeriodService;
     @Mock private AuditLogService auditLogService;
+    @Mock private OcrService ocrService;
 
     @InjectMocks
     private SupplierPaymentServiceImpl supplierPaymentService;
@@ -70,6 +72,7 @@ class SupplierPaymentServiceImplTest {
         supplier.setCode("SUP-001");
         supplier.setCompanyName("Nha Cung Cap A");
         supplier.setCurrentBalance(new BigDecimal("50000000.00"));
+        supplier.setIsActive(true);
 
         invoice = new SupplierInvoice();
         invoice.setId(50L);
@@ -125,11 +128,14 @@ class SupplierPaymentServiceImplTest {
     void scanSupplierPaymentOcr_success() {
         MockMultipartFile file = new MockMultipartFile(
                 "file",
-                "unc_25000000_nhacungcapa.jpg",
+                "unc.jpg",
                 "image/jpeg",
                 "dummy content".getBytes()
         );
 
+        when(ocrService.extractRawText(file)).thenReturn(
+                "Ngan hang ABC Bien dong so du So tien: 25.000.000 VND "
+                + "Noi dung CK TIEN HANG NHA CUNG CAP A thanh toan hoa don");
         when(supplierRepository.findAll()).thenReturn(Collections.singletonList(supplier));
 
         SupplierPaymentOcrResponse response = supplierPaymentService.scanSupplierPaymentOcr(file, accountantUser);
@@ -137,7 +143,7 @@ class SupplierPaymentServiceImplTest {
         assertThat(response).isNotNull();
         assertThat(response.getAmount()).isEqualByComparingTo(new BigDecimal("25000000"));
         assertThat(response.getSupplierId()).isEqualTo(10L);
-        assertThat(response.getConfidenceScore()).isEqualTo(0.92);
+        assertThat(response.getConfidenceScore()).isEqualTo(0.95);
     }
 
     @Test
@@ -148,5 +154,15 @@ class SupplierPaymentServiceImplTest {
         assertThatThrownBy(() -> supplierPaymentService.scanSupplierPaymentOcr(emptyFile, accountantUser))
                 .isInstanceOf(UnprocessableEntityException.class)
                 .hasMessageContaining("empty");
+    }
+
+    @Test
+    @DisplayName("Quét OCR thất bại khi không nhận diện được số tiền")
+    void scanSupplierPaymentOcr_failsWhenAmountUnreadable() {
+        MockMultipartFile file = new MockMultipartFile("file", "unc.jpg", "image/jpeg", "dummy content".getBytes());
+        when(ocrService.extractRawText(file)).thenReturn("anh mo khong doc duoc gi ca");
+
+        assertThatThrownBy(() -> supplierPaymentService.scanSupplierPaymentOcr(file, accountantUser))
+                .isInstanceOf(UnprocessableEntityException.class);
     }
 }

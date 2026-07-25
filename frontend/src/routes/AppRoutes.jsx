@@ -128,7 +128,7 @@ const AppRoutes = () => {
       </Route>
 
       {/* Outbound & Delivery protected routes */}
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.CEO, ROLES.WAREHOUSE_MANAGER, ROLES.PLANNER, ROLES.DISPATCHER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.ACCOUNTANT]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.CEO, ROLES.WAREHOUSE_MANAGER, ROLES.PLANNER, ROLES.DISPATCHER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER]} />}>
         <Route path="/outbound/delivery-orders" element={<DeliveryOrders />} />
         <Route path="/outbound/delivery-orders/:id" element={<DeliveryOrderDetail />} />
       </Route>
