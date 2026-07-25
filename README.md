@@ -1,4 +1,4 @@
-# Warehouse Management System (WMS) - Phúc Anh
+# Warehouse Management System (WMS)
 
 WMS Phúc Anh là hệ thống quản lý kho và vận hành nội bộ dành cho doanh nghiệp thương mại có nhiều kho vật lý. Hệ thống giúp số hóa toàn bộ quy trình từ lúc hàng về kho, kiểm tra chất lượng, cất hàng vào vị trí, xuất hàng cho đại lý, điều phối xe nội bộ, điều chuyển giữa các kho, kiểm kê tồn kho, đến theo dõi hóa đơn và công nợ.
 
@@ -65,23 +65,7 @@ Hệ thống có 10 actor vận hành theo mô hình Maker-Checker:
 
 Chi tiết nghiệp vụ từng actor xem tại [docs/overview/actors.md](docs/overview/actors.md).
 
-## Phạm Vi Sprint 1
 
-Bao gồm:
-
-- Quản lý kho, nhập/xuất, điều chuyển, kiểm kê, tồn kho.
-- Kế toán nội bộ kho, giá vốn, hóa đơn, thanh toán và công nợ đại lý.
-- Điều phối xe/tài xế nội bộ của Phúc Anh.
-- Dashboard, báo cáo và cảnh báo tồn kho thấp.
-
-Không bao gồm:
-
-- Sản xuất, HR/HRM.
-- Barcode/QR scanner automation.
-- Cổng B2B/B2C.
-- Tích hợp hệ thống ngoài.
-- Dịch vụ vận chuyển 3PL.
-- Tracking serial từng sản phẩm, hạn sử dụng hoặc phân cấp chất lượng bán lại.
 
 ## Tech Stack
 
