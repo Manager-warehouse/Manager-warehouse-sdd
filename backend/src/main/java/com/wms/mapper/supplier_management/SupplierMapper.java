@@ -51,6 +51,7 @@ public class SupplierMapper {
                 .contactPerson(supplier.getContactPerson())
                 .address(supplier.getAddress())
                 .isActive(supplier.getIsActive())
+                .currentBalance(supplier.getCurrentBalance())
                 .createdAt(supplier.getCreatedAt())
                 .updatedAt(supplier.getUpdatedAt())
                 .build();

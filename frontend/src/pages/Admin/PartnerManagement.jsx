@@ -579,6 +579,7 @@ const PartnerManagement = () => {
                       <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Người liên hệ</th>
                       <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Điện thoại</th>
                       <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Địa chỉ văn phòng</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Dư nợ hiện tại</th>
                       <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center">Trạng thái</th>
                       <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Hành động</th>
                     </tr>
@@ -592,6 +593,9 @@ const PartnerManagement = () => {
                         <td className="px-6 py-4 text-ink font-medium">{spl.contact_person || 'N/A'}</td>
                         <td className="px-6 py-4 text-shade-60 font-mono">{spl.phone || 'N/A'}</td>
                         <td className="px-6 py-4 text-shade-50 max-w-xs truncate" title={spl.address}>{spl.address || 'N/A'}</td>
+                        <td className="px-6 py-4 text-right font-bold text-ink">
+                          {(spl.current_balance || 0).toLocaleString('vi-VN')} VND
+                        </td>
                         <td className="px-6 py-4 text-center">
                           <Badge type={spl.is_active ? 'success' : 'neutral'} className="text-[9px]">
                             {spl.is_active ? 'Hoạt động' : 'Khóa'}
@@ -646,6 +650,7 @@ const PartnerManagement = () => {
                     <p className="text-shade-50">Người liên hệ: <span className="font-medium text-ink">{spl.contact_person || 'N/A'}</span></p>
                     <p className="text-shade-50">Điện thoại: <span className="font-mono font-medium text-ink">{spl.phone || 'N/A'}</span></p>
                     <p className="text-shade-50">Địa chỉ: <span className="font-medium text-ink">{spl.address || 'N/A'}</span></p>
+                    <p className="text-shade-50">Dư nợ hiện tại: <span className="font-bold text-ink">{(spl.current_balance || 0).toLocaleString('vi-VN')} VND</span></p>
                   </div>
                   <div className="p-4 border-t border-hairline-light flex gap-3 justify-end items-center">
                     {(hasRole(ROLES.ACCOUNTANT) || hasRole(ROLES.ACCOUNTANT_MANAGER)) ? (

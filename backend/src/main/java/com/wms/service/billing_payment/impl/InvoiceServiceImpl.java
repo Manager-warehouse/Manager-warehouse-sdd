@@ -40,6 +40,7 @@ import com.wms.exception.ResourceNotFoundException;
 import com.wms.repository.*;
 import com.wms.service.billing_payment.AutoInvoiceService;
 import com.wms.service.billing_payment.InvoiceService;
+import java.math.BigDecimal;
 import java.util.List;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -52,16 +53,19 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final DeliveryOrderRepository deliveryOrderRepository;
     private final DeliveryRepository deliveryRepository;
     private final AutoInvoiceService autoInvoiceService;
+    private final PaymentReceiptRepository paymentReceiptRepository;
 
     public InvoiceServiceImpl(
             InvoiceRepository invoiceRepository,
             DeliveryOrderRepository deliveryOrderRepository,
             DeliveryRepository deliveryRepository,
-            AutoInvoiceService autoInvoiceService) {
+            AutoInvoiceService autoInvoiceService,
+            PaymentReceiptRepository paymentReceiptRepository) {
         this.invoiceRepository = invoiceRepository;
         this.deliveryOrderRepository = deliveryOrderRepository;
         this.deliveryRepository = deliveryRepository;
         this.autoInvoiceService = autoInvoiceService;
+        this.paymentReceiptRepository = paymentReceiptRepository;
     }
 
     // Manual backfill entrypoint (POST /api/v1/invoices) — only used when automatic
@@ -120,6 +124,14 @@ public class InvoiceServiceImpl implements InvoiceService {
         }
     }
 
+    private BigDecimal calculatePaidAmount(Long invoiceId) {
+        BigDecimal total = BigDecimal.ZERO;
+        for (PaymentReceipt payment : paymentReceiptRepository.findByInvoiceId(invoiceId)) {
+            total = total.add(payment.getAmount());
+        }
+        return total;
+    }
+
     private InvoiceResponse toResponse(Invoice entity) {
         // Đối chứng bàn giao lấy từ lần giao hàng gần nhất của DO gốc, phục vụ Kế toán
         // đối chiếu hóa đơn tự động sinh với bằng chứng POD thực tế.
@@ -135,6 +147,7 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .dealerId(entity.getDealer().getId())
                 .dealerName(entity.getDealer().getName())
                 .totalAmount(entity.getTotalAmount())
+                .paidAmount(calculatePaidAmount(entity.getId()))
                 .issueDate(entity.getIssueDate())
                 .dueDate(entity.getDueDate())
                 .status(entity.getStatus())

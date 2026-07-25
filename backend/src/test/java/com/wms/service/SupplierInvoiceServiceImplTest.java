@@ -51,6 +51,7 @@ class SupplierInvoiceServiceImplTest {
     @Mock private DocumentSequenceRepository sequenceRepository;
     @Mock private AccountingPeriodService accountingPeriodService;
     @Mock private AuditLogService auditLogService;
+    @Mock private SupplierPaymentRepository supplierPaymentRepository;
 
     @InjectMocks
     private SupplierInvoiceServiceImpl supplierInvoiceService;
@@ -125,6 +126,7 @@ class SupplierInvoiceServiceImplTest {
             inv.setId(500L);
             return inv;
         });
+        when(supplierPaymentRepository.findBySupplierInvoiceId(500L)).thenReturn(java.util.List.of());
 
         SupplierInvoiceResponse response = supplierInvoiceService.createSupplierInvoice(request, accountantUser);
 
@@ -132,8 +134,32 @@ class SupplierInvoiceServiceImplTest {
         assertThat(response.getSupplierInvoiceNumber()).isEqualTo("VAT-NCC-001");
         assertThat(response.getStatus()).isEqualTo(InvoiceStatus.UNPAID);
         assertThat(response.getTotalAmount()).isEqualByComparingTo("600000.00");
+        assertThat(response.getPaidAmount()).isEqualByComparingTo(BigDecimal.ZERO);
         assertThat(supplier.getCurrentBalance()).isEqualByComparingTo("600000.00");
         verify(supplierInvoiceRepository).save(any(SupplierInvoice.class));
+    }
+
+    @Test
+    @DisplayName("Xem chi tiết hóa đơn mua hàng trả về đúng số tiền đã thanh toán")
+    void getSupplierInvoiceById_reflectsPaidAmountFromExistingPayments() {
+        SupplierInvoice invoice = new SupplierInvoice();
+        invoice.setId(500L);
+        invoice.setInvoiceNumber("SINV-202607-000001");
+        invoice.setSupplierInvoiceNumber("VAT-NCC-001");
+        invoice.setReceipt(receipt);
+        invoice.setSupplier(supplier);
+        invoice.setTotalAmount(new BigDecimal("600000.00"));
+        invoice.setStatus(InvoiceStatus.PARTIALLY_PAID);
+
+        com.wms.entity.billing_payment.SupplierPayment payment = new com.wms.entity.billing_payment.SupplierPayment();
+        payment.setAmount(new BigDecimal("200000.00"));
+
+        when(supplierInvoiceRepository.findById(500L)).thenReturn(Optional.of(invoice));
+        when(supplierPaymentRepository.findBySupplierInvoiceId(500L)).thenReturn(java.util.List.of(payment));
+
+        SupplierInvoiceResponse response = supplierInvoiceService.getSupplierInvoiceById(500L, accountantUser);
+
+        assertThat(response.getPaidAmount()).isEqualByComparingTo("200000.00");
     }
 
     @Test
