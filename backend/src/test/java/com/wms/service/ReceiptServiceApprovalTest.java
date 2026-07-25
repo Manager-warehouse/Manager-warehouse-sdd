@@ -108,6 +108,8 @@ class ReceiptServiceApprovalTest {
         private UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
         @Mock
         private AuditLogService auditLogService;
+        @Mock
+        private com.wms.service.billing_payment.SupplierBillingNotificationService supplierBillingNotificationService;
 
         private ReceiptValidationService receiptValidationService;
         private ReceiptApprovalService receiptService;
@@ -164,7 +166,8 @@ class ReceiptServiceApprovalTest {
                                 inventoryRepository,
                                 warehouseLocationRepository,
                                 receiptValidationService,
-                                auditLogService);
+                                auditLogService,
+                                supplierBillingNotificationService);
         }
 
         // -----------------------------------------------------------------------
@@ -196,6 +199,7 @@ class ReceiptServiceApprovalTest {
                                 && r.getApprovedAt() != null));
                 verify(auditLogService).log(eq(manager), eq(AuditAction.RECEIPT_APPROVE),
                                 eq("RECEIPT"), eq(1L), eq("RCV-2026-001"), eq(10L), any(), any());
+                verify(supplierBillingNotificationService).createNotificationForReceiptOrder(qcCompletedReceipt);
         }
 
         @Test

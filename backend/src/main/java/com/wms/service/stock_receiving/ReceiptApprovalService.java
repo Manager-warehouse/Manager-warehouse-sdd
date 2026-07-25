@@ -42,6 +42,7 @@ import com.wms.dto.response.ReceiptActionResponse;
 import com.wms.exception.*;
 import com.wms.repository.*;
 import com.wms.service.audit_trail.AuditLogService;
+import com.wms.service.billing_payment.SupplierBillingNotificationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -74,6 +75,7 @@ public class ReceiptApprovalService {
     private final WarehouseLocationRepository warehouseLocationRepository;
     private final ReceiptValidationService receiptValidationService;
     private final AuditLogService auditLogService;
+    private final SupplierBillingNotificationService supplierBillingNotificationService;
 
     public ReceiptApprovalService(ReceiptRepository receiptRepository,
                                   ReceiptItemRepository receiptItemRepository,
@@ -81,7 +83,8 @@ public class ReceiptApprovalService {
                                   InventoryRepository inventoryRepository,
                                   WarehouseLocationRepository warehouseLocationRepository,
                                   ReceiptValidationService receiptValidationService,
-                                  AuditLogService auditLogService) {
+                                  AuditLogService auditLogService,
+                                  SupplierBillingNotificationService supplierBillingNotificationService) {
         this.receiptRepository = receiptRepository;
         this.receiptItemRepository = receiptItemRepository;
         this.batchRepository = batchRepository;
@@ -89,6 +92,7 @@ public class ReceiptApprovalService {
         this.warehouseLocationRepository = warehouseLocationRepository;
         this.receiptValidationService = receiptValidationService;
         this.auditLogService = auditLogService;
+        this.supplierBillingNotificationService = supplierBillingNotificationService;
     }
 
     /**
@@ -118,6 +122,10 @@ public class ReceiptApprovalService {
         receipt.setApprovedAt(OffsetDateTime.now());
         receipt.setUpdatedAt(OffsetDateTime.now());
         receiptRepository.save(receipt);
+
+        // US-WMS-28: approval is the accountant-facing trigger for AP billing. No-ops for
+        // receipts without a supplier (e.g. dealer RETURN receipts handled by ReturnsService).
+        supplierBillingNotificationService.createNotificationForReceiptOrder(receipt);
 
         auditLogService.log(
                 actor, AuditAction.RECEIPT_APPROVE, RECEIPT_ENTITY,

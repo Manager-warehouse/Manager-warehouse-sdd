@@ -120,6 +120,8 @@ class ReceiptBackendGuardTest {
     @Mock
     private AuditLogService auditLogService;
     @Mock
+    private com.wms.service.billing_payment.SupplierBillingNotificationService supplierBillingNotificationService;
+    @Mock
     private com.wms.repository.QuarantineRecordRepository quarantineRecordRepository;
     @Mock
     private com.wms.repository.PriceHistoryRepository priceHistoryRepository;
@@ -157,7 +159,8 @@ class ReceiptBackendGuardTest {
                 inventoryRepository,
                 warehouseLocationRepository,
                 receiptValidationService,
-                auditLogService);
+                auditLogService,
+                supplierBillingNotificationService);
         rtvService = new QuarantineRtvService(
                 receiptRepository,
                 receiptItemRepository,
