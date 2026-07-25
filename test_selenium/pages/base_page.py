@@ -239,15 +239,28 @@ class BasePage:
         # that wait exists) instead of a JS-dispatched event is also just
         # less exposed to whatever headless-vs-headed event-timing
         # difference made the JS approach unreliable under ChromeDriver.
-        input_el.clear()
-        input_el.send_keys(search_term)
-        if input_el.get_attribute("value") != search_term:
-            input_el = locate()
+        actual_value = ""
+        for attempt in range(3):
+            input_el = locate() if attempt > 0 else input_el
+            input_el.click()
             input_el.clear()
             input_el.send_keys(search_term)
-        actual_value = input_el.get_attribute("value")
+            actual_value = input_el.get_attribute("value")
+            if actual_value == search_term:
+                break
+            time.sleep(0.15)
         if actual_value != search_term:
-            return False, f"Search input still shows '{actual_value}' after two send_keys attempts (expected '{search_term}')"
+            return False, f"Search input still shows '{actual_value}' after {attempt + 1} send_keys attempts (expected '{search_term}')"
+
+        # ReceiptForm/PriceEntryModal both filter through a 250ms
+        # useDebounce, and BOTH show the exact same "Không tìm thấy sản
+        # phẩm" placeholder for their untouched, pre-debounce empty
+        # searchResults=[] state as they do for a genuine zero-match
+        # result. Checking immediately after typing can see that initial
+        # placeholder and conclude "no match" before the debounce timer
+        # has even run the real filter -- give it a beat to actually
+        # settle before trusting a "no match" signal.
+        time.sleep(0.4)
 
         def dropdown_settled(d):
             has_results = len(d.find_elements(By.CSS_SELECTOR, result_selector)) > 0

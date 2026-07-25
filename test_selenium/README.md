@@ -62,13 +62,16 @@ lỗi -- gán nhầm thành Failed sẽ khiến người đọc báo cáo hiểu
 
 ## 6. Các flow đã có `data-testid` (ổn định hơn, nên ưu tiên khi mở rộng)
 
-AUTH-001, MDM-002, TRF-005, STK-006, PRC-007 dùng `page.by_testid(...)` /
-`page.submit_and_verify_by_testid(...)` thay vì suy đoán qua label text/vị trí DOM -- các
-component liên quan (`UserFormModal.jsx`, `ProductManagement.jsx`,
-`TransferRequestWorkspace.jsx`, `StocktakeForm.jsx`, `PriceListManagement.jsx`) đã có
-`data-testid` tương ứng. RCV-003, OUT-004, FIN-008, RET-009 vẫn dùng cách suy đoán cũ (label/vị
-trí) vì có nhiều nuance nghiệp vụ (tra giá, hóa đơn chưa thanh toán, DO đã giao...) khiến việc tự
-động hoá đầy đủ không đáng công sức bỏ ra -- xem ghi chú UAT thủ công ở mục 7.
+AUTH-001, MDM-002, TRF-005, STK-006, PRC-007, OUT-004 dùng `page.by_testid(...)` /
+`page.submit_and_verify_by_testid(...)` thay vì suy đoán qua label text/vị trí DOM cho toàn bộ
+form -- các component liên quan (`UserFormModal.jsx`, `ProductManagement.jsx`,
+`TransferRequestWorkspace.jsx`, `StocktakeForm.jsx`, `PriceListManagement.jsx`,
+`DeliveryOrders.jsx`) đã có `data-testid` tương ứng. RCV-003 (`ReceiptForm.jsx`) có testid cho ô
+tìm sản phẩm nhưng các field còn lại (nhà cung cấp, người liên hệ, mã chứng từ) vẫn dùng label --
+xem mục 8 vì RCV-003/OUT-004 vẫn N/A do một vấn đề khác, không phải do thiếu testid. FIN-008,
+RET-009 vẫn dùng cách suy đoán cũ (label/vị trí) vì có nhiều nuance nghiệp vụ (tra hóa đơn chưa
+thanh toán, DO đã giao...) khiến việc tự động hoá đầy đủ không đáng công sức bỏ ra -- xem ghi chú
+UAT thủ công ở mục 7.
 
 ## 7. Vấn đề đã biết: đăng nhập lần thứ hai trong cùng tab thất bại
 
@@ -89,3 +92,23 @@ role (`run_all_flows()` nhóm `MODULE_FLOWS` theo role, mỗi nhóm chạy trên
 Đây không phải là che giấu lỗi -- lỗi vẫn được ghi lại ở trên -- mà là thiết kế lại việc quản lý
 session để mỗi role luôn rơi vào đúng kịch bản đã được xác nhận hoạt động (đăng nhập đầu tiên trong
 tab mới), thay vì để cả bộ test sụp đổ giữa chừng ngay khi việc đổi role bắt đầu.
+
+## 8. Vấn đề đã biết: RCV-003 và OUT-004 chỉ thất bại khi chạy qua ChromeDriver headless
+
+Cả hai flow này đã được nâng cấp lên `data-testid` và vẫn thất bại giống hệt nhau qua 3 lần chạy
+liên tiếp: RCV-003 báo ô tìm sản phẩm giữ giá trị rỗng sau nhiều lần `send_keys`, OUT-004 báo modal
+"Lập đơn xuất hàng" không mở sau cả hai lần click. Đã loại trừ lần lượt: race chờ hiển thị (đã có
+wait trước khi tương tác), race debounce 250ms (đã fix ở mục search chung), và click rơi vào giữa
+transition (đã thêm click tường minh + retry click kèm kiểm tra modal đã mở chưa trước khi click
+lại). Quan trọng nhất: đã tái hiện thủ công **chính xác cùng một chuỗi thao tác** (chọn nhà cung
+cấp, nhập người liên hệ, nhập mã chứng từ, rồi click + gõ vào ô tìm sản phẩm cho RCV-003; click mở
+modal cho OUT-004) trực tiếp trong trình duyệt thật (không headless), ở đúng kích thước viewport
+`1440x900` mà `build_driver()` dùng -- cả hai đều hoạt động bình thường, không lỗi.
+
+Vì lỗi không tái hiện được trong trình duyệt có giao diện nhưng lặp lại giống hệt nhau qua nhiều
+lần chạy headless thật, nhiều khả năng đây là hành vi đặc thù của `--headless=new` (một dạng quirk
+đã biết của ChromeDriver, không phải lỗi logic trong flow hay trong ứng dụng). Không thể điều tra
+sâu hơn từ môi trường hiện tại vì không có Python/ChromeDriver để tự chạy lại. Hướng kiểm tra tiếp
+theo nếu muốn xác nhận: tạm tắt `HEADLESS` trong `config.py` và chạy lại riêng hai module này -- nếu
+chuyển sang Passed thì xác nhận chắc chắn là vấn đề headless-only, không cần điều tra thêm ở tầng
+ứng dụng.

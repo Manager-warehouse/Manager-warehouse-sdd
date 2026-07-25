@@ -116,8 +116,24 @@ def flow_out004(driver):
     page.navigate_to("/outbound/delivery-orders")
     try:
         page.by_testid_clickable("open-create-do-modal").click()
-        page.wait_for(lambda d: len(d.find_elements(
-            By.CSS_SELECTOR, "[data-testid='do-dealer-select']")) > 0, timeout=10)
+        dealer_select_present = page.wait_for(lambda d: len(d.find_elements(
+            By.CSS_SELECTOR, "[data-testid='do-dealer-select']")) > 0, timeout=8)
+        if not dealer_select_present:
+            modal_open = len(driver.find_elements(
+                By.XPATH, "//h3[contains(normalize-space(.), 'Lập đơn xuất hàng')]")) > 0
+            if not modal_open:
+                # A click that lands during a transient re-render can
+                # silently no-op (this is the exact OUT-004 click-not-
+                # registering bug this suite hit before testids existed) --
+                # only retry-click if the modal genuinely never opened, not
+                # if it opened and just rendered its contents slowly (a
+                # second click there would land on the backdrop, not the
+                # now-hidden trigger).
+                page.by_testid_clickable("open-create-do-modal").click()
+            dealer_select_present = page.wait_for(lambda d: len(d.find_elements(
+                By.CSS_SELECTOR, "[data-testid='do-dealer-select']")) > 0, timeout=15)
+        if not dealer_select_present:
+            return False, "Modal never opened: [data-testid='do-dealer-select'] absent after retry"
 
         page.select_first_real_option_by_testid("do-dealer-select")
         future_date = time.strftime("%Y-%m-%d", time.localtime(time.time() + 7 * 86400))
@@ -196,7 +212,15 @@ def flow_prc007(driver):
         if not found:
             return False, reason
 
-        future_date = time.strftime("%Y-%m-%d", time.localtime(time.time() + 1 * 86400))
+        # A fixed "tomorrow" collides with itself on every rerun within
+        # the same day: same first-matched product + same warehouse + same
+        # effective_date is a duplicate price entry, and the backend
+        # correctly 409s it -- that's the app doing its job, not a defect.
+        # Spread the offset across ~300 days (deterministic per run via the
+        # epoch-seconds tag) so same-day reruns don't collide with data
+        # left behind by earlier runs.
+        offset_days = 1 + (int(_tag()) % 300)
+        future_date = time.strftime("%Y-%m-%d", time.localtime(time.time() + offset_days * 86400))
         page.set_date_by_testid("price-effective-date", future_date)
         page.type_by_testid("price-cost-price", "100000")
         page.type_by_testid("price-selling-price", "150000")
