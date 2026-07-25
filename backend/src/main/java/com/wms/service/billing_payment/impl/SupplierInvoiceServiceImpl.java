@@ -8,6 +8,7 @@ import com.wms.entity.billing_payment.SupplierBillingNotification;
 import com.wms.entity.billing_payment.SupplierInvoice;
 import com.wms.entity.document_numbering.DocumentSequence;
 import com.wms.entity.stock_receiving.Receipt;
+import com.wms.entity.stock_receiving.ReceiptItem;
 import com.wms.entity.supplier_management.Supplier;
 import com.wms.enums.access_control.UserRole;
 import com.wms.enums.audit_trail.AuditAction;
@@ -42,6 +43,7 @@ public class SupplierInvoiceServiceImpl implements SupplierInvoiceService {
 
     private final SupplierInvoiceRepository supplierInvoiceRepository;
     private final ReceiptRepository receiptRepository;
+    private final ReceiptItemRepository receiptItemRepository;
     private final SupplierRepository supplierRepository;
     private final AccountingPeriodRepository accountingPeriodRepository;
     private final SupplierBillingNotificationRepository supplierBillingNotificationRepository;
@@ -52,6 +54,7 @@ public class SupplierInvoiceServiceImpl implements SupplierInvoiceService {
     public SupplierInvoiceServiceImpl(
             SupplierInvoiceRepository supplierInvoiceRepository,
             ReceiptRepository receiptRepository,
+            ReceiptItemRepository receiptItemRepository,
             SupplierRepository supplierRepository,
             AccountingPeriodRepository accountingPeriodRepository,
             SupplierBillingNotificationRepository supplierBillingNotificationRepository,
@@ -60,6 +63,7 @@ public class SupplierInvoiceServiceImpl implements SupplierInvoiceService {
             AuditLogService auditLogService) {
         this.supplierInvoiceRepository = supplierInvoiceRepository;
         this.receiptRepository = receiptRepository;
+        this.receiptItemRepository = receiptItemRepository;
         this.supplierRepository = supplierRepository;
         this.accountingPeriodRepository = accountingPeriodRepository;
         this.supplierBillingNotificationRepository = supplierBillingNotificationRepository;
@@ -101,8 +105,9 @@ public class SupplierInvoiceServiceImpl implements SupplierInvoiceService {
                 .findPeriodByDateAndStatus(request.getDocumentDate(), AccountingPeriodStatus.OPEN)
                 .orElseThrow(() -> new UnprocessableEntityException("No open accounting period found for date " + request.getDocumentDate()));
 
-        // 4. Calculate total amount (mock default value if items not calculated directly or from receipt)
-        BigDecimal totalAmount = BigDecimal.ZERO;
+        // 4. Calculate total amount from actually-received quantity x unit cost per line,
+        // per feature-accountant-supplier-invoicing.md 3 (Event-driven).
+        BigDecimal totalAmount = calculateTotalAmount(receipt.getId());
 
         // 5. Increase supplier current balance
         BigDecimal oldBalance = supplier.getCurrentBalance() != null ? supplier.getCurrentBalance() : BigDecimal.ZERO;
@@ -172,6 +177,26 @@ public class SupplierInvoiceServiceImpl implements SupplierInvoiceService {
             invoices = supplierInvoiceRepository.findAll();
         }
         return invoices.stream().map(this::toResponse).toList();
+    }
+
+    private BigDecimal calculateTotalAmount(Long receiptId) {
+        List<ReceiptItem> items = receiptItemRepository.findByReceiptId(receiptId);
+        if (items.isEmpty()) {
+            throw new UnprocessableEntityException("Receipt has no items to invoice");
+        }
+        BigDecimal total = BigDecimal.ZERO;
+        for (ReceiptItem item : items) {
+            if (item.getUnitCost() == null) {
+                throw new UnprocessableEntityException(
+                        "ITEM_UNIT_COST_MISSING: Receipt item unit cost is required for invoicing");
+            }
+            Integer actualQty = item.getActualQty();
+            if (actualQty == null || actualQty <= 0) {
+                continue;
+            }
+            total = total.add(item.getUnitCost().multiply(BigDecimal.valueOf(actualQty)));
+        }
+        return total;
     }
 
     private void requireAccountant(User actor) {

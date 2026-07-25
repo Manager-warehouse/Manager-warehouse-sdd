@@ -18,7 +18,9 @@ import com.wms.repository.*;
 import com.wms.repository.supplier_management.SupplierRepository;
 import com.wms.service.audit_trail.AuditLogService;
 import com.wms.service.billing_payment.AccountingPeriodService;
+import com.wms.service.billing_payment.OcrService;
 import com.wms.service.billing_payment.SupplierPaymentService;
+import com.wms.util.OcrTextParser;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,6 +46,7 @@ public class SupplierPaymentServiceImpl implements SupplierPaymentService {
     private final DocumentSequenceRepository sequenceRepository;
     private final AccountingPeriodService accountingPeriodService;
     private final AuditLogService auditLogService;
+    private final OcrService ocrService;
 
     public SupplierPaymentServiceImpl(
             SupplierPaymentRepository supplierPaymentRepository,
@@ -52,7 +55,8 @@ public class SupplierPaymentServiceImpl implements SupplierPaymentService {
             AccountingPeriodRepository accountingPeriodRepository,
             DocumentSequenceRepository sequenceRepository,
             AccountingPeriodService accountingPeriodService,
-            AuditLogService auditLogService) {
+            AuditLogService auditLogService,
+            OcrService ocrService) {
         this.supplierPaymentRepository = supplierPaymentRepository;
         this.supplierInvoiceRepository = supplierInvoiceRepository;
         this.supplierRepository = supplierRepository;
@@ -60,6 +64,7 @@ public class SupplierPaymentServiceImpl implements SupplierPaymentService {
         this.sequenceRepository = sequenceRepository;
         this.accountingPeriodService = accountingPeriodService;
         this.auditLogService = auditLogService;
+        this.ocrService = ocrService;
     }
 
     @Override
@@ -178,40 +183,46 @@ public class SupplierPaymentServiceImpl implements SupplierPaymentService {
             throw new UnprocessableEntityException("Uploaded file is empty");
         }
 
-        String filename = file.getOriginalFilename() != null ? file.getOriginalFilename().toLowerCase() : "";
+        String rawText = ocrService.extractRawText(file);
+        String cleanText = rawText.replaceAll("\\r?\\n", " ").replaceAll("\\s+", " ");
+        String lowercaseText = cleanText.toLowerCase();
 
-        // Parse amount from filename if available, else mock default 20,000,000
-        BigDecimal amount = new BigDecimal("20000000.00");
-        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("\\d{4,}").matcher(filename);
-        if (matcher.find()) {
-            try {
-                amount = new BigDecimal(matcher.group());
-            } catch (Exception ignored) {}
+        BigDecimal amount = OcrTextParser.extractAmount(cleanText, lowercaseText);
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new UnprocessableEntityException(
+                    "Không thể nhận diện số tiền chuyển khoản hợp lệ từ hóa đơn này. Vui lòng nhập thông tin thủ công.");
         }
-
-        // Match supplier from company name or code
-        List<Supplier> suppliers = supplierRepository.findAll();
-        Long matchedSupplierId = null;
-        String matchedSupplierName = "NHA CUNG CAP";
-        for (Supplier s : suppliers) {
-            if (s.getCompanyName() != null && filename.contains(s.getCompanyName().toLowerCase().replaceAll("[^a-z0-9]", ""))) {
-                matchedSupplierId = s.getId();
-                matchedSupplierName = s.getCompanyName();
-                break;
-            }
-        }
-        if (matchedSupplierId == null && !suppliers.isEmpty()) {
-            matchedSupplierId = suppliers.getFirst().getId();
-            matchedSupplierName = suppliers.getFirst().getCompanyName();
-        }
+        LocalDate paymentDate = OcrTextParser.extractPaymentDate(cleanText);
+        SupplierMatchResult match = matchSupplier(lowercaseText);
 
         return com.wms.dto.response.SupplierPaymentOcrResponse.builder()
                 .amount(amount)
-                .paymentDate(LocalDate.now())
-                .supplierId(matchedSupplierId)
-                .notes("UNC CHI TIEN HANG - " + matchedSupplierName.toUpperCase() + " - UNC_OCR_" + (int)(Math.random() * 100000))
-                .confidenceScore(0.92)
+                .paymentDate(paymentDate)
+                .supplierId(match.supplierId())
+                .notes(match.notes())
+                .confidenceScore(match.confidenceScore())
                 .build();
+    }
+
+    private SupplierMatchResult matchSupplier(String lowercaseText) {
+        String foldedOcrText = OcrTextParser.foldToAsciiAlphanumeric(lowercaseText);
+        for (Supplier s : supplierRepository.findAll()) {
+            if (!Boolean.TRUE.equals(s.getIsActive())) {
+                continue;
+            }
+            String code = s.getCode() != null ? s.getCode().toLowerCase() : "";
+            String foldedName = s.getCompanyName() != null ? OcrTextParser.foldToAsciiAlphanumeric(s.getCompanyName()) : "";
+            boolean nameMatch = !foldedName.isEmpty() && foldedOcrText.contains(foldedName);
+            boolean codeMatch = !code.isEmpty() && (lowercaseText.contains(code) || lowercaseText.contains(code.replace("-", " ")));
+            if (nameMatch || codeMatch) {
+                return new SupplierMatchResult(s.getId(),
+                        "UNC CHI TIEN HANG - " + s.getCompanyName().toUpperCase() + " - GIAO DICH OCR", 0.95);
+            }
+        }
+        return new SupplierMatchResult(null, "UNC CHI TIEN HANG - KHONG RO NHA CUNG CAP (OCR)", 0.60);
+    }
+
+    private record SupplierMatchResult(Long supplierId, String notes, double confidenceScore) {
     }
 
     private void requireAccountant(User actor) {

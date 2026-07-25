@@ -6,6 +6,7 @@ import com.wms.entity.access_control.User;
 import com.wms.entity.billing_payment.AccountingPeriod;
 import com.wms.entity.billing_payment.SupplierInvoice;
 import com.wms.entity.stock_receiving.Receipt;
+import com.wms.entity.stock_receiving.ReceiptItem;
 import com.wms.entity.supplier_management.Supplier;
 import com.wms.entity.warehouse_location.Warehouse;
 import com.wms.enums.access_control.UserRole;
@@ -43,6 +44,7 @@ class SupplierInvoiceServiceImplTest {
 
     @Mock private SupplierInvoiceRepository supplierInvoiceRepository;
     @Mock private ReceiptRepository receiptRepository;
+    @Mock private ReceiptItemRepository receiptItemRepository;
     @Mock private SupplierRepository supplierRepository;
     @Mock private AccountingPeriodRepository accountingPeriodRepository;
     @Mock private SupplierBillingNotificationRepository supplierBillingNotificationRepository;
@@ -105,7 +107,15 @@ class SupplierInvoiceServiceImplTest {
         sequence.setSequenceKey("SUPPLIER_INVOICE");
         sequence.setNextValue(1L);
 
+        ReceiptItem item1 = new ReceiptItem();
+        item1.setActualQty(10);
+        item1.setUnitCost(new BigDecimal("50000.00"));
+        ReceiptItem item2 = new ReceiptItem();
+        item2.setActualQty(5);
+        item2.setUnitCost(new BigDecimal("20000.00"));
+
         when(receiptRepository.findById(100L)).thenReturn(Optional.of(receipt));
+        when(receiptItemRepository.findByReceiptId(100L)).thenReturn(java.util.List.of(item1, item2));
         when(supplierInvoiceRepository.findByReceiptId(100L)).thenReturn(Optional.empty());
         when(accountingPeriodRepository.findPeriodByDateAndStatus(request.getDocumentDate(), AccountingPeriodStatus.OPEN))
                 .thenReturn(Optional.of(openPeriod));
@@ -121,7 +131,33 @@ class SupplierInvoiceServiceImplTest {
         assertThat(response).isNotNull();
         assertThat(response.getSupplierInvoiceNumber()).isEqualTo("VAT-NCC-001");
         assertThat(response.getStatus()).isEqualTo(InvoiceStatus.UNPAID);
+        assertThat(response.getTotalAmount()).isEqualByComparingTo("600000.00");
+        assertThat(supplier.getCurrentBalance()).isEqualByComparingTo("600000.00");
         verify(supplierInvoiceRepository).save(any(SupplierInvoice.class));
+    }
+
+    @Test
+    @DisplayName("Lập hóa đơn mua hàng thất bại - Thiếu đơn giá nhập trên dòng hàng")
+    void createSupplierInvoice_failsWhenUnitCostMissing() {
+        CreateSupplierInvoiceRequest request = CreateSupplierInvoiceRequest.builder()
+                .receiptId(100L)
+                .supplierInvoiceNumber("VAT-NCC-001")
+                .documentDate(LocalDate.of(2026, 7, 23))
+                .build();
+
+        ReceiptItem item = new ReceiptItem();
+        item.setActualQty(10);
+        item.setUnitCost(null);
+
+        when(receiptRepository.findById(100L)).thenReturn(Optional.of(receipt));
+        when(receiptItemRepository.findByReceiptId(100L)).thenReturn(java.util.List.of(item));
+        when(supplierInvoiceRepository.findByReceiptId(100L)).thenReturn(Optional.empty());
+        when(accountingPeriodRepository.findPeriodByDateAndStatus(request.getDocumentDate(), AccountingPeriodStatus.OPEN))
+                .thenReturn(Optional.of(openPeriod));
+
+        assertThatThrownBy(() -> supplierInvoiceService.createSupplierInvoice(request, accountantUser))
+                .isInstanceOf(UnprocessableEntityException.class)
+                .hasMessageContaining("ITEM_UNIT_COST_MISSING");
     }
 
     @Test

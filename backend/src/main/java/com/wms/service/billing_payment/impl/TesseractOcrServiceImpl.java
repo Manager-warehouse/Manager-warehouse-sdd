@@ -41,6 +41,7 @@ import com.wms.entity.access_control.User;
 import com.wms.repository.dealer_management.DealerRepository;
 import com.wms.service.billing_payment.OcrService;
 import com.wms.util.OcrImagePreprocessor;
+import com.wms.util.OcrTextParser;
 import jakarta.annotation.PostConstruct;
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -128,6 +129,12 @@ public class TesseractOcrServiceImpl implements OcrService {
 
     @Override
     public PaymentReceiptOcrResponse processOcr(MultipartFile file, User actor) {
+        String resultText = extractRawText(file);
+        return parseOcrText(resultText);
+    }
+
+    @Override
+    public String extractRawText(MultipartFile file) {
         if (!isOcrReady || tesseract == null) {
             log.warn("Tesseract OCR service is not ready/initialized on this system.");
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
@@ -141,8 +148,7 @@ public class TesseractOcrServiceImpl implements OcrService {
             BufferedImage processedImage = OcrImagePreprocessor.preprocess(sourceImage);
             String resultText = tesseract.doOCR(processedImage);
             log.info("OCR Result Text Length: {}", resultText.length());
-
-            return parseOcrText(resultText);
+            return resultText;
         } catch (ResponseStatusException e) {
             throw e;
         } catch (Throwable e) {
@@ -169,14 +175,14 @@ public class TesseractOcrServiceImpl implements OcrService {
         String cleanText = text.replaceAll("\\r?\\n", " ").replaceAll("\\s+", " ");
         String lowercaseText = cleanText.toLowerCase();
 
-        BigDecimal amount = extractAmount(cleanText, lowercaseText);
+        BigDecimal amount = OcrTextParser.extractAmount(cleanText, lowercaseText);
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
             log.warn("OCR parse failed: Could not extract any valid payment amount from OCR text.");
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
                 "Không thể nhận diện số tiền chuyển khoản hợp lệ từ hóa đơn này. Vui lòng nhập thông tin thủ công.");
         }
 
-        LocalDate paymentDate = extractPaymentDate(cleanText);
+        LocalDate paymentDate = OcrTextParser.extractPaymentDate(cleanText);
         DealerMatchResult dealerMatch = matchDealer(lowercaseText);
 
         return PaymentReceiptOcrResponse.builder()
@@ -186,84 +192,6 @@ public class TesseractOcrServiceImpl implements OcrService {
                 .notes(dealerMatch.notes())
                 .confidenceScore(dealerMatch.confidenceScore())
                 .build();
-    }
-
-    private BigDecimal extractAmount(String cleanText, String lowercaseText) {
-        // Cách 1: Tìm số tiền đi kèm sau từ khóa "số tiền" hoặc "amount", cho phép tối đa
-        // 3 từ đệm ở giữa (ví dụ "Số tiền giao dịch: 100.000")
-        java.util.regex.Pattern keywordPattern = java.util.regex.Pattern.compile(
-            "(?:so\\s+tien|số\\s+tiền|amount|tong\\s+tien|tổng\\s+tiền|so\\s+tien\\s+chuyen|"
-            + "số\\s+tiền\\s+chuyển|gia\\s+tri|giá\\s+trị)(?:\\s+\\p{L}+){0,3}\\s*[:\\-\\. ]*\\s*"
-            + "([+\\-\\s]*[\\d.,]+(?:\\s*(?:vnd|đ|d|dong|đồng))?)",
-            java.util.regex.Pattern.CASE_INSENSITIVE
-        );
-        java.util.regex.Matcher keywordMatcher = keywordPattern.matcher(lowercaseText);
-        if (keywordMatcher.find()) {
-            BigDecimal amount = extractNumberFromText(keywordMatcher.group(1));
-            if (amount != null) {
-                return amount;
-            }
-        }
-
-        // Cách 2: Nếu chưa tìm được, tìm số đi kèm đơn vị tiền tệ "vnd", "đ", "dong", "đồng" ở phía sau
-        BigDecimal byCurrencySuffix = maxMatchAtLeast(lowercaseText,
-                "([\\d.,]+)\\s*(?:vnd|đ|dong|đồng)\\b", null);
-        if (byCurrencySuffix != null) {
-            return byCurrencySuffix;
-        }
-
-        // Cách 3: Nếu vẫn chưa tìm được, tìm số có dấu cộng (+) đằng trước (phổ biến trên screenshot
-        // biến động số dư / giao dịch thành công)
-        BigDecimal byPlusSign = maxMatchAtLeast(lowercaseText, "\\+\\s*([\\d.,]+)", null);
-        if (byPlusSign != null) {
-            return byPlusSign;
-        }
-
-        // Cách 4: Fallback cuối cùng - tìm số lớn nhất có định dạng phân cách nghìn và độ dài hợp lý,
-        // giới hạn dưới 1 tỷ để tránh nhầm với số tài khoản/mã giao dịch
-        return maxMatchAtLeast(cleanText, "\\b\\d{1,3}(?:[.,]\\d{3})+\\b", new BigDecimal("1000000000"));
-    }
-
-    private BigDecimal maxMatchAtLeast(String text, String regex, BigDecimal exclusiveUpperBound) {
-        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile(regex,
-                java.util.regex.Pattern.CASE_INSENSITIVE).matcher(text);
-        BigDecimal maxVal = BigDecimal.ZERO;
-        while (matcher.find()) {
-            BigDecimal val = extractNumberFromText(matcher.group(matcher.groupCount() > 0 ? 1 : 0));
-            if (val == null || val.compareTo(maxVal) <= 0 || val.compareTo(new BigDecimal("1000")) < 0) {
-                continue;
-            }
-            if (exclusiveUpperBound != null && val.compareTo(exclusiveUpperBound) >= 0) {
-                continue;
-            }
-            maxVal = val;
-        }
-        return maxVal.compareTo(BigDecimal.ZERO) > 0 ? maxVal : null;
-    }
-
-    private LocalDate extractPaymentDate(String cleanText) {
-        // Tìm ngày tháng năm định dạng dd/mm/yyyy, yyyy-mm-dd hoặc dd-mm-yyyy
-        java.util.regex.Pattern datePattern = java.util.regex.Pattern.compile(
-            "\\b(\\d{1,2})[/-](\\d{1,2})[/-](\\d{4})\\b|\\b(\\d{4})[/-](\\d{1,2})[/-](\\d{1,2})\\b"
-        );
-        java.util.regex.Matcher dateMatcher = datePattern.matcher(cleanText);
-        if (dateMatcher.find()) {
-            try {
-                if (dateMatcher.group(1) != null) {
-                    int day = Integer.parseInt(dateMatcher.group(1));
-                    int month = Integer.parseInt(dateMatcher.group(2));
-                    int year = Integer.parseInt(dateMatcher.group(3));
-                    return LocalDate.of(year, month, day);
-                }
-                int year = Integer.parseInt(dateMatcher.group(4));
-                int month = Integer.parseInt(dateMatcher.group(5));
-                int day = Integer.parseInt(dateMatcher.group(6));
-                return LocalDate.of(year, month, day);
-            } catch (Exception e) {
-                // Giữ mặc định LocalDate.now()
-            }
-        }
-        return LocalDate.now();
     }
 
     private DealerMatchResult matchDealer(String lowercaseText) {
@@ -280,13 +208,13 @@ public class TesseractOcrServiceImpl implements OcrService {
     private DealerMatchResult matchByNameOrCode(String lowercaseText, List<Dealer> dealers) {
         // So khớp trên bản đã bỏ dấu tiếng Việt: Tesseract thường đọc sai/rớt dấu thanh trên
         // ảnh chụp màn hình ứng dụng ngân hàng, nên so khớp có dấu chính xác tuyệt đối là quá chặt.
-        String foldedOcrText = foldToAsciiAlphanumeric(lowercaseText);
+        String foldedOcrText = OcrTextParser.foldToAsciiAlphanumeric(lowercaseText);
         for (Dealer dealer : dealers) {
             if (!Boolean.TRUE.equals(dealer.getIsActive())) {
                 continue;
             }
             String dealerCode = dealer.getCode().toLowerCase();
-            String foldedDealerName = foldToAsciiAlphanumeric(dealer.getName());
+            String foldedDealerName = OcrTextParser.foldToAsciiAlphanumeric(dealer.getName());
 
             if (foldedOcrText.contains(foldedDealerName)
                     || lowercaseText.contains(dealerCode)
@@ -297,35 +225,8 @@ public class TesseractOcrServiceImpl implements OcrService {
         return null;
     }
 
-    private String foldToAsciiAlphanumeric(String text) {
-        String withoutMarks = java.text.Normalizer.normalize(text.toLowerCase(), java.text.Normalizer.Form.NFD)
-                .replaceAll("\\p{InCombiningDiacriticalMarks}+", "")
-                .replace('đ', 'd');
-        return withoutMarks.replaceAll("[^a-z0-9]", "");
-    }
-
     private String dealerNotes(Dealer dealer) {
         return "CK TIEN HANG - " + dealer.getName().toUpperCase() + " - GIAO DICH OCR";
-    }
-
-    private BigDecimal extractNumberFromText(String text) {
-        if (text == null) return null;
-        // Loại bỏ các từ khóa tiền tệ ra khỏi chuỗi để lấy phần số
-        String clean = text.toLowerCase().replaceAll("[^\\d.,]", "");
-
-        // Loại bỏ phần thập phân VND lẻ .00 hoặc ,00 ở cuối nếu có
-        if (clean.endsWith(".00") || clean.endsWith(",00")) {
-            clean = clean.substring(0, clean.length() - 3);
-        }
-
-        // Loại bỏ toàn bộ dấu phân tách hàng nghìn để parse thành số nguyên
-        clean = clean.replace(".", "").replace(",", "");
-        if (clean.isEmpty()) return null;
-        try {
-            return new BigDecimal(clean);
-        } catch (Exception e) {
-            return null;
-        }
     }
 
     private record DealerMatchResult(Long dealerId, String notes, double confidenceScore) {

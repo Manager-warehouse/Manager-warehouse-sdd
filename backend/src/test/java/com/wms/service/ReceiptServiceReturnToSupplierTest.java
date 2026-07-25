@@ -109,6 +109,8 @@ class ReceiptServiceReturnToSupplierTest {
     private UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
     @Mock
     private AuditLogService auditLogService;
+    @Mock
+    private com.wms.service.billing_payment.SupplierBillingNotificationService supplierBillingNotificationService;
 
     private ReceiptValidationService receiptValidationService;
     private ReceiptApprovalService receiptService;
@@ -161,7 +163,8 @@ class ReceiptServiceReturnToSupplierTest {
                 inventoryRepository,
                 warehouseLocationRepository,
                 receiptValidationService,
-                auditLogService);
+                auditLogService,
+                supplierBillingNotificationService);
     }
 
     // -----------------------------------------------------------------------

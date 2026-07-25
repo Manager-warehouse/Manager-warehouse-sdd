@@ -76,7 +76,6 @@ import com.wms.repository.InterWarehouseTransferRepository;
 import com.wms.repository.TripDeliveryOrderRepository;
 import com.wms.repository.TripRepository;
 import com.wms.service.audit_trail.AuditLogService;
-import com.wms.service.billing_payment.AutoInvoiceService;
 import com.wms.service.order_fulfillment.DriverDeliveryService;
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -121,7 +120,6 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
     private final DeliveryOrderItemRepository deliveryOrderItemRepository;
     private final InventoryRepository inventoryRepository;
     private final InterWarehouseTransferRepository interWarehouseTransferRepository;
-    private final AutoInvoiceService autoInvoiceService;
     private final BillingNotificationRepository billingNotificationRepository;
     private final AuditLogService auditLogService;
     private final JavaMailSender mailSender;
@@ -135,7 +133,6 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
                                      DeliveryOrderItemRepository deliveryOrderItemRepository,
                                      InventoryRepository inventoryRepository,
                                      InterWarehouseTransferRepository interWarehouseTransferRepository,
-                                     AutoInvoiceService autoInvoiceService,
                                      BillingNotificationRepository billingNotificationRepository,
                                      AuditLogService auditLogService,
                                      JavaMailSender mailSender) {
@@ -147,7 +144,6 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
         this.deliveryOrderItemRepository = deliveryOrderItemRepository;
         this.inventoryRepository = inventoryRepository;
         this.interWarehouseTransferRepository = interWarehouseTransferRepository;
-        this.autoInvoiceService = autoInvoiceService;
         this.billingNotificationRepository = billingNotificationRepository;
         this.auditLogService = auditLogService;
         this.mailSender = mailSender;
@@ -247,7 +243,6 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
         Map<String, Object> before = attemptSnapshot(delivery);
         decrementTransitInventory(delivery.getDeliveryOrder());
         createBillingNotification(delivery.getDeliveryOrder());
-        autoInvoiceService.createForConfirmedDelivery(delivery.getDeliveryOrder(), actor);
         OffsetDateTime now = OffsetDateTime.now();
         otp.setStatus(DeliveryOtpStatus.VERIFIED);
         otp.setConsumedAt(now);
@@ -391,10 +386,12 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
         }
     }
 
-    // Creates the accountant reconciliation worklist entry (Spec 008, billing_notifications)
-    // before invoice creation runs, so AutoInvoiceServiceImpl can find and archive it in the
-    // same transaction. totalAmountEstimate is a rough estimate independent of the formal
-    // invoice total — it must not block delivery confirmation if line pricing is incomplete.
+    // Creates the accountant worklist entry (Spec 008, billing_notifications). Invoicing is
+    // manual by design (mirrors the AP supplier-invoice flow): the accountant reviews this
+    // notification and creates the invoice via POST /api/v1/invoices, which delegates to
+    // AutoInvoiceService.createBackfillInvoice and archives this notification on success.
+    // totalAmountEstimate is a rough estimate independent of the formal invoice total — it
+    // must not block delivery confirmation if line pricing is incomplete.
     private void createBillingNotification(DeliveryOrder order) {
         List<DeliveryOrderItem> items = deliveryOrderItemRepository.findByDeliveryOrderId(order.getId());
         BigDecimal estimate = items.stream()

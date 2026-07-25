@@ -427,6 +427,21 @@ export const financeService = {
     return response.data;
   },
 
+  closeAccountingPeriod: async (id, notes) => {
+    if (useMock) {
+      await new Promise(resolve => setTimeout(resolve, 400));
+      const list = getDb(KEYS.PERIODS, INITIAL_PERIODS);
+      const idx = list.findIndex(p => p.id === Number(id));
+      if (idx === -1) throw new Error('PERIOD_NOT_FOUND');
+      list[idx].status = 'CLOSED';
+      list[idx].notes = notes;
+      saveDb(KEYS.PERIODS, list);
+      return list[idx];
+    }
+    const response = await apiClient.put(`/accounting-periods/${id}/close`, { notes });
+    return response.data;
+  },
+
   // --- SUPPLIER INVOICES & PAYMENTS (US-WMS-28) ---
   getSupplierBillingNotifications: async () => {
     if (useMock) {
