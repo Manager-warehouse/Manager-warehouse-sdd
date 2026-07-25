@@ -348,6 +348,25 @@ class AutoInvoiceServiceImplTest {
                 eq("INVOICE"), any(), any(), eq(20L), any(), any());
     }
 
+    @Test
+    void createBackfillInvoice_translatesConcurrentDuplicateIntoCleanConflict() {
+        // existsByDeliveryOrderId() is check-then-act, not atomic: a double-click or retried
+        // request racing the same do_id can both pass it before either commits. The DB unique
+        // constraint on invoices.do_id (V15) is what actually catches this - simulate that by
+        // having save() throw, and assert it's translated into the same clean 409 the
+        // sequential (non-race) case above already returns, not a raw 500.
+        order.setStatus(DeliveryOrderStatus.COMPLETED);
+        when(invoiceRepository.existsByDeliveryOrderId(40L)).thenReturn(false);
+        when(deliveryOrderItemRepository.findByDeliveryOrderId(40L))
+                .thenReturn(List.of(item(501L, BigDecimal.ONE, BigDecimal.valueOf(50))));
+        when(invoiceRepository.save(any()))
+                .thenThrow(new org.springframework.dao.DataIntegrityViolationException("uq_invoices_do_id"));
+
+        assertThatThrownBy(() -> service.createBackfillInvoice(order, actor, LocalDate.now()))
+                .isInstanceOf(com.wms.exception.DuplicateResourceException.class)
+                .hasMessageContaining("INVOICE_ALREADY_EXISTS");
+    }
+
     private DocumentSequence sequence() {
         DocumentSequence sequence = new DocumentSequence();
         sequence.setSequenceKey("INVOICE");

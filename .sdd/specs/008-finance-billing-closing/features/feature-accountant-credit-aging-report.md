@@ -10,8 +10,10 @@ Kế toán trưởng (`ACCOUNTANT_MANAGER`) cần theo dõi và đánh giá rủ
 ## 3. Functional Requirements (EARS)
 * **Ubiquitous:**
   * Hệ thống luôn tự động tính toán thời gian quá hạn của mỗi hóa đơn `invoices` chưa thanh toán (`status IN ('UNPAID', 'PARTIALLY_PAID')`) dựa trên chênh lệch giữa ngày hiện tại và ngày đến hạn `due_date`.
+  * Trước khi phân bổ vào các mốc phân kỳ, hệ thống **SHALL** cộng dồn toàn bộ `credit_notes` (Spec 009) của đại lý thành một `creditNotePool`, rồi trừ dần vào từng hóa đơn chưa thanh toán theo `due_date` cũ nhất trước; mỗi hóa đơn không bao giờ có dư nợ hiệu lực (`effectiveDebt`) âm sau khi trừ.
 * **Optional:**
   * **WHERE** đại lý có bất kỳ hóa đơn nào quá hạn quá mốc quy định (ví dụ >60 ngày), hệ thống **SHALL** gắn nhãn cảnh báo rủi ro cao (`High Risk`) đối với đại lý đó trên báo cáo công nợ.
+
 
 ## 4. API Endpoints
 

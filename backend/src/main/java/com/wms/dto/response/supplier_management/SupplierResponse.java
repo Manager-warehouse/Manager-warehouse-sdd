@@ -35,6 +35,7 @@ import com.wms.enums.supplier_management.*;
 import com.wms.enums.user_configuration.*;
 import com.wms.enums.warehouse_location.*;
 import com.wms.enums.warehouse_transfer.*;
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import lombok.Builder;
 import lombok.Getter;
@@ -50,6 +51,7 @@ public class SupplierResponse {
     private String contactPerson;
     private String address;
     private Boolean isActive;
+    private BigDecimal currentBalance;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
 }

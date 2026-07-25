@@ -51,6 +51,7 @@ class SupplierInvoiceServiceImplTest {
     @Mock private DocumentSequenceRepository sequenceRepository;
     @Mock private AccountingPeriodService accountingPeriodService;
     @Mock private AuditLogService auditLogService;
+    @Mock private SupplierPaymentRepository supplierPaymentRepository;
 
     @InjectMocks
     private SupplierInvoiceServiceImpl supplierInvoiceService;
@@ -125,6 +126,7 @@ class SupplierInvoiceServiceImplTest {
             inv.setId(500L);
             return inv;
         });
+        when(supplierPaymentRepository.findBySupplierInvoiceId(500L)).thenReturn(java.util.List.of());
 
         SupplierInvoiceResponse response = supplierInvoiceService.createSupplierInvoice(request, accountantUser);
 
@@ -132,8 +134,67 @@ class SupplierInvoiceServiceImplTest {
         assertThat(response.getSupplierInvoiceNumber()).isEqualTo("VAT-NCC-001");
         assertThat(response.getStatus()).isEqualTo(InvoiceStatus.UNPAID);
         assertThat(response.getTotalAmount()).isEqualByComparingTo("600000.00");
+        assertThat(response.getPaidAmount()).isEqualByComparingTo(BigDecimal.ZERO);
         assertThat(supplier.getCurrentBalance()).isEqualByComparingTo("600000.00");
         verify(supplierInvoiceRepository).save(any(SupplierInvoice.class));
+    }
+
+    @Test
+    @DisplayName("Lập hóa đơn mua hàng - Race condition tạo trùng được dịch thành lỗi 409 sạch")
+    void createSupplierInvoice_translatesConcurrentDuplicateIntoCleanConflict() {
+        // findByReceiptId() is check-then-act, not atomic: a double-click or retried request
+        // racing the same receiptId can both pass it before either commits. The DB unique
+        // constraint on supplier_invoices.receipt_id (V33) is what actually catches this -
+        // simulate that by having save() throw, and assert it's translated into the same clean
+        // 409 the sequential (non-race) case above already returns, not a raw 500.
+        CreateSupplierInvoiceRequest request = CreateSupplierInvoiceRequest.builder()
+                .receiptId(100L)
+                .supplierInvoiceNumber("VAT-NCC-001")
+                .documentDate(LocalDate.of(2026, 7, 23))
+                .build();
+
+        ReceiptItem item = new ReceiptItem();
+        item.setActualQty(10);
+        item.setUnitCost(new BigDecimal("50000.00"));
+
+        when(receiptRepository.findById(100L)).thenReturn(Optional.of(receipt));
+        when(receiptItemRepository.findByReceiptId(100L)).thenReturn(java.util.List.of(item));
+        when(supplierInvoiceRepository.findByReceiptId(100L)).thenReturn(Optional.empty());
+        when(accountingPeriodRepository.findPeriodByDateAndStatus(request.getDocumentDate(), AccountingPeriodStatus.OPEN))
+                .thenReturn(Optional.of(openPeriod));
+        com.wms.entity.document_numbering.DocumentSequence sequence = new com.wms.entity.document_numbering.DocumentSequence();
+        sequence.setSequenceKey("SUPPLIER_INVOICE");
+        sequence.setNextValue(1L);
+        when(sequenceRepository.findBySequenceKeyForUpdate(anyString())).thenReturn(Optional.of(sequence));
+        when(supplierInvoiceRepository.save(any(SupplierInvoice.class)))
+                .thenThrow(new org.springframework.dao.DataIntegrityViolationException("uq_supplier_invoices_receipt_id"));
+
+        assertThatThrownBy(() -> supplierInvoiceService.createSupplierInvoice(request, accountantUser))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("SUPPLIER_INVOICE_ALREADY_EXISTS");
+    }
+
+    @Test
+    @DisplayName("Xem chi tiết hóa đơn mua hàng trả về đúng số tiền đã thanh toán")
+    void getSupplierInvoiceById_reflectsPaidAmountFromExistingPayments() {
+        SupplierInvoice invoice = new SupplierInvoice();
+        invoice.setId(500L);
+        invoice.setInvoiceNumber("SINV-202607-000001");
+        invoice.setSupplierInvoiceNumber("VAT-NCC-001");
+        invoice.setReceipt(receipt);
+        invoice.setSupplier(supplier);
+        invoice.setTotalAmount(new BigDecimal("600000.00"));
+        invoice.setStatus(InvoiceStatus.PARTIALLY_PAID);
+
+        com.wms.entity.billing_payment.SupplierPayment payment = new com.wms.entity.billing_payment.SupplierPayment();
+        payment.setAmount(new BigDecimal("200000.00"));
+
+        when(supplierInvoiceRepository.findById(500L)).thenReturn(Optional.of(invoice));
+        when(supplierPaymentRepository.findBySupplierInvoiceId(500L)).thenReturn(java.util.List.of(payment));
+
+        SupplierInvoiceResponse response = supplierInvoiceService.getSupplierInvoiceById(500L, accountantUser);
+
+        assertThat(response.getPaidAmount()).isEqualByComparingTo("200000.00");
     }
 
     @Test

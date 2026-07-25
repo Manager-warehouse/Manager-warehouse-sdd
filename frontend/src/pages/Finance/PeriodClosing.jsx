@@ -4,7 +4,8 @@ import { useUiStore } from '../../stores/ui.store';
 import { useAuthStore } from '../../stores/auth.store';
 import { ROLES } from '../../utils/constants';
 import Button from '../../components/common/Button';
-import { Calendar, Lock, Unlock, CheckCircle2, AlertCircle, Clock, ChevronDown, ChevronRight, Wrench } from 'lucide-react';
+import Input from '../../components/common/Input';
+import { Calendar, Lock, Unlock, CheckCircle2, AlertCircle, Clock, ChevronDown, ChevronRight, Wrench, Plus } from 'lucide-react';
 
 const REFERENCE_TYPE_LABELS = {
   INVOICE: 'Hóa đơn Bán',
@@ -24,6 +25,9 @@ const PeriodClosing = () => {
   const [closingPeriodId, setClosingPeriodId] = useState(null);
   const [confirmModalPeriod, setConfirmModalPeriod] = useState(null);
   const [expandedPeriodId, setExpandedPeriodId] = useState(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createForm, setCreateForm] = useState({ periodName: '', notes: '' });
 
   const loadPeriods = useCallback(async () => {
     setLoading(true);
@@ -69,18 +73,57 @@ const PeriodClosing = () => {
     }
   };
 
+  const handleOpenCreateModal = () => {
+    setCreateForm({ periodName: '', notes: '' });
+    setShowCreateModal(true);
+  };
+
+  const handleCreatePeriod = async (e) => {
+    e.preventDefault();
+    if (!createForm.periodName) {
+      addToast('Vui lòng chọn Tháng/Năm cho kỳ kế toán', 'error');
+      return;
+    }
+    setCreating(true);
+    try {
+      await financeService.createAccountingPeriod(createForm.periodName, createForm.notes);
+      addToast(`Tạo Kỳ kế toán ${createForm.periodName} thành công!`, 'success');
+      setShowCreateModal(false);
+      loadPeriods();
+    } catch (err) {
+      console.error('Failed to create accounting period:', err);
+      addToast(err.message || 'Không thể tạo kỳ kế toán', 'error');
+    } finally {
+      setCreating(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
-          Tài chính / Kế toán Tổng hợp
-        </span>
-        <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">
-          Quản lý Kỳ Kế toán & Chốt sổ
-        </h1>
-        <p className="text-xs text-shade-50 font-light mt-1">
-          Theo dõi trạng thái các kỳ kế toán phát sinh và thực hiện chốt sổ định kỳ (Month-end Closing) để khóa dữ liệu tài chính.
-        </p>
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
+            Tài chính / Kế toán Tổng hợp
+          </span>
+          <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">
+            Quản lý Kỳ Kế toán & Chốt sổ
+          </h1>
+          <p className="text-xs text-shade-50 font-light mt-1">
+            Theo dõi trạng thái các kỳ kế toán phát sinh và thực hiện chốt sổ định kỳ (Month-end Closing) để khóa dữ liệu tài chính.
+          </p>
+        </div>
+        {isAccountantManager && (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="primary"
+              onClick={handleOpenCreateModal}
+              className="flex items-center gap-2 shadow-sm"
+            >
+              <Plus className="w-4 h-4" />
+              Tạo Kỳ Kế Toán
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 overflow-hidden">
@@ -274,6 +317,49 @@ const PeriodClosing = () => {
                 {closingPeriodId === confirmModalPeriod.id ? 'Đang xử lý...' : 'Xác nhận Khóa sổ'}
               </Button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* CREATE PERIOD MODAL */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-4 w-full max-w-md p-6 flex flex-col gap-4">
+            <h2 className="text-base font-bold uppercase tracking-wider text-ink pb-2 border-b border-hairline-light">
+              Tạo Kỳ Kế Toán Mới
+            </h2>
+
+            <form onSubmit={handleCreatePeriod} className="flex flex-col gap-4 text-xs">
+              <Input
+                id="periodName"
+                label="Tháng / Năm (VD: 2026-05)"
+                type="month"
+                value={createForm.periodName}
+                onChange={e => setCreateForm(prev => ({ ...prev, periodName: e.target.value }))}
+                required
+              />
+              <div className="flex flex-col gap-1">
+                <label className="font-semibold text-ink">Ghi chú</label>
+                <textarea
+                  value={createForm.notes}
+                  onChange={e => setCreateForm(prev => ({ ...prev, notes: e.target.value }))}
+                  className="bg-canvas-light border border-hairline-light rounded p-2 text-ink min-h-[60px]"
+                  placeholder="VD: Kỳ kế toán dùng để kiểm thử khóa sổ và bút toán điều chỉnh"
+                />
+              </div>
+              <p className="text-[11px] text-shade-40 italic">
+                Kỳ mới được tạo ở trạng thái Đang Mở (OPEN); có thể chọn tháng trong quá khứ để kiểm thử khóa sổ.
+              </p>
+
+              <div className="flex justify-end gap-3 mt-4 pt-3 border-t border-hairline-light">
+                <Button type="button" variant="secondary" onClick={() => setShowCreateModal(false)}>
+                  Hủy bỏ
+                </Button>
+                <Button type="submit" variant="primary" disabled={creating}>
+                  {creating ? 'Đang tạo...' : 'Tạo Kỳ Kế Toán'}
+                </Button>
+              </div>
+            </form>
           </div>
         </div>
       )}

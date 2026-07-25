@@ -79,20 +79,24 @@ Bên cạnh đó, Kế toán viên có thể tạo Phiếu chi (`supplier_paymen
   ```json
   {
     "id": 50,
-    "invoiceNumber": "SINV-202607-0001",
-    "supplierInvoiceNumber": "VAT-NCC-88392",
-    "receiptId": 10,
-    "supplierId": 5,
-    "totalAmount": 45000000.00,
-    "issueDate": "2026-07-21",
-    "dueDate": "2026-08-20",
+    "invoice_number": "SINV-202607-0001",
+    "supplier_invoice_number": "VAT-NCC-88392",
+    "receipt_id": 10,
+    "receipt_number": "RO-20260710-001",
+    "supplier_id": 5,
+    "supplier_name": "Công ty TNHH Gia Dụng Phúng",
+    "total_amount": 45000000.00,
+    "paid_amount": 0.00,
+    "issue_date": "2026-07-21",
+    "due_date": "2026-08-20",
     "status": "UNPAID",
-    "accountingPeriodId": 3,
-    "documentDate": "2026-07-21",
-    "createdAt": "2026-07-21T09:00:00Z"
+    "accounting_period_id": 3,
+    "document_date": "2026-07-21",
+    "created_by_name": "Trần Thị Lan",
+    "created_at": "2026-07-21T09:00:00Z"
   }
   ```
-
+  
 ### 4.3 Xem danh sách và chi tiết hóa đơn mua hàng
 * **GET** `/api/v1/supplier-invoices`: Danh sách hóa đơn mua hàng (hỗ trợ lọc theo `supplierId`, `status`, `accountingPeriodId`).
 * **GET** `/api/v1/supplier-invoices/{id}`: Xem chi tiết hóa đơn mua hàng kèm danh sách mặt hàng thực nhập.
@@ -115,31 +119,37 @@ Bên cạnh đó, Kế toán viên có thể tạo Phiếu chi (`supplier_paymen
   ```json
   {
     "id": 30,
-    "paymentNumber": "SPAY-202607-0001",
-    "supplierId": 5,
-    "supplierInvoiceId": 50,
+    "payment_number": "SPAY-202607-0001",
+    "supplier_id": 5,
+    "supplier_name": "Công ty TNHH Gia Dụng Phúng",
+    "supplier_invoice_id": 50,
+    "invoice_number": "SINV-202607-0001",
     "amount": 20000000.00,
-    "paymentDate": "2026-07-22",
-    "paymentMethod": "BANK_TRANSFER",
-    "accountingPeriodId": 3,
-    "documentDate": "2026-07-22",
-    "createdAt": "2026-07-22T10:15:00Z"
+    "payment_date": "2026-07-22",
+    "payment_method": "BANK_TRANSFER",
+    "accounting_period_id": 3,
+    "document_date": "2026-07-22",
+    "notes": "Thanh toán đợt 1 hóa đơn VAT-NCC-88392",
+    "created_by_name": "Trần Thị Lan",
+    "created_at": "2026-07-22T10:15:00Z"
   }
   ```
+  > **[2026-07-25]** Response body dùng `snake_case`, cùng lý do với 4.2. Request body vẫn `camelCase`.
 
 ### 4.5 Upload và quét OCR Ủy nhiệm chi thanh toán cho NCC
 * **Protocol & Path**: `POST /api/v1/supplier-payments/ocr`
 * **Request Header**: `Content-Type: multipart/form-data`
 * **Request Body**: `file` (Ảnh UNC / Giấy báo Nợ ngân hàng, max 5MB)
+* Xem cơ chế nhận dạng đầy đủ (dùng chung engine Tesseract OCR thật với luồng AR, không phải giả lập từ tên file) tại `feature-ocr-payment-receipt-scanning.md` §4.2.
 * **Response 200 OK**:
   ```json
   {
     "amount": 20000000.00,
     "paymentDate": "2026-07-22",
     "supplierId": 5,
-    "supplierInvoiceId": 50,
-    "notes": "UNC CHI TIEN HANG - NCC GIA DUNG PHUNG - GD 88392",
-    "confidenceScore": 0.94
+    "supplierInvoiceId": null,
+    "notes": "UNC CHI TIEN HANG - NCC GIA DUNG PHUNG - GIAO DICH OCR",
+    "confidenceScore": 0.95
   }
   ```
 

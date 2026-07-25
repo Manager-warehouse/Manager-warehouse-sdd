@@ -98,6 +98,7 @@ class InvoiceServiceTest {
     @Mock private DeliveryOrderRepository deliveryOrderRepository;
     @Mock private DeliveryRepository deliveryRepository;
     @Mock private AutoInvoiceService autoInvoiceService;
+    @Mock private PaymentReceiptRepository paymentReceiptRepository;
 
     @InjectMocks
     private InvoiceServiceImpl invoiceService;
@@ -165,12 +166,14 @@ class InvoiceServiceTest {
         when(deliveryOrderRepository.findById(20L)).thenReturn(Optional.of(deliveryOrder));
         when(autoInvoiceService.createBackfillInvoice(deliveryOrder, accountantUser, request.getDocumentDate()))
                 .thenReturn(savedInvoice);
+        when(paymentReceiptRepository.findByInvoiceId(50L)).thenReturn(java.util.List.of());
 
         InvoiceResponse response = invoiceService.createInvoice(request, accountantUser);
 
         assertThat(response).isNotNull();
         assertThat(response.getInvoiceNumber()).isEqualTo("INV-202606-000100");
         assertThat(response.getTotalAmount()).isEqualByComparingTo(BigDecimal.valueOf(500000));
+        assertThat(response.getPaidAmount()).isEqualByComparingTo(BigDecimal.ZERO);
         verify(autoInvoiceService).createBackfillInvoice(deliveryOrder, accountantUser, request.getDocumentDate());
     }
 
@@ -208,6 +211,7 @@ class InvoiceServiceTest {
                 .thenReturn(savedInvoice);
         when(deliveryRepository.findFirstByDeliveryOrderIdOrderByCreatedAtDesc(20L))
                 .thenReturn(Optional.of(delivery));
+        when(paymentReceiptRepository.findByInvoiceId(50L)).thenReturn(java.util.List.of());
 
         InvoiceResponse response = invoiceService.createInvoice(request, accountantUser);
 
