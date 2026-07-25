@@ -14,7 +14,7 @@ delivered DO to return) is reported as a Skipped-style False with a specific
 reason, not silently faked as Passed.
 """
 
-import json
+import re
 import time
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select
@@ -179,22 +179,30 @@ def flow_out004(driver):
         # to stall on "no APPROVED price entry" -- PRC-007 only ever creates
         # PENDING entries (need Kế toán trưởng approval), so there's no
         # guarantee the first product has a usable price at all. Ask the
-        # backend directly which products already have an APPROVED price
-        # for this warehouse and pick one of those instead.
+        # backend which products already have an APPROVED price and pick
+        # one of those instead. The LIST endpoint (GET /price-history?
+        # status=APPROVED) turned out to be 403 for PLANNER -- only the
+        # per-product LOOKUP endpoint is actually in PLANNER's scope (it's
+        # the same one DeliveryOrders.jsx itself calls via
+        # lookupItemPrice() once a product is picked), so check candidate
+        # products one at a time against that instead of listing them all.
         warehouse_id = driver.execute_script(
             "const w = sessionStorage.getItem('wms_active_warehouse');"
             "return w ? JSON.parse(w).id : null;"
         )
+        today = time.strftime("%Y-%m-%d")
         picked_product_id = None
         if warehouse_id:
-            status, body = page.fetch_authenticated(f"/api/v1/price-history?status=APPROVED&warehouseId={warehouse_id}")
-            if status == 200:
-                try:
-                    entries = json.loads(body)
-                    if entries:
-                        picked_product_id = entries[0].get("productId") or entries[0].get("product_id")
-                except (ValueError, TypeError):
-                    pass
+            product_ids = [
+                opt.get_attribute("value")
+                for opt in Select(page.by_testid("do-item-product-0")).options
+                if opt.get_attribute("value")
+            ]
+            for pid in product_ids[:20]:
+                status, _ = page.fetch_authenticated(f"/api/v1/price-history/lookup?productId={pid}&warehouseId={warehouse_id}&date={today}")
+                if status == 200:
+                    picked_product_id = pid
+                    break
 
         if picked_product_id and page.select_option_by_value_testid("do-item-product-0", picked_product_id):
             pass
@@ -268,9 +276,18 @@ def flow_prc007(driver):
         # Same reasoning as flow_rcv003 -- any valid product proves the
         # price-entry flow works, so search broadly instead of assuming a
         # specific SKU is within whatever page of products got fetched.
+        # Rotate WHICH matching result gets picked too (not just the date
+        # below) -- always taking index 0 means every run competes for the
+        # same product+date combo, and a narrow safe date window alone
+        # can still saturate after enough reruns (confirmed: hit
+        # OVERLAPPING_EFFECTIVE_DATE even with the 1-5 day spread).
+        # Product x date gives a much larger collision-free space than
+        # widening the date range would (which risks landing outside the
+        # open accounting period again).
         found, reason = page.search_and_pick_first_result(
             "Nhập tên sản phẩm", "a",
             input_testid="price-product-search", result_testid="price-product-search-result",
+            pick_index=int(_tag()) % 7,
         )
         if not found:
             return False, reason
@@ -279,16 +296,29 @@ def flow_prc007(driver):
         # the same day: same first-matched product + same warehouse + same
         # effective_date is a duplicate price entry, and the backend
         # correctly 409s it -- that's the app doing its job, not a defect.
-        # Spread the offset across ~300 days (deterministic per run via the
-        # epoch-seconds tag) so same-day reruns don't collide with data
-        # left behind by earlier runs.
-        offset_days = 1 + (int(_tag()) % 300)
-        future_date = time.strftime("%Y-%m-%d", time.localtime(time.time() + offset_days * 86400))
-        page.set_date_by_testid("price-effective-date", future_date)
+        # A wide spread (previously up to 300 days) overshot into a period
+        # that isn't open yet -- a real run hit PERIOD_CLOSED for 2026-12,
+        # meaning only a window near "today" is actually usable. Keep the
+        # spread small so it stays inside the open period.
         page.type_by_testid("price-cost-price", "100000")
         page.type_by_testid("price-selling-price", "150000")
 
-        return page.submit_and_verify_by_testid("price-submit", "price-effective-date")
+        # A random pick of product x date can still collide often enough
+        # to be worth actively reacting to (confirmed: kept hitting
+        # OVERLAPPING_EFFECTIVE_DATE across several reruns even after
+        # widening the pick space) -- rather than gamble again on a wider
+        # probabilistic range, retry with a fresh date on that specific
+        # error, which is a guaranteed fix within a few attempts instead
+        # of a hopeful one.
+        for attempt in range(6):
+            offset_days = 1 + attempt + (int(_tag()) % 5)
+            future_date = time.strftime("%Y-%m-%d", time.localtime(time.time() + offset_days * 86400))
+            page.set_date_by_testid("price-effective-date", future_date)
+
+            passed, detail = page.submit_and_verify_by_testid("price-submit", "price-effective-date")
+            if passed or "OVERLAPPING_EFFECTIVE_DATE" not in detail:
+                return passed, detail
+        return passed, detail
     except Exception as e:
         return False, _short_exc(e)
 
@@ -323,15 +353,38 @@ def flow_fin008(driver):
         if not found_dealer_with_invoice:
             checked = min(len(dealer_options) - 1, 20)
             return False, f"Skipped: no unpaid invoice found for any of the first {checked} dealers checked"
-        Select(page._field_for_label("Hóa đơn cấn trừ")).select_by_index(1)
+        invoice_select = page._field_for_label("Hóa đơn cấn trừ")
+        Select(invoice_select).select_by_index(1)
 
-        page.wait_network_idle(idle_ms=300, timeout=5)
-        # The header trigger button reads "Ghi nhận Phiếu thu (Quét OCR)",
-        # a superset of the modal's actual submit text, and stays in the
-        # DOM behind the modal -- scope the click to the form so it can't
-        # match the wrong (header) button.
+        # The displayed "Dư nợ: X" comes from this page's own cached
+        # invoice list (fetched once on load), which can already be stale
+        # relative to the backend's authoritative remaining -- confirmed:
+        # submitting half of that displayed figure still hit
+        # OVERPAYMENT_EXCEEDS_INVOICE. The error message itself states the
+        # backend's real remaining balance ("...exceeds invoice remaining
+        # balance of X"), so use THAT as ground truth on retry instead of
+        # trusting the frontend figure at all.
+        selected_text = Select(invoice_select).first_selected_option.text
+        match = re.search(r"Dư nợ:\s*([\d.,]+)", selected_text)
+        remaining = int(match.group(1).replace(",", "").replace(".", "")) if match else 0
+
         form_scope = "//form[.//label[contains(normalize-space(.), 'Đại lý nộp tiền')]]"
-        return page.submit_and_verify("Ghi nhận Phiếu thu", "Đại lý nộp tiền", scope_xpath=form_scope)
+        for attempt in range(4):
+            safe_amount = max(1, remaining // 2)
+            page.type_by_label_js("Số tiền thu nợ", str(safe_amount))
+            page.wait_network_idle(idle_ms=300, timeout=5)
+            # The header trigger button reads "Ghi nhận Phiếu thu (Quét
+            # OCR)", a superset of the modal's actual submit text, and
+            # stays in the DOM behind the modal -- scope the click to the
+            # form so it can't match the wrong (header) button.
+            passed, detail = page.submit_and_verify("Ghi nhận Phiếu thu", "Đại lý nộp tiền", scope_xpath=form_scope)
+            if passed:
+                return passed, detail
+            overpay_match = re.search(r"exceeds invoice remaining balance of ([\d.]+)", detail)
+            if not overpay_match:
+                return passed, detail
+            remaining = int(float(overpay_match.group(1)))
+        return passed, detail
     except Exception as e:
         return False, _short_exc(e)
 
@@ -345,28 +398,55 @@ def flow_ret009(driver):
         if page.is_button_disabled("Lập phiếu trả hàng mới"):
             return False, "Skipped: create button disabled (canManageReturnOperations gate)"
         page.click_by_text("Lập phiếu trả hàng mới")
+        # fetchData() on the CREATE tab awaits FOUR sequential API calls in
+        # series (getReturns -> getDealers -> getBinLocations ->
+        # getDeliveryOrders), and getDeliveryOrders -- the one that
+        # actually populates this dropdown -- is last. A generic
+        # wait_network_idle(500ms) can easily read "settled" in the gap
+        # between two of those awaited calls, before the last one has even
+        # fired, and conclude "no DO available" while it's still empty.
+        # Confirmed by manual testing: DOs do exist. Poll the dropdown
+        # itself for real options instead of trusting a generic network-
+        # idle heuristic, the same pattern already used for every other
+        # async-populated <select> in this suite.
         page.wait_network_idle(idle_ms=500, timeout=10)
-
-        do_select = page._field_for_label("Chọn đơn xuất hàng gốc")
-        do_options = Select(do_select).options
+        page.wait_for(lambda d: len(Select(page._field_for_label("Chọn đơn xuất hàng gốc")).options) > 1, timeout=15)
+        do_options = Select(page._field_for_label("Chọn đơn xuất hàng gốc")).options
         if len(do_options) <= 1:
             return False, "Skipped: no DELIVERED/COMPLETED delivery order available to build a return against"
-        # Always picking index 1 (the same DO every run) is exactly what
-        # produced RETURN_EXCEEDS_ORIGINAL_SALE: a prior run already
-        # returned against this DO/product, so this run's qty=1 pushed the
-        # cumulative total past the original sale quantity -- the backend
-        # correctly rejecting it, not a real defect. Same class of self-
-        # collision as PRC-007's fixed date issue; spread the pick across
-        # available DOs the same way instead of always hammering the first.
-        pick_idx = 1 + (int(_tag()) % (len(do_options) - 1))
-        Select(page._field_for_label("Chọn đơn xuất hàng gốc")).select_by_index(pick_idx)
-        page.wait_network_idle(idle_ms=500, timeout=10)
 
-        qty_input = page.find_element(By.XPATH, "(//table//input[@type='number'])[1]")
-        qty_input.clear()
-        qty_input.send_keys("1")
+        # Always picking the same DO eventually collides with its own
+        # prior test runs (RETURN_EXCEEDS_ORIGINAL_SALE, once enough
+        # cumulative returns land against it) -- retrying across DOs
+        # alone still hit product ID 11 twice in a row, meaning it's
+        # likely a common/low-ID product showing up as row 1 across many
+        # DOs, with its allowance broadly exhausted from repeated testing.
+        # Retry across ITEM ROWS within each DO too, not just across DOs --
+        # a different row is a different product, which may still have
+        # return capacity even if row 1's product is maxed out everywhere.
+        num_options = len(do_options) - 1
+        start_idx = 1 + (int(_tag()) % num_options)
+        passed, detail = False, "no DO tried"
+        for tried in range(min(num_options, 10)):
+            idx = 1 + ((start_idx - 1 + tried) % num_options)
+            Select(page._field_for_label("Chọn đơn xuất hàng gốc")).select_by_index(idx)
+            page.wait_network_idle(idle_ms=500, timeout=10)
 
-        return page.submit_and_verify("Lập phiếu trả hàng", "Chọn đơn xuất hàng gốc")
+            qty_inputs = page.find_elements(By.XPATH, "//table//input[@type='number']")
+            for row_idx in range(min(len(qty_inputs), 10)):
+                # Re-fetch fresh each attempt and reset every row: only the
+                # target row gets "1" (the rest "0", excluded by
+                # itemsToSubmit's expectedQty > 0 filter), so exactly one
+                # product is attempted per submit.
+                qty_inputs = page.find_elements(By.XPATH, "//table//input[@type='number']")
+                for i, inp in enumerate(qty_inputs):
+                    inp.clear()
+                    inp.send_keys("1" if i == row_idx else "0")
+
+                passed, detail = page.submit_and_verify("Lập phiếu trả hàng", "Chọn đơn xuất hàng gốc")
+                if passed or "RETURN_EXCEEDS_ORIGINAL_SALE" not in detail:
+                    return passed, detail
+        return passed, detail
     except Exception as e:
         return False, _short_exc(e)
 

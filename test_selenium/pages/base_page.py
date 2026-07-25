@@ -293,7 +293,7 @@ class BasePage:
         el = self.find_element(By.XPATH, f"//{tag}[contains(normalize-space(.), '{text}')]")
         return not el.is_enabled()
 
-    def search_and_pick_first_result(self, placeholder_substr, search_term, timeout=10, input_testid=None, result_testid=None, use_js=False):
+    def search_and_pick_first_result(self, placeholder_substr, search_term, timeout=10, input_testid=None, result_testid=None, use_js=False, pick_index=0):
         """For the custom product search-dropdown pattern (ReceiptForm,
         PriceEntryModal): type into the input, then click the first
         rendered result row. Returns (found, reason) so a caller can tell
@@ -305,7 +305,10 @@ class BasePage:
         trick and dispatch the result click via `element.click()` instead
         of WebDriver's native click/send_keys -- RCV-003 showed a
         deterministic, environment-proof failure of native dispatch (see
-        click_via_js's docstring) that this sidesteps."""
+        click_via_js's docstring) that this sidesteps. Pass `pick_index`
+        to rotate which matching result gets clicked (mod the result
+        count) instead of always the first, for callers where reusing the
+        same product across every run causes its own collisions."""
         result_selector = f"[data-testid='{result_testid}']" if result_testid else "div.cursor-pointer"
 
         def locate():
@@ -370,10 +373,16 @@ class BasePage:
                 f"No product matched search term '{search_term}' (input actually held '{actual_value}'; "
                 "dropdown rendered but showed no results)"
             )
+        # Always picking results[0] means every run targets the exact same
+        # product -- fine for RCV-003 (just proves "some product can be
+        # added"), but PRC-007 hit OVERLAPPING_EFFECTIVE_DATE from reusing
+        # the same product across many prior runs. pick_index lets a caller
+        # rotate across whichever results actually came back.
+        target = results[pick_index % len(results)]
         if use_js:
-            self.driver.execute_script("arguments[0].click();", results[0])
+            self.driver.execute_script("arguments[0].click();", target)
         else:
-            results[0].click()
+            target.click()
         return True, "ok"
 
     def submit_and_verify(self, submit_button_text, marker_label_text, timeout=15, scope_xpath=None, use_js=False):

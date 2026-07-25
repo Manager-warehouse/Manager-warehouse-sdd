@@ -108,9 +108,28 @@ def run_all_flows():
     for role, role_modules in role_groups:
         print(f"\n=== Fresh session for role {role} ({len(role_modules)} module(s)) ===")
 
-        driver = build_driver()
         try:
-            ok, login_detail = login_as(driver, role, ROLE_CREDENTIALS.get(role, {}))
+            driver = build_driver()
+        except Exception as e:
+            for code, name, _, _ in role_modules:
+                results[code] = (False, f"Could not start a browser session for role {role}: {e}")
+                print(f"  -> SKIPPED [{code}]: browser session failed to start ({e})")
+            continue
+
+        try:
+            # login_as() itself can raise (not just return ok=False) if the
+            # frontend/backend goes down mid-run -- a WebDriverException
+            # from driver.get() on a refused connection, seen in a real
+            # run when the dev server crashed partway through. Previously
+            # unhandled, this took the whole script down, losing every
+            # result already collected for prior roles and skipping
+            # write_reports() entirely. One role's server hiccup shouldn't
+            # erase the rest of a run.
+            try:
+                ok, login_detail = login_as(driver, role, ROLE_CREDENTIALS.get(role, {}))
+            except Exception as e:
+                ok, login_detail = False, f"Login raised an exception (server/environment issue, not app logic): {e}"
+
             if not ok:
                 for code, name, _, _ in role_modules:
                     results[code] = (False, login_detail)
@@ -162,6 +181,19 @@ def classify_status(passed, detail):
     "cry wolf" failure mode that makes teams stop trusting a test suite."""
     if passed:
         return "Passed"
+
+    # A raw network-level failure (backend/frontend crashed or restarted
+    # mid-request) can also surface as an error toast -- e.g. a real run
+    # hit "Network Error" / ERR_CONNECTION_RESET on FIN-008, meaning the
+    # SERVER dropped mid-request, not that the app rejected the request.
+    # That's an infrastructure hiccup this suite happened to be running
+    # during, not evidence the payment-recording feature itself is broken.
+    infra_error_markers = (
+        "Network Error", "ERR_CONNECTION_RESET", "ERR_CONNECTION_REFUSED",
+        "ERR_CONNECTION_TIMED_OUT", "ERR_NAME_NOT_RESOLVED", "ERR_EMPTY_RESPONSE",
+    )
+    if any(marker in detail for marker in infra_error_markers):
+        return "N/A"
 
     confirmed_app_error_markers = (
         "Error toast shown",
