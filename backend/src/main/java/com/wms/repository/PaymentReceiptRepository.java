@@ -48,5 +48,7 @@ public interface PaymentReceiptRepository extends JpaRepository<PaymentReceipt, 
 
     List<PaymentReceipt> findByDealerIdOrderByCreatedAtDesc(Long dealerId);
 
+    List<PaymentReceipt> findByInvoiceId(Long invoiceId);
+
     List<PaymentReceipt> findByAccountingPeriodIdOrderByCreatedAtDesc(Long accountingPeriodId);
 }

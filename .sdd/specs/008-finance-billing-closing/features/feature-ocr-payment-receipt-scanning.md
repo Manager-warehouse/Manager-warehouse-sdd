@@ -1,10 +1,15 @@
-# Feature: Quét hóa đơn chuyển khoản bằng OCR (US-WMS-18)
+# Feature: Quét hóa đơn/ủy nhiệm chi chuyển khoản bằng OCR (US-WMS-18)
 
 ## 1. Context and Goal
-Để giảm thiểu công sức nhập tay và tăng tính chính xác khi ghi nhận thanh toán từ đại lý, hệ thống hỗ trợ Kế toán viên (`ACCOUNTANT`) upload ảnh chụp/ảnh màn hình hóa đơn chuyển khoản ngân hàng (Bank Transfer Receipt). Hệ thống sử dụng dịch vụ nhận diện ký tự quang học (OCR) để tự động trích xuất các thông tin quan trọng của giao dịch (như Số tiền, Ngày thanh toán, Nội dung chuyển khoản, Số tài khoản/Tên đại lý) và tự động điền (autofill) vào biểu mẫu tạo Phiếu thu (`payment_receipts`).
+Để giảm thiểu công sức nhập tay và tăng tính chính xác khi ghi nhận thanh toán, hệ thống hỗ trợ Kế toán viên (`ACCOUNTANT`) upload ảnh chụp/ảnh màn hình chứng từ chuyển khoản ngân hàng. Hệ thống sử dụng dịch vụ nhận diện ký tự quang học (OCR) để tự động trích xuất các thông tin quan trọng của giao dịch (như Số tiền, Ngày thanh toán, Nội dung chuyển khoản, Số tài khoản/Tên đối tác) và tự động điền (autofill) vào biểu mẫu tương ứng.
+
+Tính năng này có **hai luồng song song, dùng chung một engine OCR** nhưng khác đối tượng đối chiếu và khác endpoint (spec.md Session 2026-07-23):
+* **AR — Phiếu thu Đại lý** (mục 3–5 dưới đây): `POST /api/v1/payment-receipts/ocr`, đối chiếu với `dealers`.
+* **AP — Phiếu chi Nhà cung cấp** (mục 4.2, `feature-accountant-supplier-invoicing.md` §4.5): `POST /api/v1/supplier-payments/ocr`, đối chiếu với `suppliers`.
+
 
 ## 2. Actors
-* **Kế toán viên (`ACCOUNTANT`)**: Người thực hiện tải ảnh hóa đơn lên, kiểm tra thông tin trích xuất và xác nhận tạo phiếu thu.
+* **Kế toán viên (`ACCOUNTANT`)**: Người thực hiện tải ảnh chứng từ lên, kiểm tra thông tin trích xuất và xác nhận tạo phiếu thu/phiếu chi.
 
 ## 3. Functional Requirements (EARS)
 * **Event-driven:**
@@ -38,6 +43,29 @@
   ```
 * **Response 400 Bad Request**: Trả về khi file không đúng định dạng hoặc dung lượng vượt quá giới hạn.
 * **Response 422 Unprocessable Entity**: Trả về khi dịch vụ OCR không thể đọc hoặc phân tích được thông tin từ ảnh.
+
+### 4.2 [AP] Upload và phân tích Ủy nhiệm chi thanh toán NCC qua OCR
+* **Protocol & Path**: `POST /api/v1/supplier-payments/ocr`
+* **Request Header**: `Content-Type: multipart/form-data`
+* **Request Body**:
+  * `file`: File (Định dạng ảnh JPG, PNG, tối đa 5MB)
+* **Cơ chế**: Dùng chung engine trích xuất OCR với mục 4.1 (`OcrService.extractRawText()` — đọc ảnh thật bằng Tesseract, không phải regex trên tên file). Logic trích số tiền/ngày tháng dùng chung một bộ tiện ích (`OcrTextParser`) với luồng AR; điểm khác biệt duy nhất là đối chiếu tên/mã đối tác: mục 4.1 so khớp `dealers.name`/`dealers.code`, mục 4.2 so khớp `suppliers.company_name`/`suppliers.code` (chỉ xét NCC đang `is_active = true`).
+* **Response 200 OK**:
+  ```json
+  {
+    "amount": 20000000.00,
+    "paymentDate": "2026-07-22",
+    "supplierId": 5,
+    "supplierInvoiceId": null,
+    "notes": "UNC CHI TIEN HANG - NCC GIA DUNG PHUNG - GIAO DICH OCR",
+    "confidenceScore": 0.95
+  }
+  ```
+  > Response body dùng `camelCase` (không giống mục 4.1 dùng `snake_case`) — đây là sự bất đối xứng có thật giữa hai DTO hiện tại (`PaymentReceiptOcrResponse` có `@JsonProperty` snake_case, `SupplierPaymentOcrResponse` thì không), khớp đúng với cách `SupplierPaymentServiceImpl` (frontend) đang đọc field, không phải lỗi tài liệu.
+  > `supplierInvoiceId` luôn trả `null` — OCR chỉ xác định được đối tác (`supplierId`), không xác định được hóa đơn mua hàng cụ thể nào đang được thanh toán; Kế toán viên/frontend tự chọn hóa đơn cần cấn trừ trong danh sách hóa đơn chưa thanh toán của NCC đó sau khi OCR điền `supplierId`.
+  > `confidenceScore` là hằng số cố định theo kết quả so khớp (`0.95` nếu khớp tên/mã NCC, `0.60` nếu không xác định được NCC nào) — không phải điểm tin cậy do engine OCR tính toán, giống hệt cách mục 4.1 (AR) hoạt động.
+* **Response 400 Bad Request**: File rỗng hoặc không hợp lệ.
+* **Response 422 Unprocessable Entity**: Không nhận diện được số tiền hợp lệ từ ảnh, hoặc dịch vụ OCR chưa sẵn sàng trên máy chủ.
 
 ## 5. Acceptance Criteria
 

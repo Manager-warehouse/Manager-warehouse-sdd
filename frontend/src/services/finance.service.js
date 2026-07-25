@@ -427,6 +427,33 @@ export const financeService = {
     return response.data;
   },
 
+  createAccountingPeriod: async (periodName, notes) => {
+    if (useMock) {
+      await new Promise(resolve => setTimeout(resolve, 200));
+      const list = getDb(KEYS.PERIODS, INITIAL_PERIODS);
+      if (list.some(p => (p.period_name || p.periodName) === periodName)) {
+        throw new Error(`Kỳ kế toán ${periodName} đã tồn tại`);
+      }
+      const [year, month] = periodName.split('-').map(Number);
+      const startDate = new Date(Date.UTC(year, month - 1, 1));
+      const endDate = new Date(Date.UTC(year, month, 0));
+      const newPeriod = {
+        id: Date.now(),
+        period_name: periodName,
+        start_date: startDate.toISOString().slice(0, 10),
+        end_date: endDate.toISOString().slice(0, 10),
+        status: 'OPEN',
+        closed_by_name: null,
+        closed_at: null,
+        notes: notes || null
+      };
+      saveDb(KEYS.PERIODS, [newPeriod, ...list]);
+      return newPeriod;
+    }
+    const response = await apiClient.post('/accounting-periods', { periodName, notes });
+    return response.data;
+  },
+
   closeAccountingPeriod: async (id, notes) => {
     if (useMock) {
       await new Promise(resolve => setTimeout(resolve, 400));

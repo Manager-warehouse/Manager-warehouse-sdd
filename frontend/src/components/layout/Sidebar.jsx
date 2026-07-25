@@ -169,6 +169,12 @@ const Sidebar = () => {
       path: '/finance/periods',
       icon: Calendar,
       roles: [ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.CEO]
+    },
+    {
+      title: 'Báo cáo Phân kỳ Công nợ',
+      path: '/reports/credit-aging',
+      icon: PieChart,
+      roles: [ROLES.ACCOUNTANT, ROLES.ACCOUNTANT_MANAGER, ROLES.CEO]
     }
   ];
 

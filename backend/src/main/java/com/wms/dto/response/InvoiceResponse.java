@@ -73,6 +73,9 @@ public class InvoiceResponse {
     @JsonProperty("total_amount")
     private BigDecimal totalAmount;
 
+    @JsonProperty("paid_amount")
+    private BigDecimal paidAmount;
+
     @JsonProperty("issue_date")
     private LocalDate issueDate;
 

@@ -22,6 +22,7 @@ Không có luồng "từ chối" tường minh trong Sprint 1: Kế toán trư�
 - The system SHALL enforce Maker-Checker: the user who created the entry (`created_by`) SHALL NOT be the same user who approves it. Since `ACCOUNTANT` creates and `ACCOUNTANT_MANAGER` approves, RBAC enforces this automatically; no additional check is needed at the service layer.
 - Every approval action SHALL create an audit log entry.
 - WHEN Kế toán trưởng opens the PENDING price list (`GET /api/v1/price-history?status=PENDING`) or a price-history detail/comparison view (`GET /api/v1/price-history/{id}`), the system SHALL create a `REPORT_VIEW` audit log entry with viewer, timestamp, and applied filters (business.md AUD-04).
+  > **[Chưa triển khai — 2026-07-25]** `PriceHistoryServiceImpl.getById()`/`getAll()` hiện là `@Transactional(readOnly = true)`, không gọi `auditUtil`/`auditLogService` nào. Không có bản ghi audit nào được tạo khi xem danh sách PENDING hay chi tiết một bản giá. Yêu cầu này vẫn đúng về mặt thiết kế (nên giữ trong spec), nhưng là một khoảng trống triển khai thật, không phải tài liệu sai — cần thêm lời gọi audit log (action tương ứng, ví dụ `VIEW_REPORT`) vào hai method này nếu muốn đưa vào triển khai.
 
 ### 3.2 Event-driven
 

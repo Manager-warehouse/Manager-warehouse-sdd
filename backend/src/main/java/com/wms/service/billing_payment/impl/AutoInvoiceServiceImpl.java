@@ -149,7 +149,17 @@ public class AutoInvoiceServiceImpl implements AutoInvoiceService {
             throw new DuplicateResourceException(
                     "INVOICE_ALREADY_EXISTS: Invoice already exists for this Delivery Order");
         }
-        return persistInvoice(order, actor, documentDate, AuditAction.CREATE).invoice();
+        // The exists-check above is check-then-act, not atomic: a double-click or retried
+        // request racing the same do_id can both pass it before either commits. The unique
+        // constraint on invoices.do_id (V15) is the real guard; translate its violation into
+        // the same clean 409 the sequential (non-race) case already returns above, instead of
+        // letting a raw DataIntegrityViolationException surface as a 500.
+        try {
+            return persistInvoice(order, actor, documentDate, AuditAction.CREATE).invoice();
+        } catch (DataIntegrityViolationException ex) {
+            throw new DuplicateResourceException(
+                    "INVOICE_ALREADY_EXISTS: Invoice already exists for this Delivery Order");
+        }
     }
 
     private record PersistResult(Invoice invoice, List<InvoiceLine> lines) {

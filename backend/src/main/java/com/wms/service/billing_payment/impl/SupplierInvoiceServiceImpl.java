@@ -6,6 +6,7 @@ import com.wms.entity.access_control.User;
 import com.wms.entity.billing_payment.AccountingPeriod;
 import com.wms.entity.billing_payment.SupplierBillingNotification;
 import com.wms.entity.billing_payment.SupplierInvoice;
+import com.wms.entity.billing_payment.SupplierPayment;
 import com.wms.entity.document_numbering.DocumentSequence;
 import com.wms.entity.stock_receiving.Receipt;
 import com.wms.entity.stock_receiving.ReceiptItem;
@@ -23,6 +24,7 @@ import com.wms.repository.supplier_management.SupplierRepository;
 import com.wms.service.audit_trail.AuditLogService;
 import com.wms.service.billing_payment.AccountingPeriodService;
 import com.wms.service.billing_payment.SupplierInvoiceService;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -50,6 +52,7 @@ public class SupplierInvoiceServiceImpl implements SupplierInvoiceService {
     private final DocumentSequenceRepository sequenceRepository;
     private final AccountingPeriodService accountingPeriodService;
     private final AuditLogService auditLogService;
+    private final SupplierPaymentRepository supplierPaymentRepository;
 
     public SupplierInvoiceServiceImpl(
             SupplierInvoiceRepository supplierInvoiceRepository,
@@ -60,7 +63,8 @@ public class SupplierInvoiceServiceImpl implements SupplierInvoiceService {
             SupplierBillingNotificationRepository supplierBillingNotificationRepository,
             DocumentSequenceRepository sequenceRepository,
             AccountingPeriodService accountingPeriodService,
-            AuditLogService auditLogService) {
+            AuditLogService auditLogService,
+            SupplierPaymentRepository supplierPaymentRepository) {
         this.supplierInvoiceRepository = supplierInvoiceRepository;
         this.receiptRepository = receiptRepository;
         this.receiptItemRepository = receiptItemRepository;
@@ -70,6 +74,7 @@ public class SupplierInvoiceServiceImpl implements SupplierInvoiceService {
         this.sequenceRepository = sequenceRepository;
         this.accountingPeriodService = accountingPeriodService;
         this.auditLogService = auditLogService;
+        this.supplierPaymentRepository = supplierPaymentRepository;
     }
 
     @Override
@@ -137,7 +142,18 @@ public class SupplierInvoiceServiceImpl implements SupplierInvoiceService {
                 .updatedAt(now)
                 .build();
 
-        SupplierInvoice savedInvoice = supplierInvoiceRepository.save(invoice);
+        // The findByReceiptId() check above is check-then-act, not atomic: a double-click or
+        // retried request racing the same receiptId can both pass it before either commits.
+        // uq_supplier_invoices_receipt_id (V33) is the real guard; translate its violation
+        // into the same clean 409 the sequential (non-race) case already returns above,
+        // instead of letting a raw DataIntegrityViolationException surface as a 500.
+        SupplierInvoice savedInvoice;
+        try {
+            savedInvoice = supplierInvoiceRepository.save(invoice);
+        } catch (DataIntegrityViolationException ex) {
+            throw new BusinessRuleViolationException(
+                    "SUPPLIER_INVOICE_ALREADY_EXISTS: Supplier invoice already exists for receipt id: " + receipt.getId());
+        }
 
         // 7. Update notification if exists
         supplierBillingNotificationRepository.findByReceiptId(receipt.getId()).ifPresent(notification -> {
@@ -232,6 +248,15 @@ public class SupplierInvoiceServiceImpl implements SupplierInvoiceService {
         return "SINV-" + datePart + "-" + String.format("%06d", value);
     }
 
+    private BigDecimal calculatePaidAmount(Long supplierInvoiceId) {
+        List<SupplierPayment> payments = supplierPaymentRepository.findBySupplierInvoiceId(supplierInvoiceId);
+        BigDecimal total = BigDecimal.ZERO;
+        for (SupplierPayment payment : payments) {
+            total = total.add(payment.getAmount());
+        }
+        return total;
+    }
+
     private SupplierInvoiceResponse toResponse(SupplierInvoice entity) {
         return SupplierInvoiceResponse.builder()
                 .id(entity.getId())
@@ -242,6 +267,7 @@ public class SupplierInvoiceServiceImpl implements SupplierInvoiceService {
                 .supplierId(entity.getSupplier().getId())
                 .supplierName(entity.getSupplier().getCompanyName())
                 .totalAmount(entity.getTotalAmount())
+                .paidAmount(calculatePaidAmount(entity.getId()))
                 .issueDate(entity.getIssueDate())
                 .dueDate(entity.getDueDate())
                 .status(entity.getStatus())

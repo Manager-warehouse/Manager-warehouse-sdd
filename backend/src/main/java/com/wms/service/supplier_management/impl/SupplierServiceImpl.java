@@ -51,6 +51,7 @@ import com.wms.repository.ReceiptRepository;
 import com.wms.repository.supplier_management.SupplierRepository;
 import com.wms.service.supplier_management.SupplierService;
 import com.wms.util.PartnerAuditUtil;
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
@@ -105,6 +106,7 @@ public class SupplierServiceImpl implements SupplierService {
         supplier.setContactPerson(request.getContactPerson());
         supplier.setAddress(request.getAddress());
         supplier.setIsActive(true);
+        supplier.setCurrentBalance(BigDecimal.ZERO);
         supplier.setCreatedBy(actor);
         supplier.setUpdatedBy(actor);
         supplier.setCreatedAt(now);

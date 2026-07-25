@@ -32,6 +32,7 @@ const DealerDebtInvoice = () => {
 
   // Modal States - Create Invoice from Delivery Notification
   const [showCreateInvoiceModal, setShowCreateInvoiceModal] = useState(false);
+  const [submittingInvoice, setSubmittingInvoice] = useState(false);
   const [selectedNotif, setSelectedNotif] = useState(null);
   const [invoiceFormData, setInvoiceFormData] = useState({
     doId: '',
@@ -45,6 +46,7 @@ const DealerDebtInvoice = () => {
 
   // Modal States - Create Payment Receipt & OCR
   const [showCreatePaymentModal, setShowCreatePaymentModal] = useState(false);
+  const [submittingPayment, setSubmittingPayment] = useState(false);
   const [selectedInvoiceForPayment, setSelectedInvoiceForPayment] = useState(null);
   const [paymentFormData, setPaymentFormData] = useState({
     dealerId: '',
@@ -121,6 +123,8 @@ const DealerDebtInvoice = () => {
 
   const handleSubmitInvoice = async (e) => {
     e.preventDefault();
+    if (submittingInvoice) return;
+    setSubmittingInvoice(true);
     try {
       await financeService.createInvoice(invoiceFormData.doId, invoiceFormData.documentDate, invoiceFormData.notes);
       addToast('Lập Hóa đơn Bán hàng & Ghi nhận nợ Đại lý thành công!', 'success');
@@ -129,6 +133,8 @@ const DealerDebtInvoice = () => {
     } catch (err) {
       console.error('Create invoice failed:', err);
       addToast(err.message || 'Không thể tạo hóa đơn bán hàng', 'error');
+    } finally {
+      setSubmittingInvoice(false);
     }
   };
 
@@ -286,6 +292,8 @@ const DealerDebtInvoice = () => {
       addToast('Số tiền thu phải lớn hơn 0', 'error');
       return;
     }
+    if (submittingPayment) return;
+    setSubmittingPayment(true);
     try {
       await financeService.createPaymentReceipt(paymentFormData);
       addToast('Ghi nhận Phiếu thu và cấn trừ công nợ thành công!', 'success');
@@ -294,6 +302,8 @@ const DealerDebtInvoice = () => {
     } catch (err) {
       console.error('Create AR payment failed:', err);
       addToast(err.message || 'Không thể ghi nhận phiếu thu', 'error');
+    } finally {
+      setSubmittingPayment(false);
     }
   };
 
@@ -646,11 +656,11 @@ const DealerDebtInvoice = () => {
               </div>
 
               <div className="flex justify-end gap-3 mt-4 pt-3 border-t border-hairline-light">
-                <Button type="button" variant="secondary" onClick={() => setShowCreateInvoiceModal(false)}>
+                <Button type="button" variant="secondary" onClick={() => setShowCreateInvoiceModal(false)} disabled={submittingInvoice}>
                   Hủy bỏ
                 </Button>
-                <Button type="submit" variant="primary">
-                  Lưu Hóa đơn & Ghi nợ
+                <Button type="submit" variant="primary" disabled={submittingInvoice}>
+                  {submittingInvoice ? 'Đang xử lý...' : 'Lưu Hóa đơn & Ghi nợ'}
                 </Button>
               </div>
             </form>
@@ -787,11 +797,11 @@ const DealerDebtInvoice = () => {
               </div>
 
               <div className="flex justify-end gap-3 mt-4 pt-3 border-t border-hairline-light">
-                <Button type="button" variant="secondary" onClick={() => setShowCreatePaymentModal(false)}>
+                <Button type="button" variant="secondary" onClick={() => setShowCreatePaymentModal(false)} disabled={submittingPayment}>
                   Hủy bỏ
                 </Button>
-                <Button type="submit" variant="primary">
-                  Ghi nhận Phiếu thu
+                <Button type="submit" variant="primary" disabled={submittingPayment}>
+                  {submittingPayment ? 'Đang xử lý...' : 'Ghi nhận Phiếu thu'}
                 </Button>
               </div>
             </form>
