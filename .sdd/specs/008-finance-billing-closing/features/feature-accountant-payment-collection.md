@@ -11,6 +11,9 @@ Hệ thống tự động kiểm tra và mở khóa tín dụng (chuyển sang t
 ## 3. Functional Requirements (EARS)
 * **Ubiquitous:**
   * Hệ thống luôn cập nhật và trừ dư nợ đại lý `dealers.current_balance` tương ứng với số tiền nhận được trên mỗi phiếu thu hợp lệ.
+* **State-driven:**
+  * **WHILE** hóa đơn liên kết đã ở trạng thái `PAID`, hệ thống **SHALL** từ chối tạo thêm phiếu thu cho hóa đơn đó (trả về lỗi `INVOICE_ALREADY_PAID` với HTTP 409).
+  * **WHILE** số tiền phiếu thu vượt quá dư nợ còn lại của hóa đơn (`total_amount - Σ payment_receipts.amount` đã ghi nhận trước đó), hệ thống **SHALL** từ chối tạo phiếu thu (trả về lỗi `OVERPAYMENT_EXCEEDS_INVOICE` với HTTP 422) — không cho phép một hóa đơn nhận thừa tiền qua nhiều phiếu thu cộng dồn.
 * **Event-driven:**
   * **WHEN** Kế toán viên ghi nhận một phiếu thu nộp tiền thành công, hệ thống **SHALL**:
     * Tạo bản ghi phiếu thu trong bảng `payment_receipts` với kỳ kế toán `accounting_period_id` tương ứng với ngày chứng từ `document_date` (phải thuộc một kỳ kế toán có trạng thái `OPEN`).
@@ -75,3 +78,15 @@ Hệ thống tự động kiểm tra và mở khóa tín dụng (chuyển sang t
   * **Given**: Đại lý có `credit_limit = 500,000,000` VNĐ, dư nợ `current_balance = 600,000,000` VNĐ, trạng thái `credit_status = 'CREDIT_HOLD'`. Cấu hình `CREDIT_UNLOCK_BUFFER_PCT = 0.8`. Ngưỡng mở khóa là `400,000,000` VNĐ.
   * **When**: Kế toán viên tạo phiếu thu thanh toán `201,000,000` VNĐ (dư nợ mới cập nhật là `399,000,000` VNĐ, nhỏ hơn `400,000,000` VNĐ).
   * **Then**: Trạng thái tín dụng của đại lý tự động chuyển đổi thành `ACTIVE`.
+
+* **Scenario 3: Từ chối phiếu thu vượt quá dư nợ hóa đơn**
+  * **Given**: Hóa đơn `INV-202606-0005` có `total_amount = 17,000,000` VNĐ, đã thu `10,000,000` VNĐ qua một phiếu thu trước đó (còn lại `7,000,000` VNĐ).
+  * **When**: Kế toán viên tạo phiếu thu mới với `amount = 8,000,000` VNĐ cho cùng hóa đơn.
+  * **Then**: HTTP 422 `OVERPAYMENT_EXCEEDS_INVOICE`. Không tạo phiếu thu, không thay đổi `dealers.current_balance`.
+
+* **Scenario 4: Từ chối phiếu thu cho hóa đơn đã PAID**
+  * **Given**: Hóa đơn `INV-202606-0004` đã ở trạng thái `PAID`.
+  * **When**: Kế toán viên cố tạo thêm phiếu thu cho hóa đơn này.
+  * **Then**: HTTP 409 `INVOICE_ALREADY_PAID`.
+
+> **Lưu ý liên quan Credit Note**: `credit_notes` (Spec 009, hàng hoàn trả) cũng làm giảm `dealers.current_balance` nhưng đi qua một cơ chế hoàn toàn khác (`ReturnsService.createCreditNote()`), không phải phiếu thu và không kiểm tra `OVERPAYMENT_EXCEEDS_INVOICE` vì Credit Note không gắn với một hóa đơn cụ thể để so sánh — xem `spec.md` Session 2026-07-25 về khả năng `current_balance` xuống âm qua đường này.

@@ -6,9 +6,6 @@ Kỳ kế toán đã `CLOSED` khóa cứng mọi chứng từ có `document_date
 
 Tính năng này lấp khoảng trống đó bằng cách kích hoạt giá trị `type = 'CORRECTION_VOUCHER'` vốn đã tồn tại sẵn trong `adjustments.type` từ Spec 006 nhưng chưa từng được dùng cho chứng từ tài chính thuần túy (không có hàng hóa liên quan). Khi Kế toán trưởng phát hiện một `invoices`, `payment_receipts`, `supplier_invoices`, hoặc `supplier_payments` đã tồn tại thuộc kỳ đã `CLOSED` bị ghi sai, họ tạo trực tiếp một bản ghi `adjustments` loại `CORRECTION_VOUCHER` với `document_date` thuộc kỳ đang `OPEN`, tham chiếu ngược tới chứng từ gốc qua `reference_type`/`reference_id` (cột đã có sẵn, dùng chung với `STOCK_TAKE`/`TRANSFER_DISCREPANCY`/`DISPOSAL`/`RETURN_TO_VENDOR`). Chứng từ gốc trong kỳ đã đóng không bao giờ bị `UPDATE`/`DELETE` — chỉ số dư hiện tại (`dealers.current_balance` / `suppliers.current_balance`) thay đổi, cùng cơ chế mà `payment_receipts` và `credit_notes` đã dùng để điều chỉnh số dư mà không sửa hóa đơn gốc.
 
-Đây KHÔNG phải một chứng từ/nghiệp vụ riêng biệt về mặt hạ tầng — nó là một cách dùng mới của bảng `adjustments` đã có, giới hạn cho một actor duy nhất (`ACCOUNTANT_MANAGER`, cùng người có thẩm quyền khóa kỳ), một bước tạo duy nhất (không qua vòng duyệt riêng, vì `ACCOUNTANT_MANAGER` là thẩm quyền cao nhất trong luồng tài chính của Spec 008 — giống mọi hành động AR/AP khác trong spec này, `ACCOUNTANT` tạo `payment_receipts`/`supplier_invoices`/`supplier_payments` và số dư thay đổi ngay lập tức, không qua bước duyệt thứ hai).
-
-Tính năng KHÔNG thay thế `credit_notes` (US-WMS-24, Spec 009) — `credit_notes` vẫn là cơ chế duy nhất cho hàng hoàn trả vật lý. Correction Voucher chỉ xử lý sai sót **ghi nhận** (không có hàng hóa liên quan) trên chứng từ tài chính đã tồn tại của cả hai luồng AR và AP.
 
 ## 2. Actors
 

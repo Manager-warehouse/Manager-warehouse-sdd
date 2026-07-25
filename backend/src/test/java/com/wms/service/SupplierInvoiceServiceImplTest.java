@@ -140,6 +140,41 @@ class SupplierInvoiceServiceImplTest {
     }
 
     @Test
+    @DisplayName("Lập hóa đơn mua hàng - Race condition tạo trùng được dịch thành lỗi 409 sạch")
+    void createSupplierInvoice_translatesConcurrentDuplicateIntoCleanConflict() {
+        // findByReceiptId() is check-then-act, not atomic: a double-click or retried request
+        // racing the same receiptId can both pass it before either commits. The DB unique
+        // constraint on supplier_invoices.receipt_id (V33) is what actually catches this -
+        // simulate that by having save() throw, and assert it's translated into the same clean
+        // 409 the sequential (non-race) case above already returns, not a raw 500.
+        CreateSupplierInvoiceRequest request = CreateSupplierInvoiceRequest.builder()
+                .receiptId(100L)
+                .supplierInvoiceNumber("VAT-NCC-001")
+                .documentDate(LocalDate.of(2026, 7, 23))
+                .build();
+
+        ReceiptItem item = new ReceiptItem();
+        item.setActualQty(10);
+        item.setUnitCost(new BigDecimal("50000.00"));
+
+        when(receiptRepository.findById(100L)).thenReturn(Optional.of(receipt));
+        when(receiptItemRepository.findByReceiptId(100L)).thenReturn(java.util.List.of(item));
+        when(supplierInvoiceRepository.findByReceiptId(100L)).thenReturn(Optional.empty());
+        when(accountingPeriodRepository.findPeriodByDateAndStatus(request.getDocumentDate(), AccountingPeriodStatus.OPEN))
+                .thenReturn(Optional.of(openPeriod));
+        com.wms.entity.document_numbering.DocumentSequence sequence = new com.wms.entity.document_numbering.DocumentSequence();
+        sequence.setSequenceKey("SUPPLIER_INVOICE");
+        sequence.setNextValue(1L);
+        when(sequenceRepository.findBySequenceKeyForUpdate(anyString())).thenReturn(Optional.of(sequence));
+        when(supplierInvoiceRepository.save(any(SupplierInvoice.class)))
+                .thenThrow(new org.springframework.dao.DataIntegrityViolationException("uq_supplier_invoices_receipt_id"));
+
+        assertThatThrownBy(() -> supplierInvoiceService.createSupplierInvoice(request, accountantUser))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("SUPPLIER_INVOICE_ALREADY_EXISTS");
+    }
+
+    @Test
     @DisplayName("Xem chi tiết hóa đơn mua hàng trả về đúng số tiền đã thanh toán")
     void getSupplierInvoiceById_reflectsPaidAmountFromExistingPayments() {
         SupplierInvoice invoice = new SupplierInvoice();

@@ -29,6 +29,7 @@ const SupplierInvoices = () => {
 
   // Modal States
   const [showCreateInvoiceModal, setShowCreateInvoiceModal] = useState(false);
+  const [submittingInvoice, setSubmittingInvoice] = useState(false);
   const [selectedNotification, setSelectedNotification] = useState(null);
   const [invoiceFormData, setInvoiceFormData] = useState({
     receiptId: '',
@@ -39,6 +40,7 @@ const SupplierInvoices = () => {
   });
 
   const [showCreatePaymentModal, setShowCreatePaymentModal] = useState(false);
+  const [submittingPayment, setSubmittingPayment] = useState(false);
   const [selectedInvoiceForPayment, setSelectedInvoiceForPayment] = useState(null);
   const [paymentFormData, setPaymentFormData] = useState({
     supplierId: '',
@@ -108,6 +110,8 @@ const SupplierInvoices = () => {
   // Submit Supplier Invoice Creation
   const handleSubmitInvoice = async (e) => {
     e.preventDefault();
+    if (submittingInvoice) return;
+    setSubmittingInvoice(true);
     try {
       await financeService.createSupplierInvoice(invoiceFormData);
       addToast('Lập Hóa đơn Mua hàng & Ghi nhận nợ NCC thành công!', 'success');
@@ -116,6 +120,8 @@ const SupplierInvoices = () => {
     } catch (err) {
       console.error('Create supplier invoice failed:', err);
       addToast(err.message || 'Không thể tạo hóa đơn mua hàng', 'error');
+    } finally {
+      setSubmittingInvoice(false);
     }
   };
 
@@ -278,6 +284,8 @@ const SupplierInvoices = () => {
       addToast('Số tiền chi phải lớn hơn 0', 'error');
       return;
     }
+    if (submittingPayment) return;
+    setSubmittingPayment(true);
     try {
       await financeService.createSupplierPayment(paymentFormData);
       addToast('Ghi nhận Phiếu chi thanh toán NCC thành công!', 'success');
@@ -286,6 +294,8 @@ const SupplierInvoices = () => {
     } catch (err) {
       console.error('Create supplier payment failed:', err);
       addToast(err.message || 'Không thể lập phiếu chi thanh toán NCC', 'error');
+    } finally {
+      setSubmittingPayment(false);
     }
   };
 
@@ -651,11 +661,11 @@ const SupplierInvoices = () => {
               </div>
 
               <div className="flex justify-end gap-3 mt-4 pt-3 border-t border-hairline-light">
-                <Button type="button" variant="secondary" onClick={() => setShowCreateInvoiceModal(false)}>
+                <Button type="button" variant="secondary" onClick={() => setShowCreateInvoiceModal(false)} disabled={submittingInvoice}>
                   Hủy bỏ
                 </Button>
-                <Button type="submit" variant="primary">
-                  Lưu Hóa đơn & Ghi nợ
+                <Button type="submit" variant="primary" disabled={submittingInvoice}>
+                  {submittingInvoice ? 'Đang xử lý...' : 'Lưu Hóa đơn & Ghi nợ'}
                 </Button>
               </div>
             </form>
@@ -792,11 +802,11 @@ const SupplierInvoices = () => {
               </div>
 
               <div className="flex justify-end gap-3 mt-4 pt-3 border-t border-hairline-light">
-                <Button type="button" variant="secondary" onClick={() => setShowCreatePaymentModal(false)}>
+                <Button type="button" variant="secondary" onClick={() => setShowCreatePaymentModal(false)} disabled={submittingPayment}>
                   Hủy bỏ
                 </Button>
-                <Button type="submit" variant="primary">
-                  Ghi nhận Phiếu chi
+                <Button type="submit" variant="primary" disabled={submittingPayment}>
+                  {submittingPayment ? 'Đang xử lý...' : 'Ghi nhận Phiếu chi'}
                 </Button>
               </div>
             </form>

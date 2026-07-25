@@ -58,8 +58,8 @@ export default function PriceApproval() {
           Phê duyệt bảng giá
         </h1>
         <p className="text-xs text-shade-50 font-light mt-1">
-          Xem xét và phê duyệt các bản giá mới do Kế toán viên đề xuất
-          {activeWarehouse && <> — Kho <span className="font-semibold text-ink">{activeWarehouse.name}</span></>}.
+          Xem xét và phê duyệt các bản giá mới do Kế toán viên đề xuất tại
+          {activeWarehouse && <> kho <span className="font-semibold text-ink">{activeWarehouse.name}</span></>}.
           {!loading && entries.length > 0 && (
             <span className="ml-1 font-semibold text-warning-700">{entries.length} bản giá đang chờ duyệt.</span>
           )}
@@ -221,7 +221,7 @@ function DeltaRow({ label, prev, curr, delta, deltaPct }) {
             ${isIncrease ? 'text-danger-600' : isDecrease ? 'text-success-700' : 'text-shade-40'}`}>
             {isIncrease ? <TrendingUp className="w-3.5 h-3.5" />
               : isDecrease ? <TrendingDown className="w-3.5 h-3.5" />
-              : <Minus className="w-3.5 h-3.5" />}
+                : <Minus className="w-3.5 h-3.5" />}
             {deltaPct != null ? `${Math.abs(deltaPct).toFixed(1)}%` : ''}
           </span>
         )}

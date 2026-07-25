@@ -24,6 +24,7 @@ import com.wms.repository.supplier_management.SupplierRepository;
 import com.wms.service.audit_trail.AuditLogService;
 import com.wms.service.billing_payment.AccountingPeriodService;
 import com.wms.service.billing_payment.SupplierInvoiceService;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -141,7 +142,18 @@ public class SupplierInvoiceServiceImpl implements SupplierInvoiceService {
                 .updatedAt(now)
                 .build();
 
-        SupplierInvoice savedInvoice = supplierInvoiceRepository.save(invoice);
+        // The findByReceiptId() check above is check-then-act, not atomic: a double-click or
+        // retried request racing the same receiptId can both pass it before either commits.
+        // uq_supplier_invoices_receipt_id (V33) is the real guard; translate its violation
+        // into the same clean 409 the sequential (non-race) case already returns above,
+        // instead of letting a raw DataIntegrityViolationException surface as a 500.
+        SupplierInvoice savedInvoice;
+        try {
+            savedInvoice = supplierInvoiceRepository.save(invoice);
+        } catch (DataIntegrityViolationException ex) {
+            throw new BusinessRuleViolationException(
+                    "SUPPLIER_INVOICE_ALREADY_EXISTS: Supplier invoice already exists for receipt id: " + receipt.getId());
+        }
 
         // 7. Update notification if exists
         supplierBillingNotificationRepository.findByReceiptId(receipt.getId()).ifPresent(notification -> {
