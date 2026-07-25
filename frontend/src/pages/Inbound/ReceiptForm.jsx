@@ -339,6 +339,7 @@ const ReceiptForm = () => {
                   setShowSearchResults(true);
                 }}
                 onFocus={() => setShowSearchResults(true)}
+                data-testid="receipt-product-search"
               />
 
               {/* Search results dropdown */}
@@ -352,6 +353,7 @@ const ReceiptForm = () => {
                         key={prod.id}
                         onClick={() => handleAddItem(prod)}
                         className="p-3 hover:bg-canvas-cream cursor-pointer transition-colors border-b border-hairline-light last:border-0 flex items-center justify-between text-xs"
+                        data-testid="receipt-product-search-result"
                       >
                         <div>
                           <span className="font-bold block">{prod.sku}</span>

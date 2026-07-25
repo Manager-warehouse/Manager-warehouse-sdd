@@ -132,7 +132,7 @@ const UserManagement = () => {
             Quản lý tài khoản nhân viên, vai trò RBAC và kho được phép truy cập.
           </p>
         </div>
-        <Button onClick={handleOpenCreateModal} variant="primary" icon={Plus}>
+        <Button onClick={handleOpenCreateModal} variant="primary" icon={Plus} data-testid="open-create-user-modal">
           Tạo tài khoản
         </Button>
       </div>

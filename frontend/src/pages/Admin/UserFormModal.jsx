@@ -196,6 +196,7 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
           disabled={modalType === 'edit'}
           placeholder="Ví dụ: NV-005"
           required
+          data-testid="user-form-code"
         />
 
         <Input
@@ -205,6 +206,7 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
           onChange={(e) => setFullName(e.target.value)}
           placeholder="Ví dụ: Nguyễn Văn A"
           required
+          data-testid="user-form-full-name"
         />
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -215,6 +217,7 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
             onChange={(e) => setEmail(e.target.value)}
             placeholder="nhanvien@quanlykho.vn"
             required
+            data-testid="user-form-email"
           />
 
           <Input
@@ -233,6 +236,7 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Mật khẩu tối thiểu 8 ký tự, chữ và số"
+            data-testid="user-form-password"
             required
           />
         ) : (
@@ -301,6 +305,7 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
             type="submit"
             variant="primary"
             loading={loading}
+            data-testid="user-form-submit"
           >
             Lưu lại
           </Button>

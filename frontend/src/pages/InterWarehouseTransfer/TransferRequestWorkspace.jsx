@@ -315,7 +315,7 @@ const TransferRequestWorkspace = () => {
           </p>
         </div>
         {hasRole(ROLES.WAREHOUSE_MANAGER) && (
-          <Button variant="primary" icon={Plus} onClick={openCreateModal}>
+          <Button variant="primary" icon={Plus} onClick={openCreateModal} data-testid="open-create-transfer-modal">
             Tạo yêu cầu
           </Button>
         )}
@@ -472,6 +472,7 @@ const TransferRequestWorkspace = () => {
                     { value: '', label: '-- Chọn kho nguồn --' },
                     ...warehouses.filter(w => w.id !== activeWarehouse?.id).map(w => ({ value: w.id, label: `${w.name} (${w.code})` })),
                   ]}
+                  data-testid="transfer-source-warehouse"
                 />
                 <Input
                   label="Kho đích (Nhận hàng về)"
@@ -487,12 +488,14 @@ const TransferRequestWorkspace = () => {
                   type="date"
                   value={neededByDate}
                   onChange={(e) => setNeededByDate(e.target.value)}
+                  data-testid="transfer-needed-date"
                 />
                 <Input
                   label="Lý do nghiệp vụ"
                   value={businessReason}
                   onChange={(e) => setBusinessReason(e.target.value)}
                   placeholder="VD: Bù thiếu tồn bán, gom hàng cho đơn lớn..."
+                  data-testid="transfer-business-reason"
                 />
               </div>
 
@@ -518,6 +521,7 @@ const TransferRequestWorkspace = () => {
                               { value: '', label: '-- Chọn sản phẩm --' },
                               ...products.map(p => ({ value: p.id, label: `${p.sku} - ${p.name}` })),
                             ]}
+                            data-testid={`transfer-item-product-${idx}`}
                           />
                         </div>
                         <div className="w-28">
@@ -526,6 +530,7 @@ const TransferRequestWorkspace = () => {
                             placeholder="Số lượng"
                             value={item.requestedQty}
                             onChange={(e) => handleItemChange(idx, 'requestedQty', e.target.value)}
+                            data-testid={`transfer-item-qty-${idx}`}
                           />
                         </div>
                         {items.length > 1 && (
@@ -575,7 +580,7 @@ const TransferRequestWorkspace = () => {
 
             <div className="p-4 border-t border-hairline-light bg-canvas-cream flex justify-end gap-2">
               <Button variant="outline-light" onClick={closeRequestModal}>Hủy</Button>
-              <Button variant="primary" onClick={submitCreateRequest} disabled={submitting} loading={submitting}>
+              <Button variant="primary" onClick={submitCreateRequest} disabled={submitting} loading={submitting} data-testid="transfer-submit">
                 {editingRequestId ? 'Lưu thay đổi' : 'Tạo bản nháp'}
               </Button>
             </div>

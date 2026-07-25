@@ -123,17 +123,36 @@ class BasePage:
         return field
 
     def type_by_label(self, label_text, value):
+        """Returns (ok, reason). Previously this had no return value at all
+        -- a field that silently didn't receive the keystrokes (e.g. focus
+        stolen by an in-progress transition) was invisible to every caller,
+        which is exactly how RCV-003's "Người liên hệ"/"Mã chứng từ nguồn"
+        fields turned out to be silently empty in a real run's screenshot
+        for who knows how many runs before anyone noticed -- the only
+        reason it ever surfaced at all was that the *next* step (the
+        product search) happens to use a method that actually verifies."""
         field = self._field_for_label(label_text)
+        field.click()
         field.clear()
         field.send_keys(value)
-        # Defensive verify-and-retry: a field that silently didn't receive
-        # the keystrokes (e.g. focus stolen by an in-progress transition)
-        # is worse than a slow test -- it submits a form with a blank
-        # required field and blames "validation" for something invisible.
         if field.get_attribute("value") != value:
             field = self._field_for_label(label_text)
+            field.click()
             field.clear()
             field.send_keys(value)
+        actual_value = field.get_attribute("value")
+        if actual_value == value:
+            return True, "ok"
+        active = self.driver.execute_script(
+            "const el = document.activeElement;"
+            "return el ? (el.tagName + (el.id ? '#' + el.id : '') + "
+            "(el.getAttribute('data-testid') ? '[data-testid=' + el.getAttribute('data-testid') + ']' : '') + "
+            "' value=' + JSON.stringify(el.value)) : 'null';"
+        )
+        return False, (
+            f"Field for label '{label_text}' still shows '{actual_value}' after two send_keys "
+            f"attempts (expected '{value}'); document.activeElement was {active}"
+        )
 
     def _field_by_testid(self, testid):
         field = self.by_testid(testid)

@@ -62,6 +62,11 @@ ROLE_CREDENTIALS = {
 # route -- several buttons are gated more narrowly than the route itself,
 # e.g. CEO can view /admin/products but can't see the "Add product" button)
 MODULE_FLOWS = [
+    # PLANNER (RCV-003/OUT-004) was temporarily moved to run first to test
+    # whether its interaction failures were caused by sequence position --
+    # they weren't (identical failures running first too), which is why
+    # build_driver() now disables Chrome's native password-save/translate
+    # prompts instead. See run_selenium_round2.build_driver() for why.
     ("AUTH-001", "Security, Auth & RBAC", "ADMIN", flow_auth001),
     ("MDM-002", "Master Data Management", "STOREKEEPER", flow_mdm002),
     ("RCV-003", "Inbound Receipt & QC", "PLANNER", flow_rcv003),

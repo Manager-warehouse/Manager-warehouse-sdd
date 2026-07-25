@@ -182,6 +182,7 @@ const ProductManagement = () => {
             variant="primary"
             icon={Plus}
             onClick={handleOpenAddModal}
+            data-testid="open-create-product-modal"
           >
             Thêm sản phẩm mới
           </Button>
@@ -365,6 +366,7 @@ const ProductManagement = () => {
               error={formErrors.sku}
               placeholder="Ví dụ: SKU-PA-001"
               required
+              data-testid="product-form-sku"
             />
             <Input
               label="Đơn vị tính"
@@ -388,6 +390,7 @@ const ProductManagement = () => {
             error={formErrors.name}
             placeholder="Nhập tên sản phẩm đầy đủ..."
             required
+            data-testid="product-form-name"
           />
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -450,7 +453,7 @@ const ProductManagement = () => {
             <Button variant="outline-light" onClick={() => setIsModalOpen(false)}>
               Hủy
             </Button>
-            <Button type="submit" variant="primary" loading={submitting}>
+            <Button type="submit" variant="primary" loading={submitting} data-testid="product-form-submit">
               {modalType === 'ADD' ? 'Tạo mới' : 'Lưu thay đổi'}
             </Button>
           </div>

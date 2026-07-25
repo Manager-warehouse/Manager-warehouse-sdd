@@ -414,7 +414,7 @@ export default function DeliveryOrders() {
           </p>
         </div>
         {hasRole(ROLES.PLANNER) && (
-          <Button onClick={handleOpenCreateModal} variant="primary" icon={Plus}>
+          <Button onClick={handleOpenCreateModal} variant="primary" icon={Plus} data-testid="open-create-do-modal">
             Lập đơn xuất mới
           </Button>
         )}
@@ -555,6 +555,7 @@ export default function DeliveryOrders() {
                     label: `${dealer.code ? `[${dealer.code}] ` : ''}${dealer.name || dealer.company_name}`,
                   })),
                 ]}
+                data-testid="do-dealer-select"
               />
             </div>
 
@@ -563,6 +564,7 @@ export default function DeliveryOrders() {
               type="date"
               value={formData.expected_delivery_date}
               onChange={(event) => setFormData((prev) => ({ ...prev, expected_delivery_date: event.target.value }))}
+              data-testid="do-delivery-date"
             />
 
             <div className="md:col-span-2">
@@ -627,6 +629,7 @@ export default function DeliveryOrders() {
                             { value: '', label: masterDataLoading ? '-- Đang tải sản phẩm --' : '-- Chọn sản phẩm --' },
                             ...productOptionsFor(item.product_id).map((product) => ({ value: product.id, label: `[${product.sku}] ${product.name}` })),
                           ]}
+                          data-testid={`do-item-product-${index}`}
                         />
                       </td>
                       <td className="px-4 py-3">
@@ -671,7 +674,7 @@ export default function DeliveryOrders() {
 
           <div className="flex justify-end gap-3 border-t border-hairline-light pt-4">
             <Button variant="outline-light" onClick={handleCloseCreateModal}>Đóng</Button>
-            <Button variant="primary" loading={submitting} disabled={isSubmitDisabled} onClick={handleCreateSubmit}>Tạo đơn xuất</Button>
+            <Button variant="primary" loading={submitting} disabled={isSubmitDisabled} onClick={handleCreateSubmit} data-testid="do-submit">Tạo đơn xuất</Button>
           </div>
         </div>
       </Modal>

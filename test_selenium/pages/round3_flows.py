@@ -81,8 +81,12 @@ def flow_rcv003(driver):
     tag = _tag()
     try:
         page.select_first_real_option_by_label("Nhà cung cấp")
-        page.type_by_label("Người liên hệ", "Selenium AutoTest")
-        page.type_by_label("Mã chứng từ nguồn", f"AUTOTEST-{tag}")
+        ok, reason = page.type_by_label("Người liên hệ", "Selenium AutoTest")
+        if not ok:
+            return False, reason
+        ok, reason = page.type_by_label("Mã chứng từ nguồn", f"AUTOTEST-{tag}")
+        if not ok:
+            return False, reason
 
         # Search a broad, near-universal substring instead of a specific
         # SKU: this flow only needs *some* valid product on the receipt to
@@ -133,7 +137,28 @@ def flow_out004(driver):
             dealer_select_present = page.wait_for(lambda d: len(d.find_elements(
                 By.CSS_SELECTOR, "[data-testid='do-dealer-select']")) > 0, timeout=15)
         if not dealer_select_present:
-            return False, "Modal never opened: [data-testid='do-dealer-select'] absent after retry"
+            # RCV-003 turned out to have the exact same shape of failure on
+            # this same PLANNER role/session (fields typed via a method
+            # that never verified its own result), so before giving up
+            # here too, gather what's actually happening in the DOM instead
+            # of guessing again: is the trigger button still there/enabled,
+            # is ANY modal-shaped overlay open (in case a click landed on
+            # the wrong target and opened something else), what has focus.
+            trigger = driver.find_elements(By.CSS_SELECTOR, "[data-testid='open-create-do-modal']")
+            any_modal_open = len(driver.find_elements(By.CSS_SELECTOR, "div.fixed.inset-0.z-50")) > 0
+            active = driver.execute_script(
+                "const el = document.activeElement;"
+                "return el ? (el.tagName + (el.getAttribute('data-testid') ? '[data-testid=' + el.getAttribute('data-testid') + ']' : '')) : 'null';"
+            )
+            trigger_state = (
+                f"present,enabled={trigger[0].is_enabled()},displayed={trigger[0].is_displayed()}"
+                if trigger else "absent from DOM"
+            )
+            return False, (
+                "Modal never opened: [data-testid='do-dealer-select'] absent after retry "
+                f"(trigger button: {trigger_state}; any modal-shaped overlay open: {any_modal_open}; "
+                f"document.activeElement: {active})"
+            )
 
         page.select_first_real_option_by_testid("do-dealer-select")
         future_date = time.strftime("%Y-%m-%d", time.localtime(time.time() + 7 * 86400))

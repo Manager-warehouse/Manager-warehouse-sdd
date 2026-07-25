@@ -1,7 +1,7 @@
 # BÁO CÁO TRUY VẾT LỖI SELENIUM E2E (SELENIUM ERROR TRACEABILITY REPORT)
-**Thời gian kiểm thử:** 2026-07-25 08:31:08
+**Thời gian kiểm thử:** 2026-07-25 10:48:13
 **Tổng số Test Cases kiểm tra:** 924
-**Thành công (Passed):** 323
+**Thành công (Passed):** 526
 **Thất bại (Failed):** 89
 
 ---

@@ -85,6 +85,24 @@ def build_driver():
     # opening while every DOM-based Selenium check still says the button
     # is present and clickable. This is what OUT-004 needs to diagnose.
     options.set_capability("goog:loggingPrefs", {"browser": "ALL"})
+    # Chrome's own native UI (not page DOM, invisible to every diagnostic
+    # above: no console entry, document.activeElement reads normally) can
+    # silently intercept input -- the "Save password?" prompt after a
+    # login form submit, or "This page is in Vietnamese, translate?" for
+    # an all-Vietnamese app. Whether either actually appears is a Chrome
+    # heuristic, not deterministic per profile, which fits PLANNER's
+    # interaction failures being 100% reproducible via Selenium yet 100%
+    # unreproducible via manual/CDP-based interaction (a fresh profile has
+    # no saved "don't ask again" state to suppress them). Disabling both
+    # outright removes the possibility instead of theorizing further.
+    options.add_experimental_option("prefs", {
+        "credentials_enable_service": False,
+        "profile.password_manager_enabled": False,
+        "translate": {"enabled": False},
+    })
+    options.add_argument("--disable-features=Translate,PasswordManagerOnboarding")
+    options.add_argument("--disable-notifications")
+    options.add_argument("--disable-popup-blocking")
     service = Service(ChromeDriverManager().install())
     return webdriver.Chrome(service=service, options=options)
 

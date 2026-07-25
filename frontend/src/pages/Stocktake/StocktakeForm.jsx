@@ -133,6 +133,7 @@ const StocktakeForm = () => {
               className={`w-full px-3 py-2.5 rounded-md border text-sm outline-none transition-colors ${
                 errors.accounting_period_id ? 'border-danger-400 bg-danger-50' : 'border-hairline-light focus:border-ink'
               }`}
+              data-testid="stocktake-period-select"
             >
               {loadingPeriods ? (
                 <option value="">Đang tải...</option>
@@ -214,6 +215,7 @@ const StocktakeForm = () => {
             variant="primary"
             disabled={submitting || !activeWarehouse}
             loading={submitting}
+            data-testid="stocktake-submit"
           >
             {submitting ? 'Đang tạo...' : 'Tạo phiếu kiểm kê'}
           </Button>
