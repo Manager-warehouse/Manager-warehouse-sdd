@@ -233,6 +233,11 @@ public class StockTakeService {
                     "Count can only be recorded while IN_PROGRESS or REJECTED, current: " + st.getStatus());
         }
 
+        if (st.getStatus() == StockTakeStatus.REJECTED) {
+            st.setStatus(StockTakeStatus.IN_PROGRESS);
+            lockLocations(st);
+        }
+
         boolean anyEmployeeFault = false;
         for (StockTakeCountItemRequest countReq : req.getItems()) {
             if (countReq.getActualQty().compareTo(BigDecimal.ZERO) < 0) {
@@ -283,9 +288,7 @@ public class StockTakeService {
             }
         }
 
-        if (anyEmployeeFault) {
-            st.setIsEmployeeFault(true);
-        }
+        st.setIsEmployeeFault(anyEmployeeFault);
         st.setUpdatedAt(OffsetDateTime.now());
         stockTakeRepository.save(st);
 
@@ -316,8 +319,22 @@ public class StockTakeService {
                     "All items must have actual_qty recorded before completing");
         }
 
-        // Recalculate total variance
+        // Refresh systemQty from current inventory and recalculate variance
         List<StockTakeItem> items = stockTakeItemRepository.findByStockTakeId(id);
+        for (StockTakeItem item : items) {
+            Inventory inv = inventoryRepository.findByWarehouseIdAndProductIdAndBatchIdAndLocationId(
+                    st.getWarehouse().getId(), item.getProduct().getId(),
+                    item.getBatch().getId(), item.getLocation().getId())
+                    .orElse(null);
+            BigDecimal currentSystemQty = (inv != null) ? inv.getTotalQty() : BigDecimal.ZERO;
+            item.setSystemQty(currentSystemQty);
+            BigDecimal costPrice = (inv != null) ? inv.getCostPrice() : BigDecimal.ZERO;
+            BigDecimal varianceQty = item.getActualQty().subtract(currentSystemQty);
+            item.setVarianceQty(varianceQty);
+            item.setVarianceValue(varianceQty.multiply(costPrice));
+            stockTakeItemRepository.save(item);
+        }
+
         BigDecimal totalVariance = items.stream()
                 .map(StockTakeItem::getVarianceValue)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -465,19 +482,19 @@ public class StockTakeService {
                     item.getProduct().getId(),
                     item.getBatch().getId(),
                     item.getLocation().getId())
-                    .orElse(null);
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "INVENTORY_NOT_FOUND: No inventory row for product "
+                                    + item.getProduct().getSku() + " at location " + item.getLocation().getId()));
 
-            if (inv != null) {
-                BigDecimal newQty = item.getActualQty();
-                if (newQty.subtract(inv.getReservedQty()).compareTo(BigDecimal.ZERO) < 0) {
-                    throw new BusinessRuleViolationException(
-                            "INVENTORY_INVARIANT_VIOLATED: Cannot set qty below reserved for product "
-                                    + item.getProduct().getSku());
-                }
-                inv.setTotalQty(newQty);
-                inv.setUpdatedAt(OffsetDateTime.now());
-                inventoryRepository.save(inv);
+            BigDecimal newQty = item.getActualQty();
+            if (newQty.subtract(inv.getReservedQty()).compareTo(BigDecimal.ZERO) < 0) {
+                throw new BusinessRuleViolationException(
+                        "INVENTORY_INVARIANT_VIOLATED: Cannot set qty below reserved for product "
+                                + item.getProduct().getSku());
             }
+            inv.setTotalQty(newQty);
+            inv.setUpdatedAt(OffsetDateTime.now());
+            inventoryRepository.save(inv);
 
             // Create adjustment record
             String adjNumber = "ADJ-ST-" + st.getId() + "-" + item.getId();
@@ -588,10 +605,9 @@ public class StockTakeService {
 
     private void requireStockTakeRole(User actor) {
         UserRole role = actor.getRole();
-        if (role != UserRole.WAREHOUSE_MANAGER && role != UserRole.STOREKEEPER
-                && role != UserRole.ADMIN && role != UserRole.CEO) {
+        if (role != UserRole.STOREKEEPER && role != UserRole.ADMIN) {
             throw new org.springframework.security.access.AccessDeniedException(
-                    "Role " + role + " is not authorized for stocktake operations");
+                    "Role " + role + " is not authorized for stocktake count operations");
         }
     }
 
@@ -608,7 +624,7 @@ public class StockTakeService {
     }
 
     private StockTake loadStockTake(Long id) {
-        return stockTakeRepository.findByIdWithDetails(id)
+        return stockTakeRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResourceNotFoundException("StockTake not found: " + id));
     }
 

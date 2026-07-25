@@ -49,8 +49,7 @@ const StocktakeDetail = () => {
   // Approval is gated by both role AND the approval_level on the stocktake
   const canManagerApprove = (st) => st?.approval_level === 'MANAGER' && (hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.ADMIN));
   const canCeoApprove = (st) => st?.approval_level === 'CEO' && (hasRole(ROLES.CEO) || hasRole(ROLES.ADMIN));
-  const canAutoApprove = (st) => st?.approval_level === 'AUTO';
-  const canApprove = (st) => canManagerApprove(st) || canCeoApprove(st) || canAutoApprove(st);
+  const canApprove = (st) => canManagerApprove(st) || canCeoApprove(st);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -180,7 +179,7 @@ const StocktakeDetail = () => {
     return <div className="p-12 text-center text-danger-500">Không tìm thấy phiếu kiểm kê.</div>;
   }
 
-  const isInProgress = stocktake.status === 'IN_PROGRESS';
+  const isInProgress = stocktake.status === 'IN_PROGRESS' || stocktake.status === 'REJECTED';
   const isPendingApproval = stocktake.status === 'PENDING_APPROVAL';
   const isDraft = stocktake.status === 'DRAFT';
 
