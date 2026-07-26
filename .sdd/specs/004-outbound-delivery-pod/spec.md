@@ -183,16 +183,6 @@ _Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đ
 - `CHECK(qc_fail_qty >= 0)`
 - `UNIQUE(allocation_id)`
 
-### delivery_order_approvals
-
-- `id` (BIGSERIAL, PK)
-- `do_id` (BIGINT, FK→delivery_orders, NOT NULL)
-- `approver_id` (BIGINT, FK→users, NOT NULL)
-- `result` (VARCHAR(20), CHECK IN ('APPROVED','REJECTED'), NOT NULL)
-- `contract_image_url` (VARCHAR(500))
-- `rejection_reason` (TEXT)
-- `approved_at` (TIMESTAMPTZ)
-
 ### delivery_order_warehouse_approvals
 
 - `id` (BIGSERIAL, PK)
