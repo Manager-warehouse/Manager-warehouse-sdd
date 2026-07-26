@@ -72,32 +72,11 @@ _Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đ
 
 ## 5. Data Model
 
-### purchase_orders
-
-- `id` (BIGSERIAL, PK)
-- `po_number` (VARCHAR(50), UNIQUE, NOT NULL)
-- `supplier_id` (BIGINT, FK→suppliers, NOT NULL)
-- `warehouse_id` (BIGINT, FK→warehouses, NOT NULL)
-- `expected_receipt_date` (DATE)
-- `status` (VARCHAR(30), CHECK IN ('OPEN','PARTIALLY_RECEIVED','COMPLETED','CANCELLED'))
-- `created_by` (BIGINT, FK→users)
-- `notes` (TEXT)
-- `created_at` (TIMESTAMPTZ)
-- `updated_at` (TIMESTAMPTZ)
-
-### purchase_order_items
-
-- `id` (BIGSERIAL, PK)
-- `po_id` (BIGINT, FK→purchase_orders, NOT NULL)
-- `product_id` (BIGINT, FK→products, NOT NULL)
-- `expected_qty` (INTEGER, NOT NULL, > 0)
-- `unit_price` (DECIMAL(18,2))
-
 ### receipts
 
 - `id` (BIGSERIAL, PK)
 - `receipt_number` (VARCHAR(50), UNIQUE, NOT NULL)
-- `source_order_code` (VARCHAR(100)) -- PO number hoặc DO hoàn
+- `source_order_code` (VARCHAR(100)) -- mã chứng từ nguồn do Planner nhập
 - `type` (VARCHAR(20), CHECK IN ('PURCHASE','RETURN'), NOT NULL)
 - `warehouse_id` (BIGINT, FK→warehouses, NOT NULL)
 - `supplier_id` (BIGINT, FK→suppliers)
