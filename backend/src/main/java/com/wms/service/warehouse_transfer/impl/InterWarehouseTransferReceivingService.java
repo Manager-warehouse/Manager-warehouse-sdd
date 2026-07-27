@@ -281,19 +281,8 @@ public class InterWarehouseTransferReceivingService {
             throw new BusinessRuleViolationException("QC_FAILURE_REASON_REQUIRED");
         }
         Long targetWarehouseId = transfer.isReturned() ? transfer.getSourceWarehouse().getId() : transfer.getDestinationWarehouse().getId();
-        if (line.qcPassedQty().signum() > 0) {
-            if (line.destinationLocationId() == null) {
-                throw new BusinessRuleViolationException("DESTINATION_LOCATION_REQUIRED");
-            }
-            WarehouseLocation destination = locationRepository.findById(line.destinationLocationId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Destination location not found: " + line.destinationLocationId()));
-            if (!Objects.equals(destination.getWarehouse().getId(), targetWarehouseId)
-                    || Boolean.FALSE.equals(destination.getIsActive())) {
-                throw new BusinessRuleViolationException("INVALID_DESTINATION_LOCATION");
-            }
-            if (Boolean.TRUE.equals(destination.getIsQuarantine())) {
-                throw new BusinessRuleViolationException("QC_PASSED_BIN_MUST_NOT_BE_QUARANTINE");
-            }
+        if (line.destinationLocationId() != null) {
+            validateDestinationLocation(line.destinationLocationId(), targetWarehouseId);
         }
         if (line.qcFailedQty().signum() > 0) {
             boolean hasQuarantine = !locationRepository.findByWarehouseIdAndIsQuarantineTrueAndIsActiveTrue(targetWarehouseId).isEmpty();
