@@ -778,9 +778,9 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                     .build();
             replacements.add(replacementRepository.save(replacement));
 
-            WarehouseLocation replacementZone = replacementRequest.getReplacementZoneId() == null
-                    ? null
-                    : reference(WarehouseLocation.class, replacementRequest.getReplacementZoneId());
+            WarehouseLocation replacementZone = replacementInventory.getLocation().getParent() == null
+                    ? replacementInventory.getLocation()
+                    : replacementInventory.getLocation().getParent();
             DeliveryOrderItemAllocation allocation = DeliveryOrderItemAllocation.builder()
                     .deliveryOrderItem(item)
                     .inventory(replacementInventory)

@@ -890,7 +890,6 @@ class DeliveryOrderServiceImplTest {
         when(entityManager.getReference(WarehouseLocation.class, 801L)).thenReturn(bin);
         when(entityManager.getReference(Batch.class, 72L)).thenReturn(batch2);
         when(entityManager.getReference(WarehouseLocation.class, 802L)).thenReturn(bin2);
-        when(entityManager.getReference(WarehouseLocation.class, 32L)).thenReturn(zone2);
 
         DeliveryOrderResponse response = service.saveDeliveryOrderReplacementPlan(100L, replacementPlanRequest(), storekeeper);
 
@@ -935,6 +934,7 @@ class DeliveryOrderServiceImplTest {
 
         assertThat(response.getStatus()).isEqualTo(DeliveryOrderStatus.WAITING_PICKING);
         assertThat(replacementInventory.getReservedQty()).isEqualByComparingTo("2.00");
+        assertThat(response.getItems().get(0).getAllocations().get(1).getZoneId()).isEqualTo(802L);
     }
 
     @Test
