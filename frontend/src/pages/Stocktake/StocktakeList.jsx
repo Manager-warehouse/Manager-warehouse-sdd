@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ClipboardList, Plus, Eye, Play, XCircle, CheckCircle, XOctagon } from 'lucide-react';
+import { ClipboardList, Plus, Eye, Play, XCircle, CheckCircle, RotateCcw } from 'lucide-react';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
 import { stocktakeService } from '../../services/stocktake.service';
@@ -14,7 +14,7 @@ const STATUS_LABELS = {
   IN_PROGRESS: 'Đang kiểm',
   PENDING_APPROVAL: 'Chờ duyệt',
   APPROVED: 'Đã duyệt',
-  REJECTED: 'Từ chối',
+  REJECTED: 'Trả lại kiểm tra',
   CANCELLED: 'Đã hủy',
 };
 
@@ -42,13 +42,18 @@ const StocktakeList = () => {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
   const [confirmModal, setConfirmModal] = useState(null);
+  const [rejectModal, setRejectModal] = useState(null);
+  const [rejectionReason, setRejectionReason] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
 
   const canCreate = hasRole(ROLES.STOREKEEPER) || hasRole(ROLES.ADMIN);
-  const canApprove = hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.CEO) || hasRole(ROLES.ADMIN);
+  const canReview = (stocktake) => (
+    (stocktake.approval_level === 'MANAGER' && (hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.ADMIN)))
+    || (stocktake.approval_level === 'CEO' && (hasRole(ROLES.CEO) || hasRole(ROLES.ADMIN)))
+  );
 
   const load = useCallback(async () => {
     if (!activeWarehouse?.id) return;
@@ -122,6 +127,38 @@ const StocktakeList = () => {
     } finally {
       setConfirmModal(null);
     }
+  };
+
+  const handleReject = async () => {
+    const reason = rejectionReason.trim();
+    if (!reason) {
+      showToast?.('error', 'Vui lòng nhập lý do trả lại');
+      return;
+    }
+
+    try {
+      const target = stocktakes.find(st => st.id === rejectModal?.id);
+      if (!target) {
+        showToast?.('error', 'Không tìm thấy phiếu kiểm kê cần trả lại');
+        return;
+      }
+      if (target?.approval_level === 'CEO') {
+        await stocktakeService.rejectCeoStockTake(target.id, reason);
+      } else {
+        await stocktakeService.rejectStockTake(target.id, reason);
+      }
+      showToast?.('success', 'Đã trả lại phiếu kiểm kê để kiểm tra lại');
+      setRejectModal(null);
+      setRejectionReason('');
+      load();
+    } catch (err) {
+      showToast?.('error', err.message);
+    }
+  };
+
+  const closeRejectModal = () => {
+    setRejectModal(null);
+    setRejectionReason('');
   };
 
   if (!activeWarehouse) {
@@ -237,14 +274,23 @@ const StocktakeList = () => {
                               <XCircle className="w-3.5 h-3.5" />
                             </button>
                           )}
-                          {st.status === 'PENDING_APPROVAL' && canApprove && (
-                            <button
-                              onClick={() => setConfirmModal({ action: 'approve', id: st.id, label: 'phê duyệt phiếu kiểm kê' })}
-                              className="p-1 rounded-full text-shade-50 hover:text-success-600 hover:bg-success-50 transition-colors"
-                              title="Phê duyệt"
-                            >
-                              <CheckCircle className="w-3.5 h-3.5" />
-                            </button>
+                          {st.status === 'PENDING_APPROVAL' && canReview(st) && (
+                            <>
+                              <button
+                                onClick={() => setRejectModal({ id: st.id })}
+                                className="p-1 rounded-full text-shade-50 hover:text-danger-600 hover:bg-danger-50 transition-colors"
+                                title="Trả lại kiểm tra"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => setConfirmModal({ action: 'approve', id: st.id, label: 'phê duyệt phiếu kiểm kê' })}
+                                className="p-1 rounded-full text-shade-50 hover:text-success-600 hover:bg-success-50 transition-colors"
+                                title="Phê duyệt"
+                              >
+                                <CheckCircle className="w-3.5 h-3.5" />
+                              </button>
+                            </>
                           )}
                         </div>
                       </td>
@@ -298,14 +344,23 @@ const StocktakeList = () => {
                         <XCircle className="w-3.5 h-3.5" />
                       </button>
                     )}
-                    {st.status === 'PENDING_APPROVAL' && canApprove && (
-                      <button
-                        onClick={() => setConfirmModal({ action: 'approve', id: st.id, label: 'phê duyệt phiếu kiểm kê' })}
-                        className="p-1.5 rounded-full text-shade-50 hover:text-success-600 hover:bg-success-50 transition-colors"
-                        title="Phê duyệt"
-                      >
-                        <CheckCircle className="w-3.5 h-3.5" />
-                      </button>
+                    {st.status === 'PENDING_APPROVAL' && canReview(st) && (
+                      <>
+                        <button
+                          onClick={() => setRejectModal({ id: st.id })}
+                          className="p-1.5 rounded-full text-shade-50 hover:text-danger-600 hover:bg-danger-50 transition-colors"
+                          title="Trả lại kiểm tra"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => setConfirmModal({ action: 'approve', id: st.id, label: 'phê duyệt phiếu kiểm kê' })}
+                          className="p-1.5 rounded-full text-shade-50 hover:text-success-600 hover:bg-success-50 transition-colors"
+                          title="Phê duyệt"
+                        >
+                          <CheckCircle className="w-3.5 h-3.5" />
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -346,6 +401,35 @@ const StocktakeList = () => {
               >
                 Xác nhận
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Return for recount modal */}
+      {rejectModal && (
+        <div className="fixed inset-0 bg-canvas-night/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-canvas-light rounded-lg shadow-level-3 p-6 max-w-sm w-full flex flex-col gap-4">
+            <h3 className="text-base font-bold text-canvas-night">Trả lại phiếu để kiểm tra lại</h3>
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-shade-40 uppercase tracking-wider">
+                Lý do trả lại <span className="text-danger-500">*</span>
+              </label>
+              <textarea
+                rows={3}
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                placeholder="Nhập lý do cần kiểm tra lại..."
+                className="w-full px-3 py-2 rounded-md border border-hairline-light focus:border-danger-400 text-sm outline-none resize-none"
+              />
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button variant="outline-light" onClick={closeRejectModal}>
+                Hủy
+              </Button>
+              <Button variant="danger" onClick={handleReject}>
+                Xác nhận trả lại
+              </Button>
             </div>
           </div>
         </div>

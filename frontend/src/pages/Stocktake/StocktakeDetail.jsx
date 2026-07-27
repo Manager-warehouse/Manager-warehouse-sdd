@@ -13,7 +13,7 @@ const STATUS_LABELS = {
   IN_PROGRESS: 'Đang kiểm',
   PENDING_APPROVAL: 'Chờ duyệt',
   APPROVED: 'Đã duyệt',
-  REJECTED: 'Từ chối',
+  REJECTED: 'Trả lại kiểm tra',
   CANCELLED: 'Đã hủy',
 };
 
@@ -153,7 +153,7 @@ const StocktakeDetail = () => {
 
   const handleReject = async () => {
     if (!rejectionReason.trim()) {
-      showToast?.('error', 'Vui lòng nhập lý do từ chối');
+      showToast?.('error', 'Vui lòng nhập lý do trả lại');
       return;
     }
     try {
@@ -162,7 +162,7 @@ const StocktakeDetail = () => {
       } else {
         await stocktakeService.rejectStockTake(id, rejectionReason);
       }
-      showToast?.('success', 'Đã từ chối phiếu kiểm kê');
+      showToast?.('success', 'Đã trả lại phiếu kiểm kê để kiểm tra lại');
       setRejectModal(false);
       setRejectionReason('');
       load();
@@ -242,7 +242,7 @@ const StocktakeDetail = () => {
               </Button>
               <Button variant="danger" onClick={() => setRejectModal(true)}>
                 <XCircle className="w-3.5 h-3.5" />
-                Từ chối
+                Trả lại kiểm tra
               </Button>
             </>
           )}
@@ -285,7 +285,7 @@ const StocktakeDetail = () => {
           )}
           {stocktake.rejection_reason && (
             <div className="col-span-2">
-              <p className="text-[10px] font-bold text-shade-50 uppercase tracking-wider mb-1">Lý do từ chối</p>
+              <p className="text-[10px] font-bold text-shade-50 uppercase tracking-wider mb-1">Lý do trả lại kiểm tra</p>
               <p className="text-danger-600 font-semibold">{stocktake.rejection_reason}</p>
             </div>
           )}
@@ -621,16 +621,16 @@ const StocktakeDetail = () => {
       {rejectModal && (
         <div className="fixed inset-0 bg-canvas-night/40 z-50 flex items-center justify-center p-4">
           <div className="bg-canvas-light rounded-lg shadow-level-3 p-6 max-w-sm w-full flex flex-col gap-4">
-            <h3 className="text-base font-bold text-canvas-night">Từ chối phiếu kiểm kê</h3>
+            <h3 className="text-base font-bold text-canvas-night">Trả lại phiếu để kiểm tra lại</h3>
             <div className="space-y-1.5">
               <label className="block text-xs font-semibold text-shade-40 uppercase tracking-wider">
-                Lý do từ chối <span className="text-danger-500">*</span>
+                Lý do trả lại <span className="text-danger-500">*</span>
               </label>
               <textarea
                 rows={3}
                 value={rejectionReason}
                 onChange={(e) => setRejectionReason(e.target.value)}
-                placeholder="Nhập lý do từ chối..."
+                placeholder="Nhập lý do cần kiểm tra lại..."
                 className="w-full px-3 py-2 rounded-md border border-hairline-light focus:border-danger-400 text-sm outline-none resize-none"
               />
             </div>
@@ -642,7 +642,7 @@ const StocktakeDetail = () => {
                 Hủy
               </Button>
               <Button variant="danger" onClick={handleReject}>
-                Xác nhận từ chối
+                Xác nhận trả lại
               </Button>
             </div>
           </div>
