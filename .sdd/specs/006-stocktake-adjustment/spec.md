@@ -79,8 +79,8 @@ Mọi phiếu kiểm kê `PENDING_APPROVAL`, không phân cấp theo giá trị 
 - `approved_at` (TIMESTAMPTZ)
 - `status` (VARCHAR(30), DEFAULT 'DRAFT', CHECK IN ('DRAFT','IN_PROGRESS','PENDING_APPROVAL','APPROVED','REJECTED','CANCELLED'), NOT NULL)
 - `total_variance_value` (DECIMAL(18,2), DEFAULT 0) — SUM của variance_value tất cả items (có dấu âm/dương); chỉ mang tính thông tin, không dùng để định tuyến phê duyệt
-- `stock_take_date` (DATE, NOT NULL)
-- `document_date` (DATE, NOT NULL)
+- `stock_take_date` (DATE, NOT NULL) — không được sau `document_date` và phải nằm trong khoảng ngày của `accounting_period_id`
+- `document_date` (DATE, NOT NULL) — phải nằm trong khoảng ngày của `accounting_period_id`
 - `accounting_period_id` (BIGINT, FK→accounting_periods, NOT NULL) — phải là kỳ đang OPEN
 - `rejection_reason` (TEXT) — bắt buộc khi status = REJECTED
 - `created_at` (TIMESTAMPTZ)
@@ -140,6 +140,9 @@ _Xem chi tiết tại các tài liệu đặc tả tính năng:_
 | INVALID_COUNT_QTY              | 400  | Số đếm thực tế âm                                                                          |
 | INVENTORY_VERSION_CONFLICT     | 409  | Concurrent inventory update khi approve                                                    |
 | ACCOUNTING_PERIOD_CLOSED       | 422  | Tạo hoặc phê duyệt stocktake vào kỳ kế toán đã CLOSED                                      |
+| STOCK_TAKE_DATE_AFTER_DOCUMENT_DATE | 422 | `stock_take_date` sau `document_date`                                                       |
+| STOCK_TAKE_DATE_OUTSIDE_ACCOUNTING_PERIOD | 422 | `stock_take_date` không nằm trong khoảng ngày của `accounting_period_id`                    |
+| DOCUMENT_DATE_OUTSIDE_ACCOUNTING_PERIOD | 422 | `document_date` không nằm trong khoảng ngày của `accounting_period_id`                      |
 | VARIANCE_REASON_REQUIRED       | 400  | actual_qty ≠ system_qty nhưng không nhập lý do chênh lệch (notes bắt buộc khi có variance) |
 
 ---
