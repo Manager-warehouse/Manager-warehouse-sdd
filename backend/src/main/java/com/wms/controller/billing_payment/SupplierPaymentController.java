@@ -25,7 +25,7 @@ public class SupplierPaymentController {
     private final UserRepository userRepository;
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ACCOUNTANT', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT', 'ACCOUNTANT_MANAGER', 'ADMIN', 'CEO')")
     public ResponseEntity<SupplierPaymentResponse> createSupplierPayment(
             @Valid @RequestBody CreateSupplierPaymentRequest request,
             Principal principal) {
@@ -54,7 +54,7 @@ public class SupplierPaymentController {
     }
 
     @PostMapping("/ocr")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT', 'ACCOUNTANT_MANAGER', 'ADMIN', 'CEO')")
     public ResponseEntity<com.wms.dto.response.SupplierPaymentOcrResponse> scanSupplierPaymentOcr(
             @RequestParam("file") org.springframework.web.multipart.MultipartFile file,
             Principal principal) {

@@ -525,12 +525,12 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
       },
     });
 
-    expect(screen.getByText('Chờ thủ kho kho đích WH-HP chọn kệ và cất hàng trước khi chốt phiếu.')).toBeInTheDocument();
+    expect(screen.getByText('Chờ thủ kho kho đích WH-HP gửi kế hoạch cất kệ trước khi duyệt nhập kho.')).toBeInTheDocument();
     expect(screen.queryByText('Phân bổ hàng đạt QC vào các kệ')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Thêm kệ' })).not.toBeInTheDocument();
   });
 
-  it('lets destination storekeeper split final putaway across multiple bins', async () => {
+  it('lets destination storekeeper submit multi-bin putaway plan for manager approval', async () => {
     const onAction = renderPanel({
       roles: [ROLES.STOREKEEPER],
       activeWarehouse: { id: 2, code: 'WH-HP' },
@@ -565,7 +565,7 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
     const quantityInputs = screen.getAllByLabelText('Số lượng');
     fireEvent.change(quantityInputs[0], { target: { value: '4' } });
     fireEvent.change(quantityInputs[1], { target: { value: '6' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Xác nhận cuối và cất kệ' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Gửi kế hoạch cất kệ' }));
 
     await waitFor(() => expect(onAction).toHaveBeenCalledWith('finalReceive', {
       discrepancyReason: '',
@@ -576,6 +576,37 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
           { locationId: 14, quantity: 6 },
         ],
       }],
+    }));
+  });
+
+  it('lets destination manager approve pending putaway plan into stock', async () => {
+    const onAction = renderPanel({
+      roles: [ROLES.WAREHOUSE_MANAGER],
+      activeWarehouse: { id: 2, code: 'WH-HP' },
+      warehouseAccessIds: [2],
+      transfer: {
+        ...baseTransfer,
+        status: 'PUTAWAY_PENDING_APPROVAL',
+        driverArrivedAt: '2026-07-22T10:00:00Z',
+        arrivalHandoverAt: '2026-07-22T10:05:00Z',
+        arrivalHandoverPhotoRef: 'uploads/handover.jpg',
+        items: [{
+          ...baseTransfer.items[0],
+          sentQty: 10,
+          workerReceivedQty: 10,
+          receivedQty: 10,
+          qcPassedQty: 10,
+          qcFailedQty: 0,
+          destinationLocationId: 12,
+        }],
+      },
+    });
+
+    expect(screen.getByText('Kế hoạch cất kệ đang chờ duyệt')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Duyệt cất kệ và nhập kho' }));
+
+    await waitFor(() => expect(onAction).toHaveBeenCalledWith('finalReceive', {
+      discrepancyReason: '',
     }));
   });
 });

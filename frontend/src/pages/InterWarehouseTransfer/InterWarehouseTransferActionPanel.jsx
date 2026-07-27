@@ -303,10 +303,16 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
     }
     if (transfer.status === 'IN_TRANSIT' && allItemsChecked) {
       return {
-        title: transfer.isReturned ? 'Quay đầu: Chờ xác nhận cuối tại kho nguồn' : 'Chờ xác nhận cuối',
+        title: transfer.isReturned ? 'Quay đầu: Chờ lập kế hoạch cất kệ' : 'Chờ lập kế hoạch cất kệ',
         detail: transfer.isReturned
-          ? `Quản lý kho nguồn ${transfer.sourceWarehouseCode} hoàn tất nhận hàng quay đầu.`
-          : `Quản lý kho đích ${transfer.destinationWarehouseCode} hoàn tất phiếu.`,
+          ? `Thủ kho nguồn ${transfer.sourceWarehouseCode} chọn kệ, sau đó quản lý duyệt để nhập kho.`
+          : `Thủ kho đích ${transfer.destinationWarehouseCode} chọn kệ, sau đó quản lý duyệt để nhập kho.`,
+      };
+    }
+    if (transfer.status === 'PUTAWAY_PENDING_APPROVAL') {
+      return {
+        title: 'Chờ quản lý duyệt cất kệ',
+        detail: `Kế hoạch cất kệ đã được thủ kho gửi. Quản lý kho ${activeReceiveWarehouseCode} duyệt thì hàng mới vào tồn kho.`,
       };
     }
     if (transfer.status === 'COMPLETED' || transfer.status === 'COMPLETED_WITH_DISCREPANCY') {
@@ -1084,11 +1090,11 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
 
       {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && !transfer.returnRequested && hasRole(ROLES.WAREHOUSE_MANAGER) && canManageDestinationWarehouse && allItemsChecked && (
         <div className="rounded-md border border-hairline-light bg-canvas-cream/60 px-3 py-2 text-xs text-shade-60">
-          Chờ thủ kho {activeReceiveWarehouseLabel} {activeReceiveWarehouseCode} chọn kệ và cất hàng trước khi chốt phiếu.
+          Chờ thủ kho {activeReceiveWarehouseLabel} {activeReceiveWarehouseCode} gửi kế hoạch cất kệ trước khi duyệt nhập kho.
         </div>
       )}
 
-      {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && !transfer.returnRequested && hasAny(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && allItemsChecked && (
+      {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && !transfer.returnRequested && hasRole(ROLES.STOREKEEPER) && canManageDestinationWarehouse && allItemsChecked && (
         <div className="flex flex-col gap-3">
           <div className="text-xs font-semibold">Phân bổ hàng đạt QC vào các kệ</div>
           {displayedPutawayRows.map((row) => {
@@ -1130,7 +1136,29 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
               transferItemId: row.transferItemId,
               allocations: row.allocations.map((allocation) => ({ locationId: Number(allocation.locationId), quantity: Number(allocation.quantity) })),
             })),
-          })}>Xác nhận cuối và cất kệ</Button>
+          })}>Gửi kế hoạch cất kệ</Button>
+          <div className="rounded-md border border-warning-200 bg-warning-50 px-3 py-2 text-xs text-warning-800">
+            Hàng chưa vào kho ở bước này. Quản lý kho phải duyệt kế hoạch cất kệ trước khi hệ thống tăng tồn.
+          </div>
+        </div>
+      )}
+
+      {transfer.status === 'PUTAWAY_PENDING_APPROVAL' && !transfer.returnRequested && hasAny(hasRole, [ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && (
+        <div className="rounded-md border border-warning-200 bg-warning-50 p-3 flex flex-col gap-3">
+          <div>
+            <div className="text-xs font-semibold text-warning-900">Kế hoạch cất kệ đang chờ duyệt</div>
+            <div className="text-xs text-warning-800 mt-1">Duyệt xong hệ thống mới chuyển hàng từ In-Transit vào tồn kho đích.</div>
+          </div>
+          <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder={transfer.isReturned ? 'Lý do nếu hàng quay đầu bị lệch' : 'Lý do nếu có chênh lệch'} />
+          <Button loading={busy} icon={Check} onClick={() => run('finalReceive', { discrepancyReason: reason })}>
+            Duyệt cất kệ và nhập kho
+          </Button>
+        </div>
+      )}
+
+      {transfer.status === 'PUTAWAY_PENDING_APPROVAL' && !transfer.returnRequested && hasRole(ROLES.STOREKEEPER) && canManageDestinationWarehouse && (
+        <div className="rounded-md border border-hairline-light bg-canvas-cream/60 px-3 py-2 text-xs text-shade-60">
+          Đã gửi kế hoạch cất kệ. Chờ quản lý kho {activeReceiveWarehouseCode} duyệt để nhập kho.
         </div>
       )}
     </div>

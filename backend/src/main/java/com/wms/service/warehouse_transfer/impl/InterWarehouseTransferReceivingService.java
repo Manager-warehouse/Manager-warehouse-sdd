@@ -56,6 +56,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class InterWarehouseTransferReceivingService {
+    private static final String PUTAWAY_PLAN_PREFIX = "TRANSFER_PUTAWAY_PLAN:";
 
     private final InterWarehouseTransferRepository transferRepository;
     private final InterWarehouseTransferItemRepository transferItemRepository;
@@ -145,15 +146,25 @@ public class InterWarehouseTransferReceivingService {
     @Transactional
     public InterWarehouseTransferResponse finalReceive(Long id, InterWarehouseTransferFinalReceiveRequest request, User actor) {
         InterWarehouseTransfer transfer = helper.findTransfer(id);
-        helper.requireStatus(transfer, InterWarehouseTransferStatus.IN_TRANSIT);
         helper.ensureWarehouseScope(actor, transfer.isReturned() ? transfer.getSourceWarehouse().getId() : transfer.getDestinationWarehouse().getId());
         ensureAllChecked(transfer);
         boolean discrepancy = helper.items(transfer).stream().anyMatch(item -> item.getVarianceQty().compareTo(BigDecimal.ZERO) != 0);
         if (discrepancy && helper.isBlank(request.discrepancyReason())) {
             throw new BusinessRuleViolationException("DISCREPANCY_REASON_REQUIRED");
         }
+        if (transfer.getStatus() == InterWarehouseTransferStatus.IN_TRANSIT
+                && actor.getRole() == UserRole.STOREKEEPER) {
+            return submitPutawayPlan(transfer, request, actor);
+        }
+        helper.requireStatus(transfer, InterWarehouseTransferStatus.PUTAWAY_PENDING_APPROVAL);
+        if (actor.getRole() == UserRole.STOREKEEPER) {
+            throw new BusinessRuleViolationException("WAREHOUSE_MANAGER_APPROVAL_REQUIRED");
+        }
+        InterWarehouseTransferFinalReceiveRequest approvedRequest = request.putawayItems() == null
+                ? new InterWarehouseTransferFinalReceiveRequest(request.discrepancyReason(), parsePutawayPlan(transfer.getNotes()))
+                : request;
         Map<String, Object> before = helper.snapshot(transfer);
-        moveTransitToDestination(transfer, request, actor);
+        moveTransitToDestination(transfer, approvedRequest, actor);
         transfer.setStatus(discrepancy ? InterWarehouseTransferStatus.COMPLETED_WITH_DISCREPANCY : InterWarehouseTransferStatus.COMPLETED);
         transfer.setDiscrepancyReason(request.discrepancyReason());
         transfer.setConfirmedBy(actor);
@@ -167,6 +178,66 @@ public class InterWarehouseTransferReceivingService {
         InterWarehouseTransfer saved = transferRepository.save(transfer);
         helper.audit(saved, actor, AuditAction.TRANSFER_FINAL_RECEIVE, before, helper.snapshot(saved));
         return helper.toResponse(saved);
+    }
+
+    private InterWarehouseTransferResponse submitPutawayPlan(InterWarehouseTransfer transfer,
+                                                             InterWarehouseTransferFinalReceiveRequest request,
+                                                             User actor) {
+        if (request.putawayItems() == null || request.putawayItems().isEmpty()) {
+            throw new BusinessRuleViolationException("PUTAWAY_PLAN_REQUIRED");
+        }
+        Map<String, Object> before = helper.snapshot(transfer);
+        Map<Long, List<PutawayTarget>> plans = resolveFinalPutawayPlans(transfer, request);
+        for (InterWarehouseTransferItem item : helper.items(transfer)) {
+            List<PutawayTarget> targets = plans.get(item.getId());
+            if (targets != null && !targets.isEmpty()) {
+                item.setDestinationLocation(targets.get(0).location());
+                transferItemRepository.save(item);
+            }
+        }
+        transfer.setStatus(InterWarehouseTransferStatus.PUTAWAY_PENDING_APPROVAL);
+        transfer.setDiscrepancyReason(request.discrepancyReason());
+        transfer.setNotes(serializePutawayPlan(request.putawayItems()));
+        transfer.setUpdatedAt(OffsetDateTime.now());
+        InterWarehouseTransfer saved = transferRepository.save(transfer);
+        helper.audit(saved, actor, AuditAction.TRANSFER_FINAL_RECEIVE, before, helper.snapshot(saved));
+        return helper.toResponse(saved);
+    }
+
+    private String serializePutawayPlan(List<InterWarehouseTransferFinalPutawayItemRequest> plans) {
+        return PUTAWAY_PLAN_PREFIX + plans.stream()
+                .map(item -> item.transferItemId() + "=" + item.allocations().stream()
+                        .map(allocation -> allocation.locationId() + ":" + allocation.quantity())
+                        .collect(java.util.stream.Collectors.joining(",")))
+                .collect(java.util.stream.Collectors.joining(";"));
+    }
+
+    private List<InterWarehouseTransferFinalPutawayItemRequest> parsePutawayPlan(String notes) {
+        if (notes == null || !notes.startsWith(PUTAWAY_PLAN_PREFIX)) {
+            throw new BusinessRuleViolationException("PUTAWAY_PLAN_REQUIRED");
+        }
+        String body = notes.substring(PUTAWAY_PLAN_PREFIX.length());
+        if (helper.isBlank(body)) {
+            throw new BusinessRuleViolationException("PUTAWAY_PLAN_REQUIRED");
+        }
+        java.util.ArrayList<InterWarehouseTransferFinalPutawayItemRequest> items = new java.util.ArrayList<>();
+        for (String itemPart : body.split(";")) {
+            String[] pair = itemPart.split("=", 2);
+            if (pair.length != 2) {
+                throw new BusinessRuleViolationException("PUTAWAY_PLAN_INVALID");
+            }
+            java.util.ArrayList<InterWarehouseTransferPutawayAllocationRequest> allocations = new java.util.ArrayList<>();
+            for (String allocationPart : pair[1].split(",")) {
+                String[] allocation = allocationPart.split(":", 2);
+                if (allocation.length != 2) {
+                    throw new BusinessRuleViolationException("PUTAWAY_PLAN_INVALID");
+                }
+                allocations.add(new InterWarehouseTransferPutawayAllocationRequest(
+                        Long.valueOf(allocation[0]), new BigDecimal(allocation[1])));
+            }
+            items.add(new InterWarehouseTransferFinalPutawayItemRequest(Long.valueOf(pair[0]), allocations));
+        }
+        return items;
     }
 
     @Transactional

@@ -226,7 +226,10 @@ public class SupplierPaymentServiceImpl implements SupplierPaymentService {
     }
 
     private void requireAccountant(User actor) {
-        if (actor == null || (actor.getRole() != UserRole.ACCOUNTANT && actor.getRole() != UserRole.ADMIN)) {
+        if (actor == null || (actor.getRole() != UserRole.ACCOUNTANT
+                && actor.getRole() != UserRole.ACCOUNTANT_MANAGER
+                && actor.getRole() != UserRole.ADMIN
+                && actor.getRole() != UserRole.CEO)) {
             throw new AccessDeniedException("Access denied: Accountant role required");
         }
     }

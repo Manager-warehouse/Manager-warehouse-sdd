@@ -430,10 +430,11 @@ const InterWarehouseTransferWorkspace = () => {
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
                 options={[
-                  { value: 'ALL', label: 'Tất cả trạng thái' },
+                  { value: 'ALL', label: 'All statuses' },
                   { value: 'NEW', label: 'NEW' },
                   { value: 'APPROVED', label: 'APPROVED' },
                   { value: 'IN_TRANSIT', label: 'IN_TRANSIT' },
+                  { value: 'PUTAWAY_PENDING_APPROVAL', label: 'PUTAWAY_PENDING_APPROVAL' },
                   { value: 'COMPLETED', label: 'COMPLETED' },
                   { value: 'COMPLETED_WITH_DISCREPANCY', label: 'COMPLETED_WITH_DISCREPANCY' },
                   { value: 'REJECTED', label: 'REJECTED' },
