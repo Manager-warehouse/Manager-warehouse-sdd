@@ -14,23 +14,34 @@ const buildAllocationRows = (order, locations) => {
   const defaultQuarantineId = quarantineLocations.length === 1 ? quarantineLocations[0].id : '';
 
   return (order.items || []).flatMap((item) =>
-    (item.allocations || []).map((allocation, index) => ({
-      id: `${item.id}-${allocation.allocation_id || index}`,
-      do_item_id: item.id,
-      allocation_id: allocation.allocation_id,
-      batch_id: allocation.batch_id,
-      location_id: allocation.location_id,
-      zone_id: allocation.zone_id,
-      product_name: item.product_name,
-      sku: item.sku,
-      planned_qty: Number(allocation.planned_qty || item.planned_qty || item.requested_qty || 0),
-      picked_qty: Number(allocation.planned_qty || item.planned_qty || item.requested_qty || 0),
-      result: 'PASSED',
-      reason: '',
-      staging_location_id: defaultStagingId,
-      quarantine_location_id: defaultQuarantineId,
-      notes: '',
-    })),
+    (item.allocations || []).map((allocation, index) => {
+      const qcPassQty = Number(allocation.qc_pass_qty || 0);
+      const qcFailQty = Number(allocation.qc_fail_qty || 0);
+      const qcCompleted = Boolean(allocation.qc_completed);
+      const plannedQty = Number(allocation.planned_qty || item.planned_qty || item.requested_qty || 0);
+
+      return {
+        id: `${item.id}-${allocation.allocation_id || index}`,
+        do_item_id: item.id,
+        allocation_id: allocation.allocation_id,
+        batch_id: allocation.batch_id,
+        location_id: allocation.location_id,
+        zone_id: allocation.zone_id,
+        product_name: item.product_name,
+        sku: item.sku,
+        planned_qty: plannedQty,
+        picked_qty: qcCompleted ? Number(allocation.picked_qty || qcPassQty + qcFailQty) : plannedQty,
+        result: qcFailQty > 0 ? 'FAILED' : 'PASSED',
+        reason: '',
+        staging_location_id: defaultStagingId,
+        quarantine_location_id: defaultQuarantineId,
+        notes: '',
+        locked: qcCompleted,
+        replacement: allocation.replacement === true,
+        qc_pass_qty: qcPassQty,
+        qc_fail_qty: qcFailQty,
+      };
+    }),
   );
 };
 
@@ -72,38 +83,39 @@ export default function QCOutbound() {
   };
 
   const handleConfirmQC = async () => {
-    if (!qcRows.length) {
-      addToast('Đơn này chưa có dòng phân bổ để ghi nhận lấy hàng & kiểm định', 'error');
+    const activeRows = qcRows.filter((row) => !row.locked);
+    if (!activeRows.length) {
+      addToast('Đơn này không còn dòng phân bổ mới cần lấy hàng và kiểm định.', 'error');
       return;
     }
 
-    const invalidQty = qcRows.some((row) => Number(row.picked_qty) < 0 || Number(row.picked_qty) > Number(row.planned_qty));
+    const invalidQty = activeRows.some((row) => Number(row.picked_qty) < 0 || Number(row.picked_qty) > Number(row.planned_qty));
     if (invalidQty) {
-      addToast('Số lượng đã lấy phải nằm trong mức phân bổ đã lập', 'error');
+      addToast('Số lượng đã lấy phải nằm trong mức phân bổ đã lập.', 'error');
       return;
     }
 
-    const missingFailReason = qcRows.some((row) => row.result === 'FAILED' && !row.reason.trim());
+    const missingFailReason = activeRows.some((row) => row.result === 'FAILED' && !row.reason.trim());
     if (missingFailReason) {
-      addToast('Vui lòng nhập lý do cho các dòng không đạt kiểm định', 'error');
+      addToast('Vui lòng nhập lý do cho các dòng không đạt kiểm định.', 'error');
       return;
     }
 
-    const missingStagingLocation = qcRows.some((row) => !row.staging_location_id);
+    const missingStagingLocation = activeRows.some((row) => !row.staging_location_id);
     if (missingStagingLocation) {
-      addToast('Vui lòng chọn vị trí trung chuyển cho tất cả dòng phân bổ', 'error');
+      addToast('Vui lòng chọn vị trí trung chuyển cho tất cả dòng phân bổ.', 'error');
       return;
     }
 
-    const missingQuarantineLocation = qcRows.some((row) => row.result === 'FAILED' && !row.quarantine_location_id);
+    const missingQuarantineLocation = activeRows.some((row) => row.result === 'FAILED' && !row.quarantine_location_id);
     if (missingQuarantineLocation) {
-      addToast('Vui lòng chọn vị trí cách ly cho các dòng không đạt kiểm định', 'error');
+      addToast('Vui lòng chọn vị trí cách ly cho các dòng không đạt kiểm định.', 'error');
       return;
     }
 
     setSubmitting(true);
     try {
-      await outboundService.confirmQCOutbound(id, { items: qcRows });
+      await outboundService.confirmQCOutbound(id, { items: activeRows });
       addToast('Hoàn tất kiểm định xuất kho', 'success');
       navigate(`/outbound/delivery-orders/${id}`);
     } catch (error) {
@@ -113,7 +125,9 @@ export default function QCOutbound() {
     }
   };
 
-  const failCount = qcRows.filter((row) => row.result === 'FAILED').length;
+  const activeRows = qcRows.filter((row) => !row.locked);
+  const failCount = activeRows.filter((row) => row.result === 'FAILED').length;
+  const lockedRowCount = qcRows.length - activeRows.length;
   const stagingOptions = locations.filter((location) => location.is_quarantine !== true && location.is_staging === true);
   const quarantineOptions = locations.filter((location) => location.is_quarantine === true);
 
@@ -149,6 +163,15 @@ export default function QCOutbound() {
         </div>
       </div>
 
+      {lockedRowCount > 0 && (
+        <div className="bg-canvas-cream border border-hairline-light rounded-lg p-4 flex items-center gap-3">
+          <AlertCircle className="w-5 h-5 text-shade-50 shrink-0" />
+          <p className="text-sm text-shade-60 font-medium">
+            {lockedRowCount} dòng đã có kết quả QC và đã khóa. Staff chỉ xử lý các dòng phân bổ mới còn mở.
+          </p>
+        </div>
+      )}
+
       {failCount > 0 && (
         <div className="bg-danger-50 border border-danger-200 rounded-lg p-4 flex items-center gap-3">
           <AlertCircle className="w-5 h-5 text-danger-600 shrink-0" />
@@ -163,7 +186,7 @@ export default function QCOutbound() {
         <div className="px-6 py-4 bg-canvas-cream border-b border-hairline-light flex items-center gap-2">
           <PackageSearch className="w-4 h-4 text-shade-50" />
           <h3 className="text-xs font-bold uppercase tracking-wider text-shade-60">
-            Danh sách phân bổ lấy hàng ({qcRows.length} dòng)
+            Danh sách phân bổ lấy hàng ({activeRows.length} dòng cần xử lý, {lockedRowCount} dòng đã khóa)
           </h3>
         </div>
 
@@ -175,8 +198,9 @@ export default function QCOutbound() {
           <div className="divide-y divide-hairline-light">
             {qcRows.map((row) => {
               const isFailed = row.result === 'FAILED';
+              const isLocked = row.locked;
               return (
-                <div key={row.id} className={`p-6 transition-colors ${isFailed ? 'bg-danger-50/30' : 'bg-canvas-light'}`}>
+                <div key={row.id} className={`p-6 transition-colors ${isLocked ? 'bg-canvas-cream/70 opacity-75' : isFailed ? 'bg-danger-50/30' : 'bg-canvas-light'}`}>
                   <div className="flex flex-col gap-4">
                     <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                       <div>
@@ -185,12 +209,18 @@ export default function QCOutbound() {
                         <p className="text-xs text-shade-50 mt-1">
                           Phân bổ #{row.allocation_id || '-'} · Lô {row.batch_id || '-'} · Vị trí {row.location_id || '-'} · Khu {row.zone_id || '-'}
                         </p>
+                        {isLocked && (
+                          <p className="mt-2 inline-flex rounded-pill border border-hairline-light bg-canvas-light px-3 py-1 text-[11px] font-semibold text-shade-60">
+                            Đã xử lý QC: đạt {row.qc_pass_qty}, lỗi {row.qc_fail_qty}. Dòng này đã khóa.
+                          </p>
+                        )}
                       </div>
 
                       <div className="flex items-center gap-2 shrink-0">
                         <button
+                          disabled={isLocked}
                           onClick={() => updateRow(row.id, 'result', 'PASSED')}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill border text-xs font-semibold transition-colors ${
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill border text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                             !isFailed
                               ? 'bg-success-50 border-success-300 text-success-900'
                               : 'bg-canvas-light border-hairline-light text-shade-50 hover:bg-canvas-cream'
@@ -199,8 +229,9 @@ export default function QCOutbound() {
                           Đạt kiểm định
                         </button>
                         <button
+                          disabled={isLocked}
                           onClick={() => updateRow(row.id, 'result', 'FAILED')}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill border text-xs font-semibold transition-colors ${
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill border text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                             isFailed
                               ? 'bg-danger-50 border-danger-300 text-danger-700'
                               : 'bg-canvas-light border-hairline-light text-shade-50 hover:bg-canvas-cream'
@@ -222,15 +253,17 @@ export default function QCOutbound() {
                           type="number"
                           min="0"
                           max={row.planned_qty}
+                          disabled={isLocked}
                           value={row.picked_qty}
                           onChange={(event) => updateRow(row.id, 'picked_qty', Number(event.target.value))}
-                          className="w-full text-input text-xs"
+                          className="w-full text-input text-xs disabled:bg-canvas-cream"
                         />
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-shade-60 mb-1.5">Vị trí trung chuyển *</label>
                         <Input
                           type="select"
+                          disabled={isLocked}
                           value={row.staging_location_id}
                           onChange={(event) => updateRow(row.id, 'staging_location_id', event.target.value)}
                           options={[
@@ -247,16 +280,18 @@ export default function QCOutbound() {
                           <label className="block text-xs font-semibold text-danger-700 mb-1.5">Lý do không đạt kiểm định *</label>
                           <input
                             type="text"
+                            disabled={isLocked}
                             value={row.reason}
                             onChange={(event) => updateRow(row.id, 'reason', event.target.value)}
                             placeholder="Móp méo, trầy xước, sai mã..."
-                            className="w-full text-input text-xs border-danger-300 focus:border-danger-500"
+                            className="w-full text-input text-xs border-danger-300 focus:border-danger-500 disabled:bg-canvas-cream"
                           />
                         </div>
                         <div>
                           <label className="block text-xs font-semibold text-danger-700 mb-1.5">Vị trí cách ly *</label>
                           <Input
                             type="select"
+                            disabled={isLocked}
                             value={row.quarantine_location_id}
                             onChange={(event) => updateRow(row.id, 'quarantine_location_id', event.target.value)}
                             options={[
@@ -280,7 +315,7 @@ export default function QCOutbound() {
           </Button>
           <button
             onClick={handleConfirmQC}
-            disabled={!qcRows.length || submitting}
+            disabled={!activeRows.length || submitting}
             className="btn-pill btn-pill-aloe text-xs py-1.5 px-4 font-bold disabled:opacity-50 flex items-center gap-1.5"
           >
             {submitting ? (

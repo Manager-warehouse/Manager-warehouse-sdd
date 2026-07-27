@@ -97,6 +97,7 @@ import com.wms.exception.OutboundDeliveryException;
 import com.wms.exception.PriceHistoryException;
 import com.wms.exception.ResourceNotFoundException;
 import com.wms.mapper.DeliveryOrderMapper;
+import com.wms.mapper.DeliveryOrderMapper.AllocationQcSummary;
 import com.wms.repository.dealer_management.DealerRepository;
 import com.wms.repository.AdjustmentRepository;
 import com.wms.repository.DeliveryOrderItemAllocationRepository;
@@ -1253,7 +1254,30 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     private DeliveryOrderResponse toResponse(DeliveryOrder order) {
         List<DeliveryOrderItem> orderItems = items(order.getId());
         List<DeliveryOrderItemAllocation> orderAllocations = allocations(order.getId());
-        return deliveryOrderMapper.toResponse(order, orderItems, orderAllocations);
+        return deliveryOrderMapper.toResponse(order, orderItems, orderAllocations,
+                allocationQcSummary(orderAllocations));
+    }
+
+    private Map<Long, AllocationQcSummary> allocationQcSummary(List<DeliveryOrderItemAllocation> allocations) {
+        List<Long> allocationIds = allocations.stream()
+                .map(DeliveryOrderItemAllocation::getId)
+                .filter(Objects::nonNull)
+                .toList();
+        if (allocationIds.isEmpty()) {
+            return Map.of();
+        }
+        return outboundQcRecordRepository.findByAllocationIdIn(allocationIds).stream()
+                .collect(Collectors.groupingBy(row -> row.getAllocation().getId(),
+                        Collectors.collectingAndThen(Collectors.toList(), rows -> {
+                            BigDecimal qcPassQty = rows.stream()
+                                    .map(OutboundQcRecord::getQcPassQty)
+                                    .reduce(ZERO, this::valueAdd);
+                            BigDecimal qcFailQty = rows.stream()
+                                    .map(OutboundQcRecord::getQcFailQty)
+                                    .reduce(ZERO, this::valueAdd);
+                            return new AllocationQcSummary(qcPassQty, qcFailQty,
+                                    qcPassQty.add(qcFailQty).compareTo(ZERO) > 0);
+                        })));
     }
 
     private void requireReturnedOrderScope(DeliveryOrder order, User actor) {

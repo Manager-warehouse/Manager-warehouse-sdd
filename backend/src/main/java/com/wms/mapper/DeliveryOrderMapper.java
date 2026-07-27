@@ -55,6 +55,13 @@ public class DeliveryOrderMapper {
         public DeliveryOrderResponse toResponse(DeliveryOrder order,
                         List<DeliveryOrderItem> items,
                         List<DeliveryOrderItemAllocation> allocations) {
+                return toResponse(order, items, allocations, Map.of());
+        }
+
+        public DeliveryOrderResponse toResponse(DeliveryOrder order,
+                        List<DeliveryOrderItem> items,
+                        List<DeliveryOrderItemAllocation> allocations,
+                        Map<Long, AllocationQcSummary> qcSummaryByAllocationId) {
                 Map<Long, List<DeliveryOrderItemAllocation>> allocationsByItemId = allocations.stream()
                                 .collect(Collectors
                                                 .groupingBy(allocation -> allocation.getDeliveryOrderItem().getId()));
@@ -85,7 +92,8 @@ public class DeliveryOrderMapper {
                                 .items(items.stream()
                                                 .map(item -> toItemResponse(item,
                                                                 allocationsByItemId.getOrDefault(item.getId(),
-                                                                                List.of())))
+                                                                                List.of()),
+                                                                qcSummaryByAllocationId))
                                                 .toList())
                                 .createdAt(order.getCreatedAt())
                                 .updatedAt(order.getUpdatedAt())
@@ -98,6 +106,12 @@ public class DeliveryOrderMapper {
 
         public DeliveryOrderItemResponse toItemResponse(DeliveryOrderItem item,
                         List<DeliveryOrderItemAllocation> allocations) {
+                return toItemResponse(item, allocations, Map.of());
+        }
+
+        public DeliveryOrderItemResponse toItemResponse(DeliveryOrderItem item,
+                        List<DeliveryOrderItemAllocation> allocations,
+                        Map<Long, AllocationQcSummary> qcSummaryByAllocationId) {
                 return DeliveryOrderItemResponse.builder()
                                 .id(item.getId())
                                 .productId(item.getProduct().getId())
@@ -124,10 +138,27 @@ public class DeliveryOrderMapper {
                                                                 .zoneId(allocation.getZone().getId())
                                                                 .plannedQty(allocation.getPlannedQty())
                                                                 .pickedQty(allocation.getPickedQty())
+                                                                .qcPassQty(qcSummaryByAllocationId
+                                                                                .getOrDefault(allocation.getId(),
+                                                                                                AllocationQcSummary.EMPTY)
+                                                                                .qcPassQty())
+                                                                .qcFailQty(qcSummaryByAllocationId
+                                                                                .getOrDefault(allocation.getId(),
+                                                                                                AllocationQcSummary.EMPTY)
+                                                                                .qcFailQty())
+                                                                .qcCompleted(qcSummaryByAllocationId
+                                                                                .getOrDefault(allocation.getId(),
+                                                                                                AllocationQcSummary.EMPTY)
+                                                                                .completed())
                                                                 .replacement(Boolean.TRUE
                                                                                 .equals(allocation.getReplacement()))
                                                                 .build())
                                                 .toList())
                                 .build();
+        }
+
+        public record AllocationQcSummary(BigDecimal qcPassQty, BigDecimal qcFailQty, boolean completed) {
+                public static final AllocationQcSummary EMPTY = new AllocationQcSummary(BigDecimal.ZERO, BigDecimal.ZERO,
+                                false);
         }
 }

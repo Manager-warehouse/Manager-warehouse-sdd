@@ -275,6 +275,32 @@ class DeliveryOrderServiceImplTest {
     }
 
     @Test
+    void getDeliveryOrderById_includesAllocationQcSummary() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.QC_PENDING_APPROVAL);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("10.00"));
+        DeliveryOrderItemAllocation allocation = allocation(900L, item, inventory, zone,
+                new BigDecimal("10.00"), new BigDecimal("10.00"), false);
+        OutboundQcRecord qcRecord = new OutboundQcRecord();
+        qcRecord.setDeliveryOrder(order);
+        qcRecord.setDeliveryOrderItem(item);
+        qcRecord.setAllocation(allocation);
+        qcRecord.setQcPassQty(new BigDecimal("8.00"));
+        qcRecord.setQcFailQty(new BigDecimal("2.00"));
+
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
+        when(deliveryOrderItemRepository.findByDeliveryOrderId(100L)).thenReturn(List.of(item));
+        when(allocationRepository.findByDeliveryOrderItemDeliveryOrderId(100L)).thenReturn(List.of(allocation));
+        when(outboundQcRecordRepository.findByAllocationIdIn(List.of(900L))).thenReturn(List.of(qcRecord));
+
+        DeliveryOrderResponse response = service.getDeliveryOrderById(100L, storekeeper);
+
+        assertThat(response.getItems().get(0).getAllocations().get(0).getQcPassQty()).isEqualByComparingTo("8.00");
+        assertThat(response.getItems().get(0).getAllocations().get(0).getQcFailQty()).isEqualByComparingTo("2.00");
+        assertThat(response.getItems().get(0).getAllocations().get(0).isQcCompleted()).isTrue();
+    }
+
+    @Test
     void saveDeliveryOrderPickingPlan_autoBuildsFifoAllocationsWhenRequestIsEmpty() {
         DeliveryOrder order = order(100L, DeliveryOrderStatus.NEW);
         DeliveryOrderItem item = item(order, product, new BigDecimal("10.00"));

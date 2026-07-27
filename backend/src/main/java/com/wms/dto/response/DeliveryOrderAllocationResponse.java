@@ -49,5 +49,8 @@ public class DeliveryOrderAllocationResponse {
     private Long zoneId;
     private BigDecimal plannedQty;
     private BigDecimal pickedQty;
+    private BigDecimal qcPassQty;
+    private BigDecimal qcFailQty;
+    private boolean qcCompleted;
     private boolean replacement;
 }
