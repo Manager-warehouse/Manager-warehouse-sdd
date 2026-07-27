@@ -600,7 +600,9 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                 quarantineRecord.setDeliveryOrder(order);
                 quarantineRecord.setDeliveryOrderItem(item);
                 quarantineRecord.setAllocation(allocation);
+                quarantineRecord.setOriginType("OUTBOUND_QC");
                 quarantineRecord.setQuantity(row.getQcFailQty());
+                quarantineRecord.setRemainingQuantity(row.getQcFailQty());
                 quarantineRecord.setReason(row.getQcFailReason());
                 quarantineRecord.setCreatedBy(actor);
                 quarantineRecord.setCreatedAt(now);

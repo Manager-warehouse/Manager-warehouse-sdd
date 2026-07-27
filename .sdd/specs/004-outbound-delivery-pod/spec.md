@@ -277,7 +277,7 @@ _Out of scope for this feature group implementation: payment receipt, payment ap
 - `recipient_email` (VARCHAR(255), NOT NULL)
 - `expires_at` (TIMESTAMPTZ, NOT NULL)
 - `consumed_at` (TIMESTAMPTZ)
-- `status` (VARCHAR(20), DEFAULT 'ACTIVE', CHECK IN ('ACTIVE','VERIFIED','EXPIRED'), NOT NULL)
+- `status` (VARCHAR(20), DEFAULT 'ACTIVE', CHECK IN ('ACTIVE','VERIFIED','EXPIRED','LOCKED'), NOT NULL)
 - `attempt_count` (INTEGER, DEFAULT 0)
 - `created_at` (TIMESTAMPTZ)
 
