@@ -12,6 +12,17 @@ const formatCandidateLabel = (candidate) => {
   return parts.join(' · ');
 };
 
+const formatFailedSourceLabel = (source) => {
+  const parts = [
+    source.location_code || `Vị trí ${source.location_id || '-'}`,
+    source.zone_code || `Khu ${source.zone_id || '-'}`,
+    source.batch_code || `Lô ${source.batch_id || '-'}`,
+    `Đã lấy ${Number(source.picked_qty || source.planned_qty || 0)}`,
+  ];
+
+  return parts.join(' · ');
+};
+
 const sumPlannedQty = (item) => (item.allocations || []).reduce(
   (total, allocation) => total + Number(allocation.planned_qty || 0),
   0,
@@ -20,11 +31,16 @@ const sumPlannedQty = (item) => (item.allocations || []).reduce(
 const DeliveryOrderPickingPlanEditor = ({
   items = [],
   candidatesByItemId = {},
+  mode = 'picking',
+  title = 'Lập kế hoạch lấy hàng',
+  description = 'Chọn inventory cụ thể theo từng batch, bin, zone trước khi lưu picking plan.',
+  saveLabel = 'Lưu kế hoạch lấy hàng',
   submitting = false,
   disableSave = false,
   onAddAllocation,
   onAllocationChange,
   onCandidateSelect,
+  onFailedSourceSelect,
   onRemoveAllocation,
   onSave,
 }) => (
@@ -32,10 +48,10 @@ const DeliveryOrderPickingPlanEditor = ({
     <div className="px-6 py-4 border-b border-hairline-light bg-canvas-cream flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
       <div>
         <h3 className="text-xs font-bold uppercase tracking-wider text-shade-60">
-          Lập kế hoạch lấy hàng
+          {title}
         </h3>
         <p className="text-xs text-shade-50 mt-1">
-          Chọn inventory cụ thể theo từng batch, bin, zone trước khi lưu picking plan.
+          {description}
         </p>
       </div>
       <button
@@ -45,15 +61,17 @@ const DeliveryOrderPickingPlanEditor = ({
         className="btn-pill btn-pill-primary inline-flex items-center gap-2 disabled:opacity-50"
       >
         <Save className="w-4 h-4" />
-        Lưu kế hoạch lấy hàng
+        {saveLabel}
       </button>
     </div>
 
     <div className="p-6 space-y-6">
       {items.map((item) => {
         const candidates = candidatesByItemId[item.id] || [];
+        const failedSources = item.failed_sources || [];
         const plannedQty = sumPlannedQty(item);
-        const qtyMatched = plannedQty === Number(item.requested_qty || 0);
+        const requiredQty = Number(item.replacement_required_qty ?? item.requested_qty ?? 0);
+        const qtyMatched = plannedQty === requiredQty;
 
         return (
           <section key={item.id} className="border border-hairline-light rounded-lg overflow-hidden">
@@ -63,7 +81,7 @@ const DeliveryOrderPickingPlanEditor = ({
                 <p className="text-xs text-shade-50 font-mono">{item.sku || '-'}</p>
               </div>
               <div className="text-xs font-semibold">
-                <span className="text-shade-50">Yêu cầu:</span> {Number(item.requested_qty || 0)}
+                <span className="text-shade-50">{mode === 'replacement' ? 'Cần bù:' : 'Yêu cầu:'}</span> {requiredQty}
                 <span className={`ml-3 ${qtyMatched ? 'text-success-700' : 'text-warning-700'}`}>
                   Đã phân bổ: {plannedQty}
                 </span>
@@ -74,15 +92,42 @@ const DeliveryOrderPickingPlanEditor = ({
               {!candidates.length && (
                 <div className="flex items-start gap-2 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2.5 text-xs text-warning-800">
                   <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                  <span>API hiện chưa trả danh sách tồn kho FIFO để chọn cho dòng này. Có thể chỉ xem phân bổ đã lưu.</span>
+                  <span>Chưa có danh sách tồn kho FIFO để chọn cho dòng này.</span>
                 </div>
               )}
 
               {(item.allocations || []).map((allocation, index) => (
-                <div key={`${item.id}-${allocation.allocation_id || index}`} className="grid grid-cols-1 gap-3 rounded-lg border border-hairline-light p-3 md:grid-cols-[minmax(0,2fr)_110px_auto]">
+                <div
+                  key={`${item.id}-${allocation.allocation_id || index}`}
+                  className={`grid grid-cols-1 gap-3 rounded-lg border border-hairline-light p-3 ${
+                    mode === 'replacement'
+                      ? 'md:grid-cols-[minmax(0,1.35fr)_minmax(0,1.65fr)_110px_minmax(0,1fr)_auto]'
+                      : 'md:grid-cols-[minmax(0,2fr)_110px_auto]'
+                  }`}
+                >
+                  {mode === 'replacement' && (
+                    <div className="space-y-2">
+                      <label className="block text-[11px] font-semibold uppercase tracking-wider text-shade-50">
+                        Hàng lỗi QC
+                      </label>
+                      <select
+                        value={allocation.failed_inventory_id || ''}
+                        onChange={(event) => onFailedSourceSelect(item.id, index, event.target.value)}
+                        className="w-full rounded-md border border-hairline-light bg-canvas-light px-3 py-2 text-sm text-ink focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
+                      >
+                        <option value="">Chọn dòng đã QC fail</option>
+                        {failedSources.map((source) => (
+                          <option key={source.inventory_id} value={source.inventory_id}>
+                            {formatFailedSourceLabel(source)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
                   <div className="space-y-2">
                     <label className="block text-[11px] font-semibold uppercase tracking-wider text-shade-50">
-                      Nguồn lấy hàng
+                      {mode === 'replacement' ? 'Nguồn hàng bù' : 'Nguồn lấy hàng'}
                     </label>
                     <select
                       value={allocation.inventory_id || ''}
@@ -108,12 +153,26 @@ const DeliveryOrderPickingPlanEditor = ({
                     <input
                       type="number"
                       min="0"
-                      step="1"
+                      step="0.01"
                       value={allocation.planned_qty ?? 0}
                       onChange={(event) => onAllocationChange(item.id, index, 'planned_qty', event.target.value)}
                       className="w-full rounded-md border border-hairline-light bg-canvas-light px-3 py-2 text-sm text-ink focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
                     />
                   </div>
+
+                  {mode === 'replacement' && (
+                    <div className="space-y-2">
+                      <label className="block text-[11px] font-semibold uppercase tracking-wider text-shade-50">
+                        Lý do
+                      </label>
+                      <input
+                        value={allocation.reason || ''}
+                        onChange={(event) => onAllocationChange(item.id, index, 'reason', event.target.value)}
+                        className="w-full rounded-md border border-hairline-light bg-canvas-light px-3 py-2 text-sm text-ink focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
+                        placeholder="VD: Hàng lỗi QC"
+                      />
+                    </div>
+                  )}
 
                   <div className="flex items-end justify-between gap-2 md:justify-end">
                     <div className="text-[11px] text-shade-50">
