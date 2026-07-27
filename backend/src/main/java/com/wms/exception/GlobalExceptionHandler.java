@@ -272,6 +272,8 @@ public class GlobalExceptionHandler {
             case "TRIP_START_IN_PAST": return "Thời gian bắt đầu chuyến đi không được ở quá khứ.";
             case "TRIP_END_IN_PAST": return "Thời gian hạn giao hàng không được ở quá khứ.";
             case "TRIP_RESOURCE_OVERLAP": return "Tài xế hoặc phương tiện đã được gán cho một chuyến đi khác trùng thời gian.";
+            case "VEHICLE_SCHEDULE_OVERLAP": return "Phương tiện đã được gán cho một chuyến đi khác trùng thời gian.";
+            case "DRIVER_SCHEDULE_OVERLAP": return "Tài xế đã được gán cho một chuyến đi khác trùng thời gian.";
             case "VEHICLE_NOT_AVAILABLE": return "Phương tiện vận tải hiện không khả dụng.";
             case "DRIVER_NOT_AVAILABLE": return "Tài xế hiện không khả dụng.";
             case "DUPLICATE_EXTERNAL_INSTRUCTION": return "Mã chỉ thị điều chuyển này đã tồn tại trên hệ thống.";
