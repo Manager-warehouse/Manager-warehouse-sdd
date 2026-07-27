@@ -138,6 +138,20 @@ class AccountingPeriodServiceImplTest {
     }
 
     @Test
+    void getAllPeriods_allowsStorekeeperToSelectOpenPeriodForStocktake() {
+        User storekeeper = new User();
+        storekeeper.setId(2L);
+        storekeeper.setRole(UserRole.STOREKEEPER);
+        when(accountingPeriodRepository.findAllByOrderByStartDateDesc()).thenReturn(List.of(openPeriod));
+
+        var response = service.getAllPeriods(storekeeper);
+
+        assertEquals(1, response.size());
+        assertEquals(openPeriod.getId(), response.get(0).getId());
+        assertEquals(AccountingPeriodStatus.OPEN, response.get(0).getStatus());
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     void closePeriod_reportsBlockingReceiptsWithSampleNumbers() {
         when(accountingPeriodRepository.findById(10L)).thenReturn(Optional.of(openPeriod));

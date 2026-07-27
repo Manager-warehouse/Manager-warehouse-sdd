@@ -261,7 +261,9 @@ public class AccountingPeriodServiceImpl implements AccountingPeriodService {
         if (actor == null || (actor.getRole() != UserRole.ACCOUNTANT 
                 && actor.getRole() != UserRole.ACCOUNTANT_MANAGER 
                 && actor.getRole() != UserRole.ADMIN 
-                && actor.getRole() != UserRole.CEO)) {
+                && actor.getRole() != UserRole.CEO
+                && actor.getRole() != UserRole.WAREHOUSE_MANAGER
+                && actor.getRole() != UserRole.STOREKEEPER)) {
             throw new AccessDeniedException("Access denied: Accountant or Manager privileges required");
         }
     }
