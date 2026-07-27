@@ -108,7 +108,7 @@ public class DeliveryOrderController {
             summary = "Get FIFO picking candidates for each item in the delivery order",
             description = "Returns available inventory rows ordered by FIFO (receivedDate ASC) "
                     + "for each DO item, grouped by DO item ID. "
-                    + "Only available when the delivery order status is NEW or WAITING_PICKING."
+                    + "Only available when the delivery order status is NEW, WAITING_PICKING, or QC_PENDING_APPROVAL."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Picking candidates returned"),

@@ -104,6 +104,7 @@ export default function DeliveryOrderDetail() {
   const [loadingCandidates, setLoadingCandidates] = useState(false);
   const [rejectModal, setRejectModal] = useState({ show: false, reason: '' });
   const [draftItems, setDraftItems] = useState([]);
+  const [replacementDraftItems, setReplacementDraftItems] = useState([]);
   const [pickingCandidates, setPickingCandidates] = useState({});
   const [locations, setLocations] = useState([]);
   const [returnedFlow, setReturnedFlow] = useState(null);
@@ -121,9 +122,11 @@ export default function DeliveryOrderDetail() {
       const data = await outboundService.getDeliveryOrderById(id);
       setOrder(data);
       setDraftItems(outboundService.createPickingPlanDraft(data.items || []));
+      setReplacementDraftItems(outboundService.createReplacementPlanDraft(data.items || []));
       const baseReturnRows = buildReturnedRows(data.items || []);
       setReturnRows(baseReturnRows);
-      if (hasRole(ROLES.STOREKEEPER) && ['NEW', 'WAITING_PICKING'].includes(data.status || data.raw_status)) {
+      if (hasRole(ROLES.STOREKEEPER)
+          && ['NEW', 'WAITING_PICKING', 'QC_PENDING_APPROVAL'].includes(data.status || data.raw_status)) {
         setLoadingCandidates(true);
         try {
           const candidates = await outboundService.getPickingCandidates(id);
@@ -229,6 +232,37 @@ export default function DeliveryOrderDetail() {
     }
   };
 
+  const handleSaveReplacementPlan = async () => {
+    const hasInvalidItem = replacementDraftItems.some((item) => {
+      const plannedQty = (item.allocations || []).reduce(
+        (sum, allocation) => sum + Number(allocation.planned_qty || 0),
+        0,
+      );
+      const requiredQty = Number(item.replacement_required_qty || item.qc_fail_qty || 0);
+      const hasIncompleteAllocation = (item.allocations || []).some((allocation) => (
+        Number(allocation.planned_qty || 0) > 0
+        && (!allocation.failed_inventory_id || !allocation.inventory_id || !allocation.reason?.trim())
+      ));
+      return hasIncompleteAllocation || plannedQty !== requiredQty;
+    });
+
+    if (hasInvalidItem || replacementDraftItems.length === 0) {
+      addToast('Cần chọn đủ hàng lỗi, hàng bù, số lượng và lý do trước khi lưu.', 'error');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await outboundService.saveReplacementPlan(id, replacementDraftItems);
+      addToast('Đã lưu kế hoạch lấy hàng bù', 'success');
+      fetchOrder();
+    } catch (error) {
+      addToast(error.message || 'Không thể lưu kế hoạch lấy hàng bù', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleReturnRowChange = (rowKey, field, value) => {
     setReturnRows((previous) => previous.map((row) => (
       row.key === rowKey ? { ...row, [field]: value } : row
@@ -242,9 +276,9 @@ export default function DeliveryOrderDetail() {
       setReturnedFlow(flow);
       setReturnRows((previous) => mergeReturnedFlowRows(previous, flow));
       setReturnRejectReason('');
-      addToast('Da xac nhan hang hoan ve kho. Staff co the nhap ket qua kiem tra.', 'success');
+      addToast('Đã xác nhận hàng hoàn về kho. Staff có thể nhập kết quả kiểm tra.', 'success');
     } catch (error) {
-      addToast(error.message || 'Khong the xac nhan hang hoan ve kho', 'error');
+      addToast(error.message || 'Không thể xác nhận hàng hoàn về kho', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -301,7 +335,7 @@ export default function DeliveryOrderDetail() {
 
   const handleRejectReturnedGoodsQc = async () => {
     if (!returnRejectReason.trim()) {
-      addToast('Vui long nhap ly do tu choi ket qua QC.', 'error');
+      addToast('Vui lòng nhập lý do từ chối kết quả QC.', 'error');
       return;
     }
     setSubmitting(true);
@@ -309,9 +343,9 @@ export default function DeliveryOrderDetail() {
       const flow = await outboundService.rejectReturnedGoodsQc(id, returnRejectReason.trim(), returnNotes);
       setReturnedFlow(flow);
       setReturnRows((previous) => mergeReturnedFlowRows(previous, flow));
-      addToast('Da tu choi ket qua QC. Staff can kiem tra va gui lai.', 'success');
+      addToast('Đã từ chối kết quả QC. Staff cần kiểm tra và gửi lại.', 'success');
     } catch (error) {
-      addToast(error.message || 'Khong the tu choi ket qua QC hang hoan', 'error');
+      addToast(error.message || 'Không thể từ chối kết quả QC hàng hoàn', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -374,7 +408,11 @@ export default function DeliveryOrderDetail() {
   const currentStatus = order.status || order.raw_status;
   const canEditPickingPlan = ['NEW', 'WAITING_PICKING'].includes(currentStatus) && hasRole(ROLES.STOREKEEPER);
   const canOpenQc = currentStatus === 'WAITING_PICKING' && hasRole(ROLES.WAREHOUSE_STAFF);
-  const canApproveQuality = currentStatus === 'QC_PENDING_APPROVAL' && hasRole(ROLES.STOREKEEPER);
+  const hasUnresolvedQcFail = (order.items || []).some((item) => (
+    Math.max(0, Number(item.requested_qty || 0) - Number(item.qc_pass_qty || 0)) > 0
+  ));
+  const canPlanReplacement = currentStatus === 'QC_PENDING_APPROVAL' && hasRole(ROLES.STOREKEEPER) && hasUnresolvedQcFail;
+  const canApproveQuality = currentStatus === 'QC_PENDING_APPROVAL' && hasRole(ROLES.STOREKEEPER) && !hasUnresolvedQcFail;
   const canApproveWarehouse = currentStatus === 'QC_COMPLETED' && hasRole(ROLES.WAREHOUSE_MANAGER);
   const canHandleReturned = currentStatus === 'RETURNED' && (hasRole(ROLES.WAREHOUSE_STAFF) || hasRole(ROLES.STOREKEEPER));
   const returnFlowStatus = returnedFlow?.flow_status;
@@ -391,6 +429,25 @@ export default function DeliveryOrderDetail() {
     )));
   };
 
+  const handleAddReplacementAllocation = (itemId) => {
+    setReplacementDraftItems((previous) => previous.map((item) => {
+      if (Number(item.id) !== Number(itemId)) return item;
+      const allocatedQty = (item.allocations || []).reduce(
+        (sum, allocation) => sum + Number(allocation.planned_qty || 0),
+        0,
+      );
+      const remainingQty = Math.max(0, Number(item.replacement_required_qty || 0) - allocatedQty);
+      const defaultFailedSource = (item.failed_sources || []).length === 1 ? item.failed_sources[0] : {};
+      return {
+        ...item,
+        allocations: [
+          ...(item.allocations || []),
+          outboundService.createEmptyReplacementAllocationDraft(defaultFailedSource, remainingQty),
+        ],
+      };
+    }));
+  };
+
   const handleRemoveAllocation = (itemId, allocationIndex) => {
     setDraftItems((previous) => previous.map((item) => {
       if (Number(item.id) !== Number(itemId)) return item;
@@ -402,8 +459,39 @@ export default function DeliveryOrderDetail() {
     }));
   };
 
+  const handleRemoveReplacementAllocation = (itemId, allocationIndex) => {
+    setReplacementDraftItems((previous) => previous.map((item) => {
+      if (Number(item.id) !== Number(itemId)) return item;
+      const nextAllocations = (item.allocations || []).filter((_, index) => index !== allocationIndex);
+      const defaultFailedSource = (item.failed_sources || []).length === 1 ? item.failed_sources[0] : {};
+      return {
+        ...item,
+        allocations: nextAllocations.length
+          ? nextAllocations
+          : [outboundService.createEmptyReplacementAllocationDraft(defaultFailedSource, item.replacement_required_qty || 0)],
+      };
+    }));
+  };
+
   const handleAllocationChange = (itemId, allocationIndex, field, value) => {
     setDraftItems((previous) => previous.map((item) => {
+      if (Number(item.id) !== Number(itemId)) return item;
+      return {
+        ...item,
+        allocations: (item.allocations || []).map((allocation, index) => (
+          index === allocationIndex
+            ? {
+                ...allocation,
+                [field]: field === 'planned_qty' ? Number(value || 0) : value,
+              }
+            : allocation
+        )),
+      };
+    }));
+  };
+
+  const handleReplacementAllocationChange = (itemId, allocationIndex, field, value) => {
+    setReplacementDraftItems((previous) => previous.map((item) => {
       if (Number(item.id) !== Number(itemId)) return item;
       return {
         ...item,
@@ -450,6 +538,65 @@ export default function DeliveryOrderDetail() {
     }));
   };
 
+  const handleReplacementCandidateSelect = (itemId, allocationIndex, inventoryId) => {
+    const candidate = (pickingCandidates[itemId] || []).find(
+      (row) => Number(row.inventory_id) === Number(inventoryId),
+    );
+    if (!candidate) {
+      handleReplacementAllocationChange(itemId, allocationIndex, 'inventory_id', '');
+      return;
+    }
+
+    setReplacementDraftItems((previous) => previous.map((item) => {
+      if (Number(item.id) !== Number(itemId)) return item;
+
+      const totalOtherQty = (item.allocations || []).reduce((sum, allocation, index) => (
+        index === allocationIndex ? sum : sum + Number(allocation.planned_qty || 0)
+      ), 0);
+      const remainingQty = Math.max(0, Number(item.replacement_required_qty || 0) - totalOtherQty);
+
+      return {
+        ...item,
+        allocations: (item.allocations || []).map((allocation, index) => (
+          index === allocationIndex
+            ? {
+                ...allocation,
+                ...outboundService.applyPickingCandidate(
+                  candidate,
+                  allocation.planned_qty ? Number(allocation.planned_qty) : remainingQty,
+                ),
+              }
+            : allocation
+        )),
+      };
+    }));
+  };
+
+  const handleReplacementFailedSourceSelect = (itemId, allocationIndex, inventoryId) => {
+    setReplacementDraftItems((previous) => previous.map((item) => {
+      if (Number(item.id) !== Number(itemId)) return item;
+      const failedSource = (item.failed_sources || []).find(
+        (row) => Number(row.inventory_id) === Number(inventoryId),
+      );
+
+      return {
+        ...item,
+        allocations: (item.allocations || []).map((allocation, index) => (
+          index === allocationIndex
+            ? {
+                ...allocation,
+                failed_inventory_id: failedSource?.inventory_id || '',
+                failed_batch_id: failedSource?.batch_id || '',
+                failed_batch_code: failedSource?.batch_code || '',
+                failed_location_id: failedSource?.location_id || '',
+                failed_location_code: failedSource?.location_code || '',
+              }
+            : allocation
+        )),
+      };
+    }));
+  };
+
   const hasInvalidDraft = draftItems.some((item) => {
     const plannedQty = (item.allocations || []).reduce(
       (sum, allocation) => sum + Number(allocation.planned_qty || 0),
@@ -459,6 +606,19 @@ export default function DeliveryOrderDetail() {
       (allocation) => Number(allocation.planned_qty || 0) > 0 && !allocation.inventory_id,
     );
     return hasIncompleteAllocation || plannedQty !== Number(item.requested_qty || 0);
+  });
+
+  const hasInvalidReplacementDraft = replacementDraftItems.some((item) => {
+    const plannedQty = (item.allocations || []).reduce(
+      (sum, allocation) => sum + Number(allocation.planned_qty || 0),
+      0,
+    );
+    const requiredQty = Number(item.replacement_required_qty || item.qc_fail_qty || 0);
+    const hasIncompleteAllocation = (item.allocations || []).some((allocation) => (
+      Number(allocation.planned_qty || 0) > 0
+      && (!allocation.failed_inventory_id || !allocation.inventory_id || !allocation.reason?.trim())
+    ));
+    return hasIncompleteAllocation || plannedQty !== requiredQty;
   });
 
   return (
@@ -528,6 +688,18 @@ export default function DeliveryOrderDetail() {
           <p className="text-xs font-semibold text-violet-900">
             Nhân viên kho đã gửi kết quả lấy hàng & kiểm định. Thủ kho rà soát và duyệt chất lượng trước khi chuyển bước tiếp.
           </p>
+        </div>
+      )}
+
+      {canPlanReplacement && (
+        <div className="bg-warning-50 border border-warning-200 rounded-lg p-4 flex items-start gap-3">
+          <AlertTriangle className="w-4 h-4 text-warning-700 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-xs font-bold text-warning-900">Có hàng QC fail cần lập kế hoạch lấy bù.</p>
+            <p className="mt-1 text-xs text-warning-800">
+              Chọn dòng hàng lỗi, chọn inventory thay thế và lưu kế hoạch. Đơn sẽ quay về trạng thái chờ lấy hàng để staff xử lý vòng tiếp theo.
+            </p>
+          </div>
         </div>
       )}
 
@@ -625,7 +797,7 @@ export default function DeliveryOrderDetail() {
                           disabled={countDisabled || Number(row.quality_fail_qty || 0) <= 0}
                           value={row.quality_failure_reason}
                           onChange={(event) => handleReturnRowChange(row.key, 'quality_failure_reason', event.target.value)}
-                          placeholder="Khi co hang loi"
+                          placeholder="Khi có hàng lỗi"
                           className="w-40 rounded-md border border-hairline-light bg-canvas-light px-2 py-1.5 text-xs disabled:bg-canvas-cream"
                         />
                       </td>
@@ -760,6 +932,34 @@ export default function DeliveryOrderDetail() {
           onRemoveAllocation={handleRemoveAllocation}
           onSave={handleStartPicking}
         />
+      )}
+
+      {canPlanReplacement && (
+        <DeliveryOrderPickingPlanEditor
+          mode="replacement"
+          title="Lập kế hoạch lấy hàng bù"
+          description="Dùng khi hàng đã lấy bị QC fail. Storekeeper chọn nguồn hàng bù để staff lấy và QC lại."
+          saveLabel="Lưu kế hoạch lấy bù"
+          items={replacementDraftItems}
+          candidatesByItemId={pickingCandidates}
+          submitting={submitting || loadingCandidates}
+          disableSave={hasInvalidReplacementDraft || replacementDraftItems.length === 0}
+          onAddAllocation={handleAddReplacementAllocation}
+          onAllocationChange={handleReplacementAllocationChange}
+          onCandidateSelect={handleReplacementCandidateSelect}
+          onFailedSourceSelect={handleReplacementFailedSourceSelect}
+          onRemoveAllocation={handleRemoveReplacementAllocation}
+          onSave={handleSaveReplacementPlan}
+        />
+      )}
+
+      {canPlanReplacement && hasInvalidReplacementDraft && (
+        <div className="bg-warning-50 border border-warning-200 rounded-lg p-4 flex items-center gap-3">
+          <AlertTriangle className="w-4 h-4 text-warning-700 shrink-0" />
+          <p className="text-xs font-semibold text-warning-900">
+            Mỗi dòng lấy bù phải chọn hàng lỗi QC, inventory thay thế, nhập đủ số lượng cần bù và lý do.
+          </p>
+        </div>
       )}
 
       {canEditPickingPlan && hasInvalidDraft && (

@@ -360,6 +360,7 @@ const normalizeAllocation = (allocation = {}) => ({
   zone_code: value(allocation, 'zoneCode', 'zone_code'),
   planned_qty: Number(value(allocation, 'plannedQty', 'planned_qty', 0)),
   picked_qty: Number(value(allocation, 'pickedQty', 'picked_qty', 0)),
+  replacement: Boolean(value(allocation, 'replacement', 'replacement', false)),
 });
 
 const normalizeDoItem = (item = {}) => ({
@@ -526,6 +527,30 @@ const buildPickingPlanPayload = (items) => {
   return { allocations, returnToBinRecords: [] };
 };
 
+const buildReplacementPlanPayload = (items) => {
+  const replacements = items.flatMap((item) =>
+    (item.allocations || [])
+      .filter((allocation) => (
+        allocation.failed_inventory_id
+        && allocation.inventory_id
+        && Number(allocation.planned_qty || 0) > 0
+      ))
+      .map((allocation) => ({
+        doItemId: Number(item.id),
+        failedInventoryId: Number(allocation.failed_inventory_id),
+        failedBatchId: Number(allocation.failed_batch_id),
+        failedLocationId: Number(allocation.failed_location_id),
+        replacementInventoryId: Number(allocation.inventory_id),
+        replacementBatchId: Number(allocation.batch_id),
+        replacementLocationId: Number(allocation.location_id),
+        replacementZoneId: Number(allocation.zone_id),
+        quantity: Number(allocation.planned_qty || 0),
+        reason: allocation.reason?.trim() || 'QC fail replacement',
+      })),
+  );
+  return { replacements };
+};
+
 const createEmptyAllocation = () => ({
   allocation_id: null,
   inventory_id: '',
@@ -539,12 +564,41 @@ const createEmptyAllocation = () => ({
   picked_qty: 0,
 });
 
+const createEmptyReplacementAllocation = (failedSource = {}, plannedQty = 0) => ({
+  ...createEmptyAllocation(),
+  failed_inventory_id: failedSource.inventory_id || '',
+  failed_batch_id: failedSource.batch_id || '',
+  failed_batch_code: failedSource.batch_code || '',
+  failed_location_id: failedSource.location_id || '',
+  failed_location_code: failedSource.location_code || '',
+  planned_qty: plannedQty,
+  reason: '',
+});
+
 const cloneDraftItems = (items = []) => items.map((item) => ({
   ...item,
   allocations: item.allocations?.length
     ? item.allocations.map((allocation) => ({ ...allocation }))
     : [createEmptyAllocation()],
 }));
+
+const createReplacementPlanDraft = (items = []) => items
+  .filter((item) => Math.max(0, Number(item.requested_qty || 0) - Number(item.qc_pass_qty || 0)) > 0)
+  .map((item) => {
+    const failedSources = (item.allocations || [])
+      .filter((allocation) => !allocation.replacement)
+      .filter((allocation) => Number(allocation.picked_qty || 0) > 0 || Number(allocation.planned_qty || 0) > 0);
+    const defaultFailedSource = failedSources.length === 1 ? failedSources[0] : {};
+    const requiredQty = Math.max(0, Number(item.requested_qty || 0) - Number(item.qc_pass_qty || 0));
+
+    return {
+      ...item,
+      requested_qty: requiredQty,
+      replacement_required_qty: requiredQty,
+      failed_sources: failedSources,
+      allocations: [createEmptyReplacementAllocation(defaultFailedSource, requiredQty)],
+    };
+  });
 
 const mapCandidateToAllocation = (candidate, plannedQty = 0) => ({
   allocation_id: null,
@@ -767,7 +821,12 @@ export const outboundService = {
 
   createPickingPlanDraft: (items = []) => cloneDraftItems(items),
 
+  createReplacementPlanDraft: (items = []) => createReplacementPlanDraft(items),
+
   createEmptyAllocationDraft: () => createEmptyAllocation(),
+
+  createEmptyReplacementAllocationDraft: (failedSource = {}, plannedQty = 0) =>
+    createEmptyReplacementAllocation(failedSource, plannedQty),
 
   applyPickingCandidate: (candidate, plannedQty = 0) => mapCandidateToAllocation(candidate, plannedQty),
 
@@ -828,6 +887,55 @@ export const outboundService = {
       };
     }
     const response = await apiClient.put(`/delivery-orders/${id}/picking-plan`, buildPickingPlanPayload(items));
+    return normalizeDeliveryOrder(response.data);
+  },
+
+  saveReplacementPlan: async (id, items) => {
+    if (useMock) {
+      await mockDelay(250);
+      const orders = getDb(KEYS.DELIVERY_ORDERS, INITIAL_DELIVERY_ORDERS);
+      const orderIndex = orders.findIndex((item) => item.id === Number(id));
+      if (orderIndex === -1) throw new Error('Không tìm thấy đơn xuất hàng');
+
+      const storedItems = getDb(KEYS.DO_ITEMS, INITIAL_DO_ITEMS);
+      const replacementsByItemId = new Map(
+        items.map((item) => [Number(item.id), item.allocations || []]),
+      );
+      const updatedItems = storedItems.map((storedItem) => {
+        const replacementRows = replacementsByItemId.get(Number(storedItem.id));
+        if (!replacementRows) return storedItem;
+        const replacementAllocations = replacementRows
+          .filter((allocation) => allocation.inventory_id && Number(allocation.planned_qty || 0) > 0)
+          .map((allocation, index) => ({
+            ...allocation,
+            allocation_id: `R-${storedItem.id}-${index + 1}`,
+            replacement: true,
+            picked_qty: 0,
+          }));
+
+        return {
+          ...storedItem,
+          allocations: [...(storedItem.allocations || []), ...replacementAllocations],
+        };
+      });
+
+      orders[orderIndex] = {
+        ...orders[orderIndex],
+        status: 'WAITING_PICKING',
+        raw_status: 'WAITING_PICKING',
+        updated_at: new Date().toISOString(),
+      };
+
+      saveDb(KEYS.DO_ITEMS, updatedItems);
+      saveDb(KEYS.DELIVERY_ORDERS, orders);
+      addAuditLog('PICKING_REPLACEMENT_SAVE', 'DeliveryOrder', Number(id), `Lưu kế hoạch lấy bù cho DO #${id}`);
+
+      return {
+        ...orders[orderIndex],
+        items: updatedItems.filter((item) => item.do_id === Number(id)),
+      };
+    }
+    const response = await apiClient.put(`/delivery-orders/${id}/replacement-plan`, buildReplacementPlanPayload(items));
     return normalizeDeliveryOrder(response.data);
   },
 
