@@ -721,6 +721,61 @@ class InterWarehouseTransferServiceImplTest {
     }
 
     @Test
+    void finalReceive_allowsShortPutawayPlanWithReasonAndManagerApproval() {
+        service.approveTransfer(1L, sourceManager);
+        service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
+                VALID_TRIP_START, VALID_TRIP_END), dispatcher);
+        recordPassingOutboundQcAndHandover();
+        service.shipTransfer(1L, sourceManager);
+        service.departTransfer(1L, driverUser);
+
+        service.receiveCount(1L, new InterWarehouseTransferReceiveCountRequest(List.of(
+                new InterWarehouseTransferReceiveCountItemRequest(transferItem.getId(), new BigDecimal("5.00"), null))),
+                destinationWorker);
+        service.receiveCheck(1L, new InterWarehouseTransferReceiveCheckRequest(List.of(
+                new InterWarehouseTransferReceiveCheckItemRequest(
+                        transferItem.getId(),
+                        new BigDecimal("5.00"),
+                        new BigDecimal("5.00"),
+                        BigDecimal.ZERO,
+                        null,
+                        "Check ok",
+                        null)),
+                "transfer/receive-qc/1.jpg"),
+                destinationStorekeeper);
+
+        assertThatThrownBy(() -> service.finalReceive(1L,
+                new InterWarehouseTransferFinalReceiveRequest(
+                        "",
+                        List.of(new InterWarehouseTransferFinalPutawayItemRequest(
+                                transferItem.getId(),
+                                List.of(new InterWarehouseTransferPutawayAllocationRequest(
+                                        destinationLocation.getId(), new BigDecimal("4.00")))))),
+                destinationStorekeeper))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("DISCREPANCY_REASON_REQUIRED");
+
+        InterWarehouseTransferResponse pending = service.finalReceive(1L,
+                new InterWarehouseTransferFinalReceiveRequest(
+                        "Missing one unit during putaway",
+                        List.of(new InterWarehouseTransferFinalPutawayItemRequest(
+                                transferItem.getId(),
+                                List.of(new InterWarehouseTransferPutawayAllocationRequest(
+                                        destinationLocation.getId(), new BigDecimal("4.00")))))),
+                destinationStorekeeper);
+
+        assertThat(pending.status()).isEqualTo(InterWarehouseTransferStatus.PUTAWAY_PENDING_APPROVAL);
+        assertThat(destinationInventory).isNull();
+
+        InterWarehouseTransferResponse completed = service.finalReceive(1L,
+                new InterWarehouseTransferFinalReceiveRequest(""), destinationManager);
+
+        assertThat(completed.status()).isEqualTo(InterWarehouseTransferStatus.COMPLETED_WITH_DISCREPANCY);
+        assertThat(destinationInventory).isNotNull();
+        assertThat(destinationInventory.getTotalQty()).isEqualByComparingTo("4.00");
+    }
+
+    @Test
     void receiveCount_overReceipt_isAllowedAndRoutedToHold() {
         service.approveTransfer(1L, sourceManager);
         service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),

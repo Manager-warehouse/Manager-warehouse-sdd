@@ -579,6 +579,59 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
     }));
   });
 
+  it('lets storekeeper send a short putaway plan with discrepancy reason for manager approval', async () => {
+    const onAction = renderPanel({
+      roles: [ROLES.STOREKEEPER],
+      activeWarehouse: { id: 2, code: 'WH-HP' },
+      warehouseAccessIds: [2],
+      locations: [
+        { id: 12, code: 'HN-01-B01', warehouseId: 2, type: 'BIN', isActive: true, isQuarantine: false },
+        { id: 14, code: 'HN-01-B02', warehouseId: 2, type: 'BIN', isActive: true, isQuarantine: false },
+      ],
+      transfer: {
+        ...baseTransfer,
+        status: 'IN_TRANSIT',
+        driverArrivedAt: '2026-07-22T10:00:00Z',
+        arrivalHandoverAt: '2026-07-22T10:05:00Z',
+        arrivalHandoverPhotoRef: 'uploads/handover.jpg',
+        items: [{
+          ...baseTransfer.items[0],
+          sentQty: 8,
+          workerReceivedQty: 8,
+          receivedQty: 8,
+          qcPassedQty: 8,
+          qcFailedQty: 0,
+          destinationLocationId: 12,
+        }],
+      },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Thêm kệ' }));
+    const binSelects = screen.getAllByLabelText(/Kệ/);
+    fireEvent.change(binSelects[1], { target: { value: '14' } });
+    const quantityInputs = screen.getAllByLabelText('Số lượng');
+    fireEvent.change(quantityInputs[0], { target: { value: '5' } });
+    fireEvent.change(quantityInputs[1], { target: { value: '2' } });
+
+    const submitButton = screen.getByRole('button', { name: 'Gửi kế hoạch cất kệ' });
+    expect(submitButton).toBeDisabled();
+    fireEvent.change(screen.getByPlaceholderText('Lý do nếu có chênh lệch'), {
+      target: { value: 'Thiếu 1 sản phẩm khi cất kệ' },
+    });
+    fireEvent.click(submitButton);
+
+    await waitFor(() => expect(onAction).toHaveBeenCalledWith('finalReceive', {
+      discrepancyReason: 'Thiếu 1 sản phẩm khi cất kệ',
+      putawayItems: [{
+        transferItemId: 101,
+        allocations: [
+          { locationId: 12, quantity: 5 },
+          { locationId: 14, quantity: 2 },
+        ],
+      }],
+    }));
+  });
+
   it('lets destination manager approve pending putaway plan into stock', async () => {
     const onAction = renderPanel({
       roles: [ROLES.WAREHOUSE_MANAGER],
