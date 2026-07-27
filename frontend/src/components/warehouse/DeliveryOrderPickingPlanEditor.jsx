@@ -17,7 +17,7 @@ const formatFailedSourceLabel = (source) => {
     source.location_code || `Vị trí ${source.location_id || '-'}`,
     source.zone_code || `Khu ${source.zone_id || '-'}`,
     source.batch_code || `Lô ${source.batch_id || '-'}`,
-    `Đã lấy ${Number(source.picked_qty || source.planned_qty || 0)}`,
+    `QC fail ${Number(source.qc_fail_qty || 0)}`,
   ];
 
   return parts.join(' · ');

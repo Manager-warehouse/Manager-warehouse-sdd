@@ -360,6 +360,9 @@ const normalizeAllocation = (allocation = {}) => ({
   zone_code: value(allocation, 'zoneCode', 'zone_code'),
   planned_qty: Number(value(allocation, 'plannedQty', 'planned_qty', 0)),
   picked_qty: Number(value(allocation, 'pickedQty', 'picked_qty', 0)),
+  qc_pass_qty: Number(value(allocation, 'qcPassQty', 'qc_pass_qty', 0)),
+  qc_fail_qty: Number(value(allocation, 'qcFailQty', 'qc_fail_qty', 0)),
+  qc_completed: Boolean(value(allocation, 'qcCompleted', 'qc_completed', false)),
   replacement: Boolean(value(allocation, 'replacement', 'replacement', false)),
 });
 
@@ -587,7 +590,7 @@ const createReplacementPlanDraft = (items = []) => items
   .map((item) => {
     const failedSources = (item.allocations || [])
       .filter((allocation) => !allocation.replacement)
-      .filter((allocation) => Number(allocation.picked_qty || 0) > 0 || Number(allocation.planned_qty || 0) > 0);
+      .filter((allocation) => Number(allocation.qc_fail_qty || 0) > 0);
     const defaultFailedSource = failedSources.length === 1 ? failedSources[0] : {};
     const requiredQty = Math.max(0, Number(item.requested_qty || 0) - Number(item.qc_pass_qty || 0));
 
