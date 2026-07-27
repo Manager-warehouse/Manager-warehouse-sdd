@@ -10,6 +10,9 @@ Thủ kho tạo phiếu kiểm kê định kỳ, hệ thống khóa sổ vị tr
 
 ### Tạo phiếu kiểm kê
 * WHEN a Thủ kho creates a stocktake document, the system SHALL validate that the selected `accounting_period` is in status `OPEN`; if CLOSED, the system SHALL reject with `ACCOUNTING_PERIOD_CLOSED`.
+* WHEN a Thủ kho creates a stocktake document, the system SHALL reject with `STOCK_TAKE_DATE_AFTER_DOCUMENT_DATE` if `stock_take_date` is later than `document_date`.
+* WHEN a Thủ kho creates a stocktake document, the system SHALL reject with `STOCK_TAKE_DATE_OUTSIDE_ACCOUNTING_PERIOD` if `stock_take_date` is outside the selected `accounting_period` date range.
+* WHEN a Thủ kho creates a stocktake document, the system SHALL reject with `DOCUMENT_DATE_OUTSIDE_ACCOUNTING_PERIOD` if `document_date` is outside the selected `accounting_period` date range.
 * WHEN a Thủ kho creates a stocktake document, the system SHALL set status to `DRAFT` and NOT lock any locations yet.
 * WHEN a Thủ kho creates a stocktake document, the system SHALL populate `stock_take_items` using current inventory quantities (`system_qty`) **excluding** any locations within zones of type `QUARANTINE`.
 
@@ -70,12 +73,27 @@ Thủ kho tạo phiếu kiểm kê định kỳ, hệ thống khóa sổ vị tr
 * When Thủ kho tạo phiếu kiểm kê với `accounting_period_id` trỏ vào kỳ đó
 * Then hệ thống từ chối với lỗi `ACCOUNTING_PERIOD_CLOSED`.
 
-**Scenario 5: Hủy phiếu đang IN_PROGRESS**
+**Scenario 5: Chặn ngày kiểm kê sau ngày chứng từ**
+* Given `document_date = 2026-07-27`
+* When Thủ kho tạo phiếu kiểm kê với `stock_take_date = 2026-07-29`
+* Then hệ thống từ chối với lỗi `STOCK_TAKE_DATE_AFTER_DOCUMENT_DATE`.
+
+**Scenario 6: Chặn ngày kiểm kê ngoài kỳ kế toán đã chọn**
+* Given `accounting_period` 2026-06 có khoảng ngày `2026-06-01` đến `2026-06-30`
+* When Thủ kho tạo phiếu kiểm kê với `stock_take_date = 2026-05-31`, `document_date = 2026-06-17` và `accounting_period_id` trỏ vào kỳ 2026-06
+* Then hệ thống từ chối với lỗi `STOCK_TAKE_DATE_OUTSIDE_ACCOUNTING_PERIOD`.
+
+**Scenario 7: Chặn ngày chứng từ ngoài kỳ kế toán đã chọn**
+* Given `accounting_period` 2026-06 có khoảng ngày `2026-06-01` đến `2026-06-30`
+* When Thủ kho tạo phiếu kiểm kê với `document_date = 2026-07-27` và `accounting_period_id` trỏ vào kỳ 2026-06
+* Then hệ thống từ chối với lỗi `DOCUMENT_DATE_OUTSIDE_ACCOUNTING_PERIOD`.
+
+**Scenario 8: Hủy phiếu đang IN_PROGRESS**
 * Given stocktake `ST-2026-001` đang `IN_PROGRESS`, location `WH-HP.A.01.1.01` đang bị khóa
 * When Thủ kho gọi `PUT /api/v1/stocktakes/1/cancel`
 * Then status chuyển sang `CANCELLED` và location lock được giải phóng.
 
-**Scenario 6: Chặn hủy phiếu đã PENDING_APPROVAL**
+**Scenario 9: Chặn hủy phiếu đã PENDING_APPROVAL**
 * Given stocktake đang `PENDING_APPROVAL`
 * When Thủ kho gọi cancel
 * Then hệ thống từ chối với lỗi `STOCK_TAKE_NOT_CANCELLABLE`.
