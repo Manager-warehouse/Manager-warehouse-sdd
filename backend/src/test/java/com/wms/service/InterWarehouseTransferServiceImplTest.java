@@ -670,7 +670,7 @@ class InterWarehouseTransferServiceImplTest {
                         new BigDecimal("5.00"),
                         new BigDecimal("5.00"),
                         BigDecimal.ZERO,
-                        destinationLocation.getId(),
+                        null,
                         "Check ok",
                         null)),
                 "transfer/receive-qc/1.jpg"),

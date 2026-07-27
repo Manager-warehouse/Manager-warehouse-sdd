@@ -196,7 +196,6 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
         && qcPassedQty >= 0
         && qcFailedQty >= 0
         && qcPassedQty + qcFailedQty === confirmedQty
-        && (qcPassedQty === 0 || Boolean(row.destinationLocationId))
         && (qcFailedQty === 0 || String(row.qcFailureReason || '').trim())
         && (confirmedQty === Number(item?.workerReceivedQty) || String(row.checkerNote || '').trim());
     });
@@ -365,7 +364,6 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
       confirmedQty: item.workerReceivedQty ?? item.sentQty ?? item.plannedQty,
       qcPassedQty: item.workerReceivedQty ?? item.sentQty ?? item.plannedQty,
       qcFailedQty: 0,
-      destinationLocationId: destinationBins[0]?.id || '',
       checkerNote: '',
       qcFailureReason: '',
     }));
@@ -1017,7 +1015,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
                 const item = transfer.items.find((line) => line.id === row.transferItemId);
                 return (
                   <div key={row.transferItemId} className="flex flex-col gap-2">
-                         <div className="grid grid-cols-1 md:grid-cols-5 gap-2 items-end">
+                         <div className="grid grid-cols-1 md:grid-cols-4 gap-2 items-end">
                            <div className="text-xs font-semibold">{item.productSku}<br /><span className="text-shade-50">CN nhập: {item.workerReceivedQty ?? '-'}</span></div>
                            <Input label="SL chốt" type="number" value={row.confirmedQty} onChange={(e) => setRow(checkRows, setCheckRows, row.transferItemId, { confirmedQty: Number(e.target.value) })} />
                            <Input label="QC đạt" type="number" value={row.qcPassedQty} onChange={(e) => setRow(checkRows, setCheckRows, row.transferItemId, { qcPassedQty: Number(e.target.value) })} />
@@ -1031,8 +1029,6 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
                                </div>
                              )}
                            </div>
-                           <Input type="select" label="Bin tạm" value={row.destinationLocationId} onChange={(e) => setRow(checkRows, setCheckRows, row.transferItemId, { destinationLocationId: e.target.value })}
-                             options={[{ value: '', label: 'Chọn bin' }, ...destinationBins.map((loc) => ({ value: loc.id, label: loc.code }))]} />
                          </div>
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                            <Input label="Checker note nếu sửa count" value={row.checkerNote} onChange={(e) => setRow(checkRows, setCheckRows, row.transferItemId, { checkerNote: e.target.value })} />
@@ -1051,10 +1047,10 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
                 <div className="text-[10px] text-warning-700">Cần chụp/chọn ảnh QC trước khi duyệt.</div>
               )}
               {checkRows.length > 0 && (
-                <Button loading={busy} disabled={!checkReady} className="py-2.5 px-4 text-xs" onClick={() => run('receiveCheck', {
-                  items: checkRows.map((line) => ({ ...line, destinationLocationId: Number(line.destinationLocationId) })),
-                  photoFile: receiveQcPhotoFile,
-                })}>
+	                <Button loading={busy} disabled={!checkReady} className="py-2.5 px-4 text-xs" onClick={() => run('receiveCheck', {
+	                  items: checkRows.map(({ destinationLocationId, ...line }) => line),
+	                  photoFile: receiveQcPhotoFile,
+	                })}>
                   Duyệt QC
                 </Button>
               )}

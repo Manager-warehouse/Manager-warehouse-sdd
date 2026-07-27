@@ -459,6 +459,45 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
     expect(screen.queryByRole('button', { name: 'Từ chối & Cách ly toàn bộ' })).not.toBeInTheDocument();
   });
 
+  it('requires receive QC photo before approving QC and does not choose putaway bin during QC', async () => {
+    const onAction = renderPanel({
+      roles: [ROLES.STOREKEEPER],
+      activeWarehouse: { id: 2, code: 'WH-HP' },
+      warehouseAccessIds: [2],
+      locations: [
+        { id: 12, code: 'HN-01-B01', warehouseId: 2, type: 'BIN', isActive: true, isQuarantine: false },
+      ],
+      transfer: {
+        ...baseTransfer,
+        status: 'IN_TRANSIT',
+        driverArrivedAt: '2026-07-22T10:00:00Z',
+        arrivalHandoverAt: '2026-07-22T10:05:00Z',
+        arrivalHandoverPhotoRef: 'uploads/handover.jpg',
+        items: [{ ...baseTransfer.items[0], sentQty: 10, workerReceivedQty: 10 }],
+      },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Kiểm tra count/QC' }));
+
+    expect(screen.queryByLabelText('Bin tạm')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Duyệt QC' })).toBeDisabled();
+
+    fireEvent.click(screen.getByText('Ảnh xác nhận QC nhập điều chuyển'));
+    fireEvent.click(screen.getByRole('button', { name: 'Duyệt QC' }));
+
+    await waitFor(() => expect(onAction).toHaveBeenCalledWith('receiveCheck', {
+      items: [{
+        transferItemId: 101,
+        confirmedQty: 10,
+        qcPassedQty: 10,
+        qcFailedQty: 0,
+        checkerNote: '',
+        qcFailureReason: '',
+      }],
+      photoFile: expect.any(File),
+    }));
+  });
+
   it('hides multi-bin putaway from destination manager after receive QC is complete', () => {
     renderPanel({
       roles: [ROLES.WAREHOUSE_MANAGER],
