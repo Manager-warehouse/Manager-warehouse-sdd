@@ -148,10 +148,6 @@ public class InterWarehouseTransferReceivingService {
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.ensureWarehouseScope(actor, transfer.isReturned() ? transfer.getSourceWarehouse().getId() : transfer.getDestinationWarehouse().getId());
         ensureAllChecked(transfer);
-        boolean discrepancy = helper.items(transfer).stream().anyMatch(item -> item.getVarianceQty().compareTo(BigDecimal.ZERO) != 0);
-        if (discrepancy && helper.isBlank(request.discrepancyReason())) {
-            throw new BusinessRuleViolationException("DISCREPANCY_REASON_REQUIRED");
-        }
         if (transfer.getStatus() == InterWarehouseTransferStatus.IN_TRANSIT
                 && actor.getRole() == UserRole.STOREKEEPER) {
             return submitPutawayPlan(transfer, request, actor);
@@ -163,10 +159,18 @@ public class InterWarehouseTransferReceivingService {
         InterWarehouseTransferFinalReceiveRequest approvedRequest = request.putawayItems() == null
                 ? new InterWarehouseTransferFinalReceiveRequest(request.discrepancyReason(), parsePutawayPlan(transfer.getNotes()))
                 : request;
+        boolean discrepancy = hasReceiveDiscrepancy(transfer) || hasPutawayDiscrepancy(transfer, approvedRequest);
+        String discrepancyReason = helper.isBlank(request.discrepancyReason())
+                ? transfer.getDiscrepancyReason()
+                : request.discrepancyReason();
+        if (discrepancy && helper.isBlank(discrepancyReason)) {
+            throw new BusinessRuleViolationException("DISCREPANCY_REASON_REQUIRED");
+        }
         Map<String, Object> before = helper.snapshot(transfer);
-        moveTransitToDestination(transfer, approvedRequest, actor);
+        moveTransitToDestination(transfer, new InterWarehouseTransferFinalReceiveRequest(discrepancyReason,
+                approvedRequest.putawayItems()), actor);
         transfer.setStatus(discrepancy ? InterWarehouseTransferStatus.COMPLETED_WITH_DISCREPANCY : InterWarehouseTransferStatus.COMPLETED);
-        transfer.setDiscrepancyReason(request.discrepancyReason());
+        transfer.setDiscrepancyReason(discrepancyReason);
         transfer.setConfirmedBy(actor);
         transfer.setConfirmedAt(OffsetDateTime.now());
         transfer.setActualReceivedDate(OffsetDateTime.now().toLocalDate());
@@ -186,6 +190,10 @@ public class InterWarehouseTransferReceivingService {
         if (request.putawayItems() == null || request.putawayItems().isEmpty()) {
             throw new BusinessRuleViolationException("PUTAWAY_PLAN_REQUIRED");
         }
+        boolean discrepancy = hasReceiveDiscrepancy(transfer) || hasPutawayDiscrepancy(transfer, request);
+        if (discrepancy && helper.isBlank(request.discrepancyReason())) {
+            throw new BusinessRuleViolationException("DISCREPANCY_REASON_REQUIRED");
+        }
         Map<String, Object> before = helper.snapshot(transfer);
         Map<Long, List<PutawayTarget>> plans = resolveFinalPutawayPlans(transfer, request);
         for (InterWarehouseTransferItem item : helper.items(transfer)) {
@@ -202,6 +210,28 @@ public class InterWarehouseTransferReceivingService {
         InterWarehouseTransfer saved = transferRepository.save(transfer);
         helper.audit(saved, actor, AuditAction.TRANSFER_FINAL_RECEIVE, before, helper.snapshot(saved));
         return helper.toResponse(saved);
+    }
+
+    private boolean hasReceiveDiscrepancy(InterWarehouseTransfer transfer) {
+        return helper.items(transfer).stream()
+                .anyMatch(item -> helper.zero(item.getVarianceQty()).compareTo(BigDecimal.ZERO) != 0);
+    }
+
+    private boolean hasPutawayDiscrepancy(InterWarehouseTransfer transfer,
+                                          InterWarehouseTransferFinalReceiveRequest request) {
+        if (request.putawayItems() == null) {
+            return false;
+        }
+        Map<Long, BigDecimal> plannedQtyByItem = request.putawayItems().stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        InterWarehouseTransferFinalPutawayItemRequest::transferItemId,
+                        item -> item.allocations().stream()
+                                .map(InterWarehouseTransferPutawayAllocationRequest::quantity)
+                                .reduce(BigDecimal.ZERO, BigDecimal::add)));
+        return helper.items(transfer).stream()
+                .filter(item -> helper.zero(item.getQcPassedQty()).signum() > 0)
+                .anyMatch(item -> helper.zero(plannedQtyByItem.get(item.getId()))
+                        .compareTo(helper.zero(item.getQcPassedQty())) != 0);
     }
 
     private String serializePutawayPlan(List<InterWarehouseTransferFinalPutawayItemRequest> plans) {
@@ -428,7 +458,9 @@ public class InterWarehouseTransferReceivingService {
         }
 
         for (InterWarehouseTransferItem item : helper.items(transfer)) {
-            BigDecimal remainingPassed = helper.zero(item.getQcPassedQty());
+            BigDecimal remainingPassed = putawayPlans.get(item.getId()).stream()
+                    .map(PutawayTarget::quantity)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
             BigDecimal remainingFailed = helper.zero(item.getQcFailedQty());
             Map<WarehouseLocation, BigDecimal> remainingPutaway = new LinkedHashMap<>();
             putawayPlans.get(item.getId()).forEach(line -> remainingPutaway.put(line.location(), line.quantity()));
@@ -609,7 +641,7 @@ public class InterWarehouseTransferReceivingService {
                     helper.reference(WarehouseLocation.class, allocation.locationId()), allocation.quantity()));
             allocatedQty = allocatedQty.add(allocation.quantity());
         }
-        if (allocatedQty.compareTo(passedQty) != 0) {
+        if (allocatedQty.compareTo(passedQty) > 0) {
             throw new BusinessRuleViolationException("PUTAWAY_QUANTITY_MUST_MATCH_QC_PASSED");
         }
         return targets;

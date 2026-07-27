@@ -387,13 +387,18 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
       transferItemId: item.id,
       allocations: [{ locationId: item.destinationLocationId || destinationBins[0]?.id || '', quantity: item.qcPassedQty }],
     }));
+  const hasPutawayDifference = displayedPutawayRows.some((row) => {
+    const item = transfer.items.find((line) => line.id === row.transferItemId);
+    const allocatedQty = row.allocations.reduce((total, allocation) => total + Number(allocation.quantity || 0), 0);
+    return allocatedQty !== Number(item?.qcPassedQty || 0);
+  });
   const putawayReady = displayedPutawayRows.length > 0 && displayedPutawayRows.every((row) => {
     const item = transfer.items.find((line) => line.id === row.transferItemId);
     const allocatedQty = row.allocations.reduce((total, allocation) => total + Number(allocation.quantity || 0), 0);
     return row.allocations.length > 0
       && row.allocations.every((allocation) => Boolean(allocation.locationId) && Number(allocation.quantity) > 0)
-      && allocatedQty === Number(item?.qcPassedQty || 0);
-  });
+      && allocatedQty <= Number(item?.qcPassedQty || 0);
+  }) && (!hasPutawayDifference || Boolean(reason.trim()));
 
   const setPutawayAllocation = (transferItemId, allocationIndex, patch) => {
     setPutawayRows(displayedPutawayRows.map((row) => {
@@ -1125,7 +1130,9 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
                     </button>
                   </div>
                 ))}
-                <div className="text-[11px] text-shade-60">Tổng phân bổ: {row.allocations.reduce((total, allocation) => total + Number(allocation.quantity || 0), 0)} / {Number(item.qcPassedQty || 0)}</div>
+                <div className={`text-[11px] ${row.allocations.reduce((total, allocation) => total + Number(allocation.quantity || 0), 0) === Number(item.qcPassedQty || 0) ? 'text-shade-60' : 'text-warning-800'}`}>
+                  Tổng phân bổ: {row.allocations.reduce((total, allocation) => total + Number(allocation.quantity || 0), 0)} / {Number(item.qcPassedQty || 0)}
+                </div>
               </div>
             );
           })}
