@@ -36,7 +36,15 @@ import com.wms.enums.user_configuration.*;
 import com.wms.enums.warehouse_location.*;
 import com.wms.enums.warehouse_transfer.*;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.Valid;
+import java.util.List;
 
 public record InterWarehouseTransferFinalReceiveRequest(
         @Size(max = 1000)
-        String discrepancyReason) {}
+        String discrepancyReason,
+        List<@Valid InterWarehouseTransferFinalPutawayItemRequest> putawayItems) {
+
+    public InterWarehouseTransferFinalReceiveRequest(String discrepancyReason) {
+        this(discrepancyReason, null);
+    }
+}
