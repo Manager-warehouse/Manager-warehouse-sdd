@@ -338,14 +338,23 @@ public class StockTakeService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         st.setTotalVarianceValue(totalVariance);
 
-        st.setApprovalLevel(ApprovalLevel.MANAGER);
-        st.setStatus(StockTakeStatus.PENDING_APPROVAL);
-        st.setRejectionReason(null); // clear any prior rejection reason on re-submit
-        st.setUpdatedAt(OffsetDateTime.now());
-        stockTakeRepository.save(st);
+        BigDecimal threshold = new BigDecimal("5000000");
+        boolean isAutoApprove = !Boolean.TRUE.equals(st.getIsEmployeeFault()) 
+                && totalVariance.abs().compareTo(threshold) < 0;
 
-        auditLogService.log(actor, AuditAction.STOCKTAKE_COMPLETE, ENTITY_TYPE,
-                st.getId(), st.getStockTakeNumber(), st.getWarehouse().getId(), null, snapshotHeader(st));
+        if (isAutoApprove) {
+            st.setApprovalLevel(ApprovalLevel.AUTO);
+            executeApproval(st, actor);
+        } else {
+            st.setApprovalLevel(ApprovalLevel.MANAGER);
+            st.setStatus(StockTakeStatus.PENDING_APPROVAL);
+            st.setRejectionReason(null); // clear any prior rejection reason on re-submit
+            st.setUpdatedAt(OffsetDateTime.now());
+            stockTakeRepository.save(st);
+
+            auditLogService.log(actor, AuditAction.STOCKTAKE_COMPLETE, ENTITY_TYPE,
+                    st.getId(), st.getStockTakeNumber(), st.getWarehouse().getId(), null, snapshotHeader(st));
+        }
 
         return buildResponse(st);
     }
