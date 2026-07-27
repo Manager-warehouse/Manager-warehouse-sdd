@@ -44,8 +44,10 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.transaction.TransactionSystemException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -143,6 +145,16 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiErrorResponse> handleOptimisticConflict(ObjectOptimisticLockingFailureException ex) {
         return error(HttpStatus.CONFLICT, "CONCURRENT_MODIFICATION",
                 "The resource was changed by another transaction; reload and retry", null, null);
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiErrorResponse> handleDataIntegrity(DataIntegrityViolationException ex) {
+        return dataIntegrityError(rootMessage(ex));
+    }
+
+    @ExceptionHandler(TransactionSystemException.class)
+    public ResponseEntity<ApiErrorResponse> handleTransactionSystem(TransactionSystemException ex) {
+        return dataIntegrityError(rootMessage(ex));
     }
 
     @ExceptionHandler(AccessDeniedException.class)
@@ -307,6 +319,39 @@ public class GlobalExceptionHandler {
                 .details(details)
                 .timestamp(OffsetDateTime.now())
                 .build());
+    }
+
+    private static String rootMessage(Throwable throwable) {
+        Throwable current = throwable;
+        Throwable root = throwable;
+        while (current != null) {
+            root = current;
+            current = current.getCause();
+        }
+        String message = root == null ? null : root.getMessage();
+        return message == null || message.isBlank() ? "Data integrity violation" : message;
+    }
+
+    private static boolean contains(String value, String pattern) {
+        return value != null && value.toLowerCase().contains(pattern.toLowerCase());
+    }
+
+    private ResponseEntity<ApiErrorResponse> dataIntegrityError(String message) {
+        String code = "DATA_INTEGRITY_VIOLATION";
+        String userMessage = "Dữ liệu không thỏa mãn ràng buộc của hệ thống";
+
+        if (contains(message, "delivery_orders_do_number_key")
+                || contains(message, "delivery_orders_do_number")
+                || contains(message, "do_number")) {
+            code = "DELIVERY_ORDER_NUMBER_CONFLICT";
+            userMessage = "Số đơn xuất kho đã tồn tại, vui lòng thử tạo lại";
+        } else if (contains(message, "warehouse_product_reservations")
+                || (contains(message, "warehouse_id") && contains(message, "product_id"))) {
+            code = "WAREHOUSE_PRODUCT_RESERVATION_CONFLICT";
+            userMessage = "Tồn giữ chỗ của sản phẩm trong kho vừa được thay đổi, vui lòng tải lại và thử lại";
+        }
+
+        return error(HttpStatus.CONFLICT, code, userMessage, message, null);
     }
 
 }

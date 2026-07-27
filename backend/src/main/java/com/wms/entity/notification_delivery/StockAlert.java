@@ -42,8 +42,7 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
 @Entity
-@Table(name = "stock_alerts",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"warehouse_id", "product_id", "alert_type", "is_resolved"}))
+@Table(name = "stock_alerts")
 @Getter
 @Setter
 @NoArgsConstructor

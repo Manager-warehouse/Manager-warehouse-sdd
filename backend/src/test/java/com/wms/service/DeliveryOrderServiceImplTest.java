@@ -159,6 +159,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
 @ExtendWith(MockitoExtension.class)
@@ -243,7 +245,7 @@ class DeliveryOrderServiceImplTest {
         assertThat(response.getStatus()).isEqualTo(DeliveryOrderStatus.NEW);
         assertThat(response.getItems()).hasSize(1);
         assertThat(response.getItems().get(0).getReservedQty()).isEqualByComparingTo("10.00");
-        verify(deliveryOrderRepository).save(any(DeliveryOrder.class));
+        verify(deliveryOrderRepository).saveAndFlush(any(DeliveryOrder.class));
     }
 
     @Test
@@ -358,7 +360,7 @@ class DeliveryOrderServiceImplTest {
         DeliveryOrderResponse response = service.createDeliveryOrder(validRequest(new BigDecimal("10.00")), planner);
 
         assertThat(response.getStatus()).isEqualTo(DeliveryOrderStatus.NEW);
-        verify(deliveryOrderRepository).save(any(DeliveryOrder.class));
+        verify(deliveryOrderRepository).saveAndFlush(any(DeliveryOrder.class));
     }
 
     @Test
@@ -432,6 +434,23 @@ class DeliveryOrderServiceImplTest {
                     assertThat(outbound.getDetails()).doesNotContainKey("suggestedWarehouses");
                 });
         verify(deliveryOrderRepository, never()).save(any());
+    }
+
+    @Test
+    void createDeliveryOrder_translatesDuplicateDoNumberConflict() {
+        stubCreateUntilAvailability(new BigDecimal("15.00"), BigDecimal.ZERO);
+        when(deliveryOrderRepository.existsByDoNumber("DO-" + LocalDate.now().toString().replace("-", "") + "-0001"))
+                .thenReturn(false);
+        when(deliveryOrderRepository.saveAndFlush(any(DeliveryOrder.class)))
+                .thenThrow(new DataIntegrityViolationException("delivery_orders_do_number_key"));
+
+        assertThatThrownBy(() -> service.createDeliveryOrder(validRequest(new BigDecimal("1.00")), planner))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .satisfies(ex -> {
+                    OutboundDeliveryException outbound = (OutboundDeliveryException) ex;
+                    assertThat(outbound.getCode()).isEqualTo("DELIVERY_ORDER_NUMBER_CONFLICT");
+                    assertThat(outbound.getStatus()).isEqualTo(HttpStatus.CONFLICT);
+                });
     }
 
     @Test
@@ -1546,7 +1565,7 @@ class DeliveryOrderServiceImplTest {
         stubCreateUntilAvailability(inventoryAvailable, reservation.getReservedQty());
         when(deliveryOrderRepository.existsByDoNumber("DO-" + LocalDate.now().toString().replace("-", "") + "-0001"))
                 .thenReturn(false);
-        when(deliveryOrderRepository.save(any(DeliveryOrder.class))).thenAnswer(invocation -> {
+        when(deliveryOrderRepository.saveAndFlush(any(DeliveryOrder.class))).thenAnswer(invocation -> {
             DeliveryOrder order = invocation.getArgument(0);
             order.setId(100L);
             return order;
