@@ -89,8 +89,10 @@ const InterWarehouseTransferWorkspace = () => {
     };
   }, [form.sourceWarehouseId, form.items]);
 
-  const loadData = async () => {
-    setLoading(true);
+  const loadData = async ({ silent = false } = {}) => {
+    if (!silent) {
+      setLoading(true);
+    }
     try {
       const [transferRows, warehouseRows, productRows, locationRows, vehicleRows, driverRows] = await Promise.all([
         interWarehouseTransferService.getTransfers(),
@@ -115,7 +117,9 @@ const InterWarehouseTransferWorkspace = () => {
     } catch (error) {
       addToast(error.message || 'Không thể tải dữ liệu điều chuyển', 'error');
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   };
 
@@ -164,6 +168,37 @@ const InterWarehouseTransferWorkspace = () => {
   }, [visibleTransfers, selectedId]);
 
   const selectedTransfer = visibleTransfers.find((transfer) => transfer.id === selectedId);
+
+  useEffect(() => {
+    if (!selectedTransfer || selectedTransfer.status !== 'APPROVED' || !selectedTransfer.tripId) {
+      return undefined;
+    }
+
+    const hasLoadedReport = selectedTransfer.items?.every((item) => item.loadedQty !== null && item.loadedQty !== undefined);
+    const outboundQcDone = selectedTransfer.outboundQcPassed !== null
+      && selectedTransfer.outboundQcPassed !== undefined;
+    const shouldPoll = !hasLoadedReport
+      || selectedTransfer.sourceLoadReworkRequired
+      || selectedTransfer.outboundQcPassed === false
+      || (hasLoadedReport && !outboundQcDone);
+
+    if (!shouldPoll) {
+      return undefined;
+    }
+
+    const intervalId = window.setInterval(() => {
+      loadData({ silent: true });
+    }, 5000);
+
+    return () => window.clearInterval(intervalId);
+  }, [
+    selectedTransfer?.id,
+    selectedTransfer?.status,
+    selectedTransfer?.tripId,
+    selectedTransfer?.sourceLoadReworkRequired,
+    selectedTransfer?.outboundQcPassed,
+    selectedTransfer?.items,
+  ]);
 
   useEffect(() => {
     let active = true;
