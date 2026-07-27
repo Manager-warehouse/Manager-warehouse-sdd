@@ -370,7 +370,7 @@ public class TransferRequestServiceImpl implements TransferRequestService {
     }
 
     private void ensureRequesterRole(User actor) {
-        if (actor.getRole() != UserRole.WAREHOUSE_MANAGER && actor.getRole() != UserRole.ADMIN) {
+        if (actor.getRole() != UserRole.WAREHOUSE_MANAGER) {
             throw new BusinessRuleViolationException("WAREHOUSE_MANAGER_ROLE_REQUIRED");
         }
     }
