@@ -349,22 +349,27 @@ const normalizeDeliveryStatus = (status, attempt) => {
   return normalizeDoStatus(status);
 };
 
-const normalizeAllocation = (allocation = {}) => ({
-  allocation_id: value(allocation, 'allocationId', 'allocation_id'),
-  inventory_id: value(allocation, 'inventoryId', 'inventory_id'),
-  batch_id: value(allocation, 'batchId', 'batch_id'),
-  batch_code: value(allocation, 'batchCode', 'batch_code'),
-  location_id: value(allocation, 'locationId', 'location_id'),
-  location_code: value(allocation, 'locationCode', 'location_code'),
-  zone_id: value(allocation, 'zoneId', 'zone_id'),
-  zone_code: value(allocation, 'zoneCode', 'zone_code'),
-  planned_qty: Number(value(allocation, 'plannedQty', 'planned_qty', 0)),
-  picked_qty: Number(value(allocation, 'pickedQty', 'picked_qty', 0)),
-  qc_pass_qty: Number(value(allocation, 'qcPassQty', 'qc_pass_qty', 0)),
-  qc_fail_qty: Number(value(allocation, 'qcFailQty', 'qc_fail_qty', 0)),
-  qc_completed: Boolean(value(allocation, 'qcCompleted', 'qc_completed', false)),
-  replacement: Boolean(value(allocation, 'replacement', 'replacement', false)),
-});
+const normalizeAllocation = (allocation = {}) => {
+  const qcPassQty = Number(value(allocation, 'qcPassQty', 'qc_pass_qty', 0));
+  const qcFailQty = Number(value(allocation, 'qcFailQty', 'qc_fail_qty', 0));
+
+  return {
+    allocation_id: value(allocation, 'allocationId', 'allocation_id'),
+    inventory_id: value(allocation, 'inventoryId', 'inventory_id'),
+    batch_id: value(allocation, 'batchId', 'batch_id'),
+    batch_code: value(allocation, 'batchCode', 'batch_code'),
+    location_id: value(allocation, 'locationId', 'location_id'),
+    location_code: value(allocation, 'locationCode', 'location_code'),
+    zone_id: value(allocation, 'zoneId', 'zone_id'),
+    zone_code: value(allocation, 'zoneCode', 'zone_code'),
+    planned_qty: Number(value(allocation, 'plannedQty', 'planned_qty', 0)),
+    picked_qty: Number(value(allocation, 'pickedQty', 'picked_qty', 0)),
+    qc_pass_qty: qcPassQty,
+    qc_fail_qty: qcFailQty,
+    qc_completed: Boolean(value(allocation, 'qcCompleted', 'qc_completed', false)) || qcPassQty + qcFailQty > 0,
+    replacement: Boolean(value(allocation, 'replacement', 'replacement', false)),
+  };
+};
 
 const normalizeDoItem = (item = {}) => ({
   id: value(item, 'id', 'id'),
@@ -589,7 +594,6 @@ const createReplacementPlanDraft = (items = []) => items
   .filter((item) => Math.max(0, Number(item.requested_qty || 0) - Number(item.qc_pass_qty || 0)) > 0)
   .map((item) => {
     const failedSources = (item.allocations || [])
-      .filter((allocation) => !allocation.replacement)
       .filter((allocation) => Number(allocation.qc_fail_qty || 0) > 0);
     const defaultFailedSource = failedSources.length === 1 ? failedSources[0] : {};
     const requiredQty = Math.max(0, Number(item.requested_qty || 0) - Number(item.qc_pass_qty || 0));
