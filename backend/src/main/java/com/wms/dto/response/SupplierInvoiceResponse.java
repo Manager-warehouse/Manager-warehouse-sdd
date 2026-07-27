@@ -30,6 +30,8 @@ public class SupplierInvoiceResponse {
     private String supplierName;
     @JsonProperty("total_amount")
     private BigDecimal totalAmount;
+    @JsonProperty("calculated_amount_estimate")
+    private BigDecimal calculatedAmountEstimate;
     @JsonProperty("paid_amount")
     private BigDecimal paidAmount;
     @JsonProperty("issue_date")

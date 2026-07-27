@@ -37,7 +37,8 @@ const SupplierInvoices = () => {
     supplierInvoiceNumber: '',
     documentDate: new Date().toISOString().slice(0, 10),
     dueDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
-    notes: ''
+    notes: '',
+    confirmedTotalAmount: ''
   });
 
   const [showCreatePaymentModal, setShowCreatePaymentModal] = useState(false);
@@ -124,7 +125,10 @@ const SupplierInvoices = () => {
       supplierInvoiceNumber: `VAT-${Math.floor(100000 + Math.random() * 900000)}`,
       documentDate: new Date().toISOString().slice(0, 10),
       dueDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
-      notes: `Lập hóa đơn mua hàng từ phiếu nhập ${notif.receipt_number || notif.receiptNumber}`
+      notes: `Lập hóa đơn mua hàng từ phiếu nhập ${notif.receipt_number || notif.receiptNumber}`,
+      // Pre-fill with the system estimate; the Accountant edits this against the
+      // supplier's real paper invoice before submitting - it is not auto-trusted.
+      confirmedTotalAmount: String(notif.totalAmountEstimate || notif.total_amount_estimate || 0)
     });
     setShowCreateInvoiceModal(true);
   };
@@ -133,6 +137,11 @@ const SupplierInvoices = () => {
   const handleSubmitInvoice = async (e) => {
     e.preventDefault();
     if (submittingInvoice) return;
+    const confirmedAmount = Number(invoiceFormData.confirmedTotalAmount);
+    if (!invoiceFormData.confirmedTotalAmount || Number.isNaN(confirmedAmount) || confirmedAmount <= 0) {
+      addToast('Số tiền hóa đơn phải lớn hơn 0', 'warning');
+      return;
+    }
     setSubmittingInvoice(true);
     try {
       await financeService.createSupplierInvoice(invoiceFormData);
@@ -527,6 +536,12 @@ const SupplierInvoices = () => {
                           <td className="p-4 text-shade-60">{inv.due_date}</td>
                           <td className="p-4 text-right font-bold text-ink">
                             {(inv.total_amount || 0).toLocaleString()}đ
+                            {inv.calculated_amount_estimate != null
+                              && Number(inv.calculated_amount_estimate) !== Number(inv.total_amount) && (
+                              <div className="text-[10px] font-normal text-shade-50" title="Kế toán viên đã sửa so với số hệ thống tự tính">
+                                (hệ thống ước tính: {Number(inv.calculated_amount_estimate).toLocaleString()}đ)
+                              </div>
+                            )}
                           </td>
                           <td className="p-4 text-center">
                             <span className={`px-2.5 py-0.5 rounded-pill text-[9px] font-bold uppercase ${
@@ -666,6 +681,23 @@ const SupplierInvoices = () => {
                 required
                 placeholder="ví dụ: VAT-88392"
               />
+
+              <div>
+                <Input
+                  id="confirmedTotalAmount"
+                  label="Số tiền hóa đơn (đối chiếu với hóa đơn giấy NCC)"
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={invoiceFormData.confirmedTotalAmount}
+                  onChange={e => setInvoiceFormData(prev => ({ ...prev, confirmedTotalAmount: e.target.value }))}
+                  required
+                />
+                <p className="text-[11px] text-shade-60 mt-1">
+                  Hệ thống ước tính {(selectedNotification?.totalAmountEstimate || 0).toLocaleString()}đ từ phiếu nhập kho.
+                  Vui lòng sửa lại nếu số trên hóa đơn giấy NCC khác với số ước tính này.
+                </p>
+              </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <Input
