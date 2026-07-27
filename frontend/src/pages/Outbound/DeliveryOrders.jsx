@@ -133,13 +133,10 @@ export default function DeliveryOrders() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [formData, setFormData] = useState(createEmptyForm);
   const [selectedDealerObj, setSelectedDealerObj] = useState(null);
-  const [dealerSearch, setDealerSearch] = useState('');
-  const [productSearch, setProductSearch] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [cancelModal, setCancelModal] = useState({ show: false, orderId: null, reason: '' });
 
   const debouncedSearch = useDebounce(search);
-  const debouncedProductSearch = useDebounce(productSearch);
 
   useEffect(() => {
     fetchOrders();
@@ -187,8 +184,6 @@ export default function DeliveryOrders() {
   const handleOpenCreateModal = () => {
     setFormData(createEmptyForm());
     setSelectedDealerObj(null);
-    setDealerSearch('');
-    setProductSearch('');
     setShowCreateModal(true);
   };
 
@@ -196,8 +191,6 @@ export default function DeliveryOrders() {
     setShowCreateModal(false);
     setFormData(createEmptyForm());
     setSelectedDealerObj(null);
-    setDealerSearch('');
-    setProductSearch('');
   };
 
   const addItemRow = () => {
@@ -328,22 +321,8 @@ export default function DeliveryOrders() {
   const creditStatus = creditCheck.status;
   const hasInvalidPrice = formData.items.some((item) => item.product_id && (item.price_status !== 'ready' || Number(item.unit_price) <= 0));
   const isSubmitDisabled = !formData.dealer_id || !formData.expected_delivery_date || !formData.items.length || hasInvalidPrice || creditStatus === 'BLOCKED' || submitting;
-  const filteredDealers = dealers.filter((dealer) => {
-    const keyword = dealerSearch.trim().toLowerCase();
-    if (!keyword) {
-      return true;
-    }
-
-    return `${dealer.code || ''} ${dealer.name || dealer.company_name || ''}`.toLowerCase().includes(keyword);
-  });
-  const filteredProducts = products.filter((product) => {
-    const keyword = productSearch.trim().toLowerCase();
-    if (!keyword) {
-      return true;
-    }
-
-    return `${product.sku || ''} ${product.name || ''}`.toLowerCase().includes(keyword);
-  });
+  const filteredDealers = dealers;
+  const filteredProducts = products;
 
   const productOptionsFor = (selectedProductId) => {
     if (!selectedProductId) {
@@ -534,12 +513,6 @@ export default function DeliveryOrders() {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="flex flex-col gap-3">
               <Input
-                label="Tìm đại lý"
-                value={dealerSearch}
-                onChange={(event) => setDealerSearch(event.target.value)}
-                placeholder="Nhập mã hoặc tên đại lý"
-              />
-              <Input
                 label="Đại lý nhận hàng *"
                 type="select"
                 disabled={masterDataLoading}
@@ -581,19 +554,6 @@ export default function DeliveryOrders() {
               <button type="button" onClick={addItemRow} className="flex items-center gap-1 text-xs font-semibold text-ink hover:underline">
                 <Plus className="h-3.5 w-3.5" /> Thêm sản phẩm
               </button>
-            </div>
-
-            <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
-              <Input
-                label="Tìm sản phẩm trong danh sách"
-                value={productSearch}
-                onChange={(event) => setProductSearch(event.target.value)}
-                placeholder="Nhập SKU hoặc tên sản phẩm"
-              />
-              <div className="flex items-center gap-2 text-xs text-shade-50">
-                {masterDataLoading && <Loader2 className="h-4 w-4 animate-spin" />}
-                <span>{masterDataLoading ? 'Đang tải danh mục sản phẩm...' : `Đang hiển thị ${filteredProducts.length}/${products.length} sản phẩm`}</span>
-              </div>
             </div>
 
             <div className="overflow-hidden rounded-lg border border-hairline-light bg-canvas-light">
