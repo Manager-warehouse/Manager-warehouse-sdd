@@ -143,6 +143,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
@@ -370,7 +371,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         order.setCreatedAt(now);
         order.setUpdatedAt(now);
 
-        DeliveryOrder saved = deliveryOrderRepository.save(order);
+        DeliveryOrder saved = saveDeliveryOrderWithConflictHandling(order);
         List<Map<String, Object>> reservationDeltas = reserveWarehouseProducts(warehouse, requestedByProduct, now);
         List<DeliveryOrderItem> savedItems = itemPlans.stream()
                 .map(plan -> toEntity(plan, saved))
@@ -2410,7 +2411,41 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
             throw new OutboundDeliveryException("INVENTORY_VERSION_CONFLICT",
                     HttpStatus.CONFLICT,
                     "Warehouse product reservation was updated by another transaction");
+        } catch (DataIntegrityViolationException ex) {
+            if (hasMessage(ex, "warehouse_product_reservations")) {
+                throw new OutboundDeliveryException("WAREHOUSE_PRODUCT_RESERVATION_CONFLICT",
+                        HttpStatus.CONFLICT,
+                        "Tồn giữ chỗ của sản phẩm trong kho vừa được thay đổi, vui lòng tải lại và thử lại");
+            }
+            throw ex;
         }
+    }
+
+    private DeliveryOrder saveDeliveryOrderWithConflictHandling(DeliveryOrder order) {
+        try {
+            return deliveryOrderRepository.saveAndFlush(order);
+        } catch (DataIntegrityViolationException ex) {
+            if (hasMessage(ex, "delivery_orders_do_number")
+                    || hasMessage(ex, "delivery_orders_do_number_key")
+                    || hasMessage(ex, "do_number")) {
+                throw new OutboundDeliveryException("DELIVERY_ORDER_NUMBER_CONFLICT",
+                        HttpStatus.CONFLICT,
+                        "Số đơn xuất kho đã tồn tại, vui lòng thử tạo lại");
+            }
+            throw ex;
+        }
+    }
+
+    private boolean hasMessage(Throwable throwable, String pattern) {
+        Throwable current = throwable;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null && message.toLowerCase().contains(pattern.toLowerCase())) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
     private <T> T reference(Class<T> type, Long id) {

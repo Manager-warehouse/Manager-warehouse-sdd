@@ -94,6 +94,8 @@ class StockAlertServiceImplTest {
                 productRepository, warehouseRepository, systemConfigRepository,
                 userRepository, userWarehouseAssignmentRepository, notificationRepository
         );
+        lenient().when(stockAlertRepository.findByWarehouseIdAndProductIdAndAlertTypeAndIsResolved(
+                any(), any(), any(AlertType.class), eq(false))).thenReturn(Optional.empty());
 
         warehouse = new Warehouse();
         warehouse.setId(1L);
@@ -120,7 +122,18 @@ class StockAlertServiceImplTest {
         when(warehouseProductReservationRepository.findByWarehouseIdAndProductId(1L, 10L))
                 .thenReturn(Optional.empty());
         when(stockAlertRepository.findByWarehouseIdAndProductIdAndAlertTypeAndIsResolved(1L, 10L, AlertType.LOW_STOCK, false))
-                .thenReturn(Optional.empty());
+                .thenReturn(Optional.empty(), Optional.of(StockAlert.builder()
+                        .id(100L)
+                        .warehouse(warehouse)
+                        .product(product)
+                        .currentQty(new BigDecimal("15"))
+                        .reorderPoint(new BigDecimal("20"))
+                        .alertType(AlertType.LOW_STOCK)
+                        .isResolved(false)
+                        .build()));
+        when(stockAlertRepository.insertOpenAlertIfAbsent(
+                1L, 10L, new BigDecimal("15"), new BigDecimal("20"), AlertType.LOW_STOCK.name()))
+                .thenReturn(1);
         when(userWarehouseAssignmentRepository.findWarehouseManagersByWarehouseId(1L))
                 .thenReturn(List.of(manager));
         when(userRepository.findByRole(UserRole.PLANNER))
@@ -128,7 +141,8 @@ class StockAlertServiceImplTest {
 
         service.checkAndTriggerAlert(1L, 10L);
 
-        verify(stockAlertRepository, times(1)).save(any(StockAlert.class));
+        verify(stockAlertRepository).insertOpenAlertIfAbsent(
+                1L, 10L, new BigDecimal("15"), new BigDecimal("20"), AlertType.LOW_STOCK.name());
         verify(notificationRepository, atLeastOnce()).save(any(Notification.class));
 
     }
@@ -160,6 +174,88 @@ class StockAlertServiceImplTest {
         assertThat(activeAlert.getIsResolved()).isTrue();
         assertThat(activeAlert.getResolvedAt()).isNotNull();
         verify(stockAlertRepository, times(1)).save(activeAlert);
+        verify(notificationRepository, atLeastOnce()).save(any(Notification.class));
+    }
+
+    @Test
+    void checkAndTriggerAlert_outOfStockKeepsExistingOutOfStockAndResolvesLowStock() {
+        StockAlert lowStockAlert = new StockAlert();
+        lowStockAlert.setId(100L);
+        lowStockAlert.setWarehouse(warehouse);
+        lowStockAlert.setProduct(product);
+        lowStockAlert.setAlertType(AlertType.LOW_STOCK);
+        lowStockAlert.setIsResolved(false);
+
+        StockAlert outOfStockAlert = new StockAlert();
+        outOfStockAlert.setId(101L);
+        outOfStockAlert.setWarehouse(warehouse);
+        outOfStockAlert.setProduct(product);
+        outOfStockAlert.setAlertType(AlertType.OUT_OF_STOCK);
+        outOfStockAlert.setIsResolved(false);
+
+        when(warehouseRepository.findById(1L)).thenReturn(Optional.of(warehouse));
+        when(productRepository.findById(10L)).thenReturn(Optional.of(product));
+        when(inventoryRepository.sumValidAvailableQty(1L, 10L)).thenReturn(BigDecimal.ZERO);
+        when(warehouseProductReservationRepository.findByWarehouseIdAndProductId(1L, 10L))
+                .thenReturn(Optional.empty());
+        when(stockAlertRepository.findByWarehouseIdAndProductIdAndAlertTypeAndIsResolved(
+                1L, 10L, AlertType.OUT_OF_STOCK, false)).thenReturn(Optional.of(outOfStockAlert));
+        when(stockAlertRepository.findByWarehouseIdAndProductIdAndAlertTypeAndIsResolved(
+                1L, 10L, AlertType.LOW_STOCK, false)).thenReturn(Optional.of(lowStockAlert));
+
+        service.checkAndTriggerAlert(1L, 10L);
+
+        assertThat(outOfStockAlert.getAlertType()).isEqualTo(AlertType.OUT_OF_STOCK);
+        assertThat(outOfStockAlert.getCurrentQty()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(lowStockAlert.getAlertType()).isEqualTo(AlertType.LOW_STOCK);
+        assertThat(lowStockAlert.getIsResolved()).isTrue();
+        assertThat(lowStockAlert.getResolvedAt()).isNotNull();
+        verify(stockAlertRepository).save(outOfStockAlert);
+        verify(stockAlertRepository).save(lowStockAlert);
+    }
+
+    @Test
+    void checkAndTriggerAlert_outOfStockCreatesCurrentAlertAndResolvesLowStock() {
+        StockAlert lowStockAlert = new StockAlert();
+        lowStockAlert.setId(100L);
+        lowStockAlert.setWarehouse(warehouse);
+        lowStockAlert.setProduct(product);
+        lowStockAlert.setAlertType(AlertType.LOW_STOCK);
+        lowStockAlert.setIsResolved(false);
+
+        StockAlert outOfStockAlert = new StockAlert();
+        outOfStockAlert.setId(101L);
+        outOfStockAlert.setWarehouse(warehouse);
+        outOfStockAlert.setProduct(product);
+        outOfStockAlert.setAlertType(AlertType.OUT_OF_STOCK);
+        outOfStockAlert.setIsResolved(false);
+
+        when(warehouseRepository.findById(1L)).thenReturn(Optional.of(warehouse));
+        when(productRepository.findById(10L)).thenReturn(Optional.of(product));
+        when(inventoryRepository.sumValidAvailableQty(1L, 10L)).thenReturn(BigDecimal.ZERO);
+        when(warehouseProductReservationRepository.findByWarehouseIdAndProductId(1L, 10L))
+                .thenReturn(Optional.empty());
+        when(stockAlertRepository.findByWarehouseIdAndProductIdAndAlertTypeAndIsResolved(
+                1L, 10L, AlertType.OUT_OF_STOCK, false))
+                .thenReturn(Optional.empty(), Optional.of(outOfStockAlert));
+        when(stockAlertRepository.findByWarehouseIdAndProductIdAndAlertTypeAndIsResolved(
+                1L, 10L, AlertType.LOW_STOCK, false)).thenReturn(Optional.of(lowStockAlert));
+        when(stockAlertRepository.insertOpenAlertIfAbsent(
+                1L, 10L, BigDecimal.ZERO, new BigDecimal("20"), AlertType.OUT_OF_STOCK.name()))
+                .thenReturn(1);
+        when(userWarehouseAssignmentRepository.findWarehouseManagersByWarehouseId(1L))
+                .thenReturn(List.of(manager));
+        when(userRepository.findByRole(UserRole.PLANNER))
+                .thenReturn(List.of());
+
+        service.checkAndTriggerAlert(1L, 10L);
+
+        assertThat(lowStockAlert.getAlertType()).isEqualTo(AlertType.LOW_STOCK);
+        assertThat(lowStockAlert.getIsResolved()).isTrue();
+        assertThat(lowStockAlert.getResolvedAt()).isNotNull();
+        verify(stockAlertRepository).insertOpenAlertIfAbsent(
+                1L, 10L, BigDecimal.ZERO, new BigDecimal("20"), AlertType.OUT_OF_STOCK.name());
+        verify(stockAlertRepository).save(lowStockAlert);
         verify(notificationRepository, atLeastOnce()).save(any(Notification.class));
     }
 
