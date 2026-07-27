@@ -51,6 +51,7 @@ public class DeliveryOrderAllocationResponse {
     private BigDecimal pickedQty;
     private BigDecimal qcPassQty;
     private BigDecimal qcFailQty;
+    private Long stagingLocationId;
     private boolean qcCompleted;
     private boolean replacement;
 }

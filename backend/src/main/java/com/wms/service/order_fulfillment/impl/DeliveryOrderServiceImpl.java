@@ -1275,7 +1275,14 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                             BigDecimal qcFailQty = rows.stream()
                                     .map(OutboundQcRecord::getQcFailQty)
                                     .reduce(ZERO, this::valueAdd);
-                            return new AllocationQcSummary(qcPassQty, qcFailQty,
+                            Long stagingLocationId = rows.stream()
+                                    .filter(row -> value(row.getQcPassQty()).compareTo(ZERO) > 0)
+                                    .map(OutboundQcRecord::getStagingLocation)
+                                    .filter(Objects::nonNull)
+                                    .map(WarehouseLocation::getId)
+                                    .findFirst()
+                                    .orElse(null);
+                            return new AllocationQcSummary(qcPassQty, qcFailQty, stagingLocationId,
                                     qcPassQty.add(qcFailQty).compareTo(ZERO) > 0);
                         })));
     }
