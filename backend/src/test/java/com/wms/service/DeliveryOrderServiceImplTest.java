@@ -901,6 +901,43 @@ class DeliveryOrderServiceImplTest {
     }
 
     @Test
+    void saveDeliveryOrderReplacementPlan_allowsReplacementBinWithoutZone() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.QC_PENDING_APPROVAL);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("10.00"));
+        item.setQcFailQty(new BigDecimal("2.00"));
+        DeliveryOrderItemAllocation failedAllocation = allocation(900L, item, inventory, zone,
+                new BigDecimal("10.00"), new BigDecimal("8.00"), false);
+        WarehouseLocation binWithoutZone = bin(802L, warehouse, null);
+        Batch batch2 = batch(72L, product, warehouse);
+        Inventory replacementInventory = inventory(502L, warehouse, product, batch2, binWithoutZone,
+                new BigDecimal("10.00"), ZERO);
+        DeliveryOrderReplacementPlanRequest request = replacementPlanRequest();
+        request.getReplacements().get(0).setReplacementZoneId(null);
+
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
+        when(deliveryOrderItemRepository.findByDeliveryOrderId(100L)).thenReturn(List.of(item));
+        when(allocationRepository.findByDeliveryOrderItemDeliveryOrderId(100L)).thenReturn(List.of(failedAllocation));
+        when(inventoryRepository.findByIdInWithLock(List.of(502L))).thenReturn(List.of(replacementInventory));
+        when(replacementRepository.sumReplacementQtyByDeliveryOrderItemId(200L)).thenReturn(ZERO);
+        when(inventoryRepository.save(any(Inventory.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(replacementRepository.save(any(DeliveryOrderItemReplacement.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(allocationRepository.save(any(DeliveryOrderItemAllocation.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(deliveryOrderItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(deliveryOrderRepository.save(any(DeliveryOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(entityManager.getReference(Inventory.class, 501L)).thenReturn(inventory);
+        when(entityManager.getReference(Batch.class, 71L)).thenReturn(batch);
+        when(entityManager.getReference(WarehouseLocation.class, 801L)).thenReturn(bin);
+        when(entityManager.getReference(Batch.class, 72L)).thenReturn(batch2);
+        when(entityManager.getReference(WarehouseLocation.class, 802L)).thenReturn(binWithoutZone);
+
+        DeliveryOrderResponse response = service.saveDeliveryOrderReplacementPlan(100L, request, storekeeper);
+
+        assertThat(response.getStatus()).isEqualTo(DeliveryOrderStatus.WAITING_PICKING);
+        assertThat(replacementInventory.getReservedQty()).isEqualByComparingTo("2.00");
+    }
+
+    @Test
     void saveDeliveryOrderPickQcResult_movesInventoryAndStatus() {
         DeliveryOrder order = order(100L, DeliveryOrderStatus.WAITING_PICKING);
         DeliveryOrderItem item = item(order, product, new BigDecimal("10.00"));

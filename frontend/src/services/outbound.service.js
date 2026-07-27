@@ -555,7 +555,7 @@ const buildReplacementPlanPayload = (items) => {
         replacementInventoryId: Number(allocation.inventory_id),
         replacementBatchId: Number(allocation.batch_id),
         replacementLocationId: Number(allocation.location_id),
-        replacementZoneId: Number(allocation.zone_id),
+        replacementZoneId: allocation.zone_id ? Number(allocation.zone_id) : null,
         quantity: Number(allocation.planned_qty || 0),
         reason: allocation.reason?.trim() || 'QC fail replacement',
       })),
