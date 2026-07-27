@@ -360,6 +360,10 @@ public class QuarantineRtvService {
             BigDecimal unitCost = item.getUnitCost() != null ? item.getUnitCost() : BigDecimal.ZERO;
             BigDecimal failedQty = item.getSampleFailedQty() != null ? BigDecimal.valueOf(item.getSampleFailedQty()) : BigDecimal.ZERO;
             BigDecimal totalValue = failedQty.multiply(unitCost);
+            String originType = item.getReceipt().getType() == ReceiptType.RETURN ? "DEALER_RETURN" : "RECEIPT";
+
+            Long dealerId = item.getReceipt().getDealer() != null ? item.getReceipt().getDealer().getId() : null;
+            String dealerName = item.getReceipt().getDealer() != null ? item.getReceipt().getDealer().getName() : null;
 
             responses.add(QuarantineItemResponse.builder()
                     .id(item.getId())
@@ -369,11 +373,13 @@ public class QuarantineRtvService {
                     .qcFailureReason(item.getQcFailureReason())
                     .receiptNumber(item.getReceipt().getReceiptNumber())
                     .supplierId(item.getReceipt().getSupplier() != null ? item.getReceipt().getSupplier().getId() : null)
+                    .dealerId(dealerId)
+                    .dealerName(dealerName)
                     .totalValue(totalValue)
                     .unit(item.getProduct().getUnit() != null ? item.getProduct().getUnit() : "cái")
                     .receiptId(item.getReceipt().getId())
                     .receiptVersion(item.getReceipt().getVersion())
-                    .originType("RECEIPT")
+                    .originType(originType)
                     .build());
         }
 
