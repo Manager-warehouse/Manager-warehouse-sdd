@@ -81,11 +81,13 @@ const buildReturnedRows = (items = []) => {
           expected_qty: qty,
           actual_qty: qty,
           quality_pass_qty: qty,
-          quality_fail_qty: 0,
-          quality_failure_reason: '',
-          destination_location_id: '',
-          planned_qty: qty,
-        });
+        quality_fail_qty: 0,
+        quality_failure_reason: '',
+        destination_location_id: '',
+        failed_destination_location_id: '',
+        planned_qty: qty,
+        failed_planned_qty: 0,
+      });
       });
   });
 
@@ -108,7 +110,13 @@ const mergeReturnedFlowRows = (rows, flow) => {
           quality_fail_qty: matched.quality_fail_qty ?? row.quality_fail_qty,
           quality_failure_reason: matched.quality_failure_reason || row.quality_failure_reason,
           destination_location_id: matched.destination_location_id || row.destination_location_id,
-          planned_qty: matched.planned_qty || row.planned_qty,
+          failed_destination_location_id: matched.failed_destination_location_id || row.failed_destination_location_id,
+          planned_qty: Number(matched.planned_qty || 0) > 0
+            ? matched.planned_qty
+            : matched.quality_pass_qty ?? row.planned_qty,
+          failed_planned_qty: Number(matched.failed_planned_qty || 0) > 0
+            ? matched.failed_planned_qty
+            : matched.quality_fail_qty ?? row.failed_planned_qty,
         }
       : row;
   });
@@ -133,7 +141,9 @@ const mergeDuplicateReturnedRows = (rows = []) => Array.from(rows.reduce((acc, r
     quality_fail_qty: failQty,
     quality_failure_reason: existing.quality_failure_reason || row.quality_failure_reason || '',
     planned_qty: Number(existing.planned_qty || 0) + Number(row.planned_qty || 0),
+    failed_planned_qty: Number(existing.failed_planned_qty || 0) + Number(row.failed_planned_qty || 0),
     destination_location_id: existing.destination_location_id || row.destination_location_id || '',
+    failed_destination_location_id: existing.failed_destination_location_id || row.failed_destination_location_id || '',
   });
   return acc;
 }, new Map()).values());
@@ -310,9 +320,16 @@ export default function DeliveryOrderDetail() {
   };
 
   const handleReturnRowChange = (rowKey, field, value) => {
-    setReturnRows((previous) => previous.map((row) => (
-      row.key === rowKey ? { ...row, [field]: value } : row
-    )));
+    setReturnRows((previous) => previous.map((row) => {
+      if (row.key !== rowKey) return row;
+      if (field === 'quality_pass_qty') {
+        return { ...row, quality_pass_qty: value, planned_qty: value };
+      }
+      if (field === 'quality_fail_qty') {
+        return { ...row, quality_fail_qty: value, failed_planned_qty: value };
+      }
+      return { ...row, [field]: value };
+    }));
   };
 
   const handleConfirmReturnedGoodsReceived = async () => {
@@ -401,12 +418,13 @@ export default function DeliveryOrderDetail() {
   const handlePlanReturnedPutaway = async () => {
     const mergedRows = mergeDuplicateReturnedRows(returnRows);
     const invalid = mergedRows.some((row) => (
-      !row.destination_location_id
-      || Number(row.planned_qty || 0) <= 0
-      || Number(row.planned_qty || 0) !== Number(row.actual_qty || 0)
+      (Number(row.quality_pass_qty || 0) > 0
+        && (!row.destination_location_id || Number(row.planned_qty || 0) !== Number(row.quality_pass_qty || 0)))
+      || (Number(row.quality_fail_qty || 0) > 0
+        && (!row.failed_destination_location_id || Number(row.failed_planned_qty || 0) !== Number(row.quality_fail_qty || 0)))
     ));
     if (invalid) {
-      addToast('Vui lòng chọn vị trí cất và số lượng cất cho từng dòng hàng hoàn.', 'error');
+      addToast('Vui lòng chọn đúng vị trí cất hàng đạt và vị trí cách ly cho hàng lỗi.', 'error');
       return;
     }
     setSubmitting(true);
@@ -418,6 +436,8 @@ export default function DeliveryOrderDetail() {
           batch_id: row.batch_id,
           destination_location_id: Number(row.destination_location_id),
           planned_qty: Number(row.planned_qty || 0),
+          failed_destination_location_id: row.failed_destination_location_id ? Number(row.failed_destination_location_id) : null,
+          failed_planned_qty: Number(row.failed_planned_qty || 0),
         })),
       });
       setReturnedFlow(flow);
@@ -776,7 +796,7 @@ export default function DeliveryOrderDetail() {
           </div>
 
           <div className="overflow-x-auto rounded-lg border border-orange-100 bg-canvas-light">
-            <table className="w-full min-w-[820px] text-left text-xs">
+            <table className="w-full min-w-[1100px] text-left text-xs">
               <thead className="bg-canvas-cream text-[10px] uppercase tracking-wider text-shade-60">
                 <tr>
                   <th className="px-3 py-2">Sản phẩm</th>
@@ -786,17 +806,18 @@ export default function DeliveryOrderDetail() {
                   <th className="px-3 py-2">SL đạt</th>
                   <th className="px-3 py-2">SL lỗi</th>
                   <th className="px-3 py-2">Lý do lỗi</th>
-                  <th className="px-3 py-2">Vị trí cất</th>
-                  <th className="px-3 py-2">SL cất</th>
+                  <th className="px-3 py-2">Vị trí hàng đạt</th>
+                  <th className="px-3 py-2">SL cất hàng đạt</th>
+                  <th className="px-3 py-2">Vị trí cách ly</th>
+                  <th className="px-3 py-2">SL cách ly</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-hairline-light">
                 {returnRows.map((row) => {
-                  const locationOptions = locations.filter((location) => (
-                    Number(row.quality_fail_qty || 0) > 0
-                      ? location.is_quarantine === true
-                      : (location.is_quarantine !== true && location.is_staging !== true)
+                  const passLocationOptions = locations.filter((location) => (
+                    location.is_quarantine !== true && location.is_staging !== true
                   ));
+                  const failLocationOptions = locations.filter((location) => location.is_quarantine === true);
                   const countDisabled = !hasRole(ROLES.WAREHOUSE_STAFF) || !canStaffSubmitReturnedQc(returnFlowStatus);
                   const planDisabled = !hasRole(ROLES.STOREKEEPER) || returnFlowStatus !== 'QC_APPROVED';
                   return (
@@ -851,13 +872,13 @@ export default function DeliveryOrderDetail() {
                       </td>
                       <td className="px-3 py-3">
                         <select
-                          disabled={planDisabled}
+                          disabled={planDisabled || Number(row.quality_pass_qty || 0) <= 0}
                           value={row.destination_location_id}
                           onChange={(event) => handleReturnRowChange(row.key, 'destination_location_id', event.target.value)}
                           className="w-44 rounded-md border border-hairline-light bg-canvas-light px-2 py-1.5 text-xs disabled:bg-canvas-cream"
                         >
-                          <option value="">Chọn vị trí</option>
-                          {locationOptions.map((location) => (
+                          <option value="">Chọn bin hàng đạt</option>
+                          {passLocationOptions.map((location) => (
                             <option key={location.id} value={location.id}>
                               {location.code || `Bin #${location.id}`}
                             </option>
@@ -869,9 +890,35 @@ export default function DeliveryOrderDetail() {
                           type="number"
                           min="0.01"
                           step="0.01"
-                          disabled={planDisabled}
+                          disabled={planDisabled || Number(row.quality_pass_qty || 0) <= 0}
                           value={row.planned_qty}
                           onChange={(event) => handleReturnRowChange(row.key, 'planned_qty', event.target.value)}
+                          className="w-24 rounded-md border border-hairline-light bg-canvas-light px-2 py-1.5 text-xs disabled:bg-canvas-cream"
+                        />
+                      </td>
+                      <td className="px-3 py-3">
+                        <select
+                          disabled={planDisabled || Number(row.quality_fail_qty || 0) <= 0}
+                          value={row.failed_destination_location_id}
+                          onChange={(event) => handleReturnRowChange(row.key, 'failed_destination_location_id', event.target.value)}
+                          className="w-44 rounded-md border border-hairline-light bg-canvas-light px-2 py-1.5 text-xs disabled:bg-canvas-cream"
+                        >
+                          <option value="">Chọn khu cách ly</option>
+                          {failLocationOptions.map((location) => (
+                            <option key={location.id} value={location.id}>
+                              {location.code || `Bin #${location.id}`}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-3 py-3">
+                        <input
+                          type="number"
+                          min="0.01"
+                          step="0.01"
+                          disabled={planDisabled || Number(row.quality_fail_qty || 0) <= 0}
+                          value={row.failed_planned_qty}
+                          onChange={(event) => handleReturnRowChange(row.key, 'failed_planned_qty', event.target.value)}
                           className="w-24 rounded-md border border-hairline-light bg-canvas-light px-2 py-1.5 text-xs disabled:bg-canvas-cream"
                         />
                       </td>
