@@ -1083,8 +1083,11 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
             item.setQualityFailQty(failQty);
             item.setQualityFailureReason(blankToNull(row.getQualityFailureReason()));
             item.setDestinationLocation(null);
+            item.setFailedDestinationLocation(null);
             item.setPlannedQty(null);
+            item.setFailedPlannedQty(null);
             item.setPutawayCompletedQty(null);
+            item.setFailedPutawayCompletedQty(null);
         }
         flow.setStatus(ReturnedDeliveryFlowStatus.COUNT_QC_SUBMITTED);
         flow.setCountedByStaff(actor);
@@ -1183,14 +1186,27 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         for (Map.Entry<ReturnedLineKey, ReturnedGoodsPutawayPlanItemRequest> entry : requestByKey.entrySet()) {
             ReturnedDeliveryFlowItem item = itemsByKey.get(entry.getKey());
             ReturnedGoodsPutawayPlanItemRequest row = entry.getValue();
-            if (value(row.getPlannedQty()).compareTo(value(item.getActualQty())) != 0) {
+            BigDecimal passQty = value(item.getQualityPassQty());
+            BigDecimal failQty = value(item.getQualityFailQty());
+            if (passQty.compareTo(ZERO) > 0 && value(row.getPlannedQty()).compareTo(passQty) != 0) {
                 throw new OutboundDeliveryException("RETURN_PUTAWAY_QTY_MISMATCH", HttpStatus.UNPROCESSABLE_ENTITY,
-                        "Returned putaway planned quantity must equal actual returned quantity");
+                        "Returned pass putaway planned quantity must equal quality passed quantity");
             }
-            WarehouseLocation destination = resolveWarehouseLocation(order, row.getDestinationLocationId(),
-                    value(item.getQualityFailQty()).compareTo(ZERO) > 0, "returned putaway");
+            if (failQty.compareTo(ZERO) > 0 && value(row.getFailedPlannedQty()).compareTo(failQty) != 0) {
+                throw new OutboundDeliveryException("RETURN_PUTAWAY_QTY_MISMATCH", HttpStatus.UNPROCESSABLE_ENTITY,
+                        "Returned failed putaway planned quantity must equal quality failed quantity");
+            }
+            WarehouseLocation destination = passQty.compareTo(ZERO) > 0
+                    ? resolveWarehouseLocation(order, row.getDestinationLocationId(), false, "returned pass putaway")
+                    : null;
+            WarehouseLocation failedDestination = failQty.compareTo(ZERO) > 0
+                    ? resolveWarehouseLocation(order, row.getFailedDestinationLocationId(), true,
+                            "returned failed putaway")
+                    : null;
             item.setDestinationLocation(destination);
-            item.setPlannedQty(value(row.getPlannedQty()));
+            item.setFailedDestinationLocation(failedDestination);
+            item.setPlannedQty(passQty.compareTo(ZERO) > 0 ? value(row.getPlannedQty()) : ZERO);
+            item.setFailedPlannedQty(failQty.compareTo(ZERO) > 0 ? value(row.getFailedPlannedQty()) : ZERO);
         }
         flow.setStatus(ReturnedDeliveryFlowStatus.PUTAWAY_PLANNED);
         flow.setPutawayPlannedByStorekeeper(actor);
@@ -1219,27 +1235,45 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         Map<String, Object> before = returnedFlowSnapshot(flow);
         OffsetDateTime now = OffsetDateTime.now();
         for (ReturnedDeliveryFlowItem item : flow.getItems()) {
-            if (item.getDestinationLocation() == null || value(item.getPlannedQty()).compareTo(ZERO) <= 0) {
+            BigDecimal passPlannedQty = value(item.getPlannedQty());
+            BigDecimal failPlannedQty = value(item.getFailedPlannedQty());
+            if (value(item.getQualityPassQty()).compareTo(ZERO) > 0
+                    && (item.getDestinationLocation() == null || passPlannedQty.compareTo(ZERO) <= 0)) {
                 throw new OutboundDeliveryException("RETURN_PUTAWAY_PLAN_REQUIRED", HttpStatus.UNPROCESSABLE_ENTITY,
-                        "Every returned goods line must have a destination location and planned quantity");
+                        "Returned pass goods must have a destination location and planned quantity");
+            }
+            if (value(item.getQualityFailQty()).compareTo(ZERO) > 0
+                    && (item.getFailedDestinationLocation() == null || failPlannedQty.compareTo(ZERO) <= 0)) {
+                throw new OutboundDeliveryException("RETURN_PUTAWAY_PLAN_REQUIRED", HttpStatus.UNPROCESSABLE_ENTITY,
+                        "Returned failed goods must have a quarantine location and planned quantity");
             }
             Inventory transitInventory = inventoryRepository
                     .findTransitRowForDeliveryConfirmation(item.getProduct().getId(), item.getBatch().getId())
                     .orElseThrow(() -> new OutboundDeliveryException("INVENTORY_ROW_INVALID", HttpStatus.CONFLICT,
                             "Returned goods are not available in in-transit inventory"));
+            BigDecimal totalPlannedQty = passPlannedQty.add(failPlannedQty);
             transitInventory.setTotalQty(subtractOrThrow(value(transitInventory.getTotalQty()),
-                    item.getPlannedQty(), "INVENTORY_ROW_INVALID",
+                    totalPlannedQty, "INVENTORY_ROW_INVALID",
                     "In-transit inventory does not have enough returned quantity"));
             transitInventory.setUpdatedAt(now);
             saveInventoryWithConflictHandling(transitInventory);
 
-            Inventory destinationInventory = loadOrCreateInventoryRow(order, item.getProduct(), item.getBatch(),
-                    item.getDestinationLocation(), transitInventory,
-                    value(item.getQualityFailQty()).compareTo(ZERO) > 0, now);
-            destinationInventory.setTotalQty(value(destinationInventory.getTotalQty()).add(item.getPlannedQty()));
-            destinationInventory.setUpdatedAt(now);
-            saveInventoryWithConflictHandling(destinationInventory);
-            item.setPutawayCompletedQty(item.getPlannedQty());
+            if (passPlannedQty.compareTo(ZERO) > 0) {
+                Inventory destinationInventory = loadOrCreateInventoryRow(order, item.getProduct(), item.getBatch(),
+                        item.getDestinationLocation(), transitInventory, false, now);
+                destinationInventory.setTotalQty(value(destinationInventory.getTotalQty()).add(passPlannedQty));
+                destinationInventory.setUpdatedAt(now);
+                saveInventoryWithConflictHandling(destinationInventory);
+            }
+            if (failPlannedQty.compareTo(ZERO) > 0) {
+                Inventory failedInventory = loadOrCreateInventoryRow(order, item.getProduct(), item.getBatch(),
+                        item.getFailedDestinationLocation(), transitInventory, true, now);
+                failedInventory.setTotalQty(value(failedInventory.getTotalQty()).add(failPlannedQty));
+                failedInventory.setUpdatedAt(now);
+                saveInventoryWithConflictHandling(failedInventory);
+            }
+            item.setPutawayCompletedQty(passPlannedQty);
+            item.setFailedPutawayCompletedQty(failPlannedQty);
         }
         flow.setStatus(ReturnedDeliveryFlowStatus.PUTAWAY_COMPLETED);
         flow.setPutawayCompletedByStaff(actor);
@@ -1370,8 +1404,12 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                                 .qualityFailureReason(item.getQualityFailureReason())
                                 .destinationLocationId(item.getDestinationLocation() == null ? null
                                         : item.getDestinationLocation().getId())
+                                .failedDestinationLocationId(item.getFailedDestinationLocation() == null ? null
+                                        : item.getFailedDestinationLocation().getId())
                                 .plannedQty(item.getPlannedQty())
+                                .failedPlannedQty(item.getFailedPlannedQty())
                                 .putawayCompletedQty(item.getPutawayCompletedQty())
+                                .failedPutawayCompletedQty(item.getFailedPutawayCompletedQty())
                                 .build())
                         .toList())
                 .build();
@@ -1394,8 +1432,12 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                                 "qualityFailureReason", item.getQualityFailureReason(),
                                 "destinationLocationId", item.getDestinationLocation() == null ? null
                                         : item.getDestinationLocation().getId(),
+                                "failedDestinationLocationId", item.getFailedDestinationLocation() == null ? null
+                                        : item.getFailedDestinationLocation().getId(),
                                 "plannedQty", item.getPlannedQty(),
-                                "putawayCompletedQty", item.getPutawayCompletedQty()))
+                                "failedPlannedQty", item.getFailedPlannedQty(),
+                                "putawayCompletedQty", item.getPutawayCompletedQty(),
+                                "failedPutawayCompletedQty", item.getFailedPutawayCompletedQty()))
                         .toList());
     }
 

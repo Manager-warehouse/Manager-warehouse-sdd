@@ -62,11 +62,21 @@ public class ReturnedDeliveryFlowItem {
     @JoinColumn(name = "destination_location_id")
     private WarehouseLocation destinationLocation;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "failed_destination_location_id")
+    private WarehouseLocation failedDestinationLocation;
+
     @Column(name = "planned_qty", precision = 10, scale = 2)
     private BigDecimal plannedQty;
 
+    @Column(name = "failed_planned_qty", precision = 10, scale = 2)
+    private BigDecimal failedPlannedQty;
+
     @Column(name = "putaway_completed_qty", precision = 10, scale = 2)
     private BigDecimal putawayCompletedQty;
+
+    @Column(name = "failed_putaway_completed_qty", precision = 10, scale = 2)
+    private BigDecimal failedPutawayCompletedQty;
 
     @Version
     @Column(name = "version", nullable = false)

@@ -16,10 +16,13 @@ public class ReturnedGoodsPutawayPlanItemRequest {
     @NotNull
     private Long batchId;
 
-    @NotNull
     private Long destinationLocationId;
 
-    @NotNull
     @DecimalMin(value = "0.01")
     private BigDecimal plannedQty;
+
+    private Long failedDestinationLocationId;
+
+    @DecimalMin(value = "0.01")
+    private BigDecimal failedPlannedQty;
 }

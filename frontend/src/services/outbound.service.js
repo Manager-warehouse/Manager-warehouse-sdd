@@ -434,8 +434,11 @@ const normalizeReturnedGoodsFlow = (flow = {}) => ({
     quality_fail_qty: Number(value(item, 'qualityFailQty', 'quality_fail_qty', 0)),
     quality_failure_reason: value(item, 'qualityFailureReason', 'quality_failure_reason', value(item, 'qualityReason', 'quality_reason', '')),
     destination_location_id: value(item, 'destinationLocationId', 'destination_location_id'),
+    failed_destination_location_id: value(item, 'failedDestinationLocationId', 'failed_destination_location_id'),
     planned_qty: Number(value(item, 'plannedQty', 'planned_qty', 0)),
+    failed_planned_qty: Number(value(item, 'failedPlannedQty', 'failed_planned_qty', 0)),
     putaway_completed_qty: Number(value(item, 'putawayCompletedQty', 'putaway_completed_qty', 0)),
+    failed_putaway_completed_qty: Number(value(item, 'failedPutawayCompletedQty', 'failed_putaway_completed_qty', 0)),
   })),
 });
 
@@ -1199,6 +1202,8 @@ export const outboundService = {
         batchId: item.batch_id,
         destinationLocationId: item.destination_location_id,
         plannedQty: Number(item.planned_qty || 0),
+        failedDestinationLocationId: item.failed_destination_location_id,
+        failedPlannedQty: Number(item.failed_planned_qty || 0),
       })),
     });
     return normalizeReturnedGoodsFlow(response.data);
