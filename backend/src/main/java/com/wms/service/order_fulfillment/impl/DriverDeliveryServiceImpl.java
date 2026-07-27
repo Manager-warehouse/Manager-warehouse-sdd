@@ -256,6 +256,7 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
         deliveryOrderRepository.save(delivery.getDeliveryOrder());
         Delivery saved = deliveryRepository.save(delivery);
         audit(actor, AuditAction.CONFIRM_DELIVERY, saved, before, attemptSnapshot(saved));
+        completeTripIfAllStopsTerminal(trip, actor, now);
         return toAttemptResponse(saved);
     }
 
@@ -276,6 +277,7 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
         deliveryOrderRepository.save(delivery.getDeliveryOrder());
         Delivery saved = deliveryRepository.save(delivery);
         audit(actor, AuditAction.FAIL_DELIVERY, saved, before, attemptSnapshot(saved));
+        completeTripIfAllStopsTerminal(trip, actor, now);
         return toAttemptResponse(saved);
     }
 
@@ -341,6 +343,29 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
         return deliveryRepository.findCurrentAttempt(trip.getId(), deliveryOrderId,
                         trip.getDriver().getId(), CURRENT_ATTEMPT_STATUSES)
                 .orElseThrow(() -> notFound("Current delivery attempt not found"));
+    }
+
+    private void completeTripIfAllStopsTerminal(Trip trip, User actor, OffsetDateTime completedAt) {
+        if (trip.getStatus() != TripStatus.IN_TRANSIT) {
+            return;
+        }
+        List<TripDeliveryOrder> rows = tripDeliveryOrderRepository.findByTripIdOrderByStopOrderAsc(trip.getId());
+        boolean allTerminal = !rows.isEmpty() && rows.stream()
+                .map(TripDeliveryOrder::getDeliveryOrder)
+                .allMatch(order -> TERMINAL_DO_STATUSES.contains(order.getStatus()));
+        if (!allTerminal) {
+            return;
+        }
+
+        Map<String, Object> before = tripSnapshot(trip);
+        trip.setStatus(TripStatus.COMPLETED);
+        trip.setCompletedAt(completedAt);
+        trip.getVehicle().setStatus(VehicleStatus.AVAILABLE);
+        trip.getDriver().setStatus(DriverStatus.AVAILABLE);
+        trip.setUpdatedAt(completedAt);
+        Trip saved = tripRepository.save(trip);
+        auditLogService.log(actor, AuditAction.COMPLETE_TRIP, "TRIP", saved.getId(), saved.getTripNumber(),
+                saved.getWarehouse().getId(), before, tripSnapshot(saved));
     }
 
     private void verifyOtp(DeliveryOtpAttempt otp, String rawOtp) {

@@ -1062,12 +1062,12 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
         </div>
       )}
 
-      {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && !transfer.returnRequested && hasAny(hasRole, [ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && allItemsChecked && (
+      {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && !transfer.returnRequested && hasAny(hasRole, [ROLES.WAREHOUSE_STAFF, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && allItemsChecked && (
         <div className="rounded-md border border-success-200 bg-success-50 p-3 text-xs text-success-700 flex flex-col gap-2">
           <div className="font-semibold flex items-center gap-1">
             <Check className="w-4 h-4" /> Đã hoàn tất kiểm tra count/QC
           </div>
-          <div>Chờ quản lý {activeReceiveWarehouseLabel} {activeReceiveWarehouseCode} xác nhận cuối phiếu.</div>
+          <div>Chờ thủ kho {activeReceiveWarehouseLabel} {activeReceiveWarehouseCode} cất kệ.</div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
             {(transfer.items || []).map((item) => (
               <div key={item.id} className="rounded border border-success-200 bg-canvas-light px-2 py-1.5">
@@ -1086,7 +1086,13 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
         </div>
       )}
 
-      {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && !transfer.returnRequested && hasAny(hasRole, [ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && allItemsChecked && (
+      {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && !transfer.returnRequested && hasRole(ROLES.WAREHOUSE_MANAGER) && canManageDestinationWarehouse && allItemsChecked && (
+        <div className="rounded-md border border-hairline-light bg-canvas-cream/60 px-3 py-2 text-xs text-shade-60">
+          Chờ thủ kho {activeReceiveWarehouseLabel} {activeReceiveWarehouseCode} chọn kệ và cất hàng trước khi chốt phiếu.
+        </div>
+      )}
+
+      {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && !transfer.returnRequested && hasAny(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && allItemsChecked && (
         <div className="flex flex-col gap-3">
           <div className="text-xs font-semibold">Phân bổ hàng đạt QC vào các kệ</div>
           {displayedPutawayRows.map((row) => {
