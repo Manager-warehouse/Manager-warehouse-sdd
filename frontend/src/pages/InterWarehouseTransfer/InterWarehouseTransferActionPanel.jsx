@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Check, ClipboardCheck, PackageCheck, RotateCcw, Send, Truck, X } from 'lucide-react';
+import { Check, ClipboardCheck, PackageCheck, Plus, RotateCcw, Send, Trash2, Truck, X } from 'lucide-react';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import PhotoCaptureInput from '../../components/common/PhotoCaptureInput';
@@ -44,6 +44,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
   const [sourceLoadReworkReason, setSourceLoadReworkReason] = useState('');
   const [countRows, setCountRows] = useState([]);
   const [checkRows, setCheckRows] = useState([]);
+  const [putawayRows, setPutawayRows] = useState([]);
   const [busy, setBusy] = useState(false);
   const [outboundQcPhotoFile, setOutboundQcPhotoFile] = useState(null);
   const [outboundQcPhotoName, setOutboundQcPhotoName] = useState('');
@@ -71,6 +72,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
     setSourceLoadReworkReason('');
     setCountRows([]);
     setCheckRows([]);
+    setPutawayRows([]);
     setOutboundQcPhotoFile(null);
     setOutboundQcPhotoName('');
     setOutboundQcNote('');
@@ -373,6 +375,42 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
 
   const setRow = (rows, setRows, id, patch) => {
     setRows(rows.map((row) => (row.transferItemId === id ? { ...row, ...patch } : row)));
+  };
+
+  const displayedPutawayRows = putawayRows.length ? putawayRows : (transfer.items || [])
+    .filter((item) => Number(item.qcPassedQty || 0) > 0)
+    .map((item) => ({
+      transferItemId: item.id,
+      allocations: [{ locationId: item.destinationLocationId || destinationBins[0]?.id || '', quantity: item.qcPassedQty }],
+    }));
+  const putawayReady = displayedPutawayRows.length > 0 && displayedPutawayRows.every((row) => {
+    const item = transfer.items.find((line) => line.id === row.transferItemId);
+    const allocatedQty = row.allocations.reduce((total, allocation) => total + Number(allocation.quantity || 0), 0);
+    return row.allocations.length > 0
+      && row.allocations.every((allocation) => Boolean(allocation.locationId) && Number(allocation.quantity) > 0)
+      && allocatedQty === Number(item?.qcPassedQty || 0);
+  });
+
+  const setPutawayAllocation = (transferItemId, allocationIndex, patch) => {
+    setPutawayRows(displayedPutawayRows.map((row) => {
+      if (row.transferItemId !== transferItemId) return row;
+      const allocations = row.allocations.map((allocation, index) => (
+        index === allocationIndex ? { ...allocation, ...patch } : allocation
+      ));
+      return { ...row, allocations };
+    }));
+  };
+
+  const addPutawayAllocation = (transferItemId) => {
+    setPutawayRows(displayedPutawayRows.map((row) => (row.transferItemId === transferItemId
+      ? { ...row, allocations: [...row.allocations, { locationId: '', quantity: '' }] }
+      : row)));
+  };
+
+  const removePutawayAllocation = (transferItemId, allocationIndex) => {
+    setPutawayRows(displayedPutawayRows.map((row) => (row.transferItemId === transferItemId
+      ? { ...row, allocations: row.allocations.filter((_, index) => index !== allocationIndex) }
+      : row)));
   };
 
   return (
@@ -993,7 +1031,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
                                </div>
                              )}
                            </div>
-                           <Input type="select" label="Bin đạt QC" value={row.destinationLocationId} onChange={(e) => setRow(checkRows, setCheckRows, row.transferItemId, { destinationLocationId: e.target.value })}
+                           <Input type="select" label="Bin tạm" value={row.destinationLocationId} onChange={(e) => setRow(checkRows, setCheckRows, row.transferItemId, { destinationLocationId: e.target.value })}
                              options={[{ value: '', label: 'Chọn bin' }, ...destinationBins.map((loc) => ({ value: loc.id, label: loc.code }))]} />
                          </div>
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -1049,15 +1087,36 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
       )}
 
       {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && !transfer.returnRequested && hasAny(hasRole, [ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && allItemsChecked && (
-        <div className="flex gap-2">
-          <div className="flex-1 flex flex-col md:flex-row gap-2 items-end">
-              <div className="flex-1">
-                <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder={transfer.isReturned ? 'Lý do nếu hàng quay đầu bị lệch' : 'Lý do nếu lệch hoặc lý do từ chối cách ly'} />
+        <div className="flex flex-col gap-3">
+          <div className="text-xs font-semibold">Phân bổ hàng đạt QC vào các kệ</div>
+          {displayedPutawayRows.map((row) => {
+            const item = transfer.items.find((line) => line.id === row.transferItemId);
+            return (
+              <div key={row.transferItemId} className="rounded-md border border-hairline-light bg-canvas-cream/40 p-3 flex flex-col gap-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-xs font-semibold">{item.productSku} · QC đạt: {item.qcPassedQty}</div>
+                  <Button type="button" variant="outline-light" icon={Plus} className="px-2 py-1 text-xs" onClick={() => addPutawayAllocation(row.transferItemId)}>Thêm kệ</Button>
+                </div>
+                {row.allocations.map((allocation, allocationIndex) => (
+                  <div key={`${row.transferItemId}-${allocationIndex}`} className="grid grid-cols-[minmax(0,1fr)_minmax(120px,0.6fr)_40px] gap-2 items-end">
+                    <Input type="select" label={`Kệ ${allocationIndex + 1}`} value={allocation.locationId} onChange={(e) => setPutawayAllocation(row.transferItemId, allocationIndex, { locationId: e.target.value })}
+                      options={[{ value: '', label: 'Chọn bin' }, ...destinationBins.map((loc) => ({ value: loc.id, label: loc.code }))]} />
+                    <Input label="Số lượng" type="number" min="0.01" step="0.01" value={allocation.quantity} onChange={(e) => setPutawayAllocation(row.transferItemId, allocationIndex, { quantity: e.target.value })} />
+                    <Button type="button" variant="ghost" icon={Trash2} title="Xóa kệ" className="h-10 w-10 p-0 text-danger-600" disabled={row.allocations.length === 1} onClick={() => removePutawayAllocation(row.transferItemId, allocationIndex)} />
+                  </div>
+                ))}
+                <div className="text-[11px] text-shade-60">Tổng phân bổ: {row.allocations.reduce((total, allocation) => total + Number(allocation.quantity || 0), 0)} / {Number(item.qcPassedQty || 0)}</div>
               </div>
-              <div className="flex gap-2">
-                <Button loading={busy} icon={Check} onClick={() => run('finalReceive', reason)}>Xác nhận cuối</Button>
-              </div>
-            </div>
+            );
+          })}
+          <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder={transfer.isReturned ? 'Lý do nếu hàng quay đầu bị lệch' : 'Lý do nếu có chênh lệch'} />
+          <Button loading={busy} disabled={!putawayReady} icon={Check} onClick={() => run('finalReceive', {
+            discrepancyReason: reason,
+            putawayItems: displayedPutawayRows.map((row) => ({
+              transferItemId: row.transferItemId,
+              allocations: row.allocations.map((allocation) => ({ locationId: Number(allocation.locationId), quantity: Number(allocation.quantity) })),
+            })),
+          })}>Xác nhận cuối và cất kệ</Button>
         </div>
       )}
     </div>

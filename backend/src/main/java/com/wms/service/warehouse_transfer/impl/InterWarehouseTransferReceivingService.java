@@ -43,9 +43,12 @@ import com.wms.repository.product_catalog.ProductRepository;
 import com.wms.util.PartnerAuditUtil;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -300,6 +303,18 @@ public class InterWarehouseTransferReceivingService {
         }
     }
 
+    private void validateDestinationLocation(Long locationId, Long targetWarehouseId) {
+        WarehouseLocation destination = locationRepository.findById(locationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Destination location not found: " + locationId));
+        if (!Objects.equals(destination.getWarehouse().getId(), targetWarehouseId)
+                || Boolean.FALSE.equals(destination.getIsActive())) {
+            throw new BusinessRuleViolationException("INVALID_DESTINATION_LOCATION");
+        }
+        if (Boolean.TRUE.equals(destination.getIsQuarantine())) {
+            throw new BusinessRuleViolationException("QC_PASSED_BIN_MUST_NOT_BE_QUARANTINE");
+        }
+    }
+
     private void ensureQuarantineRejectGate(InterWarehouseTransfer transfer) {
         if (Boolean.TRUE.equals(transfer.isReturned())) {
             if (transfer.getReturnArrivedAt() == null) {
@@ -333,13 +348,16 @@ public class InterWarehouseTransferReceivingService {
                 .orElseThrow(() -> new BusinessRuleViolationException("IN_TRANSIT_WAREHOUSE_NOT_CONFIGURED"));
         WarehouseLocation quarantineLocation = null;
         Warehouse targetWarehouse = transfer.isReturned() ? transfer.getSourceWarehouse() : transfer.getDestinationWarehouse();
+        Map<Long, List<PutawayTarget>> putawayPlans = resolveFinalPutawayPlans(transfer, request);
 
         // T049: Validate bin capacity before inventory posting (dry-run check first)
         for (InterWarehouseTransferItem item : helper.items(transfer)) {
             BigDecimal passedQty = helper.zero(item.getQcPassedQty());
             BigDecimal failedQty = helper.zero(item.getQcFailedQty());
             if (passedQty.signum() > 0) {
-                assertLocationCapacity(item.getDestinationLocation(), item.getProduct(), passedQty);
+                for (PutawayTarget putaway : putawayPlans.get(item.getId())) {
+                    assertLocationCapacity(putaway.location(), item.getProduct(), putaway.quantity());
+                }
             }
             if (failedQty.signum() > 0) {
                 if (quarantineLocation == null) {
@@ -352,6 +370,8 @@ public class InterWarehouseTransferReceivingService {
         for (InterWarehouseTransferItem item : helper.items(transfer)) {
             BigDecimal remainingPassed = helper.zero(item.getQcPassedQty());
             BigDecimal remainingFailed = helper.zero(item.getQcFailedQty());
+            Map<WarehouseLocation, BigDecimal> remainingPutaway = new LinkedHashMap<>();
+            putawayPlans.get(item.getId()).forEach(line -> remainingPutaway.put(line.location(), line.quantity()));
             for (InterWarehouseTransferAllocation allocation : allocationRepository.findByTransferItemId(item.getId())) {
                 Inventory transit = inventoryRepository.findByStockKeyForUpdate(transitWarehouse.getId(),
                                 item.getProduct().getId(), allocation.getInventory().getBatch().getId(),
@@ -364,9 +384,7 @@ public class InterWarehouseTransferReceivingService {
 
                 BigDecimal passQty = qty.min(remainingPassed);
                 if (passQty.signum() > 0) {
-                    applyLocationOccupancy(item.getDestinationLocation(), item.getProduct(), passQty);
-                    helper.upsertInventory(targetWarehouse, item.getProduct(), transit.getBatch(),
-                            item.getDestinationLocation(), passQty, transit.getCostPrice());
+                    distributePassedStock(targetWarehouse, item, transit, passQty, remainingPutaway);
                     remainingPassed = remainingPassed.subtract(passQty);
                 }
                 BigDecimal failQty = qty.subtract(passQty).min(remainingFailed);
@@ -446,17 +464,8 @@ public class InterWarehouseTransferReceivingService {
                 }
 
                 if (overReceiptPassed.signum() > 0) {
-                    applyLocationOccupancy(item.getDestinationLocation(), item.getProduct(), overReceiptPassed);
-                    helper.upsertInventory(targetWarehouse, item.getProduct(), batch,
-                            item.getDestinationLocation(), overReceiptPassed, costPrice);
-                    discrepancyHoldEntryRepository.save(DiscrepancyHoldEntry.builder()
-                            .incident(incident)
-                            .warehouse(targetWarehouse)
-                            .product(item.getProduct())
-                            .batch(batch)
-                            .holdQty(overReceiptPassed)
-                            .holdLocation(item.getDestinationLocation())
-                            .build());
+                    distributeOverReceipt(targetWarehouse, item, batch, costPrice, incident,
+                            overReceiptPassed, remainingPutaway);
                 }
                 if (overReceiptFailed.signum() > 0) {
                     if (quarantineLocation == null) {
@@ -492,6 +501,115 @@ public class InterWarehouseTransferReceivingService {
                 }
             }
         }
+    }
+
+    private Map<Long, List<PutawayTarget>> resolveFinalPutawayPlans(
+            InterWarehouseTransfer transfer, InterWarehouseTransferFinalReceiveRequest request) {
+        Map<Long, InterWarehouseTransferFinalPutawayItemRequest> requestedPlans = new java.util.HashMap<>();
+        if (request.putawayItems() != null) {
+            for (InterWarehouseTransferFinalPutawayItemRequest itemRequest : request.putawayItems()) {
+                if (requestedPlans.put(itemRequest.transferItemId(), itemRequest) != null) {
+                    throw new BusinessRuleViolationException("DUPLICATE_PUTAWAY_ITEM");
+                }
+            }
+        }
+
+        Map<Long, List<PutawayTarget>> plans = new java.util.HashMap<>();
+        Long targetWarehouseId = transfer.isReturned()
+                ? transfer.getSourceWarehouse().getId()
+                : transfer.getDestinationWarehouse().getId();
+        for (InterWarehouseTransferItem item : helper.items(transfer)) {
+            plans.put(item.getId(), resolveItemPutawayPlan(item, requestedPlans.get(item.getId()), targetWarehouseId));
+        }
+        return plans;
+    }
+
+    private List<PutawayTarget> resolveItemPutawayPlan(
+            InterWarehouseTransferItem item,
+            InterWarehouseTransferFinalPutawayItemRequest requestedPlan,
+            Long targetWarehouseId) {
+        BigDecimal passedQty = helper.zero(item.getQcPassedQty());
+        if (passedQty.signum() == 0) return List.of();
+        if (requestedPlan == null) {
+            if (item.getDestinationLocation() == null) {
+                throw new BusinessRuleViolationException("DESTINATION_LOCATION_REQUIRED");
+            }
+            return List.of(new PutawayTarget(item.getDestinationLocation(), passedQty));
+        }
+
+        BigDecimal allocatedQty = BigDecimal.ZERO;
+        Set<Long> locationIds = new HashSet<>();
+        java.util.ArrayList<PutawayTarget> targets = new java.util.ArrayList<>();
+        for (InterWarehouseTransferPutawayAllocationRequest allocation : requestedPlan.allocations()) {
+            if (!locationIds.add(allocation.locationId())) {
+                throw new BusinessRuleViolationException("DUPLICATE_PUTAWAY_LOCATION");
+            }
+            validateDestinationLocation(allocation.locationId(), targetWarehouseId);
+            targets.add(new PutawayTarget(
+                    helper.reference(WarehouseLocation.class, allocation.locationId()), allocation.quantity()));
+            allocatedQty = allocatedQty.add(allocation.quantity());
+        }
+        if (allocatedQty.compareTo(passedQty) != 0) {
+            throw new BusinessRuleViolationException("PUTAWAY_QUANTITY_MUST_MATCH_QC_PASSED");
+        }
+        return targets;
+    }
+
+    private record PutawayTarget(WarehouseLocation location, BigDecimal quantity) {}
+
+    private void distributePassedStock(Warehouse warehouse,
+                                       InterWarehouseTransferItem item,
+                                       Inventory transit,
+                                       BigDecimal quantity,
+                                       Map<WarehouseLocation, BigDecimal> remainingPutaway) {
+        distributeToBins(quantity, remainingPutaway, (location, movedQty) -> {
+            applyLocationOccupancy(location, item.getProduct(), movedQty);
+            helper.upsertInventory(warehouse, item.getProduct(), transit.getBatch(),
+                    location, movedQty, transit.getCostPrice());
+        });
+    }
+
+    private void distributeOverReceipt(Warehouse warehouse,
+                                       InterWarehouseTransferItem item,
+                                       Batch batch,
+                                       BigDecimal costPrice,
+                                       DiscrepancyIncident incident,
+                                       BigDecimal quantity,
+                                       Map<WarehouseLocation, BigDecimal> remainingPutaway) {
+        distributeToBins(quantity, remainingPutaway, (location, movedQty) -> {
+            applyLocationOccupancy(location, item.getProduct(), movedQty);
+            helper.upsertInventory(warehouse, item.getProduct(), batch, location, movedQty, costPrice);
+            discrepancyHoldEntryRepository.save(DiscrepancyHoldEntry.builder()
+                    .incident(incident)
+                    .warehouse(warehouse)
+                    .product(item.getProduct())
+                    .batch(batch)
+                    .holdQty(movedQty)
+                    .holdLocation(location)
+                    .build());
+        });
+    }
+
+    private void distributeToBins(BigDecimal quantity,
+                                  Map<WarehouseLocation, BigDecimal> remainingPutaway,
+                                  PutawayConsumer consumer) {
+        BigDecimal remaining = quantity;
+        for (Map.Entry<WarehouseLocation, BigDecimal> entry : remainingPutaway.entrySet()) {
+            if (remaining.signum() <= 0) break;
+            BigDecimal movedQty = remaining.min(entry.getValue());
+            if (movedQty.signum() <= 0) continue;
+            consumer.accept(entry.getKey(), movedQty);
+            entry.setValue(entry.getValue().subtract(movedQty));
+            remaining = remaining.subtract(movedQty);
+        }
+        if (remaining.signum() > 0) {
+            throw new BusinessRuleViolationException("PUTAWAY_PLAN_EXHAUSTED");
+        }
+    }
+
+    @FunctionalInterface
+    private interface PutawayConsumer {
+        void accept(WarehouseLocation location, BigDecimal quantity);
     }
 
     private void moveTransitToQuarantine(InterWarehouseTransfer transfer, User actor) {
