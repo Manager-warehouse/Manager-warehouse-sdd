@@ -66,7 +66,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.wms.dto.request.InterWarehouseTransferCreateRequest;
 import com.wms.dto.request.InterWarehouseTransferFinalReceiveRequest;
+import com.wms.dto.request.InterWarehouseTransferFinalPutawayItemRequest;
 import com.wms.dto.request.InterWarehouseTransferItemRequest;
+import com.wms.dto.request.InterWarehouseTransferPutawayAllocationRequest;
 import com.wms.dto.request.InterWarehouseTransferReasonRequest;
 import com.wms.dto.request.InterWarehouseTransferReceiveCheckItemRequest;
 import com.wms.dto.request.InterWarehouseTransferReceiveCheckRequest;
@@ -172,6 +174,7 @@ class InterWarehouseTransferServiceImplTest {
     private WarehouseLocation sourceLocation;
     private WarehouseLocation transitLocation;
     private WarehouseLocation destinationLocation;
+    private WarehouseLocation destinationLocation2;
     private WarehouseLocation quarantineLocation;
     private Product product;
     private Product actualWrongSkuProduct;
@@ -190,6 +193,7 @@ class InterWarehouseTransferServiceImplTest {
     private Inventory sourceInventory;
     private Inventory transitInventory;
     private Inventory destinationInventory;
+    private Inventory destinationInventory2;
     private Inventory quarantineInventory;
     private QuarantineRecord savedQuarantineRecord;
     private Trip transferTrip;
@@ -204,6 +208,7 @@ class InterWarehouseTransferServiceImplTest {
         sourceLocation = location(10L, sourceWarehouse, "HP-01-B01", false);
         transitLocation = location(11L, transitWarehouse, "INT-01", false);
         destinationLocation = location(12L, destinationWarehouse, "HN-01-B01", false);
+        destinationLocation2 = location(14L, destinationWarehouse, "HN-01-B02", false);
         quarantineLocation = location(13L, destinationWarehouse, "HN-01-Q01", true);
         product = product(21L, "SKU-001", "Nồi inox");
         actualWrongSkuProduct = product(22L, "SKU-002", "Chảo chống dính");
@@ -223,6 +228,7 @@ class InterWarehouseTransferServiceImplTest {
         sourceInventory = inventory(sourceWarehouse, sourceLocation, new BigDecimal("20.00"));
         transitInventory = null;
         destinationInventory = null;
+        destinationInventory2 = null;
         quarantineInventory = null;
         transferTrip = null;
 
@@ -612,6 +618,51 @@ class InterWarehouseTransferServiceImplTest {
         assertThat(destinationInventory.getTotalQty()).isEqualByComparingTo("3.00");
         assertThat(quarantineInventory).isNotNull();
         assertThat(quarantineInventory.getTotalQty()).isEqualByComparingTo("1.00");
+    }
+
+    @Test
+    void finalReceive_allowsDestinationManagerToPutawayPassedQtyAcrossMultipleBins() {
+        service.approveTransfer(1L, sourceManager);
+        service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
+                VALID_TRIP_START, VALID_TRIP_END), dispatcher);
+        recordPassingOutboundQcAndHandover();
+        service.shipTransfer(1L, sourceManager);
+        service.departTransfer(1L, driverUser);
+
+        service.receiveCount(1L, new InterWarehouseTransferReceiveCountRequest(List.of(
+                new InterWarehouseTransferReceiveCountItemRequest(transferItem.getId(), new BigDecimal("5.00"), null))),
+                destinationWorker);
+        service.receiveCheck(1L, new InterWarehouseTransferReceiveCheckRequest(List.of(
+                new InterWarehouseTransferReceiveCheckItemRequest(
+                        transferItem.getId(),
+                        new BigDecimal("5.00"),
+                        new BigDecimal("5.00"),
+                        BigDecimal.ZERO,
+                        destinationLocation.getId(),
+                        "Check ok",
+                        null)),
+                "transfer/receive-qc/1.jpg"),
+                destinationStorekeeper);
+
+        InterWarehouseTransferResponse completed = service.finalReceive(1L,
+                new InterWarehouseTransferFinalReceiveRequest(
+                        "",
+                        List.of(new InterWarehouseTransferFinalPutawayItemRequest(
+                                transferItem.getId(),
+                                List.of(
+                                        new InterWarehouseTransferPutawayAllocationRequest(
+                                                destinationLocation.getId(), new BigDecimal("2.00")),
+                                        new InterWarehouseTransferPutawayAllocationRequest(
+                                                destinationLocation2.getId(), new BigDecimal("3.00")))))),
+                destinationStorekeeper);
+
+        assertThat(completed.status()).isEqualTo(InterWarehouseTransferStatus.COMPLETED);
+        assertThat(destinationInventory).isNotNull();
+        assertThat(destinationInventory.getLocation()).isSameAs(destinationLocation);
+        assertThat(destinationInventory.getTotalQty()).isEqualByComparingTo("2.00");
+        assertThat(destinationInventory2).isNotNull();
+        assertThat(destinationInventory2.getLocation()).isSameAs(destinationLocation2);
+        assertThat(destinationInventory2.getTotalQty()).isEqualByComparingTo("3.00");
     }
 
     @Test
@@ -1106,6 +1157,8 @@ class InterWarehouseTransferServiceImplTest {
                 return transitInventory;
             if (destinationInventory != null && destinationInventory.getId().equals(id))
                 return destinationInventory;
+            if (destinationInventory2 != null && destinationInventory2.getId().equals(id))
+                return destinationInventory2;
             if (quarantineInventory != null && quarantineInventory.getId().equals(id))
                 return quarantineInventory;
             throw new ResourceNotFoundException("Inventory not found");
@@ -1118,6 +1171,8 @@ class InterWarehouseTransferServiceImplTest {
                 return transitInventory;
             if (matches(destinationInventory, warehouseId, productId, batchId, locationId))
                 return destinationInventory;
+            if (matches(destinationInventory2, warehouseId, productId, batchId, locationId))
+                return destinationInventory2;
             if (matches(quarantineInventory, warehouseId, productId, batchId, locationId))
                 return quarantineInventory;
             return null;
@@ -1138,6 +1193,8 @@ class InterWarehouseTransferServiceImplTest {
                 transitInventory = value;
             } else if (value.getLocation().getIsQuarantine()) {
                 quarantineInventory = value;
+            } else if (destinationLocation2.getId().equals(value.getLocation().getId())) {
+                destinationInventory2 = value;
             } else {
                 destinationInventory = value;
             }
@@ -1168,6 +1225,8 @@ class InterWarehouseTransferServiceImplTest {
                     Long id = (Long) args[0];
                     if (destinationLocation.getId().equals(id))
                         yield Optional.of(destinationLocation);
+                    if (destinationLocation2.getId().equals(id))
+                        yield Optional.of(destinationLocation2);
                     if (quarantineLocation.getId().equals(id))
                         yield Optional.of(quarantineLocation);
                     if (transitLocation.getId().equals(id))
@@ -1251,6 +1310,8 @@ class InterWarehouseTransferServiceImplTest {
                         return sourceLocation;
                     if (destinationLocation.getId().equals(id))
                         return destinationLocation;
+                    if (destinationLocation2.getId().equals(id))
+                        return destinationLocation2;
                     if (transitLocation.getId().equals(id))
                         return transitLocation;
                     if (quarantineLocation.getId().equals(id))
