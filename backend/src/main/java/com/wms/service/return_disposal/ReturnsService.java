@@ -405,6 +405,7 @@ public class ReturnsService {
             item.setSampleQty(itemReq.getActualQty());
             item.setSamplePassedQty(itemReq.getPassedQty());
             item.setSampleFailedQty(itemReq.getFailedQty());
+            item.setQcResult(itemReq.getFailedQty() > 0 ? QcResult.FAILED : QcResult.PASSED);
             Long targetLocId = itemReq.getPassedQty() > 0 ? itemReq.getPassedLocationId() : itemReq.getQuarantineLocationId();
             item.setLocation(targetLocId != null ? warehouseLocationRepository.findById(targetLocId).orElse(null) : null);
             item.setQcBy(actor);
