@@ -87,6 +87,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
@@ -170,6 +171,21 @@ class DeliveryOrderControllerTest {
                         .content(createJson()))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.code").value("INSUFFICIENT_STOCK"));
+    }
+
+    @Test
+    @WithMockUser(username = "planner@wms.com", roles = "PLANNER")
+    void createDeliveryOrder_translatesDataIntegrityError() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(planner);
+        when(deliveryOrderService.createDeliveryOrder(any(), eq(planner)))
+                .thenThrow(new DataIntegrityViolationException("delivery_orders_do_number_key"));
+
+        mockMvc.perform(post("/api/v1/delivery-orders")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createJson()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("DELIVERY_ORDER_NUMBER_CONFLICT"));
     }
 
     @Test

@@ -102,18 +102,19 @@ public class StockAlertServiceImpl implements StockAlertService {
         }
 
         AlertType alertType = availableQty.compareTo(BigDecimal.ZERO) == 0 ? AlertType.OUT_OF_STOCK : AlertType.LOW_STOCK;
-        Optional<StockAlert> activeAlertOpt = stockAlertRepository
-                .findByWarehouseIdAndProductIdAndAlertTypeAndIsResolved(warehouseId, productId, AlertType.LOW_STOCK, false);
-        
-        if (activeAlertOpt.isEmpty()) {
-            activeAlertOpt = stockAlertRepository
-                    .findByWarehouseIdAndProductIdAndAlertTypeAndIsResolved(warehouseId, productId, AlertType.OUT_OF_STOCK, false);
-        }
+        AlertType otherAlertType = alertType == AlertType.OUT_OF_STOCK ? AlertType.LOW_STOCK : AlertType.OUT_OF_STOCK;
+        Optional<StockAlert> currentTypeAlertOpt = stockAlertRepository
+                .findByWarehouseIdAndProductIdAndAlertTypeAndIsResolved(warehouseId, productId, alertType, false);
+        Optional<StockAlert> otherTypeAlertOpt = stockAlertRepository
+                .findByWarehouseIdAndProductIdAndAlertTypeAndIsResolved(warehouseId, productId, otherAlertType, false);
+        Optional<StockAlert> activeAlertOpt = currentTypeAlertOpt.isPresent()
+                ? currentTypeAlertOpt
+                : otherTypeAlertOpt;
 
         // 3. So sánh tồn khả dụng với ngưỡng
         if (availableQty.compareTo(reorderPoint) < 0) {
             // Cần cảnh báo
-            if (activeAlertOpt.isEmpty()) {
+            if (currentTypeAlertOpt.isEmpty()) {
                 // Tạo mới alert
                 StockAlert alert = StockAlert.builder()
                         .warehouse(warehouse)
@@ -125,7 +126,15 @@ public class StockAlertServiceImpl implements StockAlertService {
                         .createdAt(OffsetDateTime.now())
                         .build();
 
-                stockAlertRepository.save(alert);
+                Optional<StockAlert> createdAlertOpt = createOpenAlertIfAbsent(
+                        warehouse, product, availableQty, reorderPoint, alertType);
+                if (otherTypeAlertOpt.isPresent()) {
+                    resolveAlert(otherTypeAlertOpt.get(), availableQty);
+                }
+                if (createdAlertOpt.isEmpty()) {
+                    return;
+                }
+                alert = createdAlertOpt.get();
 
                 // Gửi in-app notification
                 String message = String.format("[CẢNH BÁO] Sản phẩm %s (%s) tại %s đã giảm dưới định mức tối thiểu. Tồn khả dụng: %s / Ngưỡng: %s",
@@ -137,8 +146,8 @@ public class StockAlertServiceImpl implements StockAlertService {
                 // Cập nhật alert hiện tại
                 StockAlert activeAlert = activeAlertOpt.get();
                 activeAlert.setCurrentQty(availableQty);
-                activeAlert.setAlertType(alertType);
                 stockAlertRepository.save(activeAlert);
+                resolveStaleAlertIfPresent(currentTypeAlertOpt, otherTypeAlertOpt, availableQty);
             }
         } else {
             // Tồn kho an toàn, giải quyết alert nếu có
@@ -156,7 +165,38 @@ public class StockAlertServiceImpl implements StockAlertService {
                 sendNotifications(warehouseId, message, "STOCK_RESOLVED", activeAlert.getId());
                 log.info("Resolved stock alert for product {} at warehouse {}", product.getSku(), warehouse.getCode());
             }
+            resolveStaleAlertIfPresent(currentTypeAlertOpt, otherTypeAlertOpt, availableQty);
         }
+    }
+
+    private Optional<StockAlert> createOpenAlertIfAbsent(Warehouse warehouse,
+                                                         Product product,
+                                                         BigDecimal availableQty,
+                                                         BigDecimal reorderPoint,
+                                                         AlertType alertType) {
+        int inserted = stockAlertRepository.insertOpenAlertIfAbsent(
+                warehouse.getId(), product.getId(), availableQty, reorderPoint, alertType.name());
+        if (inserted <= 0) {
+            return Optional.empty();
+        }
+        return stockAlertRepository.findByWarehouseIdAndProductIdAndAlertTypeAndIsResolved(
+                warehouse.getId(), product.getId(), alertType, false);
+    }
+
+    private void resolveAlert(StockAlert alert, BigDecimal availableQty) {
+        alert.setIsResolved(true);
+        alert.setResolvedAt(OffsetDateTime.now());
+        alert.setCurrentQty(availableQty);
+        stockAlertRepository.save(alert);
+    }
+
+    private void resolveStaleAlertIfPresent(Optional<StockAlert> currentTypeAlertOpt,
+                                            Optional<StockAlert> otherTypeAlertOpt,
+                                            BigDecimal availableQty) {
+        if (currentTypeAlertOpt.isEmpty() || otherTypeAlertOpt.isEmpty()) {
+            return;
+        }
+        resolveAlert(otherTypeAlertOpt.get(), availableQty);
     }
 
     private void sendNotifications(Long warehouseId, String message, String type, Long alertId) {
