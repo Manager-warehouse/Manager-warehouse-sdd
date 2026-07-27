@@ -92,6 +92,7 @@ import com.wms.dto.request.ReturnedGoodsPutawayPlanItemRequest;
 import com.wms.dto.request.ReturnedGoodsPutawayPlanRequest;
 import com.wms.dto.request.ReturnedGoodsReceiveRequest;
 import com.wms.dto.response.DeliveryOrderResponse;
+import com.wms.dto.response.PickingCandidateResponse;
 import com.wms.dto.response.ReturnedGoodsFlowResponse;
 import com.wms.entity.billing_payment.AccountingPeriod;
 import com.wms.entity.stock_control.Adjustment;
@@ -150,6 +151,7 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -552,6 +554,29 @@ class DeliveryOrderServiceImplTest {
         assertThat(inventory.getReservedQty()).isEqualByComparingTo("10.00");
         assertThat(item.getPlannedQty()).isEqualByComparingTo("10.00");
         verify(allocationRepository).save(any(DeliveryOrderItemAllocation.class));
+    }
+
+    @Test
+    void getPickingCandidates_allowsQcPendingApprovalForReplacementPlanning() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.QC_PENDING_APPROVAL);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("10.00"));
+        WarehouseLocation replacementZone = zone(32L, warehouse);
+        WarehouseLocation replacementBin = bin(802L, warehouse, replacementZone);
+        Batch replacementBatch = batch(72L, product, warehouse);
+        Inventory replacementInventory = inventory(502L, warehouse, product, replacementBatch, replacementBin,
+                new BigDecimal("8.00"), new BigDecimal("1.00"));
+
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
+        when(deliveryOrderItemRepository.findByDeliveryOrderId(100L)).thenReturn(List.of(item));
+        when(inventoryRepository.findValidFifoCandidates(20L, 30L)).thenReturn(List.of(replacementInventory));
+
+        Map<Long, List<PickingCandidateResponse>> response = service.getPickingCandidates(100L, storekeeper);
+
+        assertThat(response).containsKey(200L);
+        assertThat(response.get(200L)).hasSize(1);
+        assertThat(response.get(200L).get(0).getInventoryId()).isEqualTo(502L);
+        assertThat(response.get(200L).get(0).getAvailableQty()).isEqualByComparingTo("7.00");
     }
 
     @Test

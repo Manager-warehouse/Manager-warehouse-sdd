@@ -271,7 +271,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         requireWarehouseScope(actor, order.getWarehouse().getId());
 
         if (order.getStatus() != DeliveryOrderStatus.NEW
-                && order.getStatus() != DeliveryOrderStatus.WAITING_PICKING) {
+                && order.getStatus() != DeliveryOrderStatus.WAITING_PICKING
+                && order.getStatus() != DeliveryOrderStatus.QC_PENDING_APPROVAL) {
             // Outside picking window — return empty map, no candidates needed
             return Map.of();
         }
