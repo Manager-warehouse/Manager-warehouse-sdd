@@ -714,6 +714,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                         (left, right) -> left));
         Map<Long, DeliveryOrderItem> itemById = orderItems.stream()
                 .collect(Collectors.toMap(DeliveryOrderItem::getId, Function.identity()));
+        Map<Long, AllocationQcSummary> qcSummaryByAllocationId = allocationQcSummary(orderAllocations);
         Map<String, Object> before = snapshot(order, null, List.of(), orderItems, orderAllocations);
 
         List<Inventory> replacementInventories = inventoryRepository
@@ -751,6 +752,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
 
             DeliveryOrderItemAllocation failedAllocation = allocationsByFailedInventoryKey.get(
                     allocationKey(item.getId(), replacementRequest.getFailedInventoryId()));
+            validateFailedReplacementSource(failedAllocation, replacementRequest, qcSummaryByAllocationId);
             BigDecimal newReservedQty = value(replacementInventory.getReservedQty())
                     .add(replacementRequest.getQuantity());
             if (value(replacementInventory.getTotalQty()).compareTo(newReservedQty) < 0) {
@@ -2132,6 +2134,29 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
             throw new OutboundDeliveryException("INVENTORY_ROW_INVALID",
                     HttpStatus.UNPROCESSABLE_ENTITY,
                     "Replacement inventory row is invalid");
+        }
+    }
+
+    private void validateFailedReplacementSource(DeliveryOrderItemAllocation failedAllocation,
+            DeliveryOrderReplacementAllocationRequest request,
+            Map<Long, AllocationQcSummary> qcSummaryByAllocationId) {
+        if (failedAllocation == null) {
+            throw new OutboundDeliveryException("QC_FAILED_ALLOCATION_INVALID",
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Replacement source must reference an existing QC-failed allocation");
+        }
+        if (!failedAllocation.getBatch().getId().equals(request.getFailedBatchId())
+                || !failedAllocation.getLocation().getId().equals(request.getFailedLocationId())) {
+            throw new OutboundDeliveryException("QC_FAILED_ALLOCATION_INVALID",
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Replacement source does not match the failed allocation batch/location");
+        }
+        AllocationQcSummary qcSummary = qcSummaryByAllocationId.getOrDefault(failedAllocation.getId(),
+                AllocationQcSummary.EMPTY);
+        if (value(qcSummary.qcFailQty()).compareTo(ZERO) <= 0) {
+            throw new OutboundDeliveryException("QC_FAILED_ALLOCATION_INVALID",
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Replacement source allocation has no QC-failed quantity");
         }
     }
 
