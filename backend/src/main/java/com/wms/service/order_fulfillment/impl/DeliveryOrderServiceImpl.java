@@ -687,7 +687,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         auditUtil.logChange(actor, AuditAction.DELIVERY_ORDER_PICK_COMPLETE, "DELIVERY_ORDER",
                 saved.getId(), saved.getDoNumber(), before,
                 snapshot(saved, null, List.of(), orderItems, orderAllocations));
-        return deliveryOrderMapper.toResponse(saved, orderItems, allocations(saved.getId()));
+        return toResponse(saved);
     }
 
     @Override
@@ -804,7 +804,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
 
         auditUtil.logChange(actor, AuditAction.PICKING_REPLACEMENT_SAVE, "DELIVERY_ORDER", saved.getId(),
                 saved.getDoNumber(), before, snapshot(saved, null, List.of(), orderItems, newAllocations));
-        return deliveryOrderMapper.toResponse(saved, orderItems, newAllocations);
+        return deliveryOrderMapper.toResponse(saved, orderItems, newAllocations,
+                allocationQcSummary(newAllocations));
     }
 
     @Override
@@ -838,7 +839,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         auditUtil.logChange(actor, AuditAction.DELIVERY_ORDER_QC_APPROVE, "DELIVERY_ORDER",
                 saved.getId(), saved.getDoNumber(), before,
                 snapshot(saved, null, List.of(), orderItems, orderAllocations));
-        return deliveryOrderMapper.toResponse(saved, orderItems, orderAllocations);
+        return deliveryOrderMapper.toResponse(saved, orderItems, orderAllocations,
+                allocationQcSummary(orderAllocations));
     }
 
     @Override
@@ -875,7 +877,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         auditUtil.logChange(actor, AuditAction.DELIVERY_ORDER_WAREHOUSE_APPROVE, "DELIVERY_ORDER",
                 saved.getId(), saved.getDoNumber(), before,
                 snapshot(saved, null, List.of(), orderItems, orderAllocations));
-        return deliveryOrderMapper.toResponse(saved, orderItems, orderAllocations);
+        return deliveryOrderMapper.toResponse(saved, orderItems, orderAllocations,
+                allocationQcSummary(orderAllocations));
     }
 
     @Override
@@ -993,7 +996,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         auditUtil.logChange(actor, AuditAction.DELIVERY_ORDER_WAREHOUSE_REJECT, "DELIVERY_ORDER",
                 saved.getId(), saved.getDoNumber(), before,
                 snapshot(saved, null, List.of(), orderItems, orderAllocations));
-        return deliveryOrderMapper.toResponse(saved, orderItems, orderAllocations);
+        return deliveryOrderMapper.toResponse(saved, orderItems, orderAllocations,
+                allocationQcSummary(orderAllocations));
     }
 
     @Override
