@@ -4,8 +4,10 @@ import com.wms.dto.response.SupplierBillingNotificationResponse;
 import com.wms.entity.access_control.User;
 import com.wms.entity.billing_payment.SupplierBillingNotification;
 import com.wms.entity.stock_receiving.Receipt;
+import com.wms.entity.stock_receiving.ReceiptItem;
 import com.wms.enums.access_control.UserRole;
 import com.wms.exception.ResourceNotFoundException;
+import com.wms.repository.ReceiptItemRepository;
 import com.wms.repository.SupplierBillingNotificationRepository;
 import com.wms.service.billing_payment.SupplierBillingNotificationService;
 import org.springframework.security.access.AccessDeniedException;
@@ -20,9 +22,12 @@ import java.util.List;
 public class SupplierBillingNotificationServiceImpl implements SupplierBillingNotificationService {
 
     private final SupplierBillingNotificationRepository supplierBillingNotificationRepository;
+    private final ReceiptItemRepository receiptItemRepository;
 
-    public SupplierBillingNotificationServiceImpl(SupplierBillingNotificationRepository supplierBillingNotificationRepository) {
+    public SupplierBillingNotificationServiceImpl(SupplierBillingNotificationRepository supplierBillingNotificationRepository,
+                                                    ReceiptItemRepository receiptItemRepository) {
         this.supplierBillingNotificationRepository = supplierBillingNotificationRepository;
+        this.receiptItemRepository = receiptItemRepository;
     }
 
     @Override
@@ -40,7 +45,7 @@ public class SupplierBillingNotificationServiceImpl implements SupplierBillingNo
                 .supplierName(receipt.getSupplier().getCompanyName())
                 .warehouse(receipt.getWarehouse())
                 .completedAt(now)
-                .totalAmountEstimate(BigDecimal.ZERO)
+                .totalAmountEstimate(calculateTotalAmountEstimate(receipt.getId()))
                 .invoiceStatus("NOT_INVOICED")
                 .status("ACTIVE")
                 .recipientRole("ACCOUNTANT")
@@ -48,6 +53,22 @@ public class SupplierBillingNotificationServiceImpl implements SupplierBillingNo
                 .build();
 
         supplierBillingNotificationRepository.save(notification);
+    }
+
+    // Mirrors SupplierInvoiceServiceImpl.calculateTotalAmount's unit_cost x actualQty formula,
+    // but never throws on missing/zero cost or qty - this is a pre-invoice estimate shown to the
+    // accountant, not the binding invoice total, and must not block receipt approval.
+    private BigDecimal calculateTotalAmountEstimate(Long receiptId) {
+        List<ReceiptItem> items = receiptItemRepository.findByReceiptId(receiptId);
+        BigDecimal total = BigDecimal.ZERO;
+        for (ReceiptItem item : items) {
+            Integer actualQty = item.getActualQty();
+            if (item.getUnitCost() == null || actualQty == null || actualQty <= 0) {
+                continue;
+            }
+            total = total.add(item.getUnitCost().multiply(BigDecimal.valueOf(actualQty)));
+        }
+        return total;
     }
 
     @Override

@@ -500,7 +500,10 @@ export const financeService = {
       supplierInvoiceNumber: data.supplierInvoiceNumber,
       documentDate: data.documentDate,
       dueDate: data.dueDate,
-      notes: data.notes
+      notes: data.notes,
+      confirmedTotalAmount: data.confirmedTotalAmount !== '' && data.confirmedTotalAmount != null
+        ? Number(data.confirmedTotalAmount)
+        : null
     });
     return response.data;
   },

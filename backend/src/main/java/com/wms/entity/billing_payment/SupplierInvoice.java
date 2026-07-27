@@ -41,6 +41,12 @@ public class SupplierInvoice {
     @Column(name = "total_amount", nullable = false, precision = 18, scale = 2)
     private BigDecimal totalAmount;
 
+    // Auto-calculated unit_cost x actualQty from receipt_items at creation time, kept
+    // separately from totalAmount so an Accountant override against the paper invoice
+    // stays traceable back to what the system originally computed.
+    @Column(name = "calculated_amount_estimate", precision = 18, scale = 2)
+    private BigDecimal calculatedAmountEstimate;
+
     @Column(name = "issue_date", nullable = false)
     private LocalDate issueDate;
 
