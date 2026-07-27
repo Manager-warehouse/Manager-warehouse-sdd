@@ -4,7 +4,7 @@ import { useUiStore } from '../../stores/ui.store';
 import { inboundService } from '../../services/inbound.service';
 import { masterDataService } from '../../services/masterData.service';
 import { ROLES } from '../../utils/constants';
-import { Loader2, ArrowRightLeft, Trash2, ShieldAlert, Check, X } from 'lucide-react';
+import { Loader2, ArrowRightLeft, Trash2, ShieldAlert, Check, X, RefreshCw, AlertCircle } from 'lucide-react';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
 
@@ -17,6 +17,7 @@ const QuarantineWorkspace = () => {
   const [pendingDisposals, setPendingDisposals] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [activeTab, setActiveTab] = useState('WORKSPACE'); // WORKSPACE or APPROVALS
 
   // Modal State
@@ -34,23 +35,34 @@ const QuarantineWorkspace = () => {
   const fetchData = async () => {
     if (!activeWarehouse) return;
     setLoading(true);
-    try {
-      const suppliersData = await masterDataService.getSuppliers();
-      setSuppliers(suppliersData);
+    setLoadError('');
 
-      if (activeTab === 'WORKSPACE') {
-        const data = await inboundService.getQuarantineItems(activeWarehouse.id);
-        setQuarantineItems(data);
-      } else {
-        const data = await inboundService.getPendingDisposals();
-        // Filter by warehouse
-        setPendingDisposals(data.filter(adj => adj.warehouse_id === activeWarehouse.id));
-      }
-    } catch (e) {
-      addToast('Lỗi tải dữ liệu khu cách ly', 'error');
-    } finally {
-      setLoading(false);
+    const suppliersResult = await Promise.allSettled([masterDataService.getSuppliers()]);
+    if (suppliersResult[0].status === 'fulfilled') {
+      setSuppliers(suppliersResult[0].value || []);
+    } else {
+      setSuppliers([]);
     }
+
+    if (activeTab === 'WORKSPACE') {
+      const itemResult = await Promise.allSettled([inboundService.getQuarantineItems(activeWarehouse.id)]);
+      if (itemResult[0].status === 'fulfilled') {
+        setQuarantineItems(itemResult[0].value || []);
+      } else {
+        setQuarantineItems([]);
+        setLoadError('Không tải được danh sách hàng lỗi trong khu cách ly. Kiểm tra quyền kho hoặc thử tải lại.');
+      }
+    } else {
+      const disposalResult = await Promise.allSettled([inboundService.getPendingDisposals()]);
+      if (disposalResult[0].status === 'fulfilled') {
+        setPendingDisposals((disposalResult[0].value || []).filter(adj => adj.warehouse_id === activeWarehouse.id));
+      } else {
+        setPendingDisposals([]);
+        setLoadError('Không tải được danh sách yêu cầu tiêu hủy chờ duyệt. Kiểm tra quyền phê duyệt hoặc thử tải lại.');
+      }
+    }
+
+    setLoading(false);
   };
 
   const getSupplierName = (supplierId) => {
@@ -196,13 +208,28 @@ const QuarantineWorkspace = () => {
         <div className="flex items-center justify-center p-20">
           <Loader2 className="w-8 h-8 animate-spin text-shade-50" />
         </div>
+      ) : loadError ? (
+        <div className="rounded-lg border border-danger-200 bg-danger-50/70 p-6 md:p-8 shadow-level-3">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-danger-600 mt-0.5 shrink-0" />
+              <div>
+                <h3 className="text-sm font-bold text-danger-700">Chưa tải được dữ liệu khu cách ly</h3>
+                <p className="text-xs text-danger-700/80 mt-1">{loadError}</p>
+              </div>
+            </div>
+            <Button variant="outline-light" icon={RefreshCw} onClick={fetchData}>
+              Tải lại
+            </Button>
+          </div>
+        </div>
       ) : activeTab === 'WORKSPACE' ? (
         // Workspace List
         quarantineItems.length === 0 ? (
-          <div className="bg-canvas-light rounded-lg border border-hairline-light p-12 text-center shadow-level-3">
+          <div className="bg-canvas-light rounded-lg border border-hairline-light p-8 md:p-12 text-center shadow-level-3">
             <ShieldAlert className="w-12 h-12 text-shade-30 mx-auto mb-4" />
-            <h3 className="text-lg font-bold mb-1">Khu vực cách ly hiện đang trống</h3>
-            <p className="text-sm text-shade-50">Không có hàng hóa QC hỏng cần xử lý tại kho này.</p>
+            <h3 className="text-base font-bold mb-1">Khu vực cách ly hiện đang trống</h3>
+            <p className="text-xs text-shade-50">Hàng QC lỗi từ nhập kho hoặc điều chuyển nội bộ sẽ xuất hiện tại đây để thủ kho chọn trả NCC hoặc gửi tiêu hủy.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -273,10 +300,10 @@ const QuarantineWorkspace = () => {
       ) : (
         // Approvals List
         pendingDisposals.length === 0 ? (
-          <div className="bg-canvas-light rounded-lg border border-hairline-light p-12 text-center shadow-level-3">
+          <div className="bg-canvas-light rounded-lg border border-hairline-light p-8 md:p-12 text-center shadow-level-3">
             <Check className="w-12 h-12 text-success-500 mx-auto mb-4 bg-success-50 p-2.5 rounded-full" />
-            <h3 className="text-lg font-bold mb-1">Không có yêu cầu tiêu hủy nào chờ duyệt</h3>
-            <p className="text-sm text-shade-50">Mọi yêu cầu tiêu hủy hàng hỏng đã được xử lý xong.</p>
+            <h3 className="text-base font-bold mb-1">Không có yêu cầu tiêu hủy nào chờ duyệt</h3>
+            <p className="text-xs text-shade-50">Các yêu cầu vượt ngưỡng tự động duyệt sẽ được đưa vào danh sách này theo đúng thẩm quyền.</p>
           </div>
         ) : (
           <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden">

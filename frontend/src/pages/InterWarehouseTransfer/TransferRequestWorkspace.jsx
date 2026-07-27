@@ -19,6 +19,7 @@ const TransferRequestWorkspace = () => {
   const [warehouses, setWarehouses] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [activeTab, setActiveTab] = useState('ALL'); // ALL, DRAFT, SUBMITTED, APPROVED, REJECTED, CONVERTED
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -46,20 +47,34 @@ const TransferRequestWorkspace = () => {
 
   const fetchData = async () => {
     setLoading(true);
-    try {
-      const reqs = await interWarehouseTransferService.getTransferRequests();
-      setRequests(reqs);
+    setLoadError('');
 
-      const whs = await masterDataService.getWarehouses();
-      setWarehouses(whs.filter(w => w.type !== 'IN_TRANSIT' && w.is_active !== false));
+    const [requestResult, warehouseResult, productResult] = await Promise.allSettled([
+      interWarehouseTransferService.getTransferRequests(),
+      masterDataService.getWarehouses(),
+      masterDataService.getProducts(),
+    ]);
 
-      const prods = await masterDataService.getProducts();
-      setProducts(prods);
-    } catch (e) {
-      addToast('Lỗi tải danh sách yêu cầu điều chuyển', 'error');
-    } finally {
-      setLoading(false);
+    if (requestResult.status === 'fulfilled') {
+      setRequests(requestResult.value || []);
+    } else {
+      setRequests([]);
+      setLoadError('Không tải được danh sách yêu cầu điều chuyển. Kiểm tra quyền truy cập hoặc thử tải lại.');
     }
+
+    if (warehouseResult.status === 'fulfilled') {
+      setWarehouses((warehouseResult.value || []).filter(w => w.type !== 'IN_TRANSIT' && w.is_active !== false));
+    } else {
+      setWarehouses([]);
+    }
+
+    if (productResult.status === 'fulfilled') {
+      setProducts(productResult.value || []);
+    } else {
+      setProducts([]);
+    }
+
+    setLoading(false);
   };
 
   const handleLookupStock = async (productId, index) => {
@@ -343,11 +358,39 @@ const TransferRequestWorkspace = () => {
         <div className="flex items-center justify-center p-20">
           <Loader2 className="w-8 h-8 animate-spin text-shade-50" />
         </div>
+      ) : loadError ? (
+        <div className="rounded-lg border border-danger-200 bg-danger-50/70 p-6 md:p-8 shadow-level-3">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-danger-600 mt-0.5 shrink-0" />
+              <div>
+                <h3 className="text-sm font-bold text-danger-700">Chưa tải được dữ liệu yêu cầu điều chuyển</h3>
+                <p className="text-xs text-danger-700/80 mt-1">{loadError}</p>
+              </div>
+            </div>
+            <Button variant="outline-light" icon={RefreshCw} onClick={fetchData}>
+              Tải lại
+            </Button>
+          </div>
+        </div>
       ) : filteredRequests.length === 0 ? (
-        <div className="bg-canvas-light rounded-lg border border-hairline-light p-8 md:p-16 text-center shadow-level-3">
-          <Inbox className="w-12 h-12 text-shade-50 mx-auto mb-4" />
-          <h3 className="text-sm font-semibold text-ink mb-1">Không tìm thấy yêu cầu nào</h3>
-          <p className="text-xs text-shade-50 font-light">Không có yêu cầu điều chuyển nào ở trạng thái này.</p>
+        <div className="bg-canvas-light rounded-lg border border-hairline-light p-8 md:p-12 shadow-level-3">
+          <div className="mx-auto max-w-xl text-center">
+            <Inbox className="w-12 h-12 text-shade-40 mx-auto mb-4" />
+            <h3 className="text-base font-bold text-ink mb-1">Chưa có yêu cầu điều chuyển phù hợp</h3>
+            <p className="text-xs text-shade-50 font-light">
+              {activeTab === 'ALL'
+                ? 'Khi quản lý kho tạo yêu cầu bổ sung hàng, danh sách sẽ xuất hiện tại đây.'
+                : `Không có yêu cầu nào ở trạng thái “${TAB_LABELS[activeTab] || activeTab}”.`}
+            </p>
+            {hasRole(ROLES.WAREHOUSE_MANAGER) && (
+              <div className="mt-4 flex justify-center">
+                <Button variant="primary" icon={Plus} onClick={openCreateModal}>
+                  Tạo yêu cầu
+                </Button>
+              </div>
+            )}
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-6">
