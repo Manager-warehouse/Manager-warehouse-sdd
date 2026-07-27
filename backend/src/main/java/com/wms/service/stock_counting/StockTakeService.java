@@ -122,7 +122,8 @@ public class StockTakeService {
 
     @Transactional(readOnly = true)
     public StockTakeResponse getStockTakeById(Long id, User actor) {
-        StockTake st = loadStockTake(id);
+        StockTake st = stockTakeRepository.findByIdWithDetails(id)
+                .orElseThrow(() -> new ResourceNotFoundException("StockTake not found: " + id));
         requireWarehouseAccess(actor, st.getWarehouse().getId());
         List<StockTakeItemResponse> items = stockTakeItemRepository
                 .findByStockTakeIdWithDetails(id)
