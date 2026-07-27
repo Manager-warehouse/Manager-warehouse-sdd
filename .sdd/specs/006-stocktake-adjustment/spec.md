@@ -138,7 +138,7 @@ _Xem chi tiết tại các tài liệu đặc tả tính năng:_
 | STOCK_TAKE_NOT_CANCELLABLE     | 422  | Hủy phiếu khi status không phải DRAFT hoặc IN_PROGRESS                                     |
 | LOCATION_LOCKED                | 422  | Giao dịch trên location đang bị khóa bởi stocktake                                         |
 | INVALID_COUNT_QTY              | 400  | Số đếm thực tế âm                                                                          |
-| INVENTORY_VERSION_CONFLICT     | 409  | Concurrent inventory update khi approve                                                    |
+| INVENTORY_VERSION_CONFLICT     | 409  | Xung đột phiên bản tồn kho khi duyệt; rollback toàn bộ và yêu cầu Trưởng kho tải lại phiếu |
 | ACCOUNTING_PERIOD_CLOSED       | 422  | Tạo hoặc phê duyệt stocktake vào kỳ kế toán đã CLOSED                                      |
 | STOCK_TAKE_DATE_AFTER_DOCUMENT_DATE | 422 | `stock_take_date` sau `document_date`                                                       |
 | STOCK_TAKE_DATE_OUTSIDE_ACCOUNTING_PERIOD | 422 | `stock_take_date` không nằm trong khoảng ngày của `accounting_period_id`                    |
