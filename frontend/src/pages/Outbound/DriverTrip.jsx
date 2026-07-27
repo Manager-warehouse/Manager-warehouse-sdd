@@ -347,9 +347,9 @@ export default function DriverTrip() {
 
         <div className="flex gap-2 overflow-x-auto pb-1">
           {[
-            { value: 'ALL', label: 'All' },
-            { value: 'TRANSFER', label: 'Internal' },
-            { value: 'DELIVERY', label: 'Dealer' },
+            { value: 'ALL', label: 'Tất cả' },
+            { value: 'TRANSFER', label: 'Nội bộ' },
+            { value: 'DELIVERY', label: 'Đại lý' },
           ].map((option) => (
             <button
               key={option.value}

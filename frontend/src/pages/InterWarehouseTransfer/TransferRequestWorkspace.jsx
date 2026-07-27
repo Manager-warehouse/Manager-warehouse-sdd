@@ -305,7 +305,7 @@ const TransferRequestWorkspace = () => {
   };
 
   const TAB_LABELS = {
-    ALL: 'All',
+    ALL: 'Tất cả',
     DRAFT: 'Nháp',
     SUBMITTED: 'Chờ duyệt',
     APPROVED: 'Đã duyệt',
