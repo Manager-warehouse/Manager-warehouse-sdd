@@ -64,9 +64,6 @@ import java.util.stream.Collectors;
 public class StockTakeService {
 
     private static final String ENTITY_TYPE = "STOCK_TAKE";
-    private static final BigDecimal AUTO_THRESHOLD = new BigDecimal("5000000");
-    private static final BigDecimal CEO_THRESHOLD = new BigDecimal("100000000");
-
     private final StockTakeRepository stockTakeRepository;
     private final StockTakeItemRepository stockTakeItemRepository;
     private final InventoryRepository inventoryRepository;
@@ -341,17 +338,7 @@ public class StockTakeService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         st.setTotalVarianceValue(totalVariance);
 
-        // Determine approval level
-        BigDecimal absVariance = totalVariance.abs();
-        ApprovalLevel level;
-        if (absVariance.compareTo(AUTO_THRESHOLD) < 0) {
-            level = ApprovalLevel.AUTO;
-        } else if (absVariance.compareTo(CEO_THRESHOLD) <= 0 && !Boolean.TRUE.equals(st.getIsEmployeeFault())) {
-            level = ApprovalLevel.MANAGER;
-        } else {
-            level = ApprovalLevel.CEO;
-        }
-        st.setApprovalLevel(level);
+        st.setApprovalLevel(ApprovalLevel.MANAGER);
         st.setStatus(StockTakeStatus.PENDING_APPROVAL);
         st.setRejectionReason(null); // clear any prior rejection reason on re-submit
         st.setUpdatedAt(OffsetDateTime.now());
@@ -360,10 +347,6 @@ public class StockTakeService {
         auditLogService.log(actor, AuditAction.STOCKTAKE_COMPLETE, ENTITY_TYPE,
                 st.getId(), st.getStockTakeNumber(), st.getWarehouse().getId(), null, snapshotHeader(st));
 
-        if (level == ApprovalLevel.AUTO) {
-            executeApproval(st, null);
-        }
-
         return buildResponse(st);
     }
 
@@ -371,37 +354,14 @@ public class StockTakeService {
 
     @Transactional
     public StockTakeResponse approveStockTake(Long id, User actor) {
-        if (actor.getRole() != UserRole.WAREHOUSE_MANAGER && actor.getRole() != UserRole.ADMIN
-                && actor.getRole() != UserRole.CEO) {
+        if (actor.getRole() != UserRole.WAREHOUSE_MANAGER && actor.getRole() != UserRole.ADMIN) {
             throw new StockTakeException("APPROVAL_LEVEL_MISMATCH", HttpStatus.FORBIDDEN,
-                    "Only WAREHOUSE_MANAGER or CEO can approve stocktakes");
+                    "Only WAREHOUSE_MANAGER can approve stocktakes");
         }
         StockTake st = stockTakeRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResourceNotFoundException("StockTake not found: " + id));
         requireWarehouseAccess(actor, st.getWarehouse().getId());
 
-        assertPendingApproval(st);
-        if (st.getApprovalLevel() == ApprovalLevel.CEO && actor.getRole() != UserRole.CEO
-                && actor.getRole() != UserRole.ADMIN) {
-            throw new StockTakeException("APPROVAL_LEVEL_MISMATCH", HttpStatus.FORBIDDEN,
-                    "This stocktake requires CEO approval");
-        }
-        assertPeriodOpen(st.getAccountingPeriod());
-        executeApproval(st, actor);
-        return buildResponse(st);
-    }
-
-    // ─── Approve (CEO) ────────────────────────────────────────────────────────
-
-    @Transactional
-    public StockTakeResponse approveCeoStockTake(Long id, User actor) {
-        if (actor.getRole() != UserRole.CEO && actor.getRole() != UserRole.ADMIN) {
-            throw new StockTakeException("APPROVAL_LEVEL_MISMATCH", HttpStatus.FORBIDDEN,
-                    "Only CEO can call the CEO approve endpoint");
-        }
-        StockTake st = stockTakeRepository.findByIdForUpdate(id)
-                .orElseThrow(() -> new ResourceNotFoundException("StockTake not found: " + id));
-        requireWarehouseAccess(actor, st.getWarehouse().getId());
         assertPendingApproval(st);
         assertPeriodOpen(st.getAccountingPeriod());
         executeApproval(st, actor);
@@ -415,25 +375,6 @@ public class StockTakeService {
         if (actor.getRole() != UserRole.WAREHOUSE_MANAGER && actor.getRole() != UserRole.ADMIN) {
             throw new StockTakeException("APPROVAL_LEVEL_MISMATCH", HttpStatus.FORBIDDEN,
                     "Only WAREHOUSE_MANAGER can reject at MANAGER level");
-        }
-        StockTake st = stockTakeRepository.findByIdForUpdate(id)
-                .orElseThrow(() -> new ResourceNotFoundException("StockTake not found: " + id));
-        requireWarehouseAccess(actor, st.getWarehouse().getId());
-        assertPendingApproval(st);
-        if (st.getApprovalLevel() == ApprovalLevel.CEO) {
-            throw new StockTakeException("APPROVAL_LEVEL_MISMATCH", HttpStatus.FORBIDDEN,
-                    "This stocktake requires CEO approval/rejection");
-        }
-        return doReject(st, req.getRejectionReason(), actor);
-    }
-
-    // ─── Reject (CEO) ─────────────────────────────────────────────────────────
-
-    @Transactional
-    public StockTakeResponse rejectCeoStockTake(Long id, StockTakeRejectRequest req, User actor) {
-        if (actor.getRole() != UserRole.CEO && actor.getRole() != UserRole.ADMIN) {
-            throw new StockTakeException("APPROVAL_LEVEL_MISMATCH", HttpStatus.FORBIDDEN,
-                    "Only CEO can call the CEO reject endpoint");
         }
         StockTake st = stockTakeRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResourceNotFoundException("StockTake not found: " + id));
@@ -528,9 +469,8 @@ public class StockTakeService {
 
         unlockLocations(st.getId());
 
-        AuditAction action = (approver == null) ? AuditAction.STOCKTAKE_AUTO_APPROVE : AuditAction.STOCKTAKE_APPROVE;
-        auditLogService.log(approver != null ? approver : st.getConductedBy(),
-                action, ENTITY_TYPE, st.getId(), st.getStockTakeNumber(),
+        auditLogService.log(approver, AuditAction.STOCKTAKE_APPROVE,
+                ENTITY_TYPE, st.getId(), st.getStockTakeNumber(),
                 st.getWarehouse().getId(), null, snapshotHeader(st));
     }
 

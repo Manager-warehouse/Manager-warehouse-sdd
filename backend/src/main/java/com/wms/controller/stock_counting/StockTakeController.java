@@ -159,7 +159,7 @@ public class StockTakeController {
 
     // ─── Complete ─────────────────────────────────────────────────────────────
 
-    @Operation(summary = "Hoàn tất đếm & trình duyệt", description = "Tính tổng chênh lệch, xác định cấp duyệt. Nếu AUTO thì phê duyệt ngay. Roles: STOREKEEPER, ADMIN.")
+    @Operation(summary = "Hoàn tất đếm & trình duyệt", description = "Tính tổng chênh lệch và chuyển mọi phiếu sang chờ Trưởng kho duyệt. Roles: STOREKEEPER, ADMIN.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Thành công"),
         @ApiResponse(responseCode = "400", description = "Còn item chưa có actual_qty (INCOMPLETE_COUNT)")
@@ -187,7 +187,7 @@ public class StockTakeController {
 
     // ─── Approve (Manager) ────────────────────────────────────────────────────
 
-    @Operation(summary = "Trưởng kho duyệt chênh lệch", description = "Duyệt phiếu kiểm kê ở cấp MANAGER. CEO cũng có thể gọi endpoint này.")
+    @Operation(summary = "Trưởng kho duyệt chênh lệch", description = "Duyệt mọi phiếu kiểm kê đang chờ thuộc kho được phân công.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Phê duyệt thành công"),
         @ApiResponse(responseCode = "403", description = "Không đúng cấp duyệt (APPROVAL_LEVEL_MISMATCH)"),
@@ -195,7 +195,7 @@ public class StockTakeController {
         @ApiResponse(responseCode = "422", description = "Kỳ kế toán đã đóng (ACCOUNTING_PERIOD_CLOSED)")
     })
     @PutMapping("/{id}/approve")
-    @PreAuthorize("hasAnyRole('WAREHOUSE_MANAGER', 'CEO', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('WAREHOUSE_MANAGER', 'ADMIN')")
     public ResponseEntity<StockTakeResponse> approveStockTake(@PathVariable Long id) {
         User actor = currentUserService.getRequiredCurrentUser();
         return ResponseEntity.ok(stockTakeService.approveStockTake(id, actor));
@@ -218,35 +218,4 @@ public class StockTakeController {
         return ResponseEntity.ok(stockTakeService.rejectStockTake(id, request, actor));
     }
 
-    // ─── Approve (CEO) ────────────────────────────────────────────────────────
-
-    @Operation(summary = "CEO duyệt chênh lệch", description = "CEO duyệt phiếu kiểm kê ở cấp CEO (hoặc khi cần override cấp MANAGER).")
-    @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Phê duyệt thành công"),
-        @ApiResponse(responseCode = "403", description = "Chỉ CEO mới có thể gọi endpoint này"),
-        @ApiResponse(responseCode = "422", description = "Kỳ kế toán đã đóng")
-    })
-    @PutMapping("/{id}/approve-ceo")
-    @PreAuthorize("hasAnyRole('CEO', 'ADMIN')")
-    public ResponseEntity<StockTakeResponse> approveCeoStockTake(@PathVariable Long id) {
-        User actor = currentUserService.getRequiredCurrentUser();
-        return ResponseEntity.ok(stockTakeService.approveCeoStockTake(id, actor));
-    }
-
-    // ─── Reject (CEO) ─────────────────────────────────────────────────────────
-
-    @Operation(summary = "CEO từ chối chênh lệch", description = "CEO từ chối phiếu kiểm kê ở cấp CEO.")
-    @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Từ chối thành công"),
-        @ApiResponse(responseCode = "400", description = "Thiếu rejection_reason"),
-        @ApiResponse(responseCode = "403", description = "Chỉ CEO mới có thể gọi endpoint này")
-    })
-    @PutMapping("/{id}/reject-ceo")
-    @PreAuthorize("hasAnyRole('CEO', 'ADMIN')")
-    public ResponseEntity<StockTakeResponse> rejectCeoStockTake(
-            @PathVariable Long id,
-            @Valid @RequestBody StockTakeRejectRequest request) {
-        User actor = currentUserService.getRequiredCurrentUser();
-        return ResponseEntity.ok(stockTakeService.rejectCeoStockTake(id, request, actor));
-    }
 }
