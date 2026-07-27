@@ -72,6 +72,12 @@ public class QuarantineItemResponse {
     @JsonProperty("supplier_id")
     private Long supplierId;
 
+    @JsonProperty("dealer_id")
+    private Long dealerId;
+
+    @JsonProperty("dealer_name")
+    private String dealerName;
+
     @JsonProperty("total_value")
     private BigDecimal totalValue;
 

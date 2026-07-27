@@ -106,7 +106,7 @@ const QuarantineWorkspace = () => {
     }
     setSubmitting(true);
     try {
-      const res = selectedItem.origin_type === 'RECEIPT'
+      const res = (selectedItem.origin_type === 'RECEIPT' || selectedItem.origin_type === 'DEALER_RETURN')
         ? await inboundService.handleDisposal(selectedItem.id, actionNotes, disposalImageUrl)
         : await inboundService.handleDisposalFromQuarantine(selectedItem.id, actionNotes, disposalImageUrl);
       if (res.autoApproved) {
@@ -252,19 +252,30 @@ const QuarantineWorkspace = () => {
                   <div className="flex flex-col gap-1.5 text-xs text-shade-60 mb-5">
                     <div>
                       <span className="font-semibold text-shade-50">Nguồn gốc cách ly:</span>{' '}
-                      {item.origin_type === 'INTERNAL_TRANSFER' ? (
+                      {item.origin_type === 'DEALER_RETURN' ? (
+                        <span className="bg-amber-100/80 text-amber-900 border border-amber-300 px-1.5 py-0.5 rounded font-mono font-bold text-[10px]">
+                          Đại lý trả hàng: {item.receipt_number}
+                        </span>
+                      ) : item.origin_type === 'INTERNAL_TRANSFER' ? (
                         <span className="bg-shade-30 text-ink border border-hairline-light px-1.5 py-0.5 rounded font-mono font-bold text-[10px]">
-                          Điều chuyển: {item.receipt_number}
+                          Điều chuyển kho: {item.receipt_number}
                         </span>
                       ) : (
                         <span className="bg-canvas-cream text-shade-70 border border-hairline-light px-1.5 py-0.5 rounded font-mono font-bold text-[10px]">
-                          Phiếu nhập: {item.receipt_number}
+                          Nhập từ NCC: {item.receipt_number}
                         </span>
                       )}
                     </div>
-                    <div>
-                      <span className="font-semibold text-shade-50">Nhà cung cấp:</span> {getSupplierName(item.supplier_id)}
-                    </div>
+                    {item.origin_type === 'DEALER_RETURN' ? (
+                      <div>
+                        <span className="font-semibold text-shade-50">Đại lý hoàn trả:</span>{' '}
+                        <strong className="text-ink">{item.dealer_name || (item.dealer_id ? `Đại lý ID: ${item.dealer_id}` : 'N/A')}</strong>
+                      </div>
+                    ) : item.origin_type === 'RECEIPT' ? (
+                      <div>
+                        <span className="font-semibold text-shade-50">Nhà cung cấp:</span> {getSupplierName(item.supplier_id)}
+                      </div>
+                    ) : null}
                     <div>
                       <span className="font-semibold text-shade-50">Lý do lỗi QC:</span> <span className="text-danger-600 font-semibold italic">{item.qc_failure_reason || 'Không rõ'}</span>
                     </div>
