@@ -45,6 +45,14 @@ const refreshClient = axios.create({
 // refresh call instead of racing each other with independent requests.
 let refreshPromise = null;
 
+export const isPublicAuthRequest = (url = '') => (
+  url.includes('/auth/login') ||
+  url.includes('/auth/refresh') ||
+  url.includes('/auth/forgot-password') ||
+  url.includes('/auth/otp/check') ||
+  url.includes('/auth/verify-otp')
+);
+
 // Interceptor to add JWT authorization header
 apiClient.interceptors.request.use(
   (config) => {
@@ -66,12 +74,7 @@ apiClient.interceptors.response.use(
     const originalRequest = error.config;
     
     // Check if the request is an authentication endpoint
-    const isAuthRequest = originalRequest.url && (
-      originalRequest.url.includes('/auth/login') ||
-      originalRequest.url.includes('/auth/refresh') ||
-      originalRequest.url.includes('/auth/forgot-password') ||
-      originalRequest.url.includes('/auth/verify-otp')
-    );
+    const isAuthRequest = isPublicAuthRequest(originalRequest.url);
 
     // Handle Token Expired (401) for non-auth requests
     if (error.response && error.response.status === 401 && !originalRequest._retry && !isAuthRequest) {
