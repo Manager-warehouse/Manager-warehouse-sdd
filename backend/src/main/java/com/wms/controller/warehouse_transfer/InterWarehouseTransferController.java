@@ -218,8 +218,8 @@ public class InterWarehouseTransferController {
     }
 
     @PostMapping("/{id}/final-receive")
-    @PreAuthorize("hasAnyRole('WAREHOUSE_MANAGER','ADMIN','CEO')")
-    @Operation(summary = "Destination warehouse manager finalizes transfer")
+    @PreAuthorize("hasAnyRole('STOREKEEPER','WAREHOUSE_MANAGER','ADMIN','CEO')")
+    @Operation(summary = "Destination storekeeper finalizes putaway after QC")
     public InterWarehouseTransferResponse finalReceive(@PathVariable Long id,
                                                        @Valid @RequestBody InterWarehouseTransferFinalReceiveRequest request) {
         return transferService.finalReceive(id, request, currentUser());
