@@ -67,7 +67,7 @@ public class QuarantineController {
     }
 
     @GetMapping("/items")
-    @PreAuthorize("hasAnyRole('WAREHOUSE_STAFF', 'STOREKEEPER', 'WAREHOUSE_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('WAREHOUSE_STAFF', 'STOREKEEPER', 'WAREHOUSE_MANAGER', 'ADMIN', 'CEO')")
     @Operation(
         summary = "Lấy danh sách hàng hóa lỗi cách ly (Quarantine Workspace)",
         description = "Lấy danh sách các sản phẩm đang bị cách ly (lỗi QC) chưa làm thủ tục xuất trả NCC (RTV)."

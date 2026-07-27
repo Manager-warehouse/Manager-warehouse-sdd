@@ -149,6 +149,22 @@ class QuarantineControllerTest {
                 .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isBadRequest());
     }
-}
 
+    @Test
+    @WithMockUser(username = "ceo@wms.com", roles = "CEO")
+    void getQuarantineItems_ceoAllowed() throws Exception {
+        User ceo = new User();
+        ceo.setId(99L);
+        ceo.setRole(UserRole.CEO);
+
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(ceo);
+        when(quarantineRtvService.getQuarantineItems(eq(1L), eq(ceo)))
+                .thenReturn(List.of());
+
+        mockMvc.perform(get("/api/v1/quarantine/items")
+                .param("warehouseId", "1")
+                .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk());
+    }
+}
 

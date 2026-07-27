@@ -643,6 +643,17 @@ class InterWarehouseTransferServiceImplTest {
         assertThat(checked.items().get(0).receivedQty()).isEqualByComparingTo("4.00");
         assertThat(checked.items().get(0).qcPassedQty()).isEqualByComparingTo("3.00");
 
+        InterWarehouseTransferResponse pending = service.finalReceive(1L,
+                new InterWarehouseTransferFinalReceiveRequest(
+                        "shortage due to missing unit",
+                        List.of(new InterWarehouseTransferFinalPutawayItemRequest(
+                                transferItem.getId(),
+                                List.of(new InterWarehouseTransferPutawayAllocationRequest(
+                                        destinationLocation.getId(), new BigDecimal("3.00")))))),
+                destinationStorekeeper);
+        assertThat(pending.status()).isEqualTo(InterWarehouseTransferStatus.PUTAWAY_PENDING_APPROVAL);
+        assertThat(destinationInventory).isNull();
+
         InterWarehouseTransferResponse completed = service.finalReceive(1L,
                 new InterWarehouseTransferFinalReceiveRequest("shortage due to missing unit"), destinationManager);
         assertThat(completed.status()).isEqualTo(InterWarehouseTransferStatus.COMPLETED_WITH_DISCREPANCY);
@@ -653,7 +664,7 @@ class InterWarehouseTransferServiceImplTest {
     }
 
     @Test
-    void finalReceive_allowsDestinationStorekeeperToPutawayPassedQtyAcrossMultipleBins() {
+    void finalReceive_requiresManagerApprovalAfterStorekeeperSubmitsMultiBinPutawayPlan() {
         service.approveTransfer(1L, sourceManager);
         service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
                 VALID_TRIP_START, VALID_TRIP_END), dispatcher);
@@ -676,7 +687,7 @@ class InterWarehouseTransferServiceImplTest {
                 "transfer/receive-qc/1.jpg"),
                 destinationStorekeeper);
 
-        InterWarehouseTransferResponse completed = service.finalReceive(1L,
+        InterWarehouseTransferResponse pending = service.finalReceive(1L,
                 new InterWarehouseTransferFinalReceiveRequest(
                         "",
                         List.of(new InterWarehouseTransferFinalPutawayItemRequest(
@@ -687,6 +698,18 @@ class InterWarehouseTransferServiceImplTest {
                                         new InterWarehouseTransferPutawayAllocationRequest(
                                                 destinationLocation2.getId(), new BigDecimal("3.00")))))),
                 destinationStorekeeper);
+
+        assertThat(pending.status()).isEqualTo(InterWarehouseTransferStatus.PUTAWAY_PENDING_APPROVAL);
+        assertThat(destinationInventory).isNull();
+        assertThat(destinationInventory2).isNull();
+
+        assertThatThrownBy(() -> service.finalReceive(1L, new InterWarehouseTransferFinalReceiveRequest(""),
+                destinationStorekeeper))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("WAREHOUSE_MANAGER_APPROVAL_REQUIRED");
+
+        InterWarehouseTransferResponse completed = service.finalReceive(1L,
+                new InterWarehouseTransferFinalReceiveRequest(""), destinationManager);
 
         assertThat(completed.status()).isEqualTo(InterWarehouseTransferStatus.COMPLETED);
         assertThat(destinationInventory).isNotNull();
@@ -981,7 +1004,15 @@ class InterWarehouseTransferServiceImplTest {
                 "transfer/receive-qc/1.jpg"),
                 destinationStorekeeper);
 
-        // finalReceive should throw BIN_CAPACITY_EXCEEDED because 5.00 * 1.00 > 0.01
+        service.finalReceive(1L, new InterWarehouseTransferFinalReceiveRequest(
+                "",
+                List.of(new InterWarehouseTransferFinalPutawayItemRequest(
+                        transferItem.getId(),
+                        List.of(new InterWarehouseTransferPutawayAllocationRequest(
+                                destinationLocation.getId(), new BigDecimal("5.00")))))),
+                destinationStorekeeper);
+
+        // Manager approval should throw BIN_CAPACITY_EXCEEDED because 5.00 * 1.00 > 0.01
         assertThatThrownBy(() -> service.finalReceive(1L, new InterWarehouseTransferFinalReceiveRequest("final"), destinationManager))
                 .isInstanceOf(BusinessRuleViolationException.class)
                 .hasMessageContaining("BIN_CAPACITY_EXCEEDED");

@@ -398,6 +398,11 @@ export const interWarehouseTransferService = {
     const request = typeof payload === 'string' ? { discrepancyReason: payload } : payload;
     if (useMock) {
       const transfer = await interWarehouseTransferService.getTransferById(id);
+      if (Array.isArray(request.putawayItems) && request.putawayItems.length > 0) {
+        return updateMockStatus(id, 'PUTAWAY_PENDING_APPROVAL', {
+          discrepancyReason: request.discrepancyReason,
+        });
+      }
       const hasDiscrepancy = transfer.items.some((item) => Number(item.receivedQty) !== Number(item.sentQty));
       return updateMockStatus(id, hasDiscrepancy ? 'COMPLETED_WITH_DISCREPANCY' : 'COMPLETED', {
         discrepancyReason: request.discrepancyReason,
