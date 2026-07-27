@@ -44,31 +44,53 @@ const getStatusBadge = (status) => {
 
 const canStaffSubmitReturnedQc = (status) => ['COUNT_QC_PENDING', 'QC_REJECTED'].includes(status);
 
-const buildReturnedRows = (items = []) => items.flatMap((item) => {
-  const allocations = item.allocations?.length
-    ? item.allocations
-    : [{ batch_id: item.batch_id, planned_qty: item.qc_pass_qty || item.issued_qty || item.requested_qty }];
-  return allocations
-    .filter((allocation) => allocation.batch_id && Number(allocation.picked_qty ?? allocation.planned_qty ?? 0) > 0)
-    .map((allocation, index) => {
-      const qty = Number(allocation.picked_qty ?? allocation.planned_qty ?? item.qc_pass_qty ?? item.issued_qty ?? item.requested_qty ?? 0);
-      return {
-        key: `${item.id}-${allocation.batch_id}-${index}`,
-        do_item_id: item.id,
-        product_id: item.product_id,
-        product_name: item.product_name,
-        sku: item.sku,
-        batch_id: allocation.batch_id,
-        expected_qty: qty,
-        actual_qty: qty,
-        quality_pass_qty: qty,
-        quality_fail_qty: 0,
-        quality_failure_reason: '',
-        destination_location_id: '',
-        planned_qty: qty,
-      };
-    });
-});
+const buildReturnedRows = (items = []) => {
+  const rowsByKey = new Map();
+
+  items.forEach((item) => {
+    const allocations = item.allocations?.length
+      ? item.allocations
+      : [{ batch_id: item.batch_id, planned_qty: item.qc_pass_qty || item.issued_qty || item.requested_qty }];
+
+    allocations
+      .filter((allocation) => allocation.batch_id && Number(allocation.qc_pass_qty ?? allocation.picked_qty ?? allocation.planned_qty ?? 0) > 0)
+      .forEach((allocation) => {
+        const qty = Number(allocation.qc_pass_qty ?? allocation.picked_qty ?? allocation.planned_qty ?? item.qc_pass_qty ?? item.issued_qty ?? item.requested_qty ?? 0);
+        const key = `${item.id}-${item.product_id}-${allocation.batch_id}`;
+        const existing = rowsByKey.get(key);
+
+        if (existing) {
+          const expectedQty = Number(existing.expected_qty || 0) + qty;
+          rowsByKey.set(key, {
+            ...existing,
+            expected_qty: expectedQty,
+            actual_qty: expectedQty,
+            quality_pass_qty: expectedQty,
+            planned_qty: expectedQty,
+          });
+          return;
+        }
+
+        rowsByKey.set(key, {
+          key,
+          do_item_id: item.id,
+          product_id: item.product_id,
+          product_name: item.product_name,
+          sku: item.sku,
+          batch_id: allocation.batch_id,
+          expected_qty: qty,
+          actual_qty: qty,
+          quality_pass_qty: qty,
+          quality_fail_qty: 0,
+          quality_failure_reason: '',
+          destination_location_id: '',
+          planned_qty: qty,
+        });
+      });
+  });
+
+  return Array.from(rowsByKey.values());
+};
 
 const mergeReturnedFlowRows = (rows, flow) => {
   if (!flow?.items?.length) return rows;
@@ -91,6 +113,30 @@ const mergeReturnedFlowRows = (rows, flow) => {
       : row;
   });
 };
+
+const mergeDuplicateReturnedRows = (rows = []) => Array.from(rows.reduce((acc, row) => {
+  const key = `${row.do_item_id}-${row.product_id}-${row.batch_id}`;
+  const existing = acc.get(key);
+  if (!existing) {
+    acc.set(key, row);
+    return acc;
+  }
+
+  const actualQty = Number(existing.actual_qty || 0) + Number(row.actual_qty || 0);
+  const passQty = Number(existing.quality_pass_qty || 0) + Number(row.quality_pass_qty || 0);
+  const failQty = Number(existing.quality_fail_qty || 0) + Number(row.quality_fail_qty || 0);
+  acc.set(key, {
+    ...existing,
+    expected_qty: Number(existing.expected_qty || 0) + Number(row.expected_qty || 0),
+    actual_qty: actualQty,
+    quality_pass_qty: passQty,
+    quality_fail_qty: failQty,
+    quality_failure_reason: existing.quality_failure_reason || row.quality_failure_reason || '',
+    planned_qty: Number(existing.planned_qty || 0) + Number(row.planned_qty || 0),
+    destination_location_id: existing.destination_location_id || row.destination_location_id || '',
+  });
+  return acc;
+}, new Map()).values());
 
 export default function DeliveryOrderDetail() {
   const { id } = useParams();
@@ -123,7 +169,7 @@ export default function DeliveryOrderDetail() {
       setOrder(data);
       setDraftItems(outboundService.createPickingPlanDraft(data.items || []));
       setReplacementDraftItems(outboundService.createReplacementPlanDraft(data.items || []));
-      const baseReturnRows = buildReturnedRows(data.items || []);
+      const baseReturnRows = mergeDuplicateReturnedRows(buildReturnedRows(data.items || []));
       setReturnRows(baseReturnRows);
       if (hasRole(ROLES.STOREKEEPER)
           && ['NEW', 'WAITING_PICKING', 'QC_PENDING_APPROVAL'].includes(data.status || data.raw_status)) {
@@ -285,7 +331,8 @@ export default function DeliveryOrderDetail() {
   };
 
   const handleSubmitReturnedCountQc = async () => {
-    const invalid = returnRows.some((row) => (
+    const mergedRows = mergeDuplicateReturnedRows(returnRows);
+    const invalid = mergedRows.some((row) => (
       Number(row.actual_qty) < 0
       || Number(row.quality_pass_qty) < 0
       || Number(row.quality_fail_qty) < 0
@@ -300,7 +347,7 @@ export default function DeliveryOrderDetail() {
     try {
       const flow = await outboundService.submitReturnedGoodsCountQc(id, {
         notes: returnNotes,
-        items: returnRows.map((row) => ({
+        items: mergedRows.map((row) => ({
           do_item_id: row.do_item_id,
           product_id: row.product_id,
           batch_id: row.batch_id,
@@ -352,7 +399,8 @@ export default function DeliveryOrderDetail() {
   };
 
   const handlePlanReturnedPutaway = async () => {
-    const invalid = returnRows.some((row) => (
+    const mergedRows = mergeDuplicateReturnedRows(returnRows);
+    const invalid = mergedRows.some((row) => (
       !row.destination_location_id
       || Number(row.planned_qty || 0) <= 0
       || Number(row.planned_qty || 0) !== Number(row.actual_qty || 0)
@@ -365,7 +413,7 @@ export default function DeliveryOrderDetail() {
     try {
       const flow = await outboundService.planReturnedGoodsPutaway(id, {
         notes: returnNotes,
-        items: returnRows.map((row) => ({
+        items: mergedRows.map((row) => ({
           do_item_id: row.do_item_id,
           batch_id: row.batch_id,
           destination_location_id: Number(row.destination_location_id),
