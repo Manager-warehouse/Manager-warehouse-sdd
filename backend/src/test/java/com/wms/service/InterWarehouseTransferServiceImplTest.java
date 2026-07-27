@@ -199,6 +199,8 @@ class InterWarehouseTransferServiceImplTest {
     private Trip transferTrip;
     private final Map<Long, List<Long>> assignments = new HashMap<>();
     private final TrackingAllocationRepository allocationState = new TrackingAllocationRepository();
+    private boolean vehicleScheduleOverlap;
+    private boolean driverScheduleOverlap;
 
     @BeforeEach
     void setUp() {
@@ -231,6 +233,8 @@ class InterWarehouseTransferServiceImplTest {
         destinationInventory2 = null;
         quarantineInventory = null;
         transferTrip = null;
+        vehicleScheduleOverlap = false;
+        driverScheduleOverlap = false;
 
         assignments.clear();
         assignments.put(sourceManager.getId(), List.of(sourceWarehouse.getId()));
@@ -568,6 +572,34 @@ class InterWarehouseTransferServiceImplTest {
     }
 
     @Test
+    void assignTrip_reportsVehicleScheduleOverlapSeparatelyFromDriver() {
+        service.approveTransfer(1L, sourceManager);
+        vehicleScheduleOverlap = true;
+
+        assertThatThrownBy(() -> service.assignTrip(
+                1L,
+                new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(), VALID_TRIP_START,
+                        VALID_TRIP_END),
+                dispatcher))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("VEHICLE_SCHEDULE_OVERLAP");
+    }
+
+    @Test
+    void assignTrip_reportsDriverScheduleOverlapSeparatelyFromVehicle() {
+        service.approveTransfer(1L, sourceManager);
+        driverScheduleOverlap = true;
+
+        assertThatThrownBy(() -> service.assignTrip(
+                1L,
+                new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(), VALID_TRIP_START,
+                        VALID_TRIP_END),
+                dispatcher))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("DRIVER_SCHEDULE_OVERLAP");
+    }
+
+    @Test
     void destinationWorker_onlySeesTransfersForAssignedWarehouses() {
         transfer.setStatus(InterWarehouseTransferStatus.IN_TRANSIT);
 
@@ -621,7 +653,7 @@ class InterWarehouseTransferServiceImplTest {
     }
 
     @Test
-    void finalReceive_allowsDestinationManagerToPutawayPassedQtyAcrossMultipleBins() {
+    void finalReceive_allowsDestinationStorekeeperToPutawayPassedQtyAcrossMultipleBins() {
         service.approveTransfer(1L, sourceManager);
         service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
                 VALID_TRIP_START, VALID_TRIP_END), dispatcher);
@@ -1275,7 +1307,8 @@ class InterWarehouseTransferServiceImplTest {
         public Object invoke(Object proxy, Method method, Object[] args) {
             return switch (method.getName()) {
                 case "existsByTripNumber" -> false;
-                case "existsVehicleScheduleOverlap", "existsDriverScheduleOverlap" -> false;
+                case "existsVehicleScheduleOverlap", "existsVehicleScheduleOverlapExcludingTrip" -> vehicleScheduleOverlap;
+                case "existsDriverScheduleOverlap", "existsDriverScheduleOverlapExcludingTrip" -> driverScheduleOverlap;
                 case "save" -> {
                     transferTrip = (Trip) args[0];
                     if (transferTrip.getId() == null) {

@@ -343,9 +343,11 @@ public class InterWarehouseTransferShippingService {
         if (Boolean.FALSE.equals(driver.getIsActive()) || driver.getStatus() == DriverStatus.UNAVAILABLE) {
             throw new BusinessRuleViolationException("DRIVER_NOT_AVAILABLE");
         }
-        if (tripRepository.existsVehicleScheduleOverlapExcludingTrip(vehicle.getId(), plannedStartAt, plannedEndAt, InterWarehouseTransferHelper.RESOURCE_BLOCKING_TRIP_STATUSES, excludedTripId)
-                || tripRepository.existsDriverScheduleOverlapExcludingTrip(driver.getId(), plannedStartAt, plannedEndAt, InterWarehouseTransferHelper.RESOURCE_BLOCKING_TRIP_STATUSES, excludedTripId)) {
-            throw new BusinessRuleViolationException("TRIP_RESOURCE_OVERLAP");
+        if (tripRepository.existsVehicleScheduleOverlapExcludingTrip(vehicle.getId(), plannedStartAt, plannedEndAt, InterWarehouseTransferHelper.RESOURCE_BLOCKING_TRIP_STATUSES, excludedTripId)) {
+            throw new BusinessRuleViolationException("VEHICLE_SCHEDULE_OVERLAP");
+        }
+        if (tripRepository.existsDriverScheduleOverlapExcludingTrip(driver.getId(), plannedStartAt, plannedEndAt, InterWarehouseTransferHelper.RESOURCE_BLOCKING_TRIP_STATUSES, excludedTripId)) {
+            throw new BusinessRuleViolationException("DRIVER_SCHEDULE_OVERLAP");
         }
     }
 
