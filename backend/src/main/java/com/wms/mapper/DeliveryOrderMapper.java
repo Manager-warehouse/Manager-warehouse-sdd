@@ -135,7 +135,8 @@ public class DeliveryOrderMapper {
                                                                 .inventoryId(allocation.getInventory().getId())
                                                                 .batchId(allocation.getBatch().getId())
                                                                 .locationId(allocation.getLocation().getId())
-                                                                .zoneId(allocation.getZone().getId())
+                                                                .zoneId(allocation.getZone() == null ? null
+                                                                                : allocation.getZone().getId())
                                                                 .plannedQty(allocation.getPlannedQty())
                                                                 .pickedQty(allocation.getPickedQty())
                                                                 .qcPassQty(qcSummaryByAllocationId

@@ -67,7 +67,6 @@ public class DeliveryOrderReplacementAllocationRequest {
     @NotNull
     private Long replacementLocationId;
 
-    @NotNull
     private Long replacementZoneId;
 
     @NotNull
