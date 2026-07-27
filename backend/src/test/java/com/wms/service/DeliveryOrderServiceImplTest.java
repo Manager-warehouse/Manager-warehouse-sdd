@@ -1367,6 +1367,34 @@ class DeliveryOrderServiceImplTest {
     }
 
     @Test
+    void planReturnedGoodsPutaway_splitsPassToBinAndFailedToQuarantine() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.RETURNED);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("5.00"));
+        ReturnedDeliveryFlow flow = returnedFlow(order, item, ReturnedDeliveryFlowStatus.QC_APPROVED,
+                new BigDecimal("5.00"), new BigDecimal("5.00"), new BigDecimal("3.00"),
+                new BigDecimal("2.00"), null);
+        WarehouseLocation quarantineBin = bin(880L, warehouse, zone);
+        quarantineBin.setIsQuarantine(true);
+
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
+        when(returnedDeliveryFlowRepository.findByDeliveryOrderId(100L)).thenReturn(Optional.of(flow));
+        when(entityManager.find(WarehouseLocation.class, 801L)).thenReturn(bin);
+        when(entityManager.find(WarehouseLocation.class, 880L)).thenReturn(quarantineBin);
+        when(returnedDeliveryFlowRepository.save(any(ReturnedDeliveryFlow.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ReturnedGoodsFlowResponse response = service.planReturnedGoodsPutaway(
+                100L, returnedPutawayPlanRequest(new BigDecimal("3.00"), 880L, new BigDecimal("2.00")),
+                storekeeper);
+
+        assertThat(response.getFlowStatus()).isEqualTo(ReturnedDeliveryFlowStatus.PUTAWAY_PLANNED);
+        assertThat(response.getItems().get(0).getDestinationLocationId()).isEqualTo(801L);
+        assertThat(response.getItems().get(0).getFailedDestinationLocationId()).isEqualTo(880L);
+        assertThat(flow.getItems().get(0).getPlannedQty()).isEqualByComparingTo("3.00");
+        assertThat(flow.getItems().get(0).getFailedPlannedQty()).isEqualByComparingTo("2.00");
+    }
+
+    @Test
     void completeReturnedGoodsPutaway_movesInventoryBackAndMarksDeliveryFailed() {
         DeliveryOrder order = order(100L, DeliveryOrderStatus.RETURNED);
         DeliveryOrderItem item = item(order, product, new BigDecimal("8.00"));
@@ -1395,6 +1423,46 @@ class DeliveryOrderServiceImplTest {
         assertThat(transitInventory.getTotalQty()).isEqualByComparingTo("0.00");
         assertThat(inventory.getTotalQty()).isEqualByComparingTo("23.00");
         assertThat(flow.getItems().get(0).getPutawayCompletedQty()).isEqualByComparingTo("8.00");
+    }
+
+    @Test
+    void completeReturnedGoodsPutaway_movesFailedQuantityToQuarantineOnly() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.RETURNED);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("5.00"));
+        ReturnedDeliveryFlow flow = returnedFlow(order, item, ReturnedDeliveryFlowStatus.PUTAWAY_PLANNED,
+                new BigDecimal("5.00"), new BigDecimal("5.00"), new BigDecimal("3.00"),
+                new BigDecimal("2.00"), bin);
+        WarehouseLocation quarantineBin = bin(880L, warehouse, zone);
+        quarantineBin.setIsQuarantine(true);
+        flow.getItems().get(0).setFailedDestinationLocation(quarantineBin);
+        flow.getItems().get(0).setPlannedQty(new BigDecimal("3.00"));
+        flow.getItems().get(0).setFailedPlannedQty(new BigDecimal("2.00"));
+        Inventory transitInventory = inventory(900L, warehouse(99L, "INTRANSIT"), product, batch, bin,
+                new BigDecimal("5.00"), ZERO);
+        Inventory quarantineInventory = inventory(901L, warehouse, product, batch, quarantineBin, ZERO, ZERO);
+
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(4L)).thenReturn(List.of(20L));
+        when(returnedDeliveryFlowRepository.findByDeliveryOrderId(100L)).thenReturn(Optional.of(flow));
+        when(inventoryRepository.findTransitRowForDeliveryConfirmation(30L, 71L))
+                .thenReturn(Optional.of(transitInventory));
+        when(inventoryRepository.findConcreteReservationRowForUpdate(20L, 30L, 71L, 801L))
+                .thenReturn(Optional.of(inventory));
+        when(inventoryRepository.findConcreteReservationRowForUpdate(20L, 30L, 71L, 880L))
+                .thenReturn(Optional.of(quarantineInventory));
+        when(inventoryRepository.save(any(Inventory.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(deliveryOrderRepository.save(any(DeliveryOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(returnedDeliveryFlowRepository.save(any(ReturnedDeliveryFlow.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ReturnedGoodsFlowResponse response = service.completeReturnedGoodsPutaway(
+                100L, new ReturnedGoodsPutawayCompleteRequest(), warehouseStaff);
+
+        assertThat(response.getFlowStatus()).isEqualTo(ReturnedDeliveryFlowStatus.PUTAWAY_COMPLETED);
+        assertThat(transitInventory.getTotalQty()).isEqualByComparingTo("0.00");
+        assertThat(inventory.getTotalQty()).isEqualByComparingTo("18.00");
+        assertThat(quarantineInventory.getTotalQty()).isEqualByComparingTo("2.00");
+        assertThat(flow.getItems().get(0).getPutawayCompletedQty()).isEqualByComparingTo("3.00");
+        assertThat(flow.getItems().get(0).getFailedPutawayCompletedQty()).isEqualByComparingTo("2.00");
     }
 
     private void stubSuccessfulCreate(BigDecimal inventoryAvailable) {
@@ -1540,6 +1608,15 @@ class DeliveryOrderServiceImplTest {
         ReturnedGoodsPutawayPlanRequest request = new ReturnedGoodsPutawayPlanRequest();
         request.setItems(List.of(item));
         request.setNotes("Plan returned goods putaway");
+        return request;
+    }
+
+    private ReturnedGoodsPutawayPlanRequest returnedPutawayPlanRequest(BigDecimal plannedQty,
+                                                                       Long failedDestinationLocationId,
+                                                                       BigDecimal failedPlannedQty) {
+        ReturnedGoodsPutawayPlanRequest request = returnedPutawayPlanRequest(plannedQty);
+        request.getItems().get(0).setFailedDestinationLocationId(failedDestinationLocationId);
+        request.getItems().get(0).setFailedPlannedQty(failedPlannedQty);
         return request;
     }
 
