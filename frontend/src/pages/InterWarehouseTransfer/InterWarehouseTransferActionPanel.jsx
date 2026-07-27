@@ -1094,17 +1094,29 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
           {displayedPutawayRows.map((row) => {
             const item = transfer.items.find((line) => line.id === row.transferItemId);
             return (
-              <div key={row.transferItemId} className="rounded-md border border-hairline-light bg-canvas-cream/40 p-3 flex flex-col gap-2">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="text-xs font-semibold">{item.productSku} · QC đạt: {item.qcPassedQty}</div>
-                  <Button type="button" variant="outline-light" icon={Plus} className="px-2 py-1 text-xs" onClick={() => addPutawayAllocation(row.transferItemId)}>Thêm kệ</Button>
+              <div key={row.transferItemId} className="rounded-md border border-hairline-light bg-canvas-cream/40 p-3 flex flex-col gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <div className="text-xs font-semibold">{item.productSku}</div>
+                    <div className="text-[11px] text-shade-60">QC đạt: {item.qcPassedQty}</div>
+                  </div>
+                  <Button type="button" variant="outline-light" icon={Plus} className="h-9 px-3 text-xs" onClick={() => addPutawayAllocation(row.transferItemId)}>Thêm kệ</Button>
                 </div>
                 {row.allocations.map((allocation, allocationIndex) => (
-                  <div key={`${row.transferItemId}-${allocationIndex}`} className="grid grid-cols-[minmax(0,1fr)_minmax(120px,0.6fr)_40px] gap-2 items-end">
+                  <div key={`${row.transferItemId}-${allocationIndex}`} className="grid grid-cols-[minmax(0,1fr)_minmax(112px,0.55fr)_36px] gap-2 items-end rounded-md border border-hairline-light bg-canvas-light p-2">
                     <Input type="select" label={`Kệ ${allocationIndex + 1}`} value={allocation.locationId} onChange={(e) => setPutawayAllocation(row.transferItemId, allocationIndex, { locationId: e.target.value })}
                       options={[{ value: '', label: 'Chọn bin' }, ...destinationBins.map((loc) => ({ value: loc.id, label: loc.code }))]} />
                     <Input label="Số lượng" type="number" min="0.01" step="0.01" value={allocation.quantity} onChange={(e) => setPutawayAllocation(row.transferItemId, allocationIndex, { quantity: e.target.value })} />
-                    <Button type="button" variant="ghost" icon={Trash2} title="Xóa kệ" className="h-10 w-10 p-0 text-danger-600" disabled={row.allocations.length === 1} onClick={() => removePutawayAllocation(row.transferItemId, allocationIndex)} />
+                    <button
+                      type="button"
+                      title="Xóa kệ"
+                      aria-label={`Xóa kệ ${allocationIndex + 1}`}
+                      className="h-10 w-10 rounded-pill border border-danger-200 bg-danger-50 text-danger-600 inline-flex items-center justify-center transition-colors hover:bg-danger-100 hover:border-danger-300 disabled:border-hairline-light disabled:bg-canvas-cream disabled:text-shade-40 disabled:cursor-not-allowed"
+                      disabled={row.allocations.length === 1}
+                      onClick={() => removePutawayAllocation(row.transferItemId, allocationIndex)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
                   </div>
                 ))}
                 <div className="text-[11px] text-shade-60">Tổng phân bổ: {row.allocations.reduce((total, allocation) => total + Number(allocation.quantity || 0), 0)} / {Number(item.qcPassedQty || 0)}</div>
