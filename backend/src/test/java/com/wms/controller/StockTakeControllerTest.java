@@ -331,21 +331,10 @@ class StockTakeControllerTest {
         }
 
         @Test
-        @WithMockUser(username = "mgr@wms.com", roles = "WAREHOUSE_MANAGER")
-        void approveCeoStockTake_managerRole_returns403() throws Exception {
-                mockMvc.perform(put("/api/v1/stocktakes/1/approve-ceo").with(csrf()))
-                                .andExpect(status().isForbidden());
-        }
-
-        @Test
         @WithMockUser(username = "ceo@wms.com", roles = "CEO")
-        void approveCeoStockTake_ceoRole_returns200() throws Exception {
-                when(stockTakeService.approveCeoStockTake(eq(1L), any()))
-                                .thenReturn(sampleResponse(StockTakeStatus.APPROVED, ApprovalLevel.CEO));
-
-                mockMvc.perform(put("/api/v1/stocktakes/1/approve-ceo").with(csrf()))
-                                .andExpect(status().isOk())
-                                .andExpect(jsonPath("$.approval_level").value("CEO"));
+        void approveStockTake_ceoRole_returns403() throws Exception {
+                mockMvc.perform(put("/api/v1/stocktakes/1/approve").with(csrf()))
+                                .andExpect(status().isForbidden());
         }
 
         @Test

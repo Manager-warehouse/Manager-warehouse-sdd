@@ -50,10 +50,7 @@ const StocktakeList = () => {
   const [totalItems, setTotalItems] = useState(0);
 
   const canCreate = hasRole(ROLES.STOREKEEPER) || hasRole(ROLES.ADMIN);
-  const canReview = (stocktake) => (
-    (stocktake.approval_level === 'MANAGER' && (hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.ADMIN)))
-    || (stocktake.approval_level === 'CEO' && (hasRole(ROLES.CEO) || hasRole(ROLES.ADMIN)))
-  );
+  const canReview = hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.ADMIN);
 
   const load = useCallback(async () => {
     if (!activeWarehouse?.id) return;
@@ -114,12 +111,7 @@ const StocktakeList = () => {
 
   const handleApprove = async (id) => {
     try {
-      const target = stocktakes.find(st => st.id === id);
-      if (target?.approval_level === 'CEO') {
-        await stocktakeService.approveCeoStockTake(id);
-      } else {
-        await stocktakeService.approveStockTake(id);
-      }
+      await stocktakeService.approveStockTake(id);
       showToast?.('success', 'Phiếu kiểm kê đã được phê duyệt');
       load();
     } catch (err) {
@@ -142,11 +134,7 @@ const StocktakeList = () => {
         showToast?.('error', 'Không tìm thấy phiếu kiểm kê cần trả lại');
         return;
       }
-      if (target?.approval_level === 'CEO') {
-        await stocktakeService.rejectCeoStockTake(target.id, reason);
-      } else {
-        await stocktakeService.rejectStockTake(target.id, reason);
-      }
+      await stocktakeService.rejectStockTake(target.id, reason);
       showToast?.('success', 'Đã trả lại phiếu kiểm kê để kiểm tra lại');
       setRejectModal(null);
       setRejectionReason('');
@@ -274,7 +262,7 @@ const StocktakeList = () => {
                               <XCircle className="w-3.5 h-3.5" />
                             </button>
                           )}
-                          {st.status === 'PENDING_APPROVAL' && canReview(st) && (
+                          {st.status === 'PENDING_APPROVAL' && canReview && (
                             <>
                               <button
                                 onClick={() => setRejectModal({ id: st.id })}
@@ -344,7 +332,7 @@ const StocktakeList = () => {
                         <XCircle className="w-3.5 h-3.5" />
                       </button>
                     )}
-                    {st.status === 'PENDING_APPROVAL' && canReview(st) && (
+                    {st.status === 'PENDING_APPROVAL' && canReview && (
                       <>
                         <button
                           onClick={() => setRejectModal({ id: st.id })}

@@ -45,11 +45,8 @@ const StocktakeDetail = () => {
 
   // STOREKEEPER: tạo phiếu, bắt đầu đếm, nhập số liệu, hoàn tất & trình duyệt
   const canCount = hasRole(ROLES.STOREKEEPER) || hasRole(ROLES.ADMIN);
-  // WAREHOUSE_MANAGER + CEO: chỉ duyệt/từ chối — không thao tác kiểm đếm
-  // Approval is gated by both role AND the approval_level on the stocktake
-  const canManagerApprove = (st) => st?.approval_level === 'MANAGER' && (hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.ADMIN));
-  const canCeoApprove = (st) => st?.approval_level === 'CEO' && (hasRole(ROLES.CEO) || hasRole(ROLES.ADMIN));
-  const canApprove = (st) => canManagerApprove(st) || canCeoApprove(st);
+  // WAREHOUSE_MANAGER is the checker for every stocktake, regardless of variance value.
+  const canApprove = hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.ADMIN);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -129,8 +126,8 @@ const StocktakeDetail = () => {
 
   const handleComplete = async () => {
     try {
-      const result = await stocktakeService.completeStockTake(id);
-      showToast?.('success', result.status === 'APPROVED' ? 'Phiếu đã được tự động phê duyệt (chênh lệch nhỏ)' : 'Đã gửi phiếu chờ phê duyệt');
+      await stocktakeService.completeStockTake(id);
+      showToast?.('success', 'Đã gửi phiếu chờ Trưởng kho phê duyệt');
       load();
     } catch (err) {
       showToast?.('error', err.message);
@@ -139,11 +136,7 @@ const StocktakeDetail = () => {
 
   const handleApprove = async () => {
     try {
-      if (stocktake.approval_level === 'CEO') {
-        await stocktakeService.approveCeoStockTake(id);
-      } else {
-        await stocktakeService.approveStockTake(id);
-      }
+      await stocktakeService.approveStockTake(id);
       showToast?.('success', 'Phiếu kiểm kê đã được phê duyệt');
       load();
     } catch (err) {
@@ -157,11 +150,7 @@ const StocktakeDetail = () => {
       return;
     }
     try {
-      if (stocktake.approval_level === 'CEO') {
-        await stocktakeService.rejectCeoStockTake(id, rejectionReason);
-      } else {
-        await stocktakeService.rejectStockTake(id, rejectionReason);
-      }
+      await stocktakeService.rejectStockTake(id, rejectionReason);
       showToast?.('success', 'Đã trả lại phiếu kiểm kê để kiểm tra lại');
       setRejectModal(false);
       setRejectionReason('');
@@ -231,7 +220,7 @@ const StocktakeDetail = () => {
               </Button>
             </>
           )}
-          {isPendingApproval && canApprove(stocktake) && (
+          {isPendingApproval && canApprove && (
             <>
               <Button
                 variant="aloe"
@@ -245,11 +234,6 @@ const StocktakeDetail = () => {
                 Trả lại kiểm tra
               </Button>
             </>
-          )}
-          {isPendingApproval && !canApprove(stocktake) && stocktake.approval_level === 'CEO' && (hasRole(ROLES.WAREHOUSE_MANAGER)) && (
-            <span className="text-xs font-semibold text-warning-700 bg-warning-50 border border-warning-200 px-3 py-1.5 rounded-pill">
-              Phiếu này yêu cầu CEO phê duyệt
-            </span>
           )}
         </div>
       </div>
@@ -272,7 +256,7 @@ const StocktakeDetail = () => {
           <div>
             <p className="text-[10px] font-bold text-shade-50 uppercase tracking-wider mb-1">Cấp duyệt</p>
             <p className="font-semibold text-canvas-night">
-              {stocktake.approval_level ? { AUTO: 'Tự động', MANAGER: 'Trưởng kho', CEO: 'CEO' }[stocktake.approval_level] : '—'}
+              {stocktake.approval_level ? { AUTO: 'Tự động (lịch sử)', MANAGER: 'Trưởng kho', CEO: 'CEO (lịch sử)' }[stocktake.approval_level] : '—'}
             </p>
           </div>
           {stocktake.total_variance_value !== 0 && stocktake.total_variance_value !== null && (
@@ -521,12 +505,8 @@ const StocktakeDetail = () => {
               <h2 className="text-xs font-bold text-warning-800 uppercase tracking-wider">
                 Báo cáo chênh lệch — {variantItems.length} dòng hàng cần phê duyệt
               </h2>
-              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                stocktake.approval_level === 'CEO'
-                  ? 'bg-danger-100 text-danger-700'
-                  : 'bg-warning-200 text-warning-800'
-              }`}>
-                Cấp duyệt: {stocktake.approval_level === 'CEO' ? 'CEO' : 'Trưởng kho'}
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-warning-200 text-warning-800">
+                Cấp duyệt: Trưởng kho
               </span>
             </div>
             <div className="hidden md:block overflow-x-auto">
@@ -610,7 +590,7 @@ const StocktakeDetail = () => {
             </div>
             {stocktake.is_employee_fault && (
               <div className="px-5 py-3 border-t border-warning-200 bg-danger-50 text-xs text-danger-700 font-semibold">
-                ⚠ Phiếu này được đánh dấu có lỗi nhân viên — yêu cầu CEO phê duyệt
+                ⚠ Phiếu này được đánh dấu có lỗi nhân viên — Trưởng kho cần xem xét kỹ trước khi duyệt
               </div>
             )}
           </div>

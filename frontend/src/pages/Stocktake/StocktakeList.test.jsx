@@ -8,7 +8,6 @@ const mocks = vi.hoisted(() => ({
   role: 'WAREHOUSE_MANAGER',
   getStockTakes: vi.fn(),
   rejectStockTake: vi.fn(),
-  rejectCeoStockTake: vi.fn(),
   showToast: vi.fn(),
 }));
 
@@ -30,9 +29,7 @@ vi.mock('../../services/stocktake.service', () => ({
     startStockTake: vi.fn(),
     cancelStockTake: vi.fn(),
     approveStockTake: vi.fn(),
-    approveCeoStockTake: vi.fn(),
     rejectStockTake: mocks.rejectStockTake,
-    rejectCeoStockTake: mocks.rejectCeoStockTake,
   },
 }));
 
@@ -92,25 +89,23 @@ describe('StocktakeList return for recount actions', () => {
       1,
       'Kiểm đếm lại số lượng'
     ));
-    expect(mocks.rejectCeoStockTake).not.toHaveBeenCalled();
   });
 
-  it('does not show review actions to a manager for a CEO-level stocktake', async () => {
+  it('lets a manager resolve a legacy CEO-level pending stocktake', async () => {
+    await renderList('CEO');
+    await submitReturn();
+
+    await waitFor(() => expect(mocks.rejectStockTake).toHaveBeenCalledWith(
+      1,
+      'Kiểm đếm lại số lượng'
+    ));
+  });
+
+  it('does not show stocktake review actions to the CEO', async () => {
+    mocks.role = 'CEO';
     await renderList('CEO');
 
     expect(screen.queryAllByTitle('Trả lại kiểm tra')).toHaveLength(0);
     expect(screen.queryAllByTitle('Phê duyệt')).toHaveLength(0);
-  });
-
-  it('lets the CEO return a CEO-level stocktake', async () => {
-    mocks.role = 'CEO';
-    await renderList('CEO');
-    await submitReturn();
-
-    await waitFor(() => expect(mocks.rejectCeoStockTake).toHaveBeenCalledWith(
-      1,
-      'Kiểm đếm lại số lượng'
-    ));
-    expect(mocks.rejectStockTake).not.toHaveBeenCalled();
   });
 });
