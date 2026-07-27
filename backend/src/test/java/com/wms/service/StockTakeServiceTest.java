@@ -261,6 +261,20 @@ class StockTakeServiceTest {
     // ─── Start ──────────────────────────────────────────────────────────────────
 
     @Test
+    void getStockTakeById_usesReadOnlyQueryWithoutWriteLock() {
+        StockTake st = stockTake(StockTakeStatus.DRAFT);
+        when(stockTakeRepository.findByIdWithDetails(1L)).thenReturn(Optional.of(st));
+        when(stockTakeItemRepository.findByStockTakeIdWithDetails(1L)).thenReturn(List.of());
+
+        StockTakeResponse response = service.getStockTakeById(1L, storekeeper);
+
+        assertEquals(1L, response.getId());
+        assertEquals(StockTakeStatus.DRAFT, response.getStatus());
+        verify(stockTakeRepository).findByIdWithDetails(1L);
+        verify(stockTakeRepository, never()).findByIdForUpdate(anyLong());
+    }
+
+    @Test
     void startStockTake_fromDraft_transitionsToInProgressAndLocksLocations() {
         StockTake st = stockTake(StockTakeStatus.DRAFT);
         when(stockTakeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(st));
