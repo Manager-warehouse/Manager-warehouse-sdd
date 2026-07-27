@@ -146,6 +146,10 @@ public class DeliveryOrderMapper {
                                                                                 .getOrDefault(allocation.getId(),
                                                                                                 AllocationQcSummary.EMPTY)
                                                                                 .qcFailQty())
+                                                                .stagingLocationId(qcSummaryByAllocationId
+                                                                                .getOrDefault(allocation.getId(),
+                                                                                                AllocationQcSummary.EMPTY)
+                                                                                .stagingLocationId())
                                                                 .qcCompleted(qcSummaryByAllocationId
                                                                                 .getOrDefault(allocation.getId(),
                                                                                                 AllocationQcSummary.EMPTY)
@@ -157,8 +161,9 @@ public class DeliveryOrderMapper {
                                 .build();
         }
 
-        public record AllocationQcSummary(BigDecimal qcPassQty, BigDecimal qcFailQty, boolean completed) {
+        public record AllocationQcSummary(BigDecimal qcPassQty, BigDecimal qcFailQty, Long stagingLocationId,
+                        boolean completed) {
                 public static final AllocationQcSummary EMPTY = new AllocationQcSummary(BigDecimal.ZERO, BigDecimal.ZERO,
-                                false);
+                                null, false);
         }
 }

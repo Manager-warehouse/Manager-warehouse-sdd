@@ -366,6 +366,7 @@ const normalizeAllocation = (allocation = {}) => {
     picked_qty: Number(value(allocation, 'pickedQty', 'picked_qty', 0)),
     qc_pass_qty: qcPassQty,
     qc_fail_qty: qcFailQty,
+    staging_location_id: value(allocation, 'stagingLocationId', 'staging_location_id'),
     qc_completed: Boolean(value(allocation, 'qcCompleted', 'qc_completed', false)) || qcPassQty + qcFailQty > 0,
     replacement: Boolean(value(allocation, 'replacement', 'replacement', false)),
   };
@@ -558,6 +559,23 @@ const buildReplacementPlanPayload = (items) => {
   );
   return { replacements };
 };
+
+const buildWarehouseRejectReturnRecords = (order, reason) => (
+  (order?.items || []).flatMap((item) =>
+    (item.allocations || [])
+      .filter((allocation) => Number(allocation.qc_pass_qty || 0) > 0)
+      .map((allocation) => ({
+        doItemId: Number(item.id),
+        allocationId: Number(allocation.allocation_id),
+        batchId: Number(allocation.batch_id),
+        returnedQty: Number(allocation.qc_pass_qty || 0),
+        sourceLocationId: Number(allocation.staging_location_id),
+        originalLocationId: Number(allocation.location_id),
+        originalZoneId: Number(allocation.zone_id),
+        reason,
+      }))
+  )
+);
 
 const createEmptyAllocation = () => ({
   allocation_id: null,
@@ -1061,7 +1079,7 @@ export const outboundService = {
     return normalizeDeliveryOrder(response.data);
   },
 
-  rejectWarehouseOutbound: async (id, reason) => {
+  rejectWarehouseOutbound: async (id, reason, order = null) => {
     if (useMock) {
       await mockDelay();
       const orders = getDb(KEYS.DELIVERY_ORDERS, INITIAL_DELIVERY_ORDERS);
@@ -1071,7 +1089,14 @@ export const outboundService = {
       saveDb(KEYS.DELIVERY_ORDERS, orders);
       return orders[idx];
     }
-    const response = await apiClient.put(`/delivery-orders/${id}/warehouse-reject`, { reason, returnToBinRecords: [] });
+    const returnToBinRecords = buildWarehouseRejectReturnRecords(order, reason);
+    const hasInvalidReturnRecord = returnToBinRecords.some(
+      (row) => !row.sourceLocationId || !row.originalLocationId || !row.originalZoneId,
+    );
+    if (hasInvalidReturnRecord) {
+      throw new Error('Thiếu vị trí trung chuyển để trả hàng đạt QC về bin gốc.');
+    }
+    const response = await apiClient.put(`/delivery-orders/${id}/warehouse-reject`, { reason, returnToBinRecords });
     return normalizeDeliveryOrder(response.data);
   },
 

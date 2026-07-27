@@ -221,7 +221,7 @@ export default function DeliveryOrderDetail() {
     }
     setSubmitting(true);
     try {
-      await outboundService.rejectWarehouseOutbound(id, rejectModal.reason.trim());
+      await outboundService.rejectWarehouseOutbound(id, rejectModal.reason.trim(), order);
       addToast('Đã từ chối đơn xuất hàng', 'success');
       setRejectModal({ show: false, reason: '' });
       fetchOrder();
