@@ -807,6 +807,8 @@ class DeliveryOrderServiceImplTest {
         when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
         when(deliveryOrderItemRepository.findByDeliveryOrderId(100L)).thenReturn(List.of(item));
         when(allocationRepository.findByDeliveryOrderItemDeliveryOrderId(100L)).thenReturn(List.of(failedAllocation));
+        when(outboundQcRecordRepository.findByAllocationIdIn(List.of(900L)))
+                .thenReturn(List.of(failedQcRecord(failedAllocation, new BigDecimal("2.00"))));
         when(inventoryRepository.findByIdInWithLock(List.of(502L))).thenReturn(List.of(replacementInventory));
         when(replacementRepository.sumReplacementQtyByDeliveryOrderItemId(200L)).thenReturn(new BigDecimal("1.00"));
 
@@ -837,6 +839,8 @@ class DeliveryOrderServiceImplTest {
         when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
         when(deliveryOrderItemRepository.findByDeliveryOrderId(100L)).thenReturn(List.of(item));
         when(allocationRepository.findByDeliveryOrderItemDeliveryOrderId(100L)).thenReturn(List.of(failedAllocation));
+        when(outboundQcRecordRepository.findByAllocationIdIn(List.of(900L)))
+                .thenReturn(List.of(failedQcRecord(failedAllocation, new BigDecimal("2.00"))));
         when(inventoryRepository.findByIdInWithLock(List.of(502L))).thenReturn(List.of(replacementInventory));
         when(replacementRepository.sumReplacementQtyByDeliveryOrderItemId(200L)).thenReturn(ZERO);
         when(inventoryRepository.save(any(Inventory.class)))
@@ -868,6 +872,8 @@ class DeliveryOrderServiceImplTest {
         when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
         when(deliveryOrderItemRepository.findByDeliveryOrderId(100L)).thenReturn(List.of(item));
         when(allocationRepository.findByDeliveryOrderItemDeliveryOrderId(100L)).thenReturn(List.of(failedAllocation));
+        when(outboundQcRecordRepository.findByAllocationIdIn(List.of(900L)))
+                .thenReturn(List.of(failedQcRecord(failedAllocation, new BigDecimal("2.00"))));
         when(inventoryRepository.findByIdInWithLock(List.of(502L))).thenReturn(List.of(replacementInventory));
         when(replacementRepository.sumReplacementQtyByDeliveryOrderItemId(200L)).thenReturn(ZERO);
         when(inventoryRepository.save(any(Inventory.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -917,6 +923,8 @@ class DeliveryOrderServiceImplTest {
         when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
         when(deliveryOrderItemRepository.findByDeliveryOrderId(100L)).thenReturn(List.of(item));
         when(allocationRepository.findByDeliveryOrderItemDeliveryOrderId(100L)).thenReturn(List.of(failedAllocation));
+        when(outboundQcRecordRepository.findByAllocationIdIn(List.of(900L)))
+                .thenReturn(List.of(failedQcRecord(failedAllocation, new BigDecimal("2.00"))));
         when(inventoryRepository.findByIdInWithLock(List.of(502L))).thenReturn(List.of(replacementInventory));
         when(replacementRepository.sumReplacementQtyByDeliveryOrderItemId(200L)).thenReturn(ZERO);
         when(inventoryRepository.save(any(Inventory.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -935,6 +943,38 @@ class DeliveryOrderServiceImplTest {
         assertThat(response.getStatus()).isEqualTo(DeliveryOrderStatus.WAITING_PICKING);
         assertThat(replacementInventory.getReservedQty()).isEqualByComparingTo("2.00");
         assertThat(response.getItems().get(0).getAllocations().get(1).getZoneId()).isEqualTo(802L);
+    }
+
+    @Test
+    void saveDeliveryOrderReplacementPlan_rejectsInvalidFailedSource() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.QC_PENDING_APPROVAL);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("10.00"));
+        item.setQcFailQty(new BigDecimal("2.00"));
+        DeliveryOrderItemAllocation failedAllocation = allocation(900L, item, inventory, zone,
+                new BigDecimal("10.00"), new BigDecimal("8.00"), false);
+
+        WarehouseLocation zone2 = zone(32L, warehouse);
+        WarehouseLocation bin2 = bin(802L, warehouse, zone2);
+        Batch batch2 = batch(72L, product, warehouse);
+        Inventory replacementInventory = inventory(502L, warehouse, product, batch2, bin2,
+                new BigDecimal("10.00"), ZERO);
+
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
+        when(deliveryOrderItemRepository.findByDeliveryOrderId(100L)).thenReturn(List.of(item));
+        when(allocationRepository.findByDeliveryOrderItemDeliveryOrderId(100L)).thenReturn(List.of(failedAllocation));
+        when(outboundQcRecordRepository.findByAllocationIdIn(List.of(900L)))
+                .thenReturn(List.of(failedQcRecord(failedAllocation, new BigDecimal("2.00"))));
+        when(inventoryRepository.findByIdInWithLock(List.of(502L))).thenReturn(List.of(replacementInventory));
+        when(replacementRepository.sumReplacementQtyByDeliveryOrderItemId(200L)).thenReturn(ZERO);
+
+        DeliveryOrderReplacementPlanRequest request = replacementPlanRequest();
+        request.getReplacements().get(0).setFailedInventoryId(999L);
+
+        assertThatThrownBy(() -> service.saveDeliveryOrderReplacementPlan(100L, request, storekeeper))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code")
+                .isEqualTo("QC_FAILED_ALLOCATION_INVALID");
     }
 
     @Test
@@ -1801,6 +1841,21 @@ class DeliveryOrderServiceImplTest {
         record.setDeliveryOrderItem(item);
         record.setBatch(batch);
         record.setQcPassQty(passQty);
+        return record;
+    }
+
+    private OutboundQcRecord failedQcRecord(DeliveryOrderItemAllocation allocation, BigDecimal failQty) {
+        OutboundQcRecord record = new OutboundQcRecord();
+        record.setDeliveryOrder(allocation.getDeliveryOrderItem().getDeliveryOrder());
+        record.setDeliveryOrderItem(allocation.getDeliveryOrderItem());
+        record.setAllocation(allocation);
+        record.setBatch(allocation.getBatch());
+        record.setLocation(allocation.getLocation());
+        record.setZone(allocation.getZone());
+        BigDecimal passQty = allocation.getPickedQty() == null ? ZERO : allocation.getPickedQty();
+        record.setPickedQty(passQty.add(failQty));
+        record.setQcPassQty(passQty);
+        record.setQcFailQty(failQty);
         return record;
     }
 
