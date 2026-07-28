@@ -73,6 +73,7 @@ import com.wms.repository.product_catalog.ProductRepository;
 import com.wms.repository.ReceiptRepository;
 import com.wms.repository.StockAlertRepository;
 import com.wms.repository.WarehouseRepository;
+import com.wms.repository.WarehouseProductReservationRepository;
 import com.wms.service.stock_control.impl.InventoryServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -86,6 +87,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -109,6 +111,9 @@ public class InventoryServiceTest {
     @Mock
     private StockAlertRepository stockAlertRepository;
 
+    @Mock
+    private WarehouseProductReservationRepository reservationRepository;
+
     private InventoryService inventoryService;
 
     @BeforeEach
@@ -119,7 +124,8 @@ public class InventoryServiceTest {
                 productRepository,
                 receiptRepository,
                 deliveryOrderRepository,
-                stockAlertRepository);
+                stockAlertRepository,
+                reservationRepository);
     }
 
     @Test

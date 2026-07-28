@@ -1,6 +1,5 @@
 package com.wms.service.stock_control.impl;
 
-
 import com.wms.entity.access_control.*;
 import com.wms.entity.audit_trail.*;
 import com.wms.entity.billing_payment.*;
@@ -42,10 +41,13 @@ import com.wms.repository.InventoryRepository;
 import com.wms.repository.product_catalog.ProductRepository;
 import com.wms.repository.ReceiptRepository;
 import com.wms.repository.StockAlertRepository;
+import com.wms.repository.WarehouseProductReservationRepository;
 import com.wms.repository.WarehouseRepository;
 import com.wms.service.stock_control.InventoryService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.stream.Collectors;
+import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -58,19 +60,22 @@ public class InventoryServiceImpl implements InventoryService {
     private final ReceiptRepository receiptRepository;
     private final DeliveryOrderRepository deliveryOrderRepository;
     private final StockAlertRepository stockAlertRepository;
+    private final WarehouseProductReservationRepository reservationRepository;
 
     public InventoryServiceImpl(InventoryRepository inventoryRepository,
-                                WarehouseRepository warehouseRepository,
-                                ProductRepository productRepository,
-                                ReceiptRepository receiptRepository,
-                                DeliveryOrderRepository deliveryOrderRepository,
-                                StockAlertRepository stockAlertRepository) {
+            WarehouseRepository warehouseRepository,
+            ProductRepository productRepository,
+            ReceiptRepository receiptRepository,
+            DeliveryOrderRepository deliveryOrderRepository,
+            StockAlertRepository stockAlertRepository,
+            WarehouseProductReservationRepository reservationRepository) {
         this.inventoryRepository = inventoryRepository;
         this.warehouseRepository = warehouseRepository;
         this.productRepository = productRepository;
         this.receiptRepository = receiptRepository;
         this.deliveryOrderRepository = deliveryOrderRepository;
         this.stockAlertRepository = stockAlertRepository;
+        this.reservationRepository = reservationRepository;
     }
 
     @Override
@@ -82,14 +87,57 @@ public class InventoryServiceImpl implements InventoryService {
         if (!productRepository.existsById(productId)) {
             throw new IllegalArgumentException("PRODUCT_NOT_FOUND");
         }
-        InventoryRepository.AvailabilitySummary summary =
-                inventoryRepository.summarizeAvailability(warehouseId, productId);
+        InventoryRepository.AvailabilitySummary summary = inventoryRepository.summarizeAvailability(warehouseId,
+                productId);
+        BigDecimal plannerReserved = reservationRepository.findByWarehouseIdAndProductId(warehouseId, productId)
+                .map(WarehouseProductReservation::getReservedQty)
+                .orElse(BigDecimal.ZERO);
+        BigDecimal totalQty = summary.getTotalQty() != null ? summary.getTotalQty() : BigDecimal.ZERO;
+        BigDecimal concreteReserved = summary.getReservedQty() != null ? summary.getReservedQty() : BigDecimal.ZERO;
+        BigDecimal totalReserved = concreteReserved.add(plannerReserved);
+        BigDecimal available = totalQty.subtract(totalReserved);
+        if (available.compareTo(BigDecimal.ZERO) < 0) {
+            available = BigDecimal.ZERO;
+        }
         return new InventoryAvailabilityResponse(
                 warehouseId,
                 productId,
-                summary.getTotalQty(),
-                summary.getReservedQty(),
-                summary.getAvailableQty());
+                totalQty,
+                totalReserved,
+                available);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ProductAvailabilityResponse> getAllAvailability(Long warehouseId) {
+        if (!warehouseRepository.existsById(warehouseId)) {
+            throw new IllegalArgumentException("WAREHOUSE_NOT_FOUND");
+        }
+        Map<Long, BigDecimal> plannerReservations = reservationRepository.findByWarehouseId(warehouseId).stream()
+                .filter(r -> r.getProduct() != null)
+                .collect(Collectors.toMap(
+                        r -> r.getProduct().getId(),
+                        WarehouseProductReservation::getReservedQty,
+                        BigDecimal::add));
+        return inventoryRepository.summarizeAllAvailability(warehouseId).stream()
+                .map(summary -> {
+                    BigDecimal plannerReserved = plannerReservations.getOrDefault(summary.getProductId(),
+                            BigDecimal.ZERO);
+                    BigDecimal totalQty = summary.getTotalQty() != null ? summary.getTotalQty() : BigDecimal.ZERO;
+                    BigDecimal concreteReserved = summary.getReservedQty() != null ? summary.getReservedQty()
+                            : BigDecimal.ZERO;
+                    BigDecimal totalReserved = concreteReserved.add(plannerReserved);
+                    BigDecimal available = totalQty.subtract(totalReserved);
+                    if (available.compareTo(BigDecimal.ZERO) < 0) {
+                        available = BigDecimal.ZERO;
+                    }
+                    return new ProductAvailabilityResponse(
+                            summary.getProductId(),
+                            totalQty,
+                            totalReserved,
+                            available);
+                })
+                .toList();
     }
 
     @Override

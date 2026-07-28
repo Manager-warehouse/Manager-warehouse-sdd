@@ -285,7 +285,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         Map<Long, List<PickingCandidateResponse>> result = new LinkedHashMap<>();
         for (DeliveryOrderItem item : orderItems) {
             Long productId = item.getProduct().getId();
-            List<Inventory> candidates = inventoryRepository.findValidFifoCandidates(warehouseId, productId);
+            List<Inventory> candidates = inventoryRepository.findValidFifoCandidates(warehouseId, productId, order.getId());
             List<PickingCandidateResponse> candidateResponses = candidates.stream()
                     .map(inv -> toPickingCandidate(inv, item))
                     .sorted(Comparator.comparing(PickingCandidateResponse::getReceivedDate,
@@ -305,7 +305,12 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         // Parent of a BIN is the ZONE; parent of a ZONE is null
         WarehouseLocation zone = (bin != null && bin.getParent() != null) ? bin.getParent() : bin;
         Batch batch = inv.getBatch();
-        BigDecimal available = value(inv.getTotalQty()).subtract(value(inv.getReservedQty()));
+        BigDecimal allocatedToCurrentDo = allocationRepository.findByDeliveryOrderItemDeliveryOrderId(item.getDeliveryOrder().getId())
+                .stream()
+                .filter(a -> a.getInventory().getId().equals(inv.getId()) && a.getStatus() == com.wms.enums.stock_control.AllocationStatus.ACTIVE)
+                .map(DeliveryOrderItemAllocation::getPlannedQty)
+                .reduce(ZERO, BigDecimal::add);
+        BigDecimal available = value(inv.getTotalQty()).subtract(value(inv.getReservedQty())).add(allocatedToCurrentDo);
         return PickingCandidateResponse.builder()
                 .inventoryId(inv.getId())
                 .batchId(batch != null ? batch.getId() : null)
@@ -1743,7 +1748,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         for (DeliveryOrderItem item : items) {
             BigDecimal remainingQty = value(item.getRequestedQty());
             List<Inventory> candidates = inventoryRepository.findValidFifoCandidates(
-                    order.getWarehouse().getId(), item.getProduct().getId());
+                    order.getWarehouse().getId(), item.getProduct().getId(), order.getId());
             for (Inventory candidate : candidates) {
                 if (remainingQty.compareTo(ZERO) <= 0) {
                     break;

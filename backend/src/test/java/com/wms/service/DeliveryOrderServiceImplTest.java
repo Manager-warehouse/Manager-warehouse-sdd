@@ -316,7 +316,7 @@ class DeliveryOrderServiceImplTest {
         when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
         when(deliveryOrderItemRepository.findByDeliveryOrderId(100L)).thenReturn(List.of(item));
         when(allocationRepository.findByDeliveryOrderItemDeliveryOrderId(100L)).thenReturn(List.of());
-        when(inventoryRepository.findValidFifoCandidates(20L, 30L)).thenReturn(List.of(inventory));
+        when(inventoryRepository.findValidFifoCandidates(20L, 30L, 100L)).thenReturn(List.of(inventory));
         when(inventoryRepository.findByIdInWithLock(List.of(501L))).thenReturn(List.of(inventory));
         when(reservationRepository.findWithWarehouseAndProductByWarehouseIdAndProductIdForUpdate(20L, 30L))
                 .thenReturn(Optional.of(reservation));
@@ -618,7 +618,7 @@ class DeliveryOrderServiceImplTest {
         when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
         when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
         when(deliveryOrderItemRepository.findByDeliveryOrderId(100L)).thenReturn(List.of(item));
-        when(inventoryRepository.findValidFifoCandidates(20L, 30L)).thenReturn(List.of(replacementInventory));
+        when(inventoryRepository.findValidFifoCandidates(20L, 30L, 100L)).thenReturn(List.of(replacementInventory));
 
         Map<Long, List<PickingCandidateResponse>> response = service.getPickingCandidates(100L, storekeeper);
 
