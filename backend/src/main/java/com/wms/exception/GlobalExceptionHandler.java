@@ -292,9 +292,13 @@ public class GlobalExceptionHandler {
             case "DRIVER_NOT_AVAILABLE": return "Tài xế hiện không khả dụng. Vui lòng chọn tài xế khác.";
             case "TRIP_ALREADY_DEPARTED": return "Chuyến xe đã khởi hành, không thể thay đổi.";
             case "TRIP_CAPACITY_EXCEEDED": return "Tổng hàng hóa vượt tải trọng của xe. Vui lòng chọn xe lớn hơn hoặc giảm số lượng hàng.";
+            case "VEHICLE_OVERLOAD": return "Tổng hàng hóa vượt tải trọng hoặc thể tích của xe. Vui lòng chọn xe phù hợp hơn.";
+            case "DRIVER_LICENSE_EXPIRED": return "Tài xế chưa có hồ sơ bằng lái hợp lệ hoặc bằng lái đã hết hạn, không thể gán chuyến.";
             case "VEHICLE_SOURCE_WAREHOUSE_REQUIRED": return "Xe phải được gán vào kho nguồn của phiếu điều chuyển.";
             case "DRIVER_SOURCE_WAREHOUSE_REQUIRED": return "Tài xế phải được gán vào kho nguồn của phiếu điều chuyển.";
             case "TRANSFER_ALREADY_HAS_TRIP": return "Phiếu điều chuyển đã được gán chuyến xe trước đó.";
+            case "DRIVER_ON_TRIP_STATUS_SYSTEM_MANAGED": return "Trạng thái đang chạy chuyến của tài xế do hệ thống cập nhật theo luồng vận chuyển.";
+            case "VEHICLE_ON_TRIP_STATUS_SYSTEM_MANAGED": return "Trạng thái đang giao hàng của xe do hệ thống cập nhật theo luồng vận chuyển.";
             // ── Transfer Planning ─────────────────────────────────────────────────
             case "SOURCE_DESTINATION_MUST_DIFFER": return "Kho nguồn và kho đích không được trùng nhau.";
             case "SOURCE_WAREHOUSE_MUST_BE_PHYSICAL": return "Kho nguồn phải là kho vật lý, không thể chọn kho IN_TRANSIT.";
@@ -355,6 +359,13 @@ public class GlobalExceptionHandler {
             case "PUTAWAY_PLAN_INVALID": return "Kế hoạch cất kệ không hợp lệ. Vui lòng kiểm tra lại phân bổ bin.";
             case "WAREHOUSE_MANAGER_APPROVAL_REQUIRED": return "Chỉ Quản lý kho mới có quyền duyệt cất kệ và nhập kho.";
             case "DISCREPANCY_REASON_REQUIRED": return "Có chênh lệch số lượng, vui lòng nhập lý do trước khi xác nhận.";
+            case "DISCREPANCY_INCIDENT_NOT_FOUND": return "Không tìm thấy hồ sơ chênh lệch.";
+            case "DISCREPANCY_INCIDENT_ACCESS_DENIED": return "Bạn không có quyền xử lý hồ sơ chênh lệch này.";
+            case "DISCREPANCY_INCIDENT_NOT_OPEN": return "Hồ sơ chênh lệch đã được chốt, không thể cập nhật lại.";
+            case "DISCREPANCY_RESOLUTION_STATUS_REQUIRED": return "Vui lòng chọn hướng xử lý hồ sơ chênh lệch.";
+            case "DISCREPANCY_RESOLUTION_STATUS_INVALID": return "Hướng xử lý hồ sơ chênh lệch không hợp lệ.";
+            case "DISCREPANCY_RESOLUTION_NOTE_REQUIRED": return "Vui lòng nhập ghi chú quyết định xử lý hồ sơ chênh lệch.";
+            case "DISCREPANCY_RESOLUTION_NOTE_TOO_LONG": return "Ghi chú xử lý hồ sơ chênh lệch không được vượt quá 1000 ký tự.";
             case "DUPLICATE_PUTAWAY_ITEM": return "Có dòng hàng bị trùng lặp trong kế hoạch cất kệ.";
             case "DESTINATION_LOCATION_REQUIRED": return "Yêu cầu chọn vị trí lưu trữ (Bin) cho hàng đạt QC.";
             case "DUPLICATE_PUTAWAY_LOCATION": return "Không được chọn cùng một Bin cho hai dòng phân bổ của cùng mặt hàng.";

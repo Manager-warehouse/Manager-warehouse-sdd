@@ -45,6 +45,6 @@ import lombok.Setter;
 public class DriverStatusRequest {
 
     @NotBlank(message = "STATUS_REQUIRED")
-    @Pattern(regexp = "^(AVAILABLE|ON_TRIP|UNAVAILABLE)$", message = "INVALID_DRIVER_STATUS")
+    @Pattern(regexp = "^(AVAILABLE|UNAVAILABLE)$", message = "INVALID_DRIVER_STATUS")
     private String status;
 }

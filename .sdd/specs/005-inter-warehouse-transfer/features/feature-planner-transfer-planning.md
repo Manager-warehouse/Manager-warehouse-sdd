@@ -26,8 +26,12 @@ Phiếu điều chuyển có thể gồm nhiều dòng hàng vì lệnh điều 
 * **Event-driven:**
   * WHEN a Planner creates a transfer manually, the system SHALL require source warehouse, destination warehouse, planned date, document date, external instruction code, and at least one item line.
   * WHEN a Planner adds an item line, the system SHALL require product and planned quantity.
+  * WHEN a Planner enters `documentDate`, the system SHALL reject dates before the backend local business date.
+  * WHEN a Planner enters `plannedDate`, the system SHALL reject dates before `documentDate` and reject past planned dates.
+  * WHEN a Planner submits duplicate product lines in the same transfer, the system SHALL reject the request and require the Planner to consolidate the quantity into one line.
   * WHEN a Planner submits a transfer where source warehouse equals destination warehouse, the system SHALL reject the request.
   * WHEN a Planner submits a transfer with inactive product, inactive warehouse, zero quantity, or negative quantity, the system SHALL reject the request.
+  * WHEN a Planner submits a transfer with decimal/fractional quantity for household-goods SKU, the system SHALL reject the request because Sprint 1 transfer quantities are whole units.
   * WHEN a Planner opens a transfer edit screen, the system SHALL load the current transfer header and item list so the Planner edits the existing list instead of re-entering it from scratch.
   * WHEN a Planner updates a transfer in `NEW` status, the system SHALL allow editing header fields and adding/updating/removing item lines, then save the full current transfer state after editing.
   * WHEN a Planner updates a `NEW` transfer with a full item list, the system SHALL remove existing transfer item lines that are omitted from the payload.
@@ -104,6 +108,11 @@ Phiếu điều chuyển có thể gồm nhiều dòng hàng vì lệnh điều 
 * `EXTERNAL_INSTRUCTION_CODE_REQUIRED` (HTTP 400): `externalInstructionCode` is blank or missing.
 * `DUPLICATE_EXTERNAL_INSTRUCTION` (HTTP 409): another active transfer already uses the same `externalInstructionCode`, source warehouse, destination warehouse, and `documentDate`.
 * `ACCOUNTING_PERIOD_CLOSED` (HTTP 409): `documentDate` falls in a closed accounting period.
+* `DOCUMENT_DATE_MUST_NOT_BE_PAST` (HTTP 400): `documentDate` is earlier than the backend local business date.
+* `PLANNED_DATE_MUST_NOT_BE_PAST` (HTTP 400): `plannedDate` is earlier than the backend local business date.
+* `PLANNED_DATE_BEFORE_DOCUMENT_DATE` (HTTP 400): `plannedDate` is earlier than `documentDate`.
+* `DUPLICATE_TRANSFER_ITEM` (HTTP 400): the same product appears more than once in the transfer item list.
+* `TRANSFER_QTY_MUST_BE_WHOLE_NUMBER` (HTTP 400): transfer quantity contains a fractional value.
 * `TRANSFER_UPDATE_NOT_ALLOWED` (HTTP 409): transfer is no longer in `NEW` status.
 * `TRANSFER_CANCEL_NOT_ALLOWED` (HTTP 409): Planner attempts to cancel a transfer after it is no longer `NEW`.
 
@@ -127,6 +136,16 @@ Phiếu điều chuyển có thể gồm nhiều dòng hàng vì lệnh điều 
   * Given Planner selects HP as both source and destination warehouse
   * When Planner submits the transfer
   * Then the system SHALL reject the request with `SAME_WAREHOUSE`.
+
+* **Scenario: Reject past document or planned date**
+  * Given the backend local business date is `2026-07-28`
+  * When Planner creates or edits a `NEW` transfer with `documentDate = 2026-07-27` or `plannedDate = 2026-07-27`
+  * Then the system SHALL reject the request with the matching date validation message and keep the transfer unchanged.
+
+* **Scenario: Reject duplicate SKU lines**
+  * Given Planner adds product X twice in the same transfer form
+  * When Planner submits the transfer
+  * Then the system SHALL reject the request with `DUPLICATE_TRANSFER_ITEM` and ask the Planner to combine quantities.
 
 * **Scenario: Reject empty item list**
   * Given Planner enters source warehouse, destination warehouse, and planned date

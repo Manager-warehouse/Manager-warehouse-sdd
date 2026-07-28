@@ -352,6 +352,9 @@ public class InterWarehouseTransferShippingService {
         if (Boolean.FALSE.equals(driver.getIsActive()) || driver.getStatus() == DriverStatus.UNAVAILABLE) {
             throw new BusinessRuleViolationException("DRIVER_NOT_AVAILABLE");
         }
+        if (driver.getLicenseExpiry() == null || driver.getLicenseExpiry().isBefore(java.time.LocalDate.now())) {
+            throw new BusinessRuleViolationException("DRIVER_LICENSE_EXPIRED");
+        }
         if (tripRepository.existsVehicleScheduleOverlapExcludingTrip(vehicle.getId(), plannedStartAt, plannedEndAt, InterWarehouseTransferHelper.RESOURCE_BLOCKING_TRIP_STATUSES, excludedTripId)) {
             throw new BusinessRuleViolationException("VEHICLE_SCHEDULE_OVERLAP");
         }

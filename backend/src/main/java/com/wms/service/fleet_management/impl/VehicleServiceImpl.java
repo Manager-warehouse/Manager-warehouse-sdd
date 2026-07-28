@@ -174,9 +174,14 @@ public class VehicleServiceImpl implements VehicleService {
         User actor = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
 
+        VehicleStatus requestedStatus = VehicleStatus.valueOf(status);
+        if (requestedStatus == VehicleStatus.ON_TRIP) {
+            throw new IllegalArgumentException("VEHICLE_ON_TRIP_STATUS_SYSTEM_MANAGED");
+        }
+
         Map<String, Object> oldMap = toMap(vehicle);
 
-        vehicle.setStatus(VehicleStatus.valueOf(status));
+        vehicle.setStatus(requestedStatus);
         vehicle.setUpdatedBy(actor);
         vehicle.setUpdatedAt(OffsetDateTime.now());
 

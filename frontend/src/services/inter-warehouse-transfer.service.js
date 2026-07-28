@@ -2,6 +2,7 @@ import apiClient, { useMock } from './api.client';
 
 const KEYS = {
   TRANSFERS: 'wms_db_transfers',
+  DISCREPANCY_INCIDENTS: 'wms_db_transfer_discrepancy_incidents',
 };
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -43,6 +44,43 @@ const readMockTransfers = () => {
 
 const writeMockTransfers = (transfers) => {
   localStorage.setItem(KEYS.TRANSFERS, JSON.stringify(transfers));
+};
+
+const initialDiscrepancyIncidents = [
+  {
+    id: 1,
+    transferId: 1,
+    transferNumber: 'TRF-20260616-0001',
+    sourceWarehouseId: 1,
+    sourceWarehouseCode: 'HP-01',
+    destinationWarehouseId: 2,
+    destinationWarehouseCode: 'HN-01',
+    productId: 1,
+    productSku: 'SKU-PA-001',
+    productName: 'Màn hình ASUS ProArt PA278CV',
+    incidentType: 'SHORTAGE',
+    quantity: 2,
+    status: 'OPEN',
+    resolutionNote: 'Thiếu khi kho đích kiểm đếm, cần xác minh biên bản bàn giao.',
+    resolvedById: null,
+    resolvedByName: null,
+    resolvedAt: null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+];
+
+const readMockDiscrepancyIncidents = () => {
+  const raw = localStorage.getItem(KEYS.DISCREPANCY_INCIDENTS);
+  if (!raw) {
+    localStorage.setItem(KEYS.DISCREPANCY_INCIDENTS, JSON.stringify(initialDiscrepancyIncidents));
+    return initialDiscrepancyIncidents;
+  }
+  return JSON.parse(raw);
+};
+
+const writeMockDiscrepancyIncidents = (incidents) => {
+  localStorage.setItem(KEYS.DISCREPANCY_INCIDENTS, JSON.stringify(incidents));
 };
 
 const normalizeTransferTiming = (transfer) => {
@@ -169,6 +207,39 @@ const updateMockStatus = async (id, status, patch = {}) => {
 };
 
 export const interWarehouseTransferService = {
+  getDiscrepancyIncidents: async (params = {}) => {
+    if (useMock) {
+      const status = params.status;
+      return readMockDiscrepancyIncidents()
+        .filter((incident) => !status || incident.status === status)
+        .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    }
+    const response = await apiClient.get('/transfer-discrepancy-incidents', { params });
+    return response.data;
+  },
+
+  resolveDiscrepancyIncident: async (id, payload) => {
+    if (useMock) {
+      const incidents = readMockDiscrepancyIncidents();
+      const index = incidents.findIndex((incident) => Number(incident.id) === Number(id));
+      if (index === -1) throw new Error('DISCREPANCY_INCIDENT_NOT_FOUND');
+      if (incidents[index].status !== 'OPEN') throw new Error('DISCREPANCY_INCIDENT_NOT_OPEN');
+      incidents[index] = {
+        ...incidents[index],
+        status: payload.status,
+        resolutionNote: payload.resolutionNote,
+        resolvedById: 999,
+        resolvedByName: 'Người duyệt hiện tại',
+        resolvedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      writeMockDiscrepancyIncidents(incidents);
+      return incidents[index];
+    }
+    const response = await apiClient.post(`/transfer-discrepancy-incidents/${id}/resolve`, payload);
+    return response.data;
+  },
+
   getAvailability: async (warehouseId, productId) => {
     if (useMock) {
       const rows = readMockInventories().filter((item) =>

@@ -616,6 +616,9 @@ public class TripServiceImpl implements TripService {
                 || driver.getStatus() != DriverStatus.AVAILABLE) {
             throw rule("DRIVER_NOT_AVAILABLE", "Driver is not available in the selected warehouse");
         }
+        if (driver.getLicenseExpiry() == null || driver.getLicenseExpiry().isBefore(LocalDate.now())) {
+            throw rule("DRIVER_LICENSE_EXPIRED", "Driver license is missing or expired");
+        }
         if (tripRepository.existsActiveDriverAssignment(driverId, ACTIVE_TRIP_STATUSES, excludedTripId)) {
             throw conflict("DRIVER_ALREADY_ASSIGNED_TO_TRIP", "Driver belongs to another active trip");
         }

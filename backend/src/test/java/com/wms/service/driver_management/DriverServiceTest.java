@@ -123,6 +123,7 @@ public class DriverServiceTest {
         driverUser = new User();
         driverUser.setId(3L);
         driverUser.setRole(UserRole.DRIVER);
+        driverUser.setFullName("Driver Account Name");
         driverUser.setPhone("0987654321");
 
         warehouse = new Warehouse();
@@ -158,8 +159,8 @@ public class DriverServiceTest {
 
         driverService.createDriver(req, 1L);
 
-        verify(driverRepository).save(argThat(d -> d.getPhone().equals("0987654321"))); // Falls back to
-                                                                                        // driverUser.phone
+        verify(driverRepository).save(argThat(d ->
+                d.getFullName().equals("Driver Account Name") && d.getPhone().equals("0987654321")));
         verify(auditLogService).log(eq(actor), eq(AuditAction.CREATE), eq("Driver"), any(), eq("LX-99999"), any(),
                 any(), any());
     }
@@ -243,5 +244,18 @@ public class DriverServiceTest {
         when(driverRepository.findById(4L)).thenReturn(Optional.of(driver));
 
         assertThrows(IllegalArgumentException.class, () -> driverService.deactivateDriver(4L, 1L));
+    }
+
+    @Test
+    void updateStatus_OnTrip_ThrowsException() {
+        when(driverRepository.findById(4L)).thenReturn(Optional.of(driver));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(actor));
+
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> driverService.updateStatus(4L, "ON_TRIP", 1L));
+
+        assertEquals("DRIVER_ON_TRIP_STATUS_SYSTEM_MANAGED", ex.getMessage());
+        verify(driverRepository, never()).save(any());
     }
 }

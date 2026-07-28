@@ -533,6 +533,16 @@ public class InterWarehouseTransferReceivingService {
                 }
                 BigDecimal shortageQty = qty.subtract(passQty).subtract(failQty);
                 if (shortageQty.signum() > 0) {
+                    DiscrepancyIncident incident = DiscrepancyIncident.builder()
+                            .transfer(transfer)
+                            .product(item.getProduct())
+                            .incidentType("SHORTAGE")
+                            .quantity(shortageQty)
+                            .status("OPEN")
+                            .resolutionNote(request.discrepancyReason())
+                            .build();
+                    discrepancyIncidentRepository.save(incident);
+
                     Adjustment adjustment = Adjustment.builder()
                             .adjustmentNumber(generateAdjustmentNumber())
                             .warehouse(targetWarehouse)

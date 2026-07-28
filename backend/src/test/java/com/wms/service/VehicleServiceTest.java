@@ -165,4 +165,17 @@ public class VehicleServiceTest {
         verify(auditLogService).log(eq(actor), eq(AuditAction.SOFT_DELETE), eq("Vehicle"), eq(5L), eq("29C-12345"),
                 any(), any(), any());
     }
+
+    @Test
+    void updateStatus_OnTrip_ThrowsException() {
+        when(vehicleRepository.findById(5L)).thenReturn(Optional.of(vehicle));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(actor));
+
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> vehicleService.updateStatus(5L, "ON_TRIP", 1L));
+
+        assertEquals("VEHICLE_ON_TRIP_STATUS_SYSTEM_MANAGED", ex.getMessage());
+        verify(vehicleRepository, never()).save(any());
+    }
 }

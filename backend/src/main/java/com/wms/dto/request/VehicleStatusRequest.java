@@ -45,6 +45,6 @@ import lombok.Setter;
 public class VehicleStatusRequest {
 
     @NotBlank(message = "STATUS_REQUIRED")
-    @Pattern(regexp = "^(AVAILABLE|ON_TRIP|MAINTENANCE)$", message = "INVALID_VEHICLE_STATUS")
+    @Pattern(regexp = "^(AVAILABLE|MAINTENANCE)$", message = "INVALID_VEHICLE_STATUS")
     private String status;
 }
