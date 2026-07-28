@@ -66,7 +66,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.wms.dto.request.InterWarehouseTransferCreateRequest;
 import com.wms.dto.request.InterWarehouseTransferFinalReceiveRequest;
+import com.wms.dto.request.InterWarehouseTransferFinalPutawayItemRequest;
 import com.wms.dto.request.InterWarehouseTransferItemRequest;
+import com.wms.dto.request.InterWarehouseTransferPutawayAllocationRequest;
 import com.wms.dto.request.InterWarehouseTransferReasonRequest;
 import com.wms.dto.request.InterWarehouseTransferReceiveCheckItemRequest;
 import com.wms.dto.request.InterWarehouseTransferReceiveCheckRequest;
@@ -172,6 +174,7 @@ class InterWarehouseTransferServiceImplTest {
     private WarehouseLocation sourceLocation;
     private WarehouseLocation transitLocation;
     private WarehouseLocation destinationLocation;
+    private WarehouseLocation destinationLocation2;
     private WarehouseLocation quarantineLocation;
     private Product product;
     private Product actualWrongSkuProduct;
@@ -190,11 +193,14 @@ class InterWarehouseTransferServiceImplTest {
     private Inventory sourceInventory;
     private Inventory transitInventory;
     private Inventory destinationInventory;
+    private Inventory destinationInventory2;
     private Inventory quarantineInventory;
     private QuarantineRecord savedQuarantineRecord;
     private Trip transferTrip;
     private final Map<Long, List<Long>> assignments = new HashMap<>();
     private final TrackingAllocationRepository allocationState = new TrackingAllocationRepository();
+    private boolean vehicleScheduleOverlap;
+    private boolean driverScheduleOverlap;
 
     @BeforeEach
     void setUp() {
@@ -204,6 +210,7 @@ class InterWarehouseTransferServiceImplTest {
         sourceLocation = location(10L, sourceWarehouse, "HP-01-B01", false);
         transitLocation = location(11L, transitWarehouse, "INT-01", false);
         destinationLocation = location(12L, destinationWarehouse, "HN-01-B01", false);
+        destinationLocation2 = location(14L, destinationWarehouse, "HN-01-B02", false);
         quarantineLocation = location(13L, destinationWarehouse, "HN-01-Q01", true);
         product = product(21L, "SKU-001", "Nồi inox");
         actualWrongSkuProduct = product(22L, "SKU-002", "Chảo chống dính");
@@ -223,8 +230,11 @@ class InterWarehouseTransferServiceImplTest {
         sourceInventory = inventory(sourceWarehouse, sourceLocation, new BigDecimal("20.00"));
         transitInventory = null;
         destinationInventory = null;
+        destinationInventory2 = null;
         quarantineInventory = null;
         transferTrip = null;
+        vehicleScheduleOverlap = false;
+        driverScheduleOverlap = false;
 
         assignments.clear();
         assignments.put(sourceManager.getId(), List.of(sourceWarehouse.getId()));
@@ -325,8 +335,8 @@ class InterWarehouseTransferServiceImplTest {
                 "CTM-20260617-01",
                 sourceWarehouse.getId(),
                 destinationWarehouse.getId(),
-                LocalDate.of(2026, 6, 17),
-                LocalDate.of(2026, 6, 18),
+                LocalDate.now(),
+                LocalDate.now().plusDays(1),
                 "manual instruction",
                 List.of(new InterWarehouseTransferItemRequest(product.getId(), sourceLocation.getId(),
                         destinationLocation.getId(), new BigDecimal("4.00"))));
@@ -339,13 +349,13 @@ class InterWarehouseTransferServiceImplTest {
                 "CTM-20260617-01",
                 sourceWarehouse.getId(),
                 destinationWarehouse.getId(),
-                LocalDate.of(2026, 6, 17),
-                LocalDate.of(2026, 6, 19),
+                LocalDate.now(),
+                LocalDate.now().plusDays(2),
                 "manual instruction updated",
                 List.of(new InterWarehouseTransferItemRequest(product.getId(), sourceLocation.getId(),
                         destinationLocation.getId(), new BigDecimal("6.00"))));
         InterWarehouseTransferResponse updated = service.updateTransfer(1L, updateRequest, planner);
-        assertThat(updated.plannedDate()).isEqualTo(LocalDate.of(2026, 6, 19));
+        assertThat(updated.plannedDate()).isEqualTo(LocalDate.now().plusDays(2));
         assertThat(updated.items()).hasSize(1);
         assertThat(updated.items().get(0).plannedQty()).isEqualByComparingTo("6.00");
 
@@ -363,8 +373,8 @@ class InterWarehouseTransferServiceImplTest {
                 "CTM-OUTSIDE-01",
                 sourceWarehouse.getId(),
                 destinationWarehouse.getId(),
-                LocalDate.of(2026, 6, 17),
-                LocalDate.of(2026, 6, 18),
+                LocalDate.now(),
+                LocalDate.now().plusDays(1),
                 "outside scope",
                 List.of(new InterWarehouseTransferItemRequest(product.getId(), sourceLocation.getId(),
                         destinationLocation.getId(), new BigDecimal("4.00"))));
@@ -377,8 +387,8 @@ class InterWarehouseTransferServiceImplTest {
                 "CTM-OUTSIDE-01",
                 sourceWarehouse.getId(),
                 destinationWarehouse.getId(),
-                LocalDate.of(2026, 6, 17),
-                LocalDate.of(2026, 6, 19),
+                LocalDate.now(),
+                LocalDate.now().plusDays(2),
                 "outside scope updated",
                 List.of(new InterWarehouseTransferItemRequest(product.getId(), sourceLocation.getId(),
                         destinationLocation.getId(), new BigDecimal("6.00"))));
@@ -402,8 +412,8 @@ class InterWarehouseTransferServiceImplTest {
                 "TRQ-DESTINATION-PLANNER",
                 sourceWarehouse.getId(),
                 destinationWarehouse.getId(),
-                LocalDate.of(2026, 6, 17),
-                LocalDate.of(2026, 6, 18),
+                LocalDate.now(),
+                LocalDate.now().plusDays(1),
                 "approved destination request",
                 List.of(new InterWarehouseTransferItemRequest(product.getId(), null, null, new BigDecimal("4.00"))));
 
@@ -562,6 +572,34 @@ class InterWarehouseTransferServiceImplTest {
     }
 
     @Test
+    void assignTrip_reportsVehicleScheduleOverlapSeparatelyFromDriver() {
+        service.approveTransfer(1L, sourceManager);
+        vehicleScheduleOverlap = true;
+
+        assertThatThrownBy(() -> service.assignTrip(
+                1L,
+                new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(), VALID_TRIP_START,
+                        VALID_TRIP_END),
+                dispatcher))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("VEHICLE_SCHEDULE_OVERLAP");
+    }
+
+    @Test
+    void assignTrip_reportsDriverScheduleOverlapSeparatelyFromVehicle() {
+        service.approveTransfer(1L, sourceManager);
+        driverScheduleOverlap = true;
+
+        assertThatThrownBy(() -> service.assignTrip(
+                1L,
+                new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(), VALID_TRIP_START,
+                        VALID_TRIP_END),
+                dispatcher))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("DRIVER_SCHEDULE_OVERLAP");
+    }
+
+    @Test
     void destinationWorker_onlySeesTransfersForAssignedWarehouses() {
         transfer.setStatus(InterWarehouseTransferStatus.IN_TRANSIT);
 
@@ -605,6 +643,17 @@ class InterWarehouseTransferServiceImplTest {
         assertThat(checked.items().get(0).receivedQty()).isEqualByComparingTo("4.00");
         assertThat(checked.items().get(0).qcPassedQty()).isEqualByComparingTo("3.00");
 
+        InterWarehouseTransferResponse pending = service.finalReceive(1L,
+                new InterWarehouseTransferFinalReceiveRequest(
+                        "shortage due to missing unit",
+                        List.of(new InterWarehouseTransferFinalPutawayItemRequest(
+                                transferItem.getId(),
+                                List.of(new InterWarehouseTransferPutawayAllocationRequest(
+                                        destinationLocation.getId(), new BigDecimal("3.00")))))),
+                destinationStorekeeper);
+        assertThat(pending.status()).isEqualTo(InterWarehouseTransferStatus.PUTAWAY_PENDING_APPROVAL);
+        assertThat(destinationInventory).isNull();
+
         InterWarehouseTransferResponse completed = service.finalReceive(1L,
                 new InterWarehouseTransferFinalReceiveRequest("shortage due to missing unit"), destinationManager);
         assertThat(completed.status()).isEqualTo(InterWarehouseTransferStatus.COMPLETED_WITH_DISCREPANCY);
@@ -612,6 +661,118 @@ class InterWarehouseTransferServiceImplTest {
         assertThat(destinationInventory.getTotalQty()).isEqualByComparingTo("3.00");
         assertThat(quarantineInventory).isNotNull();
         assertThat(quarantineInventory.getTotalQty()).isEqualByComparingTo("1.00");
+    }
+
+    @Test
+    void finalReceive_requiresManagerApprovalAfterStorekeeperSubmitsMultiBinPutawayPlan() {
+        service.approveTransfer(1L, sourceManager);
+        service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
+                VALID_TRIP_START, VALID_TRIP_END), dispatcher);
+        recordPassingOutboundQcAndHandover();
+        service.shipTransfer(1L, sourceManager);
+        service.departTransfer(1L, driverUser);
+
+        service.receiveCount(1L, new InterWarehouseTransferReceiveCountRequest(List.of(
+                new InterWarehouseTransferReceiveCountItemRequest(transferItem.getId(), new BigDecimal("5.00"), null))),
+                destinationWorker);
+        service.receiveCheck(1L, new InterWarehouseTransferReceiveCheckRequest(List.of(
+                new InterWarehouseTransferReceiveCheckItemRequest(
+                        transferItem.getId(),
+                        new BigDecimal("5.00"),
+                        new BigDecimal("5.00"),
+                        BigDecimal.ZERO,
+                        null,
+                        "Check ok",
+                        null)),
+                "transfer/receive-qc/1.jpg"),
+                destinationStorekeeper);
+
+        InterWarehouseTransferResponse pending = service.finalReceive(1L,
+                new InterWarehouseTransferFinalReceiveRequest(
+                        "",
+                        List.of(new InterWarehouseTransferFinalPutawayItemRequest(
+                                transferItem.getId(),
+                                List.of(
+                                        new InterWarehouseTransferPutawayAllocationRequest(
+                                                destinationLocation.getId(), new BigDecimal("2.00")),
+                                        new InterWarehouseTransferPutawayAllocationRequest(
+                                                destinationLocation2.getId(), new BigDecimal("3.00")))))),
+                destinationStorekeeper);
+
+        assertThat(pending.status()).isEqualTo(InterWarehouseTransferStatus.PUTAWAY_PENDING_APPROVAL);
+        assertThat(destinationInventory).isNull();
+        assertThat(destinationInventory2).isNull();
+
+        assertThatThrownBy(() -> service.finalReceive(1L, new InterWarehouseTransferFinalReceiveRequest(""),
+                destinationStorekeeper))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("WAREHOUSE_MANAGER_APPROVAL_REQUIRED");
+
+        InterWarehouseTransferResponse completed = service.finalReceive(1L,
+                new InterWarehouseTransferFinalReceiveRequest(""), destinationManager);
+
+        assertThat(completed.status()).isEqualTo(InterWarehouseTransferStatus.COMPLETED);
+        assertThat(destinationInventory).isNotNull();
+        assertThat(destinationInventory.getLocation()).isSameAs(destinationLocation);
+        assertThat(destinationInventory.getTotalQty()).isEqualByComparingTo("2.00");
+        assertThat(destinationInventory2).isNotNull();
+        assertThat(destinationInventory2.getLocation()).isSameAs(destinationLocation2);
+        assertThat(destinationInventory2.getTotalQty()).isEqualByComparingTo("3.00");
+    }
+
+    @Test
+    void finalReceive_allowsShortPutawayPlanWithReasonAndManagerApproval() {
+        service.approveTransfer(1L, sourceManager);
+        service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
+                VALID_TRIP_START, VALID_TRIP_END), dispatcher);
+        recordPassingOutboundQcAndHandover();
+        service.shipTransfer(1L, sourceManager);
+        service.departTransfer(1L, driverUser);
+
+        service.receiveCount(1L, new InterWarehouseTransferReceiveCountRequest(List.of(
+                new InterWarehouseTransferReceiveCountItemRequest(transferItem.getId(), new BigDecimal("5.00"), null))),
+                destinationWorker);
+        service.receiveCheck(1L, new InterWarehouseTransferReceiveCheckRequest(List.of(
+                new InterWarehouseTransferReceiveCheckItemRequest(
+                        transferItem.getId(),
+                        new BigDecimal("5.00"),
+                        new BigDecimal("5.00"),
+                        BigDecimal.ZERO,
+                        null,
+                        "Check ok",
+                        null)),
+                "transfer/receive-qc/1.jpg"),
+                destinationStorekeeper);
+
+        assertThatThrownBy(() -> service.finalReceive(1L,
+                new InterWarehouseTransferFinalReceiveRequest(
+                        "",
+                        List.of(new InterWarehouseTransferFinalPutawayItemRequest(
+                                transferItem.getId(),
+                                List.of(new InterWarehouseTransferPutawayAllocationRequest(
+                                        destinationLocation.getId(), new BigDecimal("4.00")))))),
+                destinationStorekeeper))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("DISCREPANCY_REASON_REQUIRED");
+
+        InterWarehouseTransferResponse pending = service.finalReceive(1L,
+                new InterWarehouseTransferFinalReceiveRequest(
+                        "Missing one unit during putaway",
+                        List.of(new InterWarehouseTransferFinalPutawayItemRequest(
+                                transferItem.getId(),
+                                List.of(new InterWarehouseTransferPutawayAllocationRequest(
+                                        destinationLocation.getId(), new BigDecimal("4.00")))))),
+                destinationStorekeeper);
+
+        assertThat(pending.status()).isEqualTo(InterWarehouseTransferStatus.PUTAWAY_PENDING_APPROVAL);
+        assertThat(destinationInventory).isNull();
+
+        InterWarehouseTransferResponse completed = service.finalReceive(1L,
+                new InterWarehouseTransferFinalReceiveRequest(""), destinationManager);
+
+        assertThat(completed.status()).isEqualTo(InterWarehouseTransferStatus.COMPLETED_WITH_DISCREPANCY);
+        assertThat(destinationInventory).isNotNull();
+        assertThat(destinationInventory.getTotalQty()).isEqualByComparingTo("4.00");
     }
 
     @Test
@@ -898,7 +1059,15 @@ class InterWarehouseTransferServiceImplTest {
                 "transfer/receive-qc/1.jpg"),
                 destinationStorekeeper);
 
-        // finalReceive should throw BIN_CAPACITY_EXCEEDED because 5.00 * 1.00 > 0.01
+        service.finalReceive(1L, new InterWarehouseTransferFinalReceiveRequest(
+                "",
+                List.of(new InterWarehouseTransferFinalPutawayItemRequest(
+                        transferItem.getId(),
+                        List.of(new InterWarehouseTransferPutawayAllocationRequest(
+                                destinationLocation.getId(), new BigDecimal("5.00")))))),
+                destinationStorekeeper);
+
+        // Manager approval should throw BIN_CAPACITY_EXCEEDED because 5.00 * 1.00 > 0.01
         assertThatThrownBy(() -> service.finalReceive(1L, new InterWarehouseTransferFinalReceiveRequest("final"), destinationManager))
                 .isInstanceOf(BusinessRuleViolationException.class)
                 .hasMessageContaining("BIN_CAPACITY_EXCEEDED");
@@ -1106,6 +1275,8 @@ class InterWarehouseTransferServiceImplTest {
                 return transitInventory;
             if (destinationInventory != null && destinationInventory.getId().equals(id))
                 return destinationInventory;
+            if (destinationInventory2 != null && destinationInventory2.getId().equals(id))
+                return destinationInventory2;
             if (quarantineInventory != null && quarantineInventory.getId().equals(id))
                 return quarantineInventory;
             throw new ResourceNotFoundException("Inventory not found");
@@ -1118,6 +1289,8 @@ class InterWarehouseTransferServiceImplTest {
                 return transitInventory;
             if (matches(destinationInventory, warehouseId, productId, batchId, locationId))
                 return destinationInventory;
+            if (matches(destinationInventory2, warehouseId, productId, batchId, locationId))
+                return destinationInventory2;
             if (matches(quarantineInventory, warehouseId, productId, batchId, locationId))
                 return quarantineInventory;
             return null;
@@ -1138,6 +1311,8 @@ class InterWarehouseTransferServiceImplTest {
                 transitInventory = value;
             } else if (value.getLocation().getIsQuarantine()) {
                 quarantineInventory = value;
+            } else if (destinationLocation2.getId().equals(value.getLocation().getId())) {
+                destinationInventory2 = value;
             } else {
                 destinationInventory = value;
             }
@@ -1168,6 +1343,8 @@ class InterWarehouseTransferServiceImplTest {
                     Long id = (Long) args[0];
                     if (destinationLocation.getId().equals(id))
                         yield Optional.of(destinationLocation);
+                    if (destinationLocation2.getId().equals(id))
+                        yield Optional.of(destinationLocation2);
                     if (quarantineLocation.getId().equals(id))
                         yield Optional.of(quarantineLocation);
                     if (transitLocation.getId().equals(id))
@@ -1216,7 +1393,8 @@ class InterWarehouseTransferServiceImplTest {
         public Object invoke(Object proxy, Method method, Object[] args) {
             return switch (method.getName()) {
                 case "existsByTripNumber" -> false;
-                case "existsVehicleScheduleOverlap", "existsDriverScheduleOverlap" -> false;
+                case "existsVehicleScheduleOverlap", "existsVehicleScheduleOverlapExcludingTrip" -> vehicleScheduleOverlap;
+                case "existsDriverScheduleOverlap", "existsDriverScheduleOverlapExcludingTrip" -> driverScheduleOverlap;
                 case "save" -> {
                     transferTrip = (Trip) args[0];
                     if (transferTrip.getId() == null) {
@@ -1251,6 +1429,8 @@ class InterWarehouseTransferServiceImplTest {
                         return sourceLocation;
                     if (destinationLocation.getId().equals(id))
                         return destinationLocation;
+                    if (destinationLocation2.getId().equals(id))
+                        return destinationLocation2;
                     if (transitLocation.getId().equals(id))
                         return transitLocation;
                     if (quarantineLocation.getId().equals(id))

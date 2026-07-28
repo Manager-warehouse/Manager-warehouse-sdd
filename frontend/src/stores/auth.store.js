@@ -2,11 +2,43 @@
 import { create } from 'zustand';
 import { WAREHOUSES } from '../utils/constants';
 
+const createMemoryStorage = () => {
+  const values = new Map();
+  return {
+    getItem: (key) => values.get(key) || null,
+    setItem: (key, value) => values.set(key, value),
+    removeItem: (key) => values.delete(key),
+  };
+};
+
+const getBrowserStorage = (name) => {
+  try {
+    return typeof window !== 'undefined' && window[name] ? window[name] : createMemoryStorage();
+  } catch {
+    return createMemoryStorage();
+  }
+};
+
 export const useAuthStore = create((set, get) => {
-  // Try to load initial session from sessionStorage
-  const storedUser = sessionStorage.getItem('wms_user');
-  const storedToken = sessionStorage.getItem('wms_token');
-  const storedWarehouse = sessionStorage.getItem('wms_active_warehouse');
+  // Keep auth in localStorage so refresh-token rotation is shared across tabs
+  // and a browser reload does not look like a silent logout.
+  const storage = getBrowserStorage('localStorage');
+  const legacyStorage = getBrowserStorage('sessionStorage');
+  const migrateLegacyValue = (key) => {
+    const current = storage.getItem(key);
+    if (current) return current;
+    const legacy = legacyStorage.getItem(key);
+    if (legacy) {
+      storage.setItem(key, legacy);
+      legacyStorage.removeItem(key);
+    }
+    return legacy;
+  };
+
+  const storedUser = migrateLegacyValue('wms_user');
+  const storedToken = migrateLegacyValue('wms_token');
+  const storedWarehouse = migrateLegacyValue('wms_active_warehouse');
+  migrateLegacyValue('wms_refresh_token');
 
   let parsedUser = null;
   let parsedWarehouse = null;
@@ -24,10 +56,13 @@ export const useAuthStore = create((set, get) => {
     activeWarehouse: parsedWarehouse,
 
     login: (user, token, refreshToken) => {
-      sessionStorage.setItem('wms_user', JSON.stringify(user));
-      sessionStorage.setItem('wms_token', token);
+      storage.setItem('wms_user', JSON.stringify(user));
+      storage.setItem('wms_token', token);
+      legacyStorage.setItem('wms_user', JSON.stringify(user));
+      legacyStorage.setItem('wms_token', token);
       if (refreshToken) {
-        sessionStorage.setItem('wms_refresh_token', refreshToken);
+        storage.setItem('wms_refresh_token', refreshToken);
+        legacyStorage.setItem('wms_refresh_token', refreshToken);
       }
 
       // Default active warehouse to first assigned warehouse or first warehouse
@@ -42,24 +77,41 @@ export const useAuthStore = create((set, get) => {
       }
 
       if (activeWarehouse) {
-        sessionStorage.setItem('wms_active_warehouse', JSON.stringify(activeWarehouse));
+        storage.setItem('wms_active_warehouse', JSON.stringify(activeWarehouse));
+        legacyStorage.setItem('wms_active_warehouse', JSON.stringify(activeWarehouse));
       } else {
-        sessionStorage.removeItem('wms_active_warehouse');
+        storage.removeItem('wms_active_warehouse');
+        legacyStorage.removeItem('wms_active_warehouse');
       }
 
       set({ user, token, activeWarehouse });
     },
 
+    updateTokens: (token, refreshToken) => {
+      storage.setItem('wms_token', token);
+      legacyStorage.setItem('wms_token', token);
+      if (refreshToken) {
+        storage.setItem('wms_refresh_token', refreshToken);
+        legacyStorage.setItem('wms_refresh_token', refreshToken);
+      }
+      set({ token });
+    },
+
     logout: () => {
-      sessionStorage.removeItem('wms_user');
-      sessionStorage.removeItem('wms_token');
-      sessionStorage.removeItem('wms_refresh_token');
-      sessionStorage.removeItem('wms_active_warehouse');
+      storage.removeItem('wms_user');
+      storage.removeItem('wms_token');
+      storage.removeItem('wms_refresh_token');
+      storage.removeItem('wms_active_warehouse');
+      legacyStorage.removeItem('wms_user');
+      legacyStorage.removeItem('wms_token');
+      legacyStorage.removeItem('wms_refresh_token');
+      legacyStorage.removeItem('wms_active_warehouse');
       set({ user: null, token: null, activeWarehouse: null });
     },
 
     setActiveWarehouse: (warehouse) => {
-      sessionStorage.setItem('wms_active_warehouse', JSON.stringify(warehouse));
+      storage.setItem('wms_active_warehouse', JSON.stringify(warehouse));
+      legacyStorage.setItem('wms_active_warehouse', JSON.stringify(warehouse));
       set({ activeWarehouse: warehouse });
     },
 

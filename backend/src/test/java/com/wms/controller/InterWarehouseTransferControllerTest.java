@@ -422,14 +422,14 @@ class InterWarehouseTransferControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "manager@wms.com", roles = "WAREHOUSE_MANAGER")
+    @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
     void finalReceive_success() throws Exception {
         InterWarehouseTransferFinalReceiveRequest request = new InterWarehouseTransferFinalReceiveRequest("Completed ok");
 
         InterWarehouseTransferResponse response = createMockResponse(1L, "TRF-20260711-0001", InterWarehouseTransferStatus.COMPLETED);
 
-        when(currentUserService.getRequiredCurrentUser()).thenReturn(manager);
-        when(transferService.finalReceive(eq(1L), any(InterWarehouseTransferFinalReceiveRequest.class), eq(manager)))
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(storekeeper);
+        when(transferService.finalReceive(eq(1L), any(InterWarehouseTransferFinalReceiveRequest.class), eq(storekeeper)))
                 .thenReturn(response);
 
         mockMvc.perform(post("/api/v1/inter-warehouse-transfers/1/final-receive")

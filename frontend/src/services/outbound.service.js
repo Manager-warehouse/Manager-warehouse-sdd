@@ -704,6 +704,32 @@ const buildPickQcPayload = (qcRows = []) => {
 const mockDelay = (ms = 250) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export const outboundService = {
+  getAllAvailability: async (warehouseId) => {
+    if (useMock) {
+      await mockDelay();
+      const rows = getDb('wms_db_inventories', []).filter((item) =>
+        Number(item.warehouse_id ?? item.warehouseId) === Number(warehouseId)
+      );
+      const map = {};
+      rows.forEach((item) => {
+        const pid = Number(item.product_id ?? item.productId);
+        const total = Number(item.total_qty ?? item.totalQty ?? 0);
+        const reserved = Number(item.reserved_qty ?? item.reservedQty ?? 0);
+        if (!map[pid]) {
+          map[pid] = { productId: pid, totalQty: 0, reservedQty: 0, availableQty: 0 };
+        }
+        map[pid].totalQty += total;
+        map[pid].reservedQty += reserved;
+        map[pid].availableQty += (total - reserved);
+      });
+      return Object.values(map);
+    }
+    const response = await apiClient.get('/warehouse-stock/all-availability', {
+      params: { warehouseId },
+    });
+    return response.data;
+  },
+
   getDeliveryOrders: async (warehouseId, filters = {}) => {
     if (useMock) {
       await mockDelay();

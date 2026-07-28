@@ -8,7 +8,7 @@ import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import PhotoCaptureInput from '../../components/common/PhotoCaptureInput';
 import CorrectionVoucherButton from '../../components/common/CorrectionVoucherButton';
-import { FileText, Landmark, BellRing, ShieldAlert, Plus, CheckCircle2, TrendingDown, Building2, UploadCloud } from 'lucide-react';
+import { FileText, Landmark, BellRing, ShieldAlert, Plus, CheckCircle2, TrendingDown, Building2, UploadCloud, RefreshCw, AlertCircle } from 'lucide-react';
 
 const OCR_LOW_CONFIDENCE_THRESHOLD = 0.75;
 
@@ -19,6 +19,7 @@ const SupplierInvoices = () => {
 
   const [activeTab, setActiveTab] = useState('notifications'); // 'notifications' | 'invoices' | 'payments'
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
 
   // Data States
   const [suppliers, setSuppliers] = useState([]);
@@ -36,7 +37,8 @@ const SupplierInvoices = () => {
     supplierInvoiceNumber: '',
     documentDate: new Date().toISOString().slice(0, 10),
     dueDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
-    notes: ''
+    notes: '',
+    confirmedTotalAmount: ''
   });
 
   const [showCreatePaymentModal, setShowCreatePaymentModal] = useState(false);
@@ -61,34 +63,55 @@ const SupplierInvoices = () => {
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    try {
-      const [suppList, invs, periods] = await Promise.all([
-        masterDataService.getSuppliers(),
-        financeService.getSupplierInvoices(),
-        financeService.getAccountingPeriods()
-      ]);
-      setSuppliers(suppList || []);
-      setSupplierInvoices(invs || []);
-      setClosedPeriodIds(new Set(
-        (periods || []).filter(p => p.status === 'CLOSED').map(p => p.id)
-      ));
+    setLoadError('');
 
-      if (activeTab === 'notifications') {
-        const notifs = await financeService.getSupplierBillingNotifications();
-        setNotifications(notifs || []);
-      } else if (activeTab === 'invoices') {
-        // supplierInvoices already loaded
-      } else if (activeTab === 'payments') {
-        const pmts = await financeService.getSupplierPayments();
-        setSupplierPayments(pmts || []);
-      }
-    } catch (err) {
-      console.error('Failed to load supplier finance data:', err);
-      addToast('Không thể tải dữ liệu hóa đơn mua hàng', 'error');
-    } finally {
-      setLoading(false);
+    const [supplierResult, invoiceResult, periodResult] = await Promise.allSettled([
+      masterDataService.getSuppliers(),
+      financeService.getSupplierInvoices(),
+      financeService.getAccountingPeriods()
+    ]);
+
+    if (supplierResult.status === 'fulfilled') {
+      setSuppliers(supplierResult.value || []);
+    } else {
+      setSuppliers([]);
     }
-  }, [activeTab, addToast]);
+
+    if (invoiceResult.status === 'fulfilled') {
+      setSupplierInvoices(invoiceResult.value || []);
+    } else {
+      setSupplierInvoices([]);
+      setLoadError('Không tải được sổ hóa đơn mua hàng. Kiểm tra quyền kế toán hoặc thử tải lại.');
+    }
+
+    if (periodResult.status === 'fulfilled') {
+      setClosedPeriodIds(new Set(
+        (periodResult.value || []).filter(p => p.status === 'CLOSED').map(p => p.id)
+      ));
+    } else {
+      setClosedPeriodIds(new Set());
+    }
+
+    if (activeTab === 'notifications') {
+      const notificationResult = await Promise.allSettled([financeService.getSupplierBillingNotifications()]);
+      if (notificationResult[0].status === 'fulfilled') {
+        setNotifications(notificationResult[0].value || []);
+      } else {
+        setNotifications([]);
+        setLoadError('Không tải được thông báo lập hóa đơn mua hàng. Kiểm tra quyền kế toán hoặc thử tải lại.');
+      }
+    } else if (activeTab === 'payments') {
+      const paymentResult = await Promise.allSettled([financeService.getSupplierPayments()]);
+      if (paymentResult[0].status === 'fulfilled') {
+        setSupplierPayments(paymentResult[0].value || []);
+      } else {
+        setSupplierPayments([]);
+        setLoadError('Không tải được danh sách phiếu chi thanh toán NCC. Kiểm tra quyền kế toán hoặc thử tải lại.');
+      }
+    }
+
+    setLoading(false);
+  }, [activeTab]);
 
   useEffect(() => {
     loadData();
@@ -102,7 +125,10 @@ const SupplierInvoices = () => {
       supplierInvoiceNumber: `VAT-${Math.floor(100000 + Math.random() * 900000)}`,
       documentDate: new Date().toISOString().slice(0, 10),
       dueDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
-      notes: `Lập hóa đơn mua hàng từ phiếu nhập ${notif.receipt_number || notif.receiptNumber}`
+      notes: `Lập hóa đơn mua hàng từ phiếu nhập ${notif.receipt_number || notif.receiptNumber}`,
+      // Pre-fill with the system estimate; the Accountant edits this against the
+      // supplier's real paper invoice before submitting - it is not auto-trusted.
+      confirmedTotalAmount: String(notif.totalAmountEstimate || notif.total_amount_estimate || 0)
     });
     setShowCreateInvoiceModal(true);
   };
@@ -111,6 +137,11 @@ const SupplierInvoices = () => {
   const handleSubmitInvoice = async (e) => {
     e.preventDefault();
     if (submittingInvoice) return;
+    const confirmedAmount = Number(invoiceFormData.confirmedTotalAmount);
+    if (!invoiceFormData.confirmedTotalAmount || Number.isNaN(confirmedAmount) || confirmedAmount <= 0) {
+      addToast('Số tiền hóa đơn phải lớn hơn 0', 'warning');
+      return;
+    }
     setSubmittingInvoice(true);
     try {
       await financeService.createSupplierInvoice(invoiceFormData);
@@ -118,7 +149,6 @@ const SupplierInvoices = () => {
       setShowCreateInvoiceModal(false);
       loadData();
     } catch (err) {
-      console.error('Create supplier invoice failed:', err);
       addToast(err.message || 'Không thể tạo hóa đơn mua hàng', 'error');
     } finally {
       setSubmittingInvoice(false);
@@ -261,7 +291,6 @@ const SupplierInvoices = () => {
         addToast(`Quét OCR ủy nhiệm chi thành công! Độ chính xác: ${confidencePercent}%`, 'success');
       }
     } catch (err) {
-      console.error('OCR UNC scan failed:', err);
       addToast(err.message || 'Không thể quét OCR ủy nhiệm chi', 'error');
       setOcrFileName('');
     } finally {
@@ -292,7 +321,6 @@ const SupplierInvoices = () => {
       setShowCreatePaymentModal(false);
       loadData();
     } catch (err) {
-      console.error('Create supplier payment failed:', err);
       addToast(err.message || 'Không thể lập phiếu chi thanh toán NCC', 'error');
     } finally {
       setSubmittingPayment(false);
@@ -377,6 +405,22 @@ const SupplierInvoices = () => {
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
           </svg>
           <span>Đang tải dữ liệu...</span>
+        </div>
+      ) : loadError ? (
+        <div className="rounded-lg border border-danger-200 bg-danger-50/70 p-6 md:p-8 shadow-level-3">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-danger-600 mt-0.5 shrink-0" />
+              <div>
+                <h3 className="text-sm font-bold text-danger-700">Chưa tải được dữ liệu phải trả NCC</h3>
+                <p className="text-xs text-danger-700/80 mt-1">{loadError}</p>
+              </div>
+            </div>
+            <Button variant="outline-light" onClick={loadData} className="flex items-center gap-2">
+              <RefreshCw className="w-4 h-4" />
+              Tải lại
+            </Button>
+          </div>
         </div>
       ) : (
         <>
@@ -492,6 +536,12 @@ const SupplierInvoices = () => {
                           <td className="p-4 text-shade-60">{inv.due_date}</td>
                           <td className="p-4 text-right font-bold text-ink">
                             {(inv.total_amount || 0).toLocaleString()}đ
+                            {inv.calculated_amount_estimate != null
+                              && Number(inv.calculated_amount_estimate) !== Number(inv.total_amount) && (
+                              <div className="text-[10px] font-normal text-shade-50" title="Kế toán viên đã sửa so với số hệ thống tự tính">
+                                (hệ thống ước tính: {Number(inv.calculated_amount_estimate).toLocaleString()}đ)
+                              </div>
+                            )}
                           </td>
                           <td className="p-4 text-center">
                             <span className={`px-2.5 py-0.5 rounded-pill text-[9px] font-bold uppercase ${
@@ -631,6 +681,23 @@ const SupplierInvoices = () => {
                 required
                 placeholder="ví dụ: VAT-88392"
               />
+
+              <div>
+                <Input
+                  id="confirmedTotalAmount"
+                  label="Số tiền hóa đơn (đối chiếu với hóa đơn giấy NCC)"
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={invoiceFormData.confirmedTotalAmount}
+                  onChange={e => setInvoiceFormData(prev => ({ ...prev, confirmedTotalAmount: e.target.value }))}
+                  required
+                />
+                <p className="text-[11px] text-shade-60 mt-1">
+                  Hệ thống ước tính {(selectedNotification?.totalAmountEstimate || 0).toLocaleString()}đ từ phiếu nhập kho.
+                  Vui lòng sửa lại nếu số trên hóa đơn giấy NCC khác với số ước tính này.
+                </p>
+              </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <Input

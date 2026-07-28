@@ -367,6 +367,33 @@ class DriverDeliveryServiceImplTest {
     }
 
     @Test
+    void confirmDelivery_completesTripAndReleasesResourcesWhenLastStopIsDone() {
+        delivery.setPodImageUrl("/uploads/pod/goods.jpg");
+        delivery.setPodSignatureUrl("/uploads/pod/sign.jpg");
+        DeliveryOtpAttempt otp = otp(DeliveryOtpStatus.ACTIVE, OffsetDateTime.now().plusMinutes(2), 0, "123456");
+        DeliveryOrderItem item = item(BigDecimal.ONE, BigDecimal.valueOf(10));
+        Inventory transit = Inventory.builder().id(90L).totalQty(BigDecimal.valueOf(5))
+                .reservedQty(BigDecimal.ZERO).costPrice(BigDecimal.TEN).build();
+        TripDeliveryOrder row = TripDeliveryOrder.builder().trip(trip).deliveryOrder(order).stopOrder(1).build();
+        stubCurrentAttempt();
+        when(otpRepository.findByDeliveryId(80L)).thenReturn(Optional.of(otp));
+        when(deliveryOrderItemRepository.findByDeliveryOrderId(70L)).thenReturn(List.of(item));
+        when(inventoryRepository.findTransitRowForDeliveryConfirmation(100L, 200L)).thenReturn(Optional.of(transit));
+        when(deliveryRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(tripDeliveryOrderRepository.findByTripIdOrderByStopOrderAsc(50L)).thenReturn(List.of(row));
+        when(tripRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ConfirmDeliveryRequest request = new ConfirmDeliveryRequest();
+        request.setOtp("123456");
+        service.confirmDelivery(50L, 70L, request, actor);
+
+        assertThat(trip.getStatus()).isEqualTo(TripStatus.COMPLETED);
+        assertThat(trip.getVehicle().getStatus()).isEqualTo(VehicleStatus.AVAILABLE);
+        assertThat(trip.getDriver().getStatus()).isEqualTo(DriverStatus.AVAILABLE);
+        verify(tripRepository).save(trip);
+    }
+
+    @Test
     void confirmDelivery_scopesBillingNotificationToConfirmedDeliveryOrderOnly() {
         delivery.setPodImageUrl("/uploads/pod/goods.jpg");
         delivery.setPodSignatureUrl("/uploads/pod/sign.jpg");
@@ -445,6 +472,24 @@ class DriverDeliveryServiceImplTest {
         assertThat(order.getStatus()).isEqualTo(DeliveryOrderStatus.RETURNED);
         assertThat(delivery.getFailureReason()).isEqualTo("Dealer refused goods");
         verify(inventoryRepository, never()).save(any());
+    }
+
+    @Test
+    void failDelivery_completesTripAndReleasesResourcesWhenLastStopIsReturned() {
+        TripDeliveryOrder row = TripDeliveryOrder.builder().trip(trip).deliveryOrder(order).stopOrder(1).build();
+        stubCurrentAttempt();
+        when(deliveryRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(tripDeliveryOrderRepository.findByTripIdOrderByStopOrderAsc(50L)).thenReturn(List.of(row));
+        when(tripRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        FailDeliveryRequest request = new FailDeliveryRequest();
+        request.setFailureReason("Dealer refused goods");
+
+        service.failDelivery(50L, 70L, request, actor);
+
+        assertThat(trip.getStatus()).isEqualTo(TripStatus.COMPLETED);
+        assertThat(trip.getVehicle().getStatus()).isEqualTo(VehicleStatus.AVAILABLE);
+        assertThat(trip.getDriver().getStatus()).isEqualTo(DriverStatus.AVAILABLE);
+        verify(tripRepository).save(trip);
     }
 
     @Test

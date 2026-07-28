@@ -36,7 +36,9 @@ import com.wms.enums.user_configuration.*;
 import com.wms.enums.warehouse_location.*;
 import com.wms.enums.warehouse_transfer.*;
 import com.wms.dto.response.InventoryAvailabilityResponse;
+import com.wms.dto.response.ProductAvailabilityResponse;
 import com.wms.dto.response.WarehouseStockOverviewResponse;
+import java.util.List;
 import com.wms.service.stock_control.InventoryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -63,6 +65,13 @@ public class InventoryController {
     public InventoryAvailabilityResponse getAvailability(@RequestParam Long warehouseId,
                                                          @RequestParam Long productId) {
         return inventoryService.getAvailability(warehouseId, productId);
+    }
+
+    @GetMapping("/all-availability")
+    @PreAuthorize("hasAnyRole('ADMIN','CEO','PLANNER','DISPATCHER','WAREHOUSE_MANAGER','STOREKEEPER','WAREHOUSE_STAFF')")
+    @Operation(summary = "Get all products stock availability in a warehouse")
+    public List<ProductAvailabilityResponse> getAllAvailability(@RequestParam Long warehouseId) {
+        return inventoryService.getAllAvailability(warehouseId);
     }
 
     @GetMapping("/overview")

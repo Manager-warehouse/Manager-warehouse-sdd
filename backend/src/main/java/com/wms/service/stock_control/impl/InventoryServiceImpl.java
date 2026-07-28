@@ -35,7 +35,9 @@ import com.wms.enums.user_configuration.*;
 import com.wms.enums.warehouse_location.*;
 import com.wms.enums.warehouse_transfer.*;
 import com.wms.dto.response.InventoryAvailabilityResponse;
+import com.wms.dto.response.ProductAvailabilityResponse;
 import com.wms.dto.response.WarehouseStockOverviewResponse;
+import java.util.List;
 import com.wms.repository.DeliveryOrderRepository;
 import com.wms.repository.InventoryRepository;
 import com.wms.repository.product_catalog.ProductRepository;
@@ -137,6 +139,21 @@ public class InventoryServiceImpl implements InventoryService {
                             totalReserved,
                             available);
                 })
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ProductAvailabilityResponse> getAllAvailability(Long warehouseId) {
+        if (!warehouseRepository.existsById(warehouseId)) {
+            throw new IllegalArgumentException("WAREHOUSE_NOT_FOUND");
+        }
+        return inventoryRepository.summarizeAllAvailability(warehouseId).stream()
+                .map(summary -> new ProductAvailabilityResponse(
+                        summary.getProductId(),
+                        summary.getTotalQty(),
+                        summary.getReservedQty(),
+                        summary.getAvailableQty()))
                 .toList();
     }
 

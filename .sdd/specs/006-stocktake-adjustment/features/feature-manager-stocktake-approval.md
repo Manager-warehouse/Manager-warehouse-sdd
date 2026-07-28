@@ -17,7 +17,7 @@ Sau khi Thủ kho hoàn tất đếm, mọi phiếu kiểm kê chuyển sang `PE
 - WHEN a stocktake is approved by Trưởng kho, the system SHALL:
   1. Validate the `accounting_period` of the stocktake is still `OPEN`; reject with `ACCOUNTING_PERIOD_CLOSED` if not.
   2. For each `stock_take_item` where `variance_qty ≠ 0`, update `inventory.quantity` to match `actual_qty` using optimistic locking.
-  3. If an optimistic lock version conflict occurs during inventory update, abort and retry up to 3 times; if still failing, return `INVENTORY_VERSION_CONFLICT (409)`.
+  3. If an optimistic lock version conflict occurs during inventory update, roll back the entire approval transaction and return `INVENTORY_VERSION_CONFLICT (409)`. The Trưởng kho SHALL reload the stocktake and submit the approval again.
   4. Create one `adjustments` record per affected item with `type = 'STOCK_TAKE'`, `reference_id = stock_take.id`, `reference_type = 'STOCK_TAKE'`.
   5. Set `stock_takes.status = 'APPROVED'`, `approved_by = current_user.id`, `approved_at = NOW()`.
   6. Release the lock on all warehouse locations referenced in `stock_take_items`.
@@ -78,3 +78,10 @@ Sau khi Thủ kho hoàn tất đếm, mọi phiếu kiểm kê chuyển sang `PE
 - Given stocktake `PENDING_APPROVAL` thuộc kho Hải Phòng
 - When một Trưởng kho chỉ được gán kho Hà Nội gọi `PUT .../approve`
 - Then hệ thống trả về `403 FORBIDDEN_WAREHOUSE`.
+
+**Scenario 6: Xung đột phiên bản tồn kho khi phê duyệt**
+
+- Given stocktake đang `PENDING_APPROVAL` và một inventory liên quan đã được giao dịch khác cập nhật phiên bản
+- When Trưởng kho gọi `PUT .../approve`
+- Then toàn bộ giao dịch phê duyệt được rollback, không cập nhật tồn kho, không tạo adjustment và phiếu vẫn giữ trạng thái `PENDING_APPROVAL`.
+- And hệ thống trả về `INVENTORY_VERSION_CONFLICT (409)` để Trưởng kho tải lại phiếu và thực hiện phê duyệt lại.

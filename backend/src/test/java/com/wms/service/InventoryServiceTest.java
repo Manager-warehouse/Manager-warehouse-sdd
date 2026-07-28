@@ -62,7 +62,9 @@ import com.wms.service.warehouse_location.*;
 import com.wms.service.warehouse_location.impl.*;
 
 import com.wms.dto.response.InventoryAvailabilityResponse;
+import com.wms.dto.response.ProductAvailabilityResponse;
 import com.wms.dto.response.WarehouseStockOverviewResponse;
+import java.util.List;
 import com.wms.entity.stock_control.Batch;
 import com.wms.entity.stock_control.Inventory;
 import com.wms.entity.product_catalog.Product;
@@ -179,6 +181,43 @@ public class InventoryServiceTest {
         assertThat(response.totalQty()).isEqualTo(new BigDecimal("100.00"));
         assertThat(response.reservedQty()).isEqualTo(new BigDecimal("30.00"));
         assertThat(response.availableQty()).isEqualTo(new BigDecimal("70.00"));
+    }
+
+    @Test
+    void getAllAvailability_success() {
+        when(warehouseRepository.existsById(1L)).thenReturn(true);
+
+        InventoryRepository.ProductAvailabilitySummary summary = new InventoryRepository.ProductAvailabilitySummary() {
+            @Override
+            public Long getProductId() {
+                return 2L;
+            }
+
+            @Override
+            public BigDecimal getTotalQty() {
+                return new BigDecimal("100.00");
+            }
+
+            @Override
+            public BigDecimal getReservedQty() {
+                return new BigDecimal("30.00");
+            }
+
+            @Override
+            public BigDecimal getAvailableQty() {
+                return new BigDecimal("70.00");
+            }
+        };
+
+        when(inventoryRepository.summarizeAllAvailability(1L)).thenReturn(List.of(summary));
+
+        List<ProductAvailabilityResponse> response = inventoryService.getAllAvailability(1L);
+        assertThat(response).hasSize(1);
+        ProductAvailabilityResponse first = response.get(0);
+        assertThat(first.productId()).isEqualTo(2L);
+        assertThat(first.totalQty()).isEqualTo(new BigDecimal("100.00"));
+        assertThat(first.reservedQty()).isEqualTo(new BigDecimal("30.00"));
+        assertThat(first.availableQty()).isEqualTo(new BigDecimal("70.00"));
     }
 
     @Test

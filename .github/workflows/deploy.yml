@@ -145,6 +145,8 @@ jobs:
           exit-code: "1"
         env:
           TRIVY_SHOW_SUPPRESSED: "true"
+          TRIVY_DB_REPOSITORY: "ghcr.io/aquasecurity/trivy-db:2,public.ecr.aws/aquasecurity/trivy-db:2"
+          TRIVY_JAVA_DB_REPOSITORY: "ghcr.io/aquasecurity/trivy-java-db:1,public.ecr.aws/aquasecurity/trivy-java-db:1"
       - name: Scan frontend image
         uses: aquasecurity/trivy-action@v0.36.0
         with:
@@ -155,6 +157,8 @@ jobs:
           exit-code: "1"
         env:
           TRIVY_SHOW_SUPPRESSED: "true"
+          TRIVY_DB_REPOSITORY: "ghcr.io/aquasecurity/trivy-db:2,public.ecr.aws/aquasecurity/trivy-db:2"
+          TRIVY_JAVA_DB_REPOSITORY: "ghcr.io/aquasecurity/trivy-java-db:1,public.ecr.aws/aquasecurity/trivy-java-db:1"
 
   deploy:
     name: Deploy production

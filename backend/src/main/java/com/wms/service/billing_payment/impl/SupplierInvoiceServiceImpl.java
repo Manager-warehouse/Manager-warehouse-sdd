@@ -112,7 +112,16 @@ public class SupplierInvoiceServiceImpl implements SupplierInvoiceService {
 
         // 4. Calculate total amount from actually-received quantity x unit cost per line,
         // per feature-accountant-supplier-invoicing.md 3 (Event-driven).
-        BigDecimal totalAmount = calculateTotalAmount(receipt.getId());
+        BigDecimal calculatedAmount = calculateTotalAmount(receipt.getId());
+
+        // The Accountant reconciles this calculated estimate against the supplier's actual
+        // paper invoice (feature-accountant-supplier-invoicing.md 1) and may override it -
+        // receipt_items.unit_cost is Planner-entered PO/expected pricing, not necessarily
+        // what the supplier ultimately billed. Absent an override, the calculated amount
+        // stands as before.
+        BigDecimal totalAmount = request.getConfirmedTotalAmount() != null
+                ? request.getConfirmedTotalAmount()
+                : calculatedAmount;
 
         // 5. Increase supplier current balance
         BigDecimal oldBalance = supplier.getCurrentBalance() != null ? supplier.getCurrentBalance() : BigDecimal.ZERO;
@@ -132,6 +141,7 @@ public class SupplierInvoiceServiceImpl implements SupplierInvoiceService {
                 .receipt(receipt)
                 .supplier(supplier)
                 .totalAmount(totalAmount)
+                .calculatedAmountEstimate(calculatedAmount)
                 .issueDate(issueDate)
                 .dueDate(dueDate)
                 .status(InvoiceStatus.UNPAID)
@@ -267,6 +277,7 @@ public class SupplierInvoiceServiceImpl implements SupplierInvoiceService {
                 .supplierId(entity.getSupplier().getId())
                 .supplierName(entity.getSupplier().getCompanyName())
                 .totalAmount(entity.getTotalAmount())
+                .calculatedAmountEstimate(entity.getCalculatedAmountEstimate())
                 .paidAmount(calculatePaidAmount(entity.getId()))
                 .issueDate(entity.getIssueDate())
                 .dueDate(entity.getDueDate())
@@ -284,6 +295,9 @@ public class SupplierInvoiceServiceImpl implements SupplierInvoiceService {
         map.put("supplierInvoiceNumber", entity.getSupplierInvoiceNumber());
         map.put("supplierId", entity.getSupplier().getId());
         map.put("totalAmount", entity.getTotalAmount());
+        map.put("calculatedAmountEstimate", entity.getCalculatedAmountEstimate());
+        map.put("amountOverridden", entity.getCalculatedAmountEstimate() != null
+                && entity.getTotalAmount().compareTo(entity.getCalculatedAmountEstimate()) != 0);
         map.put("status", entity.getStatus().name());
         return map;
     }

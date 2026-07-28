@@ -394,16 +394,22 @@ export const interWarehouseTransferService = {
     return response.data;
   },
 
-  finalReceive: async (id, discrepancyReason) => {
+  finalReceive: async (id, payload = {}) => {
+    const request = typeof payload === 'string' ? { discrepancyReason: payload } : payload;
     if (useMock) {
       const transfer = await interWarehouseTransferService.getTransferById(id);
+      if (Array.isArray(request.putawayItems) && request.putawayItems.length > 0) {
+        return updateMockStatus(id, 'PUTAWAY_PENDING_APPROVAL', {
+          discrepancyReason: request.discrepancyReason,
+        });
+      }
       const hasDiscrepancy = transfer.items.some((item) => Number(item.receivedQty) !== Number(item.sentQty));
       return updateMockStatus(id, hasDiscrepancy ? 'COMPLETED_WITH_DISCREPANCY' : 'COMPLETED', {
-        discrepancyReason,
+        discrepancyReason: request.discrepancyReason,
         actualReceivedDate: today(),
       });
     }
-    const response = await apiClient.post(`/inter-warehouse-transfers/${id}/final-receive`, { discrepancyReason });
+    const response = await apiClient.post(`/inter-warehouse-transfers/${id}/final-receive`, request);
     return response.data;
   },
 
@@ -662,7 +668,7 @@ export const interWarehouseTransferService = {
         return requests[idx];
       }
     }
-    const response = await apiClient.post(`/transfer-requests/${id}/cancel`);
+    const response = await apiClient.post(`/transfer-requests/${id}/cancel`, {});
     return response.data;
   },
 

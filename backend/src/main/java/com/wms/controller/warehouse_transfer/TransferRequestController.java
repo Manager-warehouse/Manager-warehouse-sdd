@@ -80,7 +80,7 @@ public class TransferRequestController {
 
     @PostMapping
     @Operation(summary = "Tạo mới yêu cầu điều chuyển thô (DRAFT)")
-    @PreAuthorize("hasAnyRole('WAREHOUSE_MANAGER','ADMIN')")
+    @PreAuthorize("hasRole('WAREHOUSE_MANAGER')")
     public ResponseEntity<TransferRequestResponse> createRequest(@Valid @RequestBody TransferRequestCreateRequest request) {
         User actor = currentUserService.getRequiredCurrentUser();
         TransferRequestResponse response = requestService.createRequest(request, actor);
@@ -89,7 +89,7 @@ public class TransferRequestController {
 
     @PutMapping("/{id}")
     @Operation(summary = "Cập nhật yêu cầu điều chuyển thô (Chỉ sửa khi DRAFT)")
-    @PreAuthorize("hasAnyRole('WAREHOUSE_MANAGER','ADMIN')")
+    @PreAuthorize("hasRole('WAREHOUSE_MANAGER')")
     public ResponseEntity<TransferRequestResponse> updateRequest(
             @PathVariable Long id,
             @Valid @RequestBody TransferRequestUpdateRequest request) {
@@ -99,7 +99,7 @@ public class TransferRequestController {
 
     @PostMapping("/{id}/cancel")
     @Operation(summary = "Hủy mềm yêu cầu điều chuyển DRAFT (hiển thị như xóa đơn)")
-    @PreAuthorize("hasAnyRole('WAREHOUSE_MANAGER','ADMIN')")
+    @PreAuthorize("hasRole('WAREHOUSE_MANAGER')")
     public ResponseEntity<TransferRequestResponse> cancelRequest(@PathVariable Long id) {
         User actor = currentUserService.getRequiredCurrentUser();
         return ResponseEntity.ok(requestService.cancelRequest(id, actor));
@@ -107,7 +107,7 @@ public class TransferRequestController {
 
     @PostMapping("/{id}/submit")
     @Operation(summary = "Gửi yêu cầu điều chuyển cho CEO duyệt (DRAFT -> SUBMITTED)")
-    @PreAuthorize("hasAnyRole('WAREHOUSE_MANAGER','ADMIN')")
+    @PreAuthorize("hasRole('WAREHOUSE_MANAGER')")
     public ResponseEntity<TransferRequestResponse> submitRequest(@PathVariable Long id) {
         User actor = currentUserService.getRequiredCurrentUser();
         return ResponseEntity.ok(requestService.submitRequest(id, actor));

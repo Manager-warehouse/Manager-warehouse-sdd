@@ -445,7 +445,7 @@ class InterWarehouseTransferFlowE2ETest {
         assertThat(transferItem.getQcPassedQty()).isEqualByComparingTo("30.00");
         assertThat(transferItem.getQcFailedQty()).isEqualByComparingTo("0.00");
 
-        // --- 7. Manager finalizes receipt (Happy path -> COMPLETED) ---
+        // --- 7. Storekeeper submits putaway plan, then manager approves receipt ---
         when(assignmentRepository.findWarehouseIdsByUserId(manager.getId())).thenReturn(List.of(destinationWarehouse.getId()));
         
         Inventory destInventory = new Inventory();
@@ -468,6 +468,13 @@ class InterWarehouseTransferFlowE2ETest {
                 .thenReturn(Optional.of(transitInventory));
         when(inventoryRepository.findByStockKeyForUpdate(anyLong(), anyLong(), anyLong(), eq(destinationLocation.getId())))
                 .thenReturn(Optional.of(destInventory));
+
+        InterWarehouseTransferResponse pendingResponse = receivingService.finalReceive(
+                transfer.getId(),
+                finalReceiveWithPutaway("Nhận đủ hàng chảo", new BigDecimal("30.00")),
+                storekeeper
+        );
+        assertThat(pendingResponse.status()).isEqualTo(InterWarehouseTransferStatus.PUTAWAY_PENDING_APPROVAL);
 
         InterWarehouseTransferResponse finalResponse = receivingService.finalReceive(
                 transfer.getId(),
@@ -502,7 +509,7 @@ class InterWarehouseTransferFlowE2ETest {
         receivingService.receiveCheck(transfer.getId(),
                 new InterWarehouseTransferReceiveCheckRequest(checkItems, "transfer/receive-qc/1.jpg"), storekeeper);
 
-        // --- Final Receive with Shortage -> Status is COMPLETED_WITH_DISCREPANCY ---
+        // --- Storekeeper submits putaway plan, manager finalizes shortage discrepancy ---
         when(assignmentRepository.findWarehouseIdsByUserId(manager.getId())).thenReturn(List.of(destinationWarehouse.getId()));
         
         Inventory destInventory = new Inventory();
@@ -525,6 +532,13 @@ class InterWarehouseTransferFlowE2ETest {
                 .thenReturn(Optional.of(transitInventory));
         when(inventoryRepository.findByStockKeyForUpdate(anyLong(), anyLong(), anyLong(), eq(destinationLocation.getId())))
                 .thenReturn(Optional.of(destInventory));
+
+        InterWarehouseTransferResponse pendingResponse = receivingService.finalReceive(
+                transfer.getId(),
+                finalReceiveWithPutaway("Thiếu 2 cái chảo", new BigDecimal("28.00")),
+                storekeeper
+        );
+        assertThat(pendingResponse.status()).isEqualTo(InterWarehouseTransferStatus.PUTAWAY_PENDING_APPROVAL);
 
         InterWarehouseTransferResponse finalResponse = receivingService.finalReceive(
                 transfer.getId(),
@@ -649,6 +663,13 @@ class InterWarehouseTransferFlowE2ETest {
         when(inventoryRepository.findByStockKeyForUpdate(anyLong(), anyLong(), anyLong(), eq(quarantineLocation.getId())))
                 .thenReturn(Optional.of(quarInventory));
 
+        InterWarehouseTransferResponse pendingResponse = receivingService.finalReceive(
+                transfer.getId(),
+                finalReceiveWithPutaway("Nhận hàng lỗi", new BigDecimal("25.00")),
+                storekeeper
+        );
+        assertThat(pendingResponse.status()).isEqualTo(InterWarehouseTransferStatus.PUTAWAY_PENDING_APPROVAL);
+
         receivingService.finalReceive(transfer.getId(), new InterWarehouseTransferFinalReceiveRequest("Nhận hàng lỗi"), manager);
 
         // Asserts: QC passed items added to standard stock, QC failed items added to quarantine stock
@@ -682,5 +703,15 @@ class InterWarehouseTransferFlowE2ETest {
         // Assert: Auto-approved as value of 5 items is low (5 * 0 = 0 VND < 5M)
         assertThat(disposalResponse.isAutoApproved()).isTrue();
         assertThat(mockRecord.getRemainingQuantity()).isEqualByComparingTo(BigDecimal.ZERO);
+    }
+
+    private InterWarehouseTransferFinalReceiveRequest finalReceiveWithPutaway(String reason, BigDecimal quantity) {
+        return new InterWarehouseTransferFinalReceiveRequest(
+                reason,
+                List.of(new InterWarehouseTransferFinalPutawayItemRequest(
+                        transferItem.getId(),
+                        List.of(new InterWarehouseTransferPutawayAllocationRequest(
+                                destinationLocation.getId(),
+                                quantity)))));
     }
 }

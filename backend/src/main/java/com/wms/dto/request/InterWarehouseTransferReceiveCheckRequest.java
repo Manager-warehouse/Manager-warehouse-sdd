@@ -36,9 +36,11 @@ import com.wms.enums.user_configuration.*;
 import com.wms.enums.warehouse_location.*;
 import com.wms.enums.warehouse_transfer.*;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import java.util.List;
 
 public record InterWarehouseTransferReceiveCheckRequest(
-        @NotEmpty List<@Valid InterWarehouseTransferReceiveCheckItemRequest> items,
-        String qcPhotoRef) {}
+        @NotEmpty(message = "RECEIVE_CHECK_ITEMS_REQUIRED")
+        List<@Valid InterWarehouseTransferReceiveCheckItemRequest> items,
+        @NotBlank(message = "RECEIVE_QC_PHOTO_REQUIRED") String qcPhotoRef) {}

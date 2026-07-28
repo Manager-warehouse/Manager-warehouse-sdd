@@ -36,16 +36,17 @@ import com.wms.enums.user_configuration.*;
 import com.wms.enums.warehouse_location.*;
 import com.wms.enums.warehouse_transfer.*;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDate;
 import java.util.List;
 
 public record InterWarehouseTransferUpdateRequest(
-        @NotEmpty String externalInstructionCode,
-        @NotNull Long sourceWarehouseId,
-        @NotNull Long destinationWarehouseId,
-        @NotNull LocalDate documentDate,
-        @NotNull LocalDate plannedDate,
+        @NotBlank(message = "EXTERNAL_INSTRUCTION_CODE_REQUIRED") String externalInstructionCode,
+        @NotNull(message = "SOURCE_WAREHOUSE_ID_REQUIRED") Long sourceWarehouseId,
+        @NotNull(message = "DESTINATION_WAREHOUSE_ID_REQUIRED") Long destinationWarehouseId,
+        @NotNull(message = "DOCUMENT_DATE_REQUIRED") LocalDate documentDate,
+        @NotNull(message = "PLANNED_DATE_REQUIRED") LocalDate plannedDate,
         String notes,
-        @NotEmpty List<@Valid InterWarehouseTransferItemRequest> items) {}
+        @NotEmpty(message = "ITEMS_REQUIRED") List<@Valid InterWarehouseTransferItemRequest> items) {}

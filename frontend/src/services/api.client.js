@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { useAuthStore } from '../stores/auth.store';
 
 const buildBackendErrorMessage = (status, data, fallbackMessage) => {
   if (!data) {
@@ -45,10 +46,45 @@ const refreshClient = axios.create({
 // refresh call instead of racing each other with independent requests.
 let refreshPromise = null;
 
+const getBrowserStorage = (name) => {
+  try {
+    return typeof window !== 'undefined' && window[name] ? window[name] : null;
+  } catch {
+    return null;
+  }
+};
+
+const authStorage = getBrowserStorage('localStorage');
+const legacyAuthStorage = getBrowserStorage('sessionStorage');
+
+const getAuthValue = (key) => {
+  if (!authStorage) return null;
+  const value = authStorage.getItem(key);
+  if (value) return value;
+  const legacyValue = legacyAuthStorage?.getItem(key);
+  if (legacyValue) {
+    authStorage.setItem(key, legacyValue);
+    legacyAuthStorage.removeItem(key);
+  }
+  return legacyValue;
+};
+
+const clearAuthSession = () => {
+  useAuthStore.getState().logout();
+};
+
+export const isPublicAuthRequest = (url = '') => (
+  url.includes('/auth/login') ||
+  url.includes('/auth/refresh') ||
+  url.includes('/auth/forgot-password') ||
+  url.includes('/auth/otp/check') ||
+  url.includes('/auth/verify-otp')
+);
+
 // Interceptor to add JWT authorization header
 apiClient.interceptors.request.use(
   (config) => {
-    const token = sessionStorage.getItem('wms_token');
+    const token = getAuthValue('wms_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -66,12 +102,7 @@ apiClient.interceptors.response.use(
     const originalRequest = error.config;
     
     // Check if the request is an authentication endpoint
-    const isAuthRequest = originalRequest.url && (
-      originalRequest.url.includes('/auth/login') ||
-      originalRequest.url.includes('/auth/refresh') ||
-      originalRequest.url.includes('/auth/forgot-password') ||
-      originalRequest.url.includes('/auth/verify-otp')
-    );
+    const isAuthRequest = isPublicAuthRequest(originalRequest.url);
 
     // Handle Token Expired (401) for non-auth requests
     if (error.response && error.response.status === 401 && !originalRequest._retry && !isAuthRequest) {
@@ -81,28 +112,25 @@ apiClient.interceptors.response.use(
         // concurrent 401 — the backend rotates the refresh token on every
         // call, so a second parallel call would invalidate the first.
         if (!refreshPromise) {
+          const refreshTokenValue = getAuthValue('wms_refresh_token');
+          if (!refreshTokenValue) {
+            throw new Error('REFRESH_TOKEN_MISSING');
+          }
           refreshPromise = refreshClient.post('/auth/refresh', {
-            refreshToken: sessionStorage.getItem('wms_refresh_token')
+            refreshToken: refreshTokenValue
           }).finally(() => {
             refreshPromise = null;
           });
         }
         const response = await refreshPromise;
         const { accessToken, refreshToken } = response.data;
-        sessionStorage.setItem('wms_token', accessToken);
-        // Backend rotates the refresh token on every use; persist the new
-        // one or the next refresh call will be replaying an invalidated token.
-        if (refreshToken) {
-          sessionStorage.setItem('wms_refresh_token', refreshToken);
-        }
+        useAuthStore.getState().updateTokens(accessToken, refreshToken);
         apiClient.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
         originalRequest.headers.Authorization = `Bearer ${accessToken}`;
         return apiClient(originalRequest);
       } catch (refreshError) {
         // Clear session and redirect to login
-        sessionStorage.removeItem('wms_user');
-        sessionStorage.removeItem('wms_token');
-        sessionStorage.removeItem('wms_refresh_token');
+        clearAuthSession();
         window.location.href = '/login';
         return Promise.reject(refreshError);
       }

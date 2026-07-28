@@ -381,7 +381,17 @@ public class TransferServiceIT {
         trf = transferService.receiveCheck(trf.id(), checkReq, storekeeper);
         assertThat(trf.status()).isEqualTo(InterWarehouseTransferStatus.IN_TRANSIT);
 
-        // 10. Final Receive (completes the transfer, moves stock from transit bin to destination bin)
+        // 10. Storekeeper submits putaway plan, then manager approves final receive.
+        InterWarehouseTransferFinalReceiveRequest putawayReq = new InterWarehouseTransferFinalReceiveRequest(
+                "Completed successfully",
+                List.of(new InterWarehouseTransferFinalPutawayItemRequest(
+                        trf.items().get(0).id(),
+                        List.of(new InterWarehouseTransferPutawayAllocationRequest(
+                                destLoc.getId(),
+                                new BigDecimal("30.00"))))));
+        trf = transferService.finalReceive(trf.id(), putawayReq, storekeeper);
+        assertThat(trf.status()).isEqualTo(InterWarehouseTransferStatus.PUTAWAY_PENDING_APPROVAL);
+
         InterWarehouseTransferFinalReceiveRequest finalReq = new InterWarehouseTransferFinalReceiveRequest("Completed successfully");
         trf = transferService.finalReceive(trf.id(), finalReq, manager);
         assertThat(trf.status()).isEqualTo(InterWarehouseTransferStatus.COMPLETED);

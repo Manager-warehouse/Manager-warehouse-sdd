@@ -45,6 +45,7 @@ const renderPanel = ({
   roles = [ROLES.WAREHOUSE_STAFF],
   activeWarehouse = { id: 1, code: 'WH-HN' },
   warehouseAccessIds = [1],
+  locations = [],
   products = [{ id: 201, sku: 'SKU-001', name: 'Noi lau dien' }, { id: 202, sku: 'SKU-002', name: 'Chao chong dinh' }],
   onAction = vi.fn(),
 } = {}) => {
@@ -59,7 +60,7 @@ const renderPanel = ({
       hasWarehouseAccess={(warehouseId) => warehouseAccessSet.has(Number(warehouseId))}
       vehicles={[]}
       drivers={[]}
-      locations={[]}
+      locations={locations}
       products={products}
       onAction={onAction}
     />
@@ -456,5 +457,209 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
     expect(screen.getByRole('button', { name: 'Kiểm tra count/QC' })).toBeInTheDocument();
     expect(screen.getByText('QC lỗi thì nhập số lượng lỗi theo từng dòng và lý do, hệ thống sẽ đưa phần lỗi vào quarantine khi quản lý xác nhận cuối.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Từ chối & Cách ly toàn bộ' })).not.toBeInTheDocument();
+  });
+
+  it('requires receive QC photo before approving QC and does not choose putaway bin during QC', async () => {
+    const onAction = renderPanel({
+      roles: [ROLES.STOREKEEPER],
+      activeWarehouse: { id: 2, code: 'WH-HP' },
+      warehouseAccessIds: [2],
+      locations: [
+        { id: 12, code: 'HN-01-B01', warehouseId: 2, type: 'BIN', isActive: true, isQuarantine: false },
+      ],
+      transfer: {
+        ...baseTransfer,
+        status: 'IN_TRANSIT',
+        driverArrivedAt: '2026-07-22T10:00:00Z',
+        arrivalHandoverAt: '2026-07-22T10:05:00Z',
+        arrivalHandoverPhotoRef: 'uploads/handover.jpg',
+        items: [{ ...baseTransfer.items[0], sentQty: 10, workerReceivedQty: 10 }],
+      },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Kiểm tra count/QC' }));
+
+    expect(screen.queryByLabelText('Bin tạm')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Duyệt QC' })).toBeDisabled();
+
+    fireEvent.click(screen.getByText('Ảnh xác nhận QC nhập điều chuyển'));
+    fireEvent.click(screen.getByRole('button', { name: 'Duyệt QC' }));
+
+    await waitFor(() => expect(onAction).toHaveBeenCalledWith('receiveCheck', {
+      items: [{
+        transferItemId: 101,
+        confirmedQty: 10,
+        qcPassedQty: 10,
+        qcFailedQty: 0,
+        checkerNote: null,
+        qcFailureReason: null,
+      }],
+      photoFile: expect.any(File),
+    }));
+  });
+
+  it('hides multi-bin putaway from destination manager after receive QC is complete', () => {
+    renderPanel({
+      roles: [ROLES.WAREHOUSE_MANAGER],
+      activeWarehouse: { id: 2, code: 'WH-HP' },
+      warehouseAccessIds: [2],
+      locations: [
+        { id: 12, code: 'HN-01-B01', warehouseId: 2, type: 'BIN', isActive: true, isQuarantine: false },
+        { id: 14, code: 'HN-01-B02', warehouseId: 2, type: 'BIN', isActive: true, isQuarantine: false },
+      ],
+      transfer: {
+        ...baseTransfer,
+        status: 'IN_TRANSIT',
+        driverArrivedAt: '2026-07-22T10:00:00Z',
+        arrivalHandoverAt: '2026-07-22T10:05:00Z',
+        arrivalHandoverPhotoRef: 'uploads/handover.jpg',
+        items: [{
+          ...baseTransfer.items[0],
+          sentQty: 10,
+          workerReceivedQty: 10,
+          receivedQty: 10,
+          qcPassedQty: 10,
+          qcFailedQty: 0,
+          destinationLocationId: 12,
+        }],
+      },
+    });
+
+    expect(screen.getByText('Chờ thủ kho kho đích WH-HP gửi kế hoạch cất kệ trước khi duyệt nhập kho.')).toBeInTheDocument();
+    expect(screen.queryByText('Phân bổ hàng đạt QC vào các kệ')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Thêm kệ' })).not.toBeInTheDocument();
+  });
+
+  it('lets destination storekeeper submit multi-bin putaway plan for manager approval', async () => {
+    const onAction = renderPanel({
+      roles: [ROLES.STOREKEEPER],
+      activeWarehouse: { id: 2, code: 'WH-HP' },
+      warehouseAccessIds: [2],
+      locations: [
+        { id: 12, code: 'HN-01-B01', warehouseId: 2, type: 'BIN', isActive: true, isQuarantine: false },
+        { id: 14, code: 'HN-01-B02', warehouseId: 2, type: 'BIN', isActive: true, isQuarantine: false },
+      ],
+      transfer: {
+        ...baseTransfer,
+        status: 'IN_TRANSIT',
+        driverArrivedAt: '2026-07-22T10:00:00Z',
+        arrivalHandoverAt: '2026-07-22T10:05:00Z',
+        arrivalHandoverPhotoRef: 'uploads/handover.jpg',
+        items: [{
+          ...baseTransfer.items[0],
+          sentQty: 10,
+          workerReceivedQty: 10,
+          receivedQty: 10,
+          qcPassedQty: 10,
+          qcFailedQty: 0,
+          destinationLocationId: 12,
+        }],
+      },
+    });
+
+    expect(screen.getByText('Phân bổ hàng đạt QC vào các kệ')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Thêm kệ' }));
+
+    const binSelects = screen.getAllByLabelText(/Kệ/);
+    fireEvent.change(binSelects[1], { target: { value: '14' } });
+    const quantityInputs = screen.getAllByLabelText('Số lượng');
+    fireEvent.change(quantityInputs[0], { target: { value: '4' } });
+    fireEvent.change(quantityInputs[1], { target: { value: '6' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Gửi kế hoạch cất kệ' }));
+
+    await waitFor(() => expect(onAction).toHaveBeenCalledWith('finalReceive', {
+      discrepancyReason: null,
+      putawayItems: [{
+        transferItemId: 101,
+        allocations: [
+          { locationId: 12, quantity: 4 },
+          { locationId: 14, quantity: 6 },
+        ],
+      }],
+    }));
+  });
+
+  it('lets storekeeper send a short putaway plan with discrepancy reason for manager approval', async () => {
+    const onAction = renderPanel({
+      roles: [ROLES.STOREKEEPER],
+      activeWarehouse: { id: 2, code: 'WH-HP' },
+      warehouseAccessIds: [2],
+      locations: [
+        { id: 12, code: 'HN-01-B01', warehouseId: 2, type: 'BIN', isActive: true, isQuarantine: false },
+        { id: 14, code: 'HN-01-B02', warehouseId: 2, type: 'BIN', isActive: true, isQuarantine: false },
+      ],
+      transfer: {
+        ...baseTransfer,
+        status: 'IN_TRANSIT',
+        driverArrivedAt: '2026-07-22T10:00:00Z',
+        arrivalHandoverAt: '2026-07-22T10:05:00Z',
+        arrivalHandoverPhotoRef: 'uploads/handover.jpg',
+        items: [{
+          ...baseTransfer.items[0],
+          sentQty: 8,
+          workerReceivedQty: 8,
+          receivedQty: 8,
+          qcPassedQty: 8,
+          qcFailedQty: 0,
+          destinationLocationId: 12,
+        }],
+      },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Thêm kệ' }));
+    const binSelects = screen.getAllByLabelText(/Kệ/);
+    fireEvent.change(binSelects[1], { target: { value: '14' } });
+    const quantityInputs = screen.getAllByLabelText('Số lượng');
+    fireEvent.change(quantityInputs[0], { target: { value: '5' } });
+    fireEvent.change(quantityInputs[1], { target: { value: '2' } });
+
+    const submitButton = screen.getByRole('button', { name: 'Gửi kế hoạch cất kệ' });
+    expect(submitButton).toBeDisabled();
+    fireEvent.change(screen.getByPlaceholderText('Lý do nếu có chênh lệch'), {
+      target: { value: 'Thiếu 1 sản phẩm khi cất kệ' },
+    });
+    fireEvent.click(submitButton);
+
+    await waitFor(() => expect(onAction).toHaveBeenCalledWith('finalReceive', {
+      discrepancyReason: 'Thiếu 1 sản phẩm khi cất kệ',
+      putawayItems: [{
+        transferItemId: 101,
+        allocations: [
+          { locationId: 12, quantity: 5 },
+          { locationId: 14, quantity: 2 },
+        ],
+      }],
+    }));
+  });
+
+  it('lets destination manager approve pending putaway plan into stock', async () => {
+    const onAction = renderPanel({
+      roles: [ROLES.WAREHOUSE_MANAGER],
+      activeWarehouse: { id: 2, code: 'WH-HP' },
+      warehouseAccessIds: [2],
+      transfer: {
+        ...baseTransfer,
+        status: 'PUTAWAY_PENDING_APPROVAL',
+        driverArrivedAt: '2026-07-22T10:00:00Z',
+        arrivalHandoverAt: '2026-07-22T10:05:00Z',
+        arrivalHandoverPhotoRef: 'uploads/handover.jpg',
+        items: [{
+          ...baseTransfer.items[0],
+          sentQty: 10,
+          workerReceivedQty: 10,
+          receivedQty: 10,
+          qcPassedQty: 10,
+          qcFailedQty: 0,
+          destinationLocationId: 12,
+        }],
+      },
+    });
+
+    expect(screen.getByText('Kế hoạch cất kệ đang chờ duyệt')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Duyệt cất kệ và nhập kho' }));
+
+    await waitFor(() => expect(onAction).toHaveBeenCalledWith('finalReceive', {
+      discrepancyReason: null,
+    }));
   });
 });

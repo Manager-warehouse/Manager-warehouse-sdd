@@ -124,6 +124,44 @@ class SupplierPaymentServiceImplTest {
     }
 
     @Test
+    @DisplayName("CEO được phép lập phiếu chi NCC")
+    void createSupplierPayment_ceoAllowed() {
+        User ceo = new User();
+        ceo.setId(2L);
+        ceo.setFullName("CEO");
+        ceo.setRole(UserRole.CEO);
+        CreateSupplierPaymentRequest request = CreateSupplierPaymentRequest.builder()
+                .supplierId(10L)
+                .supplierInvoiceId(50L)
+                .amount(new BigDecimal("20000000.00"))
+                .paymentDate(LocalDate.of(2026, 7, 23))
+                .paymentMethod(PaymentMethod.BANK_TRANSFER)
+                .documentDate(LocalDate.of(2026, 7, 23))
+                .build();
+
+        DocumentSequence sequence = new DocumentSequence();
+        sequence.setSequenceKey("SUPPLIER_PAYMENT");
+        sequence.setNextValue(1L);
+
+        when(supplierRepository.findById(10L)).thenReturn(Optional.of(supplier));
+        when(supplierInvoiceRepository.findById(50L)).thenReturn(Optional.of(invoice));
+        when(supplierPaymentRepository.findBySupplierInvoiceId(50L)).thenReturn(Collections.emptyList());
+        when(accountingPeriodRepository.findPeriodByDateAndStatus(request.getDocumentDate(), AccountingPeriodStatus.OPEN))
+                .thenReturn(Optional.of(openPeriod));
+        when(sequenceRepository.findBySequenceKeyForUpdate(anyString())).thenReturn(Optional.of(sequence));
+        when(supplierPaymentRepository.save(any(SupplierPayment.class))).thenAnswer(i -> {
+            SupplierPayment sp = i.getArgument(0);
+            sp.setId(101L);
+            return sp;
+        });
+
+        SupplierPaymentResponse response = supplierPaymentService.createSupplierPayment(request, ceo);
+
+        assertThat(response).isNotNull();
+        assertThat(response.getAmount()).isEqualByComparingTo(new BigDecimal("20000000.00"));
+    }
+
+    @Test
     @DisplayName("Quét OCR Ủy nhiệm chi NCC thành công")
     void scanSupplierPaymentOcr_success() {
         MockMultipartFile file = new MockMultipartFile(

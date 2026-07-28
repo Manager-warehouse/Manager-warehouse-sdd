@@ -40,6 +40,7 @@ public enum InterWarehouseTransferStatus {
     APPROVED,
     REJECTED,
     IN_TRANSIT,
+    PUTAWAY_PENDING_APPROVAL,
     COMPLETED,
     COMPLETED_WITH_DISCREPANCY,
     CANCELLED,

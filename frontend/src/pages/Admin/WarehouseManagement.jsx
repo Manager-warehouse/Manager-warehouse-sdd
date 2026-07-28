@@ -8,7 +8,7 @@ import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import Modal from '../../components/common/Modal';
 import Badge from '../../components/common/Badge';
-import { Plus, Edit, ToggleLeft, ToggleRight, AlertTriangle, ShieldAlert, Loader2, Home, Layers } from 'lucide-react';
+import { Plus, Edit, ToggleLeft, ToggleRight, AlertTriangle, ShieldAlert, Loader2, Home, Layers, ArrowRightLeft } from 'lucide-react';
 
 const WarehouseManagement = () => {
   const { hasRole } = useAuthStore();

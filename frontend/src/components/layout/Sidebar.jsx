@@ -98,7 +98,7 @@ const Sidebar = () => {
       title: 'Yêu cầu điều chuyển',
       path: '/transfers/requests',
       icon: ClipboardList,
-      roles: [ROLES.PLANNER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.WAREHOUSE_MANAGER, ROLES.DISPATCHER, ROLES.CEO]
+      roles: [ROLES.PLANNER, ROLES.WAREHOUSE_MANAGER, ROLES.CEO]
     },
     {
       title: 'Phiếu điều chuyển',

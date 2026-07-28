@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
 import { interWarehouseTransferService } from '../../services/inter-warehouse-transfer.service';
@@ -10,7 +11,17 @@ import Input from '../../components/common/Input';
 import Badge from '../../components/common/Badge';
 import Pagination from '../../components/common/Pagination';
 
+const todayInputValue = () => {
+  const now = new Date();
+  const offsetDate = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  return offsetDate.toISOString().slice(0, 10);
+};
+
+const isWholeNumber = (value) => Number.isInteger(Number(value));
+
 const TransferRequestWorkspace = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
   const activeWarehouse = useAuthStore((state) => state.activeWarehouse);
   const { user, hasRole } = useAuthStore();
   const { addToast } = useUiStore();
@@ -19,6 +30,7 @@ const TransferRequestWorkspace = () => {
   const [warehouses, setWarehouses] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [activeTab, setActiveTab] = useState('ALL'); // ALL, DRAFT, SUBMITTED, APPROVED, REJECTED, CONVERTED
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -30,9 +42,9 @@ const TransferRequestWorkspace = () => {
   const [destinationWhId, setDestinationWhId] = useState('');
   const [neededByDate, setNeededByDate] = useState('');
   const [businessReason, setBusinessReason] = useState('');
-  const [notes, setNotes] = useState('');
   const [items, setItems] = useState([{ productId: '', requestedQty: '' }]);
   const [stockLookupResult, setStockLookupResult] = useState({}); // productId -> [{warehouseName, availableQty}]
+  const minNeededByDate = todayInputValue();
 
   // Detail & Approval State
   const [selectedRequest, setSelectedRequest] = useState(null);
@@ -44,22 +56,43 @@ const TransferRequestWorkspace = () => {
     fetchData();
   }, [activeWarehouse]);
 
+  useEffect(() => {
+    const prefill = location.state?.prefillTransferRequest;
+    if (!prefill || loading || warehouses.length === 0 || products.length === 0) return;
+    applyAlertPrefill(prefill);
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.state, loading, warehouses, products]);
+
   const fetchData = async () => {
     setLoading(true);
-    try {
-      const reqs = await interWarehouseTransferService.getTransferRequests();
-      setRequests(reqs);
+    setLoadError('');
 
-      const whs = await masterDataService.getWarehouses();
-      setWarehouses(whs.filter(w => w.type !== 'IN_TRANSIT' && w.is_active !== false));
+    const [requestResult, warehouseResult, productResult] = await Promise.allSettled([
+      interWarehouseTransferService.getTransferRequests(),
+      masterDataService.getWarehouses(),
+      masterDataService.getProducts(),
+    ]);
 
-      const prods = await masterDataService.getProducts();
-      setProducts(prods);
-    } catch (e) {
-      addToast('Lỗi tải danh sách yêu cầu điều chuyển', 'error');
-    } finally {
-      setLoading(false);
+    if (requestResult.status === 'fulfilled') {
+      setRequests(requestResult.value || []);
+    } else {
+      setRequests([]);
+      setLoadError('Không tải được danh sách yêu cầu điều chuyển. Kiểm tra quyền truy cập hoặc thử tải lại.');
     }
+
+    if (warehouseResult.status === 'fulfilled') {
+      setWarehouses((warehouseResult.value || []).filter(w => w.type !== 'IN_TRANSIT' && w.is_active !== false));
+    } else {
+      setWarehouses([]);
+    }
+
+    if (productResult.status === 'fulfilled') {
+      setProducts(productResult.value || []);
+    } else {
+      setProducts([]);
+    }
+
+    setLoading(false);
   };
 
   const handleLookupStock = async (productId, index) => {
@@ -95,13 +128,25 @@ const TransferRequestWorkspace = () => {
     setItems(updated);
   };
 
+  const getSourceAvailableQty = (productId) => {
+    if (!productId || !sourceWhId) return null;
+    const sourceStock = stockLookupResult[productId]?.find((row) =>
+      Number(row.warehouseId) === Number(sourceWhId)
+    );
+    return sourceStock ? Number(sourceStock.availableQty || 0) : null;
+  };
+
+  const findInsufficientSourceItem = (candidateItems) => candidateItems.find((item) => {
+    const availableQty = getSourceAvailableQty(item.productId);
+    return availableQty !== null && Number(item.requestedQty) > availableQty;
+  });
+
   const resetRequestForm = () => {
     setEditingRequestId(null);
     setSourceWhId('');
     setDestinationWhId(activeWarehouse?.id ? String(activeWarehouse.id) : '');
     setNeededByDate('');
     setBusinessReason('');
-    setNotes('');
     setItems([{ productId: '', requestedQty: '' }]);
     setStockLookupResult({});
   };
@@ -109,6 +154,41 @@ const TransferRequestWorkspace = () => {
   const openCreateModal = () => {
     resetRequestForm();
     setShowCreateModal(true);
+  };
+
+  const applyAlertPrefill = async (prefill) => {
+    resetRequestForm();
+    const destinationId = prefill.warehouseId || activeWarehouse?.id;
+    const productId = prefill.productId ? String(prefill.productId) : '';
+    const currentQty = Number(prefill.currentQty || 0);
+    const reorderPoint = Number(prefill.reorderPoint || 0);
+    const requestedQty = Math.max(1, Math.ceil(reorderPoint - currentQty));
+
+    setDestinationWhId(destinationId ? String(destinationId) : '');
+    setNeededByDate(minNeededByDate);
+    setBusinessReason(
+      `Bổ sung tồn khả dụng cho ${prefill.productSku || 'SKU'} tại ${prefill.warehouseName || 'kho đích'} (${currentQty}/${reorderPoint})`
+    );
+    setItems([{ productId, requestedQty: String(requestedQty) }]);
+    setShowDetailModal(false);
+    setShowCreateModal(true);
+
+    if (!productId) return;
+    try {
+      const stockRows = await interWarehouseTransferService.stockLookup(Number(productId));
+      setStockLookupResult((prev) => ({
+        ...prev,
+        [productId]: stockRows,
+      }));
+      const source = stockRows.find((row) =>
+        Number(row.warehouseId) !== Number(destinationId) && Number(row.availableQty) > 0
+      );
+      if (source) {
+        setSourceWhId(String(source.warehouseId));
+      }
+    } catch (e) {
+      addToast('Không tải được tồn kho nguồn gợi ý cho yêu cầu bổ sung', 'warning');
+    }
   };
 
   const closeRequestModal = () => {
@@ -122,7 +202,6 @@ const TransferRequestWorkspace = () => {
     setDestinationWhId(String(req.destinationWarehouseId || activeWarehouse?.id || ''));
     setNeededByDate(req.neededByDate || '');
     setBusinessReason(req.businessReason || '');
-    setNotes(req.notes || '');
     setItems((req.items?.length ? req.items : [{ productId: '', requestedQty: '' }]).map((item) => ({
       productId: item.productId ? String(item.productId) : '',
       requestedQty: item.requestedQty ? String(item.requestedQty) : '',
@@ -145,9 +224,40 @@ const TransferRequestWorkspace = () => {
       addToast('Vui lòng chọn ngày cần hàng', 'warning');
       return;
     }
+    if (neededByDate < minNeededByDate) {
+      addToast('Ngày cần hàng không được là ngày trong quá khứ', 'warning');
+      return;
+    }
+    const hasIncompleteItem = items.some((item) => {
+      const hasAnyValue = Boolean(item.productId) || String(item.requestedQty || '').trim() !== '';
+      return hasAnyValue && (!item.productId || Number(item.requestedQty) <= 0);
+    });
+    if (hasIncompleteItem) {
+      addToast('Mỗi dòng sản phẩm đã nhập phải có đủ SKU và số lượng lớn hơn 0', 'warning');
+      return;
+    }
     const filteredItems = items.filter(i => i.productId && Number(i.requestedQty) > 0);
     if (filteredItems.length === 0) {
       addToast('Vui lòng nhập ít nhất một sản phẩm hợp lệ', 'warning');
+      return;
+    }
+    if (filteredItems.some((item) => !isWholeNumber(item.requestedQty))) {
+      addToast('Số lượng yêu cầu phải là số nguyên', 'warning');
+      return;
+    }
+    const uniqueProductIds = new Set(filteredItems.map((item) => String(item.productId)));
+    if (uniqueProductIds.size !== filteredItems.length) {
+      addToast('Không được chọn trùng SKU trong cùng yêu cầu', 'warning');
+      return;
+    }
+    const insufficientItem = findInsufficientSourceItem(filteredItems);
+    if (insufficientItem) {
+      const product = products.find((p) => String(p.id) === String(insufficientItem.productId));
+      const availableQty = getSourceAvailableQty(insufficientItem.productId);
+      addToast(
+        `Kho nguồn chỉ còn ${availableQty} cái cho ${product?.sku || 'sản phẩm đã chọn'}, không đủ xuất ${insufficientItem.requestedQty} cái`,
+        'warning'
+      );
       return;
     }
 
@@ -158,7 +268,7 @@ const TransferRequestWorkspace = () => {
         destinationWarehouseId: Number(destinationWhId || activeWarehouse.id),
         neededByDate: neededByDate || null,
         businessReason: businessReason.trim(),
-        notes,
+        notes: null,
         items: filteredItems.map(i => ({
           productId: Number(i.productId),
           requestedQty: Number(i.requestedQty)
@@ -195,7 +305,7 @@ const TransferRequestWorkspace = () => {
       setShowDetailModal(false);
       fetchData();
     } catch (e) {
-      addToast('Lỗi gửi yêu cầu duyệt', 'error');
+      addToast(`Lỗi gửi yêu cầu duyệt: ${e.message || 'Không xác định'}`, 'error');
     } finally {
       setLoading(false);
     }
@@ -211,7 +321,7 @@ const TransferRequestWorkspace = () => {
       setShowDetailModal(false);
       fetchData();
     } catch (e) {
-      addToast('Lỗi xóa yêu cầu điều chuyển', 'error');
+      addToast(`Lỗi xóa yêu cầu điều chuyển: ${e.message}`, 'error');
     } finally {
       setSubmitting(false);
     }
@@ -225,7 +335,7 @@ const TransferRequestWorkspace = () => {
       setShowDetailModal(false);
       fetchData();
     } catch (e) {
-      addToast('Lỗi phê duyệt yêu cầu', 'error');
+      addToast(`Lỗi phê duyệt yêu cầu: ${e.message || 'Không xác định'}`, 'error');
     } finally {
       setSubmitting(false);
     }
@@ -243,7 +353,7 @@ const TransferRequestWorkspace = () => {
       setShowDetailModal(false);
       fetchData();
     } catch (e) {
-      addToast('Lỗi từ chối yêu cầu', 'error');
+      addToast(`Lỗi từ chối yêu cầu: ${e.message || 'Không xác định'}`, 'error');
     } finally {
       setSubmitting(false);
     }
@@ -256,7 +366,7 @@ const TransferRequestWorkspace = () => {
       addToast('Planner đã chuyển đổi yêu cầu thành phiếu điều chuyển TRF thành công', 'success');
       fetchData();
     } catch (e) {
-      addToast('Lỗi chuyển đổi yêu cầu', 'error');
+      addToast(`Lỗi chuyển đổi yêu cầu: ${e.message || 'Không xác định'}`, 'error');
     } finally {
       setLoading(false);
     }
@@ -343,11 +453,39 @@ const TransferRequestWorkspace = () => {
         <div className="flex items-center justify-center p-20">
           <Loader2 className="w-8 h-8 animate-spin text-shade-50" />
         </div>
+      ) : loadError ? (
+        <div className="rounded-lg border border-danger-200 bg-danger-50/70 p-6 md:p-8 shadow-level-3">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-danger-600 mt-0.5 shrink-0" />
+              <div>
+                <h3 className="text-sm font-bold text-danger-700">Chưa tải được dữ liệu yêu cầu điều chuyển</h3>
+                <p className="text-xs text-danger-700/80 mt-1">{loadError}</p>
+              </div>
+            </div>
+            <Button variant="outline-light" icon={RefreshCw} onClick={fetchData}>
+              Tải lại
+            </Button>
+          </div>
+        </div>
       ) : filteredRequests.length === 0 ? (
-        <div className="bg-canvas-light rounded-lg border border-hairline-light p-8 md:p-16 text-center shadow-level-3">
-          <Inbox className="w-12 h-12 text-shade-50 mx-auto mb-4" />
-          <h3 className="text-sm font-semibold text-ink mb-1">Không tìm thấy yêu cầu nào</h3>
-          <p className="text-xs text-shade-50 font-light">Không có yêu cầu điều chuyển nào ở trạng thái này.</p>
+        <div className="bg-canvas-light rounded-lg border border-hairline-light p-8 md:p-12 shadow-level-3">
+          <div className="mx-auto max-w-xl text-center">
+            <Inbox className="w-12 h-12 text-shade-40 mx-auto mb-4" />
+            <h3 className="text-base font-bold text-ink mb-1">Chưa có yêu cầu điều chuyển phù hợp</h3>
+            <p className="text-xs text-shade-50 font-light">
+              {activeTab === 'ALL'
+                ? 'Khi quản lý kho tạo yêu cầu bổ sung hàng, danh sách sẽ xuất hiện tại đây.'
+                : `Không có yêu cầu nào ở trạng thái “${TAB_LABELS[activeTab] || activeTab}”.`}
+            </p>
+            {hasRole(ROLES.WAREHOUSE_MANAGER) && (
+              <div className="mt-4 flex justify-center">
+                <Button variant="primary" icon={Plus} onClick={openCreateModal}>
+                  Tạo yêu cầu
+                </Button>
+              </div>
+            )}
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-6">
@@ -384,11 +522,6 @@ const TransferRequestWorkspace = () => {
                   {req.convertedTransferNumber && (
                     <div className="bg-success-50 text-success-700 p-2 rounded border border-success-100 font-semibold">
                       Phiếu TRF đã tạo: {req.convertedTransferNumber}
-                    </div>
-                  )}
-                  {req.notes && (
-                    <div className="italic">
-                      <span className="font-semibold text-shade-50 not-italic">Ghi chú:</span> "{req.notes}"
                     </div>
                   )}
                   {req.rejectionReason && (
@@ -486,6 +619,7 @@ const TransferRequestWorkspace = () => {
                   label="Ngày cần hàng"
                   type="date"
                   value={neededByDate}
+                  min={minNeededByDate}
                   onChange={(e) => setNeededByDate(e.target.value)}
                 />
                 <Input
@@ -508,6 +642,13 @@ const TransferRequestWorkspace = () => {
                 <div className="flex flex-col gap-3">
                   {items.map((item, idx) => (
                     <div key={idx} className="bg-canvas-light border border-hairline-light p-3.5 rounded flex flex-col gap-3">
+                      {(() => {
+                        const availableQty = getSourceAvailableQty(item.productId);
+                        const requestedQty = Number(item.requestedQty || 0);
+                        const isInsufficient = availableQty !== null && requestedQty > availableQty;
+
+                        return (
+                          <>
                       <div className="flex items-center gap-3">
                         <div className="flex-1">
                           <Input
@@ -524,6 +665,8 @@ const TransferRequestWorkspace = () => {
                           <Input
                             type="number"
                             placeholder="Số lượng"
+                            min="1"
+                            step="1"
                             value={item.requestedQty}
                             onChange={(e) => handleItemChange(idx, 'requestedQty', e.target.value)}
                           />
@@ -537,6 +680,15 @@ const TransferRequestWorkspace = () => {
                           </button>
                         )}
                       </div>
+
+                      {isInsufficient && (
+                        <div className="rounded-md border border-danger-200 bg-danger-50 px-3 py-2 text-[11px] font-semibold text-danger-700">
+                          Kho nguồn chỉ còn {availableQty} cái, không đủ xuất {requestedQty} cái.
+                        </div>
+                      )}
+                          </>
+                        );
+                      })()}
 
                       {/* Stock Lookup display */}
                       {item.productId && stockLookupResult[item.productId] && (
@@ -562,15 +714,6 @@ const TransferRequestWorkspace = () => {
                 </div>
               </div>
 
-              <div className="flex flex-col gap-1.5 mt-2">
-                <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Ghi chú bổ sung</label>
-                <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Nhập lý do điều phối hàng..."
-                  className="text-input h-16 resize-none"
-                />
-              </div>
             </div>
 
             <div className="p-4 border-t border-hairline-light bg-canvas-cream flex justify-end gap-2">
@@ -614,11 +757,6 @@ const TransferRequestWorkspace = () => {
                 {selectedRequest.businessReason && (
                   <div className="border-t border-hairline-light pt-2">
                     <span className="text-shade-50">Lý do nghiệp vụ:</span> <span className="font-semibold">{selectedRequest.businessReason}</span>
-                  </div>
-                )}
-                {selectedRequest.notes && (
-                  <div className="border-t border-hairline-light pt-2">
-                    <span className="text-shade-50">Ghi chú:</span> <span className="italic">"{selectedRequest.notes}"</span>
                   </div>
                 )}
               </div>

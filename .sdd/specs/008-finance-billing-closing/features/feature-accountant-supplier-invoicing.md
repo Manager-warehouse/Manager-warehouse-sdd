@@ -24,11 +24,12 @@ Bên cạnh đó, Kế toán viên có thể tạo Phiếu chi (`supplier_paymen
     * Kiểm tra ngày hạch toán `documentDate` thuộc một kỳ kế toán có trạng thái `OPEN`.
     * Sinh mã hóa đơn mua hàng nội bộ (`invoice_number`, ví dụ: `SINV-202607-0001`).
     * Lưu số hóa đơn gốc do Nhà cung cấp phát hành (`supplier_invoice_number`).
-    * Tính toán tổng tiền hóa đơn `total_amount` dựa trên số lượng thực nhập × đơn giá nhập hợp lệ.
-    * Tạo bản ghi `supplier_invoices` ở trạng thái `status = 'UNPAID'`.
+    * Tính toán ước tính `calculated_amount_estimate` dựa trên số lượng thực nhập × đơn giá nhập (`receipt_items.unit_cost`, do Planner nhập theo giá PO — xem Lưu ý đối chiếu bên dưới).
+    * Nếu request có `confirmedTotalAmount` (Kế toán viên đối chiếu và sửa lại theo hóa đơn giấy NCC), dùng giá trị đó làm `total_amount`; nếu không có, `total_amount = calculated_amount_estimate`.
+    * Tạo bản ghi `supplier_invoices` ở trạng thái `status = 'UNPAID'` với cả `total_amount` và `calculated_amount_estimate`.
     * Cộng dồn dư nợ phải trả NCC: `suppliers.current_balance = current_balance + total_amount`.
     * Cập nhật bản ghi `supplier_billing_notifications` tương ứng sang `invoice_status = 'INVOICED'` và `status = 'ARCHIVED'`.
-    * Tạo bản ghi audit log hành động `CREATE_SUPPLIER_INVOICE`.
+    * Tạo bản ghi audit log hành động `CREATE_SUPPLIER_INVOICE`, ghi kèm cả `totalAmount`, `calculatedAmountEstimate`, và cờ `amountOverridden` để truy vết khi Kế toán viên sửa số so với ước tính hệ thống.
   * **WHEN** Kế toán viên gửi yêu cầu tạo Phiếu chi qua `POST /api/v1/supplier-payments` với `supplierInvoiceId` và `amount` hợp lệ, hệ thống **SHALL**:
     * Kiểm tra hóa đơn mua hàng `supplier_invoices` chưa ở trạng thái `PAID` và số tiền thanh toán `amount <= remaining_balance` của hóa đơn đó.
     * Tạo bản ghi `supplier_payments`.
@@ -72,9 +73,11 @@ Bên cạnh đó, Kế toán viên có thể tạo Phiếu chi (`supplier_paymen
     "supplierInvoiceNumber": "VAT-NCC-88392",
     "documentDate": "2026-07-21",
     "dueDate": "2026-08-20",
-    "notes": "Nhập kho lô gia dụng nồi chảo"
+    "notes": "Nhập kho lô gia dụng nồi chảo",
+    "confirmedTotalAmount": 45000000.00
   }
   ```
+  > `confirmedTotalAmount` là **tùy chọn**. Bỏ trống nếu số tiền tự tính (`unit_cost x actualQty` từ `receipt_items`) khớp với hóa đơn giấy NCC; điền vào khi Kế toán viên đối chiếu thấy lệch và cần sửa lại theo số thật trên hóa đơn.
 * **Response 201 Created**:
   ```json
   {
@@ -86,6 +89,7 @@ Bên cạnh đó, Kế toán viên có thể tạo Phiếu chi (`supplier_paymen
     "supplier_id": 5,
     "supplier_name": "Công ty TNHH Gia Dụng Phúng",
     "total_amount": 45000000.00,
+    "calculated_amount_estimate": 44500000.00,
     "paid_amount": 0.00,
     "issue_date": "2026-07-21",
     "due_date": "2026-08-20",
@@ -96,6 +100,7 @@ Bên cạnh đó, Kế toán viên có thể tạo Phiếu chi (`supplier_paymen
     "created_at": "2026-07-21T09:00:00Z"
   }
   ```
+  > `calculated_amount_estimate` luôn là số hệ thống tự tính từ `receipt_items.unit_cost`, giữ nguyên bất kể `total_amount` có bị Kế toán viên sửa hay không — dùng để so sánh/truy vết.
   
 ### 4.3 Xem danh sách và chi tiết hóa đơn mua hàng
 * **GET** `/api/v1/supplier-invoices`: Danh sách hóa đơn mua hàng (hỗ trợ lọc theo `supplierId`, `status`, `accountingPeriodId`).
@@ -169,6 +174,11 @@ Bên cạnh đó, Kế toán viên có thể tạo Phiếu chi (`supplier_paymen
   * **Given**: Hóa đơn mua hàng `SINV-202607-0001` có tổng tiền `45,000,000` VNĐ ở trạng thái `UNPAID`, dư nợ NCC là `45,000,000` VNĐ.
   * **When**: Kế toán viên lập phiếu chi thanh toán `20,000,000` VNĐ cho hóa đơn này.
   * **Then**: Hệ thống tạo phiếu chi `SPAY-202607-0001`, trạng thái hóa đơn mua hàng chuyển thành `PARTIALLY_PAID`, dư nợ NCC giảm còn `25,000,000` VNĐ.
+
+* **Scenario: Kế toán viên đối chiếu và sửa lại số tiền hóa đơn so với ước tính hệ thống**
+  * **Given**: Phiếu nhập kho `RO-20260710-001` đã `APPROVED`, hệ thống tự tính `calculated_amount_estimate = 44,500,000` VNĐ từ `receipt_items.unit_cost` (giá Planner nhập theo PO lúc lập lệnh).
+  * **When**: Kế toán viên cầm hóa đơn giấy thật của NCC, thấy số tiền thực tế là `45,000,000` VNĐ, và gửi `confirmedTotalAmount = 45000000.00` khi lập hóa đơn.
+  * **Then**: Hệ thống lưu `total_amount = 45,000,000` VNĐ (dùng để cộng dồn `suppliers.current_balance`), vẫn giữ `calculated_amount_estimate = 44,500,000` VNĐ để đối chiếu, và audit log ghi `amountOverridden = true`.
 
 * **Scenario: Chặn lập hóa đơn cho phiếu nhập chưa APPROVED**
   * **Given**: Phiếu nhập kho `RO-20260710-002` đang ở trạng thái `QC_COMPLETED` (chưa duyệt putaway xong).

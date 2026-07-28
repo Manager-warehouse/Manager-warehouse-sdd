@@ -12,6 +12,12 @@ import { interWarehouseTransferService } from '../services/inter-warehouse-trans
 import { useUiStore } from '../stores/ui.store';
 import { useDebounce } from '../hooks/useDebounce';
 
+const todayInputValue = () => {
+  const now = new Date();
+  const offsetDate = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  return offsetDate.toISOString().slice(0, 10);
+};
+
 const Dashboard = () => {
   const { user, activeWarehouse } = useAuthStore();
   const { addToast } = useUiStore();
@@ -35,9 +41,9 @@ const Dashboard = () => {
   const [requestedQty, setRequestedQty] = useState(1);
   const [neededByDate, setNeededByDate] = useState('');
   const [businessReason, setBusinessReason] = useState('');
-  const [notes, setNotes] = useState('Yêu cầu điều chuyển nhanh từ Dashboard');
   const [submitting, setSubmitting] = useState(false);
   const [mobileStockLimit, setMobileStockLimit] = useState(3);
+  const minNeededByDate = todayInputValue();
 
   const formatQuantity = (value) => Number(value || 0).toLocaleString('vi-VN', {
     maximumFractionDigits: 2,
@@ -176,7 +182,6 @@ const Dashboard = () => {
     defaultNeededBy.setDate(defaultNeededBy.getDate() + 2);
     setNeededByDate(defaultNeededBy.toISOString().slice(0, 10));
     setBusinessReason(`Bổ sung tồn khả dụng cho ${product.sku}`);
-    setNotes(`Yêu cầu điều chuyển nhanh sản phẩm ${product.sku} từ Dashboard`);
     setShowModal(true);
   };
 
@@ -194,6 +199,14 @@ const Dashboard = () => {
       addToast('Vui lòng nhập lý do nghiệp vụ', 'warning');
       return;
     }
+    if (!neededByDate) {
+      addToast('Vui lòng chọn ngày cần hàng', 'warning');
+      return;
+    }
+    if (neededByDate < minNeededByDate) {
+      addToast('Ngày cần hàng không được là ngày trong quá khứ', 'warning');
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -202,7 +215,7 @@ const Dashboard = () => {
         destinationWarehouseId: Number(activeWarehouse.id),
         neededByDate: neededByDate || null,
         businessReason: businessReason.trim(),
-        notes: notes,
+        notes: null,
         items: [
           {
             productId: Number(selectedProduct.id),
@@ -549,6 +562,7 @@ const Dashboard = () => {
                 label="Ngày cần hàng"
                 type="date"
                 value={neededByDate}
+                min={minNeededByDate}
                 onChange={(e) => setNeededByDate(e.target.value)}
               />
 
@@ -559,19 +573,6 @@ const Dashboard = () => {
                 onChange={(e) => setBusinessReason(e.target.value)}
                 required
                 placeholder="VD: Bổ sung tồn bán"
-              />
-            </div>
-
-            <div>
-              <label className="text-xs font-semibold uppercase tracking-wider text-shade-60 block mb-1.5">
-                Ghi chú yêu cầu
-              </label>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                rows="2"
-                className="text-input resize-none"
-                placeholder="Lý do xin điều chuyển..."
               />
             </div>
 

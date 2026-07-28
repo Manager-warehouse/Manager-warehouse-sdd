@@ -135,6 +135,7 @@ export default function DeliveryOrders() {
   const [selectedDealerObj, setSelectedDealerObj] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [cancelModal, setCancelModal] = useState({ show: false, orderId: null, reason: '' });
+  const [stockMap, setStockMap] = useState({});
 
   const debouncedSearch = useDebounce(search);
 
@@ -168,14 +169,28 @@ export default function DeliveryOrders() {
   const fetchMasterData = async () => {
     setMasterDataLoading(true);
     try {
-      const [dealersData, productsData] = await Promise.all([
+      const promises = [
         masterDataService.getDealers(),
         masterDataService.getProducts({ size: 200 }),
-      ]);
+      ];
+      if (activeWarehouse?.id) {
+        promises.push(outboundService.getAllAvailability(activeWarehouse.id));
+      }
+      const [dealersData, productsData, stockData] = await Promise.all(promises);
       setDealers(dealersData.filter((dealer) => dealer.is_active !== false));
       setProducts(productsData.filter((product) => product.is_active !== false));
+
+      if (stockData) {
+        const map = {};
+        stockData.forEach((item) => {
+          map[item.productId] = item.availableQty;
+        });
+        setStockMap(map);
+      } else {
+        setStockMap({});
+      }
     } catch {
-      addToast('Không thể tải dữ liệu đại lý/sản phẩm', 'warning');
+      addToast('Không thể tải dữ liệu đại lý/sản phẩm/tồn kho', 'warning');
     } finally {
       setMasterDataLoading(false);
     }
@@ -269,6 +284,11 @@ export default function DeliveryOrders() {
   const handleCreateSubmit = async () => {
     if (!activeWarehouse?.id) {
       addToast('Vui lòng chọn kho trước khi lập đơn xuất', 'error');
+      return;
+    }
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (formData.expected_delivery_date && formData.expected_delivery_date < todayStr) {
+      addToast('Ngày giao hàng dự kiến không được ở quá khứ', 'error');
       return;
     }
     if (!formData.items.length) {
@@ -534,6 +554,7 @@ export default function DeliveryOrders() {
             <Input
               label="Ngày giao dự kiến *"
               type="date"
+              min={new Date().toISOString().split('T')[0]}
               value={formData.expected_delivery_date}
               onChange={(event) => setFormData((prev) => ({ ...prev, expected_delivery_date: event.target.value }))}
             />
@@ -585,7 +606,10 @@ export default function DeliveryOrders() {
                           onChange={(event) => updateItemRow(index, 'product_id', event.target.value)}
                           options={[
                             { value: '', label: masterDataLoading ? '-- Đang tải sản phẩm --' : '-- Chọn sản phẩm --' },
-                            ...productOptionsFor(item.product_id).map((product) => ({ value: product.id, label: `[${product.sku}] ${product.name}` })),
+                            ...productOptionsFor(item.product_id).map((product) => ({
+                              value: product.id,
+                              label: `[${product.sku}] ${product.name} (Tồn: ${stockMap[product.id] ?? 0})`
+                            })),
                           ]}
                         />
                       </td>

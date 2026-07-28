@@ -324,6 +324,81 @@ class TripServiceImplTest {
     }
 
     @Test
+    void createTrip_cancelsExpiredDeliveryOrderAndRejectsTripPlanning() {
+        stubCreateUntilOrders();
+        order.setExpectedDeliveryDate(LocalDate.now().minusDays(1));
+        when(tripDeliveryOrderRepository.findAssignmentsForDeliveryOrders(
+                eq(List.of(101L)), eq(List.of(TripStatus.PLANNED, TripStatus.IN_TRANSIT)), eq(null)))
+                .thenReturn(List.of());
+        when(deliveryOrderRepository.findDetailedByIdIn(List.of(101L))).thenReturn(List.of(order));
+        when(deliveryOrderRepository.save(order)).thenReturn(order);
+
+        assertThatThrownBy(() -> service.createTrip(createRequest(101L), dispatcher))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code")
+                .isEqualTo("DELIVERY_ORDER_EXPECTED_DATE_EXPIRED");
+
+        assertThat(order.getStatus()).isEqualTo(DeliveryOrderStatus.CANCELLED);
+        assertThat(order.getCancelReason()).contains("AUTO_CANCEL_EXPECTED_DELIVERY_DATE_EXPIRED");
+        verify(deliveryOrderRepository).save(order);
+        verify(auditLogService).log(eq(dispatcher), eq(AuditAction.CANCEL), eq("DELIVERY_ORDER"),
+                eq(order.getId()), eq(order.getDoNumber()), eq(warehouse.getId()), any(), any());
+        verify(tripRepository, never()).save(any());
+    }
+
+    @Test
+    void createTrip_rejectsPlanningAfterExpectedDeliveryDateWithoutCancelling() {
+        stubCreateUntilOrders();
+        order.setExpectedDeliveryDate(LocalDate.now().plusDays(1));
+        TripCreateRequest request = createRequest(101L);
+        request.setPlannedStartAt(LocalDate.now().plusDays(2).atTime(8, 0));
+        request.setPlannedEndAt(LocalDate.now().plusDays(2).atTime(17, 0));
+        when(tripDeliveryOrderRepository.findAssignmentsForDeliveryOrders(
+                eq(List.of(101L)), eq(List.of(TripStatus.PLANNED, TripStatus.IN_TRANSIT)), eq(null)))
+                .thenReturn(List.of());
+        when(deliveryOrderRepository.findDetailedByIdIn(List.of(101L))).thenReturn(List.of(order));
+
+        assertThatThrownBy(() -> service.createTrip(request, dispatcher))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code")
+                .isEqualTo("TRIP_PLANNED_AFTER_EXPECTED_DELIVERY_DATE");
+
+        assertThat(order.getStatus()).isEqualTo(DeliveryOrderStatus.WAREHOUSE_APPROVED);
+        verify(deliveryOrderRepository, never()).save(any());
+        verify(tripRepository, never()).save(any());
+    }
+
+    @Test
+    void createTrip_rejectsEndBeforeStart() {
+        stubCreateUntilOrders();
+        TripCreateRequest request = createRequest(101L);
+        request.setPlannedStartAt(LocalDate.now().plusDays(1).atTime(17, 0));
+        request.setPlannedEndAt(LocalDate.now().plusDays(1).atTime(8, 0));
+
+        assertThatThrownBy(() -> service.createTrip(request, dispatcher))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code")
+                .isEqualTo("TRIP_SCHEDULE_INVALID");
+
+        verify(tripRepository, never()).save(any());
+    }
+
+    @Test
+    void createTrip_rejectsStartInPast() {
+        stubCreateUntilOrders();
+        TripCreateRequest request = createRequest(101L);
+        request.setPlannedStartAt(LocalDateTime.now().minusHours(1));
+        request.setPlannedEndAt(LocalDateTime.now().plusHours(2));
+
+        assertThatThrownBy(() -> service.createTrip(request, dispatcher))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code")
+                .isEqualTo("TRIP_START_IN_PAST");
+
+        verify(tripRepository, never()).save(any());
+    }
+
+    @Test
     void updateTrip_revalidatesListAndIgnoresCurrentTripConflict() {
         Trip trip = plannedTrip();
         when(tripRepository.findWithWarehouseAndResourcesById(900L)).thenReturn(Optional.of(trip));
@@ -510,8 +585,8 @@ class TripServiceImplTest {
         request.setWarehouseId(20L);
         request.setVehicleId(301L);
         request.setDriverId(401L);
-        request.setPlannedStartAt(LocalDateTime.of(2026, 6, 22, 8, 0));
-        request.setPlannedEndAt(LocalDateTime.of(2026, 6, 22, 17, 0));
+        request.setPlannedStartAt(LocalDate.now().plusDays(1).atTime(8, 0));
+        request.setPlannedEndAt(LocalDate.now().plusDays(1).atTime(17, 0));
         request.setDeliveryOrders(List.of(tripRow(doId, 1)));
         return request;
     }
