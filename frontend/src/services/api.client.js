@@ -6,19 +6,22 @@ const buildBackendErrorMessage = (status, data, fallbackMessage) => {
     return fallbackMessage;
   }
 
-  const code = data.code || data.error;
-  const message = data.message || data.error || fallbackMessage;
+  // Prefer the translated message from backend — don't prepend the code
+  // because the code is technical (e.g. "DUPLICATE_EXTERNAL_INSTRUCTION")
+  // and would confuse end-users. The code is still in data.code for
+  // programmatic checks if needed.
+  const message = data.message;
+  if (message && message.trim()) {
+    return message.trim();
+  }
 
-  if (code && message && code !== message) {
-    return `${code}: ${message}`;
+  // Fallback: try error field, then HTTP status
+  const errorField = data.error;
+  if (errorField && errorField.trim()) {
+    return errorField.trim();
   }
-  if (message) {
-    return message;
-  }
-  if (code) {
-    return code;
-  }
-  return status ? `HTTP ${status}` : fallbackMessage;
+
+  return status ? `Lỗi ${status} — vui lòng thử lại.` : (fallbackMessage || 'Có lỗi xảy ra.');
 };
 
 const API_BASE_URL = import.meta['env'].VITE_API_BASE_URL || '/api/v1';
