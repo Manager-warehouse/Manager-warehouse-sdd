@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
 import { interWarehouseTransferService } from '../../services/inter-warehouse-transfer.service';
@@ -10,7 +11,15 @@ import Input from '../../components/common/Input';
 import Badge from '../../components/common/Badge';
 import Pagination from '../../components/common/Pagination';
 
+const todayInputValue = () => {
+  const now = new Date();
+  const offsetDate = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  return offsetDate.toISOString().slice(0, 10);
+};
+
 const TransferRequestWorkspace = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
   const activeWarehouse = useAuthStore((state) => state.activeWarehouse);
   const { user, hasRole } = useAuthStore();
   const { addToast } = useUiStore();
@@ -31,9 +40,9 @@ const TransferRequestWorkspace = () => {
   const [destinationWhId, setDestinationWhId] = useState('');
   const [neededByDate, setNeededByDate] = useState('');
   const [businessReason, setBusinessReason] = useState('');
-  const [notes, setNotes] = useState('');
   const [items, setItems] = useState([{ productId: '', requestedQty: '' }]);
   const [stockLookupResult, setStockLookupResult] = useState({}); // productId -> [{warehouseName, availableQty}]
+  const minNeededByDate = todayInputValue();
 
   // Detail & Approval State
   const [selectedRequest, setSelectedRequest] = useState(null);
@@ -44,6 +53,13 @@ const TransferRequestWorkspace = () => {
   useEffect(() => {
     fetchData();
   }, [activeWarehouse]);
+
+  useEffect(() => {
+    const prefill = location.state?.prefillTransferRequest;
+    if (!prefill || loading || warehouses.length === 0 || products.length === 0) return;
+    applyAlertPrefill(prefill);
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.state, loading, warehouses, products]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -110,13 +126,25 @@ const TransferRequestWorkspace = () => {
     setItems(updated);
   };
 
+  const getSourceAvailableQty = (productId) => {
+    if (!productId || !sourceWhId) return null;
+    const sourceStock = stockLookupResult[productId]?.find((row) =>
+      Number(row.warehouseId) === Number(sourceWhId)
+    );
+    return sourceStock ? Number(sourceStock.availableQty || 0) : null;
+  };
+
+  const findInsufficientSourceItem = (candidateItems) => candidateItems.find((item) => {
+    const availableQty = getSourceAvailableQty(item.productId);
+    return availableQty !== null && Number(item.requestedQty) > availableQty;
+  });
+
   const resetRequestForm = () => {
     setEditingRequestId(null);
     setSourceWhId('');
     setDestinationWhId(activeWarehouse?.id ? String(activeWarehouse.id) : '');
     setNeededByDate('');
     setBusinessReason('');
-    setNotes('');
     setItems([{ productId: '', requestedQty: '' }]);
     setStockLookupResult({});
   };
@@ -124,6 +152,41 @@ const TransferRequestWorkspace = () => {
   const openCreateModal = () => {
     resetRequestForm();
     setShowCreateModal(true);
+  };
+
+  const applyAlertPrefill = async (prefill) => {
+    resetRequestForm();
+    const destinationId = prefill.warehouseId || activeWarehouse?.id;
+    const productId = prefill.productId ? String(prefill.productId) : '';
+    const currentQty = Number(prefill.currentQty || 0);
+    const reorderPoint = Number(prefill.reorderPoint || 0);
+    const requestedQty = Math.max(1, Math.ceil(reorderPoint - currentQty));
+
+    setDestinationWhId(destinationId ? String(destinationId) : '');
+    setNeededByDate(minNeededByDate);
+    setBusinessReason(
+      `Bổ sung tồn khả dụng cho ${prefill.productSku || 'SKU'} tại ${prefill.warehouseName || 'kho đích'} (${currentQty}/${reorderPoint})`
+    );
+    setItems([{ productId, requestedQty: String(requestedQty) }]);
+    setShowDetailModal(false);
+    setShowCreateModal(true);
+
+    if (!productId) return;
+    try {
+      const stockRows = await interWarehouseTransferService.stockLookup(Number(productId));
+      setStockLookupResult((prev) => ({
+        ...prev,
+        [productId]: stockRows,
+      }));
+      const source = stockRows.find((row) =>
+        Number(row.warehouseId) !== Number(destinationId) && Number(row.availableQty) > 0
+      );
+      if (source) {
+        setSourceWhId(String(source.warehouseId));
+      }
+    } catch (e) {
+      addToast('Không tải được tồn kho nguồn gợi ý cho yêu cầu bổ sung', 'warning');
+    }
   };
 
   const closeRequestModal = () => {
@@ -137,7 +200,6 @@ const TransferRequestWorkspace = () => {
     setDestinationWhId(String(req.destinationWarehouseId || activeWarehouse?.id || ''));
     setNeededByDate(req.neededByDate || '');
     setBusinessReason(req.businessReason || '');
-    setNotes(req.notes || '');
     setItems((req.items?.length ? req.items : [{ productId: '', requestedQty: '' }]).map((item) => ({
       productId: item.productId ? String(item.productId) : '',
       requestedQty: item.requestedQty ? String(item.requestedQty) : '',
@@ -160,9 +222,23 @@ const TransferRequestWorkspace = () => {
       addToast('Vui lòng chọn ngày cần hàng', 'warning');
       return;
     }
+    if (neededByDate < minNeededByDate) {
+      addToast('Ngày cần hàng không được là ngày trong quá khứ', 'warning');
+      return;
+    }
     const filteredItems = items.filter(i => i.productId && Number(i.requestedQty) > 0);
     if (filteredItems.length === 0) {
       addToast('Vui lòng nhập ít nhất một sản phẩm hợp lệ', 'warning');
+      return;
+    }
+    const insufficientItem = findInsufficientSourceItem(filteredItems);
+    if (insufficientItem) {
+      const product = products.find((p) => String(p.id) === String(insufficientItem.productId));
+      const availableQty = getSourceAvailableQty(insufficientItem.productId);
+      addToast(
+        `Kho nguồn chỉ còn ${availableQty} cái cho ${product?.sku || 'sản phẩm đã chọn'}, không đủ xuất ${insufficientItem.requestedQty} cái`,
+        'warning'
+      );
       return;
     }
 
@@ -173,7 +249,7 @@ const TransferRequestWorkspace = () => {
         destinationWarehouseId: Number(destinationWhId || activeWarehouse.id),
         neededByDate: neededByDate || null,
         businessReason: businessReason.trim(),
-        notes,
+        notes: null,
         items: filteredItems.map(i => ({
           productId: Number(i.productId),
           requestedQty: Number(i.requestedQty)
@@ -226,7 +302,7 @@ const TransferRequestWorkspace = () => {
       setShowDetailModal(false);
       fetchData();
     } catch (e) {
-      addToast('Lỗi xóa yêu cầu điều chuyển', 'error');
+      addToast(`Lỗi xóa yêu cầu điều chuyển: ${e.message}`, 'error');
     } finally {
       setSubmitting(false);
     }
@@ -429,11 +505,6 @@ const TransferRequestWorkspace = () => {
                       Phiếu TRF đã tạo: {req.convertedTransferNumber}
                     </div>
                   )}
-                  {req.notes && (
-                    <div className="italic">
-                      <span className="font-semibold text-shade-50 not-italic">Ghi chú:</span> "{req.notes}"
-                    </div>
-                  )}
                   {req.rejectionReason && (
                     <div className="text-danger-600 font-semibold italic bg-danger-50 p-2 rounded border border-danger-100">
                       Lý do từ chối: "{req.rejectionReason}"
@@ -529,6 +600,7 @@ const TransferRequestWorkspace = () => {
                   label="Ngày cần hàng"
                   type="date"
                   value={neededByDate}
+                  min={minNeededByDate}
                   onChange={(e) => setNeededByDate(e.target.value)}
                 />
                 <Input
@@ -551,6 +623,13 @@ const TransferRequestWorkspace = () => {
                 <div className="flex flex-col gap-3">
                   {items.map((item, idx) => (
                     <div key={idx} className="bg-canvas-light border border-hairline-light p-3.5 rounded flex flex-col gap-3">
+                      {(() => {
+                        const availableQty = getSourceAvailableQty(item.productId);
+                        const requestedQty = Number(item.requestedQty || 0);
+                        const isInsufficient = availableQty !== null && requestedQty > availableQty;
+
+                        return (
+                          <>
                       <div className="flex items-center gap-3">
                         <div className="flex-1">
                           <Input
@@ -581,6 +660,15 @@ const TransferRequestWorkspace = () => {
                         )}
                       </div>
 
+                      {isInsufficient && (
+                        <div className="rounded-md border border-danger-200 bg-danger-50 px-3 py-2 text-[11px] font-semibold text-danger-700">
+                          Kho nguồn chỉ còn {availableQty} cái, không đủ xuất {requestedQty} cái.
+                        </div>
+                      )}
+                          </>
+                        );
+                      })()}
+
                       {/* Stock Lookup display */}
                       {item.productId && stockLookupResult[item.productId] && (
                         <div className="bg-canvas-cream p-2.5 rounded border border-hairline-light flex flex-col gap-1">
@@ -605,15 +693,6 @@ const TransferRequestWorkspace = () => {
                 </div>
               </div>
 
-              <div className="flex flex-col gap-1.5 mt-2">
-                <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Ghi chú bổ sung</label>
-                <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Nhập lý do điều phối hàng..."
-                  className="text-input h-16 resize-none"
-                />
-              </div>
             </div>
 
             <div className="p-4 border-t border-hairline-light bg-canvas-cream flex justify-end gap-2">
@@ -657,11 +736,6 @@ const TransferRequestWorkspace = () => {
                 {selectedRequest.businessReason && (
                   <div className="border-t border-hairline-light pt-2">
                     <span className="text-shade-50">Lý do nghiệp vụ:</span> <span className="font-semibold">{selectedRequest.businessReason}</span>
-                  </div>
-                )}
-                {selectedRequest.notes && (
-                  <div className="border-t border-hairline-light pt-2">
-                    <span className="text-shade-50">Ghi chú:</span> <span className="italic">"{selectedRequest.notes}"</span>
                   </div>
                 )}
               </div>

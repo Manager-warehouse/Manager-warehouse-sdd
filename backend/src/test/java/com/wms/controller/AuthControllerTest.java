@@ -304,6 +304,36 @@ class AuthControllerTest {
                 .andExpect(status().isBadRequest());
     }
 
+    // ─── POST /api/v1/auth/otp/check ──────────────────────────────────────────
+
+    @Test
+    @DisplayName("POST /otp/check — 200 OK khi OTP đúng và chưa đăng nhập")
+    void checkOtp_validOtpWithoutAuthentication_returns200() throws Exception {
+        doNothing().when(authService).checkOtp(any());
+
+        mockMvc.perform(post("/api/v1/auth/otp/check")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email":"test@wms.com","otp":"123456"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Mã OTP hợp lệ."));
+    }
+
+    @Test
+    @DisplayName("POST /otp/check — 400 thay vì 401 khi OTP sai")
+    void checkOtp_invalidOtpWithoutAuthentication_returns400() throws Exception {
+        doThrow(new IllegalArgumentException("OTP_INVALID")).when(authService).checkOtp(any());
+
+        mockMvc.perform(post("/api/v1/auth/otp/check")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email":"test@wms.com","otp":"999999"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("OTP_INVALID"));
+    }
+
     // ─── POST /api/v1/auth/verify-otp ─────────────────────────────────────────
 
     @Test

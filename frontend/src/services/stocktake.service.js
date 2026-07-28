@@ -258,9 +258,8 @@ export const stocktakeService = {
       if (!allCounted) throw new Error('Tất cả dòng hàng phải có số lượng thực tế trước khi hoàn tất');
       const total = st.items.reduce((sum, i) => sum + (i.variance_value || 0), 0);
       st.total_variance_value = total;
-      const abs = Math.abs(total);
-      st.approval_level = abs < 5000000 ? 'AUTO' : abs <= 100000000 && !st.is_employee_fault ? 'MANAGER' : 'CEO';
-      st.status = st.approval_level === 'AUTO' ? 'APPROVED' : 'PENDING_APPROVAL';
+      st.approval_level = 'MANAGER';
+      st.status = 'PENDING_APPROVAL';
       st.updated_at = new Date().toISOString();
       saveDb(KEYS.STOCKTAKES, list);
       return st;
@@ -321,37 +320,4 @@ export const stocktakeService = {
     return res.data;
   },
 
-  approveCeoStockTake: async (id) => {
-    if (useMock) {
-      await delay();
-      const list = getDb(KEYS.STOCKTAKES, SEED_STOCKTAKES);
-      const st = list.find((s) => s.id === Number(id));
-      if (!st) throw new Error('Không tìm thấy phiếu kiểm kê');
-      st.status = 'APPROVED';
-      st.approved_by_id = 1;
-      st.approved_by_name = 'CEO';
-      st.approved_at = new Date().toISOString();
-      st.updated_at = new Date().toISOString();
-      saveDb(KEYS.STOCKTAKES, list);
-      return st;
-    }
-    const res = await apiClient.put(`/stocktakes/${id}/approve-ceo`);
-    return res.data;
-  },
-
-  rejectCeoStockTake: async (id, rejectionReason) => {
-    if (useMock) {
-      await delay();
-      const list = getDb(KEYS.STOCKTAKES, SEED_STOCKTAKES);
-      const st = list.find((s) => s.id === Number(id));
-      if (!st) throw new Error('Không tìm thấy phiếu kiểm kê');
-      st.status = 'REJECTED';
-      st.rejection_reason = rejectionReason;
-      st.updated_at = new Date().toISOString();
-      saveDb(KEYS.STOCKTAKES, list);
-      return st;
-    }
-    const res = await apiClient.put(`/stocktakes/${id}/reject-ceo`, { rejection_reason: rejectionReason });
-    return res.data;
-  },
 };

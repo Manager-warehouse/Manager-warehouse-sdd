@@ -67,6 +67,7 @@ import com.wms.dto.request.StockTakeRejectRequest;
 import com.wms.dto.response.StockTakeResponse;
 import com.wms.exception.BusinessRuleViolationException;
 import com.wms.exception.StockTakeException;
+import com.wms.exception.UnprocessableEntityException;
 import com.wms.repository.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -148,6 +149,8 @@ class StockTakeServiceTest {
 
         openPeriod = new AccountingPeriod();
         openPeriod.setId(1L);
+        openPeriod.setStartDate(LocalDate.of(2026, 6, 1));
+        openPeriod.setEndDate(LocalDate.of(2026, 6, 30));
         openPeriod.setStatus(AccountingPeriodStatus.OPEN);
 
         product = new Product();
@@ -242,6 +245,8 @@ class StockTakeServiceTest {
     void createStockTake_periodClosed_throwsBusinessRuleViolation() {
         AccountingPeriod closed = new AccountingPeriod();
         closed.setId(2L);
+        closed.setStartDate(LocalDate.now().withDayOfMonth(1));
+        closed.setEndDate(LocalDate.now().withDayOfMonth(LocalDate.now().lengthOfMonth()));
         closed.setStatus(AccountingPeriodStatus.CLOSED);
 
         CreateStockTakeRequest req = new CreateStockTakeRequest();
@@ -256,6 +261,54 @@ class StockTakeServiceTest {
         BusinessRuleViolationException ex = assertThrows(BusinessRuleViolationException.class,
                 () -> service.createStockTake(req, storekeeper));
         assertTrue(ex.getMessage().contains("ACCOUNTING_PERIOD_CLOSED"));
+    }
+
+    @Test
+    void createStockTake_stockTakeDateAfterDocumentDate_throwsUnprocessable() {
+        CreateStockTakeRequest req = new CreateStockTakeRequest();
+        req.setWarehouseId(WH_ID);
+        req.setStockTakeDate(LocalDate.of(2026, 6, 18));
+        req.setDocumentDate(LocalDate.of(2026, 6, 17));
+        req.setAccountingPeriodId(1L);
+
+        when(warehouseRepository.findById(WH_ID)).thenReturn(Optional.of(warehouse));
+        when(accountingPeriodRepository.findById(1L)).thenReturn(Optional.of(openPeriod));
+
+        UnprocessableEntityException ex = assertThrows(UnprocessableEntityException.class,
+                () -> service.createStockTake(req, storekeeper));
+        assertTrue(ex.getMessage().contains("STOCK_TAKE_DATE_AFTER_DOCUMENT_DATE"));
+    }
+
+    @Test
+    void createStockTake_documentDateOutsideAccountingPeriod_throwsUnprocessable() {
+        CreateStockTakeRequest req = new CreateStockTakeRequest();
+        req.setWarehouseId(WH_ID);
+        req.setStockTakeDate(LocalDate.of(2026, 6, 17));
+        req.setDocumentDate(LocalDate.of(2026, 7, 27));
+        req.setAccountingPeriodId(1L);
+
+        when(warehouseRepository.findById(WH_ID)).thenReturn(Optional.of(warehouse));
+        when(accountingPeriodRepository.findById(1L)).thenReturn(Optional.of(openPeriod));
+
+        UnprocessableEntityException ex = assertThrows(UnprocessableEntityException.class,
+                () -> service.createStockTake(req, storekeeper));
+        assertTrue(ex.getMessage().contains("DOCUMENT_DATE_OUTSIDE_ACCOUNTING_PERIOD"));
+    }
+
+    @Test
+    void createStockTake_stockTakeDateOutsideAccountingPeriod_throwsUnprocessable() {
+        CreateStockTakeRequest req = new CreateStockTakeRequest();
+        req.setWarehouseId(WH_ID);
+        req.setStockTakeDate(LocalDate.of(2026, 5, 31));
+        req.setDocumentDate(LocalDate.of(2026, 6, 17));
+        req.setAccountingPeriodId(1L);
+
+        when(warehouseRepository.findById(WH_ID)).thenReturn(Optional.of(warehouse));
+        when(accountingPeriodRepository.findById(1L)).thenReturn(Optional.of(openPeriod));
+
+        UnprocessableEntityException ex = assertThrows(UnprocessableEntityException.class,
+                () -> service.createStockTake(req, storekeeper));
+        assertTrue(ex.getMessage().contains("STOCK_TAKE_DATE_OUTSIDE_ACCOUNTING_PERIOD"));
     }
 
     // ─── Start ──────────────────────────────────────────────────────────────────
@@ -434,30 +487,29 @@ class StockTakeServiceTest {
     }
 
     @Test
-    void completeStockTake_smallVariance_autoApproves() {
+    void completeStockTake_smallVariance_routesToManagerWithoutUpdatingInventory() {
         StockTake st = stockTake(StockTakeStatus.IN_PROGRESS);
         when(stockTakeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(st));
         when(stockTakeItemRepository.existsByStockTakeIdAndActualQtyIsNull(1L)).thenReturn(false);
-        // total variance 1,000,000 < 5,000,000 → AUTO
+        // Spec 006 routes every variance to the warehouse manager.
         StockTakeItem it = item(new BigDecimal("100"), new BigDecimal("98"),
                 new BigDecimal("-2"), new BigDecimal("-1000000"));
         when(stockTakeItemRepository.findByStockTakeId(1L)).thenReturn(List.of(it));
-        when(stockTakeItemRepository.findByStockTakeIdWithDetails(1L)).thenReturn(List.of(it));
         Inventory inv = new Inventory();
         inv.setTotalQty(new BigDecimal("100"));
         inv.setReservedQty(BigDecimal.ZERO);
         inv.setCostPrice(new BigDecimal("500000"));
         when(inventoryRepository.findByWarehouseIdAndProductIdAndBatchIdAndLocationId(WH_ID, 100L, 200L, 300L))
                 .thenReturn(Optional.of(inv));
-        when(inventoryRepository.findByWarehouseProductBatchLocationForUpdate(WH_ID, 100L, 200L, 300L))
-                .thenReturn(Optional.of(inv));
-        when(locationRepository.findByLockedByStockTakeId(1L)).thenReturn(List.of());
 
         StockTakeResponse res = service.completeStockTake(1L, storekeeper);
 
-        assertEquals(ApprovalLevel.AUTO, st.getApprovalLevel());
-        assertEquals(StockTakeStatus.APPROVED, res.getStatus());
-        verify(auditLogService).log(any(), eq(AuditAction.STOCKTAKE_AUTO_APPROVE), any(), any(), any(), eq(WH_ID),
+        assertEquals(ApprovalLevel.MANAGER, st.getApprovalLevel());
+        assertEquals(StockTakeStatus.PENDING_APPROVAL, res.getStatus());
+        verify(inventoryRepository, never())
+                .findByWarehouseProductBatchLocationForUpdate(anyLong(), anyLong(), anyLong(), anyLong());
+        verify(adjustmentRepository, never()).save(any(Adjustment.class));
+        verify(auditLogService).log(eq(storekeeper), eq(AuditAction.STOCKTAKE_COMPLETE), any(), any(), any(), eq(WH_ID),
                 any(), any());
     }
 
@@ -486,11 +538,11 @@ class StockTakeServiceTest {
     }
 
     @Test
-    void completeStockTake_largeVariance_routesToCeo() {
+    void completeStockTake_largeVariance_routesToManager() {
         StockTake st = stockTake(StockTakeStatus.IN_PROGRESS);
         when(stockTakeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(st));
         when(stockTakeItemRepository.existsByStockTakeIdAndActualQtyIsNull(1L)).thenReturn(false);
-        // -150,000,000 > 100M → CEO
+        // Variance value does not change the checker in Spec 006.
         StockTakeItem it = item(new BigDecimal("300"), new BigDecimal("0"),
                 new BigDecimal("-300"), new BigDecimal("-150000000"));
         when(stockTakeItemRepository.findByStockTakeId(1L)).thenReturn(List.of(it));
@@ -503,17 +555,17 @@ class StockTakeServiceTest {
 
         service.completeStockTake(1L, storekeeper);
 
-        assertEquals(ApprovalLevel.CEO, st.getApprovalLevel());
+        assertEquals(ApprovalLevel.MANAGER, st.getApprovalLevel());
         assertEquals(StockTakeStatus.PENDING_APPROVAL, st.getStatus());
     }
 
     @Test
-    void completeStockTake_employeeFaultEscalatesToCeo() {
+    void completeStockTake_employeeFaultStillRoutesToManager() {
         StockTake st = stockTake(StockTakeStatus.IN_PROGRESS);
         st.setIsEmployeeFault(true);
         when(stockTakeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(st));
         when(stockTakeItemRepository.existsByStockTakeIdAndActualQtyIsNull(1L)).thenReturn(false);
-        // mid value but employee fault → CEO
+        // Employee-fault marking is review context, not a separate approval level.
         StockTakeItem it = item(new BigDecimal("100"), new BigDecimal("80"),
                 new BigDecimal("-20"), new BigDecimal("-10000000"));
         when(stockTakeItemRepository.findByStockTakeId(1L)).thenReturn(List.of(it));
@@ -526,21 +578,22 @@ class StockTakeServiceTest {
 
         service.completeStockTake(1L, storekeeper);
 
-        assertEquals(ApprovalLevel.CEO, st.getApprovalLevel());
+        assertEquals(ApprovalLevel.MANAGER, st.getApprovalLevel());
     }
 
     // ─── Approve ────────────────────────────────────────────────────────────────
 
     @Test
-    void approveStockTake_managerOnCeoLevel_throwsApprovalLevelMismatch() {
+    void approveStockTake_managerCanResolveLegacyCeoLevel() {
         StockTake st = stockTake(StockTakeStatus.PENDING_APPROVAL);
         st.setApprovalLevel(ApprovalLevel.CEO);
         when(stockTakeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(st));
+        when(stockTakeItemRepository.findByStockTakeIdWithDetails(1L)).thenReturn(List.of());
+        when(locationRepository.findByLockedByStockTakeId(1L)).thenReturn(List.of());
 
-        StockTakeException ex = assertThrows(StockTakeException.class,
-                () -> service.approveStockTake(1L, manager));
-        assertEquals("APPROVAL_LEVEL_MISMATCH", ex.getCode());
-        assertEquals(HttpStatus.FORBIDDEN, ex.getStatus());
+        StockTakeResponse res = service.approveStockTake(1L, manager);
+
+        assertEquals(StockTakeStatus.APPROVED, res.getStatus());
     }
 
     @Test
@@ -603,9 +656,11 @@ class StockTakeServiceTest {
     }
 
     @Test
-    void approveCeoStockTake_byManager_throwsApprovalLevelMismatch() {
+    void approveStockTake_byCeo_throwsApprovalLevelMismatch() {
+        User ceo = userWith(6L, UserRole.CEO);
+
         StockTakeException ex = assertThrows(StockTakeException.class,
-                () -> service.approveCeoStockTake(1L, manager));
+                () -> service.approveStockTake(1L, ceo));
         assertEquals("APPROVAL_LEVEL_MISMATCH", ex.getCode());
         assertEquals(HttpStatus.FORBIDDEN, ex.getStatus());
     }
@@ -633,17 +688,20 @@ class StockTakeServiceTest {
     }
 
     @Test
-    void rejectStockTake_ceoLevelByManager_throwsApprovalLevelMismatch() {
+    void rejectStockTake_managerCanReturnLegacyCeoLevel() {
         StockTake st = stockTake(StockTakeStatus.PENDING_APPROVAL);
         st.setApprovalLevel(ApprovalLevel.CEO);
         when(stockTakeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(st));
+        when(locationRepository.findByLockedByStockTakeId(1L)).thenReturn(List.of());
+        when(stockTakeItemRepository.findByStockTakeIdWithDetails(1L)).thenReturn(List.of());
 
         StockTakeRejectRequest req = new StockTakeRejectRequest();
-        req.setRejectionReason("nope");
+        req.setRejectionReason("Recount needed");
 
-        StockTakeException ex = assertThrows(StockTakeException.class,
-                () -> service.rejectStockTake(1L, req, manager));
-        assertEquals("APPROVAL_LEVEL_MISMATCH", ex.getCode());
+        StockTakeResponse res = service.rejectStockTake(1L, req, manager);
+
+        assertEquals(StockTakeStatus.REJECTED, res.getStatus());
+        assertEquals("Recount needed", st.getRejectionReason());
     }
 
     // ─── Cancel ─────────────────────────────────────────────────────────────────

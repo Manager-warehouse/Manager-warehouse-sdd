@@ -95,6 +95,7 @@ public class TransferRequestServiceImpl implements TransferRequestService {
         if (Objects.equals(request.sourceWarehouseId(), request.destinationWarehouseId())) {
             throw new BusinessRuleViolationException("SOURCE_DESTINATION_MUST_DIFFER");
         }
+        ensureNeededByDateIsNotPast(request.neededByDate());
 
         OffsetDateTime now = OffsetDateTime.now();
         TransferRequest req = new TransferRequest();
@@ -132,6 +133,7 @@ public class TransferRequestServiceImpl implements TransferRequestService {
         if (Objects.equals(request.sourceWarehouseId(), request.destinationWarehouseId())) {
             throw new BusinessRuleViolationException("SOURCE_DESTINATION_MUST_DIFFER");
         }
+        ensureNeededByDateIsNotPast(request.neededByDate());
 
         Map<String, Object> before = snapshot(req);
 
@@ -387,6 +389,12 @@ public class TransferRequestServiceImpl implements TransferRequestService {
             if (safeAvailable.compareTo(entry.getValue()) < 0) {
                 throw new BusinessRuleViolationException("TRANSFER_REQUEST_QTY_EXCEEDS_SOURCE_AVAILABLE");
             }
+        }
+    }
+
+    private void ensureNeededByDateIsNotPast(LocalDate neededByDate) {
+        if (neededByDate != null && neededByDate.isBefore(LocalDate.now())) {
+            throw new BusinessRuleViolationException("NEEDED_BY_DATE_MUST_NOT_BE_PAST");
         }
     }
 

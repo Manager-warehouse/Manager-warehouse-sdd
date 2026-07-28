@@ -36,6 +36,7 @@ import com.wms.enums.user_configuration.*;
 import com.wms.enums.warehouse_location.*;
 import com.wms.enums.warehouse_transfer.*;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.FutureOrPresent;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -50,6 +51,7 @@ public record TransferRequestUpdateRequest(
     Long destinationWarehouseId,
 
     @NotNull(message = "NEEDED_BY_DATE_REQUIRED")
+    @FutureOrPresent(message = "NEEDED_BY_DATE_MUST_NOT_BE_PAST")
     LocalDate neededByDate,
 
     @NotBlank(message = "BUSINESS_REASON_REQUIRED")
