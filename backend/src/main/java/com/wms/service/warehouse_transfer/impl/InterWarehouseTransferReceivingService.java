@@ -79,6 +79,7 @@ public class InterWarehouseTransferReceivingService {
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.requireStatus(transfer, InterWarehouseTransferStatus.IN_TRANSIT);
         helper.ensureWarehouseScope(actor, transfer.isReturned() ? transfer.getSourceWarehouse().getId() : transfer.getDestinationWarehouse().getId());
+        ensureDestinationReceivingNotOverdue(transfer);
 
         if (Boolean.TRUE.equals(transfer.isReturned())) {
             if (transfer.getReturnArrivedAt() == null) {
@@ -124,6 +125,7 @@ public class InterWarehouseTransferReceivingService {
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.requireStatus(transfer, InterWarehouseTransferStatus.IN_TRANSIT);
         helper.ensureWarehouseScope(actor, transfer.isReturned() ? transfer.getSourceWarehouse().getId() : transfer.getDestinationWarehouse().getId());
+        ensureDestinationReceivingNotOverdue(transfer);
         if (helper.isBlank(request.qcPhotoRef())) {
             throw new BusinessRuleViolationException("RECEIVE_QC_PHOTO_REQUIRED");
         }
@@ -208,12 +210,12 @@ public class InterWarehouseTransferReceivingService {
         if (request.putawayItems() == null || request.putawayItems().isEmpty()) {
             throw new BusinessRuleViolationException("PUTAWAY_PLAN_REQUIRED");
         }
+        Map<Long, List<PutawayTarget>> plans = resolveFinalPutawayPlans(transfer, request);
         boolean discrepancy = hasReceiveDiscrepancy(transfer) || hasPutawayDiscrepancy(transfer, request);
         if (discrepancy && helper.isBlank(request.discrepancyReason())) {
             throw new BusinessRuleViolationException("DISCREPANCY_REASON_REQUIRED");
         }
         Map<String, Object> before = helper.snapshot(transfer);
-        Map<Long, List<PutawayTarget>> plans = resolveFinalPutawayPlans(transfer, request);
         for (InterWarehouseTransferItem item : helper.items(transfer)) {
             List<PutawayTarget> targets = plans.get(item.getId());
             if (targets != null && !targets.isEmpty()) {
@@ -408,6 +410,12 @@ public class InterWarehouseTransferReceivingService {
             if (!hasQuarantine) {
                 throw new BusinessRuleViolationException("QUARANTINE_LOCATION_NOT_CONFIGURED");
             }
+        }
+    }
+
+    private void ensureDestinationReceivingNotOverdue(InterWarehouseTransfer transfer) {
+        if (!Boolean.TRUE.equals(transfer.isReturned()) && helper.isTripOverdue(transfer)) {
+            throw new BusinessRuleViolationException("TRANSFER_TRIP_OVERDUE");
         }
     }
 
@@ -787,6 +795,7 @@ public class InterWarehouseTransferReceivingService {
         if (request.wrongSkuItems() == null || request.wrongSkuItems().isEmpty()) {
             throw new BusinessRuleViolationException("WRONG_SKU_ITEMS_REQUIRED");
         }
+        validateWrongSkuItems(transfer, request.wrongSkuItems());
 
         Map<String, Object> before = helper.snapshot(transfer);
         transfer.setReturnRequested(true);
@@ -888,6 +897,16 @@ public class InterWarehouseTransferReceivingService {
         return helper.toResponse(saved);
     }
 
+    private void validateWrongSkuItems(InterWarehouseTransfer transfer, List<WrongSkuItemRequest> lines) {
+        Map<Long, InterWarehouseTransferItem> itemById = helper.itemMap(transfer);
+        for (WrongSkuItemRequest line : lines) {
+            InterWarehouseTransferItem item = helper.requireItem(itemById, line.transferItemId());
+            validateWrongSkuItem(item, line);
+            productRepository.findById(line.actualProductId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + line.actualProductId()));
+        }
+    }
+
     private String generateAdjustmentNumber() {
         return "ADJ-" + java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd"))
                + "-" + java.util.UUID.randomUUID().toString().substring(0, 6).toUpperCase();
@@ -912,19 +931,7 @@ public class InterWarehouseTransferReceivingService {
         Map<Long, InterWarehouseTransferItem> itemById = helper.itemMap(transfer);
         for (WrongSkuItemRequest line : lines) {
             InterWarehouseTransferItem item = helper.requireItem(itemById, line.transferItemId());
-            if (!Objects.equals(item.getProduct().getId(), line.expectedProductId())) {
-                throw new BusinessRuleViolationException("EXPECTED_PRODUCT_MISMATCH");
-            }
-            if (Objects.equals(line.expectedProductId(), line.actualProductId())) {
-                throw new BusinessRuleViolationException("ACTUAL_PRODUCT_MUST_DIFFER");
-            }
-            if (line.affectedQty() == null || line.affectedQty().signum() <= 0) {
-                throw new BusinessRuleViolationException("AFFECTED_QTY_MUST_BE_POSITIVE");
-            }
-            BigDecimal maxQty = item.getSentQty() != null ? item.getSentQty() : item.getPlannedQty();
-            if (line.affectedQty().compareTo(maxQty) > 0) {
-                throw new BusinessRuleViolationException("AFFECTED_QTY_EXCEEDS_SENT_QTY");
-            }
+            validateWrongSkuItem(item, line);
             Product actual = productRepository.findById(line.actualProductId())
                     .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + line.actualProductId()));
 
@@ -938,6 +945,22 @@ public class InterWarehouseTransferReceivingService {
                     .photoRef(line.photoRef())
                     .build();
             wrongSkuReportItemRepository.save(reportItem);
+        }
+    }
+
+    private void validateWrongSkuItem(InterWarehouseTransferItem item, WrongSkuItemRequest line) {
+        if (!Objects.equals(item.getProduct().getId(), line.expectedProductId())) {
+            throw new BusinessRuleViolationException("EXPECTED_PRODUCT_MISMATCH");
+        }
+        if (Objects.equals(line.expectedProductId(), line.actualProductId())) {
+            throw new BusinessRuleViolationException("ACTUAL_PRODUCT_MUST_DIFFER");
+        }
+        if (line.affectedQty() == null || line.affectedQty().signum() <= 0) {
+            throw new BusinessRuleViolationException("AFFECTED_QTY_MUST_BE_POSITIVE");
+        }
+        BigDecimal maxQty = item.getSentQty() != null ? item.getSentQty() : item.getPlannedQty();
+        if (line.affectedQty().compareTo(maxQty) > 0) {
+            throw new BusinessRuleViolationException("AFFECTED_QTY_EXCEEDS_SENT_QTY");
         }
     }
 

@@ -4,6 +4,15 @@ import { create } from 'zustand';
 // cover the screen as a drawer on first load.
 const getDefaultSidebarOpen = () => window.innerWidth >= 768;
 
+const AUTO_DISMISS_MS = 3000;
+const MAX_VISIBLE_TOASTS = 4;
+
+const createToast = (message, type) => ({
+  id: Math.random().toString(36).substring(2, 9),
+  message,
+  type,
+});
+
 export const useUiStore = create((set) => ({
   sidebarOpen: getDefaultSidebarOpen(),
   toasts: [],
@@ -15,17 +24,20 @@ export const useUiStore = create((set) => ({
   setLoading: (loading) => set({ loading }),
 
   addToast: (message, type = 'success') => {
-    const id = Math.random().toString(36).substring(2, 9);
+    const toast = createToast(message, type);
     set((state) => ({
-      toasts: [...state.toasts, { id, message, type }]
+      toasts: [
+        ...state.toasts.filter((t) => !(t.message === message && t.type === type)),
+        toast,
+      ].slice(-MAX_VISIBLE_TOASTS)
     }));
 
     // Auto dismiss after 3 seconds
     setTimeout(() => {
       set((state) => ({
-        toasts: state.toasts.filter((t) => t.id !== id)
+        toasts: state.toasts.filter((t) => t.id !== toast.id)
       }));
-    }, 3000);
+    }, AUTO_DISMISS_MS);
   },
 
   removeToast: (id) => set((state) => ({
@@ -34,14 +46,17 @@ export const useUiStore = create((set) => ({
 
   // Alias: showToast(type, message) — wraps addToast(message, type)
   showToast: (type, message) => {
-    const id = Math.random().toString(36).substring(2, 9);
+    const toast = createToast(message, type);
     set((state) => ({
-      toasts: [...state.toasts, { id, message, type }]
+      toasts: [
+        ...state.toasts.filter((t) => !(t.message === message && t.type === type)),
+        toast,
+      ].slice(-MAX_VISIBLE_TOASTS)
     }));
     setTimeout(() => {
       set((state) => ({
-        toasts: state.toasts.filter((t) => t.id !== id)
+        toasts: state.toasts.filter((t) => t.id !== toast.id)
       }));
-    }, 3000);
+    }, AUTO_DISMISS_MS);
   },
 }));

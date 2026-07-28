@@ -166,6 +166,9 @@ public class InterWarehouseTransferPlanningService {
 
     private void validateTransferDates(LocalDate documentDate, LocalDate plannedDate) {
         LocalDate today = LocalDate.now();
+        if (documentDate.isBefore(today)) {
+            throw new BusinessRuleViolationException("DOCUMENT_DATE_MUST_NOT_BE_PAST");
+        }
         if (plannedDate.isBefore(today)) {
             throw new BusinessRuleViolationException("PLANNED_DATE_MUST_NOT_BE_PAST");
         }
