@@ -12,6 +12,12 @@ import { interWarehouseTransferService } from '../services/inter-warehouse-trans
 import { useUiStore } from '../stores/ui.store';
 import { useDebounce } from '../hooks/useDebounce';
 
+const todayInputValue = () => {
+  const now = new Date();
+  const offsetDate = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  return offsetDate.toISOString().slice(0, 10);
+};
+
 const Dashboard = () => {
   const { user, activeWarehouse } = useAuthStore();
   const { addToast } = useUiStore();
@@ -38,6 +44,7 @@ const Dashboard = () => {
   const [notes, setNotes] = useState('Yêu cầu điều chuyển nhanh từ Dashboard');
   const [submitting, setSubmitting] = useState(false);
   const [mobileStockLimit, setMobileStockLimit] = useState(3);
+  const minNeededByDate = todayInputValue();
 
   const formatQuantity = (value) => Number(value || 0).toLocaleString('vi-VN', {
     maximumFractionDigits: 2,
@@ -192,6 +199,14 @@ const Dashboard = () => {
     }
     if (!businessReason.trim()) {
       addToast('Vui lòng nhập lý do nghiệp vụ', 'warning');
+      return;
+    }
+    if (!neededByDate) {
+      addToast('Vui lòng chọn ngày cần hàng', 'warning');
+      return;
+    }
+    if (neededByDate < minNeededByDate) {
+      addToast('Ngày cần hàng không được là ngày trong quá khứ', 'warning');
       return;
     }
 
@@ -549,6 +564,7 @@ const Dashboard = () => {
                 label="Ngày cần hàng"
                 type="date"
                 value={neededByDate}
+                min={minNeededByDate}
                 onChange={(e) => setNeededByDate(e.target.value)}
               />
 

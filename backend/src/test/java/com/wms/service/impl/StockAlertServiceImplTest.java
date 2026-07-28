@@ -292,6 +292,7 @@ class StockAlertServiceImplTest {
 
         when(userRepository.findById(5L)).thenReturn(Optional.of(user));
         when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(1L));
+        when(inventoryRepository.findStockAlertCandidates(1L, null)).thenReturn(List.of());
         when(stockAlertRepository.findWithFilters(eq(1L), any(), any(), any()))
                 .thenReturn(new PageImpl<>(List.of(alert)));
 
@@ -299,5 +300,61 @@ class StockAlertServiceImplTest {
 
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getProductSku()).isEqualTo("POT-001");
+    }
+
+    @Test
+    void getLowStockAlerts_syncsCurrentInventoryBeforeQueryingAlerts() {
+        User user = new User();
+        user.setId(6L);
+        user.setRole(UserRole.PLANNER);
+
+        InventoryRepository.StockAlertCandidate candidate = new InventoryRepository.StockAlertCandidate() {
+            @Override
+            public Long getWarehouseId() {
+                return 1L;
+            }
+
+            @Override
+            public Long getProductId() {
+                return 10L;
+            }
+        };
+
+        StockAlert alert = StockAlert.builder()
+                .id(100L)
+                .warehouse(warehouse)
+                .product(product)
+                .currentQty(new BigDecimal("5"))
+                .reorderPoint(new BigDecimal("20"))
+                .alertType(AlertType.LOW_STOCK)
+                .isResolved(false)
+                .build();
+
+        when(userRepository.findById(6L)).thenReturn(Optional.of(user));
+        when(inventoryRepository.findStockAlertCandidates(null, null)).thenReturn(List.of(candidate));
+        when(warehouseRepository.findById(1L)).thenReturn(Optional.of(warehouse));
+        when(productRepository.findById(10L)).thenReturn(Optional.of(product));
+        when(inventoryRepository.sumValidAvailableQty(1L, 10L)).thenReturn(new BigDecimal("5"));
+        when(warehouseProductReservationRepository.findByWarehouseIdAndProductId(1L, 10L))
+                .thenReturn(Optional.empty());
+        when(stockAlertRepository.findByWarehouseIdAndProductIdAndAlertTypeAndIsResolved(
+                1L, 10L, AlertType.LOW_STOCK, false))
+                .thenReturn(Optional.empty(), Optional.of(alert));
+        when(stockAlertRepository.insertOpenAlertIfAbsent(
+                1L, 10L, new BigDecimal("5"), new BigDecimal("20"), AlertType.LOW_STOCK.name()))
+                .thenReturn(1);
+        when(userWarehouseAssignmentRepository.findWarehouseManagersByWarehouseId(1L))
+                .thenReturn(List.of(manager));
+        when(userRepository.findByRole(UserRole.PLANNER)).thenReturn(List.of());
+        when(stockAlertRepository.findWithFilters(null, null, false, PageRequest.of(0, 10, org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "createdAt"))))
+                .thenReturn(new PageImpl<>(List.of(alert)));
+
+        Page<StockAlertResponse> result = service.getLowStockAlerts(null, null, false, 0, 10, 6L);
+
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getCurrentQty()).isEqualByComparingTo("5");
+        verify(stockAlertRepository).insertOpenAlertIfAbsent(
+                1L, 10L, new BigDecimal("5"), new BigDecimal("20"), AlertType.LOW_STOCK.name());
+        verify(stockAlertRepository).findWithFilters(null, null, false, PageRequest.of(0, 10, org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "createdAt")));
     }
 }

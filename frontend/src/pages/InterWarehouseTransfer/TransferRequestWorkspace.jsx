@@ -10,6 +10,12 @@ import Input from '../../components/common/Input';
 import Badge from '../../components/common/Badge';
 import Pagination from '../../components/common/Pagination';
 
+const todayInputValue = () => {
+  const now = new Date();
+  const offsetDate = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  return offsetDate.toISOString().slice(0, 10);
+};
+
 const TransferRequestWorkspace = () => {
   const activeWarehouse = useAuthStore((state) => state.activeWarehouse);
   const { user, hasRole } = useAuthStore();
@@ -34,6 +40,7 @@ const TransferRequestWorkspace = () => {
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState([{ productId: '', requestedQty: '' }]);
   const [stockLookupResult, setStockLookupResult] = useState({}); // productId -> [{warehouseName, availableQty}]
+  const minNeededByDate = todayInputValue();
 
   // Detail & Approval State
   const [selectedRequest, setSelectedRequest] = useState(null);
@@ -158,6 +165,10 @@ const TransferRequestWorkspace = () => {
     }
     if (!neededByDate) {
       addToast('Vui lòng chọn ngày cần hàng', 'warning');
+      return;
+    }
+    if (neededByDate < minNeededByDate) {
+      addToast('Ngày cần hàng không được là ngày trong quá khứ', 'warning');
       return;
     }
     const filteredItems = items.filter(i => i.productId && Number(i.requestedQty) > 0);
@@ -529,6 +540,7 @@ const TransferRequestWorkspace = () => {
                   label="Ngày cần hàng"
                   type="date"
                   value={neededByDate}
+                  min={minNeededByDate}
                   onChange={(e) => setNeededByDate(e.target.value)}
                 />
                 <Input

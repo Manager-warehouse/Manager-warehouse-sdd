@@ -45,6 +45,8 @@ import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import jakarta.validation.ValidatorFactory;
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.List;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -131,6 +133,38 @@ class RequestValidationTest {
         assertThat(validator.validate(updateRequest))
                 .extracting(violation -> violation.getPropertyPath().toString())
                 .contains("email");
+    }
+
+    @Test
+    void transferRequestCreate_rejectsPastNeededByDate() {
+        TransferRequestCreateRequest request = new TransferRequestCreateRequest(
+                10L,
+                20L,
+                LocalDate.now().minusDays(1),
+                "Destination shortage",
+                null,
+                List.of(new TransferRequestItemRequest(100L, BigDecimal.ONE))
+        );
+
+        assertThat(validator.validate(request))
+                .extracting(violation -> violation.getMessage())
+                .contains("NEEDED_BY_DATE_MUST_NOT_BE_PAST");
+    }
+
+    @Test
+    void transferRequestUpdate_rejectsPastNeededByDate() {
+        TransferRequestUpdateRequest request = new TransferRequestUpdateRequest(
+                10L,
+                20L,
+                LocalDate.now().minusDays(1),
+                "Destination shortage",
+                null,
+                List.of(new TransferRequestItemRequest(100L, BigDecimal.ONE))
+        );
+
+        assertThat(validator.validate(request))
+                .extracting(violation -> violation.getMessage())
+                .contains("NEEDED_BY_DATE_MUST_NOT_BE_PAST");
     }
 
     private ProductRequest validProductRequest() {
