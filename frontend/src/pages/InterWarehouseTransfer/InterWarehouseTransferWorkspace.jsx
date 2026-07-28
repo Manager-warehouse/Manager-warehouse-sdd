@@ -49,7 +49,7 @@ const InterWarehouseTransferWorkspace = () => {
     items: [{ productId: '', plannedQty: 1 }],
   });
   const canCreateTransfer = hasRole(ROLES.PLANNER);
-  const canViewTransferEvidence = hasAnyRole(hasRole, [ROLES.CEO, ROLES.WAREHOUSE_MANAGER, ROLES.ACCOUNTANT_MANAGER]);
+  const canViewTransferEvidence = hasRole(ROLES.CEO) || hasRole(ROLES.WAREHOUSE_MANAGER);
   const needsFleetData = hasAnyRole(hasRole, [ROLES.DISPATCHER, ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]);
   const needsLocationData = hasAnyRole(hasRole, [ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]);
   const needsProductData = canCreateTransfer || hasAnyRole(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]);
