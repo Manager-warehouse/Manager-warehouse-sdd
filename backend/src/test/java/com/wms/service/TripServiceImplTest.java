@@ -726,7 +726,6 @@ class TripServiceImplTest {
         vehicle.setStatus(status);
         vehicle.setIsActive(true);
         vehicle.setMaxWeightKg(new BigDecimal("100.00"));
-        vehicle.setMaxVolumeM3(new BigDecimal("18.000"));
         return vehicle;
     }
 

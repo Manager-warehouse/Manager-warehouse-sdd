@@ -82,7 +82,6 @@ public class MasterDataMapper {
         response.setPlateNumber(entity.getPlateNumber());
         response.setVehicleType(entity.getVehicleType());
         response.setMaxWeightKg(entity.getMaxWeightKg());
-        response.setMaxVolumeM3(entity.getMaxVolumeM3());
         if (entity.getWarehouse() != null) {
             response.setWarehouseId(entity.getWarehouse().getId());
             response.setWarehouseCode(entity.getWarehouse().getCode());

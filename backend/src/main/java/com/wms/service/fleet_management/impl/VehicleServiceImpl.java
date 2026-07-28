@@ -109,7 +109,6 @@ public class VehicleServiceImpl implements VehicleService {
             vehicle.setPlateNumber(request.getPlateNumber());
             vehicle.setVehicleType(request.getVehicleType());
             vehicle.setMaxWeightKg(request.getMaxWeightKg());
-            vehicle.setMaxVolumeM3(request.getMaxVolumeM3());
             vehicle.setWarehouse(warehouse);
             vehicle.setStatus(VehicleStatus.AVAILABLE);
             vehicle.setIsActive(true);
@@ -153,7 +152,6 @@ public class VehicleServiceImpl implements VehicleService {
         vehicle.setPlateNumber(request.getPlateNumber());
         vehicle.setVehicleType(request.getVehicleType());
         vehicle.setMaxWeightKg(request.getMaxWeightKg());
-        vehicle.setMaxVolumeM3(request.getMaxVolumeM3());
         vehicle.setUpdatedBy(actor);
         vehicle.setUpdatedAt(OffsetDateTime.now());
 
@@ -265,7 +263,6 @@ public class VehicleServiceImpl implements VehicleService {
         map.put("plateNumber", v.getPlateNumber());
         map.put("vehicleType", v.getVehicleType());
         map.put("maxWeightKg", v.getMaxWeightKg());
-        map.put("maxVolumeM3", v.getMaxVolumeM3());
         map.put("status", v.getStatus() != null ? v.getStatus().name() : null);
         map.put("isActive", v.getIsActive());
         return map;
