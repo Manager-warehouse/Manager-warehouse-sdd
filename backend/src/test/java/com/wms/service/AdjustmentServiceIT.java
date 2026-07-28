@@ -221,7 +221,7 @@ public class AdjustmentServiceIT {
     }
 
     @Test
-    void testStockTakeDiscrepancy_autoApprovesAndUpdatesInventory() {
+    void testStockTakeDiscrepancy_requiresManagerApprovalAndUpdatesInventory() {
         // 1. Create StockTake (status = DRAFT)
         CreateStockTakeRequest createReq = new CreateStockTakeRequest();
         createReq.setWarehouseId(warehouse.getId());
@@ -253,12 +253,19 @@ public class AdjustmentServiceIT {
 
         stockTakeService.recordCount(stResp.getId(), countReq, storekeeper);
 
-        // 4. Complete StockTake
-        // Total variance value is -100,000 VND (magnitude < 5,000,000 VND threshold for auto-approval)
-        // Therefore, completing this StockTake should trigger AUTO approval!
+        // 4. Complete StockTake. Spec 006 routes every completed stocktake to manager approval,
+        // regardless of variance value.
         stResp = stockTakeService.completeStockTake(stResp.getId(), storekeeper);
+        assertThat(stResp.getStatus()).isEqualTo(StockTakeStatus.PENDING_APPROVAL);
+        assertThat(stResp.getApprovalLevel()).isEqualTo(ApprovalLevel.MANAGER);
+
+        Inventory unchangedInventory = inventoryRepository.findById(inventory.getId()).orElseThrow();
+        assertThat(unchangedInventory.getTotalQty()).isEqualByComparingTo(new BigDecimal("100.00"));
+
+        // 5. Manager approves, then stock and adjustment records are posted.
+        stResp = stockTakeService.approveStockTake(stResp.getId(), manager);
         assertThat(stResp.getStatus()).isEqualTo(StockTakeStatus.APPROVED);
-        assertThat(stResp.getApprovalLevel()).isEqualTo(ApprovalLevel.AUTO);
+        assertThat(stResp.getApprovalLevel()).isEqualTo(ApprovalLevel.MANAGER);
 
         // Verify Location is unlocked
         WarehouseLocation unlockedBin = locationRepository.findById(binLoc.getId()).orElseThrow();
