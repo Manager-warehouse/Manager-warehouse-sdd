@@ -668,7 +668,7 @@ export const interWarehouseTransferService = {
         return requests[idx];
       }
     }
-    const response = await apiClient.post(`/transfer-requests/${id}/cancel`);
+    const response = await apiClient.post(`/transfer-requests/${id}/cancel`, {});
     return response.data;
   },
 

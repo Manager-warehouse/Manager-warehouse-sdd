@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import reportService from '../../services/report.service';
 import { AlertTriangle, CheckCircle, RefreshCw, Warehouse, HelpCircle, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import Badge from '../../components/common/Badge';
@@ -6,6 +7,7 @@ import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 
 const LowStockAlerts = () => {
+  const navigate = useNavigate();
   const [alerts, setAlerts] = useState([]);
   const [totalElements, setTotalElements] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
@@ -47,6 +49,53 @@ const LowStockAlerts = () => {
       return <Badge type="danger">HẾT HÀNG</Badge>;
     }
     return <Badge type="warning">TỒN THẤP</Badge>;
+  };
+
+  const openTransferRequest = (alert) => {
+    if (alert.is_resolved) return;
+    navigate('/transfers/requests', {
+      state: {
+        prefillTransferRequest: {
+          alertId: alert.id,
+          warehouseId: alert.warehouse_id,
+          warehouseName: alert.warehouse_name,
+          productId: alert.product_id,
+          productSku: alert.product_sku,
+          productName: alert.product_name,
+          currentQty: alert.current_qty,
+          reorderPoint: alert.reorder_point,
+        },
+      },
+    });
+  };
+
+  const renderStatusAction = (alert) => {
+    if (alert.is_resolved) {
+      return (
+        <Badge size="sm" type="success">
+          <span className="inline-flex items-center gap-1">
+            <CheckCircle className="w-3 h-3" />
+            Đã bổ sung
+          </span>
+        </Badge>
+      );
+    }
+
+    return (
+      <button
+        type="button"
+        onClick={() => openTransferRequest(alert)}
+        className="inline-flex rounded-full focus:outline-none focus:ring-2 focus:ring-danger-400 focus:ring-offset-2"
+        title="Tạo yêu cầu điều chuyển bổ sung"
+      >
+        <Badge size="sm" type="danger" className="animate-pulse">
+          <span className="inline-flex items-center gap-1">
+            <AlertTriangle className="w-3 h-3" />
+            Cần bổ sung
+          </span>
+        </Badge>
+      </button>
+    );
   };
 
   return (
@@ -154,12 +203,7 @@ const LowStockAlerts = () => {
                             {new Intl.NumberFormat('vi-VN').format(alert.reorder_point)}
                           </td>
                           <td className="px-6 py-4 text-center">
-                            <Badge size="sm" type={alert.is_resolved ? 'success' : 'danger'} className={alert.is_resolved ? '' : 'animate-pulse'}>
-                              <span className="inline-flex items-center gap-1">
-                                {alert.is_resolved ? <CheckCircle className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
-                                {alert.is_resolved ? 'Đã bổ sung' : 'Cần bổ sung'}
-                              </span>
-                            </Badge>
+                            {renderStatusAction(alert)}
                           </td>
                           <td className="px-6 py-4 text-xs text-shade-60">
                             {new Date(alert.created_at).toLocaleString('vi-VN')}
@@ -202,12 +246,7 @@ const LowStockAlerts = () => {
                           )}
                         </p>
                         <div>
-                          <Badge size="sm" type={alert.is_resolved ? 'success' : 'danger'} className={alert.is_resolved ? '' : 'animate-pulse'}>
-                            <span className="inline-flex items-center gap-1">
-                              {alert.is_resolved ? <CheckCircle className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
-                              {alert.is_resolved ? 'Đã bổ sung' : 'Cần bổ sung'}
-                            </span>
-                          </Badge>
+                          {renderStatusAction(alert)}
                         </div>
                       </div>
                     </div>

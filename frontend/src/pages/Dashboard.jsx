@@ -41,7 +41,6 @@ const Dashboard = () => {
   const [requestedQty, setRequestedQty] = useState(1);
   const [neededByDate, setNeededByDate] = useState('');
   const [businessReason, setBusinessReason] = useState('');
-  const [notes, setNotes] = useState('Yêu cầu điều chuyển nhanh từ Dashboard');
   const [submitting, setSubmitting] = useState(false);
   const [mobileStockLimit, setMobileStockLimit] = useState(3);
   const minNeededByDate = todayInputValue();
@@ -183,7 +182,6 @@ const Dashboard = () => {
     defaultNeededBy.setDate(defaultNeededBy.getDate() + 2);
     setNeededByDate(defaultNeededBy.toISOString().slice(0, 10));
     setBusinessReason(`Bổ sung tồn khả dụng cho ${product.sku}`);
-    setNotes(`Yêu cầu điều chuyển nhanh sản phẩm ${product.sku} từ Dashboard`);
     setShowModal(true);
   };
 
@@ -217,7 +215,7 @@ const Dashboard = () => {
         destinationWarehouseId: Number(activeWarehouse.id),
         neededByDate: neededByDate || null,
         businessReason: businessReason.trim(),
-        notes: notes,
+        notes: null,
         items: [
           {
             productId: Number(selectedProduct.id),
@@ -575,19 +573,6 @@ const Dashboard = () => {
                 onChange={(e) => setBusinessReason(e.target.value)}
                 required
                 placeholder="VD: Bổ sung tồn bán"
-              />
-            </div>
-
-            <div>
-              <label className="text-xs font-semibold uppercase tracking-wider text-shade-60 block mb-1.5">
-                Ghi chú yêu cầu
-              </label>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                rows="2"
-                className="text-input resize-none"
-                placeholder="Lý do xin điều chuyển..."
               />
             </div>
 
