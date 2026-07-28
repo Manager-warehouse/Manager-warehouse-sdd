@@ -491,8 +491,8 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
         confirmedQty: 10,
         qcPassedQty: 10,
         qcFailedQty: 0,
-        checkerNote: '',
-        qcFailureReason: '',
+        checkerNote: null,
+        qcFailureReason: null,
       }],
       photoFile: expect.any(File),
     }));
@@ -568,7 +568,7 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
     fireEvent.click(screen.getByRole('button', { name: 'Gửi kế hoạch cất kệ' }));
 
     await waitFor(() => expect(onAction).toHaveBeenCalledWith('finalReceive', {
-      discrepancyReason: '',
+      discrepancyReason: null,
       putawayItems: [{
         transferItemId: 101,
         allocations: [
@@ -659,7 +659,7 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
     fireEvent.click(screen.getByRole('button', { name: 'Duyệt cất kệ và nhập kho' }));
 
     await waitFor(() => expect(onAction).toHaveBeenCalledWith('finalReceive', {
-      discrepancyReason: '',
+      discrepancyReason: null,
     }));
   });
 });
