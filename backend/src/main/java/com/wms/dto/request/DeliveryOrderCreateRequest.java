@@ -57,6 +57,7 @@ public class DeliveryOrderCreateRequest {
     @NotNull
     private DeliveryOrderType type;
 
+    @NotNull(message = "Ngày giao hàng dự kiến không được để trống")
     private LocalDate expectedDeliveryDate;
 
     @NotNull

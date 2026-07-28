@@ -58,6 +58,16 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
                 BigDecimal getAvailableQty();
         }
 
+        interface ProductAvailabilitySummary {
+                Long getProductId();
+
+                BigDecimal getTotalQty();
+
+                BigDecimal getReservedQty();
+
+                BigDecimal getAvailableQty();
+        }
+
         boolean existsByWarehouseIdAndTotalQtyGreaterThan(Long warehouseId, BigDecimal totalQty);
 
         boolean existsByLocationIdAndTotalQtyGreaterThan(Long locationId, BigDecimal totalQty);
@@ -73,6 +83,18 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
                         """)
         AvailabilitySummary summarizeAvailability(@Param("warehouseId") Long warehouseId,
                         @Param("productId") Long productId);
+
+        @Query("""
+                        select
+                            i.product.id as productId,
+                            coalesce(sum(i.totalQty), 0) as totalQty,
+                            coalesce(sum(i.reservedQty), 0) as reservedQty,
+                            coalesce(sum(i.totalQty - i.reservedQty), 0) as availableQty
+                        from Inventory i
+                        where i.warehouse.id = :warehouseId
+                        group by i.product.id
+                        """)
+        List<ProductAvailabilitySummary> summarizeAllAvailability(@Param("warehouseId") Long warehouseId);
 
         @Lock(LockModeType.PESSIMISTIC_WRITE)
         @Query("""
