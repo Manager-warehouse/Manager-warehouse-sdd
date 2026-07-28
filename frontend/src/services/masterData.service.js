@@ -213,7 +213,6 @@ const INITIAL_VEHICLES = [
     plate_number: "15C-234.56",
     vehicle_type: "Xe tải Hyundai H150 1.5 Tấn",
     max_weight_kg: 1500.0,
-    max_volume_m3: 12.5,
     warehouse_id: 1,
     status: "AVAILABLE",
     is_active: true,
@@ -223,7 +222,6 @@ const INITIAL_VEHICLES = [
     plate_number: "29C-789.10",
     vehicle_type: "Xe tải Isuzu NPR400 3.5 Tấn",
     max_weight_kg: 3500.0,
-    max_volume_m3: 20.0,
     warehouse_id: 2,
     status: "MAINTENANCE",
     is_active: true,
@@ -1138,7 +1136,6 @@ export const masterDataService = {
         plate_number: vhData.plate_number.trim().toUpperCase(),
         vehicle_type: vhData.vehicle_type.trim(),
         max_weight_kg: parseFloat(vhData.max_weight_kg) || 0,
-        max_volume_m3: parseFloat(vhData.max_volume_m3) || 0,
         warehouse_id: Number(vhData.warehouse_id),
         status: vhData.status || "AVAILABLE",
         is_active: true,
@@ -1189,8 +1186,6 @@ export const masterDataService = {
         vehicle_type: vhData.vehicle_type.trim(),
         max_weight_kg:
           parseFloat(vhData.max_weight_kg) || vehicles[idx].max_weight_kg,
-        max_volume_m3:
-          parseFloat(vhData.max_volume_m3) || vehicles[idx].max_volume_m3,
         warehouse_id: Number(vhData.warehouse_id) || vehicles[idx].warehouse_id,
         status: vhData.status || vehicles[idx].status,
       };

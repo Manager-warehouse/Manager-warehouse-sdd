@@ -477,7 +477,6 @@ const normalizeTrip = (trip = {}) => ({
   vehicle_plate: value(trip, 'vehiclePlate', 'vehicle_plate', value(trip, 'plateNumber', 'plate_number', '')),
   vehicle_type: value(trip, 'vehicleType', 'vehicle_type', ''),
   vehicle_max_weight_kg: Number(value(trip, 'vehicleMaxWeightKg', 'vehicle_max_weight_kg', 0)),
-  vehicle_max_volume_m3: Number(value(trip, 'vehicleMaxVolumeM3', 'vehicle_max_volume_m3', 0)),
   driver_id: value(trip, 'driverId', 'driver_id'),
   driver_name: value(trip, 'driverName', 'driver_name', ''),
   driver_phone: value(trip, 'driverPhone', 'driver_phone', ''),

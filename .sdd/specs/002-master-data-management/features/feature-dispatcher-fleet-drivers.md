@@ -17,12 +17,13 @@ Quản lý đội xe tải nội bộ của Phúc Anh và danh sách tài xế, 
   - WHILE a vehicle or driver has `is_active = false` (soft-deleted), the system SHALL exclude them from all active operations and dropdown selection lists.
   - WHILE a vehicle or driver is already assigned to any incomplete trip (trip status is not `COMPLETED` or `CANCELLED`), the system SHALL exclude them from trip assignment dropdowns to prevent double booking.
 - **Event-driven:**
-  - WHEN a user creates a Vehicle, the system SHALL require: warehouse_id, plate_number (unique), vehicle_type, and max_weight_kg (positive value). The `max_volume_m3` is optional (nullable), but if provided, it MUST be a positive value.
+  - WHEN a user creates a Vehicle, the system SHALL require: warehouse_id, plate_number (unique), vehicle_type, and max_weight_kg (positive value). Vehicle master data SHALL NOT require or expose vehicle volume capacity in Sprint 1.
   - WHEN a user creates a Driver, the system SHALL require: warehouse_id, user_id (unique FK to users, which MUST belong to a user account with role `DRIVER`), license_number (unique), and license_expiry. The driver display name SHALL be mapped from the linked user account full name, not re-entered as an independent source of truth. The contact `phone` number is optional (nullable) and may inherit/fallback to the phone number of the associated user account.
   - WHEN a vehicle or driver is used for outbound trip planning, the system SHALL validate that its `warehouse_id` matches the trip warehouse.
   - WHEN a trip status changes to `'IN_TRANSIT'`, the system SHALL automatically set the status of the assigned vehicle and driver to `'ON_TRIP'`.
   - WHEN a trip is `COMPLETED` or cancelled, the system SHALL automatically restore the status of the assigned vehicle and driver to `'AVAILABLE'`.
   - WHEN a user updates vehicle or driver status manually from master data, the system SHALL allow only human-controlled readiness statuses (`AVAILABLE`/`MAINTENANCE` for vehicles, `AVAILABLE`/`UNAVAILABLE` for drivers) and reject manual `ON_TRIP`. `ON_TRIP` is system-managed by trip lifecycle.
+  - WHEN a vehicle or driver profile is activated or deactivated (`is_active` toggle), the system SHALL allow only users with role `DISPATCHER` to perform the mutation; Admin/CEO may view fleet data but SHALL NOT be the operational owner for this toggle.
   - WHEN a trip is created, the system SHALL store the trip purpose in `trips.trip_type` with value `DELIVERY` or `TRANSFER` instead of encoding it in vehicle or driver status.
   - WHEN a user deactivates a driver profile (`is_active = false`), the system SHALL automatically deactivate the associated system user account (`users.is_active = false`).
 
@@ -34,7 +35,8 @@ Quản lý đội xe tải nội bộ của Phúc Anh và danh sách tài xế, 
 - `POST /api/v1/vehicles` - Thêm mới xe.
 - `PUT /api/v1/vehicles/{id}` - Cập nhật thông tin xe.
 - `PATCH /api/v1/vehicles/{id}/status` - Cập nhật nhanh trạng thái xe (ví dụ: chuyển sang MAINTENANCE). Manual status updates SHALL NOT accept `ON_TRIP`; that status is applied only by trip lifecycle.
-- `DELETE /api/v1/vehicles/{id}` - Vô hiệu hóa xe (soft-delete, `is_active = false`).
+- `DELETE /api/v1/vehicles/{id}` - Vô hiệu hóa xe (soft-delete, `is_active = false`; role `DISPATCHER` only).
+- `PUT /api/v1/vehicles/{id}/reactivate` - Kích hoạt lại xe (`is_active = true`; role `DISPATCHER` only).
 
 ### Drivers
 
@@ -42,7 +44,8 @@ Quản lý đội xe tải nội bộ của Phúc Anh và danh sách tài xế, 
 - `POST /api/v1/drivers` - Thêm mới tài xế (liên kết với user_id).
 - `PUT /api/v1/drivers/{id}` - Cập nhật thông tin tài xế.
 - `PATCH /api/v1/drivers/{id}/status` - Cập nhật nhanh trạng thái tài xế (ví dụ: chuyển sang UNAVAILABLE). Manual status updates SHALL NOT accept `ON_TRIP`; that status is applied only by trip lifecycle.
-- `DELETE /api/v1/drivers/{id}` - Vô hiệu hóa tài xế (soft-delete, `is_active = false` và khóa tài khoản users tương ứng).
+- `DELETE /api/v1/drivers/{id}` - Vô hiệu hóa tài xế (soft-delete, `is_active = false` và khóa tài khoản users tương ứng; role `DISPATCHER` only).
+- `PUT /api/v1/drivers/{id}/reactivate` - Kích hoạt lại tài xế (`is_active = true`; role `DISPATCHER` only).
 
 ## 5. Acceptance Criteria
 
@@ -75,3 +78,8 @@ Quản lý đội xe tải nội bộ của Phúc Anh và danh sách tài xế, 
   - Given an active driver profile associated with user ID `10`
   - When a Dispatcher deactivates the driver profile (`DELETE /api/v1/drivers/{id}`)
   - Then the system SHALL set `is_active = false` for both the driver profile and the user account with ID `10`.
+
+- **Scenario: Only Dispatcher toggles fleet active state**
+  - Given a user has role `ADMIN` or `CEO`
+  - When they try to deactivate or reactivate a vehicle or driver profile
+  - Then the system SHALL reject the mutation with `DISPATCHER_ROLE_REQUIRED`.

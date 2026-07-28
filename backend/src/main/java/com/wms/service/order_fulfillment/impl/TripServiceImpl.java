@@ -557,19 +557,14 @@ public class TripServiceImpl implements TripService {
         List<DeliveryOrderItem> items = deliveryOrderItemRepository.findByDeliveryOrderIdIn(
                 orders.stream().map(DeliveryOrder::getId).toList());
         BigDecimal weight = ZERO;
-        BigDecimal volume = ZERO;
         for (DeliveryOrderItem item : items) {
             BigDecimal qty = value(item.getRequestedQty());
             weight = weight.add(value(item.getProduct().getWeightKg()).multiply(qty));
-            volume = volume.add(value(item.getProduct().getVolumeM3()).multiply(qty));
         }
         if (vehicle.getMaxWeightKg() != null && weight.compareTo(vehicle.getMaxWeightKg()) > 0) {
             throw rule("VEHICLE_OVERLOAD", "Trip weight exceeds vehicle capacity");
         }
-        if (vehicle.getMaxVolumeM3() != null && volume.compareTo(vehicle.getMaxVolumeM3()) > 0) {
-            throw rule("VEHICLE_OVERLOAD", "Trip volume exceeds vehicle capacity");
-        }
-        return new Capacity(weight, volume);
+        return new Capacity(weight, ZERO);
     }
 
     private void validateFullQcPass(List<DeliveryOrder> orders, Map<Long, List<DeliveryOrderItem>> itemsByOrder) {
@@ -708,7 +703,6 @@ public class TripServiceImpl implements TripService {
                 .vehiclePlate(trip.getVehicle().getPlateNumber())
                 .vehicleType(trip.getVehicle().getVehicleType())
                 .vehicleMaxWeightKg(trip.getVehicle().getMaxWeightKg())
-                .vehicleMaxVolumeM3(trip.getVehicle().getMaxVolumeM3())
                 .driverId(trip.getDriver().getId())
                 .driverName(trip.getDriver().getFullName())
                 .driverPhone(trip.getDriver().getPhone())

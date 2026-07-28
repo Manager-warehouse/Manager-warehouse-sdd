@@ -128,7 +128,7 @@
 
 1. Dispatcher tạo Chuyến xe (Trip Log) mới trong kho được gán: chọn xe nội bộ và Tài xế thuộc cùng kho, thiết lập ngày giao dự kiến.
 2. Gom ít nhất một Đơn xuất hàng (Delivery Orders) ở trạng thái **Warehouse Approved** và cùng kho vào một Chuyến xe `trip_type = DELIVERY`; mỗi DO chỉ được nằm trong một trip active, sắp xếp thứ tự giao hàng (Stop Order).
-3. Hệ thống kiểm tra tải trọng xe: luôn kiểm tra tổng khối lượng; chỉ kiểm tra tổng thể tích khi xe có cấu hình `max_volume_m3`; nếu vượt tải/trọng lượng hoặc thể tích thì chặn gán chuyến.
+3. Hệ thống kiểm tra tải trọng xe theo tổng khối lượng; nếu vượt tải trọng thì chặn gán chuyến.
 4. Dispatcher được sửa xe, tài xế, ngày dự kiến, stop order và danh sách DO, hoặc hủy trip nếu chuyến xe chưa xuất phát; payload sửa danh sách DO là danh sách cuối cùng sau chỉnh sửa. DO của trip bị hủy giữ trạng thái **Warehouse Approved** để xếp lại chuyến khác, còn trip giữ lịch sử xe/tài xế nhưng không chiếm dụng active assignment.
 5. Tài xế được gán phải có hồ sơ tài xế và GPLX còn hạn; tài xế xác nhận nhận hàng, xe rời kho → Trạng thái Chuyến xe: **Đang vận chuyển (In-Transit)** → Hệ thống chuyển hàng từ outbound staging sang Kho ảo In-Transit, giải phóng reserved ở staging và tạo delivery attempt hiện tại.
 6. Chuyến xe chỉ hoàn tất khi xe quay trở lại kho và mọi DO trong chuyến đã **Completed** hoặc **Returned**; hàng Returned vẫn ở Kho ảo In-Transit cho tới khi luồng hoàn hàng riêng xử lý.
@@ -224,7 +224,7 @@
 3. Dispatcher lập một chuyến xe nội bộ riêng cho phiếu điều chuyển: gán xe, tài xế và ngày vận chuyển.
    - Dispatcher chỉ được lập chuyến cho phiếu có kho nguồn thuộc phạm vi kho mình.
    - Danh sách tài xế hợp lệ chỉ gồm các tài xế có thể hoạt động tại kho nguồn của phiếu.
-   - Hệ thống phải tính tải trọng/thể tích từ dòng hàng, kiểm tra xe/tài xế không bị trùng lịch, kiểm tra tải trọng xe theo khối lượng; thể tích chỉ kiểm tra khi xe có cấu hình thể tích. Nếu xe 1500kg mà phiếu/chuyến 2000kg thì hệ thống chặn gán chuyến.
+   - Hệ thống phải tính tải trọng từ dòng hàng, kiểm tra xe/tài xế không bị trùng lịch, kiểm tra tải trọng xe theo khối lượng. Nếu xe 1500kg mà phiếu/chuyến 2000kg thì hệ thống chặn gán chuyến.
    - Tài xế phải có hồ sơ tài xế và GPLX còn hạn; user role `DRIVER` chưa có hồ sơ hoặc hồ sơ hết hạn bằng lái không được gán chuyến.
    - Trạng thái tài xế/xe `ON_TRIP` do hệ thống quản lý theo lifecycle chuyến xe; Dispatcher/Admin không cập nhật thủ công trạng thái này trong form danh mục.
    - Dispatcher không được lập/sửa chuyến với thời gian trong quá khứ, thời gian kết thúc trước bắt đầu, hoặc sau deadline/ngày cần hàng đã quá hạn; nếu quá hạn trước khi đơn thành công thì work item giao/điều phối phải bị hủy/hết hạn theo flow sở hữu.
@@ -411,9 +411,10 @@
 
 **Tiêu chí nghiệm thu:**
 
-1. Lưu trữ thông tin xe: Biển số xe, Loại xe, Tải trọng tối đa (kg), Thể tích thùng xe (m³).
+1. Lưu trữ thông tin xe: Biển số xe, Loại xe, Tải trọng tối đa (kg).
 2. Lưu trữ thông tin Tài xế: Họ tên lấy từ tài khoản `DRIVER` liên kết, SĐT có thể fallback từ tài khoản, Số giấy phép lái xe, ngày hết hạn GPLX.
 3. Cập nhật và hiển thị trạng thái phương tiện (Rảnh / Đang đi chuyến / Bảo trì) và tài xế (Rảnh / Đang đi chuyến / Không khả dụng) để tránh gán trùng lịch khi Dispatcher lập Chuyến xe. `Đang đi chuyến/ON_TRIP` là trạng thái hệ thống tự cập nhật theo trip lifecycle; form danh mục chỉ cho cập nhật trạng thái con người điều khiển như sẵn sàng/bảo trì/không khả dụng.
+4. Chỉ Dispatcher được bật/tắt trạng thái hoạt động (`is_active`) của xe và hồ sơ tài xế; Admin/CEO không thực hiện thao tác vận hành này.
 4. Nếu tài xế chưa có hồ sơ, thiếu hạn GPLX hoặc GPLX hết hạn, hệ thống không cho gán chuyến.
 
 ---

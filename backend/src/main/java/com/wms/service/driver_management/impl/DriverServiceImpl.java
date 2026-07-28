@@ -265,6 +265,7 @@ public class DriverServiceImpl implements DriverService {
 
         User actor = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+        ensureDispatcherActor(actor);
         ensureDriverWithinActorScope(actor, driver);
 
         Map<String, Object> oldMap = toMap(driver);
@@ -288,6 +289,7 @@ public class DriverServiceImpl implements DriverService {
 
         User actor = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+        ensureDispatcherActor(actor);
         ensureDriverWithinActorScope(actor, driver);
 
         if (driver.getIsActive()) {
@@ -353,6 +355,12 @@ public class DriverServiceImpl implements DriverService {
 
     private boolean hasGlobalScope(User actor) {
         return actor.getRole() == UserRole.ADMIN || actor.getRole() == UserRole.CEO;
+    }
+
+    private void ensureDispatcherActor(User actor) {
+        if (actor.getRole() != UserRole.DISPATCHER) {
+            throw new IllegalArgumentException("DISPATCHER_ROLE_REQUIRED");
+        }
     }
 
     private boolean isWithinActorScope(User actor, List<Long> actorWarehouseIds, List<Long> targetWarehouseIds) {

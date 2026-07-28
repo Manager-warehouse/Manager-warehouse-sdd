@@ -94,22 +94,17 @@ public class InterWarehouseTransferShippingService {
         ensureVehicleBelongsToSourceWarehouse(transfer, vehicle);
         ensureDriverBelongsToSourceWarehouse(transfer, driver);
 
-        // T032: Calculate total weight/volume from transfer items
+        // T032: Calculate total weight from transfer items
         BigDecimal totalWeight = BigDecimal.ZERO;
         BigDecimal totalVolume = BigDecimal.ZERO;
         for (InterWarehouseTransferItem item : helper.items(transfer)) {
             BigDecimal qty = item.getPlannedQty() != null ? item.getPlannedQty() : BigDecimal.ZERO;
             BigDecimal weight = item.getProduct().getWeightKg() != null ? item.getProduct().getWeightKg() : BigDecimal.ZERO;
-            BigDecimal volume = item.getProduct().getVolumeM3() != null ? item.getProduct().getVolumeM3() : BigDecimal.ZERO;
             totalWeight = totalWeight.add(qty.multiply(weight));
-            totalVolume = totalVolume.add(qty.multiply(volume));
         }
 
-        // T033: Reject TRIP_CAPACITY_EXCEEDED when weight/volume exceeds capacity
+        // T033: Reject TRIP_CAPACITY_EXCEEDED when weight exceeds capacity
         if (vehicle.getMaxWeightKg() != null && totalWeight.compareTo(vehicle.getMaxWeightKg()) > 0) {
-            throw new BusinessRuleViolationException("TRIP_CAPACITY_EXCEEDED");
-        }
-        if (vehicle.getMaxVolumeM3() != null && totalVolume.compareTo(vehicle.getMaxVolumeM3()) > 0) {
             throw new BusinessRuleViolationException("TRIP_CAPACITY_EXCEEDED");
         }
 

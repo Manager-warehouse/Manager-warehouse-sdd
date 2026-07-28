@@ -292,7 +292,7 @@ public class GlobalExceptionHandler {
             case "DRIVER_NOT_AVAILABLE": return "Tài xế hiện không khả dụng. Vui lòng chọn tài xế khác.";
             case "TRIP_ALREADY_DEPARTED": return "Chuyến xe đã khởi hành, không thể thay đổi.";
             case "TRIP_CAPACITY_EXCEEDED": return "Tổng hàng hóa vượt tải trọng của xe. Vui lòng chọn xe lớn hơn hoặc giảm số lượng hàng.";
-            case "VEHICLE_OVERLOAD": return "Tổng hàng hóa vượt tải trọng hoặc thể tích của xe. Vui lòng chọn xe phù hợp hơn.";
+            case "VEHICLE_OVERLOAD": return "Tổng hàng hóa vượt tải trọng của xe. Vui lòng chọn xe phù hợp hơn.";
             case "DRIVER_LICENSE_EXPIRED": return "Tài xế chưa có hồ sơ bằng lái hợp lệ hoặc bằng lái đã hết hạn, không thể gán chuyến.";
             case "VEHICLE_SOURCE_WAREHOUSE_REQUIRED": return "Xe phải được gán vào kho nguồn của phiếu điều chuyển.";
             case "DRIVER_SOURCE_WAREHOUSE_REQUIRED": return "Tài xế phải được gán vào kho nguồn của phiếu điều chuyển.";

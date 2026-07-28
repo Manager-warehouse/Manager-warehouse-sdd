@@ -11,6 +11,7 @@ import { useUiStore } from '../../stores/ui.store';
 import { ROLES } from '../../utils/constants';
 import InterWarehouseTransferActionPanel from './InterWarehouseTransferActionPanel';
 import InterWarehouseTransferStatusBadge from './InterWarehouseTransferStatusBadge';
+import TransferEvidencePanel from './TransferEvidencePanel';
 
 const normalizeId = (value) => Number(value || 0);
 const isWholeNumber = (value) => Number.isInteger(Number(value));
@@ -48,6 +49,7 @@ const InterWarehouseTransferWorkspace = () => {
     items: [{ productId: '', plannedQty: 1 }],
   });
   const canCreateTransfer = hasRole(ROLES.PLANNER);
+  const canViewTransferEvidence = hasRole(ROLES.CEO) || hasRole(ROLES.WAREHOUSE_MANAGER);
   const needsFleetData = hasAnyRole(hasRole, [ROLES.DISPATCHER, ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]);
   const needsLocationData = hasAnyRole(hasRole, [ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]);
   const needsProductData = canCreateTransfer || hasAnyRole(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]);
@@ -631,6 +633,7 @@ const InterWarehouseTransferWorkspace = () => {
               </div>
             </div>
           )}
+          {selectedTransfer && canViewTransferEvidence && <TransferEvidencePanel transfer={selectedTransfer} />}
           <InterWarehouseTransferActionPanel
             transfer={selectedTransfer}
             currentUser={user}

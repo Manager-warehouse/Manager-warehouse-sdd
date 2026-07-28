@@ -83,6 +83,11 @@ Kho Phuc Anh khong dung Barcode/QR trong Sprint 1. Buoc pick/load report cua con
     * Keep the handover confirmation action disabled until required photo evidence exists.
     * Create a `TRANSFER_LOAD_HANDOVER` audit log entry.
 
+  * WHEN a CEO or Warehouse Manager opens transfer detail with reviewer access, the UI SHALL expose a read-only evidence panel grouped by business flow, not as an undifferentiated image gallery:
+    * `Xuất kho nguồn`: outbound QC evidence (`outboundQcPhotoRef`) and load handover evidence (`loadHandoverPhotoRef`).
+    * Each evidence card SHALL show the business step name, actor name when available, timestamp when available, image availability state, and a preview action.
+    * Missing evidence SHALL be displayed as `Chưa có ảnh` with the expected step name so reviewers understand which gate has not happened.
+
   * WHEN a user needs to cancel after shipment preparation but before driver departure, the system SHALL require an unship/unload action first:
     * Allow unship/unload only while the transfer is still `APPROVED` and `sent_qty` has been recorded.
     * Allow unship/unload only for Thu kho nguon assigned to the transfer source warehouse or an authorized manager.

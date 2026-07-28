@@ -95,6 +95,12 @@ Tat ca buoc ban giao co anh trong UI Sprint 1 phai dung thao tac chon file anh h
   * WHEN the assigned driver starts and completes the return leg, the system SHALL record return departure and source arrival/handover with selected/captured photo evidence before source-side receive-count is allowed.
   * WHEN returned goods arrive at the source warehouse, the system SHALL repeat receive-count, receive-check/QC, and final-receive with source-scoped actors.
   * WHEN a transfer shortage is finalized, the system SHALL import and calculate value only for physically received and accepted quantity; missing quantity SHALL remain a quantity-only discrepancy and SHALL NOT be included in destination receipt value or billing totals.
+  * WHEN a CEO or Warehouse Manager opens transfer detail with reviewer access, the UI SHALL expose a read-only evidence panel grouped by business flow:
+    * `Vận chuyển / bàn giao`: destination arrival handover evidence (`arrivalHandoverPhotoRef`).
+    * `QC kho nhận`: receiving QC evidence (`receiveQcPhotoRef`).
+    * `Quay đầu xe`: return handover evidence (`returnPhotoRef`), shown as a dedicated return-flow group and emphasized when `is_returned = true` or return timestamps exist.
+    * `Chênh lệch liên quan`: a reviewer hint SHALL connect likely evidence to discrepancy types: shortage uses arrival handover + receive QC, QC failure uses receive QC, return-to-source uses return evidence, and dispute about sent quantity uses outbound QC + load handover.
+    * Evidence cards SHALL be read-only for CEO/Manager reviewers, show actor/timestamp metadata where available, and open a large preview when an image reference exists.
 * **Authorization and warehouse scope:**
   * Nhân viên kho/Công nhân kho đích SHALL record initial counts only for transfers whose destination warehouse is in the actor's assigned warehouse scope.
   * When `is_returned = true` (Return to Source triggered), the receiving scope flips to the source warehouse; destination-side actors SHALL be blocked from all receive actions.
@@ -106,6 +112,7 @@ Tat ca buoc ban giao co anh trong UI Sprint 1 phai dung thao tac chon file anh h
   * The storekeeper CANNOT select or override the quarantine bin; it is system-assigned only.
   * The bin dropdown for QC-passed stock SHALL filter out quarantine bins (client-side pre-filtering), with backend enforcement as the authoritative guard.
   * Handover confirmation buttons SHALL remain disabled until required photo evidence has been selected from the device or captured by camera.
+  * Transfer detail SHALL present evidence in a compact timeline layout with sections `Xuất kho nguồn`, `Vận chuyển / bàn giao`, `QC kho nhận`, `Quay đầu xe`, and `Chênh lệch liên quan`; it SHALL NOT mix outbound delivery POD images with transfer QC/handover images.
 
 ## 4. API Endpoints
 * `POST /api/v1/inter-warehouse-transfers/{id}/arrive` - Tài xế được gán ghi nhận xe đã đến kho nhận hiện tại.

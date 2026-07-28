@@ -141,9 +141,10 @@
 - Tạo Chuyến xe (Trip Log): Chọn xe nội bộ Phúc Anh từ danh mục, gán Tài xế.
 - Gom các Đơn xuất hàng (ở trạng thái Ready to Ship) vào một Chuyến xe; sắp xếp thứ tự giao hàng (Stop Order) để tối ưu lộ trình.
 - Lập một chuyến xe nội bộ riêng cho từng Phiếu điều chuyển kho; không gom nhiều Phiếu điều chuyển vào cùng một chuyến trong Sprint 1.
-- Kiểm tra tải trọng/thể tích xe trước khi xác nhận chuyến; hệ thống chặn nếu vượt tải.
-- Với điều chuyển, tài xế/xe phải thuộc phạm vi kho nguồn, không bị trùng lịch; kiểm tra cân nặng luôn áp dụng và thể tích chỉ áp dụng khi xe có cấu hình thể tích.
+- Kiểm tra tải trọng xe theo khối lượng trước khi xác nhận chuyến; hệ thống chặn nếu vượt tải.
+- Với điều chuyển, tài xế/xe phải thuộc phạm vi kho nguồn, không bị trùng lịch; kiểm tra cân nặng luôn áp dụng.
 - Chỉ cập nhật thủ công trạng thái sẵn sàng/bảo trì/không khả dụng của xe/tài xế. Trạng thái `ON_TRIP` do hệ thống cập nhật khi chuyến bắt đầu/kết thúc; tài xế thiếu hồ sơ hoặc GPLX hết hạn/không có hạn thì không được gán chuyến.
+- Là vai trò duy nhất được bật/tắt trạng thái hoạt động (`is_active`) của hồ sơ xe và tài xế nội bộ; Admin/CEO chỉ xem hoặc quản trị hệ thống, không sở hữu thao tác vận hành này.
 - Với điều chuyển, Dispatcher chỉ được đổi xe/tài xế/lịch trước khi tài xế departure; sau departure trip bị khóa.
 
 **Lưu ý quan trọng:** Hệ thống **CHỈ dùng xe nội bộ** của Phúc Anh. KHÔNG phát sinh chi phí vận chuyển 3PL trong luồng xuất hàng thông thường → KHÔNG có quy trình Duyệt chi vận tải.
@@ -302,7 +303,7 @@ Trưởng kho kho thiếu hàng có thể xem tồn liên kho read-only
 Planner nhận lệnh điều chuyển ngoài (external instruction code) hoặc transfer request đã được CEO duyệt
     → Planner tạo Phiếu điều chuyển `TRF-*` [Mới] trên màn Điều chuyển nội bộ
     → Trưởng kho nguồn kiểm tra tồn khả dụng FIFO eligible → Duyệt và khóa hàng [Đã duyệt]
-    → Dispatcher kho nguồn lập chuyến xe `TTR-*` riêng, gán xe và tài xế thuộc phạm vi kho nguồn, kiểm tra tải trọng/thể tích/trùng lịch
+    → Dispatcher kho nguồn lập chuyến xe `TTR-*` riêng, gán xe và tài xế thuộc phạm vi kho nguồn, kiểm tra tải trọng/trùng lịch
     → Thủ kho nguồn outbound QC bằng mắt/đối chiếu phiếu, chụp ảnh xác nhận, ghi nhận số gửi, bốc xếp lên xe nội bộ và chụp ảnh handover cho tài xế
     → Tài xế xác nhận nhận hàng, xe rời kho
         → Hệ thống: Trừ tồn Kho nguồn, Cộng Kho ảo In-Transit [Đang vận chuyển]

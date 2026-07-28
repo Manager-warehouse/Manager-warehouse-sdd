@@ -63,7 +63,4 @@ public class VehicleRequest {
     @DecimalMin(value = "0.01", message = "MAX_WEIGHT_MUST_BE_POSITIVE")
     private BigDecimal maxWeightKg;
 
-    @DecimalMin(value = "0.001", message = "MAX_VOLUME_MUST_BE_POSITIVE")
-    private BigDecimal maxVolumeM3;
-
 }
