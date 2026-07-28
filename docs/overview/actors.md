@@ -144,6 +144,7 @@
 - Kiểm tra tải trọng/thể tích xe trước khi xác nhận chuyến; hệ thống chặn nếu vượt tải.
 - Với điều chuyển, tài xế/xe phải thuộc phạm vi kho nguồn, không bị trùng lịch; kiểm tra cân nặng luôn áp dụng và thể tích chỉ áp dụng khi xe có cấu hình thể tích.
 - Chỉ cập nhật thủ công trạng thái sẵn sàng/bảo trì/không khả dụng của xe/tài xế. Trạng thái `ON_TRIP` do hệ thống cập nhật khi chuyến bắt đầu/kết thúc; tài xế thiếu hồ sơ hoặc GPLX hết hạn/không có hạn thì không được gán chuyến.
+- Là vai trò duy nhất được bật/tắt trạng thái hoạt động (`is_active`) của hồ sơ xe và tài xế nội bộ; Admin/CEO chỉ xem hoặc quản trị hệ thống, không sở hữu thao tác vận hành này.
 - Với điều chuyển, Dispatcher chỉ được đổi xe/tài xế/lịch trước khi tài xế departure; sau departure trip bị khóa.
 
 **Lưu ý quan trọng:** Hệ thống **CHỈ dùng xe nội bộ** của Phúc Anh. KHÔNG phát sinh chi phí vận chuyển 3PL trong luồng xuất hàng thông thường → KHÔNG có quy trình Duyệt chi vận tải.

@@ -414,6 +414,7 @@
 1. Lưu trữ thông tin xe: Biển số xe, Loại xe, Tải trọng tối đa (kg), Thể tích thùng xe (m³).
 2. Lưu trữ thông tin Tài xế: Họ tên lấy từ tài khoản `DRIVER` liên kết, SĐT có thể fallback từ tài khoản, Số giấy phép lái xe, ngày hết hạn GPLX.
 3. Cập nhật và hiển thị trạng thái phương tiện (Rảnh / Đang đi chuyến / Bảo trì) và tài xế (Rảnh / Đang đi chuyến / Không khả dụng) để tránh gán trùng lịch khi Dispatcher lập Chuyến xe. `Đang đi chuyến/ON_TRIP` là trạng thái hệ thống tự cập nhật theo trip lifecycle; form danh mục chỉ cho cập nhật trạng thái con người điều khiển như sẵn sàng/bảo trì/không khả dụng.
+4. Chỉ Dispatcher được bật/tắt trạng thái hoạt động (`is_active`) của xe và hồ sơ tài xế; Admin/CEO không thực hiện thao tác vận hành này.
 4. Nếu tài xế chưa có hồ sơ, thiếu hạn GPLX hoặc GPLX hết hạn, hệ thống không cho gán chuyến.
 
 ---

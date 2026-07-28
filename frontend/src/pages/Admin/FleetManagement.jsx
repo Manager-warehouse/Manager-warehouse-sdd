@@ -73,6 +73,7 @@ const FleetManagement = () => {
   const getUserWarehouses = (user) => user?.warehouse_ids || user?.warehouseIds || user?.warehouses || [];
   const isUserActive = (user) => user?.is_active !== false && user?.isActive !== false;
   const hasGlobalFleetScope = hasRole(ROLES.ADMIN) || hasRole(ROLES.CEO);
+  const canToggleFleetActive = hasRole(ROLES.DISPATCHER);
   const fleetWarehouseIds = hasGlobalFleetScope
     ? []
     : (
@@ -191,8 +192,8 @@ const FleetManagement = () => {
   };
 
   const handleToggleVhStatus = async (vehicle) => {
-    if (vehicle.is_active && !hasRole(ROLES.ADMIN) && !hasRole(ROLES.CEO)) {
-      addToast('Chỉ Quản trị viên hoặc CEO mới có quyền tắt kích hoạt phương tiện', 'warning');
+    if (!canToggleFleetActive) {
+      addToast('Chỉ Điều phối viên mới có quyền bật/tắt kích hoạt phương tiện', 'warning');
       return;
     }
     try {
@@ -280,8 +281,8 @@ const FleetManagement = () => {
   };
 
   const handleToggleDrStatus = async (driver) => {
-    if (driver.is_active && !hasRole(ROLES.ADMIN) && !hasRole(ROLES.CEO)) {
-      addToast('Chỉ Quản trị viên hoặc CEO mới có quyền tắt kích hoạt tài xế', 'warning');
+    if (!canToggleFleetActive) {
+      addToast('Chỉ Điều phối viên mới có quyền bật/tắt kích hoạt tài xế', 'warning');
       return;
     }
     try {

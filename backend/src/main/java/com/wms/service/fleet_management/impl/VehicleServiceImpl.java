@@ -209,6 +209,7 @@ public class VehicleServiceImpl implements VehicleService {
 
         User actor = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+        ensureDispatcherActor(actor);
 
         Map<String, Object> oldMap = toMap(vehicle);
 
@@ -234,6 +235,7 @@ public class VehicleServiceImpl implements VehicleService {
 
         User actor = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+        ensureDispatcherActor(actor);
 
         Map<String, Object> oldMap = toMap(vehicle);
 
@@ -247,6 +249,12 @@ public class VehicleServiceImpl implements VehicleService {
         auditLogService.log(actor, AuditAction.UPDATE, "Vehicle", saved.getId(), saved.getPlateNumber(), null, oldMap, toMap(saved));
 
         return mapper.toResponse(saved);
+    }
+
+    private void ensureDispatcherActor(User actor) {
+        if (actor.getRole() != UserRole.DISPATCHER) {
+            throw new IllegalArgumentException("DISPATCHER_ROLE_REQUIRED");
+        }
     }
 
     private Map<String, Object> toMap(Vehicle v) {
