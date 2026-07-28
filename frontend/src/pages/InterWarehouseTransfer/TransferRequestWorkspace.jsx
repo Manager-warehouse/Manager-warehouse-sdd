@@ -17,6 +17,8 @@ const todayInputValue = () => {
   return offsetDate.toISOString().slice(0, 10);
 };
 
+const isWholeNumber = (value) => Number.isInteger(Number(value));
+
 const TransferRequestWorkspace = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -226,9 +228,26 @@ const TransferRequestWorkspace = () => {
       addToast('Ngày cần hàng không được là ngày trong quá khứ', 'warning');
       return;
     }
+    const hasIncompleteItem = items.some((item) => {
+      const hasAnyValue = Boolean(item.productId) || String(item.requestedQty || '').trim() !== '';
+      return hasAnyValue && (!item.productId || Number(item.requestedQty) <= 0);
+    });
+    if (hasIncompleteItem) {
+      addToast('Mỗi dòng sản phẩm đã nhập phải có đủ SKU và số lượng lớn hơn 0', 'warning');
+      return;
+    }
     const filteredItems = items.filter(i => i.productId && Number(i.requestedQty) > 0);
     if (filteredItems.length === 0) {
       addToast('Vui lòng nhập ít nhất một sản phẩm hợp lệ', 'warning');
+      return;
+    }
+    if (filteredItems.some((item) => !isWholeNumber(item.requestedQty))) {
+      addToast('Số lượng yêu cầu phải là số nguyên', 'warning');
+      return;
+    }
+    const uniqueProductIds = new Set(filteredItems.map((item) => String(item.productId)));
+    if (uniqueProductIds.size !== filteredItems.length) {
+      addToast('Không được chọn trùng SKU trong cùng yêu cầu', 'warning');
       return;
     }
     const insufficientItem = findInsufficientSourceItem(filteredItems);
@@ -286,7 +305,7 @@ const TransferRequestWorkspace = () => {
       setShowDetailModal(false);
       fetchData();
     } catch (e) {
-      addToast('Lỗi gửi yêu cầu duyệt', 'error');
+      addToast(`Lỗi gửi yêu cầu duyệt: ${e.message || 'Không xác định'}`, 'error');
     } finally {
       setLoading(false);
     }
@@ -316,7 +335,7 @@ const TransferRequestWorkspace = () => {
       setShowDetailModal(false);
       fetchData();
     } catch (e) {
-      addToast('Lỗi phê duyệt yêu cầu', 'error');
+      addToast(`Lỗi phê duyệt yêu cầu: ${e.message || 'Không xác định'}`, 'error');
     } finally {
       setSubmitting(false);
     }
@@ -334,7 +353,7 @@ const TransferRequestWorkspace = () => {
       setShowDetailModal(false);
       fetchData();
     } catch (e) {
-      addToast('Lỗi từ chối yêu cầu', 'error');
+      addToast(`Lỗi từ chối yêu cầu: ${e.message || 'Không xác định'}`, 'error');
     } finally {
       setSubmitting(false);
     }
@@ -347,7 +366,7 @@ const TransferRequestWorkspace = () => {
       addToast('Planner đã chuyển đổi yêu cầu thành phiếu điều chuyển TRF thành công', 'success');
       fetchData();
     } catch (e) {
-      addToast('Lỗi chuyển đổi yêu cầu', 'error');
+      addToast(`Lỗi chuyển đổi yêu cầu: ${e.message || 'Không xác định'}`, 'error');
     } finally {
       setLoading(false);
     }
@@ -646,6 +665,8 @@ const TransferRequestWorkspace = () => {
                           <Input
                             type="number"
                             placeholder="Số lượng"
+                            min="1"
+                            step="1"
                             value={item.requestedQty}
                             onChange={(e) => handleItemChange(idx, 'requestedQty', e.target.value)}
                           />

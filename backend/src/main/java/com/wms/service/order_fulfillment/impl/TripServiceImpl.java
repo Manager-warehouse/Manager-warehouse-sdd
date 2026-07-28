@@ -83,6 +83,7 @@ import com.wms.service.order_fulfillment.TripService;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -197,6 +198,7 @@ public class TripServiceImpl implements TripService {
         requireWarehouseScope(actor, warehouse.getId());
         Vehicle vehicle = availableVehicle(request.getVehicleId(), warehouse.getId(), null);
         Driver driver = availableDriver(request.getDriverId(), warehouse.getId(), null);
+        validateTripSchedule(request.getPlannedStartAt(), request.getPlannedEndAt());
         List<DeliveryOrder> orders = validateOrders(request.getDeliveryOrders(), warehouse.getId(), null,
                 request.getPlannedStartAt().toLocalDate(), actor);
         Capacity capacity = calculateCapacity(orders, vehicle);
@@ -235,14 +237,19 @@ public class TripServiceImpl implements TripService {
 
         Long vehicleId = request.getVehicleId() == null ? trip.getVehicle().getId() : request.getVehicleId();
         Long driverId = request.getDriverId() == null ? trip.getDriver().getId() : request.getDriverId();
+        LocalDateTime plannedStartAt = request.getPlannedStartAt() == null
+                ? trip.getPlannedStartAt()
+                : request.getPlannedStartAt();
+        LocalDateTime plannedEndAt = request.getPlannedEndAt() == null
+                ? trip.getPlannedEndAt()
+                : request.getPlannedEndAt();
         Vehicle vehicle = availableVehicle(vehicleId, trip.getWarehouse().getId(), trip.getId());
         Driver driver = availableDriver(driverId, trip.getWarehouse().getId(), trip.getId());
         List<TripDeliveryOrderRequest> rows = request.getDeliveryOrders() == null
                 ? currentRows(trip.getId())
                 : request.getDeliveryOrders();
-        LocalDate plannedDate = request.getPlannedStartAt() == null
-                ? trip.getPlannedDate()
-                : request.getPlannedStartAt().toLocalDate();
+        validateTripSchedule(plannedStartAt, plannedEndAt);
+        LocalDate plannedDate = plannedStartAt == null ? trip.getPlannedDate() : plannedStartAt.toLocalDate();
         List<DeliveryOrder> orders = validateOrders(rows, trip.getWarehouse().getId(), trip.getId(),
                 plannedDate, actor);
         Capacity capacity = calculateCapacity(orders, vehicle);
@@ -369,6 +376,22 @@ public class TripServiceImpl implements TripService {
             validateDeliveryDeadline(order, plannedDate, actor);
         }
         return ids.stream().map(orders::get).toList();
+    }
+
+    private void validateTripSchedule(LocalDateTime plannedStartAt, LocalDateTime plannedEndAt) {
+        if (plannedStartAt == null || plannedEndAt == null) {
+            return;
+        }
+        if (!plannedEndAt.isAfter(plannedStartAt)) {
+            throw rule("TRIP_SCHEDULE_INVALID", "Trip planned end must be after planned start");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        if (plannedStartAt.isBefore(now.minusMinutes(15))) {
+            throw rule("TRIP_START_IN_PAST", "Trip planned start must not be in the past");
+        }
+        if (plannedEndAt.isBefore(now)) {
+            throw rule("TRIP_END_IN_PAST", "Trip planned end must not be in the past");
+        }
     }
 
     private void validateDeliveryDeadline(DeliveryOrder order, LocalDate plannedDate, User actor) {

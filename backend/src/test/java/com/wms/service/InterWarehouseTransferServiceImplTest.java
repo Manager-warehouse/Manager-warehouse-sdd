@@ -335,8 +335,8 @@ class InterWarehouseTransferServiceImplTest {
                 "CTM-20260617-01",
                 sourceWarehouse.getId(),
                 destinationWarehouse.getId(),
-                LocalDate.of(2026, 6, 17),
-                LocalDate.of(2026, 6, 18),
+                LocalDate.now(),
+                LocalDate.now().plusDays(1),
                 "manual instruction",
                 List.of(new InterWarehouseTransferItemRequest(product.getId(), sourceLocation.getId(),
                         destinationLocation.getId(), new BigDecimal("4.00"))));
@@ -349,13 +349,13 @@ class InterWarehouseTransferServiceImplTest {
                 "CTM-20260617-01",
                 sourceWarehouse.getId(),
                 destinationWarehouse.getId(),
-                LocalDate.of(2026, 6, 17),
-                LocalDate.of(2026, 6, 19),
+                LocalDate.now(),
+                LocalDate.now().plusDays(2),
                 "manual instruction updated",
                 List.of(new InterWarehouseTransferItemRequest(product.getId(), sourceLocation.getId(),
                         destinationLocation.getId(), new BigDecimal("6.00"))));
         InterWarehouseTransferResponse updated = service.updateTransfer(1L, updateRequest, planner);
-        assertThat(updated.plannedDate()).isEqualTo(LocalDate.of(2026, 6, 19));
+        assertThat(updated.plannedDate()).isEqualTo(LocalDate.now().plusDays(2));
         assertThat(updated.items()).hasSize(1);
         assertThat(updated.items().get(0).plannedQty()).isEqualByComparingTo("6.00");
 
@@ -373,8 +373,8 @@ class InterWarehouseTransferServiceImplTest {
                 "CTM-OUTSIDE-01",
                 sourceWarehouse.getId(),
                 destinationWarehouse.getId(),
-                LocalDate.of(2026, 6, 17),
-                LocalDate.of(2026, 6, 18),
+                LocalDate.now(),
+                LocalDate.now().plusDays(1),
                 "outside scope",
                 List.of(new InterWarehouseTransferItemRequest(product.getId(), sourceLocation.getId(),
                         destinationLocation.getId(), new BigDecimal("4.00"))));
@@ -387,8 +387,8 @@ class InterWarehouseTransferServiceImplTest {
                 "CTM-OUTSIDE-01",
                 sourceWarehouse.getId(),
                 destinationWarehouse.getId(),
-                LocalDate.of(2026, 6, 17),
-                LocalDate.of(2026, 6, 19),
+                LocalDate.now(),
+                LocalDate.now().plusDays(2),
                 "outside scope updated",
                 List.of(new InterWarehouseTransferItemRequest(product.getId(), sourceLocation.getId(),
                         destinationLocation.getId(), new BigDecimal("6.00"))));
@@ -412,8 +412,8 @@ class InterWarehouseTransferServiceImplTest {
                 "TRQ-DESTINATION-PLANNER",
                 sourceWarehouse.getId(),
                 destinationWarehouse.getId(),
-                LocalDate.of(2026, 6, 17),
-                LocalDate.of(2026, 6, 18),
+                LocalDate.now(),
+                LocalDate.now().plusDays(1),
                 "approved destination request",
                 List.of(new InterWarehouseTransferItemRequest(product.getId(), null, null, new BigDecimal("4.00"))));
 

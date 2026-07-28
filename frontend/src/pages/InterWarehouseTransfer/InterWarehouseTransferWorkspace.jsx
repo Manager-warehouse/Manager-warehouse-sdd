@@ -13,6 +13,8 @@ import InterWarehouseTransferActionPanel from './InterWarehouseTransferActionPan
 import InterWarehouseTransferStatusBadge from './InterWarehouseTransferStatusBadge';
 
 const normalizeId = (value) => Number(value || 0);
+const isWholeNumber = (value) => Number.isInteger(Number(value));
+const todayInputValue = () => new Date().toISOString().slice(0, 10);
 const isActiveRecord = (record) => record.is_active !== false && record.isActive !== false;
 const isPhysicalWarehouse = (warehouse) => (warehouse.type || '').toUpperCase() !== 'IN_TRANSIT';
 const hasAnyRole = (hasRole, roles) => roles.some((role) => hasRole(role));
@@ -278,19 +280,28 @@ const InterWarehouseTransferWorkspace = () => {
       if (!destination) {
         throw new Error('Vui lòng chọn kho đích');
       }
+      if (!form.externalInstructionCode.trim()) {
+        throw new Error('Vui lòng nhập mã lệnh Công ty mẹ');
+      }
       if (source.id === destination.id) {
         throw new Error('Kho nguồn và kho đích phải khác nhau');
       }
       if (!form.items.length) {
         throw new Error('Phiếu điều chuyển cần ít nhất một dòng hàng');
       }
+      if (form.plannedDate < todayInputValue()) {
+        throw new Error('Ngày dự kiến không được ở quá khứ');
+      }
+      if (form.plannedDate < form.documentDate) {
+        throw new Error('Ngày dự kiến không được trước ngày chứng từ');
+      }
       const payload = {
-        externalInstructionCode: form.externalInstructionCode,
+        externalInstructionCode: form.externalInstructionCode.trim(),
         sourceWarehouseId: source.id,
         destinationWarehouseId: destination.id,
         documentDate: form.documentDate,
         plannedDate: form.plannedDate,
-        notes: form.notes,
+        notes: form.notes?.trim() || null,
         items: form.items.map((item, index) => {
           const product = products.find((row) => row.id === normalizeId(item.productId));
           if (!product) {
@@ -298,6 +309,9 @@ const InterWarehouseTransferWorkspace = () => {
           }
           if (Number(item.plannedQty) <= 0) {
             throw new Error('Số lượng đặt phải lớn hơn 0');
+          }
+          if (!isWholeNumber(item.plannedQty)) {
+            throw new Error('Số lượng điều chuyển phải là số nguyên');
           }
           const availability = availabilityByLine[index];
           if (availability && !availability.error && Number(item.plannedQty) > Number(availability.availableQty ?? 0)) {
@@ -386,14 +400,14 @@ const InterWarehouseTransferWorkspace = () => {
           <Input type="select" label="Kho đích" value={form.destinationWarehouseId} onChange={(e) => setForm({ ...form, destinationWarehouseId: e.target.value })}
             options={destinationWarehouseOptions} />
           <Input type="date" label="Ngày chứng từ" value={form.documentDate} onChange={(e) => setForm({ ...form, documentDate: e.target.value })} />
-          <Input type="date" label="Ngày dự kiến" value={form.plannedDate} onChange={(e) => setForm({ ...form, plannedDate: e.target.value })} />
+          <Input type="date" label="Ngày dự kiến" min={todayInputValue()} value={form.plannedDate} onChange={(e) => setForm({ ...form, plannedDate: e.target.value })} />
           <Input className="md:col-span-3" label="Ghi chú" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
           <div className="md:col-span-4 flex flex-col gap-2">
             {form.items.map((item, index) => (
               <div key={index} className="grid grid-cols-1 md:grid-cols-[1fr_160px_160px_120px] gap-2 items-end">
                 <Input type="select" label="Sản phẩm" value={item.productId} onChange={(e) => setItem(index, { productId: e.target.value })}
                   options={[{ value: '', label: 'Chọn SKU' }, ...products.map((product) => ({ value: product.id, label: `${product.sku} - ${product.name}` }))]} />
-                <Input label="Số lượng đặt" type="number" min="0.01" step="0.01" value={item.plannedQty} onChange={(e) => setItem(index, { plannedQty: e.target.value })} />
+                <Input label="Số lượng đặt" type="number" min="1" step="1" value={item.plannedQty} onChange={(e) => setItem(index, { plannedQty: e.target.value })} />
                 <div className="min-h-[44px] rounded-md border border-hairline-light bg-canvas-cream/50 px-3 py-2 text-xs">
                   <div className="font-semibold uppercase tracking-wider text-shade-60">Tồn khả dụng</div>
                   {availabilityByLine[index]?.error ? (

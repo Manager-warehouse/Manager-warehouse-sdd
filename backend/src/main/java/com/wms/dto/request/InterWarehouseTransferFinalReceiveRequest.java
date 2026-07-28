@@ -40,7 +40,7 @@ import jakarta.validation.Valid;
 import java.util.List;
 
 public record InterWarehouseTransferFinalReceiveRequest(
-        @Size(max = 1000)
+        @Size(max = 1000, message = "REASON_TOO_LONG")
         String discrepancyReason,
         List<@Valid InterWarehouseTransferFinalPutawayItemRequest> putawayItems) {
 

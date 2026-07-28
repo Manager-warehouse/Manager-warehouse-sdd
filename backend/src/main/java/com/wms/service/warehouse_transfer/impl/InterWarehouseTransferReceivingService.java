@@ -97,8 +97,16 @@ public class InterWarehouseTransferReceivingService {
         }
 
         Map<Long, InterWarehouseTransferItem> itemById = helper.itemMap(transfer);
+        if (request.items().size() != itemById.size()) {
+            throw new BusinessRuleViolationException("RECEIVE_COUNT_ITEMS_REQUIRED");
+        }
+        Set<Long> countedItemIds = new HashSet<>();
         Map<String, Object> before = helper.snapshot(transfer);
         for (InterWarehouseTransferReceiveCountItemRequest line : request.items()) {
+            if (!countedItemIds.add(line.transferItemId())) {
+                throw new BusinessRuleViolationException("DUPLICATE_RECEIVE_COUNT_ITEM");
+            }
+            ensureWholeQuantity(line.receivedQty());
             InterWarehouseTransferItem item = helper.requireItem(itemById, line.transferItemId());
             if (line.receivedQty().compareTo(item.getSentQty()) != 0 && helper.isBlank(line.issueReason())) {
                 throw new BusinessRuleViolationException("ISSUE_REASON_REQUIRED");
@@ -120,8 +128,18 @@ public class InterWarehouseTransferReceivingService {
             throw new BusinessRuleViolationException("RECEIVE_QC_PHOTO_REQUIRED");
         }
         Map<Long, InterWarehouseTransferItem> itemById = helper.itemMap(transfer);
+        if (request.items().size() != itemById.size()) {
+            throw new BusinessRuleViolationException("RECEIVE_CHECK_ITEMS_REQUIRED");
+        }
+        Set<Long> checkedItemIds = new HashSet<>();
         Map<String, Object> before = helper.snapshot(transfer);
         for (InterWarehouseTransferReceiveCheckItemRequest line : request.items()) {
+            if (!checkedItemIds.add(line.transferItemId())) {
+                throw new BusinessRuleViolationException("DUPLICATE_RECEIVE_CHECK_ITEM");
+            }
+            ensureWholeQuantity(line.confirmedQty());
+            ensureWholeQuantity(line.qcPassedQty());
+            ensureWholeQuantity(line.qcFailedQty());
             InterWarehouseTransferItem item = helper.requireItem(itemById, line.transferItemId());
             validateReceiveCheckLine(transfer, item, line);
             item.setReceivedQty(line.confirmedQty());
@@ -633,6 +651,7 @@ public class InterWarehouseTransferReceivingService {
         Set<Long> locationIds = new HashSet<>();
         java.util.ArrayList<PutawayTarget> targets = new java.util.ArrayList<>();
         for (InterWarehouseTransferPutawayAllocationRequest allocation : requestedPlan.allocations()) {
+            ensureWholeQuantity(allocation.quantity());
             if (!locationIds.add(allocation.locationId())) {
                 throw new BusinessRuleViolationException("DUPLICATE_PUTAWAY_LOCATION");
             }
@@ -937,6 +956,12 @@ public class InterWarehouseTransferReceivingService {
         }
         if (location.getCapacityKg() != null && currentWeight.add(addedWeight).compareTo(location.getCapacityKg()) > 0) {
             throw new BusinessRuleViolationException("BIN_CAPACITY_EXCEEDED: Weight exceeds location capacity for " + location.getCode());
+        }
+    }
+
+    private void ensureWholeQuantity(BigDecimal quantity) {
+        if (quantity.stripTrailingZeros().scale() > 0) {
+            throw new BusinessRuleViolationException("TRANSFER_QTY_MUST_BE_WHOLE_NUMBER");
         }
     }
 

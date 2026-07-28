@@ -6,5 +6,6 @@ import jakarta.validation.constraints.NotNull;
 import java.util.List;
 
 public record InterWarehouseTransferFinalPutawayItemRequest(
-        @NotNull Long transferItemId,
-        @NotEmpty List<@Valid InterWarehouseTransferPutawayAllocationRequest> allocations) {}
+        @NotNull(message = "TRANSFER_ITEM_ID_REQUIRED") Long transferItemId,
+        @NotEmpty(message = "PUTAWAY_ALLOCATIONS_REQUIRED")
+        List<@Valid InterWarehouseTransferPutawayAllocationRequest> allocations) {}
