@@ -2,8 +2,8 @@
 
 **Spec ID**: 005-inter-warehouse-transfer
 **Created**: 2026-05-30
-**Updated**: 2026-07-22
-**Status**: Change requested - add source worker load/count step before outbound QC and make QC-failed transfer return to worker rework
+**Updated**: 2026-07-28
+**Status**: Change requested - document transfer exception path contract and frontend/backend validation coverage
 **Features**: US-WMS-11, US-WMS-12
 
 ---
@@ -120,10 +120,30 @@ The canonical execution flow SHALL be:
 
 Exception branches SHALL be handled as explicit branches in the same operational workflow:
 - Shortage: create incident/discrepancy record plus `TRANSFER_DISCREPANCY` adjustment; missing quantity never becomes quarantine stock.
+- Shortage incident follow-up: the created discrepancy incident SHALL remain `OPEN` until CEO, ACCOUNTANT_MANAGER, or a warehouse-scoped WAREHOUSE_MANAGER resolves it with one of `RESOLVED_ACCEPTED`, `RESOLVED_SOURCE_FAULT`, `RESOLVED_CARRIER_FAULT`, or `RESOLVED_DESTINATION_COUNT_ERROR` plus a non-blank resolution note. Resolution records responsibility/audit only; any later inventory correction still goes through the adjustment workflow.
 - Over-receipt: block regular inventory posting and record a discrepancy-hold/incident for the physical excess goods; do not silently ignore physical overage.
 - QC failure: move physical failed quantity to Quarantine with internal-transfer origin for Spec 009 disposal.
 - Wrong SKU: require line-item report with expected/actual SKU, quantity, reason, and photo references when available; destination manager approves/rejects; approved return requires driver return departure, source arrival/handover with photo evidence, and source receiving.
 - Overdue trip: block destination receiving until an authorized return-to-source decision is recorded with reason and photo references when available.
+
+### 3.2 Exception Path and Validation Contract
+
+All validation and exception paths in the internal-transfer module SHALL be treated as first-class workflow outcomes, not unhandled runtime failures:
+
+- Every write endpoint SHALL return the centralized API error envelope with a stable error code and a Vietnamese human-readable message. If the backend message contains details after a colon, the UI SHALL still translate the leading error code and may append the detail as context.
+- Frontend validation SHALL catch obvious input errors before submit, but backend validation remains authoritative. Backend rejection MUST leave inventory, reservation, transfer status, trip/resource status, and audit state unchanged unless the exception path explicitly creates a domain record such as a discrepancy hold.
+- Transfer request (`TRQ`) input SHALL validate source/requesting warehouse, needed-by date not in the past, business reason, at least one item, positive whole requested quantities, no duplicate SKU lines, and source available quantity at submit time.
+- Transfer document (`TRF`) input SHALL validate external instruction code, source/destination warehouse, source different from destination, document date not in the past, planned date not earlier than document date, at least one item, positive whole planned quantities, no duplicate SKU lines, active product/warehouse/location, and duplicate active external instruction.
+- Source approval SHALL pre-check total FIFO-eligible available stock before mutating reservations or allocations. If stock is insufficient, approval SHALL fail with `INSUFFICIENT_AVAILABLE_STOCK`/stock-equivalent validation and MUST NOT leave partial reservation/allocation side effects.
+- Dispatcher trip setup SHALL validate source warehouse scope, transfer status, vehicle/driver active and available, driver source-warehouse scope, non-expired driver license, trip schedule not in the past, trip window consistency, overlap, and capacity by calculated item weight/volume. Once departure is recorded, trip assignment becomes locked.
+- Source load/outbound QC/handover SHALL validate complete item coverage, positive whole loaded quantities, no over-load/under-load without rework reason, required photo evidence, QC passed before ship/handover, and sent quantity matching approved planned quantity.
+- Driver departure/arrival/return leg SHALL validate assigned driver identity, required handover evidence, ordered state transitions, and planned trip deadline rules. If the needed/planned transfer deadline has passed before successful departure, Dispatcher SHALL NOT create or update a trip for execution and the related delivery/dispatch work item SHALL move to a cancelled/expired state according to its owning flow.
+- Receive-count SHALL validate arrival/handover completion, receiving warehouse scope, complete item coverage, positive whole quantities, received quantity not exceeding sent quantity, and issue reason for shortage/over-count/declared issue.
+- Receive-check SHALL validate checker scope, count existence, complete unique item coverage, checker note when checker quantity differs from worker count, QC total equals confirmed quantity, QC failure reason, active quarantine bin existence when `qcFailedQty > 0`, non-quarantine destination bin for QC-passed goods, and destination bin capacity.
+- Final receive SHALL validate receive-check approval, In-Transit warehouse/location configuration, putaway plan uniqueness by item and location, positive whole putaway quantities, no putaway over QC-passed quantity, and discrepancy reason when putaway is short or received quantity is short. Structural putaway errors SHALL be returned directly and SHALL NOT be masked by a later discrepancy-reason error.
+- Wrong-SKU return reporting SHALL validate expected product, actual product exists, expected and actual products are different, affected quantity is positive and not greater than sent quantity, reason is non-blank, and all wrong-SKU lines are valid before mutating return-request state.
+- The UI SHALL display inline field errors for form inputs where possible, show backend messages as a single deduplicated toast stack, cap concurrent toasts to avoid overlap, and refresh the affected transfer/request after successful mutations.
+- Accepted state mutations SHALL create audit logs. Rejected input attempts that do not change domain state do not create inventory/business mutation audit logs, but must be observable through normal API logs/error responses for troubleshooting.
 
 ## 4. Non-functional Requirements
 
@@ -279,6 +299,20 @@ Exception branches SHALL be handled as explicit branches in the same operational
 - Ton kho tai kho ao In-Transit su dung cung thuc the voi `warehouse_id` lien ket den kho `IN_TRANSIT`.
 - Dieu chuyen noi bo khong tao phieu `RN`; nhan hang kho dich xong se cap nhat ton va audit trong luong transfer nay.
 
+### discrepancy_incidents
+- `id` (BIGSERIAL, PK)
+- `transfer_id` (BIGINT, FK->inter_warehouse_transfers, NOT NULL)
+- `product_id` (BIGINT, FK->products, NOT NULL)
+- `incident_type` (VARCHAR(30), NOT NULL) -- `SHORTAGE` or `OVER_RECEIPT`
+- `quantity` (DECIMAL(10,2), NOT NULL)
+- `status` (VARCHAR(30), NOT NULL) -- `OPEN`, `RESOLVED_ACCEPTED`, `RESOLVED_SOURCE_FAULT`, `RESOLVED_CARRIER_FAULT`, `RESOLVED_DESTINATION_COUNT_ERROR`
+- `resolution_note` (TEXT)
+- `resolved_by` (BIGINT, FK->users)
+- `resolved_at` (TIMESTAMPTZ)
+- `created_at` (TIMESTAMPTZ, NOT NULL)
+- `updated_at` (TIMESTAMPTZ, NOT NULL)
+- Shortage incidents are created during final receive together with the immutable `TRANSFER_DISCREPANCY` adjustment. Incident resolution is an investigation/audit outcome, not an inventory posting.
+
 ## 6. API Spec
 
 *Vui long xem chi tiet API endpoints tai cac tai lieu dac ta tinh nang:*
@@ -286,6 +320,10 @@ Exception branches SHALL be handled as explicit branches in the same operational
 - [APIs - Manager Transfer Request and CEO Approval](./features/feature-warehouse-manager-transfer-request.md#4-api-endpoints)
 - [APIs - Transfer Shipment](./features/feature-storekeeper-transfer-ship.md#4-api-endpoints)
 - [APIs - Transfer Receipt](./features/feature-storekeeper-transfer-receive.md#4-api-endpoints)
+
+Additional operational review endpoints:
+- `GET /api/v1/transfer-discrepancy-incidents?status=OPEN` - CEO, ACCOUNTANT_MANAGER, and warehouse-scoped WAREHOUSE_MANAGER list shortage/over-receipt incident records.
+- `POST /api/v1/transfer-discrepancy-incidents/{id}/resolve` - Authorized reviewer resolves an `OPEN` incident with status and resolution note; writes audit and does not mutate inventory.
 
 ## 7. Error Handling
 
@@ -338,6 +376,15 @@ Exception branches SHALL be handled as explicit branches in the same operational
 | SOURCE_LOAD_REWORK_REQUIRED | 409 | Previous outbound QC failed; source worker must unload, replace, correct, or re-report loaded quantities before QC can pass |
 | BIN_CAPACITY_EXCEEDED | 422 | QC-passed destination bin does not have enough remaining capacity |
 | TRIP_CAPACITY_EXCEEDED | 422 | Calculated transfer weight or volume exceeds vehicle capacity |
+| VEHICLE_OVERLOAD | 422 | Calculated delivery/transfer weight or configured volume exceeds selected vehicle capacity |
+| DRIVER_LICENSE_EXPIRED | 422 | Driver has no valid profile license expiry or the license has expired at assignment time |
+| DRIVER_ON_TRIP_STATUS_SYSTEM_MANAGED | 422 | User attempts to manually set driver status to ON_TRIP instead of letting trip flow manage it |
+| VEHICLE_ON_TRIP_STATUS_SYSTEM_MANAGED | 422 | User attempts to manually set vehicle status to ON_TRIP instead of letting trip flow manage it |
+| DISCREPANCY_INCIDENT_NOT_FOUND | 404 | Discrepancy incident id does not exist |
+| DISCREPANCY_INCIDENT_ACCESS_DENIED | 403/422 | Actor is not authorized or not warehouse-scoped to the incident route |
+| DISCREPANCY_INCIDENT_NOT_OPEN | 409/422 | Actor attempts to resolve an incident that has already been resolved |
+| DISCREPANCY_RESOLUTION_STATUS_INVALID | 400/422 | Resolution status is not one of the approved terminal statuses |
+| DISCREPANCY_RESOLUTION_NOTE_REQUIRED | 400 | Resolution note is blank |
 | TRANSFER_ARRIVAL_REQUIRED | 409 | Receive-count attempted before driver arrival/handover is recorded |
 | RETURN_DEPARTURE_REQUIRED | 409 | Source return receiving attempted before approved return leg departure |
 | RETURN_ARRIVAL_REQUIRED | 409 | Source return receiving attempted before approved return arrival/handover |
@@ -393,6 +440,7 @@ Exception branches SHALL be handled as explicit branches in the same operational
 - Dispatcher SHALL verify the selected vehicle and driver are available and not already assigned to an overlapping trip.
 - Dispatcher SHALL calculate transfer trip weight and volume from product/package data and planned quantities, reject overloaded vehicles, and store the calculated totals on the trip.
 - Driver candidates for a transfer trip SHALL belong to the transfer source warehouse scope; drivers assigned only to unrelated warehouses SHALL NOT be selectable.
+- Driver candidates for a transfer trip SHALL have an existing driver profile and a non-expired license. Users with role `DRIVER` but no driver profile, missing `license_expiry`, or expired license SHALL NOT be assignable.
 - Drivers SHALL NOT manually change their own dispatch availability status from the transfer flow. Dispatcher/admin manages driver readiness, and the system MAY auto-switch driver status to `ON_TRIP` on departure and back to `READY` when the transfer trip is completed or cancelled without another active assignment.
 - Nhan vien kho/Cong nhan kho nguon SHALL pick/load approved transfer goods and report `loaded_qty` per transfer item before source outbound QC.
 - Worker-reported `loaded_qty` SHALL equal approved `planned_qty` for every transfer item before the shipment can be considered ready for QC pass; mismatch SHALL be rejected or kept in rework with a required reason.
@@ -424,6 +472,7 @@ Exception branches SHALL be handled as explicit branches in the same operational
 - QC-failed transfer quantity placed in Quarantine SHALL retain its `transfer_id` and `transfer_item_id` origin and SHALL be handed off to the Spec 009 disposal flow.
 - Transfer-origin quarantine goods SHALL NOT be eligible for supplier RTV or supplier Debit Note creation.
 - A physical transfer shortage SHALL create only a `TRANSFER_DISCREPANCY` adjustment; the missing quantity SHALL NOT increase quarantine inventory or create a disposal candidate.
+- The same shortage SHALL create an `OPEN` discrepancy incident that can be reviewed in the `/transfers/discrepancies` workspace. Resolving this incident does not reverse or re-post inventory; it records the accepted business explanation/responsibility and writes audit.
 - An intact wrong-SKU shipment MAY use Return to Source. Return to Source SHALL NOT be used as the terminal treatment for goods already confirmed physically damaged; those goods SHALL follow Spec 009 disposal.
 - Destination Storekeeper SHALL report an intact wrong-SKU shipment with item-level expected SKU, actual SKU, quantity, and reason while the transfer remains `IN_TRANSIT`.
 - Destination Storekeeper SHALL attach or reference available photos for a wrong-SKU report when available; photo evidence is optional for wrong-SKU in Sprint 1 but the report schema SHALL support it.
@@ -495,6 +544,7 @@ Exception branches SHALL be handled as explicit branches in the same operational
 - `TRANSFER_RECEIVE_CHECK`: Thu kho dich checks received counts, records/approves QC, and selects destination location for QC-passed stock.
 - `TRANSFER_RECEIVE_CONFIRM`: Truong kho dich confirms receipt, moves passed quantity to destination inventory, failed quantity to quarantine inventory, clears In-Transit, and completes the transfer.
 - `TRANSFER_DISCREPANCY_CREATE`: System creates shortage adjustment when received quantity is lower than sent quantity.
+- `DISCREPANCY_INCIDENT` status change: CEO, ACCOUNTANT_MANAGER, or warehouse-scoped WAREHOUSE_MANAGER resolves the open incident with responsibility/status and note.
 - `TRANSFER_RETURN_TO_SOURCE`: Source warehouse manager or authorized role triggers return-to-source on an overdue IN_TRANSIT transfer; sets `is_returned = true` and flips receiving scope to source warehouse.
 - `TRANSFER_RETURN_REQUEST`: Destination Storekeeper reports intact wrong SKU with item detail and reason.
 - `TRANSFER_RETURN_APPROVE`: Destination Warehouse Manager approves wrong-SKU return, keeps stock In-Transit, and flips receiving scope to source warehouse.
@@ -615,3 +665,9 @@ Exception branches SHALL be handled as explicit branches in the same operational
 - The implementation backlog after 2026-07-12 MUST prioritize P0 production correctness over new UI polish.
 - Applied migrations (`V1` through latest deployed version) MUST remain immutable. Schema corrections for transfer status, nullable planned batch, version columns, wrong-SKU reports, arrival/handover, outbound QC, trip capacity, and incident/discrepancy hold data MUST be introduced through the next additive migration.
 - The OpenAPI contract MUST use the implemented resource base `/api/v1/inter-warehouse-transfers` for transfer execution endpoints and `/api/v1/transfer-requests` for request endpoints.
+
+### 11.7 Discrepancy incident resolution workspace
+- Shortage final receive creates an `OPEN` `discrepancy_incidents` row with incident type `SHORTAGE`, product, transfer, quantity, and the entered discrepancy reason.
+- UI route `/transfers/discrepancies` lists incidents for CEO, ACCOUNTANT_MANAGER, and WAREHOUSE_MANAGER scoped to the source or destination warehouse.
+- Reviewers may resolve only `OPEN` incidents using `RESOLVED_ACCEPTED`, `RESOLVED_SOURCE_FAULT`, `RESOLVED_CARRIER_FAULT`, or `RESOLVED_DESTINATION_COUNT_ERROR`, with a required resolution note.
+- Resolution writes audit (`DISCREPANCY_INCIDENT` status change) and does not automatically alter inventory. If a resolution determines the warehouse count was wrong, a separate approved adjustment/correction workflow must be used for stock correction.

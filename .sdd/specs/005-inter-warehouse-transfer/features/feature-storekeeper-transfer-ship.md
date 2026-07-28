@@ -27,7 +27,8 @@ Kho Phuc Anh khong dung Barcode/QR trong Sprint 1. Buoc pick/load report cua con
 * **Event-driven:**
   * WHEN a Truong kho nguon approves a transfer (status -> `APPROVED`), the system SHALL:
     * Allow approval only when the actor is assigned to the transfer source warehouse or has an authorized manager override role.
-    * Verify `available_qty = total_qty - reserved_qty >= planned_qty` at the source warehouse.
+    * Verify `available_qty = total_qty - reserved_qty >= planned_qty` at the source warehouse across FIFO-eligible, active, non-quarantine locations before mutating any reservation or allocation.
+    * Reject insufficient stock without partial reservation, partial allocation, transfer status change, or approval audit.
     * Increase source inventory reservation by the approved quantity.
     * Create a `TRANSFER_APPROVE` audit log entry.
 
@@ -42,6 +43,8 @@ Kho Phuc Anh khong dung Barcode/QR trong Sprint 1. Buoc pick/load report cua con
     * Create or link exactly one `TRANSFER` trip with vehicle, driver, and planned date.
     * Require Dispatcher role; Planner SHALL NOT assign or create trips.
     * Require the transfer source warehouse to be in dispatcher scope.
+    * Require the planned trip time window to be valid, not in the past, and not later than the transfer needed/planned deadline for execution.
+    * If the transfer deadline has already passed before a successful trip assignment/departure, reject trip creation/update and move the related dispatchable work item to cancelled/expired according to the owning workflow.
     * Verify the selected vehicle and driver are available and not already assigned to an overlapping trip.
     * Reject drivers that are active but are not assigned to the transfer source warehouse scope.
     * Create a `TRANSFER_TRIP_ASSIGN` audit log entry.
@@ -51,6 +54,7 @@ Kho Phuc Anh khong dung Barcode/QR trong Sprint 1. Buoc pick/load report cua con
     * Allow the action only while the transfer is `APPROVED`.
     * Allow the action only when the actor is assigned to the transfer source warehouse.
     * Record `loaded_qty` for every item before outbound QC.
+    * Require every loaded quantity to be a non-negative whole number.
     * Require `loaded_qty = planned_qty` for every item before QC can pass; otherwise keep the transfer in source-load rework with a required reason.
     * Clear any previous failed-QC rework marker after a corrected load report is saved.
     * Create a `TRANSFER_SOURCE_LOAD_REPORT` audit log entry.
@@ -118,14 +122,19 @@ Kho Phuc Anh khong dung Barcode/QR trong Sprint 1. Buoc pick/load report cua con
 
 ## 5. Validation and Error Handling
 - `INSUFFICIENT_TRANSFER_STOCK` (HTTP 422): source warehouse lacks available quantity at approval.
+- `INSUFFICIENT_AVAILABLE_STOCK` (HTTP 422): FIFO-eligible source stock is insufficient; approval fails before any reservation/allocation side effect.
 - `TRANSFER_ALREADY_APPROVED` (HTTP 409): duplicate approval attempt.
 - `REJECTION_REASON_REQUIRED` (HTTP 400): Truong kho nguon rejects transfer without reason.
 - `TRANSFER_TRIP_REQUIRED` (HTTP 400): departure attempted before assigning exactly one `TRANSFER` trip.
 - `TRANSFER_TRIP_NOT_AVAILABLE` (HTTP 409): selected vehicle or driver is unavailable or already assigned to an overlapping trip.
+- `TRIP_DATE_MUST_NOT_BE_PAST` (HTTP 400): trip planned start/end time is earlier than the backend local business time/date.
+- `TRIP_DEADLINE_EXPIRED` (HTTP 409): transfer needed/planned deadline has already passed before dispatch execution.
+- `TRIP_END_BEFORE_START` (HTTP 400): planned end time is earlier than planned start time.
 - `TRIP_CAPACITY_EXCEEDED` (HTTP 422): calculated transfer weight or volume exceeds selected vehicle capacity.
 - `WAREHOUSE_SCOPE_REQUIRED` (HTTP 403): Dispatcher/manager/storekeeper acts outside source warehouse scope.
 - `OUTBOUND_QC_REQUIRED` (HTTP 409): shipment/departure is attempted before outbound QC passed.
 - `SOURCE_LOAD_REPORT_REQUIRED` (HTTP 409): outbound QC, load handover, or departure is attempted before worker reports loaded quantities.
+- `SOURCE_LOAD_QTY_INVALID` (HTTP 400): loaded quantity is negative or not a whole number.
 - `SOURCE_LOAD_REWORK_REQUIRED` (HTTP 409): previous outbound QC failed and source worker must unload/replace/correct/re-report before QC can pass.
 - `TRANSFER_PHOTO_REQUIRED` (HTTP 400): outbound QC or load/handover is confirmed without required photo reference.
 - `ASSIGNED_DRIVER_REQUIRED` (HTTP 409): departure actor is not the driver assigned to the transfer trip.
@@ -156,6 +165,12 @@ Kho Phuc Anh khong dung Barcode/QR trong Sprint 1. Buoc pick/load report cua con
   - When Planner creates a transfer of 30 units and Truong kho HP approves it
   - Then source inventory HP SHALL show `total_qty = 50`, `reserved_qty = 30`, and `available_qty = 20`.
 
+- **Scenario: Reject approval without partial reservation**
+  - Given source warehouse HP has only 1 FIFO-eligible available unit of product X
+  - When Truong kho HP approves a transfer of 2 units
+  - Then the system SHALL reject with `INSUFFICIENT_AVAILABLE_STOCK`.
+  - And transfer status, source reservation, transfer allocations, and approval audit SHALL remain unchanged.
+
 - **Scenario: Transfer rejection requires reason**
   - Given a transfer is in `NEW` status
   - When Truong kho HP rejects it with reason "Khong du ton kha dung tai kho nguon"
@@ -166,6 +181,12 @@ Kho Phuc Anh khong dung Barcode/QR trong Sprint 1. Buoc pick/load report cua con
   - And one active driver belongs only to HN
   - When Dispatcher kho HP opens the trip assignment form
   - Then that HN-only driver SHALL NOT appear in the selectable driver list.
+
+- **Scenario: Block dispatch after transfer deadline**
+  - Given a transfer has a needed/planned deadline of `2026-07-28`
+  - And no successful departure was recorded before that deadline expired
+  - When Dispatcher attempts to create or update the trip for execution after the deadline
+  - Then the system SHALL reject the action with `TRIP_DEADLINE_EXPIRED` and move the dispatchable work item to cancelled/expired according to the owning workflow.
 
 - **Scenario: Planner cancels NEW transfer**
   - Given a transfer is in `NEW` status and no inventory has been reserved

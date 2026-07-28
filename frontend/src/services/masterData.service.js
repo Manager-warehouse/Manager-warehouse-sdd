@@ -1288,11 +1288,11 @@ export const masterDataService = {
         id: drivers.length > 0 ? Math.max(...drivers.map((d) => d.id)) + 1 : 1,
         user_id: drvData.user_id ? Number(drvData.user_id) : 13, // Default driver user_id link
         warehouse_ids: drvData.warehouse_ids || drvData.warehouseIds || linkedUser?.warehouses || [],
-        full_name: drvData.full_name.trim(),
+        full_name: linkedUser?.full_name || linkedUser?.fullName || drvData.full_name.trim(),
         phone: drvData.phone || "",
         license_number: drvData.license_number.trim().toUpperCase(),
         license_expiry: drvData.license_expiry,
-        status: drvData.status || "AVAILABLE",
+        status: "AVAILABLE",
         is_active: true,
       };
 
@@ -1306,7 +1306,7 @@ export const masterDataService = {
       );
       return newDrv;
     }
-    const { status, warehouse_ids, warehouseIds, warehouse_id, warehouseId, ...profileData } = drvData;
+    const { warehouse_ids, warehouseIds, warehouse_id, warehouseId, ...profileData } = drvData;
     const whId = warehouseId || warehouse_id || (warehouse_ids && warehouse_ids.length > 0 ? warehouse_ids[0] : (warehouseIds && warehouseIds.length > 0 ? warehouseIds[0] : null));
     const payload = {
       ...profileData,
@@ -1316,12 +1316,6 @@ export const masterDataService = {
       "/dispatcher/drivers",
       mapToCamelCase(payload),
     );
-    if (status && status !== response.data.status) {
-      await apiClient.patch(`/dispatcher/drivers/${response.data.id}/status`, {
-        status,
-      });
-      response.data.status = status;
-    }
     return mapToSnakeCase(response.data);
   },
 
@@ -1347,7 +1341,7 @@ export const masterDataService = {
         phone: drvData.phone || "",
         license_number: drvData.license_number.trim().toUpperCase(),
         license_expiry: drvData.license_expiry,
-        status: drvData.status || drivers[idx].status,
+        status: drivers[idx].status,
       };
 
       drivers[idx] = updated;
@@ -1360,7 +1354,7 @@ export const masterDataService = {
       );
       return updated;
     }
-    const { status, warehouse_ids, warehouseIds, warehouse_id, warehouseId, ...profileData } = drvData;
+    const { warehouse_ids, warehouseIds, warehouse_id, warehouseId, ...profileData } = drvData;
     const whId = warehouseId || warehouse_id || (warehouse_ids && warehouse_ids.length > 0 ? warehouse_ids[0] : (warehouseIds && warehouseIds.length > 0 ? warehouseIds[0] : null));
     const payload = {
       ...profileData,
@@ -1370,12 +1364,6 @@ export const masterDataService = {
       `/dispatcher/drivers/${id}`,
       mapToCamelCase(payload),
     );
-    if (status) {
-      await apiClient.patch(`/dispatcher/drivers/${id}/status`, {
-        status,
-      });
-      response.data.status = status;
-    }
     return mapToSnakeCase(response.data);
   },
 

@@ -142,7 +142,7 @@ public class DriverServiceImpl implements DriverService {
         Driver driver = new Driver();
         driver.setWarehouse(warehouse);
         driver.setUser(driverUser);
-        driver.setFullName(request.getFullName());
+        driver.setFullName(driverUser.getFullName());
         driver.setPhone(phone);
         driver.setLicenseNumber(request.getLicenseNumber());
         driver.setLicenseExpiry(request.getLicenseExpiry());
@@ -203,7 +203,7 @@ public class DriverServiceImpl implements DriverService {
 
         driver.setWarehouse(warehouse);
         driver.setUser(driverUser);
-        driver.setFullName(request.getFullName());
+        driver.setFullName(driverUser.getFullName());
         driver.setPhone(phone);
         driver.setLicenseNumber(request.getLicenseNumber());
         driver.setLicenseExpiry(request.getLicenseExpiry());
@@ -229,9 +229,14 @@ public class DriverServiceImpl implements DriverService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
         ensureDriverWithinActorScope(actor, driver);
 
+        DriverStatus requestedStatus = DriverStatus.valueOf(status);
+        if (requestedStatus == DriverStatus.ON_TRIP) {
+            throw new IllegalArgumentException("DRIVER_ON_TRIP_STATUS_SYSTEM_MANAGED");
+        }
+
         Map<String, Object> oldMap = toMap(driver);
 
-        driver.setStatus(DriverStatus.valueOf(status));
+        driver.setStatus(requestedStatus);
         driver.setUpdatedBy(actor);
         driver.setUpdatedAt(OffsetDateTime.now());
 

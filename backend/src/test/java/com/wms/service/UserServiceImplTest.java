@@ -142,7 +142,7 @@ class UserServiceImplTest {
     @Test
     @DisplayName("Lấy danh sách người dùng thành công")
     void getAllUsers_success() {
-        when(userRepository.findAll()).thenReturn(List.of(targetUser));
+        when(userRepository.findAll()).thenReturn(List.of(adminUser, targetUser));
         when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(2L)).thenReturn(List.of(10L));
 
         List<UserResponse> responses = userService.getAllUsers();
@@ -150,6 +150,7 @@ class UserServiceImplTest {
         assertThat(responses).hasSize(1);
         assertThat(responses.get(0).getEmail()).isEqualTo("john@phucanh.vn");
         assertThat(responses.get(0).getWarehouses()).containsExactly(10L);
+        verify(userWarehouseAssignmentRepository, never()).findWarehouseIdsByUserId(1L);
     }
 
     @Test
@@ -422,4 +423,3 @@ class UserServiceImplTest {
         verify(userWarehouseAssignmentRepository, never()).save(any(UserWarehouseAssignment.class));
     }
 }
-

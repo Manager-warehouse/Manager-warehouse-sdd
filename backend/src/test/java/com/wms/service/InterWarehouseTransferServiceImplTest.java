@@ -609,6 +609,20 @@ class InterWarehouseTransferServiceImplTest {
     }
 
     @Test
+    void assignTrip_rejectsExpiredDriverLicense() {
+        service.approveTransfer(1L, sourceManager);
+        driver.setLicenseExpiry(LocalDate.now().minusDays(1));
+
+        assertThatThrownBy(() -> service.assignTrip(
+                1L,
+                new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(), VALID_TRIP_START,
+                        VALID_TRIP_END),
+                dispatcher))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("DRIVER_LICENSE_EXPIRED");
+    }
+
+    @Test
     void assignTrip_requiresDispatcherAndVehicleFromSourceWarehouse() {
         service.approveTransfer(1L, sourceManager);
 
