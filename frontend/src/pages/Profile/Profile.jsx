@@ -9,6 +9,14 @@ import { WAREHOUSES } from '../../utils/constants';
 import { getAvatarFallback, formatDate } from '../../utils/format';
 import { User, KeyRound, Warehouse, ShieldAlert } from 'lucide-react';
 
+const getAuthStorage = () => {
+  try {
+    return typeof window !== 'undefined' && window.localStorage ? window.localStorage : null;
+  } catch {
+    return null;
+  }
+};
+
 const Profile = () => {
   const { user, login } = useAuthStore();
   const { addToast } = useUiStore();
@@ -38,7 +46,8 @@ const Profile = () => {
       try {
         const fullUser = await authService.getMe();
         if (fullUser) {
-          login(fullUser, sessionStorage.getItem('wms_token'));
+          const storage = getAuthStorage();
+          login(fullUser, storage?.getItem('wms_token'), storage?.getItem('wms_refresh_token'));
         }
       } catch (err) {
       }
@@ -67,7 +76,8 @@ const Profile = () => {
     try {
       const updatedUser = await authService.updateProfile(fullName, email, phone);
       // Refresh user details in store
-      login(updatedUser, sessionStorage.getItem('wms_token'));
+      const storage = getAuthStorage();
+      login(updatedUser, storage?.getItem('wms_token'), storage?.getItem('wms_refresh_token'));
       addToast('Cập nhật thông tin cá nhân thành công', 'success');
     } catch (err) {
       addToast('Cập nhật thông tin thất bại', 'error');
