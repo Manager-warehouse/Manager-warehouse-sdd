@@ -71,41 +71,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessRuleViolationException.class)
     public ResponseEntity<ApiErrorResponse> handleBusinessRule(BusinessRuleViolationException ex) {
         String msg = ex.getMessage();
-        HttpStatus status = HttpStatus.UNPROCESSABLE_ENTITY;
-        String code = "BUSINESS_RULE_VIOLATION";
-
-        if (msg != null) {
-            if (msg.contains("INVENTORY_VERSION_CONFLICT")) {
-                status = HttpStatus.CONFLICT;
-                code = "INVENTORY_VERSION_CONFLICT";
-            } else if (msg.contains("RTV_ALREADY_CONFIRMED")) {
-                status = HttpStatus.CONFLICT;
-                code = "RTV_ALREADY_CONFIRMED";
-            } else if (msg.contains("RTV_QUANTITY_MISMATCH")) {
-                code = "RTV_QUANTITY_MISMATCH";
-            } else if (msg.contains("INVALID_STATE")) {
-                code = "INVALID_STATE";
-            } else if (msg.contains("INVALID_LOCATION")) {
-                code = "INVALID_LOCATION";
-            } else if (msg.contains("BIN_CAPACITY_EXCEEDED")) {
-                code = "BIN_CAPACITY_EXCEEDED";
-            } else if (msg.contains("INVENTORY_INVARIANT_VIOLATED")) {
-                code = "INVENTORY_INVARIANT_VIOLATED";
-            } else if (msg.contains("LOCATION_LOCKED")) {
-                code = "LOCATION_LOCKED";
-            } else if (msg.contains("ACCOUNTING_PERIOD_CLOSED")) {
-                code = "ACCOUNTING_PERIOD_CLOSED";
-            } else if (msg.contains("INVOICE_ALREADY_PAID")) {
-                status = HttpStatus.CONFLICT;
-                code = "INVOICE_ALREADY_PAID";
-            } else if (msg.contains("SUPPLIER_INVOICE_ALREADY_EXISTS")) {
-                status = HttpStatus.CONFLICT;
-                code = "SUPPLIER_INVOICE_ALREADY_EXISTS";
-            } else if (msg.contains("RECEIPT_NOT_APPROVED")) {
-                status = HttpStatus.BAD_REQUEST;
-                code = "RECEIPT_NOT_APPROVED";
-            }
-        }
+        String code = extractBusinessRuleCode(msg);
+        HttpStatus status = businessRuleStatus(code);
 
         return error(status, code, msg, msg, null);
     }
@@ -122,6 +89,27 @@ public class GlobalExceptionHandler {
     // API spec documents, without a hardcoded per-code list here (contrast handleBusinessRule,
     // which does need one because BusinessRuleViolationException messages aren't code-prefixed).
     private static final java.util.regex.Pattern LEADING_CODE = java.util.regex.Pattern.compile("^([A-Z][A-Z0-9_]*): .+");
+    private static final java.util.regex.Pattern BUSINESS_RULE_CODE =
+            java.util.regex.Pattern.compile("^([A-Z][A-Z0-9_]*)(?::.*)?$");
+
+    private String extractBusinessRuleCode(String message) {
+        if (message == null) {
+            return "BUSINESS_RULE_VIOLATION";
+        }
+        var matcher = BUSINESS_RULE_CODE.matcher(message);
+        return matcher.matches() ? matcher.group(1) : "BUSINESS_RULE_VIOLATION";
+    }
+
+    private HttpStatus businessRuleStatus(String code) {
+        return switch (code) {
+            case "INVENTORY_VERSION_CONFLICT",
+                    "RTV_ALREADY_CONFIRMED",
+                    "INVOICE_ALREADY_PAID",
+                    "SUPPLIER_INVOICE_ALREADY_EXISTS" -> HttpStatus.CONFLICT;
+            case "RECEIPT_NOT_APPROVED" -> HttpStatus.BAD_REQUEST;
+            default -> HttpStatus.UNPROCESSABLE_ENTITY;
+        };
+    }
 
     private String extractLeadingCode(String message) {
         if (message == null) {
