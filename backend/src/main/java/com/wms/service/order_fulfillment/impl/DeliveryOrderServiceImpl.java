@@ -328,6 +328,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     @Transactional
     public DeliveryOrderResponse createDeliveryOrder(DeliveryOrderCreateRequest request, User actor) {
         requireRole(actor, UserRole.PLANNER, "Only Planner can create Delivery Orders");
+        validateCreateRequest(request);
         Warehouse warehouse = activeWarehouse(request.getWarehouseId());
         requireWarehouseScope(actor, warehouse.getId());
         partnerEligibilityService.ensureDealerActive(request.getDealerId());
@@ -361,10 +362,6 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                 .collect(Collectors.toMap(plan -> plan.product().getId(), ItemPlan::requestedQty, BigDecimal::add));
         validateAvailability(warehouse, requestedByProduct);
 
-        if (request.getExpectedDeliveryDate() != null && request.getExpectedDeliveryDate().isBefore(request.getDocumentDate())) {
-            throw new OutboundDeliveryException("INVALID_DELIVERY_DATE", HttpStatus.BAD_REQUEST, "Ngày giao hàng dự kiến không được trước ngày chứng từ");
-        }
-
         OffsetDateTime now = OffsetDateTime.now();
         DeliveryOrder order = new DeliveryOrder();
         order.setDoNumber(generateDoNumber());
@@ -390,6 +387,22 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         auditUtil.logChange(actor, AuditAction.CREATE, "DELIVERY_ORDER", saved.getId(), saved.getDoNumber(),
                 Map.of(), snapshot(saved, orderValue, reservationDeltas, savedItems, List.of()));
         return deliveryOrderMapper.toResponse(saved, savedItems, List.of());
+    }
+
+    private void validateCreateRequest(DeliveryOrderCreateRequest request) {
+        if (request.getType() != DeliveryOrderType.SALE) {
+            throw new OutboundDeliveryException("DELIVERY_ORDER_TYPE_INVALID", HttpStatus.BAD_REQUEST,
+                    "Chỉ được tạo phiếu xuất bán SALE từ màn lập đơn xuất hàng");
+        }
+        if (request.getExpectedDeliveryDate() != null && request.getExpectedDeliveryDate().isBefore(LocalDate.now())) {
+            throw new OutboundDeliveryException("INVALID_DELIVERY_DATE", HttpStatus.BAD_REQUEST,
+                    "Ngày giao hàng dự kiến không được ở quá khứ");
+        }
+        if (request.getExpectedDeliveryDate() != null && request.getDocumentDate() != null
+                && request.getExpectedDeliveryDate().isBefore(request.getDocumentDate())) {
+            throw new OutboundDeliveryException("INVALID_DELIVERY_DATE", HttpStatus.BAD_REQUEST,
+                    "Ngày giao hàng dự kiến không được trước ngày chứng từ");
+        }
     }
 
     @Override
@@ -1700,6 +1713,11 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
             throw new OutboundDeliveryException("WAREHOUSE_INACTIVE",
                     HttpStatus.UNPROCESSABLE_ENTITY,
                     "Warehouse is inactive");
+        }
+        if (warehouse.getType() == WarehouseType.IN_TRANSIT) {
+            throw new OutboundDeliveryException("WAREHOUSE_TYPE_INVALID",
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Không thể tạo phiếu xuất từ kho trung chuyển IN_TRANSIT");
         }
         return warehouse;
     }

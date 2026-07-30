@@ -26,25 +26,37 @@ paths:
               schema:
                 $ref: "#/components/schemas/DeliveryOrderResponse"
         "400":
-          description: Invalid request payload
+          description: Invalid request payload, delivery date, duplicate item, or unsupported delivery order type
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing, expired, or invalid authentication token
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
-          description: Planner is not allowed to create for the selected warehouse
+          description: Actor is not a Planner or Planner is not allowed to create for the selected warehouse
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Warehouse, dealer, or active product not found
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: Reservation version conflict
+          description: Delivery order number, reservation, inventory version, concurrent modification, or data integrity conflict
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "422":
-          description: Credit, overdue invoice, or stock validation failed
+          description: Credit, dealer eligibility, price, accounting period, warehouse, or stock validation failed
           content:
             application/json:
               schema:
@@ -114,6 +126,7 @@ components:
         - dealerId
         - warehouseId
         - type
+        - expectedDeliveryDate
         - documentDate
         - items
       properties:
@@ -125,10 +138,14 @@ components:
           format: int64
         type:
           type: string
-          example: SALES_OUTBOUND
+          enum:
+            - SALE
+          example: SALE
+          description: Planner delivery-order creation only supports SALE.
         expectedDeliveryDate:
           type: string
           format: date
+          description: Must be today or later and must not be before documentDate.
         documentDate:
           type: string
           format: date
@@ -208,11 +225,32 @@ components:
       properties:
         code:
           type: string
-          examples:
+          enum:
+            - VALIDATION_ERROR
+            - INVALID_REQUEST_BODY
+            - INVALID_CREDENTIALS
+            - ACCESS_DENIED
             - WAREHOUSE_SCOPE_FORBIDDEN
+            - RESOURCE_NOT_FOUND
+            - WAREHOUSE_INACTIVE
+            - WAREHOUSE_TYPE_INVALID
+            - DELIVERY_ORDER_TYPE_INVALID
+            - INVALID_DELIVERY_DATE
+            - BUSINESS_RULE_VIOLATION
+            - MISSING_PRICE
             - CREDIT_HOLD
+            - PERIOD_CLOSED
+            - UNPROCESSABLE_ENTITY
             - INSUFFICIENT_STOCK
-            - DELIVERY_ORDER_CANCEL_FORBIDDEN
+            - DUPLICATE_PRODUCT_ITEM
+            - DELIVERY_ORDER_NUMBER_CONFLICT
             - INVENTORY_VERSION_CONFLICT
+            - WAREHOUSE_PRODUCT_RESERVATION_CONFLICT
+            - CONCURRENT_MODIFICATION
+            - DATA_INTEGRITY_VIOLATION
+            - DELIVERY_ORDER_CANCEL_FORBIDDEN
         message:
           type: string
+        details:
+          type: object
+          additionalProperties: true

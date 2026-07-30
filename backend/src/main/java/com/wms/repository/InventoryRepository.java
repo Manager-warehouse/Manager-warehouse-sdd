@@ -67,6 +67,12 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
         BigDecimal getAvailableQty();
     }
 
+    interface StockAlertCandidate {
+        Long getWarehouseId();
+
+        Long getProductId();
+    }
+
     boolean existsByWarehouseIdAndTotalQtyGreaterThan(Long warehouseId, BigDecimal totalQty);
 
     boolean existsByLocationIdAndTotalQtyGreaterThan(Long locationId, BigDecimal totalQty);
@@ -185,6 +191,22 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
               and i.totalQty > i.reservedQty
             """)
     BigDecimal sumValidAvailableQty(@Param("warehouseId") Long warehouseId,
+            @Param("productId") Long productId);
+
+    @Query("""
+            select
+                i.warehouse.id as warehouseId,
+                i.product.id as productId
+            from Inventory i
+            where (:warehouseId is null or i.warehouse.id = :warehouseId)
+              and (:productId is null or i.product.id = :productId)
+              and i.warehouse.type <> com.wms.enums.warehouse_location.WarehouseType.IN_TRANSIT
+              and i.location.isActive = true
+              and i.location.isQuarantine = false
+              and i.location.isLocked = false
+            group by i.warehouse.id, i.product.id
+            """)
+    List<StockAlertCandidate> findStockAlertCandidates(@Param("warehouseId") Long warehouseId,
             @Param("productId") Long productId);
 
     @Query("""

@@ -144,21 +144,6 @@ public class InventoryServiceImpl implements InventoryService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<ProductAvailabilityResponse> getAllAvailability(Long warehouseId) {
-        if (!warehouseRepository.existsById(warehouseId)) {
-            throw new IllegalArgumentException("WAREHOUSE_NOT_FOUND");
-        }
-        return inventoryRepository.summarizeAllAvailability(warehouseId).stream()
-                .map(summary -> new ProductAvailabilityResponse(
-                        summary.getProductId(),
-                        summary.getTotalQty(),
-                        summary.getReservedQty(),
-                        summary.getAvailableQty()))
-                .toList();
-    }
-
-    @Override
-    @Transactional(readOnly = true)
     public WarehouseStockOverviewResponse getOverview(Long warehouseId) {
         if (!warehouseRepository.existsById(warehouseId)) {
             throw new IllegalArgumentException("WAREHOUSE_NOT_FOUND");
