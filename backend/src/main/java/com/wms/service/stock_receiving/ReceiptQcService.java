@@ -1,56 +1,28 @@
 package com.wms.service.stock_receiving;
-import com.wms.entity.access_control.*;
-import com.wms.entity.audit_trail.*;
-import com.wms.entity.billing_payment.*;
-import com.wms.entity.dealer_management.*;
-import com.wms.entity.document_numbering.*;
-import com.wms.entity.driver_management.*;
-import com.wms.entity.fleet_management.*;
-import com.wms.entity.notification_delivery.*;
-import com.wms.entity.order_fulfillment.*;
-import com.wms.entity.price_management.*;
-import com.wms.entity.product_catalog.*;
-import com.wms.entity.stock_control.*;
-import com.wms.entity.stock_counting.*;
-import com.wms.entity.stock_receiving.*;
-import com.wms.entity.supplier_management.*;
-import com.wms.entity.user_configuration.*;
-import com.wms.entity.warehouse_location.*;
-import com.wms.entity.warehouse_transfer.*;
-import com.wms.enums.access_control.*;
-import com.wms.enums.audit_trail.*;
-import com.wms.enums.billing_payment.*;
-import com.wms.enums.dealer_management.*;
-import com.wms.enums.driver_management.*;
-import com.wms.enums.fleet_management.*;
-import com.wms.enums.notification_delivery.*;
-import com.wms.enums.order_fulfillment.*;
-import com.wms.enums.price_management.*;
-import com.wms.enums.stock_control.*;
-import com.wms.enums.stock_counting.*;
-import com.wms.enums.stock_receiving.*;
-import com.wms.enums.supplier_management.*;
-import com.wms.enums.user_configuration.*;
-import com.wms.enums.warehouse_location.*;
-import com.wms.enums.warehouse_transfer.*;
 
 import com.wms.dto.request.ReceiptQcItemRequest;
 import com.wms.dto.request.ReceiptQcRequest;
 import com.wms.dto.response.ReceiptItemQcResponse;
 import com.wms.dto.response.ReceiptQcResponse;
-import com.wms.repository.*;
+import com.wms.entity.access_control.User;
+import com.wms.entity.stock_receiving.Receipt;
+import com.wms.entity.stock_receiving.ReceiptItem;
+import com.wms.enums.access_control.UserRole;
+import com.wms.enums.audit_trail.AuditAction;
+import com.wms.enums.stock_receiving.QcResult;
+import com.wms.enums.stock_receiving.QcSamplingMethod;
+import com.wms.enums.stock_receiving.ReceiptStatus;
+import com.wms.exception.BusinessRuleViolationException;
+import com.wms.repository.ReceiptItemRepository;
+import com.wms.repository.ReceiptRepository;
+import com.wms.repository.UserRepository;
 import com.wms.service.audit_trail.AuditLogService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.time.OffsetDateTime;
-import com.wms.exception.BusinessRuleViolationException;
 
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -63,9 +35,6 @@ public class ReceiptQcService {
     private final ReceiptValidationService receiptValidationService;
     private final AuditLogService auditLogService;
     private final UserRepository userRepository;
-    private final BatchRepository batchRepository;
-    private final InventoryRepository inventoryRepository;
-    private final WarehouseLocationRepository warehouseLocationRepository;
 
     @Transactional
     public ReceiptQcResponse processQc(Long receiptId, ReceiptQcRequest request, String actorEmail) {
@@ -74,9 +43,14 @@ public class ReceiptQcService {
 
         Receipt receipt = receiptValidationService.loadReceiptForUpdate(receiptId);
         receiptValidationService.assertWarehouseAssignment(actor, receiptId);
+        receiptValidationService.assertVersionMatch(receipt, request.getExpectedVersion());
 
+        if (receipt.getStatus() == ReceiptStatus.PENDING_MANAGER_APPROVAL
+                || receipt.getStatus() == ReceiptStatus.REVISION_REQUIRED) {
+            throw new BusinessRuleViolationException("RECEIPT_PENDING_MANAGER_APPROVAL");
+        }
         if (receipt.getStatus() != ReceiptStatus.DRAFT) {
-            throw new IllegalStateException("RECEIPT_NOT_IN_DRAFT");
+            throw new BusinessRuleViolationException("RECEIPT_NOT_IN_DRAFT");
         }
 
         return switch (request.getAction()) {
@@ -91,206 +65,90 @@ public class ReceiptQcService {
         };
     }
 
-    /** WAREHOUSE_STAFF ghi nháº­n káº¿t quáº£ QC máº«u cho tá»«ng item. */
     private ReceiptQcResponse submitQc(Receipt receipt, List<ReceiptQcItemRequest> itemRequests, User actor) {
         if (itemRequests == null || itemRequests.isEmpty()) {
             throw new IllegalArgumentException("QC_ITEMS_REQUIRED");
         }
 
-        Long supplierId = receipt.getSupplier() != null ? receipt.getSupplier().getId() : null;
-        long approvedCount = supplierId != null
-                ? receiptItemRepository.countApprovedReceiptsBySupplierId(supplierId)
-                : 0;
-        QcSamplingMethod defaultMethod = approvedCount >= TRUSTED_SUPPLIER_THRESHOLD
-                ? QcSamplingMethod.RANDOM_SAMPLE
-                : QcSamplingMethod.FULL_INSPECTION;
-
+        QcSamplingMethod defaultMethod = defaultSamplingMethod(receipt);
         for (ReceiptQcItemRequest req : itemRequests) {
             ReceiptItem item = receiptItemRepository.findByIdAndReceiptId(req.getReceiptItemId(), receipt.getId())
                     .orElseThrow(() -> new IllegalArgumentException("RECEIPT_ITEM_NOT_FOUND: " + req.getReceiptItemId()));
+            validateQcQuantities(item, req);
 
-            Integer passed = req.getQcPassedQty();
-            Integer failed = req.getQcFailedQty();
-            if (passed == null || failed == null) {
-                throw new IllegalArgumentException("QC_QUANTITIES_REQUIRED for item " + req.getReceiptItemId());
-            }
-            Integer total = req.getSampleQty() != null ? req.getSampleQty() : item.getActualQty();
-            if (total == null || passed + failed != total) {
-                throw new IllegalArgumentException("QC_SAMPLE_SUM_MISMATCH for item " + req.getReceiptItemId());
-            }
-
-            item.setSampleQty(total);
-            item.setSamplePassedQty(passed);
-            item.setSampleFailedQty(failed);
+            item.setSampleQty(req.getSampleQty() != null ? req.getSampleQty() : item.getActualQty());
+            item.setSamplePassedQty(req.getQcPassedQty());
+            item.setSampleFailedQty(req.getQcFailedQty());
+            item.setQualityPassedQty(req.getQualityPassedQty());
+            item.setQualityFailedQty(req.getQualityFailedQty());
+            item.setQuarantineReadyQty(0);
             item.setQcSamplingMethod(req.getQcSamplingMethod() != null ? req.getQcSamplingMethod() : defaultMethod);
             item.setQcFailureReason(req.getQcFailureReason());
             item.setQcBy(actor);
-
-            if (failed == 0) {
-                item.setQcResult(QcResult.PASSED);
-            } else {
-                item.setQcResult(QcResult.FAILED);
-            }
-
+            item.setQcResult(req.getQualityFailedQty() > 0 ? QcResult.FAILED : QcResult.PASSED);
             receiptItemRepository.save(item);
         }
 
-        auditLogService.log(
-                actor, AuditAction.RECEIPT_QC_SUBMIT, "Receipt", receipt.getId(),
-                receipt.getReceiptNumber(), receipt.getWarehouse().getId(),
-                null,
-                Map.of("submittedItems", itemRequests.size())
-        );
+        auditLogService.log(actor, AuditAction.RECEIPT_QC_SUBMIT, "Receipt",
+                receipt.getId(), receipt.getReceiptNumber(), receipt.getWarehouse().getId(),
+                null, Map.of("submittedItems", itemRequests.size()));
 
         return buildResponse(receipt);
     }
 
-    /** STOREKEEPER kết luận QC: chuyển trạng thái receipt và xử lý quarantine nếu lỗi. */
     private ReceiptQcResponse confirmQc(Receipt receipt, User actor) {
         List<ReceiptItem> items = receiptItemRepository.findByReceiptId(receipt.getId());
-
-        boolean anyPending = items.stream().anyMatch(i -> i.getQcResult() == null || i.getQcResult() == QcResult.PENDING);
-        if (anyPending) {
-            throw new IllegalStateException("QC_NOT_YET_SUBMITTED");
+        if (items.stream().anyMatch(i -> i.getQcResult() == null || i.getQcResult() == QcResult.PENDING)) {
+            throw new BusinessRuleViolationException("QC_NOT_YET_SUBMITTED");
         }
 
-        boolean anyFailed = items.stream()
-                .anyMatch(i -> i.getQcResult() == QcResult.FAILED);
-
+        boolean anyFailed = items.stream().anyMatch(i -> safe(i.getQualityFailedQty()) > 0);
         ReceiptStatus resultStatus = anyFailed ? ReceiptStatus.QC_FAILED : ReceiptStatus.QC_COMPLETED;
         receipt.setStatus(resultStatus);
         receiptRepository.save(receipt);
 
-        if (anyFailed) {
-            boolean hasFailedQty = items.stream().anyMatch(item -> item.getSampleFailedQty() != null && item.getSampleFailedQty() > 0);
-            if (hasFailedQty) {
-                WarehouseLocation quarantineLoc = warehouseLocationRepository
-                        .findFirstByWarehouseIdAndIsQuarantineTrueAndIsActiveTrue(receipt.getWarehouse().getId())
-                        .orElseThrow(() -> new BusinessRuleViolationException(
-                                "QUARANTINE_LOCATION_NOT_CONFIGURED: Active quarantine location not found for warehouse " 
-                                + receipt.getWarehouse().getId()));
-
-            assertQuarantineCapacity(quarantineLoc, items);
-
-            for (ReceiptItem item : items) {
-                Integer failedQtyInt = item.getSampleFailedQty();
-                if (failedQtyInt == null || failedQtyInt <= 0) {
-                    continue;
-                }
-                BigDecimal failedQty = BigDecimal.valueOf(failedQtyInt);
-
-                Batch batch = resolveOrCreateBatch(item, receipt);
-                item.setBatch(batch);
-                item.setLocation(quarantineLoc);
-                receiptItemRepository.save(item);
-
-                Inventory inventory = inventoryRepository
-                        .findByWarehouseProductBatchLocationForUpdate(
-                                receipt.getWarehouse().getId(), item.getProduct().getId(), batch.getId(), quarantineLoc.getId())
-                        .orElseGet(() -> Inventory.builder()
-                                .warehouse(receipt.getWarehouse())
-                                .product(item.getProduct())
-                                .batch(batch)
-                                .location(quarantineLoc)
-                                .totalQty(BigDecimal.ZERO)
-                                .reservedQty(BigDecimal.ZERO)
-                                .costPrice(item.getUnitCost() != null ? item.getUnitCost() : BigDecimal.ZERO)
-                                .updatedAt(OffsetDateTime.now())
-                                .build());
-
-                BigDecimal oldQty = inventory.getTotalQty();
-                inventory.setTotalQty(oldQty.add(failedQty));
-                inventory.setUpdatedAt(OffsetDateTime.now());
-                inventoryRepository.save(inventory);
-
-                BigDecimal itemVol = item.getProduct().getVolumeM3() != null ? item.getProduct().getVolumeM3() : BigDecimal.ZERO;
-                BigDecimal itemWt = item.getProduct().getWeightKg() != null ? item.getProduct().getWeightKg() : BigDecimal.ZERO;
-
-                BigDecimal addedVol = failedQty.multiply(itemVol);
-                BigDecimal addedWt = failedQty.multiply(itemWt);
-
-                BigDecimal curVol = quarantineLoc.getCurrentVolumeM3() != null ? quarantineLoc.getCurrentVolumeM3() : BigDecimal.ZERO;
-                BigDecimal curWt = quarantineLoc.getCurrentWeightKg() != null ? quarantineLoc.getCurrentWeightKg() : BigDecimal.ZERO;
-
-                quarantineLoc.setCurrentVolumeM3(curVol.add(addedVol));
-                quarantineLoc.setCurrentWeightKg(curWt.add(addedWt));
-                quarantineLoc.setUpdatedAt(OffsetDateTime.now());
-                warehouseLocationRepository.save(quarantineLoc);
-
-                auditLogService.log(
-                        actor, AuditAction.INVENTORY_UPDATE, "INVENTORY",
-                        inventory.getId(),
-                        "INV-QUARANTINE-" + receipt.getWarehouse().getId() + "-" + item.getProduct().getId(),
-                        receipt.getWarehouse().getId(),
-                        Map.of("totalQty", oldQty, "reservedQty", inventory.getReservedQty()),
-                        Map.of("totalQty", inventory.getTotalQty(), "reservedQty", inventory.getReservedQty(),
-                               "locationId", quarantineLoc.getId(), "delta", failedQty, "reason", "QC_FAILED")
-                );
-            }
+        for (ReceiptItem item : items) {
+            item.setQuarantineReadyQty(anyFailed ? safe(item.getQualityFailedQty()) : 0);
+            receiptItemRepository.save(item);
         }
-    }
 
-        auditLogService.log(
-                actor, AuditAction.RECEIPT_QC_CONFIRM, "Receipt", receipt.getId(),
-                receipt.getReceiptNumber(), receipt.getWarehouse().getId(),
-                null,
-                Map.of("result", resultStatus.name())
-        );
+        auditLogService.log(actor, AuditAction.RECEIPT_QC_CONFIRM, "Receipt",
+                receipt.getId(), receipt.getReceiptNumber(), receipt.getWarehouse().getId(),
+                null, Map.of("result", resultStatus.name()));
 
         return buildResponse(receipt);
     }
 
-    private void assertQuarantineCapacity(WarehouseLocation location, List<ReceiptItem> items) {
-        BigDecimal addedVol = BigDecimal.ZERO;
-        BigDecimal addedWt = BigDecimal.ZERO;
-        for (ReceiptItem item : items) {
-            Integer failedQty = item.getSampleFailedQty();
-            if (failedQty == null || failedQty <= 0) continue;
-            BigDecimal qty = BigDecimal.valueOf(failedQty);
-            BigDecimal vol = item.getProduct().getVolumeM3() != null ? item.getProduct().getVolumeM3() : BigDecimal.ZERO;
-            BigDecimal wt = item.getProduct().getWeightKg() != null ? item.getProduct().getWeightKg() : BigDecimal.ZERO;
-            addedVol = addedVol.add(qty.multiply(vol));
-            addedWt = addedWt.add(qty.multiply(wt));
+    private void validateQcQuantities(ReceiptItem item, ReceiptQcItemRequest req) {
+        Integer samplePassed = req.getQcPassedQty();
+        Integer sampleFailed = req.getQcFailedQty();
+        Integer sampleQty = req.getSampleQty() != null ? req.getSampleQty() : item.getActualQty();
+        if (samplePassed == null || sampleFailed == null || sampleQty == null || samplePassed + sampleFailed != sampleQty) {
+            throw new BusinessRuleViolationException("QC_SAMPLE_MISMATCH: item " + req.getReceiptItemId());
         }
-        BigDecimal curVol = location.getCurrentVolumeM3() != null ? location.getCurrentVolumeM3() : BigDecimal.ZERO;
-        BigDecimal curWt = location.getCurrentWeightKg() != null ? location.getCurrentWeightKg() : BigDecimal.ZERO;
-        if (location.getCapacityM3() != null && curVol.add(addedVol).compareTo(location.getCapacityM3()) > 0) {
-            throw new BusinessRuleViolationException(
-                    "QUARANTINE_BIN_CAPACITY_EXCEEDED: Volume overflow for quarantine location " + location.getId());
+        Integer qualityPassed = req.getQualityPassedQty();
+        Integer qualityFailed = req.getQualityFailedQty();
+        int actual = safe(item.getActualQty());
+        if (qualityPassed == null || qualityFailed == null || qualityPassed + qualityFailed != actual) {
+            throw new BusinessRuleViolationException("QC_QUANTITY_MISMATCH: item " + req.getReceiptItemId());
         }
-        if (location.getCapacityKg() != null && curWt.add(addedWt).compareTo(location.getCapacityKg()) > 0) {
-            throw new BusinessRuleViolationException(
-                    "QUARANTINE_BIN_CAPACITY_EXCEEDED: Weight overflow for quarantine location " + location.getId());
+        if (qualityFailed > 0 && (req.getQcFailureReason() == null || req.getQcFailureReason().isBlank())) {
+            throw new BusinessRuleViolationException("QC_FAILED_REASON_REQUIRED: item " + req.getReceiptItemId());
         }
     }
 
-    private Batch resolveOrCreateBatch(ReceiptItem item, Receipt receipt) {
-        Long productId = item.getProduct().getId();
-        Long warehouseId = receipt.getWarehouse().getId();
-        LocalDate receivedDate = receipt.getDocumentDate();
-
-        return batchRepository
-                .findByProductWarehouseAndReceivedDate(productId, warehouseId, receivedDate)
-                .orElseGet(() -> {
-                    String batchNumber = String.format("BCH-%d-%s-%s",
-                            productId,
-                            receipt.getReceiptNumber(),
-                            receivedDate.toString());
-                    Batch newBatch = Batch.builder()
-                            .batchNumber(batchNumber)
-                            .product(item.getProduct())
-                            .warehouse(receipt.getWarehouse())
-                            .receivedDate(receivedDate)
-                            .quantity(item.getActualQty() != null ? BigDecimal.valueOf(item.getActualQty()) : BigDecimal.ZERO)
-                            .createdAt(OffsetDateTime.now())
-                            .build();
-                    return batchRepository.save(newBatch);
-                });
+    private QcSamplingMethod defaultSamplingMethod(Receipt receipt) {
+        Long supplierId = receipt.getSupplier() != null ? receipt.getSupplier().getId() : null;
+        long approvedCount = supplierId != null
+                ? receiptItemRepository.countApprovedReceiptsBySupplierId(supplierId)
+                : 0;
+        return approvedCount >= TRUSTED_SUPPLIER_THRESHOLD
+                ? QcSamplingMethod.RANDOM_SAMPLE
+                : QcSamplingMethod.FULL_INSPECTION;
     }
 
     private ReceiptQcResponse buildResponse(Receipt receipt) {
-        List<ReceiptItem> items = receiptItemRepository.findByReceiptId(receipt.getId());
-        List<ReceiptItemQcResponse> itemResponses = items.stream()
+        List<ReceiptItemQcResponse> itemResponses = receiptItemRepository.findByReceiptId(receipt.getId()).stream()
                 .map(i -> ReceiptItemQcResponse.builder()
                         .id(i.getId())
                         .productId(i.getProduct().getId())
@@ -301,12 +159,15 @@ public class ReceiptQcService {
                         .sampleQty(i.getSampleQty())
                         .samplePassedQty(i.getSamplePassedQty())
                         .sampleFailedQty(i.getSampleFailedQty())
+                        .qualityPassedQty(i.getQualityPassedQty())
+                        .qualityFailedQty(i.getQualityFailedQty())
+                        .quarantineReadyQty(i.getQuarantineReadyQty())
                         .qcSamplingMethod(i.getQcSamplingMethod())
                         .qcResult(i.getQcResult())
                         .qcFailureReason(i.getQcFailureReason())
                         .qcByUserId(i.getQcBy() != null ? i.getQcBy().getId() : null)
                         .build())
-                .collect(Collectors.toList());
+                .toList();
 
         return ReceiptQcResponse.builder()
                 .receiptId(receipt.getId())
@@ -314,5 +175,9 @@ public class ReceiptQcService {
                 .status(receipt.getStatus())
                 .items(itemResponses)
                 .build();
+    }
+
+    private int safe(Integer value) {
+        return value != null ? value : 0;
     }
 }

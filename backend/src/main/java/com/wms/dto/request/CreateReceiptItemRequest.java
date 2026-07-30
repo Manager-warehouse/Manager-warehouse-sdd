@@ -36,6 +36,7 @@ import com.wms.enums.user_configuration.*;
 import com.wms.enums.warehouse_location.*;
 import com.wms.enums.warehouse_transfer.*;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.wms.config.jackson.StrictIntegerDeserializer;
 import jakarta.validation.constraints.Min;
@@ -45,16 +46,19 @@ import java.math.BigDecimal;
 public class CreateReceiptItemRequest {
 
     @NotNull
-    @JsonProperty("product_id")
+    @JsonProperty("productId")
+    @JsonAlias("product_id")
     private Long productId;
 
     @NotNull
     @Min(1)
-    @JsonProperty("expected_qty")
+    @JsonProperty("expectedQty")
+    @JsonAlias("expected_qty")
     @JsonDeserialize(using = StrictIntegerDeserializer.class)
     private Integer expectedQty;
 
-    @JsonProperty("unit_cost")
+    @JsonProperty("unitCost")
+    @JsonAlias("unit_cost")
     private BigDecimal unitCost;
 
     public Long getProductId() {

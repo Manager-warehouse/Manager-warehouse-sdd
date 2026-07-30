@@ -144,7 +144,7 @@ class ReceiptRtvCreateServiceTest {
         qcFailedReceipt = new Receipt();
         qcFailedReceipt.setId(1L);
         qcFailedReceipt.setReceiptNumber("RCV-2026-QC-FAIL");
-        qcFailedReceipt.setStatus(ReceiptStatus.QC_FAILED);
+        qcFailedReceipt.setStatus(ReceiptStatus.PARTIALLY_APPROVED);
         qcFailedReceipt.setWarehouse(warehouse);
         qcFailedReceipt.setSupplier(supplier);
         qcFailedReceipt.setDocumentDate(LocalDate.now());
@@ -160,6 +160,8 @@ class ReceiptRtvCreateServiceTest {
         // quarantine inventory (and therefore the RTV quantity) is keyed off
         // sampleFailedQty, not actualQty.
         failedItem.setSampleFailedQty(20);
+        failedItem.setQuarantineQty(20);
+        failedItem.setResolvedQuarantineQty(0);
         failedItem.setUnitCost(BigDecimal.valueOf(50));
         failedItem.setQcResult(QcResult.FAILED);
 
@@ -326,7 +328,7 @@ class ReceiptRtvCreateServiceTest {
         BusinessRuleViolationException ex = assertThrows(BusinessRuleViolationException.class,
                 () -> receiptService.createRtv(1L, request, manager));
 
-        assertTrue(ex.getMessage().contains("QC_FAILED"));
+        assertTrue(ex.getMessage().contains("finalized quarantine"));
     }
 
     @Test

@@ -57,6 +57,9 @@ public class Batch {
     @Column(name = "batch_number", nullable = false, unique = true, length = 100)
     private String batchNumber;
 
+    @Column(name = "batch_code", nullable = false, unique = true, length = 100)
+    private String batchCode;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_id", nullable = false)
     private Product product;
@@ -73,4 +76,12 @@ public class Batch {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
+
+    @PrePersist
+    @PreUpdate
+    void defaultBatchCode() {
+        if (batchCode == null || batchCode.isBlank()) {
+            batchCode = batchNumber;
+        }
+    }
 }

@@ -88,8 +88,18 @@ public class Receipt {
     private String sourceChannel;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false, length = 30)
+    @Column(name = "status", nullable = false, length = 40)
     private ReceiptStatus status;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "pre_receive_approved_by")
+    private User preReceiveApprovedBy;
+
+    @Column(name = "pre_receive_approved_at")
+    private OffsetDateTime preReceiveApprovedAt;
+
+    @Column(name = "pre_receive_rejection_reason", columnDefinition = "TEXT")
+    private String preReceiveRejectionReason;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "approved_by")
@@ -120,6 +130,9 @@ public class Receipt {
 
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
+
+    @Column(name = "putaway_completed_at")
+    private OffsetDateTime putawayCompletedAt;
 
     @Version
     @Column(name = "version", nullable = false)

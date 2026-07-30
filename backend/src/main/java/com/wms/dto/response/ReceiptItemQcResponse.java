@@ -72,6 +72,15 @@ public class ReceiptItemQcResponse {
     @JsonProperty("sample_failed_qty")
     private Integer sampleFailedQty;
 
+    @JsonProperty("quality_passed_qty")
+    private Integer qualityPassedQty;
+
+    @JsonProperty("quality_failed_qty")
+    private Integer qualityFailedQty;
+
+    @JsonProperty("quarantine_ready_qty")
+    private Integer quarantineReadyQty;
+
     @JsonProperty("qc_sampling_method")
     private QcSamplingMethod qcSamplingMethod;
 

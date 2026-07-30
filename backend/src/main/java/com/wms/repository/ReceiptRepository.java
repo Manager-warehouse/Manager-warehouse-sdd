@@ -82,13 +82,6 @@ public interface ReceiptRepository extends JpaRepository<Receipt, Long> {
     @Query("select r from Receipt r where r.id = :id")
     Optional<Receipt> findByIdWithSupplierAndWarehouse(@Param("id") Long id);
 
-    boolean existsBySupplierIdAndWarehouseIdAndSourceOrderCodeAndTypeAndStatusNot(
-            Long supplierId,
-            Long warehouseId,
-            String sourceOrderCode,
-            ReceiptType type,
-            ReceiptStatus status);
-
     boolean existsByReceiptNumber(String receiptNumber);
 
     List<Receipt> findByDeliveryOrderIdAndType(Long deliveryOrderId, ReceiptType type);

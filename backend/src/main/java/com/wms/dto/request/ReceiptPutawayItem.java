@@ -36,6 +36,8 @@ import com.wms.enums.user_configuration.*;
 import com.wms.enums.warehouse_location.*;
 import com.wms.enums.warehouse_transfer.*;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -51,4 +53,11 @@ public class ReceiptPutawayItem {
 
     @NotNull(message = "LOCATION_ID_REQUIRED")
     private Long locationId;
+
+    @NotNull(message = "PUTAWAY_QTY_REQUIRED")
+    @Positive(message = "PUTAWAY_QTY_INVALID")
+    private Integer quantity;
+
+    @Size(max = 100, message = "EXPECTED_BATCH_CODE_TOO_LONG")
+    private String expectedBatchCode;
 }

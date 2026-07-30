@@ -1,33 +1,35 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuthStore } from '../../stores/auth.store';
-import { useUiStore } from '../../stores/ui.store';
-import { useDebounce } from '../../hooks/useDebounce';
-import { inboundService } from '../../services/inbound.service';
-import { masterDataService } from '../../services/masterData.service';
-import { ArrowLeft, Trash2, Plus, Search, Loader2 } from 'lucide-react';
-import Input from '../../components/common/Input';
+﻿import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { useAuthStore } from "../../stores/auth.store";
+import { useUiStore } from "../../stores/ui.store";
+import { useDebounce } from "../../hooks/useDebounce";
+import { inboundService } from "../../services/inbound.service";
+import { masterDataService } from "../../services/masterData.service";
+import { ArrowLeft, Trash2, Plus, Search, Loader2 } from "lucide-react";
+import Input from "../../components/common/Input";
 
 const ReceiptForm = () => {
   const navigate = useNavigate();
+  const { id: revisionReceiptId } = useParams();
   const activeWarehouse = useAuthStore((state) => state.activeWarehouse);
   const { addToast } = useUiStore();
+  const isRevisionMode = Boolean(revisionReceiptId);
 
-  const [type, setType] = useState('PURCHASE');
-  const [sourceReference, setSourceReference] = useState('');
-  const [sourceChannel, setSourceChannel] = useState('ZALO');
-  const [contactPerson, setContactPerson] = useState('');
-  const [documentDate, setDocumentDate] = useState(new Date().toISOString().slice(0, 10));
-  const [notes, setNotes] = useState('');
-  const [partnerId, setPartnerId] = useState('');
+  const [documentDate, setDocumentDate] = useState(
+    new Date().toISOString().slice(0, 10),
+  );
+  const [notes, setNotes] = useState("");
+  const [partnerId, setPartnerId] = useState("");
 
   const [suppliers, setSuppliers] = useState([]);
   const [dealers, setDealers] = useState([]);
   const [products, setProducts] = useState([]);
+  const [existingReceipts, setExistingReceipts] = useState([]);
+  const [revisionReceipt, setRevisionReceipt] = useState(null);
   const [loading, setLoading] = useState(true);
 
   // Product search state
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
 
@@ -36,34 +38,90 @@ const ReceiptForm = () => {
 
   useEffect(() => {
     fetchMetadata();
-  }, []);
+  }, [revisionReceiptId]);
+
+  const receiptNumberPreview = useMemo(() => {
+    if (isRevisionMode) {
+      return revisionReceipt?.receipt_number || revisionReceipt?.receiptNumber || "";
+    }
+    const dateStr = (
+      documentDate || new Date().toISOString().slice(0, 10)
+    ).replace(/-/g, "");
+    const nextSequence =
+      existingReceipts.filter((receipt) =>
+        (receipt.receipt_number || receipt.receiptNumber || "").startsWith(
+          `PO-${dateStr}`,
+        ),
+      ).length + 1;
+    return `PO-${dateStr}-${String(nextSequence).padStart(4, "0")}`;
+  }, [documentDate, existingReceipts, isRevisionMode, revisionReceipt]);
 
   const fetchMetadata = async () => {
     setLoading(true);
     try {
-      const [suppliersData, dealersData, productsData] = await Promise.all([
-        masterDataService.getSuppliers(),
-        masterDataService.getDealers(),
-        masterDataService.getProducts(),
-      ]);
-      setSuppliers(suppliersData.filter(s => s.is_active));
-      setDealers(dealersData.filter(d => d.is_active));
-      setProducts(productsData.filter(p => p.is_active));
+      const receiptsPromise = activeWarehouse?.id
+        ? inboundService.getReceipts(activeWarehouse.id).catch(() => [])
+        : Promise.resolve([]);
+      const [suppliersData, dealersData, productsData, receiptsData] =
+        await Promise.all([
+          masterDataService.getSuppliers(),
+          masterDataService.getDealers(),
+          masterDataService.getProducts(),
+          receiptsPromise,
+        ]);
+      setSuppliers(suppliersData.filter((s) => s.is_active));
+      setDealers(dealersData.filter((d) => d.is_active));
+      setProducts(productsData.filter((p) => p.is_active));
+      setExistingReceipts(Array.isArray(receiptsData) ? receiptsData : []);
+      if (isRevisionMode) {
+        const detail = await inboundService.getReceiptById(revisionReceiptId);
+        if (detail.status !== "REVISION_REQUIRED") {
+          addToast("Phiếu này không ở trạng thái cần chỉnh sửa", "warning");
+          navigate("/inbound/receipts");
+          return;
+        }
+        setRevisionReceipt(detail);
+        setPartnerId(String(detail.supplier_id || detail.supplierId || ""));
+        setDocumentDate(detail.document_date || detail.documentDate || "");
+        setNotes(detail.notes || "");
+        setSelectedItems(
+          (detail.items || []).map((item) => {
+            const productId = item.product_id || item.productId;
+            const product = productsData.find((p) => p.id === productId);
+            return {
+              receipt_item_id: item.receipt_item_id || item.id,
+              product_id: productId,
+              sku:
+                item.product_sku ||
+                item.productSku ||
+                product?.sku ||
+                `SKU-${productId}`,
+              name:
+                item.product_name ||
+                item.productName ||
+                product?.name ||
+                `Sản phẩm ${productId}`,
+              unit: product?.unit,
+              expected_qty: item.expected_qty ?? item.expectedQty ?? 1,
+              unit_cost: item.unit_cost ?? item.unitCost ?? 0,
+            };
+          }),
+        );
+      }
     } catch (e) {
       const status = e?.response?.status;
-      const msg = e?.response?.data?.message || e?.message || '';
+      const msg = e?.response?.data?.message || e?.message || "";
       if (status === 401) {
-        addToast('Phiên đăng nhập hết hạn, vui lòng đăng nhập lại', 'error');
+        addToast("Phiên đăng nhập hết hạn, vui lòng đăng nhập lại", "error");
       } else if (status === 403) {
-        addToast('Không có quyền truy cập dữ liệu này', 'error');
+        addToast("Không có quyền truy cập dữ liệu này", "error");
       } else {
-        addToast(`Lỗi tải danh mục: ${msg || 'Vui lòng thử lại'}`, 'error');
+        addToast(`Lỗi tải danh mục: ${msg || "Vui lòng thử lại"}`, "error");
       }
     } finally {
       setLoading(false);
     }
   };
-
 
   // Simple product search debounce
   const debouncedSearchQuery = useDebounce(searchQuery, 250);
@@ -73,18 +131,23 @@ const ReceiptForm = () => {
       setSearchResults([]);
       return;
     }
-    const filtered = products.filter(p =>
-      (p.sku || '').toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
-      (p.name || '').toLowerCase().includes(debouncedSearchQuery.toLowerCase())
+    const filtered = products.filter(
+      (p) =>
+        (p.sku || "")
+          .toLowerCase()
+          .includes(debouncedSearchQuery.toLowerCase()) ||
+        (p.name || "")
+          .toLowerCase()
+          .includes(debouncedSearchQuery.toLowerCase()),
     );
     setSearchResults(filtered);
   }, [debouncedSearchQuery, products]);
 
   const handleAddItem = (product) => {
     // Check if duplicate
-    const exists = selectedItems.some(item => item.product_id === product.id);
+    const exists = selectedItems.some((item) => item.product_id === product.id);
     if (exists) {
-      addToast('Sản phẩm này đã có trong danh sách', 'warning');
+      addToast("Sản phẩm này đã có trong danh sách", "warning");
       return;
     }
 
@@ -96,24 +159,24 @@ const ReceiptForm = () => {
         name: product.name,
         unit: product.unit,
         expected_qty: 1,
-        unit_cost: 0.00
-      }
+        unit_cost: 0.0,
+      },
     ]);
-    setSearchQuery('');
+    setSearchQuery("");
     setShowSearchResults(false);
   };
 
   const handleQtyChange = (index, value) => {
     const qty = parseFloat(value);
     const updated = [...selectedItems];
-    updated[index].expected_qty = isNaN(qty) ? '' : qty;
+    updated[index].expected_qty = isNaN(qty) ? "" : qty;
     setSelectedItems(updated);
   };
 
   const handleCostChange = (index, value) => {
     const cost = parseFloat(value);
     const updated = [...selectedItems];
-    updated[index].unit_cost = isNaN(cost) ? '' : cost;
+    updated[index].unit_cost = isNaN(cost) ? "" : cost;
     setSelectedItems(updated);
   };
 
@@ -125,33 +188,37 @@ const ReceiptForm = () => {
     e.preventDefault();
 
     if (!partnerId) {
-      addToast(type === 'PURCHASE' ? 'Vui lòng chọn Nhà cung cấp' : 'Vui lòng chọn Đại lý', 'warning');
+      addToast("Vui lòng chọn Nhà cung cấp", "warning");
       return;
     }
 
-    if (!contactPerson.trim()) {
-      addToast('Vui lòng nhập tên người liên hệ', 'warning');
+    if (!documentDate) {
+      addToast("Vui long chon ngay chung tu", "warning");
       return;
     }
 
-    if (!sourceReference.trim()) {
-      addToast('Vui lòng nhập mã chứng từ nguồn (PO/DO hoàn)', 'warning');
+    const todayStr = new Date().toISOString().slice(0, 10);
+    if (!isRevisionMode && documentDate < todayStr) {
+      addToast("Ngày Nhập Hàng không được nhỏ hơn ngày hiện tại", "warning");
       return;
     }
 
     if (selectedItems.length === 0) {
-      addToast('Vui lòng thêm ít nhất 1 sản phẩm vào phiếu nhập', 'warning');
+      addToast("Vui lòng thêm ít nhất 1 sản phẩm vào phiếu nhập", "warning");
       return;
     }
 
     // Validation checks
     for (const item of selectedItems) {
-      if (item.expected_qty === '' || item.expected_qty <= 0) {
-        addToast(`Số lượng dự kiến của sản phẩm ${item.sku} phải lớn hơn 0`, 'warning');
+      if (item.expected_qty === "" || item.expected_qty <= 0) {
+        addToast(
+          `Số lượng dự kiến của sản phẩm ${item.sku} phải lớn hơn 0`,
+          "warning",
+        );
         return;
       }
-      if (item.unit_cost === '' || item.unit_cost < 0) {
-        addToast(`Đơn giá sản phẩm ${item.sku} không được phép âm`, 'warning');
+      if (item.unit_cost === "" || item.unit_cost < 0) {
+        addToast(`Đơn giá sản phẩm ${item.sku} không được phép âm`, "warning");
         return;
       }
     }
@@ -160,25 +227,49 @@ const ReceiptForm = () => {
     const payload = {
       supplier_id: Number(partnerId),
       warehouse_id: activeWarehouse.id,
-      source_reference: sourceReference.trim(),
-      source_channel: sourceChannel,
-      contact_person: contactPerson.trim(),
+      documentDate,
       notes: notes.trim(),
-      items: selectedItems.map(item => ({
+      items: selectedItems.map((item) => ({
         product_id: item.product_id,
         expected_qty: item.expected_qty,
-        unit_cost: item.unit_cost
-      }))
+        unit_cost: item.unit_cost,
+      })),
     };
 
     setLoading(true);
     try {
-      await inboundService.createReceipt(payload);
-      addToast('Lập lệnh nhập kho thô thành công', 'success');
-      navigate('/inbound/receipts');
+      const savedReceipt = isRevisionMode
+        ? await inboundService.reviseReceipt(revisionReceiptId, {
+            expectedVersion: revisionReceipt?.version || 0,
+            documentDate,
+            notes: notes.trim(),
+            items: selectedItems.map((item) => ({
+              receipt_item_id: item.receipt_item_id,
+              product_id: item.product_id,
+              expected_qty: item.expected_qty,
+              unit_cost: item.unit_cost,
+            })),
+          })
+        : await inboundService.createReceipt(payload);
+      const receiptNumber =
+        savedReceipt?.receipt_number || savedReceipt?.receiptNumber;
+      addToast(
+        receiptNumber
+          ? isRevisionMode
+            ? `Đã chỉnh sửa và gửi lại phiếu: ${receiptNumber}`
+            : `Lap lenh nhap kho thanh cong: ${receiptNumber}`
+          : isRevisionMode
+            ? "Đã chỉnh sửa và gửi lại phiếu"
+            : "Lap lenh nhap kho thanh cong",
+        "success",
+      );
+      navigate("/inbound/receipts");
     } catch (error) {
-      const msg = error?.response?.data?.message || error?.message || 'Lỗi khi lập lệnh nhập kho';
-      addToast(msg, 'error');
+      const msg =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Lỗi khi lập lệnh nhập kho";
+      addToast(msg, "error");
     } finally {
       setLoading(false);
     }
@@ -197,7 +288,7 @@ const ReceiptForm = () => {
       {/* Header section */}
       <div>
         <button
-          onClick={() => navigate('/inbound/receipts')}
+          onClick={() => navigate("/inbound/receipts")}
           className="flex items-center gap-2 text-xs font-semibold text-shade-50 hover:text-ink transition-colors mb-4"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -208,11 +299,19 @@ const ReceiptForm = () => {
           Vận hành / Nhập kho
         </span>
         <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">
-          Lập lệnh nhập kho thô
+          {isRevisionMode ? "Chỉnh sửa lệnh nhập kho" : "Lập lệnh nhập kho"}
         </h1>
+        {isRevisionMode && revisionReceipt?.pre_receive_rejection_reason && (
+          <p className="mt-2 rounded-lg border border-danger-200 bg-danger-50 px-3 py-2 text-xs font-semibold text-danger-800">
+            Lý do cần chỉnh sửa: {revisionReceipt.pre_receive_rejection_reason}
+          </p>
+        )}
       </div>
 
-      <form onSubmit={handleSubmit} className="flex flex-col lg:flex-row gap-6 items-start">
+      <form
+        onSubmit={handleSubmit}
+        className="flex flex-col lg:flex-row gap-6 items-start"
+      >
         {/* Left column - Metadata */}
         <div className="w-full lg:w-1/3 bg-canvas-light border border-hairline-light rounded-lg p-6 shadow-level-3 card-premium flex flex-col gap-5">
           <h3 className="text-xs font-bold uppercase tracking-widest text-shade-40 border-b border-hairline-light pb-2 mb-2">
@@ -220,25 +319,12 @@ const ReceiptForm = () => {
           </h3>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Loại nhập kho</label>
-            <select
-              value={type}
-              onChange={(e) => {
-                setType(e.target.value);
-                setPartnerId('');
-              }}
-              className="text-input"
-            >
-              <option value="PURCHASE">Nhập mua</option>
-              <option value="RETURN">Nhập trả</option>
-            </select>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Kho đích nhận</label>
+            <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">
+              Kho
+            </label>
             <input
               type="text"
-              value={activeWarehouse?.name || ''}
+              value={activeWarehouse?.name || ""}
               disabled
               className="text-input bg-canvas-cream text-shade-50 cursor-not-allowed font-semibold"
             />
@@ -246,7 +332,7 @@ const ReceiptForm = () => {
 
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">
-              {type === 'PURCHASE' ? 'Nhà cung cấp' : 'Đại lý trả hàng'}
+              Nhà cung cấp <span className="text-danger-500">*</span>
             </label>
             <select
               value={partnerId}
@@ -254,55 +340,36 @@ const ReceiptForm = () => {
               className="text-input"
               required
             >
-              <option value="">-- Chọn đối tác --</option>
-              {type === 'PURCHASE'
-                ? suppliers.map(s => <option key={s.id} value={s.id}>{s.company_name} ({s.code})</option>)
-                : dealers.map(d => <option key={d.id} value={d.id}>{d.name} ({d.code})</option>)
-              }
+              <option value="">-- Chọn Nhà cung cấp --</option>
+              {suppliers.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.company_name} ({s.code})
+                </option>
+              ))}
             </select>
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Người liên hệ <span className="text-danger-500">*</span></label>
+            <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">
+              Mã Nhập Hàng
+            </label>
             <input
               type="text"
-              placeholder="VD: Nguyễn Văn A"
-              value={contactPerson}
-              onChange={(e) => setContactPerson(e.target.value)}
-              className="text-input"
-              required
+              value={receiptNumberPreview}
+              readOnly
+              className="text-input bg-canvas-cream font-semibold tracking-wide text-shade-90"
+              aria-readonly="true"
             />
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Mã chứng từ nguồn (PO/DO hoàn) <span className="text-danger-500">*</span></label>
-            <input
-              type="text"
-              placeholder="VD: PO-2026-0005"
-              value={sourceReference}
-              onChange={(e) => setSourceReference(e.target.value)}
-              className="text-input"
-              required
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Kênh thông tin</label>
-            <select
-              value={sourceChannel}
-              onChange={(e) => setSourceChannel(e.target.value)}
-              className="text-input"
-            >
-              <option value="ZALO">Zalo</option>
-              <option value="EMAIL">Email</option>
-            </select>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Ngày chứng từ</label>
+            <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">
+              Ngày Nhập Hàng <span className="text-danger-500">*</span>
+            </label>
             <input
               type="date"
               value={documentDate}
+              min={isRevisionMode ? undefined : new Date().toISOString().slice(0, 10)}
               onChange={(e) => setDocumentDate(e.target.value)}
               className="text-input"
               required
@@ -310,7 +377,9 @@ const ReceiptForm = () => {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Ghi chú</label>
+            <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">
+              Ghi chú
+            </label>
             <textarea
               placeholder="Nhập ghi chú thêm..."
               value={notes}
@@ -323,6 +392,7 @@ const ReceiptForm = () => {
         {/* Right column - Products list & selection */}
         <div className="w-full lg:w-2/3 flex flex-col gap-6">
           {/* Product Search & Selector */}
+          {!isRevisionMode && (
           <div className="bg-canvas-light border border-hairline-light rounded-lg p-6 shadow-level-3 card-premium relative">
             <h3 className="text-xs font-bold uppercase tracking-widest text-shade-40 mb-4 border-b border-hairline-light pb-2">
               Thêm sản phẩm
@@ -342,12 +412,14 @@ const ReceiptForm = () => {
               />
 
               {/* Search results dropdown */}
-              {showSearchResults && searchQuery.trim() !== '' && (
+              {showSearchResults && searchQuery.trim() !== "" && (
                 <div className="absolute left-0 right-0 mt-1.5 bg-canvas-light border border-hairline-light rounded-lg shadow-level-4 max-h-60 overflow-y-auto z-40">
                   {searchResults.length === 0 ? (
-                    <div className="p-4 text-xs text-shade-50 text-center">Không tìm thấy sản phẩm hợp lệ</div>
+                    <div className="p-4 text-xs text-shade-50 text-center">
+                      Không tìm thấy sản phẩm hợp lệ
+                    </div>
                   ) : (
-                    searchResults.map(prod => (
+                    searchResults.map((prod) => (
                       <div
                         key={prod.id}
                         onClick={() => handleAddItem(prod)}
@@ -355,9 +427,10 @@ const ReceiptForm = () => {
                       >
                         <div>
                           <span className="font-bold block">{prod.sku}</span>
-                          <span className="text-shade-50 block">{prod.name}</span>
+                          <span className="text-shade-50 block">
+                            {prod.name}
+                          </span>
                         </div>
-
                       </div>
                     ))
                   )}
@@ -365,6 +438,7 @@ const ReceiptForm = () => {
               )}
             </div>
           </div>
+          )}
 
           {/* Selected Items Table */}
           <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 overflow-hidden">
@@ -376,7 +450,8 @@ const ReceiptForm = () => {
 
             {selectedItems.length === 0 ? (
               <div className="p-12 text-center text-sm text-shade-40">
-                Chưa có sản phẩm nào được chọn. Hãy tìm kiếm và thêm sản phẩm ở khung phía trên.
+                Chưa có sản phẩm nào được chọn. Hãy tìm kiếm và thêm sản phẩm ở
+                khung phía trên.
               </div>
             ) : (
               <>
@@ -385,19 +460,31 @@ const ReceiptForm = () => {
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
                       <tr className="bg-canvas-cream border-b border-hairline-light">
-                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Sản phẩm</th>
-                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right w-24">Số lượng dự kiến</th>
-                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right w-36">Đơn giá nhập (VND)</th>
-                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right w-20">Hành động</th>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">
+                          Sản phẩm
+                        </th>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right w-24">
+                          Số lượng dự kiến
+                        </th>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right w-36">
+                          Đơn giá nhập (VND)
+                        </th>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right w-20">
+                          Hành động
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-hairline-light">
                       {selectedItems.map((item, index) => (
-                        <tr key={item.product_id} className="hover:bg-canvas-cream/50 transition-colors">
+                        <tr
+                          key={item.product_id}
+                          className="hover:bg-canvas-cream/50 transition-colors"
+                        >
                           <td className="px-6 py-4">
                             <span className="font-bold block">{item.sku}</span>
-                            <span className="text-shade-50 block">{item.name}</span>
-
+                            <span className="text-shade-50 block">
+                              {item.name}
+                            </span>
                           </td>
                           <td className="px-6 py-4 text-right">
                             <input
@@ -405,7 +492,9 @@ const ReceiptForm = () => {
                               min="1"
                               step="any"
                               value={item.expected_qty}
-                              onChange={(e) => handleQtyChange(index, e.target.value)}
+                              onChange={(e) =>
+                                handleQtyChange(index, e.target.value)
+                              }
                               className="text-input text-right font-bold w-20 py-1"
                               required
                             />
@@ -416,19 +505,23 @@ const ReceiptForm = () => {
                               min="0"
                               step="any"
                               value={item.unit_cost}
-                              onChange={(e) => handleCostChange(index, e.target.value)}
+                              onChange={(e) =>
+                                handleCostChange(index, e.target.value)
+                              }
                               className="text-input text-right font-bold w-32 py-1"
                               required
                             />
                           </td>
                           <td className="px-6 py-4 text-right">
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveItem(index)}
-                              className="p-1 text-danger-500 hover:text-danger-700 hover:bg-danger-50 rounded-full transition-colors"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            {!isRevisionMode && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveItem(index)}
+                                className="p-1 text-danger-500 hover:text-danger-700 hover:bg-danger-50 rounded-full transition-colors"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -439,42 +532,57 @@ const ReceiptForm = () => {
                 {/* Mobile: stacked card view with full-width inputs */}
                 <div className="flex flex-col divide-y divide-hairline-light md:hidden">
                   {selectedItems.map((item, index) => (
-                    <div key={item.product_id} className="p-4 flex flex-col gap-3">
+                    <div
+                      key={item.product_id}
+                      className="p-4 flex flex-col gap-3"
+                    >
                       <div className="flex justify-between items-start gap-2">
                         <div className="text-xs">
                           <span className="font-bold block">{item.sku}</span>
-                          <span className="text-shade-50 block">{item.name}</span>
+                          <span className="text-shade-50 block">
+                            {item.name}
+                          </span>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveItem(index)}
-                          className="p-1.5 text-danger-500 hover:text-danger-700 hover:bg-danger-50 rounded transition-colors shrink-0"
-                          title="Xóa sản phẩm"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {!isRevisionMode && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveItem(index)}
+                            className="p-1.5 text-danger-500 hover:text-danger-700 hover:bg-danger-50 rounded transition-colors shrink-0"
+                            title="Xóa sản phẩm"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div className="flex flex-col gap-1">
-                          <label className="text-[10px] font-semibold uppercase tracking-wider text-shade-50">Số lượng dự kiến</label>
+                          <label className="text-[10px] font-semibold uppercase tracking-wider text-shade-50">
+                            Số lượng dự kiến
+                          </label>
                           <input
                             type="number"
                             min="1"
                             step="any"
                             value={item.expected_qty}
-                            onChange={(e) => handleQtyChange(index, e.target.value)}
+                            onChange={(e) =>
+                              handleQtyChange(index, e.target.value)
+                            }
                             className="text-input text-right font-bold py-1.5"
                             required
                           />
                         </div>
                         <div className="flex flex-col gap-1">
-                          <label className="text-[10px] font-semibold uppercase tracking-wider text-shade-50">Đơn giá nhập (VND)</label>
+                          <label className="text-[10px] font-semibold uppercase tracking-wider text-shade-50">
+                            Đơn giá nhập (VND)
+                          </label>
                           <input
                             type="number"
                             min="0"
                             step="any"
                             value={item.unit_cost}
-                            onChange={(e) => handleCostChange(index, e.target.value)}
+                            onChange={(e) =>
+                              handleCostChange(index, e.target.value)
+                            }
                             className="text-input text-right font-bold py-1.5"
                             required
                           />
@@ -491,7 +599,7 @@ const ReceiptForm = () => {
           <div className="flex justify-end gap-3">
             <button
               type="button"
-              onClick={() => navigate('/inbound/receipts')}
+              onClick={() => navigate("/inbound/receipts")}
               className="btn-pill btn-pill-outline-light"
             >
               Hủy
@@ -507,7 +615,11 @@ const ReceiptForm = () => {
                   Đang xử lý...
                 </>
               ) : (
-                <span>Lập Lệnh Nhập Kho</span>
+                <span>
+                  {isRevisionMode
+                    ? "Gửi lại cho WMS duyệt"
+                    : "Lập Lệnh Nhập Kho"}
+                </span>
               )}
             </button>
           </div>

@@ -86,7 +86,7 @@ class SupplierInvoiceServiceImplTest {
         receipt = new Receipt();
         receipt.setId(100L);
         receipt.setReceiptNumber("RO-001");
-        receipt.setStatus(ReceiptStatus.APPROVED);
+        receipt.setStatus(ReceiptStatus.PUTAWAY_COMPLETED);
         receipt.setSupplier(supplier);
         receipt.setWarehouse(warehouse);
 
@@ -110,9 +110,11 @@ class SupplierInvoiceServiceImplTest {
 
         ReceiptItem item1 = new ReceiptItem();
         item1.setActualQty(10);
+        item1.setApprovedQty(10);
         item1.setUnitCost(new BigDecimal("50000.00"));
         ReceiptItem item2 = new ReceiptItem();
         item2.setActualQty(5);
+        item2.setApprovedQty(5);
         item2.setUnitCost(new BigDecimal("20000.00"));
 
         when(receiptRepository.findById(100L)).thenReturn(Optional.of(receipt));
@@ -155,6 +157,7 @@ class SupplierInvoiceServiceImplTest {
 
         ReceiptItem item = new ReceiptItem();
         item.setActualQty(10);
+        item.setApprovedQty(10);
         item.setUnitCost(new BigDecimal("50000.00"));
 
         when(receiptRepository.findById(100L)).thenReturn(Optional.of(receipt));
@@ -208,6 +211,7 @@ class SupplierInvoiceServiceImplTest {
 
         ReceiptItem item = new ReceiptItem();
         item.setActualQty(10);
+        item.setApprovedQty(10);
         item.setUnitCost(null);
 
         when(receiptRepository.findById(100L)).thenReturn(Optional.of(receipt));
@@ -236,7 +240,7 @@ class SupplierInvoiceServiceImplTest {
 
         assertThatThrownBy(() -> supplierInvoiceService.createSupplierInvoice(request, accountantUser))
                 .isInstanceOf(BusinessRuleViolationException.class)
-                .hasMessageContaining("APPROVED status");
+                .hasMessageContaining("put away");
     }
 
     @Test

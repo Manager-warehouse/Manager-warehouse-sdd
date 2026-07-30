@@ -63,12 +63,14 @@ import com.wms.service.warehouse_location.impl.*;
 
 import com.wms.dto.request.CreateReceiptItemRequest;
 import com.wms.dto.request.CreateReceiptRequest;
+import com.wms.dto.request.PreReceiveApprovalRequest;
 import com.wms.dto.request.ReceiveReceiptItemRequest;
 import com.wms.dto.request.ReceiveReceiptRequest;
 import com.wms.dto.request.ReceiptQcItemRequest;
 import com.wms.dto.request.ReceiptQcRequest;
 import com.wms.dto.response.ReceiptQcResponse;
 import com.wms.dto.response.ReceiptResponse;
+import com.wms.entity.billing_payment.AccountingPeriod;
 import com.wms.entity.document_numbering.DocumentSequence;
 import com.wms.entity.stock_control.Inventory;
 import com.wms.entity.product_catalog.Product;
@@ -77,13 +79,14 @@ import com.wms.entity.access_control.User;
 import com.wms.entity.access_control.UserWarehouseAssignment;
 import com.wms.entity.warehouse_location.Warehouse;
 import com.wms.entity.warehouse_location.WarehouseLocation;
+import com.wms.enums.billing_payment.AccountingPeriodStatus;
 import com.wms.enums.warehouse_location.LocationType;
-import com.wms.enums.stock_receiving.ReceiptSourceChannel;
 import com.wms.enums.stock_receiving.ReceiptStatus;
 import com.wms.enums.access_control.UserRole;
 import com.wms.enums.warehouse_location.WarehouseType;
 import com.wms.enums.stock_receiving.QcSamplingMethod;
 import com.wms.enums.stock_receiving.QcResult;
+import com.wms.repository.AccountingPeriodRepository;
 import com.wms.repository.DocumentSequenceRepository;
 import com.wms.repository.InventoryRepository;
 import com.wms.repository.product_catalog.ProductRepository;
@@ -101,6 +104,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 
@@ -159,9 +163,13 @@ public class InboundReceiptServiceIT {
     @Autowired
     private UserWarehouseAssignmentRepository assignmentRepository;
 
+    @Autowired
+    private AccountingPeriodRepository accountingPeriodRepository;
+
     private User planner;
     private User staff;
     private User storekeeper;
+    private User warehouseManager;
     private Supplier supplier;
     private Warehouse warehouse;
     private WarehouseLocation quarantineLoc;
@@ -179,6 +187,7 @@ public class InboundReceiptServiceIT {
         supplierRepository.deleteAll();
         userRepository.deleteAll();
         sequenceRepository.deleteAll();
+        accountingPeriodRepository.deleteAll();
 
         // Initialize Receipt Sequence
         DocumentSequence seq = new DocumentSequence();
@@ -186,6 +195,14 @@ public class InboundReceiptServiceIT {
         seq.setNextValue(1L);
         seq.setUpdatedAt(OffsetDateTime.now());
         sequenceRepository.save(seq);
+
+        accountingPeriodRepository.save(AccountingPeriod.builder()
+                .periodName("2026-07")
+                .startDate(LocalDate.of(2026, 7, 1))
+                .endDate(LocalDate.of(2026, 7, 31))
+                .status(AccountingPeriodStatus.OPEN)
+                .createdAt(OffsetDateTime.now())
+                .build());
 
         // Save users
         planner = userRepository.save(User.builder()
@@ -201,6 +218,11 @@ public class InboundReceiptServiceIT {
         storekeeper = userRepository.save(User.builder()
                 .code("SK002").fullName("Storekeeper").email("store@wms.com")
                 .passwordHash("hash").role(UserRole.STOREKEEPER).isActive(true)
+                .createdAt(OffsetDateTime.now()).updatedAt(OffsetDateTime.now()).build());
+
+        warehouseManager = userRepository.save(User.builder()
+                .code("WM001").fullName("Warehouse Manager").email("manager@wms.com")
+                .passwordHash("hash").role(UserRole.WAREHOUSE_MANAGER).isActive(true)
                 .createdAt(OffsetDateTime.now()).updatedAt(OffsetDateTime.now()).build());
 
         // Save supplier & warehouse
@@ -234,6 +256,13 @@ public class InboundReceiptServiceIT {
         assign3.setAssignedAt(OffsetDateTime.now());
         assignmentRepository.save(assign3);
 
+        UserWarehouseAssignment assign4 = new UserWarehouseAssignment();
+        assign4.setUser(warehouseManager);
+        assign4.setWarehouse(warehouse);
+        assign4.setAssignedBy(planner);
+        assign4.setAssignedAt(OffsetDateTime.now());
+        assignmentRepository.save(assign4);
+
         // Save locations
         regularLoc = locationRepository.save(WarehouseLocation.builder()
                 .warehouse(warehouse).code("LOC-REGULAR").type(LocationType.BIN)
@@ -256,13 +285,11 @@ public class InboundReceiptServiceIT {
 
     @Test
     void testInboundReceipt_qcFailed_movesToQuarantine() {
-        // 1. Create Purchase Receipt Draft (status = PENDING_RECEIPT)
+        // 1. Create Purchase Receipt Draft (status = PENDING_MANAGER_APPROVAL)
         CreateReceiptRequest createReq = new CreateReceiptRequest();
         createReq.setSupplierId(supplier.getId());
         createReq.setWarehouseId(warehouse.getId());
-        createReq.setSourceReference("PO-10001");
-        createReq.setContactPerson("N/A");
-        createReq.setSourceChannel(ReceiptSourceChannel.EMAIL);
+        createReq.setDocumentDate(LocalDate.of(2026, 7, 28));
         createReq.setNotes("Test receipt");
 
         CreateReceiptItemRequest itemReq = new CreateReceiptItemRequest();
@@ -272,12 +299,19 @@ public class InboundReceiptServiceIT {
         createReq.setItems(List.of(itemReq));
 
         ReceiptResponse receiptResp = receiptService.createPurchaseReceipt(createReq, planner);
-        assertThat(receiptResp.getStatus()).isEqualTo(ReceiptStatus.PENDING_RECEIPT.name());
+        assertThat(receiptResp.getStatus()).isEqualTo(ReceiptStatus.PENDING_MANAGER_APPROVAL.name());
         assertThat(receiptResp.getItems()).hasSize(1);
         Long receiptItemId = receiptResp.getItems().get(0).getReceiptItemId();
 
+        PreReceiveApprovalRequest approveReq = new PreReceiveApprovalRequest();
+        approveReq.setExpectedVersion(versionOrZero(receiptResp));
+        approveReq.setDecision("APPROVE");
+        receiptResp = receiptService.decidePreReceiveApproval(receiptResp.getId(), approveReq, warehouseManager);
+        assertThat(receiptResp.getStatus()).isEqualTo(ReceiptStatus.PENDING_RECEIPT.name());
+
         // 2. Submit Physical Counts (receiveReceiptCounts)
         ReceiveReceiptRequest receiveReq = new ReceiveReceiptRequest();
+        receiveReq.setExpectedVersion(freshReceiptVersion(receiptResp.getId()));
         ReceiveReceiptItemRequest countReq = new ReceiveReceiptItemRequest();
         countReq.setReceiptItemId(receiptItemId);
         countReq.setCountedQty(10);
@@ -289,12 +323,15 @@ public class InboundReceiptServiceIT {
 
         // 3. Submit QC Results (SUBMIT action)
         ReceiptQcRequest qcSubmitReq = new ReceiptQcRequest();
+        qcSubmitReq.setExpectedVersion(freshReceiptVersion(receiptResp.getId()));
         qcSubmitReq.setAction(ReceiptQcRequest.QcAction.SUBMIT);
         ReceiptQcItemRequest qcItemReq = new ReceiptQcItemRequest();
         qcItemReq.setReceiptItemId(receiptItemId);
         qcItemReq.setSampleQty(10);
         qcItemReq.setQcPassedQty(6);
         qcItemReq.setQcFailedQty(4);
+        qcItemReq.setQualityPassedQty(6);
+        qcItemReq.setQualityFailedQty(4);
         qcItemReq.setQcSamplingMethod(QcSamplingMethod.FULL_INSPECTION);
         qcItemReq.setQcFailureReason("Móp méo");
         qcSubmitReq.setItems(List.of(qcItemReq));
@@ -304,28 +341,23 @@ public class InboundReceiptServiceIT {
 
         // 4. Confirm QC (CONFIRM action) -> Status becomes QC_FAILED or QC_COMPLETED
         ReceiptQcRequest qcConfirmReq = new ReceiptQcRequest();
+        qcConfirmReq.setExpectedVersion(freshReceiptVersion(receiptResp.getId()));
         qcConfirmReq.setAction(ReceiptQcRequest.QcAction.CONFIRM);
         qcResp = receiptQcService.processQc(receiptResp.getId(), qcConfirmReq, storekeeper.getEmail());
         assertThat(qcResp.getStatus()).isEqualTo(ReceiptStatus.QC_FAILED);
 
-        // Verify that failed items (4) are moved to Quarantine Area
-        List<Inventory> inventoryList = inventoryRepository.findAll();
-        assertThat(inventoryList).isNotEmpty();
+        ReceiptItem failedItem = receiptItemRepository.findById(receiptItemId).orElseThrow();
+        assertThat(failedItem.getQualityFailedQty()).isEqualTo(4);
+        assertThat(failedItem.getQuarantineReadyQty()).isEqualTo(4);
+        assertThat(inventoryRepository.findAll()).isEmpty();
+    }
 
-        // Should find quarantine inventory with totalQty = 4
-        Inventory quarantineInventory = inventoryList.stream()
-                .filter(inv -> inv.getLocation().getId().equals(quarantineLoc.getId()))
-                .findFirst()
-                .orElseThrow(() -> new AssertionError("No quarantine inventory found"));
+    private int versionOrZero(ReceiptResponse response) {
+        return response.getVersion() != null ? response.getVersion() : 0;
+    }
 
-        assertThat(quarantineInventory.getTotalQty()).isEqualByComparingTo(new BigDecimal("4.00"));
-        assertThat(quarantineInventory.getReservedQty()).isEqualByComparingTo(BigDecimal.ZERO);
-
-        // Verify Quarantine Location capacity updates
-        WarehouseLocation updatedQuarantine = locationRepository.findById(quarantineLoc.getId()).orElseThrow();
-        // 4 * 1.50 = 6.00 kg
-        assertThat(updatedQuarantine.getCurrentWeightKg()).isEqualByComparingTo(new BigDecimal("6.00"));
-        // 4 * 0.02 = 0.08 m3
-        assertThat(updatedQuarantine.getCurrentVolumeM3()).isEqualByComparingTo(new BigDecimal("0.08"));
+    private int freshReceiptVersion(Long receiptId) {
+        Integer version = receiptRepository.findById(receiptId).orElseThrow().getVersion();
+        return version != null ? version : 0;
     }
 }

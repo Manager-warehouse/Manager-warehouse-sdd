@@ -70,6 +70,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -146,7 +147,8 @@ class ReceiptServiceApprovalTest {
 
                 Batch batch = new Batch();
                 batch.setId(200L);
-                batch.setBatchNumber("BCH-100-RCV-2026-001-2026-06-11");
+                batch.setBatchNumber("LOT-WHHP-20260611-0010");
+                batch.setBatchCode("LOT-WHHP-20260611-0010");
                 batch.setProduct(product);
                 batch.setWarehouse(warehouse);
                 batch.setReceivedDate(LocalDate.of(2026, 6, 11));
@@ -155,6 +157,7 @@ class ReceiptServiceApprovalTest {
                 receiptItem.setId(10L);
                 receiptItem.setProduct(product);
                 receiptItem.setActualQty(100);
+                receiptItem.setUnitCost(BigDecimal.TEN);
                 receiptItem.setBatch(batch);
 
                 receiptValidationService = new ReceiptValidationService(receiptRepository,
@@ -183,7 +186,7 @@ class ReceiptServiceApprovalTest {
                 when(receiptRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(qcCompletedReceipt));
                 when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
                 when(receiptItemRepository.findByReceiptId(1L)).thenReturn(List.of(receiptItem));
-                when(batchRepository.findByProductWarehouseAndReceivedDate(100L, 10L, LocalDate.of(2026, 6, 11)))
+                when(batchRepository.findByBatchCode("LOT-WHHP-20260611-0010"))
                                 .thenReturn(Optional.of(receiptItem.getBatch()));
                 when(receiptItemRepository.save(any(ReceiptItem.class))).thenReturn(receiptItem);
                 when(receiptRepository.save(any(Receipt.class))).thenAnswer(i -> i.getArgument(0));
@@ -199,7 +202,8 @@ class ReceiptServiceApprovalTest {
                                 && r.getApprovedAt() != null));
                 verify(auditLogService).log(eq(manager), eq(AuditAction.RECEIPT_APPROVE),
                                 eq("RECEIPT"), eq(1L), eq("RCV-2026-001"), eq(10L), any(), any());
-                verify(supplierBillingNotificationService).createNotificationForReceiptOrder(qcCompletedReceipt);
+                assertEquals(List.of("LOT-WHHP-20260611-0010"), response.getBatchCodes());
+                verify(supplierBillingNotificationService, never()).createNotificationForReceiptOrder(any());
         }
 
         @Test
@@ -211,7 +215,7 @@ class ReceiptServiceApprovalTest {
                 when(receiptRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(qcCompletedReceipt));
                 when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
                 when(receiptItemRepository.findByReceiptId(1L)).thenReturn(List.of(receiptItem));
-                when(batchRepository.findByProductWarehouseAndReceivedDate(any(), any(), any()))
+                when(batchRepository.findByBatchCode("LOT-WHHP-20260611-0010"))
                                 .thenReturn(Optional.of(receiptItem.getBatch()));
                 when(receiptItemRepository.save(any())).thenReturn(receiptItem);
                 when(receiptRepository.save(any())).thenAnswer(i -> i.getArgument(0));
@@ -222,6 +226,7 @@ class ReceiptServiceApprovalTest {
                 verify(inventoryRepository, never()).save(any());
                 verify(inventoryRepository, never()).findByWarehouseProductBatchLocationForUpdate(any(), any(), any(),
                                 any());
+                verify(supplierBillingNotificationService, never()).createNotificationForReceiptOrder(any());
         }
 
         // -----------------------------------------------------------------------
@@ -324,7 +329,8 @@ class ReceiptServiceApprovalTest {
         void approveReceipt_existingBatch_reusedNotDuplicated() {
                 Batch existingBatch = new Batch();
                 existingBatch.setId(200L);
-                existingBatch.setBatchNumber("BCH-100-RCV-2026-001-2026-06-11");
+                existingBatch.setBatchNumber("LOT-WHHP-20260611-0010");
+                existingBatch.setBatchCode("LOT-WHHP-20260611-0010");
                 existingBatch.setProduct(product);
                 existingBatch.setWarehouse(warehouse);
                 existingBatch.setReceivedDate(LocalDate.of(2026, 6, 11));
@@ -336,7 +342,7 @@ class ReceiptServiceApprovalTest {
                 when(receiptRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(qcCompletedReceipt));
                 when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
                 when(receiptItemRepository.findByReceiptId(1L)).thenReturn(List.of(receiptItem));
-                when(batchRepository.findByProductWarehouseAndReceivedDate(100L, 10L, LocalDate.of(2026, 6, 11)))
+                when(batchRepository.findByBatchCode("LOT-WHHP-20260611-0010"))
                                 .thenReturn(Optional.of(existingBatch)); // Existing batch found
                 when(receiptItemRepository.save(any())).thenReturn(receiptItem);
                 when(receiptRepository.save(any())).thenAnswer(i -> i.getArgument(0));
@@ -345,5 +351,39 @@ class ReceiptServiceApprovalTest {
 
                 // Should not create new batch since existing one was found
                 verify(batchRepository, never()).save(any(Batch.class));
+        }
+
+        @Test
+        void approveReceipt_sameProductSeparateReceiptLines_createDistinctBatchCodes() {
+                ReceiptItem secondItem = new ReceiptItem();
+                secondItem.setId(12L);
+                secondItem.setProduct(product);
+                secondItem.setActualQty(50);
+                secondItem.setUnitCost(BigDecimal.TEN);
+
+                ReceiptDecisionRequest request = new ReceiptDecisionRequest();
+                request.setExpectedVersion(3);
+
+                when(receiptRepository.findById(1L)).thenReturn(Optional.of(qcCompletedReceipt));
+                when(receiptRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(qcCompletedReceipt));
+                when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
+                when(receiptItemRepository.findByReceiptId(1L)).thenReturn(List.of(receiptItem, secondItem));
+                when(batchRepository.findByBatchCode("LOT-WHHP-20260611-0010")).thenReturn(Optional.empty());
+                when(batchRepository.findByBatchCode("LOT-WHHP-20260611-0012")).thenReturn(Optional.empty());
+                long[] batchIds = { 200L };
+                when(batchRepository.save(any(Batch.class))).thenAnswer(i -> {
+                        Batch batch = i.getArgument(0);
+                        batch.setId(batchIds[0]++);
+                        return batch;
+                });
+                when(receiptItemRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+                when(receiptRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+                ReceiptActionResponse response = receiptService.approveReceipt(1L, request, manager);
+
+                assertEquals(List.of("LOT-WHHP-20260611-0010", "LOT-WHHP-20260611-0012"),
+                                response.getBatchCodes());
+                verify(batchRepository).save(argThat(batch -> "LOT-WHHP-20260611-0010".equals(batch.getBatchCode())));
+                verify(batchRepository).save(argThat(batch -> "LOT-WHHP-20260611-0012".equals(batch.getBatchCode())));
         }
 }

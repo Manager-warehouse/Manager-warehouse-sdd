@@ -113,6 +113,7 @@ class ReceiptControllerTest {
 
         private User planner;
         private User warehouseStaff;
+        private User warehouseManager;
 
         @BeforeEach
         void setUp() {
@@ -122,6 +123,9 @@ class ReceiptControllerTest {
                 warehouseStaff = new User();
                 warehouseStaff.setId(2L);
                 warehouseStaff.setRole(UserRole.WAREHOUSE_STAFF);
+                warehouseManager = new User();
+                warehouseManager.setId(3L);
+                warehouseManager.setRole(UserRole.WAREHOUSE_MANAGER);
         }
 
         @Test
@@ -135,10 +139,71 @@ class ReceiptControllerTest {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(validJson()))
                                 .andExpect(status().isCreated())
-                                .andExpect(jsonPath("$.receipt_number").value("RN-20260613-0001"))
+                                .andExpect(jsonPath("$.receipt_number").value("PO-20260728-0001"))
                                 .andExpect(jsonPath("$.type").value("PURCHASE"))
-                                .andExpect(jsonPath("$.status").value("PENDING_RECEIPT"))
+                                .andExpect(jsonPath("$.status").value("PENDING_MANAGER_APPROVAL"))
                                 .andExpect(jsonPath("$.items[0].expected_qty").value(500));
+        }
+
+        @Test
+        @WithMockUser(username = "manager@wms.com", roles = "WAREHOUSE_MANAGER")
+        void decidePreReceiveApproval_approveSuccess() throws Exception {
+                when(currentUserService.getRequiredCurrentUser()).thenReturn(warehouseManager);
+                ReceiptResponse approved = response();
+                approved.setStatus("PENDING_RECEIPT");
+                when(receiptService.decidePreReceiveApproval(eq(100L), any(), eq(warehouseManager)))
+                                .thenReturn(approved);
+
+                mockMvc.perform(put("/api/v1/receipts/100/pre-receive-approval")
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"expectedVersion\":0,\"decision\":\"APPROVE\"}"))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.status").value("PENDING_RECEIPT"));
+        }
+
+        @Test
+        @WithMockUser(username = "admin@wms.com", roles = "ADMIN")
+        void decidePreReceiveApproval_forbidsAdminRole() throws Exception {
+                User admin = new User();
+                admin.setId(9L);
+                admin.setRole(UserRole.ADMIN);
+                when(currentUserService.getRequiredCurrentUser()).thenReturn(admin);
+                when(receiptService.decidePreReceiveApproval(eq(100L), any(), eq(admin)))
+                                .thenThrow(new org.springframework.security.access.AccessDeniedException(
+                                                "Warehouse Manager role is required"));
+
+                mockMvc.perform(put("/api/v1/receipts/100/pre-receive-approval")
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"expectedVersion\":0,\"decision\":\"APPROVE\"}"))
+                                .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @WithMockUser(username = "planner@wms.com", roles = "PLANNER")
+        void reviseReceipt_successResubmitsForManagerApproval() throws Exception {
+                when(currentUserService.getRequiredCurrentUser()).thenReturn(planner);
+                when(receiptService.reviseReceipt(eq(100L), any(), eq(planner))).thenReturn(response());
+
+                mockMvc.perform(put("/api/v1/receipts/100/revision")
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                                                {
+                                                  "expectedVersion": 0,
+                                                  "documentDate": "2026-07-28",
+                                                  "items": [
+                                                    {
+                                                      "receipt_item_id": 501,
+                                                      "product_id": 30,
+                                                      "expected_qty": 500
+                                                    }
+                                                  ]
+                                                }
+                                                """))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.status").value("PENDING_MANAGER_APPROVAL"));
         }
 
         @Test
@@ -153,11 +218,25 @@ class ReceiptControllerTest {
 
         @Test
         @WithMockUser(username = "planner@wms.com", roles = "PLANNER")
-        void createReceipt_rejectsInvalidChannel() throws Exception {
+        void createReceipt_rejectsLegacySourceFields() throws Exception {
                 mockMvc.perform(post("/api/v1/receipts")
                                 .with(csrf())
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .content(validJson().replace("ZALO", "PHONE")))
+                                .content("""
+                                                {
+                                                  "supplier_id": 10,
+                                                  "warehouse_id": 20,
+                                                  "documentDate": "2026-07-28",
+                                                  "source_reference": "PO-1",
+                                                  "source_channel": "ZALO",
+                                                  "items": [
+                                                    {
+                                                      "product_id": 30,
+                                                      "expected_qty": 500
+                                                    }
+                                                  ]
+                                                }
+                                                """))
                                 .andExpect(status().isBadRequest());
         }
 
@@ -173,7 +252,7 @@ class ReceiptControllerTest {
 
         @Test
         @WithMockUser(username = "planner@wms.com", roles = "PLANNER")
-        void createReceipt_rejectsDuplicateSourceReference() throws Exception {
+        void createReceipt_rejectsReceiptNumberConflict() throws Exception {
                 when(currentUserService.getRequiredCurrentUser()).thenReturn(planner);
                 when(receiptService.createPurchaseReceipt(any(), any()))
                                 .thenThrow(new DuplicateResourceException("duplicate"));
@@ -307,7 +386,7 @@ class ReceiptControllerTest {
                 mockMvc.perform(put("/api/v1/receipts/100/qc")
                                 .with(csrf())
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .content("{\"action\":\"SUBMIT\",\"items\":[{\"receipt_item_id\":501,\"qc_passed_qty\":90,\"qc_failed_qty\":5}]}"))
+                                .content("{\"expectedVersion\":1,\"action\":\"SUBMIT\",\"items\":[{\"receipt_item_id\":501,\"qc_passed_qty\":90,\"qc_failed_qty\":5,\"qualityPassedQty\":90,\"qualityFailedQty\":5}]}"))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.receipt_id").value(100))
                                 .andExpect(jsonPath("$.receipt_number").value("RCV-001"));
@@ -327,7 +406,7 @@ class ReceiptControllerTest {
                 mockMvc.perform(put("/api/v1/receipts/100/qc")
                                 .with(csrf())
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .content("{\"action\":\"CONFIRM\"}"))
+                                .content("{\"expectedVersion\":1,\"action\":\"CONFIRM\"}"))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.receipt_id").value(100));
         }
@@ -340,14 +419,12 @@ class ReceiptControllerTest {
 
                 ReceiptResponse response = new ReceiptResponse();
                 response.setId(100L);
-                response.setReceiptNumber("RN-20260613-0001");
+                response.setReceiptNumber("PO-20260728-0001");
                 response.setType("PURCHASE");
-                response.setStatus("PENDING_RECEIPT");
+                response.setStatus("PENDING_MANAGER_APPROVAL");
                 response.setSupplierId(10L);
                 response.setWarehouseId(20L);
-                response.setSourceReference("PO-1");
-                response.setSourceChannel("ZALO");
-                response.setDocumentDate(LocalDate.of(2026, 6, 13));
+                response.setDocumentDate(LocalDate.of(2026, 7, 28));
                 response.setItems(List.of(item));
                 return response;
         }
@@ -377,10 +454,8 @@ class ReceiptControllerTest {
                 return """
                                 {
                                   "supplier_id": 10,
-                                  "contact_person": "Nguyen Van A",
                                   "warehouse_id": 20,
-                                  "source_reference": "PO-1",
-                                  "source_channel": "ZALO",
+                                  "documentDate": "2026-07-28",
                                   "items": [
                                     {
                                       "product_id": 30,

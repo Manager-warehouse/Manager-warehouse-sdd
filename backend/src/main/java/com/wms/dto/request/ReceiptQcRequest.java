@@ -52,6 +52,10 @@ public class ReceiptQcRequest {
     public enum QcAction { SUBMIT, CONFIRM }
 
     @NotNull
+    @JsonProperty("expectedVersion")
+    private Integer expectedVersion;
+
+    @NotNull
     @JsonProperty("action")
     private QcAction action;
 

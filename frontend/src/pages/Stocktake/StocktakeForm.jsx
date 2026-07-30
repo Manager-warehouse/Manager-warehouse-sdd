@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
-import { useAuthStore } from '../../stores/auth.store';
-import { useUiStore } from '../../stores/ui.store';
-import { stocktakeService } from '../../services/stocktake.service';
-import { financeService } from '../../services/finance.service';
-import Button from '../../components/common/Button';
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
+import { useAuthStore } from "../../stores/auth.store";
+import { useUiStore } from "../../stores/ui.store";
+import { stocktakeService } from "../../services/stocktake.service";
+import { financeService } from "../../services/finance.service";
+import Button from "../../components/common/Button";
 
 const StocktakeForm = () => {
   const navigate = useNavigate();
@@ -17,8 +17,8 @@ const StocktakeForm = () => {
   const [form, setForm] = useState({
     stock_take_date: today,
     document_date: today,
-    accounting_period_id: '',
-    notes: '',
+    accounting_period_id: "",
+    notes: "",
   });
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
@@ -29,7 +29,7 @@ const StocktakeForm = () => {
     const fetchPeriods = async () => {
       try {
         const data = await financeService.getAccountingPeriods();
-        const openPeriods = data.filter((p) => p.status === 'OPEN');
+        const openPeriods = data.filter((p) => p.status === "OPEN");
         setPeriods(openPeriods);
         if (openPeriods.length > 0) {
           const current = openPeriods.find((p) => {
@@ -42,7 +42,7 @@ const StocktakeForm = () => {
           }));
         }
       } catch (err) {
-        showToast?.('error', 'Không thể tải danh sách kỳ kế toán');
+        showToast?.("error", "Không thể tải danh sách kỳ kế toán");
       } finally {
         setLoadingPeriods(false);
       }
@@ -57,6 +57,9 @@ const StocktakeForm = () => {
 
   const validate = () => {
     const errs = {};
+    if (!form.stock_take_date) errs.stock_take_date = "Bắt buộc";
+    if (!form.document_date) errs.document_date = "Bắt buộc";
+    if (!form.accounting_period_id) errs.accounting_period_id = "Bắt buộc";
     if (!form.stock_take_date) errs.stock_take_date = 'Bắt buộc';
     if (!form.document_date) errs.document_date = 'Bắt buộc';
     if (!form.accounting_period_id) errs.accounting_period_id = 'Bắt buộc';
@@ -82,9 +85,12 @@ const StocktakeForm = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const errs = validate();
-    if (Object.keys(errs).length > 0) { setErrors(errs); return; }
+    if (Object.keys(errs).length > 0) {
+      setErrors(errs);
+      return;
+    }
     if (!activeWarehouse?.id) {
-      showToast?.('error', 'Vui lòng chọn kho trước khi tạo phiếu kiểm kê');
+      showToast?.("error", "Vui lòng chọn kho trước khi tạo phiếu kiểm kê");
       return;
     }
 
@@ -97,10 +103,13 @@ const StocktakeForm = () => {
         accounting_period_id: Number(form.accounting_period_id),
         notes: form.notes || undefined,
       });
-      showToast?.('success', `Đã tạo phiếu kiểm kê ${created.stock_take_number}`);
+      showToast?.(
+        "success",
+        `Đã tạo phiếu kiểm kê ${created.stock_take_number}`,
+      );
       navigate(`/stocktake/${created.id}`);
     } catch (err) {
-      showToast?.('error', err.message || 'Tạo phiếu kiểm kê thất bại');
+      showToast?.("error", err.message || "Tạo phiếu kiểm kê thất bại");
     } finally {
       setSubmitting(false);
     }
@@ -111,29 +120,40 @@ const StocktakeForm = () => {
       {/* Header */}
       <div className="flex items-start gap-3">
         <button
-          onClick={() => navigate('/stocktake')}
+          onClick={() => navigate("/stocktake")}
           className="p-2 rounded-pill text-shade-50 hover:bg-canvas-cream transition-colors mt-1 shrink-0"
         >
           <ArrowLeft className="w-4 h-4" />
         </button>
         <div>
-          <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">Vận hành / Kiểm kê</span>
-          <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">Tạo phiếu kiểm kê</h1>
+          <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
+            Vận hành / Kiểm kê
+          </span>
+          <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">
+            Tạo phiếu kiểm kê
+          </h1>
           {activeWarehouse && (
-            <p className="text-xs text-shade-50 font-light mt-1">{activeWarehouse.name}</p>
+            <p className="text-xs text-shade-50 font-light mt-1">
+              {activeWarehouse.name}
+            </p>
           )}
         </div>
       </div>
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 p-6 flex flex-col gap-5">
+      <form
+        onSubmit={handleSubmit}
+        className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 p-6 flex flex-col gap-5"
+      >
         {/* Grid 2 cột */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {/* Warehouse (read-only) */}
           <div className="space-y-1.5">
-            <label className="block text-xs font-semibold text-shade-40 uppercase tracking-wider">Kho kiểm kê</label>
+            <label className="block text-xs font-semibold text-shade-40 uppercase tracking-wider">
+              Kho kiểm kê
+            </label>
             <div className="px-3 py-2.5 rounded-md bg-canvas-cream border border-hairline-light text-sm text-shade-30">
-              {activeWarehouse?.name || '(Chưa chọn kho)'}
+              {activeWarehouse?.name || "(Chưa chọn kho)"}
             </div>
           </div>
 
@@ -144,10 +164,12 @@ const StocktakeForm = () => {
             </label>
             <select
               value={form.accounting_period_id}
-              onChange={(e) => set('accounting_period_id', e.target.value)}
+              onChange={(e) => set("accounting_period_id", e.target.value)}
               disabled={loadingPeriods}
               className={`w-full px-3 py-2.5 rounded-md border text-sm outline-none transition-colors ${
-                errors.accounting_period_id ? 'border-danger-400 bg-danger-50' : 'border-hairline-light focus:border-ink'
+                errors.accounting_period_id
+                  ? "border-danger-400 bg-danger-50"
+                  : "border-hairline-light focus:border-ink"
               }`}
             >
               {loadingPeriods ? (
@@ -163,7 +185,9 @@ const StocktakeForm = () => {
               )}
             </select>
             {errors.accounting_period_id && (
-              <p className="text-xs text-danger-500">{errors.accounting_period_id}</p>
+              <p className="text-xs text-danger-500">
+                {errors.accounting_period_id}
+              </p>
             )}
           </div>
 
@@ -175,27 +199,33 @@ const StocktakeForm = () => {
             <input
               type="date"
               value={form.stock_take_date}
-              onChange={(e) => set('stock_take_date', e.target.value)}
+              onChange={(e) => set("stock_take_date", e.target.value)}
               className={`w-full px-3 py-2.5 rounded-md border text-sm outline-none transition-colors ${
-                errors.stock_take_date ? 'border-danger-400 bg-danger-50' : 'border-hairline-light focus:border-ink'
+                errors.stock_take_date
+                  ? "border-danger-400 bg-danger-50"
+                  : "border-hairline-light focus:border-ink"
               }`}
             />
             {errors.stock_take_date && (
-              <p className="text-xs text-danger-500">{errors.stock_take_date}</p>
+              <p className="text-xs text-danger-500">
+                {errors.stock_take_date}
+              </p>
             )}
           </div>
 
           {/* Document Date */}
           <div className="space-y-1.5">
             <label className="block text-xs font-semibold text-shade-40 uppercase tracking-wider">
-              Ngày chứng từ <span className="text-danger-500">*</span>
+              Ngày Nhập Hàng <span className="text-danger-500">*</span>
             </label>
             <input
               type="date"
               value={form.document_date}
-              onChange={(e) => set('document_date', e.target.value)}
+              onChange={(e) => set("document_date", e.target.value)}
               className={`w-full px-3 py-2.5 rounded-md border text-sm outline-none transition-colors ${
-                errors.document_date ? 'border-danger-400 bg-danger-50' : 'border-hairline-light focus:border-ink'
+                errors.document_date
+                  ? "border-danger-400 bg-danger-50"
+                  : "border-hairline-light focus:border-ink"
               }`}
             />
             {errors.document_date && (
@@ -206,11 +236,13 @@ const StocktakeForm = () => {
 
         {/* Notes - full width */}
         <div className="space-y-1.5">
-          <label className="block text-xs font-semibold text-shade-40 uppercase tracking-wider">Ghi chú</label>
+          <label className="block text-xs font-semibold text-shade-40 uppercase tracking-wider">
+            Ghi chú
+          </label>
           <textarea
             rows={3}
             value={form.notes}
-            onChange={(e) => set('notes', e.target.value)}
+            onChange={(e) => set("notes", e.target.value)}
             placeholder="Ghi chú thêm (tuỳ chọn)"
             className="w-full px-3 py-2.5 rounded-md border border-hairline-light focus:border-ink text-sm outline-none transition-colors resize-none"
           />
@@ -220,7 +252,7 @@ const StocktakeForm = () => {
         <div className="flex justify-end gap-3 pt-2">
           <button
             type="button"
-            onClick={() => navigate('/stocktake')}
+            onClick={() => navigate("/stocktake")}
             className="px-5 py-2.5 rounded-pill text-xs font-semibold border border-hairline-light text-shade-50 hover:bg-canvas-cream transition-colors"
           >
             Hủy
@@ -231,7 +263,7 @@ const StocktakeForm = () => {
             disabled={submitting || !activeWarehouse}
             loading={submitting}
           >
-            {submitting ? 'Đang tạo...' : 'Tạo phiếu kiểm kê'}
+            {submitting ? "Đang tạo..." : "Tạo phiếu kiểm kê"}
           </Button>
         </div>
       </form>
