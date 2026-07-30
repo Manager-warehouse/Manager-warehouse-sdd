@@ -36,6 +36,7 @@ import com.wms.enums.user_configuration.*;
 import com.wms.enums.warehouse_location.*;
 import com.wms.enums.warehouse_transfer.*;
 import lombok.*;
+import com.wms.enums.stock_control.AdjustmentStatus;
 import com.wms.enums.stock_control.AdjustmentType;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
@@ -105,6 +106,11 @@ public class Adjustment {
     @Column(name = "type", nullable = false, length = 30)
     private AdjustmentType type;
 
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 30)
+    private AdjustmentStatus status = AdjustmentStatus.PENDING_APPROVAL;
+
     // Signed monetary delta for type = CORRECTION_VOUCHER only; applied to
     // dealers.current_balance / suppliers.current_balance. Not reused from
     // quantityAdjustment, which is a unit count rather than a currency amount.
@@ -140,4 +146,12 @@ public class Adjustment {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
+
+    @PrePersist
+    @PreUpdate
+    private void syncStatusFromApprovalFields() {
+        if (approvedAt != null && status == AdjustmentStatus.PENDING_APPROVAL) {
+            status = AdjustmentStatus.APPROVED;
+        }
+    }
 }

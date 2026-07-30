@@ -221,7 +221,7 @@ public class AdjustmentServiceIT {
     }
 
     @Test
-    void testStockTakeDiscrepancy_autoApprovesAndUpdatesInventory() {
+    void testStockTakeDiscrepancy_requiresManagerApprovalAndUpdatesInventory() {
         // 1. Create StockTake (status = DRAFT)
         CreateStockTakeRequest createReq = new CreateStockTakeRequest();
         createReq.setWarehouseId(warehouse.getId());
@@ -253,23 +253,20 @@ public class AdjustmentServiceIT {
 
         stockTakeService.recordCount(stResp.getId(), countReq, storekeeper);
 
-        // 4. Complete StockTake
-        // Total variance value is -100,000 VND (magnitude < 5,000,000 VND threshold for auto-approval)
-        // Therefore, completing this StockTake should trigger AUTO approval!
+        // 4. Complete StockTake: discrepancy creates a pending adjustment, but
+        // inventory is not changed until manager approval.
         stResp = stockTakeService.completeStockTake(stResp.getId(), storekeeper);
-        assertThat(stResp.getStatus()).isEqualTo(StockTakeStatus.APPROVED);
-        assertThat(stResp.getApprovalLevel()).isEqualTo(ApprovalLevel.AUTO);
+        assertThat(stResp.getStatus()).isEqualTo(StockTakeStatus.PENDING_APPROVAL);
+        assertThat(stResp.getApprovalLevel()).isEqualTo(ApprovalLevel.MANAGER);
 
-        // Verify Location is unlocked
-        WarehouseLocation unlockedBin = locationRepository.findById(binLoc.getId()).orElseThrow();
-        assertThat(unlockedBin.getIsLocked()).isFalse();
-        assertThat(unlockedBin.getLockedByStockTakeId()).isNull();
+        WarehouseLocation stillLockedBin = locationRepository.findById(binLoc.getId()).orElseThrow();
+        assertThat(stillLockedBin.getIsLocked()).isTrue();
+        assertThat(stillLockedBin.getLockedByStockTakeId()).isEqualTo(stResp.getId());
 
-        // Verify Inventory is updated to 90.00
-        Inventory updatedInventory = inventoryRepository.findById(inventory.getId()).orElseThrow();
-        assertThat(updatedInventory.getTotalQty()).isEqualByComparingTo(new BigDecimal("90.00"));
+        Inventory inventoryBeforeApproval = inventoryRepository.findById(inventory.getId()).orElseThrow();
+        assertThat(inventoryBeforeApproval.getTotalQty()).isEqualByComparingTo(new BigDecimal("100.00"));
 
-        // Verify Adjustment record created in database
+        // Verify pending adjustment record created in database
         List<Adjustment> adjustments = adjustmentRepository.findAll();
         assertThat(adjustments).isNotEmpty();
         Adjustment adj = adjustments.stream()
@@ -278,6 +275,24 @@ public class AdjustmentServiceIT {
                 .orElseThrow(() -> new AssertionError("Adjustment not created"));
 
         assertThat(adj.getType()).isEqualTo(AdjustmentType.STOCK_TAKE);
+        assertThat(adj.getStatus()).isEqualTo(AdjustmentStatus.PENDING_APPROVAL);
+        assertThat(adj.getApprovedAt()).isNull();
         assertThat(adj.getQuantityAdjustment()).isEqualByComparingTo(new BigDecimal("-10.00"));
+
+        // 5. Manager approves: status becomes approved and inventory is updated once.
+        stResp = stockTakeService.approveStockTake(stResp.getId(), manager);
+        assertThat(stResp.getStatus()).isEqualTo(StockTakeStatus.APPROVED);
+
+        WarehouseLocation unlockedBin = locationRepository.findById(binLoc.getId()).orElseThrow();
+        assertThat(unlockedBin.getIsLocked()).isFalse();
+        assertThat(unlockedBin.getLockedByStockTakeId()).isNull();
+
+        Inventory updatedInventory = inventoryRepository.findById(inventory.getId()).orElseThrow();
+        assertThat(updatedInventory.getTotalQty()).isEqualByComparingTo(new BigDecimal("90.00"));
+
+        Adjustment approvedAdj = adjustmentRepository.findById(adj.getId()).orElseThrow();
+        assertThat(approvedAdj.getStatus()).isEqualTo(AdjustmentStatus.APPROVED);
+        assertThat(approvedAdj.getApprovedBy().getId()).isEqualTo(manager.getId());
+        assertThat(approvedAdj.getApprovedAt()).isNotNull();
     }
 }

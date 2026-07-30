@@ -95,7 +95,7 @@ import static org.mockito.Mockito.*;
  * Covers: create (happy + period closed), start (happy + invalid state),
  * count validation (negative qty, employee-fault reason), complete
  * approval-routing
- * (AUTO / MANAGER / CEO / employee-fault escalation), approve (happy, level
+ * (MANAGER / CEO / employee-fault escalation), approve (happy, level
  * mismatch,
  * already approved, inventory invariant), reject, and cancel.
  * </p>
@@ -487,33 +487,29 @@ class StockTakeServiceTest {
     }
 
     @Test
-    void completeStockTake_smallVariance_autoApprovesAndUpdatesInventory() {
+    void completeStockTake_smallVariance_routesToManagerAndCreatesPendingAdjustment() {
         StockTake st = stockTake(StockTakeStatus.IN_PROGRESS);
         when(stockTakeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(st));
         when(stockTakeItemRepository.existsByStockTakeIdAndActualQtyIsNull(1L)).thenReturn(false);
         StockTakeItem it = item(new BigDecimal("100"), new BigDecimal("98"),
                 new BigDecimal("-2"), new BigDecimal("-1000000"));
         when(stockTakeItemRepository.findByStockTakeId(1L)).thenReturn(List.of(it));
-        when(stockTakeItemRepository.findByStockTakeIdWithDetails(1L)).thenReturn(List.of(it));
         Inventory inv = new Inventory();
         inv.setTotalQty(new BigDecimal("100"));
         inv.setReservedQty(BigDecimal.ZERO);
         inv.setCostPrice(new BigDecimal("500000"));
         when(inventoryRepository.findByWarehouseIdAndProductIdAndBatchIdAndLocationId(WH_ID, 100L, 200L, 300L))
                 .thenReturn(Optional.of(inv));
-        when(inventoryRepository.findByWarehouseProductBatchLocationForUpdate(WH_ID, 100L, 200L, 300L))
-                .thenReturn(Optional.of(inv));
-        when(locationRepository.findByLockedByStockTakeId(1L)).thenReturn(List.of());
 
         StockTakeResponse res = service.completeStockTake(1L, storekeeper);
 
-        assertEquals(ApprovalLevel.AUTO, st.getApprovalLevel());
-        assertEquals(StockTakeStatus.APPROVED, res.getStatus());
-        assertEquals(0, inv.getTotalQty().compareTo(new BigDecimal("98")));
+        assertEquals(ApprovalLevel.MANAGER, st.getApprovalLevel());
+        assertEquals(StockTakeStatus.PENDING_APPROVAL, res.getStatus());
+        assertEquals(0, inv.getTotalQty().compareTo(new BigDecimal("100")));
         verify(adjustmentRepository).save(any(Adjustment.class));
+        verify(inventoryRepository, never())
+                .findByWarehouseProductBatchLocationForUpdate(anyLong(), anyLong(), anyLong(), anyLong());
         verify(auditLogService).log(eq(storekeeper), eq(AuditAction.STOCKTAKE_COMPLETE), any(), any(), any(), eq(WH_ID),
-                any(), any());
-        verify(auditLogService).log(eq(storekeeper), eq(AuditAction.STOCKTAKE_AUTO_APPROVE), any(), any(), any(), eq(WH_ID),
                 any(), any());
     }
 

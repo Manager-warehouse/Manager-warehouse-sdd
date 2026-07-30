@@ -58,13 +58,14 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
 public class StockTakeService {
 
     private static final String ENTITY_TYPE = "STOCK_TAKE";
-    private static final BigDecimal AUTO_APPROVAL_THRESHOLD = new BigDecimal("5000000");
+    private static final String STOCK_TAKE_REFERENCE_TYPE = "STOCK_TAKE";
     private final StockTakeRepository stockTakeRepository;
     private final StockTakeItemRepository stockTakeItemRepository;
     private final InventoryRepository inventoryRepository;
@@ -345,16 +346,11 @@ public class StockTakeService {
         auditLogService.log(actor, AuditAction.STOCKTAKE_COMPLETE, ENTITY_TYPE,
                 st.getId(), st.getStockTakeNumber(), st.getWarehouse().getId(), null, snapshotHeader(st));
 
-        if (canAutoApprove(st, totalVariance)) {
-            st.setApprovalLevel(ApprovalLevel.AUTO);
-            executeApproval(st, actor, AuditAction.STOCKTAKE_AUTO_APPROVE);
-            return buildResponse(st);
-        }
-
         st.setApprovalLevel(ApprovalLevel.MANAGER);
         st.setStatus(StockTakeStatus.PENDING_APPROVAL);
         st.setUpdatedAt(OffsetDateTime.now());
         stockTakeRepository.save(st);
+        createPendingStockTakeAdjustments(st, items);
 
         return buildResponse(st);
     }
@@ -422,13 +418,10 @@ public class StockTakeService {
 
     // ─── Private helpers ──────────────────────────────────────────────────────
 
-    private boolean canAutoApprove(StockTake st, BigDecimal totalVariance) {
-        return !Boolean.TRUE.equals(st.getIsEmployeeFault())
-                && totalVariance.abs().compareTo(AUTO_APPROVAL_THRESHOLD) < 0;
-    }
-
     private void executeApproval(StockTake st, User approver, AuditAction auditAction) {
         List<StockTakeItem> items = stockTakeItemRepository.findByStockTakeIdWithDetails(st.getId());
+        List<Adjustment> adjustments = adjustmentRepository.findByReferenceTypeAndReferenceIdAndTypeOrderByIdAsc(
+                STOCK_TAKE_REFERENCE_TYPE, st.getId(), AdjustmentType.STOCK_TAKE);
         for (StockTakeItem item : items) {
             if (item.getVarianceQty() == null || item.getVarianceQty().compareTo(BigDecimal.ZERO) == 0) {
                 continue;
@@ -452,26 +445,11 @@ public class StockTakeService {
             inv.setUpdatedAt(OffsetDateTime.now());
             inventoryRepository.save(inv);
 
-            // Create adjustment record
-            String adjNumber = "ADJ-ST-" + st.getId() + "-" + item.getId();
-            Adjustment adj = Adjustment.builder()
-                    .adjustmentNumber(adjNumber)
-                    .warehouse(st.getWarehouse())
-                    .product(item.getProduct())
-                    .batch(item.getBatch())
-                    .location(item.getLocation())
-                    .quantityAdjustment(item.getVarianceQty())
-                    .type(AdjustmentType.STOCK_TAKE)
-                    .referenceId(st.getId())
-                    .referenceType("STOCK_TAKE")
-                    .reason("StockTake adjustment: " + st.getStockTakeNumber())
-                    .approvedBy(approver)
-                    .approvedAt(OffsetDateTime.now())
-                    .documentDate(st.getDocumentDate())
-                    .accountingPeriod(st.getAccountingPeriod())
-                    .createdBy(st.getConductedBy())
-                    .createdAt(OffsetDateTime.now())
-                    .build();
+            Adjustment adj = findStockTakeAdjustment(adjustments, item)
+                    .orElseGet(() -> buildStockTakeAdjustment(st, item));
+            adj.setStatus(AdjustmentStatus.APPROVED);
+            adj.setApprovedBy(approver);
+            adj.setApprovedAt(OffsetDateTime.now());
             adjustmentRepository.save(adj);
         }
 
@@ -488,11 +466,76 @@ public class StockTakeService {
                 st.getWarehouse().getId(), null, snapshotHeader(st));
     }
 
+    private void createPendingStockTakeAdjustments(StockTake st, List<StockTakeItem> items) {
+        for (StockTakeItem item : items) {
+            if (item.getVarianceQty() == null || item.getVarianceQty().compareTo(BigDecimal.ZERO) == 0) {
+                continue;
+            }
+            String adjNumber = stockTakeAdjustmentNumber(st, item);
+            Adjustment adjustment = adjustmentRepository.findByAdjustmentNumber(adjNumber)
+                    .orElseGet(() -> buildStockTakeAdjustment(st, item));
+            adjustment.setQuantityAdjustment(item.getVarianceQty());
+            adjustment.setStatus(AdjustmentStatus.PENDING_APPROVAL);
+            adjustment.setApprovedBy(null);
+            adjustment.setApprovedAt(null);
+            adjustmentRepository.save(adjustment);
+        }
+    }
+
+    private Optional<Adjustment> findStockTakeAdjustment(List<Adjustment> adjustments, StockTakeItem item) {
+        return adjustments.stream()
+                .filter(adj -> adj.getProduct().getId().equals(item.getProduct().getId()))
+                .filter(adj -> sameId(adj.getBatch(), item.getBatch()))
+                .filter(adj -> sameId(adj.getLocation(), item.getLocation()))
+                .findFirst();
+    }
+
+    private Adjustment buildStockTakeAdjustment(StockTake st, StockTakeItem item) {
+        return Adjustment.builder()
+                .adjustmentNumber(stockTakeAdjustmentNumber(st, item))
+                .warehouse(st.getWarehouse())
+                .product(item.getProduct())
+                .batch(item.getBatch())
+                .location(item.getLocation())
+                .quantityAdjustment(item.getVarianceQty())
+                .type(AdjustmentType.STOCK_TAKE)
+                .referenceId(st.getId())
+                .referenceType(STOCK_TAKE_REFERENCE_TYPE)
+                .reason("StockTake adjustment: " + st.getStockTakeNumber())
+                .status(AdjustmentStatus.PENDING_APPROVAL)
+                .documentDate(st.getDocumentDate())
+                .accountingPeriod(st.getAccountingPeriod())
+                .createdBy(st.getConductedBy())
+                .createdAt(OffsetDateTime.now())
+                .build();
+    }
+
+    private String stockTakeAdjustmentNumber(StockTake st, StockTakeItem item) {
+        return "ADJ-ST-" + st.getId() + "-" + item.getId();
+    }
+
+    private boolean sameId(Object leftEntity, Object rightEntity) {
+        Long leftId = entityId(leftEntity);
+        Long rightId = entityId(rightEntity);
+        return leftId != null && leftId.equals(rightId);
+    }
+
+    private Long entityId(Object entity) {
+        if (entity instanceof Batch batch) {
+            return batch.getId();
+        }
+        if (entity instanceof WarehouseLocation location) {
+            return location.getId();
+        }
+        return null;
+    }
+
     private StockTakeResponse doReject(StockTake st, String reason, User actor) {
         st.setStatus(StockTakeStatus.REJECTED);
         st.setRejectionReason(reason);
         st.setUpdatedAt(OffsetDateTime.now());
         stockTakeRepository.save(st);
+        rejectPendingStockTakeAdjustments(st);
 
         unlockLocations(st.getId());
 
@@ -500,6 +543,17 @@ public class StockTakeService {
                 st.getId(), st.getStockTakeNumber(), st.getWarehouse().getId(), null, snapshotHeader(st));
 
         return buildResponse(st);
+    }
+
+    private void rejectPendingStockTakeAdjustments(StockTake st) {
+        List<Adjustment> adjustments = adjustmentRepository.findByReferenceTypeAndReferenceIdAndTypeOrderByIdAsc(
+                STOCK_TAKE_REFERENCE_TYPE, st.getId(), AdjustmentType.STOCK_TAKE);
+        for (Adjustment adjustment : adjustments) {
+            if (adjustment.getStatus() == AdjustmentStatus.PENDING_APPROVAL) {
+                adjustment.setStatus(AdjustmentStatus.REJECTED);
+                adjustmentRepository.save(adjustment);
+            }
+        }
     }
 
     private void lockLocations(StockTake st) {
