@@ -32,9 +32,7 @@ const FleetManagement = () => {
   const [vhPlateNumber, setVhPlateNumber] = useState('');
   const [vhType, setVhType] = useState('');
   const [vhMaxWeight, setVhMaxWeight] = useState('1500');
-  const [vhMaxVolume, setVhMaxVolume] = useState('10');
   const [vhWarehouseId, setVhWarehouseId] = useState('1');
-  const [vhStatus, setVhStatus] = useState('AVAILABLE');
 
   // Driver Modal States
   const [isDrModalOpen, setIsDrModalOpen] = useState(false);
@@ -49,7 +47,6 @@ const FleetManagement = () => {
   const [drPhone, setDrPhone] = useState('');
   const [drLicenseNumber, setDrLicenseNumber] = useState('');
   const [drLicenseExpiry, setDrLicenseExpiry] = useState('');
-  const [drStatus, setDrStatus] = useState('AVAILABLE');
   const [drWarehouseId, setDrWarehouseId] = useState('');
 
   const [warehousesList, setWarehousesList] = useState(WAREHOUSES);
@@ -75,6 +72,7 @@ const FleetManagement = () => {
   const getUserWarehouses = (user) => user?.warehouse_ids || user?.warehouseIds || user?.warehouses || [];
   const isUserActive = (user) => user?.is_active !== false && user?.isActive !== false;
   const hasGlobalFleetScope = hasRole(ROLES.ADMIN) || hasRole(ROLES.CEO);
+  const canToggleFleetActive = hasRole(ROLES.DISPATCHER);
   const fleetWarehouseIds = hasGlobalFleetScope
     ? []
     : (
@@ -128,9 +126,7 @@ const FleetManagement = () => {
     setVhPlateNumber('');
     setVhType('');
     setVhMaxWeight('1500');
-    setVhMaxVolume('10');
     setVhWarehouseId(String(fleetWarehouses[0]?.id || ''));
-    setVhStatus('AVAILABLE');
     setVhFormErrors({});
     setIsVhModalOpen(true);
   };
@@ -141,9 +137,7 @@ const FleetManagement = () => {
     setVhPlateNumber(vehicle.plate_number);
     setVhType(vehicle.vehicle_type);
     setVhMaxWeight(String(vehicle.max_weight_kg));
-    setVhMaxVolume(String(vehicle.max_volume_m3));
     setVhWarehouseId(String(vehicle.warehouse_id || vehicle.warehouseId || 1));
-    setVhStatus(vehicle.status || 'AVAILABLE');
     setVhFormErrors({});
     setIsVhModalOpen(true);
   };
@@ -154,7 +148,6 @@ const FleetManagement = () => {
     if (!vhType.trim()) errors.vehicle_type = 'Loại xe tải bắt buộc';
     if (!vhWarehouseId) errors.warehouse_id = 'Kho phụ trách bắt buộc';
     if (Number(vhMaxWeight) <= 0) errors.max_weight = 'Tải trọng tối đa phải lớn hơn 0';
-    if (Number(vhMaxVolume) <= 0) errors.max_volume = 'Thể tích tối đa phải lớn hơn 0';
     setVhFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -168,14 +161,8 @@ const FleetManagement = () => {
       plate_number: vhPlateNumber.trim().toUpperCase(),
       vehicle_type: vhType.trim(),
       max_weight_kg: parseFloat(vhMaxWeight),
-      max_volume_m3: parseFloat(vhMaxVolume),
       warehouse_id: Number(vhWarehouseId),
     };
-
-    // Only include status when updating, not when creating
-    if (vhModalType === 'EDIT') {
-      vhData.status = vhStatus;
-    }
 
     try {
       if (vhModalType === 'ADD') {
@@ -200,8 +187,8 @@ const FleetManagement = () => {
   };
 
   const handleToggleVhStatus = async (vehicle) => {
-    if (vehicle.is_active && !hasRole(ROLES.ADMIN) && !hasRole(ROLES.CEO)) {
-      addToast('Chỉ Quản trị viên hoặc CEO mới có quyền tắt kích hoạt phương tiện', 'warning');
+    if (!canToggleFleetActive) {
+      addToast('Chỉ Điều phối viên mới có quyền bật/tắt kích hoạt phương tiện', 'warning');
       return;
     }
     try {
@@ -222,7 +209,6 @@ const FleetManagement = () => {
     setDrPhone(getUserPhone(user));
     setDrLicenseNumber('');
     setDrLicenseExpiry('');
-    setDrStatus('AVAILABLE');
     const userWhs = user ? getUserWarehouses(user) : [];
     const initialWhId = userWhs.length > 0 ? String(userWhs[0]) : (fleetWarehouses[0]?.id ? String(fleetWarehouses[0].id) : '');
     setDrWarehouseId(initialWhId);
@@ -238,7 +224,6 @@ const FleetManagement = () => {
     setDrPhone(driver.phone || '');
     setDrLicenseNumber(driver.license_number);
     setDrLicenseExpiry(driver.license_expiry);
-    setDrStatus(driver.status || 'AVAILABLE');
     setDrWarehouseId(String(driver.warehouse_id || driver.warehouseId || ''));
     setDrFormErrors({});
     setIsDrModalOpen(true);
@@ -270,7 +255,6 @@ const FleetManagement = () => {
       phone: drPhone.trim(),
       license_number: drLicenseNumber.trim(),
       license_expiry: drLicenseExpiry,
-      status: drStatus,
     };
 
     try {
@@ -292,8 +276,8 @@ const FleetManagement = () => {
   };
 
   const handleToggleDrStatus = async (driver) => {
-    if (driver.is_active && !hasRole(ROLES.ADMIN) && !hasRole(ROLES.CEO)) {
-      addToast('Chỉ Quản trị viên hoặc CEO mới có quyền tắt kích hoạt tài xế', 'warning');
+    if (!canToggleFleetActive) {
+      addToast('Chỉ Điều phối viên mới có quyền bật/tắt kích hoạt tài xế', 'warning');
       return;
     }
     try {
@@ -533,7 +517,6 @@ const FleetManagement = () => {
                       <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Dòng xe / Model</th>
                       <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Kho phụ trách</th>
                       <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Tải trọng tối đa (kg)</th>
-                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Thể tích tối đa (m³)</th>
                       <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center">Trạng thái vận chuyển</th>
                       <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center">Hoạt động</th>
                       <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Hành động</th>
@@ -553,9 +536,6 @@ const FleetManagement = () => {
                         </td>
                         <td className="px-6 py-4 text-right font-mono text-shade-70 font-semibold">
                           {vh.max_weight_kg?.toLocaleString('vi-VN')} kg
-                        </td>
-                        <td className="px-6 py-4 text-right font-mono text-shade-60">
-                          {vh.max_volume_m3?.toFixed(2)} m³
                         </td>
                         <td className="px-6 py-4 text-center">
                           {getVehicleStatusBadge(vh.status)}
@@ -614,7 +594,6 @@ const FleetManagement = () => {
                       {vh.warehouse_code || warehousesList.find((warehouse) => warehouse.id === Number(vh.warehouse_id || vh.warehouseId))?.code || '-'}
                     </span></p>
                     <p className="text-shade-50">Tải trọng tối đa: <span className="font-mono font-semibold text-ink">{vh.max_weight_kg?.toLocaleString('vi-VN')} kg</span></p>
-                    <p className="text-shade-50">Thể tích tối đa: <span className="font-mono text-ink">{vh.max_volume_m3?.toFixed(2)} m³</span></p>
                     <div>{getVehicleStatusBadge(vh.status)}</div>
                   </div>
                   <div className="p-4 border-t border-hairline-light flex gap-3.5 justify-end items-center font-bold">
@@ -788,28 +767,15 @@ const FleetManagement = () => {
         maxWidth="max-w-md"
       >
         <form onSubmit={handleVhSubmit} className="flex flex-col gap-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input
-              label="Biển số xe"
-              value={vhPlateNumber}
-              onChange={(e) => setVhPlateNumber(e.target.value.toUpperCase())}
-              disabled={vhModalType === 'EDIT'}
-              error={vhFormErrors.plate_number}
-              placeholder="VD: 15C-234.56"
-              required
-            />
-            <Input
-              label="Trạng thái xe"
-              type="select"
-              value={vhStatus}
-              onChange={(e) => setVhStatus(e.target.value)}
-              options={[
-                { value: 'AVAILABLE', label: 'Sẵn sàng hoạt động' },
-                { value: 'ON_TRIP', label: 'Đang đi giao hàng' },
-                { value: 'MAINTENANCE', label: 'Đang sửa chữa bảo dưỡng' },
-              ]}
-            />
-          </div>
+          <Input
+            label="Biển số xe"
+            value={vhPlateNumber}
+            onChange={(e) => setVhPlateNumber(e.target.value.toUpperCase())}
+            disabled={vhModalType === 'EDIT'}
+            error={vhFormErrors.plate_number}
+            placeholder="VD: 15C-234.56"
+            required
+          />
 
           <Input
             label="Dòng xe / Tải trọng / Model"
@@ -833,27 +799,15 @@ const FleetManagement = () => {
             required
           />
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input
-              label="Tải trọng tối đa (kg)"
-              type="number"
-              value={vhMaxWeight}
-              onChange={(e) => setVhMaxWeight(e.target.value)}
-              error={vhFormErrors.max_weight}
-              min="1"
-              required
-            />
-            <Input
-              label="Thể tích chứa tối đa (m³)"
-              type="number"
-              value={vhMaxVolume}
-              onChange={(e) => setVhMaxVolume(e.target.value)}
-              error={vhFormErrors.max_volume}
-              min="0.1"
-              step="0.01"
-              required
-            />
-          </div>
+          <Input
+            label="Tải trọng tối đa (kg)"
+            type="number"
+            value={vhMaxWeight}
+            onChange={(e) => setVhMaxWeight(e.target.value)}
+            error={vhFormErrors.max_weight}
+            min="1"
+            required
+          />
 
           <div className="flex justify-end gap-3 border-t border-hairline-light pt-4 mt-2">
             <Button variant="outline-light" onClick={() => setIsVhModalOpen(false)}>
@@ -874,7 +828,7 @@ const FleetManagement = () => {
         maxWidth="max-w-md"
       >
         <form onSubmit={handleDrSubmit} className="flex flex-col gap-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4">
             <Input
               label="Liên kết tài khoản"
               type="select"
@@ -910,17 +864,6 @@ const FleetManagement = () => {
               ]}
               required
             />
-            <Input
-              label="Trạng thái điều phối"
-              type="select"
-              value={drStatus}
-              onChange={(e) => setDrStatus(e.target.value)}
-              options={[
-                { value: 'AVAILABLE', label: 'Sẵn sàng chạy chuyến' },
-                ...(drStatus === 'ON_TRIP' ? [{ value: 'ON_TRIP', label: 'Đang chạy chuyến', disabled: true }] : []),
-                { value: 'UNAVAILABLE', label: 'Không khả dụng / Nghỉ phép' },
-              ]}
-            />
           </div>
           {drModalType === 'ADD' && (driverUserLoadFailed || selectableDriverUsers.length === 0) && (
             <div className="rounded-md border border-warning-200 bg-warning-50 px-3 py-2 text-xs text-warning-800">
@@ -929,16 +872,12 @@ const FleetManagement = () => {
                 : 'Tất cả tài khoản DRIVER hiện có đã có hồ sơ tài xế. Muốn thêm tài xế mới, hãy tạo tài khoản role DRIVER trước rồi quay lại tạo hồ sơ.'}
             </div>
           )}
-          <div className="rounded-md border border-hairline-light bg-canvas-cream/60 px-3 py-2 text-xs text-shade-60">
-            Trạng thái điều phối gồm: Sẵn sàng, Đang chạy chuyến, Không khả dụng. Tài xế không tự đổi trạng thái này; dispatcher/admin quản lý lịch rảnh, còn hệ thống chuyển sang Đang chạy chuyến theo luồng vận chuyển.
-          </div>
-
           <Input
             label="Họ tên tài xế"
             value={drFullName}
-            onChange={(e) => setDrFullName(e.target.value)}
+            disabled
             error={drFormErrors.full_name}
-            placeholder="VD: Nguyễn Văn A"
+            placeholder="Chọn tài khoản DRIVER để tự điền"
             required
           />
 

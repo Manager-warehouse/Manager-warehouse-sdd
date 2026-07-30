@@ -29,6 +29,9 @@ Luong nay la tien xu ly cua transfer, khong thay the buoc Planner tao `TRF`, Tru
   * WHEN HP warehouse manager sees that HCM has available stock for an item HP lacks, the manager MAY create a transfer request with HP as requesting/destination warehouse and HCM as proposed source warehouse.
   * WHEN a manager creates a transfer request, the system SHALL require source warehouse, requesting warehouse, needed-by date, business reason, and at least one item line.
   * WHEN a manager adds an item line, the system SHALL require product, requested quantity, observed source available quantity, and observed requesting warehouse available quantity.
+  * WHEN a manager enters `neededByDate`, the system SHALL reject dates before the backend local business date.
+  * WHEN a manager adds the same product more than once, the system SHALL reject the request and require one consolidated item line per product.
+  * WHEN a manager enters a decimal/fractional requested quantity for household-goods SKU, the system SHALL reject the request because Sprint 1 transfer quantities are whole units.
   * WHEN requested quantity is greater than current source available quantity at submit time, the system SHALL reject the request.
   * WHEN the manager edits a `DRAFT` request, the system SHALL load the existing header and item lines into the form, save the current requested state through `PUT /api/v1/transfer-requests/{id}`, and keep an audit trail.
   * WHEN the manager deletes a `DRAFT` request, the system SHALL soft-cancel it by setting status to `CANCELLED`; the system SHALL NOT physically delete the request or its item history.
@@ -107,6 +110,9 @@ Luong nay la tien xu ly cua transfer, khong thay the buoc Planner tao `TRF`, Tru
 * `WAREHOUSE_INACTIVE` (HTTP 422): requesting or source warehouse is inactive.
 * `TRANSFER_REQUEST_ITEMS_REQUIRED` (HTTP 400): request has no item lines.
 * `INVALID_TRANSFER_QTY` (HTTP 400): `requestedQty <= 0`.
+* `TRANSFER_QTY_MUST_BE_WHOLE_NUMBER` (HTTP 400): requested quantity contains a fractional value.
+* `NEEDED_BY_DATE_MUST_NOT_BE_PAST` (HTTP 400): needed-by date is earlier than the backend local business date.
+* `DUPLICATE_TRANSFER_REQUEST_ITEM` (HTTP 400): the same product appears more than once in the request item list.
 * `PRODUCT_INACTIVE` (HTTP 422): product is inactive or unavailable for transfer.
 * `TRANSFER_REQUEST_REASON_REQUIRED` (HTTP 400): business reason or required item shortage reason is blank.
 * `TRANSFER_REQUEST_QTY_EXCEEDS_SOURCE_AVAILABLE` (HTTP 422): requested quantity exceeds current source available quantity.
@@ -123,6 +129,16 @@ Luong nay la tien xu ly cua transfer, khong thay the buoc Planner tao `TRF`, Tru
   * Given HP warehouse manager sees HP has only 5 available pans and HCM has 120 available pans
   * When the manager creates a request for HCM to send 50 pans to HP with a business reason
   * Then the system SHALL create a `DRAFT` transfer request with HP as requesting/destination warehouse, HCM as source warehouse, observed stock quantities, and a `TRANSFER_REQUEST_CREATE` audit log.
+
+* **Scenario: Reject request with past needed-by date**
+  * Given the backend local business date is `2026-07-28`
+  * When the requesting warehouse manager enters `neededByDate = 2026-07-27`
+  * Then the system SHALL reject the request with `NEEDED_BY_DATE_MUST_NOT_BE_PAST` and keep any existing DRAFT unchanged.
+
+* **Scenario: Reject request quantity above source availability**
+  * Given HP warehouse manager sees HN has 49 available units of product X
+  * When the manager requests 50 units of product X from HN
+  * Then the system SHALL reject submission with `TRANSFER_REQUEST_QTY_EXCEEDS_SOURCE_AVAILABLE` and SHALL NOT submit the request to CEO.
 
 * **Scenario: Submit request to CEO**
   * Given a transfer request is in `DRAFT` status with valid item lines

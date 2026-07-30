@@ -11,6 +11,7 @@ import { useUiStore } from '../../stores/ui.store';
 import { ROLES } from '../../utils/constants';
 import InterWarehouseTransferActionPanel from './InterWarehouseTransferActionPanel';
 import InterWarehouseTransferStatusBadge from './InterWarehouseTransferStatusBadge';
+import TransferEvidencePanel from './TransferEvidencePanel';
 
 const normalizeId = (value) => Number(value || 0);
 const isWholeNumber = (value) => Number.isInteger(Number(value));
@@ -48,6 +49,7 @@ const InterWarehouseTransferWorkspace = () => {
     items: [{ productId: '', plannedQty: 1 }],
   });
   const canCreateTransfer = hasRole(ROLES.PLANNER);
+  const canViewTransferEvidence = hasRole(ROLES.CEO) || hasRole(ROLES.WAREHOUSE_MANAGER);
   const needsFleetData = hasAnyRole(hasRole, [ROLES.DISPATCHER, ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]);
   const needsLocationData = hasAnyRole(hasRole, [ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF, ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]);
   const needsProductData = canCreateTransfer || hasAnyRole(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]);
@@ -289,11 +291,26 @@ const InterWarehouseTransferWorkspace = () => {
       if (!form.items.length) {
         throw new Error('Phiếu điều chuyển cần ít nhất một dòng hàng');
       }
+      // H2: validate documentDate không được quá khứ
+      if (form.documentDate < todayInputValue()) {
+        throw new Error('Ngày chứng từ không được ở quá khứ');
+      }
       if (form.plannedDate < todayInputValue()) {
         throw new Error('Ngày dự kiến không được ở quá khứ');
       }
       if (form.plannedDate < form.documentDate) {
         throw new Error('Ngày dự kiến không được trước ngày chứng từ');
+      }
+      // H1: validate không trùng SKU trong form
+      const seenProductIds = new Set();
+      for (const item of form.items) {
+        const productId = normalizeId(item.productId);
+        if (!productId) continue;
+        if (seenProductIds.has(productId)) {
+          const product = products.find((p) => p.id === productId);
+          throw new Error(`Sản phẩm "${product?.sku || productId}" bị trùng. Mỗi sản phẩm chỉ được xuất hiện một lần trong phiếu.`);
+        }
+        seenProductIds.add(productId);
       }
       const payload = {
         externalInstructionCode: form.externalInstructionCode.trim(),
@@ -334,6 +351,31 @@ const InterWarehouseTransferWorkspace = () => {
   };
 
   const handleAction = async (name, payload) => {
+    const ACTION_SUCCESS_MESSAGES = {
+      approve: 'Đã duyệt giữ chỗ tồn kho thành công',
+      reject: 'Đã từ chối phiếu điều chuyển',
+      cancel: 'Đã hủy phiếu điều chuyển',
+      assignTrip: 'Đã lập chuyến xe thành công',
+      recordSourceLoadReport: 'Đã ghi nhận số lượng xếp hàng',
+      ship: 'Đã chốt số lượng xuất kho',
+      unship: 'Đã hủy xuất kho',
+      recordOutboundQc: 'Đã lưu kết quả Outbound QC',
+      loadHandover: 'Đã xác nhận bàn giao lên xe',
+      depart: 'Tài xế đã xác nhận khởi hành',
+      driverArrive: 'Tài xế đã xác nhận đến kho đích',
+      receivingHandover: 'Đã xác nhận bàn giao nhận hàng',
+      receiveCount: 'Đã lưu số lượng thực nhận',
+      receiveCheck: 'Đã duyệt kiểm tra QC nhập kho',
+      finalReceive: 'Đã gửi/duyệt kế hoạch cất kệ',
+      returnToSource: 'Đã yêu cầu quay đầu về kho nguồn',
+      quarantineReject: 'Đã chuyển toàn bộ hàng vào khu cách ly',
+      requestReturn: 'Đã gửi yêu cầu quay đầu',
+      approveReturn: 'Đã duyệt yêu cầu quay đầu',
+      rejectReturn: 'Đã từ chối yêu cầu quay đầu',
+      returnDepart: 'Tài xế đã xác nhận xuất phát quay đầu',
+      returnArrive: 'Tài xế đã xác nhận về đến kho nguồn',
+      returnHandover: 'Đã xác nhận bàn giao hàng quay đầu',
+    };
     try {
       const id = selectedTransfer.id;
       const actions = {
@@ -362,7 +404,7 @@ const InterWarehouseTransferWorkspace = () => {
         returnHandover: () => interWarehouseTransferService.returnHandover(id, payload),
       };
       const updated = await actions[name]();
-      addToast('Đã cập nhật phiếu điều chuyển', 'success');
+      addToast(ACTION_SUCCESS_MESSAGES[name] || 'Đã cập nhật phiếu điều chuyển', 'success');
       await loadData();
       setSelectedId(updated.id);
     } catch (error) {
@@ -394,14 +436,14 @@ const InterWarehouseTransferWorkspace = () => {
 
       {formOpen && (
         <div className="border border-hairline-light rounded-lg bg-canvas-light p-3 md:p-4 grid grid-cols-1 md:grid-cols-4 gap-3">
-          <Input label="Mã lệnh Công ty mẹ" value={form.externalInstructionCode} onChange={(e) => setForm({ ...form, externalInstructionCode: e.target.value })} />
+          <Input label="Mã lệnh Công ty mẹ" value={form.externalInstructionCode} onChange={(e) => setForm({ ...form, externalInstructionCode: e.target.value })} maxLength={50} placeholder="Ví dụ: ORD-2026-0012" />
           <Input type="select" label="Kho nguồn" value={form.sourceWarehouseId} onChange={(e) => setForm({ ...form, sourceWarehouseId: e.target.value })}
             options={sourceWarehouseOptions} />
           <Input type="select" label="Kho đích" value={form.destinationWarehouseId} onChange={(e) => setForm({ ...form, destinationWarehouseId: e.target.value })}
             options={destinationWarehouseOptions} />
           <Input type="date" label="Ngày chứng từ" value={form.documentDate} onChange={(e) => setForm({ ...form, documentDate: e.target.value })} />
           <Input type="date" label="Ngày dự kiến" min={todayInputValue()} value={form.plannedDate} onChange={(e) => setForm({ ...form, plannedDate: e.target.value })} />
-          <Input className="md:col-span-3" label="Ghi chú" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+          <Input className="md:col-span-3" label="Ghi chú" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} maxLength={500} placeholder="Nhập ghi chú điều chuyển..." />
           <div className="md:col-span-4 flex flex-col gap-2">
             {form.items.map((item, index) => (
               <div key={index} className="grid grid-cols-1 md:grid-cols-[1fr_160px_160px_120px] gap-2 items-end">
@@ -445,14 +487,15 @@ const InterWarehouseTransferWorkspace = () => {
                 onChange={(e) => setStatusFilter(e.target.value)}
                 options={[
                   { value: 'ALL', label: 'Tất cả trạng thái' },
-                  { value: 'NEW', label: 'NEW' },
-                  { value: 'APPROVED', label: 'APPROVED' },
-                  { value: 'IN_TRANSIT', label: 'IN_TRANSIT' },
-                  { value: 'PUTAWAY_PENDING_APPROVAL', label: 'PUTAWAY_PENDING_APPROVAL' },
-                  { value: 'COMPLETED', label: 'COMPLETED' },
-                  { value: 'COMPLETED_WITH_DISCREPANCY', label: 'COMPLETED_WITH_DISCREPANCY' },
-                  { value: 'REJECTED', label: 'REJECTED' },
-                  { value: 'CANCELLED', label: 'CANCELLED' },
+                  { value: 'NEW', label: 'Mới (NEW)' },
+                  { value: 'APPROVED', label: 'Đã duyệt (APPROVED)' },
+                  { value: 'IN_TRANSIT', label: 'Đang vận chuyển (IN_TRANSIT)' },
+                  { value: 'PUTAWAY_PENDING_APPROVAL', label: 'Chờ duyệt cất kệ' },
+                  { value: 'COMPLETED', label: 'Hoàn tất (COMPLETED)' },
+                  { value: 'COMPLETED_WITH_DISCREPANCY', label: 'Hoàn tất có chênh lệch' },
+                  { value: 'REJECTED', label: 'Từ chối (REJECTED)' },
+                  { value: 'CANCELLED', label: 'Đã hủy (CANCELLED)' },
+                  { value: 'QUARANTINED', label: 'Cách ly (QUARANTINED)' },
                 ]}
               />
             </div>
@@ -590,6 +633,7 @@ const InterWarehouseTransferWorkspace = () => {
               </div>
             </div>
           )}
+          {selectedTransfer && canViewTransferEvidence && <TransferEvidencePanel transfer={selectedTransfer} />}
           <InterWarehouseTransferActionPanel
             transfer={selectedTransfer}
             currentUser={user}

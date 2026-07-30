@@ -1,6 +1,6 @@
 # KIẾN TRÚC PHÂN TẦNG CÁC ACTORS - HỆ THỐNG WMS PHÚC ANH
 
-# Phiên bản: 2.1 | Cập nhật: 2026-07-15
+# Phiên bản: 2.2 | Cập nhật: 2026-07-28
 
 # Ghi chú: Hệ thống dùng xe nội bộ Phúc Anh. KHÔNG có quản lý sản xuất, HRM, Barcode/QR, cổng B2B/B2C. Nguồn nghiệp vụ chuẩn là `.sdd/specs/001`–`010`; Spec 011–012 bổ sung vai trò chất lượng kỹ thuật, không thay đổi RBAC vận hành 10 actor.
 
@@ -49,6 +49,7 @@
   - _"Hiệu suất giao hàng đúng hạn (On-Time Delivery) có đảm bảo SLA không?"_
 - Phê duyệt các thay đổi cấu hình hệ thống quan trọng (thêm kho mới, thay đổi hạn mức công nợ Đại lý VIP).
 - Phê duyệt hoặc từ chối yêu cầu điều chuyển liên kho do Trưởng kho đề xuất; CEO approval chỉ tạo cơ sở cho Planner lập `TRF-*`, không giữ chỗ hoặc dịch chuyển inventory.
+- Xem và chốt hồ sơ chênh lệch điều chuyển tại `/transfers/discrepancies`; quyết định này ghi trách nhiệm/giải trình và audit, không tự sửa tồn kho.
 
 **User Stories liên quan:** US-WMS-01, US-WMS-11A, US-WMS-18
 ``
@@ -78,6 +79,7 @@
 - Khi kho mình thiếu hàng, xem tồn khả dụng liên kho ở chế độ read-only và tạo yêu cầu điều chuyển gửi CEO duyệt.
 - Phê duyệt Phiếu điều chuyển kho (kho nguồn): Kiểm tra tồn khả dụng trước khi duyệt.
 - Xác nhận nhận hàng điều chuyển (kho đích): Kiểm tra số lượng thực tế, ghi nhận chênh lệch nếu có.
+- Xem/chốt hồ sơ thiếu/thừa điều chuyển liên quan tới kho mình phụ trách; hàng thiếu chỉ là discrepancy/adjustment, không vào Quarantine và không bị kẹt trong kho.
 - Với gửi nhầm SKU còn nguyên, Trưởng kho đích duyệt hoặc từ chối xe quay về kho nguồn dựa trên report line-level expected SKU/actual SKU/số lượng/lý do/ảnh nếu có; hàng vẫn ở In-Transit cho tới khi tài xế hoàn tất return departure/source arrival/handover và kho nguồn xác nhận nhận lại.
 - Duyệt chênh lệch kiểm kê và phê duyệt điều chỉnh tồn kho thực tế.
 - Phê duyệt biên bản hàng lỗi tại Quarantine Zone, quyết định phương án xử lý (tiêu hủy hoặc trả hàng cho nhà cung cấp - NCC).
@@ -99,6 +101,7 @@
 - **Aging Report:** Xem báo cáo phân kỳ công nợ (Trong hạn / Quá hạn 1-30 / 31-60 / > 60 ngày).
 - **P&L Report:** Xem báo cáo Lãi/Lỗ định kỳ.
 - **Tồn kho cuối kỳ (Inventory Valuation):** Xem và xuất báo cáo giá trị tồn kho sau chốt sổ.
+- **Hồ sơ chênh lệch điều chuyển:** Xem và chốt hướng xử lý/ghi nhận trách nhiệm cho thiếu/thừa điều chuyển, phục vụ kiểm soát tài chính và đối soát cuối kỳ.
 
 **User Stories liên quan:** US-WMS-14, US-WMS-16, US-WMS-17, US-WMS-18, US-WMS-22
 
@@ -138,8 +141,10 @@
 - Tạo Chuyến xe (Trip Log): Chọn xe nội bộ Phúc Anh từ danh mục, gán Tài xế.
 - Gom các Đơn xuất hàng (ở trạng thái Ready to Ship) vào một Chuyến xe; sắp xếp thứ tự giao hàng (Stop Order) để tối ưu lộ trình.
 - Lập một chuyến xe nội bộ riêng cho từng Phiếu điều chuyển kho; không gom nhiều Phiếu điều chuyển vào cùng một chuyến trong Sprint 1.
-- Kiểm tra tải trọng/thể tích xe trước khi xác nhận chuyến; hệ thống chặn nếu vượt tải.
-- Với điều chuyển, tài xế/xe phải thuộc phạm vi kho nguồn, không bị trùng lịch; kiểm tra cân nặng luôn áp dụng và thể tích chỉ áp dụng khi xe có cấu hình thể tích.
+- Kiểm tra tải trọng xe theo khối lượng trước khi xác nhận chuyến; hệ thống chặn nếu vượt tải.
+- Với điều chuyển, tài xế/xe phải thuộc phạm vi kho nguồn, không bị trùng lịch; kiểm tra cân nặng luôn áp dụng.
+- Chỉ cập nhật thủ công trạng thái sẵn sàng/bảo trì/không khả dụng của xe/tài xế. Trạng thái `ON_TRIP` do hệ thống cập nhật khi chuyến bắt đầu/kết thúc; tài xế thiếu hồ sơ hoặc GPLX hết hạn/không có hạn thì không được gán chuyến.
+- Là vai trò duy nhất được bật/tắt trạng thái hoạt động (`is_active`) của hồ sơ xe và tài xế nội bộ; Admin/CEO chỉ xem hoặc quản trị hệ thống, không sở hữu thao tác vận hành này.
 - Với điều chuyển, Dispatcher chỉ được đổi xe/tài xế/lịch trước khi tài xế departure; sau departure trip bị khóa.
 
 **Lưu ý quan trọng:** Hệ thống **CHỈ dùng xe nội bộ** của Phúc Anh. KHÔNG phát sinh chi phí vận chuyển 3PL trong luồng xuất hàng thông thường → KHÔNG có quy trình Duyệt chi vận tải.
@@ -174,6 +179,7 @@
 
 - Ở kho nguồn: công nhân/Nhân viên kho nguồn xếp hàng và báo số lượng thực xếp trước; Thủ kho outbound QC bằng mắt/đối chiếu phiếu trên số đã xếp, chụp ảnh xác nhận, QC đạt mới chốt xuất/bàn giao tài xế, QC thất bại thì quay lại công nhân hạ/đổi/xếp lại và báo cáo lại.
 - Ở kho đích: kiểm tra lại blind count của công nhân, chốt QC, kiểm tra sức chứa Bin, chọn vị trí nhập kho cho hàng đạt, duyệt receive-check.
+- Khi nhận thiếu so với số gửi, nhập lý do chênh lệch để hệ thống tạo adjustment và hồ sơ chênh lệch mở; không đưa số thiếu vào Quarantine vì không có hàng vật lý.
 - Khi phát hiện wrong-SKU còn nguyên: báo cáo theo line gồm SKU kỳ vọng, SKU thực tế, số lượng ảnh hưởng, lý do và ảnh nếu có.
 
 **Kiểm kê:**
@@ -241,10 +247,11 @@
 
 **Nghiệp vụ:**
 
-- Đăng nhập → Xem danh sách đơn hàng trong Chuyến xe của mình.
+- Đăng nhập → Xem danh sách chuyến xe được gán trong màn **Chuyến xe của tôi**, gồm chuyến giao đại lý và chuyến điều chuyển nội bộ.
 - Tại điểm giao: Đại lý ký tên trực tiếp trên màn hình cảm ứng; Tài xế chụp ảnh hàng hóa bàn giao.
 - Nhấn "Xác nhận đã giao" → Hệ thống lưu POD (Hình ảnh + Chữ ký + Timestamp) trên delivery attempt hiện tại, xác thực OTP qua `delivery_otp_attempts` và chuyển trạng thái đơn sang **Delivered**.
 - Nếu giao thất bại → Chọn lý do (Đại lý vắng mặt / Từ chối nhận / Sai địa chỉ) → Hệ thống đóng delivery attempt hiện tại là **Failed** và ghi nhận DO **Returned**; hàng vẫn ở Kho ảo In-Transit cho đến khi luồng hoàn hàng riêng tiếp nhận và phân loại.
+- Với chuyến điều chuyển nội bộ, tài xế chỉ xác nhận departure/arrival/handover theo luồng transfer; tài xế không tự cập nhật trạng thái điều phối `ON_TRIP`.
 
 **User Stories liên quan:** US-WMS-09, US-WMS-25
 
@@ -296,7 +303,7 @@ Trưởng kho kho thiếu hàng có thể xem tồn liên kho read-only
 Planner nhận lệnh điều chuyển ngoài (external instruction code) hoặc transfer request đã được CEO duyệt
     → Planner tạo Phiếu điều chuyển `TRF-*` [Mới] trên màn Điều chuyển nội bộ
     → Trưởng kho nguồn kiểm tra tồn khả dụng FIFO eligible → Duyệt và khóa hàng [Đã duyệt]
-    → Dispatcher kho nguồn lập chuyến xe `TTR-*` riêng, gán xe và tài xế thuộc phạm vi kho nguồn, kiểm tra tải trọng/thể tích/trùng lịch
+    → Dispatcher kho nguồn lập chuyến xe `TTR-*` riêng, gán xe và tài xế thuộc phạm vi kho nguồn, kiểm tra tải trọng/trùng lịch
     → Thủ kho nguồn outbound QC bằng mắt/đối chiếu phiếu, chụp ảnh xác nhận, ghi nhận số gửi, bốc xếp lên xe nội bộ và chụp ảnh handover cho tài xế
     → Tài xế xác nhận nhận hàng, xe rời kho
         → Hệ thống: Trừ tồn Kho nguồn, Cộng Kho ảo In-Transit [Đang vận chuyển]

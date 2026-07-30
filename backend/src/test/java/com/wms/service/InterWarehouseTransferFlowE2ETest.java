@@ -553,6 +553,12 @@ class InterWarehouseTransferFlowE2ETest {
                 adj.getType() == AdjustmentType.TRANSFER_DISCREPANCY
                 && adj.getQuantityAdjustment().compareTo(new BigDecimal("-2.00")) == 0
         ));
+        verify(discrepancyIncidentRepository, times(1)).save(argThat(incident ->
+                "SHORTAGE".equals(incident.getIncidentType())
+                && "OPEN".equals(incident.getStatus())
+                && incident.getQuantity().compareTo(new BigDecimal("2.00")) == 0
+                && "Thiếu 2 cái chảo".equals(incident.getResolutionNote())
+        ));
     }
 
     @Test

@@ -106,7 +106,7 @@ public class VehicleController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('CEO', 'ADMIN', 'DISPATCHER')")
+    @PreAuthorize("hasRole('DISPATCHER')")
     public ResponseEntity<Void> deactivateVehicle(
             @PathVariable Long id,
             Principal principal) {
@@ -116,7 +116,7 @@ public class VehicleController {
     }
 
     @PutMapping("/{id}/reactivate")
-    @PreAuthorize("hasAnyRole('CEO', 'ADMIN', 'DISPATCHER')")
+    @PreAuthorize("hasRole('DISPATCHER')")
     public ResponseEntity<VehicleResponse> reactivateVehicle(
             @PathVariable Long id,
             Principal principal) {

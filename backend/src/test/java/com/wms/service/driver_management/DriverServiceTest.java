@@ -123,6 +123,7 @@ public class DriverServiceTest {
         driverUser = new User();
         driverUser.setId(3L);
         driverUser.setRole(UserRole.DRIVER);
+        driverUser.setFullName("Driver Account Name");
         driverUser.setPhone("0987654321");
 
         warehouse = new Warehouse();
@@ -158,8 +159,8 @@ public class DriverServiceTest {
 
         driverService.createDriver(req, 1L);
 
-        verify(driverRepository).save(argThat(d -> d.getPhone().equals("0987654321"))); // Falls back to
-                                                                                        // driverUser.phone
+        verify(driverRepository).save(argThat(d ->
+                d.getFullName().equals("Driver Account Name") && d.getPhone().equals("0987654321")));
         verify(auditLogService).log(eq(actor), eq(AuditAction.CREATE), eq("Driver"), any(), eq("LX-99999"), any(),
                 any(), any());
     }
@@ -243,5 +244,67 @@ public class DriverServiceTest {
         when(driverRepository.findById(4L)).thenReturn(Optional.of(driver));
 
         assertThrows(IllegalArgumentException.class, () -> driverService.deactivateDriver(4L, 1L));
+    }
+
+    @Test
+    void deactivateDriver_DispatcherWithinWarehouse_Success() {
+        actor.setRole(UserRole.DISPATCHER);
+        when(driverRepository.findById(4L)).thenReturn(Optional.of(driver));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(actor));
+        when(assignmentRepository.findWarehouseIdsByUserId(1L)).thenReturn(List.of(2L));
+        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(2L));
+        when(driverRepository.save(any(Driver.class))).thenReturn(driver);
+
+        driverService.deactivateDriver(4L, 1L);
+
+        assertFalse(driver.getIsActive());
+        verify(auditLogService).log(eq(actor), eq(AuditAction.SOFT_DELETE), eq("Driver"), eq(4L), eq("LX-99999"),
+                any(), any(), any());
+    }
+
+    @Test
+    void deactivateDriver_NonDispatcher_ThrowsException() {
+        actor.setRole(UserRole.ADMIN);
+        when(driverRepository.findById(4L)).thenReturn(Optional.of(driver));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(actor));
+
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> driverService.deactivateDriver(4L, 1L));
+
+        assertEquals("DISPATCHER_ROLE_REQUIRED", ex.getMessage());
+        assertTrue(driver.getIsActive());
+        verify(driverRepository, never()).save(any());
+    }
+
+    @Test
+    void reactivateDriver_DispatcherWithinWarehouse_Success() {
+        actor.setRole(UserRole.DISPATCHER);
+        driver.setIsActive(false);
+        when(driverRepository.findById(4L)).thenReturn(Optional.of(driver));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(actor));
+        when(assignmentRepository.findWarehouseIdsByUserId(1L)).thenReturn(List.of(2L));
+        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(2L));
+        when(driverRepository.save(any(Driver.class))).thenReturn(driver);
+        when(mapper.toResponse(driver)).thenReturn(new DriverResponse());
+
+        driverService.reactivateDriver(4L, 1L);
+
+        assertTrue(driver.getIsActive());
+        verify(auditLogService).log(eq(actor), eq(AuditAction.UPDATE), eq("Driver"), eq(4L), eq("LX-99999"),
+                any(), any(), any());
+    }
+
+    @Test
+    void updateStatus_OnTrip_ThrowsException() {
+        when(driverRepository.findById(4L)).thenReturn(Optional.of(driver));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(actor));
+
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> driverService.updateStatus(4L, "ON_TRIP", 1L));
+
+        assertEquals("DRIVER_ON_TRIP_STATUS_SYSTEM_MANAGED", ex.getMessage());
+        verify(driverRepository, never()).save(any());
     }
 }

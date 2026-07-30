@@ -110,6 +110,7 @@ public class VehicleServiceTest {
     void setUp() {
         actor = new User();
         actor.setId(1L);
+        actor.setRole(UserRole.DISPATCHER);
 
         warehouse = new Warehouse();
         warehouse.setId(1L);
@@ -164,5 +165,47 @@ public class VehicleServiceTest {
         assertFalse(vehicle.getIsActive());
         verify(auditLogService).log(eq(actor), eq(AuditAction.SOFT_DELETE), eq("Vehicle"), eq(5L), eq("29C-12345"),
                 any(), any(), any());
+    }
+
+    @Test
+    void deactivateVehicle_NonDispatcher_ThrowsException() {
+        actor.setRole(UserRole.ADMIN);
+        when(vehicleRepository.findById(5L)).thenReturn(Optional.of(vehicle));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(actor));
+
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> vehicleService.deactivateVehicle(5L, 1L));
+
+        assertEquals("DISPATCHER_ROLE_REQUIRED", ex.getMessage());
+        assertTrue(vehicle.getIsActive());
+        verify(vehicleRepository, never()).save(any());
+    }
+
+    @Test
+    void reactivateVehicle_Dispatcher_Success() {
+        vehicle.setIsActive(false);
+        when(vehicleRepository.findById(5L)).thenReturn(Optional.of(vehicle));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(actor));
+        when(vehicleRepository.save(any(Vehicle.class))).thenReturn(vehicle);
+
+        vehicleService.reactivateVehicle(5L, 1L);
+
+        assertTrue(vehicle.getIsActive());
+        verify(auditLogService).log(eq(actor), eq(AuditAction.UPDATE), eq("Vehicle"), eq(5L), eq("29C-12345"),
+                any(), any(), any());
+    }
+
+    @Test
+    void updateStatus_OnTrip_ThrowsException() {
+        when(vehicleRepository.findById(5L)).thenReturn(Optional.of(vehicle));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(actor));
+
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> vehicleService.updateStatus(5L, "ON_TRIP", 1L));
+
+        assertEquals("VEHICLE_ON_TRIP_STATUS_SYSTEM_MANAGED", ex.getMessage());
+        verify(vehicleRepository, never()).save(any());
     }
 }

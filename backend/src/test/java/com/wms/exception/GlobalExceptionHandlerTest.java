@@ -100,6 +100,16 @@ public class GlobalExceptionHandlerTest {
             throw new BusinessRuleViolationException("INVENTORY_VERSION_CONFLICT");
         }
 
+        @GetMapping("/test/transfer-business-rule")
+        public void throwTransferBusinessRule() {
+            throw new BusinessRuleViolationException("INSUFFICIENT_AVAILABLE_STOCK: SKU-001 required 10");
+        }
+
+        @GetMapping("/test/generic-business-rule")
+        public void throwGenericBusinessRule() {
+            throw new BusinessRuleViolationException("Dealer is inactive");
+        }
+
         @GetMapping("/test/access-denied")
         public void throwAccessDenied() {
             throw new org.springframework.security.access.AccessDeniedException("Access denied");
@@ -116,6 +126,8 @@ public class GlobalExceptionHandlerTest {
             Arguments.of("/test/not-found", 404, "RESOURCE_NOT_FOUND", "Item not found"),
             Arguments.of("/test/duplicate", 409, "DUPLICATE_RESOURCE", "Duplicate code"),
             Arguments.of("/test/business-rule", 409, "INVENTORY_VERSION_CONFLICT", null),
+            Arguments.of("/test/transfer-business-rule", 422, "INSUFFICIENT_AVAILABLE_STOCK", null),
+            Arguments.of("/test/generic-business-rule", 422, "BUSINESS_RULE_VIOLATION", "Dealer is inactive"),
             Arguments.of("/test/access-denied", 403, "ACCESS_DENIED", null),
             Arguments.of("/test/illegal-argument", 401, "UNAUTHORIZED", null)
         );
@@ -132,4 +144,3 @@ public class GlobalExceptionHandlerTest {
         }
     }
 }
-

@@ -55,7 +55,6 @@ public class TripResponse {
     private String vehiclePlate;
     private String vehicleType;
     private BigDecimal vehicleMaxWeightKg;
-    private BigDecimal vehicleMaxVolumeM3;
     private Long driverId;
     private String driverName;
     private String driverPhone;
