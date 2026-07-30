@@ -2,6 +2,8 @@ ALTER TABLE receipts DROP CONSTRAINT IF EXISTS receipts_status_check;
 
 ALTER TABLE receipts
     ADD CONSTRAINT receipts_status_check CHECK (status IN (
+        'PENDING_MANAGER_APPROVAL',
+        'REVISION_REQUIRED',
         'PENDING_RECEIPT',
         'DRAFT',
         'QC_COMPLETED',
