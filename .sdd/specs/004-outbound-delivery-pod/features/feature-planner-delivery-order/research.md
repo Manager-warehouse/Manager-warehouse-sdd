@@ -30,11 +30,11 @@
 
 **Alternatives considered**: Trusting client-provided unit prices was rejected because credit control must be server-authoritative.
 
-## Decision: Cancellation is restricted to Warehouse Manager before `WAREHOUSE_APPROVED`
+## Decision: Cancellation authority is state-based
 
-**Rationale**: The feature scope allows cancellation before outbound release approval only. Cancellation releases planner-level reservation, releases concrete reservation if picking already assigned it, marks the DO `CANCELLED`, and writes audit.
+**Rationale**: Planner may cancel only while the Delivery Order is still `NEW`, before Storekeeper saves the first picking plan. At this point the order has only planner-level reservations, so cancellation releases `warehouse_product_reservations`, marks the DO `CANCELLED`, and writes audit. After Storekeeper planning starts, downstream warehouse workflows own the order and Planner cancellation is blocked. Warehouse Manager cancellation before outbound release approval remains available for later pre-approval states.
 
-**Alternatives considered**: Allowing Planner cancellation was rejected because the spec assigns cancellation authority to Warehouse Manager.
+**Alternatives considered**: Allowing Planner cancellation after `WAITING_PICKING` was rejected because concrete inventory allocation and warehouse work may already exist. Restricting all cancellation to Warehouse Manager was rejected because Planner needs a correction window immediately after creating a mistaken `NEW` order.
 
 ## Decision: Insufficient stock rejection does not suggest other warehouses
 

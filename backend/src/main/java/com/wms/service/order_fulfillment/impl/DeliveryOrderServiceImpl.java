@@ -408,7 +408,78 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     @Override
     @Transactional
     public DeliveryOrderResponse updateDeliveryOrder(Long id, DeliveryOrderUpdateRequest request, User actor) {
+        requireRole(actor, UserRole.PLANNER, "Only Planner can update Delivery Orders");
         DeliveryOrder order = findOrder(id);
+        requireWarehouseScope(actor, order.getWarehouse().getId());
+        if (order.getStatus() != DeliveryOrderStatus.NEW) {
+            throw new OutboundDeliveryException("DELIVERY_ORDER_UPDATE_FORBIDDEN",
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Planner can update Delivery Order only while status is NEW");
+        }
+        if (shouldUsePlannerUpdateFlow(request)) {
+            if (!allocations(order.getId()).isEmpty()) {
+                throw new OutboundDeliveryException("DELIVERY_ORDER_UPDATE_FORBIDDEN",
+                        HttpStatus.UNPROCESSABLE_ENTITY,
+                        "Planner cannot update Delivery Order after concrete picking allocations exist");
+            }
+
+            DeliveryOrderCreateRequest createLikeRequest = toCreateLikeRequest(request);
+            validateCreateRequest(createLikeRequest);
+            Warehouse newWarehouse = activeWarehouse(request.getWarehouseId());
+            requireWarehouseScope(actor, newWarehouse.getId());
+            partnerEligibilityService.ensureDealerActive(request.getDealerId());
+            Dealer newDealer = dealerRepository.findByIdForUpdate(request.getDealerId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Dealer not found with id: " + request.getDealerId()));
+            List<Long> missingPrice = request.getItems().stream()
+                    .map(DeliveryOrderItemCreateRequest::getProductId)
+                    .distinct()
+                    .filter(pid -> priceHistoryService
+                            .lookupApproved(pid, request.getWarehouseId(), request.getDocumentDate()).isEmpty())
+                    .toList();
+            if (!missingPrice.isEmpty()) {
+                throw PriceHistoryException.missingPrice(missingPrice.toString());
+            }
+
+            List<DeliveryOrderItem> oldItems = items(order.getId());
+            Map<String, Object> before = snapshot(order, null, List.of(), oldItems, List.of());
+            List<ItemPlan> itemPlans = buildItemPlans(createLikeRequest);
+            BigDecimal orderValue = itemPlans.stream()
+                    .map(ItemPlan::lineAmount)
+                    .reduce(ZERO, BigDecimal::add);
+            validateCredit(newDealer, orderValue);
+            AccountingPeriod accountingPeriod = accountingPeriodService.resolveOpenPeriod(request.getDocumentDate());
+            Map<Long, BigDecimal> oldReservedByProduct = oldItems.stream()
+                    .collect(Collectors.groupingBy(item -> item.getProduct().getId(),
+                            Collectors.mapping(DeliveryOrderItem::getReservedQty,
+                                    Collectors.reducing(ZERO, this::valueAdd))));
+            Map<Long, BigDecimal> requestedByProduct = itemPlans.stream()
+                    .collect(Collectors.toMap(plan -> plan.product().getId(), ItemPlan::requestedQty, BigDecimal::add));
+            validateAvailabilityForUpdate(order.getWarehouse().getId(), newWarehouse,
+                    oldReservedByProduct, requestedByProduct);
+
+            OffsetDateTime now = OffsetDateTime.now();
+            List<Map<String, Object>> reservationDeltas = applyPlannerUpdateReservationDeltas(
+                    order.getWarehouse(), newWarehouse, oldReservedByProduct, requestedByProduct, now);
+            deliveryOrderItemRepository.deleteAll(oldItems);
+            order.setDealer(newDealer);
+            order.setWarehouse(newWarehouse);
+            order.setType(request.getType());
+            order.setExpectedDeliveryDate(request.getExpectedDeliveryDate());
+            order.setDocumentDate(request.getDocumentDate());
+            order.setAccountingPeriod(accountingPeriod);
+            order.setNotes(request.getNotes());
+            order.setCancelReason(null);
+            order.setUpdatedAt(now);
+            DeliveryOrder saved = deliveryOrderRepository.save(order);
+            List<DeliveryOrderItem> savedItems = itemPlans.stream()
+                    .map(plan -> toEntity(plan, saved))
+                    .map(deliveryOrderItemRepository::save)
+                    .toList();
+            auditUtil.logChange(actor, AuditAction.DELIVERY_ORDER_UPDATE, "DELIVERY_ORDER", saved.getId(),
+                    saved.getDoNumber(), before, snapshot(saved, orderValue, reservationDeltas, savedItems, List.of()));
+            return deliveryOrderMapper.toResponse(saved, savedItems, List.of());
+        }
+
         Map<String, Object> before = snapshot(order);
         if (request.getExpectedDeliveryDate() != null) {
             if (request.getExpectedDeliveryDate().isBefore(order.getDocumentDate())) {
@@ -432,8 +503,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     @Override
     @Transactional
     public DeliveryOrderResponse cancelDeliveryOrder(Long id, DeliveryOrderCancelRequest request, User actor) {
-        requireRole(actor, UserRole.WAREHOUSE_MANAGER, "Only Warehouse Manager can cancel Delivery Orders");
         DeliveryOrder order = findOrder(id);
+        requireCancellationActorAllowed(actor, order);
         requireWarehouseScope(actor, order.getWarehouse().getId());
         if (!CANCELLABLE_STATUSES.contains(order.getStatus())) {
             throw new OutboundDeliveryException("DELIVERY_ORDER_CANCEL_FORBIDDEN",
@@ -443,6 +514,11 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
 
         List<DeliveryOrderItem> orderItems = items(order.getId());
         List<DeliveryOrderItemAllocation> orderAllocations = allocations(order.getId());
+        if (actor.getRole() == UserRole.PLANNER && !orderAllocations.isEmpty()) {
+            throw new OutboundDeliveryException("DELIVERY_ORDER_CANCEL_FORBIDDEN",
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Planner cannot cancel Delivery Order after concrete picking allocations exist");
+        }
         if (orderAllocations.stream().anyMatch(this::hasQcOrPickedRecord)) {
             throw new OutboundDeliveryException("PICKED_GOODS_RETURN_REQUIRED",
                     HttpStatus.UNPROCESSABLE_ENTITY,
@@ -460,6 +536,27 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         auditUtil.logChange(actor, AuditAction.CANCEL, "DELIVERY_ORDER", saved.getId(), saved.getDoNumber(),
                 before, snapshot(saved, null, releasedDeltas, orderItems, List.of()));
         return deliveryOrderMapper.toResponse(saved, orderItems, List.of());
+    }
+
+    private void requireCancellationActorAllowed(User actor, DeliveryOrder order) {
+        if (actor == null || actor.getRole() == null) {
+            throw new OutboundDeliveryException("WAREHOUSE_SCOPE_FORBIDDEN",
+                    HttpStatus.FORBIDDEN,
+                    "Only Planner or Warehouse Manager can cancel Delivery Orders");
+        }
+        if (actor.getRole() == UserRole.PLANNER) {
+            if (order.getStatus() != DeliveryOrderStatus.NEW) {
+                throw new OutboundDeliveryException("DELIVERY_ORDER_CANCEL_FORBIDDEN",
+                        HttpStatus.UNPROCESSABLE_ENTITY,
+                        "Planner can cancel Delivery Order only while status is NEW");
+            }
+            return;
+        }
+        if (actor.getRole() != UserRole.WAREHOUSE_MANAGER) {
+            throw new OutboundDeliveryException("WAREHOUSE_SCOPE_FORBIDDEN",
+                    HttpStatus.FORBIDDEN,
+                    "Only Planner or Warehouse Manager can cancel Delivery Orders");
+        }
     }
 
     @Override
@@ -1565,6 +1662,97 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                 .map(WarehouseProductReservation::getReservedQty)
                 .orElse(ZERO);
         return value(inventoryAvailable).subtract(value(plannerReserved));
+    }
+
+    private boolean shouldUsePlannerUpdateFlow(DeliveryOrderUpdateRequest request) {
+        if (request == null) {
+            throw new OutboundDeliveryException("INVALID_REQUEST_BODY",
+                    HttpStatus.BAD_REQUEST,
+                    "Delivery Order update request is required");
+        }
+        return true;
+    }
+
+    private DeliveryOrderCreateRequest toCreateLikeRequest(DeliveryOrderUpdateRequest request) {
+        DeliveryOrderCreateRequest createRequest = new DeliveryOrderCreateRequest();
+        createRequest.setDealerId(request.getDealerId());
+        createRequest.setWarehouseId(request.getWarehouseId());
+        createRequest.setType(request.getType());
+        createRequest.setExpectedDeliveryDate(request.getExpectedDeliveryDate());
+        createRequest.setDocumentDate(request.getDocumentDate());
+        createRequest.setNotes(request.getNotes());
+        createRequest.setItems(request.getItems());
+        return createRequest;
+    }
+
+    private void validateAvailabilityForUpdate(Long oldWarehouseId,
+            Warehouse newWarehouse,
+            Map<Long, BigDecimal> oldReservedByProduct,
+            Map<Long, BigDecimal> requestedByProduct) {
+        Map<Long, BigDecimal> insufficient = new LinkedHashMap<>();
+        for (Map.Entry<Long, BigDecimal> entry : requestedByProduct.entrySet()) {
+            BigDecimal available = availableQty(newWarehouse.getId(), entry.getKey());
+            if (Objects.equals(oldWarehouseId, newWarehouse.getId())) {
+                available = available.add(value(oldReservedByProduct.get(entry.getKey())));
+            }
+            if (available.compareTo(entry.getValue()) < 0) {
+                insufficient.put(entry.getKey(), available);
+            }
+        }
+        if (!insufficient.isEmpty()) {
+            throw new OutboundDeliveryException("INSUFFICIENT_STOCK",
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Insufficient stock in selected warehouse",
+                    Map.of("availableByProduct", insufficient));
+        }
+    }
+
+    private List<Map<String, Object>> applyPlannerUpdateReservationDeltas(Warehouse oldWarehouse,
+            Warehouse newWarehouse,
+            Map<Long, BigDecimal> oldReservedByProduct,
+            Map<Long, BigDecimal> requestedByProduct,
+            OffsetDateTime now) {
+        if (!Objects.equals(oldWarehouse.getId(), newWarehouse.getId())) {
+            List<Map<String, Object>> deltas = new ArrayList<>();
+            oldReservedByProduct.forEach((productId, qty) ->
+                    deltas.add(adjustWarehouseProductReservation(oldWarehouse, productId, value(qty).negate(), now)));
+            requestedByProduct.forEach((productId, qty) ->
+                    deltas.add(adjustWarehouseProductReservation(newWarehouse, productId, value(qty), now)));
+            return deltas;
+        }
+
+        Set<Long> productIds = new java.util.LinkedHashSet<>();
+        productIds.addAll(oldReservedByProduct.keySet());
+        productIds.addAll(requestedByProduct.keySet());
+        List<Map<String, Object>> deltas = new ArrayList<>();
+        for (Long productId : productIds) {
+            BigDecimal delta = value(requestedByProduct.get(productId))
+                    .subtract(value(oldReservedByProduct.get(productId)));
+            if (delta.compareTo(ZERO) != 0) {
+                deltas.add(adjustWarehouseProductReservation(newWarehouse, productId, delta, now));
+            }
+        }
+        return deltas;
+    }
+
+    private Map<String, Object> adjustWarehouseProductReservation(Warehouse warehouse,
+            Long productId,
+            BigDecimal qtyDelta,
+            OffsetDateTime now) {
+        WarehouseProductReservation reservation = reservationRepository
+                .findWithWarehouseAndProductByWarehouseIdAndProductIdForUpdate(warehouse.getId(), productId)
+                .orElseGet(() -> newReservation(warehouse, productId, now));
+        BigDecimal before = value(reservation.getReservedQty());
+        BigDecimal after = before.add(qtyDelta);
+        if (after.compareTo(ZERO) < 0) {
+            throw new OutboundDeliveryException("INVENTORY_VERSION_CONFLICT",
+                    HttpStatus.CONFLICT,
+                    "Reservation update would make reserved quantity negative");
+        }
+        reservation.setReservedQty(after);
+        reservation.setUpdatedAt(now);
+        saveReservationWithConflictHandling(reservation);
+        return delta(warehouse.getId(), productId, before, after);
     }
 
     private List<Map<String, Object>> reserveWarehouseProducts(Warehouse warehouse,

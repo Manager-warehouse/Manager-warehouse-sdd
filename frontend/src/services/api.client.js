@@ -39,7 +39,10 @@ const ERROR_MESSAGE_BY_CODE = {
   WAREHOUSE_PRODUCT_RESERVATION_CONFLICT: 'Tồn giữ chỗ của sản phẩm vừa thay đổi. Vui lòng tải lại và thử lại.',
   CONCURRENT_MODIFICATION: 'Dữ liệu vừa được thay đổi bởi thao tác khác. Vui lòng tải lại và thử lại.',
   DATA_INTEGRITY_VIOLATION: 'Dữ liệu không thỏa mãn ràng buộc của hệ thống.',
+  DELIVERY_ORDER_UPDATE_FORBIDDEN: 'Chỉ có thể cập nhật đơn xuất khi trạng thái còn mới và chưa có kế hoạch lấy hàng.',
   DELIVERY_ORDER_CANCEL_FORBIDDEN: 'Không thể hủy đơn xuất ở trạng thái hiện tại.',
+  PICKED_GOODS_RETURN_REQUIRED: 'Đơn xuất đã có hàng được lấy, cần hoàn hàng về bin trước khi hủy.',
+  RESERVATION_NOT_FOUND: 'Không tìm thấy lượng tồn đã giữ chỗ cho đơn xuất này. Vui lòng tải lại và thử lại.',
 };
 
 const looksLikeErrorCode = (value = '') => /^[A-Z][A-Z0-9_:-]+$/.test(String(value).trim());

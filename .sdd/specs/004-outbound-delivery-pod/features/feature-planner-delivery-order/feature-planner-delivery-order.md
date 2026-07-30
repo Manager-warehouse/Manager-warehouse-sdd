@@ -1,13 +1,31 @@
 # Feature: Planner Lập đơn xuất hàng & Tự động kiểm tra công nợ (US-WMS-06)
 
+## Change Note: Planner update/cancel before Storekeeper planning
+
+- Planner may update Delivery Order header fields and item quantities only while the Delivery Order status is `NEW`.
+- Planner may cancel a Delivery Order only while the Delivery Order status is `NEW`.
+- `NEW` means the order has been created but Storekeeper has not saved the first picking plan yet.
+- After Storekeeper saves the first picking plan and the order moves to `WAITING_PICKING`, Planner update and Planner cancel are blocked.
+- Planner update must re-run credit, overdue invoice, warehouse scope, product, price, accounting period, and selected-warehouse stock validation.
+- Planner update must apply planner-level reservation deltas in one transaction and must not assign batch, bin, zone, or concrete inventory rows.
+- Planner cancel must release planner-level reservations, persist cancel reason, write `DELIVERY_ORDER_CANCEL`, and move the Delivery Order to `CANCELLED`.
+- Successful Planner update must write `DELIVERY_ORDER_UPDATE` with before/after state and reservation deltas.
+- This note supersedes older wording that blocked Planner cancellation in every state; Storekeeper cancellation remains blocked.
+
 ## 1. Context and Goal
 
 Planner tiếp nhận yêu cầu xuất hàng từ Công ty mẹ cho kho mà Planner được gán. Trước khi tạo Delivery Order, hệ thống bắt buộc kiểm tra công nợ đại lý và tồn kho khả dụng tại kho xuất. Nếu công nợ không hợp lệ, Planner không có quyền trên kho, hoặc tồn kho không đủ, hệ thống không tạo phiếu và trả lời rõ lý do cho Planner. Nếu tạo thành công, hệ thống reserve tổng số lượng hàng cần xuất tại kho và tạo Delivery Order ở trạng thái `NEW` để Thủ kho lập danh sách lấy hàng theo vị trí cụ thể trong kho.
+
+Planner update/cancel extension: While the Delivery Order is still `NEW` and no Storekeeper picking plan exists, Planner may correct the order details or cancel the order. Once Storekeeper saves the first picking plan and the Delivery Order leaves `NEW`, Planner update and Planner cancel are no longer allowed.
 
 ## 2. Actors
 
 - **Planner**: Lập Delivery Order từ yêu cầu xuất hàng cho kho được gán và nhận thông báo lỗi nếu credit/stock/warehouse scope không đạt điều kiện.
 - **Warehouse Manager**: Là actor duy nhất được hủy Delivery Order trước khi phiếu đã được phê duyệt xuất kho.
+
+Additional Planner permission for this feature:
+
+- **Planner update/cancel scope**: Planner may update or cancel a Delivery Order only while the order is `NEW`, before Storekeeper saves the first picking plan.
 
 ## 3. Functional Requirements (EARS)
 
@@ -42,10 +60,39 @@ Planner tiếp nhận yêu cầu xuất hàng từ Công ty mẹ cho kho mà Pla
   - WHILE dealer status là `CREDIT_HOLD`, hệ thống SHALL chặn tạo Delivery Order mới cho đại lý đó.
   - WHILE Delivery Order status là `WAREHOUSE_APPROVED` hoặc trạng thái sau đó, hệ thống SHALL chặn hủy qua feature này.
 
+### Planner update/cancel before picking plan
+
+- The system SHALL allow Planner to update Delivery Order header fields and item quantities only while the Delivery Order status is `NEW`.
+- The system SHALL block Planner update when the Delivery Order status is not `NEW`, including `WAITING_PICKING` after Storekeeper saves the first picking plan.
+- The system SHALL re-run dealer credit, overdue invoice, warehouse scope, product, price, accounting period, and selected-warehouse stock validation before saving a Planner update.
+- The system SHALL apply planner-level reservation deltas for Planner update in the same transaction: release quantities removed from the old order, reserve quantities added by the new order, and keep `warehouse_product_reservations.reserved_qty >= 0`.
+- The system SHALL NOT assign batch, bin, zone, or concrete inventory rows during Planner update.
+- The system SHALL allow Planner to cancel a Delivery Order only while the Delivery Order status is `NEW`.
+- The system SHALL release planner-level reservation quantities when Planner cancels a `NEW` Delivery Order.
+- The system SHALL block Planner cancel when the Delivery Order status is not `NEW`.
+- The system SHALL create `DELIVERY_ORDER_UPDATE` audit for successful Planner update and `DELIVERY_ORDER_CANCEL` audit for successful Planner cancel, including before/after state and reservation deltas.
+
 ## 4. API Endpoints
 
 - `POST /api/v1/delivery-orders` - Tạo Delivery Order mới sau khi automatic credit check và stock reservation đạt điều kiện.
 - `PUT /api/v1/delivery-orders/{id}/cancel` - Warehouse Manager hủy Delivery Order trước bước phê duyệt xuất kho và giải phóng reservation của Delivery Order item.
+
+Additional Planner endpoint:
+
+- `PUT /api/v1/delivery-orders/{id}` - Planner update Delivery Order when the order is still `NEW`; the system re-runs credit/stock checks and applies planner-level reservation deltas.
+
+### Exception Handling
+
+- `400 VALIDATION_ERROR` or `INVALID_REQUEST_BODY` when update/cancel payload is malformed or required fields are missing.
+- `400 INVALID_DELIVERY_DATE` when expected delivery date is before document date.
+- `403 WAREHOUSE_SCOPE_FORBIDDEN` when actor has no allowed role or is not assigned to the Delivery Order warehouse.
+- `404 RESOURCE_NOT_FOUND` when the Delivery Order or referenced master data does not exist.
+- `409 INVENTORY_VERSION_CONFLICT` or `WAREHOUSE_PRODUCT_RESERVATION_CONFLICT` when reservation/inventory rows changed concurrently.
+- `409 RESERVATION_NOT_FOUND` when cancellation cannot find the planner-level reservation row that must be released.
+- `422 DELIVERY_ORDER_UPDATE_FORBIDDEN` when Planner updates a Delivery Order after it leaves `NEW`.
+- `422 DELIVERY_ORDER_CANCEL_FORBIDDEN` when Planner cancels after `NEW` or Warehouse Manager cancels after warehouse approval.
+- `422 PICKED_GOODS_RETURN_REQUIRED` when picked/QC-processed goods must complete return-to-bin before cancellation.
+- `422 CREDIT_HOLD`, `MISSING_PRICE`, `PERIOD_CLOSED`, or `INSUFFICIENT_STOCK` when Planner update revalidation fails.
 
 ## 5. Acceptance Criteria
 
@@ -107,8 +154,10 @@ Planner tiếp nhận yêu cầu xuất hàng từ Công ty mẹ cho kho mà Pla
 - When Warehouse Manager hủy Delivery Order
 - Then hệ thống SHALL chặn hủy vì Delivery Order đã được phê duyệt xuất kho không thể bị hủy bằng feature này.
 
-**Scenario 6: Chặn actor không phải manager hủy đơn**
+**Scenario 6: Block unauthorized cancellation actor**
 
 - Given Delivery Order chưa ở trạng thái `WAREHOUSE_APPROVED`
-- When Planner hoặc Storekeeper hủy Delivery Order
-- Then hệ thống SHALL chặn hủy vì chỉ Warehouse Manager được hủy Delivery Order.
+- When Storekeeper cancels Delivery Order through this feature
+- Then the system SHALL reject cancellation because Storekeeper is not a valid cancellation actor in this feature.
+- When Planner cancels Delivery Order that is not `NEW`
+- Then the system SHALL reject cancellation because Planner cancellation is allowed only before Storekeeper saves the first picking plan.

@@ -81,6 +81,7 @@ import com.wms.dto.request.DeliveryOrderQualityApprovalRequest;
 import com.wms.dto.request.DeliveryOrderReplacementAllocationRequest;
 import com.wms.dto.request.DeliveryOrderReplacementPlanRequest;
 import com.wms.dto.request.DeliveryOrderReturnToBinRequest;
+import com.wms.dto.request.DeliveryOrderUpdateRequest;
 import com.wms.dto.request.DeliveryOrderWarehouseApprovalRequest;
 import com.wms.dto.request.DeliveryOrderWarehouseRejectRequest;
 import com.wms.dto.request.DeliveryOrderWarehouseRejectReturnRequest;
@@ -491,6 +492,45 @@ class DeliveryOrderServiceImplTest {
     }
 
     @Test
+    void plannerUpdateDeliveryOrder_replacesItemsAndAppliesReservationDeltaWhenNew() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.NEW);
+        DeliveryOrderItem oldItem = item(order, product, new BigDecimal("5.00"));
+        reservation.setReservedQty(new BigDecimal("5.00"));
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(1L)).thenReturn(List.of(20L));
+        when(allocationRepository.findByDeliveryOrderItemDeliveryOrderId(100L)).thenReturn(List.of());
+        when(warehouseRepository.findById(20L)).thenReturn(Optional.of(warehouse));
+        when(dealerRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(dealer));
+        when(deliveryOrderItemRepository.findByDeliveryOrderId(100L)).thenReturn(List.of(oldItem));
+        when(productRepository.findByIdAndIsActiveTrue(30L)).thenReturn(Optional.of(product));
+        when(priceHistoryService.lookupApproved(eq(30L), eq(20L), any(LocalDate.class)))
+                .thenReturn(Optional.of(price));
+        when(invoiceRepository.existsByDealerIdAndStatusInAndDueDateBefore(
+                eq(10L), eq(List.of(InvoiceStatus.UNPAID, InvoiceStatus.PARTIALLY_PAID)), any(LocalDate.class)))
+                .thenReturn(false);
+        when(inventoryRepository.sumValidAvailableQty(20L, 30L)).thenReturn(new BigDecimal("20.00"));
+        when(reservationRepository.findWithWarehouseAndProductByWarehouseIdAndProductId(20L, 30L))
+                .thenReturn(Optional.of(reservation));
+        when(reservationRepository.findWithWarehouseAndProductByWarehouseIdAndProductIdForUpdate(20L, 30L))
+                .thenReturn(Optional.of(reservation));
+        when(reservationRepository.save(any(WarehouseProductReservation.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(deliveryOrderRepository.save(any(DeliveryOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(deliveryOrderItemRepository.save(any(DeliveryOrderItem.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DeliveryOrderResponse response = service.updateDeliveryOrder(100L, updateRequest(), planner);
+
+        assertThat(response.getStatus()).isEqualTo(DeliveryOrderStatus.NEW);
+        assertThat(response.getItems()).hasSize(1);
+        assertThat(response.getItems().get(0).getRequestedQty()).isEqualByComparingTo("8.00");
+        assertThat(reservation.getReservedQty()).isEqualByComparingTo("8.00");
+        assertThat(order.getNotes()).isEqualTo("Updated before picking plan");
+        verify(deliveryOrderItemRepository).deleteAll(List.of(oldItem));
+        verify(auditUtil).logChange(eq(planner), eq(AuditAction.DELIVERY_ORDER_UPDATE), eq("DELIVERY_ORDER"),
+                eq(100L), eq("DO-1"), any(), any());
+    }
+
+    @Test
     void cancelDeliveryOrder_releasesPlannerReservation() {
         DeliveryOrder order = order(100L, DeliveryOrderStatus.NEW);
         DeliveryOrderItem item = item(order, product, new BigDecimal("10.00"));
@@ -511,6 +551,26 @@ class DeliveryOrderServiceImplTest {
     }
 
     @Test
+    void plannerCancelDeliveryOrder_releasesReservationWhenNew() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.NEW);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("10.00"));
+        reservation.setReservedQty(new BigDecimal("10.00"));
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(1L)).thenReturn(List.of(20L));
+        when(deliveryOrderItemRepository.findByDeliveryOrderId(100L)).thenReturn(List.of(item));
+        when(reservationRepository.findWithWarehouseAndProductByWarehouseIdAndProductIdForUpdate(20L, 30L))
+                .thenReturn(Optional.of(reservation));
+        when(deliveryOrderRepository.save(any(DeliveryOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(deliveryOrderItemRepository.save(any(DeliveryOrderItem.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DeliveryOrderResponse response = service.cancelDeliveryOrder(100L, cancelRequest(), planner);
+
+        assertThat(response.getStatus()).isEqualTo(DeliveryOrderStatus.CANCELLED);
+        assertThat(item.getReservedQty()).isEqualByComparingTo("0.00");
+        assertThat(reservation.getReservedQty()).isEqualByComparingTo("0.00");
+    }
+
+    @Test
     void cancelDeliveryOrder_rejectsWarehouseApproved() {
         DeliveryOrder order = order(100L, DeliveryOrderStatus.WAREHOUSE_APPROVED);
         when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
@@ -523,8 +583,79 @@ class DeliveryOrderServiceImplTest {
     }
 
     @Test
-    void cancelDeliveryOrder_rejectsNonWarehouseManager() {
+    void plannerCancelDeliveryOrder_rejectsAfterPickingPlanStarts() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.WAITING_PICKING);
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+
         assertThatThrownBy(() -> service.cancelDeliveryOrder(100L, cancelRequest(), planner))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code")
+                .isEqualTo("DELIVERY_ORDER_CANCEL_FORBIDDEN");
+    }
+
+    @Test
+    void plannerCancelDeliveryOrder_rejectsConcreteAllocationWithoutInventoryMutation() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.NEW);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("10.00"));
+        DeliveryOrderItemAllocation allocation = allocation(900L, item, inventory, zone,
+                new BigDecimal("10.00"), ZERO, false);
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(1L)).thenReturn(List.of(20L));
+        when(deliveryOrderItemRepository.findByDeliveryOrderId(100L)).thenReturn(List.of(item));
+        when(allocationRepository.findByDeliveryOrderItemDeliveryOrderId(100L)).thenReturn(List.of(allocation));
+
+        assertThatThrownBy(() -> service.cancelDeliveryOrder(100L, cancelRequest(), planner))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code")
+                .isEqualTo("DELIVERY_ORDER_CANCEL_FORBIDDEN");
+        verify(inventoryRepository, never()).save(any());
+        verify(allocationRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void cancelDeliveryOrder_rejectsUnauthorizedRole() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.NEW);
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+
+        assertThatThrownBy(() -> service.cancelDeliveryOrder(100L, cancelRequest(), storekeeper))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code")
+                .isEqualTo("WAREHOUSE_SCOPE_FORBIDDEN");
+    }
+
+    @Test
+    void updateDeliveryOrder_rejectsAfterPickingPlanStarts() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.WAITING_PICKING);
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(1L)).thenReturn(List.of(20L));
+
+        assertThatThrownBy(() -> service.updateDeliveryOrder(100L, updateRequest(), planner))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code")
+                .isEqualTo("DELIVERY_ORDER_UPDATE_FORBIDDEN");
+    }
+
+    @Test
+    void plannerUpdateDeliveryOrder_rejectsConcreteAllocationWithoutInventoryMutation() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.NEW);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("10.00"));
+        DeliveryOrderItemAllocation allocation = allocation(900L, item, inventory, zone,
+                new BigDecimal("10.00"), ZERO, false);
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(1L)).thenReturn(List.of(20L));
+        when(allocationRepository.findByDeliveryOrderItemDeliveryOrderId(100L)).thenReturn(List.of(allocation));
+
+        assertThatThrownBy(() -> service.updateDeliveryOrder(100L, updateRequest(), planner))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code")
+                .isEqualTo("DELIVERY_ORDER_UPDATE_FORBIDDEN");
+        verify(inventoryRepository, never()).save(any());
+        verify(allocationRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void updateDeliveryOrder_rejectsUnauthorizedRole() {
+        assertThatThrownBy(() -> service.updateDeliveryOrder(100L, updateRequest(), storekeeper))
                 .isInstanceOf(OutboundDeliveryException.class)
                 .extracting("code")
                 .isEqualTo("WAREHOUSE_SCOPE_FORBIDDEN");
@@ -1653,6 +1784,21 @@ class DeliveryOrderServiceImplTest {
     private DeliveryOrderCancelRequest cancelRequest() {
         DeliveryOrderCancelRequest request = new DeliveryOrderCancelRequest();
         request.setCancelReason("Customer changed order");
+        return request;
+    }
+
+    private DeliveryOrderUpdateRequest updateRequest() {
+        DeliveryOrderUpdateRequest request = new DeliveryOrderUpdateRequest();
+        DeliveryOrderItemCreateRequest item = new DeliveryOrderItemCreateRequest();
+        item.setProductId(30L);
+        item.setRequestedQty(new BigDecimal("8.00"));
+        request.setDealerId(10L);
+        request.setWarehouseId(20L);
+        request.setType(DeliveryOrderType.SALE);
+        request.setDocumentDate(LocalDate.now());
+        request.setExpectedDeliveryDate(LocalDate.now().plusDays(2));
+        request.setNotes("Updated before picking plan");
+        request.setItems(List.of(item));
         return request;
     }
 

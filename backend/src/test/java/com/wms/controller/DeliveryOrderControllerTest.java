@@ -189,6 +189,38 @@ class DeliveryOrderControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "planner@wms.com", roles = "PLANNER")
+    void updateDeliveryOrder_success() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(planner);
+        when(deliveryOrderService.updateDeliveryOrder(eq(100L), any(), eq(planner)))
+                .thenReturn(response(DeliveryOrderStatus.NEW));
+
+        mockMvc.perform(put("/api/v1/delivery-orders/100")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updateJson()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("NEW"));
+    }
+
+    @Test
+    @WithMockUser(username = "planner@wms.com", roles = "PLANNER")
+    void updateDeliveryOrder_rejectsWaitingPickingState() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(planner);
+        when(deliveryOrderService.updateDeliveryOrder(eq(100L), any(), eq(planner)))
+                .thenThrow(new OutboundDeliveryException("DELIVERY_ORDER_UPDATE_FORBIDDEN",
+                        HttpStatus.UNPROCESSABLE_ENTITY,
+                        "Planner can update Delivery Order only while status is NEW"));
+
+        mockMvc.perform(put("/api/v1/delivery-orders/100")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updateJson()))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("DELIVERY_ORDER_UPDATE_FORBIDDEN"));
+    }
+
+    @Test
     @WithMockUser(username = "manager@wms.com", roles = "WAREHOUSE_MANAGER")
     void cancelDeliveryOrder_success() throws Exception {
         when(currentUserService.getRequiredCurrentUser()).thenReturn(manager);
@@ -205,7 +237,39 @@ class DeliveryOrderControllerTest {
 
     @Test
     @WithMockUser(username = "planner@wms.com", roles = "PLANNER")
-    void cancelDeliveryOrder_rejectsNonManagerRole() throws Exception {
+    void cancelDeliveryOrder_allowsPlanner() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(planner);
+        when(deliveryOrderService.cancelDeliveryOrder(eq(100L), any(), eq(planner)))
+                .thenReturn(response(DeliveryOrderStatus.CANCELLED));
+
+        mockMvc.perform(put("/api/v1/delivery-orders/100/cancel")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"cancelReason\":\"Customer changed order\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELLED"));
+    }
+
+    @Test
+    @WithMockUser(username = "planner@wms.com", roles = "PLANNER")
+    void cancelDeliveryOrder_rejectsPlannerWaitingPickingState() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(planner);
+        when(deliveryOrderService.cancelDeliveryOrder(eq(100L), any(), eq(planner)))
+                .thenThrow(new OutboundDeliveryException("DELIVERY_ORDER_CANCEL_FORBIDDEN",
+                        HttpStatus.UNPROCESSABLE_ENTITY,
+                        "Planner can cancel Delivery Order only while status is NEW"));
+
+        mockMvc.perform(put("/api/v1/delivery-orders/100/cancel")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"cancelReason\":\"Customer changed order\"}"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("DELIVERY_ORDER_CANCEL_FORBIDDEN"));
+    }
+
+    @Test
+    @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
+    void cancelDeliveryOrder_rejectsUnauthorizedRole() throws Exception {
         mockMvc.perform(put("/api/v1/delivery-orders/100/cancel")
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -522,6 +586,22 @@ class DeliveryOrderControllerTest {
                   "expectedDeliveryDate": "2026-06-20",
                   "items": [
                     {"productId": 30, "requestedQty": 10}
+                  ]
+                }
+                """;
+    }
+
+    private String updateJson() {
+        return """
+                {
+                  "dealerId": 10,
+                  "warehouseId": 20,
+                  "type": "SALE",
+                  "documentDate": "2026-06-18",
+                  "expectedDeliveryDate": "2026-06-20",
+                  "notes": "Updated before picking plan",
+                  "items": [
+                    {"productId": 30, "requestedQty": 8}
                   ]
                 }
                 """;

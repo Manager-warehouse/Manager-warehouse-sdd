@@ -17,6 +17,10 @@ Xuất hàng là quy trình tạo doanh thu cho Phúc Anh. Planner nhận yêu c
 
 - Q: Phân quyền quy trình Xuất hàng & Giao hàng (`004-outbound-delivery-pod`) -> A: Tuân thủ phân quyền theo `role.md`: `PLANNER` lập Đơn xuất DO; `WH_MANAGER` và `STOREKEEPER` phê duyệt DO (`✓ (duyệt)`); `STOREKEEPER` và `WH_STAFF` QC Outbound; `DISPATCHER` độc quyền điều phối chuyến xe; và `DRIVER` thực hiện Giao hàng trên app mobile.
 
+### Session 2026-07-30
+
+- Planner may update or cancel a Delivery Order only while it is still `NEW`, before Storekeeper saves the first picking plan. After the order leaves `NEW`, Planner update/cancel is blocked and downstream outbound workflows own the order.
+
 ### Features List
 
 - [US-WMS-06: Lập Đơn xuất hàng & Tự động Kiểm tra Công nợ](features/feature-planner-delivery-order/feature-planner-delivery-order.md)
