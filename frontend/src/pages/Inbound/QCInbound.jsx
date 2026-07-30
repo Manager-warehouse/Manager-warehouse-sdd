@@ -138,9 +138,15 @@ const QCInbound = () => {
     }
 
     const payload = {
+      expectedVersion: receipt.version || 0,
       action: 'SUBMIT',
       items: items.map(item => ({
         receipt_item_id: item.id,
+        sampleQty: parseInt(item.actual_qty) || 0,
+        samplePassedQty: parseInt(item.qc_passed_qty) || 0,
+        sampleFailedQty: parseInt(item.qc_failed_qty) || 0,
+        qualityPassedQty: parseInt(item.qc_passed_qty) || 0,
+        qualityFailedQty: parseInt(item.qc_failed_qty) || 0,
         qc_passed_qty: item.qc_passed_qty,
         qc_failed_qty: item.qc_failed_qty,
         qc_failure_reason: item.qc_failed_qty > 0 ? item.qc_failure_reason : null
@@ -220,14 +226,10 @@ const QCInbound = () => {
           <h3 className="text-xs font-bold uppercase tracking-widest text-shade-40 border-b border-hairline-light pb-2 mb-4">
             Thông tin chứng từ nhận hàng
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs font-semibold">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-semibold">
             <div>
               <span className="text-shade-50 block mb-0.5 font-normal">Mã phiếu nhập:</span>
               <span className="text-sm font-bold text-ink">{receipt.receipt_number}</span>
-            </div>
-            <div>
-              <span className="text-shade-50 block mb-0.5 font-normal">Chứng từ gốc (PO/DO):</span>
-              <span>{receipt.source_reference || receipt.source_order_code || 'N/A'}</span>
             </div>
             <div>
               <span className="text-shade-50 block mb-0.5 font-normal">Loại nhập:</span>

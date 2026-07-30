@@ -35,44 +35,36 @@ import com.wms.enums.supplier_management.*;
 import com.wms.enums.user_configuration.*;
 import com.wms.enums.warehouse_location.*;
 import com.wms.enums.warehouse_transfer.*;
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.wms.enums.stock_receiving.ReceiptSourceChannel;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Null;
-import jakarta.validation.constraints.Size;
+import java.time.LocalDate;
 import java.util.List;
 
 @JsonIgnoreProperties(ignoreUnknown = false)
 public class CreateReceiptRequest {
 
     @NotNull
-    @JsonProperty("supplier_id")
+    @JsonProperty("supplierId")
+    @JsonAlias("supplier_id")
     private Long supplierId;
 
     @Null
     private String type;
 
-    @NotBlank
-    @Size(max = 255)
-    @JsonProperty("contact_person")
-    private String contactPerson;
-
     @NotNull
-    @JsonProperty("warehouse_id")
+    @JsonProperty("warehouseId")
+    @JsonAlias("warehouse_id")
     private Long warehouseId;
 
-    @NotBlank
-    @Size(max = 100)
-    @JsonProperty("source_reference")
-    private String sourceReference;
-
     @NotNull
-    @JsonProperty("source_channel")
-    private ReceiptSourceChannel sourceChannel;
+    @JsonProperty("documentDate")
+    @JsonAlias("document_date")
+    private LocalDate documentDate;
 
     @Valid
     @NotEmpty
@@ -96,14 +88,6 @@ public class CreateReceiptRequest {
         this.type = type;
     }
 
-    public String getContactPerson() {
-        return contactPerson;
-    }
-
-    public void setContactPerson(String contactPerson) {
-        this.contactPerson = contactPerson;
-    }
-
     public Long getWarehouseId() {
         return warehouseId;
     }
@@ -112,20 +96,12 @@ public class CreateReceiptRequest {
         this.warehouseId = warehouseId;
     }
 
-    public String getSourceReference() {
-        return sourceReference;
+    public LocalDate getDocumentDate() {
+        return documentDate;
     }
 
-    public void setSourceReference(String sourceReference) {
-        this.sourceReference = sourceReference;
-    }
-
-    public ReceiptSourceChannel getSourceChannel() {
-        return sourceChannel;
-    }
-
-    public void setSourceChannel(ReceiptSourceChannel sourceChannel) {
-        this.sourceChannel = sourceChannel;
+    public void setDocumentDate(LocalDate documentDate) {
+        this.documentDate = documentDate;
     }
 
     public List<CreateReceiptItemRequest> getItems() {

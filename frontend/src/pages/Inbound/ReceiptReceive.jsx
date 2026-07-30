@@ -57,6 +57,7 @@ const ReceiptReceive = () => {
     }
 
     const payload = {
+      expected_version: receipt.version || 0,
       items: items.map(item => ({
         receipt_item_id: item.receipt_item_id,
         counted_qty: Number(item.actual_qty)
@@ -119,16 +120,12 @@ const ReceiptReceive = () => {
         {/* Receipt details header card */}
         <div className="bg-canvas-light border border-hairline-light rounded-lg p-6 shadow-level-3 card-premium">
           <h3 className="text-xs font-bold uppercase tracking-widest text-shade-40 border-b border-hairline-light pb-2 mb-4">
-            Chi tiết chứng từ gốc
+            Thông tin phiếu nhập
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs font-semibold">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-semibold">
             <div>
               <span className="text-shade-50 block mb-0.5 font-normal">Mã phiếu nhập:</span>
               <span className="text-sm font-bold text-ink">{receipt.receipt_number}</span>
-            </div>
-            <div>
-              <span className="text-shade-50 block mb-0.5 font-normal">Chứng từ gốc (PO/DO):</span>
-              <span>{receipt.source_reference || receipt.source_order_code || 'N/A'}</span>
             </div>
             <div>
               <span className="text-shade-50 block mb-0.5 font-normal">Loại nhập:</span>

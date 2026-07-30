@@ -102,7 +102,7 @@ public class QuarantineRtvService {
     }
 
     /**
-     * Creates an RTV (Return To Vendor) request for a QC_FAILED receipt.
+     * Creates an RTV (Return To Vendor) request for finalized unresolved quarantine stock.
      */
     @Transactional
     public RtvActionResponse createRtv(Long receiptId,
@@ -113,11 +113,12 @@ public class QuarantineRtvService {
         Receipt receipt = receiptValidationService.loadReceiptForUpdate(receiptId);
         receiptValidationService.assertVersionMatch(receipt, request.getExpectedVersion());
 
-        boolean isValidState = receipt.getStatus() == ReceiptStatus.QC_FAILED 
+        boolean isValidState = receipt.getStatus() == ReceiptStatus.PARTIALLY_APPROVED
+                || receipt.getStatus() == ReceiptStatus.RETURN_TO_SUPPLIER_PENDING
                 || (receipt.getType() == ReceiptType.RETURN && receipt.getStatus() == ReceiptStatus.APPROVED);
         if (!isValidState) {
             throw new BusinessRuleViolationException(
-                    "INVALID_STATE: RTV can only be created for QC_FAILED receipts or APPROVED return receipts. "
+                    "INVALID_STATE: RTV can only be created for finalized quarantine receipts or APPROVED return receipts. "
                     + "Receipt " + receiptId + " has status: " + receipt.getStatus());
         }
 
@@ -133,11 +134,15 @@ public class QuarantineRtvService {
         }
 
         BigDecimal totalFailedQty = items.stream()
-                .map(i -> i.getSampleFailedQty() != null ? BigDecimal.valueOf(i.getSampleFailedQty()) : BigDecimal.ZERO)
+                .map(this::unresolvedQuarantineQty)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (totalFailedQty.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BusinessRuleViolationException(
+                    "NO_QUARANTINE_ITEMS: Receipt " + receiptId + " has no unresolved finalized quarantine quantity.");
+        }
         BigDecimal totalAmount = items.stream()
                 .map(i -> {
-                    BigDecimal qty = i.getSampleFailedQty() != null ? BigDecimal.valueOf(i.getSampleFailedQty()) : BigDecimal.ZERO;
+                    BigDecimal qty = unresolvedQuarantineQty(i);
                     BigDecimal cost = i.getUnitCost() != null ? i.getUnitCost() : BigDecimal.ZERO;
                     return qty.multiply(cost);
                 })
@@ -150,8 +155,7 @@ public class QuarantineRtvService {
         String firstAdjNumber = null;
         Long firstAdjId = null;
         for (ReceiptItem item : items) {
-            BigDecimal itemFailedQty = item.getSampleFailedQty() != null
-                    ? BigDecimal.valueOf(item.getSampleFailedQty()) : BigDecimal.ZERO;
+            BigDecimal itemFailedQty = unresolvedQuarantineQty(item);
             if (itemFailedQty.compareTo(BigDecimal.ZERO) <= 0) continue;
 
             String adjustmentNumber = generateAdjustmentNumber();
@@ -244,7 +248,7 @@ public class QuarantineRtvService {
         // Must match the quantity actually held in quarantine (sampleFailedQty),
         // not the full received actualQty — see createRtv() for the same fix.
         BigDecimal quarantineQty = items.stream()
-                .map(i -> i.getSampleFailedQty() != null ? BigDecimal.valueOf(i.getSampleFailedQty()) : BigDecimal.ZERO)
+                .map(this::unresolvedQuarantineQty)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         if (request.getReturnedQty().compareTo(quarantineQty) != 0) {
@@ -256,6 +260,7 @@ public class QuarantineRtvService {
         for (ReceiptItem item : items) {
             deductQuarantineInventory(receipt, item, actor);
         }
+        receiptItemRepository.saveAll(items);
 
         rtv.setApprovedBy(actor);
         rtv.setApprovedAt(OffsetDateTime.now());
@@ -294,7 +299,7 @@ public class QuarantineRtvService {
         // Only the QC-failed portion of this item ever entered quarantine
         // inventory (see ReceiptQcService.confirmQc); deducting actualQty here
         // would try to remove more than what was ever added.
-        BigDecimal qty = item.getSampleFailedQty() != null ? BigDecimal.valueOf(item.getSampleFailedQty()) : BigDecimal.ZERO;
+        BigDecimal qty = unresolvedQuarantineQty(item);
         if (qty.compareTo(BigDecimal.ZERO) <= 0) {
             return;
         }
@@ -333,6 +338,7 @@ public class QuarantineRtvService {
         inventory.setTotalQty(newQty);
         inventory.setUpdatedAt(OffsetDateTime.now());
         inventoryRepository.save(inventory);
+        item.setResolvedQuarantineQty(safe(item.getResolvedQuarantineQty()) + qty.intValue());
 
         auditLogService.log(
                 actor, AuditAction.INVENTORY_UPDATE, INVENTORY_ENTITY,
@@ -358,7 +364,7 @@ public class QuarantineRtvService {
         // Map Receipt QC failed items
         for (ReceiptItem item : failedItems) {
             BigDecimal unitCost = item.getUnitCost() != null ? item.getUnitCost() : BigDecimal.ZERO;
-            BigDecimal failedQty = item.getSampleFailedQty() != null ? BigDecimal.valueOf(item.getSampleFailedQty()) : BigDecimal.ZERO;
+            BigDecimal failedQty = unresolvedQuarantineQty(item);
             BigDecimal totalValue = failedQty.multiply(unitCost);
             String originType = item.getReceipt().getType() == ReceiptType.RETURN ? "DEALER_RETURN" : "RECEIPT";
 
@@ -369,7 +375,7 @@ public class QuarantineRtvService {
                     .id(item.getId())
                     .productSku(item.getProduct().getSku())
                     .productName(item.getProduct().getName())
-                    .qcFailedQty(item.getSampleFailedQty())
+                    .qcFailedQty(failedQty.intValue())
                     .qcFailureReason(item.getQcFailureReason())
                     .receiptNumber(item.getReceipt().getReceiptNumber())
                     .supplierId(item.getReceipt().getSupplier() != null ? item.getReceipt().getSupplier().getId() : null)
@@ -423,5 +429,19 @@ public class QuarantineRtvService {
     private String generateDebitNoteNumber() {
         return "DN-" + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))
                + "-" + UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+    }
+
+    private BigDecimal unresolvedQuarantineQty(ReceiptItem item) {
+        int quantity = safe(item.getQuarantineQty()) - safe(item.getResolvedQuarantineQty());
+        if (quantity <= 0
+                && item.getReceipt() != null
+                && item.getReceipt().getType() == ReceiptType.RETURN) {
+            quantity = safe(item.getSampleFailedQty());
+        }
+        return BigDecimal.valueOf(Math.max(quantity, 0));
+    }
+
+    private int safe(Integer value) {
+        return value != null ? value : 0;
     }
 }

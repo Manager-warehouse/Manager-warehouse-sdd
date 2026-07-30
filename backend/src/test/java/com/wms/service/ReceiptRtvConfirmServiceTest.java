@@ -152,7 +152,7 @@ class ReceiptRtvConfirmServiceTest {
                 qcFailedReceipt = new Receipt();
                 qcFailedReceipt.setId(1L);
                 qcFailedReceipt.setReceiptNumber("RCV-QC-FAIL-001");
-                qcFailedReceipt.setStatus(ReceiptStatus.QC_FAILED);
+                qcFailedReceipt.setStatus(ReceiptStatus.PARTIALLY_APPROVED);
                 qcFailedReceipt.setWarehouse(warehouse);
                 qcFailedReceipt.setDocumentDate(LocalDate.now());
                 qcFailedReceipt.setVersion(3);
@@ -166,6 +166,8 @@ class ReceiptRtvConfirmServiceTest {
                 // Fully QC-failed item: sampleFailedQty must match actualQty here since
                 // quarantine deduction is keyed off sampleFailedQty, not actualQty.
                 failedItem.setSampleFailedQty(20);
+                failedItem.setQuarantineQty(20);
+                failedItem.setResolvedQuarantineQty(0);
                 failedItem.setUnitCost(BigDecimal.valueOf(50));
                 failedItem.setBatch(quarantineBatch);
                 failedItem.setLocation(quarantineLocation);
@@ -240,8 +242,7 @@ class ReceiptRtvConfirmServiceTest {
                 // Quarantine inventory must be reduced to 0
                 verify(inventoryRepository).save(argThat(inv -> inv.getTotalQty().compareTo(BigDecimal.ZERO) == 0));
 
-                // Receipt status remains QC_FAILED
-                verify(receiptRepository).save(argThat(r -> r.getStatus() == ReceiptStatus.QC_FAILED));
+                verify(receiptRepository).save(argThat(r -> r.getStatus() == ReceiptStatus.PARTIALLY_APPROVED));
 
                 // RTV adjustment marked confirmed
                 verify(adjustmentRepository)
@@ -403,7 +404,6 @@ class ReceiptRtvConfirmServiceTest {
 
                 receiptService.confirmRtv(1L, request, storekeeper);
 
-                // Receipt status must remain QC_FAILED after RTV confirmation
-                verify(receiptRepository).save(argThat(r -> r.getStatus() == ReceiptStatus.QC_FAILED));
+                verify(receiptRepository).save(argThat(r -> r.getStatus() == ReceiptStatus.PARTIALLY_APPROVED));
         }
 }

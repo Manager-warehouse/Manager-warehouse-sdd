@@ -77,6 +77,8 @@ public class ReceiptResponse {
     @JsonProperty("document_date")
     private LocalDate documentDate;
 
+    private String notes;
+
     private List<ReceiptItemResponse> items;
 
     @JsonProperty("created_at")
@@ -84,6 +86,12 @@ public class ReceiptResponse {
 
     @JsonProperty("approved_at")
     private OffsetDateTime approvedAt;
+
+    @JsonProperty("pre_receive_approved_at")
+    private OffsetDateTime preReceiveApprovedAt;
+
+    @JsonProperty("pre_receive_rejection_reason")
+    private String preReceiveRejectionReason;
 
     private Integer version;
 
@@ -194,6 +202,14 @@ public class ReceiptResponse {
         this.documentDate = documentDate;
     }
 
+    public String getNotes() {
+        return notes;
+    }
+
+    public void setNotes(String notes) {
+        this.notes = notes;
+    }
+
     public List<ReceiptItemResponse> getItems() {
         return items;
     }
@@ -216,6 +232,22 @@ public class ReceiptResponse {
 
     public void setApprovedAt(OffsetDateTime approvedAt) {
         this.approvedAt = approvedAt;
+    }
+
+    public OffsetDateTime getPreReceiveApprovedAt() {
+        return preReceiveApprovedAt;
+    }
+
+    public void setPreReceiveApprovedAt(OffsetDateTime preReceiveApprovedAt) {
+        this.preReceiveApprovedAt = preReceiveApprovedAt;
+    }
+
+    public String getPreReceiveRejectionReason() {
+        return preReceiveRejectionReason;
+    }
+
+    public void setPreReceiveRejectionReason(String preReceiveRejectionReason) {
+        this.preReceiveRejectionReason = preReceiveRejectionReason;
     }
 
     public Integer getVersion() {

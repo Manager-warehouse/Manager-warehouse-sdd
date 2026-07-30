@@ -256,12 +256,12 @@ class ReceiptServiceReturnToSupplierTest {
         when(receiptRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(qcCompletedReceipt));
         when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
 
-        assertThrows(ReceiptAlreadyDecidedException.class,
+        assertThrows(BusinessRuleViolationException.class,
                 () -> receiptService.rejectReceipt(1L, request, manager));
     }
 
     @Test
-    void rejectReceipt_qcFailed_throwsBusinessRuleViolation() {
+    void rejectReceipt_qcFailed_movesToReturnPending() {
         qcCompletedReceipt.setStatus(ReceiptStatus.QC_FAILED);
         ReceiptDecisionRequest request = new ReceiptDecisionRequest();
         request.setExpectedVersion(2);
@@ -271,8 +271,9 @@ class ReceiptServiceReturnToSupplierTest {
         when(receiptRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(qcCompletedReceipt));
         when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
 
-        assertThrows(BusinessRuleViolationException.class,
-                () -> receiptService.rejectReceipt(1L, request, manager));
+        ReceiptActionResponse response = receiptService.rejectReceipt(1L, request, manager);
+
+        assertEquals(ReceiptStatus.RETURN_TO_SUPPLIER_PENDING, response.getStatus());
     }
 
     // -----------------------------------------------------------------------

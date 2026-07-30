@@ -70,6 +70,11 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
                         from Inventory i
                         where i.warehouse.id = :warehouseId
                           and i.product.id = :productId
+                          and i.warehouse.type <> com.wms.enums.warehouse_location.WarehouseType.IN_TRANSIT
+                          and i.location.type = com.wms.enums.warehouse_location.LocationType.BIN
+                          and i.location.isActive = true
+                          and i.location.isQuarantine = false
+                          and i.location.isLocked = false
                         """)
         AvailabilitySummary summarizeAvailability(@Param("warehouseId") Long warehouseId,
                         @Param("productId") Long productId);

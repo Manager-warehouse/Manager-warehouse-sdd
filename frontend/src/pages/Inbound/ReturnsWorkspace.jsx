@@ -3,45 +3,51 @@ import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
 import returnsService from '../../services/returns.service';
 import { outboundService } from '../../services/outbound.service';
+import { inboundService } from '../../services/inbound.service';
 import { masterDataService } from '../../services/masterData.service';
 import Modal from '../../components/common/Modal';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import Badge from '../../components/common/Badge';
 import { ROLES } from '../../utils/constants';
-import { Loader2, Plus, Receipt, ShieldAlert, Check, Coins, FileText, ArrowRightLeft } from 'lucide-react';
+import { Loader2, Plus, Receipt, ShieldAlert, Check, Coins, FileText, Building2, Truck } from 'lucide-react';
 
 const ReturnsWorkspace = () => {
   const activeWarehouse = useAuthStore((state) => state.activeWarehouse);
   const { user } = useAuthStore();
   const { addToast } = useUiStore();
 
-  // Spec 009 only assigns the accountant the Credit Note step on already-APPROVED
-  // returns; receiving/QC-splitting incoming returns is Thủ kho's job. Scope the
-  // workspace down accordingly instead of exposing the full storekeeper flow.
   const isAccountingRole = user?.role === ROLES.ACCOUNTANT || user?.role === ROLES.ACCOUNTANT_MANAGER;
 
   const [returns, setReturns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('LIST'); // LIST or CREATE
+  const [listFilter, setListFilter] = useState('ALL'); // ALL, DEALER, SUPPLIER
 
   // Dropdown lists
   const [dealers, setDealers] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
   const [deliveryOrders, setDeliveryOrders] = useState([]);
+  const [inboundReceipts, setInboundReceipts] = useState([]);
   const [regularBins, setRegularBins] = useState([]);
   const [quarantineBins, setQuarantineBins] = useState([]);
 
   // Create Return Form State
+  const [returnType, setReturnType] = useState('DEALER'); // 'DEALER' or 'SUPPLIER'
   const [selectedDoId, setSelectedDoId] = useState('');
   const [selectedDoDetails, setSelectedDoDetails] = useState(null);
   const [selectedDealerId, setSelectedDealerId] = useState('');
+
+  const [selectedSupplierId, setSelectedSupplierId] = useState('');
+  const [selectedReceiptId, setSelectedReceiptId] = useState('');
+
   const [returnItems, setReturnItems] = useState([]); // [{ productId, expectedQty, maxQty, name, sku }]
   const [returnNotes, setReturnNotes] = useState('');
 
   // QC Split Modal State
   const [showQcModal, setShowQcModal] = useState(false);
   const [qcReceipt, setQcReceipt] = useState(null);
-  const [qcItems, setQcItems] = useState([]); // [{ receiptItemId, expectedQty, actualQty, passedQty, failedQty, passedLocationId, quarantineLocationId, name, sku }]
+  const [qcItems, setQcItems] = useState([]);
 
   // Credit Note Modal State
   const [showCreditModal, setShowCreditModal] = useState(false);
@@ -61,12 +67,13 @@ const ReturnsWorkspace = () => {
     setLoading(true);
     try {
       const data = await returnsService.getReturns({ warehouse_id: activeWarehouse.id });
-      // Accountants only act on returns already APPROVED by the storekeeper (the
-      // Credit Note step); DRAFT/pending-QC items are outside their spec'd role.
       setReturns(isAccountingRole ? data.filter(r => r.status === 'APPROVED') : data);
 
       const dlData = await masterDataService.getDealers();
-      setDealers(dlData);
+      setDealers(dlData || []);
+
+      const supData = await masterDataService.getSuppliers();
+      setSuppliers(supData || []);
 
       if (!isAccountingRole) {
         const locs = await masterDataService.getBinLocations(activeWarehouse.id);
@@ -76,12 +83,25 @@ const ReturnsWorkspace = () => {
         const doData = await outboundService.getDeliveryOrders(activeWarehouse.id);
         const completedDos = doData.filter(d => d.status === 'DELIVERED' || d.status === 'COMPLETED');
         setDeliveryOrders(completedDos);
+
+        const receiptData = await inboundService.getReceipts({ warehouse_id: activeWarehouse.id });
+        setInboundReceipts(receiptData || []);
       }
     } catch (e) {
       addToast('Lỗi tải dữ liệu hàng trả', 'error');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleReturnTypeChange = (type) => {
+    setReturnType(type);
+    setSelectedDoId('');
+    setSelectedDoDetails(null);
+    setSelectedDealerId('');
+    setSelectedSupplierId('');
+    setSelectedReceiptId('');
+    setReturnItems([]);
   };
 
   const handleDoChange = async (doId) => {
@@ -109,6 +129,33 @@ const ReturnsWorkspace = () => {
     }
   };
 
+  const handleSupplierChange = (supplierId) => {
+    setSelectedSupplierId(supplierId);
+    setSelectedReceiptId('');
+    setReturnItems([]);
+  };
+
+  const handleReceiptChange = async (receiptId) => {
+    setSelectedReceiptId(receiptId);
+    if (!receiptId) {
+      setReturnItems([]);
+      return;
+    }
+    try {
+      const details = await inboundService.getReceiptById(receiptId);
+      const items = (details.items || []).map(item => ({
+        productId: item.product_id,
+        sku: item.product_sku || item.sku || `SKU-${item.product_id}`,
+        name: item.product_name || item.name || `Sản phẩm ${item.product_id}`,
+        maxQty: item.expected_qty || item.actual_qty || 999,
+        expectedQty: 0
+      }));
+      setReturnItems(items);
+    } catch (e) {
+      addToast('Không thể tải chi tiết phiếu nhập gốc', 'error');
+    }
+  };
+
   const handleReturnQtyChange = (productId, qty) => {
     setReturnItems(prev => prev.map(item => {
       if (item.productId === productId) {
@@ -128,22 +175,36 @@ const ReturnsWorkspace = () => {
     }
     setSubmitting(true);
     try {
-      const payload = {
-        warehouseId: activeWarehouse.id,
-        dealerId: Number(selectedDealerId),
-        deliveryOrderId: Number(selectedDoId),
-        notes: returnNotes,
-        items: itemsToSubmit.map(item => ({
-          productId: item.productId,
-          expectedQty: item.expectedQty
-        }))
-      };
-      await returnsService.createReturn(payload);
-      addToast('Lập phiếu trả hàng thành công', 'success');
+      if (returnType === 'DEALER') {
+        const payload = {
+          warehouseId: activeWarehouse.id,
+          dealerId: Number(selectedDealerId),
+          deliveryOrderId: Number(selectedDoId),
+          notes: returnNotes,
+          items: itemsToSubmit.map(item => ({
+            productId: item.productId,
+            expectedQty: item.expectedQty
+          }))
+        };
+        await returnsService.createReturn(payload);
+        addToast('Lập phiếu đại lý trả hàng thành công', 'success');
+      } else {
+        // Supplier RTV Return
+        if (selectedReceiptId) {
+          await inboundService.handleRtv(selectedReceiptId, 0, returnNotes);
+          addToast('Lập phiếu xuất trả hàng NCC thành công. Debit Note đã được khởi tạo!', 'success');
+        } else {
+          addToast('Vui lòng chọn phiếu nhập gốc (PO) của NCC', 'warning');
+          setSubmitting(false);
+          return;
+        }
+      }
       setActiveTab('LIST');
       setSelectedDoId('');
       setSelectedDoDetails(null);
       setSelectedDealerId('');
+      setSelectedSupplierId('');
+      setSelectedReceiptId('');
       setReturnItems([]);
       setReturnNotes('');
     } catch (e) {
@@ -162,15 +223,15 @@ const ReturnsWorkspace = () => {
         const productId = item.product_id ?? item.productId;
         const expectedQty = item.expected_qty ?? item.expectedQty ?? 0;
         return {
-        receiptItemId,
-        sku: item.product_sku || item.productSku || `SKU-${productId}`,
-        name: item.product_name || item.productName || `Sản phẩm ${productId}`,
-        expectedQty,
-        actualQty: expectedQty,
-        passedQty: expectedQty,
-        failedQty: 0,
-        passedLocationId: regularBins[0]?.id || '',
-        quarantineLocationId: quarantineBins[0]?.id || ''
+          receiptItemId,
+          sku: item.product_sku || item.productSku || `SKU-${productId}`,
+          name: item.product_name || item.productName || `Sản phẩm ${productId}`,
+          expectedQty,
+          actualQty: expectedQty,
+          passedQty: expectedQty,
+          failedQty: 0,
+          passedLocationId: regularBins[0]?.id || '',
+          quarantineLocationId: quarantineBins[0]?.id || ''
         };
       });
       setQcItems(items);
@@ -256,9 +317,20 @@ const ReturnsWorkspace = () => {
   };
 
   const getDealerName = (dealerId) => {
-    const d = dealers.find(dl => dl.id === dealerId);
+    const d = dealers.find(dl => dl.id === Number(dealerId));
     return d ? d.name : `Đại lý ID: ${dealerId}`;
   };
+
+  const getSupplierName = (supplierId) => {
+    const s = suppliers.find(sup => sup.id === Number(supplierId));
+    return s ? s.company_name : `NCC ID: ${supplierId}`;
+  };
+
+  const filteredReturns = returns.filter(ret => {
+    if (listFilter === 'DEALER') return ret.dealer_id || ret.type === 'RETURN';
+    if (listFilter === 'SUPPLIER') return ret.supplier_id || ret.type === 'SUPPLIER_RETURN';
+    return true;
+  });
 
   return (
     <div className="flex flex-col gap-6">
@@ -267,210 +339,293 @@ const ReturnsWorkspace = () => {
         <div>
           <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">Vận hành / Nhập kho</span>
           <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">
-            Nhận hàng hoàn trả & Khấu trừ công nợ
+            Trả hàng cho NCC và Đại lý trả hàng
           </h1>
           <p className="text-xs text-shade-50 font-light mt-1">
             {isAccountingRole
-              ? 'Sinh Credit Note khấu trừ công nợ cho các phiếu trả hàng đã được Thủ kho duyệt nhập kho.'
-              : 'Xử lý hàng đại lý trả lại, phân tách QC (regular/quarantine) và sinh Credit Note khấu trừ công nợ.'}
+              ? 'Sinh Credit Note/Debit Note khấu trừ công nợ cho các phiếu trả hàng đã được duyệt.'
+              : 'Tiếp nhận hàng Đại lý trả lại hoặc Lập phiếu xuất trả hàng hỏng về cho Nhà cung cấp.'}
           </p>
         </div>
         {!isAccountingRole && (
-        <Button
-          variant={activeTab === 'CREATE' ? 'outline-light' : 'primary'}
-          icon={activeTab === 'CREATE' ? null : Plus}
-          onClick={() => setActiveTab(activeTab === 'LIST' ? 'CREATE' : 'LIST')}
-          disabled={!canManageReturnOperations}
-        >
-          {activeTab === 'CREATE' ? 'Quay lại danh sách' : 'Lập phiếu trả hàng mới'}
-        </Button>
+          <Button
+            variant={activeTab === 'CREATE' ? 'outline-light' : 'primary'}
+            icon={activeTab === 'CREATE' ? null : Plus}
+            onClick={() => setActiveTab(activeTab === 'LIST' ? 'CREATE' : 'LIST')}
+            disabled={!canManageReturnOperations}
+          >
+            {activeTab === 'CREATE' ? 'Quay lại danh sách' : 'Lập phiếu trả hàng mới'}
+          </Button>
         )}
       </div>
 
       {activeTab === 'LIST' || isAccountingRole ? (
         <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden flex flex-col">
+          {/* List Filter Tabs */}
+          <div className="flex items-center gap-2 p-4 border-b border-hairline-light bg-canvas-cream/50">
+            <span className="text-xs font-semibold text-shade-60 mr-2">Lọc theo đối tác:</span>
+            <button
+              onClick={() => setListFilter('ALL')}
+              className={`px-3 py-1 rounded-pill text-xs font-semibold transition-all ${
+                listFilter === 'ALL'
+                  ? 'bg-ink text-onPrimary shadow-level-1'
+                  : 'bg-canvas-light text-shade-60 hover:bg-canvas-cream border border-hairline-light'
+              }`}
+            >
+              Tất cả
+            </button>
+            <button
+              onClick={() => setListFilter('DEALER')}
+              className={`px-3 py-1 rounded-pill text-xs font-semibold transition-all ${
+                listFilter === 'DEALER'
+                  ? 'bg-ink text-onPrimary shadow-level-1'
+                  : 'bg-canvas-light text-shade-60 hover:bg-canvas-cream border border-hairline-light'
+              }`}
+            >
+              Đại lý trả hàng
+            </button>
+            <button
+              onClick={() => setListFilter('SUPPLIER')}
+              className={`px-3 py-1 rounded-pill text-xs font-semibold transition-all ${
+                listFilter === 'SUPPLIER'
+                  ? 'bg-ink text-onPrimary shadow-level-1'
+                  : 'bg-canvas-light text-shade-60 hover:bg-canvas-cream border border-hairline-light'
+              }`}
+            >
+               Trả hàng cho NCC
+            </button>
+          </div>
+
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
               <Loader2 className="w-8 h-8 animate-spin text-ink" />
               <span className="text-shade-60 text-xs font-light">Đang tải danh sách hàng trả...</span>
             </div>
-          ) : returns.length === 0 ? (
+          ) : filteredReturns.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center px-4">
               <Receipt className="w-12 h-12 text-shade-40 mb-3" />
               <h3 className="font-semibold text-ink text-sm">Không có phiếu trả hàng nào</h3>
               <p className="text-shade-50 max-w-sm mt-1 text-xs font-light">
-                Hiện tại không có phiếu nhập trả hàng nào của đại lý tại kho này.
+                Hiện tại không có phiếu hoàn trả nào thỏa mãn bộ lọc tại kho này.
               </p>
             </div>
           ) : (
             <>
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-canvas-cream border-b border-hairline-light">
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã phiếu trả</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">DO gốc</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Đại lý</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Ngày tạo</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Trạng thái</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Credit Note</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Hành động</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-hairline-light">
-                  {returns.map((ret) => (
-                    <tr key={ret.id} className="hover:bg-canvas-cream/50 transition-colors">
-                      <td className="px-6 py-4 font-medium text-ink">
-                        <div className="flex items-center gap-2">
-                          <FileText className="w-4 h-4 text-shade-40 shrink-0" />
-                          {ret.receipt_number}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-shade-60 font-mono text-xs">{ret.source_order_code}</td>
-                      <td className="px-6 py-4 text-shade-60 text-xs">{getDealerName(ret.dealer_id)}</td>
-                      <td className="px-6 py-4 text-shade-60 text-xs">{ret.document_date}</td>
-                      <td className="px-6 py-4">
-                        <Badge size="sm" type={ret.status === 'APPROVED' ? 'success' : 'warning'}>
-                          {ret.status === 'APPROVED' ? 'Đã duyệt nhập kho' : 'Nháp / Chờ QC'}
-                        </Badge>
-                      </td>
-                      <td className="px-6 py-4">
-                        {ret.credit_note_generated ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-success-700">
-                            <Check className="w-3.5 h-3.5" /> Đã hoàn công nợ
-                          </span>
-                        ) : (
-                          <span className="text-shade-50 text-[10px] font-medium">Chưa hoàn</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex justify-end gap-2">
-                          {ret.status === 'DRAFT' && canManageReturnOperations ? (
-                            <button
-                              onClick={() => openQcSplit(ret)}
-                              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill border border-ink bg-canvas-light text-ink hover:bg-canvas-cream text-xs font-semibold transition-colors"
-                            >
-                              <ShieldAlert className="w-3.5 h-3.5" />
-                              QC Phân tách & Nhập kho
-                            </button>
-                          ) : ret.status === 'APPROVED' && !ret.credit_note_generated ? (
-                            <button
-                              onClick={() => openCreditNoteModal(ret)}
-                              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill btn-pill-aloe text-xs font-semibold transition-colors"
-                            >
-                              <Coins className="w-3.5 h-3.5" />
-                              Tạo Credit Note
-                            </button>
-                          ) : (
-                            <span className="text-shade-50 text-[10px] font-medium">Không có sẵn</span>
-                          )}
-                        </div>
-                      </td>
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-canvas-cream border-b border-hairline-light">
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã phiếu trả</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Loại hoàn trả</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Đối tác (Đại lý / NCC)</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Ngày tạo</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Trạng thái</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Chứng từ công nợ</th>
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Hành động</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="flex flex-col gap-3 p-4 md:hidden">
-              {returns.map((ret) => (
-                <div key={ret.id} className="rounded-lg border border-hairline-light bg-canvas-light p-4 shadow-level-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 font-semibold text-ink">
-                        <FileText className="h-4 w-4 shrink-0 text-shade-40" />
-                        <span className="truncate">{ret.receipt_number}</span>
+                  </thead>
+                  <tbody className="divide-y divide-hairline-light">
+                    {filteredReturns.map((ret) => (
+                      <tr key={ret.id} className="hover:bg-canvas-cream/50 transition-colors">
+                        <td className="px-6 py-4 font-medium text-ink">
+                          <div className="flex items-center gap-2">
+                            <FileText className="w-4 h-4 text-shade-40 shrink-0" />
+                            {ret.receipt_number}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-xs">
+                          {ret.dealer_id || ret.type === 'RETURN' ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                              <Building2 className="w-3 h-3" /> Đại lý trả hàng
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                              <Truck className="w-3 h-3" /> Trả hàng NCC
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-shade-70 font-semibold text-xs">
+                          {ret.dealer_id ? getDealerName(ret.dealer_id) : getSupplierName(ret.supplier_id)}
+                        </td>
+                        <td className="px-6 py-4 text-shade-60 text-xs">{ret.document_date || ret.created_at?.slice(0, 10)}</td>
+                        <td className="px-6 py-4">
+                          <Badge size="sm" type={ret.status === 'APPROVED' ? 'success' : 'warning'}>
+                            {ret.status === 'APPROVED' ? 'Đã duyệt nhập kho' : 'Nháp / Chờ QC'}
+                          </Badge>
+                        </td>
+                        <td className="px-6 py-4">
+                          {ret.credit_note_generated ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-success-700">
+                              <Check className="w-3.5 h-3.5" /> Đã hoàn công nợ
+                            </span>
+                          ) : (
+                            <span className="text-shade-50 text-[10px] font-medium">Chưa hoàn</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex justify-end gap-2">
+                            {ret.status === 'DRAFT' && canManageReturnOperations ? (
+                              <button
+                                onClick={() => openQcSplit(ret)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill border border-ink bg-canvas-light text-ink hover:bg-canvas-cream text-xs font-semibold transition-colors"
+                              >
+                                <ShieldAlert className="w-3.5 h-3.5" />
+                                QC Phân tách & Nhập kho
+                              </button>
+                            ) : ret.status === 'APPROVED' && !ret.credit_note_generated ? (
+                              <button
+                                onClick={() => openCreditNoteModal(ret)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill btn-pill-aloe text-xs font-semibold transition-colors"
+                              >
+                                <Coins className="w-3.5 h-3.5" />
+                                Tạo Credit Note
+                              </button>
+                            ) : (
+                              <span className="text-shade-50 text-[10px] font-medium">Hoàn tất</span>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex flex-col gap-3 p-4 md:hidden">
+                {filteredReturns.map((ret) => (
+                  <div key={ret.id} className="rounded-lg border border-hairline-light bg-canvas-light p-4 shadow-level-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 font-semibold text-ink">
+                          <FileText className="h-4 w-4 shrink-0 text-shade-40" />
+                          <span className="truncate">{ret.receipt_number}</span>
+                        </div>
                       </div>
-                      <div className="mt-1 font-mono text-[11px] text-shade-50">{ret.source_order_code}</div>
+                      <Badge size="sm" type={ret.status === 'APPROVED' ? 'success' : 'warning'}>
+                        {ret.status === 'APPROVED' ? 'Đã duyệt' : 'Chờ QC'}
+                      </Badge>
                     </div>
-                    <Badge size="sm" type={ret.status === 'APPROVED' ? 'success' : 'warning'}>
-                      {ret.status === 'APPROVED' ? 'Đã duyệt' : 'Chờ QC'}
-                    </Badge>
-                  </div>
 
-                  <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
-                    <div className="rounded-md bg-canvas-cream p-2">
-                      <span className="block text-[10px] uppercase tracking-wider text-shade-50">Đại lý</span>
-                      <span className="font-semibold text-ink">{getDealerName(ret.dealer_id)}</span>
-                    </div>
-                    <div className="rounded-md bg-canvas-cream p-2">
-                      <span className="block text-[10px] uppercase tracking-wider text-shade-50">Ngày tạo</span>
-                      <span className="font-semibold text-ink">{ret.document_date}</span>
+                    <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+                      <div className="rounded-md bg-canvas-cream p-2">
+                        <span className="block text-[10px] uppercase tracking-wider text-shade-50">Đối tác</span>
+                        <span className="font-semibold text-ink">
+                          {ret.dealer_id ? getDealerName(ret.dealer_id) : getSupplierName(ret.supplier_id)}
+                        </span>
+                      </div>
+                      <div className="rounded-md bg-canvas-cream p-2">
+                        <span className="block text-[10px] uppercase tracking-wider text-shade-50">Ngày tạo</span>
+                        <span className="font-semibold text-ink">{ret.document_date || ret.created_at?.slice(0, 10)}</span>
+                      </div>
                     </div>
                   </div>
-
-                  <div className="mt-3 text-[11px] font-semibold text-shade-60">
-                    Credit Note: {ret.credit_note_generated ? (
-                      <span className="text-success-700">Đã hoàn công nợ</span>
-                    ) : (
-                      <span>Chưa hoàn</span>
-                    )}
-                  </div>
-
-                  {ret.status === 'DRAFT' || (ret.status === 'APPROVED' && !ret.credit_note_generated) ? (
-                    <div className="mt-4 flex flex-col gap-2">
-                      {ret.status === 'DRAFT' && canManageReturnOperations && (
-                        <button
-                          onClick={() => openQcSplit(ret)}
-                          className="btn-pill btn-pill-outline-light min-h-[44px] text-xs"
-                        >
-                          <ShieldAlert className="h-3.5 w-3.5" />
-                          QC Phân tách & Nhập kho
-                        </button>
-                      )}
-                      {ret.status === 'APPROVED' && !ret.credit_note_generated && (
-                        <button
-                          onClick={() => openCreditNoteModal(ret)}
-                          className="btn-pill btn-pill-aloe min-h-[44px] text-xs"
-                        >
-                          <Coins className="h-3.5 w-3.5" />
-                          Tạo Credit Note
-                        </button>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="mt-4 flex justify-end">
-                      <span className="text-shade-50 text-[10px] font-medium">Không có sẵn</span>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
             </>
           )}
         </div>
       ) : (
         <div className="card-premium flex flex-col gap-6">
-          <div className="pb-4 border-b border-hairline-light">
+          <div className="pb-4 border-b border-hairline-light flex flex-col gap-1">
             <h2 className="text-base font-semibold text-ink">Tạo phiếu trả hàng mới</h2>
+            <p className="text-xs text-shade-50">Lựa chọn đối tác cần thực hiện nghiệp vụ hoàn trả.</p>
           </div>
 
           <form onSubmit={handleCreateReturnReceipt} className="flex flex-col gap-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Chọn đơn xuất hàng gốc</label>
-                <Input
-                  type="select"
-                  required
-                  value={selectedDoId}
-                  onChange={(e) => handleDoChange(e.target.value)}
-                  options={[
-                    { value: '', label: '-- Chọn DO đã giao thành công --' },
-                    ...deliveryOrders.map(d => ({ value: d.id, label: `${d.do_number} (Đại lý: ${d.dealer_name})` })),
-                  ]}
-                />
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Đại lý nhận hoàn trả</label>
-                <input
-                  type="text"
-                  disabled
-                  value={selectedDealerId ? getDealerName(Number(selectedDealerId)) : ''}
-                  placeholder="Đại lý sẽ tự động điền khi chọn DO"
-                  className="w-full bg-canvas-light text-sm px-3 py-2.5 rounded-md border border-hairline-light text-shade-50 min-h-[44px] disabled:bg-canvas-cream/60 disabled:cursor-not-allowed"
-                />
+            {/* Return Type Selector */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">
+                Đối tác hoàn trả <span className="text-danger-500">*</span>
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => handleReturnTypeChange('DEALER')}
+                  className={`p-3.5 rounded-lg border text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+                    returnType === 'DEALER'
+                      ? 'border-ink bg-canvas-night text-onPrimary shadow-level-2'
+                      : 'border-hairline-light bg-canvas-light text-shade-60 hover:bg-canvas-cream'
+                  }`}
+                >
+                  <Building2 className="w-4 h-4" />
+                  Đại lý trả hàng (Dealer Return)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleReturnTypeChange('SUPPLIER')}
+                  className={`p-3.5 rounded-lg border text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+                    returnType === 'SUPPLIER'
+                      ? 'border-ink bg-canvas-night text-onPrimary shadow-level-2'
+                      : 'border-hairline-light bg-canvas-light text-shade-60 hover:bg-canvas-cream'
+                  }`}
+                >
+                  <Truck className="w-4 h-4" />
+                  Trả hàng cho Nhà cung cấp (RTV)
+                </button>
               </div>
             </div>
+
+            {/* Dynamic Form Controls */}
+            {returnType === 'DEALER' ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Chọn đơn xuất hàng gốc (DO) <span className="text-danger-500">*</span></label>
+                  <Input
+                    type="select"
+                    required
+                    value={selectedDoId}
+                    onChange={(e) => handleDoChange(e.target.value)}
+                    options={[
+                      { value: '', label: '-- Chọn DO đã giao thành công --' },
+                      ...deliveryOrders.map(d => ({ value: d.id, label: `${d.do_number} (Đại lý: ${d.dealer_name})` })),
+                    ]}
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Đại lý nhận hoàn trả</label>
+                  <input
+                    type="text"
+                    disabled
+                    value={selectedDealerId ? getDealerName(Number(selectedDealerId)) : ''}
+                    placeholder="Đại lý sẽ tự động điền khi chọn DO"
+                    className="w-full bg-canvas-light text-sm px-3 py-2.5 rounded-md border border-hairline-light text-shade-50 min-h-[44px] disabled:bg-canvas-cream/60 disabled:cursor-not-allowed font-semibold"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Nhà cung cấp nhận lại hàng <span className="text-danger-500">*</span></label>
+                  <Input
+                    type="select"
+                    required
+                    value={selectedSupplierId}
+                    onChange={(e) => handleSupplierChange(e.target.value)}
+                    options={[
+                      { value: '', label: '-- Chọn Nhà cung cấp --' },
+                      ...suppliers.map(s => ({ value: s.id, label: `${s.company_name} (${s.code})` })),
+                    ]}
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Chọn phiếu nhập gốc (PO) <span className="text-danger-500">*</span></label>
+                  <Input
+                    type="select"
+                    required
+                    value={selectedReceiptId}
+                    onChange={(e) => handleReceiptChange(e.target.value)}
+                    disabled={!selectedSupplierId}
+                    options={[
+                      { value: '', label: selectedSupplierId ? '-- Chọn phiếu nhập PO --' : '-- Chọn NCC trước --' },
+                      ...inboundReceipts
+                        .filter(r => r.supplier_id === Number(selectedSupplierId))
+                        .map(r => ({ value: r.id, label: r.receipt_number })),
+                    ]}
+                  />
+                </div>
+              </div>
+            )}
 
             {returnItems.length > 0 && (
               <div className="flex flex-col gap-3">
@@ -480,8 +635,8 @@ const ReturnsWorkspace = () => {
                     <thead>
                       <tr className="bg-canvas-cream border-b border-hairline-light">
                         <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Sản phẩm</th>
-                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Số lượng đã xuất</th>
-                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 w-40">Số lượng hoàn trả</th>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Số lượng đã giao/nhập</th>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 w-40">Số lượng trả</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-hairline-light">
@@ -516,7 +671,7 @@ const ReturnsWorkspace = () => {
                             <div className="mt-1 font-mono text-[11px] text-shade-60">{item.sku}</div>
                           </div>
                           <div className="shrink-0 rounded-pill bg-canvas-cream px-3 py-1 text-[11px] font-bold text-shade-60">
-                            Đã xuất: {item.maxQty}
+                            Gốc: {item.maxQty}
                           </div>
                         </div>
 
@@ -545,7 +700,7 @@ const ReturnsWorkspace = () => {
               <textarea
                 value={returnNotes}
                 onChange={(e) => setReturnNotes(e.target.value)}
-                placeholder="Lý do đại lý yêu cầu trả hàng, thông tin bổ sung..."
+                placeholder={returnType === 'DEALER' ? "Lý do đại lý yêu cầu trả hàng..." : "Lý do xuất trả hàng về Nhà cung cấp..."}
                 rows="3"
                 className="w-full px-3 py-2.5 bg-canvas-light border border-hairline-light rounded-md text-ink focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink text-sm transition-all"
               />
@@ -556,7 +711,7 @@ const ReturnsWorkspace = () => {
                 Hủy
               </Button>
               <Button type="submit" variant="primary" loading={submitting} disabled={submitting}>
-                Lập phiếu trả hàng
+                {returnType === 'DEALER' ? 'Lập phiếu Đại lý trả hàng' : 'Lập phiếu xuất trả NCC'}
               </Button>
             </div>
           </form>
@@ -655,83 +810,6 @@ const ReturnsWorkspace = () => {
                   ))}
                 </tbody>
               </table>
-
-              <div className="flex flex-col gap-3 p-4 md:hidden">
-                {qcItems.map(item => (
-                  <div key={item.receiptItemId} className="rounded-lg border border-hairline-light bg-canvas-light p-4 shadow-level-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="text-sm font-semibold text-ink">{item.name}</div>
-                        <div className="mt-1 font-mono text-[11px] text-shade-60">{item.sku}</div>
-                      </div>
-                      <div className="shrink-0 rounded-pill bg-canvas-cream px-3 py-1 text-[11px] font-bold text-shade-60">
-                        Yêu cầu: {item.expectedQty}
-                      </div>
-                    </div>
-
-                    <div className="mt-4 grid grid-cols-2 gap-3">
-                      <label className="flex flex-col gap-1.5">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-shade-60">Thực nhận</span>
-                        <input
-                          type="number"
-                          min="0"
-                          value={item.actualQty}
-                          onChange={(e) => handleQcValueChange(item.receiptItemId, 'actualQty', e.target.value)}
-                          className="text-input min-h-[44px] text-center font-semibold"
-                        />
-                      </label>
-                      <label className="flex flex-col gap-1.5">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-shade-60">QC đạt</span>
-                        <input
-                          type="number"
-                          min="0"
-                          max={item.actualQty}
-                          value={item.passedQty}
-                          onChange={(e) => handleQcValueChange(item.receiptItemId, 'passedQty', e.target.value)}
-                          className="text-input min-h-[44px] text-center font-semibold text-success-700"
-                        />
-                      </label>
-                    </div>
-
-                    <div className="mt-3 rounded-md border border-danger-100 bg-danger-50/50 px-3 py-2 text-xs font-semibold text-danger-700">
-                      QC lỗi: {item.failedQty}
-                    </div>
-
-                    <div className="mt-4 flex flex-col gap-3">
-                      {item.passedQty > 0 && (
-                        <label className="flex flex-col gap-1.5">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-shade-60">Vị trí đạt chuẩn</span>
-                          <select
-                            value={item.passedLocationId}
-                            onChange={(e) => handleQcValueChange(item.receiptItemId, 'passedLocationId', e.target.value)}
-                            className="text-input min-h-[44px] text-xs"
-                          >
-                            <option value="">-- Chọn vị trí --</option>
-                            {regularBins.map(b => (
-                              <option key={b.id} value={b.id}>{b.code} (Còn: {b.capacity_m3 - b.current_volume_m3} m³)</option>
-                            ))}
-                          </select>
-                        </label>
-                      )}
-                      {item.failedQty > 0 && (
-                        <label className="flex flex-col gap-1.5">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-shade-60">Khu cách ly lỗi</span>
-                          <select
-                            value={item.quarantineLocationId}
-                            onChange={(e) => handleQcValueChange(item.receiptItemId, 'quarantineLocationId', e.target.value)}
-                            className="text-input min-h-[44px] border-danger-200 text-xs focus:ring-danger-500"
-                          >
-                            <option value="">-- Chọn vị trí cách ly --</option>
-                            {quarantineBins.map(b => (
-                              <option key={b.id} value={b.id}>{b.code}</option>
-                            ))}
-                          </select>
-                        </label>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
             </div>
 
             <div className="flex flex-col-reverse gap-3 border-t border-hairline-light pt-4 sm:flex-row sm:justify-end">

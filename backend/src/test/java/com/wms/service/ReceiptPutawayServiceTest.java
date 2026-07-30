@@ -138,6 +138,7 @@ class ReceiptPutawayServiceTest {
     void setUp() {
         warehouse = new Warehouse();
         warehouse.setId(10L);
+        warehouse.setCode("WH-HP");
 
         storekeeper = new User();
         storekeeper.setId(6L);
@@ -150,6 +151,8 @@ class ReceiptPutawayServiceTest {
 
         batch = new Batch();
         batch.setId(200L);
+        batch.setBatchNumber("LOT-WHHP-20260728-0011");
+        batch.setBatchCode("LOT-WHHP-20260728-0011");
 
         approvedReceipt = new Receipt();
         approvedReceipt.setId(1L);
@@ -166,11 +169,13 @@ class ReceiptPutawayServiceTest {
         item.setProduct(product);
         item.setBatch(batch);
         item.setActualQty(10);
+        item.setApprovedQty(10);
         item.setUnitCost(BigDecimal.valueOf(30));
 
         regularBin = new WarehouseLocation();
         regularBin.setId(50L);
         regularBin.setWarehouse(warehouse);
+        regularBin.setIsActive(true);
         regularBin.setIsQuarantine(false);
         regularBin.setCapacityM3(BigDecimal.valueOf(10));
         regularBin.setCapacityKg(BigDecimal.valueOf(30));
@@ -204,7 +209,8 @@ class ReceiptPutawayServiceTest {
 
         ReceiptActionResponse response = receiptService.completePutaway(1L, request, storekeeper);
 
-        assertEquals(ReceiptStatus.APPROVED, response.getStatus());
+        assertEquals(ReceiptStatus.PUTAWAY_COMPLETED, response.getStatus());
+        assertEquals(List.of("LOT-WHHP-20260728-0011"), response.getBatchCodes());
         verify(inventoryRepository).save(argThat(inv -> inv.getTotalQty().compareTo(BigDecimal.TEN) == 0));
         verify(warehouseLocationRepository)
                 .save(argThat(location -> location.getCurrentVolumeM3().compareTo(BigDecimal.valueOf(6.00)) == 0
@@ -213,6 +219,7 @@ class ReceiptPutawayServiceTest {
                 eq("INVENTORY"), eq(300L), any(), eq(10L), any(), any());
         verify(auditLogService).log(eq(storekeeper), eq(AuditAction.RECEIPT_PUTAWAY_COMPLETE),
                 eq("RECEIPT"), eq(1L), eq("RCV-PUTAWAY-001"), eq(10L), any(), any());
+        verify(supplierBillingNotificationService).createNotificationForReceiptOrder(approvedReceipt);
     }
 
     @Test
@@ -225,7 +232,7 @@ class ReceiptPutawayServiceTest {
         BusinessRuleViolationException ex = assertThrows(BusinessRuleViolationException.class,
                 () -> receiptService.completePutaway(1L, request, storekeeper));
 
-        assertEquals(true, ex.getMessage().contains("INVALID_LOCATION"));
+        assertEquals(true, ex.getMessage().contains("PUTAWAY_LOCATION_INVALID"));
         verify(inventoryRepository, never()).save(any());
     }
 
@@ -256,6 +263,7 @@ class ReceiptPutawayServiceTest {
         when(receiptRepository.findById(1L)).thenReturn(Optional.of(approvedReceipt));
         when(receiptRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(approvedReceipt));
         when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(6L)).thenReturn(List.of(10L));
+        when(warehouseLocationRepository.findById(50L)).thenReturn(Optional.of(regularBin));
         when(receiptItemRepository.findByReceiptId(1L)).thenReturn(List.of(item));
 
         BusinessRuleViolationException ex = assertThrows(BusinessRuleViolationException.class,
@@ -263,6 +271,21 @@ class ReceiptPutawayServiceTest {
 
         assertEquals(true, ex.getMessage().contains("MISSING_BATCH"));
         verify(inventoryRepository, never()).save(any());
+    }
+
+    @Test
+    void completePutaway_expectedBatchMismatch_throwsBeforeInventoryMutation() {
+        ReceiptPutawayRequest request = request();
+        request.getItems().get(0).setExpectedBatchCode("LOT-WHHP-20260728-9999");
+
+        commonStubs();
+
+        BusinessRuleViolationException ex = assertThrows(BusinessRuleViolationException.class,
+                () -> receiptService.completePutaway(1L, request, storekeeper));
+
+        assertEquals(true, ex.getMessage().contains("BATCH_CODE_MISMATCH"));
+        verify(inventoryRepository, never()).save(any());
+        verify(supplierBillingNotificationService, never()).createNotificationForReceiptOrder(any());
     }
 
     private void commonStubs() {
@@ -280,6 +303,8 @@ class ReceiptPutawayServiceTest {
         ReceiptPutawayItem putawayItem = new ReceiptPutawayItem();
         putawayItem.setReceiptItemId(11L);
         putawayItem.setLocationId(50L);
+        putawayItem.setQuantity(10);
+        putawayItem.setExpectedBatchCode("LOT-WHHP-20260728-0011");
 
         request.setItems(List.of(putawayItem));
         return request;

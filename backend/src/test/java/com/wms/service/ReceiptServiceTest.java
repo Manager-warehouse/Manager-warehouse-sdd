@@ -73,8 +73,13 @@ import static org.mockito.Mockito.when;
 
 import com.wms.dto.request.CreateReceiptItemRequest;
 import com.wms.dto.request.CreateReceiptRequest;
+import com.wms.dto.request.PreReceiveApprovalRequest;
+import com.wms.dto.request.ReceiptCancelRequest;
+import com.wms.dto.request.ReceiptReopenRequest;
 import com.wms.dto.request.ReceiveReceiptItemRequest;
 import com.wms.dto.request.ReceiveReceiptRequest;
+import com.wms.dto.request.ReviseReceiptItemRequest;
+import com.wms.dto.request.ReviseReceiptRequest;
 import com.wms.dto.response.ReceiptResponse;
 import com.wms.entity.billing_payment.AccountingPeriod;
 import com.wms.entity.document_numbering.DocumentSequence;
@@ -87,7 +92,6 @@ import com.wms.entity.warehouse_location.Warehouse;
 import com.wms.enums.audit_trail.AuditAction;
 import com.wms.enums.stock_receiving.QcResult;
 import com.wms.enums.stock_receiving.QcSamplingMethod;
-import com.wms.enums.stock_receiving.ReceiptSourceChannel;
 import com.wms.enums.stock_receiving.ReceiptStatus;
 import com.wms.enums.stock_receiving.ReceiptType;
 import com.wms.enums.access_control.UserRole;
@@ -103,15 +107,18 @@ import com.wms.repository.ReceiptRepository;
 import com.wms.repository.supplier_management.SupplierRepository;
 import com.wms.repository.UserWarehouseAssignmentRepository;
 import com.wms.repository.WarehouseRepository;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.dao.DataIntegrityViolationException;
 
 @ExtendWith(MockitoExtension.class)
 class ReceiptServiceTest {
@@ -140,6 +147,7 @@ class ReceiptServiceTest {
     private ReceiptService receiptService;
     private User planner;
     private User warehouseStaff;
+    private User warehouseManager;
     private Supplier supplier;
     private Warehouse warehouse;
     private Product product;
@@ -152,6 +160,7 @@ class ReceiptServiceTest {
                 creditNoteRepository);
         planner = user(1L, UserRole.PLANNER);
         warehouseStaff = user(2L, UserRole.WAREHOUSE_STAFF);
+        warehouseManager = user(3L, UserRole.WAREHOUSE_MANAGER);
         supplier = supplier(10L, true);
         warehouse = warehouse(20L, true);
         product = product(30L, true);
@@ -160,7 +169,7 @@ class ReceiptServiceTest {
     @Test
     void createPurchaseReceipt_successPersistsAndAudits() {
         stubValidLookups();
-        when(sequenceRepository.findBySequenceKeyForUpdate("RECEIPT"))
+        when(sequenceRepository.findBySequenceKeyForUpdate("RECEIPT-20260728"))
                 .thenReturn(Optional.of(sequence()));
         when(accountingPeriodService.resolveOpenPeriod(any()))
                 .thenReturn(AccountingPeriod.builder().id(1L).periodName("2026-07").build());
@@ -175,11 +184,16 @@ class ReceiptServiceTest {
 
         assertEquals(100L, response.getId());
         assertEquals("PURCHASE", response.getType());
-        assertEquals("PENDING_RECEIPT", response.getStatus());
+        assertEquals("PENDING_MANAGER_APPROVAL", response.getStatus());
         assertEquals(500, response.getItems().get(0).getExpectedQty());
-        assertNotNull(response.getReceiptNumber());
-        verify(auditLogService).log(eq(planner), eq(AuditAction.CREATE),
-                eq("RECEIPT"), eq(100L), any(), eq(20L), eq(null), any());
+        assertEquals("PO-20260728-0001", response.getReceiptNumber());
+        assertEquals(LocalDate.of(2026, 7, 28), response.getDocumentDate());
+        ArgumentCaptor<Map<String, Object>> afterCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(auditLogService).log(eq(planner), eq(AuditAction.RECEIPT_CREATE),
+                eq("RECEIPT"), eq(100L), eq("PO-20260728-0001"), eq(20L), eq(null),
+                afterCaptor.capture());
+        assertEquals("PO-20260728-0001", afterCaptor.getValue().get("receiptNumber"));
+        assertEquals(LocalDate.of(2026, 7, 28), afterCaptor.getValue().get("documentDate"));
     }
 
     @Test
@@ -194,7 +208,7 @@ class ReceiptServiceTest {
     @Test
     void createPurchaseReceipt_rejectsInactiveProduct() {
         stubHeaderLookups();
-        when(sequenceRepository.findBySequenceKeyForUpdate("RECEIPT"))
+        when(sequenceRepository.findBySequenceKeyForUpdate("RECEIPT-20260728"))
                 .thenReturn(Optional.of(sequence()));
         when(productRepository.findById(30L)).thenReturn(Optional.of(product(30L, false)));
 
@@ -232,11 +246,14 @@ class ReceiptServiceTest {
     }
 
     @Test
-    void createPurchaseReceipt_rejectsDuplicateSourceReference() {
+    void createPurchaseReceipt_rejectsReceiptNumberConflict() {
         stubHeaderLookups();
-        when(receiptRepository.existsBySupplierIdAndWarehouseIdAndSourceOrderCodeAndTypeAndStatusNot(
-                10L, 20L, "PO-1", ReceiptType.PURCHASE, ReceiptStatus.RETURNED_TO_SUPPLIER))
-                .thenReturn(true);
+        when(sequenceRepository.findBySequenceKeyForUpdate("RECEIPT-20260728"))
+                .thenReturn(Optional.of(sequence()));
+        when(accountingPeriodService.resolveOpenPeriod(any()))
+                .thenReturn(AccountingPeriod.builder().id(1L).periodName("2026-07").build());
+        when(receiptRepository.saveAndFlush(any(Receipt.class)))
+                .thenThrow(new DataIntegrityViolationException("duplicate receipt_number"));
 
         assertThrows(DuplicateResourceException.class,
                 () -> receiptService.createPurchaseReceipt(validRequest(), planner));
@@ -261,7 +278,25 @@ class ReceiptServiceTest {
         assertEquals(20, overItem.getOverReceivedQty());
         assertEquals(100, equalItem.getActualQty());
         assertEquals(0, equalItem.getOverReceivedQty());
-        verify(auditLogService).log(eq(warehouseStaff), eq(AuditAction.UPDATE),
+        verify(auditLogService).log(eq(warehouseStaff), eq(AuditAction.RECEIPT_RECEIVE),
+                eq("RECEIPT"), eq(100L), eq("RN-1"), eq(20L),
+                any(Map.class), any(Map.class));
+    }
+
+    @Test
+    void receiveReceiptCounts_below30Percent_staysDraftForQcReview() {
+        Receipt receipt = receipt(100L, ReceiptStatus.PENDING_RECEIPT);
+        ReceiptItem item1 = item(501L, receipt, 30L, 100);
+        stubReceive(receipt, List.of(item1));
+        stubReceiveSaves();
+
+        ReceiptResponse response = receiptService.receiveReceiptCounts(100L,
+                receiveRequest(line(501L, 20)), warehouseStaff);
+
+        assertEquals("DRAFT", response.getStatus());
+        assertEquals(20, item1.getActualQty());
+        assertNull(receipt.getRejectionReason());
+        verify(auditLogService).log(eq(warehouseStaff), eq(AuditAction.RECEIPT_RECEIVE),
                 eq("RECEIPT"), eq(100L), eq("RN-1"), eq(20L),
                 any(Map.class), any(Map.class));
     }
@@ -463,6 +498,62 @@ class ReceiptServiceTest {
         assertNull(item1.getQcResult());
     }
 
+    @Test
+    void cancelReceipt_successForDraftReceipt() {
+        Receipt receipt = receipt(100L, ReceiptStatus.DRAFT);
+        when(receiptRepository.findByIdWithWarehouse(100L)).thenReturn(Optional.of(receipt));
+        when(receiptRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        User planner = user(7L, UserRole.PLANNER);
+        when(assignmentRepository.findWarehouseIdsByUserId(7L)).thenReturn(List.of(20L));
+
+        ReceiptResponse response = receiptService.cancelReceipt(100L,
+                cancelRequest("User cancellation", 0), planner);
+
+        assertEquals("CANCELLED", response.getStatus());
+        verify(auditLogService).log(eq(planner), eq(AuditAction.RECEIPT_CANCEL),
+                eq("RECEIPT"), eq(100L), any(), eq(20L), any(), any());
+    }
+
+    @Test
+    void cancelReceipt_rejectsFinalizedReceipt() {
+        Receipt receipt = receipt(100L, ReceiptStatus.PUTAWAY_COMPLETED);
+        when(receiptRepository.findByIdWithWarehouse(100L)).thenReturn(Optional.of(receipt));
+        User planner = user(7L, UserRole.PLANNER);
+        when(assignmentRepository.findWarehouseIdsByUserId(7L)).thenReturn(List.of(20L));
+
+        assertThrows(UnprocessableEntityException.class,
+                () -> receiptService.cancelReceipt(100L, cancelRequest("User cancellation", 0), planner));
+    }
+
+    @Test
+    void reopenReceipt_successForApprovedReceiptBeforePutaway() {
+        Receipt receipt = receipt(100L, ReceiptStatus.APPROVED);
+        User manager = user(5L, UserRole.WAREHOUSE_MANAGER);
+        when(receiptRepository.findByIdWithWarehouse(100L)).thenReturn(Optional.of(receipt));
+        when(assignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(20L));
+        when(receiptRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        ReceiptResponse response = receiptService.reopenReceipt(100L,
+                reopenRequest("Reopen to draft", 0), manager);
+
+        assertEquals("DRAFT", response.getStatus());
+        verify(auditLogService).log(eq(manager), eq(AuditAction.RECEIPT_REOPEN),
+                eq("RECEIPT"), eq(100L), any(), eq(20L), any(), any());
+    }
+
+    @Test
+    void reopenReceipt_rejectsReceiptAfterPutaway() {
+        Receipt receipt = receipt(100L, ReceiptStatus.APPROVED);
+        receipt.setPutawayCompletedAt(java.time.OffsetDateTime.now());
+        User manager = user(5L, UserRole.WAREHOUSE_MANAGER);
+        when(receiptRepository.findByIdWithWarehouse(100L)).thenReturn(Optional.of(receipt));
+        when(assignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(20L));
+
+        assertThrows(UnprocessableEntityException.class,
+                () -> receiptService.reopenReceipt(100L, reopenRequest("Reopen after putaway", 0), manager));
+    }
+
     private void stubValidLookups() {
         stubHeaderLookups();
         when(productRepository.findById(30L)).thenReturn(Optional.of(product));
@@ -474,6 +565,164 @@ class ReceiptServiceTest {
         when(assignmentRepository.findWarehouseIdsByUserId(1L)).thenReturn(List.of(20L));
     }
 
+    @Test
+    void decidePreReceiveApproval_approveMovesReceiptToPendingReceipt() {
+        Receipt receipt = receipt(100L, ReceiptStatus.PENDING_MANAGER_APPROVAL);
+        ReceiptItem item = item(501L, receipt, 30L, 100);
+        when(receiptRepository.findByIdWithWarehouse(100L)).thenReturn(Optional.of(receipt));
+        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
+        when(receiptItemRepository.findByReceiptIdOrderByIdAsc(100L)).thenReturn(List.of(item));
+        when(receiptRepository.save(any(Receipt.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ReceiptResponse response = receiptService.decidePreReceiveApproval(100L,
+                preReceiveRequest("APPROVE", null), warehouseManager);
+
+        assertEquals("PENDING_RECEIPT", response.getStatus());
+        assertEquals(warehouseManager, receipt.getPreReceiveApprovedBy());
+        assertNull(receipt.getPreReceiveRejectionReason());
+        verify(auditLogService).log(eq(warehouseManager), eq(AuditAction.RECEIPT_PRE_RECEIVE_APPROVE),
+                eq("RECEIPT"), eq(100L), eq("RN-1"), eq(20L), any(Map.class), any(Map.class));
+    }
+
+    @Test
+    void decidePreReceiveApproval_approvesLegacyPendingReceiptWithoutCount() {
+        Receipt receipt = receipt(100L, ReceiptStatus.PENDING_RECEIPT);
+        ReceiptItem item = item(501L, receipt, 30L, 100);
+        when(receiptRepository.findByIdWithWarehouse(100L)).thenReturn(Optional.of(receipt));
+        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
+        when(receiptItemRepository.findByReceiptIdOrderByIdAsc(100L)).thenReturn(List.of(item));
+        when(receiptRepository.save(any(Receipt.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ReceiptResponse response = receiptService.decidePreReceiveApproval(100L,
+                preReceiveRequest("APPROVE", null), warehouseManager);
+
+        assertEquals("PENDING_RECEIPT", response.getStatus());
+        assertEquals(warehouseManager, receipt.getPreReceiveApprovedBy());
+        assertNotNull(receipt.getPreReceiveApprovedAt());
+        verify(auditLogService).log(eq(warehouseManager), eq(AuditAction.RECEIPT_PRE_RECEIVE_APPROVE),
+                eq("RECEIPT"), eq(100L), eq("RN-1"), eq(20L), any(Map.class), any(Map.class));
+    }
+
+    @Test
+    void decidePreReceiveApproval_rejectRequiresReason() {
+        Receipt receipt = receipt(100L, ReceiptStatus.PENDING_MANAGER_APPROVAL);
+        when(receiptRepository.findByIdWithWarehouse(100L)).thenReturn(Optional.of(receipt));
+        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
+        when(receiptItemRepository.findByReceiptIdOrderByIdAsc(100L)).thenReturn(List.of());
+
+        assertThrows(UnprocessableEntityException.class,
+                () -> receiptService.decidePreReceiveApproval(100L,
+                        preReceiveRequest("REJECT", " "), warehouseManager));
+        verify(receiptRepository, never()).save(any());
+    }
+
+    @Test
+    void decidePreReceiveApproval_rejectsAdminRole() {
+        User admin = user(9L, UserRole.ADMIN);
+
+        assertThrows(AccessDeniedException.class,
+                () -> receiptService.decidePreReceiveApproval(100L,
+                        preReceiveRequest("APPROVE", null), admin));
+        verify(receiptRepository, never()).findByIdWithWarehouse(any());
+    }
+
+    @Test
+    void decidePreReceiveApproval_rejectMovesReceiptToRevisionRequired() {
+        Receipt receipt = receipt(100L, ReceiptStatus.PENDING_MANAGER_APPROVAL);
+        when(receiptRepository.findByIdWithWarehouse(100L)).thenReturn(Optional.of(receipt));
+        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
+        when(receiptItemRepository.findByReceiptIdOrderByIdAsc(100L)).thenReturn(List.of());
+        when(receiptRepository.save(any(Receipt.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ReceiptResponse response = receiptService.decidePreReceiveApproval(100L,
+                preReceiveRequest("REJECT", "Need source document"), warehouseManager);
+
+        assertEquals("REVISION_REQUIRED", response.getStatus());
+        assertEquals("Need source document", receipt.getPreReceiveRejectionReason());
+        verify(auditLogService).log(eq(warehouseManager), eq(AuditAction.RECEIPT_PRE_RECEIVE_REJECT),
+                eq("RECEIPT"), eq(100L), eq("RN-1"), eq(20L), any(Map.class), any(Map.class));
+    }
+
+    @Test
+    void reviseReceipt_resubmitsRevisionRequiredToManagerApproval() {
+        Receipt receipt = receipt(100L, ReceiptStatus.REVISION_REQUIRED);
+        ReceiptItem item = item(501L, receipt, 30L, 100);
+        receipt.setPreReceiveRejectionReason("Need source document");
+        when(receiptRepository.findByIdWithWarehouse(100L)).thenReturn(Optional.of(receipt));
+        when(assignmentRepository.findWarehouseIdsByUserId(1L)).thenReturn(List.of(20L));
+        when(receiptItemRepository.findByReceiptIdOrderByIdAsc(100L)).thenReturn(List.of(item));
+        when(accountingPeriodService.resolveOpenPeriod(LocalDate.of(2026, 7, 29)))
+                .thenReturn(AccountingPeriod.builder().id(2L).periodName("2026-07").build());
+        when(productRepository.findById(31L)).thenReturn(Optional.of(product(31L, true)));
+        when(receiptItemRepository.saveAll(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(receiptRepository.save(any(Receipt.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ReceiptResponse response = receiptService.reviseReceipt(100L, revisionRequest(), planner);
+
+        assertEquals("PENDING_MANAGER_APPROVAL", response.getStatus());
+        assertNull(receipt.getPreReceiveRejectionReason());
+        assertEquals(31L, item.getProduct().getId());
+        assertEquals(200, item.getExpectedQty());
+        verify(auditLogService).log(eq(planner), eq(AuditAction.RECEIPT_PRE_RECEIVE_RESUBMIT),
+                eq("RECEIPT"), eq(100L), eq("RN-1"), eq(20L), any(Map.class), any(Map.class));
+    }
+
+    @Test
+    void receiveReceiptCounts_blocksPreReceiveApprovalStates() {
+        Receipt pending = receipt(100L, ReceiptStatus.PENDING_MANAGER_APPROVAL);
+        when(receiptRepository.findByIdWithWarehouse(100L)).thenReturn(Optional.of(pending));
+        when(assignmentRepository.findWarehouseIdsByUserId(2L)).thenReturn(List.of(20L));
+
+        ReceiptCountException pendingEx = assertThrows(ReceiptCountException.class,
+                () -> receiptService.receiveReceiptCounts(100L,
+                        receiveRequest(line(501L, 1)), warehouseStaff));
+        assertEquals("RECEIPT_PENDING_MANAGER_APPROVAL", pendingEx.getCode());
+
+        Receipt revision = receipt(101L, ReceiptStatus.REVISION_REQUIRED);
+        when(receiptRepository.findByIdWithWarehouse(101L)).thenReturn(Optional.of(revision));
+        ReceiptCountException revisionEx = assertThrows(ReceiptCountException.class,
+                () -> receiptService.receiveReceiptCounts(101L,
+                        receiveRequest(line(501L, 1)), warehouseStaff));
+        assertEquals("RECEIPT_PENDING_MANAGER_APPROVAL", revisionEx.getCode());
+        verify(receiptItemRepository, never()).findByReceiptIdOrderByIdAsc(any());
+    }
+
+    private ReceiptCancelRequest cancelRequest(String reason, int expectedVersion) {
+        ReceiptCancelRequest request = new ReceiptCancelRequest();
+        request.setReason(reason);
+        request.setExpectedVersion(expectedVersion);
+        return request;
+    }
+
+    private ReceiptReopenRequest reopenRequest(String reason, int expectedVersion) {
+        ReceiptReopenRequest request = new ReceiptReopenRequest();
+        request.setReason(reason);
+        request.setExpectedVersion(expectedVersion);
+        return request;
+    }
+
+    private PreReceiveApprovalRequest preReceiveRequest(String decision, String reason) {
+        PreReceiveApprovalRequest request = new PreReceiveApprovalRequest();
+        request.setExpectedVersion(0);
+        request.setDecision(decision);
+        request.setReason(reason);
+        return request;
+    }
+
+    private ReviseReceiptRequest revisionRequest() {
+        ReviseReceiptItemRequest item = new ReviseReceiptItemRequest();
+        item.setReceiptItemId(501L);
+        item.setProductId(31L);
+        item.setExpectedQty(200);
+
+        ReviseReceiptRequest request = new ReviseReceiptRequest();
+        request.setExpectedVersion(0);
+        request.setDocumentDate(LocalDate.of(2026, 7, 29));
+        request.setItems(List.of(item));
+        request.setNotes("Resubmitted");
+        return request;
+    }
+
     private CreateReceiptRequest validRequest() {
         CreateReceiptItemRequest item = new CreateReceiptItemRequest();
         item.setProductId(30L);
@@ -482,9 +731,7 @@ class ReceiptServiceTest {
         CreateReceiptRequest request = new CreateReceiptRequest();
         request.setSupplierId(10L);
         request.setWarehouseId(20L);
-        request.setContactPerson("Nguyen Van A");
-        request.setSourceReference("PO-1");
-        request.setSourceChannel(ReceiptSourceChannel.ZALO);
+        request.setDocumentDate(LocalDate.of(2026, 7, 28));
         request.setItems(List.of(item));
         return request;
     }
@@ -526,6 +773,7 @@ class ReceiptServiceTest {
 
     private ReceiveReceiptRequest receiveRequest(ReceiveReceiptItemRequest... lines) {
         ReceiveReceiptRequest request = new ReceiveReceiptRequest();
+        request.setExpectedVersion(0);
         request.setItems(List.of(lines));
         return request;
     }
@@ -566,7 +814,7 @@ class ReceiptServiceTest {
 
     private DocumentSequence sequence() {
         DocumentSequence sequence = new DocumentSequence();
-        sequence.setSequenceKey("RECEIPT");
+        sequence.setSequenceKey("RECEIPT-20260728");
         sequence.setNextValue(1L);
         return sequence;
     }

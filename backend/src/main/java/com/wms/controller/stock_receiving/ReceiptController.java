@@ -36,8 +36,12 @@ import com.wms.enums.user_configuration.*;
 import com.wms.enums.warehouse_location.*;
 import com.wms.enums.warehouse_transfer.*;
 import com.wms.dto.request.CreateReceiptRequest;
+import com.wms.dto.request.PreReceiveApprovalRequest;
+import com.wms.dto.request.ReceiptCancelRequest;
 import com.wms.dto.request.ReceiveReceiptRequest;
+import com.wms.dto.request.ReceiptReopenRequest;
 import com.wms.dto.request.ReceiptQcRequest;
+import com.wms.dto.request.ReviseReceiptRequest;
 import com.wms.dto.response.ReceiptResponse;
 import com.wms.dto.response.ReceiptQcResponse;
 import com.wms.entity.access_control.User;
@@ -129,12 +133,50 @@ public class ReceiptController {
             @ApiResponse(responseCode = "401", description = "Missing or invalid authentication"),
             @ApiResponse(responseCode = "403", description = "Planner cannot access warehouse"),
             @ApiResponse(responseCode = "404", description = "Supplier, warehouse, or product not found"),
-            @ApiResponse(responseCode = "409", description = "Duplicate source reference"),
+            @ApiResponse(responseCode = "409", description = "Receipt number conflict"),
             @ApiResponse(responseCode = "422", description = "Inactive master data or invalid item semantics")
     })
     public ReceiptResponse createReceipt(@Valid @RequestBody CreateReceiptRequest request) {
         User actor = currentUserService.getRequiredCurrentUser();
         return receiptService.createPurchaseReceipt(request, actor);
+    }
+
+    @PutMapping("/{id}/pre-receive-approval")
+    @PreAuthorize("hasRole('WAREHOUSE_MANAGER')")
+    @Operation(summary = "Approve or reject a planned inbound receipt before physical receiving")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Pre-receive decision accepted",
+                    content = @Content(schema = @Schema(implementation = ReceiptResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Validation error"),
+            @ApiResponse(responseCode = "401", description = "Missing or invalid authentication"),
+            @ApiResponse(responseCode = "403", description = "Manager cannot access warehouse"),
+            @ApiResponse(responseCode = "404", description = "Receipt not found"),
+            @ApiResponse(responseCode = "409", description = "Version conflict"),
+            @ApiResponse(responseCode = "422", description = "Receipt is not awaiting manager approval")
+    })
+    public ReceiptResponse decidePreReceiveApproval(@PathVariable Long id,
+                                                    @Valid @RequestBody PreReceiveApprovalRequest request) {
+        User actor = currentUserService.getRequiredCurrentUser();
+        return receiptService.decidePreReceiveApproval(id, request, actor);
+    }
+
+    @PutMapping("/{id}/revision")
+    @PreAuthorize("hasAnyRole('PLANNER', 'ADMIN')")
+    @Operation(summary = "Revise and resubmit a rejected inbound receipt for manager approval")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Receipt revision resubmitted",
+                    content = @Content(schema = @Schema(implementation = ReceiptResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Validation error"),
+            @ApiResponse(responseCode = "401", description = "Missing or invalid authentication"),
+            @ApiResponse(responseCode = "403", description = "Planner cannot access warehouse"),
+            @ApiResponse(responseCode = "404", description = "Receipt or product not found"),
+            @ApiResponse(responseCode = "409", description = "Version conflict"),
+            @ApiResponse(responseCode = "422", description = "Receipt revision is not allowed")
+    })
+    public ReceiptResponse reviseReceipt(@PathVariable Long id,
+                                         @Valid @RequestBody ReviseReceiptRequest request) {
+        User actor = currentUserService.getRequiredCurrentUser();
+        return receiptService.reviseReceipt(id, request, actor);
     }
 
     @PutMapping("/{id}/receive")
@@ -174,5 +216,37 @@ public class ReceiptController {
             Authentication authentication) {
         ReceiptQcResponse response = receiptQcService.processQc(id, request, authentication.getName());
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/{id}/cancel")
+    @PreAuthorize("hasAnyRole('PLANNER', 'WAREHOUSE_MANAGER', 'ADMIN')")
+    @Operation(summary = "Status-based cancellation of inbound receipt")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Receipt cancelled"),
+            @ApiResponse(responseCode = "400", description = "Validation error"),
+            @ApiResponse(responseCode = "403", description = "User cannot cancel this receipt"),
+            @ApiResponse(responseCode = "409", description = "Version conflict"),
+            @ApiResponse(responseCode = "422", description = "Receipt already finalized")
+    })
+    public ReceiptResponse cancelReceipt(@PathVariable Long id,
+                                         @Valid @RequestBody ReceiptCancelRequest request) {
+        User actor = currentUserService.getRequiredCurrentUser();
+        return receiptService.cancelReceipt(id, request, actor);
+    }
+
+    @PostMapping("/{id}/reopen")
+    @PreAuthorize("hasAnyRole('STOREKEEPER', 'WAREHOUSE_MANAGER', 'ADMIN')")
+    @Operation(summary = "Manager reopen flow for APPROVED or RETURN_TO_SUPPLIER_PENDING receipts")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Receipt reopened"),
+            @ApiResponse(responseCode = "400", description = "Validation error"),
+            @ApiResponse(responseCode = "403", description = "User cannot reopen this receipt"),
+            @ApiResponse(responseCode = "409", description = "Version conflict"),
+            @ApiResponse(responseCode = "422", description = "Receipt cannot be reopened")
+    })
+    public ReceiptResponse reopenReceipt(@PathVariable Long id,
+                                         @Valid @RequestBody ReceiptReopenRequest request) {
+        User actor = currentUserService.getRequiredCurrentUser();
+        return receiptService.reopenReceipt(id, request, actor);
     }
 }

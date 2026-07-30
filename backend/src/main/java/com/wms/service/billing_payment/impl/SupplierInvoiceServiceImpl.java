@@ -89,10 +89,8 @@ public class SupplierInvoiceServiceImpl implements SupplierInvoiceService {
         Receipt receipt = receiptRepository.findById(request.getReceiptId())
                 .orElseThrow(() -> new ResourceNotFoundException("Receipt not found with id: " + request.getReceiptId()));
 
-        if (receipt.getStatus() != ReceiptStatus.APPROVED) {
-            // 400: wrong document status for this action (ReceiptStatus has no COMPLETED
-            // value - APPROVED is the real terminal/putaway-unlocked state per Spec 003).
-            throw new BusinessRuleViolationException("RECEIPT_NOT_APPROVED: Receipt must be in APPROVED status before creating a supplier invoice");
+        if (receipt.getStatus() != ReceiptStatus.PUTAWAY_COMPLETED) {
+            throw new BusinessRuleViolationException("RECEIPT_NOT_PUTAWAY_COMPLETED: Receipt must be put away before creating a supplier invoice");
         }
 
         if (supplierInvoiceRepository.findByReceiptId(receipt.getId()).isPresent()) {
@@ -110,8 +108,7 @@ public class SupplierInvoiceServiceImpl implements SupplierInvoiceService {
                 .findPeriodByDateAndStatus(request.getDocumentDate(), AccountingPeriodStatus.OPEN)
                 .orElseThrow(() -> new UnprocessableEntityException("No open accounting period found for date " + request.getDocumentDate()));
 
-        // 4. Calculate total amount from actually-received quantity x unit cost per line,
-        // per feature-accountant-supplier-invoicing.md 3 (Event-driven).
+        // 4. Calculate total amount from approved, putaway-unlocked quantity x unit cost per line.
         BigDecimal calculatedAmount = calculateTotalAmount(receipt.getId());
 
         // The Accountant reconciles this calculated estimate against the supplier's actual
@@ -216,11 +213,11 @@ public class SupplierInvoiceServiceImpl implements SupplierInvoiceService {
                 throw new UnprocessableEntityException(
                         "ITEM_UNIT_COST_MISSING: Receipt item unit cost is required for invoicing");
             }
-            Integer actualQty = item.getActualQty();
-            if (actualQty == null || actualQty <= 0) {
+            Integer approvedQty = item.getApprovedQty();
+            if (approvedQty == null || approvedQty <= 0) {
                 continue;
             }
-            total = total.add(item.getUnitCost().multiply(BigDecimal.valueOf(actualQty)));
+            total = total.add(item.getUnitCost().multiply(BigDecimal.valueOf(approvedQty)));
         }
         return total;
     }

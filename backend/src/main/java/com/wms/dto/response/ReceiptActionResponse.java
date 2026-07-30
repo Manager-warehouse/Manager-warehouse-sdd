@@ -40,6 +40,7 @@ import lombok.Builder;
 import lombok.Getter;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 
 /**
  * Response DTO for receipt approval/reject/return-confirm/putaway-complete actions.
@@ -54,4 +55,5 @@ public class ReceiptActionResponse {
     private Integer version;
     private OffsetDateTime updatedAt;
     private String message;
+    private List<String> batchCodes;
 }

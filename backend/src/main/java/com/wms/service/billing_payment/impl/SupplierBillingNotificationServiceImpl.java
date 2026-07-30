@@ -6,6 +6,7 @@ import com.wms.entity.billing_payment.SupplierBillingNotification;
 import com.wms.entity.stock_receiving.Receipt;
 import com.wms.entity.stock_receiving.ReceiptItem;
 import com.wms.enums.access_control.UserRole;
+import com.wms.enums.stock_receiving.ReceiptStatus;
 import com.wms.exception.ResourceNotFoundException;
 import com.wms.repository.ReceiptItemRepository;
 import com.wms.repository.SupplierBillingNotificationRepository;
@@ -33,7 +34,10 @@ public class SupplierBillingNotificationServiceImpl implements SupplierBillingNo
     @Override
     @Transactional
     public void createNotificationForReceiptOrder(Receipt receipt) {
-        if (receipt.getSupplier() == null) {
+        if (receipt.getSupplier() == null || receipt.getStatus() != ReceiptStatus.PUTAWAY_COMPLETED) {
+            return;
+        }
+        if (supplierBillingNotificationRepository.findByReceiptId(receipt.getId()).isPresent()) {
             return;
         }
 
@@ -55,18 +59,18 @@ public class SupplierBillingNotificationServiceImpl implements SupplierBillingNo
         supplierBillingNotificationRepository.save(notification);
     }
 
-    // Mirrors SupplierInvoiceServiceImpl.calculateTotalAmount's unit_cost x actualQty formula,
-    // but never throws on missing/zero cost or qty - this is a pre-invoice estimate shown to the
-    // accountant, not the binding invoice total, and must not block receipt approval.
+    // Mirrors SupplierInvoiceServiceImpl.calculateTotalAmount's unit_cost x approvedQty formula,
+    // but never throws on missing/zero cost or qty. This post-putaway estimate is for review;
+    // the binding supplier invoice still validates strictly.
     private BigDecimal calculateTotalAmountEstimate(Long receiptId) {
         List<ReceiptItem> items = receiptItemRepository.findByReceiptId(receiptId);
         BigDecimal total = BigDecimal.ZERO;
         for (ReceiptItem item : items) {
-            Integer actualQty = item.getActualQty();
-            if (item.getUnitCost() == null || actualQty == null || actualQty <= 0) {
+            Integer approvedQty = item.getApprovedQty();
+            if (item.getUnitCost() == null || approvedQty == null || approvedQty <= 0) {
                 continue;
             }
-            total = total.add(item.getUnitCost().multiply(BigDecimal.valueOf(actualQty)));
+            total = total.add(item.getUnitCost().multiply(BigDecimal.valueOf(approvedQty)));
         }
         return total;
     }

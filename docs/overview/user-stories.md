@@ -1,5 +1,7 @@
 # USER STORIES - HỆ THỐNG QUẢN LÝ KHO (WMS) - CÔNG TY PHÚC ANH
+
 # Phiên bản: 2.1 | Cập nhật: 2026-07-15
+
 # Ghi chú: Hệ thống sử dụng toàn bộ XE NỘI BỘ của Phúc Anh — KHÔNG phát sinh chi phí 3PL, KHÔNG có luồng Duyệt chi vận tải.
 
 ---
@@ -61,7 +63,7 @@
 3. **Nếu chọn Tiêu hủy:** Hệ thống tự động tạo Phiếu xuất hủy và được phê duyệt bởi Trưởng kho.
 
 **Ghi chú mapping Sprint 1:** Trong Spec 003 inbound receipt QC, màn hình xử lý Quarantine chỉ hiển thị nút **Trả NCC**. Hệ thống tự tạo Debit Note khi Trưởng kho tạo RTV request; Thủ kho xác nhận đã giao trả đủ toàn bộ số lượng Quarantine thì hệ thống mới trừ tồn Quarantine. Luồng **Tiêu hủy** được tách sang Spec 009 để áp dụng approval thresholds riêng.
-   
+
 ---
 
 ### US-WMS-05: Ký duyệt Nhập kho chính thức (Priority: P1)
@@ -183,7 +185,7 @@
 
 **Tiêu chí nghiệm thu:**
 
-1. Planner nhập mã lệnh điều chuyển từ Công ty mẹ/bộ phận điều phối (`external_instruction_code`), kho nguồn, kho đích, ngày kế hoạch, ngày chứng từ và các SKU/số lượng cần chuyển.
+1. Planner nhập mã lệnh điều chuyển từ Công ty mẹ/bộ phận điều phối (`external_instruction_code`), kho nguồn, kho đích, ngày kế hoạch, Ngày Nhập Hàng và các SKU/số lượng cần chuyển.
 2. Hệ thống không tự sinh gợi ý điều chuyển và không tự quyết định kho nguồn/kho đích/số lượng trong Sprint 1.
 3. Hệ thống bắt buộc mã lệnh ngoài để truy vết sau này.
 4. Planner có thể sửa hoặc hủy phiếu khi phiếu còn trạng thái **Mới**.
@@ -455,5 +457,5 @@
 
 **Tiêu chí nghiệm thu:** Test xác nhận hành vi người dùng, chạy được qua `npm test`, không thay thế integration test của backend và dùng parameterized tests cho dữ liệu biên khi phù hợp.
 
-*Tổng cộng: 30 User Stories: 27 câu chuyện vận hành và 3 câu chuyện chất lượng kỹ thuật. Chi tiết chuẩn: `.sdd/specs/001`–`012`.*
-*Ghi chú quan trọng: Hệ thống KHÔNG có quản lý sản xuất (Manufacturing), KHÔNG có HR/HRM, KHÔNG có Barcode/QR Scanner, KHÔNG có cổng B2B/B2C, SỬ DỤNG XE NỘI BỘ (không có chi phí 3PL trong luồng xuất hàng thông thường).*
+_Tổng cộng: 30 User Stories: 27 câu chuyện vận hành và 3 câu chuyện chất lượng kỹ thuật. Chi tiết chuẩn: `.sdd/specs/001`–`012`._
+_Ghi chú quan trọng: Hệ thống KHÔNG có quản lý sản xuất (Manufacturing), KHÔNG có HR/HRM, KHÔNG có Barcode/QR Scanner, KHÔNG có cổng B2B/B2C, SỬ DỤNG XE NỘI BỘ (không có chi phí 3PL trong luồng xuất hàng thông thường)._

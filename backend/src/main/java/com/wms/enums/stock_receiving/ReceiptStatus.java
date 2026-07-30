@@ -36,11 +36,16 @@ import com.wms.enums.user_configuration.*;
 import com.wms.enums.warehouse_location.*;
 import com.wms.enums.warehouse_transfer.*;
 public enum ReceiptStatus {
+    PENDING_MANAGER_APPROVAL,
+    REVISION_REQUIRED,
     PENDING_RECEIPT,
     DRAFT,
     QC_COMPLETED,
     QC_FAILED,
     APPROVED,
+    PARTIALLY_APPROVED,
+    PUTAWAY_COMPLETED,
     RETURN_TO_SUPPLIER_PENDING,
-    RETURNED_TO_SUPPLIER
+    RETURNED_TO_SUPPLIER,
+    CANCELLED
 }

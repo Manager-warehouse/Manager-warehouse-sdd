@@ -309,7 +309,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         return PickingCandidateResponse.builder()
                 .inventoryId(inv.getId())
                 .batchId(batch != null ? batch.getId() : null)
-                .batchCode(batch != null ? batch.getBatchNumber() : null)
+                .batchCode(batch != null ? readableBatchCode(batch) : null)
                 .locationId(bin != null ? bin.getId() : null)
                 .locationCode(bin != null ? bin.getCode() : null)
                 .zoneId(zone != null ? zone.getId() : null)
@@ -2538,6 +2538,10 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
 
     private String allocationKey(Long doItemId, Long inventoryId) {
         return doItemId + ":" + inventoryId;
+    }
+
+    private String readableBatchCode(Batch batch) {
+        return batch.getBatchCode() != null ? batch.getBatchCode() : batch.getBatchNumber();
     }
 
     private record ItemPlan(Product product, BigDecimal requestedQty, BigDecimal unitPrice, BigDecimal unitCost) {

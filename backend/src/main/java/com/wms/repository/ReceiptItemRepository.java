@@ -59,7 +59,6 @@ public interface ReceiptItemRepository extends JpaRepository<ReceiptItem, Long> 
 
     /**
      * Sum of actual quantities for items belonging to a receipt.
-     * Used to compute total quarantine quantity for RTV validation.
      */
     @Query("SELECT COALESCE(SUM(i.actualQty), 0) FROM ReceiptItem i WHERE i.receipt.id = :receiptId")
     BigDecimal sumActualQtyByReceiptId(@Param("receiptId") Long receiptId);
@@ -76,15 +75,15 @@ public interface ReceiptItemRepository extends JpaRepository<ReceiptItem, Long> 
            "JOIN FETCH ri.receipt r " +
            "JOIN FETCH ri.product p " +
            "WHERE r.warehouse.id = :warehouseId " +
-           "  AND ri.sampleFailedQty > 0 " +
            "  AND (" +
-           "    (r.status = 'QC_FAILED' AND NOT EXISTS (" +
+           "    (ri.quarantineQty > ri.resolvedQuarantineQty " +
+           "     AND r.status IN ('PARTIALLY_APPROVED', 'RETURN_TO_SUPPLIER_PENDING') AND NOT EXISTS (" +
            "        SELECT 1 FROM Adjustment a " +
            "        WHERE a.referenceType = 'RECEIPT' " +
            "          AND a.referenceId = r.id " +
            "          AND a.type = 'RETURN_TO_VENDOR'" +
            "    )) OR " +
-           "    (r.type = 'RETURN' AND r.status = 'APPROVED' AND NOT EXISTS (" +
+           "    (r.type = 'RETURN' AND r.status = 'APPROVED' AND ri.sampleFailedQty > 0 AND NOT EXISTS (" +
            "        SELECT 1 FROM Adjustment a " +
            "        WHERE a.referenceType = 'RECEIPT_ITEM' " +
            "          AND a.referenceId = ri.id " +
