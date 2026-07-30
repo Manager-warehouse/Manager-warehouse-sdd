@@ -316,7 +316,7 @@ class DeliveryOrderServiceImplTest {
         when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
         when(deliveryOrderItemRepository.findByDeliveryOrderId(100L)).thenReturn(List.of(item));
         when(allocationRepository.findByDeliveryOrderItemDeliveryOrderId(100L)).thenReturn(List.of());
-        when(inventoryRepository.findValidFifoCandidates(20L, 30L)).thenReturn(List.of(inventory));
+        when(inventoryRepository.findValidFifoCandidates(20L, 30L, 100L)).thenReturn(List.of(inventory));
         when(inventoryRepository.findByIdInWithLock(List.of(501L))).thenReturn(List.of(inventory));
         when(reservationRepository.findWithWarehouseAndProductByWarehouseIdAndProductIdForUpdate(20L, 30L))
                 .thenReturn(Optional.of(reservation));
@@ -403,6 +403,43 @@ class DeliveryOrderServiceImplTest {
                 .isInstanceOf(OutboundDeliveryException.class)
                 .extracting("code")
                 .isEqualTo("WAREHOUSE_SCOPE_FORBIDDEN");
+        verify(deliveryOrderRepository, never()).save(any());
+    }
+
+    @Test
+    void createDeliveryOrder_rejectsInTransitWarehouse() {
+        warehouse.setType(WarehouseType.IN_TRANSIT);
+        when(warehouseRepository.findById(20L)).thenReturn(Optional.of(warehouse));
+
+        assertThatThrownBy(() -> service.createDeliveryOrder(validRequest(new BigDecimal("10.00")), planner))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code")
+                .isEqualTo("WAREHOUSE_TYPE_INVALID");
+        verify(deliveryOrderRepository, never()).save(any());
+    }
+
+    @Test
+    void createDeliveryOrder_rejectsPastExpectedDeliveryDate() {
+        DeliveryOrderCreateRequest request = validRequest(new BigDecimal("10.00"));
+        request.setDocumentDate(LocalDate.now().minusDays(2));
+        request.setExpectedDeliveryDate(LocalDate.now().minusDays(1));
+
+        assertThatThrownBy(() -> service.createDeliveryOrder(request, planner))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code")
+                .isEqualTo("INVALID_DELIVERY_DATE");
+        verify(deliveryOrderRepository, never()).save(any());
+    }
+
+    @Test
+    void createDeliveryOrder_rejectsNonSaleType() {
+        DeliveryOrderCreateRequest request = validRequest(new BigDecimal("10.00"));
+        request.setType(DeliveryOrderType.ADJUSTMENT);
+
+        assertThatThrownBy(() -> service.createDeliveryOrder(request, planner))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code")
+                .isEqualTo("DELIVERY_ORDER_TYPE_INVALID");
         verify(deliveryOrderRepository, never()).save(any());
     }
 
@@ -618,7 +655,7 @@ class DeliveryOrderServiceImplTest {
         when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
         when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
         when(deliveryOrderItemRepository.findByDeliveryOrderId(100L)).thenReturn(List.of(item));
-        when(inventoryRepository.findValidFifoCandidates(20L, 30L)).thenReturn(List.of(replacementInventory));
+        when(inventoryRepository.findValidFifoCandidates(20L, 30L, 100L)).thenReturn(List.of(replacementInventory));
 
         Map<Long, List<PickingCandidateResponse>> response = service.getPickingCandidates(100L, storekeeper);
 
@@ -1595,7 +1632,7 @@ class DeliveryOrderServiceImplTest {
         when(assignmentRepository.findWarehouseIdsByUserId(1L)).thenReturn(List.of(20L));
         when(dealerRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(dealer));
         when(productRepository.findByIdAndIsActiveTrue(30L)).thenReturn(Optional.of(product));
-        when(priceHistoryService.lookupApproved(30L, 20L, LocalDate.of(2026, 6, 18)))
+        when(priceHistoryService.lookupApproved(eq(30L), eq(20L), any(LocalDate.class)))
                 .thenReturn(Optional.of(price));
     }
 
@@ -1607,8 +1644,8 @@ class DeliveryOrderServiceImplTest {
         request.setDealerId(10L);
         request.setWarehouseId(20L);
         request.setType(DeliveryOrderType.SALE);
-        request.setDocumentDate(LocalDate.of(2026, 6, 18));
-        request.setExpectedDeliveryDate(LocalDate.of(2026, 6, 20));
+        request.setDocumentDate(LocalDate.now());
+        request.setExpectedDeliveryDate(LocalDate.now().plusDays(2));
         request.setItems(List.of(item));
         return request;
     }

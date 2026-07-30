@@ -129,6 +129,7 @@ export default function DeliveryOrders() {
   const [search, setSearch] = useState('');
   const [dealers, setDealers] = useState([]);
   const [products, setProducts] = useState([]);
+  const [approvedProductIds, setApprovedProductIds] = useState(null);
   const [masterDataLoading, setMasterDataLoading] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [formData, setFormData] = useState(createEmptyForm);
@@ -169,14 +170,19 @@ export default function DeliveryOrders() {
   const fetchMasterData = async () => {
     setMasterDataLoading(true);
     try {
+      const today = new Date().toISOString().slice(0, 10);
       const promises = [
         masterDataService.getDealers(),
         masterDataService.getProducts({ size: 200 }),
       ];
       if (activeWarehouse?.id) {
         promises.push(outboundService.getAllAvailability(activeWarehouse.id));
+        promises.push(
+          pricingService.getAll({ warehouse_id: activeWarehouse.id, status: 'APPROVED' })
+            .catch(() => []),
+        );
       }
-      const [dealersData, productsData, stockData] = await Promise.all(promises);
+      const [dealersData, productsData, stockData, approvedPrices] = await Promise.all(promises);
       setDealers(dealersData.filter((dealer) => dealer.is_active !== false));
       setProducts(productsData.filter((product) => product.is_active !== false));
 
@@ -188,6 +194,18 @@ export default function DeliveryOrders() {
         setStockMap(map);
       } else {
         setStockMap({});
+      }
+
+      // Build Set of productIds that have at least one APPROVED price valid up to today
+      if (approvedPrices && approvedPrices.length > 0) {
+        const ids = new Set(
+          approvedPrices
+            .filter((p) => !p.effective_date || p.effective_date <= today)
+            .map((p) => Number(p.product_id)),
+        );
+        setApprovedProductIds(ids);
+      } else {
+        setApprovedProductIds(new Set());
       }
     } catch {
       addToast('Không thể tải dữ liệu đại lý/sản phẩm/tồn kho', 'warning');
@@ -342,7 +360,10 @@ export default function DeliveryOrders() {
   const hasInvalidPrice = formData.items.some((item) => item.product_id && (item.price_status !== 'ready' || Number(item.unit_price) <= 0));
   const isSubmitDisabled = !formData.dealer_id || !formData.expected_delivery_date || !formData.items.length || hasInvalidPrice || creditStatus === 'BLOCKED' || submitting;
   const filteredDealers = dealers;
-  const filteredProducts = products;
+  // Only show products that have at least one APPROVED price for this warehouse
+  const filteredProducts = approvedProductIds === null
+    ? products
+    : products.filter((p) => approvedProductIds.has(Number(p.id)));
 
   const productOptionsFor = (selectedProductId) => {
     if (!selectedProductId) {

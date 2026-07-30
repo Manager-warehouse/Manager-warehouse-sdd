@@ -21,6 +21,7 @@
         <!-- Security overrides for Trivy findings while keeping Spring Boot 3.4.5. -->
         <jackson-bom.version>2.18.8</jackson-bom.version>
         <postgresql.version>42.7.12</postgresql.version>
+        <lombok.version>1.18.36</lombok.version>
         <!-- Exclude boilerplate/non-business files from coverage checks -->
         <sonar.coverage.exclusions>
             **/entity/**,
@@ -210,7 +211,7 @@
                         <path>
                             <groupId>org.projectlombok</groupId>
                             <artifactId>lombok</artifactId>
-                            <version>1.18.38</version>
+                            <version>${lombok.version}</version>
                         </path>
                     </annotationProcessorPaths>
                 </configuration>
