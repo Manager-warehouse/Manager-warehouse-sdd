@@ -102,13 +102,29 @@ public class InterWarehouseTransferHelper {
     public void allocateReservations(InterWarehouseTransfer transfer) {
         allocationRepository.deleteByTransferItemTransferId(transfer.getId());
         for (InterWarehouseTransferItem item : items(transfer)) {
+            List<Inventory> candidates = inventoryRepository.findReservableForUpdate(
+                    transfer.getSourceWarehouse().getId(), item.getProduct().getId());
+            BigDecimal availableTotal = candidates.stream()
+                    .map(inventory -> inventory.getTotalQty().subtract(inventory.getReservedQty()))
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            if (availableTotal.compareTo(item.getPlannedQty()) < 0) {
+                throw new BusinessRuleViolationException(
+                        "INSUFFICIENT_AVAILABLE_STOCK: "
+                                + item.getProduct().getSku()
+                                + " required " + item.getPlannedQty()
+                                + ", available " + availableTotal
+                                + " in " + transfer.getSourceWarehouse().getCode());
+            }
+
             BigDecimal remaining = item.getPlannedQty();
-            for (Inventory inventory : inventoryRepository.findReservableForUpdate(
-                    transfer.getSourceWarehouse().getId(), item.getProduct().getId())) {
+            for (Inventory inventory : candidates) {
                 if (remaining.signum() <= 0) {
                     break;
                 }
                 BigDecimal available = inventory.getTotalQty().subtract(inventory.getReservedQty());
+                if (available.signum() <= 0) {
+                    continue;
+                }
                 BigDecimal allocated = available.min(remaining);
                 inventory.setReservedQty(inventory.getReservedQty().add(allocated));
                 inventory.setUpdatedAt(OffsetDateTime.now());
@@ -119,15 +135,6 @@ public class InterWarehouseTransferHelper {
                         .allocatedQty(allocated)
                         .build());
                 remaining = remaining.subtract(allocated);
-            }
-            if (remaining.signum() > 0) {
-                BigDecimal available = item.getPlannedQty().subtract(remaining);
-                throw new BusinessRuleViolationException(
-                        "INSUFFICIENT_AVAILABLE_STOCK: "
-                                + item.getProduct().getSku()
-                                + " required " + item.getPlannedQty()
-                                + ", available " + available
-                                + " in " + transfer.getSourceWarehouse().getCode());
             }
         }
     }
@@ -272,46 +279,28 @@ public class InterWarehouseTransferHelper {
                 "notes", transfer.getNotes());
     }
 
-    public void applyTripDeadlineRules(InterWarehouseTransfer transfer) {
-        Trip trip = transfer.getTrip();
-        if (trip == null || trip.getPlannedEndAt() == null || transfer.getStatus() != InterWarehouseTransferStatus.APPROVED) {
-            return;
-        }
-        LocalDateTime now = LocalDateTime.now();
-        if (!now.isAfter(trip.getPlannedEndAt())) {
-            return;
-        }
-        Map<String, Object> before = snapshot(transfer);
-        for (InterWarehouseTransferItem item : items(transfer)) {
-            item.setSentQty(null);
-            transferItemRepository.save(item);
-        }
-        releaseReservations(transfer);
-        trip.setStatus(TripStatus.CANCELLED);
-        trip.setUpdatedAt(OffsetDateTime.now());
-        transfer.setStatus(InterWarehouseTransferStatus.CANCELLED);
-        transfer.setRejectionReason("AUTO_CANCELLED_TRANSFER_OVERDUE");
-        transfer.setUpdatedAt(OffsetDateTime.now());
-        tripRepository.save(trip);
-        InterWarehouseTransfer saved = transferRepository.save(transfer);
-        User auditActor = trip.getDispatcher() != null ? trip.getDispatcher() : transfer.getCreatedBy();
-        audit(saved, auditActor, AuditAction.TRANSFER_CANCEL, before, snapshot(saved));
-    }
-
     public TransferTripAlert summarizeTripAlert(InterWarehouseTransfer transfer) {
         Trip trip = transfer.getTrip();
         if (trip == null || trip.getPlannedEndAt() == null || isTerminalTransferStatus(transfer.getStatus())) {
             return new TransferTripAlert(false, false, null);
         }
-        LocalDateTime now = LocalDateTime.now();
-        if (now.isAfter(trip.getPlannedEndAt())) {
+        if (isTripOverdue(transfer)) {
             return new TransferTripAlert(true, true, "Chuyến đã quá hạn hoàn thành.");
         }
+        LocalDateTime now = LocalDateTime.now();
         LocalDateTime warningStart = trip.getPlannedEndAt().minusDays(TRANSFER_WARNING_WINDOW_DAYS);
         if (!now.isBefore(warningStart)) {
             return new TransferTripAlert(true, false, "Chuyến đang ở 3 ngày cuối trước hạn giao.");
         }
         return new TransferTripAlert(false, false, null);
+    }
+
+    public boolean isTripOverdue(InterWarehouseTransfer transfer) {
+        Trip trip = transfer.getTrip();
+        return trip != null
+                && trip.getPlannedEndAt() != null
+                && !isTerminalTransferStatus(transfer.getStatus())
+                && LocalDateTime.now().isAfter(trip.getPlannedEndAt());
     }
 
     public boolean isTerminalTransferStatus(InterWarehouseTransferStatus status) {

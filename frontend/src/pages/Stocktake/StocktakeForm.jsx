@@ -60,6 +60,25 @@ const StocktakeForm = () => {
     if (!form.stock_take_date) errs.stock_take_date = "Bắt buộc";
     if (!form.document_date) errs.document_date = "Bắt buộc";
     if (!form.accounting_period_id) errs.accounting_period_id = "Bắt buộc";
+    if (!form.stock_take_date) errs.stock_take_date = 'Bắt buộc';
+    if (!form.document_date) errs.document_date = 'Bắt buộc';
+    if (!form.accounting_period_id) errs.accounting_period_id = 'Bắt buộc';
+    if (form.stock_take_date && form.document_date && form.stock_take_date > form.document_date) {
+      errs.stock_take_date = 'Ngày kiểm kê không được sau ngày chứng từ';
+    }
+    const selectedPeriod = periods.find((p) => String(p.id) === String(form.accounting_period_id));
+    if (selectedPeriod) {
+      if (form.stock_take_date
+          && (form.stock_take_date < selectedPeriod.start_date
+              || form.stock_take_date > selectedPeriod.end_date)) {
+        errs.stock_take_date = 'Ngày kiểm kê phải nằm trong kỳ kế toán đã chọn';
+      }
+      if (form.document_date
+          && (form.document_date < selectedPeriod.start_date
+              || form.document_date > selectedPeriod.end_date)) {
+        errs.document_date = 'Ngày chứng từ phải nằm trong kỳ kế toán đã chọn';
+      }
+    }
     return errs;
   };
 

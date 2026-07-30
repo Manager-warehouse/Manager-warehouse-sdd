@@ -95,6 +95,8 @@ public class TransferRequestServiceImpl implements TransferRequestService {
         if (Objects.equals(request.sourceWarehouseId(), request.destinationWarehouseId())) {
             throw new BusinessRuleViolationException("SOURCE_DESTINATION_MUST_DIFFER");
         }
+        ensureNeededByDateIsNotPast(request.neededByDate());
+        ensurePhysicalWarehouses(request.sourceWarehouseId(), request.destinationWarehouseId());
 
         OffsetDateTime now = OffsetDateTime.now();
         TransferRequest req = new TransferRequest();
@@ -132,6 +134,8 @@ public class TransferRequestServiceImpl implements TransferRequestService {
         if (Objects.equals(request.sourceWarehouseId(), request.destinationWarehouseId())) {
             throw new BusinessRuleViolationException("SOURCE_DESTINATION_MUST_DIFFER");
         }
+        ensureNeededByDateIsNotPast(request.neededByDate());
+        ensurePhysicalWarehouses(request.sourceWarehouseId(), request.destinationWarehouseId());
 
         Map<String, Object> before = snapshot(req);
 
@@ -390,6 +394,23 @@ public class TransferRequestServiceImpl implements TransferRequestService {
         }
     }
 
+    private void ensureNeededByDateIsNotPast(LocalDate neededByDate) {
+        if (neededByDate != null && neededByDate.isBefore(LocalDate.now())) {
+            throw new BusinessRuleViolationException("NEEDED_BY_DATE_MUST_NOT_BE_PAST");
+        }
+    }
+
+    private void ensurePhysicalWarehouses(Long sourceWarehouseId, Long destinationWarehouseId) {
+        Warehouse source = reference(Warehouse.class, sourceWarehouseId);
+        Warehouse destination = reference(Warehouse.class, destinationWarehouseId);
+        if (source.getType() == WarehouseType.IN_TRANSIT) {
+            throw new BusinessRuleViolationException("SOURCE_WAREHOUSE_MUST_BE_PHYSICAL");
+        }
+        if (destination.getType() == WarehouseType.IN_TRANSIT) {
+            throw new BusinessRuleViolationException("DESTINATION_WAREHOUSE_MUST_BE_PHYSICAL");
+        }
+    }
+
     private void saveItems(TransferRequest req, List<TransferRequestItemRequest> items) {
         List<TransferRequestItem> currentItems = req.getItems();
         if (currentItems == null) {
@@ -403,7 +424,14 @@ public class TransferRequestServiceImpl implements TransferRequestService {
                 req.setItems(currentItems);
             }
         }
+        Set<Long> productIds = new HashSet<>();
         for (TransferRequestItemRequest line : items) {
+            if (!productIds.add(line.productId())) {
+                throw new BusinessRuleViolationException("DUPLICATE_PRODUCT_IN_TRANSFER");
+            }
+            if (line.requestedQty().stripTrailingZeros().scale() > 0) {
+                throw new BusinessRuleViolationException("TRANSFER_QTY_MUST_BE_WHOLE_NUMBER");
+            }
             Product p = productRepository.findById(line.productId())
                     .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + line.productId()));
             TransferRequestItem item = TransferRequestItem.builder()

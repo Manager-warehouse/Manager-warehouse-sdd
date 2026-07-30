@@ -94,22 +94,17 @@ public class InterWarehouseTransferShippingService {
         ensureVehicleBelongsToSourceWarehouse(transfer, vehicle);
         ensureDriverBelongsToSourceWarehouse(transfer, driver);
 
-        // T032: Calculate total weight/volume from transfer items
+        // T032: Calculate total weight from transfer items
         BigDecimal totalWeight = BigDecimal.ZERO;
         BigDecimal totalVolume = BigDecimal.ZERO;
         for (InterWarehouseTransferItem item : helper.items(transfer)) {
             BigDecimal qty = item.getPlannedQty() != null ? item.getPlannedQty() : BigDecimal.ZERO;
             BigDecimal weight = item.getProduct().getWeightKg() != null ? item.getProduct().getWeightKg() : BigDecimal.ZERO;
-            BigDecimal volume = item.getProduct().getVolumeM3() != null ? item.getProduct().getVolumeM3() : BigDecimal.ZERO;
             totalWeight = totalWeight.add(qty.multiply(weight));
-            totalVolume = totalVolume.add(qty.multiply(volume));
         }
 
-        // T033: Reject TRIP_CAPACITY_EXCEEDED when weight/volume exceeds capacity
+        // T033: Reject TRIP_CAPACITY_EXCEEDED when weight exceeds capacity
         if (vehicle.getMaxWeightKg() != null && totalWeight.compareTo(vehicle.getMaxWeightKg()) > 0) {
-            throw new BusinessRuleViolationException("TRIP_CAPACITY_EXCEEDED");
-        }
-        if (vehicle.getMaxVolumeM3() != null && totalVolume.compareTo(vehicle.getMaxVolumeM3()) > 0) {
             throw new BusinessRuleViolationException("TRIP_CAPACITY_EXCEEDED");
         }
 
@@ -173,6 +168,9 @@ public class InterWarehouseTransferShippingService {
         OffsetDateTime now = OffsetDateTime.now();
         boolean hasLoadedQtyMismatch = false;
         for (var row : request.items()) {
+            if (row.loadedQty().stripTrailingZeros().scale() > 0) {
+                throw new BusinessRuleViolationException("TRANSFER_QTY_MUST_BE_WHOLE_NUMBER");
+            }
             InterWarehouseTransferItem item = itemsById.get(row.transferItemId());
             if (item == null) {
                 throw new BusinessRuleViolationException("TRANSFER_ITEM_NOT_FOUND");
@@ -185,6 +183,9 @@ public class InterWarehouseTransferShippingService {
             item.setLoadedReportedAt(now);
             item.setSentQty(null);
             transferItemRepository.save(item);
+        }
+        if (hasLoadedQtyMismatch && helper.isBlank(request.reworkReason())) {
+            throw new BusinessRuleViolationException("SOURCE_LOAD_REWORK_REASON_REQUIRED");
         }
 
         transfer.setSourceLoadedReportedBy(actor);
@@ -251,6 +252,9 @@ public class InterWarehouseTransferShippingService {
         helper.requireStatus(transfer, InterWarehouseTransferStatus.APPROVED);
         helper.ensureWarehouseScope(actor, transfer.getSourceWarehouse().getId());
         ensureSourceLoadReadyForQc(transfer);
+        if (!Boolean.TRUE.equals(request.passed()) && helper.isBlank(request.note())) {
+            throw new BusinessRuleViolationException("OUTBOUND_QC_FAILURE_REASON_REQUIRED");
+        }
 
         Map<String, Object> before = helper.snapshot(transfer);
         transfer.setOutboundQcPassed(request.passed());
@@ -342,6 +346,9 @@ public class InterWarehouseTransferShippingService {
         }
         if (Boolean.FALSE.equals(driver.getIsActive()) || driver.getStatus() == DriverStatus.UNAVAILABLE) {
             throw new BusinessRuleViolationException("DRIVER_NOT_AVAILABLE");
+        }
+        if (driver.getLicenseExpiry() == null || driver.getLicenseExpiry().isBefore(java.time.LocalDate.now())) {
+            throw new BusinessRuleViolationException("DRIVER_LICENSE_EXPIRED");
         }
         if (tripRepository.existsVehicleScheduleOverlapExcludingTrip(vehicle.getId(), plannedStartAt, plannedEndAt, InterWarehouseTransferHelper.RESOURCE_BLOCKING_TRIP_STATUSES, excludedTripId)) {
             throw new BusinessRuleViolationException("VEHICLE_SCHEDULE_OVERLAP");

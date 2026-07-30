@@ -24,6 +24,7 @@ import com.wms.dto.request.InterWarehouseTransferReasonRequest;
 import com.wms.dto.request.InterWarehouseTransferUpdateRequest;
 import com.wms.dto.response.InterWarehouseTransferResponse;
 import com.wms.enums.warehouse_transfer.InterWarehouseTransferStatus;
+import com.wms.enums.warehouse_location.WarehouseType;
 import com.wms.enums.audit_trail.AuditAction;
 import com.wms.enums.access_control.UserRole;
 import com.wms.exception.BusinessRuleViolationException;
@@ -31,9 +32,13 @@ import com.wms.repository.InterWarehouseTransferItemRepository;
 import com.wms.repository.InterWarehouseTransferRepository;
 import com.wms.service.billing_payment.AccountingPeriodService;
 import java.time.OffsetDateTime;
+import java.time.LocalDate;
+import java.math.BigDecimal;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -62,6 +67,9 @@ public class InterWarehouseTransferPlanningService {
             boolean allowDestinationScopedPlanner) {
         ensureCreateScope(actor, request, allowDestinationScopedPlanner);
         ensureDifferentWarehouses(request.sourceWarehouseId(), request.destinationWarehouseId());
+        validateTransferDates(request.documentDate(), request.plannedDate());
+        ensurePhysicalWarehouses(request.sourceWarehouseId(), request.destinationWarehouseId());
+        validateTransferItems(request.items(), request.sourceWarehouseId(), request.destinationWarehouseId());
         ensureUniqueExternalInstruction(request.externalInstructionCode(), request.sourceWarehouseId(),
                 request.destinationWarehouseId(), request.documentDate(), null);
 
@@ -104,6 +112,9 @@ public class InterWarehouseTransferPlanningService {
         helper.ensureWarehouseScope(actor, transfer.getSourceWarehouse().getId());
         helper.ensureWarehouseScope(actor, request.sourceWarehouseId());
         ensureDifferentWarehouses(request.sourceWarehouseId(), request.destinationWarehouseId());
+        validateTransferDates(request.documentDate(), request.plannedDate());
+        ensurePhysicalWarehouses(request.sourceWarehouseId(), request.destinationWarehouseId());
+        validateTransferItems(request.items(), request.sourceWarehouseId(), request.destinationWarehouseId());
         ensureUniqueExternalInstruction(request.externalInstructionCode(), request.sourceWarehouseId(),
                 request.destinationWarehouseId(), request.documentDate(), id);
         Map<String, Object> before = helper.snapshot(transfer);
@@ -139,6 +150,63 @@ public class InterWarehouseTransferPlanningService {
     private void ensureDifferentWarehouses(Long sourceWarehouseId, Long destinationWarehouseId) {
         if (Objects.equals(sourceWarehouseId, destinationWarehouseId)) {
             throw new BusinessRuleViolationException("SOURCE_DESTINATION_MUST_DIFFER");
+        }
+    }
+
+    private void ensurePhysicalWarehouses(Long sourceWarehouseId, Long destinationWarehouseId) {
+        Warehouse source = helper.reference(Warehouse.class, sourceWarehouseId);
+        Warehouse destination = helper.reference(Warehouse.class, destinationWarehouseId);
+        if (source.getType() == WarehouseType.IN_TRANSIT) {
+            throw new BusinessRuleViolationException("SOURCE_WAREHOUSE_MUST_BE_PHYSICAL");
+        }
+        if (destination.getType() == WarehouseType.IN_TRANSIT) {
+            throw new BusinessRuleViolationException("DESTINATION_WAREHOUSE_MUST_BE_PHYSICAL");
+        }
+    }
+
+    private void validateTransferDates(LocalDate documentDate, LocalDate plannedDate) {
+        LocalDate today = LocalDate.now();
+        if (documentDate.isBefore(today)) {
+            throw new BusinessRuleViolationException("DOCUMENT_DATE_MUST_NOT_BE_PAST");
+        }
+        if (plannedDate.isBefore(today)) {
+            throw new BusinessRuleViolationException("PLANNED_DATE_MUST_NOT_BE_PAST");
+        }
+        if (plannedDate.isBefore(documentDate)) {
+            throw new BusinessRuleViolationException("PLANNED_DATE_MUST_NOT_BE_BEFORE_DOCUMENT_DATE");
+        }
+    }
+
+    private void validateTransferItems(List<InterWarehouseTransferItemRequest> requests,
+                                       Long sourceWarehouseId,
+                                       Long destinationWarehouseId) {
+        Set<Long> productIds = new HashSet<>();
+        for (InterWarehouseTransferItemRequest request : requests) {
+            if (!productIds.add(request.productId())) {
+                throw new BusinessRuleViolationException("DUPLICATE_PRODUCT_IN_TRANSFER");
+            }
+            ensureWholeQuantity(request.plannedQty());
+            if (request.sourceLocationId() != null) {
+                validateLocation(request.sourceLocationId(), sourceWarehouseId, "INVALID_SOURCE_LOCATION");
+            }
+            if (request.destinationLocationId() != null) {
+                validateLocation(request.destinationLocationId(), destinationWarehouseId, "INVALID_DESTINATION_LOCATION");
+            }
+        }
+    }
+
+    private void ensureWholeQuantity(BigDecimal quantity) {
+        if (quantity.stripTrailingZeros().scale() > 0) {
+            throw new BusinessRuleViolationException("TRANSFER_QTY_MUST_BE_WHOLE_NUMBER");
+        }
+    }
+
+    private void validateLocation(Long locationId, Long warehouseId, String errorCode) {
+        WarehouseLocation location = helper.reference(WarehouseLocation.class, locationId);
+        if (!Objects.equals(location.getWarehouse().getId(), warehouseId)
+                || Boolean.FALSE.equals(location.getIsActive())
+                || Boolean.TRUE.equals(location.getIsQuarantine())) {
+            throw new BusinessRuleViolationException(errorCode);
         }
     }
 

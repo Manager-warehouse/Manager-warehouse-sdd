@@ -356,6 +356,10 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                 .collect(Collectors.toMap(plan -> plan.product().getId(), ItemPlan::requestedQty, BigDecimal::add));
         validateAvailability(warehouse, requestedByProduct);
 
+        if (request.getExpectedDeliveryDate() != null && request.getExpectedDeliveryDate().isBefore(request.getDocumentDate())) {
+            throw new OutboundDeliveryException("INVALID_DELIVERY_DATE", HttpStatus.BAD_REQUEST, "Ngày giao hàng dự kiến không được trước ngày chứng từ");
+        }
+
         OffsetDateTime now = OffsetDateTime.now();
         DeliveryOrder order = new DeliveryOrder();
         order.setDoNumber(generateDoNumber());
@@ -389,6 +393,9 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         DeliveryOrder order = findOrder(id);
         Map<String, Object> before = snapshot(order);
         if (request.getExpectedDeliveryDate() != null) {
+            if (request.getExpectedDeliveryDate().isBefore(order.getDocumentDate())) {
+                throw new OutboundDeliveryException("INVALID_DELIVERY_DATE", HttpStatus.BAD_REQUEST, "Ngày giao hàng dự kiến không được trước ngày chứng từ");
+            }
             order.setExpectedDeliveryDate(request.getExpectedDeliveryDate());
         }
         if (request.getNotes() != null) {

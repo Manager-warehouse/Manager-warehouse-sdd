@@ -18,6 +18,8 @@ Tat ca buoc ban giao co anh trong UI Sprint 1 phai dung thao tac chon file anh h
     * Allow the action only while the transfer is `IN_TRANSIT`.
     * Require assigned driver arrival and receiving-warehouse handover to be recorded before counting starts.
     * Require selected/captured arrival handover photo evidence before the handover confirmation can be submitted.
+    * Require one submitted count per transfer item and reject duplicate transfer item rows in the count payload.
+    * Require all received quantities to be non-negative whole numbers.
     * Require `issueReason` per item when that item's `receivedQty < sentQty`, `receivedQty > sentQty`, or the worker reports an issue for that item; items with `receivedQty == sentQty` and no reported issue SHALL NOT require `issueReason`.
     * Reject `received_qty > sent_qty` after validating that an issue reason was provided.
     * Store the worker-entered counts as the current `received_qty` without completing the transfer.
@@ -30,6 +32,8 @@ Tat ca buoc ban giao co anh trong UI Sprint 1 phai dung thao tac chon file anh h
     * Allow Thủ kho đích to adjust the confirmed received quantity after checking the worker-entered count.
     * Allow optional `checkerNote` when `confirmedReceivedQty` equals the worker-entered `receivedQty`.
     * Require `checkerNote` when `confirmedReceivedQty` differs from the worker-entered `receivedQty`.
+    * Require one receive-check row per transfer item and reject duplicate transfer item rows.
+    * Require `confirmedReceivedQty`, `qcPassedQty`, and `qcFailedQty` to be non-negative whole numbers.
     * Require `qc_passed_qty + qc_failed_qty = confirmedReceivedQty`.
     * Require a QC failure reason when `qc_failed_qty > 0`.
     * Require `destination_location_id` for QC-passed quantity; the selected bin SHALL NOT be a quarantine bin (`QC_PASSED_BIN_MUST_NOT_BE_QUARANTINE`).
@@ -59,6 +63,9 @@ Tat ca buoc ban giao co anh trong UI Sprint 1 phai dung thao tac chon file anh h
       * SHALL NOT create quarantine inventory or a disposal candidate for the missing quantity because it is not physically present.
     * IF there is a final-level material issue unrelated to QC failure, the system SHALL require `discrepancy_reason` before confirmation.
     * IF QC failed quantity is greater than zero and no active quarantine location exists in the destination warehouse, the system SHALL reject confirmation with `QUARANTINE_LOCATION_REQUIRED`.
+    * Require virtual `IN_TRANSIT` warehouse and active In-Transit location configuration before mutating inventory.
+    * Validate putaway plan structure before discrepancy-reason validation: no duplicate putaway item/location rows, positive whole putaway quantity, and total putaway quantity per item not greater than QC-passed quantity.
+    * Allow short putaway only with final `discrepancy_reason`; over-putaway SHALL be rejected.
     * Create a `TRANSFER_RECEIVE_CONFIRM` audit log entry.
     * Create a `TRANSFER_DISCREPANCY_CREATE` audit log entry when a shortage adjustment is created.
   * WHEN a Thủ kho đích or Trưởng kho đích triggers quarantine rejection (QC lỗi - Từ chối & Cách ly toàn bộ), the system SHALL:
@@ -74,6 +81,8 @@ Tat ca buoc ban giao co anh trong UI Sprint 1 phai dung thao tac chon file anh h
     * Create a `TRANSFER_QUARANTINE_REJECT` audit log entry containing the rejection reason.
   * WHEN destination Storekeeper identifies an intact wrong SKU, the system SHALL:
     * Require expected SKU, actual SKU, affected quantity, and a non-blank reason.
+    * Require actual SKU/product to exist, differ from the expected SKU/product, and pass validation for every reported wrong-SKU line before changing return-request state.
+    * Require affected quantity to be positive and not greater than sent quantity for that transfer item.
     * Create a `WRONG_SKU` return report while the transfer remains `IN_TRANSIT`.
     * Keep the physical stock in In-Transit and SHALL NOT move it to regular inventory or Quarantine.
     * Notify the destination Warehouse Manager for decision.
@@ -86,6 +95,12 @@ Tat ca buoc ban giao co anh trong UI Sprint 1 phai dung thao tac chon file anh h
   * WHEN the assigned driver starts and completes the return leg, the system SHALL record return departure and source arrival/handover with selected/captured photo evidence before source-side receive-count is allowed.
   * WHEN returned goods arrive at the source warehouse, the system SHALL repeat receive-count, receive-check/QC, and final-receive with source-scoped actors.
   * WHEN a transfer shortage is finalized, the system SHALL import and calculate value only for physically received and accepted quantity; missing quantity SHALL remain a quantity-only discrepancy and SHALL NOT be included in destination receipt value or billing totals.
+  * WHEN a CEO or Warehouse Manager opens transfer detail with reviewer access, the UI SHALL expose a read-only evidence panel grouped by business flow:
+    * `Vận chuyển / bàn giao`: destination arrival handover evidence (`arrivalHandoverPhotoRef`).
+    * `QC kho nhận`: receiving QC evidence (`receiveQcPhotoRef`).
+    * `Quay đầu xe`: return handover evidence (`returnPhotoRef`), shown as a dedicated return-flow group and emphasized when `is_returned = true` or return timestamps exist.
+    * `Chênh lệch liên quan`: a reviewer hint SHALL connect likely evidence to discrepancy types: shortage uses arrival handover + receive QC, QC failure uses receive QC, return-to-source uses return evidence, and dispute about sent quantity uses outbound QC + load handover.
+    * Evidence cards SHALL be read-only for CEO/Manager reviewers, show actor/timestamp metadata where available, and open a large preview when an image reference exists.
 * **Authorization and warehouse scope:**
   * Nhân viên kho/Công nhân kho đích SHALL record initial counts only for transfers whose destination warehouse is in the actor's assigned warehouse scope.
   * When `is_returned = true` (Return to Source triggered), the receiving scope flips to the source warehouse; destination-side actors SHALL be blocked from all receive actions.
@@ -97,6 +112,7 @@ Tat ca buoc ban giao co anh trong UI Sprint 1 phai dung thao tac chon file anh h
   * The storekeeper CANNOT select or override the quarantine bin; it is system-assigned only.
   * The bin dropdown for QC-passed stock SHALL filter out quarantine bins (client-side pre-filtering), with backend enforcement as the authoritative guard.
   * Handover confirmation buttons SHALL remain disabled until required photo evidence has been selected from the device or captured by camera.
+  * Transfer detail SHALL present evidence in a compact timeline layout with sections `Xuất kho nguồn`, `Vận chuyển / bàn giao`, `QC kho nhận`, `Quay đầu xe`, and `Chênh lệch liên quan`; it SHALL NOT mix outbound delivery POD images with transfer QC/handover images.
 
 ## 4. API Endpoints
 * `POST /api/v1/inter-warehouse-transfers/{id}/arrive` - Tài xế được gán ghi nhận xe đã đến kho nhận hiện tại.
@@ -160,9 +176,13 @@ Tat ca buoc ban giao co anh trong UI Sprint 1 phai dung thao tac chon file anh h
 ## 5. Validation and Error Handling
 * `TRANSFER_RECEIVE_NOT_ALLOWED` (HTTP 409): transfer is not `IN_TRANSIT` or the current receive step is not allowed.
 * `RECEIVE_ISSUE_REASON_REQUIRED` (HTTP 400): an item has `receivedQty < sentQty`, `receivedQty > sentQty`, or a reported issue without item-level `issueReason`.
+* `DUPLICATE_RECEIVE_COUNT_ITEM` (HTTP 400): the same transfer item appears more than once in receive-count payload.
+* `RECEIVE_QTY_MUST_BE_WHOLE_NUMBER` (HTTP 400): received quantity contains a fractional value.
 * `RECEIVED_QTY_EXCEEDS_SENT` (HTTP 422): `receivedQty > sentQty`; the system SHALL still persist an `OVERAGE_HOLD` discrepancy record for the excess quantity per TRF-10 rather than discarding the report.
 * `RECEIVE_CHECK_REQUIRED` (HTTP 409): Trưởng kho đích attempts final confirmation before Thủ kho đích approves receive check.
 * `CHECKER_NOTE_REQUIRED` (HTTP 400): `confirmedReceivedQty` differs from the worker-entered `receivedQty` without `checkerNote`; `checkerNote` is optional when the quantities match.
+* `DUPLICATE_RECEIVE_CHECK_ITEM` (HTTP 400): the same transfer item appears more than once in receive-check payload.
+* `RECEIVE_CHECK_QTY_MUST_BE_WHOLE_NUMBER` (HTTP 400): confirmed/QC quantity contains a fractional value.
 * `QC_TOTAL_MISMATCH` (HTTP 400): `qcPassedQty + qcFailedQty != confirmedReceivedQty`.
 * `QC_FAILURE_REASON_REQUIRED` (HTTP 400): `qcFailedQty > 0` without `qcFailureReason`.
 * `DESTINATION_LOCATION_REQUIRED` (HTTP 400): QC-passed quantity exists without `destinationLocationId`.
@@ -172,10 +192,20 @@ Tat ca buoc ban giao co anh trong UI Sprint 1 phai dung thao tac chon file anh h
 * `TRANSFER_ARRIVAL_REQUIRED` (HTTP 409): receive-count is attempted before driver arrival/handover.
 * `RETURN_ARRIVAL_REQUIRED` (HTTP 409): source return receive-count is attempted before return departure and source arrival/handover.
 * `QUARANTINE_LOCATION_NOT_CONFIGURED` (HTTP 422): QC-failed quantity exists but the target warehouse has no active quarantine bin — validated at `receiveCheck` time.
+* `TRANSIT_WAREHOUSE_NOT_CONFIGURED` (HTTP 500): virtual `IN_TRANSIT` warehouse is not configured; final receive fails before inventory mutation.
+* `TRANSIT_LOCATION_NOT_CONFIGURED` (HTTP 500): active In-Transit location is not configured; final receive fails before inventory mutation.
+* `DUPLICATE_PUTAWAY_ITEM` (HTTP 400): putaway payload contains duplicate item rows where a single final allocation row is expected.
+* `DUPLICATE_PUTAWAY_LOCATION` (HTTP 400): putaway payload duplicates the same item/location allocation.
+* `PUTAWAY_QUANTITY_MUST_MATCH_QC_PASSED` (HTTP 422): total putaway quantity exceeds QC-passed quantity or does not match without required discrepancy reason.
+* `PUTAWAY_QTY_MUST_BE_POSITIVE` (HTTP 400): putaway quantity is zero or negative.
 * `DISCREPANCY_REQUIRES_REASON` (HTTP 400): shortage or final-level material issue outside normal QC failure exists without a reason.
 * `TRANSFER_SPLIT_RECEIVE_NOT_SUPPORTED` (HTTP 409): actor attempts to finalize the same transfer through multiple independent receipt cycles.
 * `RETURN_REQUEST_NOT_ALLOWED` (HTTP 409): wrong-SKU report is not allowed in the current transfer state.
 * `WRONG_SKU_REASON_REQUIRED` (HTTP 400): expected/actual SKU, quantity, or reason is missing.
+* `ACTUAL_WRONG_SKU_PRODUCT_NOT_FOUND` (HTTP 422): actual wrong-SKU product id does not exist or is inactive.
+* `WRONG_SKU_MUST_DIFFER_FROM_EXPECTED` (HTTP 400): expected and actual product are the same.
+* `AFFECTED_QTY_MUST_BE_POSITIVE` (HTTP 400): wrong-SKU affected quantity is zero or negative.
+* `WRONG_SKU_QTY_EXCEEDS_SENT` (HTTP 422): wrong-SKU affected quantity exceeds sent quantity for the item.
 * `RETURN_REQUEST_REQUIRED` (HTTP 409): manager decision attempted before a Storekeeper report.
 * `RETURN_APPROVAL_NOT_ALLOWED` (HTTP 403): actor is not the destination Warehouse Manager or lacks destination warehouse scope.
 
@@ -204,6 +234,11 @@ Tat ca buoc ban giao co anh trong UI Sprint 1 phai dung thao tac chon file anh h
   * When Nhân viên kho HN records receipt of 28 units without an issue reason
   * Then the system SHALL reject the receive-count request with `RECEIVE_ISSUE_REASON_REQUIRED`.
 
+* **Scenario: Reject duplicate receive-count item**
+  * Given a transfer is in `IN_TRANSIT` status
+  * When Nhân viên kho HN submits the same transfer item twice in receive-count
+  * Then the system SHALL reject the request with `DUPLICATE_RECEIVE_COUNT_ITEM` and keep the current receiving draft unchanged.
+
 * **Scenario: Receive with QC failed quantity**
   * Given a transfer of 30 units in `IN_TRANSIT` status
   * When Nhân viên kho HN records initial receipt of 30 units
@@ -211,6 +246,16 @@ Tat ca buoc ban giao co anh trong UI Sprint 1 phai dung thao tac chon file anh h
   * And Trưởng kho HN confirms the receipt
   * Then the system SHALL add 28 units to regular inventory, add 2 units to quarantine inventory, and exclude the failed quantity from available inventory.
   * And the 2 quarantine units SHALL retain internal-transfer origin and be eligible only for disposal under spec 009.
+
+* **Scenario: Reject QC failure when quarantine bin is missing**
+  * Given a transfer is in `IN_TRANSIT` status at a destination warehouse without an active quarantine bin
+  * When Thủ kho HN enters `qcFailedQty > 0` during receive-check
+  * Then the system SHALL reject receive-check with `QUARANTINE_LOCATION_NOT_CONFIGURED` before final receive.
+
+* **Scenario: Reject invalid final putaway structure**
+  * Given receive-check approved 10 QC-passed units for product X
+  * When Trưởng kho HN final-confirms with duplicate putaway item/location rows or more than 10 putaway units
+  * Then the system SHALL reject the request with the matching putaway validation code and SHALL NOT mutate In-Transit or destination inventory.
 
 * **Scenario: Shortage is not quarantine stock**
   * Given 30 units were sent and only 28 units physically arrived
@@ -228,6 +273,12 @@ Tat ca buoc ban giao co anh trong UI Sprint 1 phai dung thao tac chon file anh h
   * Then the assigned driver SHALL turn back with the same transfer/trip and the goods SHALL remain In-Transit.
   * And source Staff SHALL count, source Storekeeper SHALL check/QC, and source Warehouse Manager SHALL final-confirm the return.
   * And QC-passed quantity SHALL return to source regular inventory; any newly discovered damaged quantity SHALL enter source Quarantine; any shortage SHALL create a discrepancy adjustment.
+
+* **Scenario: Reject wrong-SKU report before mutating return state**
+  * Given the destination Storekeeper is reporting a wrong-SKU return
+  * When any reported actual SKU does not exist, equals expected SKU, or has invalid affected quantity
+  * Then the system SHALL reject the request with the matching wrong-SKU validation code.
+  * And `returnRequested`, `returnReason`, wrong-SKU reports, trip status, and audit state SHALL remain unchanged.
 
 * **Scenario: Block Storekeeper from self-approving wrong-SKU return**
   * Given destination Storekeeper submitted a `WRONG_SKU` return report

@@ -142,6 +142,7 @@ public class StockTakeService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "AccountingPeriod not found: " + req.getAccountingPeriodId()));
         assertPeriodOpen(period);
+        validateCreateDates(req, period);
 
         String number = generateStockTakeNumber();
 
@@ -530,6 +531,23 @@ public class StockTakeService {
         if (period == null || period.getStatus() != AccountingPeriodStatus.OPEN) {
             throw new BusinessRuleViolationException(
                     "ACCOUNTING_PERIOD_CLOSED: The accounting period is not OPEN");
+        }
+    }
+
+    private void validateCreateDates(CreateStockTakeRequest req, AccountingPeriod period) {
+        if (req.getStockTakeDate().isAfter(req.getDocumentDate())) {
+            throw new UnprocessableEntityException(
+                    "STOCK_TAKE_DATE_AFTER_DOCUMENT_DATE: stock_take_date cannot be later than document_date");
+        }
+        if (req.getStockTakeDate().isBefore(period.getStartDate())
+                || req.getStockTakeDate().isAfter(period.getEndDate())) {
+            throw new UnprocessableEntityException(
+                    "STOCK_TAKE_DATE_OUTSIDE_ACCOUNTING_PERIOD: stock_take_date must fall within the selected accounting period");
+        }
+        if (req.getDocumentDate().isBefore(period.getStartDate())
+                || req.getDocumentDate().isAfter(period.getEndDate())) {
+            throw new UnprocessableEntityException(
+                    "DOCUMENT_DATE_OUTSIDE_ACCOUNTING_PERIOD: document_date must fall within the selected accounting period");
         }
     }
 

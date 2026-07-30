@@ -137,6 +137,23 @@
 19. Destination Storekeeper sees “Báo gửi nhầm SKU”; destination Manager sees approve/reject; neither action is shown outside destination warehouse scope.
 20. After approval, the driver sees the return instruction and source-side roles see the same three-step receiving workflow.
 
+## Exception Path Smoke Tests
+
+Run these cases before accepting transfer-flow changes:
+
+1. Create/edit `TRQ` with past `neededByDate`, duplicate SKU lines, fractional quantity, blank business reason, and requested quantity above source availability. Expect inline form errors or translated backend toasts; existing DRAFT state must remain editable.
+2. Create/edit `TRF` with blank external instruction, same source/destination warehouse, past `documentDate`, past `plannedDate`, `plannedDate < documentDate`, duplicate SKU lines, fractional quantity, inactive product/warehouse, and duplicate active external instruction. Expect stable backend error code plus Vietnamese message.
+3. Approve `TRF` when source available stock is below planned quantity. Expect `INSUFFICIENT_AVAILABLE_STOCK`/stock-equivalent error; status remains `NEW`; no partial reservation/allocation or approval audit is created.
+4. Assign trip with invalid Dispatcher scope, source-ineligible driver, unavailable vehicle/driver, overlapping trip, invalid time window, past planned time, expired transfer deadline, and capacity overflow. Expect rejected trip mutation and no resource lock.
+5. Submit source load with missing item, duplicate item, negative/fractional loaded quantity, or quantity mismatch without rework reason. Expect source-load validation and no outbound QC enablement.
+6. Submit outbound QC or handover without selected/captured photo evidence. Expect client-side disabled action and backend `TRANSFER_PHOTO_REQUIRED` if bypassed.
+7. Try ship/depart before load report, before outbound QC pass, before load handover, as the wrong driver, or after trip assignment is locked. Expect ordered-state validation and unchanged inventory.
+8. Submit receive-count before arrival/handover, with duplicate item rows, missing item rows, negative/fractional quantity, over sent quantity, or shortage without reason. Expect receive-count validation and no inventory posting.
+9. Submit receive-check with duplicate item rows, checker quantity differing without note, QC total mismatch, QC failure without reason, QC failure with no active quarantine bin, quarantine bin selected for QC-passed goods, inactive/wrong-warehouse bin, or bin capacity overflow. Expect direct validation message.
+10. Submit final receive before receive-check, with missing In-Transit configuration, duplicate putaway item/location rows, zero/negative putaway quantity, putaway quantity above QC-passed quantity, or short putaway without discrepancy reason. Expect validation before any In-Transit/destination/quarantine inventory mutation.
+11. Submit wrong-SKU return with missing expected/actual SKU, actual SKU not found, actual SKU equal to expected SKU, zero/negative affected quantity, affected quantity above sent quantity, or blank reason. Expect validation before `returnRequested` or wrong-SKU report state changes.
+12. Verify frontend displays at most one clear message per failed action: inline field errors for known form fields, one translated toast for backend rejection, deduplicated toast stack capped to avoid overlapping messages, and automatic refresh only after successful mutations.
+
 ## Required Checks Before Coding Is Done
 
 - `mvn test` or targeted backend tests pass.

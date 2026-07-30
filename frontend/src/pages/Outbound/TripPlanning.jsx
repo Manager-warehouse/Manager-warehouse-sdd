@@ -29,6 +29,14 @@ const DELIVERY_ORDER_STATUS_LABELS = {
 
 const emptyForm = { vehicle_id: '', driver_id: '', planned_start_at: '', planned_end_at: '', notes: '', delivery_orders: [] };
 
+const todayDateValue = () => new Date().toISOString().slice(0, 10);
+
+const nowDateTimeValue = () => {
+  const now = new Date();
+  const offsetDate = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  return offsetDate.toISOString().slice(0, 16);
+};
+
 const getTripStatusBadge = (status) => {
   const { label, color } = TRIP_STATUS_MAP[status] ?? { label: status, color: 'bg-canvas-cream text-shade-70 border-hairline-light' };
   return <Badge size="sm" colorClassName={color}>{label}</Badge>;
@@ -133,6 +141,25 @@ export default function TripPlanning() {
   const handleCreateSubmit = async () => {
     if (!formData.delivery_orders.length) {
       addToast('Vui lòng chọn ít nhất 1 đơn xuất hàng', 'error');
+      return;
+    }
+    if (formData.planned_start_at < nowDateTimeValue()) {
+      addToast('Thời gian bắt đầu chuyến không được ở quá khứ', 'error');
+      return;
+    }
+    if (formData.planned_end_at <= formData.planned_start_at) {
+      addToast('Thời gian kết thúc dự kiến phải sau thời gian bắt đầu', 'error');
+      return;
+    }
+    const expiredOrder = formData.delivery_orders.find((order) => order.expected_delivery_date && order.expected_delivery_date < todayDateValue());
+    if (expiredOrder) {
+      addToast(`Đơn ${expiredOrder.do_number} đã quá ngày giao dự kiến, không được lập chuyến`, 'error');
+      return;
+    }
+    const afterDeadlineOrder = formData.delivery_orders.find((order) => order.expected_delivery_date
+      && formData.planned_start_at.slice(0, 10) > order.expected_delivery_date);
+    if (afterDeadlineOrder) {
+      addToast(`Chuyến của đơn ${afterDeadlineOrder.do_number} phải bắt đầu không muộn hơn ngày giao dự kiến`, 'error');
       return;
     }
     const totalWeight = formData.delivery_orders.reduce((sum, order) => sum + Number(order.weight || 0), 0);
@@ -426,12 +453,14 @@ export default function TripPlanning() {
                 <Input
                   label="Bắt đầu dự kiến *"
                   type="datetime-local"
+                  min={nowDateTimeValue()}
                   value={formData.planned_start_at}
                   onChange={(event) => setFormData((prev) => ({ ...prev, planned_start_at: event.target.value }))}
                 />
                 <Input
                   label="Kết thúc dự kiến *"
                   type="datetime-local"
+                  min={formData.planned_start_at || nowDateTimeValue()}
                   value={formData.planned_end_at}
                   onChange={(event) => setFormData((prev) => ({ ...prev, planned_end_at: event.target.value }))}
                 />

@@ -19,6 +19,7 @@ import QuarantineWorkspace from '../pages/Inbound/QuarantineWorkspace';
 import ReturnsWorkspace from '../pages/Inbound/ReturnsWorkspace';
 import InterWarehouseTransferWorkspace from '../pages/InterWarehouseTransfer/InterWarehouseTransferWorkspace';
 import TransferRequestWorkspace from '../pages/InterWarehouseTransfer/TransferRequestWorkspace';
+import TransferDiscrepancyWorkspace from '../pages/InterWarehouseTransfer/TransferDiscrepancyWorkspace';
 import SystemConfig from '../pages/Admin/SystemConfig';
 import AuditLogs from '../pages/Admin/AuditLogs';
 import DeliveryOrders from '../pages/Outbound/DeliveryOrders';
@@ -126,6 +127,10 @@ const AppRoutes = () => {
 
       <Route element={<ProtectedRoute allowedRoles={[ROLES.CEO, ROLES.WAREHOUSE_MANAGER, ROLES.PLANNER]} />}>
         <Route path="/transfers/requests" element={<TransferRequestWorkspace />} />
+      </Route>
+
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.CEO, ROLES.WAREHOUSE_MANAGER, ROLES.ACCOUNTANT_MANAGER]} />}>
+        <Route path="/transfers/discrepancies" element={<TransferDiscrepancyWorkspace />} />
       </Route>
 
       {/* Outbound & Delivery protected routes */}

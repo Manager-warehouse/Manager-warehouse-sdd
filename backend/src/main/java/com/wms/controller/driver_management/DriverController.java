@@ -114,7 +114,7 @@ public class DriverController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('CEO', 'ADMIN', 'DISPATCHER')")
+    @PreAuthorize("hasRole('DISPATCHER')")
     public ResponseEntity<Void> deactivateDriver(
             @PathVariable Long id,
             Principal principal) {
@@ -124,7 +124,7 @@ public class DriverController {
     }
 
     @PutMapping("/{id}/reactivate")
-    @PreAuthorize("hasAnyRole('CEO', 'ADMIN', 'DISPATCHER')")
+    @PreAuthorize("hasRole('DISPATCHER')")
     public ResponseEntity<DriverResponse> reactivateDriver(
             @PathVariable Long id,
             Principal principal) {

@@ -227,7 +227,7 @@ public class StockAlertServiceImpl implements StockAlertService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public Page<StockAlertResponse> getLowStockAlerts(Long warehouseId, Long productId, Boolean isResolved, int page, int size, Long currentUserId) {
         User user = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + currentUserId));
@@ -256,10 +256,19 @@ public class StockAlertServiceImpl implements StockAlertService {
             }
         }
 
+        syncAlertsFromCurrentInventory(warehouseId, productId);
+
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         Page<StockAlert> alertsPage = stockAlertRepository.findWithFilters(warehouseId, productId, isResolved, pageable);
 
         return alertsPage.map(this::mapToResponse);
+    }
+
+    private void syncAlertsFromCurrentInventory(Long warehouseId, Long productId) {
+        for (InventoryRepository.StockAlertCandidate candidate :
+                inventoryRepository.findStockAlertCandidates(warehouseId, productId)) {
+            checkAndTriggerAlert(candidate.getWarehouseId(), candidate.getProductId());
+        }
     }
 
     private StockAlertResponse mapToResponse(StockAlert alert) {

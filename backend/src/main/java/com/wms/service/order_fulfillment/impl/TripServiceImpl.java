@@ -83,6 +83,7 @@ import com.wms.service.order_fulfillment.TripService;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -191,13 +192,15 @@ public class TripServiceImpl implements TripService {
     }
 
     @Override
-    @Transactional
+    @Transactional(noRollbackFor = ExpiredDeliveryOrderException.class)
     public TripResponse createTrip(TripCreateRequest request, User actor) {
         Warehouse warehouse = activeWarehouse(request.getWarehouseId());
         requireWarehouseScope(actor, warehouse.getId());
         Vehicle vehicle = availableVehicle(request.getVehicleId(), warehouse.getId(), null);
         Driver driver = availableDriver(request.getDriverId(), warehouse.getId(), null);
-        List<DeliveryOrder> orders = validateOrders(request.getDeliveryOrders(), warehouse.getId(), null);
+        validateTripSchedule(request.getPlannedStartAt(), request.getPlannedEndAt());
+        List<DeliveryOrder> orders = validateOrders(request.getDeliveryOrders(), warehouse.getId(), null,
+                request.getPlannedStartAt().toLocalDate(), actor);
         Capacity capacity = calculateCapacity(orders, vehicle);
 
         OffsetDateTime now = OffsetDateTime.now();
@@ -225,7 +228,7 @@ public class TripServiceImpl implements TripService {
     }
 
     @Override
-    @Transactional
+    @Transactional(noRollbackFor = ExpiredDeliveryOrderException.class)
     public TripResponse updateTrip(Long id, TripUpdateRequest request, User actor) {
         Trip trip = loadTrip(id);
         requirePlanned(trip);
@@ -234,12 +237,21 @@ public class TripServiceImpl implements TripService {
 
         Long vehicleId = request.getVehicleId() == null ? trip.getVehicle().getId() : request.getVehicleId();
         Long driverId = request.getDriverId() == null ? trip.getDriver().getId() : request.getDriverId();
+        LocalDateTime plannedStartAt = request.getPlannedStartAt() == null
+                ? trip.getPlannedStartAt()
+                : request.getPlannedStartAt();
+        LocalDateTime plannedEndAt = request.getPlannedEndAt() == null
+                ? trip.getPlannedEndAt()
+                : request.getPlannedEndAt();
         Vehicle vehicle = availableVehicle(vehicleId, trip.getWarehouse().getId(), trip.getId());
         Driver driver = availableDriver(driverId, trip.getWarehouse().getId(), trip.getId());
         List<TripDeliveryOrderRequest> rows = request.getDeliveryOrders() == null
                 ? currentRows(trip.getId())
                 : request.getDeliveryOrders();
-        List<DeliveryOrder> orders = validateOrders(rows, trip.getWarehouse().getId(), trip.getId());
+        validateTripSchedule(plannedStartAt, plannedEndAt);
+        LocalDate plannedDate = plannedStartAt == null ? trip.getPlannedDate() : plannedStartAt.toLocalDate();
+        List<DeliveryOrder> orders = validateOrders(rows, trip.getWarehouse().getId(), trip.getId(),
+                plannedDate, actor);
         Capacity capacity = calculateCapacity(orders, vehicle);
 
         trip.setVehicle(vehicle);
@@ -336,7 +348,9 @@ public class TripServiceImpl implements TripService {
 
     private List<DeliveryOrder> validateOrders(List<TripDeliveryOrderRequest> rows,
             Long warehouseId,
-            Long excludedTripId) {
+            Long excludedTripId,
+            LocalDate plannedDate,
+            User actor) {
         validateStopOrders(rows);
         List<Long> ids = validateUniqueDeliveryOrderIds(rows);
         List<TripDeliveryOrder> existingAssignments = tripDeliveryOrderRepository
@@ -359,8 +373,54 @@ public class TripServiceImpl implements TripService {
             if (order.getStatus() != DeliveryOrderStatus.WAREHOUSE_APPROVED) {
                 throw rule("TRIP_DO_STATUS_INVALID", "Delivery order must be WAREHOUSE_APPROVED");
             }
+            validateDeliveryDeadline(order, plannedDate, actor);
         }
         return ids.stream().map(orders::get).toList();
+    }
+
+    private void validateTripSchedule(LocalDateTime plannedStartAt, LocalDateTime plannedEndAt) {
+        if (plannedStartAt == null || plannedEndAt == null) {
+            return;
+        }
+        if (!plannedEndAt.isAfter(plannedStartAt)) {
+            throw rule("TRIP_SCHEDULE_INVALID", "Trip planned end must be after planned start");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        if (plannedStartAt.isBefore(now.minusMinutes(15))) {
+            throw rule("TRIP_START_IN_PAST", "Trip planned start must not be in the past");
+        }
+        if (plannedEndAt.isBefore(now)) {
+            throw rule("TRIP_END_IN_PAST", "Trip planned end must not be in the past");
+        }
+    }
+
+    private void validateDeliveryDeadline(DeliveryOrder order, LocalDate plannedDate, User actor) {
+        LocalDate expectedDate = order.getExpectedDeliveryDate();
+        if (expectedDate == null) {
+            return;
+        }
+        LocalDate today = LocalDate.now();
+        if (expectedDate.isBefore(today)) {
+            cancelExpiredDeliveryOrder(order, actor, today);
+            throw new ExpiredDeliveryOrderException("DELIVERY_ORDER_EXPECTED_DATE_EXPIRED",
+                    "Delivery order " + order.getDoNumber() + " expired on " + expectedDate
+                            + " and was cancelled");
+        }
+        if (plannedDate != null && plannedDate.isAfter(expectedDate)) {
+            throw rule("TRIP_PLANNED_AFTER_EXPECTED_DELIVERY_DATE",
+                    "Trip must be planned no later than delivery order expected date");
+        }
+    }
+
+    private void cancelExpiredDeliveryOrder(DeliveryOrder order, User actor, LocalDate today) {
+        Map<String, Object> before = snapshotDeliveryOrder(order);
+        order.setStatus(DeliveryOrderStatus.CANCELLED);
+        order.setCancelReason("AUTO_CANCEL_EXPECTED_DELIVERY_DATE_EXPIRED: expected "
+                + order.getExpectedDeliveryDate() + ", checked " + today);
+        order.setUpdatedAt(OffsetDateTime.now());
+        DeliveryOrder saved = deliveryOrderRepository.save(order);
+        auditLogService.log(actor, AuditAction.CANCEL, "DELIVERY_ORDER", saved.getId(), saved.getDoNumber(),
+                saved.getWarehouse().getId(), before, snapshotDeliveryOrder(saved));
     }
 
     private void moveStagedInventoryToTransit(List<DeliveryOrder> orders) {
@@ -497,19 +557,14 @@ public class TripServiceImpl implements TripService {
         List<DeliveryOrderItem> items = deliveryOrderItemRepository.findByDeliveryOrderIdIn(
                 orders.stream().map(DeliveryOrder::getId).toList());
         BigDecimal weight = ZERO;
-        BigDecimal volume = ZERO;
         for (DeliveryOrderItem item : items) {
             BigDecimal qty = value(item.getRequestedQty());
             weight = weight.add(value(item.getProduct().getWeightKg()).multiply(qty));
-            volume = volume.add(value(item.getProduct().getVolumeM3()).multiply(qty));
         }
         if (vehicle.getMaxWeightKg() != null && weight.compareTo(vehicle.getMaxWeightKg()) > 0) {
             throw rule("VEHICLE_OVERLOAD", "Trip weight exceeds vehicle capacity");
         }
-        if (vehicle.getMaxVolumeM3() != null && volume.compareTo(vehicle.getMaxVolumeM3()) > 0) {
-            throw rule("VEHICLE_OVERLOAD", "Trip volume exceeds vehicle capacity");
-        }
-        return new Capacity(weight, volume);
+        return new Capacity(weight, ZERO);
     }
 
     private void validateFullQcPass(List<DeliveryOrder> orders, Map<Long, List<DeliveryOrderItem>> itemsByOrder) {
@@ -555,6 +610,9 @@ public class TripServiceImpl implements TripService {
                 || !Boolean.TRUE.equals(driver.getIsActive())
                 || driver.getStatus() != DriverStatus.AVAILABLE) {
             throw rule("DRIVER_NOT_AVAILABLE", "Driver is not available in the selected warehouse");
+        }
+        if (driver.getLicenseExpiry() == null || driver.getLicenseExpiry().isBefore(LocalDate.now())) {
+            throw rule("DRIVER_LICENSE_EXPIRED", "Driver license is missing or expired");
         }
         if (tripRepository.existsActiveDriverAssignment(driverId, ACTIVE_TRIP_STATUSES, excludedTripId)) {
             throw conflict("DRIVER_ALREADY_ASSIGNED_TO_TRIP", "Driver belongs to another active trip");
@@ -645,7 +703,6 @@ public class TripServiceImpl implements TripService {
                 .vehiclePlate(trip.getVehicle().getPlateNumber())
                 .vehicleType(trip.getVehicle().getVehicleType())
                 .vehicleMaxWeightKg(trip.getVehicle().getMaxWeightKg())
-                .vehicleMaxVolumeM3(trip.getVehicle().getMaxVolumeM3())
                 .driverId(trip.getDriver().getId())
                 .driverName(trip.getDriver().getFullName())
                 .driverPhone(trip.getDriver().getPhone())
@@ -691,6 +748,17 @@ public class TripServiceImpl implements TripService {
         values.put("status", trip.getStatus());
         values.put("totalWeightKg", trip.getTotalWeightKg());
         values.put("totalVolumeM3", trip.getTotalVolumeM3());
+        return values;
+    }
+
+    private Map<String, Object> snapshotDeliveryOrder(DeliveryOrder order) {
+        Map<String, Object> values = new LinkedHashMap<>();
+        values.put("id", order.getId());
+        values.put("doNumber", order.getDoNumber());
+        values.put("warehouseId", order.getWarehouse().getId());
+        values.put("status", order.getStatus());
+        values.put("expectedDeliveryDate", order.getExpectedDeliveryDate());
+        values.put("cancelReason", order.getCancelReason());
         return values;
     }
 
@@ -762,6 +830,12 @@ public class TripServiceImpl implements TripService {
 
     private OutboundDeliveryException rule(String code, String message) {
         return new OutboundDeliveryException(code, HttpStatus.UNPROCESSABLE_ENTITY, message);
+    }
+
+    private static class ExpiredDeliveryOrderException extends OutboundDeliveryException {
+        ExpiredDeliveryOrderException(String code, String message) {
+            super(code, HttpStatus.UNPROCESSABLE_ENTITY, message);
+        }
     }
 
     private record Capacity(BigDecimal weight, BigDecimal volume) {

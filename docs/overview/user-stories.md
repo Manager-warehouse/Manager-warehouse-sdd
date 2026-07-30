@@ -130,9 +130,9 @@
 
 1. Dispatcher tạo Chuyến xe (Trip Log) mới trong kho được gán: chọn xe nội bộ và Tài xế thuộc cùng kho, thiết lập ngày giao dự kiến.
 2. Gom ít nhất một Đơn xuất hàng (Delivery Orders) ở trạng thái **Warehouse Approved** và cùng kho vào một Chuyến xe `trip_type = DELIVERY`; mỗi DO chỉ được nằm trong một trip active, sắp xếp thứ tự giao hàng (Stop Order).
-3. Hệ thống kiểm tra tải trọng xe: luôn kiểm tra tổng khối lượng; chỉ kiểm tra tổng thể tích khi xe có cấu hình `max_volume_m3`.
+3. Hệ thống kiểm tra tải trọng xe theo tổng khối lượng; nếu vượt tải trọng thì chặn gán chuyến.
 4. Dispatcher được sửa xe, tài xế, ngày dự kiến, stop order và danh sách DO, hoặc hủy trip nếu chuyến xe chưa xuất phát; payload sửa danh sách DO là danh sách cuối cùng sau chỉnh sửa. DO của trip bị hủy giữ trạng thái **Warehouse Approved** để xếp lại chuyến khác, còn trip giữ lịch sử xe/tài xế nhưng không chiếm dụng active assignment.
-5. Tài xế được gán xác nhận nhận hàng, xe rời kho → Trạng thái Chuyến xe: **Đang vận chuyển (In-Transit)** → Hệ thống chuyển hàng từ outbound staging sang Kho ảo In-Transit, giải phóng reserved ở staging và tạo delivery attempt hiện tại.
+5. Tài xế được gán phải có hồ sơ tài xế và GPLX còn hạn; tài xế xác nhận nhận hàng, xe rời kho → Trạng thái Chuyến xe: **Đang vận chuyển (In-Transit)** → Hệ thống chuyển hàng từ outbound staging sang Kho ảo In-Transit, giải phóng reserved ở staging và tạo delivery attempt hiện tại.
 6. Chuyến xe chỉ hoàn tất khi xe quay trở lại kho và mọi DO trong chuyến đã **Completed** hoặc **Returned**; hàng Returned vẫn ở Kho ảo In-Transit cho tới khi luồng hoàn hàng riêng xử lý.
 
 ---
@@ -188,8 +188,9 @@
 1. Planner nhập mã lệnh điều chuyển từ Công ty mẹ/bộ phận điều phối (`external_instruction_code`), kho nguồn, kho đích, ngày kế hoạch, Ngày Nhập Hàng và các SKU/số lượng cần chuyển.
 2. Hệ thống không tự sinh gợi ý điều chuyển và không tự quyết định kho nguồn/kho đích/số lượng trong Sprint 1.
 3. Hệ thống bắt buộc mã lệnh ngoài để truy vết sau này.
-4. Planner có thể sửa hoặc hủy phiếu khi phiếu còn trạng thái **Mới**.
-5. Phiếu điều chuyển nội bộ dùng mã `TRF-*` và được xử lý ở màn Điều chuyển nội bộ, tách riêng khỏi phiếu nhập NCC `RN-*`.
+4. Hệ thống chặn ngày chứng từ/ngày kế hoạch trong quá khứ, ngày kế hoạch trước ngày chứng từ, kho nguồn trùng kho đích, SKU trùng dòng, số lượng không nguyên/dưới hoặc bằng 0, sản phẩm/kho không hoạt động và mã lệnh ngoài bị trùng trên phiếu active.
+5. Planner có thể sửa hoặc hủy phiếu khi phiếu còn trạng thái **Mới**.
+6. Phiếu điều chuyển nội bộ dùng mã `TRF-*` và được xử lý ở màn Điều chuyển nội bộ, tách riêng khỏi phiếu nhập NCC `RN-*`.
 
 ---
 
@@ -202,10 +203,11 @@
 1. Trưởng kho chỉ được xem tồn kho khả dụng liên kho ở chế độ read-only; số khả dụng tính bằng `total_qty - reserved_qty` và loại trừ hàng Quarantine/In-Transit không available.
 2. Trưởng kho chỉ được tạo yêu cầu cho kho mình phụ trách; kho yêu cầu trở thành kho đích, kho còn hàng là kho nguồn đề xuất.
 3. Yêu cầu điều chuyển phải có kho nguồn, kho đích, SKU/số lượng, ngày cần hàng, lý do nghiệp vụ, số tồn khả dụng quan sát tại kho nguồn và kho yêu cầu.
-4. CEO có thể duyệt hoặc từ chối yêu cầu; từ chối bắt buộc nhập lý do và giữ lịch sử audit.
-5. CEO duyệt yêu cầu **không** reserve tồn và **không** tạo/trừ/cộng inventory. Việc giữ chỗ chỉ xảy ra khi Trưởng kho nguồn duyệt phiếu `TRF-*`.
-6. Sau khi CEO duyệt, hệ thống tạo/gửi mẫu yêu cầu đã duyệt cho Planner kho nguồn hoặc Planner trung tâm để chuyển thành một phiếu `TRF-*`.
-7. Một yêu cầu đã CEO duyệt chỉ được chuyển thành tối đa một phiếu `TRF-*`; chuyển trùng phải bị chặn.
+4. Hệ thống chặn ngày cần hàng trong quá khứ, SKU trùng dòng, số lượng không nguyên/dưới hoặc bằng 0, thiếu lý do nghiệp vụ và yêu cầu vượt tồn khả dụng hiện tại của kho nguồn.
+5. CEO có thể duyệt hoặc từ chối yêu cầu; từ chối bắt buộc nhập lý do và giữ lịch sử audit.
+6. CEO duyệt yêu cầu **không** reserve tồn và **không** tạo/trừ/cộng inventory. Việc giữ chỗ chỉ xảy ra khi Trưởng kho nguồn duyệt phiếu `TRF-*`.
+7. Sau khi CEO duyệt, hệ thống tạo/gửi mẫu yêu cầu đã duyệt cho Planner kho nguồn hoặc Planner trung tâm để chuyển thành một phiếu `TRF-*`.
+8. Một yêu cầu đã CEO duyệt chỉ được chuyển thành tối đa một phiếu `TRF-*`; chuyển trùng phải bị chặn.
 
 ---
 
@@ -218,12 +220,16 @@
 1. Planner tạo Phiếu điều chuyển: nhập mã lệnh điều chuyển ngoài, chọn kho nguồn, kho đích, SKU, số lượng → Trạng thái: **Mới**.
 2. **Trưởng kho nguồn (Checker)** kiểm tra tồn kho khả dụng:
    - Nếu đủ hàng → Phê duyệt và hệ thống khóa/giữ chỗ số lượng điều chuyển ngay → Trạng thái: **Đã duyệt**.
+   - Nếu thiếu hàng → Hệ thống chặn phê duyệt trước khi tạo reservation/allocation một phần, hiển thị lỗi thiếu tồn khả dụng và giữ phiếu ở trạng thái **Mới**.
    - Nếu không duyệt → Trưởng kho nguồn nhập lý do từ chối bắt buộc → Trạng thái: **Từ chối (REJECTED)**.
    - Nếu đã duyệt nhưng cần hủy trước khi xe rời kho → Chỉ Trưởng kho nguồn/manager được hủy và hệ thống giải phóng giữ chỗ.
 3. Dispatcher lập một chuyến xe nội bộ riêng cho phiếu điều chuyển: gán xe, tài xế và ngày vận chuyển.
    - Dispatcher chỉ được lập chuyến cho phiếu có kho nguồn thuộc phạm vi kho mình.
    - Danh sách tài xế hợp lệ chỉ gồm các tài xế có thể hoạt động tại kho nguồn của phiếu.
-   - Hệ thống phải tính tải trọng/thể tích từ dòng hàng, kiểm tra xe/tài xế không bị trùng lịch, kiểm tra tải trọng xe theo khối lượng; thể tích chỉ kiểm tra khi xe có cấu hình thể tích.
+   - Hệ thống phải tính tải trọng từ dòng hàng, kiểm tra xe/tài xế không bị trùng lịch, kiểm tra tải trọng xe theo khối lượng. Nếu xe 1500kg mà phiếu/chuyến 2000kg thì hệ thống chặn gán chuyến.
+   - Tài xế phải có hồ sơ tài xế và GPLX còn hạn; user role `DRIVER` chưa có hồ sơ hoặc hồ sơ hết hạn bằng lái không được gán chuyến.
+   - Trạng thái tài xế/xe `ON_TRIP` do hệ thống quản lý theo lifecycle chuyến xe; Dispatcher/Admin không cập nhật thủ công trạng thái này trong form danh mục.
+   - Dispatcher không được lập/sửa chuyến với thời gian trong quá khứ, thời gian kết thúc trước bắt đầu, hoặc sau deadline/ngày cần hàng đã quá hạn; nếu quá hạn trước khi đơn thành công thì work item giao/điều phối phải bị hủy/hết hạn theo flow sở hữu.
    - Chỉ được đổi xe/tài xế/lịch trước khi tài xế departure; sau departure trip bị khóa.
    - Chuyến điều chuyển `TTR-*` xuất hiện trong màn **Chuyến xe của tôi** của tài xế với nhãn **Điều chuyển nội bộ** và filter **Nội bộ**; detail của chuyến này đi theo luồng depart/arrive/handover của điều chuyển, không dùng POD/OTP đại lý.
 4. Công nhân/Nhân viên kho nguồn lấy hàng, bốc xếp lên xe và báo cáo số lượng thực xếp theo từng dòng; Thủ kho kho nguồn kiểm outbound QC bằng mắt/đối chiếu phiếu dựa trên số lượng đã xếp, chụp ảnh xác nhận, chốt số lượng xuất và chụp ảnh bàn giao cho tài xế; Tài xế xác nhận đã nhận hàng và xe rời kho → Hệ thống **trừ tồn kho nguồn, giải phóng giữ chỗ, cộng vào Kho ảo In-Transit** → Trạng thái: **Đang vận chuyển (In-Transit)**.
@@ -233,16 +239,18 @@
    - Nếu đã ghi hàng lên xe nhưng chưa rời kho mà cần hủy, hệ thống bắt buộc hạ hàng/unship trước rồi mới cho Trưởng kho nguồn hủy phiếu và nhả giữ chỗ.
 5. Tài xế được gán phải ghi nhận xe đến kho nhận và bàn giao vật lý trước khi kho nhận được kiểm đếm. Công nhân kho đích nhập blind count số lượng thực nhận; nếu số nhận thiếu/thừa so với số gửi thì phải nhập lý do. Thủ kho kho đích kiểm tra lại số lượng, có thể điều chỉnh số xác nhận kèm ghi chú, nhập/chốt QC, kiểm tra sức chứa Bin và chọn vị trí nhập hàng đạt; Trưởng kho đích xác nhận cuối cùng:
    - Nếu khớp và QC đạt → Hệ thống **trừ Kho ảo In-Transit, cộng vào kho đích** → Trạng thái: **Hoàn thành**.
-   - Nếu thiếu → Hệ thống **bắt buộc** ghi lý do chênh lệch, tạo hồ sơ incident/discrepancy và tự động tạo Phiếu điều chỉnh bù trừ.
+   - Nếu thiếu → Hệ thống **bắt buộc** ghi lý do chênh lệch, tạo hồ sơ incident/discrepancy mở và tự động tạo Phiếu điều chỉnh bù trừ. CEO/Kế toán trưởng/Trưởng kho liên quan chốt hướng xử lý trên `/transfers/discrepancies`; chốt hồ sơ không tự sửa tồn, nếu kết luận đếm sai thì phải đi qua phiếu điều chỉnh riêng.
    - Nếu nhận thừa (`received_qty > sent_qty`) → Hệ thống chặn nhập kho thường và ghi nhận discrepancy hold/incident cho phần hàng vật lý thừa.
    - Nếu QC lỗi/hư hỏng → Phần lỗi được đưa vào Quarantine Zone với nguồn `INTERNAL_TRANSFER`, không tính vào tồn kho khả dụng, chỉ xử lý tiêu hủy theo Spec 009 và không tạo trả NCC/Debit Note.
    - Nếu thiếu hàng → Phần thiếu không được tạo Quarantine hoặc disposal candidate vì không có hàng vật lý.
    - Nếu gửi nhầm SKU nhưng hàng còn nguyên → Thủ kho đích báo cáo `WRONG_SKU` theo từng line với SKU kỳ vọng, SKU thực tế, số lượng ảnh hưởng, lý do và ảnh nếu có; Trưởng kho đích duyệt xe quay về kho nguồn, hàng vẫn ở In-Transit, tài xế ghi nhận return departure/source arrival/handover và kho nguồn thực hiện lại count/check/QC/final receive.
    - Nếu trip quá hạn khi phiếu còn `IN_TRANSIT` → Hệ thống đánh dấu quá hạn, chặn receive-count/receive-check tại kho đích và yêu cầu vai trò có thẩm quyền kích hoạt Return to Source với lý do/bằng chứng.
    - Hàng đạt QC chỉ được cộng vào Bin hợp lệ của kho nhận sau khi kiểm tra sức chứa Bin.
-6. Planner chỉ được hủy phiếu khi còn **NEW**; sau khi **APPROVED** Planner không được hủy. Hệ thống không hỗ trợ hủy phiếu điều chuyển sau khi trạng thái đã là **Đang vận chuyển (In-Transit)**.
-7. Luồng nhận hàng điều chuyển vẫn ở màn Điều chuyển nội bộ; không gộp vào danh sách phiếu nhập NCC `RN`.
-8. Mọi mutation của transfer/request/trip/resource/inventory phải có kiểm soát version/concurrency và audit đủ header, line-item, allocation, QC, wrong-SKU, trip/resource và inventory movement.
+   - Payload receive-count, receive-check, putaway và wrong-SKU phải đủ dòng hợp lệ, không trùng dòng, số lượng nguyên/dương đúng ngữ cảnh; lỗi validate phải trả message rõ ràng và không mutate tồn kho/trạng thái nếu chưa đi vào nhánh nghiệp vụ hợp lệ.
+6. Frontend hiển thị lỗi theo đúng ngữ cảnh: lỗi ô nhập hiển thị ngay tại form, lỗi backend hiển thị toast tiếng Việt, chống trùng/chồng message, và chỉ refresh dữ liệu sau mutation thành công.
+7. Planner chỉ được hủy phiếu khi còn **NEW**; sau khi **APPROVED** Planner không được hủy. Hệ thống không hỗ trợ hủy phiếu điều chuyển sau khi trạng thái đã là **Đang vận chuyển (In-Transit)**.
+8. Luồng nhận hàng điều chuyển vẫn ở màn Điều chuyển nội bộ; không gộp vào danh sách phiếu nhập NCC `RN`.
+9. Mọi mutation của transfer/request/trip/resource/inventory phải có kiểm soát version/concurrency và audit đủ header, line-item, allocation, QC, wrong-SKU, trip/resource và inventory movement.
 
 ---
 
@@ -382,6 +390,7 @@
 1. **Phân quyền theo Vai trò:** Nhân viên kho/Thủ kho bị chặn hoàn toàn khỏi các màn hình báo cáo tài chính, giá trị tồn kho, P&L của Kế toán.
 2. **Phân quyền theo Chi nhánh:** Nhân viên được gán vào Kho Hải Phòng chỉ nhìn thấy và thao tác dữ liệu của Kho Hải Phòng; không thể xem hoặc can thiệp vào Kho Hà Nội hay TP.HCM.
 3. System Admin gán và thu hồi quyền bất kỳ lúc nào; mọi thay đổi phân quyền phải ghi Audit Log.
+4. Danh sách quản lý tài khoản vận hành không hiển thị tài khoản hệ thống `ADMIN` như một nhân viên thông thường.
 
 ---
 
@@ -404,9 +413,11 @@
 
 **Tiêu chí nghiệm thu:**
 
-1. Lưu trữ thông tin xe: Biển số xe, Loại xe, Tải trọng tối đa (kg), Thể tích thùng xe (m³).
-2. Lưu trữ thông tin Tài xế: Họ tên, SĐT, Số giấy phép lái xe, ngày hết hạn GPLX.
-3. Cập nhật và hiển thị trạng thái phương tiện (Rảnh / Đang đi chuyến / Bảo trì) và tài xế (Rảnh / Đang đi chuyến / Không khả dụng) để tránh gán trùng lịch khi Dispatcher lập Chuyến xe.
+1. Lưu trữ thông tin xe: Biển số xe, Loại xe, Tải trọng tối đa (kg).
+2. Lưu trữ thông tin Tài xế: Họ tên lấy từ tài khoản `DRIVER` liên kết, SĐT có thể fallback từ tài khoản, Số giấy phép lái xe, ngày hết hạn GPLX.
+3. Cập nhật và hiển thị trạng thái phương tiện (Rảnh / Đang đi chuyến / Bảo trì) và tài xế (Rảnh / Đang đi chuyến / Không khả dụng) để tránh gán trùng lịch khi Dispatcher lập Chuyến xe. `Đang đi chuyến/ON_TRIP` là trạng thái hệ thống tự cập nhật theo trip lifecycle; form danh mục chỉ cho cập nhật trạng thái con người điều khiển như sẵn sàng/bảo trì/không khả dụng.
+4. Chỉ Dispatcher được bật/tắt trạng thái hoạt động (`is_active`) của xe và hồ sơ tài xế; Admin/CEO không thực hiện thao tác vận hành này.
+4. Nếu tài xế chưa có hồ sơ, thiếu hạn GPLX hoặc GPLX hết hạn, hệ thống không cho gán chuyến.
 
 ---
 

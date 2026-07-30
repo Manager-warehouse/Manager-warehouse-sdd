@@ -40,4 +40,5 @@ import jakarta.validation.constraints.NotEmpty;
 import java.util.List;
 
 public record InterWarehouseTransferReceiveCountRequest(
-        @NotEmpty List<@Valid InterWarehouseTransferReceiveCountItemRequest> items) {}
+        @NotEmpty(message = "RECEIVE_COUNT_ITEMS_REQUIRED")
+        List<@Valid InterWarehouseTransferReceiveCountItemRequest> items) {}

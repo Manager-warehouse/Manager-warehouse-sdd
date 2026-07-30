@@ -12,6 +12,7 @@
   * WHEN a System Admin assigns a user to a specific warehouse, the system SHALL authorize that user to perform transactions only within that warehouse.
   * WHEN a System Admin assigns warehouses to a user whose role is NOT 'ADMIN' or 'CEO', the system SHALL enforce that the user can be assigned to at most 1 warehouse, returning a validation error if multiple warehouses are assigned.
   * WHEN a System Admin creates or modifies a user whose role is NOT 'ADMIN' or 'CEO', the system SHALL require exactly 1 warehouse assignment, returning a validation error if no warehouse assignment is provided.
+  * WHEN the user-management list is queried, the system SHALL exclude system `ADMIN` accounts from the operational account table so admin credentials are not exposed as normal staff records.
 
 * **Optional:**
   * WHERE the user has `ADMIN` role, the system SHALL bypass warehouse checks and allow access to all warehouses.
@@ -29,7 +30,7 @@
 
 
 ## 4. API Endpoints
-* `GET /api/v1/admin/users` - Danh sách tài khoản người dùng kèm vai trò và kho được gán.
+* `GET /api/v1/admin/users` - Danh sách tài khoản người dùng kèm vai trò và kho được gán; excludes system `ADMIN` accounts from the operational table.
 * `POST /api/v1/admin/users` - Tạo tài khoản người dùng mới.
 * `PUT /api/v1/admin/users/{id}` - Cập nhật thông tin tài khoản, vai trò và kho được gán.
 * `DELETE /api/v1/admin/users/{id}` - Xóa mềm người dùng (`is_active = false`).

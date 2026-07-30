@@ -40,7 +40,9 @@ import jakarta.validation.constraints.Positive;
 import java.math.BigDecimal;
 
 public record InterWarehouseTransferItemRequest(
-        @NotNull Long productId,
+        @NotNull(message = "PRODUCT_ID_REQUIRED") Long productId,
         Long sourceLocationId,
         Long destinationLocationId,
-        @NotNull @Positive BigDecimal plannedQty) {}
+        @NotNull(message = "PLANNED_QTY_REQUIRED")
+        @Positive(message = "PLANNED_QTY_MUST_BE_POSITIVE")
+        BigDecimal plannedQty) {}

@@ -22,6 +22,7 @@ import {
   Landmark,
   Calendar,
   PieChart,
+  AlertTriangle,
 } from "lucide-react";
 import { useAuthStore } from "../../stores/auth.store";
 import { useUiStore } from "../../stores/ui.store";
@@ -165,6 +166,12 @@ const Sidebar = () => {
         ROLES.DISPATCHER,
         ROLES.CEO,
       ],
+    },
+    {
+      title: 'Hồ sơ chênh lệch',
+      path: '/transfers/discrepancies',
+      icon: AlertTriangle,
+      roles: [ROLES.WAREHOUSE_MANAGER, ROLES.ACCOUNTANT_MANAGER, ROLES.CEO]
     },
   ];
 

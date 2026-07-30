@@ -40,6 +40,8 @@ import jakarta.validation.constraints.PositiveOrZero;
 import java.math.BigDecimal;
 
 public record InterWarehouseTransferReceiveCountItemRequest(
-        @NotNull Long transferItemId,
-        @NotNull @PositiveOrZero BigDecimal receivedQty,
+        @NotNull(message = "TRANSFER_ITEM_ID_REQUIRED") Long transferItemId,
+        @NotNull(message = "RECEIVED_QTY_REQUIRED")
+        @PositiveOrZero(message = "RECEIVED_QTY_MUST_NOT_BE_NEGATIVE")
+        BigDecimal receivedQty,
         String issueReason) {}

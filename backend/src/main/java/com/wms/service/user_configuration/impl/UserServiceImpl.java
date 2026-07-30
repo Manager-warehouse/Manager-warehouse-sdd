@@ -74,6 +74,7 @@ public class UserServiceImpl implements UserService {
     @Transactional(readOnly = true)
     public List<UserResponse> getAllUsers() {
         return userRepository.findAll().stream()
+                .filter(user -> user.getRole() != UserRole.ADMIN)
                 .map(user -> {
                     List<Long> warehouseIds = userWarehouseAssignmentRepository.findWarehouseIdsByUserId(user.getId());
                     return mapToResponse(user, warehouseIds);

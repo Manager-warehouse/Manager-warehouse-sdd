@@ -52,6 +52,7 @@ import static org.mockito.Mockito.*;
 import com.wms.dto.request.TransferRequestCreateRequest;
 import com.wms.dto.request.TransferRequestItemRequest;
 import com.wms.dto.request.TransferRequestRejectRequest;
+import com.wms.dto.request.TransferRequestUpdateRequest;
 import com.wms.dto.request.InterWarehouseTransferCreateRequest;
 import com.wms.dto.response.WarehouseStockLookupResponse;
 import com.wms.dto.response.TransferRequestResponse;
@@ -212,6 +213,47 @@ class TransferRequestServiceImplTest {
         assertThatThrownBy(() -> service.createRequest(createReq, planner))
                 .isInstanceOf(BusinessRuleViolationException.class)
                 .hasMessageContaining("WAREHOUSE_MANAGER_ROLE_REQUIRED");
+
+        verify(requestRepository, never()).save(any(TransferRequest.class));
+    }
+
+    @Test
+    void createTransferRequest_failsIfNeededByDateIsPast() {
+        TransferRequestCreateRequest createReq = new TransferRequestCreateRequest(
+                sourceWarehouse.getId(),
+                destinationWarehouse.getId(),
+                LocalDate.now().minusDays(1),
+                "Destination shortage",
+                "Past date should fail",
+                List.of(new TransferRequestItemRequest(product.getId(), new BigDecimal("10.00")))
+        );
+
+        when(assignmentRepository.findWarehouseIdsByUserId(manager.getId())).thenReturn(List.of(destinationWarehouse.getId()));
+
+        assertThatThrownBy(() -> service.createRequest(createReq, manager))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("NEEDED_BY_DATE_MUST_NOT_BE_PAST");
+
+        verify(requestRepository, never()).save(any(TransferRequest.class));
+    }
+
+    @Test
+    void updateTransferRequest_failsIfNeededByDateIsPast() {
+        TransferRequestUpdateRequest updateReq = new TransferRequestUpdateRequest(
+                sourceWarehouse.getId(),
+                destinationWarehouse.getId(),
+                LocalDate.now().minusDays(1),
+                "Destination shortage",
+                "Past date should fail",
+                List.of(new TransferRequestItemRequest(product.getId(), new BigDecimal("10.00")))
+        );
+
+        when(requestRepository.findById(request.getId())).thenReturn(Optional.of(request));
+        when(assignmentRepository.findWarehouseIdsByUserId(manager.getId())).thenReturn(List.of(destinationWarehouse.getId()));
+
+        assertThatThrownBy(() -> service.updateRequest(request.getId(), updateReq, manager))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("NEEDED_BY_DATE_MUST_NOT_BE_PAST");
 
         verify(requestRepository, never()).save(any(TransferRequest.class));
     }

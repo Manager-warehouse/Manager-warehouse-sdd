@@ -67,6 +67,7 @@ import com.wms.dto.request.StockTakeRejectRequest;
 import com.wms.dto.response.StockTakeResponse;
 import com.wms.exception.BusinessRuleViolationException;
 import com.wms.exception.StockTakeException;
+import com.wms.exception.UnprocessableEntityException;
 import com.wms.repository.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -148,6 +149,8 @@ class StockTakeServiceTest {
 
         openPeriod = new AccountingPeriod();
         openPeriod.setId(1L);
+        openPeriod.setStartDate(LocalDate.of(2026, 6, 1));
+        openPeriod.setEndDate(LocalDate.of(2026, 6, 30));
         openPeriod.setStatus(AccountingPeriodStatus.OPEN);
 
         product = new Product();
@@ -242,6 +245,8 @@ class StockTakeServiceTest {
     void createStockTake_periodClosed_throwsBusinessRuleViolation() {
         AccountingPeriod closed = new AccountingPeriod();
         closed.setId(2L);
+        closed.setStartDate(LocalDate.now().withDayOfMonth(1));
+        closed.setEndDate(LocalDate.now().withDayOfMonth(LocalDate.now().lengthOfMonth()));
         closed.setStatus(AccountingPeriodStatus.CLOSED);
 
         CreateStockTakeRequest req = new CreateStockTakeRequest();
@@ -256,6 +261,54 @@ class StockTakeServiceTest {
         BusinessRuleViolationException ex = assertThrows(BusinessRuleViolationException.class,
                 () -> service.createStockTake(req, storekeeper));
         assertTrue(ex.getMessage().contains("ACCOUNTING_PERIOD_CLOSED"));
+    }
+
+    @Test
+    void createStockTake_stockTakeDateAfterDocumentDate_throwsUnprocessable() {
+        CreateStockTakeRequest req = new CreateStockTakeRequest();
+        req.setWarehouseId(WH_ID);
+        req.setStockTakeDate(LocalDate.of(2026, 6, 18));
+        req.setDocumentDate(LocalDate.of(2026, 6, 17));
+        req.setAccountingPeriodId(1L);
+
+        when(warehouseRepository.findById(WH_ID)).thenReturn(Optional.of(warehouse));
+        when(accountingPeriodRepository.findById(1L)).thenReturn(Optional.of(openPeriod));
+
+        UnprocessableEntityException ex = assertThrows(UnprocessableEntityException.class,
+                () -> service.createStockTake(req, storekeeper));
+        assertTrue(ex.getMessage().contains("STOCK_TAKE_DATE_AFTER_DOCUMENT_DATE"));
+    }
+
+    @Test
+    void createStockTake_documentDateOutsideAccountingPeriod_throwsUnprocessable() {
+        CreateStockTakeRequest req = new CreateStockTakeRequest();
+        req.setWarehouseId(WH_ID);
+        req.setStockTakeDate(LocalDate.of(2026, 6, 17));
+        req.setDocumentDate(LocalDate.of(2026, 7, 27));
+        req.setAccountingPeriodId(1L);
+
+        when(warehouseRepository.findById(WH_ID)).thenReturn(Optional.of(warehouse));
+        when(accountingPeriodRepository.findById(1L)).thenReturn(Optional.of(openPeriod));
+
+        UnprocessableEntityException ex = assertThrows(UnprocessableEntityException.class,
+                () -> service.createStockTake(req, storekeeper));
+        assertTrue(ex.getMessage().contains("DOCUMENT_DATE_OUTSIDE_ACCOUNTING_PERIOD"));
+    }
+
+    @Test
+    void createStockTake_stockTakeDateOutsideAccountingPeriod_throwsUnprocessable() {
+        CreateStockTakeRequest req = new CreateStockTakeRequest();
+        req.setWarehouseId(WH_ID);
+        req.setStockTakeDate(LocalDate.of(2026, 5, 31));
+        req.setDocumentDate(LocalDate.of(2026, 6, 17));
+        req.setAccountingPeriodId(1L);
+
+        when(warehouseRepository.findById(WH_ID)).thenReturn(Optional.of(warehouse));
+        when(accountingPeriodRepository.findById(1L)).thenReturn(Optional.of(openPeriod));
+
+        UnprocessableEntityException ex = assertThrows(UnprocessableEntityException.class,
+                () -> service.createStockTake(req, storekeeper));
+        assertTrue(ex.getMessage().contains("STOCK_TAKE_DATE_OUTSIDE_ACCOUNTING_PERIOD"));
     }
 
     // ─── Start ──────────────────────────────────────────────────────────────────

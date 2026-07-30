@@ -44,7 +44,7 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 public class InterWarehouseTransferRejectRequest {
-    @NotBlank
-    @Size(max = 1000)
+    @NotBlank(message = "REJECTION_REASON_REQUIRED")
+    @Size(max = 1000, message = "REASON_TOO_LONG")
     private String rejectionReason;
 }

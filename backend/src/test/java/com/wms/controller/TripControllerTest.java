@@ -369,7 +369,6 @@ class TripControllerTest {
                 .vehiclePlate("36C-88888")
                 .vehicleType("Xe tai")
                 .vehicleMaxWeightKg(BigDecimal.valueOf(3500))
-                .vehicleMaxVolumeM3(BigDecimal.valueOf(18))
                 .driverId(401L)
                 .driverName("Driver Test 2")
                 .driverPhone("0900000000")

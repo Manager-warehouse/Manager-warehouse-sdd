@@ -59,7 +59,19 @@ const PhotoCaptureInput = ({
   const handleFile = async (event) => {
     const file = event.target.files?.[0];
     event.target.value = '';
-    if (!file || !file.type.startsWith('image/')) return;
+    if (!file) return;
+
+    // H6: Validate file type — chỉ chấp nhận ảnh
+    if (!file.type.startsWith('image/')) {
+      alert('File không hợp lệ. Vui lòng chọn file ảnh (JPEG, PNG, WEBP...).');
+      return;
+    }
+    // H6: Validate file size — tối đa 10MB trước compress
+    const maxSizeBytes = 10 * 1024 * 1024; // 10MB
+    if (file.size > maxSizeBytes) {
+      alert(`File quá lớn (${(file.size / 1024 / 1024).toFixed(1)}MB). Vui lòng chọn ảnh dưới 10MB.`);
+      return;
+    }
 
     let selectedFile = file;
     try {

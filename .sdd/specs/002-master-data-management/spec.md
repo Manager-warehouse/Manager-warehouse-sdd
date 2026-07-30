@@ -141,7 +141,6 @@ _Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đ
 - `plate_number` (VARCHAR(20), UNIQUE, NOT NULL)
 - `vehicle_type` (VARCHAR(100), NOT NULL)
 - `max_weight_kg` (DECIMAL(10,2), NOT NULL)
-- `max_volume_m3` (DECIMAL(10,3))
 - `status` (VARCHAR(20), DEFAULT 'AVAILABLE', CHECK IN ('AVAILABLE','ON_TRIP','MAINTENANCE'))
 - `is_active` (BOOLEAN, DEFAULT true)
 - `created_by` (BIGINT, FK→users)

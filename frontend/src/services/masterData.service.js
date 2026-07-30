@@ -213,7 +213,6 @@ const INITIAL_VEHICLES = [
     plate_number: "15C-234.56",
     vehicle_type: "Xe tải Hyundai H150 1.5 Tấn",
     max_weight_kg: 1500.0,
-    max_volume_m3: 12.5,
     warehouse_id: 1,
     status: "AVAILABLE",
     is_active: true,
@@ -223,7 +222,6 @@ const INITIAL_VEHICLES = [
     plate_number: "29C-789.10",
     vehicle_type: "Xe tải Isuzu NPR400 3.5 Tấn",
     max_weight_kg: 3500.0,
-    max_volume_m3: 20.0,
     warehouse_id: 2,
     status: "MAINTENANCE",
     is_active: true,
@@ -1138,7 +1136,6 @@ export const masterDataService = {
         plate_number: vhData.plate_number.trim().toUpperCase(),
         vehicle_type: vhData.vehicle_type.trim(),
         max_weight_kg: parseFloat(vhData.max_weight_kg) || 0,
-        max_volume_m3: parseFloat(vhData.max_volume_m3) || 0,
         warehouse_id: Number(vhData.warehouse_id),
         status: vhData.status || "AVAILABLE",
         is_active: true,
@@ -1189,8 +1186,6 @@ export const masterDataService = {
         vehicle_type: vhData.vehicle_type.trim(),
         max_weight_kg:
           parseFloat(vhData.max_weight_kg) || vehicles[idx].max_weight_kg,
-        max_volume_m3:
-          parseFloat(vhData.max_volume_m3) || vehicles[idx].max_volume_m3,
         warehouse_id: Number(vhData.warehouse_id) || vehicles[idx].warehouse_id,
         status: vhData.status || vehicles[idx].status,
       };
@@ -1288,11 +1283,11 @@ export const masterDataService = {
         id: drivers.length > 0 ? Math.max(...drivers.map((d) => d.id)) + 1 : 1,
         user_id: drvData.user_id ? Number(drvData.user_id) : 13, // Default driver user_id link
         warehouse_ids: drvData.warehouse_ids || drvData.warehouseIds || linkedUser?.warehouses || [],
-        full_name: drvData.full_name.trim(),
+        full_name: linkedUser?.full_name || linkedUser?.fullName || drvData.full_name.trim(),
         phone: drvData.phone || "",
         license_number: drvData.license_number.trim().toUpperCase(),
         license_expiry: drvData.license_expiry,
-        status: drvData.status || "AVAILABLE",
+        status: "AVAILABLE",
         is_active: true,
       };
 
@@ -1306,7 +1301,7 @@ export const masterDataService = {
       );
       return newDrv;
     }
-    const { status, warehouse_ids, warehouseIds, warehouse_id, warehouseId, ...profileData } = drvData;
+    const { warehouse_ids, warehouseIds, warehouse_id, warehouseId, ...profileData } = drvData;
     const whId = warehouseId || warehouse_id || (warehouse_ids && warehouse_ids.length > 0 ? warehouse_ids[0] : (warehouseIds && warehouseIds.length > 0 ? warehouseIds[0] : null));
     const payload = {
       ...profileData,
@@ -1316,12 +1311,6 @@ export const masterDataService = {
       "/dispatcher/drivers",
       mapToCamelCase(payload),
     );
-    if (status && status !== response.data.status) {
-      await apiClient.patch(`/dispatcher/drivers/${response.data.id}/status`, {
-        status,
-      });
-      response.data.status = status;
-    }
     return mapToSnakeCase(response.data);
   },
 
@@ -1347,7 +1336,7 @@ export const masterDataService = {
         phone: drvData.phone || "",
         license_number: drvData.license_number.trim().toUpperCase(),
         license_expiry: drvData.license_expiry,
-        status: drvData.status || drivers[idx].status,
+        status: drivers[idx].status,
       };
 
       drivers[idx] = updated;
@@ -1360,7 +1349,7 @@ export const masterDataService = {
       );
       return updated;
     }
-    const { status, warehouse_ids, warehouseIds, warehouse_id, warehouseId, ...profileData } = drvData;
+    const { warehouse_ids, warehouseIds, warehouse_id, warehouseId, ...profileData } = drvData;
     const whId = warehouseId || warehouse_id || (warehouse_ids && warehouse_ids.length > 0 ? warehouse_ids[0] : (warehouseIds && warehouseIds.length > 0 ? warehouseIds[0] : null));
     const payload = {
       ...profileData,
@@ -1370,12 +1359,6 @@ export const masterDataService = {
       `/dispatcher/drivers/${id}`,
       mapToCamelCase(payload),
     );
-    if (status) {
-      await apiClient.patch(`/dispatcher/drivers/${id}/status`, {
-        status,
-      });
-      response.data.status = status;
-    }
     return mapToSnakeCase(response.data);
   },
 
