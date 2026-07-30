@@ -95,7 +95,7 @@ import static org.mockito.Mockito.*;
  * Covers: create (happy + period closed), start (happy + invalid state),
  * count validation (negative qty, employee-fault reason), complete
  * approval-routing
- * (AUTO / MANAGER / CEO / employee-fault escalation), approve (happy, level
+ * (MANAGER / CEO / employee-fault escalation), approve (happy, level
  * mismatch,
  * already approved, inventory invariant), reject, and cancel.
  * </p>
@@ -487,11 +487,10 @@ class StockTakeServiceTest {
     }
 
     @Test
-    void completeStockTake_smallVariance_routesToManagerWithoutUpdatingInventory() {
+    void completeStockTake_smallVariance_routesToManagerAndCreatesPendingAdjustment() {
         StockTake st = stockTake(StockTakeStatus.IN_PROGRESS);
         when(stockTakeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(st));
         when(stockTakeItemRepository.existsByStockTakeIdAndActualQtyIsNull(1L)).thenReturn(false);
-        // Spec 006 routes every variance to the warehouse manager.
         StockTakeItem it = item(new BigDecimal("100"), new BigDecimal("98"),
                 new BigDecimal("-2"), new BigDecimal("-1000000"));
         when(stockTakeItemRepository.findByStockTakeId(1L)).thenReturn(List.of(it));
@@ -506,9 +505,10 @@ class StockTakeServiceTest {
 
         assertEquals(ApprovalLevel.MANAGER, st.getApprovalLevel());
         assertEquals(StockTakeStatus.PENDING_APPROVAL, res.getStatus());
+        assertEquals(0, inv.getTotalQty().compareTo(new BigDecimal("100")));
+        verify(adjustmentRepository).save(any(Adjustment.class));
         verify(inventoryRepository, never())
                 .findByWarehouseProductBatchLocationForUpdate(anyLong(), anyLong(), anyLong(), anyLong());
-        verify(adjustmentRepository, never()).save(any(Adjustment.class));
         verify(auditLogService).log(eq(storekeeper), eq(AuditAction.STOCKTAKE_COMPLETE), any(), any(), any(), eq(WH_ID),
                 any(), any());
     }

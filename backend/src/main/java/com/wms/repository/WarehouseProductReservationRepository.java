@@ -67,4 +67,6 @@ public interface WarehouseProductReservationRepository extends JpaRepository<War
             """)
     Optional<WarehouseProductReservation> findWithWarehouseAndProductByWarehouseIdAndProductIdForUpdate(@Param("warehouseId") Long warehouseId,
                                                                                                          @Param("productId") Long productId);
+
+    java.util.List<WarehouseProductReservation> findByWarehouseId(Long warehouseId);
 }

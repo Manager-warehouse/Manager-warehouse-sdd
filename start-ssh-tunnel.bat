@@ -17,21 +17,33 @@ if exist "!ENV_FILE!" (
 
 if not defined VPS_HOST set "VPS_HOST=4.194.232.143"
 if not defined VPS_USER set "VPS_USER=hoanganh"
-if not defined VPS_KEY_PATH set "VPS_KEY_PATH=C:\Users\hoanganh\.ssh\id_ed25519"
+if not defined VPS_KEY_PATH set "VPS_KEY_PATH=%USERPROFILE%\.ssh\id_ed25519"
+if not defined LOCAL_DB_PORT set "LOCAL_DB_PORT=5433"
+if not defined VPS_DB_HOST set "VPS_DB_HOST=127.0.0.1"
+if not defined VPS_DB_PORT set "VPS_DB_PORT=5432"
 
 echo =========================================================
-echo   KHOI DONG SSH TUNNEL POSTGRESQL (VPS -^> LOCAL 5433)
+echo   KHOI DONG SSH TUNNEL POSTGRESQL (VPS -^> LOCAL %LOCAL_DB_PORT%)
 echo =========================================================
 echo Target VPS: %VPS_HOST% (User: %VPS_USER%)
-echo Port Forwarding: Local 5433 -^> VPS 127.0.0.1:5432
-echo SSH Key Path: %VPS_KEY_PATH%
+echo Port Forwarding: Local %LOCAL_DB_PORT% -^> VPS %VPS_DB_HOST%:%VPS_DB_PORT%
+if exist "%VPS_KEY_PATH%" (
+    echo SSH Key Path: %VPS_KEY_PATH%
+) else (
+    echo SSH Key Path: not found - password login will be requested
+)
 echo =========================================================
 echo.
 
 echo [INFO] Dang ket noi SSH Tunnel...
-echo [OK] SSH Tunnel da thiet lap! Giu cua so nay mo khi chay App.
+echo [INFO] Neu duoc hoi password, nhap mat khau SSH cua user %VPS_USER%.
+echo [INFO] Khi tunnel thanh cong, giu cua so nay mo khi chay App.
 echo ---------------------------------------------------------
 
-ssh -i "%VPS_KEY_PATH%" -o StrictHostKeyChecking=accept-new -N -L 5433:127.0.0.1:5432 %VPS_USER%@%VPS_HOST%
+if exist "%VPS_KEY_PATH%" (
+    ssh -i "%VPS_KEY_PATH%" -o StrictHostKeyChecking=accept-new -o ExitOnForwardFailure=yes -N -L %LOCAL_DB_PORT%:%VPS_DB_HOST%:%VPS_DB_PORT% %VPS_USER%@%VPS_HOST%
+) else (
+    ssh -o StrictHostKeyChecking=accept-new -o ExitOnForwardFailure=yes -N -L %LOCAL_DB_PORT%:%VPS_DB_HOST%:%VPS_DB_PORT% %VPS_USER%@%VPS_HOST%
+)
 
 pause

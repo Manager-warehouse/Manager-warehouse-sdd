@@ -148,6 +148,7 @@ backend/src/main/resources/application-secrets.yml
 docker.env
 docker.env.*
 !docker.env.example
+.bat
 
 
 # ===== OS =====

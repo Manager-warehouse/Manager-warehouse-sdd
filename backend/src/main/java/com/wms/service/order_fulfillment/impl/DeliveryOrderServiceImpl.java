@@ -285,7 +285,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         Map<Long, List<PickingCandidateResponse>> result = new LinkedHashMap<>();
         for (DeliveryOrderItem item : orderItems) {
             Long productId = item.getProduct().getId();
-            List<Inventory> candidates = inventoryRepository.findValidFifoCandidates(warehouseId, productId);
+            List<Inventory> candidates = inventoryRepository.findValidFifoCandidates(warehouseId, productId, order.getId());
             List<PickingCandidateResponse> candidateResponses = candidates.stream()
                     .map(inv -> toPickingCandidate(inv, item))
                     .sorted(Comparator.comparing(PickingCandidateResponse::getReceivedDate,
@@ -305,7 +305,12 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         // Parent of a BIN is the ZONE; parent of a ZONE is null
         WarehouseLocation zone = (bin != null && bin.getParent() != null) ? bin.getParent() : bin;
         Batch batch = inv.getBatch();
-        BigDecimal available = value(inv.getTotalQty()).subtract(value(inv.getReservedQty()));
+        BigDecimal allocatedToCurrentDo = allocationRepository.findByDeliveryOrderItemDeliveryOrderId(item.getDeliveryOrder().getId())
+                .stream()
+                .filter(a -> a.getInventory().getId().equals(inv.getId()) && a.getStatus() == com.wms.enums.stock_control.AllocationStatus.ACTIVE)
+                .map(DeliveryOrderItemAllocation::getPlannedQty)
+                .reduce(ZERO, BigDecimal::add);
+        BigDecimal available = value(inv.getTotalQty()).subtract(value(inv.getReservedQty())).add(allocatedToCurrentDo);
         return PickingCandidateResponse.builder()
                 .inventoryId(inv.getId())
                 .batchId(batch != null ? batch.getId() : null)
@@ -323,6 +328,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     @Transactional
     public DeliveryOrderResponse createDeliveryOrder(DeliveryOrderCreateRequest request, User actor) {
         requireRole(actor, UserRole.PLANNER, "Only Planner can create Delivery Orders");
+        validateCreateRequest(request);
         Warehouse warehouse = activeWarehouse(request.getWarehouseId());
         requireWarehouseScope(actor, warehouse.getId());
         partnerEligibilityService.ensureDealerActive(request.getDealerId());
@@ -356,10 +362,6 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                 .collect(Collectors.toMap(plan -> plan.product().getId(), ItemPlan::requestedQty, BigDecimal::add));
         validateAvailability(warehouse, requestedByProduct);
 
-        if (request.getExpectedDeliveryDate() != null && request.getExpectedDeliveryDate().isBefore(request.getDocumentDate())) {
-            throw new OutboundDeliveryException("INVALID_DELIVERY_DATE", HttpStatus.BAD_REQUEST, "Ngày giao hàng dự kiến không được trước ngày chứng từ");
-        }
-
         OffsetDateTime now = OffsetDateTime.now();
         DeliveryOrder order = new DeliveryOrder();
         order.setDoNumber(generateDoNumber());
@@ -385,6 +387,22 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         auditUtil.logChange(actor, AuditAction.CREATE, "DELIVERY_ORDER", saved.getId(), saved.getDoNumber(),
                 Map.of(), snapshot(saved, orderValue, reservationDeltas, savedItems, List.of()));
         return deliveryOrderMapper.toResponse(saved, savedItems, List.of());
+    }
+
+    private void validateCreateRequest(DeliveryOrderCreateRequest request) {
+        if (request.getType() != DeliveryOrderType.SALE) {
+            throw new OutboundDeliveryException("DELIVERY_ORDER_TYPE_INVALID", HttpStatus.BAD_REQUEST,
+                    "Chỉ được tạo phiếu xuất bán SALE từ màn lập đơn xuất hàng");
+        }
+        if (request.getExpectedDeliveryDate() != null && request.getExpectedDeliveryDate().isBefore(LocalDate.now())) {
+            throw new OutboundDeliveryException("INVALID_DELIVERY_DATE", HttpStatus.BAD_REQUEST,
+                    "Ngày giao hàng dự kiến không được ở quá khứ");
+        }
+        if (request.getExpectedDeliveryDate() != null && request.getDocumentDate() != null
+                && request.getExpectedDeliveryDate().isBefore(request.getDocumentDate())) {
+            throw new OutboundDeliveryException("INVALID_DELIVERY_DATE", HttpStatus.BAD_REQUEST,
+                    "Ngày giao hàng dự kiến không được trước ngày chứng từ");
+        }
     }
 
     @Override
@@ -1696,6 +1714,11 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                     HttpStatus.UNPROCESSABLE_ENTITY,
                     "Warehouse is inactive");
         }
+        if (warehouse.getType() == WarehouseType.IN_TRANSIT) {
+            throw new OutboundDeliveryException("WAREHOUSE_TYPE_INVALID",
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Không thể tạo phiếu xuất từ kho trung chuyển IN_TRANSIT");
+        }
         return warehouse;
     }
 
@@ -1750,7 +1773,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         for (DeliveryOrderItem item : items) {
             BigDecimal remainingQty = value(item.getRequestedQty());
             List<Inventory> candidates = inventoryRepository.findValidFifoCandidates(
-                    order.getWarehouse().getId(), item.getProduct().getId());
+                    order.getWarehouse().getId(), item.getProduct().getId(), order.getId());
             for (Inventory candidate : candidates) {
                 if (remainingQty.compareTo(ZERO) <= 0) {
                     break;

@@ -41,6 +41,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface AdjustmentRepository extends JpaRepository<Adjustment, Long> {
@@ -84,6 +85,13 @@ public interface AdjustmentRepository extends JpaRepository<Adjustment, Long> {
             @Param("type") AdjustmentType type);
 
     java.util.List<Adjustment> findByTypeAndApprovedAtIsNull(AdjustmentType type);
+
+    List<Adjustment> findByReferenceTypeAndReferenceIdAndTypeOrderByIdAsc(
+            String referenceType,
+            Long referenceId,
+            AdjustmentType type);
+
+    Optional<Adjustment> findByAdjustmentNumber(String adjustmentNumber);
 
     /**
      * List correction vouchers (type = CORRECTION_VOUCHER), optionally filtered by

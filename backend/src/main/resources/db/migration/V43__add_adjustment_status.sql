@@ -1,0 +1,17 @@
+ALTER TABLE adjustments
+    ADD COLUMN IF NOT EXISTS status VARCHAR(30);
+
+UPDATE adjustments
+SET status = CASE
+    WHEN approved_at IS NOT NULL THEN 'APPROVED'
+    ELSE 'PENDING_APPROVAL'
+END
+WHERE status IS NULL;
+
+ALTER TABLE adjustments
+    ALTER COLUMN status SET DEFAULT 'PENDING_APPROVAL',
+    ALTER COLUMN status SET NOT NULL;
+
+ALTER TABLE adjustments
+    ADD CONSTRAINT chk_adjustments_status
+    CHECK (status IN ('PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'CANCELLED'));
