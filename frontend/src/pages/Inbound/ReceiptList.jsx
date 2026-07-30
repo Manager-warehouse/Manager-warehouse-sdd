@@ -629,18 +629,7 @@ const ReceiptList = () => {
 
   const hasQcInspected = (receipt) => {
     if (!receipt) return false;
-    if (receipt.status === "QC_COMPLETED" || receipt.status === "QC_FAILED")
-      return true;
-    if (receipt.items && receipt.items.length > 0) {
-      return receipt.items.some(
-        (item) =>
-          (item.qc_result && item.qc_result !== "PENDING") ||
-          item.qc_passed_qty !== null ||
-          item.qc_failed_qty !== null ||
-          item.sample_qty !== null,
-      );
-    }
-    return false;
+    return receipt.status === "QC_COMPLETED" || receipt.status === "QC_FAILED";
   };
 
   const renderReceiptActions = (receipt) => (
