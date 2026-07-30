@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: Planner Delivery Order API
   version: 1.0.0
-  description: Contracts for creating and cancelling outbound Delivery Orders in Sprint 1.
+  description: Contracts for creating, planner-updating, and cancelling outbound Delivery Orders in Sprint 1.
 paths:
   /api/v1/delivery-orders:
     post:
@@ -63,7 +63,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
   /api/v1/delivery-orders/{id}/cancel:
     put:
-      summary: Cancel Delivery Order before warehouse approval
+      summary: Cancel Delivery Order before downstream outbound work
       operationId: cancelDeliveryOrder
       tags:
         - Delivery Orders
@@ -90,7 +90,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/DeliveryOrderResponse"
         "403":
-          description: Actor is not Warehouse Manager for the DO warehouse
+          description: Actor is not allowed to cancel this Delivery Order for the current state and warehouse
           content:
             application/json:
               schema:
@@ -108,7 +108,65 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "422":
-          description: Delivery Order is WAREHOUSE_APPROVED or later
+          description: Delivery Order cannot be cancelled by the actor in its current state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/delivery-orders/{id}:
+    put:
+      summary: Planner updates Delivery Order before Storekeeper picking plan
+      operationId: updateDeliveryOrder
+      tags:
+        - Delivery Orders
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDeliveryOrderRequest"
+      responses:
+        "200":
+          description: Delivery Order updated and remains in NEW status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeliveryOrderResponse"
+        "400":
+          description: Invalid request payload, delivery date, duplicate item, or unsupported delivery order type
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Actor is not a Planner or Planner is not allowed to update for the selected warehouse
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Delivery Order, warehouse, dealer, or active product not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Reservation version conflict or concurrent modification
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Delivery Order is not NEW, or credit, dealer eligibility, price, accounting period, warehouse, or stock validation failed
           content:
             application/json:
               schema:
@@ -171,6 +229,43 @@ components:
           minimum: 0
           exclusiveMinimum: true
           example: 10
+    UpdateDeliveryOrderRequest:
+      type: object
+      description: Full replacement of Planner-owned Delivery Order fields while status is NEW.
+      required:
+        - dealerId
+        - warehouseId
+        - type
+        - expectedDeliveryDate
+        - documentDate
+        - items
+      properties:
+        dealerId:
+          type: integer
+          format: int64
+        warehouseId:
+          type: integer
+          format: int64
+        type:
+          type: string
+          enum:
+            - SALE
+          example: SALE
+        expectedDeliveryDate:
+          type: string
+          format: date
+          description: Must be today or later and must not be before documentDate.
+        documentDate:
+          type: string
+          format: date
+        notes:
+          type: string
+          maxLength: 1000
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/CreateDeliveryOrderItemRequest"
     CancelDeliveryOrderRequest:
       type: object
       required:
@@ -248,7 +343,12 @@ components:
             - WAREHOUSE_PRODUCT_RESERVATION_CONFLICT
             - CONCURRENT_MODIFICATION
             - DATA_INTEGRITY_VIOLATION
+            - DELIVERY_ORDER_UPDATE_FORBIDDEN
             - DELIVERY_ORDER_CANCEL_FORBIDDEN
+            - DELIVERY_ORDER_STATUS_INVALID
+            - DELIVERY_ORDER_ITEM_NOT_FOUND
+            - PICKED_GOODS_RETURN_REQUIRED
+            - RESERVATION_NOT_FOUND
         message:
           type: string
         details:

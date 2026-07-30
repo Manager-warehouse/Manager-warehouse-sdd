@@ -269,6 +269,10 @@ public class GlobalExceptionHandler {
         if (msg == null) return null;
         String code = msg.contains(":") ? msg.substring(0, msg.indexOf(':')).trim() : msg;
         switch (code) {
+            case "DELIVERY_ORDER_UPDATE_FORBIDDEN": return "Delivery Order can only be updated by Planner while status is NEW.";
+            case "DELIVERY_ORDER_CANCEL_FORBIDDEN": return "Delivery Order cannot be cancelled by this actor in its current status.";
+            case "PICKED_GOODS_RETURN_REQUIRED": return "Picked or QC-processed goods must be returned to bin before cancellation.";
+            case "RESERVATION_NOT_FOUND": return "Reservation record was not found for this Delivery Order.";
             // ── Trip ──────────────────────────────────────────────────────────────
             case "TRIP_SCHEDULE_INVALID": return "Lịch trình chuyến đi không hợp lệ (thời gian kết thúc phải sau thời gian bắt đầu).";
             case "TRIP_START_IN_PAST": return "Thời gian bắt đầu chuyến đi không được ở quá khứ.";

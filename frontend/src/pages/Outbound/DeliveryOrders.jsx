@@ -6,6 +6,7 @@ import {
   Eye,
   Loader2,
   PackageCheck,
+  Pencil,
   Plus,
   Search,
   Truck,
@@ -57,9 +58,25 @@ const createEmptyItemRow = () => ({ product_id: '', requested_qty: 1, unit_price
 
 const createEmptyForm = () => ({
   dealer_id: '',
+  document_date: new Date().toISOString().slice(0, 10),
   expected_delivery_date: '',
   notes: '',
   items: [createEmptyItemRow()],
+});
+
+const createEditForm = (order) => ({
+  dealer_id: order.dealer_id || '',
+  document_date: order.document_date || new Date().toISOString().slice(0, 10),
+  expected_delivery_date: order.expected_delivery_date || '',
+  notes: order.notes || '',
+  items: (order.items?.length ? order.items : [createEmptyItemRow()]).map((item) => ({
+    product_id: item.product_id || '',
+    product_name: item.product_name || '',
+    sku: item.sku || '',
+    requested_qty: item.requested_qty || 1,
+    unit_price: item.unit_price || 0,
+    price_status: item.unit_price ? 'ready' : 'idle',
+  })),
 });
 
 const formatVND = (value) => Number(value || 0).toLocaleString('vi-VN');
@@ -132,6 +149,7 @@ export default function DeliveryOrders() {
   const [approvedProductIds, setApprovedProductIds] = useState(null);
   const [masterDataLoading, setMasterDataLoading] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingOrder, setEditingOrder] = useState(null);
   const [formData, setFormData] = useState(createEmptyForm);
   const [selectedDealerObj, setSelectedDealerObj] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -151,6 +169,16 @@ export default function DeliveryOrders() {
 
     fetchMasterData();
   }, [showCreateModal]);
+
+  useEffect(() => {
+    if (!editingOrder || !dealers.length) {
+      return;
+    }
+    const dealer = dealers.find((item) => Number(item.id) === Number(editingOrder.dealer_id));
+    if (dealer) {
+      setSelectedDealerObj(dealer);
+    }
+  }, [dealers, editingOrder]);
 
   const fetchOrders = async () => {
     setLoading(true);
@@ -217,13 +245,34 @@ export default function DeliveryOrders() {
   const handleOpenCreateModal = () => {
     setFormData(createEmptyForm());
     setSelectedDealerObj(null);
+    setEditingOrder(null);
     setShowCreateModal(true);
+  };
+
+  const handleOpenEditModal = async (order) => {
+    if (order.status !== 'NEW') {
+      addToast('Chỉ có thể cập nhật đơn xuất khi trạng thái còn mới', 'warning');
+      return;
+    }
+    try {
+      const detail = order.items?.length ? order : await outboundService.getDeliveryOrderById(order.id);
+      setEditingOrder(detail);
+      setFormData(createEditForm(detail));
+      setSelectedDealerObj(
+        dealers.find((dealer) => Number(dealer.id) === Number(detail.dealer_id))
+        || { id: detail.dealer_id, name: detail.dealer_name, company_name: detail.dealer_name },
+      );
+      setShowCreateModal(true);
+    } catch (error) {
+      addToast(error.message || 'Không thể tải chi tiết đơn để cập nhật', 'error');
+    }
   };
 
   const handleCloseCreateModal = () => {
     setShowCreateModal(false);
     setFormData(createEmptyForm());
     setSelectedDealerObj(null);
+    setEditingOrder(null);
   };
 
   const addItemRow = () => {
@@ -320,16 +369,24 @@ export default function DeliveryOrders() {
 
     setSubmitting(true);
     try {
-      await outboundService.createDeliveryOrder({
+      const payload = {
         ...formData,
         dealer_name: selectedDealerObj?.name || selectedDealerObj?.company_name,
         warehouse_id: activeWarehouse.id,
-      });
-      addToast('Tạo đơn xuất hàng thành công', 'success');
+        document_date: formData.document_date || new Date().toISOString().slice(0, 10),
+      };
+
+      if (editingOrder) {
+        await outboundService.updateDeliveryOrder(editingOrder.id, payload);
+        addToast('Cập nhật đơn xuất hàng thành công', 'success');
+      } else {
+        await outboundService.createDeliveryOrder(payload);
+        addToast('Tạo đơn xuất hàng thành công', 'success');
+      }
       handleCloseCreateModal();
       fetchOrders();
     } catch (error) {
-      addToast(error.message || 'Lỗi khi tạo đơn xuất hàng', 'error');
+      addToast(error.message || (editingOrder ? 'Lỗi khi cập nhật đơn xuất hàng' : 'Lỗi khi tạo đơn xuất hàng'), 'error');
     } finally {
       setSubmitting(false);
     }
@@ -359,6 +416,7 @@ export default function DeliveryOrders() {
   const creditStatus = creditCheck.status;
   const hasInvalidPrice = formData.items.some((item) => item.product_id && (item.price_status !== 'ready' || Number(item.unit_price) <= 0));
   const isSubmitDisabled = !formData.dealer_id || !formData.expected_delivery_date || !formData.items.length || hasInvalidPrice || creditStatus === 'BLOCKED' || submitting;
+
   const filteredDealers = dealers;
   // Only show products that have at least one APPROVED price for this warehouse
   const filteredProducts = approvedProductIds === null
@@ -379,8 +437,11 @@ export default function DeliveryOrders() {
   };
 
   const renderDoActions = (order) => {
-    const canCancel = hasRole(ROLES.WAREHOUSE_MANAGER)
-      && ['NEW', 'WAITING_PICKING', 'QC_PENDING_APPROVAL', 'QC_COMPLETED'].includes(order.status);
+    const canPlannerChange = hasRole(ROLES.PLANNER) && order.status === 'NEW';
+    const canCancel = canPlannerChange || (
+      hasRole(ROLES.WAREHOUSE_MANAGER)
+      && ['NEW', 'WAITING_PICKING', 'QC_PENDING_APPROVAL', 'QC_COMPLETED'].includes(order.status)
+    );
     const canOpenPicking = hasRole(ROLES.STOREKEEPER)
       && ['NEW', 'WAITING_PICKING', 'QC_PENDING_APPROVAL', 'QC_COMPLETED'].includes(order.status);
     const canOpenQcEntry = hasRole(ROLES.WAREHOUSE_STAFF)
@@ -388,6 +449,17 @@ export default function DeliveryOrders() {
 
     return (
       <>
+        {canPlannerChange && (
+          <button
+            type="button"
+            onClick={() => handleOpenEditModal(order)}
+            title="Cập nhật đơn xuất"
+            aria-label="Cập nhật đơn xuất"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-hairline-light text-shade-60 transition-colors hover:bg-canvas-cream hover:text-ink"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+        )}
         {canCancel && (
           <button
             onClick={() => setCancelModal({ show: true, orderId: order.id, reason: '' })}
@@ -547,7 +619,12 @@ export default function DeliveryOrders() {
         </>
       )}
 
-      <Modal isOpen={showCreateModal} onClose={handleCloseCreateModal} title="Lập đơn xuất hàng" maxWidth="max-w-4xl">
+      <Modal
+        isOpen={showCreateModal}
+        onClose={handleCloseCreateModal}
+        title={editingOrder ? 'Cập nhật đơn xuất hàng' : 'Lập đơn xuất hàng'}
+        maxWidth="max-w-4xl"
+      >
         <div className="flex flex-col gap-5">
           <CreditCheckBanner status={creditStatus} remainingCredit={creditCheck.remainingCredit} />
 
@@ -571,6 +648,7 @@ export default function DeliveryOrders() {
                 ]}
               />
             </div>
+
 
             <Input
               label="Ngày giao dự kiến *"
@@ -676,7 +754,9 @@ export default function DeliveryOrders() {
 
           <div className="flex justify-end gap-3 border-t border-hairline-light pt-4">
             <Button variant="outline-light" onClick={handleCloseCreateModal}>Đóng</Button>
-            <Button variant="primary" loading={submitting} disabled={isSubmitDisabled} onClick={handleCreateSubmit}>Tạo đơn xuất</Button>
+            <Button variant="primary" loading={submitting} disabled={isSubmitDisabled} onClick={handleCreateSubmit}>
+              {editingOrder ? 'Cập nhật đơn xuất' : 'Tạo đơn xuất'}
+            </Button>
           </div>
         </div>
       </Modal>

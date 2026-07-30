@@ -136,18 +136,25 @@ public class DeliveryOrderController {
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('PLANNER')")
     @Operation(summary = "Update delivery order")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Delivery order updated"),
+            @ApiResponse(responseCode = "400", description = "Invalid update payload or delivery date", content = @Content),
+            @ApiResponse(responseCode = "403", description = "Planner is not assigned to the delivery order warehouse", content = @Content),
+            @ApiResponse(responseCode = "404", description = "Delivery order not found", content = @Content),
+            @ApiResponse(responseCode = "422", description = "Delivery order cannot be updated after picking planning starts", content = @Content)
+    })
     public DeliveryOrderResponse updateDeliveryOrder(@PathVariable Long id,
                                                      @Valid @RequestBody DeliveryOrderUpdateRequest request) {
         return deliveryOrderService.updateDeliveryOrder(id, request, currentUser());
     }
 
     @PutMapping("/{id}/cancel")
-    @PreAuthorize("hasRole('WAREHOUSE_MANAGER')")
+    @PreAuthorize("hasAnyRole('PLANNER', 'WAREHOUSE_MANAGER')")
     @Operation(summary = "Cancel delivery order before warehouse approval")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Delivery order cancelled"),
             @ApiResponse(responseCode = "400", description = "Invalid cancel reason", content = @Content),
-            @ApiResponse(responseCode = "403", description = "Warehouse Manager is not assigned to the delivery order warehouse", content = @Content),
+            @ApiResponse(responseCode = "403", description = "Actor is not assigned to the delivery order warehouse", content = @Content),
             @ApiResponse(responseCode = "404", description = "Delivery order not found", content = @Content),
             @ApiResponse(responseCode = "422", description = "Delivery order cannot be cancelled in its current status", content = @Content)
     })

@@ -825,6 +825,53 @@ export const outboundService = {
     return normalizeDeliveryOrder(response.data);
   },
 
+  updateDeliveryOrder: async (id, data) => {
+    if (useMock) {
+      await mockDelay(350);
+      const orders = getDb(KEYS.DELIVERY_ORDERS, INITIAL_DELIVERY_ORDERS);
+      const idx = orders.findIndex((order) => order.id === Number(id));
+      if (idx === -1) throw new Error('Không tìm thấy đơn xuất hàng');
+      if (orders[idx].status !== 'NEW') {
+        throw new Error('Chỉ Planner được cập nhật đơn xuất khi trạng thái còn NEW');
+      }
+
+      const allItems = getDb(KEYS.DO_ITEMS, INITIAL_DO_ITEMS);
+      const remainingItems = allItems.filter((item) => item.do_id !== Number(id));
+      const nextItemId = allItems.length > 0 ? Math.max(...allItems.map((item) => item.id)) + 1 : 1;
+      const updatedItems = data.items.map((item, index) => ({
+        id: nextItemId + index,
+        do_id: Number(id),
+        product_id: Number(item.product_id),
+        product_name: item.product_name || `Sản phẩm #${item.product_id}`,
+        sku: item.sku || '',
+        requested_qty: Number(item.requested_qty),
+        reserved_qty: Number(item.requested_qty),
+        planned_qty: 0,
+        picked_qty: 0,
+        issued_qty: 0,
+        unit_price: Number(item.unit_price || 0),
+        allocations: [],
+      }));
+      const updatedOrder = {
+        ...orders[idx],
+        dealer_id: Number(data.dealer_id),
+        dealer_name: data.dealer_name || orders[idx].dealer_name,
+        warehouse_id: Number(data.warehouse_id),
+        expected_delivery_date: data.expected_delivery_date,
+        document_date: data.document_date || orders[idx].document_date,
+        notes: data.notes || '',
+        updated_at: new Date().toISOString(),
+      };
+      orders[idx] = updatedOrder;
+      saveDb(KEYS.DELIVERY_ORDERS, orders);
+      saveDb(KEYS.DO_ITEMS, [...remainingItems, ...updatedItems]);
+      addAuditLog('DELIVERY_ORDER_UPDATE', 'DeliveryOrder', Number(id), `Cập nhật đơn xuất hàng: ${updatedOrder.do_number}`);
+      return { ...updatedOrder, items: updatedItems };
+    }
+    const response = await apiClient.put(`/delivery-orders/${id}`, toDeliveryOrderCreatePayload(data));
+    return normalizeDeliveryOrder(response.data);
+  },
+
   cancelDeliveryOrder: async (id, reason) => {
     if (useMock) {
       await mockDelay();

@@ -35,7 +35,11 @@ import com.wms.enums.supplier_management.*;
 import com.wms.enums.user_configuration.*;
 import com.wms.enums.warehouse_location.*;
 import com.wms.enums.warehouse_transfer.*;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import java.time.LocalDate;
+import java.util.List;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -43,7 +47,26 @@ import lombok.Setter;
 @Setter
 public class DeliveryOrderUpdateRequest {
 
+    @NotNull
+    private Long dealerId;
+
+    @NotNull
+    private Long warehouseId;
+
+    @NotNull
+    private DeliveryOrderType type;
+
+    @NotNull
     private LocalDate expectedDeliveryDate;
+
+    @NotNull
+    private LocalDate documentDate;
+
     private String notes;
+
     private String cancelReason;
+
+    @Valid
+    @NotEmpty
+    private List<DeliveryOrderItemCreateRequest> items;
 }

@@ -19,6 +19,15 @@
 - `created_at`, `updated_at`.
 - `notes`.
 
+**Fields updated by Planner before picking plan**
+
+- `dealer_id`
+- `warehouse_id`
+- `expected_delivery_date`
+- `document_date`
+- `notes`
+- `updated_at`
+
 **Validation rules**
 
 - Planner must be assigned to `warehouse_id`.
@@ -26,11 +35,16 @@
 - `current_balance + order_value <= credit_limit`.
 - Dealer must not have unpaid invoices overdue beyond the dealer's configured payment term days for one order.
 - On create, status must be `NEW`.
+- Planner update is allowed only when status is `NEW`.
+- Planner cancel is allowed only when status is `NEW`.
+- Planner update must re-run the same warehouse assignment, dealer credit, overdue invoice, product, price, accounting period, and selected-warehouse availability validations as create.
 - On cancel, status must be before `WAREHOUSE_APPROVED`.
 
 **State transitions**
 
 - `null -> NEW`: successful create.
+- `NEW -> NEW`: Planner update saved before Storekeeper picking plan.
+- `NEW -> CANCELLED`: Planner cancellation before Storekeeper picking plan.
 - `NEW/WAITING_PICKING/QC_PENDING_APPROVAL/QC_COMPLETED -> CANCELLED`: Warehouse Manager cancellation before warehouse approval.
 - `WAREHOUSE_APPROVED` and later states cannot be cancelled by this feature.
 
@@ -48,11 +62,18 @@
 - `issued_qty`: starts at `0`.
 - `unit_price`: not trusted from client for credit control; invoice price is finalized by picking-plan when Storekeeper prepares concrete picking.
 
+**Fields updated by Planner before picking plan**
+
+- `product_id`
+- `requested_qty`
+- `reserved_qty`
+
 **Validation rules**
 
 - `product_id` is required and active.
 - `requested_qty > 0`.
 - Duplicate product rows in one request should be normalized or rejected; implementation should prefer rejecting duplicates with a clear validation error unless the existing API convention already merges line quantities.
+- Planner update replaces the planner-level item set while the Delivery Order is `NEW`; once Storekeeper saves a picking plan, item changes are blocked.
 
 ## WarehouseProductReservation
 
@@ -70,6 +91,8 @@
 
 - One logical row per warehouse/product.
 - Increment by each Delivery Order item requested quantity on create.
+- On Planner update, decrement old item quantities that are removed or reduced and increment new item quantities that are added or increased.
+- On Planner cancel from `NEW`, decrement remaining planner-level reservation for the order.
 - Decrement by remaining planner-level reservation on cancellation.
 - Version check required on update.
 - `reserved_qty >= 0` after every mutation.

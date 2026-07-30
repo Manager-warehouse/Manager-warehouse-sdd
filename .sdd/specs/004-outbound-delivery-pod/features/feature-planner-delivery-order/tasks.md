@@ -115,6 +115,33 @@
 
 ---
 
+## Phase 5A: User Story 4 - Planner updates or cancels before Storekeeper planning (Priority: P1)
+
+**Goal**: Planner can correct or cancel a Delivery Order while it is still `NEW`, before Storekeeper saves the first picking plan.
+
+**Independent Test**: Update and cancel a `NEW` Delivery Order as Planner, then verify reservation deltas, audit logs, and status. Repeat the same actions after the Delivery Order is `WAITING_PICKING` and verify both are rejected without reservation changes.
+
+### Tests for User Story 4
+
+- [x] T049 [P] [US4] Add service unit test for Planner update in `NEW` recalculating credit/stock and reservation deltas in `backend/src/test/java/com/wms/service/DeliveryOrderServiceImplTest.java`
+- [x] T050 [P] [US4] Add service unit test for Planner update rejection when Delivery Order is not `NEW` in `backend/src/test/java/com/wms/service/DeliveryOrderServiceImplTest.java`
+- [x] T051 [P] [US4] Add service unit test for Planner cancel in `NEW` releasing planner-level reservation in `backend/src/test/java/com/wms/service/DeliveryOrderServiceImplTest.java`
+- [x] T052 [P] [US4] Add service unit test for Planner cancel rejection when Delivery Order is not `NEW` in `backend/src/test/java/com/wms/service/DeliveryOrderServiceImplTest.java`
+- [x] T053 [P] [US4] Add controller/API tests for `PUT /api/v1/delivery-orders/{id}` happy path and forbidden `WAITING_PICKING` state in `backend/src/test/java/com/wms/controller/DeliveryOrderControllerTest.java`
+- [x] T054 [P] [US4] Add controller/API tests for Planner `PUT /api/v1/delivery-orders/{id}/cancel` in `NEW` and forbidden `WAITING_PICKING` state in `backend/src/test/java/com/wms/controller/DeliveryOrderControllerTest.java`
+
+### Implementation for User Story 4
+
+- [x] T055 [US4] Add Planner update request DTO validation for full replacement of Planner-owned fields in `backend/src/main/java/com/wms/dto/request`
+- [x] T056 [US4] Add `PUT /api/v1/delivery-orders/{id}` controller endpoint and OpenAPI annotations in `backend/src/main/java/com/wms/controller/DeliveryOrderController.java`
+- [x] T057 [US4] Implement Planner update service flow with `NEW` status guard, warehouse scope, credit/stock revalidation, reservation delta, and `DELIVERY_ORDER_UPDATE` audit in `backend/src/main/java/com/wms/service/order_fulfillment/impl/DeliveryOrderServiceImpl.java`
+- [x] T058 [US4] Extend cancel service flow so Planner may cancel only `NEW` Delivery Orders while Warehouse Manager cancellation behavior remains unchanged in `backend/src/main/java/com/wms/service/order_fulfillment/impl/DeliveryOrderServiceImpl.java`
+- [x] T059 [US4] Ensure Planner update/cancel never mutates concrete inventory reservations, picking allocations, staging, quarantine, or picked quantities.
+
+**Checkpoint**: US4 is independently testable and does not change Storekeeper picking-plan behavior.
+
+---
+
 ## Phase 6: Polish & Cross-Cutting Concerns
 
 **Purpose**: Verification and documentation alignment after stories are complete.
@@ -136,6 +163,7 @@
 - **Phase 3 US1**: Depends on foundational helpers and is the MVP.
 - **Phase 4 US2**: Depends on foundational helpers; can be implemented after or alongside US1 once shared create flow exists.
 - **Phase 5 US3**: Depends on foundational reservation helpers and can be implemented independently from US2.
+- **Phase 5A US4**: Depends on foundational reservation helpers and create flow; can be implemented after US1/US2 and before or alongside manager cancellation polish.
 - **Phase 6 Polish**: Depends on implemented stories selected for release.
 
 ### User Story Dependencies
@@ -143,6 +171,7 @@
 - **US1**: First MVP story because it establishes create flow and reservation mutation.
 - **US2**: Uses the same create validation seams as US1; can be delivered after US1 or parallel with clear service ownership.
 - **US3**: Uses shared reservation release helpers; no dependency on US2 behavior.
+- **US4**: Reuses create validation and reservation delta helpers; depends on `NEW` status semantics before Storekeeper picking-plan save.
 
 ### Parallel Opportunities
 
@@ -151,6 +180,7 @@
 - T021 through T026 can be written in parallel.
 - T032 through T035 can be written in parallel.
 - T036 can be implemented in parallel with service cancellation tasks if the endpoint contract is stable.
+- T049 through T054 can be written in parallel once the Planner update/cancel contract is stable.
 - T044 and T045 can run in parallel during polish.
 
 ## Parallel Example: User Story 1
@@ -195,7 +225,8 @@ Task: "T035 [P] [US3] Add integration tests for cancel endpoint"
 1. Deliver US1 create success with reservation and audit.
 2. Deliver US2 create rejection and suggestion behavior.
 3. Deliver US3 Warehouse Manager cancellation.
-4. Finish polish verification and OpenAPI alignment.
+4. Deliver US4 Planner update/cancel while Delivery Order is `NEW`.
+5. Finish polish verification and OpenAPI alignment.
 
 ### Validation Checklist
 
