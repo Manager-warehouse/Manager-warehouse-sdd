@@ -37,6 +37,11 @@ import com.wms.enums.warehouse_location.*;
 import com.wms.enums.warehouse_transfer.*;
 import com.wms.dto.request.CreateReceiptItemRequest;
 import com.wms.dto.request.CreateReceiptRequest;
+import com.wms.dto.request.PreReceiveApprovalRequest;
+import com.wms.dto.request.ReceiptCancelRequest;
+import com.wms.dto.request.ReceiptReopenRequest;
+import com.wms.dto.request.ReviseReceiptItemRequest;
+import com.wms.dto.request.ReviseReceiptRequest;
 import com.wms.dto.request.ReceiveReceiptItemRequest;
 import com.wms.dto.request.ReceiveReceiptRequest;
 import com.wms.dto.response.ReceiptResponse;
@@ -88,7 +93,7 @@ public class ReceiptService {
 
     private static final DateTimeFormatter RECEIPT_NUMBER_DATE =
             DateTimeFormatter.ofPattern("yyyyMMdd");
-    private static final String RECEIPT_SEQUENCE_KEY = "RECEIPT";
+    private static final String RECEIPT_SEQUENCE_KEY_PREFIX = "RECEIPT";
 
     private final DocumentSequenceRepository sequenceRepository;
     private final ReceiptRepository receiptRepository;
@@ -167,17 +172,98 @@ public class ReceiptService {
         Warehouse warehouse = findActiveWarehouse(request.getWarehouseId());
         requireWarehouseAccess(actor, warehouse.getId());
         validateItems(request.getItems());
-        validateDuplicateSource(request);
 
         Receipt receipt = buildReceipt(request, actor, supplier, warehouse);
         Receipt savedReceipt = saveReceipt(receipt);
         List<ReceiptItem> items = buildItems(request.getItems(), savedReceipt);
         List<ReceiptItem> savedItems = receiptItemRepository.saveAll(items);
 
-        auditLogService.log(actor, AuditAction.CREATE, "RECEIPT",
+        auditLogService.log(actor, AuditAction.RECEIPT_CREATE, "RECEIPT",
                 savedReceipt.getId(), savedReceipt.getReceiptNumber(),
                 warehouse.getId(), null, snapshot(savedReceipt, savedItems));
         return receiptMapper.toResponse(savedReceipt, savedItems);
+    }
+
+    @Transactional
+    public ReceiptResponse decidePreReceiveApproval(Long receiptId,
+                                                    PreReceiveApprovalRequest request,
+                                                    User actor) {
+        requireWarehouseManager(actor);
+        Receipt receipt = receiptRepository.findByIdWithWarehouse(receiptId)
+                .orElseThrow(() -> new ResourceNotFoundException("Receipt not found with id: " + receiptId));
+        requireWarehouseAccess(actor, receipt.getWarehouse().getId());
+        assertVersion(receipt, request.getExpectedVersion());
+        List<ReceiptItem> items = receiptItemRepository.findByReceiptIdOrderByIdAsc(receiptId);
+        boolean legacyPendingWithoutCount = receipt.getStatus() == ReceiptStatus.PENDING_RECEIPT
+                && receipt.getType() == ReceiptType.PURCHASE
+                && receipt.getPreReceiveApprovedAt() == null
+                && items.stream().allMatch(item -> item.getActualQty() == null);
+        if (receipt.getStatus() != ReceiptStatus.PENDING_MANAGER_APPROVAL
+                && !legacyPendingWithoutCount) {
+            throw new UnprocessableEntityException("PRE_RECEIVE_APPROVAL_INVALID_STATUS: " + receipt.getStatus());
+        }
+
+        Map<String, Object> before = snapshot(receipt, items);
+        OffsetDateTime now = OffsetDateTime.now();
+        if ("APPROVE".equals(request.getDecision())) {
+            receipt.setStatus(ReceiptStatus.PENDING_RECEIPT);
+            receipt.setPreReceiveApprovedBy(actor);
+            receipt.setPreReceiveApprovedAt(now);
+            receipt.setPreReceiveRejectionReason(null);
+            receipt.setUpdatedAt(now);
+            Receipt saved = receiptRepository.save(receipt);
+            auditLogService.log(actor, AuditAction.RECEIPT_PRE_RECEIVE_APPROVE, "RECEIPT",
+                    saved.getId(), saved.getReceiptNumber(), saved.getWarehouse().getId(), before,
+                    preReceiveSnapshot(saved, items, request.getDecision(), null));
+            return receiptMapper.toResponse(saved, items);
+        }
+
+        if (!"REJECT".equals(request.getDecision())) {
+            throw new UnprocessableEntityException("PRE_RECEIVE_DECISION_INVALID");
+        }
+        if (request.getReason() == null || request.getReason().isBlank()) {
+            throw new UnprocessableEntityException("PRE_RECEIVE_REJECTION_REASON_REQUIRED");
+        }
+        receipt.setStatus(ReceiptStatus.REVISION_REQUIRED);
+        receipt.setPreReceiveApprovedBy(null);
+        receipt.setPreReceiveApprovedAt(null);
+        receipt.setPreReceiveRejectionReason(request.getReason());
+        receipt.setUpdatedAt(now);
+        Receipt saved = receiptRepository.save(receipt);
+        auditLogService.log(actor, AuditAction.RECEIPT_PRE_RECEIVE_REJECT, "RECEIPT",
+                saved.getId(), saved.getReceiptNumber(), saved.getWarehouse().getId(), before,
+                preReceiveSnapshot(saved, items, request.getDecision(), request.getReason()));
+        return receiptMapper.toResponse(saved, items);
+    }
+
+    @Transactional
+    public ReceiptResponse reviseReceipt(Long receiptId, ReviseReceiptRequest request, User actor) {
+        requirePlannerOnly(actor);
+        validateRevisionRequest(request);
+        Receipt receipt = receiptRepository.findByIdWithWarehouse(receiptId)
+                .orElseThrow(() -> new ResourceNotFoundException("Receipt not found with id: " + receiptId));
+        requireWarehouseAccess(actor, receipt.getWarehouse().getId());
+        assertVersion(receipt, request.getExpectedVersion());
+        if (receipt.getStatus() != ReceiptStatus.REVISION_REQUIRED) {
+            throw new UnprocessableEntityException("RECEIPT_REVISION_INVALID_STATUS: " + receipt.getStatus());
+        }
+
+        List<ReceiptItem> items = receiptItemRepository.findByReceiptIdOrderByIdAsc(receiptId);
+        Map<String, Object> before = snapshot(receipt, items);
+        applyRevisionItems(request.getItems(), items);
+        receipt.setDocumentDate(request.getDocumentDate());
+        receipt.setAccountingPeriod(accountingPeriodService.resolveOpenPeriod(request.getDocumentDate()));
+        receipt.setNotes(request.getNotes());
+        receipt.setStatus(ReceiptStatus.PENDING_MANAGER_APPROVAL);
+        receipt.setPreReceiveRejectionReason(null);
+        receipt.setUpdatedAt(OffsetDateTime.now());
+
+        List<ReceiptItem> savedItems = receiptItemRepository.saveAll(items);
+        Receipt saved = receiptRepository.save(receipt);
+        auditLogService.log(actor, AuditAction.RECEIPT_PRE_RECEIVE_RESUBMIT, "RECEIPT",
+                saved.getId(), saved.getReceiptNumber(), saved.getWarehouse().getId(), before,
+                snapshot(saved, savedItems));
+        return receiptMapper.toResponse(saved, savedItems);
     }
 
     @Transactional
@@ -192,6 +278,16 @@ public class ReceiptService {
         requireWarehouseAccess(actor, receipt.getWarehouse().getId());
         validateReceivableStatus(receipt);
 
+        if (request.getExpectedVersion() == null) {
+            throw receiptCountError("EXPECTED_VERSION_REQUIRED", HttpStatus.BAD_REQUEST,
+                    "expectedVersion is required");
+        }
+        if (receipt.getVersion() != null && !request.getExpectedVersion().equals(receipt.getVersion())) {
+            throw receiptCountError("INVENTORY_VERSION_CONFLICT",
+                    HttpStatus.CONFLICT,
+                    "Receipt version mismatch (expected: " + request.getExpectedVersion() + ", actual: " + receipt.getVersion() + ")");
+        }
+
         List<ReceiptItem> items = receiptItemRepository.findByReceiptIdOrderByIdAsc(receiptId);
         Map<String, Object> before = receiveSnapshot(receipt, items);
         Map<Long, ReceiveReceiptItemRequest> counts = validateCountCoverage(request, items);
@@ -199,19 +295,108 @@ public class ReceiptService {
         for (ReceiptItem item : items) {
             applyCount(item, counts.get(item.getId()).getCountedQty());
         }
-        if (hasQcData(items)) {
+        boolean hadQc = hasQcData(items);
+        if (hadQc) {
             clearQcData(items);
         }
+
         receipt.setStatus(ReceiptStatus.DRAFT);
+        receipt.setRejectionReason(null);
         receipt.setUpdatedAt(OffsetDateTime.now());
 
         List<ReceiptItem> savedItems = receiptItemRepository.saveAll(items);
         Receipt savedReceipt = receiptRepository.save(receipt);
-        auditLogService.log(actor, AuditAction.UPDATE, "RECEIPT",
+        AuditAction auditAction = hadQc ? AuditAction.RECEIPT_CORRECTION : AuditAction.RECEIPT_RECEIVE;
+        auditLogService.log(actor, auditAction, "RECEIPT",
                 savedReceipt.getId(), savedReceipt.getReceiptNumber(),
                 savedReceipt.getWarehouse().getId(), before,
                 receiveSnapshot(savedReceipt, savedItems));
         return receiptMapper.toResponse(savedReceipt, savedItems);
+    }
+
+    @Transactional
+    public ReceiptResponse cancelReceipt(Long receiptId, ReceiptCancelRequest request, User actor) {
+        requireCancelRole(actor);
+        Receipt receipt = receiptRepository.findByIdWithWarehouse(receiptId)
+                .orElseThrow(() -> new ResourceNotFoundException("Receipt not found with id: " + receiptId));
+        requireWarehouseAccess(actor, receipt.getWarehouse().getId());
+        assertVersion(receipt, request.getExpectedVersion());
+        if (receipt.getStatus() == ReceiptStatus.PUTAWAY_COMPLETED
+                || receipt.getStatus() == ReceiptStatus.RETURNED_TO_SUPPLIER
+                || receipt.getStatus() == ReceiptStatus.CANCELLED) {
+            throw new UnprocessableEntityException("Cannot cancel finalized receipt in status: " + receipt.getStatus());
+        }
+        Map<String, Object> before = Map.of("status", receipt.getStatus().name());
+        receipt.setStatus(ReceiptStatus.CANCELLED);
+        receipt.setRejectionReason(request.getReason());
+        receipt.setUpdatedAt(OffsetDateTime.now());
+        Receipt saved = receiptRepository.save(receipt);
+        List<ReceiptItem> items = receiptItemRepository.findByReceiptIdOrderByIdAsc(receiptId);
+        auditLogService.log(actor, AuditAction.RECEIPT_CANCEL, "RECEIPT",
+                saved.getId(), saved.getReceiptNumber(),
+                saved.getWarehouse().getId(), before, Map.of("status", "CANCELLED", "reason", request.getReason()));
+        return receiptMapper.toResponse(saved, items);
+    }
+
+    @Transactional
+    public ReceiptResponse reopenReceipt(Long receiptId, ReceiptReopenRequest request, User actor) {
+        requireManager(actor);
+        Receipt receipt = receiptRepository.findByIdWithWarehouse(receiptId)
+                .orElseThrow(() -> new ResourceNotFoundException("Receipt not found with id: " + receiptId));
+        requireWarehouseAccess(actor, receipt.getWarehouse().getId());
+        assertVersion(receipt, request.getExpectedVersion());
+
+        if (receipt.getStatus() == ReceiptStatus.PUTAWAY_COMPLETED
+                || receipt.getStatus() == ReceiptStatus.RETURNED_TO_SUPPLIER
+                || receipt.getStatus() == ReceiptStatus.CANCELLED) {
+            throw new UnprocessableEntityException("Cannot reopen receipt in status: " + receipt.getStatus());
+        }
+        if (receipt.getStatus() == ReceiptStatus.APPROVED && receipt.getPutawayCompletedAt() != null) {
+            throw new UnprocessableEntityException("Cannot reopen receipt after putaway completion");
+        }
+
+        Map<String, Object> before = Map.of("status", receipt.getStatus().name());
+        List<ReceiptItem> items = receiptItemRepository.findByReceiptIdOrderByIdAsc(receiptId);
+        clearQcData(items);
+        receiptItemRepository.saveAll(items);
+
+        receipt.setStatus(ReceiptStatus.DRAFT);
+        receipt.setRejectionReason(null);
+        receipt.setApprovedBy(null);
+        receipt.setApprovedAt(null);
+        receipt.setUpdatedAt(OffsetDateTime.now());
+        Receipt saved = receiptRepository.save(receipt);
+
+        auditLogService.log(actor, AuditAction.RECEIPT_REOPEN, "RECEIPT",
+                saved.getId(), saved.getReceiptNumber(),
+                saved.getWarehouse().getId(), before, Map.of("status", "DRAFT", "reason", request.getReason()));
+        return receiptMapper.toResponse(saved, items);
+    }
+
+    private void requireCancelRole(User actor) {
+        if (actor == null || (actor.getRole() != UserRole.PLANNER
+                && actor.getRole() != UserRole.WAREHOUSE_MANAGER
+                && actor.getRole() != UserRole.ADMIN)) {
+            throw new AccessDeniedException("Planner, Warehouse Manager, or Admin role is required");
+        }
+    }
+
+    private void assertVersion(Receipt receipt, Integer expectedVersion) {
+        if (expectedVersion == null) {
+            throw new IllegalArgumentException("EXPECTED_VERSION_REQUIRED");
+        }
+        if (receipt.getVersion() != null && !receipt.getVersion().equals(expectedVersion)) {
+            throw receiptCountError("INVENTORY_VERSION_CONFLICT", HttpStatus.CONFLICT,
+                    "Receipt version mismatch (expected: " + expectedVersion + ", actual: " + receipt.getVersion() + ")");
+        }
+    }
+
+    private void requireManager(User actor) {
+        if (actor == null || (actor.getRole() != UserRole.WAREHOUSE_MANAGER
+                && actor.getRole() != UserRole.STOREKEEPER
+                && actor.getRole() != UserRole.ADMIN)) {
+            throw new AccessDeniedException("Warehouse Manager, Storekeeper, or Admin role is required");
+        }
     }
 
     private void requirePlanner(User actor) {
@@ -265,21 +450,12 @@ public class ReceiptService {
         }
     }
 
-    private void validateDuplicateSource(CreateReceiptRequest request) {
-        boolean duplicate = receiptRepository
-                .existsBySupplierIdAndWarehouseIdAndSourceOrderCodeAndTypeAndStatusNot(
-                        request.getSupplierId(), request.getWarehouseId(),
-                        request.getSourceReference(), ReceiptType.PURCHASE,
-                        ReceiptStatus.RETURNED_TO_SUPPLIER);
-        if (duplicate) {
-            throw new DuplicateResourceException(
-                    "Receipt source reference already exists for supplier and warehouse");
-        }
-    }
-
     private void validateRequest(CreateReceiptRequest request) {
         if (request == null) {
             throw new UnprocessableEntityException("Receipt request is required");
+        }
+        if (request.getDocumentDate() == null) {
+            throw new UnprocessableEntityException("Receipt document date is required");
         }
         if (request.getItems() == null || request.getItems().isEmpty()) {
             throw new UnprocessableEntityException("Receipt items are required");
@@ -307,16 +483,13 @@ public class ReceiptService {
                                  Supplier supplier,
                                  Warehouse warehouse) {
         OffsetDateTime now = OffsetDateTime.now();
-        LocalDate documentDate = LocalDate.now();
+        LocalDate documentDate = request.getDocumentDate();
         Receipt receipt = new Receipt();
-        receipt.setReceiptNumber(generateReceiptNumber());
-        receipt.setSourceOrderCode(request.getSourceReference());
+        receipt.setReceiptNumber(generateReceiptNumber(documentDate));
         receipt.setType(ReceiptType.PURCHASE);
         receipt.setWarehouse(warehouse);
         receipt.setSupplier(supplier);
-        receipt.setContactPerson(request.getContactPerson());
-        receipt.setSourceChannel(request.getSourceChannel().name());
-        receipt.setStatus(ReceiptStatus.PENDING_RECEIPT);
+        receipt.setStatus(ReceiptStatus.PENDING_MANAGER_APPROVAL);
         receipt.setDocumentDate(documentDate);
         receipt.setAccountingPeriod(accountingPeriodService.resolveOpenPeriod(documentDate));
         receipt.setCreatedBy(actor);
@@ -331,7 +504,7 @@ public class ReceiptService {
             return receiptRepository.saveAndFlush(receipt);
         } catch (DataIntegrityViolationException ex) {
             throw new DuplicateResourceException(
-                    "Receipt source reference already exists for supplier and warehouse");
+                    "Receipt number already exists; please retry receipt creation");
         }
     }
 
@@ -363,13 +536,14 @@ public class ReceiptService {
         return product;
     }
 
-    private String generateReceiptNumber() {
-        String date = LocalDate.now().format(RECEIPT_NUMBER_DATE);
+    private String generateReceiptNumber(LocalDate documentDate) {
+        String date = documentDate.format(RECEIPT_NUMBER_DATE);
+        String sequenceKey = RECEIPT_SEQUENCE_KEY_PREFIX + "-" + date;
         DocumentSequence sequence = sequenceRepository
-                .findBySequenceKeyForUpdate(RECEIPT_SEQUENCE_KEY)
+                .findBySequenceKeyForUpdate(sequenceKey)
                 .orElseGet(() -> {
                     DocumentSequence newSeq = new DocumentSequence();
-                    newSeq.setSequenceKey(RECEIPT_SEQUENCE_KEY);
+                    newSeq.setSequenceKey(sequenceKey);
                     newSeq.setNextValue(1L);
                     newSeq.setUpdatedAt(OffsetDateTime.now());
                     return sequenceRepository.save(newSeq);
@@ -378,7 +552,7 @@ public class ReceiptService {
         sequence.setNextValue(value + 1);
         sequence.setUpdatedAt(OffsetDateTime.now());
         sequenceRepository.save(sequence);
-        return "RN-" + date + "-" + String.format("%06d", value);
+        return "PO-" + date + "-" + String.format("%04d", value);
     }
 
     private Map<String, Object> snapshot(Receipt receipt, List<ReceiptItem> items) {
@@ -388,8 +562,7 @@ public class ReceiptService {
         values.put("status", receipt.getStatus().name());
         values.put("supplierId", receipt.getSupplier().getId());
         values.put("warehouseId", receipt.getWarehouse().getId());
-        values.put("sourceReference", receipt.getSourceOrderCode());
-        values.put("sourceChannel", receipt.getSourceChannel());
+        values.put("documentDate", receipt.getDocumentDate());
         values.put("itemCount", items.size());
         values.put("items", items.stream().map(this::itemSnapshot).toList());
         return values;
@@ -411,6 +584,12 @@ public class ReceiptService {
     }
 
     private void validateReceivableStatus(Receipt receipt) {
+        if (receipt.getStatus() == ReceiptStatus.PENDING_MANAGER_APPROVAL
+                || receipt.getStatus() == ReceiptStatus.REVISION_REQUIRED) {
+            throw receiptCountError("RECEIPT_PENDING_MANAGER_APPROVAL",
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Receipt requires manager approval before receiving");
+        }
         if (receipt.getStatus() == ReceiptStatus.APPROVED
                 || receipt.getStatus() == ReceiptStatus.RETURN_TO_SUPPLIER_PENDING
                 || receipt.getStatus() == ReceiptStatus.RETURNED_TO_SUPPLIER) {
@@ -490,6 +669,10 @@ public class ReceiptService {
             item.setSampleQty(null);
             item.setSamplePassedQty(null);
             item.setSampleFailedQty(null);
+            item.setQualityPassedQty(0);
+            item.setQualityFailedQty(0);
+            item.setApprovedQty(0);
+            item.setQuarantineReadyQty(0);
             item.setQcSamplingMethod(null);
             item.setQcFailureReason(null);
             item.setQcBy(null);
@@ -533,5 +716,94 @@ public class ReceiptService {
                                                     HttpStatus status,
                                                     String message) {
         return new ReceiptCountException(code, status, message);
+    }
+
+    private void requireWarehouseManager(User actor) {
+        if (actor == null || actor.getRole() != UserRole.WAREHOUSE_MANAGER) {
+            throw new AccessDeniedException("Warehouse Manager role is required");
+        }
+    }
+
+    private void requirePlannerOnly(User actor) {
+        if (actor == null || (actor.getRole() != UserRole.PLANNER
+                && actor.getRole() != UserRole.ADMIN)) {
+            throw new AccessDeniedException("Planner or Admin role is required");
+        }
+    }
+
+    private void validateRevisionRequest(ReviseReceiptRequest request) {
+        if (request == null || request.getDocumentDate() == null) {
+            throw new UnprocessableEntityException("DOCUMENT_DATE_REQUIRED");
+        }
+        if (request.getItems() == null || request.getItems().isEmpty()) {
+            throw new UnprocessableEntityException("RECEIPT_ITEMS_REQUIRED");
+        }
+    }
+
+    private void applyRevisionItems(List<ReviseReceiptItemRequest> revisions,
+                                    List<ReceiptItem> items) {
+        validateRevisionItems(revisions, items);
+        Map<Long, ReceiptItem> itemById = items.stream()
+                .collect(Collectors.toMap(ReceiptItem::getId, Function.identity()));
+        for (ReviseReceiptItemRequest revision : revisions) {
+            ReceiptItem item = itemById.get(revision.getReceiptItemId());
+            item.setProduct(findActiveProduct(revision.getProductId()));
+            item.setExpectedQty(revision.getExpectedQty());
+            item.setUnitCost(revision.getUnitCost());
+            item.setActualQty(null);
+            item.setOverReceivedQty(0);
+            clearReceiptItemQcData(item);
+        }
+    }
+
+    private void validateRevisionItems(List<ReviseReceiptItemRequest> revisions,
+                                       List<ReceiptItem> items) {
+        if (revisions.size() != items.size()) {
+            throw new UnprocessableEntityException("RECEIPT_REVISION_ITEMS_MISMATCH");
+        }
+        Set<Long> existingIds = items.stream().map(ReceiptItem::getId).collect(Collectors.toSet());
+        Set<Long> seenItemIds = new HashSet<>();
+        Set<Long> seenProductIds = new HashSet<>();
+        for (ReviseReceiptItemRequest revision : revisions) {
+            if (revision == null || revision.getReceiptItemId() == null
+                    || !existingIds.contains(revision.getReceiptItemId())
+                    || !seenItemIds.add(revision.getReceiptItemId())) {
+                throw new UnprocessableEntityException("RECEIPT_REVISION_ITEMS_MISMATCH");
+            }
+            if (revision.getProductId() == null || !seenProductIds.add(revision.getProductId())) {
+                throw new UnprocessableEntityException("Duplicate product line is not allowed: "
+                        + revision.getProductId());
+            }
+            if (revision.getExpectedQty() == null || revision.getExpectedQty() <= 0) {
+                throw new UnprocessableEntityException("Expected quantity must be a positive integer");
+            }
+        }
+    }
+
+    private void clearReceiptItemQcData(ReceiptItem item) {
+        item.setQcResult(null);
+        item.setSampleQty(null);
+        item.setSamplePassedQty(null);
+        item.setSampleFailedQty(null);
+        item.setQualityPassedQty(0);
+        item.setQualityFailedQty(0);
+        item.setApprovedQty(0);
+        item.setQuarantineReadyQty(0);
+        item.setQcSamplingMethod(null);
+        item.setQcFailureReason(null);
+        item.setQcBy(null);
+    }
+
+    private Map<String, Object> preReceiveSnapshot(Receipt receipt,
+                                                   List<ReceiptItem> items,
+                                                   String decision,
+                                                   String reason) {
+        Map<String, Object> values = snapshot(receipt, items);
+        values.put("decision", decision);
+        values.put("reason", reason);
+        values.put("preReceiveApprovedBy", receipt.getPreReceiveApprovedBy() == null
+                ? null : receipt.getPreReceiveApprovedBy().getId());
+        values.put("preReceiveApprovedAt", receipt.getPreReceiveApprovedAt());
+        return values;
     }
 }

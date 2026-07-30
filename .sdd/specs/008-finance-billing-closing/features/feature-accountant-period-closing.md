@@ -1,35 +1,39 @@
 # Feature: Kế toán trưởng Chốt sổ Kế toán & Khóa Kỳ (US-WMS-17)
 
 ## 1. Context and Goal
+
 Kế toán trưởng (`ACCOUNTANT_MANAGER`) thực hiện chốt sổ kế toán định kỳ hàng tháng để khóa cứng toàn bộ dữ liệu nghiệp vụ lịch sử (nhập, xuất, điều chuyển, điều chỉnh, hóa đơn, thanh toán). Sau khi kỳ kế toán đã khóa, không ai có thể thêm, sửa, hoặc xóa dữ liệu thuộc kỳ đó. Mọi sai sót phát sinh trong kỳ đã khóa chỉ được điều chỉnh bằng các chứng từ điều chỉnh ngược (Correction Voucher) trong kỳ kế toán hiện hành đang mở.
 
 ## 2. Actors
-* **Kế toán trưởng (`ACCOUNTANT_MANAGER`)**: Người duy nhất có thẩm quyền thực hiện chốt sổ và khóa kỳ kế toán.
+
+- **Kế toán trưởng (`ACCOUNTANT_MANAGER`)**: Người duy nhất có thẩm quyền thực hiện chốt sổ và khóa kỳ kế toán.
 
 ## 3. Functional Requirements (EARS)
-* **Event-driven:**
-  * **WHEN** Kế toán trưởng yêu cầu khóa kỳ kế toán, hệ thống **SHALL** tự động kiểm tra tính toàn vẹn của dữ liệu trong kỳ đó:
-    * Kiểm tra xem còn chứng từ dở dang nào có ngày chứng từ `document_date` nằm trong kỳ kế toán đó không:
-      * Đơn nhập kho (`receipts` có trạng thái khác `'APPROVED'` và `'REJECTED'`).
-      * Đơn xuất kho (`delivery_orders` có trạng thái khác `'COMPLETED'`, `'CANCELLED'` và `'RETURNED'`).
-      * Đơn điều chuyển (`transfers` có trạng thái khác `'COMPLETED'`, `'COMPLETED_WITH_DISCREPANCY'` và `'CANCELLED'`).
-      * Phiếu kiểm kê (`stock_takes` có trạng thái khác `'APPROVED'` và `'CANCELLED'`).
-      * Phiếu điều chỉnh (`adjustments` có trạng thái khác `'APPROVED'`).
-      * Đơn xuất kho đã `COMPLETED` nhưng chưa có hóa đơn tương ứng trong `invoices` (invoice chưa được tạo tự động hoặc backfill).
-      * **Lưu ý**: hóa đơn `UNPAID` (chưa thu tiền) KHÔNG chặn chốt sổ — công nợ tồn đọng được theo dõi qua Aging Report ở kỳ mở kế tiếp, không phải điều kiện đóng kỳ (business.md ACC-03 chỉ yêu cầu không còn chứng từ *chưa duyệt/chưa lập hóa đơn*).
-    * **IF** phát hiện còn chứng từ dở dang: Hệ thống **SHALL** từ chối khóa kỳ và trả về danh sách chi tiết các chứng từ chưa hoàn tất.
-    * **IF** kiểm tra hợp lệ: Cập nhật trạng thái kỳ kế toán sang `status = 'CLOSED'`, ghi nhận người khóa `closed_by` và thời gian khóa `closed_at`.
-  * **WHEN** ngày hiện tại đạt hoặc vượt quá ngày khóa sổ hàng tháng `MONTHLY_CLOSING_DAY` (lấy từ cấu hình bảng `system_configs`, mặc định là ngày `25`), hệ thống **SHALL** gửi thông báo nhắc nhở Kế toán trưởng tiến hành rà soát để đóng kỳ kế toán.
-  * **WHEN** một chứng từ nghiệp vụ được tạo với `document_date` thuộc một kỳ kế toán đã `CLOSED`, hệ thống **SHALL** từ chối thẳng yêu cầu với lỗi `PERIOD_CLOSED` (HTTP 422), không tự động lùi/chuyển chứng từ sang kỳ đang `OPEN`. Việc tự động chuyển kỳ mà không có xác nhận rõ ràng từ người dùng sẽ ghi nhận sai kỳ hạch toán một cách âm thầm, vi phạm mục đích khóa sổ; người dùng phải tự sửa `document_date` và gửi lại yêu cầu.
-  * **WHEN** phát hiện sai sót trên một chứng từ tài chính (`invoices`, `payment_receipts`, `supplier_invoices`, `supplier_payments`) thuộc một kỳ đã `CLOSED`, hệ thống **SHALL NOT** cho phép mở lại hoặc sửa trực tiếp chứng từ đó (safety.md DAT-05) — Kế toán trưởng lập một **Bút toán Điều chỉnh (Correction Voucher)** theo [US-WMS-29](./feature-accountant-correction-voucher.md) (bản ghi `adjustments` loại `CORRECTION_VOUCHER`), với `document_date` thuộc kỳ hiện đang `OPEN` và tham chiếu ngược về chứng từ gốc; số dư công nợ liên quan chỉ thay đổi khi bút toán này được tạo, chứng từ gốc trong kỳ đã đóng không bị sửa.
-* **State-driven:**
-  * **WHILE** một kỳ kế toán có trạng thái `status = 'CLOSED'`, hệ thống **SHALL** chặn tất cả các yêu cầu tạo mới (CREATE), chỉnh sửa (UPDATE) hoặc xóa (DELETE) đối với mọi chứng từ (bao gồm `receipts`, `delivery_orders`, `transfers`, `stock_takes`, `adjustments`, `invoices`, `payment_receipts`) có ngày chứng từ `document_date` thuộc phạm vi từ `start_date` đến `end_date` của kỳ đã đóng đó (trả về lỗi `PERIOD_CLOSED` với HTTP 422).
+
+- **Event-driven:**
+  - **WHEN** Kế toán trưởng yêu cầu khóa kỳ kế toán, hệ thống **SHALL** tự động kiểm tra tính toàn vẹn của dữ liệu trong kỳ đó:
+    - Kiểm tra xem còn chứng từ dở dang nào có Ngày Nhập Hàng `document_date` nằm trong kỳ kế toán đó không:
+      - Đơn nhập kho (`receipts` có trạng thái khác `'APPROVED'` và `'REJECTED'`).
+      - Đơn xuất kho (`delivery_orders` có trạng thái khác `'COMPLETED'`, `'CANCELLED'` và `'RETURNED'`).
+      - Đơn điều chuyển (`transfers` có trạng thái khác `'COMPLETED'`, `'COMPLETED_WITH_DISCREPANCY'` và `'CANCELLED'`).
+      - Phiếu kiểm kê (`stock_takes` có trạng thái khác `'APPROVED'` và `'CANCELLED'`).
+      - Phiếu điều chỉnh (`adjustments` có trạng thái khác `'APPROVED'`).
+      - Đơn xuất kho đã `COMPLETED` nhưng chưa có hóa đơn tương ứng trong `invoices` (invoice chưa được tạo tự động hoặc backfill).
+      - **Lưu ý**: hóa đơn `UNPAID` (chưa thu tiền) KHÔNG chặn chốt sổ — công nợ tồn đọng được theo dõi qua Aging Report ở kỳ mở kế tiếp, không phải điều kiện đóng kỳ (business.md ACC-03 chỉ yêu cầu không còn chứng từ _chưa duyệt/chưa lập hóa đơn_).
+    - **IF** phát hiện còn chứng từ dở dang: Hệ thống **SHALL** từ chối khóa kỳ và trả về danh sách chi tiết các chứng từ chưa hoàn tất.
+    - **IF** kiểm tra hợp lệ: Cập nhật trạng thái kỳ kế toán sang `status = 'CLOSED'`, ghi nhận người khóa `closed_by` và thời gian khóa `closed_at`.
+  - **WHEN** ngày hiện tại đạt hoặc vượt quá ngày khóa sổ hàng tháng `MONTHLY_CLOSING_DAY` (lấy từ cấu hình bảng `system_configs`, mặc định là ngày `25`), hệ thống **SHALL** gửi thông báo nhắc nhở Kế toán trưởng tiến hành rà soát để đóng kỳ kế toán.
+  - **WHEN** một chứng từ nghiệp vụ được tạo với `document_date` thuộc một kỳ kế toán đã `CLOSED`, hệ thống **SHALL** từ chối thẳng yêu cầu với lỗi `PERIOD_CLOSED` (HTTP 422), không tự động lùi/chuyển chứng từ sang kỳ đang `OPEN`. Việc tự động chuyển kỳ mà không có xác nhận rõ ràng từ người dùng sẽ ghi nhận sai kỳ hạch toán một cách âm thầm, vi phạm mục đích khóa sổ; người dùng phải tự sửa `document_date` và gửi lại yêu cầu.
+  - **WHEN** phát hiện sai sót trên một chứng từ tài chính (`invoices`, `payment_receipts`, `supplier_invoices`, `supplier_payments`) thuộc một kỳ đã `CLOSED`, hệ thống **SHALL NOT** cho phép mở lại hoặc sửa trực tiếp chứng từ đó (safety.md DAT-05) — Kế toán trưởng lập một **Bút toán Điều chỉnh (Correction Voucher)** theo [US-WMS-29](./feature-accountant-correction-voucher.md) (bản ghi `adjustments` loại `CORRECTION_VOUCHER`), với `document_date` thuộc kỳ hiện đang `OPEN` và tham chiếu ngược về chứng từ gốc; số dư công nợ liên quan chỉ thay đổi khi bút toán này được tạo, chứng từ gốc trong kỳ đã đóng không bị sửa.
+- **State-driven:**
+  - **WHILE** một kỳ kế toán có trạng thái `status = 'CLOSED'`, hệ thống **SHALL** chặn tất cả các yêu cầu tạo mới (CREATE), chỉnh sửa (UPDATE) hoặc xóa (DELETE) đối với mọi chứng từ (bao gồm `receipts`, `delivery_orders`, `transfers`, `stock_takes`, `adjustments`, `invoices`, `payment_receipts`) có Ngày Nhập Hàng `document_date` thuộc phạm vi từ `start_date` đến `end_date` của kỳ đã đóng đó (trả về lỗi `PERIOD_CLOSED` với HTTP 422).
 
 ## 4. API Endpoints
 
 ### 4.1 Lấy danh sách kỳ kế toán
-* **Protocol & Path**: `GET /api/v1/accounting-periods`
-* **Response 200 OK**:
+
+- **Protocol & Path**: `GET /api/v1/accounting-periods`
+- **Response 200 OK**:
   ```json
   [
     {
@@ -56,14 +60,15 @@ Kế toán trưởng (`ACCOUNTANT_MANAGER`) thực hiện chốt sổ kế toán
   ```
 
 ### 4.2 Khóa kỳ kế toán
-* **Protocol & Path**: `PUT /api/v1/accounting-periods/{id}/close`
-* **Request Body**:
+
+- **Protocol & Path**: `PUT /api/v1/accounting-periods/{id}/close`
+- **Request Body**:
   ```json
   {
     "notes": "Chốt sổ kỳ kế toán tháng 6"
   }
   ```
-* **Response 200 OK**:
+- **Response 200 OK**:
   ```json
   {
     "id": 2,
@@ -76,7 +81,7 @@ Kế toán trưởng (`ACCOUNTANT_MANAGER`) thực hiện chốt sổ kế toán
     "notes": "Chốt sổ kỳ kế toán tháng 6"
   }
   ```
-* **Error Response 422 Unprocessable Entity** (Nếu còn chứng từ dở dang):
+- **Error Response 422 Unprocessable Entity** (Nếu còn chứng từ dở dang):
   ```json
   {
     "code": "PENDING_DOCUMENTS_EXIST",
@@ -93,7 +98,7 @@ Kế toán trưởng (`ACCOUNTANT_MANAGER`) thực hiện chốt sổ kế toán
 
 ## 5. Acceptance Criteria
 
-* **Scenario: Chặn sửa đổi dữ liệu trong kỳ đã chốt sổ**
-  * **Given**: Kỳ kế toán `2026-05` (từ `2026-05-01` đến `2026-05-31`) có trạng thái `status = 'CLOSED'`.
-  * **When**: Kế toán viên cố gắng tạo mới hoặc cập nhật một đơn xuất kho có ngày chứng từ `document_date = '2026-05-15'`.
-  * **Then**: Hệ thống từ chối yêu cầu, trả về mã lỗi `PERIOD_CLOSED` (HTTP 422) và không ghi nhận bất kỳ thay đổi nào trong cơ sở dữ liệu.
+- **Scenario: Chặn sửa đổi dữ liệu trong kỳ đã chốt sổ**
+  - **Given**: Kỳ kế toán `2026-05` (từ `2026-05-01` đến `2026-05-31`) có trạng thái `status = 'CLOSED'`.
+  - **When**: Kế toán viên cố gắng tạo mới hoặc cập nhật một đơn xuất kho có Ngày Nhập Hàng `document_date = '2026-05-15'`.
+  - **Then**: Hệ thống từ chối yêu cầu, trả về mã lỗi `PERIOD_CLOSED` (HTTP 422) và không ghi nhận bất kỳ thay đổi nào trong cơ sở dữ liệu.

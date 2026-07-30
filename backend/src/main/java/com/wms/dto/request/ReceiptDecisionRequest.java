@@ -37,8 +37,10 @@ import com.wms.enums.warehouse_location.*;
 import com.wms.enums.warehouse_transfer.*;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.Valid;
 import lombok.Getter;
 import lombok.Setter;
+import java.util.List;
 
 /**
  * Request DTO for approve/reject decision on a QC_COMPLETED receipt.
@@ -58,5 +60,8 @@ public class ReceiptDecisionRequest {
     /** Required for reject; optional for approve. Validated at service layer. */
     @Size(max = 2000, message = "REASON_TOO_LONG")
     private String reason;
+
+    @Valid
+    private List<ReceiptItemUnitCostRequest> itemUnitCosts;
 }
 

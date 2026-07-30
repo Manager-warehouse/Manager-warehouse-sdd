@@ -98,7 +98,7 @@ const CorrectionVoucherButton = ({
           <div className="p-3 bg-amber-50 border border-amber-200 rounded text-amber-800 leading-relaxed">
             Chứng từ {documentLabel ? <strong>{documentLabel}</strong> : 'này'} thuộc kỳ kế toán đã{' '}
             <strong>chốt sổ</strong>. Bút toán điều chỉnh sẽ được ghi vào kỳ hiện đang mở, không sửa
-            trực tiếp chứng từ gốc.
+            trực tiếp phiếu ban đầu.
           </div>
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">

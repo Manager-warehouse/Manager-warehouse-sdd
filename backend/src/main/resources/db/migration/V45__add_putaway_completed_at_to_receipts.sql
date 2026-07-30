@@ -1,0 +1,1 @@
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS putaway_completed_at TIMESTAMPTZ;

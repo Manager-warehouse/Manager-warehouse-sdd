@@ -149,7 +149,7 @@ public class ReceiptApprovalController {
         @ApiResponse(responseCode = "422", description = "Location là Quarantine hoặc inventory invariant bị vi phạm")
     })
     @PreAuthorize("hasAnyRole('STOREKEEPER', 'WAREHOUSE_MANAGER', 'ADMIN', 'CEO')")
-    @PutMapping("/{id}/complete")
+    @PostMapping("/{id}/putaway")
     public ResponseEntity<ReceiptActionResponse> completePutaway(
             @Parameter(description = "ID phiếu nhập") @PathVariable Long id,
             @Valid @RequestBody ReceiptPutawayRequest request) {

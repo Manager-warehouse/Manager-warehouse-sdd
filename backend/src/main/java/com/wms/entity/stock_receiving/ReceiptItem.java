@@ -91,6 +91,30 @@ public class ReceiptItem {
     @Column(name = "sample_failed_qty")
     private Integer sampleFailedQty;
 
+    @Column(name = "quality_passed_qty")
+    @Builder.Default
+    private Integer qualityPassedQty = 0;
+
+    @Column(name = "quality_failed_qty")
+    @Builder.Default
+    private Integer qualityFailedQty = 0;
+
+    @Column(name = "approved_qty", nullable = false)
+    @Builder.Default
+    private Integer approvedQty = 0;
+
+    @Column(name = "quarantine_ready_qty", nullable = false)
+    @Builder.Default
+    private Integer quarantineReadyQty = 0;
+
+    @Column(name = "quarantine_qty", nullable = false)
+    @Builder.Default
+    private Integer quarantineQty = 0;
+
+    @Column(name = "resolved_quarantine_qty", nullable = false)
+    @Builder.Default
+    private Integer resolvedQuarantineQty = 0;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "qc_sampling_method", length = 30)
     private QcSamplingMethod qcSamplingMethod;

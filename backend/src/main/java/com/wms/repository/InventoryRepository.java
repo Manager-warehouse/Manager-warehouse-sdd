@@ -85,6 +85,11 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
             from Inventory i
             where i.warehouse.id = :warehouseId
               and i.product.id = :productId
+              and i.warehouse.type <> com.wms.enums.warehouse_location.WarehouseType.IN_TRANSIT
+              and i.location.type = com.wms.enums.warehouse_location.LocationType.BIN
+              and i.location.isActive = true
+              and i.location.isQuarantine = false
+              and i.location.isLocked = false
             """)
     AvailabilitySummary summarizeAvailability(@Param("warehouseId") Long warehouseId,
             @Param("productId") Long productId);
@@ -97,6 +102,11 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
                 coalesce(sum(i.totalQty - i.reservedQty), 0) as availableQty
             from Inventory i
             where i.warehouse.id = :warehouseId
+              and i.warehouse.type <> com.wms.enums.warehouse_location.WarehouseType.IN_TRANSIT
+              and i.location.type = com.wms.enums.warehouse_location.LocationType.BIN
+              and i.location.isActive = true
+              and i.location.isQuarantine = false
+              and i.location.isLocked = false
             group by i.product.id
             """)
     List<ProductAvailabilitySummary> summarizeAllAvailability(@Param("warehouseId") Long warehouseId);

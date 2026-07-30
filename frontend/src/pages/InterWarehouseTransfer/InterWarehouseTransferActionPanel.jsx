@@ -275,7 +275,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
     }
     if (transfer.status === 'IN_TRANSIT' && !transfer.isReturned && transfer.driverArrivedAt && !normalReceivingHandoverDone) {
       return {
-        title: 'Chờ thủ kho kho đích nhận bàn giao',
+        title: 'Chờ thủ kho bàn giao',
         detail: `Thủ kho kho đích ${transfer.destinationWarehouseCode} chụp ảnh bàn giao rồi gửi cho công nhân count, hoặc báo sai SKU để yêu cầu quay đầu.`,
       };
     }

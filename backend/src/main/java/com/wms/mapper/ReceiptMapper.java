@@ -39,8 +39,6 @@ import com.wms.dto.response.ReceiptItemResponse;
 import com.wms.dto.response.ReceiptResponse;
 import com.wms.entity.stock_receiving.Receipt;
 import com.wms.entity.stock_receiving.ReceiptItem;
-import com.wms.enums.stock_receiving.QcSamplingMethod;
-import com.wms.enums.stock_receiving.QcResult;
 import java.util.List;
 import org.springframework.stereotype.Component;
 
@@ -62,8 +60,11 @@ public class ReceiptMapper {
         response.setSourceReference(receipt.getSourceOrderCode());
         response.setSourceChannel(receipt.getSourceChannel());
         response.setDocumentDate(receipt.getDocumentDate());
+        response.setNotes(receipt.getNotes());
         response.setCreatedAt(receipt.getCreatedAt());
         response.setApprovedAt(receipt.getApprovedAt());
+        response.setPreReceiveApprovedAt(receipt.getPreReceiveApprovedAt());
+        response.setPreReceiveRejectionReason(receipt.getPreReceiveRejectionReason());
         response.setVersion(receipt.getVersion());
         response.setCreditNoteGenerated(false);
         response.setItems(items.stream().map(this::toItemResponse).toList());
@@ -81,31 +82,19 @@ public class ReceiptMapper {
         response.setProductName(item.getProduct().getName());
         response.setProductSku(item.getProduct().getSku());
         response.setLocationId(item.getLocation() != null ? item.getLocation().getId() : null);
+        response.setBatchId(item.getBatch() != null ? item.getBatch().getId() : null);
+        response.setBatchCode(item.getBatch() != null ? readableBatchCode(item.getBatch()) : null);
 
-        // Calculate QC passed and failed quantities based on rules
-        Integer passedQty = 0;
-        Integer failedQty = 0;
-        if (item.getQcResult() != null) {
-            Integer samplePassed = item.getSamplePassedQty() != null ? item.getSamplePassedQty() : 0;
-            Integer sampleFailed = item.getSampleFailedQty() != null ? item.getSampleFailedQty() : 0;
-            Integer actual = item.getActualQty() != null ? item.getActualQty() : 0;
-
-            if (item.getQcSamplingMethod() == QcSamplingMethod.FULL_INSPECTION) {
-                passedQty = samplePassed;
-                failedQty = sampleFailed;
-            } else if (item.getQcSamplingMethod() == QcSamplingMethod.RANDOM_SAMPLE) {
-                if (item.getQcResult() == QcResult.PASSED) {
-                    passedQty = actual;
-                    failedQty = 0;
-                } else if (item.getQcResult() == QcResult.FAILED) {
-                    passedQty = 0;
-                    failedQty = actual;
-                }
-            }
-        }
-        response.setQcPassedQty(passedQty);
-        response.setQcFailedQty(failedQty);
+        response.setQcPassedQty(item.getQualityPassedQty() != null ? item.getQualityPassedQty() : 0);
+        response.setQcFailedQty(item.getQualityFailedQty() != null ? item.getQualityFailedQty() : 0);
+        response.setApprovedQty(item.getApprovedQty());
+        response.setQuarantineReadyQty(item.getQuarantineReadyQty());
+        response.setQuarantineQty(item.getQuarantineQty());
 
         return response;
+    }
+
+    private String readableBatchCode(Batch batch) {
+        return batch.getBatchCode() != null ? batch.getBatchCode() : batch.getBatchNumber();
     }
 }

@@ -250,7 +250,7 @@ const PeriodClosing = () => {
                                 <thead>
                                   <tr className="text-shade-50 uppercase tracking-wider">
                                     <th className="py-1.5 pr-4">Mã Bút toán</th>
-                                    <th className="py-1.5 pr-4">Chứng từ gốc</th>
+                                    <th className="py-1.5 pr-4">Tham chiếu</th>
                                     <th className="py-1.5 pr-4">Đối tượng</th>
                                     <th className="py-1.5 pr-4 text-right">Số tiền</th>
                                     <th className="py-1.5 pr-4">Lý do</th>

@@ -164,7 +164,8 @@ const PutawayPlan = () => {
       expected_version: receipt.version,
       items: items.map(item => ({
         receipt_item_id: item.id,
-        location_id: selectedBins[item.id]
+        location_id: selectedBins[item.id],
+        quantity: item.approved_qty ?? item.approvedQty ?? item.qc_passed_qty ?? item.actual_qty
       }))
     };
 
@@ -396,14 +397,10 @@ const PutawayPlan = () => {
             <h3 className="text-xs font-bold uppercase tracking-widest text-shade-40 border-b border-hairline-light pb-2 mb-4">
               Chứng từ nhập phê duyệt
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs font-semibold">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-semibold">
               <div>
                 <span className="text-shade-50 block mb-0.5 font-normal">Mã phiếu nhập:</span>
                 <span className="text-sm font-bold text-ink">{receipt.receipt_number}</span>
-              </div>
-              <div>
-                <span className="text-shade-50 block mb-0.5 font-normal">Chừng từ gốc (PO/DO):</span>
-                <span>{receipt.source_reference || receipt.source_order_code || 'N/A'}</span>
               </div>
               <div>
                 <span className="text-shade-50 block mb-0.5 font-normal">Trạng thái:</span>

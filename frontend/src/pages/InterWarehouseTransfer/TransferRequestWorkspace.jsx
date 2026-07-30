@@ -744,7 +744,7 @@ const TransferRequestWorkspace = () => {
               <div className="bg-canvas-light p-3.5 rounded border border-hairline-light shadow-level-3 flex flex-col gap-2.5">
                 <div className="grid grid-cols-2 gap-2">
                   <div><span className="text-shade-50">Kho nguồn xuất:</span> <strong className="text-ink text-xs">{selectedRequest.sourceWarehouseName}</strong></div>
-                  <div><span className="text-shade-50">Kho đích nhận:</span> <strong className="text-ink text-xs">{selectedRequest.destinationWarehouseName}</strong></div>
+                  <div><span className="text-shade-50">Kho:</span> <strong className="text-ink text-xs">{selectedRequest.destinationWarehouseName}</strong></div>
                 </div>
                 <div className="grid grid-cols-2 gap-2 border-t border-hairline-light pt-2 text-[11px]">
                   <div><span className="text-shade-50">Người đề xuất:</span> <span className="font-semibold">{selectedRequest.createdByName}</span></div>

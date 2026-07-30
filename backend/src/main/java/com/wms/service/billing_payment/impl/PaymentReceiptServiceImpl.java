@@ -146,7 +146,7 @@ public class PaymentReceiptServiceImpl implements PaymentReceiptService {
                     "OVERPAYMENT_EXCEEDS_INVOICE: Payment amount exceeds invoice remaining balance of " + remainingAmount);
         }
 
-        // 4. Tìm kỳ kế toán cho ngày chứng từ
+        // 4. Tìm kỳ kế toán cho Ngày Nhập Hàng
         AccountingPeriod period = accountingPeriodRepository
                 .findPeriodByDateAndStatus(request.getPaymentDate(), AccountingPeriodStatus.OPEN)
                 .orElseThrow(() -> new UnprocessableEntityException("No open accounting period found for payment date"));

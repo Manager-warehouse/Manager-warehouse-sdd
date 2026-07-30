@@ -70,10 +70,25 @@ public class ReceiptItemResponse {
     @JsonProperty("qc_failed_qty")
     private Integer qcFailedQty;
 
+    @JsonProperty("approved_qty")
+    private Integer approvedQty;
+
+    @JsonProperty("quarantine_ready_qty")
+    private Integer quarantineReadyQty;
+
+    @JsonProperty("quarantine_qty")
+    private Integer quarantineQty;
+
 
 
     @JsonProperty("location_id")
     private Long locationId;
+
+    @JsonProperty("batch_id")
+    private Long batchId;
+
+    @JsonProperty("batch_code")
+    private String batchCode;
 
     public Long getReceiptItemId() {
         return receiptItemId;
@@ -155,12 +170,52 @@ public class ReceiptItemResponse {
         this.qcFailedQty = qcFailedQty;
     }
 
+    public Integer getApprovedQty() {
+        return approvedQty;
+    }
+
+    public void setApprovedQty(Integer approvedQty) {
+        this.approvedQty = approvedQty;
+    }
+
+    public Integer getQuarantineReadyQty() {
+        return quarantineReadyQty;
+    }
+
+    public void setQuarantineReadyQty(Integer quarantineReadyQty) {
+        this.quarantineReadyQty = quarantineReadyQty;
+    }
+
+    public Integer getQuarantineQty() {
+        return quarantineQty;
+    }
+
+    public void setQuarantineQty(Integer quarantineQty) {
+        this.quarantineQty = quarantineQty;
+    }
+
     public Long getLocationId() {
         return locationId;
     }
 
     public void setLocationId(Long locationId) {
         this.locationId = locationId;
+    }
+
+    public Long getBatchId() {
+        return batchId;
+    }
+
+    public void setBatchId(Long batchId) {
+        this.batchId = batchId;
+    }
+
+    public String getBatchCode() {
+        return batchCode;
+    }
+
+    public void setBatchCode(String batchCode) {
+        this.batchCode = batchCode;
     }
 }
 
