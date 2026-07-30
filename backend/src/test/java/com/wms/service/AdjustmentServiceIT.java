@@ -222,9 +222,7 @@ public class AdjustmentServiceIT {
                                 .costPrice(new BigDecimal("10000.00")).updatedAt(OffsetDateTime.now()).build());
         }
 
-    @Test
-    void testStockTakeDiscrepancy_requiresManagerApprovalAndUpdatesInventory() {
-
+        @Test
         void testStockTakeDiscrepancy_requiresManagerApprovalAndUpdatesInventory() {
                 // 1. Create StockTake (status = DRAFT)
                 CreateStockTakeRequest createReq = new CreateStockTakeRequest();
