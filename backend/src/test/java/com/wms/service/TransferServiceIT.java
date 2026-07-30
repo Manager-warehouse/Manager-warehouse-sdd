@@ -249,7 +249,7 @@ public class TransferServiceIT {
         // 6. Logistics
         vehicle = vehicleRepository.save(Vehicle.builder()
                 .plateNumber("29C-99999").vehicleType("TRUCK").maxWeightKg(new BigDecimal("5000.00"))
-                .maxVolumeM3(new BigDecimal("20.00")).isActive(true).warehouse(srcWarehouse)
+                .isActive(true).warehouse(srcWarehouse)
                 .status(VehicleStatus.AVAILABLE)
                 .createdAt(OffsetDateTime.now()).updatedAt(OffsetDateTime.now()).build());
 

@@ -73,7 +73,6 @@ public class InterWarehouseTransferServiceImpl implements InterWarehouseTransfer
         // Load warehouse assignments once to avoid N+1 queries in canViewTransfer
         List<Long> actorWarehouseIds = helper.loadWarehouseIds(actor);
         return transferRepository.findAllByOrderByCreatedAtDesc().stream()
-                .peek(helper::applyTripDeadlineRules)
                 .filter(transfer -> helper.canViewTransfer(actor, actorWarehouseIds, transfer))
                 .map(transfer -> helper.toResponseEager(transfer))
                 .toList();
@@ -83,7 +82,6 @@ public class InterWarehouseTransferServiceImpl implements InterWarehouseTransfer
     @Transactional
     public InterWarehouseTransferResponse getTransferById(Long id, User actor) {
         InterWarehouseTransfer transfer = helper.findTransfer(id);
-        helper.applyTripDeadlineRules(transfer);
         if (!helper.canViewTransfer(actor, transfer)) {
             throw new BusinessRuleViolationException("WAREHOUSE_SCOPE_REQUIRED");
         }

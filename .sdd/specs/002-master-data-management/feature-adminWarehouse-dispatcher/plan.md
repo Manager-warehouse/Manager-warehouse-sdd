@@ -44,7 +44,6 @@
 | plate_number | VARCHAR(20) UNIQUE NN | |
 | vehicle_type | VARCHAR(100) NN | |
 | max_weight_kg | DECIMAL(10,2) NN | Positive |
-| max_volume_m3 | DECIMAL(10,3) | **Nullable**. If provided, positive |
 | status | VARCHAR(20) DEF 'AVAILABLE' | 'AVAILABLE','ON_TRIP','MAINTENANCE' |
 | is_active | BOOLEAN DEF true | |
 
@@ -83,7 +82,6 @@ Driver:  AVAILABLE ↔ ON_TRIP (trip) | (any) → UNAVAILABLE (license expired)
 |----------|--------|-----|
 | Code auto-gen | `@PrePersist` in entity | Simple, testable |
 | In-transit locations | Auto-create Zone + Bin pair, bypass capacity | Fits ZONE→BIN schema |
-| max_volume_m3 nullable | Keep nullable as spec | If null, skip volume check in outbound |
 | Driver phone fallback | If null → inherit from users.phone | Avoid redundant data |
 | Cascade deactivation | DriverService calls UserRepository directly | Deactivates both in one transaction |
 | Bin capacity enforcement | Service layer (not DB) | Called by inbound putaway flow |

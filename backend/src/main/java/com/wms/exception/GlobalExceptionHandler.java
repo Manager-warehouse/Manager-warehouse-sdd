@@ -71,41 +71,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessRuleViolationException.class)
     public ResponseEntity<ApiErrorResponse> handleBusinessRule(BusinessRuleViolationException ex) {
         String msg = ex.getMessage();
-        HttpStatus status = HttpStatus.UNPROCESSABLE_ENTITY;
-        String code = "BUSINESS_RULE_VIOLATION";
-
-        if (msg != null) {
-            if (msg.contains("INVENTORY_VERSION_CONFLICT")) {
-                status = HttpStatus.CONFLICT;
-                code = "INVENTORY_VERSION_CONFLICT";
-            } else if (msg.contains("RTV_ALREADY_CONFIRMED")) {
-                status = HttpStatus.CONFLICT;
-                code = "RTV_ALREADY_CONFIRMED";
-            } else if (msg.contains("RTV_QUANTITY_MISMATCH")) {
-                code = "RTV_QUANTITY_MISMATCH";
-            } else if (msg.contains("INVALID_STATE")) {
-                code = "INVALID_STATE";
-            } else if (msg.contains("INVALID_LOCATION")) {
-                code = "INVALID_LOCATION";
-            } else if (msg.contains("BIN_CAPACITY_EXCEEDED")) {
-                code = "BIN_CAPACITY_EXCEEDED";
-            } else if (msg.contains("INVENTORY_INVARIANT_VIOLATED")) {
-                code = "INVENTORY_INVARIANT_VIOLATED";
-            } else if (msg.contains("LOCATION_LOCKED")) {
-                code = "LOCATION_LOCKED";
-            } else if (msg.contains("ACCOUNTING_PERIOD_CLOSED")) {
-                code = "ACCOUNTING_PERIOD_CLOSED";
-            } else if (msg.contains("INVOICE_ALREADY_PAID")) {
-                status = HttpStatus.CONFLICT;
-                code = "INVOICE_ALREADY_PAID";
-            } else if (msg.contains("SUPPLIER_INVOICE_ALREADY_EXISTS")) {
-                status = HttpStatus.CONFLICT;
-                code = "SUPPLIER_INVOICE_ALREADY_EXISTS";
-            } else if (msg.contains("RECEIPT_NOT_APPROVED")) {
-                status = HttpStatus.BAD_REQUEST;
-                code = "RECEIPT_NOT_APPROVED";
-            }
-        }
+        String code = extractBusinessRuleCode(msg);
+        HttpStatus status = businessRuleStatus(code);
 
         return error(status, code, msg, msg, null);
     }
@@ -122,6 +89,27 @@ public class GlobalExceptionHandler {
     // API spec documents, without a hardcoded per-code list here (contrast handleBusinessRule,
     // which does need one because BusinessRuleViolationException messages aren't code-prefixed).
     private static final java.util.regex.Pattern LEADING_CODE = java.util.regex.Pattern.compile("^([A-Z][A-Z0-9_]*): .+");
+    private static final java.util.regex.Pattern BUSINESS_RULE_CODE =
+            java.util.regex.Pattern.compile("^([A-Z][A-Z0-9_]*)(?::.*)?$");
+
+    private String extractBusinessRuleCode(String message) {
+        if (message == null) {
+            return "BUSINESS_RULE_VIOLATION";
+        }
+        var matcher = BUSINESS_RULE_CODE.matcher(message);
+        return matcher.matches() ? matcher.group(1) : "BUSINESS_RULE_VIOLATION";
+    }
+
+    private HttpStatus businessRuleStatus(String code) {
+        return switch (code) {
+            case "INVENTORY_VERSION_CONFLICT",
+                    "RTV_ALREADY_CONFIRMED",
+                    "INVOICE_ALREADY_PAID",
+                    "SUPPLIER_INVOICE_ALREADY_EXISTS" -> HttpStatus.CONFLICT;
+            case "RECEIPT_NOT_APPROVED" -> HttpStatus.BAD_REQUEST;
+            default -> HttpStatus.UNPROCESSABLE_ENTITY;
+        };
+    }
 
     private String extractLeadingCode(String message) {
         if (message == null) {
@@ -279,32 +267,137 @@ public class GlobalExceptionHandler {
 
     private String translateMessage(String msg) {
         if (msg == null) return null;
-        switch (msg) {
+        String code = msg.contains(":") ? msg.substring(0, msg.indexOf(':')).trim() : msg;
+        switch (code) {
+            // ── Trip ──────────────────────────────────────────────────────────────
             case "TRIP_SCHEDULE_INVALID": return "Lịch trình chuyến đi không hợp lệ (thời gian kết thúc phải sau thời gian bắt đầu).";
             case "TRIP_START_IN_PAST": return "Thời gian bắt đầu chuyến đi không được ở quá khứ.";
             case "TRIP_END_IN_PAST": return "Thời gian hạn giao hàng không được ở quá khứ.";
             case "TRIP_RESOURCE_OVERLAP": return "Tài xế hoặc phương tiện đã được gán cho một chuyến đi khác trùng thời gian.";
-            case "VEHICLE_SCHEDULE_OVERLAP": return "Phương tiện đã được gán cho một chuyến đi khác trùng thời gian.";
-            case "DRIVER_SCHEDULE_OVERLAP": return "Tài xế đã được gán cho một chuyến đi khác trùng thời gian.";
-            case "VEHICLE_NOT_AVAILABLE": return "Phương tiện vận tải hiện không khả dụng.";
-            case "DRIVER_NOT_AVAILABLE": return "Tài xế hiện không khả dụng.";
-            case "DUPLICATE_EXTERNAL_INSTRUCTION": return "Mã chỉ thị điều chuyển này đã tồn tại trên hệ thống.";
+            case "VEHICLE_SCHEDULE_OVERLAP": return "Phương tiện đã được gán cho một chuyến đi khác trùng thời gian. Vui lòng chọn xe hoặc khung giờ khác.";
+            case "DRIVER_SCHEDULE_OVERLAP": return "Tài xế đã được gán cho một chuyến đi khác trùng thời gian. Vui lòng chọn tài xế hoặc khung giờ khác.";
+            case "VEHICLE_NOT_AVAILABLE": return "Phương tiện vận tải hiện không khả dụng. Vui lòng chọn xe khác.";
+            case "DRIVER_NOT_AVAILABLE": return "Tài xế hiện không khả dụng. Vui lòng chọn tài xế khác.";
+            case "TRIP_ALREADY_DEPARTED": return "Chuyến xe đã khởi hành, không thể thay đổi.";
+            case "TRIP_CAPACITY_EXCEEDED": return "Tổng hàng hóa vượt tải trọng của xe. Vui lòng chọn xe lớn hơn hoặc giảm số lượng hàng.";
+            case "VEHICLE_OVERLOAD": return "Tổng hàng hóa vượt tải trọng của xe. Vui lòng chọn xe phù hợp hơn.";
+            case "DRIVER_LICENSE_EXPIRED": return "Tài xế chưa có hồ sơ bằng lái hợp lệ hoặc bằng lái đã hết hạn, không thể gán chuyến.";
+            case "VEHICLE_SOURCE_WAREHOUSE_REQUIRED": return "Xe phải được gán vào kho nguồn của phiếu điều chuyển.";
+            case "DRIVER_SOURCE_WAREHOUSE_REQUIRED": return "Tài xế phải được gán vào kho nguồn của phiếu điều chuyển.";
             case "TRANSFER_ALREADY_HAS_TRIP": return "Phiếu điều chuyển đã được gán chuyến xe trước đó.";
+            case "DRIVER_ON_TRIP_STATUS_SYSTEM_MANAGED": return "Trạng thái đang chạy chuyến của tài xế do hệ thống cập nhật theo luồng vận chuyển.";
+            case "VEHICLE_ON_TRIP_STATUS_SYSTEM_MANAGED": return "Trạng thái đang giao hàng của xe do hệ thống cập nhật theo luồng vận chuyển.";
+            // ── Transfer Planning ─────────────────────────────────────────────────
+            case "SOURCE_DESTINATION_MUST_DIFFER": return "Kho nguồn và kho đích không được trùng nhau.";
+            case "SOURCE_WAREHOUSE_MUST_BE_PHYSICAL": return "Kho nguồn phải là kho vật lý, không thể chọn kho IN_TRANSIT.";
+            case "DESTINATION_WAREHOUSE_MUST_BE_PHYSICAL": return "Kho đích phải là kho vật lý, không thể chọn kho IN_TRANSIT.";
+            case "DUPLICATE_PRODUCT_IN_TRANSFER": return "Có dòng hàng trùng sản phẩm trong phiếu điều chuyển. Mỗi sản phẩm chỉ được xuất hiện một lần.";
+            case "TRANSFER_QTY_MUST_BE_WHOLE_NUMBER": return "Số lượng điều chuyển phải là số nguyên, không được có phần thập phân.";
+            case "INVALID_TRANSFER_STATUS": return "Trạng thái phiếu không hợp lệ cho thao tác này.";
+            case "DUPLICATE_EXTERNAL_INSTRUCTION": return "Mã lệnh điều chuyển này đã tồn tại cho cùng tuyến và ngày chứng từ.";
+            case "DOCUMENT_DATE_MUST_NOT_BE_PAST": return "Ngày chứng từ không được ở quá khứ.";
+            case "PLANNED_DATE_MUST_NOT_BE_PAST": return "Ngày dự kiến điều chuyển không được ở quá khứ.";
+            case "PLANNED_DATE_MUST_NOT_BE_BEFORE_DOCUMENT_DATE": return "Ngày dự kiến không được trước ngày chứng từ.";
+            case "INVALID_SOURCE_LOCATION": return "Bin nguồn không hợp lệ: phải thuộc kho nguồn, đang hoạt động và không phải khu cách ly.";
+            case "INVALID_DESTINATION_LOCATION": return "Bin đích không hợp lệ: phải thuộc kho đích, đang hoạt động và không phải khu cách ly.";
+            case "TRANSFER_CANCEL_NOT_ALLOWED": return "Không thể hủy phiếu điều chuyển ở trạng thái hiện tại.";
+            case "UNSHIP_REQUIRED_BEFORE_CANCEL": return "Cần hủy xuất hàng (Unship) trước khi hủy phiếu điều chuyển.";
+            case "INSUFFICIENT_AVAILABLE_STOCK": return "Tồn kho khả dụng không đủ để giữ chỗ cho số lượng yêu cầu. Vui lòng kiểm tra lại tồn kho.";
+            case "WAREHOUSE_SCOPE_REQUIRED": return "Bạn không thuộc kho liên quan, không thể thực hiện thao tác này.";
+            case "WAREHOUSE_MANAGER_ROLE_REQUIRED": return "Chỉ Quản lý kho mới có quyền thực hiện thao tác này.";
+            case "PLANNER_ROLE_REQUIRED": return "Chỉ Planner mới có quyền thực hiện thao tác này.";
+            case "CEO_ROLE_REQUIRED": return "Chỉ CEO mới có quyền thực hiện thao tác này.";
+            case "REJECTION_REASON_REQUIRED": return "Vui lòng nhập lý do từ chối.";
+            // ── Source Shipping ───────────────────────────────────────────────────
+            case "SOURCE_LOAD_ITEMS_REQUIRED": return "Vui lòng nhập số lượng xếp cho tất cả dòng hàng.";
+            case "TRANSFER_ITEM_NOT_FOUND": return "Không tìm thấy dòng hàng trong phiếu điều chuyển.";
+            case "SOURCE_LOAD_REPORT_REQUIRED": return "Công nhân cần báo số lượng thực xếp trước khi thủ kho QC.";
+            case "SENT_QTY_MISMATCH": return "Số lượng thực xếp chưa khớp kế hoạch. Cần công nhân chỉnh lại trước khi QC đạt.";
+            case "SOURCE_LOAD_REWORK_REQUIRED": return "QC xuất kho thất bại. Hàng cần được xử lý lại trước khi QC lại.";
+            case "SOURCE_LOAD_REWORK_REASON_REQUIRED": return "Vui lòng nhập lý do xử lý lại khi số lượng thực xếp lệch kế hoạch.";
+            case "OUTBOUND_QC_REQUIRED": return "Thủ kho cần hoàn tất kiểm tra Outbound QC trước khi chốt xuất.";
+            case "OUTBOUND_QC_NOT_PASSED": return "Outbound QC chưa đạt, không thể tiến hành xuất hàng.";
+            case "OUTBOUND_QC_FAILURE_REASON_REQUIRED": return "Vui lòng nhập lý do khi QC xuất kho thất bại.";
+            case "LOAD_HANDOVER_REQUIRED": return "Thủ kho cần xác nhận bàn giao hàng lên xe trước khi tài xế rời kho.";
+            case "SENT_QTY_REQUIRED": return "Chưa chốt số lượng xuất. Thủ kho cần xác nhận số lượng lên xe.";
+            case "IN_TRANSIT_WAREHOUSE_NOT_CONFIGURED": return "Hệ thống chưa cấu hình kho trung chuyển (IN_TRANSIT). Liên hệ quản trị viên.";
+            case "IN_TRANSIT_LOCATION_NOT_CONFIGURED": return "Kho trung chuyển chưa có Bin lưu trữ. Liên hệ quản trị viên.";
+            case "INVENTORY_INVARIANT_VIOLATED": return "Phát hiện vi phạm bất biến tồn kho (total_qty hoặc reserved_qty không hợp lệ). Thao tác đã bị hủy để bảo vệ dữ liệu. Vui lòng tải lại và thử lại, nếu lỗi vẫn xảy ra liên hệ quản trị viên.";
+            // ── Destination Receiving ─────────────────────────────────────────────
+            case "DRIVER_ARRIVE_REQUIRED": return "Tài xế cần xác nhận đã đến kho đích trước khi thực hiện bàn giao.";
+            case "ARRIVAL_HANDOVER_REQUIRED": return "Thủ kho kho đích cần xác nhận nhận bàn giao xe trước khi công nhân count hàng.";
+            case "RETURN_REQUEST_PENDING": return "Đang có yêu cầu quay đầu chờ duyệt, không thể thực hiện thao tác này.";
+            case "RECEIVE_COUNT_ITEMS_REQUIRED": return "Vui lòng nhập số lượng thực nhận cho các dòng hàng.";
+            case "ISSUE_REASON_REQUIRED": return "Số lượng thực nhận lệch số lượng đã gửi, vui lòng nhập lý do chênh lệch.";
+            case "RECEIVE_QC_PHOTO_REQUIRED": return "Cần chụp hoặc chọn ảnh xác nhận QC nhập hàng.";
+            case "WORKER_COUNT_REQUIRED": return "Công nhân cần nhập số lượng thực nhận trước khi thủ kho kiểm tra QC.";
+            case "DUPLICATE_RECEIVE_COUNT_ITEM": return "Có dòng hàng bị trùng lặp trong báo cáo số lượng nhận.";
+            case "RECEIVE_CHECK_ITEMS_REQUIRED": return "Vui lòng nhập kết quả kiểm tra count/QC cho các dòng hàng.";
+            case "DUPLICATE_RECEIVE_CHECK_ITEM": return "Có dòng hàng bị trùng lặp trong kiểm tra QC nhập.";
+            case "CHECKER_NOTE_REQUIRED": return "Cần nhập ghi chú khi số lượng chốt khác số lượng công nhân đã báo.";
             case "OVER_RECEIPT_BLOCKED": return "Số lượng thực nhận không được lớn hơn số lượng đã gửi đi.";
             case "QC_TOTAL_MUST_MATCH_CONFIRMED_QTY": return "Tổng số lượng QC đạt và QC lỗi phải bằng số lượng thực nhận.";
             case "QC_FAILURE_REASON_REQUIRED": return "Yêu cầu nhập lý do lỗi khi có số lượng QC không đạt.";
+            case "QUARANTINE_LOCATION_NOT_CONFIGURED": return "Kho đích chưa có khu vực cách ly (Quarantine). Cần thêm ít nhất một Bin Quarantine trước khi duyệt QC lỗi.";
+            case "QC_PASSED_BIN_MUST_NOT_BE_QUARANTINE": return "Hàng đạt QC không thể xếp vào khu vực cách ly. Vui lòng chọn bin lưu trữ thông thường.";
+            case "RECEIVE_CHECK_REQUIRED": return "Thủ kho cần hoàn tất kiểm tra count/QC trước khi gửi kế hoạch cất kệ.";
+            case "IN_TRANSIT_STOCK_NOT_FOUND": return "Không tìm thấy tồn kho trung chuyển cho mặt hàng này. Liên hệ quản trị viên.";
+            // ── Putaway ───────────────────────────────────────────────────────────
+            case "PUTAWAY_PLAN_REQUIRED": return "Chưa có kế hoạch cất kệ. Thủ kho cần phân bổ hàng vào các bin trước.";
+            case "PUTAWAY_PLAN_INVALID": return "Kế hoạch cất kệ không hợp lệ. Vui lòng kiểm tra lại phân bổ bin.";
+            case "WAREHOUSE_MANAGER_APPROVAL_REQUIRED": return "Chỉ Quản lý kho mới có quyền duyệt cất kệ và nhập kho.";
+            case "DISCREPANCY_REASON_REQUIRED": return "Có chênh lệch số lượng, vui lòng nhập lý do trước khi xác nhận.";
+            case "DISCREPANCY_INCIDENT_NOT_FOUND": return "Không tìm thấy hồ sơ chênh lệch.";
+            case "DISCREPANCY_INCIDENT_ACCESS_DENIED": return "Bạn không có quyền xử lý hồ sơ chênh lệch này.";
+            case "DISCREPANCY_INCIDENT_NOT_OPEN": return "Hồ sơ chênh lệch đã được chốt, không thể cập nhật lại.";
+            case "DISCREPANCY_RESOLUTION_STATUS_REQUIRED": return "Vui lòng chọn hướng xử lý hồ sơ chênh lệch.";
+            case "DISCREPANCY_RESOLUTION_STATUS_INVALID": return "Hướng xử lý hồ sơ chênh lệch không hợp lệ.";
+            case "DISCREPANCY_RESOLUTION_NOTE_REQUIRED": return "Vui lòng nhập ghi chú quyết định xử lý hồ sơ chênh lệch.";
+            case "DISCREPANCY_RESOLUTION_NOTE_TOO_LONG": return "Ghi chú xử lý hồ sơ chênh lệch không được vượt quá 1000 ký tự.";
+            case "DUPLICATE_PUTAWAY_ITEM": return "Có dòng hàng bị trùng lặp trong kế hoạch cất kệ.";
             case "DESTINATION_LOCATION_REQUIRED": return "Yêu cầu chọn vị trí lưu trữ (Bin) cho hàng đạt QC.";
-            case "UNSHIP_REQUIRED_BEFORE_CANCEL": return "Cần hủy xuất hàng (Unship) trước khi hủy phiếu điều chuyển.";
+            case "DUPLICATE_PUTAWAY_LOCATION": return "Không được chọn cùng một Bin cho hai dòng phân bổ của cùng mặt hàng.";
+            case "PUTAWAY_QUANTITY_MUST_MATCH_QC_PASSED": return "Tổng số lượng phân bổ vào các bin phải bằng đúng số lượng QC đạt.";
+            case "PUTAWAY_PLAN_EXHAUSTED": return "Kế hoạch cất kệ đã được hoàn thành rồi.";
+            case "BIN_CAPACITY_EXCEEDED": return "Bin đã đầy, không còn đủ sức chứa cho số lượng này.";
+            // ── Return Flow ───────────────────────────────────────────────────────
+            case "SOURCE_RETURN_ONLY_BEFORE_DESTINATION_ARRIVAL": return "Chỉ có thể quay đầu về kho nguồn trước khi tài xế đến kho đích.";
+            case "RETURN_ALREADY_IN_PROGRESS": return "Xe đang trong quá trình quay đầu, không thể thực hiện thêm.";
+            case "RETURN_REQUEST_ONLY_BEFORE_HANDOVER": return "Chỉ có thể yêu cầu quay đầu trước khi thực hiện bàn giao nhận hàng.";
+            case "RETURN_REQUEST_ONLY_BEFORE_COUNT": return "Chỉ có thể yêu cầu quay đầu trước khi công nhân count hàng.";
+            case "RETURN_REASON_REQUIRED": return "Vui lòng nhập lý do quay đầu.";
+            case "WRONG_SKU_ITEMS_REQUIRED": return "Vui lòng thêm ít nhất 1 dòng hàng sai SKU trước khi gửi yêu cầu quay đầu.";
+            case "NO_RETURN_REQUESTED": return "Chưa có yêu cầu quay đầu nào được gửi.";
+            case "TRANSFER_NOT_RETURNED_LEG": return "Thao tác này chỉ áp dụng cho hàng đang trong luồng quay đầu.";
+            case "RETURN_DEPART_REQUIRED": return "Tài xế cần xác nhận xuất phát quay đầu trước.";
+            case "RETURN_ARRIVE_REQUIRED": return "Tài xế cần xác nhận đã về đến kho nguồn trước.";
+            case "RETURN_HANDOVER_REQUIRED": return "Thủ kho kho nguồn cần xác nhận nhận bàn giao hàng quay đầu trước.";
+            case "RETURN_HANDOVER_STOREKEEPER_REQUIRED": return "Thủ kho kho nguồn cần xác nhận bàn giao hàng quay đầu.";
+            case "EXPECTED_PRODUCT_MISMATCH": return "Sản phẩm dự kiến không khớp với dòng hàng đã chọn.";
+            case "ACTUAL_PRODUCT_MUST_DIFFER": return "SKU thực tế phải khác với SKU dự kiến.";
+            case "AFFECTED_QTY_MUST_BE_POSITIVE": return "Số lượng sai SKU phải lớn hơn 0.";
+            case "AFFECTED_QTY_EXCEEDS_SENT_QTY": return "Số lượng sai SKU không được vượt quá số lượng đã gửi.";
+            // ── Photo / File ──────────────────────────────────────────────────────
+            case "TRANSFER_PHOTO_FILE_INVALID": return "File ảnh không hợp lệ. Chỉ chấp nhận file JPEG/PNG dưới 10MB.";
+            case "TRANSFER_PHOTO_STORAGE_FAILED": return "Lỗi lưu trữ ảnh. Vui lòng thử lại, nếu tiếp tục xảy ra hãy liên hệ quản trị viên.";
+            // ── Transfer Trip ─────────────────────────────────────────────────────
             case "TRANSFER_TRIP_REQUIRED": return "Chuyến xe chưa được gán hoặc chưa sẵn sàng khởi hành.";
             case "ASSIGNED_DRIVER_REQUIRED": return "Chỉ tài xế được chỉ định mới có quyền xác nhận khởi hành.";
-            case "QC_PASSED_BIN_MUST_NOT_BE_QUARANTINE": return "Hàng đạt QC không thể xếp vào khu vực cách ly (Quarantine). Vui lòng chọn bin lưu trữ thông thường.";
-            case "QUARANTINE_LOCATION_NOT_CONFIGURED": return "Kho đích chưa có khu vực cách ly (Quarantine). Cần thêm ít nhất một Bin Quarantine trước khi duyệt QC lỗi.";
+            // ── General ───────────────────────────────────────────────────────────
             case "WAREHOUSE_REQUIRED": return "Yêu cầu gán kho hoạt động cho tài khoản.";
             case "MULTIPLE_WAREHOUSES_NOT_ALLOWED": return "Chỉ được phép gán tối đa 1 kho cho vai trò này.";
             case "WAREHOUSE_SCOPE_FORBIDDEN": return "Bạn không có quyền truy cập phạm vi kho này.";
+            case "ONLY_DRAFT_CAN_BE_UPDATED": return "Chỉ yêu cầu điều chuyển ở trạng thái nháp mới được sửa.";
+            case "ONLY_DRAFT_CAN_BE_CANCELLED": return "Chỉ yêu cầu điều chuyển ở trạng thái nháp mới được hủy.";
+            case "ONLY_DRAFT_CAN_BE_SUBMITTED": return "Chỉ yêu cầu điều chuyển ở trạng thái nháp mới được gửi duyệt.";
+            case "ONLY_SUBMITTED_CAN_BE_APPROVED": return "Chỉ yêu cầu điều chuyển đã gửi duyệt mới được CEO phê duyệt.";
+            case "ONLY_SUBMITTED_CAN_BE_REJECTED": return "Chỉ yêu cầu điều chuyển đã gửi duyệt mới được CEO từ chối.";
+            case "ONLY_APPROVED_CAN_BE_CONVERTED": return "Chỉ yêu cầu điều chuyển đã được CEO duyệt mới được lập phiếu điều chuyển.";
+            case "TRANSFER_REQUEST_ALREADY_CONVERTED": return "Yêu cầu điều chuyển này đã được lập phiếu điều chuyển trước đó.";
+            case "TRANSFER_REQUEST_QTY_EXCEEDS_SOURCE_AVAILABLE": return "Tồn kho nguồn không đủ cho số lượng yêu cầu bổ sung. Vui lòng chọn kho nguồn khác hoặc giảm số lượng.";
+            case "NEEDED_BY_DATE_MUST_NOT_BE_PAST": return "Ngày cần hàng không được ở quá khứ.";
             default: return msg;
         }
-
     }
 
     private ResponseEntity<ApiErrorResponse> error(HttpStatus status,

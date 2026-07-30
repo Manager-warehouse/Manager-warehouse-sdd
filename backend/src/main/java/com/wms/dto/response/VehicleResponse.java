@@ -49,7 +49,6 @@ public class VehicleResponse {
     private String plateNumber;
     private String vehicleType;
     private BigDecimal maxWeightKg;
-    private BigDecimal maxVolumeM3;
     private String warehouseCode;
     private String warehouseName;
     private String status;

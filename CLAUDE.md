@@ -1038,7 +1038,7 @@ Planner nhap phieu `TRF-*` theo lenh ngoai hoac request da duoc CEO duyet
     -> Thu kho dich kiem tra lai, chot QC, kiem tra bin capacity, chon vi tri nhap kho cho hang dat
     -> Truong kho dich xac nhan cuoi cung
         -> Khop + QC dat: tru `IN_TRANSIT`, cong ton kho dich, status `COMPLETED`
-        -> Thieu: bat buoc ly do, tao incident/discrepancy + adjustment, status `COMPLETED_WITH_DISCREPANCY`
+        -> Thieu: bat buoc ly do, tao incident/discrepancy OPEN + adjustment, status `COMPLETED_WITH_DISCREPANCY`; CEO/Ke toan truong/Truong kho lien quan chot ho so sau tren `/transfers/discrepancies`
         -> QC loi/hu hong: phan loi vao Quarantine origin INTERNAL_TRANSFER, chi xu ly tieu huy theo Spec 009
         -> Gui nham SKU con nguyen: Storekeeper dich bao cao line expected/actual SKU + so luong + ly do/photo neu co, Truong kho dich duyet quay ve kho nguon, tai xe ghi return departure/source arrival/handover
         -> Trip qua han: chan receive o kho dich, vai tro co tham quyen kich hoat Return to Source voi ly do, kem photo neu co
@@ -1294,15 +1294,16 @@ Ghi chú đọc sơ đồ: đây là một swimlane duy nhất; các nhánh ngo�
 - Không gom nhiều Phiếu điều chuyển vào một chuyến xe trong Sprint 1.
 - Dispatcher chỉ được lập chuyến cho các phiếu có kho nguồn thuộc phạm vi kho mình phụ trách.
 - Danh sách tài xế hợp lệ chỉ gồm tài xế có thể hoạt động tại kho nguồn của phiếu điều chuyển.
-- Dispatcher phải tính tải trọng/thể tích từ dòng hàng, kiểm tra xe/tài xế không bị trùng lịch; kiểm tra tải trọng theo cân nặng, và kiểm tra thể tích khi xe có `max_volume_m3`.
+- Dispatcher phải tính tải trọng/thể tích từ dòng hàng, kiểm tra xe/tài xế không bị trùng lịch; kiểm tra tải trọng theo cân nặng, kiểm tra thể tích khi xe có `max_volume_m3`, và chặn gán chuyến nếu tài xế thiếu hồ sơ hoặc GPLX hết hạn/không có hạn.
 - Chỉ được đổi xe/tài xế/lịch trước khi departure; sau departure trip bị khóa.
 - Tài xế phải xác nhận đã nhận hàng và xe rời kho trước khi hệ thống chuyển tồn sang `IN_TRANSIT`.
+- Trạng thái xe/tài xế `ON_TRIP` là trạng thái hệ thống quản lý theo lifecycle trip; form danh mục chỉ được cập nhật trạng thái sẵn sàng/bảo trì/không khả dụng.
 - Tài xế phải ghi nhận arrival và receiving handover trước khi kho nhận được receive-count.
 
 **Ngoại lệ điều chuyển và Quarantine:**
 
 - Hàng điều chuyển fail QC hoặc hư hỏng đi vào Quarantine với origin `INTERNAL_TRANSFER`, giữ traceability tới transfer/transfer item/trip/vehicle/driver và chỉ đi luồng tiêu hủy Spec 009; không tạo supplier RTV hoặc supplier Debit Note.
-- Hàng thiếu khi nhận là discrepancy số lượng: tạo incident/discrepancy + adjustment/audit `TRANSFER_DISCREPANCY`, tính giá trị nhập kho đích chỉ theo số lượng thực nhận và không tạo invoice/receivable/payable/Debit Note.
+- Hàng thiếu khi nhận là discrepancy số lượng: tạo incident/discrepancy OPEN + adjustment/audit `TRANSFER_DISCREPANCY`, tính giá trị nhập kho đích chỉ theo số lượng thực nhận và không tạo invoice/receivable/payable/Debit Note. Incident được chốt sau bằng `RESOLVED_ACCEPTED`, `RESOLVED_SOURCE_FAULT`, `RESOLVED_CARRIER_FAULT`, hoặc `RESOLVED_DESTINATION_COUNT_ERROR`; bước chốt ghi trách nhiệm/audit và không tự sửa tồn kho.
 - Nhận thừa bị chặn khỏi regular inventory và phải ghi discrepancy hold/incident cho phần hàng vật lý thừa.
 - Gửi nhầm SKU nhưng hàng còn nguyên được xử lý bằng Return to Source: Storekeeper kho đích báo cáo line-level expected SKU, actual SKU, quantity, reason và photo refs nếu có; Trưởng kho đích duyệt, cùng tài xế/xe quay về kho nguồn, hàng vẫn nằm trong `IN_TRANSIT` cho tới khi kho nguồn count/check/QC/final receive.
 - Nếu chuyến quá hạn khi phiếu còn `IN_TRANSIT`, hệ thống đánh dấu overdue, chặn receive-count/receive-check ở kho đích và yêu cầu WAREHOUSE_MANAGER kho nguồn, ADMIN, CEO hoặc PLANNER kích hoạt Return to Source với lý do, kèm photo refs nếu có.

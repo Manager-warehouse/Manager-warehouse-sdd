@@ -324,6 +324,17 @@ class TripServiceImplTest {
     }
 
     @Test
+    void createTrip_rejectsExpiredDriverLicense() {
+        stubCreateUntilOrders();
+        driver.setLicenseExpiry(LocalDate.now().minusDays(1));
+
+        assertThatThrownBy(() -> service.createTrip(createRequest(101L), dispatcher))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code")
+                .isEqualTo("DRIVER_LICENSE_EXPIRED");
+    }
+
+    @Test
     void createTrip_cancelsExpiredDeliveryOrderAndRejectsTripPlanning() {
         stubCreateUntilOrders();
         order.setExpectedDeliveryDate(LocalDate.now().minusDays(1));
@@ -715,7 +726,6 @@ class TripServiceImplTest {
         vehicle.setStatus(status);
         vehicle.setIsActive(true);
         vehicle.setMaxWeightKg(new BigDecimal("100.00"));
-        vehicle.setMaxVolumeM3(new BigDecimal("18.000"));
         return vehicle;
     }
 
@@ -729,6 +739,7 @@ class TripServiceImplTest {
         driver.setFullName("Driver Test 2");
         driver.setPhone("0900000000");
         driver.setLicenseNumber("GPLX-001");
+        driver.setLicenseExpiry(LocalDate.now().plusYears(1));
         return driver;
     }
 
