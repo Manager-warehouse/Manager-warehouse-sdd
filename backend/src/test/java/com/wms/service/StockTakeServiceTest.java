@@ -487,29 +487,33 @@ class StockTakeServiceTest {
     }
 
     @Test
-    void completeStockTake_smallVariance_routesToManagerWithoutUpdatingInventory() {
+    void completeStockTake_smallVariance_autoApprovesAndUpdatesInventory() {
         StockTake st = stockTake(StockTakeStatus.IN_PROGRESS);
         when(stockTakeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(st));
         when(stockTakeItemRepository.existsByStockTakeIdAndActualQtyIsNull(1L)).thenReturn(false);
-        // Spec 006 routes every variance to the warehouse manager.
         StockTakeItem it = item(new BigDecimal("100"), new BigDecimal("98"),
                 new BigDecimal("-2"), new BigDecimal("-1000000"));
         when(stockTakeItemRepository.findByStockTakeId(1L)).thenReturn(List.of(it));
+        when(stockTakeItemRepository.findByStockTakeIdWithDetails(1L)).thenReturn(List.of(it));
         Inventory inv = new Inventory();
         inv.setTotalQty(new BigDecimal("100"));
         inv.setReservedQty(BigDecimal.ZERO);
         inv.setCostPrice(new BigDecimal("500000"));
         when(inventoryRepository.findByWarehouseIdAndProductIdAndBatchIdAndLocationId(WH_ID, 100L, 200L, 300L))
                 .thenReturn(Optional.of(inv));
+        when(inventoryRepository.findByWarehouseProductBatchLocationForUpdate(WH_ID, 100L, 200L, 300L))
+                .thenReturn(Optional.of(inv));
+        when(locationRepository.findByLockedByStockTakeId(1L)).thenReturn(List.of());
 
         StockTakeResponse res = service.completeStockTake(1L, storekeeper);
 
-        assertEquals(ApprovalLevel.MANAGER, st.getApprovalLevel());
-        assertEquals(StockTakeStatus.PENDING_APPROVAL, res.getStatus());
-        verify(inventoryRepository, never())
-                .findByWarehouseProductBatchLocationForUpdate(anyLong(), anyLong(), anyLong(), anyLong());
-        verify(adjustmentRepository, never()).save(any(Adjustment.class));
+        assertEquals(ApprovalLevel.AUTO, st.getApprovalLevel());
+        assertEquals(StockTakeStatus.APPROVED, res.getStatus());
+        assertEquals(0, inv.getTotalQty().compareTo(new BigDecimal("98")));
+        verify(adjustmentRepository).save(any(Adjustment.class));
         verify(auditLogService).log(eq(storekeeper), eq(AuditAction.STOCKTAKE_COMPLETE), any(), any(), any(), eq(WH_ID),
+                any(), any());
+        verify(auditLogService).log(eq(storekeeper), eq(AuditAction.STOCKTAKE_AUTO_APPROVE), any(), any(), any(), eq(WH_ID),
                 any(), any());
     }
 

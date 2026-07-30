@@ -64,6 +64,7 @@ import java.util.stream.Collectors;
 public class StockTakeService {
 
     private static final String ENTITY_TYPE = "STOCK_TAKE";
+    private static final BigDecimal AUTO_APPROVAL_THRESHOLD = new BigDecimal("5000000");
     private final StockTakeRepository stockTakeRepository;
     private final StockTakeItemRepository stockTakeItemRepository;
     private final InventoryRepository inventoryRepository;
@@ -339,14 +340,21 @@ public class StockTakeService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         st.setTotalVarianceValue(totalVariance);
 
-        st.setApprovalLevel(ApprovalLevel.MANAGER);
-        st.setStatus(StockTakeStatus.PENDING_APPROVAL);
         st.setRejectionReason(null); // clear any prior rejection reason on re-submit
-        st.setUpdatedAt(OffsetDateTime.now());
-        stockTakeRepository.save(st);
 
         auditLogService.log(actor, AuditAction.STOCKTAKE_COMPLETE, ENTITY_TYPE,
                 st.getId(), st.getStockTakeNumber(), st.getWarehouse().getId(), null, snapshotHeader(st));
+
+        if (canAutoApprove(st, totalVariance)) {
+            st.setApprovalLevel(ApprovalLevel.AUTO);
+            executeApproval(st, actor, AuditAction.STOCKTAKE_AUTO_APPROVE);
+            return buildResponse(st);
+        }
+
+        st.setApprovalLevel(ApprovalLevel.MANAGER);
+        st.setStatus(StockTakeStatus.PENDING_APPROVAL);
+        st.setUpdatedAt(OffsetDateTime.now());
+        stockTakeRepository.save(st);
 
         return buildResponse(st);
     }
@@ -365,7 +373,7 @@ public class StockTakeService {
 
         assertPendingApproval(st);
         assertPeriodOpen(st.getAccountingPeriod());
-        executeApproval(st, actor);
+        executeApproval(st, actor, AuditAction.STOCKTAKE_APPROVE);
         return buildResponse(st);
     }
 
@@ -414,7 +422,12 @@ public class StockTakeService {
 
     // ─── Private helpers ──────────────────────────────────────────────────────
 
-    private void executeApproval(StockTake st, User approver) {
+    private boolean canAutoApprove(StockTake st, BigDecimal totalVariance) {
+        return !Boolean.TRUE.equals(st.getIsEmployeeFault())
+                && totalVariance.abs().compareTo(AUTO_APPROVAL_THRESHOLD) < 0;
+    }
+
+    private void executeApproval(StockTake st, User approver, AuditAction auditAction) {
         List<StockTakeItem> items = stockTakeItemRepository.findByStockTakeIdWithDetails(st.getId());
         for (StockTakeItem item : items) {
             if (item.getVarianceQty() == null || item.getVarianceQty().compareTo(BigDecimal.ZERO) == 0) {
@@ -470,7 +483,7 @@ public class StockTakeService {
 
         unlockLocations(st.getId());
 
-        auditLogService.log(approver, AuditAction.STOCKTAKE_APPROVE,
+        auditLogService.log(approver, auditAction,
                 ENTITY_TYPE, st.getId(), st.getStockTakeNumber(),
                 st.getWarehouse().getId(), null, snapshotHeader(st));
     }
