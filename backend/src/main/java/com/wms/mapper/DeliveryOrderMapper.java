@@ -74,6 +74,15 @@ public class DeliveryOrderMapper {
                 BigDecimal totalQcFailQty = items.stream()
                                 .map(DeliveryOrderItem::getQcFailQty)
                                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+                String pickingPlanSavedByName = null;
+                if (allocations != null) {
+                        for (DeliveryOrderItemAllocation allocation : allocations) {
+                                if (allocation.getCreatedBy() != null) {
+                                        pickingPlanSavedByName = allocation.getCreatedBy().getFullName();
+                                        break;
+                                }
+                        }
+                }
                 return DeliveryOrderResponse.builder()
                                 .id(order.getId())
                                 .doNumber(order.getDoNumber())
@@ -97,6 +106,8 @@ public class DeliveryOrderMapper {
                                                 .toList())
                                 .createdAt(order.getCreatedAt())
                                 .updatedAt(order.getUpdatedAt())
+                                .createdByName(order.getCreatedBy() != null ? order.getCreatedBy().getFullName() : null)
+                                .pickingPlanSavedByName(pickingPlanSavedByName)
                                 .build();
         }
 

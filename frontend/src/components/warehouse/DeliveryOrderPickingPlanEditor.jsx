@@ -1,24 +1,28 @@
 import React from 'react';
 import { AlertTriangle, Plus, Save, Trash2 } from 'lucide-react';
 
-const formatCandidateLabel = (candidate) => {
-  const parts = [
-    candidate.location_code || `Vị trí ${candidate.location_id || '-'}`,
-    candidate.zone_code || `Khu ${candidate.zone_id || '-'}`,
-    candidate.batch_code || `Lô ${candidate.batch_id || '-'}`,
-    `Khả dụng ${Number(candidate.available_qty || 0)}`,
-  ];
+const formatCandidateLabel = (candidate, productName) => {
+  const parts = [];
+  if (productName) {
+    parts.push(productName);
+  }
+  parts.push(candidate.batch_code || `Lô ${candidate.batch_id || '-'}`);
+  parts.push(candidate.location_code || `Vị trí ${candidate.location_id || '-'}`);
+  parts.push(candidate.zone_code || `Khu ${candidate.zone_id || '-'}`);
+  parts.push(`Khả dụng ${Number(candidate.available_qty || 0)}`);
 
   return parts.join(' · ');
 };
 
 const formatFailedSourceLabel = (source) => {
-  const parts = [
-    source.location_code || `Vị trí ${source.location_id || '-'}`,
-    source.zone_code || `Khu ${source.zone_id || '-'}`,
-    source.batch_code || `Lô ${source.batch_id || '-'}`,
-    `QC fail ${Number(source.qc_fail_qty || 0)}`,
-  ];
+  const parts = [];
+  if (source.product_name) {
+    parts.push(source.product_name);
+  }
+  parts.push(source.batch_code || `Lô ${source.batch_id || '-'}`);
+  parts.push(source.location_code || `Vị trí ${source.location_id || '-'}`);
+  parts.push(source.zone_code || `Khu ${source.zone_id || '-'}`);
+  parts.push(`QC fail ${Number(source.qc_fail_qty || 0)}`);
 
   return parts.join(' · ');
 };
@@ -31,9 +35,10 @@ const sumPlannedQty = (item) => (item.allocations || []).reduce(
 const DeliveryOrderPickingPlanEditor = ({
   items = [],
   candidatesByItemId = {},
+  stockAvailabilities = {},
   mode = 'picking',
   title = 'Lập kế hoạch lấy hàng',
-  description = 'Chọn inventory cụ thể theo từng batch, bin, zone trước khi lưu picking plan.',
+  description = 'Chọn hàng tồn kho cụ thể theo từng lô hàng và vị trí trong kho trước khi lưu kế hoạch lấy hàng.',
   saveLabel = 'Lưu kế hoạch lấy hàng',
   submitting = false,
   disableSave = false,
@@ -72,13 +77,22 @@ const DeliveryOrderPickingPlanEditor = ({
         const plannedQty = sumPlannedQty(item);
         const requiredQty = Number(item.replacement_required_qty ?? item.requested_qty ?? 0);
         const qtyMatched = plannedQty === requiredQty;
+        const availableInWarehouse = Number(stockAvailabilities[item.product_id] ?? 999999);
+        const isInsufficient = mode === 'replacement' && availableInWarehouse < requiredQty;
+        const missingQty = requiredQty - availableInWarehouse;
 
         return (
           <section key={item.id} className="border border-hairline-light rounded-lg overflow-hidden">
             <div className="px-4 py-3 bg-canvas-cream border-b border-hairline-light flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="text-sm font-semibold text-ink">{item.product_name}</p>
-                <p className="text-xs text-shade-50 font-mono">{item.sku || '-'}</p>
+                <p className="text-xs text-shade-50 font-mono mb-1">{item.sku || '-'}</p>
+                {isInsufficient && (
+                  <div className="mt-1 flex items-center gap-1.5 text-xs text-danger-700 font-semibold bg-danger-50 border border-danger-200 rounded px-2.5 py-1">
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    <span>Thiếu {missingQty} sản phẩm. Chờ nhập thêm hàng trong thời gian gần nhất</span>
+                  </div>
+                )}
               </div>
               <div className="text-xs font-semibold">
                 <span className="text-shade-50">{mode === 'replacement' ? 'Cần bù:' : 'Yêu cầu:'}</span> {requiredQty}
@@ -137,7 +151,7 @@ const DeliveryOrderPickingPlanEditor = ({
                       <option value="">Chọn batch / vị trí / khu</option>
                       {candidates.map((candidate) => (
                         <option key={candidate.inventory_id} value={candidate.inventory_id}>
-                          {formatCandidateLabel(candidate)}
+                          {formatCandidateLabel(candidate, item.product_name)}
                         </option>
                       ))}
                     </select>

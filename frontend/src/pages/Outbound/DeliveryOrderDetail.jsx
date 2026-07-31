@@ -11,6 +11,7 @@ import {
   PackageSearch,
   RotateCcw,
   X,
+  Info,
 } from 'lucide-react';
 import { outboundService } from '../../services/outbound.service';
 import { masterDataService } from '../../services/masterData.service';
@@ -167,6 +168,7 @@ export default function DeliveryOrderDetail() {
   const [returnRows, setReturnRows] = useState([]);
   const [returnNotes, setReturnNotes] = useState('');
   const [returnRejectReason, setReturnRejectReason] = useState('');
+  const [stockAvailabilities, setStockAvailabilities] = useState({});
 
   useEffect(() => {
     fetchOrder();
@@ -193,6 +195,25 @@ export default function DeliveryOrderDetail() {
       } else {
         setPickingCandidates({});
       }
+
+      if (['QC_PENDING_APPROVAL'].includes(data.status || data.raw_status)) {
+        const failedItems = (data.items || []).filter(
+          (item) => Math.max(0, Number(item.requested_qty || 0) - Number(item.qc_pass_qty || 0)) > 0
+        );
+        const availabilities = {};
+        await Promise.all(
+          failedItems.map(async (item) => {
+            try {
+              const avail = await outboundService.getAvailability(data.warehouse_id, item.product_id);
+              availabilities[item.product_id] = avail.available_qty;
+            } catch {
+              availabilities[item.product_id] = 0;
+            }
+          })
+        );
+        setStockAvailabilities(availabilities);
+      }
+
       if ((data.status || data.raw_status) === 'RETURNED') {
         const bins = await masterDataService.getBinLocations(data.warehouse_id);
         setLocations(bins.filter((location) => location.is_active !== false));
@@ -500,17 +521,12 @@ export default function DeliveryOrderDetail() {
   const handleAddReplacementAllocation = (itemId) => {
     setReplacementDraftItems((previous) => previous.map((item) => {
       if (Number(item.id) !== Number(itemId)) return item;
-      const allocatedQty = (item.allocations || []).reduce(
-        (sum, allocation) => sum + Number(allocation.planned_qty || 0),
-        0,
-      );
-      const remainingQty = Math.max(0, Number(item.replacement_required_qty || 0) - allocatedQty);
       const defaultFailedSource = (item.failed_sources || []).length === 1 ? item.failed_sources[0] : {};
       return {
         ...item,
         allocations: [
           ...(item.allocations || []),
-          outboundService.createEmptyReplacementAllocationDraft(defaultFailedSource, remainingQty),
+          outboundService.createEmptyReplacementAllocationDraft(defaultFailedSource, 0),
         ],
       };
     }));
@@ -536,7 +552,7 @@ export default function DeliveryOrderDetail() {
         ...item,
         allocations: nextAllocations.length
           ? nextAllocations
-          : [outboundService.createEmptyReplacementAllocationDraft(defaultFailedSource, item.replacement_required_qty || 0)],
+          : [outboundService.createEmptyReplacementAllocationDraft(defaultFailedSource, 0)],
       };
     }));
   };
@@ -598,7 +614,7 @@ export default function DeliveryOrderDetail() {
           index === allocationIndex
             ? outboundService.applyPickingCandidate(
                 candidate,
-                allocation.planned_qty ? Number(allocation.planned_qty) : remainingQty,
+                Number(allocation.planned_qty || 0),
               )
             : allocation
         )),
@@ -631,7 +647,7 @@ export default function DeliveryOrderDetail() {
                 ...allocation,
                 ...outboundService.applyPickingCandidate(
                   candidate,
-                  allocation.planned_qty ? Number(allocation.planned_qty) : remainingQty,
+                  Number(allocation.planned_qty || 0),
                 ),
               }
             : allocation
@@ -745,7 +761,7 @@ export default function DeliveryOrderDetail() {
         <div className="bg-info-50 border border-info-200 rounded-lg p-4 flex items-center gap-3">
           <Clock className="w-4 h-4 text-info-700 shrink-0" />
           <p className="text-xs font-semibold text-info-900">
-            Kế hoạch lấy hàng đã được lưu. Nhân viên kho nhập số lượng đã lấy và kết quả QC theo từng dòng phân bổ.
+            Kế hoạch lấy hàng được storekeeper <span className="font-bold">{order.picking_plan_saved_by_name || 'N/A'}</span> lưu. Nhân viên kho nhập số lượng đã lấy và kết quả QC theo từng dòng phân bổ.
           </p>
         </div>
       )}
@@ -765,7 +781,7 @@ export default function DeliveryOrderDetail() {
           <div>
             <p className="text-xs font-bold text-warning-900">Có hàng QC fail cần lập kế hoạch lấy bù.</p>
             <p className="mt-1 text-xs text-warning-800">
-              Chọn dòng hàng lỗi, chọn inventory thay thế và lưu kế hoạch. Đơn sẽ quay về trạng thái chờ lấy hàng để staff xử lý vòng tiếp theo.
+              Chọn dòng hàng lỗi, chọn hàng trong kho thay thế và lưu kế hoạch. Đơn sẽ quay về trạng thái chờ lấy hàng để staff xử lý vòng tiếp theo.
             </p>
           </div>
         </div>
@@ -1016,6 +1032,15 @@ export default function DeliveryOrderDetail() {
       </div>
 
       {canEditPickingPlan && (
+        <div className="bg-info-50 border border-info-200 rounded-lg p-4 flex items-center gap-3 mb-4">
+          <Info className="w-4 h-4 text-info-700 shrink-0" />
+          <p className="text-xs font-semibold text-info-900">
+            Người thao tác trước: <span className="font-bold">{order.created_by_name || 'N/A'}</span> đã tạo phiếu xuất kho ở dưới.
+          </p>
+        </div>
+      )}
+
+      {canEditPickingPlan && (
         <DeliveryOrderPickingPlanEditor
           items={draftItems}
           candidatesByItemId={pickingCandidates}
@@ -1033,10 +1058,11 @@ export default function DeliveryOrderDetail() {
         <DeliveryOrderPickingPlanEditor
           mode="replacement"
           title="Lập kế hoạch lấy hàng bù"
-          description="Dùng khi hàng đã lấy bị QC fail. Storekeeper chọn nguồn hàng bù để staff lấy và QC lại."
+          description="Khi hàng đã lấy bị QC fail. Storekeeper chọn nguồn hàng bù để staff lấy và QC lại."
           saveLabel="Lưu kế hoạch lấy bù"
           items={replacementDraftItems}
           candidatesByItemId={pickingCandidates}
+          stockAvailabilities={stockAvailabilities}
           submitting={submitting || loadingCandidates}
           disableSave={hasInvalidReplacementDraft || replacementDraftItems.length === 0}
           onAddAllocation={handleAddReplacementAllocation}
@@ -1052,7 +1078,7 @@ export default function DeliveryOrderDetail() {
         <div className="bg-warning-50 border border-warning-200 rounded-lg p-4 flex items-center gap-3">
           <AlertTriangle className="w-4 h-4 text-warning-700 shrink-0" />
           <p className="text-xs font-semibold text-warning-900">
-            Mỗi dòng lấy bù phải chọn hàng lỗi QC, inventory thay thế, nhập đủ số lượng cần bù và lý do.
+            Mỗi dòng lấy bù phải chọn hàng lỗi QC, tồn kho thay thế, nhập đủ số lượng cần bù và lý do.
           </p>
         </div>
       )}
@@ -1061,7 +1087,7 @@ export default function DeliveryOrderDetail() {
         <div className="bg-warning-50 border border-warning-200 rounded-lg p-4 flex items-center gap-3">
           <AlertTriangle className="w-4 h-4 text-warning-700 shrink-0" />
           <p className="text-xs font-semibold text-warning-900">
-            Mỗi dòng hàng phải được phân bổ đủ số lượng yêu cầu và mọi allocation có số lượng lớn hơn 0 phải chọn inventory cụ thể trước khi lưu.
+            Mỗi dòng hàng phải được phân bổ đủ số lượng yêu cầu.
           </p>
         </div>
       )}
