@@ -114,7 +114,7 @@ public class PriceHistoryController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ACCOUNTANT', 'ACCOUNTANT_MANAGER', 'ADMIN', 'CEO')")
+    @PreAuthorize("hasAnyRole('PLANNER', 'ACCOUNTANT', 'ACCOUNTANT_MANAGER', 'ADMIN', 'CEO')")
     @Operation(summary = "Danh sách bản giá (filter: product_id, warehouse_id, status, effective_date range)")
     public List<PriceHistoryResponse> getAll(
             @RequestParam(required = false) Long productId,
