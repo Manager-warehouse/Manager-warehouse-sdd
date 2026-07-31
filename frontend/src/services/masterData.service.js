@@ -294,7 +294,7 @@ const hydrateDriverWarehouses = (driver) => {
 
 const addMockAuditLog = (action, entityType, entityId, details) => {
   const logs = JSON.parse(localStorage.getItem("wms_audit_logs")) || [];
-  const currentUser = JSON.parse(localStorage.getItem("wms_user")) || {
+  const currentUser = JSON.parse(sessionStorage.getItem("wms_user")) || {
     fullName: "System",
   };
   const newLog = {

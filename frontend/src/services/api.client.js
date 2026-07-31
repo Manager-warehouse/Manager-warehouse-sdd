@@ -182,8 +182,8 @@ const getBrowserStorage = (name) => {
   }
 };
 
-const authStorage = getBrowserStorage('localStorage');
-const legacyAuthStorage = getBrowserStorage('sessionStorage');
+const authStorage = getBrowserStorage('sessionStorage');
+const legacyAuthStorage = getBrowserStorage('localStorage');
 
 const getAuthValue = (key) => {
   if (!authStorage) return null;

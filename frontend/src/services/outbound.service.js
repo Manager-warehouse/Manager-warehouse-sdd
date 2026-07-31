@@ -287,7 +287,7 @@ export const saveDb = (key, data) => {
 
 export const addAuditLog = (action, entityType, entityId, details) => {
   const logs = JSON.parse(localStorage.getItem('wms_audit_logs')) || [];
-  const currentUser = JSON.parse(localStorage.getItem('wms_user')) || { fullName: 'System' };
+  const currentUser = JSON.parse(sessionStorage.getItem('wms_user')) || { fullName: 'System' };
   const newLog = {
     id: logs.length + 1,
     actorName: currentUser.fullName,

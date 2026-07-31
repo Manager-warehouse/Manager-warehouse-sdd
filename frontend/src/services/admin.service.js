@@ -12,9 +12,9 @@ const getMockDbUsers = () => {
     const parsed = JSON.parse(users);
     if (parsed && parsed.length > 0 && 'username' in parsed[0]) {
       localStorage.setItem('wms_db_users', JSON.stringify(MOCK_USERS));
-      localStorage.removeItem('wms_user');
-      localStorage.removeItem('wms_token');
-      localStorage.removeItem('wms_active_warehouse');
+      sessionStorage.removeItem('wms_user');
+      sessionStorage.removeItem('wms_token');
+      sessionStorage.removeItem('wms_active_warehouse');
       return MOCK_USERS;
     }
     if (parsed && parsed.length < MOCK_USERS.length) {
@@ -76,7 +76,7 @@ const getMockAuditLogs = () => {
 
 const addMockAuditLog = (action, entityType, entityId, description, newValue = {}) => {
   const logs = getMockAuditLogs();
-  const currentUser = JSON.parse(localStorage.getItem('wms_user')) || {};
+  const currentUser = JSON.parse(sessionStorage.getItem('wms_user')) || {};
   const newLog = {
     id: logs.length + 1,
     timestamp: new Date().toISOString(),
@@ -242,9 +242,9 @@ export const adminService = {
         isActive: userData.isActive !== undefined ? userData.isActive : oldUser.isActive
       };
 
-      const currentUser = JSON.parse(localStorage.getItem('wms_user'));
+      const currentUser = JSON.parse(sessionStorage.getItem('wms_user'));
       if (currentUser && currentUser.id === Number(id)) {
-        localStorage.setItem('wms_user', JSON.stringify(updatedUser));
+        sessionStorage.setItem('wms_user', JSON.stringify(updatedUser));
       }
 
       users[idx] = updatedUser;

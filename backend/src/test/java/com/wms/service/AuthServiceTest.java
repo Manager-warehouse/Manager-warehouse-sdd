@@ -65,6 +65,7 @@ import com.wms.dto.auth.*;
 import com.wms.entity.access_control.User;
 import com.wms.enums.access_control.UserRole;
 import com.wms.repository.UserRepository;
+import com.wms.repository.UserRefreshTokenRepository;
 import com.wms.repository.UserWarehouseAssignmentRepository;
 import com.wms.repository.AuditLogRepository;
 import com.wms.repository.WarehouseRepository;
@@ -108,6 +109,8 @@ class AuthServiceTest {
     private AuditLogRepository auditLogRepository;
     @Mock
     private WarehouseRepository warehouseRepository;
+    @Mock
+    private UserRefreshTokenRepository userRefreshTokenRepository;
 
 
     @InjectMocks
@@ -148,7 +151,7 @@ class AuthServiceTest {
 
         when(userRepository.findByEmail("test@wms.com")).thenReturn(Optional.of(activeUser));
         when(jwtUtil.generateAccessToken(anyString(), anyString())).thenReturn("access-token-123");
-        when(userRepository.save(any(User.class))).thenReturn(activeUser);
+        when(userRefreshTokenRepository.save(any(UserRefreshToken.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         LoginResponse response = authService.login(req);
 
@@ -158,7 +161,7 @@ class AuthServiceTest {
         assertThat(response.getExpiresIn()).isEqualTo(900);
         assertThat(response.getUser().getEmail()).isEqualTo("test@wms.com");
         assertThat(response.getUser().getRole()).isEqualTo("STOREKEEPER");
-        verify(userRepository).save(activeUser);
+        verify(userRefreshTokenRepository).save(any(UserRefreshToken.class));
     }
 
     @Test
@@ -198,12 +201,16 @@ class AuthServiceTest {
     @DisplayName("Refresh token hợp lệ trả về access token mới")
     void refresh_validToken_returnsNewAccessToken() {
         String rawToken = "valid-refresh-token";
-        activeUser.setRefreshTokenHash(sha256(rawToken));
-        activeUser.setRefreshTokenExpiresAt(OffsetDateTime.now().plusDays(7));
+        UserRefreshToken session = UserRefreshToken.builder()
+                .user(activeUser)
+                .tokenHash(sha256(rawToken))
+                .expiresAt(OffsetDateTime.now().plusDays(7))
+                .createdAt(OffsetDateTime.now())
+                .build();
 
-        when(userRepository.findByRefreshTokenHash(sha256(rawToken))).thenReturn(Optional.of(activeUser));
-        when(userRepository.findByRefreshTokenHash(sha256(rawToken))).thenReturn(Optional.of(activeUser));
+        when(userRefreshTokenRepository.findByTokenHash(sha256(rawToken))).thenReturn(Optional.of(session));
         when(jwtUtil.generateAccessToken(anyString(), anyString())).thenReturn("new-access-token");
+        when(userRefreshTokenRepository.save(any(UserRefreshToken.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         RefreshTokenRequest req = new RefreshTokenRequest();
         req.setRefreshToken(rawToken);
@@ -212,6 +219,8 @@ class AuthServiceTest {
 
         assertThat(response.getAccessToken()).isEqualTo("new-access-token");
         assertThat(response.getTokenType()).isEqualTo("Bearer");
+        assertThat(response.getRefreshToken()).isNotBlank();
+        verify(userRefreshTokenRepository).save(session);
     }
 
     @Test
@@ -229,11 +238,14 @@ class AuthServiceTest {
     @DisplayName("Refresh thất bại khi token đã hết hạn")
     void refresh_expiredToken_throwsTokenExpired() {
         String rawToken = "expired-refresh-token";
-        activeUser.setRefreshTokenHash(sha256(rawToken));
-        activeUser.setRefreshTokenExpiresAt(OffsetDateTime.now().minusDays(1));
+        UserRefreshToken session = UserRefreshToken.builder()
+                .user(activeUser)
+                .tokenHash(sha256(rawToken))
+                .expiresAt(OffsetDateTime.now().minusDays(1))
+                .createdAt(OffsetDateTime.now().minusDays(8))
+                .build();
 
-        when(userRepository.findByRefreshTokenHash(sha256(rawToken))).thenReturn(Optional.of(activeUser));
-        when(userRepository.findByRefreshTokenHash(sha256(rawToken))).thenReturn(Optional.of(activeUser));
+        when(userRefreshTokenRepository.findByTokenHash(sha256(rawToken))).thenReturn(Optional.of(session));
 
         RefreshTokenRequest req = new RefreshTokenRequest();
         req.setRefreshToken(rawToken);
@@ -241,6 +253,7 @@ class AuthServiceTest {
         assertThatThrownBy(() -> authService.refresh(req))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("TOKEN_EXPIRED");
+        verify(userRefreshTokenRepository).delete(session);
     }
 
     // ─── LOGOUT ──────────────────────────────────────────────────────────────
@@ -248,17 +261,18 @@ class AuthServiceTest {
     @Test
     @DisplayName("Logout xóa refresh token khỏi DB")
     void logout_clearsRefreshToken() {
-        activeUser.setRefreshTokenHash("some-hash");
-        activeUser.setRefreshTokenExpiresAt(OffsetDateTime.now().plusDays(7));
-
-        when(userRepository.findByEmail("test@wms.com")).thenReturn(Optional.of(activeUser));
-        when(userRepository.save(any())).thenReturn(activeUser);
-
         authService.logout("test@wms.com");
 
-        assertThat(activeUser.getRefreshTokenHash()).isNull();
-        assertThat(activeUser.getRefreshTokenExpiresAt()).isNull();
-        verify(userRepository).save(activeUser);
+        verify(userRefreshTokenRepository).deleteByUserEmail("test@wms.com");
+    }
+
+    @Test
+    @DisplayName("Logout vá»›i refresh token chá»‰ xÃ³a phiÃªn hiá»‡n táº¡i")
+    void logout_withRefreshToken_deletesOnlyCurrentSession() {
+        authService.logout("test@wms.com", "current-tab-refresh-token");
+
+        verify(userRefreshTokenRepository).deleteByTokenHash(sha256("current-tab-refresh-token"));
+        verify(userRefreshTokenRepository, never()).deleteByUserEmail(anyString());
     }
 
     // ─── ME ──────────────────────────────────────────────────────────────────
@@ -328,7 +342,7 @@ class AuthServiceTest {
 
         assertThat(activeUser.getPasswordHash()).isEqualTo("hashed-new-pass");
         assertThat(activeUser.getOtpHash()).isNull();
-        assertThat(activeUser.getRefreshTokenHash()).isNull();
+        verify(userRefreshTokenRepository).deleteByUser(activeUser);
     }
 
     @Test

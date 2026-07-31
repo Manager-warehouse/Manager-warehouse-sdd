@@ -11,7 +11,7 @@ import { User, KeyRound, Warehouse, ShieldAlert } from 'lucide-react';
 
 const getAuthStorage = () => {
   try {
-    return typeof window !== 'undefined' && window.localStorage ? window.localStorage : null;
+    return typeof window !== 'undefined' && window.sessionStorage ? window.sessionStorage : null;
   } catch {
     return null;
   }

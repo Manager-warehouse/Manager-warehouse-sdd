@@ -73,7 +73,7 @@ const saveDb = (key, data) => {
 
 const addMockAuditLog = (action, entityType, entityId, details) => {
   const logs = JSON.parse(localStorage.getItem('wms_audit_logs')) || [];
-  const currentUser = JSON.parse(localStorage.getItem('wms_user')) || { fullName: 'System Accountant' };
+  const currentUser = JSON.parse(sessionStorage.getItem('wms_user')) || { fullName: 'System Accountant' };
   const newLog = {
     id: logs.length + 1,
     actorName: currentUser.fullName,
@@ -604,7 +604,7 @@ export const financeService = {
         original_period_id: originalPeriodId,
         dealer_name: dealerName,
         supplier_name: supplierName,
-        approved_by_name: (JSON.parse(localStorage.getItem('wms_user') || 'null'))?.fullName || null,
+        approved_by_name: (JSON.parse(sessionStorage.getItem('wms_user') || 'null'))?.fullName || null,
         created_at: new Date().toISOString()
       };
       list.push(newVoucher);
