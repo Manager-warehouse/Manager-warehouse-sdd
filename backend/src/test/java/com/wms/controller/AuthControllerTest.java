@@ -231,12 +231,16 @@ class AuthControllerTest {
     @DisplayName("POST /logout — 204 No Content khi đăng xuất thành công")
     @WithMockUser(username = "test@wms.com")
     void logout_authenticatedUser_returns204() throws Exception {
-        doNothing().when(authService).logout("test@wms.com");
+        doNothing().when(authService).logout(eq("test@wms.com"), eq("refresh-token-xyz"));
 
-        mockMvc.perform(post("/api/v1/auth/logout"))
+        mockMvc.perform(post("/api/v1/auth/logout")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"refreshToken":"refresh-token-xyz"}
+                                """))
                 .andExpect(status().isNoContent());
 
-        verify(authService).logout("test@wms.com");
+        verify(authService).logout("test@wms.com", "refresh-token-xyz");
     }
 
     @Test

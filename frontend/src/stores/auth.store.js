@@ -20,10 +20,9 @@ const getBrowserStorage = (name) => {
 };
 
 export const useAuthStore = create((set, get) => {
-  // Keep auth in localStorage so refresh-token rotation is shared across tabs
-  // and a browser reload does not look like a silent logout.
-  const storage = getBrowserStorage('localStorage');
-  const legacyStorage = getBrowserStorage('sessionStorage');
+  // Keep auth in sessionStorage so each browser tab can hold its own role.
+  const storage = getBrowserStorage('sessionStorage');
+  const legacyStorage = getBrowserStorage('localStorage');
   const migrateLegacyValue = (key) => {
     const current = storage.getItem(key);
     if (current) return current;
@@ -58,12 +57,14 @@ export const useAuthStore = create((set, get) => {
     login: (user, token, refreshToken) => {
       storage.setItem('wms_user', JSON.stringify(user));
       storage.setItem('wms_token', token);
-      legacyStorage.setItem('wms_user', JSON.stringify(user));
-      legacyStorage.setItem('wms_token', token);
+      legacyStorage.removeItem('wms_user');
+      legacyStorage.removeItem('wms_token');
       if (refreshToken) {
         storage.setItem('wms_refresh_token', refreshToken);
-        legacyStorage.setItem('wms_refresh_token', refreshToken);
+      } else {
+        storage.removeItem('wms_refresh_token');
       }
+      legacyStorage.removeItem('wms_refresh_token');
 
       // Default active warehouse to first assigned warehouse or first warehouse
       let activeWarehouse = null;
@@ -78,7 +79,7 @@ export const useAuthStore = create((set, get) => {
 
       if (activeWarehouse) {
         storage.setItem('wms_active_warehouse', JSON.stringify(activeWarehouse));
-        legacyStorage.setItem('wms_active_warehouse', JSON.stringify(activeWarehouse));
+        legacyStorage.removeItem('wms_active_warehouse');
       } else {
         storage.removeItem('wms_active_warehouse');
         legacyStorage.removeItem('wms_active_warehouse');
@@ -89,11 +90,13 @@ export const useAuthStore = create((set, get) => {
 
     updateTokens: (token, refreshToken) => {
       storage.setItem('wms_token', token);
-      legacyStorage.setItem('wms_token', token);
+      legacyStorage.removeItem('wms_token');
       if (refreshToken) {
         storage.setItem('wms_refresh_token', refreshToken);
-        legacyStorage.setItem('wms_refresh_token', refreshToken);
+      } else {
+        storage.removeItem('wms_refresh_token');
       }
+      legacyStorage.removeItem('wms_refresh_token');
       set({ token });
     },
 
@@ -111,7 +114,7 @@ export const useAuthStore = create((set, get) => {
 
     setActiveWarehouse: (warehouse) => {
       storage.setItem('wms_active_warehouse', JSON.stringify(warehouse));
-      legacyStorage.setItem('wms_active_warehouse', JSON.stringify(warehouse));
+      legacyStorage.removeItem('wms_active_warehouse');
       set({ activeWarehouse: warehouse });
     },
 

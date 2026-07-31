@@ -322,7 +322,7 @@ const saveDb = (key, data) => {
 
 const addMockAuditLog = (action, entityType, entityId, details) => {
   const logs = JSON.parse(localStorage.getItem('wms_audit_logs')) || [];
-  const currentUser = JSON.parse(localStorage.getItem('wms_user')) || { fullName: 'System' };
+  const currentUser = JSON.parse(sessionStorage.getItem('wms_user')) || { fullName: 'System' };
   const newLog = {
     id: logs.length + 1,
     actorName: currentUser.fullName,
@@ -556,7 +556,7 @@ export const inboundService = {
       const countToday = receipts.filter(r => r.receipt_number.startsWith(`PO-${dateStr}`)).length + 1;
       const receiptNumber = `PO-${dateStr}-${String(countToday).padStart(4, '0')}`;
 
-      const currentUser = JSON.parse(localStorage.getItem('wms_user')) || { id: 7 };
+      const currentUser = JSON.parse(sessionStorage.getItem('wms_user')) || { id: 7 };
 
       const newReceipt = {
         id: receipts.length > 0 ? Math.max(...receipts.map(r => r.id)) + 1 : 1,
@@ -775,7 +775,7 @@ export const inboundService = {
       if (receipts[rIdx].status !== 'QC_COMPLETED') throw new Error('RECEIPT_NOT_READY_FOR_APPROVAL');
 
       const receipt = receipts[rIdx];
-      const currentUser = JSON.parse(localStorage.getItem('wms_user')) || { id: 3 };
+      const currentUser = JSON.parse(sessionStorage.getItem('wms_user')) || { id: 3 };
 
       const items = receiptItems.filter(ri => ri.receipt_id === receipt.id);
       const products = await masterDataService.getProducts();
@@ -914,7 +914,7 @@ export const inboundService = {
         throw new Error('PRE_RECEIVE_APPROVAL_INVALID_STATUS');
       }
 
-      const currentUser = JSON.parse(localStorage.getItem('wms_user')) || { id: 3 };
+      const currentUser = JSON.parse(sessionStorage.getItem('wms_user')) || { id: 3 };
       if (decision === 'APPROVE') {
         receipts[rIdx].status = 'PENDING_RECEIPT';
         receipts[rIdx].pre_receive_approved_by = currentUser.id;
@@ -1175,7 +1175,7 @@ export const inboundService = {
       const countDn = debitNotes.length + 1;
       const dnNumber = `DN-${dateStr}-${String(countDn).padStart(4, '0')}`;
       
-      const currentUser = JSON.parse(localStorage.getItem('wms_user')) || { id: 3 };
+      const currentUser = JSON.parse(sessionStorage.getItem('wms_user')) || { id: 3 };
 
       const totalFailedQty = items.reduce((sum, ri) => sum + (ri.qc_failed_qty || 0), 0);
       const totalAmount = items.reduce((sum, ri) => sum + ((ri.qc_failed_qty || 0) * (ri.unit_cost || 0)), 0);
@@ -1295,7 +1295,7 @@ export const inboundService = {
       const countDr = damageReports.length + 1;
       const drNumber = `DR-${dateStr}-${String(countDr).padStart(4, '0')}`;
       
-      const currentUser = JSON.parse(localStorage.getItem('wms_user')) || { id: 3 };
+      const currentUser = JSON.parse(sessionStorage.getItem('wms_user')) || { id: 3 };
 
       const newDr = {
         id: damageReports.length + 1,
@@ -1447,7 +1447,7 @@ export const inboundService = {
       const failedQty = Math.abs(adj.quantity_adjustment);
       const prod = products.find(p => p.id === adj.product_id);
 
-      const currentUser = JSON.parse(localStorage.getItem('wms_user')) || { id: 2 }; // CEO or Manager
+      const currentUser = JSON.parse(sessionStorage.getItem('wms_user')) || { id: 2 }; // CEO or Manager
 
       // 1. Update adjustment
       adj.approved_by = currentUser.id;

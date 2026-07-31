@@ -70,8 +70,10 @@ public class AuthController {
 
     @Operation(summary = "Đăng xuất")
     @PostMapping("/logout")
-    public ResponseEntity<Void> logout(@AuthenticationPrincipal UserDetails userDetails) {
-        authService.logout(userDetails.getUsername());
+    public ResponseEntity<Void> logout(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody(required = false) RefreshTokenRequest request) {
+        authService.logout(userDetails.getUsername(), request != null ? request.getRefreshToken() : null);
         return ResponseEntity.noContent().build();
     }
 

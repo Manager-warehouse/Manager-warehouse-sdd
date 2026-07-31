@@ -4,6 +4,7 @@ import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
 import { WAREHOUSES } from '../../utils/constants';
 import { masterDataService } from '../../services/masterData.service';
+import { authService } from '../../services/auth.service';
 import { getAvatarFallback } from '../../utils/format';
 import { useNavigate, useLocation } from 'react-router-dom';
 
@@ -121,7 +122,12 @@ const Header = () => {
     addToast(`Đã chuyển làm việc sang ${wh.name}`, 'info');
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await authService.logout();
+    } catch {
+      // Local session cleanup still runs if the server already expired it.
+    }
     logout();
     addToast('Đăng xuất thành công', 'success');
     navigate('/login');

@@ -3,7 +3,7 @@ import { MOCK_USERS } from '../utils/constants';
 
 const getAuthStorage = () => {
   try {
-    return typeof window !== 'undefined' && window.localStorage ? window.localStorage : null;
+    return typeof window !== 'undefined' && window.sessionStorage ? window.sessionStorage : null;
   } catch {
     return null;
   }
@@ -44,7 +44,8 @@ export const authService = {
       await new Promise(resolve => setTimeout(resolve, 300));
       return { success: true };
     } else {
-      const response = await apiClient.post('/auth/logout');
+      const refreshToken = getAuthStorage()?.getItem('wms_refresh_token');
+      const response = await apiClient.post('/auth/logout', refreshToken ? { refreshToken } : undefined);
       return response.data;
     }
   },

@@ -40,6 +40,7 @@ import com.wms.entity.access_control.User;
 import com.wms.entity.audit_trail.AuditLog;
 import com.wms.enums.audit_trail.AuditAction;
 import com.wms.repository.UserRepository;
+import com.wms.repository.UserRefreshTokenRepository;
 import com.wms.repository.UserWarehouseAssignmentRepository;
 import com.wms.repository.AuditLogRepository;
 import com.wms.repository.WarehouseRepository;
@@ -79,6 +80,7 @@ public class AuthService {
     private final UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
     private final AuditLogRepository auditLogRepository;
     private final WarehouseRepository warehouseRepository;
+    private final UserRefreshTokenRepository userRefreshTokenRepository;
 
     @Value("${jwt.refresh-token-expiry}")
     private long refreshTokenExpiry;
@@ -105,9 +107,13 @@ public class AuthService {
         String accessToken = jwtUtil.generateAccessToken(user.getEmail(), user.getRole().name());
         String rawRefreshToken = UUID.randomUUID().toString();
 
-        user.setRefreshTokenHash(sha256(rawRefreshToken));
-        user.setRefreshTokenExpiresAt(OffsetDateTime.now().plusSeconds(refreshTokenExpiry));
-        userRepository.save(user);
+        OffsetDateTime now = OffsetDateTime.now();
+        userRefreshTokenRepository.save(UserRefreshToken.builder()
+                .user(user)
+                .tokenHash(sha256(rawRefreshToken))
+                .expiresAt(now.plusSeconds(refreshTokenExpiry))
+                .createdAt(now)
+                .build());
 
         List<LoginResponse.WarehouseInfo> warehouses = buildWarehouseInfoList(user);
         List<Long> warehouseIds = userWarehouseAssignmentRepository.findWarehouseIdsByUserId(user.getId());
@@ -132,22 +138,25 @@ public class AuthService {
     public RefreshTokenResponse refresh(RefreshTokenRequest request) {
         String tokenHash = sha256(request.getRefreshToken());
 
-        User user = userRepository.findByRefreshTokenHash(tokenHash)
+        UserRefreshToken session = userRefreshTokenRepository.findByTokenHash(tokenHash)
                 .orElseThrow(() -> new IllegalArgumentException("TOKEN_INVALID"));
 
-        if (user.getRefreshTokenExpiresAt() == null ||
-                user.getRefreshTokenExpiresAt().isBefore(OffsetDateTime.now())) {
+        if (session.getExpiresAt().isBefore(OffsetDateTime.now())) {
+            userRefreshTokenRepository.delete(session);
             throw new IllegalArgumentException("TOKEN_EXPIRED");
         }
 
+        User user = session.getUser();
         String newAccessToken = jwtUtil.generateAccessToken(user.getEmail(), user.getRole().name());
 
         // Rotate the refresh token on every use so a stolen token cannot be
         // replayed indefinitely — the old hash stops working immediately.
         String newRawRefreshToken = UUID.randomUUID().toString();
-        user.setRefreshTokenHash(sha256(newRawRefreshToken));
-        user.setRefreshTokenExpiresAt(OffsetDateTime.now().plusSeconds(refreshTokenExpiry));
-        userRepository.save(user);
+        OffsetDateTime now = OffsetDateTime.now();
+        session.setTokenHash(sha256(newRawRefreshToken));
+        session.setExpiresAt(now.plusSeconds(refreshTokenExpiry));
+        session.setLastUsedAt(now);
+        userRefreshTokenRepository.save(session);
 
         return RefreshTokenResponse.builder()
                 .accessToken(newAccessToken)
@@ -159,11 +168,16 @@ public class AuthService {
 
     @Transactional
     public void logout(String email) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new IllegalArgumentException("USER_NOT_FOUND"));
-        user.setRefreshTokenHash(null);
-        user.setRefreshTokenExpiresAt(null);
-        userRepository.save(user);
+        userRefreshTokenRepository.deleteByUserEmail(email);
+    }
+
+    @Transactional
+    public void logout(String email, String refreshToken) {
+        if (refreshToken == null || refreshToken.isBlank()) {
+            logout(email);
+            return;
+        }
+        userRefreshTokenRepository.deleteByTokenHash(sha256(refreshToken));
     }
 
     public MeResponse me(String email) {
@@ -219,8 +233,7 @@ public class AuthService {
             // The current JWT's subject is the old email; extractEmail() would
             // no longer resolve to any user once it changes. Force re-login
             // instead of leaving a token that silently fails on next use.
-            user.setRefreshTokenHash(null);
-            user.setRefreshTokenExpiresAt(null);
+            userRefreshTokenRepository.deleteByUser(user);
         }
 
         User savedUser = userRepository.save(user);
@@ -272,8 +285,7 @@ public class AuthService {
         user.setOtpExpiresAt(null);
         user.setOtpAttemptCount(0);
         // Invalidate any active sessions after password reset
-        user.setRefreshTokenHash(null);
-        user.setRefreshTokenExpiresAt(null);
+        userRefreshTokenRepository.deleteByUser(user);
         userRepository.save(user);
     }
 
@@ -326,8 +338,7 @@ public class AuthService {
         // Invalidate any active sessions — if the current one was compromised,
         // the attacker's refresh token must stop working the moment the
         // legitimate owner changes their password.
-        user.setRefreshTokenHash(null);
-        user.setRefreshTokenExpiresAt(null);
+        userRefreshTokenRepository.deleteByUser(user);
         userRepository.save(user);
     }
 
