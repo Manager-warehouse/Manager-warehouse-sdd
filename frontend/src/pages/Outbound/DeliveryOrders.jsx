@@ -25,6 +25,13 @@ import Modal from '../../components/common/Modal';
 import Badge from '../../components/common/Badge';
 import { ROLES } from '../../utils/constants';
 
+const getLocalDateString = () => {
+  const todayLocal = new Date();
+  const offset = todayLocal.getTimezoneOffset();
+  const localDate = new Date(todayLocal.getTime() - (offset * 60 * 1000));
+  return localDate.toISOString().slice(0, 10);
+};
+
 const DO_STATUS_MAP = {
   NEW: { label: 'Mới', color: 'bg-canvas-cream text-shade-70 border-hairline-light' },
   WAITING_PICKING: { label: 'Chờ lấy hàng & kiểm định', color: 'bg-info-50 text-info-700 border-info-200' },
@@ -58,7 +65,7 @@ const createEmptyItemRow = () => ({ product_id: '', requested_qty: 1, unit_price
 
 const createEmptyForm = () => ({
   dealer_id: '',
-  document_date: new Date().toISOString().slice(0, 10),
+  document_date: getLocalDateString(),
   expected_delivery_date: '',
   notes: '',
   items: [createEmptyItemRow()],
@@ -66,7 +73,7 @@ const createEmptyForm = () => ({
 
 const createEditForm = (order) => ({
   dealer_id: order.dealer_id || '',
-  document_date: order.document_date || new Date().toISOString().slice(0, 10),
+  document_date: order.document_date || getLocalDateString(),
   expected_delivery_date: order.expected_delivery_date || '',
   notes: order.notes || '',
   items: (order.items?.length ? order.items : [createEmptyItemRow()]).map((item) => ({
@@ -198,7 +205,7 @@ export default function DeliveryOrders() {
   const fetchMasterData = async () => {
     setMasterDataLoading(true);
     try {
-      const today = new Date().toISOString().slice(0, 10);
+      const today = getLocalDateString();
       const promises = [
         masterDataService.getDealers(),
         masterDataService.getProducts({ size: 200 }),
@@ -228,7 +235,11 @@ export default function DeliveryOrders() {
       if (approvedPrices && approvedPrices.length > 0) {
         const ids = new Set(
           approvedPrices
-            .filter((p) => !p.effective_date || p.effective_date <= today)
+            .filter((p) => {
+              if (!p.effective_date) return true;
+              const pDate = typeof p.effective_date === 'string' ? p.effective_date.slice(0, 10) : '';
+              return pDate <= today;
+            })
             .map((p) => Number(p.product_id)),
         );
         setApprovedProductIds(ids);
@@ -287,7 +298,7 @@ export default function DeliveryOrders() {
       return;
     }
 
-    const documentDate = formData.document_date || new Date().toISOString().slice(0, 10);
+    const documentDate = formData.document_date || getLocalDateString();
     try {
       const price = await pricingService.lookupApproved({
         product_id: productId,
@@ -353,7 +364,7 @@ export default function DeliveryOrders() {
       addToast('Vui lòng chọn kho trước khi lập đơn xuất', 'error');
       return;
     }
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getLocalDateString();
     if (formData.expected_delivery_date && formData.expected_delivery_date < todayStr) {
       addToast('Ngày giao hàng dự kiến không được ở quá khứ', 'error');
       return;
@@ -373,7 +384,7 @@ export default function DeliveryOrders() {
         ...formData,
         dealer_name: selectedDealerObj?.name || selectedDealerObj?.company_name,
         warehouse_id: activeWarehouse.id,
-        document_date: formData.document_date || new Date().toISOString().slice(0, 10),
+        document_date: formData.document_date || getLocalDateString(),
       };
 
       if (editingOrder) {
@@ -653,7 +664,7 @@ export default function DeliveryOrders() {
             <Input
               label="Ngày giao dự kiến *"
               type="date"
-              min={new Date().toISOString().split('T')[0]}
+              min={getLocalDateString()}
               value={formData.expected_delivery_date}
               onChange={(event) => setFormData((prev) => ({ ...prev, expected_delivery_date: event.target.value }))}
             />
