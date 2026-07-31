@@ -614,7 +614,12 @@ const createReplacementPlanDraft = (items = []) => items
   .filter((item) => Math.max(0, Number(item.requested_qty || 0) - Number(item.qc_pass_qty || 0)) > 0)
   .map((item) => {
     const failedSources = (item.allocations || [])
-      .filter((allocation) => Number(allocation.qc_fail_qty || 0) > 0);
+      .filter((allocation) => Number(allocation.qc_fail_qty || 0) > 0)
+      .map((allocation) => ({
+        ...allocation,
+        product_name: item.product_name,
+        sku: item.sku,
+      }));
     const defaultFailedSource = failedSources.length === 1 ? failedSources[0] : {};
     const requiredQty = Math.max(0, Number(item.requested_qty || 0) - Number(item.qc_pass_qty || 0));
 
@@ -623,7 +628,7 @@ const createReplacementPlanDraft = (items = []) => items
       requested_qty: requiredQty,
       replacement_required_qty: requiredQty,
       failed_sources: failedSources,
-      allocations: [createEmptyReplacementAllocation(defaultFailedSource, requiredQty)],
+      allocations: [createEmptyReplacementAllocation(defaultFailedSource, 0)],
     };
   });
 
@@ -918,6 +923,27 @@ export const outboundService = {
     );
   },
 
+  getAvailability: async (warehouseId, productId) => {
+    if (useMock) {
+      await mockDelay(100);
+      return {
+        total_qty: 100,
+        reserved_qty: 20,
+        available_qty: 80,
+      };
+    }
+    const response = await apiClient.get('/warehouse-stock/availability', {
+      params: { warehouseId, productId },
+    });
+    const data = response.data || {};
+    return {
+      warehouse_id: data.warehouseId,
+      product_id: data.productId,
+      total_qty: Number(data.totalQty || 0),
+      reserved_qty: Number(data.reservedQty || 0),
+      available_qty: Number(data.availableQty || 0),
+    };
+  },
 
   createPickingPlanDraft: (items = []) => cloneDraftItems(items),
 

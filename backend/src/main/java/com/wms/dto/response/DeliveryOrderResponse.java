@@ -37,6 +37,7 @@ import com.wms.enums.warehouse_location.*;
 import com.wms.enums.warehouse_transfer.*;
 import com.wms.enums.order_fulfillment.DeliveryOrderStatus;
 import com.wms.enums.order_fulfillment.DeliveryOrderType;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -62,6 +63,10 @@ public class DeliveryOrderResponse {
     private LocalDate documentDate;
     private String notes;
     private List<DeliveryOrderItemResponse> items;
+    @JsonProperty("created_by_name")
+    private String createdByName;
+    @JsonProperty("picking_plan_saved_by_name")
+    private String pickingPlanSavedByName;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
 }
