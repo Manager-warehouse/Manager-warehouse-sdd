@@ -106,6 +106,11 @@ import org.springframework.web.multipart.MultipartFile;
 @Service
 public class DriverDeliveryServiceImpl implements DriverDeliveryService {
 
+    /*
+     * Service cho màn "Giao hàng của tôi" của tài xế.
+     * Tài xế chỉ thao tác trên chuyến được gán: xem chuyến, upload ảnh giao hàng,
+     * xin OTP xác nhận, xác nhận giao thành công hoặc báo giao thất bại.
+     */
     private static final BigDecimal ZERO = BigDecimal.ZERO;
     private static final long MAX_POD_BYTES = 5L * 1024L * 1024L;
     private static final List<DeliveryStatus> CURRENT_ATTEMPT_STATUSES = List.of(DeliveryStatus.IN_TRANSIT);
@@ -152,7 +157,9 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
     @Override
     @Transactional(readOnly = true)
     public TripDriverViewResponse getAssignedTrip(Long tripId, User actor) {
+        // Tài xế chỉ xem được chi tiết chuyến nếu tài khoản của mình đang được gán vào chuyến đó.
         Trip trip = assignedTrip(tripId, actor);
+        // Nhánh điều chuyển nội bộ: nếu tripType = TRANSFER thì load thêm phiếu TRF để mobile hiển thị tuyến kho nguồn -> kho đích.
         InterWarehouseTransfer transfer = transferSummaryByTrip(trip);
         return toTripDriverView(trip, transfer);
     }
@@ -160,6 +167,7 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
     @Override
     @Transactional(readOnly = true)
     public List<TripDriverViewResponse> listMyTrips(User actor) {
+        // Danh sách chuyến của tài xế hiện tại, gồm cả chuyến giao đại lý và chuyến điều chuyển nội bộ nếu có.
         List<Trip> trips = tripRepository.findAssignedDriverTrips(actor.getId());
         Map<Long, InterWarehouseTransfer> transfersByTripId = transferSummariesByTripId(trips);
         return trips.stream()
@@ -174,6 +182,8 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
                                                      MultipartFile signDocumentImage,
                                                      String notes,
                                                      User actor) {
+        // Tài xế upload bằng chứng giao hàng: ảnh hàng giao và ảnh ký nhận/chứng từ.
+        // Hai ảnh này là điều kiện bắt buộc trước khi xin OTP xác nhận giao thành công.
         Trip trip = assignedTrip(tripId, actor);
         Delivery delivery = currentAttempt(trip, deliveryOrderId);
         validatePodFile(goodsImage);
@@ -193,10 +203,12 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
     public DeliveryOtpResponse requestDeliveryOtp(Long tripId, Long deliveryOrderId,
                                                   DeliveryOtpRequest request,
                                                   User actor) {
+        // Sau khi có ảnh POD, tài xế xin OTP gửi tới email đại lý để xác nhận người nhận hàng.
         Trip trip = assignedTrip(tripId, actor);
         Delivery delivery = currentAttempt(trip, deliveryOrderId);
         requirePod(delivery);
         Dealer dealer = delivery.getDeliveryOrder().getDealer();
+        // Validate: đại lý phải có email thì hệ thống mới gửi được OTP xác nhận giao hàng.
         if (dealer.getEmail() == null || dealer.getEmail().isBlank()) {
             throw rule("DEALER_EMAIL_MISSING", "Dealer email is required before requesting delivery OTP");
         }
@@ -205,6 +217,7 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
         if (otp != null && otp.getStatus() == DeliveryOtpStatus.LOCKED) {
             throw locked("OTP_RESET_REQUIRED", "OTP is locked and requires admin reset");
         }
+        // Validate: nếu OTP cũ còn hiệu lực thì không tạo OTP mới để tránh nhiều mã song song.
         if (otp != null && otp.getStatus() == DeliveryOtpStatus.ACTIVE && otp.getExpiresAt().isAfter(now)) {
             throw conflict("OTP_STILL_ACTIVE", "Current OTP is still active");
         }
@@ -234,6 +247,7 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
     public DeliveryAttemptResponse confirmDelivery(Long tripId, Long deliveryOrderId,
                                                    ConfirmDeliveryRequest request,
                                                    User actor) {
+        // Xác nhận giao thành công: phải có POD, OTP hợp lệ, sau đó trừ tồn khỏi kho ảo đang vận chuyển.
         Trip trip = assignedTrip(tripId, actor);
         Delivery delivery = currentAttempt(trip, deliveryOrderId);
         requirePod(delivery);
@@ -265,6 +279,7 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
     public DeliveryAttemptResponse failDelivery(Long tripId, Long deliveryOrderId,
                                                 FailDeliveryRequest request,
                                                 User actor) {
+        // Tài xế báo giao thất bại. Đơn chuyển sang trạng thái trả về để xử lý luồng hàng quay lại.
         Trip trip = assignedTrip(tripId, actor);
         Delivery delivery = currentAttempt(trip, deliveryOrderId);
         Map<String, Object> before = attemptSnapshot(delivery);
@@ -284,6 +299,7 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
     @Override
     @Transactional
     public TripDriverViewResponse completeTrip(Long tripId, TripCompleteRequest request, User actor) {
+        // Tài xế đóng chuyến khi mọi đơn trong chuyến đã giao thành công hoặc đã đánh dấu trả về.
         Trip trip = assignedTrip(tripId, actor);
         if (trip.getStatus() != TripStatus.IN_TRANSIT) {
             throw rule("TRIP_NOT_READY_TO_COMPLETE", "Trip must be IN_TRANSIT before completion");
@@ -291,6 +307,7 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
         List<TripDeliveryOrder> rows = tripDeliveryOrderRepository.findByTripIdOrderByStopOrderAsc(tripId);
         boolean notReady = rows.stream().map(TripDeliveryOrder::getDeliveryOrder)
                 .anyMatch(order -> !TERMINAL_DO_STATUSES.contains(order.getStatus()));
+        // Validate: chưa được đóng chuyến nếu còn điểm giao chưa có kết quả cuối.
         if (notReady) {
             throw rule("TRIP_NOT_READY_TO_COMPLETE", "All delivery orders must be COMPLETED or RETURNED");
         }
@@ -310,6 +327,7 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
     @Override
     @Transactional
     public DeliveryOtpResponse resetDeliveryOtp(Long deliveryOrderId, ResetDeliveryOtpRequest request, User actor) {
+        // Admin/nhân sự hỗ trợ reset OTP bị khóa để tài xế có thể xin mã mới.
         Delivery delivery = deliveryRepository.findLatestCurrentAttemptByDeliveryOrderId(
                         deliveryOrderId, CURRENT_ATTEMPT_STATUSES)
                 .orElseThrow(() -> notFound("Current delivery attempt not found"));
@@ -331,12 +349,14 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
     }
 
     private Trip assignedTrip(Long tripId, User actor) {
+        // Validate quyền tài xế: tài khoản đăng nhập phải đúng là tài xế được gán vào chuyến.
         return tripRepository.findAssignedDriverTrip(tripId, actor.getId())
                 .orElseThrow(() -> new OutboundDeliveryException("DRIVER_NOT_ASSIGNED_TO_TRIP",
                         HttpStatus.FORBIDDEN, "Driver is not assigned to this trip"));
     }
 
     private Delivery currentAttempt(Trip trip, Long deliveryOrderId) {
+        // Lấy lần giao hiện tại của đơn trong chuyến. Nếu đơn không thuộc chuyến hoặc không còn đang giao thì chặn.
         tripDeliveryOrderRepository.findByTripIdAndDeliveryOrderId(trip.getId(), deliveryOrderId)
                 .orElseThrow(() -> new OutboundDeliveryException("DELIVERY_ORDER_NOT_IN_TRIP",
                         HttpStatus.FORBIDDEN, "Delivery order does not belong to this trip"));
@@ -346,6 +366,7 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
     }
 
     private void completeTripIfAllStopsTerminal(Trip trip, User actor, OffsetDateTime completedAt) {
+        // Sau mỗi lần giao thành công/thất bại, nếu mọi điểm giao đã có kết quả cuối thì tự đóng chuyến.
         if (trip.getStatus() != TripStatus.IN_TRANSIT) {
             return;
         }
@@ -369,6 +390,7 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
     }
 
     private void verifyOtp(DeliveryOtpAttempt otp, String rawOtp) {
+        // Validate OTP: phải đang hiệu lực, chưa hết hạn, sai quá 3 lần thì khóa để tránh dò mã.
         OffsetDateTime now = OffsetDateTime.now();
         if (otp.getStatus() == DeliveryOtpStatus.LOCKED) {
             throw locked("OTP_RESET_REQUIRED", "OTP is locked and requires admin reset");
@@ -396,6 +418,7 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
     }
 
     private void decrementTransitInventory(DeliveryOrder order) {
+        // Khi giao thành công, hàng rời khỏi kho ảo đang vận chuyển và không còn nằm trong tồn kho hệ thống.
         List<DeliveryOrderItem> items = deliveryOrderItemRepository.findByDeliveryOrderId(order.getId());
         for (DeliveryOrderItem item : items) {
             Inventory transit = inventoryRepository.findTransitRowForDeliveryConfirmation(
@@ -411,12 +434,9 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
         }
     }
 
-    // Creates the accountant worklist entry (Spec 008, billing_notifications). Invoicing is
-    // manual by design (mirrors the AP supplier-invoice flow): the accountant reviews this
-    // notification and creates the invoice via POST /api/v1/invoices, which delegates to
-    // AutoInvoiceService.createBackfillInvoice and archives this notification on success.
-    // totalAmountEstimate is a rough estimate independent of the formal invoice total — it
-    // must not block delivery confirmation if line pricing is incomplete.
+    // Tạo việc chờ cho kế toán sau khi giao thành công.
+    // Hệ thống không tự xuất hóa đơn ngay; kế toán xem thông báo này rồi tạo hóa đơn ở màn hóa đơn.
+    // Số tiền ước tính chỉ để tham khảo, không chặn xác nhận giao hàng nếu giá bán chưa đủ.
     private void createBillingNotification(DeliveryOrder order) {
         List<DeliveryOrderItem> items = deliveryOrderItemRepository.findByDeliveryOrderId(order.getId());
         BigDecimal estimate = items.stream()
@@ -448,6 +468,8 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
     }
 
     private TripDriverViewResponse toTripDriverView(Trip trip, InterWarehouseTransfer transfer) {
+        // Gom dữ liệu chuyến theo góc nhìn tài xế: thông tin xe, tuyến, điểm giao và trạng thái từng lần giao.
+        // Với chuyến DELIVERY, danh sách điểm dừng là các delivery order; với chuyến TRANSFER, danh sách này thường rỗng.
         List<TripDeliveryOrder> rows = tripDeliveryOrderRepository.findByTripIdOrderByStopOrderAsc(trip.getId());
         Map<Long, Delivery> attempts = rows.isEmpty()
                 ? Map.of()
@@ -457,6 +479,7 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
                         .stream()
                         .collect(Collectors.toMap(d -> d.getDeliveryOrder().getId(), Function.identity(), (first, ignored) -> first));
         TripType tripType = trip.getTripType() == null ? TripType.DELIVERY : trip.getTripType();
+        // Nhánh điều chuyển nội bộ: response vẫn dùng chung model màn tài xế, nhưng bổ sung transferId/kho nguồn/kho đích/số dòng TRF.
         return TripDriverViewResponse.builder()
                 .tripId(trip.getId())
                 .tripNumber(trip.getTripNumber())
@@ -496,6 +519,7 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
     }
 
     private Map<Long, InterWarehouseTransfer> transferSummariesByTripId(List<Trip> trips) {
+        // Với chuyến điều chuyển nội bộ, lấy thêm thông tin kho nguồn/kho đích để tài xế nhìn được đúng tuyến.
         List<Long> transferTripIds = trips.stream()
                 .filter(trip -> trip.getTripType() == TripType.TRANSFER)
                 .map(Trip::getId)
@@ -513,6 +537,7 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
     }
 
     private InterWarehouseTransfer transferSummaryByTrip(Trip trip) {
+        // Chỉ chuyến điều chuyển nội bộ mới có bản ghi InterWarehouseTransfer gắn với trip.
         if (trip.getTripType() != TripType.TRANSFER) {
             return null;
         }
@@ -520,6 +545,7 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
     }
 
     private String tripTypeLabel(TripType tripType) {
+        // Label cho màn tài xế: tách rõ chuyến giao đại lý và chuyến điều chuyển nội bộ.
         return tripType == TripType.TRANSFER ? "Dieu chuyen noi bo" : "Giao dai ly";
     }
 
@@ -553,6 +579,7 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
     }
 
     private void validatePodFile(MultipartFile file) {
+        // Validate ảnh POD: bắt buộc là ảnh và giới hạn 5MB để tránh upload file sai loại/quá lớn.
         if (file == null || file.isEmpty()
                 || file.getSize() > MAX_POD_BYTES
                 || file.getContentType() == null
@@ -563,6 +590,7 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
     }
 
     private String storePodFile(MultipartFile file, String prefix) {
+        // Lưu ảnh POD xuống thư mục uploads/pod và trả đường dẫn để frontend hiển thị lại.
         try {
             Files.createDirectories(Path.of("uploads", "pod"));
             String ext = extension(file.getOriginalFilename());
@@ -584,6 +612,7 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
     }
 
     private void requirePod(Delivery delivery) {
+        // Trước khi xin OTP hoặc xác nhận giao thành công phải có đủ ảnh hàng và ảnh ký nhận/chứng từ.
         if (delivery.getPodImageUrl() == null || delivery.getPodSignatureUrl() == null) {
             throw new OutboundDeliveryException("MISSING_POD",
                     HttpStatus.BAD_REQUEST, "Both POD images are required");
@@ -612,6 +641,7 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
     }
 
     private void saveInventory(Inventory inventory) {
+        // Lưu tồn kho kèm xử lý xung đột version để tránh hai thao tác cùng ghi đè một dòng tồn.
         try {
             inventoryRepository.save(inventory);
         } catch (ObjectOptimisticLockingFailureException ex) {
@@ -621,6 +651,7 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
 
     private void audit(User actor, AuditAction action, Delivery delivery,
                        Map<String, Object> before, Map<String, Object> after) {
+        // Ghi lịch sử cho từng lần giao: tài xế nào thao tác, đơn nào, trước/sau ra sao.
         auditLogService.log(actor, action, "DELIVERY", delivery.getId(),
                 delivery.getDeliveryNumber(), delivery.getDeliveryOrder().getWarehouse().getId(), before, after);
     }

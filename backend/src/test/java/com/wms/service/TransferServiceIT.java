@@ -70,6 +70,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.TestPropertySource;
 
 import java.math.BigDecimal;
@@ -81,6 +82,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
+@DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
 @TestPropertySource(properties = {
     "spring.datasource.url=jdbc:h2:mem:transfertestdb;DB_CLOSE_DELAY=-1;MODE=PostgreSQL",
     "spring.datasource.username=sa",
@@ -96,6 +98,7 @@ import static org.assertj.core.api.Assertions.assertThat;
     "jwt.refresh-token-expiry=604800"
 })
 public class TransferServiceIT {
+
 
     @Autowired
     private InterWarehouseTransferService transferService;
@@ -406,4 +409,66 @@ public class TransferServiceIT {
         Inventory updatedTransit = inventoryRepository.findById(transitInv.getId()).orElseThrow();
         assertThat(updatedTransit.getTotalQty()).isEqualByComparingTo(BigDecimal.ZERO);
     }
+
+    @Test
+    void testTransferUomSnapshotPreventsDriftDuringInTransit() {
+        // 1. Setup product with initial UOM and packaging rate
+        product.setUnit("Thùng");
+        product.setUnitPerPack(10);
+        product.setWeightKg(new BigDecimal("5.000"));
+        product.setVolumeM3(new BigDecimal("0.02000"));
+        productRepository.save(product);
+
+        // 2. Create transfer
+        InterWarehouseTransferItemRequest itemReq = new InterWarehouseTransferItemRequest(
+                product.getId(),
+                srcLoc.getId(),
+                destLoc.getId(),
+                new BigDecimal("20.00")
+        );
+        InterWarehouseTransferCreateRequest createReq = new InterWarehouseTransferCreateRequest(
+                "EXT-UOM-001",
+                srcWarehouse.getId(),
+                destWarehouse.getId(),
+                LocalDate.now(),
+                LocalDate.now().plusDays(1),
+                "UOM Test",
+                List.of(itemReq)
+        );
+        InterWarehouseTransferResponse trf = transferService.createTransfer(createReq, planner);
+        trf = transferService.approveTransfer(trf.id(), manager);
+
+        // 3. Assign trip & depart
+        InterWarehouseTransferTripAssignRequest tripReq = new InterWarehouseTransferTripAssignRequest(
+                vehicle.getId(),
+                driver.getId(),
+                LocalDateTime.now().plusHours(1),
+                LocalDateTime.now().plusHours(5)
+        );
+        trf = transferService.assignTrip(trf.id(), tripReq, planner);
+        trf = transferService.recordSourceLoadReport(trf.id(), new SourceLoadReportRequest(List.of(
+                new SourceLoadReportItemRequest(trf.items().get(0).id(), new BigDecimal("20.00"))), null), storekeeper);
+        trf = transferService.recordOutboundQc(trf.id(), new OutboundQcRequest(true, "QC OK", "photo.jpg"), storekeeper);
+        trf = transferService.loadHandover(trf.id(), new LoadHandoverRequest("handover.jpg"), storekeeper);
+        trf = transferService.shipTransfer(trf.id(), storekeeper);
+        trf = transferService.departTransfer(trf.id(), driverUser);
+
+        assertThat(trf.status()).isEqualTo(InterWarehouseTransferStatus.IN_TRANSIT);
+
+        // 4. Mutate Master Data product properties while transfer is IN_TRANSIT
+        product.setUnit("Cái");
+        product.setUnitPerPack(12);
+        product.setWeightKg(new BigDecimal("15.000"));
+        productRepository.save(product);
+
+        // 5. Verify that item response snapshots remain locked to initial shipped values
+        InterWarehouseTransferResponse inTransitTrf = transferService.getTransferById(trf.id(), storekeeper);
+        var snapshotItem = inTransitTrf.items().get(0);
+        assertThat(snapshotItem.uomUnitSnapshot()).isEqualTo("Thùng");
+        assertThat(snapshotItem.uomPackRateSnapshot()).isEqualTo(10);
+        assertThat(snapshotItem.unitWeightSnapshot()).isEqualByComparingTo(new BigDecimal("5.000"));
+        assertThat(snapshotItem.unitVolumeSnapshot()).isEqualByComparingTo(new BigDecimal("0.02000"));
+    }
 }
+
+

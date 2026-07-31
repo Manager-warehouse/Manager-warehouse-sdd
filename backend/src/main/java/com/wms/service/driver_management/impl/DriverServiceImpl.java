@@ -66,6 +66,11 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class DriverServiceImpl implements DriverService {
 
+    /*
+     * Service quản lý hồ sơ tài xế nội bộ.
+     * Điều phối viên là người bật/tắt hồ sơ tài xế; hệ thống tự chuyển tài xế sang "đang chạy chuyến"
+     * khi chuyến bắt đầu và trả về "sẵn sàng" khi chuyến kết thúc.
+     */
     private final DriverRepository driverRepository;
     private final UserRepository userRepository;
     private final UserWarehouseAssignmentRepository assignmentRepository;
@@ -76,6 +81,8 @@ public class DriverServiceImpl implements DriverService {
     @Override
     @Transactional(readOnly = true)
     public List<UserResponse> getDriverUserCandidates(Long actorId) {
+        // Lấy danh sách tài khoản có vai trò tài xế để liên kết vào hồ sơ tài xế.
+        // Người xem chỉ thấy tài khoản nằm trong kho mình phụ trách, còn Admin/CEO thấy toàn bộ.
         User actor = requireUser(actorId);
         List<Long> actorWarehouseIds = getActorWarehouseIds(actor);
 
@@ -88,6 +95,7 @@ public class DriverServiceImpl implements DriverService {
     @Override
     @Transactional(readOnly = true)
     public List<DriverResponse> getAllDrivers(String status, Boolean isActive, Long actorId) {
+        // Danh sách tài xế được lọc theo trạng thái làm việc, trạng thái bật/tắt và phạm vi kho của người xem.
         User actor = requireUser(actorId);
         List<Long> actorWarehouseIds = getActorWarehouseIds(actor);
 
@@ -111,6 +119,8 @@ public class DriverServiceImpl implements DriverService {
     @Override
     @Transactional
     public DriverResponse createDriver(DriverRequest request, Long userId) {
+        // Tạo hồ sơ tài xế từ một tài khoản đã có sẵn trong hệ thống.
+        // Họ tên lấy từ tài khoản để tránh nhập lệch giữa tài khoản đăng nhập và hồ sơ tài xế.
         if (driverRepository.existsByLicenseNumber(request.getLicenseNumber())) {
             throw new IllegalArgumentException("DUPLICATE_LICENSE_NUMBER");
         }
@@ -128,12 +138,14 @@ public class DriverServiceImpl implements DriverService {
         if (driverUser.getRole() != UserRole.DRIVER) {
             throw new IllegalArgumentException("USER_MUST_HAVE_DRIVER_ROLE");
         }
+        // Validate: người tạo chỉ được liên kết tài khoản tài xế thuộc kho mình phụ trách.
         ensureUserWithinActorScope(actor, driverUser);
 
         if (driverRepository.existsByUserId(request.getUserId())) {
             throw new IllegalArgumentException("DUPLICATE_DRIVER_USER");
         }
 
+        // Nếu biểu mẫu không nhập số điện thoại riêng cho tài xế thì dùng số điện thoại của tài khoản.
         String phone = request.getPhone();
         if (phone == null || phone.trim().isEmpty()) {
             phone = driverUser.getPhone();
@@ -155,7 +167,7 @@ public class DriverServiceImpl implements DriverService {
 
         Driver saved = driverRepository.save(driver);
 
-        // Audit Log
+        // Ghi lịch sử tạo hồ sơ tài xế để truy vết ai tạo và dữ liệu ban đầu là gì.
         auditLogService.log(actor, AuditAction.CREATE, "Driver", saved.getId(), saved.getLicenseNumber(), null, null,
                 toMap(saved));
 
@@ -165,6 +177,7 @@ public class DriverServiceImpl implements DriverService {
     @Override
     @Transactional
     public DriverResponse updateDriver(Long id, DriverRequest request, Long userId) {
+        // Sửa hồ sơ tài xế: đổi kho phụ trách, tài khoản liên kết, số bằng lái/hạn bằng lái và số điện thoại.
         Driver driver = driverRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Driver not found with id: " + id));
 
@@ -186,6 +199,7 @@ public class DriverServiceImpl implements DriverService {
         if (driverUser.getRole() != UserRole.DRIVER) {
             throw new IllegalArgumentException("USER_MUST_HAVE_DRIVER_ROLE");
         }
+        // Validate: người sửa phải nhìn thấy hồ sơ cũ và tài khoản tài xế mới trong phạm vi kho của mình.
         ensureDriverWithinActorScope(actor, driver);
         ensureUserWithinActorScope(actor, driverUser);
 
@@ -212,7 +226,7 @@ public class DriverServiceImpl implements DriverService {
 
         Driver saved = driverRepository.save(driver);
 
-        // Audit Log
+        // Ghi lịch sử trước/sau khi sửa hồ sơ tài xế.
         auditLogService.log(actor, AuditAction.UPDATE, "Driver", saved.getId(), saved.getLicenseNumber(), null, oldMap,
                 toMap(saved));
 
@@ -222,6 +236,8 @@ public class DriverServiceImpl implements DriverService {
     @Override
     @Transactional
     public DriverResponse updateStatus(Long id, String status, Long userId) {
+        // Cập nhật trạng thái làm việc do tài xế/điều phối thao tác, nhưng không cho tự chuyển sang "đang chạy chuyến".
+        // Trạng thái "đang chạy chuyến" chỉ hệ thống được chuyển khi chuyến bắt đầu.
         Driver driver = driverRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Driver not found with id: " + id));
 
@@ -242,7 +258,7 @@ public class DriverServiceImpl implements DriverService {
 
         Driver saved = driverRepository.save(driver);
 
-        // Audit Log
+        // Ghi lịch sử đổi trạng thái làm việc của tài xế.
         auditLogService.log(actor, AuditAction.STATUS_CHANGE, "Driver", saved.getId(), saved.getLicenseNumber(), null,
                 oldMap, toMap(saved));
 
@@ -252,6 +268,7 @@ public class DriverServiceImpl implements DriverService {
     @Override
     @Transactional
     public void deactivateDriver(Long id, Long userId) {
+        // Tắt hồ sơ tài xế là tắt mềm: giữ dữ liệu lịch sử, chỉ không cho dùng để gán chuyến mới.
         Driver driver = driverRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Driver not found with id: " + id));
 
@@ -265,6 +282,7 @@ public class DriverServiceImpl implements DriverService {
 
         User actor = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+        // Validate: chỉ điều phối viên được bật/tắt tài xế và chỉ trong kho mình phụ trách.
         ensureDispatcherActor(actor);
         ensureDriverWithinActorScope(actor, driver);
 
@@ -276,7 +294,7 @@ public class DriverServiceImpl implements DriverService {
 
         Driver saved = driverRepository.save(driver);
 
-        // Audit Log
+        // Ghi lịch sử tắt hồ sơ tài xế, không xóa vật lý dữ liệu.
         auditLogService.log(actor, AuditAction.SOFT_DELETE, "Driver", saved.getId(), saved.getLicenseNumber(), null,
                 oldMap, toMap(saved));
     }
@@ -284,6 +302,7 @@ public class DriverServiceImpl implements DriverService {
     @Override
     @Transactional
     public DriverResponse reactivateDriver(Long id, Long userId) {
+        // Bật lại hồ sơ tài xế để có thể được gán chuyến mới.
         Driver driver = driverRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Driver not found with id: " + id));
 
@@ -304,7 +323,7 @@ public class DriverServiceImpl implements DriverService {
 
         Driver saved = driverRepository.save(driver);
 
-        // Audit Log
+        // Ghi lịch sử bật lại hồ sơ tài xế.
         auditLogService.log(actor, AuditAction.UPDATE, "Driver", saved.getId(), saved.getLicenseNumber(), null, oldMap,
                 toMap(saved));
 
@@ -358,12 +377,14 @@ public class DriverServiceImpl implements DriverService {
     }
 
     private void ensureDispatcherActor(User actor) {
+        // Quyền bật/tắt tài xế thuộc điều phối viên theo quy tắc vận hành đội xe.
         if (actor.getRole() != UserRole.DISPATCHER) {
             throw new IllegalArgumentException("DISPATCHER_ROLE_REQUIRED");
         }
     }
 
     private boolean isWithinActorScope(User actor, List<Long> actorWarehouseIds, List<Long> targetWarehouseIds) {
+        // Admin/CEO có phạm vi toàn hệ thống; các vai trò khác phải giao nhau ít nhất một kho.
         return hasGlobalScope(actor)
                 || actorWarehouseIds.stream().anyMatch(targetWarehouseIds::contains);
     }

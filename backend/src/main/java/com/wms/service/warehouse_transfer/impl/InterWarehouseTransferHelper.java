@@ -32,6 +32,7 @@ import com.wms.mapper.InterWarehouseTransferMapper;
 import com.wms.util.PartnerAuditUtil;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -42,10 +43,20 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+/**
+ * Bộ hàm dùng chung cho toàn bộ luồng điều chuyển nội bộ.
+ * Gom các quy tắc nền tảng: quyền theo kho, kiểm trạng thái phiếu, giữ/trả hàng,
+ * cập nhật tồn, ghi lịch sử và tạo dữ liệu trả về cho giao diện.
+ */
 @Component
 @RequiredArgsConstructor
 public class InterWarehouseTransferHelper {
 
+    /*
+     * Helper giữ các quy tắc dùng chung cho toàn bộ luồng điều chuyển:
+     * quyền theo kho, kiểm trạng thái phiếu, giữ/trả hàng, cập nhật tồn, ghi lịch sử và chuyển dữ liệu trả về.
+     * Các service con gọi helper để tránh mỗi giai đoạn tự viết lại rule nền tảng.
+     */
     public static final String ENTITY = "TRANSFER";
     public static final String IN_TRANSIT_WAREHOUSE_CODE = "IN_TRANSIT";
     public static final List<InterWarehouseTransferStatus> DUPLICATE_IGNORED_STATUSES =
@@ -67,6 +78,7 @@ public class InterWarehouseTransferHelper {
     private final EntityManager entityManager;
 
     public WarehouseLocation findQuarantineLocation(InterWarehouseTransfer transfer) {
+        // Kho cần tìm khu cách ly là kho đích trong luồng thường, hoặc kho nguồn nếu xe đang quay đầu về.
         Long targetWarehouseId = transfer.isReturned() ? transfer.getSourceWarehouse().getId() : transfer.getDestinationWarehouse().getId();
         return locationRepository.findByWarehouseIdAndIsQuarantineTrueAndIsActiveTrue(targetWarehouseId)
                 .stream().findFirst()
@@ -74,6 +86,7 @@ public class InterWarehouseTransferHelper {
     }
 
     public WarehouseLocation firstTransitLocation(Warehouse transitWarehouse) {
+        // Kho ảo "đang vận chuyển" cần một vị trí đang hoạt động để giữ hàng đang trên đường.
         return locationRepository.findByWarehouseIdAndTypeAndIsActiveTrue(transitWarehouse.getId(), LocationType.BIN)
                 .stream().findFirst()
                 .orElseThrow(() -> new BusinessRuleViolationException("IN_TRANSIT_LOCATION_NOT_CONFIGURED"));
@@ -81,6 +94,7 @@ public class InterWarehouseTransferHelper {
 
     public void upsertInventory(Warehouse warehouse, Product product, Batch batch, WarehouseLocation location,
                                  BigDecimal qty, BigDecimal costPrice) {
+        // Ghi tăng tồn theo đúng kho, sản phẩm, lô hàng và vị trí; khóa dòng tồn để tránh hai thao tác ghi đè nhau.
         Inventory inventory = inventoryRepository.findByStockKeyForUpdate(
                         warehouse.getId(), product.getId(), batch.getId(), location.getId())
                 .orElseGet(() -> Inventory.builder()
@@ -100,6 +114,7 @@ public class InterWarehouseTransferHelper {
     }
 
     public void allocateReservations(InterWarehouseTransfer transfer) {
+        // Khi trưởng kho duyệt phiếu, giữ phần hàng khả dụng ở kho nguồn theo nguyên tắc xuất trước.
         allocationRepository.deleteByTransferItemTransferId(transfer.getId());
         for (InterWarehouseTransferItem item : items(transfer)) {
             List<Inventory> candidates = inventoryRepository.findReservableForUpdate(
@@ -140,6 +155,7 @@ public class InterWarehouseTransferHelper {
     }
 
     public void releaseReservations(InterWarehouseTransfer transfer) {
+        // Khi hủy phiếu đã duyệt nhưng xe chưa rời kho, trả lại số lượng đang giữ chỗ cho tồn kho nguồn.
         for (InterWarehouseTransferAllocation allocation : allocationRepository.findByTransferItemTransferId(transfer.getId())) {
             Inventory inventory = inventoryRepository.findByIdForUpdate(allocation.getInventory().getId())
                     .orElseThrow(() -> new ResourceNotFoundException("Inventory not found: " + allocation.getInventory().getId()));
@@ -155,19 +171,23 @@ public class InterWarehouseTransferHelper {
     }
 
     public InterWarehouseTransfer findTransfer(Long id) {
+        // Lấy phiếu kèm dữ liệu chi tiết cần cho nghiệp vụ; không có thì báo không tìm thấy.
         return transferRepository.findWithDetailsById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Transfer not found: " + id));
     }
 
     public List<InterWarehouseTransferItem> items(InterWarehouseTransfer transfer) {
+        // Dòng hàng luôn đọc từ repository để tránh collection lazy chưa tải đủ dữ liệu.
         return transferItemRepository.findByTransferIdOrderById(transfer.getId());
     }
 
     public Map<Long, InterWarehouseTransferItem> itemMap(InterWarehouseTransfer transfer) {
+        // Gom dòng hàng theo id để kiểm tra dữ liệu gửi lên đủ dòng, không trùng, không lạc sang phiếu khác.
         return items(transfer).stream().collect(Collectors.toMap(InterWarehouseTransferItem::getId, Function.identity()));
     }
 
     public InterWarehouseTransferItem requireItem(Map<Long, InterWarehouseTransferItem> items, Long id) {
+        // Dùng cho từng dòng dữ liệu gửi lên; id không thuộc phiếu hiện tại thì chặn ngay.
         InterWarehouseTransferItem item = items.get(id);
         if (item == null) {
             throw new ResourceNotFoundException("Transfer item not found: " + id);
@@ -176,12 +196,47 @@ public class InterWarehouseTransferHelper {
     }
 
     public void requireStatus(InterWarehouseTransfer transfer, InterWarehouseTransferStatus expected) {
+        // Kiểm trạng thái chung: mỗi thao tác chỉ được chạy khi phiếu đang ở đúng trạng thái nghiệp vụ.
         if (transfer.getStatus() != expected) {
             throw new BusinessRuleViolationException("INVALID_TRANSFER_STATUS");
         }
     }
 
+    public LocalDate requiredArrivalDate(InterWarehouseTransfer transfer) {
+        // Deadline cứng ưu tiên lấy từ yêu cầu điều chuyển gốc; phiếu thủ công dùng plannedDate làm ngày phải có hàng.
+        if (transfer.getTransferRequest() != null && transfer.getTransferRequest().getNeededByDate() != null) {
+            return transfer.getTransferRequest().getNeededByDate();
+        }
+        return transfer.getPlannedDate();
+    }
+
+    public LocalDateTime requiredArrivalEndAt(InterWarehouseTransfer transfer) {
+        LocalDate requiredDate = requiredArrivalDate(transfer);
+        return requiredDate == null ? null : requiredDate.plusDays(1).atStartOfDay();
+    }
+
+    public boolean isPastRequiredArrivalDate(InterWarehouseTransfer transfer) {
+        LocalDateTime deadlineExclusive = requiredArrivalEndAt(transfer);
+        return deadlineExclusive != null && !LocalDateTime.now().isBefore(deadlineExclusive);
+    }
+
+    public void ensureDeadlineOpenForPlanning(InterWarehouseTransfer transfer) {
+        // Validate: quá ngày cần hàng thì không cho lập chuyến/xuất kho nữa; phiếu chưa đi phải hủy để trả tồn giữ chỗ.
+        if (isPastRequiredArrivalDate(transfer)) {
+            throw new BusinessRuleViolationException("TRANSFER_REQUIRED_DATE_EXPIRED");
+        }
+    }
+
+    public void ensureTripArrivesWithinRequiredDate(InterWarehouseTransfer transfer, LocalDateTime plannedEndAt) {
+        LocalDateTime deadlineExclusive = requiredArrivalEndAt(transfer);
+        // Validate: dispatcher không được lập chuyến có giờ kết thúc sau cuối ngày cần hàng.
+        if (deadlineExclusive != null && !plannedEndAt.isBefore(deadlineExclusive)) {
+            throw new BusinessRuleViolationException("TRIP_END_MUST_NOT_BE_AFTER_REQUIRED_DATE");
+        }
+    }
+
     public String requiredReason(InterWarehouseTransferReasonRequest request, String code) {
+        // Các thao tác đóng/từ chối/hủy phải có lý do để lịch sử thao tác đọc được.
         if (request == null || isBlank(request.reason())) {
             throw new BusinessRuleViolationException(code);
         }
@@ -189,10 +244,12 @@ public class InterWarehouseTransferHelper {
     }
 
     public <T> T reference(Class<T> type, Long id) {
+        // Lấy tham chiếu JPA khi chỉ cần gắn khóa ngoại, tránh query thừa ở luồng tạo/sửa.
         return entityManager.getReference(type, id);
     }
 
     public void ensureWarehouseScope(User actor, Long warehouseId) {
+        // ADMIN/CEO được xem toàn hệ thống; vai trò vận hành phải được phân công vào kho liên quan.
         if (actor.getRole() == UserRole.ADMIN || actor.getRole() == UserRole.CEO) {
             return;
         }
@@ -202,10 +259,11 @@ public class InterWarehouseTransferHelper {
     }
 
     /**
-     * Load warehouse IDs once per request to avoid N+1 queries when filtering a list.
-     * ADMIN and CEO have no warehouse restrictions, so return empty list as sentinel.
+     * Tải danh sách kho phụ trách một lần cho mỗi lần xử lý để tránh đọc database lặp khi lọc danh sách.
+     * ADMIN và CEO không bị giới hạn theo kho nên trả danh sách rỗng làm dấu hiệu đặc biệt.
      */
     public List<Long> loadWarehouseIds(User actor) {
+        // ADMIN/CEO trả danh sách rỗng làm dấu hiệu đặc biệt vì hàm kiểm quyền đã xử lý quyền toàn hệ thống trước.
         if (actor.getRole() == UserRole.ADMIN || actor.getRole() == UserRole.CEO) {
             return List.of();
         }
@@ -213,9 +271,10 @@ public class InterWarehouseTransferHelper {
     }
 
     /**
-     * Overload that accepts pre-loaded warehouse IDs to avoid N+1 when filtering a list.
+     * Bản dùng danh sách kho đã tải sẵn để tránh query lặp khi lọc danh sách.
      */
     public boolean canViewTransfer(User actor, List<Long> warehouseIds, InterWarehouseTransfer transfer) {
+        // Quyền xem danh sách/chi tiết: tài xế chỉ thấy chuyến được gán; nhân sự kho thấy phiếu có kho nguồn/kho đích thuộc phạm vi mình.
         if (actor.getRole() == UserRole.ADMIN || actor.getRole() == UserRole.CEO) {
             return true;
         }
@@ -244,25 +303,29 @@ public class InterWarehouseTransferHelper {
     }
 
     /**
-     * Map transfer to response using the already eager-loaded items collection
-     * (avoids redundant repository query when items were fetched via JOIN FETCH).
+     * Chuyển phiếu sang dữ liệu trả về bằng danh sách dòng hàng đã được tải sẵn.
+     * Cách này tránh đọc database lại khi danh sách đã có đủ dòng hàng.
      */
     public InterWarehouseTransferResponse toResponseEager(InterWarehouseTransfer transfer) {
+        // Dùng cho danh sách đã tải sẵn dòng hàng để giảm query lặp.
         TransferTripAlert alert = summarizeTripAlert(transfer);
         return transferMapper.toResponse(transfer, transfer.getItems(), alert.warningActive(), alert.overdue(), alert.message());
     }
 
     public InterWarehouseTransferResponse toResponse(InterWarehouseTransfer transfer) {
+        // Dùng cho chi tiết hoặc kết quả sau thao tác: đọc dòng hàng mới nhất rồi chuyển sang dữ liệu trả về cho giao diện.
         TransferTripAlert alert = summarizeTripAlert(transfer);
         return transferMapper.toResponse(transfer, items(transfer), alert.warningActive(), alert.overdue(), alert.message());
     }
 
     public void audit(InterWarehouseTransfer transfer, User actor, AuditAction action,
                       Map<String, Object> before, Map<String, Object> after) {
+        // Ghi lịch sử chuẩn cho thao tác sửa phiếu: ai làm, làm gì, phiếu nào, trước/sau ra sao.
         auditUtil.logChange(actor, action, ENTITY, transfer.getId(), transfer.getTransferNumber(), before, after);
     }
 
     public Map<String, Object> snapshot(InterWarehouseTransfer transfer) {
+        // Bản ghi lịch sử chỉ lấy các trường trạng thái/chứng từ chính để dễ đọc, tránh ghi cả object lớn.
         return PartnerAuditUtil.values(
                 "transferNumber", transfer.getTransferNumber(),
                 "externalInstructionCode", transfer.getExternalInstructionCode(),
@@ -280,6 +343,7 @@ public class InterWarehouseTransferHelper {
     }
 
     public TransferTripAlert summarizeTripAlert(InterWarehouseTransfer transfer) {
+        // Tạo cảnh báo trễ hạn cho UI dựa vào hạn kết thúc dự kiến và trạng thái đã đóng/chưa đóng.
         Trip trip = transfer.getTrip();
         if (trip == null || trip.getPlannedEndAt() == null || isTerminalTransferStatus(transfer.getStatus())) {
             return new TransferTripAlert(false, false, null);
@@ -296,6 +360,7 @@ public class InterWarehouseTransferHelper {
     }
 
     public boolean isTripOverdue(InterWarehouseTransfer transfer) {
+        // Quá hạn chỉ áp dụng cho phiếu chưa đóng và đã quá hạn kết thúc dự kiến.
         Trip trip = transfer.getTrip();
         return trip != null
                 && trip.getPlannedEndAt() != null
@@ -304,6 +369,7 @@ public class InterWarehouseTransferHelper {
     }
 
     public boolean isTerminalTransferStatus(InterWarehouseTransferStatus status) {
+        // Các trạng thái đã đóng không còn tính cảnh báo chuyến.
         return status == InterWarehouseTransferStatus.COMPLETED
                 || status == InterWarehouseTransferStatus.COMPLETED_WITH_DISCREPANCY
                 || status == InterWarehouseTransferStatus.CANCELLED
@@ -311,6 +377,7 @@ public class InterWarehouseTransferHelper {
     }
 
     public String generateTransferNumber() {
+        // Sinh mã phiếu theo ngày và đảm bảo không trùng trong cơ sở dữ liệu.
         String prefix = "TRF-" + OffsetDateTime.now().toLocalDate().toString().replace("-", "");
         int sequence = 1;
         String candidate;
@@ -321,6 +388,7 @@ public class InterWarehouseTransferHelper {
     }
 
     public String generateTripNumber() {
+        // Chuyến điều chuyển dùng tiền tố riêng TTR để phân biệt với chuyến giao hàng bán.
         String prefix = "TTR-" + OffsetDateTime.now().toLocalDate().toString().replace("-", "");
         int sequence = 1;
         String candidate;
@@ -331,10 +399,12 @@ public class InterWarehouseTransferHelper {
     }
 
     public BigDecimal zero(BigDecimal value) {
+        // Chuẩn hóa số lượng null thành 0 cho các phép tính chênh lệch/QC.
         return value == null ? BigDecimal.ZERO : value;
     }
 
     public boolean isBlank(String value) {
+        // Hàm nhỏ dùng chung để kiểm tra lý do, ghi chú hoặc đường dẫn ảnh có bị trống không.
         return value == null || value.isBlank();
     }
 
