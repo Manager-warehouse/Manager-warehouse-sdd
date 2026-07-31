@@ -55,7 +55,11 @@ public record InterWarehouseTransferItemResponse(
         BigDecimal varianceQty,
         String issueReason,
         String checkerNote,
-        String qcFailureReason) {
+        String qcFailureReason,
+        String uomUnitSnapshot,
+        Integer uomPackRateSnapshot,
+        BigDecimal unitWeightSnapshot,
+        BigDecimal unitVolumeSnapshot) {
 
     public static InterWarehouseTransferItemResponse from(InterWarehouseTransferItem item) {
         return new InterWarehouseTransferItemResponse(
@@ -75,6 +79,11 @@ public record InterWarehouseTransferItemResponse(
                 item.getVarianceQty(),
                 item.getIssueReason(),
                 item.getCheckerNote(),
-                item.getQcFailureReason());
+                item.getQcFailureReason(),
+                item.getUomUnitSnapshot() != null ? item.getUomUnitSnapshot() : item.getProduct().getUnit(),
+                item.getUomPackRateSnapshot() != null ? item.getUomPackRateSnapshot() : (item.getProduct().getUnitPerPack() != null ? item.getProduct().getUnitPerPack() : 1),
+                item.getUnitWeightSnapshot() != null ? item.getUnitWeightSnapshot() : item.getProduct().getWeightKg(),
+                item.getUnitVolumeSnapshot() != null ? item.getUnitVolumeSnapshot() : item.getProduct().getVolumeM3());
     }
 }
+

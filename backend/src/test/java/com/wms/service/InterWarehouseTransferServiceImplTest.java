@@ -609,6 +609,59 @@ class InterWarehouseTransferServiceImplTest {
     }
 
     @Test
+    void assignTrip_rejectsTripEndingAfterRequiredArrivalDate() {
+        transfer.setPlannedDate(LocalDate.now().plusDays(1));
+        service.approveTransfer(1L, sourceManager);
+
+        assertThatThrownBy(() -> service.assignTrip(
+                1L,
+                new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
+                        LocalDate.now().plusDays(2).atTime(9, 0),
+                        LocalDate.now().plusDays(2).atTime(12, 0)),
+                dispatcher))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("TRIP_END_MUST_NOT_BE_AFTER_REQUIRED_DATE");
+    }
+
+    @Test
+    void assignTrip_cancelsApprovedTransferWhenRequiredArrivalDateExpired() {
+        transfer.setPlannedDate(LocalDate.now().minusDays(1));
+        service.approveTransfer(1L, sourceManager);
+        assertThat(sourceInventory.getReservedQty()).isEqualByComparingTo("5.00");
+
+        InterWarehouseTransferResponse response = service.assignTrip(1L,
+                new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
+                        VALID_TRIP_START, VALID_TRIP_END),
+                dispatcher);
+
+        assertThat(response.status()).isEqualTo(InterWarehouseTransferStatus.CANCELLED);
+        assertThat(sourceInventory.getReservedQty()).isZero();
+        assertThat(transfer.getRejectionReason()).isEqualTo("TRANSFER_REQUIRED_DATE_EXPIRED");
+        assertThat(auditUtil.lastAction).isEqualTo(AuditAction.TRANSFER_CANCEL);
+    }
+
+    @Test
+    void driverArrive_forcesReturnWhenInTransitMissesRequiredArrivalDate() {
+        transfer.setPlannedDate(LocalDate.now().plusDays(1));
+        service.approveTransfer(1L, sourceManager);
+        service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
+                LocalDate.now().plusDays(1).atTime(9, 0), LocalDate.now().plusDays(1).atTime(12, 0)), dispatcher);
+        recordPassingOutboundQcAndHandover();
+        service.shipTransfer(1L, sourceManager);
+        service.departTransfer(1L, driverUser);
+        transfer.setPlannedDate(LocalDate.now().minusDays(1));
+        transfer.setDriverArrivedAt(null);
+        transfer.setArrivalHandoverAt(null);
+
+        InterWarehouseTransferResponse response = service.driverArrive(1L, driverUser);
+
+        assertThat(response.isReturned()).isTrue();
+        assertThat(transfer.getDriverArrivedAt()).isNull();
+        assertThat(transfer.getReturnReason()).isEqualTo("TRANSFER_REQUIRED_DATE_EXPIRED");
+        assertThat(auditUtil.lastAction).isEqualTo(AuditAction.TRANSFER_RETURN_TO_SOURCE);
+    }
+
+    @Test
     void assignTrip_rejectsExpiredDriverLicense() {
         service.approveTransfer(1L, sourceManager);
         driver.setLicenseExpiry(LocalDate.now().minusDays(1));

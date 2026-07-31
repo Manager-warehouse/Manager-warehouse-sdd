@@ -57,6 +57,7 @@ import com.wms.dto.request.InterWarehouseTransferCreateRequest;
 import com.wms.dto.response.WarehouseStockLookupResponse;
 import com.wms.dto.response.TransferRequestResponse;
 import com.wms.dto.response.InterWarehouseTransferResponse;
+import com.wms.enums.audit_trail.AuditAction;
 import com.wms.enums.warehouse_transfer.TransferRequestStatus;
 import com.wms.enums.access_control.UserRole;
 import com.wms.exception.BusinessRuleViolationException;
@@ -383,6 +384,22 @@ class TransferRequestServiceImplTest {
                 .hasMessageContaining("TRANSFER_REQUEST_ALREADY_CONVERTED");
 
         verify(transferService, never()).createTransferFromApprovedRequest(any(), any());
+    }
+
+    @Test
+    void convertToTransfer_cancelsWhenNeededByDateExpired() {
+        request.setStatus(TransferRequestStatus.APPROVED);
+        request.setNeededByDate(LocalDate.now().minusDays(1));
+        when(requestRepository.findById(request.getId())).thenReturn(Optional.of(request));
+        when(requestRepository.save(any(TransferRequest.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        TransferRequestResponse response = service.convertToTransfer(request.getId(), planner);
+
+        assertThat(response.status()).isEqualTo(TransferRequestStatus.CANCELLED);
+        assertThat(request.getStatus()).isEqualTo(TransferRequestStatus.CANCELLED);
+        verify(transferService, never()).createTransferFromApprovedRequest(any(), any());
+        verify(auditUtil).logChange(eq(planner), eq(AuditAction.CANCEL), eq("TRANSFER_REQUEST"),
+                eq(request.getId()), eq(request.getRequestNumber()), any(), any());
     }
 
     @Test

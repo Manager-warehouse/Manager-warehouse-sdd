@@ -29,15 +29,24 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Phụ trách bước trưởng kho nguồn duyệt hoặc từ chối phiếu.
+ * Khi duyệt, hệ thống giữ hàng trong kho cho phiếu này; khi từ chối, phiếu bị đóng kèm lý do.
+ */
 @Service
 @RequiredArgsConstructor
 public class InterWarehouseTransferApprovalService {
 
+    /*
+     * Bước duyệt của kho nguồn. Khi phiếu còn mới, trưởng kho nguồn quyết định cho chuyển hàng hay không.
+     * Duyệt là thời điểm giữ hàng thật trong kho; từ chối thì không động tới tồn kho.
+     */
     private final InterWarehouseTransferRepository transferRepository;
     private final InterWarehouseTransferHelper helper;
 
     @Transactional
     public InterWarehouseTransferResponse approveTransfer(Long id, User actor) {
+        // Phiếu mới -> đã duyệt: giữ hàng khả dụng theo nguyên tắc xuất trước trước khi điều phối viên gán xe.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.requireStatus(transfer, InterWarehouseTransferStatus.NEW);
         helper.ensureWarehouseScope(actor, transfer.getSourceWarehouse().getId());
@@ -57,6 +66,7 @@ public class InterWarehouseTransferApprovalService {
 
     @Transactional
     public InterWarehouseTransferResponse rejectTransfer(Long id, InterWarehouseTransferReasonRequest request, User actor) {
+        // Phiếu mới -> bị từ chối: không động tồn kho, bắt buộc có lý do để truy vết quyết định của trưởng kho.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.requireStatus(transfer, InterWarehouseTransferStatus.NEW);
         helper.ensureWarehouseScope(actor, transfer.getSourceWarehouse().getId());

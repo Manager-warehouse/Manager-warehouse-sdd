@@ -589,6 +589,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         List<Map<String, Object>> reservationDeltas;
         List<DeliveryOrderItemAllocation> finalAllocations;
         if (order.getStatus() == DeliveryOrderStatus.NEW) {
+            // Không phải TRF: tên "transferPlannerReservations" nghĩa là chuyển reservation từ kế hoạch Planner sang allocation DO.
+            // Điều chuyển nội bộ thật nằm ở package warehouse_transfer; đoạn này chỉ phục vụ xuất hàng đại lý.
             reservationDeltas = transferPlannerReservations(order, requestedSelections, now);
             finalAllocations = createInitialAllocations(requestedSelections, now, actor);
         } else {
@@ -2115,6 +2117,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     private List<Map<String, Object>> transferPlannerReservations(DeliveryOrder order,
             List<ResolvedAllocationSelection> selections,
             OffsetDateTime now) {
+        // Đây là "transfer reservation" nội bộ của outbound delivery, không phải luồng inter-warehouse transfer.
+        // Khi tạo picking plan lần đầu, số lượng giữ chỗ của Planner được trừ dần để chuyển sang allocation thực tế của DO.
         Map<Long, BigDecimal> qtyByProductId = selections.stream()
                 .collect(Collectors.groupingBy(selection -> selection.item().getProduct().getId(),
                         Collectors.mapping(ResolvedAllocationSelection::plannedQty,

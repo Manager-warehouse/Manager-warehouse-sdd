@@ -180,6 +180,9 @@ public class TransferRequestServiceImpl implements TransferRequestService {
     @Transactional
     public TransferRequestResponse submitRequest(Long id, User actor) {
         TransferRequest req = findRequest(id);
+        if (autoCancelExpiredRequest(req, actor)) {
+            return toResponse(req);
+        }
         if (req.getStatus() != TransferRequestStatus.DRAFT) {
             throw new BusinessRuleViolationException("ONLY_DRAFT_CAN_BE_SUBMITTED");
         }
@@ -209,6 +212,9 @@ public class TransferRequestServiceImpl implements TransferRequestService {
         }
 
         TransferRequest req = findRequest(id);
+        if (autoCancelExpiredRequest(req, actor)) {
+            return toResponse(req);
+        }
         if (req.getStatus() != TransferRequestStatus.SUBMITTED) {
             throw new BusinessRuleViolationException("ONLY_SUBMITTED_CAN_BE_APPROVED");
         }
@@ -267,33 +273,36 @@ public class TransferRequestServiceImpl implements TransferRequestService {
         }
 
         TransferRequest req = findRequest(id);
+        if (autoCancelExpiredRequest(req, actor)) {
+            return toResponse(req);
+        }
         if (req.getStatus() != TransferRequestStatus.APPROVED) {
             throw new BusinessRuleViolationException("ONLY_APPROVED_CAN_BE_CONVERTED");
         }
         if (req.getConvertedTransfer() != null) {
             throw new BusinessRuleViolationException("TRANSFER_REQUEST_ALREADY_CONVERTED");
         }
-        // Unique guard for active transfer conversion (T028)
+        // Chặn tạo trùng phiếu điều chuyển từ cùng một yêu cầu đã được duyệt.
         if (interWarehouseTransferRepository.existsByTransferRequestIdAndStatusNotIn(req.getId(),
                 List.of(InterWarehouseTransferStatus.CANCELLED, InterWarehouseTransferStatus.REJECTED))) {
             throw new BusinessRuleViolationException("TRANSFER_REQUEST_ALREADY_CONVERTED");
         }
 
-        // Convert to InterWarehouseTransfer using transferService
+        // Chuyển yêu cầu đã duyệt thành phiếu điều chuyển nội bộ để tiếp tục luồng duyệt, gán xe và xuất kho.
         List<InterWarehouseTransferItemRequest> itemRequests = req.getItems().stream()
                 .map(item -> new InterWarehouseTransferItemRequest(
                         item.getProduct().getId(),
-                        null, // source location selected later by shipper
-                        null, // destination location
+                        null, // Vị trí xuất sẽ được chọn sau ở bước xuất hàng.
+                        null, // Vị trí nhập sẽ được chọn sau ở bước QC/nhập kho nhận.
                         item.getRequestedQty()
                 ))
                 .toList();
 
-        // T027: plannedDate is taken from neededByDate instead of now()+2
+        // Ngày cần hàng là deadline cứng: phiếu sinh ra phải dự kiến giao trong đúng ngày đó, không được lùi sang hôm sau.
         LocalDate plannedDate = req.getNeededByDate() != null ? req.getNeededByDate() : LocalDate.now().plusDays(2);
 
         InterWarehouseTransferCreateRequest createRequest = new InterWarehouseTransferCreateRequest(
-                req.getRequestNumber(), // Use request number as external instruction code
+                req.getRequestNumber(), // Dùng mã yêu cầu làm mã tham chiếu bên ngoài để truy ngược nguồn tạo phiếu.
                 req.getSourceWarehouse().getId(),
                 req.getDestinationWarehouse().getId(),
                 LocalDate.now(),
@@ -302,7 +311,7 @@ public class TransferRequestServiceImpl implements TransferRequestService {
                 itemRequests
         );
 
-        // Call the executable transfer creation service
+        // Gọi service tạo phiếu điều chuyển thật, sau đó gắn ngược phiếu vừa tạo vào yêu cầu ban đầu.
         InterWarehouseTransferResponse transferResponse = transferService.createTransferFromApprovedRequest(createRequest,
                 actor);
 
@@ -343,7 +352,7 @@ public class TransferRequestServiceImpl implements TransferRequestService {
         return lookup;
     }
 
-    // --- Helpers ---
+    // --- Hàm hỗ trợ nội bộ ---
 
     private TransferRequest findRequest(Long id) {
         return requestRepository.findById(id)
@@ -358,7 +367,7 @@ public class TransferRequestServiceImpl implements TransferRequestService {
         if (actor.getRole() == UserRole.ADMIN || actor.getRole() == UserRole.CEO || actor.getRole() == UserRole.PLANNER) {
             return true;
         }
-        // Manager can view requests where their assigned warehouse is source or destination
+        // Quản lý kho được xem yêu cầu nếu kho mình phụ trách là kho nguồn hoặc kho đích.
         return assignedWarehouseIds.contains(req.getSourceWarehouse().getId())
                 || assignedWarehouseIds.contains(req.getDestinationWarehouse().getId());
     }
@@ -398,6 +407,24 @@ public class TransferRequestServiceImpl implements TransferRequestService {
         if (neededByDate != null && neededByDate.isBefore(LocalDate.now())) {
             throw new BusinessRuleViolationException("NEEDED_BY_DATE_MUST_NOT_BE_PAST");
         }
+    }
+
+    private boolean autoCancelExpiredRequest(TransferRequest req, User actor) {
+        // Nếu quá ngày cần hàng mà yêu cầu chưa thành phiếu điều chuyển, hệ thống hủy luôn để Planner không thể chuyển đơn trễ.
+        if (req.getNeededByDate() != null
+                && req.getNeededByDate().isBefore(LocalDate.now())
+                && req.getStatus() != TransferRequestStatus.CANCELLED
+                && req.getStatus() != TransferRequestStatus.CONVERTED
+                && req.getStatus() != TransferRequestStatus.REJECTED) {
+            Map<String, Object> before = snapshot(req);
+            req.setStatus(TransferRequestStatus.CANCELLED);
+            req.setUpdatedAt(OffsetDateTime.now());
+            TransferRequest saved = requestRepository.save(req);
+            auditUtil.logChange(actor, AuditAction.CANCEL, "TRANSFER_REQUEST",
+                    saved.getId(), saved.getRequestNumber(), before, snapshot(saved));
+            return true;
+        }
+        return false;
     }
 
     private void ensurePhysicalWarehouses(Long sourceWarehouseId, Long destinationWarehouseId) {
@@ -450,7 +477,7 @@ public class TransferRequestServiceImpl implements TransferRequestService {
     }
 
     private <T> T reference(Class<T> clazz, Long id) {
-        // Simple direct entity fetch
+        // Lấy trực tiếp entity cần tham chiếu để báo lỗi rõ ràng nếu id không tồn tại.
         if (clazz == Warehouse.class) {
             return clazz.cast(warehouseRepository.findById(id)
                     .orElseThrow(() -> new ResourceNotFoundException("Warehouse not found: " + id)));

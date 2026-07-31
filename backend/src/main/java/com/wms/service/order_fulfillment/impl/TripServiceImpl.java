@@ -106,6 +106,11 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class TripServiceImpl implements TripService {
 
+    /*
+     * Service điều phối chuyến giao đại lý.
+     * Điều phối viên tạo/sửa/hủy chuyến khi chuyến còn ở trạng thái đã lên kế hoạch.
+     * Tài xế được gán mới được xác nhận rời kho; khi rời kho, hàng QC đạt chuyển sang kho ảo đang vận chuyển.
+     */
     private static final BigDecimal ZERO = BigDecimal.ZERO;
     private static final String TRIP_DELIVERY_ORDER_DO_UNIQUE_CONSTRAINT = "trip_delivery_orders_do_id_key";
     private static final List<TripStatus> ACTIVE_TRIP_STATUSES = List.of(TripStatus.PLANNED, TripStatus.IN_TRANSIT);
@@ -157,6 +162,8 @@ public class TripServiceImpl implements TripService {
     @Override
     @Transactional(readOnly = true)
     public List<TripResponse> listTrips(Long warehouseId, TripStatus status, User actor) {
+        // Danh sách chuyến được lọc theo kho người dùng được xem.
+        // Admin/CEO có thể xem toàn hệ thống, nhân sự kho chỉ xem kho được phân công.
         List<Long> warehouseIds;
         if (actor.getRole() == UserRole.ADMIN || actor.getRole() == UserRole.CEO) {
             if (warehouseId == null) {
@@ -194,6 +201,8 @@ public class TripServiceImpl implements TripService {
     @Override
     @Transactional(noRollbackFor = ExpiredDeliveryOrderException.class)
     public TripResponse createTrip(TripCreateRequest request, User actor) {
+        // Tạo chuyến giao đại lý: kiểm kho, xe, tài xế, lịch chạy, danh sách đơn và tải trọng trước khi lưu.
+        // Chuyến điều chuyển nội bộ không đi qua method này; TRF gán xe ở InterWarehouseTransferShippingService và tạo tripType = TRANSFER.
         Warehouse warehouse = activeWarehouse(request.getWarehouseId());
         requireWarehouseScope(actor, warehouse.getId());
         Vehicle vehicle = availableVehicle(request.getVehicleId(), warehouse.getId(), null);
@@ -213,6 +222,7 @@ public class TripServiceImpl implements TripService {
                 .plannedDate(request.getPlannedStartAt().toLocalDate())
                 .plannedStartAt(request.getPlannedStartAt())
                 .plannedEndAt(request.getPlannedEndAt())
+                // Trip tạo từ module giao hàng đại lý luôn là DELIVERY; điều chuyển nội bộ dùng TripType.TRANSFER ở service warehouse_transfer.
                 .tripType(TripType.DELIVERY)
                 .status(TripStatus.PLANNED)
                 .totalWeightKg(capacity.weight())
@@ -230,6 +240,7 @@ public class TripServiceImpl implements TripService {
     @Override
     @Transactional(noRollbackFor = ExpiredDeliveryOrderException.class)
     public TripResponse updateTrip(Long id, TripUpdateRequest request, User actor) {
+        // Chỉ sửa chuyến còn ở trạng thái đã lên kế hoạch; sau khi xe rời kho thì không cho sửa tuyến nữa.
         Trip trip = loadTrip(id);
         requirePlanned(trip);
         requireWarehouseScope(actor, trip.getWarehouse().getId());
@@ -277,6 +288,7 @@ public class TripServiceImpl implements TripService {
     @Override
     @Transactional
     public TripResponse cancelTrip(Long id, TripCancelRequest request, User actor) {
+        // Hủy chuyến khi chưa rời kho. Các đơn được gỡ khỏi chuyến để điều phối lại chuyến khác.
         Trip trip = loadTrip(id);
         requirePlanned(trip);
         requireWarehouseScope(actor, trip.getWarehouse().getId());
@@ -293,12 +305,14 @@ public class TripServiceImpl implements TripService {
     @Override
     @Transactional
     public TripResponse departTrip(Long id, TripDepartRequest request, User actor) {
+        // Tài xế xác nhận rời kho. Đây là thời điểm hàng chuyển khỏi khu staging sang kho ảo đang vận chuyển.
         Trip trip = loadTrip(id);
         requireAssignedDriver(actor, trip);
         requirePlanned(trip);
         Map<String, Object> before = snapshotWithMembers(trip);
         List<TripDeliveryOrder> rows = tripDeliveryOrderRepository.findByTripIdOrderByStopOrderAsc(trip.getId());
         List<DeliveryOrder> orders = rows.stream().map(TripDeliveryOrder::getDeliveryOrder).toList();
+        // Validate: đơn phải còn hợp lệ và toàn bộ hàng phải QC xuất đạt trước khi xe rời kho.
         validateDepartureOrders(orders);
         moveStagedInventoryToTransit(orders);
 
@@ -323,6 +337,7 @@ public class TripServiceImpl implements TripService {
     @Override
     @Transactional
     public TripResponse completeTrip(Long id, TripCompleteRequest request, User actor) {
+        // Tài xế kết thúc chuyến sau khi mọi điểm giao đã thành công hoặc trả về.
         Trip trip = loadTrip(id);
         requireAssignedDriver(actor, trip);
         if (trip.getStatus() != TripStatus.IN_TRANSIT) {
@@ -330,6 +345,7 @@ public class TripServiceImpl implements TripService {
         }
         List<DeliveryOrder> orders = tripDeliveryOrderRepository.findByTripIdOrderByStopOrderAsc(trip.getId())
                 .stream().map(TripDeliveryOrder::getDeliveryOrder).toList();
+        // Validate: chưa được đóng chuyến nếu còn đơn chưa giao xong hoặc chưa đánh dấu trả về.
         if (orders.stream().anyMatch(order -> !TERMINAL_DO_STATUSES.contains(order.getStatus()))) {
             throw rule("TRIP_NOT_READY_TO_COMPLETE", "All delivery orders must be COMPLETED or RETURNED");
         }
@@ -351,6 +367,8 @@ public class TripServiceImpl implements TripService {
             Long excludedTripId,
             LocalDate plannedDate,
             User actor) {
+        // Validate danh sách đơn được gán vào chuyến: thứ tự điểm dừng không trùng, đơn không trùng,
+        // đơn chưa bị chuyến khác giữ và phải thuộc đúng kho của chuyến.
         validateStopOrders(rows);
         List<Long> ids = validateUniqueDeliveryOrderIds(rows);
         List<TripDeliveryOrder> existingAssignments = tripDeliveryOrderRepository
@@ -367,9 +385,11 @@ public class TripServiceImpl implements TripService {
             throw notFound("Delivery order not found");
         }
         for (DeliveryOrder order : orders.values()) {
+            // Validate: chuyến chỉ gom đơn cùng kho để tránh xe lấy hàng sai kho.
             if (!Objects.equals(order.getWarehouse().getId(), warehouseId)) {
                 throw rule("TRIP_DO_WAREHOUSE_MISMATCH", "All delivery orders must belong to the trip warehouse");
             }
+            // Validate: chỉ đơn đã được kho duyệt mới đủ điều kiện đưa lên chuyến.
             if (order.getStatus() != DeliveryOrderStatus.WAREHOUSE_APPROVED) {
                 throw rule("TRIP_DO_STATUS_INVALID", "Delivery order must be WAREHOUSE_APPROVED");
             }
@@ -379,6 +399,7 @@ public class TripServiceImpl implements TripService {
     }
 
     private void validateTripSchedule(LocalDateTime plannedStartAt, LocalDateTime plannedEndAt) {
+        // Validate thời gian chạy chuyến: giờ kết thúc phải sau giờ bắt đầu và không tạo lịch trong quá khứ.
         if (plannedStartAt == null || plannedEndAt == null) {
             return;
         }
@@ -395,6 +416,7 @@ public class TripServiceImpl implements TripService {
     }
 
     private void validateDeliveryDeadline(DeliveryOrder order, LocalDate plannedDate, User actor) {
+        // Validate hạn giao của đơn: đơn quá hạn bị tự hủy; chuyến mới không được lên sau hạn giao dự kiến.
         LocalDate expectedDate = order.getExpectedDeliveryDate();
         if (expectedDate == null) {
             return;
@@ -413,6 +435,7 @@ public class TripServiceImpl implements TripService {
     }
 
     private void cancelExpiredDeliveryOrder(DeliveryOrder order, User actor, LocalDate today) {
+        // Tự hủy đơn đã quá hạn giao để không điều phối nhầm đơn không còn hợp lệ.
         Map<String, Object> before = snapshotDeliveryOrder(order);
         order.setStatus(DeliveryOrderStatus.CANCELLED);
         order.setCancelReason("AUTO_CANCEL_EXPECTED_DELIVERY_DATE_EXPIRED: expected "
@@ -424,6 +447,8 @@ public class TripServiceImpl implements TripService {
     }
 
     private void moveStagedInventoryToTransit(List<DeliveryOrder> orders) {
+        // Khi xe rời kho, hàng đã QC xuất đạt được trừ khỏi vị trí chờ xuất và cộng vào kho ảo đang vận chuyển.
+        // Bước này bảo đảm hàng không còn tính là tồn khả dụng ở kho xuất.
         List<Long> orderIds = orders.stream().map(DeliveryOrder::getId).toList();
         Map<Long, List<DeliveryOrderItem>> itemsByOrder = deliveryOrderItemRepository.findByDeliveryOrderIdIn(orderIds)
                 .stream().collect(Collectors.groupingBy(i -> i.getDeliveryOrder().getId()));
@@ -443,6 +468,7 @@ public class TripServiceImpl implements TripService {
                 .flatMap(Collection::stream)
                 .map(DeliveryOrderItem::getRequestedQty)
                 .reduce(ZERO, BigDecimal::add);
+        // Validate: tổng hàng chuyển sang đang vận chuyển phải bằng đúng số lượng đơn yêu cầu.
         if (movedQty.compareTo(requiredQty) != 0) {
             throw rule("STAGED_QC_PASS_QTY_INSUFFICIENT", "Staged QC-pass quantity must equal requested quantity");
         }
@@ -454,6 +480,7 @@ public class TripServiceImpl implements TripService {
 
     private BigDecimal moveRecord(OutboundQcRecord record, Warehouse transitWarehouse,
             WarehouseLocation transitLocation) {
+        // Di chuyển từng dòng QC đạt: trừ khỏi vị trí chờ xuất, cộng sang kho ảo đang vận chuyển theo đúng lô hàng.
         BigDecimal qty = value(record.getQcPassQty());
         if (qty.compareTo(ZERO) <= 0 || record.getStagingLocation() == null) {
             return ZERO;
@@ -480,6 +507,7 @@ public class TripServiceImpl implements TripService {
     }
 
     private void createDeliveryAttempt(Trip trip, DeliveryOrder order, OffsetDateTime now) {
+        // Mỗi lần xe rời kho tạo một lần giao mới cho đơn, dùng để lưu POD, OTP và kết quả giao hàng.
         int attempt = deliveryRepository.findMaxAttemptNumberByDeliveryOrderId(order.getId()) + 1;
         Delivery delivery = Delivery.builder()
                 .deliveryNumber("DLV-" + order.getDoNumber() + "-" + attempt)
@@ -500,6 +528,7 @@ public class TripServiceImpl implements TripService {
     }
 
     private void saveMembership(Trip trip, List<TripDeliveryOrderRequest> rows, List<DeliveryOrder> orders) {
+        // Lưu danh sách đơn trong chuyến theo thứ tự điểm dừng mà điều phối viên đã chọn.
         Map<Long, DeliveryOrder> byId = orders.stream()
                 .collect(Collectors.toMap(DeliveryOrder::getId, Function.identity()));
         List<TripDeliveryOrder> members = rows.stream()
@@ -526,6 +555,7 @@ public class TripServiceImpl implements TripService {
     }
 
     private List<Long> validateUniqueDeliveryOrderIds(List<TripDeliveryOrderRequest> rows) {
+        // Validate: một đơn không được xuất hiện hai lần trong cùng một chuyến.
         Set<Long> seen = new LinkedHashSet<>();
         Set<Long> duplicateIds = new LinkedHashSet<>();
         for (TripDeliveryOrderRequest row : rows) {
@@ -554,6 +584,8 @@ public class TripServiceImpl implements TripService {
     }
 
     private Capacity calculateCapacity(List<DeliveryOrder> orders, Vehicle vehicle) {
+        // Tính tổng trọng lượng chuyến từ số lượng từng dòng hàng và trọng lượng sản phẩm.
+        // Nếu vượt tải trọng xe thì chặn gán chuyến.
         List<DeliveryOrderItem> items = deliveryOrderItemRepository.findByDeliveryOrderIdIn(
                 orders.stream().map(DeliveryOrder::getId).toList());
         BigDecimal weight = ZERO;
@@ -568,6 +600,7 @@ public class TripServiceImpl implements TripService {
     }
 
     private void validateFullQcPass(List<DeliveryOrder> orders, Map<Long, List<DeliveryOrderItem>> itemsByOrder) {
+        // Validate: mọi dòng hàng trong đơn phải QC xuất đạt đủ số lượng yêu cầu trước khi xe rời kho.
         for (DeliveryOrder order : orders) {
             for (DeliveryOrderItem item : itemsByOrder.getOrDefault(order.getId(), List.of())) {
                 if (value(item.getQcPassQty()).compareTo(value(item.getRequestedQty())) != 0) {
@@ -579,6 +612,7 @@ public class TripServiceImpl implements TripService {
     }
 
     private void validateDepartureOrders(List<DeliveryOrder> orders) {
+        // Validate: chuyến phải có ít nhất một đơn và các đơn vẫn ở trạng thái đã được kho duyệt.
         if (orders.isEmpty()) {
             throw rule("TRIP_NOT_READY_TO_DEPART", "Trip has no delivery orders");
         }
@@ -590,6 +624,7 @@ public class TripServiceImpl implements TripService {
     }
 
     private Vehicle availableVehicle(Long vehicleId, Long warehouseId, Long excludedTripId) {
+        // Validate xe: thuộc đúng kho, đang bật, sẵn sàng và chưa bị gán vào chuyến đang hoạt động khác.
         Vehicle vehicle = vehicleRepository.findWithWarehouseById(vehicleId)
                 .orElseThrow(() -> notFound("Vehicle not found"));
         if (!Objects.equals(vehicle.getWarehouse().getId(), warehouseId)
@@ -604,6 +639,7 @@ public class TripServiceImpl implements TripService {
     }
 
     private Driver availableDriver(Long driverId, Long warehouseId, Long excludedTripId) {
+        // Validate tài xế: thuộc đúng kho, đang bật, sẵn sàng, bằng lái còn hạn và chưa có chuyến đang hoạt động khác.
         Driver driver = driverRepository.findWithWarehouseAndUserById(driverId)
                 .orElseThrow(() -> notFound("Driver not found"));
         if (!Objects.equals(driver.getWarehouse().getId(), warehouseId)
@@ -711,6 +747,7 @@ public class TripServiceImpl implements TripService {
                 .plannedDate(trip.getPlannedDate())
                 .plannedStartAt(trip.getPlannedStartAt())
                 .plannedEndAt(trip.getPlannedEndAt())
+                // tripType giúp frontend/mobile phân biệt chuyến giao đại lý với chuyến điều chuyển nội bộ dùng chung bảng trips.
                 .tripType(trip.getTripType())
                 .status(trip.getStatus())
                 .totalWeightKg(trip.getTotalWeightKg())

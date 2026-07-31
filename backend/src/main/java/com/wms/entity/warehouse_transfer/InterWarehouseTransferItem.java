@@ -123,4 +123,34 @@ public class InterWarehouseTransferItem {
 
     @Column(name = "variance_qty", precision = 10, scale = 2)
     private BigDecimal varianceQty;
+
+    @Column(name = "uom_unit_snapshot", length = 30)
+    private String uomUnitSnapshot;
+
+    @Column(name = "uom_pack_rate_snapshot")
+    private Integer uomPackRateSnapshot;
+
+    @Column(name = "unit_weight_snapshot", precision = 10, scale = 3)
+    private BigDecimal unitWeightSnapshot;
+
+    @Column(name = "unit_volume_snapshot", precision = 10, scale = 5)
+    private BigDecimal unitVolumeSnapshot;
+
+    public void snapshotProductAttributes(Product targetProduct) {
+        if (targetProduct != null) {
+            if (this.uomUnitSnapshot == null) {
+                this.uomUnitSnapshot = targetProduct.getUnit();
+            }
+            if (this.uomPackRateSnapshot == null) {
+                this.uomPackRateSnapshot = targetProduct.getUnitPerPack() != null ? targetProduct.getUnitPerPack() : 1;
+            }
+            if (this.unitWeightSnapshot == null) {
+                this.unitWeightSnapshot = targetProduct.getWeightKg();
+            }
+            if (this.unitVolumeSnapshot == null) {
+                this.unitVolumeSnapshot = targetProduct.getVolumeM3();
+            }
+        }
+    }
 }
+
