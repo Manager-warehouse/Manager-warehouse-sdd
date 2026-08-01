@@ -42,7 +42,8 @@ jobs:
           status=$?
           if [ "$status" -ne 0 ]; then
             echo "::group::Surefire & Failsafe error reports"
-            grep -lE '(errors|failures)="[1-9][0-9]*"' target/surefire-reports/TEST-*.xml target/failsafe-reports/TEST-*.xml 2>/dev/null \
+            find target/surefire-reports target/failsafe-reports -name "TEST-*.xml" 2>/dev/null \
+              | xargs grep -lE '(errors|failures)="[1-9][0-9]*"' 2>/dev/null \
               | while IFS= read -r report; do
                   echo "===== $report ====="
                   cat "$report"
@@ -52,10 +53,6 @@ jobs:
             echo "::endgroup::"
           fi
           exit "$status"
-        env:
-          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/wms_test
-          SPRING_DATASOURCE_USERNAME: wms
-          SPRING_DATASOURCE_PASSWORD: wms_test
 
       - name: Upload backend test reports
         if: always()
