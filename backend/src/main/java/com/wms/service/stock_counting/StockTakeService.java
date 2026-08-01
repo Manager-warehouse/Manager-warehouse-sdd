@@ -112,20 +112,31 @@ public class StockTakeService {
         return list.stream().map(StockTakeSummaryResponse::from).collect(Collectors.toList());
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public Page<StockTakeSummaryResponse> getStockTakes(Long warehouseId, StockTakeStatus status, User actor, Pageable pageable) {
         requireWarehouseAccess(actor, warehouseId);
         Page<StockTake> page = (status != null)
                 ? stockTakeRepository.findByWarehouseIdAndStatusOrderByCreatedAtDesc(warehouseId, status, pageable)
                 : stockTakeRepository.findByWarehouseIdOrderByCreatedAtDesc(warehouseId, pageable);
+
+        Map<String, Object> filters = new LinkedHashMap<>();
+        filters.put("warehouse_id", warehouseId);
+        if (status != null) filters.put("status", status);
+        auditLogService.log(actor, AuditAction.STOCKTAKE_REPORT_VIEW, ENTITY_TYPE,
+                null, null, warehouseId, null, filters);
+
         return page.map(StockTakeSummaryResponse::from);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public StockTakeResponse getStockTakeById(Long id, User actor) {
         StockTake st = stockTakeRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new ResourceNotFoundException("StockTake not found: " + id));
         requireWarehouseAccess(actor, st.getWarehouse().getId());
+
+        auditLogService.log(actor, AuditAction.STOCKTAKE_REPORT_VIEW, ENTITY_TYPE,
+                st.getId(), st.getStockTakeNumber(), st.getWarehouse().getId(), null, null);
+
         List<StockTakeItemResponse> items = stockTakeItemRepository
                 .findByStockTakeIdWithDetails(id)
                 .stream().map(StockTakeItemResponse::from).collect(Collectors.toList());
