@@ -1045,7 +1045,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                 saved.getId(), saved.getDoNumber(), before,
                 snapshot(saved, null, List.of(), orderItems, orderAllocations));
         return deliveryOrderMapper.toResponse(saved, orderItems, orderAllocations,
-                allocationQcSummary(orderAllocations));
+                allocationQcSummary(orderAllocations), approval);
     }
 
     @Override
@@ -1460,7 +1460,12 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         List<DeliveryOrderItem> orderItems = items(order.getId());
         List<DeliveryOrderItemAllocation> orderAllocations = allocations(order.getId());
         return deliveryOrderMapper.toResponse(order, orderItems, orderAllocations,
-                allocationQcSummary(orderAllocations));
+                allocationQcSummary(orderAllocations), latestApprovedWarehouseApproval(order.getId()).orElse(null));
+    }
+
+    private Optional<DeliveryOrderWarehouseApproval> latestApprovedWarehouseApproval(Long orderId) {
+        return deliveryOrderWarehouseApprovalRepository
+                .findFirstByDeliveryOrderIdAndResultOrderByApprovedAtDesc(orderId, ApprovalResult.APPROVED);
     }
 
     private Map<Long, AllocationQcSummary> allocationQcSummary(List<DeliveryOrderItemAllocation> allocations) {
