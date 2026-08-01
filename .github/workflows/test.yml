@@ -42,7 +42,7 @@ jobs:
           status=$?
           if [ "$status" -ne 0 ]; then
             echo "::group::Surefire & Failsafe error reports"
-            grep -lE 'errors="[1-9][0-9]*"' target/surefire-reports/TEST-*.xml target/failsafe-reports/TEST-*.xml 2>/dev/null \
+            grep -lE '(errors|failures)="[1-9][0-9]*"' target/surefire-reports/TEST-*.xml target/failsafe-reports/TEST-*.xml 2>/dev/null \
               | while IFS= read -r report; do
                   echo "===== $report ====="
                   cat "$report"
