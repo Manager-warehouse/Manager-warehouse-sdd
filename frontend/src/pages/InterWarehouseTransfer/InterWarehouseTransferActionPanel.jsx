@@ -481,6 +481,10 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
     const allocatedQty = row.allocations.reduce((total, allocation) => total + Number(allocation.quantity || 0), 0);
     return allocatedQty !== Number(item?.qcPassedQty || 0);
   });
+  const existingDiscrepancyReason = transfer.discrepancyReason
+    || transfer.items?.find((item) => item.issueReason || item.qcFailureReason)?.issueReason
+    || transfer.items?.find((item) => item.issueReason || item.qcFailureReason)?.qcFailureReason
+    || '';
   const hasQcPassedStock = (transfer.items || []).some((item) => Number(item.qcPassedQty || 0) > 0);
   const putawayReady = (!hasQcPassedStock && allItemsChecked) || (displayedPutawayRows.length > 0 && displayedPutawayRows.every((row) => {
     // Validate cất kệ: có bin, số lượng dương/nguyên, không trùng bin trong cùng SKU và không vượt số QC đạt.
@@ -494,7 +498,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
     return row.allocations.length > 0
       && row.allocations.every((allocation) => Boolean(allocation.locationId) && Number(allocation.quantity) > 0 && isWholeNumber(allocation.quantity))
       && allocatedQty <= qcPassedQty;
-  }) && (!hasPutawayDifference || Boolean(reason.trim())));
+  }) && (!hasPutawayDifference || Boolean(reason.trim() || existingDiscrepancyReason)));
 
   const setPutawayAllocation = (transferItemId, allocationIndex, patch) => {
     // Sửa một dòng allocation trong kế hoạch cất kệ.
@@ -1382,7 +1386,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
           )}
 	          {/* Gửi finalReceive với putawayItems chỉ là gửi kế hoạch; quản lý duyệt sau thì backend mới tăng tồn. */}
 	          <Button loading={busy} disabled={!putawayReady} icon={Check} onClick={() => run('finalReceive', {
-            discrepancyReason: hasPutawayDifference ? reason.trim() || null : null,
+            discrepancyReason: hasPutawayDifference ? reason.trim() || existingDiscrepancyReason || null : null,
             putawayItems: hasQcPassedStock ? displayedPutawayRows.map((row) => ({
               transferItemId: row.transferItemId,
               allocations: row.allocations.map((allocation) => ({ locationId: Number(allocation.locationId), quantity: Number(allocation.quantity) })),

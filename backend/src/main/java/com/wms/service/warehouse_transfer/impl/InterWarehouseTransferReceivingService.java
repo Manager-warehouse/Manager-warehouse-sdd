@@ -251,8 +251,9 @@ public class InterWarehouseTransferReceivingService {
         }
         Map<Long, List<PutawayTarget>> plans = resolveFinalPutawayPlans(transfer, request);
         boolean discrepancy = hasReceiveDiscrepancy(transfer) || hasPutawayDiscrepancy(transfer, request);
-        // Validate: thủ kho cũng phải nhập lý do nếu kế hoạch đang có chênh lệch.
-        if (discrepancy && helper.isBlank(request.discrepancyReason())) {
+        String discrepancyReason = resolveDiscrepancyReason(transfer, request.discrepancyReason());
+        // Validate: chỉ bắt nhập ở bước cất kệ khi trước đó chưa có lý do count/QC nào để kế thừa.
+        if (discrepancy && helper.isBlank(discrepancyReason)) {
             throw new BusinessRuleViolationException("DISCREPANCY_REASON_REQUIRED");
         }
         Map<String, Object> before = helper.snapshot(transfer);
@@ -264,12 +265,25 @@ public class InterWarehouseTransferReceivingService {
             }
         }
         transfer.setStatus(InterWarehouseTransferStatus.PUTAWAY_PENDING_APPROVAL);
-        transfer.setDiscrepancyReason(request.discrepancyReason());
+        transfer.setDiscrepancyReason(discrepancyReason);
         transfer.setNotes(serializePutawayPlan(request.putawayItems() == null ? List.of() : request.putawayItems()));
         transfer.setUpdatedAt(OffsetDateTime.now());
         InterWarehouseTransfer saved = transferRepository.save(transfer);
         helper.audit(saved, actor, AuditAction.TRANSFER_FINAL_RECEIVE, before, helper.snapshot(saved));
         return helper.toResponse(saved);
+    }
+
+    private String resolveDiscrepancyReason(InterWarehouseTransfer transfer, String requestReason) {
+        // Lý do chênh lệch có thể đã được nhập ở bước count/QC; bước cất kệ chỉ cần nhập thêm nếu chưa có căn cứ.
+        if (!helper.isBlank(requestReason)) {
+            return requestReason.trim();
+        }
+        return helper.items(transfer).stream()
+                .map(item -> !helper.isBlank(item.getIssueReason()) ? item.getIssueReason() : item.getQcFailureReason())
+                .filter(reason -> !helper.isBlank(reason))
+                .findFirst()
+                .map(String::trim)
+                .orElse(null);
     }
 
     private boolean hasQcPassedStock(InterWarehouseTransfer transfer) {
