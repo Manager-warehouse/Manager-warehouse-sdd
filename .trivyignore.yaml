@@ -85,3 +85,7 @@ vulnerabilities:
   - id: CVE-2026-41845
     expired_at: 2026-08-02
     statement: Temporary acceptance for Spring MVC managed by Spring Boot 3.4.5; upgrade before expiry.
+
+  - id: CVE-2026-41695
+    expired_at: 2026-08-02
+    statement: Temporary acceptance for Spring Data Commons managed by Spring Boot 3.4.5; upgrade the approved stack before expiry.
