@@ -70,6 +70,8 @@ public record InterWarehouseTransferResponse(
         String rejectionReason,
         String notes,
         Boolean isReturned,
+        Boolean returnRequested,
+        String returnReason,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt,
 
@@ -143,6 +145,8 @@ public record InterWarehouseTransferResponse(
                 transfer.getRejectionReason(),
                 transfer.getNotes(),
                 transfer.isReturned(),
+                transfer.isReturnRequested(),
+                transfer.getReturnReason(),
                 transfer.getCreatedAt(),
                 transfer.getUpdatedAt(),
 
@@ -213,6 +217,8 @@ public record InterWarehouseTransferResponse(
             String rejectionReason,
             String notes,
             Boolean isReturned,
+            Boolean returnRequested,
+            String returnReason,
             OffsetDateTime createdAt,
             OffsetDateTime updatedAt,
             List<?> items) {
@@ -220,7 +226,7 @@ public record InterWarehouseTransferResponse(
                 destinationWarehouseId, destinationWarehouseCode, status, tripId, tripNumber,
                 vehicleId, vehiclePlate, driverId, driverUserId, driverName, documentDate, plannedDate,
                 tripPlannedStartAt, tripPlannedEndAt, tripWarningActive, tripOverdue, tripWarningMessage,
-                actualReceivedDate, discrepancyReason, rejectionReason, notes, isReturned, createdAt, updatedAt,
+                actualReceivedDate, discrepancyReason, rejectionReason, notes, isReturned, returnRequested, returnReason, createdAt, updatedAt,
                 null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
                 (List<InterWarehouseTransferItemResponse>) items);
     }
