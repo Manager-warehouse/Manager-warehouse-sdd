@@ -1,6 +1,5 @@
 package com.wms.config;
 
-
 import com.wms.entity.access_control.*;
 import com.wms.entity.audit_trail.*;
 import com.wms.entity.billing_payment.*;
@@ -50,8 +49,8 @@ public class FlywayConfig {
         return flyway -> {
             log.info("FlywayConfig: Starting Flyway migration...");
             try {
-                log.info("FlywayConfig: Repairing Flyway schema history...");
-                flyway.repair();
+                // log.info("FlywayConfig: Repairing Flyway schema history...");
+                // flyway.repair();
                 log.info("FlywayConfig: Running Flyway migration...");
                 flyway.migrate();
                 log.info("FlywayConfig: Flyway migration completed successfully.");
