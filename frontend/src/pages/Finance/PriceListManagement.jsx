@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, Upload, Download, FileSpreadsheet, Search, X, Edit, XCircle, DollarSign, Loader2, Warehouse, RefreshCw } from 'lucide-react';
+import { Plus, Upload, Download, FileSpreadsheet, Search, X, Edit, XCircle, DollarSign, Loader2, Warehouse } from 'lucide-react';
 import Pagination from '../../components/common/Pagination';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
@@ -11,12 +11,59 @@ import pricingService from '../../services/pricing.service';
 import { masterDataService } from '../../services/masterData.service';
 import { ROLES } from '../../utils/constants';
 
-const STATUS_LABEL = { PENDING: 'Chờ duyệt', APPROVED: 'Đã duyệt', CANCELLED: 'Đã hủy' };
+const STATUS_LABEL = { UNPRICED: 'Chưa thiết lập', PENDING: 'Chờ duyệt', APPROVED: 'Đã duyệt', CANCELLED: 'Đã hủy' };
 const STATUS_STYLE = {
+  UNPRICED:  'bg-canvas-cream text-shade-60 border-hairline-light',
   PENDING:   'bg-warning-50 text-warning-800 border-warning-300',
   APPROVED:  'bg-aloe-10 text-success-900 border-success-300',
   CANCELLED: 'bg-canvas-cream text-shade-50 border-hairline-light',
 };
+
+export function buildProductPriceRows(products, priceEntries, warehouseId) {
+  const byProduct = new Map();
+
+  priceEntries
+    .filter(entry => entry.status !== 'CANCELLED')
+    .forEach(entry => {
+      const productId = Number(entry.product_id);
+      const current = byProduct.get(productId);
+      const entryPriority = entry.status === 'PENDING' ? 2 : 1;
+      const currentPriority = current?.status === 'PENDING' ? 2 : 1;
+      const entryDate = `${entry.effective_date ?? ''}|${entry.created_at ?? ''}`;
+      const currentDate = `${current?.effective_date ?? ''}|${current?.created_at ?? ''}`;
+
+      if (!current || entryPriority > currentPriority || (entryPriority === currentPriority && entryDate > currentDate)) {
+        byProduct.set(productId, entry);
+      }
+    });
+
+  return products
+    .filter(product => product.is_active)
+    .map(product => {
+      const price = byProduct.get(Number(product.id));
+      if (price) {
+        return {
+          ...price,
+          product_id: product.id,
+          product_sku: product.sku,
+          product_name: product.name,
+        };
+      }
+      return {
+        id: `unpriced-${product.id}`,
+        product_id: product.id,
+        product_sku: product.sku,
+        product_name: product.name,
+        warehouse_id: Number(warehouseId),
+        effective_date: null,
+        cost_price: null,
+        selling_price: null,
+        notes: null,
+        status: 'UNPRICED',
+        is_placeholder: true,
+      };
+    });
+}
 
 export default function PriceListManagement() {
   const { user, hasRole, activeWarehouse } = useAuthStore();
@@ -30,6 +77,7 @@ export default function PriceListManagement() {
   const [showForm, setShowForm] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
   const [replaceTarget, setReplaceTarget] = useState(null);
+  const [createTarget, setCreateTarget] = useState(null);
   const [showImport, setShowImport] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -41,26 +89,28 @@ export default function PriceListManagement() {
     if (!warehouseId) return;
     setLoading(true);
     try {
-      const baseParams = { warehouse_id: warehouseId };
-      const [filtered, all] = await Promise.all([
-        pricingService.getAll(statusFilter !== 'ALL' ? { ...baseParams, status: statusFilter } : baseParams),
-        pricingService.getAll(baseParams),
+      const [prices, products] = await Promise.all([
+        pricingService.getAll({ warehouse_id: warehouseId }),
+        masterDataService.getProducts({ size: 1000 }),
       ]);
-      setEntries(filtered);
-      setAllEntries(all);
+      const rows = buildProductPriceRows(products, prices, warehouseId);
+      setEntries(rows);
+      setAllEntries(rows);
     } catch (err) {
       addToast(err.message || 'Không tải được danh sách bảng giá', 'error');
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, warehouseId]);
+  }, [warehouseId]);
 
   useEffect(() => { fetchEntries(); }, [fetchEntries]);
 
-  const filtered = entries.filter(e =>
-    e.product_sku?.toLowerCase().includes(search.toLowerCase()) ||
-    e.product_name?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = entries.filter(e => {
+    const matchesStatus = statusFilter === 'ALL' || e.status === statusFilter;
+    const matchesSearch = e.product_sku?.toLowerCase().includes(search.toLowerCase()) ||
+      e.product_name?.toLowerCase().includes(search.toLowerCase());
+    return matchesStatus && matchesSearch;
+  });
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(currentPage, totalPages);
@@ -71,9 +121,14 @@ export default function PriceListManagement() {
   const totalEntries = allEntries.length;
   const pendingCount = allEntries.filter(e => e.status === 'PENDING').length;
   const approvedCount = allEntries.filter(e => e.status === 'APPROVED').length;
+  const unpricedCount = allEntries.filter(e => e.status === 'UNPRICED').length;
 
   const handleExportXlsx = async () => {
     if (entries.length === 0) { addToast('Không có dữ liệu để xuất', 'warning'); return; }
+    if (statusFilter === 'UNPRICED') {
+      addToast('SKU chưa thiết lập chưa có bản giá để xuất', 'warning');
+      return;
+    }
     try {
       const params = { warehouse_id: warehouseId };
       if (statusFilter !== 'ALL') params.status = statusFilter;
@@ -136,9 +191,10 @@ export default function PriceListManagement() {
       </div>
 
       {/* KPI Summary */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Tổng bản giá', value: totalEntries, icon: <DollarSign className="w-5 h-5" />, accent: 'text-shade-60 bg-canvas-cream' },
+          { label: 'Tổng SKU', value: totalEntries, icon: <DollarSign className="w-5 h-5" />, accent: 'text-shade-60 bg-canvas-cream' },
+          { label: 'Chưa thiết lập', value: unpricedCount, icon: <DollarSign className="w-5 h-5" />, accent: 'text-shade-60 bg-canvas-cream' },
           { label: 'Chờ duyệt', value: pendingCount, icon: <DollarSign className="w-5 h-5" />, accent: 'text-warning-600 bg-warning-50' },
           { label: 'Đã duyệt', value: approvedCount, icon: <DollarSign className="w-5 h-5" />, accent: 'text-success-600 bg-success-50' },
         ].map(({ label, value, icon, accent }) => (
@@ -169,9 +225,9 @@ export default function PriceListManagement() {
           onChange={(e) => setStatusFilter(e.target.value)}
           options={[
             { value: 'ALL', label: 'Tất cả' },
+            { value: 'UNPRICED', label: 'Chưa thiết lập' },
             { value: 'PENDING', label: 'Chờ duyệt' },
             { value: 'APPROVED', label: 'Đã duyệt' },
-            { value: 'CANCELLED', label: 'Đã hủy' },
           ]}
         />
       </div>
@@ -210,13 +266,13 @@ export default function PriceListManagement() {
                     <td className="px-6 py-4 font-mono text-xs text-shade-60">{entry.product_sku}</td>
                     <td className="px-6 py-4 text-xs font-semibold">{entry.product_name}</td>
                     <td className="px-6 py-4 text-xs text-shade-50 whitespace-nowrap">
-                      {entry.effective_date}
+                      {entry.effective_date || '—'}
                     </td>
                     <td className="px-6 py-4 text-xs text-shade-60 text-right tabular-nums">
-                      {formatVND(entry.cost_price)}
+                      {entry.cost_price == null ? '—' : formatVND(entry.cost_price)}
                     </td>
                     <td className="px-6 py-4 text-xs font-semibold text-ink text-right tabular-nums">
-                      {formatVND(entry.selling_price)}
+                      {entry.selling_price == null ? '—' : formatVND(entry.selling_price)}
                     </td>
                     <td className="px-6 py-4">
                       <Badge colorClassName={STATUS_STYLE[entry.status]}>
@@ -228,7 +284,15 @@ export default function PriceListManagement() {
                     </td>
                     <td className="px-6 py-4 text-right whitespace-nowrap">
                       <div className="flex gap-1 justify-end items-center">
-                        {canWrite && entry.status === 'PENDING' && entry.created_by?.id === user?.id ? (
+                        {canWrite && entry.status === 'UNPRICED' ? (
+                          <button
+                            onClick={() => { setCreateTarget(entry); setShowForm(true); }}
+                            className="p-1 hover:bg-canvas-cream rounded-full transition-colors shrink-0 text-shade-60 hover:text-ink"
+                            title="Nhập giá vốn và giá bán"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        ) : canWrite && entry.status === 'PENDING' && entry.created_by?.id === user?.id ? (
                           <>
                             <button
                               onClick={() => { setEditTarget(entry); setShowForm(true); }}
@@ -251,7 +315,7 @@ export default function PriceListManagement() {
                             className="p-1 hover:bg-canvas-cream rounded-full transition-colors shrink-0 text-shade-60 hover:text-ink"
                             title="Cập nhật giá mới"
                           >
-                            <RefreshCw className="w-4 h-4" />
+                            <Edit className="w-4 h-4" />
                           </button>
                         ) : (
                           <span className="text-shade-50 text-[10px] font-medium">Không có sẵn</span>
@@ -276,12 +340,22 @@ export default function PriceListManagement() {
                 </div>
                 <div className="p-4 flex flex-col gap-2 text-xs">
                   <div className="font-semibold">{entry.product_name}</div>
-                  <p className="text-shade-50">Hiệu lực từ: <span className="font-medium text-ink">{entry.effective_date}</span></p>
-                  <p className="text-shade-50">Giá vốn: <span className="text-ink tabular-nums">{formatVND(entry.cost_price)}</span></p>
-                  <p className="text-shade-50">Giá bán: <span className="font-semibold text-ink tabular-nums">{formatVND(entry.selling_price)}</span></p>
+                  <p className="text-shade-50">Hiệu lực từ: <span className="font-medium text-ink">{entry.effective_date || '—'}</span></p>
+                  <p className="text-shade-50">Giá vốn: <span className="text-ink tabular-nums">{entry.cost_price == null ? '—' : formatVND(entry.cost_price)}</span></p>
+                  <p className="text-shade-50">Giá bán: <span className="font-semibold text-ink tabular-nums">{entry.selling_price == null ? '—' : formatVND(entry.selling_price)}</span></p>
                   <p className="text-shade-50">Ghi chú: <span className="text-ink">{entry.notes || '—'}</span></p>
                 </div>
-                {canWrite && entry.status === 'PENDING' && entry.created_by?.id === user?.id ? (
+                {canWrite && entry.status === 'UNPRICED' ? (
+                  <div className="p-4 border-t border-hairline-light flex justify-end">
+                    <button
+                      onClick={() => { setCreateTarget(entry); setShowForm(true); }}
+                      className="p-1.5 hover:bg-canvas-cream rounded-full transition-colors shrink-0 text-shade-60 hover:text-ink"
+                      title="Nhập giá vốn và giá bán"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : canWrite && entry.status === 'PENDING' && entry.created_by?.id === user?.id ? (
                   <div className="p-4 border-t border-hairline-light flex gap-2 justify-end items-center">
                     <button
                       onClick={() => { setEditTarget(entry); setShowForm(true); }}
@@ -305,7 +379,7 @@ export default function PriceListManagement() {
                       className="p-1.5 hover:bg-canvas-cream rounded-full transition-colors shrink-0 text-shade-60 hover:text-ink"
                       title="Cập nhật giá mới"
                     >
-                      <RefreshCw className="w-4 h-4" />
+                      <Edit className="w-4 h-4" />
                     </button>
                   </div>
                 ) : (
@@ -331,10 +405,11 @@ export default function PriceListManagement() {
         <PriceEntryModal
           entry={editTarget}
           replaceSource={replaceTarget}
+          createSource={createTarget}
           warehouseId={warehouseId}
           warehouseName={activeWarehouse?.name}
-          onClose={() => { setShowForm(false); setEditTarget(null); setReplaceTarget(null); }}
-          onSaved={() => { setShowForm(false); setEditTarget(null); setReplaceTarget(null); fetchEntries(); }}
+          onClose={() => { setShowForm(false); setEditTarget(null); setReplaceTarget(null); setCreateTarget(null); }}
+          onSaved={() => { setShowForm(false); setEditTarget(null); setReplaceTarget(null); setCreateTarget(null); fetchEntries(); }}
         />
       )}
 
@@ -350,17 +425,18 @@ export default function PriceListManagement() {
 
 // ── PriceEntryModal ────────────────────────────────────────────────────────
 
-function PriceEntryModal({ entry, replaceSource, warehouseId, warehouseName, onClose, onSaved }) {
+function PriceEntryModal({ entry, replaceSource, createSource, warehouseId, warehouseName, onClose, onSaved }) {
   const { addToast } = useUiStore();
   const isEdit = !!entry;
   const isReplace = !isEdit && !!replaceSource;
-  const seed = entry ?? replaceSource ?? null;
+  const isCreateForProduct = !isEdit && !isReplace && !!createSource;
+  const seed = entry ?? replaceSource ?? createSource ?? null;
   const [form, setForm] = useState({
     product_id: seed?.product_id ?? '',
     warehouse_id: seed?.warehouse_id ?? warehouseId ?? '',
-    effective_date: isEdit ? (entry?.effective_date ?? '') : isReplace ? todayISO() : '',
-    cost_price: seed?.cost_price ?? '',
-    selling_price: seed?.selling_price ?? '',
+    effective_date: isEdit ? (entry?.effective_date ?? '') : (isReplace || isCreateForProduct) ? todayISO() : '',
+    cost_price: isCreateForProduct ? '' : (seed?.cost_price ?? ''),
+    selling_price: isCreateForProduct ? '' : (seed?.selling_price ?? ''),
     notes: entry?.notes ?? '',
   });
   const [submitting, setSubmitting] = useState(false);
@@ -468,7 +544,7 @@ function PriceEntryModal({ entry, replaceSource, warehouseId, warehouseName, onC
             <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
               Tài chính / Bảng giá
             </span>
-            <h3 className="text-xl font-bold">{isEdit ? 'Sửa bản giá' : isReplace ? 'Cập nhật giá' : 'Thêm bản giá mới'}</h3>
+            <h3 className="text-xl font-bold">{isEdit ? 'Sửa bản giá' : isReplace ? 'Cập nhật giá' : isCreateForProduct ? 'Thiết lập giá' : 'Thêm bản giá mới'}</h3>
           </div>
           <button onClick={onClose} className="p-1 hover:bg-canvas-cream rounded-pill transition-colors text-shade-50 hover:text-ink">
             <X className="w-5 h-5" />
@@ -484,7 +560,7 @@ function PriceEntryModal({ entry, replaceSource, warehouseId, warehouseName, onC
               kể từ ngày hiệu lực bạn chọn bên dưới. Bản giá cũ vẫn được giữ nguyên trong lịch sử.
             </div>
           )}
-          {(isEdit || isReplace) ? (
+          {(isEdit || isReplace || isCreateForProduct) ? (
             <div>
               <label className="block text-xs font-bold text-shade-60 uppercase tracking-wider mb-1.5">
                 Sản phẩm
@@ -574,7 +650,7 @@ function PriceEntryModal({ entry, replaceSource, warehouseId, warehouseName, onC
             </label>
             <input
               type="text"
-              value={entry?.warehouse_name ?? replaceSource?.warehouse_name ?? warehouseName ?? '—'}
+              value={entry?.warehouse_name ?? replaceSource?.warehouse_name ?? createSource?.warehouse_name ?? warehouseName ?? '—'}
               disabled
               className="text-input w-full bg-canvas-cream text-shade-50 cursor-not-allowed font-semibold"
             />
@@ -585,7 +661,8 @@ function PriceEntryModal({ entry, replaceSource, warehouseId, warehouseName, onC
               Hiệu lực từ ngày <span className="text-danger-500">*</span>
             </label>
             <input type="date" value={form.effective_date} onChange={e => set('effective_date', e.target.value)}
-              className="text-input w-full" />
+              disabled={isCreateForProduct}
+              className={`text-input w-full ${isCreateForProduct ? 'bg-canvas-cream text-shade-50 cursor-not-allowed' : ''}`} />
             <p className="text-[11px] text-shade-50 mt-1">
               Bản giá có hiệu lực kể từ ngày này cho đến khi có bản giá APPROVED khác mới hơn thay thế.
             </p>
@@ -619,7 +696,7 @@ function PriceEntryModal({ entry, replaceSource, warehouseId, warehouseName, onC
           <button type="button" onClick={onClose} className="btn-pill btn-pill-outline-light text-xs">Đóng</button>
           <button onClick={handleSubmit} disabled={submitting}
             className="btn-pill btn-pill-primary text-xs py-1.5 px-5 disabled:opacity-50 flex items-center gap-1.5">
-            {submitting ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Đang lưu...</> : isEdit ? 'Cập nhật' : isReplace ? 'Cập nhật giá' : 'Tạo bản giá'}
+            {submitting ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Đang lưu...</> : isEdit ? 'Cập nhật' : isReplace ? 'Cập nhật giá' : isCreateForProduct ? 'Gửi duyệt' : 'Tạo bản giá'}
           </button>
         </div>
       </div>

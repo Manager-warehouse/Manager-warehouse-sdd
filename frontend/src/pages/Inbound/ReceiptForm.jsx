@@ -5,6 +5,7 @@ import { useUiStore } from "../../stores/ui.store";
 import { useDebounce } from "../../hooks/useDebounce";
 import { inboundService } from "../../services/inbound.service";
 import { masterDataService } from "../../services/masterData.service";
+import pricingService from "../../services/pricing.service";
 import { ArrowLeft, Trash2, Plus, Search, Loader2 } from "lucide-react";
 import Input from "../../components/common/Input";
 
@@ -143,11 +144,23 @@ const ReceiptForm = () => {
     setSearchResults(filtered);
   }, [debouncedSearchQuery, products]);
 
-  const handleAddItem = (product) => {
+  const handleAddItem = async (product) => {
     // Check if duplicate
     const exists = selectedItems.some((item) => item.product_id === product.id);
     if (exists) {
       addToast("Sản phẩm này đã có trong danh sách", "warning");
+      return;
+    }
+
+    let approvedPrice;
+    try {
+      approvedPrice = await pricingService.lookupApproved({
+        product_id: product.id,
+        warehouse_id: activeWarehouse.id,
+        date: documentDate,
+      });
+    } catch (error) {
+      addToast(`SKU ${product.sku} chưa có giá vốn đã duyệt cho kho/ngày này`, "warning");
       return;
     }
 
@@ -159,7 +172,7 @@ const ReceiptForm = () => {
         name: product.name,
         unit: product.unit,
         expected_qty: 1,
-        unit_cost: 0.0,
+        unit_cost: approvedPrice.cost_price ?? approvedPrice.costPrice ?? 0,
       },
     ]);
     setSearchQuery("");
@@ -170,13 +183,6 @@ const ReceiptForm = () => {
     const qty = parseFloat(value);
     const updated = [...selectedItems];
     updated[index].expected_qty = isNaN(qty) ? "" : qty;
-    setSelectedItems(updated);
-  };
-
-  const handleCostChange = (index, value) => {
-    const cost = parseFloat(value);
-    const updated = [...selectedItems];
-    updated[index].unit_cost = isNaN(cost) ? "" : cost;
     setSelectedItems(updated);
   };
 
@@ -217,10 +223,6 @@ const ReceiptForm = () => {
         );
         return;
       }
-      if (item.unit_cost === "" || item.unit_cost < 0) {
-        addToast(`Đơn giá sản phẩm ${item.sku} không được phép âm`, "warning");
-        return;
-      }
     }
 
     // Payload matches backend CreateReceiptRequest DTO exactly
@@ -232,7 +234,6 @@ const ReceiptForm = () => {
       items: selectedItems.map((item) => ({
         product_id: item.product_id,
         expected_qty: item.expected_qty,
-        unit_cost: item.unit_cost,
       })),
     };
 
@@ -247,7 +248,6 @@ const ReceiptForm = () => {
               receipt_item_id: item.receipt_item_id,
               product_id: item.product_id,
               expected_qty: item.expected_qty,
-              unit_cost: item.unit_cost,
             })),
           })
         : await inboundService.createReceipt(payload);
@@ -467,7 +467,7 @@ const ReceiptForm = () => {
                           Số lượng dự kiến
                         </th>
                         <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right w-36">
-                          Đơn giá nhập (VND)
+                          Giá vốn đã duyệt
                         </th>
                         <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right w-20">
                           Hành động
@@ -500,17 +500,9 @@ const ReceiptForm = () => {
                             />
                           </td>
                           <td className="px-6 py-4 text-right">
-                            <input
-                              type="number"
-                              min="0"
-                              step="any"
-                              value={item.unit_cost}
-                              onChange={(e) =>
-                                handleCostChange(index, e.target.value)
-                              }
-                              className="text-input text-right font-bold w-32 py-1"
-                              required
-                            />
+                            <div className="text-input text-right font-bold w-32 py-1 bg-canvas-cream text-shade-60">
+                              {formatVND(item.unit_cost)}
+                            </div>
                           </td>
                           <td className="px-6 py-4 text-right">
                             {!isRevisionMode && (
@@ -573,19 +565,11 @@ const ReceiptForm = () => {
                         </div>
                         <div className="flex flex-col gap-1">
                           <label className="text-[10px] font-semibold uppercase tracking-wider text-shade-50">
-                            Đơn giá nhập (VND)
+                            Giá vốn đã duyệt
                           </label>
-                          <input
-                            type="number"
-                            min="0"
-                            step="any"
-                            value={item.unit_cost}
-                            onChange={(e) =>
-                              handleCostChange(index, e.target.value)
-                            }
-                            className="text-input text-right font-bold py-1.5"
-                            required
-                          />
+                          <div className="text-input text-right font-bold py-1.5 bg-canvas-cream text-shade-60">
+                            {formatVND(item.unit_cost)}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -630,3 +614,7 @@ const ReceiptForm = () => {
 };
 
 export default ReceiptForm;
+
+function formatVND(value) {
+  return `${Number(value || 0).toLocaleString("vi-VN")} đ`;
+}

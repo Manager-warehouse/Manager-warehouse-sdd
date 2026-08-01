@@ -74,6 +74,7 @@ import com.wms.repository.UserWarehouseAssignmentRepository;
 import com.wms.repository.WarehouseRepository;
 import com.wms.service.audit_trail.AuditLogService;
 import com.wms.service.billing_payment.AccountingPeriodService;
+import com.wms.service.price_management.PriceHistoryService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -109,6 +110,7 @@ public class ReceiptService {
     private final ReceiptMapper receiptMapper;
     private final AccountingPeriodService accountingPeriodService;
     private final CreditNoteRepository creditNoteRepository;
+    private final PriceHistoryService priceHistoryService;
 
     public ReceiptService(DocumentSequenceRepository sequenceRepository,
                           ReceiptRepository receiptRepository,
@@ -120,7 +122,8 @@ public class ReceiptService {
                           AuditLogService auditLogService,
                           ReceiptMapper receiptMapper,
                           AccountingPeriodService accountingPeriodService,
-                          CreditNoteRepository creditNoteRepository) {
+                          CreditNoteRepository creditNoteRepository,
+                          PriceHistoryService priceHistoryService) {
         this.sequenceRepository = sequenceRepository;
         this.receiptRepository = receiptRepository;
         this.receiptItemRepository = receiptItemRepository;
@@ -132,6 +135,7 @@ public class ReceiptService {
         this.receiptMapper = receiptMapper;
         this.accountingPeriodService = accountingPeriodService;
         this.creditNoteRepository = creditNoteRepository;
+        this.priceHistoryService = priceHistoryService;
     }
 
     @Transactional(readOnly = true)
@@ -178,7 +182,7 @@ public class ReceiptService {
 
         Receipt receipt = buildReceipt(request, actor, supplier, warehouse);
         Receipt savedReceipt = saveReceipt(receipt);
-        List<ReceiptItem> items = buildItems(request.getItems(), savedReceipt);
+        List<ReceiptItem> items = buildItems(request.getItems(), savedReceipt, request.getDocumentDate());
         List<ReceiptItem> savedItems = receiptItemRepository.saveAll(items);
 
         auditLogService.log(actor, AuditAction.RECEIPT_CREATE, "RECEIPT",
@@ -253,7 +257,7 @@ public class ReceiptService {
 
         List<ReceiptItem> items = receiptItemRepository.findByReceiptIdOrderByIdAsc(receiptId);
         Map<String, Object> before = snapshot(receipt, items);
-        applyRevisionItems(request.getItems(), items);
+        applyRevisionItems(request.getItems(), items, request.getDocumentDate());
         receipt.setDocumentDate(request.getDocumentDate());
         receipt.setAccountingPeriod(accountingPeriodService.resolveOpenPeriod(request.getDocumentDate()));
         receipt.setNotes(request.getNotes());
@@ -613,21 +617,31 @@ public class ReceiptService {
     }
 
     private List<ReceiptItem> buildItems(List<CreateReceiptItemRequest> itemRequests,
-                                         Receipt receipt) {
+                                          Receipt receipt,
+                                          LocalDate documentDate) {
         return itemRequests.stream()
-                .map(itemRequest -> buildItem(itemRequest, receipt))
+                .map(itemRequest -> buildItem(itemRequest, receipt, documentDate))
                 .toList();
     }
 
-    private ReceiptItem buildItem(CreateReceiptItemRequest request, Receipt receipt) {
+    private ReceiptItem buildItem(CreateReceiptItemRequest request, Receipt receipt, LocalDate documentDate) {
         Product product = findActiveProduct(request.getProductId());
         ReceiptItem item = new ReceiptItem();
         item.setReceipt(receipt);
         item.setProduct(product);
         item.setExpectedQty(request.getExpectedQty());
-        item.setUnitCost(request.getUnitCost());
+        item.setUnitCost(resolveApprovedCost(product.getId(), receipt.getWarehouse().getId(), documentDate));
         item.setOverReceivedQty(0);
         return item;
+    }
+
+    private BigDecimal resolveApprovedCost(Long productId, Long warehouseId, LocalDate documentDate) {
+        return priceHistoryService.lookupApproved(productId, warehouseId, documentDate)
+                .map(PriceHistory::getCostPrice)
+                .orElseThrow(() -> new UnprocessableEntityException(
+                        "APPROVED_PRICE_REQUIRED: Product " + productId
+                                + " has no approved cost price for warehouse " + warehouseId
+                                + " at " + documentDate));
     }
 
     private Product findActiveProduct(Long productId) {
@@ -995,15 +1009,19 @@ public class ReceiptService {
     }
 
     private void applyRevisionItems(List<ReviseReceiptItemRequest> revisions,
-                                    List<ReceiptItem> items) {
+                                    List<ReceiptItem> items,
+                                    LocalDate documentDate) {
         validateRevisionItems(revisions, items);
         Map<Long, ReceiptItem> itemById = items.stream()
                 .collect(Collectors.toMap(ReceiptItem::getId, Function.identity()));
         for (ReviseReceiptItemRequest revision : revisions) {
             ReceiptItem item = itemById.get(revision.getReceiptItemId());
-            item.setProduct(findActiveProduct(revision.getProductId()));
+            Product product = findActiveProduct(revision.getProductId());
+            item.setProduct(product);
             item.setExpectedQty(revision.getExpectedQty());
-            item.setUnitCost(revision.getUnitCost());
+            item.setUnitCost(resolveApprovedCost(product.getId(),
+                    item.getReceipt().getWarehouse().getId(),
+                    documentDate));
             item.setActualQty(null);
             item.setOverReceivedQty(0);
             clearReceiptItemQcData(item);
