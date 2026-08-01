@@ -529,8 +529,7 @@ public class InterWarehouseTransferReceivingService {
     private void moveTransitToDestination(InterWarehouseTransfer transfer, InterWarehouseTransferFinalReceiveRequest request, User actor) {
         // Khi duyệt cuối: trừ hàng khỏi kho ảo đang vận chuyển, đưa hàng đạt vào vị trí thường,
         // đưa hàng lỗi vào khu cách ly, còn thiếu/thừa thì ghi vào hồ sơ chênh lệch.
-        Warehouse transitWarehouse = warehouseRepository.findByCode(InterWarehouseTransferHelper.IN_TRANSIT_WAREHOUSE_CODE)
-                .orElseThrow(() -> new BusinessRuleViolationException("IN_TRANSIT_WAREHOUSE_NOT_CONFIGURED"));
+        Warehouse transitWarehouse = helper.findTransitWarehouse();
         WarehouseLocation quarantineLocation = null;
         Warehouse targetWarehouse = transfer.isReturned() ? transfer.getSourceWarehouse() : transfer.getDestinationWarehouse();
         Map<Long, List<PutawayTarget>> putawayPlans = resolveFinalPutawayPlans(transfer, request);
@@ -824,8 +823,7 @@ public class InterWarehouseTransferReceivingService {
 
     private void moveTransitToQuarantine(InterWarehouseTransfer transfer, User actor) {
         // Khi từ chối toàn bộ: chuyển toàn bộ hàng từ kho ảo đang vận chuyển sang khu cách ly của kho nhận.
-        Warehouse transitWarehouse = warehouseRepository.findByCode(InterWarehouseTransferHelper.IN_TRANSIT_WAREHOUSE_CODE)
-                .orElseThrow(() -> new BusinessRuleViolationException("IN_TRANSIT_WAREHOUSE_NOT_CONFIGURED"));
+        Warehouse transitWarehouse = helper.findTransitWarehouse();
         WarehouseLocation quarantineLocation = helper.findQuarantineLocation(transfer);
         Warehouse targetWarehouse = transfer.isReturned() ? transfer.getSourceWarehouse() : transfer.getDestinationWarehouse();
 

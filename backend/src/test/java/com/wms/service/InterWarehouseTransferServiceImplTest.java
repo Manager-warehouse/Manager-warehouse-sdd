@@ -301,7 +301,7 @@ class InterWarehouseTransferServiceImplTest {
 
         InterWarehouseTransferHelper helper = new InterWarehouseTransferHelper(
                 transferRepository, transferItemRepository, allocationRepository,
-                inventoryRepository, locationRepository, assignmentRepository,
+                inventoryRepository, locationRepository, warehouseRepository, assignmentRepository,
                 tripRepository, mapper, auditUtil, entityManager);
 
         InterWarehouseTransferPlanningService planningService = new InterWarehouseTransferPlanningService(
@@ -1618,7 +1618,7 @@ class InterWarehouseTransferServiceImplTest {
     private final class WarehouseRepoHandler implements InvocationHandler {
         @Override
         public Object invoke(Object proxy, Method method, Object[] args) {
-            if ("findByCode".equals(method.getName())) {
+            if ("findFirstByTypeAndIsActiveTrue".equals(method.getName())) {
                 return transitWarehouseConfigured ? Optional.of(transitWarehouse) : Optional.empty();
             }
             return defaultValue(method.getReturnType());
