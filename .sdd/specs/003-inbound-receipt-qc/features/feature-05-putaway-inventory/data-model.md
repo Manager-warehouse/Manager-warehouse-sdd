@@ -5,7 +5,7 @@
 | Table | Usage |
 |-------|-------|
 | `receipts` | Move approved receipt to `PUTAWAY_COMPLETED` |
-| `receipt_items` | Store putaway location/allocation reference |
+| `receipt_items` | Store Storekeeper-selected putaway location/allocation reference |
 | `inventories` | Increase regular inventory by approved quantity |
 | `warehouse_locations` | Validate regular bin and capacity |
 | `audit_logs` | Record putaway and inventory update |
@@ -36,7 +36,7 @@
 ## Quantity Rules
 
 - Sum of allocation quantity per receipt item must equal `approved_qty`.
-- Location must be active, regular, and in the receipt warehouse.
+- STOREKEEPER must provide the target bin/location for each allocation; location must be active, regular, and in the receipt warehouse.
 - Quarantine location is never valid for regular putaway.
 - Bin capacity must be checked before inventory update.
 - Duplicate putaway must not increase inventory again.

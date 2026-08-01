@@ -49,16 +49,19 @@ const PutawayPlan = () => {
       // Filter active non-quarantine bins
       setBins(binsData.filter(b => b.is_active && !b.is_quarantine));
 
-      // Prefill bins if already assigned
-      const prefilled = {};
-      passedItems.forEach(item => {
-        if (item.location_id) prefilled[item.id] = item.location_id;
-      });
-      setSelectedBins(prefilled);
+      const putawayComplete =
+        receiptData.status === 'PUTAWAY_COMPLETED' ||
+        Boolean(receiptData.putaway_completed_at || receiptData.putawayCompletedAt);
 
-      // Check if all QC-passed items are already put away
-      const allPutaway = passedItems.length > 0 && passedItems.every(item => !!item.location_id);
-      setIsPutawayComplete(allPutaway);
+      // Only completed receipts show persisted locations. Pending putaway must be chosen by STOREKEEPER.
+      const prefilled = {};
+      if (putawayComplete) {
+        passedItems.forEach(item => {
+          if (item.location_id) prefilled[item.id] = item.location_id;
+        });
+      }
+      setSelectedBins(prefilled);
+      setIsPutawayComplete(putawayComplete);
     } catch (e) {
       addToast('Lỗi tải dữ liệu cất kệ', 'error');
       navigate('/inbound/receipts');
@@ -281,7 +284,7 @@ const PutawayPlan = () => {
         <div className="bg-canvas-light border border-hairline-light rounded-lg p-6 shadow-level-3 card-premium">
           <h3 className="text-xs font-bold uppercase tracking-widest text-shade-40 border-b border-hairline-light pb-2 mb-4">Tóm tắt cất kệ</h3>
           <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+            <table className="data-table-grid w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-canvas-cream border-b border-hairline-light">
                   <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Sản phẩm</th>
@@ -425,7 +428,7 @@ const PutawayPlan = () => {
             </div>
 
             <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
+              <table className="data-table-grid w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="bg-canvas-cream border-b border-hairline-light">
                     <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Sản phẩm</th>

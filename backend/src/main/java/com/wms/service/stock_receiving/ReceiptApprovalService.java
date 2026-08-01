@@ -172,7 +172,7 @@ public class ReceiptApprovalService {
     public ReceiptActionResponse confirmReturnToSupplier(Long receiptId,
                                                           ReceiptReturnConfirmRequest request,
                                                           User actor) {
-        receiptValidationService.assertRole(actor, UserRole.STOREKEEPER, "RECEIPT_RETURN_CONFIRM");
+        receiptValidationService.assertRole(actor, UserRole.WAREHOUSE_MANAGER, "RECEIPT_RETURN_CONFIRM");
         receiptValidationService.assertWarehouseAssignment(actor, receiptId);
         Receipt receipt = receiptValidationService.loadReceiptForUpdate(receiptId);
         receiptValidationService.assertVersionMatch(receipt, request.getExpectedVersion());
@@ -266,12 +266,20 @@ public class ReceiptApprovalService {
                 || receipt.getStatus() == ReceiptStatus.RETURNED_TO_SUPPLIER) {
             throw new ReceiptAlreadyDecidedException(receipt.getId(), receipt.getStatus());
         }
+        if (receipt.getStatus() == ReceiptStatus.PENDING_STOREKEEPER_REVIEW
+                || receipt.getStatus() == ReceiptStatus.RECOUNT_REQUIRED) {
+            throw new BusinessRuleViolationException("STOREKEEPER_REVIEW_PENDING");
+        }
         if (receipt.getStatus() != ReceiptStatus.QC_COMPLETED && receipt.getStatus() != ReceiptStatus.QC_FAILED) {
             throw new BusinessRuleViolationException("INVALID_STATE: Approve requires QC_COMPLETED or QC_FAILED");
         }
     }
 
     private void assertStatusForReject(Receipt receipt) {
+        if (receipt.getStatus() == ReceiptStatus.PENDING_STOREKEEPER_REVIEW
+                || receipt.getStatus() == ReceiptStatus.RECOUNT_REQUIRED) {
+            throw new BusinessRuleViolationException("STOREKEEPER_REVIEW_PENDING");
+        }
         if (receipt.getStatus() != ReceiptStatus.QC_COMPLETED && receipt.getStatus() != ReceiptStatus.QC_FAILED) {
             throw new BusinessRuleViolationException("INVALID_STATE: Reject requires QC_COMPLETED or QC_FAILED");
         }

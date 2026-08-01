@@ -8,6 +8,7 @@ Implement putaway into regular bin and the regular inventory increase.
 
 - Validate receipt status and idempotency.
 - Validate allocation quantity equals `approved_qty`.
+- Require STOREKEEPER to provide the putaway bin/location for each allocation.
 - Validate location is regular, active, same warehouse.
 - Validate capacity.
 - Increase regular inventory with optimistic locking.

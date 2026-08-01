@@ -106,9 +106,11 @@ const QuarantineWorkspace = () => {
     }
     setSubmitting(true);
     try {
-      const res = (selectedItem.origin_type === 'RECEIPT' || selectedItem.origin_type === 'DEALER_RETURN')
-        ? await inboundService.handleDisposal(selectedItem.id, actionNotes, disposalImageUrl)
-        : await inboundService.handleDisposalFromQuarantine(selectedItem.id, actionNotes, disposalImageUrl);
+      const quarantineRecordId = selectedItem.quarantine_record_id || selectedItem.quarantineRecordId;
+      const receiptItemId = selectedItem.receipt_item_id || selectedItem.receiptItemId || selectedItem.id;
+      const res = quarantineRecordId
+        ? await inboundService.handleDisposalFromQuarantine(quarantineRecordId, actionNotes, disposalImageUrl)
+        : await inboundService.handleDisposal(receiptItemId, actionNotes, disposalImageUrl);
       if (res.autoApproved) {
         addToast('Đã tiêu hủy sản phẩm thành công (Tự động duyệt do giá trị thấp < 5M)', 'success');
       } else {
@@ -320,7 +322,7 @@ const QuarantineWorkspace = () => {
           <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden">
             {/* Desktop/tablet: table view */}
             <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
+              <table className="data-table-grid w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="bg-canvas-cream border-b border-hairline-light">
                     <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Sản phẩm</th>

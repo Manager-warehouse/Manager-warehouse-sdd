@@ -13,7 +13,6 @@ import FleetManagement from '../pages/Admin/FleetManagement';
 import ReceiptList from '../pages/Inbound/ReceiptList';
 import ReceiptForm from '../pages/Inbound/ReceiptForm';
 import ReceiptReceive from '../pages/Inbound/ReceiptReceive';
-import QCInbound from '../pages/Inbound/QCInbound';
 import PutawayPlan from '../pages/Inbound/PutawayPlan';
 import QuarantineWorkspace from '../pages/Inbound/QuarantineWorkspace';
 import ReturnsWorkspace from '../pages/Inbound/ReturnsWorkspace';
@@ -108,8 +107,8 @@ const AppRoutes = () => {
         <Route path="/inbound/putaway/:id" element={<PutawayPlan />} />
       </Route>
 
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.WAREHOUSE_MANAGER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF]} />}>
-        <Route path="/inbound/qc/:id" element={<QCInbound />} />
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF]} />}>
+        <Route path="/inbound/qc/:id" element={<ReceiptReceive />} />
       </Route>
 
       <Route element={<ProtectedRoute allowedRoles={[ROLES.CEO, ROLES.WAREHOUSE_MANAGER, ROLES.STOREKEEPER]} />}>

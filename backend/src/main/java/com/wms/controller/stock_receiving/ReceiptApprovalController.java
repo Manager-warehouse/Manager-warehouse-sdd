@@ -125,7 +125,7 @@ public class ReceiptApprovalController {
         @ApiResponse(responseCode = "404", description = "Phiếu nhập không tồn tại"),
         @ApiResponse(responseCode = "409", description = "Phiếu không ở trạng thái RETURN_TO_SUPPLIER_PENDING hoặc version conflict")
     })
-    @PreAuthorize("hasAnyRole('STOREKEEPER', 'WAREHOUSE_MANAGER', 'ADMIN', 'CEO')")
+    @PreAuthorize("hasAnyRole('WAREHOUSE_MANAGER', 'ADMIN')")
     @PutMapping("/{id}/return-to-supplier/confirm")
     public ResponseEntity<ReceiptActionResponse> confirmReturnToSupplier(
             @Parameter(description = "ID phiếu nhập") @PathVariable Long id,

@@ -114,6 +114,7 @@ class ReceiptControllerTest {
         private User planner;
         private User warehouseStaff;
         private User warehouseManager;
+        private User storekeeper;
 
         @BeforeEach
         void setUp() {
@@ -126,6 +127,9 @@ class ReceiptControllerTest {
                 warehouseManager = new User();
                 warehouseManager.setId(3L);
                 warehouseManager.setRole(UserRole.WAREHOUSE_MANAGER);
+                storekeeper = new User();
+                storekeeper.setId(4L);
+                storekeeper.setRole(UserRole.STOREKEEPER);
         }
 
         @Test
@@ -374,6 +378,130 @@ class ReceiptControllerTest {
 
         @Test
         @WithMockUser(username = "staff@wms.com", roles = "WAREHOUSE_STAFF")
+        void receiveAndQcReceipt_success() throws Exception {
+                when(currentUserService.getRequiredCurrentUser()).thenReturn(warehouseStaff);
+                ReceiptResponse qcCompleted = receivedResponse();
+                qcCompleted.setStatus("PENDING_STOREKEEPER_REVIEW");
+                qcCompleted.getItems().get(0).setQcPassedQty(90);
+                qcCompleted.getItems().get(0).setQcFailedQty(0);
+                qcCompleted.getItems().get(0).setQcResult("PASSED");
+                when(receiptService.receiveAndQcReceipt(eq(100L), any(), eq(warehouseStaff)))
+                                .thenReturn(qcCompleted);
+
+                mockMvc.perform(put("/api/v1/receipts/100/receive-qc")
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(receiveQcJson()))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.status").value("PENDING_STOREKEEPER_REVIEW"))
+                                .andExpect(jsonPath("$.items[0].qc_passed_qty").value(90))
+                                .andExpect(jsonPath("$.items[0].qc_result").value("PASSED"));
+        }
+
+        @Test
+        @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
+        void reviewStorekeeperCountQc_approveSuccess() throws Exception {
+                when(currentUserService.getRequiredCurrentUser()).thenReturn(storekeeper);
+                ReceiptResponse response = receivedResponse();
+                response.setStatus("QC_COMPLETED");
+                when(receiptService.reviewStorekeeperCountQc(eq(100L), any(), eq(storekeeper)))
+                                .thenReturn(response);
+
+                mockMvc.perform(put("/api/v1/receipts/100/storekeeper-review")
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"expectedVersion\":0,\"decision\":\"APPROVE\"}"))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.status").value("QC_COMPLETED"));
+        }
+
+        @Test
+        @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
+        void reviewStorekeeperCountQc_requestRecountSuccess() throws Exception {
+                when(currentUserService.getRequiredCurrentUser()).thenReturn(storekeeper);
+                ReceiptResponse response = receivedResponse();
+                response.setStatus("RECOUNT_REQUIRED");
+                response.setRecountReason("Mismatch");
+                when(receiptService.reviewStorekeeperCountQc(eq(100L), any(), eq(storekeeper)))
+                                .thenReturn(response);
+
+                mockMvc.perform(put("/api/v1/receipts/100/storekeeper-review")
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"expectedVersion\":0,\"decision\":\"REQUEST_RECOUNT\",\"reason\":\"Mismatch\"}"))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.status").value("RECOUNT_REQUIRED"))
+                                .andExpect(jsonPath("$.recount_reason").value("Mismatch"));
+        }
+
+        @Test
+        @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
+        void reviewStorekeeperCountQc_rejectsMissingDecision() throws Exception {
+                mockMvc.perform(put("/api/v1/receipts/100/storekeeper-review")
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"expectedVersion\":0}"))
+                                .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
+        void reviewStorekeeperCountQc_returnsUnprocessableForMissingRecountReason() throws Exception {
+                when(currentUserService.getRequiredCurrentUser()).thenReturn(storekeeper);
+                when(receiptService.reviewStorekeeperCountQc(eq(100L), any(), eq(storekeeper)))
+                                .thenThrow(new ReceiptCountException("RECOUNT_REASON_REQUIRED",
+                                                HttpStatus.UNPROCESSABLE_ENTITY, "reason required"));
+
+                mockMvc.perform(put("/api/v1/receipts/100/storekeeper-review")
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"expectedVersion\":0,\"decision\":\"REQUEST_RECOUNT\"}"))
+                                .andExpect(status().isUnprocessableEntity())
+                                .andExpect(jsonPath("$.code").value("RECOUNT_REASON_REQUIRED"));
+        }
+
+        @Test
+        @WithMockUser(username = "staff@wms.com", roles = "WAREHOUSE_STAFF")
+        void reviewStorekeeperCountQc_forbidsStaffRole() throws Exception {
+                mockMvc.perform(put("/api/v1/receipts/100/storekeeper-review")
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"expectedVersion\":0,\"decision\":\"APPROVE\"}"))
+                                .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @WithMockUser(username = "manager@wms.com", roles = "WAREHOUSE_MANAGER")
+        void receiveAndQcReceipt_forbidsManagerRole() throws Exception {
+                mockMvc.perform(put("/api/v1/receipts/100/receive-qc")
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(receiveQcJson()))
+                                .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
+        void receiveReceipt_forbidsStorekeeperRole() throws Exception {
+                mockMvc.perform(put("/api/v1/receipts/100/receive")
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(receiveJson()))
+                                .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @WithMockUser(username = "staff@wms.com", roles = "WAREHOUSE_STAFF")
+        void receiveAndQcReceipt_rejectsFractionalActualQty() throws Exception {
+                mockMvc.perform(put("/api/v1/receipts/100/receive-qc")
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(receiveQcJson().replace("\"actual_qty\": 90", "\"actual_qty\": 90.5")))
+                                .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @WithMockUser(username = "staff@wms.com", roles = "WAREHOUSE_STAFF")
         void processQc_submit_success() throws Exception {
                 ReceiptQcResponse res = ReceiptQcResponse.builder()
                                 .receiptId(100L)
@@ -477,6 +605,28 @@ class ReceiptControllerTest {
                                     {
                                       "receipt_item_id": 502,
                                       "counted_qty": 120
+                                    }
+                                  ]
+                                }
+                                """;
+        }
+
+        private String receiveQcJson() {
+                return """
+                                {
+                                  "expectedVersion": 0,
+                                  "items": [
+                                    {
+                                      "receipt_item_id": 501,
+                                      "actual_qty": 90,
+                                      "quality_passed_qty": 90,
+                                      "quality_failed_qty": 0
+                                    },
+                                    {
+                                      "receipt_item_id": 502,
+                                      "actual_qty": 120,
+                                      "quality_passed_qty": 120,
+                                      "quality_failed_qty": 0
                                     }
                                   ]
                                 }

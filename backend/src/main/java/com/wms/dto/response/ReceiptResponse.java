@@ -53,6 +53,9 @@ public class ReceiptResponse {
     @JsonProperty("supplier_id")
     private Long supplierId;
 
+    @JsonProperty("supplier_name")
+    private String supplierName;
+
     @JsonProperty("dealer_id")
     private Long dealerId;
 
@@ -92,6 +95,12 @@ public class ReceiptResponse {
 
     @JsonProperty("pre_receive_rejection_reason")
     private String preReceiveRejectionReason;
+
+    @JsonProperty("storekeeper_reviewed_at")
+    private OffsetDateTime storekeeperReviewedAt;
+
+    @JsonProperty("recount_reason")
+    private String recountReason;
 
     private Integer version;
 
@@ -136,6 +145,14 @@ public class ReceiptResponse {
 
     public void setSupplierId(Long supplierId) {
         this.supplierId = supplierId;
+    }
+
+    public String getSupplierName() {
+        return supplierName;
+    }
+
+    public void setSupplierName(String supplierName) {
+        this.supplierName = supplierName;
     }
 
     public Long getDealerId() {
@@ -248,6 +265,22 @@ public class ReceiptResponse {
 
     public void setPreReceiveRejectionReason(String preReceiveRejectionReason) {
         this.preReceiveRejectionReason = preReceiveRejectionReason;
+    }
+
+    public OffsetDateTime getStorekeeperReviewedAt() {
+        return storekeeperReviewedAt;
+    }
+
+    public void setStorekeeperReviewedAt(OffsetDateTime storekeeperReviewedAt) {
+        this.storekeeperReviewedAt = storekeeperReviewedAt;
+    }
+
+    public String getRecountReason() {
+        return recountReason;
+    }
+
+    public void setRecountReason(String recountReason) {
+        this.recountReason = recountReason;
     }
 
     public Integer getVersion() {

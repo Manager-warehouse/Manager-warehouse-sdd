@@ -2,17 +2,17 @@
 
 ## Context
 
-Putaway is the only point where accepted inbound goods increase regular available inventory.
+Putaway is the only point where accepted inbound goods increase regular available inventory. STOREKEEPER chooses and records the regular bin/location for each approved allocation.
 
 ## Actors
 
 | Actor | Responsibility |
 |-------|----------------|
-| STOREKEEPER | Putaway approved goods into regular bin |
+| STOREKEEPER | Select putaway bin/location and putaway approved goods into regular inventory |
 
 ## User Story
 
-STOREKEEPER puts approved goods into regular bin after WH_MANAGER decision.
+STOREKEEPER selects where approved goods will be stored and confirms putaway after WH_MANAGER decision.
 
 ## Acceptance Criteria
 
@@ -25,11 +25,13 @@ STOREKEEPER puts approved goods into regular bin after WH_MANAGER decision.
 
 - **F05-FR-001**: Putaway SHALL be allowed only from `APPROVED` or `PARTIALLY_APPROVED`.
 - **F05-FR-002**: Putaway allocation quantity SHALL equal `approved_qty`.
-- **F05-FR-003**: Putaway target SHALL be active regular bin in the receipt warehouse.
+- **F05-FR-003**: STOREKEEPER SHALL provide a putaway target for each allocation; each target SHALL be an active regular bin in the receipt warehouse.
 - **F05-FR-004**: Putaway SHALL validate bin capacity before inventory mutation.
 - **F05-FR-005**: Successful putaway SHALL increase regular inventory and set `PUTAWAY_COMPLETED`.
 - **F05-FR-006**: Duplicate putaway SHALL NOT increase inventory again.
 - **F05-FR-007**: Successful putaway SHALL persist inventory by product, warehouse, batch code, and bin/location so later outbound, transfer, stocktake, and audit flows can trace the original receiving batch.
+- **F05-FR-008**: Receipt List SHALL expose the putaway action to STOREKEEPER for `APPROVED` and `PARTIALLY_APPROVED` receipts until `PUTAWAY_COMPLETED`; item-level `location_id` values alone SHALL NOT hide the putaway action.
+- **F05-FR-009**: Pending putaway screens SHALL require STOREKEEPER to actively select the target bin/location in the putaway session; item-level `location_id` values from non-completed receipts SHALL NOT be treated as completed putaway or silently reused as the final target.
 
 ## Errors
 

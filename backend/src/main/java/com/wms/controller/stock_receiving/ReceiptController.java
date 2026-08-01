@@ -38,10 +38,12 @@ import com.wms.enums.warehouse_transfer.*;
 import com.wms.dto.request.CreateReceiptRequest;
 import com.wms.dto.request.PreReceiveApprovalRequest;
 import com.wms.dto.request.ReceiptCancelRequest;
+import com.wms.dto.request.ReceiveQcReceiptRequest;
 import com.wms.dto.request.ReceiveReceiptRequest;
 import com.wms.dto.request.ReceiptReopenRequest;
 import com.wms.dto.request.ReceiptQcRequest;
 import com.wms.dto.request.ReviseReceiptRequest;
+import com.wms.dto.request.StorekeeperReviewRequest;
 import com.wms.dto.response.ReceiptResponse;
 import com.wms.dto.response.ReceiptQcResponse;
 import com.wms.entity.access_control.User;
@@ -180,7 +182,7 @@ public class ReceiptController {
     }
 
     @PutMapping("/{id}/receive")
-    @PreAuthorize("hasAnyRole('WAREHOUSE_STAFF', 'STOREKEEPER', 'WAREHOUSE_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('WAREHOUSE_STAFF', 'ADMIN')")
     @Operation(summary = "Submit or correct complete physical receipt counts")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Receipt counts accepted",
@@ -193,9 +195,47 @@ public class ReceiptController {
             @ApiResponse(responseCode = "422", description = "Invalid or incomplete count data")
     })
     public ReceiptResponse receiveReceipt(@PathVariable Long id,
-                                          @Valid @RequestBody ReceiveReceiptRequest request) {
+                                           @Valid @RequestBody ReceiveReceiptRequest request) {
         User actor = currentUserService.getRequiredCurrentUser();
         return receiptService.receiveReceiptCounts(id, request, actor);
+    }
+
+    @PutMapping("/{id}/receive-qc")
+    @PreAuthorize("hasAnyRole('WAREHOUSE_STAFF', 'ADMIN')")
+    @Operation(summary = "Warehouse Staff records physical counts and inbound QC")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Receive-QC accepted",
+                    content = @Content(schema = @Schema(implementation = ReceiptResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Validation error"),
+            @ApiResponse(responseCode = "401", description = "Missing or invalid authentication"),
+            @ApiResponse(responseCode = "403", description = "User cannot receive and QC this receipt"),
+            @ApiResponse(responseCode = "404", description = "Receipt or receipt item not found"),
+            @ApiResponse(responseCode = "409", description = "Version conflict or manager decision already started"),
+            @ApiResponse(responseCode = "422", description = "Invalid status or receive-QC quantities")
+    })
+    public ReceiptResponse receiveAndQcReceipt(@PathVariable Long id,
+                                               @Valid @RequestBody ReceiveQcReceiptRequest request) {
+        User actor = currentUserService.getRequiredCurrentUser();
+        return receiptService.receiveAndQcReceipt(id, request, actor);
+    }
+
+    @PutMapping("/{id}/storekeeper-review")
+    @PreAuthorize("hasAnyRole('STOREKEEPER', 'ADMIN')")
+    @Operation(summary = "Storekeeper reviews Staff count/QC and approves or requests recount")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Storekeeper review accepted",
+                    content = @Content(schema = @Schema(implementation = ReceiptResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Validation error"),
+            @ApiResponse(responseCode = "401", description = "Missing or invalid authentication"),
+            @ApiResponse(responseCode = "403", description = "Storekeeper cannot access warehouse"),
+            @ApiResponse(responseCode = "404", description = "Receipt not found"),
+            @ApiResponse(responseCode = "409", description = "Version conflict"),
+            @ApiResponse(responseCode = "422", description = "Receipt is not pending storekeeper review")
+    })
+    public ReceiptResponse reviewStorekeeperCountQc(@PathVariable Long id,
+                                                    @Valid @RequestBody StorekeeperReviewRequest request) {
+        User actor = currentUserService.getRequiredCurrentUser();
+        return receiptService.reviewStorekeeperCountQc(id, request, actor);
     }
 
     /**

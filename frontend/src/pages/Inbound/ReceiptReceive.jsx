@@ -1,9 +1,46 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { AlertTriangle, ArrowLeft, CheckCircle2, Loader2 } from 'lucide-react';
 import { useUiStore } from '../../stores/ui.store';
 import { inboundService } from '../../services/inbound.service';
 import { masterDataService } from '../../services/masterData.service';
-import { ArrowLeft, Loader2, CheckCircle2 } from 'lucide-react';
+
+const emptyToZero = (value) => (value === '' || value === null || value === undefined ? 0 : Number(value));
+
+const STATUS_LABELS = {
+  PENDING_MANAGER_APPROVAL: 'Chờ quản lý duyệt',
+  REVISION_REQUIRED: 'Cần chỉnh sửa',
+  PENDING_RECEIPT: 'Chờ nhận hàng',
+  DRAFT: 'Đang nhận & QC',
+  QC_COMPLETED: 'Đã QC',
+  QC_FAILED: 'QC có hàng lỗi',
+  APPROVED: 'Đã duyệt',
+  PARTIALLY_APPROVED: 'Duyệt một phần',
+  PUTAWAY_COMPLETED: 'Đã cất kệ',
+  RETURN_TO_SUPPLIER_PENDING: 'Chờ trả NCC',
+  RETURNED_TO_SUPPLIER: 'Đã trả NCC',
+  CANCELLED: 'Đã hủy'
+};
+
+const normalizeItem = (item) => {
+  const actual = item.actual_qty ?? item.actualQty ?? '';
+  const hasActual = actual !== '' && actual !== null && actual !== undefined;
+  const savedFailed = item.quality_failed_qty ?? item.qualityFailedQty ?? item.qc_failed_qty ?? item.qcFailedQty;
+  const failed = hasActual && savedFailed !== null && savedFailed !== undefined ? savedFailed : '';
+  const savedPassed = item.quality_passed_qty
+    ?? item.qualityPassedQty
+    ?? item.qc_passed_qty
+    ?? item.qcPassedQty;
+  const passed = hasActual && savedPassed !== null && savedPassed !== undefined ? savedPassed : '';
+
+  return {
+    ...item,
+    actual_qty: actual,
+    quality_passed_qty: passed,
+    quality_failed_qty: failed,
+    qc_failure_reason: item.qc_failure_reason ?? item.qcFailureReason ?? ''
+  };
+};
 
 const ReceiptReceive = () => {
   const { id } = useParams();
@@ -12,6 +49,7 @@ const ReceiptReceive = () => {
 
   const [receipt, setReceipt] = useState(null);
   const [items, setItems] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
@@ -22,10 +60,13 @@ const ReceiptReceive = () => {
   const fetchReceiptDetail = async () => {
     setLoading(true);
     try {
-      const data = await inboundService.getReceiptById(id);
+      const [data, supplierData] = await Promise.all([
+        inboundService.getReceiptById(id),
+        masterDataService.getSuppliers()
+      ]);
       setReceipt(data);
-      setItems(data.items);
-
+      setSuppliers(supplierData || []);
+      setItems((data.items || []).map(normalizeItem));
     } catch (e) {
       addToast('Lỗi khi tải chi tiết phiếu nhập', 'error');
       navigate('/inbound/receipts');
@@ -34,58 +75,124 @@ const ReceiptReceive = () => {
     }
   };
 
-  const handleQtyChange = (itemId, value) => {
-    const qty = parseFloat(value);
-    const updated = items.map(item => {
-      if (item.receipt_item_id === itemId) {
-        return { ...item, actual_qty: isNaN(qty) ? '' : qty };
+  const updateItem = (itemId, updater) => {
+    setItems((prev) => prev.map((item) => (
+      item.receipt_item_id === itemId ? updater(item) : item
+    )));
+  };
+
+  const handleQtyChange = (itemId, field, value) => {
+    if (value !== '' && !/^\d+$/.test(value)) return;
+    updateItem(itemId, (item) => {
+      if (field === 'actual_qty') {
+        const actual = value === '' ? '' : Number(value);
+        return {
+          ...item,
+          actual_qty: actual
+        };
       }
-      return item;
+      if (field === 'quality_failed_qty') {
+        const failed = value === '' ? '' : Number(value);
+        return {
+          ...item,
+          quality_failed_qty: failed
+        };
+      }
+      return { ...item, [field]: value === '' ? '' : Number(value) };
     });
-    setItems(updated);
+  };
+
+  const handleReasonChange = (itemId, value) => {
+    updateItem(itemId, (item) => ({ ...item, qc_failure_reason: value }));
+  };
+
+  const rowState = (item) => {
+    const actual = emptyToZero(item.actual_qty);
+    const passed = emptyToZero(item.quality_passed_qty);
+    const failed = emptyToZero(item.quality_failed_qty);
+    if (item.actual_qty === '') return { type: 'pending', label: 'Chưa nhập' };
+    if (passed + failed !== actual) return { type: 'warning', label: 'Lệch QC' };
+    if (failed > 0) return { type: 'failed', label: 'Có lỗi' };
+    return { type: 'passed', label: 'Đạt' };
+  };
+
+  const hasMismatch = useMemo(() => items.some((item) => rowState(item).type === 'warning'), [items]);
+
+  const validateBeforeSubmit = () => {
+    for (const item of items) {
+      const actual = emptyToZero(item.actual_qty);
+      const passed = emptyToZero(item.quality_passed_qty);
+      const failed = emptyToZero(item.quality_failed_qty);
+      if (item.actual_qty === '' || item.quality_passed_qty === '' || actual < 0 || passed < 0 || failed < 0) {
+        addToast(`Vui lòng nhập số lượng hợp lệ cho ${getProductSku(item)}`, 'warning');
+        return false;
+      }
+      if (passed + failed !== actual) {
+        addToast(`QC đạt + QC lỗi phải bằng SL thực nhận cho ${getProductSku(item)}`, 'warning');
+        return false;
+      }
+      if (failed > 0 && !item.qc_failure_reason.trim()) {
+        addToast(`Vui lòng nhập lý do lỗi QC cho ${getProductSku(item)}`, 'warning');
+        return false;
+      }
+    }
+    return true;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    // Validations
-    for (const item of items) {
-      if (item.actual_qty === null || item.actual_qty === undefined || item.actual_qty === '' || item.actual_qty < 0) {
-        addToast(`Vui lòng điền số thực nhận hợp lệ cho sản phẩm ID ${item.product_id}`, 'warning');
-        return;
-      }
-    }
+    if (!validateBeforeSubmit()) return;
 
     const payload = {
-      expected_version: receipt.version || 0,
-      items: items.map(item => ({
-        receipt_item_id: item.receipt_item_id,
-        counted_qty: Number(item.actual_qty)
+      expectedVersion: receipt.version || 0,
+      items: items.map((item) => ({
+        receiptItemId: item.receipt_item_id,
+        actualQty: Number(item.actual_qty),
+        qualityPassedQty: Number(item.quality_passed_qty),
+        qualityFailedQty: Number(item.quality_failed_qty),
+        qcFailureReason: item.qc_failure_reason?.trim() || null
       }))
     };
 
     setSubmitting(true);
     try {
-      await inboundService.receiveReceipt(id, payload);
-      addToast('Cập nhật số đếm thực tế thành công', 'success');
+      const saved = await inboundService.receiveQcReceipt(id, payload);
+      addToast(saved.status === 'QC_FAILED' ? 'Đã lưu QC có hàng lỗi' : 'Đã lưu và hoàn tất QC', 'success');
       navigate('/inbound/receipts');
     } catch (err) {
-      addToast('Lỗi khi cập nhật số lượng đếm', 'error');
+      addToast(err.response?.data?.message || err.message || 'Lỗi khi lưu nhận hàng & QC', 'error');
     } finally {
       setSubmitting(false);
     }
   };
 
   const getProductName = (item) => {
-    if (item && item.product_name) return item.product_name;
+    if (item?.product_name) return item.product_name;
     const productId = typeof item === 'object' ? item.product_id : item;
     return productId === 1 ? 'Màn hình ASUS ProArt 27K' : 'Chuột Logitech MX Master 3S';
   };
 
   const getProductSku = (item) => {
-    if (item && item.product_sku) return item.product_sku;
+    if (item?.product_sku) return item.product_sku;
     const productId = typeof item === 'object' ? item.product_id : item;
     return productId === 1 ? 'SKU-PA-001' : 'SKU-LOGI-MX3';
+  };
+
+  const getReceiptStatusLabel = (status) => STATUS_LABELS[status] || status || '-';
+
+  const getSupplierName = () => (
+    receipt.supplier_name
+      || receipt.supplierName
+      || suppliers.find((supplier) => supplier.id === receipt.supplier_id)?.company_name
+      || suppliers.find((supplier) => supplier.id === receipt.supplierId)?.company_name
+      || (receipt.supplier_id ? `NCC ID: ${receipt.supplier_id}` : '-')
+  );
+
+  const resultClass = (type) => {
+    if (type === 'passed') return 'bg-success-50 text-success-800 border-success-300';
+    if (type === 'failed') return 'bg-danger-50 text-danger-700 border-danger-300';
+    if (type === 'warning') return 'bg-warning-50 text-warning-700 border-warning-300';
+    return 'bg-canvas-cream text-shade-60 border-hairline-light';
   };
 
   if (loading) {
@@ -98,7 +205,6 @@ const ReceiptReceive = () => {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Header section */}
       <div>
         <button
           onClick={() => navigate('/inbound/receipts')}
@@ -107,17 +213,15 @@ const ReceiptReceive = () => {
           <ArrowLeft className="w-4 h-4" />
           <span>Quay lại danh sách</span>
         </button>
-
         <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
           Vận hành / Nhập kho
         </span>
         <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">
-          Kiểm đếm thực tế nhận hàng
+          Nhận hàng & QC đầu vào
         </h1>
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-        {/* Receipt details header card */}
         <div className="bg-canvas-light border border-hairline-light rounded-lg p-6 shadow-level-3 card-premium">
           <h3 className="text-xs font-bold uppercase tracking-widest text-shade-40 border-b border-hairline-light pb-2 mb-4">
             Thông tin phiếu nhập
@@ -128,55 +232,59 @@ const ReceiptReceive = () => {
               <span className="text-sm font-bold text-ink">{receipt.receipt_number}</span>
             </div>
             <div>
-              <span className="text-shade-50 block mb-0.5 font-normal">Loại nhập:</span>
-              <span>{receipt.type === 'PURCHASE' ? 'Nhập mua' : 'Nhập trả'}</span>
+              <span className="text-shade-50 block mb-0.5 font-normal">Nhà cung cấp:</span>
+              <span>{getSupplierName()}</span>
             </div>
             <div>
-              <span className="text-shade-50 block mb-0.5 font-normal">Kênh tiếp nhận:</span>
-              <span>{receipt.source_channel}</span>
+              <span className="text-shade-50 block mb-0.5 font-normal">Trạng thái:</span>
+              <span>{getReceiptStatusLabel(receipt.status)}</span>
             </div>
           </div>
         </div>
 
-        {/* Items Table */}
-        <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 overflow-hidden">
-          <div className="p-4 border-b border-hairline-light bg-canvas-cream">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-shade-40">
-              Danh sách sản phẩm kiểm đếm
-            </h3>
+        {hasMismatch && (
+          <div className="flex items-start gap-3 rounded-lg border border-warning-300 bg-warning-50 px-4 py-3 text-xs font-semibold text-warning-800">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            <span>Tổng QC đạt + QC lỗi đang khác SL thực nhận ở một hoặc nhiều dòng.</span>
           </div>
+        )}
 
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+        <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 overflow-hidden">
+          <div className="hidden lg:block overflow-x-auto">
+            <table className="data-table-grid w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-canvas-cream border-b border-hairline-light">
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Sản phẩm</th>
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right w-24">Dự kiến</th>
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right w-36">Thực nhận</th>
+                  {['Mã hàng', 'Tên hàng', 'SL dự kiến', 'SL thực nhận', 'QC đạt', 'QC lỗi', 'Lý do lỗi', 'Kết quả'].map((heading) => (
+                    <th key={heading} className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">
+                      {heading}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-hairline-light">
                 {items.map((item) => {
-                  const sku = getProductSku(item);
-                  
+                  const result = rowState(item);
                   return (
-                    <tr key={item.receipt_item_id} className="hover:bg-canvas-cream/50 transition-colors">
-                      <td className="px-6 py-4">
-                        <span className="font-bold block">{sku}</span>
-                        <span className="text-shade-50 block">{getProductName(item)}</span>
-                      </td>
-                      <td className="px-6 py-4 text-right font-bold text-shade-60">{item.expected_qty}</td>
-                      <td className="px-6 py-4 text-right">
+                    <tr key={item.receipt_item_id} className="hover:bg-canvas-cream/50 transition-colors align-top">
+                      <td className="px-4 py-4 font-mono font-bold">{getProductSku(item)}</td>
+                      <td className="px-4 py-4 min-w-[180px] text-shade-70">{getProductName(item)}</td>
+                      <td className="px-4 py-4 text-right font-bold text-shade-60">{item.expected_qty}</td>
+                      <td className="px-4 py-3"><QtyInput value={item.actual_qty} onChange={(value) => handleQtyChange(item.receipt_item_id, 'actual_qty', value)} /></td>
+                      <td className="px-4 py-3"><QtyInput value={item.quality_passed_qty} onChange={(value) => handleQtyChange(item.receipt_item_id, 'quality_passed_qty', value)} /></td>
+                      <td className="px-4 py-3"><QtyInput value={item.quality_failed_qty} onChange={(value) => handleQtyChange(item.receipt_item_id, 'quality_failed_qty', value)} /></td>
+                      <td className="px-4 py-3 min-w-[180px]">
                         <input
-                          type="number"
-                          min="0"
-                          step="any"
-                          value={item.actual_qty === null ? '' : item.actual_qty}
-                          onChange={(e) => handleQtyChange(item.receipt_item_id, e.target.value)}
-                          placeholder="Nhập số đếm..."
-                          className="text-input text-right font-bold w-32 py-1.5 focus:ring-1 focus:ring-ink"
-                          required
+                          type="text"
+                          value={item.qc_failure_reason}
+                          onChange={(e) => handleReasonChange(item.receipt_item_id, e.target.value)}
+                          disabled={emptyToZero(item.quality_failed_qty) === 0}
+                          className="text-input w-full py-1.5 disabled:opacity-50"
                         />
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold ${resultClass(result.type)}`}>
+                          {result.label}
+                        </span>
                       </td>
                     </tr>
                   );
@@ -185,38 +293,34 @@ const ReceiptReceive = () => {
             </table>
           </div>
 
-          <div className="flex flex-col gap-3 p-4 md:hidden">
+          <div className="grid grid-cols-1 gap-3 p-4 lg:hidden">
             {items.map((item) => {
-              const sku = getProductSku(item);
-
+              const result = rowState(item);
               return (
-                <div
-                  key={item.receipt_item_id}
-                  className="rounded-lg border border-hairline-light bg-canvas-light p-4 shadow-level-3"
-                >
+                <div key={item.receipt_item_id} className="rounded-lg border border-hairline-light bg-canvas-light p-4 shadow-level-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <span className="block font-mono text-[11px] font-bold text-ink">{sku}</span>
+                      <span className="block font-mono text-[11px] font-bold text-ink">{getProductSku(item)}</span>
                       <span className="mt-1 block text-xs text-shade-50">{getProductName(item)}</span>
                     </div>
-                    <div className="shrink-0 rounded-pill bg-canvas-cream px-3 py-1 text-right text-[11px] font-bold text-shade-60">
-                      Dự kiến: {item.expected_qty}
-                    </div>
-                  </div>
-
-                  <label className="mt-4 flex flex-col gap-1.5">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-shade-60">
-                      Số lượng thực nhận
+                    <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-bold ${resultClass(result.type)}`}>
+                      {result.label}
                     </span>
+                  </div>
+                  <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
+                    <ReadonlyQty label="SL dự kiến" value={item.expected_qty} />
+                    <FieldQty label="SL thực nhận" value={item.actual_qty} onChange={(value) => handleQtyChange(item.receipt_item_id, 'actual_qty', value)} />
+                    <FieldQty label="QC đạt" value={item.quality_passed_qty} onChange={(value) => handleQtyChange(item.receipt_item_id, 'quality_passed_qty', value)} />
+                    <FieldQty label="QC lỗi" value={item.quality_failed_qty} onChange={(value) => handleQtyChange(item.receipt_item_id, 'quality_failed_qty', value)} />
+                  </div>
+                  <label className="mt-3 flex flex-col gap-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-shade-60">Lý do lỗi</span>
                     <input
-                      type="number"
-                      min="0"
-                      step="any"
-                      value={item.actual_qty === null ? '' : item.actual_qty}
-                      onChange={(e) => handleQtyChange(item.receipt_item_id, e.target.value)}
-                      placeholder="Nhập số đếm..."
-                      className="text-input min-h-[44px] text-right text-base font-bold"
-                      required
+                      type="text"
+                      value={item.qc_failure_reason}
+                      onChange={(e) => handleReasonChange(item.receipt_item_id, e.target.value)}
+                      disabled={emptyToZero(item.quality_failed_qty) === 0}
+                      className="text-input min-h-[40px] disabled:opacity-50"
                     />
                   </label>
                 </div>
@@ -225,36 +329,44 @@ const ReceiptReceive = () => {
           </div>
         </div>
 
-        {/* Actions */}
         <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-          <button
-            type="button"
-            onClick={() => navigate('/inbound/receipts')}
-            className="btn-pill btn-pill-outline-light"
-          >
+          <button type="button" onClick={() => navigate('/inbound/receipts')} className="btn-pill btn-pill-outline-light">
             Hủy
           </button>
-          <button
-            type="submit"
-            disabled={submitting}
-            className="btn-pill btn-pill-primary flex items-center gap-2 disabled:opacity-50"
-          >
-            {submitting ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Đang lưu...
-              </>
-            ) : (
-              <>
-                <CheckCircle2 className="w-4 h-4" />
-                <span>Lưu số đếm thực tế</span>
-              </>
-            )}
+          <button type="submit" disabled={submitting || hasMismatch} className="btn-pill btn-pill-primary flex items-center gap-2 disabled:opacity-50">
+            {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+            <span>{submitting ? 'Đang lưu...' : 'Lưu nhận hàng & QC'}</span>
           </button>
         </div>
       </form>
     </div>
   );
 };
+
+const QtyInput = ({ value, onChange }) => (
+  <input
+    type="number"
+    min="0"
+    step="1"
+    value={value}
+    onChange={(e) => onChange(e.target.value)}
+    className="text-input text-right font-bold w-28 py-1.5 focus:ring-1 focus:ring-ink"
+    required
+  />
+);
+
+const ReadonlyQty = ({ label, value }) => (
+  <div className="rounded-lg border border-hairline-light bg-canvas-cream px-3 py-2">
+    <span className="block text-[10px] font-bold uppercase tracking-wider text-shade-60">{label}</span>
+    <span className="mt-1 block text-right text-sm font-bold text-ink">{value}</span>
+  </div>
+);
+
+const FieldQty = ({ label, value, onChange }) => (
+  <label className="flex flex-col gap-1.5">
+    <span className="text-[10px] font-bold uppercase tracking-wider text-shade-60">{label}</span>
+    <QtyInput value={value} onChange={onChange} />
+  </label>
+);
 
 export default ReceiptReceive;

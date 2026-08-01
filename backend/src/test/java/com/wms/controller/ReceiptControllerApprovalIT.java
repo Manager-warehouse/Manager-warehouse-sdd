@@ -177,10 +177,10 @@ class ReceiptControllerApprovalIT {
     }
 
     @Test
-    @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
+    @WithMockUser(username = "manager@wms.com", roles = "WAREHOUSE_MANAGER")
     void confirmReturn_validRequest_returns200() throws Exception {
-        when(currentUserService.getRequiredCurrentUser()).thenReturn(storekeeper);
-        when(receiptApprovalService.confirmReturnToSupplier(eq(1L), any(ReceiptReturnConfirmRequest.class), eq(storekeeper)))
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(manager);
+        when(receiptApprovalService.confirmReturnToSupplier(eq(1L), any(ReceiptReturnConfirmRequest.class), eq(manager)))
                 .thenReturn(response(ReceiptStatus.RETURNED_TO_SUPPLIER));
 
         mockMvc.perform(put("/api/v1/receipts/1/return-to-supplier/confirm")
@@ -190,6 +190,17 @@ class ReceiptControllerApprovalIT {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("RETURNED_TO_SUPPLIER"));
+    }
+
+    @Test
+    @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
+    void confirmReturn_storekeeperForbidden_returns403() throws Exception {
+        mockMvc.perform(put("/api/v1/receipts/1/return-to-supplier/confirm")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"expectedVersion":4,"handoverNote":"Xe NCC 15A-12345"}
+                                """))
+                .andExpect(status().isForbidden());
     }
 
     @Test

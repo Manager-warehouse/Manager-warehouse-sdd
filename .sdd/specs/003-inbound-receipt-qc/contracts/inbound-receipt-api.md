@@ -88,11 +88,11 @@ Revise and resubmit a pre-receive rejected purchase receipt.
 - Writes `RECEIPT_PRE_RECEIVE_RESUBMIT` audit with before/after status, header, item expectation changes, actor, role, and warehouse.
 - Does not create batch, regular inventory, quarantine inventory, or accounting document.
 
-## 4. `PUT /api/v1/receipts/{id}/receive`
+## 4. `PUT /api/v1/receipts/{id}/receive-qc`
 
-Submit or correct physical count.
+Submit or correct physical receipt count and inbound QC classification from the unified "Nhan hang & QC dau vao" Staff entry screen.
 
-**Roles**: `WH_STAFF`, `STOREKEEPER`
+**Roles**: `WH_STAFF`
 
 ```json
 {
@@ -100,7 +100,10 @@ Submit or correct physical count.
   "items": [
     {
       "receiptItemId": 101,
-      "countedQty": 50
+      "actualQty": 52,
+      "qualityPassedQty": 50,
+      "qualityFailedQty": 2,
+      "failureReason": "Cracked handle"
     }
   ]
 }
@@ -108,56 +111,41 @@ Submit or correct physical count.
 
 **Behavior**:
 
-- Allowed in `PENDING_RECEIPT`, `DRAFT`, `QC_COMPLETED`, `QC_FAILED`; rejected in `PENDING_MANAGER_APPROVAL` or `REVISION_REQUIRED`.
-- Requires exactly one positive integer count per receipt item.
-- Stores `actual_qty` and `over_received_qty`.
-- If correcting after QC, clears QC data and returns receipt to `DRAFT`.
-- Never auto-rejects or auto-cancels from variance.
+- Allowed in `PENDING_RECEIPT`, `RECOUNT_REQUIRED`, and `DRAFT`; rejected in `PENDING_MANAGER_APPROVAL`, `REVISION_REQUIRED`, `PENDING_STOREKEEPER_REVIEW`, `QC_COMPLETED`, `QC_FAILED`, `APPROVED`, `PARTIALLY_APPROVED`, `PUTAWAY_COMPLETED`, `RETURN_TO_SUPPLIER_PENDING`, `RETURNED_TO_SUPPLIER`, or `CANCELLED`.
+- Requires exactly one item payload per receipt item.
+- Requires non-negative integer `actualQty`, `qualityPassedQty`, and `qualityFailedQty`.
+- Stores `actual_qty` as submitted and computes `over_received_qty = max(actual_qty - expected_qty, 0)`.
+- Validates `qualityPassedQty + qualityFailedQty = actualQty`.
+- Requires `failureReason` when `qualityFailedQty > 0`.
+- If correcting after `RECOUNT_REQUIRED`, clears old QC data and non-finalized Quarantine readiness before writing the new values.
+- Status becomes `PENDING_STOREKEEPER_REVIEW`; WH_MANAGER decision is not available until STOREKEEPER approves the count/QC result.
+- Does not create regular inventory, batch, putaway, supplier invoice, Debit Note, RTV, supplier-return status, finalized Quarantine stock, or warehouse-location occupancy.
+- Writes `RECEIPT_RECEIVE_QC` audit with Staff actor, role, warehouse, before/after status, and before/after item quantities.
+- QC save cannot reject the whole receipt.
 
-## 5. `PUT /api/v1/receipts/{id}/qc`
+## 5. `PUT /api/v1/receipts/{id}/storekeeper-review`
 
-Submit QC data.
+Review submitted Staff count/QC.
 
-**Roles**: `WH_STAFF`, `STOREKEEPER`, `WH_MANAGER`
+**Roles**: `WH_MANAGER`
 
 ```json
 {
-  "expectedVersion": 4,
-  "items": [
-    {
-      "receiptItemId": 101,
-      "sampleQty": 10,
-      "samplePassedQty": 8,
-      "sampleFailedQty": 2,
-      "qualityPassedQty": 48,
-      "qualityFailedQty": 2,
-      "qcSamplingMethod": "RANDOM_SAMPLE",
-      "failureReason": "Scratched handles"
-    }
-  ]
+  "expectedVersion": 1,
+  "decision": "APPROVE",
+  "reason": "Count and QC verified"
 }
 ```
 
 **Behavior**:
 
-- Allowed in `DRAFT`.
-- Validates sample totals and actual quality totals.
-- Requires failure reason when failed quantity exists.
-- Does not change regular inventory.
+- Allowed only from `PENDING_STOREKEEPER_REVIEW`.
+- `REQUEST_RECOUNT` decision requires reason, stores `recount_reason` for WH_STAFF visibility, moves receipt to `RECOUNT_REQUIRED`, and writes `RECEIPT_STOREKEEPER_RECOUNT_REQUEST`.
+- `APPROVE` moves all-pass receipts to `QC_COMPLETED`; if any `qualityFailedQty > 0`, moves receipt to `QC_FAILED` and stages only failed quantity as Quarantine readiness.
+- Does not create regular inventory, batch, putaway, supplier invoice, Debit Note, RTV, supplier-return status, finalized Quarantine stock, or warehouse-location occupancy.
+- Writes `RECEIPT_STOREKEEPER_REVIEW_APPROVE` audit for approval with actor, role, warehouse, before/after status, and reviewed item quantities.
 
-## 6. `PUT /api/v1/receipts/{id}/qc/confirm`
-
-Confirm QC classification.
-
-**Roles**: `WH_STAFF`, `STOREKEEPER`, `WH_MANAGER`
-
-**Behavior**:
-
-- If all quantity passed, status becomes `QC_COMPLETED`.
-- If any failed quantity exists, status becomes `QC_FAILED` and only failed quantity is staged as Quarantine readiness.
-- QC confirmation cannot reject the whole receipt.
-
-## 7. `PUT /api/v1/receipts/{id}/approve`
+## 6. `PUT /api/v1/receipts/{id}/approve`
 
 WH_MANAGER approval decision.
 
@@ -178,13 +166,15 @@ WH_MANAGER approval decision.
 
 **Behavior**:
 
+- Allowed only after Storekeeper review approval has produced `QC_COMPLETED` or `QC_FAILED`.
 - `QC_COMPLETED` -> `APPROVED`, `approved_qty = actual_qty`.
 - `QC_FAILED` -> `PARTIALLY_APPROVED`, `approved_qty = quality_passed_qty`.
+- Decision is rejected for `PENDING_STOREKEEPER_REVIEW` or `RECOUNT_REQUIRED`.
 - Requires positive `unit_cost` for approved items.
 - Resolves one generated `batchCode` per approved product receipt line but does not increase regular inventory.
 - Returns `NO_PASSED_QUANTITY_TO_APPROVE` if `QC_FAILED` has no passed quantity.
 
-## 8. `PUT /api/v1/receipts/{id}/reject`
+## 7. `PUT /api/v1/receipts/{id}/reject`
 
 Reject whole receipt.
 
@@ -199,13 +189,13 @@ Reject whole receipt.
 
 **Behavior**:
 
-- Allowed from `QC_COMPLETED` or `QC_FAILED`.
+- Allowed only after Storekeeper review approval has produced `QC_COMPLETED` or `QC_FAILED`.
 - Requires reason.
 - Moves receipt to `RETURN_TO_SUPPLIER_PENDING`.
 - Does not create regular inventory.
 - If failed quarantine quantity already exists, it remains traceable and must be resolved by supplier handover/RTV/disposal linkage.
 
-## 9. `POST /api/v1/receipts/{id}/putaway`
+## 8. `POST /api/v1/receipts/{id}/putaway`
 
 Complete putaway for approved goods.
 
@@ -228,14 +218,14 @@ Complete putaway for approved goods.
 
 - Allowed from `APPROVED` or `PARTIALLY_APPROVED`.
 - Total allocation quantity must equal `approved_qty`.
-- Locations must be active regular bins in the receipt warehouse.
+- STOREKEEPER must provide the target bin/location per allocation; locations must be active regular bins in the receipt warehouse.
 - Optional `expectedBatchCode` may be supplied per allocation for scan/manual confirmation; when present it must match the receipt item's generated batch.
 - Validates bin capacity.
 - Increases regular inventory by approved quantity only.
 - Sets status to `PUTAWAY_COMPLETED`.
 - Duplicate putaway returns `PUTAWAY_ALREADY_COMPLETED`.
 
-## 10. `PUT /api/v1/receipts/{id}/return-to-supplier/confirm`
+## 9. `PUT /api/v1/receipts/{id}/return-to-supplier/confirm`
 
 Confirm handover for whole-receipt rejection.
 
@@ -247,7 +237,7 @@ Confirm handover for whole-receipt rejection.
 - Moves receipt to `RETURNED_TO_SUPPLIER`.
 - Does not create regular inventory.
 
-## 11. `POST /api/v1/receipts/{id}/rtv`
+## 10. `POST /api/v1/receipts/{id}/rtv`
 
 Create RTV for failed quarantine quantity.
 
@@ -267,7 +257,7 @@ Create RTV for failed quarantine quantity.
 - Does not reduce Quarantine inventory yet.
 - Duplicate RTV returns the existing RTV document and HTTP 409.
 
-## 12. `PUT /api/v1/receipts/{id}/rtv/confirm`
+## 11. `PUT /api/v1/receipts/{id}/rtv/confirm`
 
 Confirm physical RTV handover.
 
@@ -287,7 +277,7 @@ Confirm physical RTV handover.
 - Reduces Quarantine inventory only after confirmation.
 - Duplicate confirmation returns HTTP 409 and does not reduce stock again.
 
-## 13. `POST /api/v1/receipts/{id}/cancel`
+## 12. `POST /api/v1/receipts/{id}/cancel`
 
 Cancel a non-final receipt.
 
@@ -307,7 +297,7 @@ Cancel a non-final receipt.
 - Sets status to `CANCELLED`; no physical delete.
 - Writes `RECEIPT_CANCEL` audit.
 
-## 14. `POST /api/v1/receipts/{id}/reopen`
+## 13. `POST /api/v1/receipts/{id}/reopen`
 
 WH_MANAGER reopen for correction before finalization.
 

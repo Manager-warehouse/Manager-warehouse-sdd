@@ -102,6 +102,16 @@ public class Receipt {
     private String preReceiveRejectionReason;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "storekeeper_reviewed_by")
+    private User storekeeperReviewedBy;
+
+    @Column(name = "storekeeper_reviewed_at")
+    private OffsetDateTime storekeeperReviewedAt;
+
+    @Column(name = "recount_reason", columnDefinition = "TEXT")
+    private String recountReason;
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "approved_by")
     private User approvedBy;
 
