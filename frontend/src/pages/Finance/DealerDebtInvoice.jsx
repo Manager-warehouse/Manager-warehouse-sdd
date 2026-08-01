@@ -5,6 +5,7 @@ import { masterDataService } from '../../services/masterData.service';
 import { useUiStore } from '../../stores/ui.store';
 import { useAuthStore } from '../../stores/auth.store';
 import { ROLES } from '../../utils/constants';
+import { formatDate } from '../../utils/format';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import PhotoCaptureInput from '../../components/common/PhotoCaptureInput';
@@ -28,7 +29,6 @@ const DealerDebtInvoice = () => {
   const [notifications, setNotifications] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [paymentReceipts, setPaymentReceipts] = useState([]);
-  const [closedPeriodIds, setClosedPeriodIds] = useState(new Set());
 
   // Modal States - Create Invoice from Delivery Notification
   const [showCreateInvoiceModal, setShowCreateInvoiceModal] = useState(false);
@@ -80,16 +80,12 @@ const DealerDebtInvoice = () => {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [dealersList, invs, periods] = await Promise.all([
+      const [dealersList, invs] = await Promise.all([
         masterDataService.getDealers(),
-        financeService.getInvoices(),
-        financeService.getAccountingPeriods()
+        financeService.getInvoices()
       ]);
       setDealers(dealersList || []);
       setInvoices(invs || []);
-      setClosedPeriodIds(new Set(
-        (periods || []).filter(p => p.status === 'CLOSED').map(p => p.id)
-      ));
 
       if (activeTab === 'notifications') {
         const notifs = await financeService.getBillingNotifications();
@@ -425,7 +421,9 @@ const DealerDebtInvoice = () => {
                           <td className="p-4 font-bold text-ink">{notif.do_number || notif.doNumber}</td>
                           <td className="p-4 font-medium text-ink">{notif.dealer_name || notif.dealerName}</td>
                           <td className="p-4 text-shade-60">Kho #{notif.warehouse_id || notif.warehouseId}</td>
-                          <td className="p-4 text-shade-60">{notif.delivered_at || 'Mới hoàn tất'}</td>
+                          <td className="p-4 text-shade-60">
+                            {(notif.delivered_at || notif.deliveredAt) ? formatDate(notif.delivered_at || notif.deliveredAt) : 'Mới hoàn tất'}
+                          </td>
                           <td className="p-4 text-right font-bold text-ink">
                             {(notif.total_amount_estimate || 0).toLocaleString()}đ
                           </td>
@@ -533,7 +531,6 @@ const DealerDebtInvoice = () => {
                               referenceType="INVOICE"
                               referenceId={inv.id}
                               documentLabel={inv.invoice_number}
-                              isPeriodClosed={closedPeriodIds.has(inv.accounting_period_id ?? inv.accountingPeriodId)}
                               onSuccess={loadData}
                             />
                           </td>
@@ -593,7 +590,6 @@ const DealerDebtInvoice = () => {
                               referenceType="PAYMENT_RECEIPT"
                               referenceId={pr.id}
                               documentLabel={pr.payment_number}
-                              isPeriodClosed={closedPeriodIds.has(pr.accounting_period_id ?? pr.accountingPeriodId)}
                               onSuccess={loadData}
                             />
                           </td>

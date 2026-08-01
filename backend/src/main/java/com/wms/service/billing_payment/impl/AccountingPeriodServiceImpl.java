@@ -114,6 +114,19 @@ public class AccountingPeriodServiceImpl implements AccountingPeriodService {
             throw new UnprocessableEntityException("Accounting period is already closed");
         }
 
+        // A period can only be closed once it has fully ended. Closing the still-current
+        // or a future period would strand every new document dated "today" (receipts,
+        // invoices, price_history, even Correction Voucher itself) with no way to post
+        // under their real date, since the system deliberately never auto-shifts a
+        // document's date into a different period on the caller's behalf (see WHEN a
+        // document is created in a CLOSED period). Restricting close to already-ended
+        // periods prevents that dead end at the source instead of needing a recovery path.
+        if (!period.getEndDate().isBefore(LocalDate.now())) {
+            throw new UnprocessableEntityException(
+                    "PERIOD_NOT_YET_ENDED: Accounting period " + period.getPeriodName()
+                            + " has not ended yet (end date " + period.getEndDate() + ") and cannot be closed");
+        }
+
         // Kiểm tra tính toàn vẹn: không còn chứng từ dở dang trong kỳ
         validateNoPendingDocuments(period.getId());
 

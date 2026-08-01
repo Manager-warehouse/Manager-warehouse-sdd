@@ -20,7 +20,7 @@ Sau khi đơn hàng được giao thành công (trạng thái `DELIVERED`), hệ
 - [US-WMS-17: Chốt sổ Kế toán & Khóa Kỳ](./features/feature-accountant-period-closing.md)
 - [US-WMS-18: Quét hóa đơn chuyển khoản bằng OCR](./features/feature-ocr-payment-receipt-scanning.md)
 - [US-WMS-28: Lập Hóa đơn Mua hàng & Ghi nhận Công nợ Nhà cung cấp](./features/feature-accountant-supplier-invoicing.md)
-- [US-WMS-29: Bút toán Điều chỉnh Sai sót Kỳ đã Chốt (Correction Voucher)](./features/feature-accountant-correction-voucher.md)
+- [US-WMS-29: Bút toán Điều chỉnh Chứng từ Tài chính Đã Lưu (Correction Voucher)](./features/feature-accountant-correction-voucher.md)
 
 ## Clarifications
 
@@ -235,7 +235,7 @@ Các endpoints được cấu hình thông qua base API prefix `/api/v1`:
 | `DELIVERY_ORDER_NOT_DELIVERED`    | 400 Bad Request          | Lập hóa đơn từ DO chưa chuyển sang trạng thái `DELIVERED`           |
 | `RECEIPT_NOT_APPROVED`            | 400 Bad Request          | Lập hóa đơn mua hàng từ phiếu nhập chưa ở trạng thái `APPROVED`     |
 | `SUPPLIER_INVOICE_ALREADY_EXISTS` | 409 Conflict             | Lập hóa đơn mua hàng cho phiếu nhập đã có hóa đơn                   |
-| `ORIGINAL_PERIOD_NOT_CLOSED`      | 422 Unprocessable Entity | Lập bút toán điều chỉnh cho chứng từ thuộc kỳ kế toán chưa `CLOSED` |
+| `DEBIT_NOTE_NOT_APPLIED`          | 422 Unprocessable Entity | Lập bút toán điều chỉnh cho Debit Note còn `PENDING`, chưa từng ảnh hưởng `suppliers.current_balance` |
 
 ## 9. Acceptance Criteria
 
@@ -257,6 +257,6 @@ _Vui lòng xem chi tiết kịch bản kiểm thử tại các tài liệu đặ
 - Tự động trừ tiền qua các cổng thanh toán online.
 - Tạo `credit_notes` (Phiếu ghi giảm công nợ cho hàng hoàn trả): thuộc luồng US-WMS-24 tại Spec 009 (`feature-storekeeper-customer-returns.md`). Spec 008 chỉ áp dụng khoản trừ `current_balance` mà `credit_notes` đã tạo, không sở hữu bước tạo Credit Note.
 - **[Cập nhật 2026-07-25 — SUPERSEDED]** Mục này trước đây ghi "hóa đơn luôn được hệ thống tự động tạo ngay khi giao hàng thành công... Endpoint `POST /api/v1/invoices` không có giao diện thao tác". Không còn đúng: `POST /api/v1/invoices` giờ là luồng lập hóa đơn **chính** (thủ công, qua worklist `billing_notifications`), có giao diện thao tác đầy đủ ("Lập Hóa đơn Bán" trên tab thông báo) — xem `feature-accountant-customer-invoicing.md`, đối xứng với US-WMS-28. Trường hợp thực sự "ngoài phạm vi" giờ là: DO đã `COMPLETED` **trước khi** cơ chế notification-driven này tồn tại, nên không có `billing_notifications` tương ứng và không xuất hiện trên worklist — xử lý bằng backfill dữ liệu một lần (tạo thủ công bản ghi `billing_notifications` còn thiếu), không phải một tính năng UI thường trực.
-- Chỉnh sửa (edit) hóa đơn sau khi phát hành: hóa đơn là chứng từ bất biến sau khi tạo, chỉ `status` được cập nhật gián tiếp qua Phiếu thu. Đối với hàng hoàn trả, điều chỉnh công nợ đại lý đi qua Credit Note (Spec 009) thay vì sửa trực tiếp `total_amount`/`due_date` của `invoices` đã tồn tại; Credit Note chỉ áp dụng cho luồng hàng hoàn trả (yêu cầu Return Receipt đã `APPROVED`) và không phải là cơ chế chỉnh sửa hóa đơn nói chung.
+- Chỉnh sửa (edit) hóa đơn sau khi phát hành: hóa đơn là chứng từ bất biến sau khi tạo, không có endpoint `UPDATE`/`DELETE` ở bất kỳ thời điểm nào (kể cả trong cùng kỳ đang `OPEN`, kể cả ngay sau khi vừa lưu), chỉ `status` được cập nhật gián tiếp qua Phiếu thu. Đối với hàng hoàn trả, điều chỉnh công nợ đại lý đi qua Credit Note (Spec 009) thay vì sửa trực tiếp `total_amount`/`due_date` của `invoices` đã tồn tại; Credit Note chỉ áp dụng cho luồng hàng hoàn trả (yêu cầu Return Receipt đã `APPROVED`). Trường hợp gõ nhầm số tiền (không liên quan hàng hoàn trả), dù chứng từ gốc thuộc kỳ đang `OPEN` hay đã `CLOSED`, đều đi qua Correction Voucher (US-WMS-29) — xem cập nhật ở mục dưới.
 - Xử lý tranh chấp/khiếu nại liên quan tới bằng chứng giao hàng (POD) khi Kế toán viên đối chiếu hóa đơn tự động qua danh sách hóa đơn: hệ thống không cung cấp cơ chế hủy hóa đơn, đánh dấu tranh chấp, hay điều chỉnh tài chính trong ứng dụng cho tình huống này. Việc xử lý (nếu có) diễn ra ngoài hệ thống, tương tự cách phối hợp qua Zalo/Email đã áp dụng ở luồng nhập hàng.
-- Sửa/xóa trực tiếp chứng từ tài chính thuộc kỳ đã `CLOSED`: xem cơ chế thay thế (kích hoạt `adjustments.type = 'CORRECTION_VOUCHER'` đã có sẵn) tại US-WMS-29 (Session 2026-07-24, mục Clarifications).
+- Sửa/xóa trực tiếp chứng từ tài chính (`invoices`, `payment_receipts`, `supplier_invoices`, `supplier_payments`, `debit_notes` đã `APPLIED`): không có cơ chế edit-in-place ở bất kỳ kỳ kế toán nào — xem cơ chế thay thế duy nhất (`adjustments.type = 'CORRECTION_VOUCHER'`) tại US-WMS-29. **[Cập nhật 2026-08-01]** Correction Voucher không còn giới hạn cho chứng từ gốc thuộc kỳ đã `CLOSED` — cùng cơ chế này giờ cũng xử lý sai sót phát hiện trong cùng kỳ đang `OPEN` (ví dụ gõ nhầm số tiền hóa đơn/phiếu thu, phát hiện ngay sau khi lưu), tránh phải xử lý ngoài luồng qua Zalo/Email cho trường hợp phổ biến này.

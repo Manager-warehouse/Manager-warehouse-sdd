@@ -4,6 +4,7 @@ import com.wms.dto.request.CorrectionVoucherCreateRequest;
 import com.wms.dto.response.CorrectionVoucherResponse;
 import com.wms.entity.access_control.User;
 import com.wms.entity.billing_payment.AccountingPeriod;
+import com.wms.entity.billing_payment.CreditNote;
 import com.wms.entity.billing_payment.Invoice;
 import com.wms.entity.billing_payment.PaymentReceipt;
 import com.wms.entity.billing_payment.SupplierInvoice;
@@ -13,13 +14,12 @@ import com.wms.entity.stock_control.Adjustment;
 import com.wms.entity.supplier_management.Supplier;
 import com.wms.enums.access_control.UserRole;
 import com.wms.enums.audit_trail.AuditAction;
-import com.wms.enums.billing_payment.AccountingPeriodStatus;
 import com.wms.enums.billing_payment.CorrectionVoucherReferenceType;
 import com.wms.enums.dealer_management.CreditStatus;
 import com.wms.enums.stock_control.AdjustmentType;
 import com.wms.exception.ResourceNotFoundException;
-import com.wms.exception.UnprocessableEntityException;
 import com.wms.repository.AdjustmentRepository;
+import com.wms.repository.CreditNoteRepository;
 import com.wms.repository.InvoiceRepository;
 import com.wms.repository.PaymentReceiptRepository;
 import com.wms.repository.SupplierInvoiceRepository;
@@ -50,6 +50,7 @@ public class CorrectionVoucherServiceImpl implements CorrectionVoucherService {
     private final PaymentReceiptRepository paymentReceiptRepository;
     private final SupplierInvoiceRepository supplierInvoiceRepository;
     private final SupplierPaymentRepository supplierPaymentRepository;
+    private final CreditNoteRepository creditNoteRepository;
     private final DealerRepository dealerRepository;
     private final SupplierRepository supplierRepository;
     private final AccountingPeriodService accountingPeriodService;
@@ -62,6 +63,7 @@ public class CorrectionVoucherServiceImpl implements CorrectionVoucherService {
             PaymentReceiptRepository paymentReceiptRepository,
             SupplierInvoiceRepository supplierInvoiceRepository,
             SupplierPaymentRepository supplierPaymentRepository,
+            CreditNoteRepository creditNoteRepository,
             DealerRepository dealerRepository,
             SupplierRepository supplierRepository,
             AccountingPeriodService accountingPeriodService,
@@ -72,6 +74,7 @@ public class CorrectionVoucherServiceImpl implements CorrectionVoucherService {
         this.paymentReceiptRepository = paymentReceiptRepository;
         this.supplierInvoiceRepository = supplierInvoiceRepository;
         this.supplierPaymentRepository = supplierPaymentRepository;
+        this.creditNoteRepository = creditNoteRepository;
         this.dealerRepository = dealerRepository;
         this.supplierRepository = supplierRepository;
         this.accountingPeriodService = accountingPeriodService;
@@ -91,13 +94,12 @@ public class CorrectionVoucherServiceImpl implements CorrectionVoucherService {
 
         ResolvedReference resolved = resolveReference(request.getReferenceType(), request.getReferenceId());
 
-        // Correction Voucher only exists to fix a document whose own period is already
-        // CLOSED. A still-OPEN document should be corrected through its normal flow
-        // instead - this endpoint is not a general-purpose edit path.
-        if (resolved.originalPeriod() == null || resolved.originalPeriod().getStatus() != AccountingPeriodStatus.CLOSED) {
-            throw new UnprocessableEntityException(
-                    "ORIGINAL_PERIOD_NOT_CLOSED: Reference document's accounting period is not closed yet");
-        }
+        // No longer requires the reference document's own period to be CLOSED: none of
+        // invoices/payment_receipts/supplier_invoices/supplier_payments/credit_notes has an
+        // UPDATE/DELETE endpoint at any point, open period or closed, so this is the only
+        // correction path either way - see "Session 2026-08-02" in
+        // feature-accountant-correction-voucher.md for why the original OPEN-only
+        // restriction was removed.
 
         // The voucher itself must always land in a currently OPEN period - throws
         // "PERIOD_CLOSED: ..." (same convention used everywhere else in this module)
@@ -202,6 +204,13 @@ public class CorrectionVoucherServiceImpl implements CorrectionVoucherService {
                         .orElseThrow(() -> new ResourceNotFoundException("Supplier not found with id: " + supplierPayment.getSupplier().getId()));
                 yield new ResolvedReference(supplierPayment.getAccountingPeriod(), null, supplier);
             }
+            case CREDIT_NOTE -> {
+                CreditNote creditNote = creditNoteRepository.findById(referenceId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Credit note not found with id: " + referenceId));
+                Dealer dealer = dealerRepository.findByIdForUpdate(creditNote.getDealer().getId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Dealer not found with id: " + creditNote.getDealer().getId()));
+                yield new ResolvedReference(creditNote.getAccountingPeriod(), dealer, null);
+            }
         };
     }
 
@@ -254,6 +263,13 @@ public class CorrectionVoucherServiceImpl implements CorrectionVoucherService {
                 if (supplierPayment != null) {
                     supplier = supplierPayment.getSupplier();
                     originalPeriod = supplierPayment.getAccountingPeriod();
+                }
+            }
+            case CREDIT_NOTE -> {
+                CreditNote creditNote = creditNoteRepository.findById(adjustment.getReferenceId()).orElse(null);
+                if (creditNote != null) {
+                    dealer = creditNote.getDealer();
+                    originalPeriod = creditNote.getAccountingPeriod();
                 }
             }
         }

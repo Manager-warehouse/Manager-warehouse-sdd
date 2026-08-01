@@ -107,6 +107,9 @@ public class ReceiptResponse {
     @JsonProperty("credit_note_generated")
     private Boolean creditNoteGenerated;
 
+    @JsonProperty("credit_note_id")
+    private Long creditNoteId;
+
     public Long getId() {
         return id;
     }
@@ -297,5 +300,13 @@ public class ReceiptResponse {
 
     public void setCreditNoteGenerated(Boolean creditNoteGenerated) {
         this.creditNoteGenerated = creditNoteGenerated;
+    }
+
+    public Long getCreditNoteId() {
+        return creditNoteId;
+    }
+
+    public void setCreditNoteId(Long creditNoteId) {
+        this.creditNoteId = creditNoteId;
     }
 }
