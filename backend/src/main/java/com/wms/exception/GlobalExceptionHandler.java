@@ -131,7 +131,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
     public ResponseEntity<ApiErrorResponse> handleOptimisticConflict(ObjectOptimisticLockingFailureException ex) {
-        return error(HttpStatus.CONFLICT, "CONCURRENT_MODIFICATION",
+        return error(HttpStatus.CONFLICT, "INVENTORY_VERSION_CONFLICT",
                 "The resource was changed by another transaction; reload and retry", null, null);
     }
 

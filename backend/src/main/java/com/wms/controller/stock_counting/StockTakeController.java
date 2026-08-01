@@ -90,6 +90,7 @@ public class StockTakeController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         User actor = currentUserService.getRequiredCurrentUser();
+        if (size > 100) size = 100;
         PageRequest pageRequest = PageRequest.of(page, size, Sort.by("createdAt").descending());
         return ResponseEntity.ok(stockTakeService.getStockTakes(warehouseId, status, actor, pageRequest));
     }
