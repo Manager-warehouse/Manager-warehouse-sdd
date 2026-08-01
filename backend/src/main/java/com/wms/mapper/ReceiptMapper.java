@@ -52,6 +52,7 @@ public class ReceiptMapper {
         response.setType(receipt.getType().name());
         response.setStatus(receipt.getStatus().name());
         response.setSupplierId(receipt.getSupplier() != null ? receipt.getSupplier().getId() : null);
+        response.setSupplierName(receipt.getSupplier() != null ? receipt.getSupplier().getCompanyName() : null);
         response.setDealerId(receipt.getDealer() != null ? receipt.getDealer().getId() : null);
         response.setDealerName(receipt.getDealer() != null ? receipt.getDealer().getName() : null);
         response.setDeliveryOrderId(receipt.getDeliveryOrder() != null ? receipt.getDeliveryOrder().getId() : null);
@@ -65,6 +66,8 @@ public class ReceiptMapper {
         response.setApprovedAt(receipt.getApprovedAt());
         response.setPreReceiveApprovedAt(receipt.getPreReceiveApprovedAt());
         response.setPreReceiveRejectionReason(receipt.getPreReceiveRejectionReason());
+        response.setStorekeeperReviewedAt(receipt.getStorekeeperReviewedAt());
+        response.setRecountReason(receipt.getRecountReason());
         response.setVersion(receipt.getVersion());
         response.setCreditNoteGenerated(false);
         response.setItems(items.stream().map(this::toItemResponse).toList());
@@ -87,6 +90,8 @@ public class ReceiptMapper {
 
         response.setQcPassedQty(item.getQualityPassedQty() != null ? item.getQualityPassedQty() : 0);
         response.setQcFailedQty(item.getQualityFailedQty() != null ? item.getQualityFailedQty() : 0);
+        response.setQcResult(item.getQcResult() != null ? item.getQcResult().name() : null);
+        response.setQcFailureReason(item.getQcFailureReason());
         response.setApprovedQty(item.getApprovedQty());
         response.setQuarantineReadyQty(item.getQuarantineReadyQty());
         response.setQuarantineQty(item.getQuarantineQty());

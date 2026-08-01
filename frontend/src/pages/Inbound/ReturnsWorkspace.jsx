@@ -56,6 +56,8 @@ const ReturnsWorkspace = () => {
 
   const [submitting, setSubmitting] = useState(false);
   const canManageReturnOperations = ['WAREHOUSE_STAFF', 'STOREKEEPER', 'WAREHOUSE_MANAGER', 'ADMIN', 'CEO'].includes(user?.role);
+  const canConfirmSupplierReturn = ['WAREHOUSE_MANAGER', 'ADMIN'].includes(user?.role);
+  const supplierReturnStatuses = ['RETURN_TO_SUPPLIER_PENDING', 'RETURNED_TO_SUPPLIER'];
 
   useEffect(() => {
     if (activeWarehouse) {
@@ -67,13 +69,28 @@ const ReturnsWorkspace = () => {
     setLoading(true);
     try {
       const data = await returnsService.getReturns({ warehouse_id: activeWarehouse.id });
-      setReturns(isAccountingRole ? data.filter(r => r.status === 'APPROVED') : data);
 
       const dlData = await masterDataService.getDealers();
       setDealers(dlData || []);
 
       const supData = await masterDataService.getSuppliers();
       setSuppliers(supData || []);
+
+      const receiptData = await inboundService.getReceipts(activeWarehouse.id);
+      setInboundReceipts(receiptData || []);
+
+      const supplierReturnReceipts = (receiptData || [])
+        .filter(receipt => supplierReturnStatuses.includes(receipt.status))
+        .map(receipt => ({
+          ...receipt,
+          id: `supplier-${receipt.id}`,
+          source_receipt_id: receipt.id,
+          type: 'SUPPLIER_RETURN',
+          is_supplier_rtv: true,
+        }));
+
+      const returnRows = [...(data || []), ...supplierReturnReceipts];
+      setReturns(isAccountingRole ? returnRows.filter(r => r.status === 'APPROVED') : returnRows);
 
       if (!isAccountingRole) {
         const locs = await masterDataService.getBinLocations(activeWarehouse.id);
@@ -83,9 +100,6 @@ const ReturnsWorkspace = () => {
         const doData = await outboundService.getDeliveryOrders(activeWarehouse.id);
         const completedDos = doData.filter(d => d.status === 'DELIVERED' || d.status === 'COMPLETED');
         setDeliveryOrders(completedDos);
-
-        const receiptData = await inboundService.getReceipts({ warehouse_id: activeWarehouse.id });
-        setInboundReceipts(receiptData || []);
       }
     } catch (e) {
       addToast('Lỗi tải dữ liệu hàng trả', 'error');
@@ -316,6 +330,23 @@ const ReturnsWorkspace = () => {
     }
   };
 
+  const confirmSupplierReturn = async (ret) => {
+    setSubmitting(true);
+    try {
+      await inboundService.confirmReturnToSupplier(
+        ret.source_receipt_id || ret.id,
+        'Xác nhận bàn giao trả hàng cho NCC',
+        ret.version || 0,
+      );
+      addToast(`Đã xác nhận trả NCC cho phiếu ${ret.receipt_number}`, 'success');
+      fetchData();
+    } catch (e) {
+      addToast(e.message || 'Lỗi xác nhận trả NCC', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const getDealerName = (dealerId) => {
     const d = dealers.find(dl => dl.id === Number(dealerId));
     return d ? d.name : `Đại lý ID: ${dealerId}`;
@@ -331,6 +362,65 @@ const ReturnsWorkspace = () => {
     if (listFilter === 'SUPPLIER') return ret.supplier_id || ret.type === 'SUPPLIER_RETURN';
     return true;
   });
+
+  const renderReturnStatusBadge = (ret) => {
+    if (ret.status === 'RETURN_TO_SUPPLIER_PENDING') {
+      return (
+        <Badge size="sm" colorClassName="bg-danger-100 text-danger-800 border-danger-300">
+          Chờ trả NCC
+        </Badge>
+      );
+    }
+    if (ret.status === 'RETURNED_TO_SUPPLIER') {
+      return (
+        <Badge size="sm" colorClassName="bg-shade-20 text-shade-80 border-shade-40">
+          Đã trả NCC
+        </Badge>
+      );
+    }
+    if (ret.status === 'APPROVED') {
+      return <Badge size="sm" type="success">Đã duyệt nhập kho</Badge>;
+    }
+    return <Badge size="sm" type="warning">Nháp / Chờ QC</Badge>;
+  };
+
+  const renderReturnAction = (ret) => {
+    if (ret.status === 'RETURN_TO_SUPPLIER_PENDING' && canConfirmSupplierReturn) {
+      return (
+        <button
+          onClick={() => confirmSupplierReturn(ret)}
+          disabled={submitting}
+          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill bg-danger-600 text-white hover:bg-danger-700 disabled:opacity-60 text-xs font-bold transition-colors"
+        >
+          <Truck className="w-3.5 h-3.5" />
+          Xác nhận trả NCC
+        </button>
+      );
+    }
+    if (ret.status === 'DRAFT' && canManageReturnOperations) {
+      return (
+        <button
+          onClick={() => openQcSplit(ret)}
+          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill border border-ink bg-canvas-light text-ink hover:bg-canvas-cream text-xs font-semibold transition-colors"
+        >
+          <ShieldAlert className="w-3.5 h-3.5" />
+          QC Phân tách & Nhập kho
+        </button>
+      );
+    }
+    if (ret.status === 'APPROVED' && !ret.credit_note_generated) {
+      return (
+        <button
+          onClick={() => openCreditNoteModal(ret)}
+          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill btn-pill-aloe text-xs font-semibold transition-colors"
+        >
+          <Coins className="w-3.5 h-3.5" />
+          Tạo Credit Note
+        </button>
+      );
+    }
+    return <span className="text-shade-50 text-[10px] font-medium">Hoàn tất</span>;
+  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -412,7 +502,7 @@ const ReturnsWorkspace = () => {
           ) : (
             <>
               <div className="hidden md:block overflow-x-auto">
-                <table className="w-full text-left border-collapse">
+                <table className="data-table-grid w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-canvas-cream border-b border-hairline-light">
                       <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Mã phiếu trả</th>
@@ -449,9 +539,7 @@ const ReturnsWorkspace = () => {
                         </td>
                         <td className="px-6 py-4 text-shade-60 text-xs">{ret.document_date || ret.created_at?.slice(0, 10)}</td>
                         <td className="px-6 py-4">
-                          <Badge size="sm" type={ret.status === 'APPROVED' ? 'success' : 'warning'}>
-                            {ret.status === 'APPROVED' ? 'Đã duyệt nhập kho' : 'Nháp / Chờ QC'}
-                          </Badge>
+                          {renderReturnStatusBadge(ret)}
                         </td>
                         <td className="px-6 py-4">
                           {ret.credit_note_generated ? (
@@ -464,25 +552,7 @@ const ReturnsWorkspace = () => {
                         </td>
                         <td className="px-6 py-4 text-right">
                           <div className="flex justify-end gap-2">
-                            {ret.status === 'DRAFT' && canManageReturnOperations ? (
-                              <button
-                                onClick={() => openQcSplit(ret)}
-                                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill border border-ink bg-canvas-light text-ink hover:bg-canvas-cream text-xs font-semibold transition-colors"
-                              >
-                                <ShieldAlert className="w-3.5 h-3.5" />
-                                QC Phân tách & Nhập kho
-                              </button>
-                            ) : ret.status === 'APPROVED' && !ret.credit_note_generated ? (
-                              <button
-                                onClick={() => openCreditNoteModal(ret)}
-                                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill btn-pill-aloe text-xs font-semibold transition-colors"
-                              >
-                                <Coins className="w-3.5 h-3.5" />
-                                Tạo Credit Note
-                              </button>
-                            ) : (
-                              <span className="text-shade-50 text-[10px] font-medium">Hoàn tất</span>
-                            )}
+                            {renderReturnAction(ret)}
                           </div>
                         </td>
                       </tr>
@@ -500,9 +570,7 @@ const ReturnsWorkspace = () => {
                           <span className="truncate">{ret.receipt_number}</span>
                         </div>
                       </div>
-                      <Badge size="sm" type={ret.status === 'APPROVED' ? 'success' : 'warning'}>
-                        {ret.status === 'APPROVED' ? 'Đã duyệt' : 'Chờ QC'}
-                      </Badge>
+                      {renderReturnStatusBadge(ret)}
                     </div>
 
                     <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
@@ -516,6 +584,9 @@ const ReturnsWorkspace = () => {
                         <span className="block text-[10px] uppercase tracking-wider text-shade-50">Ngày tạo</span>
                         <span className="font-semibold text-ink">{ret.document_date || ret.created_at?.slice(0, 10)}</span>
                       </div>
+                    </div>
+                    <div className="mt-3 flex justify-end">
+                      {renderReturnAction(ret)}
                     </div>
                   </div>
                 ))}
@@ -631,7 +702,7 @@ const ReturnsWorkspace = () => {
               <div className="flex flex-col gap-3">
                 <h3 className="text-xs font-semibold uppercase tracking-wider text-shade-60">Danh sách sản phẩm hoàn trả</h3>
                 <div className="border border-hairline-light rounded-lg overflow-hidden">
-                  <table className="hidden w-full text-left border-collapse md:table">
+                  <table className="data-table-grid hidden w-full text-left border-collapse md:table">
                     <thead>
                       <tr className="bg-canvas-cream border-b border-hairline-light">
                         <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Sản phẩm</th>
@@ -733,7 +804,7 @@ const ReturnsWorkspace = () => {
             </div>
 
             <div className="border border-hairline-light rounded-lg overflow-hidden">
-              <table className="hidden w-full text-left border-collapse md:table">
+              <table className="data-table-grid hidden w-full text-left border-collapse md:table">
                 <thead>
                   <tr className="bg-canvas-cream border-b border-hairline-light">
                     <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Sản phẩm</th>

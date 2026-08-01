@@ -70,6 +70,12 @@ public class ReceiptItemResponse {
     @JsonProperty("qc_failed_qty")
     private Integer qcFailedQty;
 
+    @JsonProperty("qc_result")
+    private String qcResult;
+
+    @JsonProperty("qc_failure_reason")
+    private String qcFailureReason;
+
     @JsonProperty("approved_qty")
     private Integer approvedQty;
 
@@ -168,6 +174,22 @@ public class ReceiptItemResponse {
 
     public void setQcFailedQty(Integer qcFailedQty) {
         this.qcFailedQty = qcFailedQty;
+    }
+
+    public String getQcResult() {
+        return qcResult;
+    }
+
+    public void setQcResult(String qcResult) {
+        this.qcResult = qcResult;
+    }
+
+    public String getQcFailureReason() {
+        return qcFailureReason;
+    }
+
+    public void setQcFailureReason(String qcFailureReason) {
+        this.qcFailureReason = qcFailureReason;
     }
 
     public Integer getApprovedQty() {

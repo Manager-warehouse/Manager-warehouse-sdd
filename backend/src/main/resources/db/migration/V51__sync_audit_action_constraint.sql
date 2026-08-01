@@ -59,7 +59,7 @@ ALTER TABLE audit_logs ADD CONSTRAINT chk_audit_logs_action CHECK (action IN (
     -- Inbound / Receipt
     -- -------------------------------------------------------------------------
     'RECEIPT_CREATE',
-    'RECEIPT_RECEIVE',
+    'RECEIPT_RECEIVE', 'RECEIPT_RECEIVE_QC',
     'RECEIPT_PRE_RECEIVE_APPROVE', 'RECEIPT_PRE_RECEIVE_REJECT', 'RECEIPT_PRE_RECEIVE_RESUBMIT',
     'RECEIPT_QC_SUBMIT', 'RECEIPT_QC_CONFIRM',
     'RECEIPT_APPROVE', 'RECEIPT_PARTIAL_APPROVE', 'RECEIPT_REJECT',

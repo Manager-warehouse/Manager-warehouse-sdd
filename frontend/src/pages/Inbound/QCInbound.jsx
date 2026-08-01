@@ -253,7 +253,7 @@ const QCInbound = () => {
           </div>
 
           <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+            <table className="data-table-grid w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-canvas-cream border-b border-hairline-light">
                   <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Sản phẩm</th>

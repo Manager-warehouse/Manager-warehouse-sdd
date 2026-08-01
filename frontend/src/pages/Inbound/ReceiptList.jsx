@@ -74,16 +74,7 @@ const ReceiptList = () => {
     if (!receipt) return false;
     if (receipt.status === "PUTAWAY_COMPLETED") return true;
     if (receipt.putaway_completed_at || receipt.putawayCompletedAt) return true;
-    if (!receipt.items || receipt.items.length === 0) return false;
-    const passedItems = receipt.items.filter(
-      (item) =>
-        ((item.approved_qty ?? item.approvedQty ?? item.qc_passed_qty) || 0) >
-        0,
-    );
-    if (passedItems.length === 0) return false;
-    return passedItems.every(
-      (item) => item.location_id !== null && item.location_id !== undefined,
-    );
+    return false;
   };
 
   const getPartnerName = (receipt) => {
@@ -128,10 +119,78 @@ const ReceiptList = () => {
         isAwaitingPreReceiveApproval(receipt));
     return matchesSearch && matchesStatus;
   });
-  const pendingManagerApprovalReceipts = receipts.filter(
-    (receipt) => isAwaitingPreReceiveApproval(receipt),
+  const pendingManagerApprovalReceipts = receipts.filter((receipt) =>
+    isAwaitingPreReceiveApproval(receipt),
   );
   const canPreReceiveApprove = hasRole(ROLES.WAREHOUSE_MANAGER);
+  const canStorekeeperReview = (receipt) =>
+    receipt?.status === "PENDING_STOREKEEPER_REVIEW" &&
+    (hasRole(ROLES.STOREKEEPER) || hasRole(ROLES.ADMIN));
+
+  const hasReceiptPrimaryActions = (receipt) => {
+    if (!receipt) return false;
+    if (isAwaitingPreReceiveApproval(receipt) && canPreReceiveApprove)
+      return true;
+    if (receipt.status === "REVISION_REQUIRED" && hasRole(ROLES.PLANNER)) {
+      return true;
+    }
+    if (
+      receipt.status === "PENDING_RECEIPT" &&
+      !isAwaitingPreReceiveApproval(receipt) &&
+      (hasRole(ROLES.WAREHOUSE_STAFF) || hasRole(ROLES.ADMIN))
+    ) {
+      return true;
+    }
+    if (
+      (receipt.status === "DRAFT" || receipt.status === "RECOUNT_REQUIRED") &&
+      (hasRole(ROLES.WAREHOUSE_STAFF) || hasRole(ROLES.ADMIN))
+    ) {
+      return true;
+    }
+    if (canStorekeeperReview(receipt)) {
+      return true;
+    }
+    if (
+      (receipt.status === "QC_COMPLETED" || receipt.status === "QC_FAILED") &&
+      (hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.ADMIN))
+    ) {
+      return true;
+    }
+    if (
+      receipt.status === "RETURN_TO_SUPPLIER_PENDING" &&
+      (hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.ADMIN))
+    ) {
+      return true;
+    }
+    if (
+      (receipt.status === "APPROVED" ||
+        receipt.status === "PARTIALLY_APPROVED") &&
+      !isPutawayCompleted(receipt) &&
+      (hasRole(ROLES.STOREKEEPER) || hasRole(ROLES.ADMIN))
+    ) {
+      return true;
+    }
+    if (
+      (receipt.status === "PENDING_MANAGER_APPROVAL" ||
+        receipt.status === "REVISION_REQUIRED" ||
+        receipt.status === "PENDING_RECEIPT" ||
+        receipt.status === "DRAFT") &&
+      (hasRole(ROLES.PLANNER) ||
+        hasRole(ROLES.WAREHOUSE_MANAGER) ||
+        hasRole(ROLES.ADMIN))
+    ) {
+      return true;
+    }
+    return (
+      (((receipt.status === "APPROVED" ||
+        receipt.status === "PARTIALLY_APPROVED") &&
+        !isPutawayCompleted(receipt)) ||
+        receipt.status === "RETURN_TO_SUPPLIER_PENDING") &&
+      (hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.ADMIN))
+    );
+  };
+
+  const hasTableActions = filteredReceipts.some(hasReceiptPrimaryActions);
 
   const getStatusBadge = (receipt) => {
     if (!receipt) return null;
@@ -145,13 +204,23 @@ const ReceiptList = () => {
         </Badge>
       );
     }
-    if (receipt.status === "APPROVED" && isPutawayCompleted(receipt)) {
+    if (isPutawayCompleted(receipt)) {
+      if (receipt.status === "PARTIALLY_APPROVED") {
+        return (
+          <Badge
+            size="sm"
+            colorClassName="bg-warning-50 text-warning-800 border-warning-300"
+          >
+            Đã nhập một phần
+          </Badge>
+        );
+      }
       return (
         <Badge
           size="sm"
           colorClassName="bg-success-100 text-success-800 border-success-300"
         >
-          Đã cất kệ
+          Đã nhập kho
         </Badge>
       );
     }
@@ -183,6 +252,24 @@ const ReceiptList = () => {
             Chờ nhận
           </Badge>
         );
+      case "PENDING_STOREKEEPER_REVIEW":
+        return (
+          <Badge
+            size="sm"
+            colorClassName="bg-warning-50 text-warning-800 border-warning-300"
+          >
+            Cho thu kho duyet
+          </Badge>
+        );
+      case "RECOUNT_REQUIRED":
+        return (
+          <Badge
+            size="sm"
+            colorClassName="bg-danger-50 text-danger-700 border-danger-200"
+          >
+            Can dem lai
+          </Badge>
+        );
       case "DRAFT":
         return (
           <Badge
@@ -205,9 +292,9 @@ const ReceiptList = () => {
         return (
           <Badge
             size="sm"
-            colorClassName="bg-aloe-10 text-success-900 border-success-300"
+            colorClassName="bg-info-50 text-info-700 border-info-200"
           >
-            Đã duyệt
+            Chờ cất hàng
           </Badge>
         );
       case "PARTIALLY_APPROVED":
@@ -216,7 +303,7 @@ const ReceiptList = () => {
             size="sm"
             colorClassName="bg-warning-50 text-warning-800 border-warning-300"
           >
-            Duyệt một phần
+            Chờ cất phần duyệt
           </Badge>
         );
       case "QC_FAILED":
@@ -483,7 +570,10 @@ const ReceiptList = () => {
   const getReceiptItems = (receipt) => receipt?.items || [];
 
   const getReceiptExpectedQty = (receipt) =>
-    getReceiptItems(receipt).reduce((sum, item) => sum + getExpectedQty(item), 0);
+    getReceiptItems(receipt).reduce(
+      (sum, item) => sum + getExpectedQty(item),
+      0,
+    );
 
   const renderProductSummary = (receipt) => {
     const items = getReceiptItems(receipt);
@@ -502,7 +592,7 @@ const ReceiptList = () => {
               {getProductName(item)}
             </span>
             <span className="block text-[11px] text-shade-50">
-              {getProductSku(item)} · Dự kiến {formatQty(getExpectedQty(item))}
+              {getProductSku(item)}
             </span>
           </div>
         ))}
@@ -632,18 +722,52 @@ const ReceiptList = () => {
     return receipt.status === "QC_COMPLETED" || receipt.status === "QC_FAILED";
   };
 
-  const renderReceiptActions = (receipt) => (
+  const handleStorekeeperReview = async (receipt, decision) => {
+    try {
+      const reason =
+        decision === "REQUEST_RECOUNT"
+          ? window.prompt("Nhap ly do yeu cau dem lai") || ""
+          : "";
+      if (decision === "REQUEST_RECOUNT" && !reason.trim()) {
+        addToast("Can nhap ly do dem lai", "error");
+        return;
+      }
+      const updatedReceipt = await inboundService.reviewStorekeeperCountQc(
+        receipt.id,
+        {
+          decision,
+          reason,
+          expectedVersion: receipt.version || 0,
+        },
+      );
+      if (selectedReceipt?.id === receipt.id) {
+        setSelectedReceipt(updatedReceipt);
+      }
+      addToast(
+        decision === "APPROVE" ? "Da duyet kiem dem/QC" : "Da yeu cau dem lai",
+        "success",
+      );
+      fetchData();
+    } catch (error) {
+      const serverMessage =
+        error.response?.data?.message ||
+        error.response?.data?.error ||
+        error.message;
+      addToast(serverMessage || "Loi duyet kiem dem/QC", "error");
+    }
+  };
+
+  const renderReceiptActions = (receipt, includeDetail = true) => (
     <>
-      {isAwaitingPreReceiveApproval(receipt) &&
-        canPreReceiveApprove && (
-          <button
-            aria-label="pre-receive-approval"
-            onClick={() => handleOpenApproval(receipt.id)}
-            className="inline-flex items-center justify-center rounded-full bg-ink text-onPrimary hover:bg-shade-70 px-3 py-1 text-xs font-semibold whitespace-nowrap transition-colors duration-150"
-          >
-            Duyệt Kế Hoạch Nhập Kho
-          </button>
-        )}
+      {isAwaitingPreReceiveApproval(receipt) && canPreReceiveApprove && (
+        <button
+          aria-label="pre-receive-approval"
+          onClick={() => handleOpenApproval(receipt.id)}
+          className="inline-flex items-center justify-center rounded-full bg-ink text-onPrimary hover:bg-shade-70 px-3 py-1 text-xs font-semibold whitespace-nowrap transition-colors duration-150"
+        >
+          Duyệt Kế Hoạch Nhập Kho
+        </button>
+      )}
 
       {receipt.status === "REVISION_REQUIRED" && hasRole(ROLES.PLANNER) && (
         <button
@@ -657,37 +781,52 @@ const ReceiptList = () => {
 
       {receipt.status === "PENDING_RECEIPT" &&
         !isAwaitingPreReceiveApproval(receipt) &&
-        (hasRole(ROLES.WAREHOUSE_STAFF) ||
-          hasRole(ROLES.STOREKEEPER) ||
-          hasRole(ROLES.ADMIN)) && (
+        (hasRole(ROLES.WAREHOUSE_STAFF) || hasRole(ROLES.ADMIN)) && (
           <button
             aria-label="receive-receipt"
             onClick={() => navigate(`/inbound/receive/${receipt.id}`)}
-            className="inline-flex items-center justify-center rounded-full border border-ink bg-canvas-light text-ink hover:bg-canvas-cream px-3 py-1 text-xs font-semibold whitespace-nowrap transition-colors duration-150"
+            className="inline-flex items-center justify-center rounded-full border border-ink bg-canvas-light text-ink hover:bg-canvas-cream px-3 py-1 text-[0px] font-semibold whitespace-nowrap transition-colors duration-150"
           >
+            <span className="text-xs">Nhận hàng & QC</span>
             Đếm số lượng
           </button>
         )}
 
-      {(receipt.status === "DRAFT" ||
-        receipt.status === "QC_COMPLETED" ||
-        receipt.status === "QC_FAILED") &&
-        (hasRole(ROLES.WAREHOUSE_STAFF) ||
-          hasRole(ROLES.STOREKEEPER) ||
-          hasRole(ROLES.WAREHOUSE_MANAGER) ||
-          hasRole(ROLES.ADMIN)) && (
+      {(receipt.status === "DRAFT" || receipt.status === "RECOUNT_REQUIRED") &&
+        (hasRole(ROLES.WAREHOUSE_STAFF) || hasRole(ROLES.ADMIN)) && (
           <button
-            aria-label="edit-receipt-count"
-            onClick={() => handleOpenEditCount(receipt)}
-            className="inline-flex items-center justify-center rounded-full border border-ink bg-canvas-light text-ink hover:bg-canvas-cream px-3 py-1 text-xs font-semibold whitespace-nowrap transition-colors duration-150"
+            aria-label="receive-qc-receipt"
+            onClick={() => navigate(`/inbound/receive/${receipt.id}`)}
+            className="inline-flex items-center justify-center rounded-full border border-ink bg-canvas-light text-ink hover:bg-canvas-cream px-3 py-1 text-[0px] font-semibold whitespace-nowrap transition-colors duration-150"
           >
+            <span className="text-xs">Nhận hàng & QC</span>
             Đếm số lượng
           </button>
         )}
 
-      {(receipt.status === "DRAFT" ||
-        receipt.status === "QC_COMPLETED" ||
-        receipt.status === "QC_FAILED") &&
+      {canStorekeeperReview(receipt) && (
+        <>
+          <button
+            aria-label="approve-storekeeper-review"
+            onClick={() => handleStorekeeperReview(receipt, "APPROVE")}
+            className="inline-flex items-center justify-center rounded-full bg-aloe-10 text-success-950 border border-success-300 hover:bg-success-100 px-3 py-1 text-xs font-bold whitespace-nowrap transition-colors duration-150"
+          >
+            Duyet kiem dem
+          </button>
+          <button
+            aria-label="request-recount"
+            onClick={() => handleStorekeeperReview(receipt, "REQUEST_RECOUNT")}
+            className="inline-flex items-center justify-center rounded-full border border-danger-300 bg-danger-50 text-danger-700 hover:bg-danger-100 px-3 py-1 text-xs font-semibold whitespace-nowrap transition-colors duration-150"
+          >
+            Bat dem lai
+          </button>
+        </>
+      )}
+
+      {false &&
+        (receipt.status === "DRAFT" ||
+          receipt.status === "QC_COMPLETED" ||
+          receipt.status === "QC_FAILED") &&
         (hasRole(ROLES.WAREHOUSE_STAFF) ||
           hasRole(ROLES.STOREKEEPER) ||
           hasRole(ROLES.WAREHOUSE_MANAGER) ||
@@ -705,7 +844,8 @@ const ReceiptList = () => {
           </button>
         )}
 
-      {receipt.status === "DRAFT" &&
+      {false &&
+        receipt.status === "DRAFT" &&
         (hasRole(ROLES.STOREKEEPER) ||
           hasRole(ROLES.WAREHOUSE_MANAGER) ||
           hasRole(ROLES.ADMIN)) && (
@@ -730,9 +870,7 @@ const ReceiptList = () => {
         )}
 
       {receipt.status === "RETURN_TO_SUPPLIER_PENDING" &&
-        (hasRole(ROLES.STOREKEEPER) ||
-          hasRole(ROLES.WAREHOUSE_MANAGER) ||
-          hasRole(ROLES.ADMIN)) && (
+        (hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.ADMIN)) && (
           <button
             aria-label="confirm-receipt-return"
             onClick={() => handleConfirmReturnToSupplier(receipt)}
@@ -751,17 +889,8 @@ const ReceiptList = () => {
             onClick={() => navigate(`/inbound/putaway/${receipt.id}`)}
             className="inline-flex items-center justify-center rounded-full bg-ink text-onPrimary hover:bg-shade-70 px-3 py-1 text-xs font-semibold whitespace-nowrap transition-colors duration-150"
           >
-            Cất kệ
+            Cất hàng
           </button>
-        )}
-
-      {(receipt.status === "APPROVED" ||
-        receipt.status === "PARTIALLY_APPROVED") &&
-        isPutawayCompleted(receipt) && (
-          <span className="text-xs font-bold text-success-600 flex items-center gap-1.5 px-3 py-1">
-            <Check className="w-3.5 h-3.5" />
-            Đã cất
-          </span>
         )}
 
       {(receipt.status === "PENDING_MANAGER_APPROVAL" ||
@@ -794,13 +923,15 @@ const ReceiptList = () => {
           </button>
         )}
 
-      <button
-        onClick={() => openDetail(receipt)}
-        className="p-1.5 hover:bg-canvas-cream rounded-full text-shade-50 hover:text-ink transition-colors flex items-center justify-center"
-        title="Xem chi tiết"
-      >
-        <Eye className="w-4 h-4" />
-      </button>
+      {includeDetail && (
+        <button
+          onClick={() => openDetail(receipt)}
+          className="p-1.5 hover:bg-canvas-cream rounded-full text-shade-50 hover:text-ink transition-colors flex items-center justify-center"
+          title="Xem chi tiết"
+        >
+          <Eye className="w-4 h-4" />
+        </button>
+      )}
     </>
   );
 
@@ -859,15 +990,24 @@ const ReceiptList = () => {
                 { value: "ALL", label: "Tất cả trạng thái" },
                 {
                   value: "PENDING_MANAGER_APPROVAL",
-                  label: "Cho quan ly duyet",
+                  label: "Chờ quản lý duyệt",
                 },
-                { value: "REVISION_REQUIRED", label: "Can chinh sua" },
+                { value: "REVISION_REQUIRED", label: "Cần chỉnh sửa" },
                 { value: "PENDING_RECEIPT", label: "Chờ nhận" },
+                {
+                  value: "PENDING_STOREKEEPER_REVIEW",
+                  label: "Cho thu kho duyet",
+                },
+                { value: "RECOUNT_REQUIRED", label: "Can dem lai" },
                 { value: "DRAFT", label: "Đã đếm (Nháp)" },
                 { value: "QC_COMPLETED", label: "Đã QC" },
                 { value: "QC_FAILED", label: "QC có hàng lỗi" },
-                { value: "APPROVED", label: "Đã duyệt" },
-                { value: "PARTIALLY_APPROVED", label: "Duyệt một phần" },
+                { value: "APPROVED", label: "Chờ cất hàng" },
+                {
+                  value: "PARTIALLY_APPROVED",
+                  label: "Chờ cất phần duyệt",
+                },
+                { value: "PUTAWAY_COMPLETED", label: "Đã nhập kho" },
                 { value: "REJECTED", label: "Từ chối" },
                 {
                   value: "RETURN_TO_SUPPLIER_PENDING",
@@ -884,11 +1024,11 @@ const ReceiptList = () => {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 rounded-lg border border-warning-300 bg-warning-50 px-4 py-3 mb-2 md:mb-6">
           <div>
             <p className="text-sm font-bold text-warning-900">
-              Phieu cho Warehouse Manager duyet
+              Phiếu quản lý kho duyệt
             </p>
             <p className="text-xs text-warning-800">
-              {pendingManagerApprovalReceipts.length} phieu can duyet truoc khi
-              nhan hang.
+              {pendingManagerApprovalReceipts.length} phiếu cần duyệt trước khi
+              nhận hàng.
             </p>
           </div>
           <button
@@ -896,7 +1036,7 @@ const ReceiptList = () => {
             onClick={() => setStatusFilter("PENDING_MANAGER_APPROVAL")}
             className="inline-flex items-center justify-center rounded-full bg-ink text-onPrimary hover:bg-shade-70 px-4 py-2 text-xs font-semibold whitespace-nowrap transition-colors duration-150"
           >
-            Xem phieu cho duyet
+            Xem phiếu cần duyệt
           </button>
         </div>
       )}
@@ -923,30 +1063,45 @@ const ReceiptList = () => {
               {/* Desktop/tablet: table view */}
               <div className="hidden md:block bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
+                  <table className="data-table-grid w-full table-fixed text-left border-collapse">
                     <thead>
                       <tr className="bg-canvas-cream border-b border-hairline-light">
-                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">
+                        <th
+                          className={`px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 ${hasTableActions ? "w-[12%]" : "w-[13%]"}`}
+                        >
                           Mã phiếu
                         </th>
-                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">
+                        <th
+                          className={`px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 ${hasTableActions ? "w-[21%]" : "w-[24%]"}`}
+                        >
                           Đối tác
                         </th>
-                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">
+                        <th
+                          className={`pl-4 pr-2 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 ${hasTableActions ? "w-[18%]" : "w-[21%]"}`}
+                        >
                           Sản phẩm nhập
                         </th>
-                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">
+                        <th
+                          className={`pl-1 pr-3 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right ${hasTableActions ? "w-[6%]" : "w-[7%]"}`}
+                        >
                           SL dự kiến
                         </th>
-                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">
+                        <th
+                          className={`px-3 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 ${hasTableActions ? "w-[8%]" : "w-[9%]"}`}
+                        >
                           Ngày Nhập Hàng
                         </th>
-                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">
+                        <th
+                          className={`px-3 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center ${hasTableActions ? "w-[17%]" : "w-[23%]"}`}
+                        >
                           Trạng thái
                         </th>
-                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">
-                          Hành động
-                        </th>
+                        {hasTableActions && (
+                          <th className="px-3 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center w-[15%]">
+                            Hành động
+                          </th>
+                        )}
+                        <th className="px-2 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-center w-[3%]"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-hairline-light">
@@ -955,28 +1110,41 @@ const ReceiptList = () => {
                           key={receipt.id}
                           className="hover:bg-canvas-cream/50 transition-colors"
                         >
-                          <td className="px-6 py-4 text-xs font-bold">
+                          <td className="px-4 py-4 text-xs font-bold break-words">
                             {receipt.receipt_number}
                           </td>
-                          <td className="px-6 py-4 text-xs font-semibold">
-                            {getPartnerName(receipt)}
+                          <td className="px-4 py-4 text-xs font-semibold leading-snug">
+                            <span className="line-clamp-2">
+                              {getPartnerName(receipt)}
+                            </span>
                           </td>
-                          <td className="px-6 py-4 text-xs min-w-[260px] max-w-[360px]">
+                          <td className="pl-4 pr-2 py-4 text-xs">
                             {renderProductSummary(receipt)}
                           </td>
-                          <td className="px-6 py-4 text-xs text-right font-bold text-ink">
+                          <td className="pl-1 pr-3 py-4 text-xs text-right font-bold text-ink">
                             {formatQty(getReceiptExpectedQty(receipt))}
                           </td>
-                          <td className="px-6 py-4 text-xs text-shade-50">
+                          <td className="px-3 py-4 text-xs text-shade-50 whitespace-nowrap">
                             {receipt.document_date}
                           </td>
-                          <td className="px-6 py-4">
+                          <td className="px-3 py-4 text-center">
                             {getStatusBadge(receipt)}
                           </td>
-                          <td className="px-6 py-4 text-right whitespace-nowrap">
-                            <div className="flex gap-2 justify-end items-center">
-                              {renderReceiptActions(receipt)}
-                            </div>
+                          {hasTableActions && (
+                            <td className="px-3 py-4 text-center">
+                              <div className="flex flex-wrap gap-2 justify-center items-center">
+                                {renderReceiptActions(receipt, false)}
+                              </div>
+                            </td>
+                          )}
+                          <td className="px-2 py-4 text-center">
+                            <button
+                              onClick={() => openDetail(receipt)}
+                              className="mx-auto p-1.5 hover:bg-canvas-cream rounded-full text-shade-50 hover:text-ink transition-colors flex items-center justify-center"
+                              title="Xem chi tiết"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
                           </td>
                         </tr>
                       ))}
@@ -1105,7 +1273,7 @@ const ReceiptList = () => {
                     : "Danh sách sản phẩm kiểm định"}
                 </h4>
                 <div className="border border-hairline-light rounded-lg overflow-hidden bg-canvas-light shadow-inner">
-                  <table className="w-full text-left text-xs border-collapse">
+                  <table className="data-table-grid w-full text-left text-xs border-collapse">
                     <thead>
                       <tr className="bg-canvas-cream border-b border-hairline-light">
                         <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">
@@ -1194,7 +1362,8 @@ const ReceiptList = () => {
               {/* Form Input for approval notes / rejection reason */}
               {(isAwaitingPreReceiveApproval(selectedReceipt) ||
                 selectedReceipt.status === "QC_COMPLETED" ||
-                selectedReceipt.status === "QC_FAILED") &&
+                selectedReceipt.status === "QC_FAILED" ||
+                isRejecting) &&
                 ((isAwaitingPreReceiveApproval(selectedReceipt) &&
                   canPreReceiveApprove) ||
                   (!isAwaitingPreReceiveApproval(selectedReceipt) &&
@@ -1253,9 +1422,36 @@ const ReceiptList = () => {
                 Đóng
               </button>
 
-              {(selectedReceipt.status === "DRAFT" ||
-                selectedReceipt.status === "QC_COMPLETED" ||
-                selectedReceipt.status === "QC_FAILED") &&
+              {canStorekeeperReview(selectedReceipt) && (
+                <div className="flex gap-2">
+                  <button
+                    aria-label="approve-storekeeper-review-detail"
+                    onClick={() =>
+                      handleStorekeeperReview(selectedReceipt, "APPROVE")
+                    }
+                    className="btn-pill btn-pill-aloe text-xs py-1.5 px-4 font-bold"
+                  >
+                    Duyet kiem dem
+                  </button>
+                  <button
+                    aria-label="request-recount-detail"
+                    onClick={() =>
+                      handleStorekeeperReview(
+                        selectedReceipt,
+                        "REQUEST_RECOUNT",
+                      )
+                    }
+                    className="btn-pill btn-pill-outline-light border-danger-500 hover:bg-danger-50 text-danger-600 text-xs py-1.5 px-4"
+                  >
+                    Bat dem lai
+                  </button>
+                </div>
+              )}
+
+              {false &&
+                (selectedReceipt.status === "DRAFT" ||
+                  selectedReceipt.status === "QC_COMPLETED" ||
+                  selectedReceipt.status === "QC_FAILED") &&
                 (hasRole(ROLES.WAREHOUSE_STAFF) ||
                   hasRole(ROLES.STOREKEEPER) ||
                   hasRole(ROLES.WAREHOUSE_MANAGER) ||
@@ -1365,7 +1561,7 @@ const ReceiptList = () => {
               </p>
 
               <div className="border border-hairline-light rounded-lg overflow-hidden bg-canvas-light">
-                <table className="w-full text-left text-xs border-collapse">
+                <table className="data-table-grid w-full text-left text-xs border-collapse">
                   <thead>
                     <tr className="bg-canvas-cream border-b border-hairline-light">
                       <th className="px-4 py-3 font-semibold text-shade-60 uppercase">

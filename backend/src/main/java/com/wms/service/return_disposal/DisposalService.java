@@ -106,14 +106,17 @@ public class DisposalService {
         Receipt receipt = receiptItem.getReceipt();
         receiptValidationService.assertWarehouseAccess(actor, receipt.getWarehouse().getId());
 
-        boolean isValidState = receipt.getStatus() == ReceiptStatus.QC_FAILED 
+        boolean isValidState = receipt.getStatus() == ReceiptStatus.QC_FAILED
+                || receipt.getStatus() == ReceiptStatus.PARTIALLY_APPROVED
+                || receipt.getStatus() == ReceiptStatus.RETURN_TO_SUPPLIER_PENDING
                 || (receipt.getType() == com.wms.enums.stock_receiving.ReceiptType.RETURN && receipt.getStatus() == ReceiptStatus.APPROVED);
         if (!isValidState) {
             throw new BusinessRuleViolationException(
-                    "INVALID_STATE: Disposal can only be created for QC_FAILED receipts or APPROVED return receipts. Current status: " + receipt.getStatus());
+                    "INVALID_STATE: Disposal can only be created for QC failed quarantine items. Current status: " + receipt.getStatus());
         }
 
-        if (receiptItem.getSampleFailedQty() == null || receiptItem.getSampleFailedQty() <= 0) {
+        BigDecimal failedQty = unresolvedReceiptItemQuarantineQty(receiptItem);
+        if (failedQty.compareTo(BigDecimal.ZERO) <= 0) {
             throw new BusinessRuleViolationException(
                     "NO_FAILED_QTY: Receipt item has no failed QC quantity to dispose");
         }
@@ -137,7 +140,6 @@ public class DisposalService {
             }
         }
 
-        BigDecimal failedQty = BigDecimal.valueOf(receiptItem.getSampleFailedQty());
         BigDecimal totalValue = failedQty.multiply(unitCost);
 
         // Generate DR Number
@@ -189,6 +191,7 @@ public class DisposalService {
 
             // Deduct quarantine inventory immediately
             deductQuarantineInventory(adjustment, actor);
+            markReceiptItemQuarantineResolved(receiptItem, failedQty);
 
             auditLogService.log(
                     actor, AuditAction.QUARANTINE_DISPOSAL_APPROVE, DAMAGE_REPORT_ENTITY,
@@ -449,6 +452,10 @@ public class DisposalService {
                     .orElseThrow(() -> new ResourceNotFoundException("Quarantine record not found"));
             qr.setRemainingQuantity(qr.getRemainingQuantity().subtract(failedQty).max(BigDecimal.ZERO));
             quarantineRecordRepository.save(qr);
+        } else if ("RECEIPT_ITEM".equals(adjustment.getReferenceType())) {
+            ReceiptItem receiptItem = receiptItemRepository.findById(adjustment.getReferenceId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Receipt item not found"));
+            markReceiptItemQuarantineResolved(receiptItem, failedQty);
         }
 
         auditLogService.log(
@@ -520,5 +527,24 @@ public class DisposalService {
                 Map.of("totalQty", inventory.getTotalQty(), "reservedQty", inventory.getReservedQty(),
                        "locationId", locationId, "delta", failedQty.negate())
         );
+    }
+
+    private BigDecimal unresolvedReceiptItemQuarantineQty(ReceiptItem item) {
+        int quarantineQty = safe(item.getQuarantineQty()) - safe(item.getResolvedQuarantineQty());
+        if (quarantineQty > 0) {
+            return BigDecimal.valueOf(quarantineQty);
+        }
+        int failedQty = Math.max(safe(item.getQualityFailedQty()), safe(item.getSampleFailedQty()));
+        return BigDecimal.valueOf(Math.max(failedQty, 0));
+    }
+
+    private void markReceiptItemQuarantineResolved(ReceiptItem item, BigDecimal qty) {
+        int nextResolvedQty = safe(item.getResolvedQuarantineQty()) + qty.intValue();
+        item.setResolvedQuarantineQty(nextResolvedQty);
+        receiptItemRepository.save(item);
+    }
+
+    private int safe(Integer value) {
+        return value != null ? value : 0;
     }
 }

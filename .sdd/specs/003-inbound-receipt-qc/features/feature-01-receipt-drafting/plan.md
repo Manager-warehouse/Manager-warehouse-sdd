@@ -19,5 +19,5 @@ Create purchase receipt in `PENDING_MANAGER_APPROVAL` without inventory impact, 
 
 - Unit tests for generated receipt number, sequence conflict retry/handling, invalid expected quantity, pre-receive approval/rejection/resubmission transitions, and audit payloads containing generated receipt number and document date.
 - Integration test for successful create.
-- Integration tests proving WH_STAFF/STOREKEEPER cannot count `PENDING_MANAGER_APPROVAL` or `REVISION_REQUIRED`.
+- Integration tests proving WH_STAFF cannot count `PENDING_MANAGER_APPROVAL` or `REVISION_REQUIRED`, and STOREKEEPER cannot bypass Staff entry by submitting counts directly.
 - Authorization test for warehouse scope.

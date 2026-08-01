@@ -102,6 +102,20 @@
     @apply w-full bg-canvas-light text-ink text-sm px-3 py-2.5 rounded-md border border-hairline-light focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink transition-all min-h-[44px] disabled:bg-canvas-cream/60 disabled:text-shade-50 disabled:cursor-not-allowed disabled:opacity-70;
   }
 
+  .data-table-grid th,
+  .data-table-grid td {
+    border-right: 1px solid theme('colors.hairline.light');
+  }
+
+  .data-table-grid th:last-child,
+  .data-table-grid td:last-child {
+    border-right: 0;
+  }
+
+  .data-table-grid tbody tr:hover td {
+    background-color: rgb(251 251 245 / 0.45);
+  }
+
   /* iOS Capacitor safe-area helpers: keep app chrome below the native status bar / Dynamic Island */
   .app-safe-header {
     box-sizing: border-box;

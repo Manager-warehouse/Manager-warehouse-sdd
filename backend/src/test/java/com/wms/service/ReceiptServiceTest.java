@@ -67,6 +67,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -76,10 +77,13 @@ import com.wms.dto.request.CreateReceiptRequest;
 import com.wms.dto.request.PreReceiveApprovalRequest;
 import com.wms.dto.request.ReceiptCancelRequest;
 import com.wms.dto.request.ReceiptReopenRequest;
+import com.wms.dto.request.ReceiveQcReceiptItemRequest;
+import com.wms.dto.request.ReceiveQcReceiptRequest;
 import com.wms.dto.request.ReceiveReceiptItemRequest;
 import com.wms.dto.request.ReceiveReceiptRequest;
 import com.wms.dto.request.ReviseReceiptItemRequest;
 import com.wms.dto.request.ReviseReceiptRequest;
+import com.wms.dto.request.StorekeeperReviewRequest;
 import com.wms.dto.response.ReceiptResponse;
 import com.wms.entity.billing_payment.AccountingPeriod;
 import com.wms.entity.document_numbering.DocumentSequence;
@@ -148,6 +152,7 @@ class ReceiptServiceTest {
     private User planner;
     private User warehouseStaff;
     private User warehouseManager;
+    private User storekeeper;
     private Supplier supplier;
     private Warehouse warehouse;
     private Product product;
@@ -161,6 +166,7 @@ class ReceiptServiceTest {
         planner = user(1L, UserRole.PLANNER);
         warehouseStaff = user(2L, UserRole.WAREHOUSE_STAFF);
         warehouseManager = user(3L, UserRole.WAREHOUSE_MANAGER);
+        storekeeper = user(4L, UserRole.STOREKEEPER);
         supplier = supplier(10L, true);
         warehouse = warehouse(20L, true);
         product = product(30L, true);
@@ -440,6 +446,9 @@ class ReceiptServiceTest {
         assertThrows(AccessDeniedException.class,
                 () -> receiptService.receiveReceiptCounts(100L,
                         receiveRequest(line(501L, 1)), planner));
+        assertThrows(AccessDeniedException.class,
+                () -> receiptService.receiveReceiptCounts(100L,
+                        receiveRequest(line(501L, 1)), storekeeper));
         verify(receiptRepository, never()).findByIdWithWarehouse(any());
     }
 
@@ -496,6 +505,166 @@ class ReceiptServiceTest {
 
         assertEquals(ReceiptStatus.DRAFT, receipt.getStatus());
         assertNull(item1.getQcResult());
+    }
+
+    @Test
+    void receiveAndQcReceipt_allPassTransitionsToStorekeeperReview() {
+        Receipt receipt = receipt(100L, ReceiptStatus.PENDING_RECEIPT);
+        ReceiptItem item1 = item(501L, receipt, 30L, 100);
+        stubReceive(receipt, List.of(item1));
+        stubReceiveSaves();
+
+        ReceiptResponse response = receiptService.receiveAndQcReceipt(100L,
+                receiveQcRequest(receiveQcLine(501L, 100, 100, 0, null)), warehouseStaff);
+
+        assertEquals("PENDING_STOREKEEPER_REVIEW", response.getStatus());
+        assertEquals(100, item1.getActualQty());
+        assertEquals(100, item1.getQualityPassedQty());
+        assertEquals(0, item1.getQualityFailedQty());
+        assertEquals(0, item1.getOverReceivedQty());
+        assertEquals(QcResult.PASSED, item1.getQcResult());
+        verify(auditLogService).log(eq(warehouseStaff), eq(AuditAction.RECEIPT_RECEIVE_QC),
+                eq("RECEIPT"), eq(100L), eq("RN-1"), eq(20L),
+                any(Map.class), any(Map.class));
+    }
+
+    @Test
+    void receiveAndQcReceipt_partialFailedWaitsForStorekeeperReview() {
+        Receipt receipt = receipt(100L, ReceiptStatus.PENDING_RECEIPT);
+        ReceiptItem item1 = item(501L, receipt, 30L, 100);
+        stubReceive(receipt, List.of(item1));
+        stubReceiveSaves();
+
+        receiptService.receiveAndQcReceipt(100L,
+                receiveQcRequest(receiveQcLine(501L, 98, 95, 3, "Damaged")), warehouseStaff);
+
+        assertEquals(ReceiptStatus.PENDING_STOREKEEPER_REVIEW, receipt.getStatus());
+        assertEquals(98, item1.getActualQty());
+        assertEquals(95, item1.getQualityPassedQty());
+        assertEquals(3, item1.getQualityFailedQty());
+        assertEquals(0, item1.getQuarantineReadyQty());
+        assertEquals("Damaged", item1.getQcFailureReason());
+        assertEquals(QcResult.FAILED, item1.getQcResult());
+    }
+
+    @Test
+    void reviewStorekeeperCountQc_approveAllPassTransitionsToQcCompleted() {
+        Receipt receipt = receipt(100L, ReceiptStatus.PENDING_STOREKEEPER_REVIEW);
+        ReceiptItem item1 = item(501L, receipt, 30L, 100);
+        item1.setActualQty(100);
+        item1.setQualityPassedQty(100);
+        item1.setQualityFailedQty(0);
+        stubReceive(receipt, List.of(item1));
+        stubReceiveSaves();
+
+        ReceiptResponse response = receiptService.reviewStorekeeperCountQc(100L,
+                storekeeperReviewRequest(StorekeeperReviewDecision.APPROVE, null), storekeeper);
+
+        assertEquals("QC_COMPLETED", response.getStatus());
+        assertEquals(ReceiptStatus.QC_COMPLETED, receipt.getStatus());
+        assertEquals(storekeeper, receipt.getStorekeeperReviewedBy());
+        assertNotNull(receipt.getStorekeeperReviewedAt());
+        verify(auditLogService).log(eq(storekeeper), eq(AuditAction.RECEIPT_STOREKEEPER_REVIEW_APPROVE),
+                eq("RECEIPT"), eq(100L), eq("RN-1"), eq(20L),
+                any(Map.class), any(Map.class));
+    }
+
+    @Test
+    void reviewStorekeeperCountQc_requestRecountTransitionsToRecountRequired() {
+        Receipt receipt = receipt(100L, ReceiptStatus.PENDING_STOREKEEPER_REVIEW);
+        ReceiptItem item1 = item(501L, receipt, 30L, 100);
+        stubReceive(receipt, List.of(item1));
+        stubReceiveSaves();
+
+        ReceiptResponse response = receiptService.reviewStorekeeperCountQc(100L,
+                storekeeperReviewRequest(StorekeeperReviewDecision.REQUEST_RECOUNT, "Count mismatch"), storekeeper);
+
+        assertEquals("RECOUNT_REQUIRED", response.getStatus());
+        assertEquals("Count mismatch", receipt.getRecountReason());
+        assertEquals(storekeeper, receipt.getStorekeeperReviewedBy());
+        verify(auditLogService).log(eq(storekeeper), eq(AuditAction.RECEIPT_STOREKEEPER_RECOUNT_REQUEST),
+                eq("RECEIPT"), eq(100L), eq("RN-1"), eq(20L),
+                any(Map.class), any(Map.class));
+    }
+
+    @Test
+    void receiveAndQcReceipt_rejectsQcTotalMismatch() {
+        Receipt receipt = receipt(100L, ReceiptStatus.PENDING_RECEIPT);
+        ReceiptItem item1 = item(501L, receipt, 30L, 100);
+        stubReceive(receipt, List.of(item1));
+
+        ReceiptCountException ex = assertThrows(ReceiptCountException.class,
+                () -> receiptService.receiveAndQcReceipt(100L,
+                        receiveQcRequest(receiveQcLine(501L, 100, 90, 5, "Damaged")),
+                        warehouseStaff));
+
+        assertEquals("RECEIVE_QC_TOTAL_MISMATCH", ex.getCode());
+        verify(receiptItemRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void receiveAndQcReceipt_requiresFailureReason() {
+        Receipt receipt = receipt(100L, ReceiptStatus.PENDING_RECEIPT);
+        ReceiptItem item1 = item(501L, receipt, 30L, 100);
+        stubReceive(receipt, List.of(item1));
+
+        ReceiptCountException ex = assertThrows(ReceiptCountException.class,
+                () -> receiptService.receiveAndQcReceipt(100L,
+                        receiveQcRequest(receiveQcLine(501L, 100, 95, 5, " ")),
+                        warehouseStaff));
+
+        assertEquals("QC_FAILURE_REASON_REQUIRED", ex.getCode());
+    }
+
+    @Test
+    void receiveAndQcReceipt_recordsOverReceivedWithoutInventoryOrBatchReadiness() {
+        Receipt receipt = receipt(100L, ReceiptStatus.PENDING_RECEIPT);
+        ReceiptItem item1 = item(501L, receipt, 30L, 100);
+        stubReceive(receipt, List.of(item1));
+        stubReceiveSaves();
+
+        receiptService.receiveAndQcReceipt(100L,
+                receiveQcRequest(receiveQcLine(501L, 120, 120, 0, null)), warehouseStaff);
+
+        assertEquals(120, item1.getActualQty());
+        assertEquals(20, item1.getOverReceivedQty());
+        assertNull(item1.getBatch());
+        assertNull(item1.getLocation());
+        assertEquals(0, item1.getApprovedQty());
+        assertEquals(0, item1.getQuarantineQty());
+    }
+
+    @Test
+    void receiveAndQcReceipt_rejectsExpectedVersionMismatch() {
+        Receipt receipt = receipt(100L, ReceiptStatus.PENDING_RECEIPT);
+        receipt.setVersion(2);
+        when(receiptRepository.findByIdWithWarehouse(100L)).thenReturn(Optional.of(receipt));
+        when(assignmentRepository.findWarehouseIdsByUserId(2L)).thenReturn(List.of(20L));
+
+        ReceiptCountException ex = assertThrows(ReceiptCountException.class,
+                () -> receiptService.receiveAndQcReceipt(100L,
+                        receiveQcRequest(receiveQcLine(501L, 100, 100, 0, null)),
+                        warehouseStaff));
+
+        assertEquals("INVENTORY_VERSION_CONFLICT", ex.getCode());
+        verify(receiptItemRepository, never()).findByReceiptIdOrderByIdAsc(any());
+    }
+
+    @Test
+    void receiveAndQcReceipt_blocksPendingManagerApprovalAndRevisionRequired() {
+        for (ReceiptStatus status : List.of(ReceiptStatus.PENDING_MANAGER_APPROVAL,
+                ReceiptStatus.REVISION_REQUIRED)) {
+            Receipt receipt = receipt(100L, status);
+            when(receiptRepository.findByIdWithWarehouse(100L)).thenReturn(Optional.of(receipt));
+            when(assignmentRepository.findWarehouseIdsByUserId(2L)).thenReturn(List.of(20L));
+
+            ReceiptCountException ex = assertThrows(ReceiptCountException.class,
+                    () -> receiptService.receiveAndQcReceipt(100L,
+                            receiveQcRequest(receiveQcLine(501L, 100, 100, 0, null)),
+                            warehouseStaff));
+
+            assertEquals("RECEIPT_PENDING_MANAGER_APPROVAL", ex.getCode());
+        }
     }
 
     @Test
@@ -778,16 +947,46 @@ class ReceiptServiceTest {
         return request;
     }
 
+    private ReceiveQcReceiptItemRequest receiveQcLine(Long itemId,
+                                                      Integer actualQty,
+                                                      Integer passedQty,
+                                                      Integer failedQty,
+                                                      String failureReason) {
+        ReceiveQcReceiptItemRequest line = new ReceiveQcReceiptItemRequest();
+        line.setReceiptItemId(itemId);
+        line.setActualQty(actualQty);
+        line.setQualityPassedQty(passedQty);
+        line.setQualityFailedQty(failedQty);
+        line.setQcFailureReason(failureReason);
+        return line;
+    }
+
+    private ReceiveQcReceiptRequest receiveQcRequest(ReceiveQcReceiptItemRequest... lines) {
+        ReceiveQcReceiptRequest request = new ReceiveQcReceiptRequest();
+        request.setExpectedVersion(0);
+        request.setItems(List.of(lines));
+        return request;
+    }
+
+    private StorekeeperReviewRequest storekeeperReviewRequest(StorekeeperReviewDecision decision, String reason) {
+        StorekeeperReviewRequest request = new StorekeeperReviewRequest();
+        request.setExpectedVersion(0);
+        request.setDecision(decision);
+        request.setReason(reason);
+        return request;
+    }
+
     private void stubReceive(Receipt receipt, List<ReceiptItem> items) {
         when(receiptRepository.findByIdWithWarehouse(receipt.getId()))
                 .thenReturn(Optional.of(receipt));
-        when(assignmentRepository.findWarehouseIdsByUserId(2L)).thenReturn(List.of(20L));
+        lenient().when(assignmentRepository.findWarehouseIdsByUserId(2L)).thenReturn(List.of(20L));
+        lenient().when(assignmentRepository.findWarehouseIdsByUserId(4L)).thenReturn(List.of(20L));
         when(receiptItemRepository.findByReceiptIdOrderByIdAsc(receipt.getId()))
                 .thenReturn(items);
     }
 
     private void stubReceiveSaves() {
-        when(receiptItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        lenient().when(receiptItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(receiptRepository.save(any(Receipt.class))).thenAnswer(invocation -> invocation.getArgument(0));
     }
 

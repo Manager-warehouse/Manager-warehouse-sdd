@@ -17,7 +17,7 @@
 | `QC_FAILED` | `PARTIALLY_APPROVED` | Approve passed quantity only |
 | `QC_COMPLETED` | `RETURN_TO_SUPPLIER_PENDING` | Reject whole receipt with reason |
 | `QC_FAILED` | `RETURN_TO_SUPPLIER_PENDING` | Reject whole receipt with reason |
-| `RETURN_TO_SUPPLIER_PENDING` | `RETURNED_TO_SUPPLIER` | STOREKEEPER confirms supplier handover |
+| `RETURN_TO_SUPPLIER_PENDING` | `RETURNED_TO_SUPPLIER` | WH_MANAGER confirms supplier handover |
 
 ## Approval Data
 
@@ -58,6 +58,7 @@ Batch identity uses:
 ## Stored Data Rules
 
 - WH_MANAGER decision requires role plus warehouse scope.
+- WH_MANAGER decision is blocked until Storekeeper review approval has produced `QC_COMPLETED` or `QC_FAILED`.
 - Approval requires positive `unit_cost` for approved items.
 - Approval resolves batch lineage but does not increase regular inventory.
 - Rejection requires `rejection_reason`.

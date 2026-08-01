@@ -42,8 +42,11 @@ import com.wms.dto.request.ReceiptCancelRequest;
 import com.wms.dto.request.ReceiptReopenRequest;
 import com.wms.dto.request.ReviseReceiptItemRequest;
 import com.wms.dto.request.ReviseReceiptRequest;
+import com.wms.dto.request.ReceiveQcReceiptItemRequest;
+import com.wms.dto.request.ReceiveQcReceiptRequest;
 import com.wms.dto.request.ReceiveReceiptItemRequest;
 import com.wms.dto.request.ReceiveReceiptRequest;
+import com.wms.dto.request.StorekeeperReviewRequest;
 import com.wms.dto.response.ReceiptResponse;
 import com.wms.entity.document_numbering.DocumentSequence;
 import com.wms.entity.product_catalog.Product;
@@ -315,6 +318,95 @@ public class ReceiptService {
     }
 
     @Transactional
+    public ReceiptResponse receiveAndQcReceipt(Long receiptId,
+                                               ReceiveQcReceiptRequest request,
+                                               User actor) {
+        requireReceiveQcRole(actor);
+        validateReceiveQcRequest(request);
+        Receipt receipt = receiptRepository.findByIdWithWarehouse(receiptId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Receipt not found with id: " + receiptId));
+        requireWarehouseAccess(actor, receipt.getWarehouse().getId());
+        validateReceiveQcStatus(receipt);
+        assertVersion(receipt, request.getExpectedVersion());
+
+        List<ReceiptItem> items = receiptItemRepository.findByReceiptIdOrderByIdAsc(receiptId);
+        ensureReceiveQcEditable(items);
+        Map<String, Object> before = receiveSnapshot(receipt, items);
+        Map<Long, ReceiveQcReceiptItemRequest> counts = validateReceiveQcCoverage(request, items);
+
+        for (ReceiptItem item : items) {
+            ReceiveQcReceiptItemRequest count = counts.get(item.getId());
+            clearReceiptItemQcData(item);
+            applyReceiveQc(item, count, actor);
+        }
+
+        receipt.setStatus(ReceiptStatus.PENDING_STOREKEEPER_REVIEW);
+        receipt.setRejectionReason(null);
+        receipt.setRecountReason(null);
+        receipt.setStorekeeperReviewedBy(null);
+        receipt.setStorekeeperReviewedAt(null);
+        receipt.setUpdatedAt(OffsetDateTime.now());
+
+        List<ReceiptItem> savedItems = receiptItemRepository.saveAll(items);
+        Receipt savedReceipt = receiptRepository.save(receipt);
+        auditLogService.log(actor, AuditAction.RECEIPT_RECEIVE_QC, "RECEIPT",
+                savedReceipt.getId(), savedReceipt.getReceiptNumber(),
+                savedReceipt.getWarehouse().getId(), before,
+                receiveSnapshot(savedReceipt, savedItems));
+        return receiptMapper.toResponse(savedReceipt, savedItems);
+    }
+
+    @Transactional
+    public ReceiptResponse reviewStorekeeperCountQc(Long receiptId,
+                                                    StorekeeperReviewRequest request,
+                                                    User actor) {
+        requireStorekeeperReviewRole(actor);
+        validateStorekeeperReviewRequest(request);
+        Receipt receipt = receiptRepository.findByIdWithWarehouse(receiptId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Receipt not found with id: " + receiptId));
+        requireWarehouseAccess(actor, receipt.getWarehouse().getId());
+        validateStorekeeperReviewStatus(receipt);
+        assertVersion(receipt, request.getExpectedVersion());
+
+        List<ReceiptItem> items = receiptItemRepository.findByReceiptIdOrderByIdAsc(receiptId);
+        Map<String, Object> before = receiveSnapshot(receipt, items);
+        OffsetDateTime now = OffsetDateTime.now();
+        receipt.setStorekeeperReviewedBy(actor);
+        receipt.setStorekeeperReviewedAt(now);
+        receipt.setUpdatedAt(now);
+
+        if (request.getDecision() == StorekeeperReviewDecision.REQUEST_RECOUNT) {
+            receipt.setStatus(ReceiptStatus.RECOUNT_REQUIRED);
+            receipt.setRecountReason(request.getReason().trim());
+            Receipt savedReceipt = receiptRepository.save(receipt);
+            auditLogService.log(actor, AuditAction.RECEIPT_STOREKEEPER_RECOUNT_REQUEST, "RECEIPT",
+                    savedReceipt.getId(), savedReceipt.getReceiptNumber(),
+                    savedReceipt.getWarehouse().getId(), before,
+                    storekeeperReviewSnapshot(savedReceipt, items, request.getDecision()));
+            return receiptMapper.toResponse(savedReceipt, items);
+        }
+
+        boolean hasFailed = false;
+        for (ReceiptItem item : items) {
+            int failedQty = item.getQualityFailedQty() == null ? 0 : item.getQualityFailedQty();
+            item.setQuarantineReadyQty(failedQty);
+            hasFailed = hasFailed || failedQty > 0;
+        }
+        receipt.setStatus(hasFailed ? ReceiptStatus.QC_FAILED : ReceiptStatus.QC_COMPLETED);
+        receipt.setRecountReason(null);
+
+        List<ReceiptItem> savedItems = receiptItemRepository.saveAll(items);
+        Receipt savedReceipt = receiptRepository.save(receipt);
+        auditLogService.log(actor, AuditAction.RECEIPT_STOREKEEPER_REVIEW_APPROVE, "RECEIPT",
+                savedReceipt.getId(), savedReceipt.getReceiptNumber(),
+                savedReceipt.getWarehouse().getId(), before,
+                storekeeperReviewSnapshot(savedReceipt, savedItems, request.getDecision()));
+        return receiptMapper.toResponse(savedReceipt, savedItems);
+    }
+
+    @Transactional
     public ReceiptResponse cancelReceipt(Long receiptId, ReceiptCancelRequest request, User actor) {
         requireCancelRole(actor);
         Receipt receipt = receiptRepository.findByIdWithWarehouse(receiptId)
@@ -410,10 +502,22 @@ public class ReceiptService {
 
     private void requireWarehouseStaff(User actor) {
         if (actor == null || (actor.getRole() != UserRole.WAREHOUSE_STAFF
-                && actor.getRole() != UserRole.STOREKEEPER
-                && actor.getRole() != UserRole.WAREHOUSE_MANAGER
                 && actor.getRole() != UserRole.ADMIN)) {
-            throw new AccessDeniedException("Warehouse Staff, Storekeeper, Warehouse Manager, or Admin role is required");
+            throw new AccessDeniedException("Warehouse Staff or Admin role is required");
+        }
+    }
+
+    private void requireReceiveQcRole(User actor) {
+        if (actor == null || (actor.getRole() != UserRole.WAREHOUSE_STAFF
+                && actor.getRole() != UserRole.ADMIN)) {
+            throw new AccessDeniedException("Warehouse Staff or Admin role is required");
+        }
+    }
+
+    private void requireStorekeeperReviewRole(User actor) {
+        if (actor == null || (actor.getRole() != UserRole.STOREKEEPER
+                && actor.getRole() != UserRole.ADMIN)) {
+            throw new AccessDeniedException("Storekeeper or Admin role is required");
         }
     }
 
@@ -583,6 +687,28 @@ public class ReceiptService {
         }
     }
 
+    private void validateReceiveQcRequest(ReceiveQcReceiptRequest request) {
+        if (request == null || request.getItems() == null || request.getItems().isEmpty()) {
+            throw receiptCountError("RECEIPT_RECEIVE_QC_INCOMPLETE",
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Receive-QC request must include every receipt item");
+        }
+    }
+
+    private void validateStorekeeperReviewRequest(StorekeeperReviewRequest request) {
+        if (request == null || request.getDecision() == null) {
+            throw receiptCountError("STOREKEEPER_REVIEW_DECISION_REQUIRED",
+                    HttpStatus.BAD_REQUEST,
+                    "Storekeeper review decision is required");
+        }
+        if (request.getDecision() == StorekeeperReviewDecision.REQUEST_RECOUNT
+                && (request.getReason() == null || request.getReason().isBlank())) {
+            throw receiptCountError("RECOUNT_REASON_REQUIRED",
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Recount reason is required when requesting a recount");
+        }
+    }
+
     private void validateReceivableStatus(Receipt receipt) {
         if (receipt.getStatus() == ReceiptStatus.PENDING_MANAGER_APPROVAL
                 || receipt.getStatus() == ReceiptStatus.REVISION_REQUIRED) {
@@ -643,6 +769,55 @@ public class ReceiptService {
         }
     }
 
+    private Map<Long, ReceiveQcReceiptItemRequest> validateReceiveQcCoverage(
+            ReceiveQcReceiptRequest request,
+            List<ReceiptItem> items) {
+        if (items.isEmpty()) {
+            throw receiptCountError("RECEIPT_RECEIVE_QC_INCOMPLETE",
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Receipt has no items to receive and QC");
+        }
+        Map<Long, ReceiptItem> itemById = items.stream()
+                .collect(Collectors.toMap(ReceiptItem::getId, Function.identity()));
+        Map<Long, ReceiveQcReceiptItemRequest> countByItemId = new LinkedHashMap<>();
+        for (ReceiveQcReceiptItemRequest count : request.getItems()) {
+            validateReceiveQcLine(count, itemById, countByItemId);
+            countByItemId.put(count.getReceiptItemId(), count);
+        }
+        if (countByItemId.size() != itemById.size()) {
+            throw receiptCountError("RECEIPT_RECEIVE_QC_INCOMPLETE",
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Receive-QC request must include every receipt item");
+        }
+        return countByItemId;
+    }
+
+    private void validateReceiveQcLine(ReceiveQcReceiptItemRequest count,
+                                       Map<Long, ReceiptItem> itemById,
+                                       Map<Long, ReceiveQcReceiptItemRequest> countByItemId) {
+        if (count == null || count.getReceiptItemId() == null
+                || count.getActualQty() == null || count.getActualQty() < 0
+                || count.getQualityPassedQty() == null || count.getQualityPassedQty() < 0
+                || count.getQualityFailedQty() == null || count.getQualityFailedQty() < 0) {
+            throw invalidReceiveQc();
+        }
+        if (countByItemId.containsKey(count.getReceiptItemId())
+                || !itemById.containsKey(count.getReceiptItemId())) {
+            throw invalidReceiveQc();
+        }
+        if (count.getQualityPassedQty() + count.getQualityFailedQty() != count.getActualQty()) {
+            throw receiptCountError("RECEIVE_QC_TOTAL_MISMATCH",
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "qualityPassedQty + qualityFailedQty must equal actualQty");
+        }
+        if (count.getQualityFailedQty() > 0
+                && (count.getQcFailureReason() == null || count.getQcFailureReason().isBlank())) {
+            throw receiptCountError("QC_FAILURE_REASON_REQUIRED",
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "QC failure reason is required when failed quantity is greater than zero");
+        }
+    }
+
     private void applyCount(ReceiptItem item, Integer countedQty) {
         if (countedQty <= item.getExpectedQty()) {
             item.setActualQty(countedQty);
@@ -651,6 +826,21 @@ public class ReceiptService {
         }
         item.setActualQty(item.getExpectedQty());
         item.setOverReceivedQty(countedQty - item.getExpectedQty());
+    }
+
+    private void applyReceiveQc(ReceiptItem item,
+                                ReceiveQcReceiptItemRequest count,
+                                User actor) {
+        item.setActualQty(count.getActualQty());
+        item.setOverReceivedQty(Math.max(0, count.getActualQty() - item.getExpectedQty()));
+        item.setQualityPassedQty(count.getQualityPassedQty());
+        item.setQualityFailedQty(count.getQualityFailedQty());
+        item.setQuarantineReadyQty(0);
+        item.setQcFailureReason(count.getQualityFailedQty() > 0
+                ? count.getQcFailureReason().trim()
+                : null);
+        item.setQcResult(count.getQualityFailedQty() > 0 ? QcResult.FAILED : QcResult.PASSED);
+        item.setQcBy(actor);
     }
 
     private boolean hasQcData(List<ReceiptItem> items) {
@@ -679,6 +869,10 @@ public class ReceiptService {
         }
     }
 
+    private boolean positive(Integer value) {
+        return value != null && value > 0;
+    }
+
     private Map<String, Object> receiveSnapshot(Receipt receipt, List<ReceiptItem> items) {
         Map<String, Object> values = new LinkedHashMap<>();
         values.put("receiptNumber", receipt.getReceiptNumber());
@@ -695,6 +889,12 @@ public class ReceiptService {
         values.put("expectedQty", item.getExpectedQty());
         values.put("actualQty", item.getActualQty());
         values.put("overReceivedQty", item.getOverReceivedQty());
+        values.put("qualityPassedQty", item.getQualityPassedQty());
+        values.put("qualityFailedQty", item.getQualityFailedQty());
+        values.put("approvedQty", item.getApprovedQty());
+        values.put("quarantineReadyQty", item.getQuarantineReadyQty());
+        values.put("quarantineQty", item.getQuarantineQty());
+        values.put("resolvedQuarantineQty", item.getResolvedQuarantineQty());
         values.put("qcResult", item.getQcResult() == null ? null : item.getQcResult().name());
         values.put("sampleQty", item.getSampleQty());
         values.put("samplePassedQty", item.getSamplePassedQty());
@@ -706,10 +906,28 @@ public class ReceiptService {
         return values;
     }
 
+    private Map<String, Object> storekeeperReviewSnapshot(Receipt receipt,
+                                                          List<ReceiptItem> items,
+                                                          StorekeeperReviewDecision decision) {
+        Map<String, Object> values = receiveSnapshot(receipt, items);
+        values.put("decision", decision.name());
+        values.put("storekeeperReviewedBy",
+                receipt.getStorekeeperReviewedBy() == null ? null : receipt.getStorekeeperReviewedBy().getId());
+        values.put("storekeeperReviewedAt", receipt.getStorekeeperReviewedAt());
+        values.put("recountReason", receipt.getRecountReason());
+        return values;
+    }
+
     private ReceiptCountException invalidReceiptCount() {
         return receiptCountError("INVALID_RECEIPT_COUNT",
                 HttpStatus.UNPROCESSABLE_ENTITY,
                 "Receipt count contains invalid item or quantity");
+    }
+
+    private ReceiptCountException invalidReceiveQc() {
+        return receiptCountError("INVALID_RECEIVE_QC",
+                HttpStatus.UNPROCESSABLE_ENTITY,
+                "Receive-QC contains invalid item or quantity");
     }
 
     private ReceiptCountException receiptCountError(String code,
@@ -721,6 +939,42 @@ public class ReceiptService {
     private void requireWarehouseManager(User actor) {
         if (actor == null || actor.getRole() != UserRole.WAREHOUSE_MANAGER) {
             throw new AccessDeniedException("Warehouse Manager role is required");
+        }
+    }
+
+    private void validateReceiveQcStatus(Receipt receipt) {
+        if (receipt.getStatus() == ReceiptStatus.PENDING_MANAGER_APPROVAL
+                || receipt.getStatus() == ReceiptStatus.REVISION_REQUIRED) {
+            throw receiptCountError("RECEIPT_PENDING_MANAGER_APPROVAL",
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Receipt requires manager approval before receiving and QC");
+        }
+        if (receipt.getStatus() != ReceiptStatus.PENDING_RECEIPT
+                && receipt.getStatus() != ReceiptStatus.DRAFT
+                && receipt.getStatus() != ReceiptStatus.RECOUNT_REQUIRED) {
+            throw receiptCountError("INVALID_RECEIPT_STATUS",
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Receipt status does not allow receive-QC");
+        }
+    }
+
+    private void validateStorekeeperReviewStatus(Receipt receipt) {
+        if (receipt.getStatus() != ReceiptStatus.PENDING_STOREKEEPER_REVIEW) {
+            throw receiptCountError("STOREKEEPER_REVIEW_INVALID_STATUS",
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Storekeeper review requires PENDING_STOREKEEPER_REVIEW status");
+        }
+    }
+
+    private void ensureReceiveQcEditable(List<ReceiptItem> items) {
+        boolean managerDecisionStarted = items.stream().anyMatch(item ->
+                positive(item.getApprovedQty())
+                        || positive(item.getQuarantineQty())
+                        || positive(item.getResolvedQuarantineQty()));
+        if (managerDecisionStarted) {
+            throw receiptCountError("RECEIPT_QC_ALREADY_DECIDED",
+                    HttpStatus.CONFLICT,
+                    "Receive-QC cannot be edited after manager decision has started");
         }
     }
 

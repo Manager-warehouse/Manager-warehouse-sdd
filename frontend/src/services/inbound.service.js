@@ -533,9 +533,12 @@ export const inboundService = {
       const receiptItems = enrichMockReceiptItems(
         items.filter(item => item.receipt_id === Number(id))
       );
+      const suppliers = await masterDataService.getSuppliers();
+      const supplier = suppliers.find(s => s.id === receipt.supplier_id);
 
       return {
         ...receipt,
+        supplier_name: supplier?.company_name || null,
         items: receiptItems
       };
     }
@@ -702,6 +705,155 @@ export const inboundService = {
       }))
     };
     const response = await apiClient.put(`/receipts/${id}/receive`, apiPayload);
+    return response.data;
+  },
+
+  receiveQcReceipt: async (id, receiveQcData) => {
+    if (useMock) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const receipts = getDb(KEYS.RECEIPTS, INITIAL_RECEIPTS);
+      const receiptItems = getDb(KEYS.RECEIPT_ITEMS, INITIAL_RECEIPT_ITEMS);
+
+      const rIdx = receipts.findIndex(r => r.id === Number(id));
+      if (rIdx === -1) throw new Error('RECEIPT_NOT_FOUND');
+      if (receipts[rIdx].version !== undefined
+          && receiveQcData.expectedVersion !== undefined
+          && receipts[rIdx].version !== receiveQcData.expectedVersion) {
+        throw new Error('INVENTORY_VERSION_CONFLICT');
+      }
+      const allowedStatuses = ['PENDING_RECEIPT', 'DRAFT', 'RECOUNT_REQUIRED'];
+      if (receipts[rIdx].status === 'PENDING_MANAGER_APPROVAL'
+          || receipts[rIdx].status === 'REVISION_REQUIRED') {
+        throw new Error('RECEIPT_PENDING_MANAGER_APPROVAL');
+      }
+      if (!allowedStatuses.includes(receipts[rIdx].status)) {
+        throw new Error('INVALID_RECEIPT_STATUS');
+      }
+
+      const lines = receiveQcData.items || [];
+      const items = receiptItems.filter(item => item.receipt_id === Number(id));
+      if (lines.length !== items.length) throw new Error('RECEIPT_RECEIVE_QC_INCOMPLETE');
+
+      const lineById = new Map();
+      lines.forEach(line => {
+        const itemId = Number(line.receipt_item_id ?? line.receiptItemId);
+        if (!itemId || lineById.has(itemId)) throw new Error('INVALID_RECEIVE_QC');
+        lineById.set(itemId, line);
+      });
+
+      items.forEach(item => {
+        const line = lineById.get(item.id);
+        if (!line) throw new Error('RECEIPT_RECEIVE_QC_INCOMPLETE');
+
+        const actual = Number(line.actual_qty ?? line.actualQty);
+        const passed = Number(line.quality_passed_qty ?? line.qualityPassedQty ?? line.qc_passed_qty ?? line.qcPassedQty);
+        const failed = Number(line.quality_failed_qty ?? line.qualityFailedQty ?? line.qc_failed_qty ?? line.qcFailedQty);
+        const failureReason = line.qc_failure_reason ?? line.qcFailureReason ?? line.failureReason;
+
+        if (actual < 0 || passed < 0 || failed < 0 || passed + failed !== actual) {
+          throw new Error('RECEIVE_QC_TOTAL_MISMATCH');
+        }
+        if (failed > 0 && (!failureReason || !failureReason.trim())) {
+          throw new Error('QC_FAILURE_REASON_REQUIRED');
+        }
+
+        item.actual_qty = actual;
+        item.over_received_qty = Math.max(0, actual - Number(item.expected_qty));
+        item.qc_passed_qty = passed;
+        item.qc_failed_qty = failed;
+        item.approved_qty = 0;
+        item.quarantine_ready_qty = 0;
+        item.qc_result = failed > 0 ? 'FAILED' : 'PASSED';
+        item.qc_failure_reason = failed > 0 ? failureReason.trim() : null;
+      });
+
+      receipts[rIdx].status = 'PENDING_STOREKEEPER_REVIEW';
+      receipts[rIdx].recount_reason = null;
+      receipts[rIdx].storekeeper_reviewed_at = null;
+      receipts[rIdx].updated_at = new Date().toISOString();
+      receipts[rIdx].version = (receipts[rIdx].version || 0) + 1;
+
+      saveDb(KEYS.RECEIPTS, receipts);
+      saveDb(KEYS.RECEIPT_ITEMS, receiptItems);
+      addMockAuditLog('RECEIPT_RECEIVE_QC', 'Receipt', id, `Nhận hàng & QC đầu vào: ${receipts[rIdx].receipt_number}`);
+      return {
+        ...receipts[rIdx],
+        items: enrichMockReceiptItems(items)
+      };
+    }
+
+    const apiPayload = {
+      expectedVersion: receiveQcData.expectedVersion !== undefined ? receiveQcData.expectedVersion : receiveQcData.expected_version,
+      items: (receiveQcData.items || []).map(item => ({
+        receiptItemId: item.receiptItemId !== undefined ? item.receiptItemId : item.receipt_item_id,
+        actualQty: item.actualQty !== undefined ? item.actualQty : item.actual_qty,
+        qualityPassedQty: item.qualityPassedQty !== undefined
+          ? item.qualityPassedQty
+          : (item.quality_passed_qty !== undefined ? item.quality_passed_qty : item.qc_passed_qty),
+        qualityFailedQty: item.qualityFailedQty !== undefined
+          ? item.qualityFailedQty
+          : (item.quality_failed_qty !== undefined ? item.quality_failed_qty : item.qc_failed_qty),
+        qcFailureReason: item.qcFailureReason !== undefined
+          ? item.qcFailureReason
+          : (item.qc_failure_reason !== undefined ? item.qc_failure_reason : item.failureReason)
+      }))
+    };
+    const response = await apiClient.put(`/receipts/${id}/receive-qc`, apiPayload);
+    return response.data;
+  },
+
+  reviewStorekeeperCountQc: async (id, reviewData) => {
+    if (useMock) {
+      await new Promise(resolve => setTimeout(resolve, 300));
+      const receipts = getDb(KEYS.RECEIPTS, INITIAL_RECEIPTS);
+      const receiptItems = getDb(KEYS.RECEIPT_ITEMS, INITIAL_RECEIPT_ITEMS);
+      const rIdx = receipts.findIndex(r => r.id === Number(id));
+      if (rIdx === -1) throw new Error('RECEIPT_NOT_FOUND');
+      if (receipts[rIdx].version !== undefined
+          && reviewData.expectedVersion !== undefined
+          && receipts[rIdx].version !== reviewData.expectedVersion) {
+        throw new Error('INVENTORY_VERSION_CONFLICT');
+      }
+      if (receipts[rIdx].status !== 'PENDING_STOREKEEPER_REVIEW') {
+        throw new Error('STOREKEEPER_REVIEW_INVALID_STATUS');
+      }
+      const decision = reviewData.decision;
+      if (decision === 'REQUEST_RECOUNT') {
+        const reason = reviewData.reason || '';
+        if (!reason.trim()) throw new Error('RECOUNT_REASON_REQUIRED');
+        receipts[rIdx].status = 'RECOUNT_REQUIRED';
+        receipts[rIdx].recount_reason = reason.trim();
+        addMockAuditLog('RECEIPT_STOREKEEPER_RECOUNT_REQUEST', 'Receipt', id, `Thu kho yeu cau dem lai: ${receipts[rIdx].receipt_number}`);
+      } else if (decision === 'APPROVE') {
+        const items = receiptItems.filter(item => item.receipt_id === Number(id));
+        const hasFailed = items.some(item => Number(item.qc_failed_qty || 0) > 0);
+        items.forEach(item => {
+          item.quarantine_ready_qty = Number(item.qc_failed_qty || 0);
+        });
+        receipts[rIdx].status = hasFailed ? 'QC_FAILED' : 'QC_COMPLETED';
+        receipts[rIdx].recount_reason = null;
+        addMockAuditLog('RECEIPT_STOREKEEPER_REVIEW_APPROVE', 'Receipt', id, `Thu kho duyet kiem dem/QC: ${receipts[rIdx].receipt_number}`);
+      } else {
+        throw new Error('STOREKEEPER_REVIEW_DECISION_REQUIRED');
+      }
+      receipts[rIdx].storekeeper_reviewed_at = new Date().toISOString();
+      receipts[rIdx].updated_at = new Date().toISOString();
+      receipts[rIdx].version = (receipts[rIdx].version || 0) + 1;
+      saveDb(KEYS.RECEIPTS, receipts);
+      saveDb(KEYS.RECEIPT_ITEMS, receiptItems);
+      const items = receiptItems.filter(item => item.receipt_id === Number(id));
+      return {
+        ...receipts[rIdx],
+        items: enrichMockReceiptItems(items)
+      };
+    }
+
+    const apiPayload = {
+      expectedVersion: reviewData.expectedVersion !== undefined ? reviewData.expectedVersion : reviewData.expected_version,
+      decision: reviewData.decision,
+      reason: reviewData.reason
+    };
+    const response = await apiClient.put(`/receipts/${id}/storekeeper-review`, apiPayload);
     return response.data;
   },
 
@@ -944,6 +1096,10 @@ export const inboundService = {
   rejectReceipt: async (id, reason, version) => {
     if (useMock) {
       await new Promise(resolve => setTimeout(resolve, 400));
+      const currentUser = JSON.parse(sessionStorage.getItem('wms_user')) || {};
+      if (!['WAREHOUSE_MANAGER', 'ADMIN'].includes(currentUser.role)) {
+        throw new Error('WAREHOUSE_MANAGER_ROLE_REQUIRED');
+      }
       const receipts = getDb(KEYS.RECEIPTS, INITIAL_RECEIPTS);
 
       const rIdx = receipts.findIndex(r => r.id === Number(id));
@@ -1028,7 +1184,9 @@ export const inboundService = {
 
       const rIdx = receipts.findIndex(r => r.id === Number(id));
       if (rIdx === -1) throw new Error('RECEIPT_NOT_FOUND');
-      if (receipts[rIdx].status !== 'APPROVED') throw new Error('RECEIPT_NOT_APPROVED_FOR_PUTAWAY');
+      if (!['APPROVED', 'PARTIALLY_APPROVED'].includes(receipts[rIdx].status)) {
+        throw new Error('RECEIPT_NOT_APPROVED_FOR_PUTAWAY');
+      }
 
       // Update location and inventories
       for (const updateItem of putawayData.items) {
@@ -1089,6 +1247,7 @@ export const inboundService = {
       }
 
       // If all items of the receipt are putaway, mark putaway_completed_at
+      receipts[rIdx].status = 'PUTAWAY_COMPLETED';
       receipts[rIdx].putaway_completed_at = new Date().toISOString();
       saveDb(KEYS.RECEIPTS, receipts);
       saveDb(KEYS.RECEIPT_ITEMS, receiptItems);
@@ -1120,7 +1279,10 @@ export const inboundService = {
       const products = await masterDataService.getProducts();
 
       // Find approved receipts belonging to the warehouse
-      const whReceipts = receipts.filter(r => r.warehouse_id === Number(warehouseId) && r.status === 'APPROVED');
+      const whReceipts = receipts.filter(r =>
+        r.warehouse_id === Number(warehouseId) &&
+        ['APPROVED', 'PARTIALLY_APPROVED'].includes(r.status)
+      );
       const whReceiptIds = whReceipts.map(r => r.id);
 
       // Find failed items in those receipts

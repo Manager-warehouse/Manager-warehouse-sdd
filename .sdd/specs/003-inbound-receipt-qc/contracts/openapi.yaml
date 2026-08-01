@@ -91,11 +91,11 @@ paths:
           $ref: "#/components/responses/Conflict"
         "422":
           $ref: "#/components/responses/BusinessRuleError"
-  /receipts/{id}/receive:
+  /receipts/{id}/receive-qc:
     put:
       tags: [Inbound Receipts]
-      summary: Submit or correct physical count
-      operationId: receiveInboundReceipt
+      summary: Submit or correct physical receipt count and inbound QC
+      operationId: receiveAndQcInboundReceipt
       parameters:
         - $ref: "#/components/parameters/ReceiptId"
       requestBody:
@@ -103,10 +103,10 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ReceiveReceiptRequest"
+              $ref: "#/components/schemas/ReceiveQcReceiptRequest"
       responses:
         "200":
-          description: Count saved and receipt moved/returned to DRAFT.
+          description: Receive and QC values saved by WH_STAFF; receipt moved to PENDING_STOREKEEPER_REVIEW for Storekeeper review.
           content:
             application/json:
               schema:
@@ -119,11 +119,11 @@ paths:
           $ref: "#/components/responses/Conflict"
         "422":
           $ref: "#/components/responses/BusinessRuleError"
-  /receipts/{id}/qc:
+  /receipts/{id}/storekeeper-review:
     put:
       tags: [Inbound Receipts]
-      summary: Submit QC result
-      operationId: submitInboundReceiptQc
+      summary: Storekeeper approves submitted count/QC or requests recount
+      operationId: reviewInboundReceiptCountQc
       parameters:
         - $ref: "#/components/parameters/ReceiptId"
       requestBody:
@@ -131,38 +131,10 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/SubmitQcRequest"
+              $ref: "#/components/schemas/StorekeeperReviewRequest"
       responses:
         "200":
-          description: QC data saved.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ReceiptActionResponse"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "400":
-          $ref: "#/components/responses/ValidationError"
-        "409":
-          $ref: "#/components/responses/Conflict"
-        "422":
-          $ref: "#/components/responses/BusinessRuleError"
-  /receipts/{id}/qc/confirm:
-    put:
-      tags: [Inbound Receipts]
-      summary: Confirm QC classification
-      operationId: confirmInboundReceiptQc
-      parameters:
-        - $ref: "#/components/parameters/ReceiptId"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/VersionedActionRequest"
-      responses:
-        "200":
-          description: Receipt moved to QC_COMPLETED or QC_FAILED.
+          description: Receipt moved to QC_COMPLETED, QC_FAILED, or RECOUNT_REQUIRED.
           content:
             application/json:
               schema:
@@ -415,6 +387,8 @@ components:
         - PENDING_MANAGER_APPROVAL
         - REVISION_REQUIRED
         - PENDING_RECEIPT
+        - PENDING_STOREKEEPER_REVIEW
+        - RECOUNT_REQUIRED
         - DRAFT
         - QC_COMPLETED
         - QC_FAILED
@@ -471,6 +445,35 @@ components:
             decision:
               type: string
               enum: [REJECT]
+            reason:
+              type: string
+              minLength: 1
+              maxLength: 2000
+          additionalProperties: false
+    StorekeeperReviewRequest:
+      oneOf:
+        - type: object
+          required: [expectedVersion, decision]
+          properties:
+            expectedVersion:
+              type: integer
+              minimum: 0
+            decision:
+              type: string
+              enum: [APPROVE]
+            reason:
+              type: string
+              maxLength: 2000
+          additionalProperties: false
+        - type: object
+          required: [expectedVersion, decision, reason]
+          properties:
+            expectedVersion:
+              type: integer
+              minimum: 0
+            decision:
+              type: string
+              enum: [REQUEST_RECOUNT]
             reason:
               type: string
               minLength: 1
@@ -542,7 +545,7 @@ components:
                 exclusiveMinimum: true
             additionalProperties: false
       additionalProperties: false
-    ReceiveReceiptRequest:
+    ReceiveQcReceiptRequest:
       type: object
       required: [expectedVersion, items]
       properties:
@@ -553,56 +556,38 @@ components:
           type: array
           minItems: 1
           items:
-            type: object
-            required: [receiptItemId, countedQty]
-            properties:
-              receiptItemId:
-                type: integer
-                format: int64
-              countedQty:
-                type: integer
-                minimum: 1
-            additionalProperties: false
+            $ref: "#/components/schemas/ReceiveQcReceiptItem"
       additionalProperties: false
-    SubmitQcRequest:
+    ReceiveQcReceiptItem:
       type: object
-      required: [expectedVersion, items]
+      required: [receiptItemId, actualQty, qualityPassedQty, qualityFailedQty]
       properties:
-        expectedVersion:
+        receiptItemId:
+          type: integer
+          format: int64
+        actualQty:
           type: integer
           minimum: 0
-        items:
-          type: array
-          minItems: 1
-          items:
-            type: object
-            required: [receiptItemId, sampleQty, samplePassedQty, sampleFailedQty, qualityPassedQty, qualityFailedQty]
-            properties:
-              receiptItemId:
-                type: integer
-                format: int64
-              sampleQty:
-                type: integer
-                minimum: 0
-              samplePassedQty:
-                type: integer
-                minimum: 0
-              sampleFailedQty:
-                type: integer
-                minimum: 0
-              qualityPassedQty:
-                type: integer
-                minimum: 0
-              qualityFailedQty:
-                type: integer
-                minimum: 0
-              qcSamplingMethod:
-                type: string
-                enum: [FULL_INSPECTION, RANDOM_SAMPLE]
-              failureReason:
-                type: string
-                maxLength: 2000
-            additionalProperties: false
+        qualityPassedQty:
+          type: integer
+          minimum: 0
+        qualityFailedQty:
+          type: integer
+          minimum: 0
+        failureReason:
+          type: string
+          maxLength: 2000
+          description: Required when qualityFailedQty is greater than zero.
+      oneOf:
+        - properties:
+            qualityFailedQty:
+              type: integer
+              maximum: 0
+        - required: [failureReason]
+          properties:
+            qualityFailedQty:
+              type: integer
+              minimum: 1
       additionalProperties: false
     ApproveReceiptRequest:
       type: object

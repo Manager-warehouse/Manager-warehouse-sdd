@@ -288,16 +288,16 @@ class ReceiptServiceReturnToSupplierTest {
 
         when(receiptRepository.findById(2L)).thenReturn(Optional.of(returnPendingReceipt));
         when(receiptRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(returnPendingReceipt));
-        when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(6L)).thenReturn(List.of(10L));
+        when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
         when(receiptRepository.save(any(Receipt.class))).thenAnswer(i -> i.getArgument(0));
 
-        ReceiptActionResponse response = receiptService.confirmReturnToSupplier(2L, request, storekeeper);
+        ReceiptActionResponse response = receiptService.confirmReturnToSupplier(2L, request, manager);
 
         assertNotNull(response);
         assertEquals(ReceiptStatus.RETURNED_TO_SUPPLIER, response.getStatus());
 
         verify(receiptRepository).save(argThat(r -> r.getStatus() == ReceiptStatus.RETURNED_TO_SUPPLIER));
-        verify(auditLogService).log(eq(storekeeper), eq(AuditAction.RECEIPT_RETURN_CONFIRM),
+        verify(auditLogService).log(eq(manager), eq(AuditAction.RECEIPT_RETURN_CONFIRM),
                 eq("RECEIPT"), eq(2L), eq("RCV-2026-003"), eq(10L), any(), any());
     }
 
@@ -308,15 +308,27 @@ class ReceiptServiceReturnToSupplierTest {
 
         when(receiptRepository.findById(2L)).thenReturn(Optional.of(returnPendingReceipt));
         when(receiptRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(returnPendingReceipt));
-        when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(6L)).thenReturn(List.of(10L));
+        when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
         when(receiptRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
-        receiptService.confirmReturnToSupplier(2L, request, storekeeper);
+        receiptService.confirmReturnToSupplier(2L, request, manager);
 
         verify(inventoryRepository, never()).save(any());
         verify(batchRepository, never()).save(any());
         verify(adjustmentRepository, never()).save(any());
         verify(debitNoteRepository, never()).save(any());
+    }
+
+    @Test
+    void confirmReturnToSupplier_storekeeper_throwsAccessDenied() {
+        ReceiptReturnConfirmRequest request = new ReceiptReturnConfirmRequest();
+        request.setExpectedVersion(4);
+
+        assertThrows(ForbiddenReceiptWarehouseException.class,
+                () -> receiptService.confirmReturnToSupplier(2L, request, storekeeper));
+
+        verify(receiptRepository, never()).save(any());
+        verify(auditLogService, never()).log(any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     // -----------------------------------------------------------------------
@@ -331,10 +343,10 @@ class ReceiptServiceReturnToSupplierTest {
 
         when(receiptRepository.findById(2L)).thenReturn(Optional.of(returnPendingReceipt));
         when(receiptRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(returnPendingReceipt));
-        when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(6L)).thenReturn(List.of(10L));
+        when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
 
         BusinessRuleViolationException ex = assertThrows(BusinessRuleViolationException.class,
-                () -> receiptService.confirmReturnToSupplier(2L, request, storekeeper));
+                () -> receiptService.confirmReturnToSupplier(2L, request, manager));
 
         assertTrue(ex.getMessage().contains("RETURN_TO_SUPPLIER_PENDING"));
         verify(receiptRepository, never()).save(any());
@@ -347,10 +359,10 @@ class ReceiptServiceReturnToSupplierTest {
 
         when(receiptRepository.findById(2L)).thenReturn(Optional.of(returnPendingReceipt));
         when(receiptRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(returnPendingReceipt));
-        when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(6L)).thenReturn(List.of(10L));
+        when(userWarehouseAssignmentRepository.findWarehouseIdsByUserId(5L)).thenReturn(List.of(10L));
 
         BusinessRuleViolationException ex = assertThrows(BusinessRuleViolationException.class,
-                () -> receiptService.confirmReturnToSupplier(2L, request, storekeeper));
+                () -> receiptService.confirmReturnToSupplier(2L, request, manager));
 
         assertTrue(ex.getMessage().contains("INVENTORY_VERSION_CONFLICT"));
     }
