@@ -286,8 +286,21 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         for (DeliveryOrderItem item : orderItems) {
             Long productId = item.getProduct().getId();
             List<Inventory> candidates = inventoryRepository.findValidFifoCandidates(warehouseId, productId, order.getId());
-            List<PickingCandidateResponse> candidateResponses = candidates.stream()
-                    .map(inv -> toPickingCandidate(inv, item))
+            boolean includeCurrentPlanReservation = order.getStatus() == DeliveryOrderStatus.WAITING_PICKING;
+            BigDecimal unallocatedPlannerReserved = order.getStatus() == DeliveryOrderStatus.QC_PENDING_APPROVAL
+                    ? plannerReservedQty(warehouseId, productId)
+                    : ZERO;
+            List<PickingCandidateResponse> candidateResponses = new ArrayList<>();
+            for (Inventory candidate : candidates) {
+                BigDecimal plannerReservedForRow = consumePlannerReservation(candidate, unallocatedPlannerReserved);
+                unallocatedPlannerReserved = unallocatedPlannerReserved.subtract(plannerReservedForRow);
+                PickingCandidateResponse response = toPickingCandidate(candidate, item, includeCurrentPlanReservation,
+                        plannerReservedForRow);
+                if (value(response.getAvailableQty()).compareTo(ZERO) > 0) {
+                    candidateResponses.add(response);
+                }
+            }
+            candidateResponses = candidateResponses.stream()
                     .sorted(Comparator.comparing(PickingCandidateResponse::getReceivedDate,
                             Comparator.nullsLast(Comparator.naturalOrder())))
                     .toList();
@@ -296,21 +309,44 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         return result;
     }
 
+    private BigDecimal plannerReservedQty(Long warehouseId, Long productId) {
+        return reservationRepository.findWithWarehouseAndProductByWarehouseIdAndProductId(warehouseId, productId)
+                .map(WarehouseProductReservation::getReservedQty)
+                .orElse(ZERO);
+    }
+
+    private BigDecimal consumePlannerReservation(Inventory inventory, BigDecimal remainingPlannerReserved) {
+        BigDecimal available = value(inventory.getTotalQty()).subtract(value(inventory.getReservedQty()));
+        if (remainingPlannerReserved.compareTo(ZERO) <= 0 || available.compareTo(ZERO) <= 0) {
+            return ZERO;
+        }
+        return available.min(remainingPlannerReserved);
+    }
+
     /**
      * Maps an Inventory row + the parent zone (location.parent) to a
      * PickingCandidateResponse.
      */
-    private PickingCandidateResponse toPickingCandidate(Inventory inv, DeliveryOrderItem item) {
+    private PickingCandidateResponse toPickingCandidate(Inventory inv,
+            DeliveryOrderItem item,
+            boolean includeCurrentPlanReservation,
+            BigDecimal plannerReservedForRow) {
         WarehouseLocation bin = inv.getLocation();
         // Parent of a BIN is the ZONE; parent of a ZONE is null
         WarehouseLocation zone = (bin != null && bin.getParent() != null) ? bin.getParent() : bin;
         Batch batch = inv.getBatch();
-        BigDecimal allocatedToCurrentDo = allocationRepository.findByDeliveryOrderItemDeliveryOrderId(item.getDeliveryOrder().getId())
-                .stream()
-                .filter(a -> a.getInventory().getId().equals(inv.getId()) && a.getStatus() == com.wms.enums.stock_control.AllocationStatus.ACTIVE)
-                .map(DeliveryOrderItemAllocation::getPlannedQty)
-                .reduce(ZERO, BigDecimal::add);
-        BigDecimal available = value(inv.getTotalQty()).subtract(value(inv.getReservedQty())).add(allocatedToCurrentDo);
+        BigDecimal allocatedToCurrentDo = includeCurrentPlanReservation
+                ? allocationRepository.findByDeliveryOrderItemDeliveryOrderId(item.getDeliveryOrder().getId())
+                        .stream()
+                        .filter(a -> a.getInventory().getId().equals(inv.getId())
+                                && a.getStatus() == com.wms.enums.stock_control.AllocationStatus.ACTIVE)
+                        .map(DeliveryOrderItemAllocation::getPlannedQty)
+                        .reduce(ZERO, BigDecimal::add)
+                : ZERO;
+        BigDecimal available = value(inv.getTotalQty())
+                .subtract(value(inv.getReservedQty()))
+                .subtract(value(plannerReservedForRow))
+                .add(allocatedToCurrentDo);
         return PickingCandidateResponse.builder()
                 .inventoryId(inv.getId())
                 .batchId(batch != null ? batch.getId() : null)
@@ -2358,6 +2394,31 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                     HttpStatus.UNPROCESSABLE_ENTITY,
                     "Replacement inventory row is invalid");
         }
+        BigDecimal plannerReservedForRow = plannerReservedForInventoryRow(order, item.getProduct().getId(),
+                replacementInventory.getId());
+        BigDecimal effectiveAvailable = value(replacementInventory.getTotalQty())
+                .subtract(value(replacementInventory.getReservedQty()))
+                .subtract(plannerReservedForRow);
+        if (effectiveAvailable.compareTo(value(request.getQuantity())) < 0) {
+            throw new OutboundDeliveryException("INVENTORY_ROW_INVALID",
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Replacement inventory does not have enough available quantity after planner reservations");
+        }
+    }
+
+    private BigDecimal plannerReservedForInventoryRow(DeliveryOrder order, Long productId, Long inventoryId) {
+        BigDecimal remainingPlannerReserved = plannerReservedQty(order.getWarehouse().getId(), productId);
+        for (Inventory candidate : inventoryRepository.findFifoRowsForPlanning(order.getWarehouse().getId(), productId)) {
+            BigDecimal consumed = consumePlannerReservation(candidate, remainingPlannerReserved);
+            if (candidate.getId().equals(inventoryId)) {
+                return consumed;
+            }
+            remainingPlannerReserved = remainingPlannerReserved.subtract(consumed);
+            if (remainingPlannerReserved.compareTo(ZERO) <= 0) {
+                return ZERO;
+            }
+        }
+        return ZERO;
     }
 
     private void validateFailedReplacementSource(DeliveryOrderItemAllocation failedAllocation,
