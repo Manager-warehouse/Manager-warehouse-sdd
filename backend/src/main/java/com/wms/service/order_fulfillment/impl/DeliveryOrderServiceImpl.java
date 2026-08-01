@@ -842,6 +842,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
 
         deliveryOrderItemRepository.saveAll(orderItems);
         order.setStatus(DeliveryOrderStatus.QC_PENDING_APPROVAL);
+        order.setQcBy(actor);
         order.setUpdatedAt(now);
         DeliveryOrder saved = deliveryOrderRepository.save(order);
 

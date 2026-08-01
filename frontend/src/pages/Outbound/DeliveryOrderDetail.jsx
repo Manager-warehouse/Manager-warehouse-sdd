@@ -170,6 +170,24 @@ export default function DeliveryOrderDetail() {
   const [returnRejectReason, setReturnRejectReason] = useState('');
   const [stockAvailabilities, setStockAvailabilities] = useState({});
 
+  const getMissingQtySummary = () => {
+    if (!order || !order.items) return 0;
+    let totalMissing = 0;
+    const currentStatus = order.status || order.raw_status;
+    if (currentStatus !== 'QC_PENDING_APPROVAL') return 0;
+
+    order.items.forEach((item) => {
+      const requiredQty = Math.max(0, Number(item.requested_qty || 0) - Number(item.qc_pass_qty || 0));
+      if (requiredQty > 0) {
+        const availableInWarehouse = Number(stockAvailabilities[item.product_id] ?? 0);
+        if (availableInWarehouse < requiredQty) {
+          totalMissing += requiredQty - availableInWarehouse;
+        }
+      }
+    });
+    return totalMissing;
+  };
+
   useEffect(() => {
     fetchOrder();
   }, [id]);
@@ -776,11 +794,20 @@ export default function DeliveryOrderDetail() {
         </div>
       )}
 
+      {getMissingQtySummary() > 0 && (
+        <div className="bg-danger-50 border border-danger-200 rounded-lg p-4 flex items-center gap-3">
+          <AlertTriangle className="w-4 h-4 text-danger-700 shrink-0" />
+          <p className="text-xs font-semibold text-danger-900">
+            Thiếu <span className="font-bold">{getMissingQtySummary()}</span> sản phẩm. Chờ nhập thêm hàng trong thời gian gần nhất.
+          </p>
+        </div>
+      )}
+
       {currentStatus === 'QC_PENDING_APPROVAL' && (
         <div className="bg-violet-50 border border-violet-200 rounded-lg p-4 flex items-center gap-3">
           <CheckCircle2 className="w-4 h-4 text-violet-700 shrink-0" />
           <p className="text-xs font-semibold text-violet-900">
-            Nhân viên kho đã gửi kết quả lấy hàng & kiểm định. Thủ kho rà soát và duyệt chất lượng trước khi chuyển bước tiếp.
+            Nhân viên kho <span className="font-bold">{order.qc_by_name || 'N/A'}</span> đã gửi kết quả lấy hàng & kiểm định. Thủ kho rà soát và duyệt chất lượng trước khi chuyển bước tiếp.
           </p>
         </div>
       )}
