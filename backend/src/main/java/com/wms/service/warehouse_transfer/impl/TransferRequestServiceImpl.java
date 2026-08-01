@@ -56,6 +56,17 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class TransferRequestServiceImpl implements TransferRequestService {
 
+    private static final List<TransferRequestStatus> OPEN_DUPLICATE_STATUSES = List.of(
+            TransferRequestStatus.DRAFT,
+            TransferRequestStatus.SUBMITTED,
+            TransferRequestStatus.APPROVED
+    );
+
+    /*
+     * LUỒNG YÊU CẦU ĐIỀU CHUYỂN:
+     * - Các hàm public là hành động chính của người dùng: tạo nháp, gửi duyệt, CEO duyệt/từ chối, Planner chuyển thành phiếu TRF.
+     * - Các hàm private cuối file là hàm hỗ trợ: tìm request, kiểm quyền kho, kiểm tồn, tự hủy quá hạn, sinh mã và map response.
+     */
     private final TransferRequestRepository requestRepository;
     private final TransferRequestItemRepository requestItemRepository;
     private final WarehouseRepository warehouseRepository;
@@ -69,6 +80,7 @@ public class TransferRequestServiceImpl implements TransferRequestService {
     @Override
     @Transactional(readOnly = true)
     public List<TransferRequestResponse> getAllRequests(User actor) {
+        // HÀM CHÍNH: liệt kê yêu cầu điều chuyển người dùng được phép xem.
         List<Long> assignedWarehouseIds = loadWarehouseIds(actor);
         return requestRepository.findAllByOrderByCreatedAtDesc().stream()
                 .filter(req -> canViewRequest(actor, assignedWarehouseIds, req))
@@ -79,6 +91,7 @@ public class TransferRequestServiceImpl implements TransferRequestService {
     @Override
     @Transactional(readOnly = true)
     public TransferRequestResponse getRequestById(Long id, User actor) {
+        // HÀM CHÍNH: xem chi tiết một yêu cầu điều chuyển sau khi kiểm quyền theo kho.
         TransferRequest req = findRequest(id);
         List<Long> assignedWarehouseIds = loadWarehouseIds(actor);
         if (!canViewRequest(actor, assignedWarehouseIds, req)) {
@@ -90,6 +103,7 @@ public class TransferRequestServiceImpl implements TransferRequestService {
     @Override
     @Transactional
     public TransferRequestResponse createRequest(TransferRequestCreateRequest request, User actor) {
+        // HÀM CHÍNH: quản lý kho tạo yêu cầu xin điều chuyển hàng về kho mình.
         ensureRequesterRole(actor);
         ensureWarehouseScope(actor, request.destinationWarehouseId());
         if (Objects.equals(request.sourceWarehouseId(), request.destinationWarehouseId())) {
@@ -97,6 +111,8 @@ public class TransferRequestServiceImpl implements TransferRequestService {
         }
         ensureNeededByDateIsNotPast(request.neededByDate());
         ensurePhysicalWarehouses(request.sourceWarehouseId(), request.destinationWarehouseId());
+        ensureNoOpenDuplicateRequest(request.sourceWarehouseId(), request.destinationWarehouseId(),
+                request.neededByDate(), null);
 
         OffsetDateTime now = OffsetDateTime.now();
         TransferRequest req = new TransferRequest();
@@ -123,6 +139,7 @@ public class TransferRequestServiceImpl implements TransferRequestService {
     @Override
     @Transactional
     public TransferRequestResponse updateRequest(Long id, TransferRequestUpdateRequest request, User actor) {
+        // HÀM CHÍNH: sửa yêu cầu khi còn ở trạng thái nháp.
         TransferRequest req = findRequest(id);
         if (req.getStatus() != TransferRequestStatus.DRAFT) {
             throw new BusinessRuleViolationException("ONLY_DRAFT_CAN_BE_UPDATED");
@@ -136,6 +153,8 @@ public class TransferRequestServiceImpl implements TransferRequestService {
         }
         ensureNeededByDateIsNotPast(request.neededByDate());
         ensurePhysicalWarehouses(request.sourceWarehouseId(), request.destinationWarehouseId());
+        ensureNoOpenDuplicateRequest(request.sourceWarehouseId(), request.destinationWarehouseId(),
+                request.neededByDate(), id);
 
         Map<String, Object> before = snapshot(req);
 
@@ -158,6 +177,7 @@ public class TransferRequestServiceImpl implements TransferRequestService {
     @Override
     @Transactional
     public TransferRequestResponse cancelRequest(Long id, User actor) {
+        // HÀM CHÍNH: hủy yêu cầu trước khi thành phiếu điều chuyển chính thức.
         TransferRequest req = findRequest(id);
         if (req.getStatus() != TransferRequestStatus.DRAFT) {
             throw new BusinessRuleViolationException("ONLY_DRAFT_CAN_BE_CANCELLED");
@@ -179,6 +199,7 @@ public class TransferRequestServiceImpl implements TransferRequestService {
     @Override
     @Transactional
     public TransferRequestResponse submitRequest(Long id, User actor) {
+        // HÀM CHÍNH: gửi yêu cầu từ nháp sang chờ CEO/Admin duyệt.
         TransferRequest req = findRequest(id);
         if (autoCancelExpiredRequest(req, actor)) {
             return toResponse(req);
@@ -207,6 +228,7 @@ public class TransferRequestServiceImpl implements TransferRequestService {
     @Override
     @Transactional
     public TransferRequestResponse approveRequest(Long id, User actor) {
+        // HÀM CHÍNH: CEO/Admin duyệt yêu cầu sau khi kiểm tồn kho nguồn còn đủ.
         if (actor.getRole() != UserRole.CEO && actor.getRole() != UserRole.ADMIN) {
             throw new BusinessRuleViolationException("CEO_ROLE_REQUIRED");
         }
@@ -237,6 +259,7 @@ public class TransferRequestServiceImpl implements TransferRequestService {
     @Override
     @Transactional
     public TransferRequestResponse rejectRequest(Long id, TransferRequestRejectRequest request, User actor) {
+        // HÀM CHÍNH: CEO/Admin từ chối yêu cầu và lưu lý do.
         if (actor.getRole() != UserRole.CEO && actor.getRole() != UserRole.ADMIN) {
             throw new BusinessRuleViolationException("CEO_ROLE_REQUIRED");
         }
@@ -268,6 +291,7 @@ public class TransferRequestServiceImpl implements TransferRequestService {
     @Override
     @Transactional
     public TransferRequestResponse convertToTransfer(Long id, User actor) {
+        // HÀM CHÍNH: Planner chuyển yêu cầu đã duyệt thành phiếu điều chuyển TRF.
         if (actor.getRole() != UserRole.PLANNER && actor.getRole() != UserRole.ADMIN) {
             throw new BusinessRuleViolationException("PLANNER_ROLE_REQUIRED");
         }
@@ -337,6 +361,7 @@ public class TransferRequestServiceImpl implements TransferRequestService {
     @Override
     @Transactional(readOnly = true)
     public List<WarehouseStockLookupResponse> stockLookup(Long productId, User actor) {
+        // HÀM CHÍNH: tra cứu tồn khả dụng ở các kho vật lý để chọn kho nguồn.
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + productId));
 
@@ -352,7 +377,7 @@ public class TransferRequestServiceImpl implements TransferRequestService {
         return lookup;
     }
 
-    // --- Hàm hỗ trợ nội bộ ---
+    // --- HÀM HỖ TRỢ: tìm dữ liệu, kiểm quyền, validate, tự hủy quá hạn, sinh mã và map response ---
 
     private TransferRequest findRequest(Long id) {
         return requestRepository.findById(id)
@@ -425,6 +450,22 @@ public class TransferRequestServiceImpl implements TransferRequestService {
             return true;
         }
         return false;
+    }
+
+    private void ensureNoOpenDuplicateRequest(Long sourceWarehouseId,
+                                              Long destinationWarehouseId,
+                                              LocalDate neededByDate,
+                                              Long currentRequestId) {
+        // HÀM HỖ TRỢ: không cho tạo hai yêu cầu đang mở cho cùng tuyến kho và cùng ngày cần hàng.
+        boolean exists = currentRequestId == null
+                ? requestRepository.existsBySourceWarehouseIdAndDestinationWarehouseIdAndNeededByDateAndStatusIn(
+                        sourceWarehouseId, destinationWarehouseId, neededByDate, OPEN_DUPLICATE_STATUSES)
+                : requestRepository.existsBySourceWarehouseIdAndDestinationWarehouseIdAndNeededByDateAndStatusInAndIdNot(
+                        sourceWarehouseId, destinationWarehouseId, neededByDate, OPEN_DUPLICATE_STATUSES,
+                        currentRequestId);
+        if (exists) {
+            throw new BusinessRuleViolationException("DUPLICATE_OPEN_TRANSFER_REQUEST");
+        }
     }
 
     private void ensurePhysicalWarehouses(Long sourceWarehouseId, Long destinationWarehouseId) {

@@ -39,11 +39,23 @@ import com.wms.entity.warehouse_transfer.TransferRequest;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
 import java.util.List;
-import java.util.Optional;
 
 @Repository
 public interface TransferRequestRepository extends JpaRepository<TransferRequest, Long> {
     List<TransferRequest> findAllByOrderByCreatedAtDesc();
     boolean existsByRequestNumber(String requestNumber);
+    boolean existsBySourceWarehouseIdAndDestinationWarehouseIdAndNeededByDateAndStatusIn(
+            Long sourceWarehouseId,
+            Long destinationWarehouseId,
+            LocalDate neededByDate,
+            List<TransferRequestStatus> statuses);
+
+    boolean existsBySourceWarehouseIdAndDestinationWarehouseIdAndNeededByDateAndStatusInAndIdNot(
+            Long sourceWarehouseId,
+            Long destinationWarehouseId,
+            LocalDate neededByDate,
+            List<TransferRequestStatus> statuses,
+            Long id);
 }

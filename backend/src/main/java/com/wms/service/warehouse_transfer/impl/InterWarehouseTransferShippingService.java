@@ -63,7 +63,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class InterWarehouseTransferShippingService {
 
     /*
-     * Giai đoạn xuất kho: xử lý phiếu từ "đã duyệt" đến "đang vận chuyển" và các mốc xe di chuyển.
+     * LUỒNG XUẤT KHO NGUỒN VÀ VẬN CHUYỂN:
+     * - Các hàm public là hành động chính trên giao diện: lập chuyến, báo xếp hàng, QC xuất, bàn giao, xe đi/đến/quay đầu.
+     * - Các hàm private là hàm hỗ trợ: validate lịch xe/tài xế, kiểm deadline, kiểm điều kiện xuất và chuyển tồn sang kho đang vận chuyển.
+     *
+     * Giai đoạn xuất kho xử lý phiếu từ "đã duyệt" đến "đang vận chuyển" và các mốc xe di chuyển.
      * Luồng chuẩn: gán chuyến xe -> báo cáo xếp hàng -> QC xuất -> chốt gửi -> bàn giao tải hàng -> xe rời kho.
      * Khi tài xế bấm rời kho, hệ thống mới chuyển tồn từ kho nguồn sang kho ảo "đang vận chuyển".
      */
@@ -81,6 +85,7 @@ public class InterWarehouseTransferShippingService {
 
     @Transactional
     public InterWarehouseTransferResponse assignTrip(Long id, InterWarehouseTransferTripAssignRequest request, User actor) {
+        // HÀM CHÍNH: Dispatcher lập hoặc đổi chuyến xe cho phiếu đã duyệt.
         // Điều phối viên gán một chuyến xe riêng cho phiếu điều chuyển; kiểm lịch, bằng lái, kho nguồn và tải trọng.
         // Bước 1: lấy phiếu và chỉ cho gán xe khi phiếu đã được duyệt, tức là kho nguồn đã giữ hàng cho phiếu này.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
@@ -176,6 +181,7 @@ public class InterWarehouseTransferShippingService {
 
     @Transactional
     public InterWarehouseTransferResponse recordSourceLoadReport(Long id, SourceLoadReportRequest request, User actor) {
+        // HÀM CHÍNH: công nhân kho nguồn báo số lượng thực tế đã xếp lên xe.
         // Công nhân kho nguồn nhập số lượng thực tế đã xếp lên xe. Nếu lệch số lượng dự kiến thì bắt xếp lại/giải trình.
         // Bước 1: phiếu phải APPROVED và đã có trip điều chuyển trước khi công nhân báo số lượng xếp.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
@@ -249,6 +255,7 @@ public class InterWarehouseTransferShippingService {
 
     @Transactional
     public InterWarehouseTransferResponse shipTransfer(Long id, User actor) {
+        // HÀM CHÍNH: thủ kho nguồn chốt số lượng gửi sau khi QC xuất đạt.
         // Thủ kho nguồn chốt số lượng gửi bằng đúng số lượng đã xếp sau khi QC xuất đạt.
         // Bước 1: chỉ chốt gửi khi phiếu đã duyệt, đúng kho nguồn, đã có chuyến xe và đã báo cáo xếp đủ.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
@@ -297,6 +304,7 @@ public class InterWarehouseTransferShippingService {
 
     @Transactional
     public InterWarehouseTransferResponse recordOutboundQc(Long id, OutboundQcRequest request, User actor) {
+        // HÀM CHÍNH: thủ kho/QL kho nguồn ghi kết quả QC xuất.
         // QC xuất kho nguồn: nếu không đạt thì phải ghi lý do và bắt kho nguồn xếp/kiểm lại trước khi bàn giao.
         // Bước 1: QC xuất chỉ chạy sau khi đã báo cáo xếp đủ và phiếu đang ở trạng thái đã duyệt.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
@@ -359,6 +367,7 @@ public class InterWarehouseTransferShippingService {
 
     @Transactional
     public InterWarehouseTransferResponse departTransfer(Long id, User actor) {
+        // HÀM CHÍNH: tài xế xác nhận xe rời kho nguồn, lúc này tồn chuyển sang kho đang vận chuyển.
         // Tài xế rời kho: trừ tồn/giữ hàng ở kho nguồn và cộng hàng sang kho ảo "đang vận chuyển".
         // Bước 1: chỉ tài xế được gán mới được bấm rời kho và mọi bước xuất kho phải hoàn tất.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
@@ -401,6 +410,7 @@ public class InterWarehouseTransferShippingService {
     }
 
     private boolean autoCancelIfDeadlineExpiredBeforeDeparture(InterWarehouseTransfer transfer, User actor) {
+        // HÀM HỖ TRỢ: tự hủy phiếu nếu quá ngày cần hàng trước khi xe rời kho.
         // Ngày cần hàng là deadline cứng: quá deadline mà xe chưa rời kho thì phiếu bị hủy và trả lại hàng đang giữ chỗ.
         if (!helper.isPastRequiredArrivalDate(transfer)) {
             return false;
@@ -420,6 +430,7 @@ public class InterWarehouseTransferShippingService {
     }
 
     private boolean autoForceReturnIfDeadlineMissedInTransit(InterWarehouseTransfer transfer, User actor) {
+        // HÀM HỖ TRỢ: quá hạn khi đang vận chuyển thì chuyển phiếu sang nhánh quay đầu.
         // Khi hàng đã lên xe thì không được cancel mất dấu hàng; quá deadline bắt buộc chuyển sang nhánh quay đầu về kho nguồn.
         if (transfer.isReturned() || !helper.isPastRequiredArrivalDate(transfer)) {
             return false;
@@ -435,6 +446,7 @@ public class InterWarehouseTransferShippingService {
     }
 
     private void validateTripSchedule(InterWarehouseTransferTripAssignRequest request) {
+        // HÀM HỖ TRỢ: validate thời gian bắt đầu/kết thúc chuyến.
         // Lịch chuyến phải đi tới tương lai hợp lệ, tránh tạo chuyến đã hết hạn ngay lúc assign.
         // Hàm này chỉ kiểm tra tính hợp lệ của thời gian người dùng gửi lên, chưa đụng xe/tài xế.
         // Validate: thời điểm kết thúc phải sau thời điểm bắt đầu.
@@ -547,6 +559,7 @@ public class InterWarehouseTransferShippingService {
     }
 
     private void moveSourceToTransit(InterWarehouseTransfer transfer) {
+        // HÀM HỖ TRỢ: chuyển tồn thật từ kho nguồn sang kho ảo đang vận chuyển.
         // Ghi nhận tồn khi xe rời kho: giảm tồn kho nguồn và cộng đúng lô hàng sang kho ảo "đang vận chuyển".
         // Bước 1: tìm kho ảo "đang vận chuyển" và vị trí đang hoạt động để giữ hàng trên đường.
         Warehouse transitWarehouse = helper.findTransitWarehouse();
@@ -574,6 +587,7 @@ public class InterWarehouseTransferShippingService {
 
     @Transactional
     public InterWarehouseTransferResponse driverArrive(Long id, User actor) {
+        // HÀM CHÍNH: tài xế xác nhận đã đến kho đích hoặc điểm quay đầu.
         // Tài xế đến điểm nhận; kho nhận chưa được nhập số lượng nếu chưa có ảnh/bản ghi bàn giao khi xe đến.
         // Bước 1: chỉ tài xế được gán của phiếu đang vận chuyển được ghi mốc đến nơi.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
@@ -595,6 +609,7 @@ public class InterWarehouseTransferShippingService {
 
     @Transactional
     public InterWarehouseTransferResponse receivingHandover(Long id, LoadHandoverRequest request, User actor) {
+        // HÀM CHÍNH: kho nhận ghi bằng chứng bàn giao khi xe đến.
         // Kho nhận xác nhận bàn giao với ảnh; đây là bước bắt buộc trước khi nhập số lượng nhận.
         // Bước 1: xác định kho được phép bàn giao. Nếu xe quay đầu thì kho nhận lại chính là kho nguồn.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
@@ -629,6 +644,7 @@ public class InterWarehouseTransferShippingService {
 
     @Transactional
     public InterWarehouseTransferResponse returnDepart(Long id, User actor) {
+        // HÀM CHÍNH: tài xế xác nhận xe bắt đầu quay đầu từ kho đích về kho nguồn.
         // Chuyến quay đầu: tài xế rời kho đích để chở hàng quay về kho nguồn.
         // Bước 1: chỉ cho chạy nếu phiếu đã được đánh dấu là xe quay đầu về kho nguồn.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
@@ -651,6 +667,7 @@ public class InterWarehouseTransferShippingService {
 
     @Transactional
     public InterWarehouseTransferResponse returnArrive(Long id, User actor) {
+        // HÀM CHÍNH: tài xế xác nhận xe quay đầu đã về tới kho nguồn.
         // Chuyến quay đầu: tài xế đã chở hàng quay về tới kho nguồn.
         // Bước 1: chỉ được ghi xe về tới kho nguồn sau khi đã ghi mốc xe rời kho đích.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
@@ -677,6 +694,7 @@ public class InterWarehouseTransferShippingService {
 
     @Transactional
     public InterWarehouseTransferResponse returnHandover(Long id, LoadHandoverRequest request, User actor) {
+        // HÀM CHÍNH: kho nguồn nhận bàn giao hàng quay đầu.
         // Kho nguồn nhận bàn giao ảnh khi xe quay đầu; service nhận hàng sẽ kiểm mốc này trước khi đếm và QC.
         // Bước 1: chỉ thủ kho/trưởng kho/admin/CEO thuộc kho nguồn được xác nhận bàn giao hàng quay về.
         InterWarehouseTransfer transfer = helper.findTransfer(id);

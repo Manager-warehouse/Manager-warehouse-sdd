@@ -65,6 +65,10 @@ public class InterWarehouseTransferServiceImpl implements InterWarehouseTransfer
     private static final long MAX_TRANSFER_PHOTO_BYTES = 5L * 1024L * 1024L;
 
     /*
+     * SERVICE ĐIỀU PHỐI:
+     * - Các hàm public trong file này là hàm chính theo API, nhưng đa số chỉ chuyển tiếp sang service chuyên trách.
+     * - Các hàm private cuối file chỉ hỗ trợ upload ảnh bằng chứng.
+     *
      * Service tổng của Spec 005. Controller gọi vào đây, còn nghiệp vụ thật được tách theo giai đoạn:
      * lập phiếu = tạo/sửa/hủy, duyệt phiếu = giữ hàng trong kho, xuất-vận chuyển = gán xe/xuất/rời kho,
      * nhận hàng = đếm/QC/nhập vị trí/cách ly/chênh lệch/quay đầu. Helper giữ các quy tắc dùng chung.
@@ -79,6 +83,7 @@ public class InterWarehouseTransferServiceImpl implements InterWarehouseTransfer
     @Override
     @Transactional
     public List<InterWarehouseTransferResponse> getAllTransfers(User actor) {
+        // HÀM CHÍNH: API lấy danh sách phiếu, lọc theo quyền xem.
         // Danh sách phiếu được lọc theo vai trò và kho phụ trách trước khi trả về giao diện.
         List<Long> actorWarehouseIds = helper.loadWarehouseIds(actor);
         return transferRepository.findAllByOrderByCreatedAtDesc().stream()
@@ -90,6 +95,7 @@ public class InterWarehouseTransferServiceImpl implements InterWarehouseTransfer
     @Override
     @Transactional
     public InterWarehouseTransferResponse getTransferById(Long id, User actor) {
+        // HÀM CHÍNH: API lấy chi tiết phiếu, kiểm quyền theo kho hoặc tài xế được gán.
         // Chi tiết phiếu cũng kiểm quyền như danh sách; CEO/Admin thấy toàn bộ, nhân sự kho chỉ thấy phiếu liên quan kho mình.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         if (!helper.canViewTransfer(actor, transfer)) {
@@ -100,6 +106,7 @@ public class InterWarehouseTransferServiceImpl implements InterWarehouseTransfer
 
     @Override
     public InterWarehouseTransferResponse createTransfer(InterWarehouseTransferCreateRequest request, User actor) {
+        // HÀM CHÍNH: API tạo phiếu, chuyển tiếp sang PlanningService.
         // Planner tạo phiếu mới; service lập phiếu kiểm tra kho, ngày, dòng hàng và mã lệnh ngoài.
         return planningService.createTransfer(request, actor);
     }
@@ -265,6 +272,7 @@ public class InterWarehouseTransferServiceImpl implements InterWarehouseTransfer
 
     @Override
     public TransferPhotoUploadResponse uploadPhotoEvidence(Long id, MultipartFile file, User actor) {
+        // HÀM CHÍNH: API upload ảnh bằng chứng dùng chung cho các bước QC/bàn giao.
         // Upload ảnh chỉ lưu file và trả đường dẫn ảnh; các bước QC/bàn giao sẽ gắn đường dẫn đó vào đúng nghiệp vụ.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         if (!helper.canViewTransfer(actor, transfer)) {
@@ -275,6 +283,7 @@ public class InterWarehouseTransferServiceImpl implements InterWarehouseTransfer
     }
 
     private void validateTransferPhoto(MultipartFile file) {
+        // HÀM HỖ TRỢ: validate file ảnh bằng chứng trước khi lưu.
         if (file == null || file.isEmpty()
                 || file.getSize() > MAX_TRANSFER_PHOTO_BYTES
                 || file.getContentType() == null

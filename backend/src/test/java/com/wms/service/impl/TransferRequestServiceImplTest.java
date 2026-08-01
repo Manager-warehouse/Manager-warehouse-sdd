@@ -239,6 +239,33 @@ class TransferRequestServiceImplTest {
     }
 
     @Test
+    void createTransferRequest_failsIfOpenRequestAlreadyExistsForSameRouteAndNeededDate() {
+        LocalDate neededByDate = LocalDate.now().plusDays(2);
+        TransferRequestCreateRequest createReq = new TransferRequestCreateRequest(
+                sourceWarehouse.getId(),
+                destinationWarehouse.getId(),
+                neededByDate,
+                "Destination shortage",
+                "Duplicate route and needed date",
+                List.of(new TransferRequestItemRequest(product.getId(), new BigDecimal("10.00")))
+        );
+
+        when(assignmentRepository.findWarehouseIdsByUserId(manager.getId())).thenReturn(List.of(destinationWarehouse.getId()));
+        when(warehouseRepository.findById(sourceWarehouse.getId())).thenReturn(Optional.of(sourceWarehouse));
+        when(warehouseRepository.findById(destinationWarehouse.getId())).thenReturn(Optional.of(destinationWarehouse));
+        when(requestRepository.existsBySourceWarehouseIdAndDestinationWarehouseIdAndNeededByDateAndStatusIn(
+                sourceWarehouse.getId(), destinationWarehouse.getId(), neededByDate,
+                List.of(TransferRequestStatus.DRAFT, TransferRequestStatus.SUBMITTED, TransferRequestStatus.APPROVED)))
+                .thenReturn(true);
+
+        assertThatThrownBy(() -> service.createRequest(createReq, manager))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("DUPLICATE_OPEN_TRANSFER_REQUEST");
+
+        verify(requestRepository, never()).save(any(TransferRequest.class));
+    }
+
+    @Test
     void updateTransferRequest_failsIfNeededByDateIsPast() {
         TransferRequestUpdateRequest updateReq = new TransferRequestUpdateRequest(
                 sourceWarehouse.getId(),
@@ -255,6 +282,35 @@ class TransferRequestServiceImplTest {
         assertThatThrownBy(() -> service.updateRequest(request.getId(), updateReq, manager))
                 .isInstanceOf(BusinessRuleViolationException.class)
                 .hasMessageContaining("NEEDED_BY_DATE_MUST_NOT_BE_PAST");
+
+        verify(requestRepository, never()).save(any(TransferRequest.class));
+    }
+
+    @Test
+    void updateTransferRequest_failsIfOpenRequestAlreadyExistsForSameRouteAndNeededDate() {
+        LocalDate neededByDate = LocalDate.now().plusDays(2);
+        TransferRequestUpdateRequest updateReq = new TransferRequestUpdateRequest(
+                sourceWarehouse.getId(),
+                destinationWarehouse.getId(),
+                neededByDate,
+                "Destination shortage",
+                "Duplicate route and needed date",
+                List.of(new TransferRequestItemRequest(product.getId(), new BigDecimal("10.00")))
+        );
+
+        when(requestRepository.findById(request.getId())).thenReturn(Optional.of(request));
+        when(assignmentRepository.findWarehouseIdsByUserId(manager.getId())).thenReturn(List.of(destinationWarehouse.getId()));
+        when(warehouseRepository.findById(sourceWarehouse.getId())).thenReturn(Optional.of(sourceWarehouse));
+        when(warehouseRepository.findById(destinationWarehouse.getId())).thenReturn(Optional.of(destinationWarehouse));
+        when(requestRepository.existsBySourceWarehouseIdAndDestinationWarehouseIdAndNeededByDateAndStatusInAndIdNot(
+                sourceWarehouse.getId(), destinationWarehouse.getId(), neededByDate,
+                List.of(TransferRequestStatus.DRAFT, TransferRequestStatus.SUBMITTED, TransferRequestStatus.APPROVED),
+                request.getId()))
+                .thenReturn(true);
+
+        assertThatThrownBy(() -> service.updateRequest(request.getId(), updateReq, manager))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("DUPLICATE_OPEN_TRANSFER_REQUEST");
 
         verify(requestRepository, never()).save(any(TransferRequest.class));
     }

@@ -64,6 +64,10 @@ public class InterWarehouseTransferReceivingService {
     private static final String PUTAWAY_PLAN_PREFIX = "TRANSFER_PUTAWAY_PLAN:";
 
     /*
+     * LUỒNG NHẬN HÀNG, QC NHẬN, NHẬP KHO VÀ QUAY ĐẦU:
+     * - Các hàm public là hành động chính trên giao diện: đếm hàng, QC nhận, nhập kho cuối, cách ly, yêu cầu/duyệt/bác quay đầu.
+     * - Các hàm private là hàm hỗ trợ: validate từng dòng, kiểm deadline, resolve putaway, chuyển tồn từ transit về kho/quarantine.
+     *
      * Xử lý phiếu đang trên đường. Nếu luồng bình thường thì kho đích nhận hàng;
      * nếu xe quay đầu thì kho nguồn nhận lại hàng.
      * Thứ tự đúng: công nhân đếm hàng -> thủ kho kiểm/QC -> quản lý duyệt nhập kho cuối.
@@ -87,6 +91,7 @@ public class InterWarehouseTransferReceivingService {
 
     @Transactional
     public InterWarehouseTransferResponse receiveCount(Long id, InterWarehouseTransferReceiveCountRequest request, User actor) {
+        // HÀM CHÍNH: công nhân kho nhận nhập số lượng thực nhận sau khi có bàn giao.
         // Công nhân nhập số lượng thực nhận. Xe phải được xác nhận đã đến và đã bàn giao ảnh/chứng từ trước.
         // Nếu số thực nhận khác số đã gửi thì phải nhập lý do để truy vết chênh lệch.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
@@ -142,6 +147,7 @@ public class InterWarehouseTransferReceivingService {
 
     @Transactional
     public InterWarehouseTransferResponse receiveCheck(Long id, InterWarehouseTransferReceiveCheckRequest request, User actor) {
+        // HÀM CHÍNH: thủ kho/QL kho nhận kiểm đếm lại và ghi kết quả QC nhận.
         // Thủ kho kiểm lại số công nhân đã đếm và làm QC. Bắt buộc có ảnh QC;
         // tổng số đạt và số lỗi phải bằng số thủ kho xác nhận.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
@@ -190,6 +196,7 @@ public class InterWarehouseTransferReceivingService {
 
     @Transactional
     public InterWarehouseTransferResponse finalReceive(Long id, InterWarehouseTransferFinalReceiveRequest request, User actor) {
+        // HÀM CHÍNH: thủ kho nộp putaway plan hoặc quản lý duyệt nhập kho cuối.
         // Nhập kho cuối có 2 bước: thủ kho nộp kế hoạch đưa hàng vào vị trí,
         // sau đó quản lý kho/CEO/Admin duyệt thì hệ thống mới ghi tăng tồn và đóng phiếu.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
@@ -329,6 +336,7 @@ public class InterWarehouseTransferReceivingService {
 
     @Transactional
     public InterWarehouseTransferResponse returnToSource(Long id, TransferReturnRequest request, User actor) {
+        // HÀM CHÍNH: quản lý kho nguồn chủ động yêu cầu xe quay đầu trước khi kho đích nhận bàn giao.
         // Quản lý kho nguồn chủ động cho xe quay đầu khi hàng còn trên đường,
         // trước khi kho đích xác nhận xe đến hoặc nhận bàn giao.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
@@ -387,6 +395,7 @@ public class InterWarehouseTransferReceivingService {
 
     @Transactional
     public InterWarehouseTransferResponse quarantineReject(Long id, InterWarehouseTransferRejectRequest request, User actor) {
+        // HÀM CHÍNH: kho nhận từ chối toàn bộ và đưa hàng đang vận chuyển vào khu cách ly.
         // Từ chối toàn bộ chỉ sau khi xe đã đến, đã bàn giao và công nhân đã đếm hàng.
         // Toàn bộ hàng đang trên xe sẽ được đưa vào khu cách ly để xử lý sau.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
@@ -871,6 +880,7 @@ public class InterWarehouseTransferReceivingService {
 
     @Transactional
     public InterWarehouseTransferResponse requestReturn(Long id, TransferReturnRequest request, User actor) {
+        // HÀM CHÍNH: kho đích báo sai SKU và tạo yêu cầu quay đầu chờ quản lý duyệt.
         // Kho đích báo giao sai mã hàng trước khi nhận bàn giao hoặc đếm hàng.
         // Hệ thống tạo hồ sơ chờ quản lý kho đích quyết định có cho xe quay đầu hay không.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
@@ -915,6 +925,7 @@ public class InterWarehouseTransferReceivingService {
 
     @Transactional
     public InterWarehouseTransferResponse approveReturn(Long id, User actor) {
+        // HÀM CHÍNH: quản lý kho đích duyệt yêu cầu quay đầu do sai SKU.
         // Quản lý duyệt yêu cầu quay đầu do sai mã hàng. Phiếu vẫn đang vận chuyển,
         // nhưng được đánh dấu là hàng quay về để các bước nhận tiếp theo diễn ra tại kho nguồn.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
@@ -959,6 +970,7 @@ public class InterWarehouseTransferReceivingService {
 
     @Transactional
     public InterWarehouseTransferResponse rejectReturn(Long id, TransferReturnRejectRequest request, User actor) {
+        // HÀM CHÍNH: quản lý kho đích bác yêu cầu quay đầu để tiếp tục nhận hàng bình thường.
         // Quản lý bác yêu cầu quay đầu; phiếu tiếp tục luồng nhận hàng tại kho đích.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.requireStatus(transfer, InterWarehouseTransferStatus.IN_TRANSIT);

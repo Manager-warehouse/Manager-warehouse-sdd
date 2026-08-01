@@ -391,12 +391,7 @@ public class QuarantineRtvService {
 
         // Map Quarantine Records (such as internal transfers)
         for (QuarantineRecord qr : quarantineRecords) {
-            BigDecimal unitCost = BigDecimal.ZERO;
-            List<PriceHistory> prices = priceHistoryRepository.findLatestApproved(
-                    qr.getProduct().getId(), qr.getWarehouse().getId());
-            if (!prices.isEmpty()) {
-                unitCost = prices.get(0).getCostPrice();
-            }
+            BigDecimal unitCost = quarantineRecordUnitCost(qr);
 
             BigDecimal failedQty = qr.getRemainingQuantity();
             BigDecimal totalValue = failedQty.multiply(unitCost);
@@ -419,6 +414,23 @@ public class QuarantineRtvService {
         }
 
         return responses;
+    }
+
+    private BigDecimal quarantineRecordUnitCost(QuarantineRecord qr) {
+        return inventoryRepository.findByWarehouseProductBatchLocation(
+                        qr.getWarehouse().getId(),
+                        qr.getProduct().getId(),
+                        qr.getBatch().getId(),
+                        qr.getLocation().getId())
+                .map(Inventory::getCostPrice)
+                .filter(cost -> cost != null && cost.compareTo(BigDecimal.ZERO) > 0)
+                .orElseGet(() -> latestApprovedCost(qr));
+    }
+
+    private BigDecimal latestApprovedCost(QuarantineRecord qr) {
+        List<PriceHistory> prices = priceHistoryRepository.findLatestApproved(
+                qr.getProduct().getId(), qr.getWarehouse().getId());
+        return prices.isEmpty() ? BigDecimal.ZERO : prices.get(0).getCostPrice();
     }
 
     private String generateAdjustmentNumber() {
