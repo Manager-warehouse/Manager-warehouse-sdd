@@ -358,6 +358,10 @@ public class GlobalExceptionHandler {
             case "DISCREPANCY_RESOLUTION_STATUS_INVALID": return "Hướng xử lý hồ sơ chênh lệch không hợp lệ.";
             case "DISCREPANCY_RESOLUTION_NOTE_REQUIRED": return "Vui lòng nhập ghi chú quyết định xử lý hồ sơ chênh lệch.";
             case "DISCREPANCY_RESOLUTION_NOTE_TOO_LONG": return "Ghi chú xử lý hồ sơ chênh lệch không được vượt quá 1000 ký tự.";
+            case "DISCREPANCY_HOLD_ENTRY_NOT_FOUND": return "Không tìm thấy hàng tạm giữ của hồ sơ chênh lệch.";
+            case "DISCREPANCY_HOLD_QUANTITY_MISMATCH": return "Số lượng hàng tạm giữ không khớp với hồ sơ chênh lệch.";
+            case "DISCREPANCY_HOLD_ENTRY_INCOMPLETE": return "Hàng tạm giữ thiếu lô hàng hoặc vị trí, không thể nhập tồn.";
+            case "SOURCE_STOCK_NOT_ENOUGH_FOR_DISCREPANCY_RESOLUTION": return "Kho nguồn không còn đủ tồn khả dụng để trừ phần hàng thừa.";
             case "DUPLICATE_PUTAWAY_ITEM": return "Có dòng hàng bị trùng lặp trong kế hoạch cất kệ.";
             case "DESTINATION_LOCATION_REQUIRED": return "Yêu cầu chọn vị trí lưu trữ (Bin) cho hàng đạt QC.";
             case "DUPLICATE_PUTAWAY_LOCATION": return "Không được chọn cùng một Bin cho hai dòng phân bổ của cùng mặt hàng.";

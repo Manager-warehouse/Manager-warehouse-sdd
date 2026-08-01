@@ -171,7 +171,7 @@ const Sidebar = () => {
       title: 'Hồ sơ chênh lệch',
       path: '/transfers/discrepancies',
       icon: AlertTriangle,
-      roles: [ROLES.WAREHOUSE_MANAGER, ROLES.ACCOUNTANT_MANAGER, ROLES.CEO]
+      roles: [ROLES.CEO]
     },
   ];
 

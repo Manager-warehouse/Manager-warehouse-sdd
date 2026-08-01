@@ -16,13 +16,18 @@ const STATUS_OPTIONS = [
   { value: 'RESOLVED_DESTINATION_COUNT_ERROR', label: 'Đếm sai kho đích' },
 ];
 
-// Điều chuyển nội bộ: hồ sơ chênh lệch được sinh sau bước nhận hàng khi receivedQty khác sentQty.
-// Màn hình này chỉ giúp kế toán/quản lý chốt trách nhiệm; inventory adjustment đã do backend ghi ở final receive.
+// Điều chuyển nội bộ: final receive chỉ tạo hồ sơ và giữ phần lệch; CEO chốt trách nhiệm ở màn này.
+// Với nhận thừa, quyết định của CEO mới quyết định có cộng phần tạm giữ vào kho đích và trừ thêm kho nguồn hay không.
 const RESOLUTION_OPTIONS = [
   { value: 'RESOLVED_ACCEPTED', label: 'Chấp nhận hao hụt' },
   { value: 'RESOLVED_SOURCE_FAULT', label: 'Lỗi kho nguồn' },
   { value: 'RESOLVED_CARRIER_FAULT', label: 'Lỗi vận chuyển / tài xế' },
   { value: 'RESOLVED_DESTINATION_COUNT_ERROR', label: 'Đếm sai kho đích' },
+];
+
+const OVER_RECEIPT_RESOLUTION_OPTIONS = [
+  { value: 'RESOLVED_SOURCE_FAULT', label: 'Lỗi kho nguồn - nhập phần thừa vào kho đích' },
+  { value: 'RESOLVED_DESTINATION_COUNT_ERROR', label: 'Lỗi đếm kho đích - không nhập phần thừa' },
 ];
 
 const statusMeta = {
@@ -132,7 +137,11 @@ const TransferDiscrepancyWorkspace = () => {
 
   const openResolveModal = (incident) => {
     setSelectedIncident(incident);
-    setResolutionStatus(RESOLUTION_OPTIONS[0].value);
+    setResolutionStatus(
+      incident.incidentType === 'OVER_RECEIPT'
+        ? OVER_RECEIPT_RESOLUTION_OPTIONS[0].value
+        : RESOLUTION_OPTIONS[0].value
+    );
     setResolutionNote('');
   };
 
@@ -179,7 +188,7 @@ const TransferDiscrepancyWorkspace = () => {
             Hồ sơ thiếu thừa sau nhận hàng
           </h1>
           <p className="text-xs text-shade-50 font-light mt-1 max-w-3xl">
-            Theo dõi phần lệch giữa số đã gửi và số kho đích xác nhận. Hàng thiếu đã có adjustment/audit; hồ sơ này dùng để chốt trách nhiệm và hướng xử lý.
+            Chỉ CEO thấy màn hình này. Phần lệch được giữ ngoài tồn chính thức cho tới khi CEO chốt trách nhiệm và lý do xử lý.
           </p>
         </div>
         <Button variant="outline-light" icon={RefreshCw} onClick={fetchIncidents} disabled={loading}>
@@ -243,7 +252,7 @@ const TransferDiscrepancyWorkspace = () => {
         <div className="rounded-lg border border-hairline-light bg-canvas-light p-10 text-center shadow-level-3">
           <FileSearch className="w-10 h-10 text-shade-40 mx-auto mb-3" />
           <h3 className="text-base font-bold text-ink">Không có hồ sơ phù hợp</h3>
-          <p className="text-xs text-shade-50 mt-1">Khi final receive phát sinh thiếu/thừa, hồ sơ sẽ xuất hiện ở đây.</p>
+          <p className="text-xs text-shade-50 mt-1">Khi final receive phát sinh thiếu/thừa, hồ sơ sẽ chờ CEO kết luận ở đây.</p>
         </div>
       ) : (
         <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden">
@@ -343,7 +352,9 @@ const TransferDiscrepancyWorkspace = () => {
               label="Hướng xử lý"
               value={resolutionStatus}
               onChange={(event) => setResolutionStatus(event.target.value)}
-              options={RESOLUTION_OPTIONS}
+              options={selectedIncident.incidentType === 'OVER_RECEIPT'
+                ? OVER_RECEIPT_RESOLUTION_OPTIONS
+                : RESOLUTION_OPTIONS}
             />
 
             <div className="flex flex-col gap-1.5">
@@ -358,7 +369,7 @@ const TransferDiscrepancyWorkspace = () => {
                 placeholder="VD: Đối chiếu ảnh bàn giao, seal nguyên vẹn; chấp nhận hao hụt theo biên bản..."
               />
               <p className="text-[11px] text-shade-50">
-                Nếu chọn đếm sai kho đích, hệ thống chỉ khóa trách nhiệm hồ sơ; phần chỉnh tồn kho phải đi qua phiếu điều chỉnh riêng.
+                Nếu thừa hàng do lỗi kho nguồn, hệ thống trừ thêm kho nguồn và nhập phần tạm giữ vào kho đích; nếu do đếm sai kho đích thì chỉ đóng hồ sơ.
               </p>
             </div>
 

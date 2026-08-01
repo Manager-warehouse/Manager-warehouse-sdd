@@ -131,7 +131,7 @@ const AppRoutes = () => {
       </Route>
 
       {/* Điều chuyển nội bộ - discrepancy: route theo dõi thiếu/thừa sau nhận hàng để chốt trách nhiệm. */}
-      <Route element={<ProtectedRoute allowedRoles={[ROLES.CEO, ROLES.WAREHOUSE_MANAGER, ROLES.ACCOUNTANT_MANAGER]} />}>
+      <Route element={<ProtectedRoute allowedRoles={[ROLES.CEO]} />}>
         <Route path="/transfers/discrepancies" element={<TransferDiscrepancyWorkspace />} />
       </Route>
 

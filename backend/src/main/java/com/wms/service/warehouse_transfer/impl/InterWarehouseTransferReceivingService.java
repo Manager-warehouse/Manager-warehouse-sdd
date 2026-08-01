@@ -667,22 +667,16 @@ public class InterWarehouseTransferReceivingService {
                     batch = allocationRepository.findByTransferItemId(item.getId()).get(0).getInventory().getBatch();
                 }
 
-                BigDecimal costPrice = BigDecimal.ZERO;
-                if (!allocationRepository.findByTransferItemId(item.getId()).isEmpty()) {
-                    costPrice = allocationRepository.findByTransferItemId(item.getId()).get(0).getInventory().getCostPrice();
-                }
-
                 if (overReceiptPassed.signum() > 0) {
-                    distributeOverReceipt(targetWarehouse, item, batch, costPrice, incident,
+                    distributeOverReceipt(targetWarehouse, item, batch, incident,
                             overReceiptPassed, remainingPutaway);
                 }
                 if (overReceiptFailed.signum() > 0) {
                     if (quarantineLocation == null) {
                         quarantineLocation = helper.findQuarantineLocation(transfer);
                     }
-                    applyLocationOccupancy(quarantineLocation, item.getProduct(), overReceiptFailed);
-                    helper.upsertInventory(targetWarehouse, item.getProduct(), batch,
-                            quarantineLocation, overReceiptFailed, costPrice);
+                    // Hàng thừa không được cộng vào tồn khả dụng/quarantine inventory ngay.
+                    // Chỉ giữ trên hồ sơ chênh lệch để xử lý sau, tránh làm tổng tồn hệ thống tăng ảo.
                     discrepancyHoldEntryRepository.save(DiscrepancyHoldEntry.builder()
                             .incident(incident)
                             .warehouse(targetWarehouse)
@@ -789,15 +783,12 @@ public class InterWarehouseTransferReceivingService {
     private void distributeOverReceipt(Warehouse warehouse,
                                        InterWarehouseTransferItem item,
                                        Batch batch,
-                                       BigDecimal costPrice,
                                        DiscrepancyIncident incident,
                                        BigDecimal quantity,
                                        Map<WarehouseLocation, BigDecimal> remainingPutaway) {
         // Hàng nhận thừa được đưa vào danh sách tạm giữ của hồ sơ chênh lệch,
-        // chưa coi là hàng bình thường đã xử lý xong.
+        // chưa cộng tồn khả dụng cho tới khi hồ sơ chênh lệch được xử lý.
         distributeToBins(quantity, remainingPutaway, (location, movedQty) -> {
-            applyLocationOccupancy(location, item.getProduct(), movedQty);
-            helper.upsertInventory(warehouse, item.getProduct(), batch, location, movedQty, costPrice);
             discrepancyHoldEntryRepository.save(DiscrepancyHoldEntry.builder()
                     .incident(incident)
                     .warehouse(warehouse)

@@ -498,6 +498,40 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
     }));
   });
 
+  it('allows storekeeper to confirm over-receipt so discrepancy can be handled later', async () => {
+    const onAction = renderPanel({
+      roles: [ROLES.STOREKEEPER],
+      activeWarehouse: { id: 2, code: 'WH-HP' },
+      warehouseAccessIds: [2],
+      transfer: {
+        ...baseTransfer,
+        status: 'IN_TRANSIT',
+        driverArrivedAt: '2026-07-22T10:00:00Z',
+        arrivalHandoverAt: '2026-07-22T10:05:00Z',
+        arrivalHandoverPhotoRef: 'uploads/handover.jpg',
+        items: [{ ...baseTransfer.items[0], sentQty: 10, workerReceivedQty: 20 }],
+      },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Kiểm tra count/QC' }));
+    expect(screen.getByText('SL chốt (20) > số gửi (10). Phần thừa sẽ vào hồ sơ chênh lệch khi quản lý duyệt cuối.')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Ảnh xác nhận QC nhập điều chuyển'));
+    fireEvent.click(screen.getByRole('button', { name: 'Duyệt QC' }));
+
+    await waitFor(() => expect(onAction).toHaveBeenCalledWith('receiveCheck', {
+      items: [{
+        transferItemId: 101,
+        confirmedQty: 20,
+        qcPassedQty: 20,
+        qcFailedQty: 0,
+        checkerNote: null,
+        qcFailureReason: null,
+      }],
+      photoFile: expect.any(File),
+    }));
+  });
+
   it('hides multi-bin putaway from destination manager after receive QC is complete', () => {
     renderPanel({
       roles: [ROLES.WAREHOUSE_MANAGER],

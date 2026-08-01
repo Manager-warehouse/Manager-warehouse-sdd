@@ -251,12 +251,11 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
       const item = transfer.items.find((line) => line.id === row.transferItemId);
       const sentQty = Number(item?.sentQty ?? item?.plannedQty ?? 0);
       // Receive-check là bước thủ kho chốt QC: tổng pass/fail phải khớp số confirm
-      // và mọi chênh lệch với count của công nhân phải có ghi chú.
+      // và mọi chênh lệch với count của công nhân phải có ghi chú; số chốt có thể thừa để final receive tạo hồ sơ chênh lệch.
       return Number.isFinite(confirmedQty)
         && Number.isFinite(qcPassedQty)
         && Number.isFinite(qcFailedQty)
         && confirmedQty >= 0
-        && confirmedQty <= sentQty
         && qcPassedQty >= 0
         && qcFailedQty >= 0
         && isWholeNumber(row.confirmedQty)
@@ -1225,8 +1224,8 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
                            <div>
                              <Input label="SL chốt" type="number" min="0" step="1" value={row.confirmedQty} onChange={(e) => setRow(checkRows, setCheckRows, row.transferItemId, { confirmedQty: Number(e.target.value) })} />
                              {isOverSent && (
-                               <div className="text-[10px] text-danger-700 bg-danger-50 border border-danger-200 rounded px-2 py-1 mt-1 leading-snug">
-                                 ⚠️ SL chốt ({confirmedQty}) &gt; số gửi ({sentQty}). Không cho phép nhận quá số gửi.
+                               <div className="text-[10px] text-warning-800 bg-warning-50 border border-warning-200 rounded px-2 py-1 mt-1 leading-snug">
+                                 SL chốt ({confirmedQty}) &gt; số gửi ({sentQty}). Phần thừa sẽ vào hồ sơ chênh lệch khi quản lý duyệt cuối.
                                </div>
                              )}
                            </div>
@@ -1265,7 +1264,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
                 <div className="text-[10px] text-warning-700">Cần chụp/chọn ảnh QC trước khi duyệt.</div>
               )}
               {checkRows.length > 0 && (
-                /* Nút chỉ bật khi pass + fail = số chốt, không vượt sentQty, có ảnh và có ghi chú cho mọi lệch/lỗi. */
+                /* Nút chỉ bật khi pass + fail = số chốt, có ảnh và có ghi chú cho mọi lệch/lỗi. */
                 <Button loading={busy} disabled={!checkReady} className="py-2.5 px-4 text-xs" onClick={() => run('receiveCheck', {
                   items: checkRows.map(({ destinationLocationId, ...line }) => {
                     const item = transfer.items.find((transferItem) => transferItem.id === line.transferItemId);

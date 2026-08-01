@@ -33,14 +33,14 @@ public class DiscrepancyIncidentController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN','CEO','WAREHOUSE_MANAGER','ACCOUNTANT_MANAGER')")
+    @PreAuthorize("hasRole('CEO')")
     @Operation(summary = "List transfer discrepancy incidents")
     public List<DiscrepancyIncidentResponse> listIncidents(@RequestParam(required = false) String status) {
         return incidentService.listIncidents(status, currentUser());
     }
 
     @PostMapping("/{id}/resolve")
-    @PreAuthorize("hasAnyRole('ADMIN','CEO','WAREHOUSE_MANAGER','ACCOUNTANT_MANAGER')")
+    @PreAuthorize("hasRole('CEO')")
     @Operation(summary = "Resolve an open transfer discrepancy incident")
     public DiscrepancyIncidentResponse resolveIncident(@PathVariable Long id,
                                                        @Valid @RequestBody DiscrepancyIncidentResolveRequest request) {

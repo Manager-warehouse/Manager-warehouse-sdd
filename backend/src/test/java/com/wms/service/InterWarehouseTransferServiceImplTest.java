@@ -943,6 +943,51 @@ class InterWarehouseTransferServiceImplTest {
     }
 
     @Test
+    void finalReceive_createsDiscrepancyWhenStorekeeperConfirmsOverReceipt() {
+        service.approveTransfer(1L, sourceManager);
+        service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
+                VALID_TRIP_START, VALID_TRIP_END), dispatcher);
+        recordPassingOutboundQcAndHandover();
+        service.shipTransfer(1L, sourceManager);
+        service.departTransfer(1L, driverUser);
+
+        service.receiveCount(1L, new InterWarehouseTransferReceiveCountRequest(List.of(
+                new InterWarehouseTransferReceiveCountItemRequest(
+                        transferItem.getId(), new BigDecimal("7.00"), "received two extra units"))),
+                destinationWorker);
+        service.receiveCheck(1L, new InterWarehouseTransferReceiveCheckRequest(List.of(
+                new InterWarehouseTransferReceiveCheckItemRequest(
+                        transferItem.getId(),
+                        new BigDecimal("7.00"),
+                        new BigDecimal("7.00"),
+                        BigDecimal.ZERO,
+                        null,
+                        null,
+                        null)),
+                "transfer/receive-qc/over.jpg"),
+                destinationStorekeeper);
+
+        InterWarehouseTransferResponse pending = service.finalReceive(1L,
+                new InterWarehouseTransferFinalReceiveRequest(
+                        "received two extra units",
+                        List.of(new InterWarehouseTransferFinalPutawayItemRequest(
+                                transferItem.getId(),
+                                List.of(new InterWarehouseTransferPutawayAllocationRequest(
+                                        destinationLocation.getId(), new BigDecimal("7.00")))))),
+                destinationStorekeeper);
+
+        assertThat(pending.status()).isEqualTo(InterWarehouseTransferStatus.PUTAWAY_PENDING_APPROVAL);
+        assertThat(destinationInventory).isNull();
+
+        InterWarehouseTransferResponse completed = service.finalReceive(1L,
+                new InterWarehouseTransferFinalReceiveRequest(""), destinationManager);
+
+        assertThat(completed.status()).isEqualTo(InterWarehouseTransferStatus.COMPLETED_WITH_DISCREPANCY);
+        assertThat(destinationInventory).isNotNull();
+        assertThat(destinationInventory.getTotalQty()).isEqualByComparingTo("5.00");
+    }
+
+    @Test
     void finalReceive_rejectsDuplicatePutawayItemAndLocation() {
         moveTransferToCheckedReceiving();
 
