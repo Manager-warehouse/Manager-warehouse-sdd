@@ -9,6 +9,7 @@ import Modal from '../../components/common/Modal';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import Badge from '../../components/common/Badge';
+import CorrectionVoucherButton from '../../components/common/CorrectionVoucherButton';
 import { ROLES } from '../../utils/constants';
 import { Loader2, Plus, Receipt, ShieldAlert, Check, Coins, FileText, Building2, Truck } from 'lucide-react';
 
@@ -417,6 +418,18 @@ const ReturnsWorkspace = () => {
           <Coins className="w-3.5 h-3.5" />
           Tạo Credit Note
         </button>
+      );
+    }
+    if (ret.credit_note_generated && ret.credit_note_id) {
+      // Credit Note itself is immutable once created - a wrong amount can only be
+      // fixed via Correction Voucher (US-WMS-29), same as invoices/payments.
+      return (
+        <CorrectionVoucherButton
+          referenceType="CREDIT_NOTE"
+          referenceId={ret.credit_note_id}
+          documentLabel={`Credit Note của ${ret.receipt_number}`}
+          onSuccess={fetchData}
+        />
       );
     }
     return <span className="text-shade-50 text-[10px] font-medium">Hoàn tất</span>;

@@ -166,7 +166,14 @@ public class ReceiptService {
 
     private ReceiptResponse enrichReceiptResponse(Receipt receipt, ReceiptResponse response) {
         if (receipt.getType() == ReceiptType.RETURN) {
-            response.setCreditNoteGenerated(creditNoteRepository.existsByReceiptId(receipt.getId()));
+            // creditNoteId lets the UI target a specific Credit Note for a Correction
+            // Voucher (US-WMS-29) without a second lookup call.
+            creditNoteRepository.findByReceiptId(receipt.getId()).ifPresentOrElse(
+                    creditNote -> {
+                        response.setCreditNoteGenerated(true);
+                        response.setCreditNoteId(creditNote.getId());
+                    },
+                    () -> response.setCreditNoteGenerated(false));
         }
         return response;
     }

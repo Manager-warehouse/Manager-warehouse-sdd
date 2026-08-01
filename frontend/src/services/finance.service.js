@@ -578,7 +578,7 @@ export const financeService = {
       await new Promise(resolve => setTimeout(resolve, 500));
       const list = JSON.parse(localStorage.getItem('wms_db_correction_vouchers')) || [];
 
-      // Mirror the backend's lookup: derive the CLOSED original period + dealer/supplier
+      // Mirror the backend's lookup: derive the original period + dealer/supplier
       // from the referenced document, rather than storing them redundantly.
       let originalPeriodId = null;
       let dealerName = null;
@@ -591,6 +591,10 @@ export const financeService = {
         const pr = getDb(KEYS.PAYMENTS, []).find(p => p.id === Number(referenceId));
         originalPeriodId = pr?.accounting_period_id ?? null;
         dealerName = pr?.dealer_name ?? null;
+      } else if (referenceType === 'CREDIT_NOTE') {
+        const cn = getDb('wms_db_credit_notes', []).find(c => c.creditNoteId === Number(referenceId));
+        originalPeriodId = cn?.accountingPeriodId ?? null;
+        dealerName = cn?.dealerName ?? null;
       }
 
       const newVoucher = {

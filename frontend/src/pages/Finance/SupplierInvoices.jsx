@@ -26,7 +26,6 @@ const SupplierInvoices = () => {
   const [notifications, setNotifications] = useState([]);
   const [supplierInvoices, setSupplierInvoices] = useState([]);
   const [supplierPayments, setSupplierPayments] = useState([]);
-  const [closedPeriodIds, setClosedPeriodIds] = useState(new Set());
 
   // Modal States
   const [showCreateInvoiceModal, setShowCreateInvoiceModal] = useState(false);
@@ -65,10 +64,9 @@ const SupplierInvoices = () => {
     setLoading(true);
     setLoadError('');
 
-    const [supplierResult, invoiceResult, periodResult] = await Promise.allSettled([
+    const [supplierResult, invoiceResult] = await Promise.allSettled([
       masterDataService.getSuppliers(),
-      financeService.getSupplierInvoices(),
-      financeService.getAccountingPeriods()
+      financeService.getSupplierInvoices()
     ]);
 
     if (supplierResult.status === 'fulfilled') {
@@ -82,14 +80,6 @@ const SupplierInvoices = () => {
     } else {
       setSupplierInvoices([]);
       setLoadError('Không tải được sổ hóa đơn mua hàng. Kiểm tra quyền kế toán hoặc thử tải lại.');
-    }
-
-    if (periodResult.status === 'fulfilled') {
-      setClosedPeriodIds(new Set(
-        (periodResult.value || []).filter(p => p.status === 'CLOSED').map(p => p.id)
-      ));
-    } else {
-      setClosedPeriodIds(new Set());
     }
 
     if (activeTab === 'notifications') {
@@ -569,7 +559,6 @@ const SupplierInvoices = () => {
                               referenceType="SUPPLIER_INVOICE"
                               referenceId={inv.id}
                               documentLabel={inv.invoice_number}
-                              isPeriodClosed={closedPeriodIds.has(inv.accounting_period_id ?? inv.accountingPeriodId)}
                               onSuccess={loadData}
                             />
                           </td>
@@ -629,7 +618,6 @@ const SupplierInvoices = () => {
                               referenceType="SUPPLIER_PAYMENT"
                               referenceId={sp.id}
                               documentLabel={sp.payment_number}
-                              isPeriodClosed={closedPeriodIds.has(sp.accounting_period_id ?? sp.accountingPeriodId)}
                               onSuccess={loadData}
                             />
                           </td>

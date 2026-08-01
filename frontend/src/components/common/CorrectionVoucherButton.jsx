@@ -8,18 +8,18 @@ import Modal from './Modal';
 import Button from './Button';
 import Input from './Input';
 
-// Contextual "Điều chỉnh" action for a single AR/AP document row whose own
-// accounting period is already CLOSED (US-WMS-29). Deliberately not a separate
-// page: it only ever makes sense in the context of one already-identified row,
-// so referenceType/referenceId are supplied by the caller rather than picked
-// inside a standalone form. Renders nothing unless the actor is ACCOUNTANT_MANAGER
-// (or ADMIN) and the row's period is actually CLOSED - showing it otherwise would
-// just let the user hit the backend's ORIGINAL_PERIOD_NOT_CLOSED rejection.
+// Contextual "Điều chỉnh" action for a single AR/AP document row (US-WMS-29).
+// Deliberately not a separate page: it only ever makes sense in the context of
+// one already-identified row, so referenceType/referenceId are supplied by the
+// caller rather than picked inside a standalone form. Renders nothing unless the
+// actor is ACCOUNTANT_MANAGER (or ADMIN) - the backend no longer requires the
+// row's own period to be CLOSED (Session 2026-08-02: none of these document
+// types has an UPDATE/DELETE endpoint at any point, so this is the only
+// correction path whether the period is open or closed).
 const CorrectionVoucherButton = ({
   referenceType,
   referenceId,
   documentLabel,
-  isPeriodClosed,
   onSuccess
 }) => {
   const { addToast } = useUiStore();
@@ -34,7 +34,7 @@ const CorrectionVoucherButton = ({
     documentDate: new Date().toISOString().slice(0, 10)
   });
 
-  if (!canCorrect || !isPeriodClosed) {
+  if (!canCorrect) {
     return null;
   }
 
@@ -96,9 +96,9 @@ const CorrectionVoucherButton = ({
       >
         <div className="flex flex-col gap-4 text-xs">
           <div className="p-3 bg-amber-50 border border-amber-200 rounded text-amber-800 leading-relaxed">
-            Chứng từ {documentLabel ? <strong>{documentLabel}</strong> : 'này'} thuộc kỳ kế toán đã{' '}
-            <strong>chốt sổ</strong>. Bút toán điều chỉnh sẽ được ghi vào kỳ hiện đang mở, không sửa
-            trực tiếp phiếu ban đầu.
+            Chứng từ {documentLabel ? <strong>{documentLabel}</strong> : 'này'} không thể sửa trực tiếp
+            sau khi lưu. Bút toán điều chỉnh sẽ được ghi vào kỳ hiện đang mở và chỉ thay đổi công nợ,
+            không sửa trực tiếp phiếu ban đầu.
           </div>
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">

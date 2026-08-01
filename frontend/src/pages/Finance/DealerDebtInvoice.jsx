@@ -28,7 +28,6 @@ const DealerDebtInvoice = () => {
   const [notifications, setNotifications] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [paymentReceipts, setPaymentReceipts] = useState([]);
-  const [closedPeriodIds, setClosedPeriodIds] = useState(new Set());
 
   // Modal States - Create Invoice from Delivery Notification
   const [showCreateInvoiceModal, setShowCreateInvoiceModal] = useState(false);
@@ -80,16 +79,12 @@ const DealerDebtInvoice = () => {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [dealersList, invs, periods] = await Promise.all([
+      const [dealersList, invs] = await Promise.all([
         masterDataService.getDealers(),
-        financeService.getInvoices(),
-        financeService.getAccountingPeriods()
+        financeService.getInvoices()
       ]);
       setDealers(dealersList || []);
       setInvoices(invs || []);
-      setClosedPeriodIds(new Set(
-        (periods || []).filter(p => p.status === 'CLOSED').map(p => p.id)
-      ));
 
       if (activeTab === 'notifications') {
         const notifs = await financeService.getBillingNotifications();
@@ -533,7 +528,6 @@ const DealerDebtInvoice = () => {
                               referenceType="INVOICE"
                               referenceId={inv.id}
                               documentLabel={inv.invoice_number}
-                              isPeriodClosed={closedPeriodIds.has(inv.accounting_period_id ?? inv.accountingPeriodId)}
                               onSuccess={loadData}
                             />
                           </td>
@@ -593,7 +587,6 @@ const DealerDebtInvoice = () => {
                               referenceType="PAYMENT_RECEIPT"
                               referenceId={pr.id}
                               documentLabel={pr.payment_number}
-                              isPeriodClosed={closedPeriodIds.has(pr.accounting_period_id ?? pr.accountingPeriodId)}
                               onSuccess={loadData}
                             />
                           </td>

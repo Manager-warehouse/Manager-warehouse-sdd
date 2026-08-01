@@ -110,13 +110,13 @@ class CorrectionVoucherControllerTest {
     }
 
     @Test
-    @DisplayName("POST /api/v1/correction-vouchers — 422 khi kỳ chứng từ gốc chưa CLOSED")
+    @DisplayName("POST /api/v1/correction-vouchers — 422 khi documentDate thuộc kỳ đã CLOSED")
     @WithMockUser(username = "acc_manager@wms.com", roles = "ACCOUNTANT_MANAGER")
-    void createCorrectionVoucher_originalPeriodNotClosed_returns422() throws Exception {
+    void createCorrectionVoucher_documentDateInClosedPeriod_returns422() throws Exception {
         when(userRepository.findByEmail("acc_manager@wms.com")).thenReturn(Optional.of(accountantManager));
         when(correctionVoucherService.createCorrectionVoucher(any(), any()))
                 .thenThrow(new UnprocessableEntityException(
-                        "ORIGINAL_PERIOD_NOT_CLOSED: Reference document's accounting period is not closed yet"));
+                        "PERIOD_CLOSED: Cannot create or modify transactions in a closed accounting period"));
 
         mockMvc.perform(post("/api/v1/correction-vouchers")
                         .contentType(MediaType.APPLICATION_JSON)
