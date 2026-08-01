@@ -55,13 +55,21 @@ public class DeliveryOrderMapper {
         public DeliveryOrderResponse toResponse(DeliveryOrder order,
                         List<DeliveryOrderItem> items,
                         List<DeliveryOrderItemAllocation> allocations) {
-                return toResponse(order, items, allocations, Map.of());
+                return toResponse(order, items, allocations, Map.of(), null);
         }
 
         public DeliveryOrderResponse toResponse(DeliveryOrder order,
                         List<DeliveryOrderItem> items,
                         List<DeliveryOrderItemAllocation> allocations,
                         Map<Long, AllocationQcSummary> qcSummaryByAllocationId) {
+                return toResponse(order, items, allocations, qcSummaryByAllocationId, null);
+        }
+
+        public DeliveryOrderResponse toResponse(DeliveryOrder order,
+                        List<DeliveryOrderItem> items,
+                        List<DeliveryOrderItemAllocation> allocations,
+                        Map<Long, AllocationQcSummary> qcSummaryByAllocationId,
+                        DeliveryOrderWarehouseApproval warehouseApproval) {
                 Map<Long, List<DeliveryOrderItemAllocation>> allocationsByItemId = allocations.stream()
                                 .collect(Collectors
                                                 .groupingBy(allocation -> allocation.getDeliveryOrderItem().getId()));
@@ -109,6 +117,10 @@ public class DeliveryOrderMapper {
                                 .createdByName(order.getCreatedBy() != null ? order.getCreatedBy().getFullName() : null)
                                 .pickingPlanSavedByName(pickingPlanSavedByName)
                                 .qcByName(order.getQcBy() != null ? order.getQcBy().getFullName() : null)
+                                .approvedByName(warehouseApproval != null && warehouseApproval.getApprover() != null
+                                                ? warehouseApproval.getApprover().getFullName()
+                                                : null)
+                                .warehouseApprovedAt(warehouseApproval != null ? warehouseApproval.getApprovedAt() : null)
                                 .build();
         }
 

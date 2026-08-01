@@ -415,6 +415,11 @@ const normalizeDeliveryOrder = (order = {}) => {
     items,
     created_at: value(order, 'createdAt', 'created_at'),
     updated_at: value(order, 'updatedAt', 'updated_at'),
+    created_by_name: value(order, 'createdByName', 'created_by_name'),
+    picking_plan_saved_by_name: value(order, 'pickingPlanSavedByName', 'picking_plan_saved_by_name'),
+    qc_by_name: value(order, 'qcByName', 'qc_by_name'),
+    approved_by_name: value(order, 'approvedByName', 'approved_by_name'),
+    warehouse_approved_at: value(order, 'warehouseApprovedAt', 'warehouse_approved_at'),
   };
 };
 
