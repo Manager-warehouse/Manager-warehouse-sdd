@@ -108,6 +108,7 @@ public class DeliveryOrderMapper {
                                 .updatedAt(order.getUpdatedAt())
                                 .createdByName(order.getCreatedBy() != null ? order.getCreatedBy().getFullName() : null)
                                 .pickingPlanSavedByName(pickingPlanSavedByName)
+                                .qcByName(order.getQcBy() != null ? order.getQcBy().getFullName() : null)
                                 .build();
         }
 

@@ -67,6 +67,8 @@ public class DeliveryOrderResponse {
     private String createdByName;
     @JsonProperty("picking_plan_saved_by_name")
     private String pickingPlanSavedByName;
+    @JsonProperty("qc_by_name")
+    private String qcByName;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
 }
