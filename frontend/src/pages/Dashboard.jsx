@@ -172,7 +172,7 @@ const Dashboard = () => {
 
   const handleOpenTransferModal = (product) => {
     setSelectedProduct(product);
-    // Find first other warehouse that has stock > 0 to select as default source
+    // Điều chuyển nội bộ: Dashboard chọn gợi ý kho nguồn còn hàng để tạo TRQ nhanh cho kho hiện tại.
     const otherWhs = physicalWarehouses.filter(w => Number(w.id) !== Number(activeWarehouse?.id));
     const defaultSrc = otherWhs.find(w => (product.stockMap?.[w.id] || 0) > 0);
     
@@ -187,6 +187,7 @@ const Dashboard = () => {
 
   const handleCreateTransferRequest = async (e) => {
     e.preventDefault();
+    // Form nhanh trên Dashboard chỉ validate dữ liệu nhập cơ bản; backend vẫn kiểm role, ngày cần hàng và tồn nguồn.
     if (!selectedSourceWhId) {
       addToast('Vui lòng chọn kho nguồn gửi hàng', 'warning');
       return;
@@ -210,6 +211,7 @@ const Dashboard = () => {
 
     setSubmitting(true);
     try {
+      // Payload tạo TRQ nháp, chưa reserve tồn và chưa tạo chuyến vận chuyển.
       const payload = {
         sourceWarehouseId: Number(selectedSourceWhId),
         destinationWarehouseId: Number(activeWarehouse.id),

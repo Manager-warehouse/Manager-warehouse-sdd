@@ -1,61 +1,61 @@
-# Research: 005 Inter-Warehouse Transfer
+# Nghiên cứu: 005 Điều chuyển nội bộ giữa kho
 
-## Decision: Use `sent_qty` as the loaded/unshipped marker
+## Quyết định: Dùng `sent_qty` làm dấu hiệu hàng đã xếp/chưa gỡ xếp
 
-**Rationale**: The business status remains `APPROVED` before driver departure. `sent_qty == null` means goods are not loaded; `sent_qty != null` means source storekeeper has loaded goods and cancellation must be blocked until `/unship` clears sent quantities. This avoids adding another workflow status.
+**Lý do**: Trước khi tài xế rời kho, trạng thái nghiệp vụ của phiếu vẫn là `APPROVED`. `sent_qty == null` nghĩa là hàng chưa được chốt xếp; `sent_qty != null` nghĩa là thủ kho nguồn đã chốt hàng xếp và không được hủy phiếu cho đến khi `/unship` xóa số lượng đã gửi. Cách này tránh phải thêm một trạng thái workflow mới.
 
-**Alternatives considered**: Add `LOADED` status. Rejected because the user explicitly accepted using `sent_qty` and the spec keeps status `APPROVED` until driver departure.
+**Phương án đã cân nhắc**: Thêm trạng thái `LOADED`. Bị loại vì người dùng đã chấp nhận dùng `sent_qty`, và đặc tả giữ trạng thái `APPROVED` cho đến khi tài xế rời kho.
 
-## Decision: Implement transfer endpoints under `/api/v1/inter-warehouse-transfers`
+## Quyết định: Đặt endpoint điều chuyển dưới `/api/v1/inter-warehouse-transfers`
 
-**Rationale**: Existing implementation exposes the transfer aggregate through `InterWarehouseTransferController` at `/api/v1/inter-warehouse-transfers`. Transfer operations are state transitions on one aggregate, so sub-actions like `/approve`, `/ship`, `/depart`, `/receive-check`, and `/final-receive` are appropriate.
+**Lý do**: Triển khai hiện tại expose aggregate điều chuyển qua `InterWarehouseTransferController` tại `/api/v1/inter-warehouse-transfers`. Các thao tác điều chuyển là chuyển trạng thái trên cùng một aggregate, nên các action con như `/approve`, `/ship`, `/depart`, `/receive-check`, `/final-receive` là phù hợp.
 
-**Alternatives considered**: Separate resources like `/api/v1/transfer-shipments`. Rejected because it would split one transactional aggregate across unrelated controllers.
+**Phương án đã cân nhắc**: Tách thành resource riêng như `/api/v1/transfer-shipments`. Bị loại vì sẽ chia một aggregate giao dịch thành nhiều controller rời rạc, làm khó kiểm soát trạng thái và audit.
 
-## Decision: Keep source lot allocation out of spec 005
+## Quyết định: Không đưa phân bổ lot nguồn vào Spec 005
 
-**Rationale**: User clarified source lot allocation is not part of this transfer module. The feature will operate on product, warehouse, location, and aggregate inventory quantities only.
+**Lý do**: Người dùng đã làm rõ rằng phân bổ lot nguồn không thuộc module điều chuyển này. Tính năng chỉ vận hành theo sản phẩm, kho, vị trí và số lượng tồn tổng hợp.
 
-**Alternatives considered**: Transfer item source-lot allocation. Rejected by current business clarification.
+**Phương án đã cân nhắc**: Thêm phân bổ source-lot ở dòng điều chuyển. Bị loại theo làm rõ nghiệp vụ hiện tại.
 
-## Decision: Enforce duplicate external instruction on active transfers only
+## Quyết định: Chỉ chặn trùng mã lệnh ngoài trên các phiếu đang hoạt động
 
-**Rationale**: `externalInstructionCode + sourceWarehouse + destinationWarehouse + documentDate` prevents duplicate active work while still allowing corrected re-entry after `REJECTED` or `CANCELLED`.
+**Lý do**: Tổ hợp `externalInstructionCode + sourceWarehouse + destinationWarehouse + documentDate` ngăn tạo trùng công việc đang hoạt động, nhưng vẫn cho phép nhập lại bản sửa sau khi phiếu trước đó đã `REJECTED` hoặc `CANCELLED`.
 
-**Alternatives considered**: Globally unique `externalInstructionCode`. Rejected because external company codes may be reused across corrected/cancelled documents.
+**Phương án đã cân nhắc**: Bắt `externalInstructionCode` unique toàn hệ thống. Bị loại vì mã ngoài từ công ty có thể được dùng lại cho chứng từ sửa/hủy.
 
-## Decision: Route QC failed transfer stock to destination quarantine location
+## Quyết định: Hàng điều chuyển fail QC đi vào quarantine của kho đích
 
-**Rationale**: Constitution requires QC-failed goods to enter quarantine and be excluded from available inventory. Storekeeper chooses destination location only for QC-passed quantity; system finds active destination quarantine location.
+**Lý do**: Constitution yêu cầu hàng fail QC phải vào quarantine và không được tính vào tồn khả dụng. Thủ kho chỉ chọn vị trí kho đích cho số lượng QC đạt; hệ thống tự tìm quarantine location đang hoạt động của kho đích cho phần QC lỗi.
 
-**Alternatives considered**: Ask storekeeper to choose quarantine location manually. Rejected to reduce user error and match clarified rule.
+**Phương án đã cân nhắc**: Cho thủ kho chọn vị trí quarantine thủ công. Bị loại để giảm lỗi nhập liệu và khớp rule đã làm rõ.
 
-## Decision: Map transfer quarantine outcomes to spec 009 by physical condition
+## Quyết định: Ánh xạ kết quả quarantine của điều chuyển sang Spec 009 theo tình trạng vật lý
 
-**Rationale**: Internal-transfer damage has no supplier return relationship. Physically damaged transfer goods remain in the warehouse where they are quarantined and are disposed under spec 009. A shortage is not physical stock and therefore creates only a transfer discrepancy adjustment. An intact wrong SKU can safely use Return to Source and is not a disposal candidate.
+**Lý do**: Hàng hỏng trong điều chuyển nội bộ không có quan hệ trả nhà cung cấp. Hàng hỏng vật lý sẽ ở lại kho nơi bị quarantine và xử lý tiêu hủy theo Spec 009. Thiếu hàng không phải tồn vật lý nên chỉ tạo adjustment/discrepancy điều chuyển. Hàng sai SKU nhưng còn nguyên vẹn có thể dùng luồng Return to Source và không phải ứng viên tiêu hủy.
 
-**Alternatives considered**: Allow RTV for all quarantine goods. Rejected because internal transfers have no supplier claim. Return all damaged transfer goods to the source warehouse. Rejected because it only moves the internal handling responsibility and adds unnecessary risk. Dispose every transfer exception. Rejected because shortages are not physical goods and intact wrong-SKU shipments remain recoverable.
+**Phương án đã cân nhắc**: Cho phép RTV với mọi hàng quarantine. Bị loại vì điều chuyển nội bộ không có claim nhà cung cấp. Trả toàn bộ hàng hỏng về kho nguồn cũng bị loại vì chỉ chuyển trách nhiệm nội bộ và tăng rủi ro vận hành. Tiêu hủy mọi ngoại lệ điều chuyển cũng bị loại vì thiếu hàng không phải hàng vật lý và wrong-SKU nguyên vẹn vẫn có thể thu hồi.
 
-## Decision: Calculate destination quantity and value from actual receipt only
+## Quyết định: Tính số lượng và giá trị nhập kho đích theo thực nhận
 
-**Rationale**: If 30 units are sent and 28 physically arrive, the destination imports and calculates value for 28 units only. The missing 2 units remain a quantity-only `TRANSFER_DISCREPANCY` and are excluded from the destination receipt amount and all commercial billing.
+**Lý do**: Nếu gửi 30 đơn vị nhưng chỉ đến vật lý 28 đơn vị, kho đích chỉ nhập và tính giá trị cho 28 đơn vị. 2 đơn vị thiếu còn lại là `TRANSFER_DISCREPANCY` chỉ theo số lượng, không tính vào giá trị nhập kho đích và không đi vào billing thương mại.
 
-**Alternatives considered**: Include all 30 units in destination value. Rejected because two units were not physically received. Calculate a monetary loss inside the transfer receiving flow. Rejected by the business decision to keep missing units as quantity-only discrepancy. Automatically charge the driver for two units. Rejected because responsibility requires a separate investigation and approval process.
+**Phương án đã cân nhắc**: Tính cả 30 đơn vị vào giá trị kho đích. Bị loại vì 2 đơn vị không được nhận vật lý. Tính tổn thất tiền ngay trong flow nhận điều chuyển bị loại vì nghiệp vụ quyết định giữ phần thiếu là discrepancy chỉ theo số lượng. Tự động phạt tài xế cho 2 đơn vị bị loại vì trách nhiệm cần điều tra và phê duyệt riêng.
 
-## Decision: Wrong-SKU return requires destination report and manager approval
+## Quyết định: Wrong-SKU return cần kho đích báo cáo và quản lý duyệt
 
-**Rationale**: The destination Storekeeper is the operational checker who identifies the wrong SKU, while the destination Warehouse Manager is accountable for authorizing the vehicle to turn back. Keeping the same transfer, trip, driver, and In-Transit stock avoids false receipt and duplicate shipment records. Source receiving then repeats count, check/QC, and final confirmation before stock re-enters the source warehouse.
+**Lý do**: Thủ kho kho đích là người kiểm vận hành và phát hiện sai SKU, còn quản lý kho đích chịu trách nhiệm cho phép xe quay đầu. Giữ nguyên cùng transfer, trip, driver và tồn `IN_TRANSIT` giúp tránh tạo nhận kho giả hoặc chứng từ xuất mới trùng. Khi về kho nguồn, nguồn phải lặp lại count, check/QC và final confirmation trước khi hàng nhập lại kho nguồn.
 
-**Alternatives considered**: Let Storekeeper turn the vehicle back immediately. Rejected because it bypasses manager control and audit. Put intact wrong SKU into Quarantine. Rejected because the goods are not damaged. Create a new transfer for the return leg. Rejected for Sprint 1 because it duplicates documents and breaks traceability to the original trip.
+**Phương án đã cân nhắc**: Cho thủ kho tự cho xe quay đầu ngay. Bị loại vì bỏ qua kiểm soát quản lý và audit. Đưa wrong-SKU nguyên vẹn vào quarantine bị loại vì hàng không hỏng. Tạo transfer mới cho chặng quay đầu bị loại trong Sprint 1 vì nhân đôi chứng từ và mất traceability về chuyến gốc.
 
-## Decision: Tests are mandatory for this feature
+## Quyết định: Bắt buộc có test cho tính năng này
 
-**Rationale**: Constitution and AGENTS require service coverage, endpoint integration tests, inventory invariant tests, and audit logging verification for warehouse operations.
+**Lý do**: Constitution và `AGENTS.md` yêu cầu coverage service, integration test endpoint, test invariant tồn kho và xác minh audit log cho mọi thao tác kho.
 
-**Alternatives considered**: Generate implementation tasks first and tests later. Rejected because transfer touches inventory, reservation, authorization, and audit.
+**Phương án đã cân nhắc**: Sinh task triển khai trước rồi bổ sung test sau. Bị loại vì điều chuyển chạm vào tồn kho, reservation, phân quyền và audit.
 
-## Decision: Model manager-initiated replenishment as TransferRequest before TRF
+## Quyết định: Mô hình hóa nhu cầu bổ sung hàng của quản lý kho bằng `TransferRequest` trước `TRF`
 
-**Rationale**: A warehouse manager can identify shortage by viewing read-only stock in other warehouses, but that request still needs CEO approval before warehouse execution. Keeping this as `transfer_requests` avoids overloading executable `transfers` statuses and preserves the existing `TRF` flow where inventory is reserved only after source manager approval.
+**Lý do**: Quản lý kho có thể phát hiện thiếu hàng bằng cách xem tồn read-only ở kho khác, nhưng yêu cầu đó vẫn cần CEO duyệt trước khi vận hành kho thực thi. Giữ luồng này trong `transfer_requests` giúp không làm quá tải status của `transfers`, đồng thời giữ flow `TRF` hiện tại: tồn kho chỉ được reserve sau khi quản lý kho nguồn duyệt.
 
-**Alternatives considered**: Let the warehouse manager create a `TRF` directly. Rejected because it bypasses CEO approval and Planner responsibility. Auto-create `TRF` immediately after CEO approval was also rejected because the source Planner still needs to receive the approved template and create the operational document with traceability.
+**Phương án đã cân nhắc**: Cho quản lý kho tạo trực tiếp `TRF`. Bị loại vì bỏ qua CEO approval và trách nhiệm của Planner. Tự động tạo `TRF` ngay sau khi CEO duyệt cũng bị loại vì Planner nguồn vẫn cần nhận template đã duyệt và tạo chứng từ vận hành có traceability.

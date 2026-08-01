@@ -1,35 +1,35 @@
-# Specification Quality Checklist: Transfer Shortage and Wrong-SKU Return
+# Checklist chất lượng đặc tả: Thiếu hàng điều chuyển và trả hàng sai SKU
 
-**Purpose**: Validate business and cross-artifact completeness before implementation
-**Created**: 2026-06-28
-**Feature**: [Destination Receiving](../features/feature-storekeeper-transfer-receive.md)
+**Mục đích**: Xác minh độ đầy đủ nghiệp vụ và tính nhất quán giữa các tài liệu trước khi triển khai
+**Ngày tạo**: 2026-06-28
+**Tính năng**: [Nhận hàng tại kho đích](../features/feature-storekeeper-transfer-receive.md)
 
-## Content Quality
+## Chất lượng nội dung
 
-- [ ] No implementation details (languages, frameworks, APIs)
-- [x] Focused on user value and business needs
-- [ ] Written for non-technical stakeholders
-- [x] All mandatory sections completed
+- [ ] Không có chi tiết triển khai như ngôn ngữ, framework hoặc API
+- [x] Tập trung vào giá trị người dùng và nhu cầu nghiệp vụ
+- [ ] Viết cho stakeholder không kỹ thuật
+- [x] Hoàn thành mọi mục bắt buộc
 
-## Requirement Completeness
+## Độ đầy đủ yêu cầu
 
-- [x] No [NEEDS CLARIFICATION] markers remain
-- [x] Requirements are testable and unambiguous
-- [x] Success criteria are measurable
-- [x] Success criteria are technology-agnostic
-- [x] Acceptance scenarios cover shortage valuation and wrong-SKU return
-- [x] Edge cases include authorization, damage, shortage, and QC on return
-- [x] Scope is clearly bounded
-- [x] Dependencies and assumptions identified
+- [x] Không còn marker `[NEEDS CLARIFICATION]`
+- [x] Yêu cầu có thể test và không mơ hồ
+- [x] Tiêu chí thành công đo được
+- [x] Tiêu chí thành công không phụ thuộc công nghệ
+- [x] Acceptance scenario bao phủ định giá shortage và return sai SKU
+- [x] Edge case bao gồm phân quyền, hỏng hàng, thiếu hàng và QC khi quay đầu
+- [x] Phạm vi được giới hạn rõ
+- [x] Dependency và giả định đã xác định
 
-## Feature Readiness
+## Mức sẵn sàng của tính năng
 
-- [x] Functional requirements have acceptance criteria
-- [x] User scenarios cover reporting, approval, driver return, and source receiving
-- [x] Tasks cover tests, migration, backend, frontend, OpenAPI, audit, and valuation
-- [ ] No implementation details leak into specification
+- [x] Functional requirement có acceptance criteria
+- [x] User scenario bao phủ báo cáo, phê duyệt, tài xế quay đầu và kho nguồn nhận lại
+- [x] Task bao phủ test, migration, backend, frontend, OpenAPI, audit và valuation
+- [ ] Không rò chi tiết triển khai vào specification
 
-## Notes
+## Ghi chú
 
-- Technical-detail items remain open because the canonical WMS SDD format intentionally includes API, data-model, and status contracts.
-- Business behavior is ready for implementation planning; current code supports only overdue direct return and must not be treated as implementing the wrong-SKU approval flow.
+- Các mục chi tiết kỹ thuật vẫn để mở vì định dạng WMS SDD chuẩn cố ý bao gồm API, data-model và status contract.
+- Hành vi nghiệp vụ đã sẵn sàng cho bước lập kế hoạch triển khai; code hiện tại chỉ hỗ trợ quay đầu trực tiếp do quá hạn và không được xem là đã triển khai đầy đủ flow wrong-SKU approval.

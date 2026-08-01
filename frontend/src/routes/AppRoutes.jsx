@@ -119,15 +119,18 @@ const AppRoutes = () => {
         <Route path="/inbound/returns" element={<ReturnsWorkspace />} />
       </Route>
 
+      {/* Điều chuyển nội bộ - TRF: route vận hành phiếu thật từ lập phiếu, lập chuyến, xuất kho tới nhận kho. */}
       <Route element={<ProtectedRoute allowedRoles={[ROLES.CEO, ROLES.WAREHOUSE_MANAGER, ROLES.PLANNER, ROLES.DISPATCHER, ROLES.STOREKEEPER, ROLES.WAREHOUSE_STAFF]} />}>
         <Route path="/transfers" element={<InterWarehouseTransferWorkspace />} />
         <Route path="/transfers/:id" element={<InterWarehouseTransferWorkspace />} />
       </Route>
 
+      {/* Điều chuyển nội bộ - TRQ: route yêu cầu đề xuất, CEO duyệt xong Planner mới convert sang TRF. */}
       <Route element={<ProtectedRoute allowedRoles={[ROLES.CEO, ROLES.WAREHOUSE_MANAGER, ROLES.PLANNER]} />}>
         <Route path="/transfers/requests" element={<TransferRequestWorkspace />} />
       </Route>
 
+      {/* Điều chuyển nội bộ - discrepancy: route theo dõi thiếu/thừa sau nhận hàng để chốt trách nhiệm. */}
       <Route element={<ProtectedRoute allowedRoles={[ROLES.CEO, ROLES.WAREHOUSE_MANAGER, ROLES.ACCOUNTANT_MANAGER]} />}>
         <Route path="/transfers/discrepancies" element={<TransferDiscrepancyWorkspace />} />
       </Route>

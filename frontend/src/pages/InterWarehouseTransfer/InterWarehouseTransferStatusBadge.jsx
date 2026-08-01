@@ -3,6 +3,8 @@ import Badge from '../../components/common/Badge';
 import { interWarehouseTransferStatusLabel, interWarehouseTransferStepLabel } from '../../utils/interWarehouseTransferStatus';
 
 const statusMap = {
+  // Điều chuyển nội bộ: status là trạng thái nghiệp vụ chính của TRF,
+  // step là trạng thái thao tác tạm thời trong cùng status APPROVED.
   NEW: 'bg-canvas-cream text-shade-70 border-hairline-light',
   APPROVED: 'bg-info-50 text-info-700 border-info-200',
   IN_TRANSIT: 'bg-warning-50 text-warning-800 border-warning-200',

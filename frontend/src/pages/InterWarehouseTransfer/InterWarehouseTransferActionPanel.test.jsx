@@ -139,7 +139,7 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
     });
 
     expect(screen.getByText('QC xuất kho thất bại - chờ xử lý lại')).toBeInTheDocument();
-    expect(screen.getByText('QC xuất kho thất bại. Chờ công nhân hạ/đổi/xếp lại hàng và báo cáo lại số lượng trước khi thủ kho QC lại.')).toBeInTheDocument();
+    expect(screen.getByText('Phiếu đang lệch số lượng hoặc QC xuất kho thất bại. Chờ công nhân bổ sung/đổi/xếp lại hàng rồi báo cáo lại trước khi thủ kho QC.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Báo cáo lại số lượng xếp' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Hạ hàng khỏi xe' })).not.toBeInTheDocument();
   });

@@ -12,11 +12,13 @@ import Badge from '../../components/common/Badge';
 import Pagination from '../../components/common/Pagination';
 
 const todayInputValue = () => {
+  // Lấy ngày local theo timezone trình duyệt để input date không bị lệch ngày do UTC.
   const now = new Date();
   const offsetDate = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
   return offsetDate.toISOString().slice(0, 10);
 };
 
+// TRQ chỉ nhận số lượng nguyên vì inventory không quản lý đơn vị lẻ.
 const isWholeNumber = (value) => Number.isInteger(Number(value));
 
 const TransferRequestWorkspace = () => {
@@ -26,6 +28,7 @@ const TransferRequestWorkspace = () => {
   const { user, hasRole } = useAuthStore();
   const { addToast } = useUiStore();
 
+  // Data nền của màn TRQ: danh sách yêu cầu, kho và sản phẩm dùng để tạo/sửa yêu cầu.
   const [requests, setRequests] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
   const [products, setProducts] = useState([]);
@@ -36,6 +39,7 @@ const TransferRequestWorkspace = () => {
   const [pageSize, setPageSize] = useState(10);
 
   // Creation State
+  // State form tạo/sửa TRQ nháp; TRQ là đề xuất, chưa phải phiếu vận hành.
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingRequestId, setEditingRequestId] = useState(null);
   const [sourceWhId, setSourceWhId] = useState('');
@@ -47,6 +51,7 @@ const TransferRequestWorkspace = () => {
   const minNeededByDate = todayInputValue();
 
   // Detail & Approval State
+  // State modal chi tiết/phê duyệt/từ chối của CEO/Planner.
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
@@ -58,12 +63,14 @@ const TransferRequestWorkspace = () => {
 
   useEffect(() => {
     const prefill = location.state?.prefillTransferRequest;
+    // Prefill từ cảnh báo tồn thấp: mở form TRQ với SKU/kho đích đã biết.
     if (!prefill || loading || warehouses.length === 0 || products.length === 0) return;
     applyAlertPrefill(prefill);
     navigate(location.pathname, { replace: true, state: null });
   }, [location.state, loading, warehouses, products]);
 
   const fetchData = async () => {
+    // Fetch song song TRQ, kho, sản phẩm; nếu TRQ lỗi thì vẫn giữ form có master data khi load được.
     setLoading(true);
     setLoadError('');
 
@@ -98,6 +105,8 @@ const TransferRequestWorkspace = () => {
   const handleLookupStock = async (productId, index) => {
     if (!productId) return;
     try {
+      // Điều chuyển nội bộ: stock lookup chỉ dùng để gợi ý/chống nhập vượt trên UI.
+      // Backend vẫn là nơi quyết định tồn khả dụng thật tại submit/approve/convert.
       const res = await interWarehouseTransferService.stockLookup(productId);
       setStockLookupResult(prev => ({
         ...prev,
@@ -109,6 +118,7 @@ const TransferRequestWorkspace = () => {
   };
 
   const handleItemChange = (index, field, value) => {
+    // Khi đổi SKU thì lookup tồn để UI cảnh báo thiếu hàng ngay trên dòng đó.
     const updated = [...items];
     updated[index][field] = value;
     setItems(updated);
@@ -119,16 +129,19 @@ const TransferRequestWorkspace = () => {
   };
 
   const handleAddItem = () => {
+    // Thêm dòng SKU mới trong cùng TRQ, validate trùng SKU chạy lúc submit.
     setItems([...items, { productId: '', requestedQty: '' }]);
   };
 
   const handleRemoveItem = (index) => {
+    // Luôn giữ ít nhất một dòng để form không rơi vào trạng thái rỗng khó nhập lại.
     if (items.length === 1) return;
     const updated = items.filter((_, i) => i !== index);
     setItems(updated);
   };
 
   const getSourceAvailableQty = (productId) => {
+    // Lấy tồn khả dụng của SKU tại kho nguồn đang chọn từ kết quả stock lookup.
     if (!productId || !sourceWhId) return null;
     const sourceStock = stockLookupResult[productId]?.find((row) =>
       Number(row.warehouseId) === Number(sourceWhId)
@@ -137,11 +150,13 @@ const TransferRequestWorkspace = () => {
   };
 
   const findInsufficientSourceItem = (candidateItems) => candidateItems.find((item) => {
+    // Tìm dòng đầu tiên vượt tồn nguồn để báo đúng SKU cho người nhập.
     const availableQty = getSourceAvailableQty(item.productId);
     return availableQty !== null && Number(item.requestedQty) > availableQty;
   });
 
   const resetRequestForm = () => {
+    // Reset form về trạng thái tạo mới; kho đích mặc định là kho active của người dùng.
     setEditingRequestId(null);
     setSourceWhId('');
     setDestinationWhId(activeWarehouse?.id ? String(activeWarehouse.id) : '');
@@ -152,11 +167,13 @@ const TransferRequestWorkspace = () => {
   };
 
   const openCreateModal = () => {
+    // Mở modal ở chế độ tạo mới, không giữ dữ liệu của lần sửa trước.
     resetRequestForm();
     setShowCreateModal(true);
   };
 
   const applyAlertPrefill = async (prefill) => {
+    // Dùng dữ liệu cảnh báo tồn thấp để tính số lượng cần bổ sung và gợi ý kho nguồn còn hàng.
     resetRequestForm();
     const destinationId = prefill.warehouseId || activeWarehouse?.id;
     const productId = prefill.productId ? String(prefill.productId) : '';
@@ -192,11 +209,13 @@ const TransferRequestWorkspace = () => {
   };
 
   const closeRequestModal = () => {
+    // Đóng modal và xóa state tạm để lần mở sau không dính dữ liệu cũ.
     setShowCreateModal(false);
     resetRequestForm();
   };
 
   const handleEditRequest = (req) => {
+    // Chỉ đưa dữ liệu TRQ vào form sửa; backend mới quyết định status nào được sửa.
     setEditingRequestId(req.id);
     setSourceWhId(String(req.sourceWarehouseId || ''));
     setDestinationWhId(String(req.destinationWarehouseId || activeWarehouse?.id || ''));
@@ -212,18 +231,24 @@ const TransferRequestWorkspace = () => {
 
   const submitCreateRequest = async () => {
     if (!activeWarehouse) return;
+    // Điều chuyển nội bộ - TRQ: validate nhanh trên frontend để tránh gửi form sai cơ bản.
+    // Các invariant nghiệp vụ như scope kho, quá hạn ngày cần hàng, tồn khả dụng thật và audit nằm ở backend.
+    // Validate kho nguồn bắt buộc vì TRQ cần biết kho nào có khả năng cấp hàng.
     if (!sourceWhId) {
       addToast('Vui lòng chọn kho nguồn điều chuyển', 'warning');
       return;
     }
+    // Lý do nghiệp vụ là căn cứ để CEO duyệt/từ chối yêu cầu.
     if (!businessReason.trim()) {
       addToast('Vui lòng nhập lý do nghiệp vụ cho yêu cầu', 'warning');
       return;
     }
+    // Ngày cần hàng là deadline bắt buộc; quá ngày này backend có thể auto-cancel.
     if (!neededByDate) {
       addToast('Vui lòng chọn ngày cần hàng', 'warning');
       return;
     }
+    // Không cho tạo yêu cầu đã quá hạn ngay từ frontend.
     if (neededByDate < minNeededByDate) {
       addToast('Ngày cần hàng không được là ngày trong quá khứ', 'warning');
       return;
@@ -232,25 +257,30 @@ const TransferRequestWorkspace = () => {
       const hasAnyValue = Boolean(item.productId) || String(item.requestedQty || '').trim() !== '';
       return hasAnyValue && (!item.productId || Number(item.requestedQty) <= 0);
     });
+    // Dòng đã nhập một phần phải đủ SKU và số lượng để tránh gửi payload nửa vời.
     if (hasIncompleteItem) {
       addToast('Mỗi dòng sản phẩm đã nhập phải có đủ SKU và số lượng lớn hơn 0', 'warning');
       return;
     }
     const filteredItems = items.filter(i => i.productId && Number(i.requestedQty) > 0);
+    // Sau khi bỏ dòng trống, TRQ vẫn phải có ít nhất một SKU hợp lệ.
     if (filteredItems.length === 0) {
       addToast('Vui lòng nhập ít nhất một sản phẩm hợp lệ', 'warning');
       return;
     }
+    // Không cho số lẻ vì backend/inventory đang tính theo số nguyên.
     if (filteredItems.some((item) => !isWholeNumber(item.requestedQty))) {
       addToast('Số lượng yêu cầu phải là số nguyên', 'warning');
       return;
     }
     const uniqueProductIds = new Set(filteredItems.map((item) => String(item.productId)));
+    // Không trùng SKU để CEO/Planner đọc một dòng là một nhu cầu rõ ràng.
     if (uniqueProductIds.size !== filteredItems.length) {
       addToast('Không được chọn trùng SKU trong cùng yêu cầu', 'warning');
       return;
     }
     const insufficientItem = findInsufficientSourceItem(filteredItems);
+    // Cảnh báo vượt tồn dựa trên stock lookup hiện tại; backend vẫn kiểm lại chống tồn thay đổi cùng lúc.
     if (insufficientItem) {
       const product = products.find((p) => String(p.id) === String(insufficientItem.productId));
       const availableQty = getSourceAvailableQty(insufficientItem.productId);
@@ -263,6 +293,7 @@ const TransferRequestWorkspace = () => {
 
     setSubmitting(true);
     try {
+      // Payload này tạo/sửa TRQ nháp; TRQ chưa reserve tồn và chưa tạo phiếu vận hành TRF.
       const payload = {
         sourceWarehouseId: Number(sourceWhId),
         destinationWarehouseId: Number(destinationWhId || activeWarehouse.id),
@@ -292,6 +323,7 @@ const TransferRequestWorkspace = () => {
   };
 
   const handleViewDetails = (req) => {
+    // Mở modal detail để xem line items và thực hiện submit/approve/reject/convert theo role.
     setSelectedRequest(req);
     setRejectionReason('');
     setShowDetailModal(true);
@@ -300,6 +332,7 @@ const TransferRequestWorkspace = () => {
   const handleSubmitRequest = async (id) => {
     setLoading(true);
     try {
+      // Submit chỉ đẩy TRQ lên CEO duyệt; backend sẽ kiểm lại trạng thái, ngày cần hàng và tồn nguồn.
       await interWarehouseTransferService.submitTransferRequest(id);
       addToast('Đã gửi yêu cầu điều chuyển lên CEO phê duyệt', 'success');
       setShowDetailModal(false);
@@ -312,6 +345,7 @@ const TransferRequestWorkspace = () => {
   };
 
   const handleCancelRequest = async (req) => {
+    // Xóa trên UI thực chất là hủy mềm TRQ để vẫn giữ lịch sử nghiệp vụ.
     const ok = window.confirm(`Xóa yêu cầu ${req.requestNumber}? Dữ liệu sẽ được hủy mềm và giữ lại lịch sử.`);
     if (!ok) return;
     setSubmitting(true);
@@ -330,6 +364,7 @@ const TransferRequestWorkspace = () => {
   const handleApproveRequest = async (id) => {
     setSubmitting(true);
     try {
+      // CEO approve trên UI không tự tạo TRF; backend có thể auto-cancel nếu TRQ đã quá neededByDate.
       await interWarehouseTransferService.approveTransferRequest(id);
       addToast('CEO đã duyệt yêu cầu điều chuyển', 'success');
       setShowDetailModal(false);
@@ -342,6 +377,7 @@ const TransferRequestWorkspace = () => {
   };
 
   const handleRejectRequest = async (id) => {
+    // Từ chối phải có lý do để người tạo biết vì sao không được điều chuyển.
     if (!rejectionReason.trim()) {
       addToast('Vui lòng nhập lý do từ chối yêu cầu', 'warning');
       return;
@@ -362,6 +398,7 @@ const TransferRequestWorkspace = () => {
   const handleConvertRequest = async (id) => {
     setLoading(true);
     try {
+      // Convert là cầu nối TRQ -> TRF; backend chặn convert lặp và chỉ cho TRQ APPROVED đi tiếp.
       await interWarehouseTransferService.convertTransferRequest(id);
       addToast('Planner đã chuyển đổi yêu cầu thành phiếu điều chuyển TRF thành công', 'success');
       fetchData();
@@ -374,6 +411,7 @@ const TransferRequestWorkspace = () => {
 
   // Filter requests by Tab
   const filteredRequests = useMemo(() => requests.filter(req => {
+    // Tab chỉ lọc danh sách trên UI theo status TRQ.
     if (activeTab === 'ALL') return true;
     return req.status === activeTab;
   }), [requests, activeTab]);
@@ -387,6 +425,7 @@ const TransferRequestWorkspace = () => {
   }, [activeTab]);
 
   const getStatusBadge = (status) => {
+    // Mapping status TRQ sang nhãn/badge để người dùng phân biệt nháp, chờ duyệt, đã convert.
     const maps = {
       DRAFT: { text: 'Nháp', class: 'bg-canvas-cream text-shade-60 border-hairline-light' },
       SUBMITTED: { text: 'Chờ duyệt', class: 'bg-warning-50 text-warning-700 border-warning-200 animate-pulse' },

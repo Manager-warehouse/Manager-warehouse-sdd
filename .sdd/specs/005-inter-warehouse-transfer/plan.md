@@ -1,54 +1,54 @@
-# Implementation Plan: 005 Inter-Warehouse Transfer
+# Kế hoạch triển khai: 005 Điều chuyển nội bộ giữa kho
 
-**Branch**: `feat/son-005` | **Date**: 2026-07-22 | **Spec**: [spec.md](./spec.md)
+**Branch**: `feat/son-005` | **Ngày**: 2026-07-22 | **Spec**: [spec.md](./spec.md)
 
-**Input**: Feature specification from `.sdd/specs/005-inter-warehouse-transfer/spec.md`
+**Đầu vào**: Đặc tả tính năng từ `.sdd/specs/005-inter-warehouse-transfer/spec.md`
 
-## Summary
+## Tóm tắt
 
-Implement and harden Sprint 1 inter-warehouse transfer as a dedicated `TRF`/`TTR` workflow, separate from supplier inbound `RN` receipts. The target flow is `TRQ draft -> submit -> CEO approve -> Planner revalidate & convert once -> Source manager reserve FIFO eligible -> Dispatcher capacity/overlap plan -> source worker pick/load/report loaded quantities -> source storekeeper photo-confirmed outbound QC -> QC failed returns to worker rework/re-report -> QC passed -> photo-confirmed load/handover -> driver depart -> IN_TRANSIT -> driver arrive/handover -> blind count -> storekeeper count/QC/bin-capacity check -> manager final confirmation`. Planner may also create a manual `TRF` from an external instruction. Physically damaged transfer stock is handed off to spec 009 disposal with transfer-item traceability. Shortages become incident/discrepancy records plus quantity-only adjustments; over-receipts are blocked from regular inventory and held as discrepancy incidents; destination quantity and value are calculated only from physically received and accepted goods. Intact wrong SKU requires line-item expected/actual SKU details, affected quantity, optional photo references, destination manager decision, driver return departure/arrival, and source-side receiving. The implementation must preserve inventory invariants, warehouse-scoped RBAC, immutable line-level audit trail, quarantine handling, non-negative inventory, concurrency protection, PostgreSQL/Flyway compatibility, and the no-Barcode/QR Sprint 1 scope.
+Triển khai và siết chặt luồng điều chuyển nội bộ Sprint 1 thành workflow riêng `TRF`/`TTR`, tách khỏi phiếu nhập nhà cung cấp `RN`. Luồng mục tiêu là: `TRQ draft -> submit -> CEO approve -> Planner revalidate & convert once -> Source manager reserve FIFO eligible -> Dispatcher capacity/overlap plan -> source worker pick/load/report loaded quantities -> source storekeeper photo-confirmed outbound QC -> QC failed returns to worker rework/re-report -> QC passed -> photo-confirmed load/handover -> driver depart -> IN_TRANSIT -> driver arrive/handover -> blind count -> storekeeper count/QC/bin-capacity check -> manager final confirmation`. Planner cũng có thể tạo `TRF` thủ công từ lệnh điều phối ngoài. Hàng hỏng vật lý trong điều chuyển được bàn giao sang Spec 009 để xử lý tiêu hủy với traceability đến transfer item. Thiếu hàng tạo incident/discrepancy và adjustment chỉ theo số lượng; nhận thừa bị chặn khỏi tồn thường và giữ dưới dạng discrepancy incident; số lượng và giá trị kho đích chỉ tính theo hàng đã nhận vật lý và được chấp nhận. Sai SKU nhưng hàng còn nguyên vẹn phải có chi tiết từng dòng expected/actual SKU, số lượng ảnh hưởng, photo ref tùy chọn, quyết định của quản lý kho đích, mốc xe quay đầu/rời về/đến nguồn và nhận lại ở kho nguồn. Triển khai phải giữ invariant tồn kho, RBAC theo kho, audit bất biến ở cấp dòng, xử lý quarantine, không tồn âm, chống ghi đè cạnh tranh, tương thích PostgreSQL/Flyway và không thêm Barcode/QR trong phạm vi Sprint 1.
 
-Driver-facing `TTR-*` visibility is implemented through the shared driver trip screen from Spec 004. Transfer summaries must carry `tripType = TRANSFER`, `tripTypeLabel = Dieu chuyen noi bo`, source/destination warehouse route, line count, vehicle, schedule, status, and weight so the `Noi bo` filter can isolate internal transfer work without exposing dealer POD/OTP actions.
+Màn danh sách chuyến cho tài xế `TTR-*` dùng chung với Spec 004. Tóm tắt chuyến điều chuyển phải có `tripType = TRANSFER`, `tripTypeLabel = Dieu chuyen noi bo`, tuyến kho nguồn/kho đích, số dòng hàng, xe, lịch chạy, trạng thái và trọng lượng để bộ lọc `Noi bo` chỉ hiển thị việc điều chuyển nội bộ mà không lộ action POD/OTP của giao đại lý.
 
-## Technical Context
+## Bối cảnh kỹ thuật
 
-**Language/Version**: Java 21, JavaScript with React 18
+**Ngôn ngữ/Phiên bản**: Java 21, JavaScript với React 18
 
-**Primary Dependencies**: Spring Boot 3.4.5, Spring Data JPA/Hibernate, Jakarta Validation, Spring Security JWT, OpenAPI/Swagger, React 18, Tailwind CSS 3.x, axios
+**Phụ thuộc chính**: Spring Boot 3.4.5, Spring Data JPA/Hibernate, Jakarta Validation, Spring Security JWT, OpenAPI/Swagger, React 18, Tailwind CSS 3.x, axios
 
-**Storage**: PostgreSQL 18 with Flyway migrations; no raw SQL in application code outside migrations
+**Lưu trữ**: PostgreSQL 18 với Flyway migrations; không dùng raw SQL trong application code ngoài migration
 
-**Testing**: JUnit 5 + Mockito for services, Spring MVC/integration tests for endpoints, Jest for frontend
+**Kiểm thử**: JUnit 5 + Mockito cho service, Spring MVC/integration tests cho endpoint, Jest cho frontend
 
-**Target Platform**: Full-stack web app with REST API under `/api/v1`
+**Nền tảng mục tiêu**: Full-stack web app với REST API dưới `/api/v1`
 
-**Project Type**: Web application with Spring Boot backend and React frontend
+**Loại dự án**: Web application gồm Spring Boot backend và React frontend
 
-**Performance Goals**: Transfer create/approval/depart/receive mutations should complete within 2s under normal Sprint 1 data volume; In-Transit query should be real-time enough for operations screens.
+**Mục tiêu hiệu năng**: Các mutation tạo/duyệt/rời kho/nhận điều chuyển hoàn tất trong 2 giây với dữ liệu Sprint 1 thông thường; truy vấn `IN_TRANSIT` đủ realtime cho màn vận hành.
 
-**Constraints**: No negative inventory; optimistic locking/version checks on inventory, transfer, transfer request, and trip/resource updates; every transfer mutation audited with line-level before/after state; role plus warehouse scope required; cross-warehouse stock visibility is read-only; CEO approval of a manager request does not reserve inventory; source reservation must allocate only FIFO-eligible stock from active non-quarantine locations; source worker load/count reporting must happen before outbound QC; source outbound QC failure must block handover/departure and return to worker rework/re-report before QC can pass; no per-unit serial/expiry/grade additions for this feature; internal-transfer quarantine goods cannot use supplier RTV; missing quantity cannot become quarantine inventory; internal transfer creates no invoice or receivable; wrong-SKU return requires destination Storekeeper item-level report and destination Manager approval; applied Flyway migrations must be immutable and schema fixes must use the next additive migration.
+**Ràng buộc**: Không tồn âm; kiểm optimistic locking/version trên inventory, transfer, transfer request và trip/resource updates; mọi mutation điều chuyển phải audit before/after cấp dòng; bắt buộc role + warehouse scope; xem tồn liên kho chỉ read-only; CEO duyệt yêu cầu của quản lý kho không reserve tồn; reservation kho nguồn chỉ lấy hàng FIFO hợp lệ từ vị trí active, không quarantine; công nhân nguồn phải báo số lượng xếp trước outbound QC; outbound QC fail phải chặn handover/departure và trả về công nhân xử lý lại/báo lại trước khi QC pass; không thêm serial/expiry/grade từng đơn vị; hàng quarantine từ điều chuyển nội bộ không dùng supplier RTV; thiếu hàng không được biến thành tồn quarantine; điều chuyển nội bộ không tạo hóa đơn/khoản phải thu; wrong-SKU return cần thủ kho kho đích báo cáo cấp dòng và quản lý kho đích duyệt; Flyway migration đã áp dụng là bất biến, mọi sửa schema dùng migration cộng thêm tiếp theo.
 
-**Shared Driver List Constraint**: Transfer trip list visibility is read-only and must not mutate transfer status, trip status, inventory, resource assignment, or audit logs. The shared list can be filtered locally by `tripType`; opening a `TRANSFER` trip must continue to use Spec 005 transfer actions rather than Spec 004 dealer-delivery actions.
+**Ràng buộc danh sách tài xế dùng chung**: Danh sách chuyến điều chuyển chỉ được đọc và không được mutate transfer status, trip status, inventory, resource assignment hoặc audit logs. Danh sách dùng chung có thể lọc cục bộ bằng `tripType`; khi mở trip `TRANSFER` vẫn phải dùng action của Spec 005, không dùng action giao đại lý của Spec 004.
 
-**Scale/Scope**: Three physical warehouses, one In-Transit warehouse, one quarantine location per destination warehouse, multi-item transfers, one dedicated trip per transfer.
+**Quy mô/Phạm vi**: Ba kho vật lý, một kho ảo `IN_TRANSIT`, mỗi kho đích có một quarantine location, phiếu nhiều item, mỗi phiếu có một chuyến riêng.
 
-## Constitution Check
+## Kiểm tra Constitution
 
-*GATE: Must pass before implementation.*
+*GATE: Phải đạt trước khi triển khai.*
 
-| Principle | Status | Design Response |
+| Nguyên tắc | Trạng thái | Cách đáp ứng thiết kế |
 |-----------|--------|-----------------|
-| Layered Architecture | PASS | Backend tasks split Controller -> Service -> Repository -> Entity/DTO/Mapper; frontend split service/pages/components. |
-| Inventory Integrity | PASS | Transfer service owns FIFO-eligible reservation, source decrement, In-Transit increment/decrement, destination/quarantine increment, discrepancy incident/adjustment creation, and line-level audit before/after. |
-| Inventory Selection Principle | PASS | Reservation uses FIFO allocations and excludes quarantine, inactive, locked, or unavailable source locations. Planned transfer item batch may be nullable because allocation rows carry batch fidelity after approval. |
-| QC Gate & Quarantine | PASS | Source worker load reporting is required before outbound QC; outbound QC is required before handover/departure, and QC failure returns to worker rework/re-report before QC can be passed. Receive-check requires QC totals, failure reason, quarantine validation, and destination bin capacity. Final receive routes physical QC-failed stock to active quarantine with internal-transfer origin; spec 009 owns disposal, and RTV is blocked. |
-| In-Transit Tracking | PASS | Depart moves source stock to In-Transit; driver arrival/handover is required before receiving; final receive clears In-Transit only after destination/source-return confirmation. |
-| Auth & RBAC | PASS | Tasks include role and source/destination warehouse scope checks for every mutation; manager cross-warehouse stock visibility is read-only and request creation is limited to the manager's assigned warehouse. |
-| Test Coverage | PASS | Tasks include unit, controller, PostgreSQL/Flyway integration, and frontend workflow tests mapped to every P0 requirement and exception branch. |
+| Layered Architecture | PASS | Backend tách Controller -> Service -> Repository -> Entity/DTO/Mapper; frontend tách service/pages/components. |
+| Inventory Integrity | PASS | Transfer service sở hữu reservation FIFO hợp lệ, trừ nguồn, cộng/trừ `IN_TRANSIT`, cộng kho đích/quarantine, tạo discrepancy incident/adjustment và audit before/after cấp dòng. |
+| Inventory Selection Principle | PASS | Reservation dùng FIFO allocation và loại quarantine, inactive, locked hoặc vị trí nguồn không khả dụng. Planned transfer item có thể `batch_id` nullable vì allocation rows giữ batch thật sau approval. |
+| QC Gate & Quarantine | PASS | Bắt công nhân nguồn báo số lượng xếp trước outbound QC; outbound QC bắt buộc trước handover/departure; QC fail trả về công nhân rework/re-report trước khi QC pass. Receive-check bắt tổng QC, lý do lỗi, kiểm quarantine và sức chứa bin kho đích. Final receive đưa hàng QC fail vật lý vào quarantine với origin điều chuyển nội bộ; Spec 009 xử lý disposal và chặn RTV. |
+| In-Transit Tracking | PASS | Depart chuyển tồn nguồn sang `IN_TRANSIT`; phải có driver arrival/handover trước khi nhận; final receive chỉ clear `IN_TRANSIT` sau xác nhận kho đích hoặc xác nhận nhận lại nguồn khi return. |
+| Auth & RBAC | PASS | Task bao gồm kiểm role và scope kho nguồn/kho đích cho mọi mutation; quản lý kho xem tồn liên kho read-only và chỉ tạo request trong kho được phân công. |
+| Test Coverage | PASS | Task bao gồm unit, controller, PostgreSQL/Flyway integration và frontend workflow tests, map tới từng requirement P0 và nhánh ngoại lệ. |
 
-## Project Structure
+## Cấu trúc dự án
 
-### Documentation
+### Tài liệu
 
 ```text
 .sdd/specs/005-inter-warehouse-transfer/
@@ -67,7 +67,7 @@ Driver-facing `TTR-*` visibility is implemented through the shared driver trip s
     └── feature-storekeeper-transfer-receive.md
 ```
 
-### Source Code
+### Mã nguồn
 
 ```text
 backend/src/main/java/com/wms/
@@ -118,24 +118,24 @@ frontend/src/
 └── routes/AppRoutes.jsx
 ```
 
-**Structure Decision**: Keep transfer code in the existing `InterWarehouseTransfer*` backend services/controllers/entities and the existing `frontend/src/pages/InterWarehouseTransfer` module. The current frontend uses one shared workspace with role-aware and state-aware action panels instead of separate planner/ship/receive pages. Internal transfer receiving stays inside this transfer module and is intentionally not merged into the supplier inbound `RN` screens.
+**Quyết định cấu trúc**: Giữ code điều chuyển trong các controller/service/entity `InterWarehouseTransfer*` hiện có và module frontend `frontend/src/pages/InterWarehouseTransfer`. Frontend hiện dùng một workspace chung với action panel theo role và trạng thái, thay vì tách thành nhiều trang planner/ship/receive. Nhận hàng điều chuyển nội bộ vẫn nằm trong module transfer này và không nhập chung vào màn nhập nhà cung cấp `RN`.
 
-## Remediation Plan Addendum
+## Phụ lục kế hoạch sửa chữa
 
-The next implementation pass SHALL prioritize these blockers before further feature polish:
+Lượt triển khai tiếp theo PHẢI ưu tiên các blocker này trước khi polish tính năng:
 
-1. Add an additive Flyway migration after the latest deployed migration to align transfer status constraints, make planned item `batch_id` nullable, add version columns, wrong-SKU report detail, arrival/handover timestamps, outbound QC fields, trip calculated weight/volume, and discrepancy incident/hold data. Do not modify `V1`-`V5`.
-2. Harden reservation so approval locks and reserves only FIFO-eligible inventory from active, non-quarantine locations.
-3. Add optimistic locking and stale-write handling on transfer, transfer request, trip/resource, and inventory mutations.
-4. Add source worker load/report, outbound QC rework loop, load/handover, driver arrival/handover, return departure/arrival, and receive gating.
-5. Add trip capacity calculation and allow driver/vehicle/trip reassignment only before departure.
-6. Add destination bin-capacity validation before posting QC-passed stock.
-7. Expand wrong-SKU report storage and workflow to item-level expected/actual SKU, quantity, reason, and optional photo references.
-8. Restrict overdue return-to-source to genuinely overdue trips and require reason; support photo references when available.
-9. Update OpenAPI to use `/api/v1/inter-warehouse-transfers`, `/approve`, and `/final-receive` exactly as implemented.
-10. Replace stale task tracking with a clean requirement-to-test mapped task list.
-11. Treat testing as a deploy gate: every primary frontend button and backend endpoint must have happy, unhappy, authorization/scope, invalid-state, and stale/concurrency coverage where applicable, plus at least one frontend-to-backend smoke path.
+1. Thêm Flyway migration cộng thêm sau migration mới nhất đã deploy để đồng bộ constraint status điều chuyển, cho planned item `batch_id` nullable, thêm version columns, chi tiết wrong-SKU report, timestamp arrival/handover, outbound QC fields, trọng lượng/thể tích tính toán của trip và dữ liệu discrepancy incident/hold. Không sửa `V1`-`V5`.
+2. Siết reservation để approval chỉ lock/reserve inventory FIFO hợp lệ từ vị trí active, không quarantine.
+3. Thêm optimistic locking và xử lý stale-write trên transfer, transfer request, trip/resource và inventory mutations.
+4. Thêm source worker load/report, vòng outbound QC rework, load/handover, driver arrival/handover, return departure/arrival và receive gating.
+5. Thêm tính capacity chuyến và chỉ cho đổi driver/vehicle/trip trước departure.
+6. Thêm kiểm sức chứa bin kho đích trước khi ghi tồn QC-passed.
+7. Mở rộng lưu wrong-SKU report đến cấp dòng: expected/actual SKU, quantity, reason và photo refs tùy chọn.
+8. Giới hạn overdue return-to-source cho trip thật sự quá hạn và bắt buộc reason; hỗ trợ photo refs nếu có.
+9. Cập nhật OpenAPI dùng đúng `/api/v1/inter-warehouse-transfers`, `/approve` và `/final-receive` như code triển khai.
+10. Thay task tracking cũ bằng danh sách task sạch có map requirement-to-test.
+11. Xem testing là deploy gate: mọi nút frontend chính và endpoint backend phải có coverage happy, unhappy, authorization/scope, invalid-state và stale/concurrency khi áp dụng, cộng ít nhất một smoke path frontend-to-backend.
 
-## Complexity Tracking
+## Theo dõi độ phức tạp
 
-No constitution violations are planned. The feature is large and should be implemented as small, testable remediation slices because it touches inventory, trip resources, migration safety, audit, and role-scoped frontend workflows. A slice is not deploy-ready until its backend behavior, frontend action, audit side effect, and database behavior are tested together where applicable.
+Không có vi phạm constitution dự kiến. Tính năng lớn và nên triển khai thành các lát nhỏ, test được, vì chạm vào tồn kho, tài nguyên chuyến, an toàn migration, audit và workflow frontend theo role/scope. Một lát chưa được xem là deploy-ready cho đến khi hành vi backend, action frontend, audit side effect và hành vi database được test cùng nhau ở nơi cần thiết.
