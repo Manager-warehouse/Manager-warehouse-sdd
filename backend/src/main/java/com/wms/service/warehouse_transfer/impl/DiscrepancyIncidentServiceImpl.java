@@ -26,6 +26,7 @@ import com.wms.service.audit_trail.AuditLogService;
 import com.wms.service.warehouse_transfer.DiscrepancyIncidentService;
 import com.wms.util.PartnerAuditUtil;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
@@ -236,12 +237,14 @@ public class DiscrepancyIncidentServiceImpl implements DiscrepancyIncidentServic
                 .quantityAdjustment(qty)
                 .type(AdjustmentType.TRANSFER_DISCREPANCY)
                 .status(AdjustmentStatus.APPROVED)
-                .referenceId(incident.getTransfer().getId())
-                .referenceType("TRANSFER_DISCREPANCY")
+                .referenceId(incident.getId())
+                .referenceType(qty.signum() < 0 ? "TRANSFER_DISCREPANCY_SOURCE" : "TRANSFER_DISCREPANCY_DESTINATION")
                 .reason(reason)
                 .approvedBy(actor)
                 .approvedAt(OffsetDateTime.now())
-                .documentDate(incident.getTransfer().getDocumentDate())
+                .documentDate(incident.getTransfer().getDocumentDate() != null
+                        ? incident.getTransfer().getDocumentDate()
+                        : LocalDate.now())
                 .accountingPeriod(incident.getTransfer().getAccountingPeriod())
                 .createdBy(actor)
                 .createdAt(OffsetDateTime.now())

@@ -250,7 +250,7 @@ public class InterWarehouseTransferReceivingService {
             throw new BusinessRuleViolationException("PUTAWAY_PLAN_REQUIRED");
         }
         Map<Long, List<PutawayTarget>> plans = resolveFinalPutawayPlans(transfer, request);
-        boolean discrepancy = hasReceiveDiscrepancy(transfer) || hasPutawayDiscrepancy(transfer, request);
+        boolean discrepancy = hasReceiveDiscrepancy(transfer);
         String discrepancyReason = resolveDiscrepancyReason(transfer, request.discrepancyReason());
         // Validate: chỉ bắt nhập ở bước cất kệ khi trước đó chưa có lý do count/QC nào để kế thừa.
         if (discrepancy && helper.isBlank(discrepancyReason)) {
@@ -772,8 +772,8 @@ public class InterWarehouseTransferReceivingService {
                     helper.reference(WarehouseLocation.class, allocation.locationId()), allocation.quantity()));
             allocatedQty = allocatedQty.add(allocation.quantity());
         }
-        // Validate: kế hoạch không được nhập kho nhiều hơn số lượng QC đạt.
-        if (allocatedQty.compareTo(passedQty) > 0) {
+        // Validate: phần cất kệ thường phải khớp đúng số QC đạt; thiếu/thừa đã đi hồ sơ chênh lệch riêng.
+        if (allocatedQty.compareTo(passedQty) != 0) {
             throw new BusinessRuleViolationException("PUTAWAY_QUANTITY_MUST_MATCH_QC_PASSED");
         }
         return targets;

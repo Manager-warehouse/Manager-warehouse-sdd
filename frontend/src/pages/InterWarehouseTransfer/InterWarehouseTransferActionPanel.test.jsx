@@ -613,7 +613,7 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
     }));
   });
 
-  it('lets storekeeper send a short putaway plan with discrepancy reason for manager approval', async () => {
+  it('blocks storekeeper from sending a short putaway plan', async () => {
     const onAction = renderPanel({
       roles: [ROLES.STOREKEEPER],
       activeWarehouse: { id: 2, code: 'WH-HP' },
@@ -649,21 +649,10 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
 
     const submitButton = screen.getByRole('button', { name: 'Gửi kế hoạch cất kệ' });
     expect(submitButton).toBeDisabled();
-    fireEvent.change(screen.getByPlaceholderText('Lý do nếu có chênh lệch'), {
-      target: { value: 'Thiếu 1 sản phẩm khi cất kệ' },
-    });
+    expect(screen.getByText(/Tổng phân bổ phải bằng đúng số lượng QC đạt/)).toBeInTheDocument();
     fireEvent.click(submitButton);
 
-    await waitFor(() => expect(onAction).toHaveBeenCalledWith('finalReceive', {
-      discrepancyReason: 'Thiếu 1 sản phẩm khi cất kệ',
-      putawayItems: [{
-        transferItemId: 101,
-        allocations: [
-          { locationId: 12, quantity: 5 },
-          { locationId: 14, quantity: 2 },
-        ],
-      }],
-    }));
+    expect(onAction).not.toHaveBeenCalled();
   });
 
   it('lets storekeeper submit all-failed QC without selecting putaway bins', async () => {
@@ -694,7 +683,7 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
     fireEvent.click(screen.getByRole('button', { name: 'Gửi xác nhận hàng lỗi' }));
 
     await waitFor(() => expect(onAction).toHaveBeenCalledWith('finalReceive', {
-      discrepancyReason: null,
+      discrepancyReason: 'Hang hu',
       putawayItems: [],
     }));
   });

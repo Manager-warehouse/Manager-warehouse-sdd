@@ -888,7 +888,7 @@ class InterWarehouseTransferServiceImplTest {
     }
 
     @Test
-    void finalReceive_allowsShortPutawayPlanWithReasonAndManagerApproval() {
+    void finalReceive_rejectsShortPutawayPlanEvenWithReason() {
         service.approveTransfer(1L, sourceManager);
         service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
                 VALID_TRIP_START, VALID_TRIP_END), dispatcher);
@@ -920,26 +920,18 @@ class InterWarehouseTransferServiceImplTest {
                                         destinationLocation.getId(), new BigDecimal("4.00")))))),
                 destinationStorekeeper))
                 .isInstanceOf(BusinessRuleViolationException.class)
-                .hasMessageContaining("DISCREPANCY_REASON_REQUIRED");
+                .hasMessageContaining("PUTAWAY_QUANTITY_MUST_MATCH_QC_PASSED");
 
-        InterWarehouseTransferResponse pending = service.finalReceive(1L,
+        assertThatThrownBy(() -> service.finalReceive(1L,
                 new InterWarehouseTransferFinalReceiveRequest(
                         "Missing one unit during putaway",
                         List.of(new InterWarehouseTransferFinalPutawayItemRequest(
                                 transferItem.getId(),
                                 List.of(new InterWarehouseTransferPutawayAllocationRequest(
                                         destinationLocation.getId(), new BigDecimal("4.00")))))),
-                destinationStorekeeper);
-
-        assertThat(pending.status()).isEqualTo(InterWarehouseTransferStatus.PUTAWAY_PENDING_APPROVAL);
-        assertThat(destinationInventory).isNull();
-
-        InterWarehouseTransferResponse completed = service.finalReceive(1L,
-                new InterWarehouseTransferFinalReceiveRequest(""), destinationManager);
-
-        assertThat(completed.status()).isEqualTo(InterWarehouseTransferStatus.COMPLETED_WITH_DISCREPANCY);
-        assertThat(destinationInventory).isNotNull();
-        assertThat(destinationInventory.getTotalQty()).isEqualByComparingTo("4.00");
+                destinationStorekeeper))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("PUTAWAY_QUANTITY_MUST_MATCH_QC_PASSED");
     }
 
     @Test
