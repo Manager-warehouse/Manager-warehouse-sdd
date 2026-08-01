@@ -632,6 +632,39 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
     }));
   });
 
+  it('lets storekeeper submit all-failed QC without selecting putaway bins', async () => {
+    const onAction = renderPanel({
+      roles: [ROLES.STOREKEEPER],
+      activeWarehouse: { id: 2, code: 'WH-HP' },
+      warehouseAccessIds: [2],
+      transfer: {
+        ...baseTransfer,
+        status: 'IN_TRANSIT',
+        driverArrivedAt: '2026-07-22T10:00:00Z',
+        arrivalHandoverAt: '2026-07-22T10:05:00Z',
+        arrivalHandoverPhotoRef: 'uploads/handover.jpg',
+        items: [{
+          ...baseTransfer.items[0],
+          sentQty: 10,
+          workerReceivedQty: 10,
+          receivedQty: 10,
+          qcPassedQty: 0,
+          qcFailedQty: 10,
+          qcFailureReason: 'Hang hu',
+        }],
+      },
+    });
+
+    expect(screen.getByText('Không có hàng đạt QC để cất kệ thường. Gửi xác nhận để quản lý kho duyệt đưa toàn bộ hàng lỗi vào quarantine.')).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Kệ/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Gửi xác nhận hàng lỗi' }));
+
+    await waitFor(() => expect(onAction).toHaveBeenCalledWith('finalReceive', {
+      discrepancyReason: null,
+      putawayItems: [],
+    }));
+  });
+
   it('lets destination manager approve pending putaway plan into stock', async () => {
     const onAction = renderPanel({
       roles: [ROLES.WAREHOUSE_MANAGER],

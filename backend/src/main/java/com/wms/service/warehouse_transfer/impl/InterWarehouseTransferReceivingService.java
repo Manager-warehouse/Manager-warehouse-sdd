@@ -245,8 +245,8 @@ public class InterWarehouseTransferReceivingService {
                                                              InterWarehouseTransferFinalReceiveRequest request,
                                                              User actor) {
         // Thủ kho chỉ đề xuất vị trí đặt hàng; tồn kho chưa tăng cho tới khi quản lý duyệt cuối.
-        // Validate: kế hoạch nhập vị trí phải có ít nhất một dòng.
-        if (request.putawayItems() == null || request.putawayItems().isEmpty()) {
+        // Validate: nếu có hàng đạt QC thì phải có kế hoạch cất kệ; nếu toàn bộ hàng lỗi QC thì cho gửi plan rỗng để quản lý duyệt đưa vào quarantine.
+        if ((request.putawayItems() == null || request.putawayItems().isEmpty()) && hasQcPassedStock(transfer)) {
             throw new BusinessRuleViolationException("PUTAWAY_PLAN_REQUIRED");
         }
         Map<Long, List<PutawayTarget>> plans = resolveFinalPutawayPlans(transfer, request);
@@ -265,11 +265,17 @@ public class InterWarehouseTransferReceivingService {
         }
         transfer.setStatus(InterWarehouseTransferStatus.PUTAWAY_PENDING_APPROVAL);
         transfer.setDiscrepancyReason(request.discrepancyReason());
-        transfer.setNotes(serializePutawayPlan(request.putawayItems()));
+        transfer.setNotes(serializePutawayPlan(request.putawayItems() == null ? List.of() : request.putawayItems()));
         transfer.setUpdatedAt(OffsetDateTime.now());
         InterWarehouseTransfer saved = transferRepository.save(transfer);
         helper.audit(saved, actor, AuditAction.TRANSFER_FINAL_RECEIVE, before, helper.snapshot(saved));
         return helper.toResponse(saved);
+    }
+
+    private boolean hasQcPassedStock(InterWarehouseTransfer transfer) {
+        // Chỉ hàng đạt QC mới cần kế hoạch cất kệ thường; hàng lỗi đi quarantine khi quản lý duyệt.
+        return helper.items(transfer).stream()
+                .anyMatch(item -> helper.zero(item.getQcPassedQty()).signum() > 0);
     }
 
     private boolean hasReceiveDiscrepancy(InterWarehouseTransfer transfer) {
@@ -312,7 +318,7 @@ public class InterWarehouseTransferReceivingService {
         }
         String body = notes.substring(PUTAWAY_PLAN_PREFIX.length());
         if (helper.isBlank(body)) {
-            throw new BusinessRuleViolationException("PUTAWAY_PLAN_REQUIRED");
+            return List.of();
         }
         java.util.ArrayList<InterWarehouseTransferFinalPutawayItemRequest> items = new java.util.ArrayList<>();
         for (String itemPart : body.split(";")) {
@@ -341,13 +347,11 @@ public class InterWarehouseTransferReceivingService {
         // trước khi kho đích xác nhận xe đến hoặc nhận bàn giao.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.requireStatus(transfer, InterWarehouseTransferStatus.IN_TRANSIT);
-        if (actor.getRole() != UserRole.ADMIN && actor.getRole() != UserRole.CEO) {
-            // Validate: ngoài Admin/CEO, chỉ quản lý kho nguồn mới được chủ động cho xe quay đầu trước khi đến đích.
-            if (actor.getRole() != UserRole.WAREHOUSE_MANAGER) {
-                throw new BusinessRuleViolationException("WAREHOUSE_MANAGER_ROLE_REQUIRED");
-            }
-            ensureManagerCanRequestReturn(transfer, actor);
+        // Validate: chỉ trưởng kho nguồn được chủ động yêu cầu xe quay đầu; CEO/Admin không tạo yêu cầu thay nghiệp vụ kho.
+        if (actor.getRole() != UserRole.WAREHOUSE_MANAGER) {
+            throw new BusinessRuleViolationException("WAREHOUSE_MANAGER_ROLE_REQUIRED");
         }
+        ensureManagerCanRequestReturn(transfer, actor);
 
         // Validate: quay đầu xe luôn cần lý do để lưu trên phiếu và lịch sử thao tác.
         if (helper.isBlank(request.reason())) {

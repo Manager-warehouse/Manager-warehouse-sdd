@@ -849,6 +849,45 @@ class InterWarehouseTransferServiceImplTest {
     }
 
     @Test
+    void finalReceive_allowsEmptyPutawayPlanWhenAllReceivedStockFailedQc() {
+        service.approveTransfer(1L, sourceManager);
+        service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
+                VALID_TRIP_START, VALID_TRIP_END), dispatcher);
+        recordPassingOutboundQcAndHandover();
+        service.shipTransfer(1L, sourceManager);
+        service.departTransfer(1L, driverUser);
+
+        service.receiveCount(1L, new InterWarehouseTransferReceiveCountRequest(List.of(
+                new InterWarehouseTransferReceiveCountItemRequest(transferItem.getId(), new BigDecimal("5.00"), null))),
+                destinationWorker);
+        service.receiveCheck(1L, new InterWarehouseTransferReceiveCheckRequest(List.of(
+                new InterWarehouseTransferReceiveCheckItemRequest(
+                        transferItem.getId(),
+                        new BigDecimal("5.00"),
+                        BigDecimal.ZERO,
+                        new BigDecimal("5.00"),
+                        null,
+                        null,
+                        "All returned stock damaged")),
+                "transfer/receive-qc/all-failed.jpg"),
+                destinationStorekeeper);
+
+        InterWarehouseTransferResponse pending = service.finalReceive(1L,
+                new InterWarehouseTransferFinalReceiveRequest("", List.of()),
+                destinationStorekeeper);
+        assertThat(pending.status()).isEqualTo(InterWarehouseTransferStatus.PUTAWAY_PENDING_APPROVAL);
+        assertThat(destinationInventory).isNull();
+        assertThat(quarantineInventory).isNull();
+
+        InterWarehouseTransferResponse completed = service.finalReceive(1L,
+                new InterWarehouseTransferFinalReceiveRequest(""), destinationManager);
+        assertThat(completed.status()).isEqualTo(InterWarehouseTransferStatus.COMPLETED);
+        assertThat(destinationInventory).isNull();
+        assertThat(quarantineInventory).isNotNull();
+        assertThat(quarantineInventory.getTotalQty()).isEqualByComparingTo("5.00");
+    }
+
+    @Test
     void finalReceive_allowsShortPutawayPlanWithReasonAndManagerApproval() {
         service.approveTransfer(1L, sourceManager);
         service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
@@ -1035,7 +1074,7 @@ class InterWarehouseTransferServiceImplTest {
     }
 
     @Test
-    void returnToSource_allowsDestinationOrSourceManagerThenRestrictsReceivingToSourceWarehouse() {
+    void returnToSource_allowsOnlySourceWarehouseManagerThenRestrictsReceivingToSourceWarehouse() {
         service.approveTransfer(1L, sourceManager);
         service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
                 VALID_TRIP_START, VALID_TRIP_END), dispatcher);
@@ -1058,6 +1097,14 @@ class InterWarehouseTransferServiceImplTest {
         assertThatThrownBy(() -> service.returnToSource(1L, req, destinationManager))
                 .isInstanceOf(BusinessRuleViolationException.class)
                 .hasMessageContaining("WAREHOUSE_SCOPE_REQUIRED");
+
+        assertThatThrownBy(() -> service.returnToSource(1L, req, user(14L, UserRole.CEO)))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("WAREHOUSE_MANAGER_ROLE_REQUIRED");
+
+        assertThatThrownBy(() -> service.returnToSource(1L, req, user(15L, UserRole.ADMIN)))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining("WAREHOUSE_MANAGER_ROLE_REQUIRED");
 
         // Source Manager can request the operational return while the truck is in transit.
         InterWarehouseTransferResponse response = service.returnToSource(1L, req, sourceManager);
