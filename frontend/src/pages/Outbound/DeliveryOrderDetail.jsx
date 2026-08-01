@@ -316,11 +316,16 @@ export default function DeliveryOrderDetail() {
         0,
       );
       const requiredQty = Number(item.replacement_required_qty || item.qc_fail_qty || 0);
+      const availableInWarehouse = Number(stockAvailabilities[item.product_id] ?? requiredQty);
+      const allowPartialPlan = availableInWarehouse < requiredQty;
       const hasIncompleteAllocation = (item.allocations || []).some((allocation) => (
         Number(allocation.planned_qty || 0) > 0
         && (!allocation.failed_inventory_id || !allocation.inventory_id || !allocation.reason?.trim())
       ));
-      return hasIncompleteAllocation || plannedQty !== requiredQty;
+      return hasIncompleteAllocation
+        || plannedQty <= 0
+        || plannedQty > requiredQty
+        || (!allowPartialPlan && plannedQty !== requiredQty);
     });
 
     if (hasInvalidItem || replacementDraftItems.length === 0) {
@@ -698,11 +703,16 @@ export default function DeliveryOrderDetail() {
       0,
     );
     const requiredQty = Number(item.replacement_required_qty || item.qc_fail_qty || 0);
+    const availableInWarehouse = Number(stockAvailabilities[item.product_id] ?? requiredQty);
+    const allowPartialPlan = availableInWarehouse < requiredQty;
     const hasIncompleteAllocation = (item.allocations || []).some((allocation) => (
       Number(allocation.planned_qty || 0) > 0
       && (!allocation.failed_inventory_id || !allocation.inventory_id || !allocation.reason?.trim())
     ));
-    return hasIncompleteAllocation || plannedQty !== requiredQty;
+    return hasIncompleteAllocation
+      || plannedQty <= 0
+      || plannedQty > requiredQty
+      || (!allowPartialPlan && plannedQty !== requiredQty);
   });
 
   return (
