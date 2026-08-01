@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from 'react';
-import { AlertTriangle, Camera, CheckCircle2, Eye, ImageOff, RotateCcw, ShieldCheck, Truck } from 'lucide-react';
+import { AlertTriangle, Camera, CheckCircle2, ChevronDown, ChevronUp, Eye, ImageOff, RotateCcw, ShieldCheck, Truck } from 'lucide-react';
 import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 
 const FLOW_STYLES = {
+  // Điều chuyển nội bộ tách ảnh theo chặng để truy vết trách nhiệm khi có thiếu/thừa/sai SKU.
   source: {
     icon: ShieldCheck,
     label: 'Xuất kho nguồn',
@@ -35,6 +36,7 @@ const formatDateTime = (value) => {
 };
 
 const normalizeRef = (ref) => {
+  // Backend có thể trả URL tuyệt đối hoặc path tương đối; UI chuẩn hóa để preview ảnh bằng chứng thống nhất.
   if (!ref) return '';
   if (/^(https?:|data:|blob:)/i.test(ref)) return ref;
   if (ref.startsWith('/')) return ref;
@@ -91,9 +93,11 @@ const EvidenceCard = ({ item, onPreview }) => {
 
 const TransferEvidencePanel = ({ transfer }) => {
   const [preview, setPreview] = useState(null);
+  const [expanded, setExpanded] = useState(false);
 
   const evidenceGroups = useMemo(() => {
     if (!transfer) return [];
+    // Khi có discrepancy/return, panel highlight các ảnh cần đối chiếu trước: QC nguồn, bàn giao xe, QC nhận.
     const hasDiscrepancy = transfer.status === 'COMPLETED_WITH_DISCREPANCY'
       || Boolean(transfer.discrepancyReason)
       || transfer.items?.some((item) => Number(item.receivedQty ?? item.sentQty ?? 0) !== Number(item.sentQty ?? item.receivedQty ?? 0));
@@ -164,41 +168,59 @@ const TransferEvidencePanel = ({ transfer }) => {
 
   const hasAnyPhoto = evidenceGroups.some((group) => group.items.some((item) => item.photoRef));
   const hasDiscrepancy = transfer.status === 'COMPLETED_WITH_DISCREPANCY' || Boolean(transfer.discrepancyReason);
+  const photoCount = evidenceGroups.reduce(
+    (total, group) => total + group.items.filter((item) => item.photoRef).length,
+    0,
+  );
 
   return (
     <div className="border border-hairline-light rounded-lg bg-canvas-light p-4">
-      <div className="flex flex-col gap-1 mb-3">
-        <div className="text-xs font-bold uppercase tracking-wider text-shade-60">Bằng chứng ảnh</div>
-        <div className="text-xs text-shade-50">
-          Ảnh được phân theo luồng nghiệp vụ của phiếu {transfer.transferNumber}; không trộn với POD giao đại lý.
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="flex flex-col gap-1">
+          <div className="text-xs font-bold uppercase tracking-wider text-shade-60">Bằng chứng ảnh</div>
+          <div className="text-xs text-shade-50">
+            {photoCount > 0
+              ? `${photoCount} ảnh đã ghi nhận cho phiếu ${transfer.transferNumber}.`
+              : `Chưa có ảnh nào được ghi nhận cho phiếu ${transfer.transferNumber}.`}
+          </div>
         </div>
+        <Button
+          variant="outline-light"
+          size="sm"
+          icon={expanded ? ChevronUp : ChevronDown}
+          onClick={() => setExpanded((value) => !value)}
+        >
+          {expanded ? 'Ẩn bằng chứng ảnh' : 'Xem bằng chứng ảnh'}
+        </Button>
       </div>
 
-      {hasDiscrepancy && (
-        <div className="mb-3 rounded-md border border-danger-200 bg-danger-50 px-3 py-2 text-xs text-danger-700 flex gap-2">
+      {expanded && hasDiscrepancy && (
+        <div className="mt-3 mb-3 rounded-md border border-danger-200 bg-danger-50 px-3 py-2 text-xs text-danger-700 flex gap-2">
           <AlertTriangle className="h-4 w-4 shrink-0" />
           <span>Phiếu có chênh lệch: ưu tiên đối chiếu ảnh QC xuất kho, bàn giao lên xe, bàn giao kho đích và QC nhận hàng.</span>
         </div>
       )}
 
-      {!hasAnyPhoto && (
-        <div className="mb-3 rounded-md border border-hairline-light bg-canvas-cream px-3 py-2 text-xs text-shade-50">
+      {expanded && !hasAnyPhoto && (
+        <div className="mt-3 mb-3 rounded-md border border-hairline-light bg-canvas-cream px-3 py-2 text-xs text-shade-50">
           Chưa có ảnh nào được ghi nhận cho phiếu này.
         </div>
       )}
 
-      <div className="flex flex-col gap-3">
-        {evidenceGroups.map((group) => (
-          <div key={group.key}>
-            <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-shade-60">{group.title}</div>
-            <div className="grid grid-cols-1 gap-2">
-              {group.items.map((item) => (
-                <EvidenceCard key={item.title} item={item} onPreview={setPreview} />
-              ))}
+      {expanded && (
+        <div className="mt-3 flex flex-col gap-3">
+          {evidenceGroups.map((group) => (
+            <div key={group.key}>
+              <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-shade-60">{group.title}</div>
+              <div className="grid grid-cols-1 gap-2">
+                {group.items.map((item) => (
+                  <EvidenceCard key={item.title} item={item} onPreview={setPreview} />
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       <Modal
         isOpen={Boolean(preview)}

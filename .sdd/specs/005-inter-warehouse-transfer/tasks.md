@@ -1,242 +1,242 @@
-# Tasks: 005 Inter-Warehouse Transfer Remediation
+# Task: 005 Sửa chữa luồng điều chuyển nội bộ giữa kho
 
-**Input**: `.sdd/specs/005-inter-warehouse-transfer/spec.md`, `plan.md`, `data-model.md`, `contracts/openapi.yaml`, `quickstart.md`
+**Đầu vào**: `.sdd/specs/005-inter-warehouse-transfer/spec.md`, `plan.md`, `data-model.md`, `contracts/openapi.yaml`, `quickstart.md`
 
-**Last updated**: 2026-07-22
+**Cập nhật lần cuối**: 2026-07-22
 
-**Purpose**: Replace the stale, duplicate task list with an executable remediation backlog for the production-correct internal transfer flow:
-`TRQ draft -> submit -> CEO approve -> Planner revalidate & convert once -> Source manager reserve FIFO eligible -> Dispatcher capacity/overlap plan -> source worker pick/load/report loaded quantity -> source storekeeper outbound QC -> QC fail returns to worker rework/re-report -> QC pass -> load/handover -> driver depart -> IN_TRANSIT -> driver arrive/handover -> blind count -> storekeeper count/QC/bin-capacity check -> manager final confirmation`.
+**Mục đích**: Thay danh sách task cũ/trùng lặp bằng backlog sửa chữa có thể thực thi cho luồng điều chuyển nội bộ đúng production:
+`TRQ draft -> submit -> CEO approve -> Planner revalidate & convert once -> Source manager reserve FIFO eligible -> Dispatcher capacity/overlap plan -> công nhân nguồn pick/load/report loaded số lượng -> thủ kho nguồn QC xuất -> QC fail trả về công nhân để rework/re-report -> QC pass -> load/handover -> driver depart -> IN_TRANSIT -> driver arrive/handover -> blind count -> storekeeper count/QC/bin-capacity check -> manager final confirmation`.
 
-**Important**: Do not edit, rename, or delete already-applied Flyway migrations. Schema fixes must use the next additive migration after the latest deployed version.
+**Quan trọng**: Không sửa, đổi tên hoặc xóa Flyway migration đã áp dụng. Mọi sửa schema phải dùng migration cộng thêm tiếp theo sau version mới nhất đã deploy.
 
-## Requirement-to-Test Map
+## Bảng ánh xạ yêu cầu sang test
 
-| Requirement | Minimum required tests |
+| Yêu cầu | Test tối thiểu bắt buộc |
 |---|---|
-| P0-C1 schema/code alignment | PostgreSQL/Flyway migration test + create/reject/quarantine transfer integration test |
-| P0-C2 FIFO eligible reservation | service test proving quarantine/inactive/locked locations are excluded |
-| P0-C3 outbound QC and bin capacity | service/controller tests for blocked depart before QC and blocked receive when capacity is exceeded |
-| P0-C4 optimistic locking/concurrency | stale version tests for transfer, request conversion, final receive, and trip assignment |
-| P0-C5 line-level audit | audit assertion tests for header, items, allocations, QC, trip, inventory movement |
-| P0-C6 real DB/frontend coverage | Testcontainers/Flyway test and frontend workflow tests |
-| Arrival/handover | receive-count blocked before arrival/handover; allowed after handover |
-| Wrong SKU detail | validation tests for expected SKU, actual SKU, line, quantity, reason, and optional photo refs |
-| Trip capacity/reassignment/resource release | capacity exceed test, reassignment before departure, lock after departure, resource release guard |
-| Overdue return-to-source | only overdue IN_TRANSIT transfer can return, reason required, photo refs supported when available |
-| Contract alignment | OpenAPI path test/docs review against controller paths |
-| Frontend action buttons | role/state visibility tests + successful click + failed API response + post-success refresh for every primary transfer button |
-| Transfer request edit/delete | backend service/controller tests for DRAFT update and soft-cancel; frontend button visibility and modal save/cancel behavior |
-| Photo-gated actions | UI tests or manual smoke proving outbound QC, load handover, arrival handover, return handover, and driver POD buttons stay disabled until image selection/capture |
-| Source worker load report before outbound QC | service/controller/frontend tests proving QC is blocked before load report, QC fail blocks handover/departure, worker re-report allows QC retry |
-| Frontend-to-backend smoke | full-stack happy path from `TRQ` to final receive plus backend assertions for inventory, audit, and DB state |
-| Deploy gate | backend unit/controller/integration + real DB migration + frontend tests/build + backend compile must all pass |
+| P0-C1 đồng bộ schema/code | PostgreSQL/Flyway migration test + create/reject/quarantine transfer integration test |
+| P0-C2 FIFO eligible reservation | service test chứng minh đã loại vị trí quarantine/inactive/locked |
+| P0-C3 QC xuất và bin capacity | service/controller test chứng minh chặn depart trước QC và chặn receive khi vượt capacity |
+| P0-C4 optimistic locking/concurrency | test stale version cho transfer, request conversion, final receive và trip assignment |
+| P0-C5 cấp dòng audit | test assert audit cho header, items, allocations, QC, trip và inventory movement |
+| P0-C6 DB thật/frontend coverage | Testcontainers/Flyway test và frontend workflow test |
+| Arrival/handover | receive-count bị chặn trước arrival/handover và được phép sau handover |
+| Sai SKU detail | validation test cho expected SKU, actual SKU, dòng hàng, số lượng, lý do và photo refs tùy chọn |
+| Trip capacity/reassignment/resource release | capacity exceed test, reassignment trước departure, lock sau departure, resource release guard |
+| Overdue return-to-source | chỉ transfer `IN_TRANSIT` quá hạn mới được return, bắt buộc lý do, hỗ trợ photo refs khi có |
+| Contract alignment | test/review OpenAPI path khớp với path controller |
+| Nút action frontend | test hiển thị theo role/state, click thành công, API trả lỗi và refresh sau thành công cho mọi nút transfer chính |
+| Transfer request edit/delete | backend service/controller test cho cập nhật `DRAFT` và soft-cancel; frontend test hiển thị nút và hành vi lưu/hủy modal |
+| Photo-gated actions | UI test hoặc smoke thủ công chứng minh QC xuất, bàn giao xếp hàng, bàn giao khi đến, bàn giao khi quay đầu, và nút driver POD vẫn disabled cho đến khi chọn/chụp ảnh |
+| Source worker báo cáo xếp hàng trước QC xuất | service/controller/frontend test chứng minh QC bị chặn trước báo cáo xếp hàng, QC fail chặn handover/departure, công nhân báo lại thì QC được thử lại |
+| Frontend-to-backend smoke | happy path full-stack từ `TRQ` đến final receive kèm assertion backend cho inventory, audit và trạng thái DB |
+| Deploy gate | backend unit/controller/integration + DB thật migration + frontend test/build + backend compile phải pass toàn bộ |
 
-## Phase 1: Documentation and Contract Alignment
+## Giai đoạn 1: Đồng bộ tài liệu và contract
 
-**Purpose**: Make source-of-truth docs match the intended production flow and current controller naming.
+**Mục đích**: Làm cho tài liệu nguồn sự thật khớp luồng production mong muốn và tên controller hiện tại.
 
-- [x] T001 Update `.sdd/specs/005-inter-warehouse-transfer/spec.md` with canonical flow, P0 invariants, arrival/handover, return leg, wrong-SKU detail, trip capacity, and requirement-to-test expectations.
-- [x] T002 Update `.sdd/specs/005-inter-warehouse-transfer/plan.md` to point to actual `InterWarehouseTransfer*` backend/frontend files and the remediation implementation order.
-- [x] T003 Update `.sdd/specs/005-inter-warehouse-transfer/contracts/openapi.yaml` to use `/api/v1/inter-warehouse-transfers`, `/approve`, `/final-receive`, `/request-return`, `/approve-return`, `/reject-return`, and transfer-request `/approve|reject|convert`.
-- [x] T004 [P] Update `.sdd/specs/005-inter-warehouse-transfer/data-model.md` with version fields, nullable planned item batch, outbound QC fields, arrival/handover timestamps, wrong-SKU report lines, trip capacity totals, and discrepancy incident/hold entities.
-- [x] T005 [P] Update `.sdd/specs/005-inter-warehouse-transfer/quickstart.md` with the full happy path, return path, and blocking-path verification checklist.
-- [x] T006 [P] Update feature docs under `.sdd/specs/005-inter-warehouse-transfer/features/` so shipment and receiving docs include outbound QC, load handover, driver arrival, bin capacity, wrong-SKU detail, and return leg.
+- [x] T001 Cập nhật `.sdd/specs/005-inter-warehouse-transfer/spec.md` với luồng chuẩn, invariant P0, arrival/handover, chặng return, chi tiết sai SKU, trip capacity và kỳ vọng requirement-to-test.
+- [x] T002 Cập nhật `.sdd/specs/005-inter-warehouse-transfer/plan.md` trỏ tới đúng `InterWarehouseTransfer*` backend/frontend và thứ tự triển khai sửa chữa.
+- [x] T003 Cập nhật `.sdd/specs/005-inter-warehouse-transfer/contracts/openapi.yaml` dùng `/api/v1/inter-warehouse-transfers`, `/approve`, `/final-receive`, `/request-return`, `/approve-return`, `/reject-return`, và transfer-request `/approve|reject|convert`.
+- [x] T004 [P] Cập nhật `.sdd/specs/005-inter-warehouse-transfer/data-model.md` với version fields, planned item batch nullable, QC xuất fields, timestamp arrival/handover, dòng report sai SKU, tổng capacity chuyến và entity discrepancy incident/hold.
+- [x] T005 [P] Cập nhật `.sdd/specs/005-inter-warehouse-transfer/quickstart.md` với happy path đầy đủ, return path và checklist kiểm tra blocking-path.
+- [x] T006 [P] Cập nhật feature docs trong `.sdd/specs/005-inter-warehouse-transfer/features/` để tài liệu shipment và receiving bao gồm QC xuất, bàn giao xếp hàng, driver arrival, bin capacity, sai SKU detail, và return leg.
 
-## Phase 2: Foundational Database and Concurrency
+## Giai đoạn 2: Nền tảng database và concurrency
 
-**Purpose**: Fix DB/runtime mismatches and stale-write risks before changing business behavior.
+**Mục đích**: Sửa mismatch DB/runtime và rủi ro stale-write trước khi đổi hành vi nghiệp vụ.
 
-- [x] T007 Create additive Flyway migration `backend/src/main/resources/db/migration/V6__inter_warehouse_transfer_hardening.sql` or the next available version if `V6` already exists.
-- [x] T008 In the new migration, replace transfer status check constraints to include `REJECTED` and `QUARANTINED` on the actual inter-warehouse transfer table.
-- [x] T009 In the new migration, make planned transfer item `batch_id` nullable while preserving batch traceability on `inter_warehouse_transfer_allocations`.
-- [x] T010 In the new migration, add version columns for `inter_warehouse_transfers`, `inter_warehouse_transfer_items`, `transfer_requests`, and transfer trip/resource tables as needed.
-- [x] T011 In the new migration, add outbound QC photo refs, load handover photo refs, driver arrival, arrival handover, return departure, and return arrival fields to the transfer schema.
-- [x] T012 In the new migration, add wrong-SKU report/report-item fields or tables with expected product, actual product, quantity, reason, optional photo refs, status, reporter, and decision metadata.
-- [x] T013 In the new migration, add calculated transfer trip weight/volume fields or verify compatible existing trip columns.
-- [x] T014 In the new migration, add discrepancy incident/hold data needed for shortage and physical over-receipt tracking.
-- [x] T015 Add `@Version` and DTO version exposure to `backend/src/main/java/com/wms/entity/InterWarehouseTransfer.java`.
-- [x] T016 Add `@Version` where needed to `backend/src/main/java/com/wms/entity/InterWarehouseTransferItem.java`.
-- [x] T017 Add `@Version` to `backend/src/main/java/com/wms/entity/TransferRequest.java`.
-- [x] T018 Add stale-write handling and 409 mapping in the shared exception handling layer.
-- [x] T019 Add a PostgreSQL/Flyway migration integration test in `backend/src/test/java/com/wms/db/InterWarehouseTransferMigrationIntegrationTest.java`.
+- [x] T007 Tạo additive Flyway migration `backend/src/main/resources/db/migration/V6__inter_warehouse_transfer_hardening.sql` hoặc version khả dụng tiếp theo nếu `V6` đã tồn tại.
+- [x] T008 Trong migration mới, thay transfer status check constraints để include `REJECTED` và `QUARANTINED` trên bảng điều chuyển nội bộ thực tế.
+- [x] T009 Trong migration mới, cho planned transfer item `batch_id` nullable nhưng vẫn giữ traceability batch trên `inter_warehouse_transfer_allocations`.
+- [x] T010 Trong migration mới, thêm version columns cho `inter_warehouse_transfers`, `inter_warehouse_transfer_items`, `transfer_requests`, và transfer trip/resource tables khi cần.
+- [x] T011 Trong migration mới, thêm QC xuất photo refs, bàn giao xếp hàng photo refs, driver arrival, bàn giao khi đến, rời điểm nhận để quay đầu, và đến nguồn khi quay đầu vào schema transfer.
+- [x] T012 Trong migration mới, thêm sai SKU report/report-item fields hoặc tables với expected product, actual product, số lượng, lý do, tùy chọn photo refs, status, reporter, và decision metadata.
+- [x] T013 Trong migration mới, thêm calculated transfer trip weight/volume fields hoặc xác minh column trip hiện có tương thích.
+- [x] T014 Trong migration mới, thêm discrepancy incident/hold data cần cho theo dõi thiếu hàng và nhận thừa vật lý.
+- [x] T015 Thêm `@Version` và expose version DTO cho `backend/src/main/java/com/wms/entity/InterWarehouseTransfer.java`.
+- [x] T016 Thêm `@Version` ở nơi cần cho `backend/src/main/java/com/wms/entity/InterWarehouseTransferItem.java`.
+- [x] T017 Thêm `@Version` để `backend/src/main/java/com/wms/entity/TransferRequest.java`.
+- [x] T018 Thêm xử lý stale-write và map 409 trong lớp xử lý exception dùng chung.
+- [x] T019 Thêm PostgreSQL/Flyway migration integration test tại `backend/src/test/java/com/wms/db/InterWarehouseTransferMigrationIntegrationTest.java`.
 
-## Phase 3: FIFO Reservation and Inventory Integrity
+## Giai đoạn 3: Reservation FIFO và toàn vẹn tồn kho
 
-**Purpose**: Ensure source approval reserves only stock that is legally available for transfer.
+**Mục đích**: Đảm bảo duyệt tại nguồn chỉ reserve tồn hợp lệ để điều chuyển.
 
-- [x] T020 Update `backend/src/main/java/com/wms/repository/InventoryRepository.java` reservation queries to exclude quarantine, inactive, locked, and wrong-warehouse locations.
-- [x] T021 Update `backend/src/main/java/com/wms/service/transfer/impl/InterWarehouseTransferApprovalService.java` to reserve FIFO-eligible allocation rows only.
-- [x] T022 Update `backend/src/main/java/com/wms/service/transfer/impl/InterWarehouseTransferShippingService.java` so departure fails instead of clamping invalid reserved quantities.
-- [x] T023 Add service tests in `backend/src/test/java/com/wms/service/InterWarehouseTransferServiceImplTest.java` for FIFO order, quarantine exclusion, inactive location exclusion, and reserved quantity conflicts.
-- [x] T024 Add integration test coverage proving approval cannot reserve inventory that cross-warehouse availability would hide.
+- [x] T020 Cập nhật `backend/src/main/java/com/wms/repository/InventoryRepository.java` query reservation để loại quarantine, inactive, locked, và wrong-warehouse locations.
+- [x] T021 Cập nhật `backend/src/main/java/com/wms/service/transfer/impl/InterWarehouseTransferApprovalService.java` để chỉ reserve allocation rows hợp lệ theo FIFO.
+- [x] T022 Cập nhật `backend/src/main/java/com/wms/service/transfer/impl/InterWarehouseTransferShippingService.java` để departure fail thay vì tự clamp reserved quantity không hợp lệ.
+- [x] T023 Thêm service test tại `backend/src/test/java/com/wms/service/InterWarehouseTransferServiceImplTest.java` cho FIFO order, loại quarantine, loại inactive location và conflict reserved quantity.
+- [x] T024 Thêm integration test chứng minh approval không reserve inventory mà tra cứu tồn liên kho đã phải ẩn.
 
-## Phase 4: Request Approval and One-Time Conversion
+## Giai đoạn 4: Duyệt request và convert một lần
 
-**Purpose**: Make `TRQ` reliable under concurrent approval/conversion.
+**Mục đích**: Làm cho `TRQ` tin cậy khi approve/convert đồng thời.
 
-- [x] T025 Update `backend/src/main/java/com/wms/dto/request/TransferRequestCreateRequest.java` and `TransferRequestUpdateRequest.java` so `neededByDate`, `businessReason`, observed quantities, and shortage reasons match the spec.
-- [x] T026 Update `backend/src/main/java/com/wms/enums/TransferRequestStatus.java` to use documented statuses or add a compatibility mapping if legacy values are retained.
-- [x] T027 Update `backend/src/main/java/com/wms/service/transfer/impl/TransferRequestServiceImpl.java` to revalidate source availability before submit/CEO approve/conversion.
-- [x] T028 Add a unique one-active-transfer guard for `transfer_request_id` in the new migration and repository/service conversion path.
-- [x] T029 Add stale conversion tests in `backend/src/test/java/com/wms/service/TransferRequestServiceImplTest.java`.
-- [x] T030 Add controller tests in `backend/src/test/java/com/wms/controller/TransferRequestControllerTest.java` for approve/reject/convert path names and duplicate conversion.
+- [x] T025 Cập nhật `backend/src/main/java/com/wms/dto/request/TransferRequestCreateRequest.java` và `TransferRequestUpdateRequest.java` để `neededByDate`, `businessReason`, observed quantities và lý do thiếu hàng khớp spec.
+- [x] T026 Cập nhật `backend/src/main/java/com/wms/enums/TransferRequestStatus.java` dùng status đã tài liệu hóa hoặc thêm compatibility mapping nếu giữ legacy values.
+- [x] T027 Cập nhật `backend/src/main/java/com/wms/service/transfer/impl/TransferRequestServiceImpl.java` để revalidate tồn khả dụng nguồn trước submit/CEO approve/conversion.
+- [x] T028 Thêm guard unique một active transfer cho `transfer_request_id` trong migration mới và path convert repository/service.
+- [x] T029 Thêm test stale conversion tại `backend/src/test/java/com/wms/service/TransferRequestServiceImplTest.java`.
+- [x] T030 Thêm controller test tại `backend/src/test/java/com/wms/controller/TransferRequestControllerTest.java` cho path approve/reject/convert và duplicate conversion.
 
-## Phase 5: Trip Planning, Capacity, and Resource Lifecycle
+## Giai đoạn 5: Lập kế hoạch chuyến, capacity và vòng đời resource
 
-**Purpose**: Make `TTR` planning match real transport constraints.
+**Mục đích**: Làm cho kế hoạch `TTR` khớp ràng buộc vận tải thực tế.
 
-- [x] T031 Update `backend/src/main/java/com/wms/dto/request/InterWarehouseTransferTripAssignRequest.java` to carry planned start/end and version fields.
-- [x] T032 Update `backend/src/main/java/com/wms/service/transfer/impl/InterWarehouseTransferShippingService.java` to calculate trip weight/volume from transfer item quantities and product/package metadata.
-- [x] T033 Update trip assignment to reject `TRIP_CAPACITY_EXCEEDED` when calculated totals exceed selected vehicle capacity.
-- [x] T034 Update trip assignment to allow vehicle/driver/schedule reassignment before departure and audit it as `TRANSFER_TRIP_REASSIGN`.
-- [x] T035 Update trip assignment to reject reassignment after departure with `TRANSFER_TRIP_LOCKED`.
-- [x] T036 Update terminal receive/quarantine code so vehicle/driver are released only when they have no other active assignment.
-- [x] T037 Add tests for overlap, capacity exceed, reassignment before departure, lock after departure, and guarded resource release.
+- [x] T031 Cập nhật `backend/src/main/java/com/wms/dto/request/InterWarehouseTransferTripAssignRequest.java` để mang planned start/end và version fields.
+- [x] T032 Cập nhật `backend/src/main/java/com/wms/service/transfer/impl/InterWarehouseTransferShippingService.java` để tính weight/volume chuyến từ số lượng item và metadata sản phẩm/đóng gói.
+- [x] T033 Cập nhật trip assignment reject `TRIP_CAPACITY_EXCEEDED` khi tổng tính toán vượt capacity xe đã chọn.
+- [x] T034 Cập nhật trip assignment cho phép đổi xe/tài xế/lịch trước departure và audit là `TRANSFER_TRIP_REASSIGN`.
+- [x] T035 Cập nhật trip assignment reject reassignment sau departure với `TRANSFER_TRIP_LOCKED`.
+- [x] T036 Cập nhật code terminal receive/quarantine để vehicle/driver chỉ release khi không còn assignment active khác.
+- [x] T037 Thêm test cho trùng lịch, vượt capacity, reassign trước departure, lock sau departure và release resource có guard.
 
-## Phase 6: Outbound QC, Load Handover, Departure
+## Giai đoạn 6: QC xuất, bàn giao xếp hàng và rời kho
 
-**Purpose**: Prevent bad or unverified goods from leaving the source warehouse.
+**Mục đích**: Ngăn hàng lỗi hoặc chưa xác minh rời kho nguồn.
 
-- [x] T038 Add outbound QC request/response DTOs with required photo refs and no Barcode/QR requirement in `backend/src/main/java/com/wms/dto/request/`.
-- [x] T039 Add outbound QC fields to `backend/src/main/java/com/wms/dto/response/InterWarehouseTransferResponse.java`.
-- [x] T040 Implement photo-confirmed `recordOutboundQc` in `backend/src/main/java/com/wms/service/transfer/impl/InterWarehouseTransferShippingService.java`.
-- [x] T041 Implement source load/handover photo confirmation before departure in `InterWarehouseTransferShippingService.java`.
-- [x] T042 Update `departTransfer` to require outbound QC passed, shipment recorded, load handover recorded, assigned driver, and valid version.
-- [x] T043 Add endpoints in `backend/src/main/java/com/wms/controller/InterWarehouseTransferController.java` for outbound QC and load handover.
-- [x] T044 Add audit actions in `backend/src/main/java/com/wms/enums/AuditAction.java` for `TRANSFER_OUTBOUND_QC` and `TRANSFER_LOAD_HANDOVER`.
-- [x] T045 Add tests blocking ship/depart when outbound QC is missing, failed, or missing required photo refs.
+- [x] T038 Thêm QC xuất request/response DTOs với photo refs bắt buộc và không yêu cầu Barcode/QR trong `backend/src/main/java/com/wms/dto/request/`.
+- [x] T039 Thêm QC xuất fields để `backend/src/main/java/com/wms/dto/response/InterWarehouseTransferResponse.java`.
+- [x] T040 Triển khai `recordOutboundQc` có xác nhận ảnh tại `backend/src/main/java/com/wms/service/transfer/impl/InterWarehouseTransferShippingService.java`.
+- [x] T041 Triển khai xác nhận ảnh source load/handover trước departure tại `InterWarehouseTransferShippingService.java`.
+- [x] T042 Cập nhật `departTransfer` để bắt buộc QC xuất pass, đã ghi shipment, đã ghi bàn giao xếp hàng, đúng tài xế được gán và version hợp lệ.
+- [x] T043 Thêm endpoint trong `backend/src/main/java/com/wms/controller/InterWarehouseTransferController.java` cho QC xuất và bàn giao xếp hàng.
+- [x] T044 Thêm audit actions tại `backend/src/main/java/com/wms/enums/AuditAction.java` cho `TRANSFER_OUTBOUND_QC` và `TRANSFER_LOAD_HANDOVER`.
+- [x] T045 Thêm test chặn ship/depart khi thiếu QC xuất, QC fail hoặc thiếu photo refs bắt buộc.
 
-## Phase 7: Arrival, Handover, Receiving, and Bin Capacity
+## Giai đoạn 7: Đến nơi, bàn giao, nhận hàng và sức chứa bin
 
-**Purpose**: Make destination/source receiving start only after physical arrival and prevent overfilled bins.
+**Mục đích**: Đảm bảo kho đích/kho nguồn chỉ nhận sau khi xe đến vật lý và ngăn bin bị vượt sức chứa.
 
-- [x] T046 Add arrival and arrival-handover endpoints in `backend/src/main/java/com/wms/controller/InterWarehouseTransferController.java`.
-- [x] T047 Implement driver arrival and receiving-warehouse handover in `backend/src/main/java/com/wms/service/transfer/impl/InterWarehouseTransferShippingService.java`.
-- [x] T048 Update `backend/src/main/java/com/wms/service/transfer/impl/InterWarehouseTransferReceivingService.java` to block receive-count until arrival and handover exist.
-- [x] T049 Update receive-check/final-receive to validate destination bin capacity for QC-passed quantity before inventory is posted.
-- [x] T050 Add discrepancy incident/hold handling for physical over-receipt so regular inventory posting remains blocked.
-- [x] T051 Add audit actions for `TRANSFER_ARRIVE` and `TRANSFER_ARRIVAL_HANDOVER`.
-- [x] T052 Add tests for receive before arrival blocked, receive after handover allowed, bin capacity exceeded, and over-receipt discrepancy hold.
+- [x] T046 Thêm endpoint arrival và arrival-handover trong `backend/src/main/java/com/wms/controller/InterWarehouseTransferController.java`.
+- [x] T047 Triển khai driver arrival và receiving-warehouse handover tại `backend/src/main/java/com/wms/service/transfer/impl/InterWarehouseTransferShippingService.java`.
+- [x] T048 Cập nhật `backend/src/main/java/com/wms/service/transfer/impl/InterWarehouseTransferReceivingService.java` để chặn receive-count cho đến khi có arrival và handover.
+- [x] T049 Cập nhật receive-check/final-receive để kiểm capacity bin kho đích cho số lượng QC pass trước khi ghi tồn.
+- [x] T050 Thêm xử lý discrepancy incident/hold cho nhận thừa vật lý để tiếp tục chặn ghi tồn thường.
+- [x] T051 Thêm audit actions cho `TRANSFER_ARRIVE` và `TRANSFER_ARRIVAL_HANDOVER`.
+- [x] T052 Thêm test cho nhận trước arrival bị chặn, nhận sau handover được phép, vượt bin capacity và hold discrepancy nhận thừa.
 
-## Phase 8: Wrong SKU and Return Leg
+## Giai đoạn 8: Sai SKU và chặng quay đầu
 
-**Purpose**: Replace reason-only wrong-SKU handling with line-level return control and physical trip events.
+**Mục đích**: Thay xử lý sai SKU chỉ có lý do bằng return control cấp dòng và sự kiện trip vật lý.
 
-- [x] T053 Replace or extend `backend/src/main/java/com/wms/dto/request/TransferReturnRequest.java` with line-level expected product, actual product, quantity, reason, and optional photo refs.
-- [x] T054 Add wrong-SKU response data to `backend/src/main/java/com/wms/dto/response/InterWarehouseTransferResponse.java`.
-- [x] T055 Update `backend/src/main/java/com/wms/service/transfer/impl/InterWarehouseTransferReceivingService.java` so wrong-SKU report stores item-level detail while stock remains `IN_TRANSIT`.
-- [x] T056 Update approve-return to require destination manager scope and pending wrong-SKU report details.
-- [x] T057 Add return departure and source return arrival/handover service methods.
-- [x] T058 Block source return receive-count until return departure and return arrival/handover are recorded.
-- [x] T059 Update overdue `returnToSource` to require actual overdue trip, non-blank reason, and optional photo refs when available.
-- [x] T060 Add endpoints for return departure and return arrival/handover in `InterWarehouseTransferController.java`.
-- [x] T061 Add audit actions for `TRANSFER_RETURN_DEPART`, `TRANSFER_RETURN_ARRIVE`, and `TRANSFER_RETURN_HANDOVER`.
-- [x] T062 Add tests for wrong-SKU missing line details, manager approval, storekeeper self-approval blocked, return receiving before return arrival blocked, and overdue return reason required.
+- [x] T053 Thay hoặc mở rộng `backend/src/main/java/com/wms/dto/request/TransferReturnRequest.java` với expected product, actual product, số lượng, lý do và photo refs tùy chọn ở cấp dòng.
+- [x] T054 Thêm sai SKU response data để `backend/src/main/java/com/wms/dto/response/InterWarehouseTransferResponse.java`.
+- [x] T055 Cập nhật `backend/src/main/java/com/wms/service/transfer/impl/InterWarehouseTransferReceivingService.java` để report sai SKU lưu chi tiết cấp item trong khi tồn vẫn ở `IN_TRANSIT`.
+- [x] T056 Cập nhật approve-return để bắt buộc quản lý kho đích scope và chi tiết report sai SKU đang chờ.
+- [x] T057 Thêm rời điểm nhận để quay đầu và source đến nguồn khi quay đầu/handover service methods.
+- [x] T058 Chặn source return receive-count cho đến khi đã ghi return depart và return arrive/handover.
+- [x] T059 Cập nhật overdue `returnToSource` để require trip thật sự quá hạn, lý do không rỗng và photo refs tùy chọn khi có.
+- [x] T060 Thêm endpoint cho rời điểm nhận để quay đầu và đến nguồn khi quay đầu/handover trong `InterWarehouseTransferController.java`.
+- [x] T061 Thêm audit actions cho `TRANSFER_RETURN_DEPART`, `TRANSFER_RETURN_ARRIVE`, và `TRANSFER_RETURN_HANDOVER`.
+- [x] T062 Thêm test cho sai SKU thiếu chi tiết dòng, quản lý duyệt, chặn thủ kho tự duyệt, chặn nhận return trước khi về nguồn và bắt buộc lý do overdue return.
 
-## Phase 9: Audit and Incident Traceability
+## Giai đoạn 9: Audit và truy vết incident
 
-**Purpose**: Make audit logs reconstruct the full inventory and transport mutation.
+**Mục đích**: Đảm bảo audit log dựng lại được đầy đủ mutation tồn kho và vận tải.
 
-- [x] T063 Update `backend/src/main/java/com/wms/service/transfer/impl/InterWarehouseTransferHelper.java` audit snapshot logic to include header, items, allocations, wrong-SKU report lines, QC quantities, trip/resource state, and inventory movement references.
-- [x] T064 Ensure `TRANSFER_DISCREPANCY_CREATE` audit includes shortage quantity, product, warehouse, transfer item, adjustment id, and reason.
-- [x] T065 Ensure quarantine rejection audit includes target warehouse, quarantine bin, affected item quantities, and transfer-origin references.
-- [x] T066 Add audit tests for approve, outbound QC, depart, arrival/handover, receive-check, final-receive, wrong-SKU return, overdue return, and quarantine reject.
+- [x] T063 Cập nhật `backend/src/main/java/com/wms/service/transfer/impl/InterWarehouseTransferHelper.java` logic snapshot audit để bao gồm header, items, allocations, sai SKU report lines, QC quantities, trip/resource state, và inventory movement references.
+- [x] T064 Đảm bảo `TRANSFER_DISCREPANCY_CREATE` audit bao gồm số lượng thiếu, product, warehouse, transfer item, adjustment id, và lý do.
+- [x] T065 Đảm bảo quarantine rejection audit bao gồm kho đích, quarantine bin, affected item quantities, và transfer-origin references.
+- [x] T066 Thêm audit test cho approve, QC xuất, depart, arrival/handover, receive-check, final-receive, sai SKU return, overdue return, và quarantine reject.
 
-## Phase 10: API Contract and Backend Controller Coverage
+## Giai đoạn 10: API contract và coverage controller backend
 
-**Purpose**: Keep OpenAPI, controllers, and frontend service URLs synchronized.
+**Mục đích**: Giữ OpenAPI, controller và URL frontend service đồng bộ.
 
-- [x] T067 Update Swagger/OpenAPI annotations in `backend/src/main/java/com/wms/controller/InterWarehouseTransferController.java` for every transfer endpoint.
-- [x] T068 Update Swagger/OpenAPI annotations in `backend/src/main/java/com/wms/controller/TransferRequestController.java` for `/approve`, `/reject`, `/convert`, and `/stock-lookup`.
-- [x] T069 Add controller tests for `/api/v1/inter-warehouse-transfers/{id}/approve`, `/final-receive`, `/request-return`, `/approve-return`, and `/reject-return`.
-- [x] T070 Add controller tests for new outbound QC, load handover, arrival/handover, return departure, and return arrival endpoints.
-- [x] T071 Add a contract smoke test or documented review step proving `.sdd/.../contracts/openapi.yaml` path names match controller paths.
+- [x] T067 Cập nhật Swagger/OpenAPI annotation trong `backend/src/main/java/com/wms/controller/InterWarehouseTransferController.java` cho mọi transfer endpoint.
+- [x] T068 Cập nhật Swagger/OpenAPI annotation trong `backend/src/main/java/com/wms/controller/TransferRequestController.java` cho `/approve`, `/reject`, `/convert` và `/stock-lookup`.
+- [x] T069 Thêm controller test cho `/api/v1/inter-warehouse-transfers/{id}/approve`, `/final-receive`, `/request-return`, `/approve-return`, và `/reject-return`.
+- [x] T070 Thêm controller test cho endpoint QC xuất, bàn giao xếp hàng, arrival/handover, return depart và return arrive mới.
+- [x] T071 Thêm contract smoke test hoặc bước review có tài liệu chứng minh `.sdd/.../contracts/openapi.yaml` tên path match path controller.
 
-## Phase 11: Frontend Workflow
+## Giai đoạn 11: Workflow frontend
 
-**Purpose**: Expose the new controls without letting users execute steps out of order.
+**Mục đích**: Hiển thị control mới nhưng không cho người dùng chạy sai thứ tự bước.
 
-- [x] T072 Update `frontend/src/services/inter-warehouse-transfer.service.js` with outbound QC, load handover, arrival/handover, return departure, return arrival, and expanded wrong-SKU APIs.
-- [x] T073 Update `frontend/src/pages/InterWarehouseTransfer/InterWarehouseTransferActionPanel.jsx` to show outbound QC before ship/depart.
-- [x] T074 Update `InterWarehouseTransferActionPanel.jsx` to show load handover before driver departure.
-- [x] T075 Update `InterWarehouseTransferActionPanel.jsx` to show driver arrival and arrival handover before receive-count.
-- [x] T076 Update `InterWarehouseTransferActionPanel.jsx` to block/hide receiving actions until arrival/handover is complete.
-- [x] T077 Update `InterWarehouseTransferActionPanel.jsx` wrong-SKU form to collect line item, expected SKU, actual SKU, affected quantity, reason, and optional photo refs.
-- [x] T078 Update `InterWarehouseTransferActionPanel.jsx` to show return departure and return arrival/handover states for approved returns.
-- [x] T079 Update `frontend/src/pages/InterWarehouseTransfer/TransferRequestWorkspace.jsx` to show `neededByDate`, business reason, observed source/requesting availability, and one-time conversion state.
-- [x] T080 Update `frontend/src/utils/interWarehouseTransferStatus.js` and `InterWarehouseTransferStatusBadge.jsx` for new status/action labels.
-- [x] T081 Add frontend tests for service URL paths in `frontend/src/services/inter-warehouse-transfer.service.test.js`.
-- [x] T082 Add frontend workflow tests for action visibility/order in `frontend/src/pages/InterWarehouseTransfer/`.
+- [x] T072 Cập nhật `frontend/src/services/inter-warehouse-transfer.service.js` với QC xuất, bàn giao xếp hàng, arrival/handover, rời điểm nhận để quay đầu, đến nguồn khi quay đầu, và expanded sai SKU APIs.
+- [x] T073 Cập nhật `frontend/src/pages/InterWarehouseTransfer/InterWarehouseTransferActionPanel.jsx` để hiển thị QC xuất trước ship/depart.
+- [x] T074 Cập nhật `InterWarehouseTransferActionPanel.jsx` để hiển thị bàn giao xếp hàng trước driver departure.
+- [x] T075 Cập nhật `InterWarehouseTransferActionPanel.jsx` để hiển thị driver arrival và bàn giao khi đến trước receive-count.
+- [x] T076 Cập nhật `InterWarehouseTransferActionPanel.jsx` để chặn/ẩn action nhận hàng cho đến khi hoàn tất arrival/handover.
+- [x] T077 Cập nhật `InterWarehouseTransferActionPanel.jsx` form sai SKU để thu thập dòng hàng, expected SKU, actual SKU, affected số lượng, lý do, và tùy chọn photo refs.
+- [x] T078 Cập nhật `InterWarehouseTransferActionPanel.jsx` để hiển thị trạng thái return depart và return arrive/handover cho return đã duyệt.
+- [x] T079 Cập nhật `frontend/src/pages/InterWarehouseTransfer/TransferRequestWorkspace.jsx` để hiển thị `neededByDate`, lý do nghiệp vụ, tồn quan sát ở nguồn/kho yêu cầu và trạng thái convert một lần.
+- [x] T080 Cập nhật `frontend/src/utils/interWarehouseTransferStatus.js` và `InterWarehouseTransferStatusBadge.jsx` cho nhãn status/action mới.
+- [x] T081 Thêm frontend test cho service URL paths tại `frontend/src/services/inter-warehouse-transfer.service.test.js`.
+- [x] T082 Thêm frontend workflow test cho thứ tự/khả năng hiển thị action tại `frontend/src/pages/InterWarehouseTransfer/`.
 
-## Phase 12: End-to-End Verification and Quality Gates
+## Giai đoạn 12: Kiểm chứng end-to-end và quality gate
 
-**Purpose**: Prove the hardened flow works on realistic boundaries.
+**Mục đích**: Chứng minh luồng đã siết hoạt động đúng trên các biên thực tế.
 
-- [x] T083 Add Testcontainers PostgreSQL or equivalent real-DB integration tests for Flyway + core transfer flow.
-- [x] T084 Add happy-path integration test from `TRQ` through final receive with arrival/handover and bin capacity validation.
-- [x] T085 Add manual `TRF` happy-path integration test from planner creation through final receive.
-- [x] T086 Add exception-path tests for shortage incident + adjustment, over-receipt hold, QC fail to Quarantine, wrong-SKU return, and overdue return.
-- [x] T087 Run targeted backend tests for transfer services/controllers and migration tests.
-- [x] T088 Run `mvn compile` for backend.
-- [x] T089 Run frontend tests/build for the inter-warehouse transfer module.
-- [x] T090 Update `.sdd/specs/005-inter-warehouse-transfer/quickstart.md` with final verified commands and known residual risks.
-- [x] T091 Add backend endpoint coverage matrix tests for every `InterWarehouseTransferController` action in `backend/src/test/java/com/wms/controller/InterWarehouseTransferControllerTest.java`.
-- [x] T092 Add backend endpoint coverage matrix tests for every `TransferRequestController` action in `backend/src/test/java/com/wms/controller/TransferRequestControllerTest.java`.
-- [x] T093 Add service unhappy-path matrix tests for invalid status transitions, missing required photos, missing reasons, invalid warehouse scope, invalid role, missing arrival/handover, and stale versions in `backend/src/test/java/com/wms/service/InterWarehouseTransferServiceImplTest.java`.
-- [x] T094 Add frontend action-button coverage tests for every transfer workspace button in `frontend/src/pages/InterWarehouseTransfer/InterWarehouseTransferActionPanel.test.jsx`.
-- [x] T095 Add frontend transfer-request button coverage tests for create, submit, approve, reject, convert, validation failure, API failure, and refresh state in `frontend/src/pages/InterWarehouseTransfer/TransferRequestWorkspace.test.jsx`.
-- [x] T096 Add frontend-to-backend smoke test for `TRQ -> CEO approve -> convert -> approve -> trip -> outbound QC photo -> ship -> load handover photo -> depart -> arrive -> handover -> receive-count -> receive-check -> final-receive`.
-- [x] T097 Add frontend-to-backend smoke test for wrong-SKU return including report line details, destination manager approval, return departure, source arrival/handover, and source final receive.
-- [x] T098 Add frontend-to-backend smoke test for unhappy deploy blockers: invalid driver scope, overloaded trip, missing outbound QC photo, receive before arrival, bin capacity exceeded, and stale version conflict.
-- [x] T099 Add CI/deploy verification documentation showing required commands for backend tests, DB migration tests, frontend tests, frontend build, backend compile, and full-stack smoke tests.
-- [x] T100 Block marking spec 005 deploy-ready until every requirement-to-test row in this file has a passing test reference recorded in `.sdd/specs/005-inter-warehouse-transfer/quickstart.md`.
-- [x] T101 Add backend `POST /api/v1/transfer-requests/{id}/cancel` soft-cancel endpoint and service method so UI `Xoa` never physically deletes request history.
-- [x] T102 Add backend service/controller tests for `DRAFT -> CANCELLED` transfer request soft-cancel and non-DRAFT cancellation rejection.
-- [x] T103 Update `frontend/src/pages/InterWarehouseTransfer/TransferRequestWorkspace.jsx` to show `Sua`/`Xoa` on DRAFT request cards and detail modal, reuse the create form for edit, and refresh after update/cancel.
-- [x] T104 Add a shared frontend photo selector/camera component and use it for transfer outbound QC, arrival handover, return handover, and outbound driver POD evidence.
-- [x] T105 Gate all photo-required action buttons so they remain disabled until an image has been selected or captured.
-- [x] T106 Update spec 005, feature docs, OpenAPI contract, and CLAUDE swimlane notes for DRAFT request edit/soft-delete and photo-gated confirmations.
-- [X] T107 Update shared driver trip list integration so `TTR-*` rows expose `tripType = TRANSFER`, `tripTypeLabel = Dieu chuyen noi bo`, source/destination route, and transfer line count in `frontend/src/pages/Outbound/DriverTrip.jsx`.
-- [X] T108 Add frontend test coverage proving the `Noi bo` filter shows only `TTR-*` transfer trips and hides dealer POD/OTP actions in `frontend/src/pages/Outbound/DriverTrip.test.jsx`.
-- [X] T109 Add backend or service mapping coverage proving assigned transfer trips cannot be listed for another driver in `backend/src/test/java/com/wms/service/InterWarehouseTransferServiceImplTest.java` or `DriverDeliveryServiceImplTest.java`.
-- [X] T110 Update `.sdd/specs/004-outbound-delivery-pod/features/feature-driver-mobile-pod/contracts/driver-pod.openapi.yaml` and backend Swagger annotations if transfer summary fields are added to the shared driver trip response.
+- [x] T083 Thêm Testcontainers PostgreSQL hoặc integration test DB thật tương đương cho Flyway + core transfer flow.
+- [x] T084 Thêm happy-path integration test từ `TRQ` đến final receive với arrival/handover và kiểm bin capacity.
+- [x] T085 Thêm manual `TRF` happy-path integration test từ planner tạo phiếu đến final receive.
+- [x] T086 Thêm exception-path test cho thiếu hàng incident + adjustment, nhận thừa hold, QC fail để Quarantine, sai SKU return, và overdue return.
+- [x] T087 Chạy targeted backend test cho transfer services/controllers và migration test.
+- [x] T088 Chạy `mvn compile` cho backend.
+- [x] T089 Chạy frontend test/build cho module điều chuyển nội bộ.
+- [x] T090 Cập nhật `.sdd/specs/005-inter-warehouse-transfer/quickstart.md` với command đã xác minh cuối cùng và rủi ro còn lại đã biết.
+- [x] T091 Thêm backend endpoint coverage matrix test cho mọi `InterWarehouseTransferController` action in `backend/src/test/java/com/wms/controller/InterWarehouseTransferControllerTest.java`.
+- [x] T092 Thêm backend endpoint coverage matrix test cho mọi `TransferRequestController` action in `backend/src/test/java/com/wms/controller/TransferRequestControllerTest.java`.
+- [x] T093 Thêm service unhappy-path matrix test cho chuyển trạng thái sai, thiếu ảnh bắt buộc, thiếu lý do, warehouse scope sai, role sai, thiếu arrival/handover và stale version trong `backend/src/test/java/com/wms/service/InterWarehouseTransferServiceImplTest.java`.
+- [x] T094 Thêm frontend action-nút coverage test cho mọi transfer workspace nút in `frontend/src/pages/InterWarehouseTransfer/InterWarehouseTransferActionPanel.test.jsx`.
+- [x] T095 Thêm frontend transfer-request nút coverage test cho create, submit, approve, reject, convert, validation failure, API failure và refresh state in `frontend/src/pages/InterWarehouseTransfer/TransferRequestWorkspace.test.jsx`.
+- [x] T096 Thêm smoke frontend-to-backend test cho `TRQ -> CEO approve -> convert -> approve -> trip -> QC xuất photo -> ship -> bàn giao xếp hàng photo -> depart -> arrive -> handover -> receive-count -> receive-check -> final-receive`.
+- [x] T097 Thêm smoke frontend-to-backend test cho sai SKU return bao gồm chi tiết dòng report, quản lý kho đích approval, rời điểm nhận để quay đầu, source arrival/handover, và final receive tại nguồn.
+- [x] T098 Thêm smoke frontend-to-backend test cho blocker deploy unhappy: invalid driver scope, overloaded trip, missing QC xuất photo, receive trước arrival, bin capacity exceeded, và stale version conflict.
+- [x] T099 Thêm Tài liệu xác minh CI/deploy ghi rõ command bắt buộc cho backend test, DB migration test, frontend test, frontend build, backend compile, và full-stack smoke test.
+- [x] T100 Chặn đánh dấu spec 005 deploy-ready cho đến khi mọi dòng requirement-to-test trong file này có tham chiếu test pass được ghi trong `.sdd/specs/005-inter-warehouse-transfer/quickstart.md`.
+- [x] T101 Thêm backend `POST /api/v1/transfer-requests/{id}/cancel` endpoint soft-cancel và service method để UI `Xoa` không bao giờ xóa vật lý lịch sử request.
+- [x] T102 Thêm backend service/controller test cho soft-cancel transfer request `DRAFT -> CANCELLED` và reject hủy non-DRAFT.
+- [x] T103 Cập nhật `frontend/src/pages/InterWarehouseTransfer/TransferRequestWorkspace.jsx` để hiển thị `Sua`/`Xoa` trên card request DRAFT và detail modal, tái dùng form tạo để sửa, rồi refresh sau update/cancel.
+- [x] T104 Thêm component frontend chọn/chụp ảnh dùng chung và dùng cho QC xuất, bàn giao khi đến, bàn giao khi quay đầu và bằng chứng POD tài xế.
+- [x] T105 Chặn mọi nút action bắt buộc ảnh để chúng disabled cho đến khi đã chọn hoặc chụp ảnh.
+- [x] T106 Cập nhật spec 005, feature docs, OpenAPI contract, và CLAUDE swimlane notes cho sửa/soft-delete request DRAFT và xác nhận bị gate bằng ảnh.
+- [X] T107 Cập nhật danh sách chuyến tài xế dùng chung integration để `TTR-*` row expose `tripType = TRANSFER`, `tripTypeLabel = Dieu chuyen noi bo`, tuyến nguồn/đích, và số dòng transfer trong `frontend/src/pages/Outbound/DriverTrip.jsx`.
+- [X] T108 Thêm frontend test coverage chứng minh bộ lọc `Noi bo` chỉ hiển thị `TTR-*` transfer trips và ẩn action POD/OTP đại lý trong `frontend/src/pages/Outbound/DriverTrip.test.jsx`.
+- [X] T109 Thêm coverage backend hoặc service mapping chứng minh trip điều chuyển đã gán không hiển thị cho tài xế khác trong `backend/src/test/java/com/wms/service/InterWarehouseTransferServiceImplTest.java` hoặc `DriverDeliveryServiceImplTest.java`.
+- [X] T110 Cập nhật `.sdd/specs/004-outbound-delivery-pod/features/feature-driver-mobile-pod/contracts/driver-pod.openapi.yaml` và backend Swagger annotations nếu thêm field tóm tắt transfer vào response chuyến tài xế dùng chung.
 
-## Phase 13: Source Worker Load Report Before Outbound QC
+## Giai đoạn 13: Công nhân nguồn báo cáo xếp hàng trước QC xuất
 
-**Purpose**: Split physical loading responsibility from source outbound QC, so workers report actual loaded quantities first and QC failure returns to worker rework/re-report before the storekeeper can QC again.
+**Mục đích**: Tách trách nhiệm xếp hàng vật lý khỏi QC xuất tại nguồn: công nhân báo số lượng loaded thực tế trước, và nếu QC fail thì quay lại công nhân xử lý/báo lại trước khi thủ kho QC lại.
 
-- [x] T111 Update additive Flyway migration or create the next migration for source load report fields: transfer header `source_loaded_reported_by`, `source_loaded_reported_at`, `source_load_rework_required`, `source_load_rework_reason`, and transfer item `loaded_qty`, `loaded_reported_by`, `loaded_reported_at` in `backend/src/main/resources/db/migration/`.
-- [x] T112 Add source load report request/response DTOs in `backend/src/main/java/com/wms/dto/request/` and `backend/src/main/java/com/wms/dto/response/`, requiring item-level `transferItemId` and `loadedQty`.
-- [x] T113 Update `backend/src/main/java/com/wms/entity/InterWarehouseTransfer.java` and `backend/src/main/java/com/wms/entity/InterWarehouseTransferItem.java` with source load report fields and version-safe mappings.
-- [x] T114 Add `TRANSFER_SOURCE_LOAD_REPORT` and `TRANSFER_SOURCE_LOAD_REWORK` to `backend/src/main/java/com/wms/enums/AuditAction.java`.
-- [x] T115 Implement `recordSourceLoadReport` in `backend/src/main/java/com/wms/service/transfer/impl/InterWarehouseTransferShippingService.java`, scoped to source workers/staff, requiring `APPROVED`, saving item-level loaded quantities, and clearing failed-QC rework marker after corrected report.
-- [x] T116 Update outbound QC logic in `backend/src/main/java/com/wms/service/transfer/impl/InterWarehouseTransferShippingService.java` to require source worker loaded quantities before QC, reject QC pass when loaded quantity differs from planned quantity, and set rework required when QC fails.
-- [x] T117 Update shipment/load-handover/departure guards in `backend/src/main/java/com/wms/service/transfer/impl/InterWarehouseTransferShippingService.java` so they block while source load report is missing or rework is required.
-- [x] T118 Add `POST /api/v1/inter-warehouse-transfers/{id}/source-load-report` to `backend/src/main/java/com/wms/controller/InterWarehouseTransferController.java` with validation and Swagger/OpenAPI annotations.
-- [x] T119 Update generated Swagger/OpenAPI annotations and contract-alignment tests for source load report, `SOURCE_LOAD_REPORT_REQUIRED`, and `SOURCE_LOAD_REWORK_REQUIRED`.
-- [x] T120 Add backend service/controller tests in `backend/src/test/java/com/wms/service/InterWarehouseTransferServiceImplTest.java` and `backend/src/test/java/com/wms/controller/InterWarehouseTransferControllerTest.java` for load report happy path, QC before report blocked, QC fail sets rework, handover/depart blocked during rework, re-report clears rework, and mismatch rejects QC pass.
-- [x] T121 Update `frontend/src/services/inter-warehouse-transfer.service.js` with the source load report API.
-- [x] T122 Update `frontend/src/pages/InterWarehouseTransfer/InterWarehouseTransferActionPanel.jsx` to show source worker load report before outbound QC and, after QC failure, show only worker unload/rework/re-report actions before QC retry.
-- [x] T123 Update `frontend/src/utils/interWarehouseTransferStatus.js` and `frontend/src/pages/InterWarehouseTransfer/InterWarehouseTransferStatusBadge.jsx` with labels for `Chờ công nhân xếp/báo số lượng`, `Chờ QC xuất`, and `Cần xử lý lại hàng xếp`.
-- [x] T124 Add frontend workflow tests in `frontend/src/pages/InterWarehouseTransfer/InterWarehouseTransferActionPanel.test.jsx` proving QC is disabled before load report, QC fail hides handover/departure and shows rework, and re-report enables QC retry.
-- [x] T125 Update `docs/overview/features-summary.md`, `docs/overview/user-stories.md`, `docs/overview/actors.md`, `README.md`, and `CLAUDE.md` with the source worker load report before outbound QC flow.
+- [x] T111 Cập nhật additive Flyway migration hoặc tạo migration tiếp theo cho các field báo cáo xếp hàng tại nguồn: transfer header `source_loaded_reported_by`, `source_loaded_reported_at`, `source_load_rework_required`, `source_load_rework_lý do`, và transfer item `loaded_qty`, `loaded_reported_by`, `loaded_reported_at` trong `backend/src/main/resources/db/migration/`.
+- [x] T112 Thêm source báo cáo xếp hàng request/response DTO trong `backend/src/main/java/com/wms/dto/request/` và `backend/src/main/java/com/wms/dto/response/`, bắt buộc cấp item `transferItemId` và `loadedQty`.
+- [x] T113 Cập nhật `backend/src/main/java/com/wms/entity/InterWarehouseTransfer.java` và `backend/src/main/java/com/wms/entity/InterWarehouseTransferItem.java` với field báo cáo xếp hàng tại nguồn và mapping an toàn version.
+- [x] T114 Thêm `TRANSFER_SOURCE_LOAD_REPORT` và `TRANSFER_SOURCE_LOAD_REWORK` vào `backend/src/main/java/com/wms/enums/AuditAction.java`.
+- [x] T115 Triển khai `recordSourceLoadReport` trong `backend/src/main/java/com/wms/service/transfer/impl/InterWarehouseTransferShippingService.java`, scope cho công nhân/nhân viên nguồn, bắt buộc `APPROVED`, lưu loaded quantity cấp item và xóa marker rework sau khi báo cáo đã sửa.
+- [x] T116 Cập nhật QC xuất logic trong `backend/src/main/java/com/wms/service/transfer/impl/InterWarehouseTransferShippingService.java` để bắt buộc có loaded quantity của công nhân nguồn trước QC, reject QC pass khi loaded quantity khác planned quantity và set rework khi QC fail.
+- [x] T117 Cập nhật guard shipment/load-handover/departure trong `backend/src/main/java/com/wms/service/transfer/impl/InterWarehouseTransferShippingService.java` để chặn khi thiếu báo cáo xếp hàng tại nguồn hoặc còn yêu cầu rework.
+- [x] T118 Thêm `POST /api/v1/inter-warehouse-transfers/{id}/source-load-report` để `backend/src/main/java/com/wms/controller/InterWarehouseTransferController.java` với validation và Swagger/OpenAPI annotations.
+- [x] T119 Cập nhật Swagger/OpenAPI annotations sinh ra và test đồng bộ contract cho báo cáo xếp hàng tại nguồn, `SOURCE_LOAD_REPORT_REQUIRED`, và `SOURCE_LOAD_REWORK_REQUIRED`.
+- [x] T120 Thêm backend service/controller test tại `backend/src/test/java/com/wms/service/InterWarehouseTransferServiceImplTest.java` và `backend/src/test/java/com/wms/controller/InterWarehouseTransferControllerTest.java` cho happy path báo cáo xếp hàng, chặn QC trước report, QC fail set rework, chặn handover/depart khi rework, re-report xóa rework và mismatch reject QC pass.
+- [x] T121 Cập nhật `frontend/src/services/inter-warehouse-transfer.service.js` với API báo cáo xếp hàng tại nguồn.
+- [x] T122 Cập nhật `frontend/src/pages/InterWarehouseTransfer/InterWarehouseTransferActionPanel.jsx` để hiển thị công nhân nguồn báo cáo xếp hàng trước QC xuất và sau QC fail chỉ hiển thị action dỡ/xử lý lại/báo lại trước khi QC retry.
+- [x] T123 Cập nhật `frontend/src/utils/interWarehouseTransferStatus.js` và `frontend/src/pages/InterWarehouseTransfer/InterWarehouseTransferStatusBadge.jsx` với nhãn cho `Chờ công nhân xếp/báo số lượng`, `Chờ QC xuất`, và `Cần xử lý lại hàng xếp`.
+- [x] T124 Thêm frontend workflow test tại `frontend/src/pages/InterWarehouseTransfer/InterWarehouseTransferActionPanel.test.jsx` chứng minh QC disabled trước báo cáo xếp hàng, QC fail ẩn handover/departure và hiển thị rework, re-report bật QC retry.
+- [x] T125 Cập nhật `docs/overview/features-summary.md`, `docs/overview/user-stories.md`, `docs/overview/actors.md`, `README.md`, và `CLAUDE.md` với flow công nhân nguồn báo cáo xếp hàng trước QC xuất.
 
-## Dependencies
+## Phụ thuộc
 
-- Phase 2 blocks backend behavior phases because schema and optimistic locking must exist first.
-- Phase 3 must complete before departure/final receive tests can be trusted.
-- Phase 5 and Phase 6 must complete before Phase 7 receiving gate.
-- Phase 8 depends on Phase 7 arrival/handover concepts.
-- Phase 11 depends on backend contract shape from Phases 6-10.
-- Phase 12 is the final acceptance gate.
-- Phase 13 must be implemented before any code is considered aligned with the 2026-07-22 outbound QC decision; it touches Phase 6 and Phase 11 behavior and therefore requires refreshed backend/frontend tests.
-- No backend or frontend implementation task is complete unless its matching happy-path and unhappy-path tests are added or updated in the same slice.
+- Giai đoạn 2 chặn các giai đoạn hành vi backend vì schema và optimistic locking phải có trước.
+- Giai đoạn 3 phải hoàn thành trước khi tin được test departure/final receive.
+- Giai đoạn 5 và Giai đoạn 6 phải hoàn thành trước receiving gate Giai đoạn 7.
+- Giai đoạn 8 phụ thuộc khái niệm arrival/handover của Giai đoạn 7.
+- Giai đoạn 11 phụ thuộc hình dạng backend contract từ Giai đoạn 6-10.
+- Giai đoạn 12 là acceptance gate cuối cùng.
+- Giai đoạn 13 phải triển khai trước khi xem code khớp quyết định QC xuất ngày 2026-07-22; nó chạm hành vi Giai đoạn 6 và Giai đoạn 11 nên cần refresh test backend/frontend.
+- Không task triển khai backend hoặc frontend nào được xem là xong nếu chưa thêm/cập nhật test happy-path và unhappy-path tương ứng trong cùng slice.
 
-## Implementation Strategy
+## Chiến lược triển khai
 
-1. Ship the migration and DB integration test first.
-2. Harden backend invariants in small slices: reservation, concurrency, trip, outbound QC, arrival/receiving, return leg, audit.
-3. Update OpenAPI and controller tests as each endpoint becomes real.
-4. Update frontend only after backend DTO/API shape is stable.
-5. Treat a task as complete only when the corresponding requirement-to-test row has passing evidence.
-6. Before deploy, run the whole test gate: backend unit/controller/integration, PostgreSQL/Flyway migration tests, frontend tests, frontend build, backend compile, and full-stack smoke flows.
+1. Đưa migration và DB integration test vào trước.
+2. Siết invariant backend theo lát nhỏ: reservation, concurrency, trip, QC xuất, arrival/receiving, return leg, audit.
+3. Cập nhật OpenAPI và controller test khi từng endpoint thành thật.
+4. Cập nhật frontend chỉ sau khi DTO/API backend ổn định.
+5. Chỉ xem task hoàn thành khi dòng requirement-to-test tương ứng có bằng chứng pass.
+6. Trước deploy, chạy toàn bộ test gate: backend unit/controller/integration, PostgreSQL/Flyway migration test, frontend test, frontend build, backend compile và smoke flow full-stack.

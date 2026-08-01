@@ -1,14 +1,14 @@
 openapi: 3.0.3
 info:
-  title: WMS Inter-Warehouse Transfer API
+  title: API WMS Điều chuyển nội bộ giữa kho
   version: 0.1.0
 servers:
   - url: /api/v1
 paths:
   /transfer-requests/stock-lookup:
     get:
-      summary: Search read-only cross-warehouse stock availability
-      tags: [Warehouse Stock]
+      summary: Tra cứu tồn khả dụng liên kho dạng chỉ đọc
+      tags: [Tồn kho]
       parameters:
         - name: productId
           in: query
@@ -21,7 +21,7 @@ paths:
             type: string
       responses:
         '200':
-          description: Cross-warehouse availability results
+          description: Kết quả tồn khả dụng liên kho
           content:
             application/json:
               schema:
@@ -29,11 +29,11 @@ paths:
                 items:
                   $ref: '#/components/schemas/CrossWarehouseStockResponse'
         '403':
-          description: Cross-warehouse stock view forbidden
+          description: Không được xem tồn liên kho
   /transfer-requests:
     post:
-      summary: Warehouse manager creates transfer request from other-warehouse stock
-      tags: [Transfer Requests]
+      summary: Trưởng kho tạo yêu cầu điều chuyển từ tồn kho khác
+      tags: [Yêu cầu điều chuyển]
       requestBody:
         required: true
         content:
@@ -42,21 +42,21 @@ paths:
               $ref: '#/components/schemas/TransferRequestCreateRequest'
       responses:
         '201':
-          description: Created
+          description: Đã tạo
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TransferRequestResponse'
         '400':
-          description: Validation error
+          description: Lỗi validation
         '403':
-          description: Requesting warehouse outside manager scope
+          description: Kho yêu cầu nằm ngoài phạm vi của quản lý
         '422':
-          description: Invalid warehouse/product or requested quantity exceeds source availability
+          description: Kho/sản phẩm không hợp lệ hoặc số lượng yêu cầu vượt tồn nguồn
   /transfer-requests/{id}:
     put:
-      summary: Warehouse manager updates DRAFT transfer request
-      tags: [Transfer Requests]
+      summary: Trưởng kho sửa yêu cầu điều chuyển DRAFT
+      tags: [Yêu cầu điều chuyển]
       parameters:
         - $ref: '#/components/parameters/TransferRequestId'
       requestBody:
@@ -67,60 +67,60 @@ paths:
               $ref: '#/components/schemas/TransferRequestCreateRequest'
       responses:
         '200':
-          description: Updated
+          description: Đã cập nhật
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TransferRequestResponse'
         '409':
-          description: Request update not allowed
+          description: Không được cập nhật yêu cầu
   /transfer-requests/{id}/submit:
     post:
-      summary: Submit transfer request to CEO
-      tags: [Transfer Requests]
+      summary: Gửi yêu cầu điều chuyển cho CEO
+      tags: [Yêu cầu điều chuyển]
       parameters:
         - $ref: '#/components/parameters/TransferRequestId'
       responses:
         '200':
-          description: Submitted
+          description: Đã gửi
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TransferRequestResponse'
   /transfer-requests/{id}/cancel:
     post:
-      summary: Warehouse manager soft-cancels a DRAFT transfer request
-      tags: [Transfer Requests]
+      summary: Trưởng kho soft-cancel yêu cầu điều chuyển DRAFT
+      tags: [Yêu cầu điều chuyển]
       parameters:
         - $ref: '#/components/parameters/TransferRequestId'
       responses:
         '200':
-          description: Cancelled
+          description: Đã hủy
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TransferRequestResponse'
         '409':
-          description: Request is not DRAFT or actor is not allowed to cancel
+          description: Yêu cầu không còn DRAFT hoặc actor không được hủy
   /transfer-requests/{id}/approve:
     post:
-      summary: CEO approves transfer request and sends template to source Planner
-      tags: [Transfer Requests]
+      summary: CEO duyệt yêu cầu điều chuyển và gửi mẫu cho Planner nguồn
+      tags: [Yêu cầu điều chuyển]
       parameters:
         - $ref: '#/components/parameters/TransferRequestId'
       responses:
         '200':
-          description: Approved
+          description: Đã duyệt
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TransferRequestResponse'
         '409':
-          description: Approval not allowed
+          description: Không được duyệt
   /transfer-requests/{id}/reject:
     post:
-      summary: CEO rejects transfer request
-      tags: [Transfer Requests]
+      summary: CEO từ chối yêu cầu điều chuyển
+      tags: [Yêu cầu điều chuyển]
       parameters:
         - $ref: '#/components/parameters/TransferRequestId'
       requestBody:
@@ -131,28 +131,28 @@ paths:
               $ref: '#/components/schemas/CeoRejectTransferRequest'
       responses:
         '200':
-          description: Rejected
+          description: Đã từ chối
         '400':
-          description: Rejection reason required
+          description: Bắt buộc có lý do từ chối
   /transfer-requests/{id}/convert:
     post:
-      summary: Planner converts approved transfer request into TRF
-      tags: [Transfer Requests]
+      summary: Planner convert yêu cầu đã duyệt thành TRF
+      tags: [Yêu cầu điều chuyển]
       parameters:
         - $ref: '#/components/parameters/TransferRequestId'
       responses:
         '200':
-          description: Transfer request converted and linked to one TRF
+          description: Yêu cầu điều chuyển đã convert và link tới một TRF
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TransferRequestResponse'
         '409':
-          description: Request not approved or already converted
+          description: Yêu cầu chưa được duyệt hoặc đã convert
   /inter-warehouse-transfers:
     post:
-      summary: Create transfer from external instruction
-      tags: [Transfers]
+      summary: Tạo phiếu điều chuyển từ lệnh ngoài
+      tags: [Phiếu điều chuyển]
       requestBody:
         required: true
         content:
@@ -161,31 +161,31 @@ paths:
               $ref: '#/components/schemas/TransferCreateRequest'
       responses:
         '201':
-          description: Created
+          description: Đã tạo
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TransferResponse'
         '400':
-          description: Validation error
+          description: Lỗi validation
         '409':
-          description: Duplicate active external instruction or closed accounting period
+          description: Trùng lệnh ngoài đang hoạt động hoặc kỳ kế toán đã đóng
   /inter-warehouse-transfers/{id}:
     get:
-      summary: Get transfer detail
-      tags: [Transfers]
+      summary: Lấy chi tiết phiếu điều chuyển
+      tags: [Phiếu điều chuyển]
       parameters:
         - $ref: '#/components/parameters/TransferId'
       responses:
         '200':
-          description: Transfer detail
+          description: Chi tiết phiếu điều chuyển
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TransferResponse'
     put:
-      summary: Update NEW transfer
-      tags: [Transfers]
+      summary: Cập nhật phiếu NEW
+      tags: [Phiếu điều chuyển]
       parameters:
         - $ref: '#/components/parameters/TransferId'
       requestBody:
@@ -196,41 +196,41 @@ paths:
               $ref: '#/components/schemas/TransferUpdateRequest'
       responses:
         '200':
-          description: Updated
+          description: Đã cập nhật
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TransferResponse'
         '409':
-          description: Transfer update not allowed
+          description: Không được cập nhật phiếu
   /inter-warehouse-transfers/{id}/cancel:
     post:
-      summary: Cancel NEW or unshipped APPROVED transfer
-      tags: [Transfers]
+      summary: Hủy phiếu NEW hoặc APPROVED chưa ship
+      tags: [Phiếu điều chuyển]
       parameters:
         - $ref: '#/components/parameters/TransferId'
       responses:
         '204':
-          description: Cancelled
+          description: Đã hủy
         '409':
-          description: Cancel not allowed
+          description: Không được hủy
   /inter-warehouse-transfers/{id}/approve:
     post:
-      summary: Source manager approves transfer and reserves inventory
-      tags: [Transfers]
+      summary: Quản lý kho nguồn duyệt phiếu và giữ hàng
+      tags: [Phiếu điều chuyển]
       parameters:
         - $ref: '#/components/parameters/TransferId'
       responses:
         '200':
-          description: Approved
+          description: Đã duyệt
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TransferResponse'
   /inter-warehouse-transfers/{id}/reject:
     post:
-      summary: Source manager rejects NEW transfer
-      tags: [Transfers]
+      summary: Quản lý kho nguồn từ chối phiếu NEW
+      tags: [Phiếu điều chuyển]
       parameters:
         - $ref: '#/components/parameters/TransferId'
       requestBody:
@@ -241,11 +241,11 @@ paths:
               $ref: '#/components/schemas/RejectTransferRequest'
       responses:
         '200':
-          description: Rejected
+          description: Đã từ chối
   /inter-warehouse-transfers/{id}/trip:
     post:
-      summary: Dispatcher assigns dedicated transfer trip
-      tags: [Transfers]
+      summary: Dispatcher gán chuyến điều chuyển riêng
+      tags: [Phiếu điều chuyển]
       parameters:
         - $ref: '#/components/parameters/TransferId'
       requestBody:
@@ -256,11 +256,11 @@ paths:
               $ref: '#/components/schemas/AssignTripRequest'
       responses:
         '200':
-          description: Trip assigned
+          description: Đã gán chuyến
   /inter-warehouse-transfers/{id}/outbound-qc:
     post:
-      summary: Source storekeeper records outbound QC after worker load report and before handover/departure
-      tags: [Inter-Warehouse Transfers]
+      summary: Thủ kho nguồn ghi QC xuất sau báo cáo xếp hàng và trước bàn giao/rời kho
+      tags: [Điều chuyển nội bộ]
       parameters:
         - $ref: '#/components/parameters/TransferId'
       requestBody:
@@ -271,13 +271,13 @@ paths:
               $ref: '#/components/schemas/OutboundQcRequest'
       responses:
         '200':
-          description: Outbound QC recorded
+          description: Đã ghi QC xuất
         '409':
-          description: Outbound QC not allowed or failed
+          description: Không được QC xuất hoặc QC thất bại
   /inter-warehouse-transfers/{id}/source-load-report:
     post:
-      summary: Source worker reports loaded quantities before outbound QC
-      tags: [Inter-Warehouse Transfers]
+      summary: Công nhân nguồn báo số lượng xếp trước QC xuất
+      tags: [Điều chuyển nội bộ]
       parameters:
         - $ref: '#/components/parameters/TransferId'
       requestBody:
@@ -288,13 +288,13 @@ paths:
               $ref: '#/components/schemas/SourceLoadReportRequest'
       responses:
         '200':
-          description: Source load quantities recorded
+          description: Đã ghi số lượng xếp tại nguồn
         '409':
-          description: Load report not allowed in current status or actor scope
+          description: Không được báo xếp ở trạng thái hiện tại hoặc scope actor không hợp lệ
   /inter-warehouse-transfers/{id}/photo-evidence:
     post:
-      summary: Upload selected or captured transfer photo evidence
-      tags: [Inter-Warehouse Transfers]
+      summary: Upload ảnh bằng chứng đã chọn/chụp cho điều chuyển
+      tags: [Điều chuyển nội bộ]
       parameters:
         - $ref: '#/components/parameters/TransferId'
       requestBody:
@@ -308,20 +308,20 @@ paths:
                 file:
                   type: string
                   format: binary
-                  description: Image evidence selected from device storage or captured by device camera. UI should compress large camera images before upload.
+                  description: Ảnh bằng chứng được chọn từ thiết bị hoặc chụp bằng camera. UI nên nén ảnh camera lớn trước khi upload.
       responses:
         '200':
-          description: Photo stored and short reference returned
+          description: Đã lưu ảnh và trả về mã tham chiếu ngắn
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TransferPhotoUploadResponse'
         '400':
-          description: Missing, non-image, or oversized photo file
+          description: Thiếu file, file không phải ảnh hoặc ảnh vượt dung lượng
   /inter-warehouse-transfers/{id}/ship:
     post:
-      summary: Source storekeeper records exact approved quantity as loaded
-      tags: [Transfers]
+      summary: Thủ kho nguồn ghi đúng số lượng đã duyệt là số lượng gửi
+      tags: [Phiếu điều chuyển]
       parameters:
         - $ref: '#/components/parameters/TransferId'
       requestBody:
@@ -332,11 +332,11 @@ paths:
               $ref: '#/components/schemas/ShipTransferRequest'
       responses:
         '200':
-          description: Shipment recorded
+          description: Đã ghi nhận ship
   /inter-warehouse-transfers/{id}/load-handover:
     post:
-      summary: Source storekeeper records physical handover to assigned driver
-      tags: [Inter-Warehouse Transfers]
+      summary: Thủ kho nguồn ghi bàn giao vật lý cho tài xế được gán
+      tags: [Điều chuyển nội bộ]
       parameters:
         - $ref: '#/components/parameters/TransferId'
       requestBody:
@@ -347,29 +347,29 @@ paths:
               $ref: '#/components/schemas/HandoverRequest'
       responses:
         '200':
-          description: Load handover recorded
+          description: Đã ghi bàn giao xếp hàng
   /inter-warehouse-transfers/{id}/unship:
     post:
-      summary: Unload goods before driver departure and clear sent quantities
-      tags: [Transfers]
+      summary: Gỡ hàng trước khi tài xế rời kho và xóa số lượng đã gửi
+      tags: [Phiếu điều chuyển]
       parameters:
         - $ref: '#/components/parameters/TransferId'
       responses:
         '200':
-          description: Unshipped
+          description: Đã gỡ hàng
   /inter-warehouse-transfers/{id}/depart:
     post:
-      summary: Assigned driver confirms goods received and vehicle departure
-      tags: [Transfers]
+      summary: Tài xế được gán xác nhận nhận hàng và rời kho
+      tags: [Phiếu điều chuyển]
       parameters:
         - $ref: '#/components/parameters/TransferId'
       responses:
         '200':
-          description: Transfer moved to In-Transit
+          description: Phiếu đã chuyển sang In-Transit
   /inter-warehouse-transfers/{id}/arrive:
     post:
-      summary: Assigned driver records arrival at current receiving warehouse
-      tags: [Inter-Warehouse Transfers]
+      summary: Tài xế được gán ghi nhận đến kho nhận hiện tại
+      tags: [Điều chuyển nội bộ]
       parameters:
         - $ref: '#/components/parameters/TransferId'
       requestBody:
@@ -380,11 +380,11 @@ paths:
               $ref: '#/components/schemas/HandoverRequest'
       responses:
         '200':
-          description: Arrival recorded
+          description: Đã ghi nhận đến nơi
   /inter-warehouse-transfers/{id}/receiving-handover:
     post:
-      summary: Receiving warehouse records physical handover from driver
-      tags: [Inter-Warehouse Transfers]
+      summary: Kho nhận ghi bàn giao vật lý từ tài xế
+      tags: [Điều chuyển nội bộ]
       parameters:
         - $ref: '#/components/parameters/TransferId'
       requestBody:
@@ -395,11 +395,11 @@ paths:
               $ref: '#/components/schemas/HandoverRequest'
       responses:
         '200':
-          description: Arrival handover recorded; receive-count may start
+          description: Đã ghi bàn giao khi đến; có thể bắt đầu receive-count
   /inter-warehouse-transfers/{id}/receive-count:
     put:
-      summary: Destination worker records initial received quantities
-      tags: [Transfers]
+      summary: Công nhân kho đích ghi số lượng nhận ban đầu
+      tags: [Phiếu điều chuyển]
       parameters:
         - $ref: '#/components/parameters/TransferId'
       requestBody:
@@ -410,11 +410,11 @@ paths:
               $ref: '#/components/schemas/ReceiveCountRequest'
       responses:
         '200':
-          description: Receive count recorded
+          description: Đã ghi receive count
   /inter-warehouse-transfers/{id}/receive-check:
     put:
-      summary: Destination storekeeper checks counts and records QC
-      tags: [Transfers]
+      summary: Thủ kho kho đích kiểm count và ghi QC
+      tags: [Phiếu điều chuyển]
       parameters:
         - $ref: '#/components/parameters/TransferId'
       requestBody:
@@ -425,11 +425,11 @@ paths:
               $ref: '#/components/schemas/ReceiveCheckRequest'
       responses:
         '200':
-          description: Receive check approved
+          description: Đã duyệt receive check
   /inter-warehouse-transfers/{id}/final-receive:
     post:
-      summary: Destination manager final-confirms receipt
-      tags: [Transfers]
+      summary: Quản lý kho đích xác nhận nhận cuối
+      tags: [Phiếu điều chuyển]
       parameters:
         - $ref: '#/components/parameters/TransferId'
       requestBody:
@@ -440,11 +440,11 @@ paths:
               $ref: '#/components/schemas/ReceiveConfirmRequest'
       responses:
         '200':
-          description: Completed or completed with discrepancy
+          description: Hoàn tất hoặc hoàn tất có chênh lệch
   /inter-warehouse-transfers/{id}/return-to-source:
     post:
-      summary: Authorized source-side actor requests overdue return to source
-      tags: [Inter-Warehouse Transfers]
+      summary: Actor phía nguồn có quyền yêu cầu quay đầu do quá hạn
+      tags: [Điều chuyển nội bộ]
       parameters:
         - $ref: '#/components/parameters/TransferId'
       requestBody:
@@ -455,13 +455,13 @@ paths:
               $ref: '#/components/schemas/OverdueReturnRequest'
       responses:
         '200':
-          description: Overdue return approved; driver must perform return leg
+          description: Đã duyệt quay đầu do quá hạn; tài xế phải chạy chặng quay đầu
         '409':
-          description: Trip is not overdue or return not allowed
+          description: Trip chưa quá hạn hoặc không được return
   /inter-warehouse-transfers/{id}/request-return:
     post:
-      summary: Destination storekeeper reports intact wrong SKU and requests return to source
-      tags: [Transfers]
+      summary: Thủ kho kho đích báo sai SKU còn nguyên và yêu cầu quay về nguồn
+      tags: [Phiếu điều chuyển]
       parameters:
         - $ref: '#/components/parameters/TransferId'
       requestBody:
@@ -472,26 +472,26 @@ paths:
               $ref: '#/components/schemas/WrongSkuReturnRequest'
       responses:
         '200':
-          description: Return request submitted for destination manager review
+          description: Đã gửi yêu cầu return cho quản lý kho đích xem xét
         '409':
-          description: Return request not allowed in current state
+          description: Không được yêu cầu return ở trạng thái hiện tại
   /inter-warehouse-transfers/{id}/approve-return:
     post:
-      summary: Destination manager approves wrong-SKU return using the same trip and driver
-      tags: [Transfers]
+      summary: Quản lý kho đích duyệt return sai SKU bằng cùng trip và tài xế
+      tags: [Phiếu điều chuyển]
       parameters:
         - $ref: '#/components/parameters/TransferId'
       responses:
         '200':
-          description: Return approved; receiving scope flipped to source warehouse
+          description: Đã duyệt return; phạm vi nhận hàng chuyển về kho nguồn
         '403':
-          description: Destination manager scope required
+          description: Bắt buộc scope quản lý kho đích
         '409':
-          description: Pending return request required
+          description: Bắt buộc có yêu cầu return đang chờ
   /inter-warehouse-transfers/{id}/reject-return:
     post:
-      summary: Destination manager rejects wrong-SKU return request
-      tags: [Transfers]
+      summary: Quản lý kho đích từ chối yêu cầu return sai SKU
+      tags: [Phiếu điều chuyển]
       parameters:
         - $ref: '#/components/parameters/TransferId'
       requestBody:
@@ -502,29 +502,29 @@ paths:
               $ref: '#/components/schemas/ReturnDecisionRequest'
       responses:
         '200':
-          description: Return request rejected with reason
+          description: Yêu cầu return bị từ chối kèm lý do
   /inter-warehouse-transfers/{id}/return-depart:
     post:
-      summary: Assigned driver confirms return-leg departure
-      tags: [Inter-Warehouse Transfers]
+      summary: Tài xế được gán xác nhận rời kho nhận để quay đầu
+      tags: [Điều chuyển nội bộ]
       parameters:
         - $ref: '#/components/parameters/TransferId'
       responses:
         '200':
-          description: Return departure recorded
+          description: Đã ghi nhận rời điểm nhận để quay đầu
   /inter-warehouse-transfers/{id}/return-arrive:
     post:
-      summary: Assigned driver records arrival back at source warehouse
-      tags: [Inter-Warehouse Transfers]
+      summary: Tài xế được gán ghi nhận về đến kho nguồn
+      tags: [Điều chuyển nội bộ]
       parameters:
         - $ref: '#/components/parameters/TransferId'
       responses:
         '200':
-          description: Return arrival recorded
+          description: Đã ghi nhận về đến kho nguồn
   /inter-warehouse-transfers/{id}/quarantine-reject:
     post:
-      summary: Storekeeper or manager rejects entire transfer to quarantine
-      tags: [Inter-Warehouse Transfers]
+      summary: Thủ kho hoặc quản lý từ chối toàn bộ transfer và đưa vào quarantine
+      tags: [Điều chuyển nội bộ]
       parameters:
         - $ref: '#/components/parameters/TransferId'
       requestBody:
@@ -535,7 +535,7 @@ paths:
               $ref: '#/components/schemas/QuarantineRejectRequest'
       responses:
         '200':
-          description: Transfer moved to quarantine
+          description: Transfer đã chuyển vào quarantine
 components:
   parameters:
     TransferRequestId:
@@ -669,7 +669,7 @@ components:
         photoRef:
           type: string
           minLength: 1
-          description: Short photo reference returned by the transfer photo evidence upload endpoint. Do not send raw base64/data URLs in this field.
+          description: Mã tham chiếu ảnh ngắn trả về từ endpoint upload ảnh bằng chứng điều chuyển. Không gửi raw base64/data URL trong field này.
         items:
           type: array
           items:
@@ -685,7 +685,7 @@ components:
       properties:
         reworkReason:
           type: string
-          description: Required when re-reporting after failed outbound QC or when any loaded quantity differs from planned quantity.
+          description: Bắt buộc khi báo lại sau QC xuất thất bại hoặc khi bất kỳ loaded quantity nào khác planned quantity.
         items:
           type: array
           minItems: 1
@@ -703,7 +703,7 @@ components:
         photoRef:
           type: string
           minLength: 1
-          description: Required short photo reference returned by the transfer photo evidence upload endpoint.
+          description: Mã tham chiếu ảnh ngắn bắt buộc, trả về từ endpoint upload ảnh bằng chứng điều chuyển.
     TransferPhotoUploadResponse:
       type: object
       required: [photoRef]
@@ -812,8 +812,8 @@ components:
         returnReason: { type: string, nullable: true }
         returnRequestedBy: { type: integer, format: int64, nullable: true }
         returnRequestedAt: { type: string, format: date-time, nullable: true }
-        returnApprovedBy: { type: integer, format: int64, nullable: true }
-        returnApprovedAt: { type: string, format: date-time, nullable: true }
+        returnĐã duyệtBy: { type: integer, format: int64, nullable: true }
+        returnĐã duyệtAt: { type: string, format: date-time, nullable: true }
         externalInstructionCode: { type: string }
         plannedDate: { type: string, format: date }
         documentDate: { type: string, format: date }

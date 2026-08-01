@@ -207,6 +207,7 @@ const updateMockStatus = async (id, status, patch = {}) => {
 };
 
 export const interWarehouseTransferService = {
+  // Discrepancy là hồ sơ hậu kiểm sau finalReceive, dùng để xử lý trách nhiệm chứ không mở lại phiếu TRF.
   getDiscrepancyIncidents: async (params = {}) => {
     if (useMock) {
       const status = params.status;
@@ -280,6 +281,8 @@ export const interWarehouseTransferService = {
     return response.data;
   },
 
+  // Điều chuyển nội bộ - TRF planning: các hàm dưới đây chỉ đóng gói REST call/mock state.
+  // Backend mới là nguồn sự thật cho status transition, reservation FIFO, deadline và audit.
   createTransfer: async (payload) => {
     if (useMock) {
       const transfers = readMockTransfers();
@@ -360,6 +363,8 @@ export const interWarehouseTransferService = {
     return response.data;
   },
 
+  // Kho nguồn: công nhân báo xếp -> thủ kho QC xuất -> ship -> bàn giao -> tài xế depart.
+  // Frontend upload/giữ photoRef để nút không bị bấm thiếu bằng chứng.
   recordSourceLoadReport: async (id, items, reworkReason = '') => {
     if (useMock) {
       const transfer = await interWarehouseTransferService.getTransferById(id);
@@ -438,6 +443,7 @@ export const interWarehouseTransferService = {
     return response.data;
   },
 
+  // Kho nhận: count/check/finalReceive tách thành 3 bước để không ghi tồn trước khi đủ QC và duyệt cuối.
   receiveCheck: async (id, payload) => {
     const items = Array.isArray(payload) ? payload : payload.items;
     const uploaded = payload?.photoFile
@@ -484,6 +490,7 @@ export const interWarehouseTransferService = {
     return response.data;
   },
 
+  // Quay đầu xe: áp dụng khi hàng sai SKU/quá hạn/không thể nhận ở kho đích; sau khi về kho nguồn vẫn phải count/QC trước khi nhập lại.
   returnToSource: async (id, payload = {}) => {
     if (useMock) {
       return updateMockStatus(id, 'IN_TRANSIT', { isReturned: true, returnReason: payload.reason || '' });
@@ -592,6 +599,7 @@ export const interWarehouseTransferService = {
     return response.data;
   },
 
+  // Return approval tách khỏi returnToSource để quản lý kho đích kiểm soát quyết định cho xe quay đầu.
   requestReturn: async (id, payload) => {
     if (useMock) {
       const transfers = readMockTransfers();
@@ -676,6 +684,7 @@ export const interWarehouseTransferService = {
   },
 
   // --- TRANSFER REQUESTS (US4) ---
+  // TRQ là bước đề xuất của trưởng kho: không reserve tồn cho đến khi đã convert thành TRF và kho nguồn duyệt.
   getTransferRequests: async () => {
     if (useMock) {
       const raw = localStorage.getItem('wms_db_transfer_requests');

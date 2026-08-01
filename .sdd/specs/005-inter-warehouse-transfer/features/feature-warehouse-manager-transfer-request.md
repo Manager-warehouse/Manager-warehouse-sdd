@@ -1,84 +1,71 @@
-# Feature: Truong kho de xuat dieu chuyen tu ton kho kho khac va CEO duyet (US-WMS-11A)
+# Tính năng: Trưởng kho đề xuất điều chuyển và CEO duyệt (US-WMS-11A)
 
-## 1. Context and Goal
+## 1. Bối cảnh và mục tiêu
 
-Khi kho dang thieu hang, Truong kho can xem ton kho kha dung cua cac kho khac de biet kho nao con hang co the dieu chuyen. Vi day la quyet dinh dieu phoi giua cac kho vat ly, Truong kho khong duoc tu tao lenh xuat hang truc tiep. Truong kho tao yeu cau dieu chuyen, gui CEO phe duyet, sau do he thong gui mau de nghi da duyet den Planner cua kho nguon de Planner tao phieu `TRF-*` theo luong dieu chuyen noi bo hien co.
+Khi kho thiếu hàng, Trưởng kho cần xem tồn khả dụng ở kho khác để đề xuất điều chuyển. Vì đây là quyết định điều phối liên kho, Trưởng kho không được tự tạo lệnh xuất hàng trực tiếp. Trưởng kho tạo `TRQ`, gửi CEO duyệt, sau đó Planner kho nguồn dùng yêu cầu đã duyệt để tạo phiếu `TRF-*`.
 
-Luong nay la tien xu ly cua transfer, khong thay the buoc Planner tao `TRF`, Truong kho nguon phe duyet ton, Dispatcher gan xe, Thu kho xuat hang, va kho dich nhan hang.
+Luồng này là bước tiền xử lý của transfer. Nó không thay thế các bước Planner tạo `TRF`, Trưởng kho nguồn duyệt tồn, Dispatcher gán xe, Thủ kho xuất hàng và kho đích nhận hàng.
 
-## 2. Actors
+## 2. Tác nhân
 
-* **Truong kho kho yeu cau**: Xem ton kho kha dung cua kho khac, tao, sua/xoa mem khi con `DRAFT`, va gui yeu cau dieu chuyen cho CEO.
-* **CEO**: Xem nhu cau, ton kho tham chieu, ly do thieu hang, sau do phe duyet hoac tu choi.
-* **Planner kho nguon / Planner trung tam**: Nhan mau de nghi da duyet va tao `TRF-*` tu yeu cau da duoc CEO phe duyet.
+- **Trưởng kho kho yêu cầu**: Xem tồn khả dụng ở kho khác, tạo/sửa/soft-cancel `TRQ DRAFT`, gửi CEO duyệt.
+- **CEO**: Xem nhu cầu, tồn tham chiếu, lý do thiếu hàng rồi duyệt hoặc từ chối.
+- **Planner kho nguồn / Planner trung tâm**: Nhận mẫu yêu cầu đã duyệt và tạo `TRF-*`.
 
-## 3. Functional Requirements (EARS)
+## 3. Yêu cầu chức năng
 
-* **Ubiquitous:**
-  * The system SHALL allow a WAREHOUSE_MANAGER to view read-only available stock of other active warehouses for products they search or select.
-  * The system SHALL calculate available stock as `totalQty - reservedQty` and SHALL NOT include quarantine inventory as available stock.
-  * The system SHALL NOT allow the viewing warehouse manager to change inventory, reserve stock, or create shipment documents in another warehouse from the stock lookup screen.
-  * The system SHALL require warehouse-scope authorization: a warehouse manager may create requests only for their own assigned requesting warehouse.
-  * The system SHALL store manager-initiated transfer requests separately from executable `TRF-*` transfers until CEO approval and Planner conversion.
-  * The system SHALL require CEO approval before a manager-initiated transfer request can be converted into a `TRF-*`.
-  * The system SHALL notify or assign the approved request template to the Planner responsible for the source warehouse after CEO approval.
-  * The system SHALL create audit log entries for request creation, submission, CEO approval/rejection, and Planner conversion.
+- Hệ thống cho phép `WAREHOUSE_MANAGER` xem read-only tồn khả dụng ở các kho active khác.
+- Tồn khả dụng = `totalQty - reservedQty`, không tính hàng quarantine.
+- Màn tra cứu tồn không được thay đổi tồn, reserve hàng hoặc tạo chứng từ xuất ở kho khác.
+- Trưởng kho chỉ được tạo request cho kho yêu cầu nằm trong scope kho được phân công.
+- `TRQ` được lưu riêng với `TRF` cho đến khi CEO duyệt và Planner convert.
+- `TRQ` phải được CEO duyệt trước khi convert thành `TRF-*`.
+- Sau CEO approval, hệ thống thông báo hoặc gán template đã duyệt cho Planner phụ trách kho nguồn.
+- Hệ thống ghi audit cho tạo, submit, CEO approve/reject và Planner convert.
+- Khi tạo request, bắt buộc có kho nguồn, kho yêu cầu, ngày cần hàng, lý do nghiệp vụ và ít nhất một dòng hàng.
+- Mỗi dòng hàng bắt buộc có product, requested quantity, observed source available quantity và observed requesting available quantity.
+- `neededByDate` không được ở quá khứ.
+- Một product chỉ được xuất hiện một lần trong request.
+- Số lượng request phải là số nguyên dương.
+- Khi submit/approve/convert, số lượng request không được vượt tồn khả dụng hiện tại của kho nguồn.
+- Khi sửa `DRAFT`, hệ thống load header và item cũ vào form, lưu qua `PUT /api/v1/transfer-requests/{id}` và ghi audit.
+- Khi xóa `DRAFT`, hệ thống soft-cancel sang `CANCELLED`; không xóa vật lý request hoặc item history.
+- CEO chỉ approve/reject request `SUBMITTED`; reject bắt buộc có `rejectionReason`.
+- Planner chỉ convert request `APPROVED`; sau khi tạo `TRF`, request được link tới transfer và đổi status `CONVERTED`.
+- Request `REJECTED`, `CONVERTED`, `CANCELLED` không được sửa, duyệt hoặc convert tiếp.
 
-* **Event-driven:**
-  * WHEN a warehouse manager searches cross-warehouse stock, the system SHALL return product, warehouse, total quantity, reserved quantity, available quantity, and quarantine-excluded availability.
-  * WHEN HP warehouse manager sees that HCM has available stock for an item HP lacks, the manager MAY create a transfer request with HP as requesting/destination warehouse and HCM as proposed source warehouse.
-  * WHEN a manager creates a transfer request, the system SHALL require source warehouse, requesting warehouse, needed-by date, business reason, and at least one item line.
-  * WHEN a manager adds an item line, the system SHALL require product, requested quantity, observed source available quantity, and observed requesting warehouse available quantity.
-  * WHEN a manager enters `neededByDate`, the system SHALL reject dates before the backend local business date.
-  * WHEN a manager adds the same product more than once, the system SHALL reject the request and require one consolidated item line per product.
-  * WHEN a manager enters a decimal/fractional requested quantity for household-goods SKU, the system SHALL reject the request because Sprint 1 transfer quantities are whole units.
-  * WHEN requested quantity is greater than current source available quantity at submit time, the system SHALL reject the request.
-  * WHEN the manager edits a `DRAFT` request, the system SHALL load the existing header and item lines into the form, save the current requested state through `PUT /api/v1/transfer-requests/{id}`, and keep an audit trail.
-  * WHEN the manager deletes a `DRAFT` request, the system SHALL soft-cancel it by setting status to `CANCELLED`; the system SHALL NOT physically delete the request or its item history.
-  * WHEN the manager submits the request, the system SHALL set status to `SUBMITTED` and route it to CEO review.
-  * WHEN CEO approves a submitted request, the system SHALL set status to `APPROVED`, record approval metadata, and send/generate the approved request template for the source Planner.
-  * WHEN CEO rejects a submitted request, the system SHALL require `rejectionReason`, set status to `REJECTED`, and keep the request immutable for audit.
-  * WHEN Planner creates a `TRF-*` from an approved request, the system SHALL copy source warehouse, destination warehouse, item lines, needed-by/planned date, and traceability reference into the transfer create form.
-  * WHEN Planner successfully creates the `TRF-*`, the system SHALL link the transfer to the request and set request status to `CONVERTED`.
+## 4. API endpoint
 
-* **State-driven:**
-  * WHILE a transfer request is `DRAFT`, the requesting warehouse manager MAY edit it or press the UI `Xoa` action, which performs soft cancellation to `CANCELLED`.
-  * WHILE a transfer request is `SUBMITTED`, only CEO may approve or reject it; the requesting warehouse manager SHALL NOT edit item lines.
-  * WHILE a transfer request is `APPROVED`, Planner MAY convert it to one `TRF-*`; CEO approval SHALL NOT reserve inventory.
-  * WHILE a transfer request is `REJECTED`, `CONVERTED`, or `CANCELLED`, the system SHALL reject further edits, approval, or conversion.
+- `GET /api/v1/warehouse-stock/cross-warehouse` - Trưởng kho xem tồn khả dụng read-only ở kho khác.
+- `POST /api/v1/transfer-requests` - Tạo `TRQ DRAFT`.
+- `PUT /api/v1/transfer-requests/{id}` - Sửa `TRQ DRAFT`.
+- `POST /api/v1/transfer-requests/{id}/cancel` - Soft-cancel `TRQ DRAFT` từ action `Xoa`.
+- `POST /api/v1/transfer-requests/{id}/submit` - Gửi CEO duyệt.
+- `POST /api/v1/transfer-requests/{id}/approve` - CEO duyệt request.
+- `POST /api/v1/transfer-requests/{id}/reject` - CEO từ chối request với lý do.
+- `POST /api/v1/transfer-requests/{id}/convert` - Planner tạo `TRF-*` từ request đã duyệt.
 
-## 4. API Endpoints
-
-* `GET /api/v1/warehouse-stock/cross-warehouse` - Warehouse manager searches read-only stock availability in other warehouses.
-* `POST /api/v1/transfer-requests` - Warehouse manager creates a draft transfer request from cross-warehouse stock visibility.
-* `PUT /api/v1/transfer-requests/{id}` - Warehouse manager updates a `DRAFT` request.
-* `POST /api/v1/transfer-requests/{id}/cancel` - Warehouse manager soft-cancels a `DRAFT` request from the UI `Xoa` action.
-* `POST /api/v1/transfer-requests/{id}/submit` - Warehouse manager submits request to CEO.
-* `POST /api/v1/transfer-requests/{id}/approve` - CEO approves request and sends/generates the approved request template for source Planner.
-* `POST /api/v1/transfer-requests/{id}/reject` - CEO rejects request with required reason.
-* `POST /api/v1/transfer-requests/{id}/convert` - Planner creates a `TRF-*` from an approved request.
-
-### Create Request Payload
+### Payload tạo request
 
 ```json
 {
   "requestingWarehouseId": 1,
   "sourceWarehouseId": 3,
   "neededByDate": "2026-06-28",
-  "businessReason": "Kho HP thieu hang de giao dai ly trong tuan, kho HCM dang con ton kha dung.",
+  "businessReason": "Kho HP thiếu hàng để giao đại lý trong tuần, kho HCM còn tồn khả dụng.",
   "items": [
     {
       "productId": 101,
       "requestedQty": 50,
       "observedSourceAvailableQty": 120,
       "observedRequestingAvailableQty": 5,
-      "shortageReason": "Du kien khong du giao hang neu khong dieu chuyen."
+      "shortageReason": "Dự kiến không đủ giao hàng nếu không điều chuyển."
     }
   ]
 }
 ```
 
-### Response Payload
+### Payload response
 
 ```json
 {
@@ -88,7 +75,7 @@ Luong nay la tien xu ly cua transfer, khong thay the buoc Planner tao `TRF`, Tru
   "requestingWarehouseId": 1,
   "sourceWarehouseId": 3,
   "neededByDate": "2026-06-28",
-  "businessReason": "Kho HP thieu hang de giao dai ly trong tuan, kho HCM dang con ton kha dung.",
+  "businessReason": "Kho HP thiếu hàng để giao đại lý trong tuần, kho HCM còn tồn khả dụng.",
   "items": [
     {
       "id": 9001,
@@ -96,82 +83,42 @@ Luong nay la tien xu ly cua transfer, khong thay the buoc Planner tao `TRF`, Tru
       "requestedQty": 50,
       "observedSourceAvailableQty": 120,
       "observedRequestingAvailableQty": 5,
-      "shortageReason": "Du kien khong du giao hang neu khong dieu chuyen."
+      "shortageReason": "Dự kiến không đủ giao hàng nếu không điều chuyển."
     }
   ],
   "createdAt": "2026-06-24T09:00:00Z"
 }
 ```
 
-## 5. Validation and Error Handling
+## 5. Validation và xử lý lỗi
 
-* `CROSS_WAREHOUSE_STOCK_VIEW_FORBIDDEN` (HTTP 403): actor cannot view cross-warehouse stock.
-* `SAME_WAREHOUSE` (HTTP 422): requesting warehouse and source warehouse are the same.
-* `WAREHOUSE_INACTIVE` (HTTP 422): requesting or source warehouse is inactive.
-* `TRANSFER_REQUEST_ITEMS_REQUIRED` (HTTP 400): request has no item lines.
-* `INVALID_TRANSFER_QTY` (HTTP 400): `requestedQty <= 0`.
-* `TRANSFER_QTY_MUST_BE_WHOLE_NUMBER` (HTTP 400): requested quantity contains a fractional value.
-* `NEEDED_BY_DATE_MUST_NOT_BE_PAST` (HTTP 400): needed-by date is earlier than the backend local business date.
-* `DUPLICATE_TRANSFER_REQUEST_ITEM` (HTTP 400): the same product appears more than once in the request item list.
-* `PRODUCT_INACTIVE` (HTTP 422): product is inactive or unavailable for transfer.
-* `TRANSFER_REQUEST_REASON_REQUIRED` (HTTP 400): business reason or required item shortage reason is blank.
-* `TRANSFER_REQUEST_QTY_EXCEEDS_SOURCE_AVAILABLE` (HTTP 422): requested quantity exceeds current source available quantity.
-* `TRANSFER_REQUEST_APPROVAL_NOT_ALLOWED` (HTTP 409): CEO approval/rejection attempted outside `SUBMITTED` status.
-* `ONLY_DRAFT_CAN_BE_UPDATED` (HTTP 409): manager attempts to edit a request after it leaves `DRAFT`.
-* `ONLY_DRAFT_CAN_BE_CANCELLED` (HTTP 409): manager attempts to delete/cancel a request after it leaves `DRAFT`.
-* `CEO_REJECTION_REASON_REQUIRED` (HTTP 400): CEO rejects without reason.
-* `TRANSFER_REQUEST_NOT_APPROVED` (HTTP 409): Planner attempts conversion before CEO approval.
-* `TRANSFER_REQUEST_ALREADY_CONVERTED` (HTTP 409): request already linked to a `TRF-*`.
+- `CROSS_WAREHOUSE_STOCK_VIEW_FORBIDDEN` (HTTP 403): Actor không được xem tồn liên kho.
+- `SAME_WAREHOUSE` (HTTP 422): Kho yêu cầu trùng kho nguồn.
+- `WAREHOUSE_INACTIVE` (HTTP 422): Kho yêu cầu hoặc kho nguồn inactive.
+- `TRANSFER_REQUEST_ITEMS_REQUIRED` (HTTP 400): Request không có item.
+- `INVALID_TRANSFER_QTY` (HTTP 400): `requestedQty <= 0`.
+- `TRANSFER_QTY_MUST_BE_WHOLE_NUMBER` (HTTP 400): Số lượng request là số lẻ/thập phân.
+- `NEEDED_BY_DATE_MUST_NOT_BE_PAST` (HTTP 400): Ngày cần hàng ở quá khứ.
+- `DUPLICATE_TRANSFER_REQUEST_ITEM` (HTTP 400): Một product xuất hiện nhiều lần.
+- `PRODUCT_INACTIVE` (HTTP 422): Product inactive hoặc không được điều chuyển.
+- `TRANSFER_REQUEST_REASON_REQUIRED` (HTTP 400): Thiếu lý do nghiệp vụ hoặc lý do thiếu hàng bắt buộc.
+- `TRANSFER_REQUEST_QTY_EXCEEDS_SOURCE_AVAILABLE` (HTTP 422): Số lượng request vượt tồn khả dụng nguồn.
+- `TRANSFER_REQUEST_APPROVAL_NOT_ALLOWED` (HTTP 409): CEO approve/reject ngoài status `SUBMITTED`.
+- `ONLY_DRAFT_CAN_BE_UPDATED` (HTTP 409): Sửa request không còn `DRAFT`.
+- `ONLY_DRAFT_CAN_BE_CANCELLED` (HTTP 409): Hủy request không còn `DRAFT`.
+- `CEO_REJECTION_REASON_REQUIRED` (HTTP 400): CEO reject thiếu lý do.
+- `TRANSFER_REQUEST_NOT_APPROVED` (HTTP 409): Planner convert trước khi CEO duyệt.
+- `TRANSFER_REQUEST_ALREADY_CONVERTED` (HTTP 409): Request đã link tới `TRF-*`.
 
-## 6. Acceptance Criteria
+## 6. Tiêu chí chấp nhận
 
-* **Scenario: Warehouse manager requests stock from another warehouse**
-  * Given HP warehouse manager sees HP has only 5 available pans and HCM has 120 available pans
-  * When the manager creates a request for HCM to send 50 pans to HP with a business reason
-  * Then the system SHALL create a `DRAFT` transfer request with HP as requesting/destination warehouse, HCM as source warehouse, observed stock quantities, and a `TRANSFER_REQUEST_CREATE` audit log.
-
-* **Scenario: Reject request with past needed-by date**
-  * Given the backend local business date is `2026-07-28`
-  * When the requesting warehouse manager enters `neededByDate = 2026-07-27`
-  * Then the system SHALL reject the request with `NEEDED_BY_DATE_MUST_NOT_BE_PAST` and keep any existing DRAFT unchanged.
-
-* **Scenario: Reject request quantity above source availability**
-  * Given HP warehouse manager sees HN has 49 available units of product X
-  * When the manager requests 50 units of product X from HN
-  * Then the system SHALL reject submission with `TRANSFER_REQUEST_QTY_EXCEEDS_SOURCE_AVAILABLE` and SHALL NOT submit the request to CEO.
-
-* **Scenario: Submit request to CEO**
-  * Given a transfer request is in `DRAFT` status with valid item lines
-  * When the requesting warehouse manager submits it
-  * Then the system SHALL set status to `SUBMITTED`, record `submittedAt`, route it to CEO review, and create a `TRANSFER_REQUEST_SUBMIT` audit log.
-
-* **Scenario: Edit DRAFT request**
-  * Given a transfer request is in `DRAFT` status
-  * When the requesting warehouse manager clicks `Sua`, updates header or item lines, and saves
-  * Then the system SHALL persist the current request state, keep status `DRAFT`, and create an update audit log.
-
-* **Scenario: Delete DRAFT request**
-  * Given a transfer request is in `DRAFT` status
-  * When the requesting warehouse manager clicks `Xoa` and confirms
-  * Then the system SHALL set status to `CANCELLED`, keep the request history, and block future submit/edit/convert actions.
-
-* **Scenario: CEO approves and Planner receives template**
-  * Given a transfer request is `SUBMITTED`
-  * When CEO approves it
-  * Then the system SHALL set status to `APPROVED`, record CEO approval metadata, create a `TRANSFER_REQUEST_CEO_APPROVE` audit log, and send/generate an approved request template for the Planner of the source warehouse.
-
-* **Scenario: Planner converts approved request to TRF**
-  * Given CEO approved a request for HCM to send 50 pans to HP
-  * When the source Planner converts the request
-  * Then the transfer create form SHALL be prefilled with source HCM, destination HP, requested item lines, and traceability reference
-  * And after creation the system SHALL create one `TRF-*`, link it to the request, mark the request `CONVERTED`, and create a `TRANSFER_REQUEST_CONVERT` audit log.
-
-* **Scenario: Block conversion before CEO approval**
-  * Given a transfer request is still `DRAFT` or `SUBMITTED`
-  * When Planner attempts to create a `TRF-*` from it
-  * Then the system SHALL reject the action with `TRANSFER_REQUEST_NOT_APPROVED`.
-
-* **Scenario: CEO rejects with reason**
-  * Given a transfer request is `SUBMITTED`
-  * When CEO rejects it with a reason
-  * Then the system SHALL set status to `REJECTED`, store the reason, create a `TRANSFER_REQUEST_CEO_REJECT` audit log, and prevent future conversion.
+- **Trưởng kho yêu cầu hàng từ kho khác**: HP chỉ còn 5 chảo, HCM còn 120; Trưởng kho HP tạo request 50 chảo từ HCM, hệ thống tạo `DRAFT` và audit `TRANSFER_REQUEST_CREATE`.
+- **Chặn ngày cần hàng quá khứ**: `neededByDate` trước ngày nghiệp vụ backend bị reject với `NEEDED_BY_DATE_MUST_NOT_BE_PAST`.
+- **Chặn request vượt tồn nguồn**: Nếu HN chỉ còn 49 khả dụng mà request 50, hệ thống reject và không submit CEO.
+- **Submit CEO**: Request `DRAFT` hợp lệ chuyển `SUBMITTED`, ghi `submittedAt`, route tới CEO và audit `TRANSFER_REQUEST_SUBMIT`.
+- **Sửa `DRAFT`**: Bấm `Sua`, sửa header/item, lưu lại, giữ `DRAFT` và ghi audit update.
+- **Xóa `DRAFT`**: Bấm `Xoa`, confirm, hệ thống set `CANCELLED`, giữ lịch sử và chặn submit/edit/convert.
+- **CEO duyệt**: Request `SUBMITTED` chuyển `APPROVED`, ghi metadata, audit `TRANSFER_REQUEST_CEO_APPROVE` và gửi template cho Planner nguồn.
+- **Planner convert**: Planner tạo một `TRF-*`, link với request, mark request `CONVERTED` và audit `TRANSFER_REQUEST_CONVERT`.
+- **Chặn convert trước CEO approval**: Request `DRAFT` hoặc `SUBMITTED` không được convert.
+- **CEO từ chối**: CEO reject với reason, request thành `REJECTED`, lưu reason, audit và không được convert.

@@ -39,6 +39,16 @@ const ERROR_MESSAGE_BY_CODE = {
   WAREHOUSE_PRODUCT_RESERVATION_CONFLICT: 'Tồn giữ chỗ của sản phẩm vừa thay đổi. Vui lòng tải lại và thử lại.',
   CONCURRENT_MODIFICATION: 'Dữ liệu vừa được thay đổi bởi thao tác khác. Vui lòng tải lại và thử lại.',
   DATA_INTEGRITY_VIOLATION: 'Dữ liệu không thỏa mãn ràng buộc của hệ thống.',
+  TRIP_SCHEDULE_INVALID: 'Lịch trình chuyến đi không hợp lệ: thời gian kết thúc phải sau thời gian bắt đầu.',
+  TRIP_START_IN_PAST: 'Thời gian bắt đầu chuyến không được ở quá khứ.',
+  TRIP_END_IN_PAST: 'Thời gian kết thúc dự kiến không được ở quá khứ.',
+  TRIP_END_MUST_NOT_BE_AFTER_REQUIRED_DATE: 'Kết thúc dự kiến của chuyến không được sau ngày cần hàng của phiếu điều chuyển.',
+  TRANSFER_REQUIRED_DATE_EXPIRED: 'Phiếu điều chuyển đã quá ngày cần hàng, không thể lập chuyến hoặc tiếp tục xử lý.',
+  VEHICLE_SCHEDULE_OVERLAP: 'Xe đã có chuyến khác trùng thời gian. Vui lòng chọn xe hoặc khung giờ khác.',
+  DRIVER_SCHEDULE_OVERLAP: 'Tài xế đã có chuyến khác trùng thời gian. Vui lòng chọn tài xế hoặc khung giờ khác.',
+  VEHICLE_NOT_AVAILABLE: 'Xe hiện không khả dụng. Vui lòng chọn xe khác.',
+  DRIVER_NOT_AVAILABLE: 'Tài xế hiện không khả dụng. Vui lòng chọn tài xế khác.',
+  DRIVER_LICENSE_EXPIRED: 'Tài xế chưa có hạn GPLX hoặc GPLX đã hết hạn.',
   DELIVERY_ORDER_UPDATE_FORBIDDEN: 'Chỉ có thể cập nhật đơn xuất khi trạng thái còn mới và chưa có kế hoạch lấy hàng.',
   DELIVERY_ORDER_CANCEL_FORBIDDEN: 'Không thể hủy đơn xuất ở trạng thái hiện tại.',
   PICKED_GOODS_RETURN_REQUIRED: 'Đơn xuất đã có hàng được lấy, cần hoàn hàng về bin trước khi hủy.',
@@ -121,6 +131,7 @@ export const buildBackendErrorMessage = (status, data, fallbackMessage) => {
   const code = data.code || data.error;
   const message = data.message || data.error || fallbackMessage;
   const translatedByText = deliveryOrderMessageByBackendText(code, message);
+  const translatedByMessageCode = looksLikeErrorCode(message) ? ERROR_MESSAGE_BY_CODE[message] : null;
   const detailsMessage = code === 'VALIDATION_ERROR' ? validationDetailsMessage(data.details) : null;
 
   if (detailsMessage) {
@@ -128,6 +139,9 @@ export const buildBackendErrorMessage = (status, data, fallbackMessage) => {
   }
   if (translatedByText) {
     return translatedByText;
+  }
+  if (translatedByMessageCode) {
+    return translatedByMessageCode;
   }
   if (code && ERROR_MESSAGE_BY_CODE[code]) {
     return ERROR_MESSAGE_BY_CODE[code];

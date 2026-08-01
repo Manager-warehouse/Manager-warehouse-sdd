@@ -65,6 +65,7 @@ const StatusBadge = ({ status }) => {
 
 const TRANSFER_TRIP_PREFIX = "transfer-";
 
+// Điều chuyển nội bộ dùng chung màn hình tài xế với outbound, nên cần chuẩn hóa status TRF thành status chuyến.
 const transferDriverStatus = (status) => {
   if (status === "APPROVED") return "PLANNED";
   if (status === "COMPLETED" || status === "COMPLETED_WITH_VARIANCE")
@@ -172,6 +173,7 @@ export default function DriverTrip() {
 
     try {
       const transfers = await interWarehouseTransferService.getTransfers();
+      // Điều chuyển nội bộ: lấy TRF đã lập chuyến và gán đúng tài xế hiện tại để hiển thị chung với chuyến giao đại lý.
       const transferTrips = transfers
         .filter(
           (transfer) =>
@@ -254,6 +256,7 @@ export default function DriverTrip() {
     setSubmitting(true);
     try {
       if (isTransfer(trip)) {
+        // Với TRF, depart chỉ hợp lệ sau khi kho nguồn ship, QC đạt và đã bàn giao hàng lên xe.
         await interWarehouseTransferService.departTransfer(getTransferId(trip));
       } else {
         await outboundService.departTrip(trip.id);
@@ -296,6 +299,7 @@ export default function DriverTrip() {
 
     setSubmitting(true);
     try {
+      // Driver chỉ xác nhận đã tới kho; bước bàn giao/count/QC vẫn do kho nhận xử lý ở màn điều chuyển.
       await interWarehouseTransferService.driverArrive(getTransferId(trip));
       addToast("Đã xác nhận tài xế đến kho đích", "success");
       fetchTrip(trip.id);

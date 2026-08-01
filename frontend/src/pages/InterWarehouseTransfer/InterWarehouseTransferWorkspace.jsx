@@ -13,13 +13,18 @@ import InterWarehouseTransferActionPanel from "./InterWarehouseTransferActionPan
 import InterWarehouseTransferStatusBadge from "./InterWarehouseTransferStatusBadge";
 import TransferEvidencePanel from "./TransferEvidencePanel";
 
+// Chuẩn hóa id vì dữ liệu từ API/mock/form có thể là string hoặc number.
 const normalizeId = (value) => Number(value || 0);
+// Điều chuyển nội bộ không cho số lẻ vì hàng gia dụng đang quản lý theo đơn vị cái/kiện, không chia nhỏ.
 const isWholeNumber = (value) => Number.isInteger(Number(value));
+// Dùng cho validate ngày trên form tạo TRF thủ công để tránh lập phiếu lùi ngày.
 const todayInputValue = () => new Date().toISOString().slice(0, 10);
+// Chỉ lấy master data còn hoạt động để Planner/Dispatcher không chọn nhầm kho/xe đã ngừng dùng.
 const isActiveRecord = (record) =>
   record.is_active !== false && record.isActive !== false;
 const isPhysicalWarehouse = (warehouse) =>
   (warehouse.type || "").toUpperCase() !== "IN_TRANSIT";
+// Helper gom kiểm tra nhiều role để các gate UI đọc gần với rule nghiệp vụ hơn.
 const hasAnyRole = (hasRole, roles) => roles.some((role) => hasRole(role));
 
 const InterWarehouseTransferWorkspace = () => {
@@ -52,15 +57,19 @@ const InterWarehouseTransferWorkspace = () => {
     notes: "",
     items: [{ productId: "", plannedQty: 1 }],
   });
+  // Planner là người lập TRF thủ công hoặc convert từ TRQ sang phiếu vận hành.
   const canCreateTransfer = hasRole(ROLES.PLANNER);
+  // CEO/Quản lý kho cần xem ảnh bằng chứng để đối chiếu khi thiếu/thừa/sai SKU.
   const canViewTransferEvidence =
     hasRole(ROLES.CEO) || hasRole(ROLES.WAREHOUSE_MANAGER);
+  // Chỉ load xe/tài xế cho những role cần lập chuyến hoặc giám sát chuyến.
   const needsFleetData = hasAnyRole(hasRole, [
     ROLES.DISPATCHER,
     ROLES.WAREHOUSE_MANAGER,
     ROLES.ADMIN,
     ROLES.CEO,
   ]);
+  // Chỉ load bin/location cho các role có thể count, QC, cất kệ hoặc duyệt nhập kho.
   const needsLocationData = hasAnyRole(hasRole, [
     ROLES.STOREKEEPER,
     ROLES.WAREHOUSE_STAFF,
@@ -68,6 +77,7 @@ const InterWarehouseTransferWorkspace = () => {
     ROLES.ADMIN,
     ROLES.CEO,
   ]);
+  // Product cần cho tạo phiếu và các bước thao tác trên từng dòng hàng.
   const needsProductData =
     canCreateTransfer ||
     hasAnyRole(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]);
@@ -80,6 +90,7 @@ const InterWarehouseTransferWorkspace = () => {
     let active = true;
 
     const loadAvailability = async () => {
+      // Fetch tồn khả dụng theo từng dòng form TRF để cảnh báo sớm nếu Planner nhập vượt tồn nguồn.
       const sourceWarehouseId = normalizeId(form.sourceWarehouseId);
       if (!sourceWarehouseId) {
         setAvailabilityByLine({});
@@ -116,6 +127,7 @@ const InterWarehouseTransferWorkspace = () => {
   }, [form.sourceWarehouseId, form.items]);
 
   const loadData = async ({ silent = false } = {}) => {
+    // Fetch dữ liệu nền cho workspace; silent=true dùng khi polling để không làm nháy loading toàn trang.
     if (!silent) {
       setLoading(true);
     }
@@ -173,6 +185,7 @@ const InterWarehouseTransferWorkspace = () => {
   };
 
   const visibleTransfers = useMemo(() => {
+    // Lọc phiếu theo vai trò và kho đang active; backend vẫn enforce quyền ở API.
     const activeWarehouseId = normalizeId(activeWarehouse?.id);
     if (hasAnyRole(hasRole, [ROLES.ADMIN, ROLES.CEO])) {
       return transfers;
@@ -224,6 +237,7 @@ const InterWarehouseTransferWorkspace = () => {
     }
   }, [visibleTransfers, selectedId]);
 
+  // Phiếu đang được chọn để render detail, action panel và ảnh bằng chứng.
   const selectedTransfer = visibleTransfers.find(
     (transfer) => transfer.id === selectedId,
   );
@@ -237,6 +251,7 @@ const InterWarehouseTransferWorkspace = () => {
       return undefined;
     }
 
+    // Poll tự động trong giai đoạn kho nguồn đang xếp/QC để UI cập nhật khi role khác vừa thao tác.
     const hasLoadedReport = selectedTransfer.items?.every(
       (item) => item.loadedQty !== null && item.loadedQty !== undefined,
     );
@@ -271,6 +286,7 @@ const InterWarehouseTransferWorkspace = () => {
     let active = true;
 
     const loadSelectedAvailability = async () => {
+      // Fetch tồn hiện tại của SKU trên phiếu đang chọn để người duyệt biết tồn nguồn còn lại sau reservation/ship.
       if (
         !selectedTransfer?.sourceWarehouseId ||
         !selectedTransfer.items?.length
@@ -308,6 +324,7 @@ const InterWarehouseTransferWorkspace = () => {
   }, [selectedTransfer]);
 
   const filteredTransfers = useMemo(
+    // Search/filter chỉ phục vụ hiển thị danh sách; không thay đổi dữ liệu phiếu.
     () =>
       visibleTransfers.filter((transfer) => {
         const haystack =
@@ -335,6 +352,7 @@ const InterWarehouseTransferWorkspace = () => {
   }, [searchTerm, statusFilter, visibleTransfers.length]);
 
   const sourceWarehouseOptions = useMemo(() => {
+    // Planner thường chỉ được chọn kho thuộc phạm vi được gán; Admin/CEO thấy toàn bộ kho vật lý.
     const list = warehouses.filter((w) => {
       if (hasRole(ROLES.ADMIN) || hasRole(ROLES.CEO)) return true;
       const assigned = user?.warehouses || [];
@@ -347,6 +365,7 @@ const InterWarehouseTransferWorkspace = () => {
   }, [warehouses, user, hasRole]);
 
   const destinationWarehouseOptions = useMemo(() => {
+    // Kho đích phải khác kho nguồn để tránh tạo phiếu tự điều chuyển vô nghĩa.
     const list = warehouses.filter(
       (w) => Number(w.id) !== Number(form.sourceWarehouseId),
     );
@@ -357,6 +376,7 @@ const InterWarehouseTransferWorkspace = () => {
   }, [warehouses, form.sourceWarehouseId]);
 
   const setItem = (index, patch) => {
+    // Cập nhật một dòng sản phẩm trong form TRF mà không làm mất các dòng khác.
     setForm((current) => ({
       ...current,
       items: current.items.map((item, itemIndex) =>
@@ -366,6 +386,7 @@ const InterWarehouseTransferWorkspace = () => {
   };
 
   const createTransfer = async () => {
+    // Tạo TRF thủ công: frontend chặn lỗi nhập liệu cơ bản trước khi gọi backend tạo phiếu NEW.
     try {
       const source = warehouses.find(
         (warehouse) => warehouse.id === normalizeId(form.sourceWarehouseId),
@@ -374,22 +395,27 @@ const InterWarehouseTransferWorkspace = () => {
         (warehouse) =>
           warehouse.id === normalizeId(form.destinationWarehouseId),
       );
+      // Validate bắt buộc có kho nguồn để backend biết nơi giữ/xuất tồn.
       if (!source) {
         throw new Error("Vui lòng chọn kho nguồn");
       }
+      // Validate bắt buộc có kho đích để xác định nơi nhận/cất kệ cuối luồng.
       if (!destination) {
         throw new Error("Vui lòng chọn kho đích");
       }
+      // Mã lệnh Công ty mẹ là căn cứ nghiệp vụ để trace vì sao phát sinh TRF thủ công.
       if (!form.externalInstructionCode.trim()) {
         throw new Error("Vui lòng nhập mã lệnh Công ty mẹ");
       }
+      // Điều chuyển nội bộ chỉ hợp lệ giữa 2 kho vật lý khác nhau.
       if (source.id === destination.id) {
         throw new Error("Kho nguồn và kho đích phải khác nhau");
       }
+      // Phiếu không có dòng hàng thì không có gì để reserve/ship/receive.
       if (!form.items.length) {
         throw new Error("Phiếu điều chuyển cần ít nhất một dòng hàng");
       }
-      // H2: validate documentDate không được quá khứ
+      // Validate ngày chứng từ/ngày dự kiến không được lùi quá khứ để tránh lập chuyến trễ hạn từ đầu.
       if (form.documentDate < todayInputValue()) {
         throw new Error("Ngày chứng từ không được ở quá khứ");
       }
@@ -399,7 +425,7 @@ const InterWarehouseTransferWorkspace = () => {
       if (form.plannedDate < form.documentDate) {
         throw new Error("Ngày dự kiến không được trước ngày chứng từ");
       }
-      // H1: validate không trùng SKU trong form
+      // Validate không trùng SKU trong một phiếu để backend không phải cộng dồn nhiều dòng cùng sản phẩm.
       const seenProductIds = new Set();
       for (const item of form.items) {
         const productId = normalizeId(item.productId);
@@ -423,16 +449,20 @@ const InterWarehouseTransferWorkspace = () => {
           const product = products.find(
             (row) => row.id === normalizeId(item.productId),
           );
+          // Mỗi dòng phải chọn SKU thật để backend map sang inventory/product.
           if (!product) {
             throw new Error("Vui lòng chọn sản phẩm cho tất cả dòng hàng");
           }
+          // Số lượng kế hoạch phải dương vì điều chuyển không dùng dòng 0/âm.
           if (Number(item.plannedQty) <= 0) {
             throw new Error("Số lượng đặt phải lớn hơn 0");
           }
+          // Không cho số lẻ vì tồn kho hiện tại không quản lý đơn vị phân mảnh.
           if (!isWholeNumber(item.plannedQty)) {
             throw new Error("Số lượng điều chuyển phải là số nguyên");
           }
           const availability = availabilityByLine[index];
+          // Check tồn trên UI để cảnh báo nhanh; backend vẫn kiểm lại để tránh race condition.
           if (
             availability &&
             !availability.error &&
@@ -487,6 +517,8 @@ const InterWarehouseTransferWorkspace = () => {
     };
     try {
       const id = selectedTransfer.id;
+      // Điều chuyển nội bộ - TRF: workspace chỉ gom action theo tên để UI gọi đúng API.
+      // Mọi rule nghiệp vụ quan trọng được backend service xác nhận lại trước khi đổi status/tồn kho.
       const actions = {
         approve: () => interWarehouseTransferService.approveTransfer(id),
         reject: () => interWarehouseTransferService.rejectTransfer(id, payload),

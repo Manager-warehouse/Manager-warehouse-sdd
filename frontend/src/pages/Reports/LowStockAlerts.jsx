@@ -53,6 +53,7 @@ const LowStockAlerts = () => {
 
   const openTransferRequest = (alert) => {
     if (alert.is_resolved) return;
+    // Điều chuyển nội bộ: cảnh báo tồn thấp chỉ prefill form TRQ, không tự tạo phiếu hay giữ tồn kho.
     navigate('/transfers/requests', {
       state: {
         prefillTransferRequest: {

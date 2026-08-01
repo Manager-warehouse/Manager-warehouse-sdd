@@ -16,6 +16,8 @@ const STATUS_OPTIONS = [
   { value: 'RESOLVED_DESTINATION_COUNT_ERROR', label: 'Đếm sai kho đích' },
 ];
 
+// Điều chuyển nội bộ: hồ sơ chênh lệch được sinh sau bước nhận hàng khi receivedQty khác sentQty.
+// Màn hình này chỉ giúp kế toán/quản lý chốt trách nhiệm; inventory adjustment đã do backend ghi ở final receive.
 const RESOLUTION_OPTIONS = [
   { value: 'RESOLVED_ACCEPTED', label: 'Chấp nhận hao hụt' },
   { value: 'RESOLVED_SOURCE_FAULT', label: 'Lỗi kho nguồn' },
@@ -109,6 +111,7 @@ const TransferDiscrepancyWorkspace = () => {
   }, [statusFilter]);
 
   const visibleIncidents = useMemo(() => {
+    // Lọc client-side để người dùng tra nhanh theo TRF/SKU/kho; không thay đổi trạng thái hồ sơ.
     const keyword = search.trim().toLowerCase();
     if (!keyword) return incidents;
     return incidents.filter((incident) => [
@@ -143,6 +146,7 @@ const TransferDiscrepancyWorkspace = () => {
     event.preventDefault();
     if (!selectedIncident) return;
     const note = resolutionNote.trim();
+    // Resolve bắt buộc có ghi chú để audit có căn cứ kết luận vì sao thiếu/thừa được chấp nhận hoặc quy trách nhiệm.
     if (!note) {
       addToast('Vui lòng nhập ghi chú xử lý hồ sơ chênh lệch.', 'error');
       return;

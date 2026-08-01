@@ -1,4 +1,5 @@
 export const INTER_WAREHOUSE_TRANSFER_STATUS = {
+  // Điều chuyển nội bộ: giữ nguyên mã status theo backend để tránh lệch contract API.
   NEW: 'NEW',
   APPROVED: 'APPROVED',
   IN_TRANSIT: 'IN_TRANSIT',
@@ -23,6 +24,7 @@ export const INTER_WAREHOUSE_TRANSFER_STATUS_LABELS = {
 };
 
 export const INTER_WAREHOUSE_TRANSFER_STEP_LABELS = {
+  // Step chỉ mô tả bước con ở kho nguồn, không thay thế status chính của phiếu TRF.
   SOURCE_LOAD_PENDING: 'Chờ công nhân xếp/báo số lượng',
   OUTBOUND_QC_PENDING: 'Chờ QC xuất',
   SOURCE_LOAD_REWORK_REQUIRED: 'Cần xử lý lại hàng xếp',

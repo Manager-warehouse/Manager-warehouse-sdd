@@ -1,55 +1,44 @@
-# Feature: Planner Nhập Lệnh Điều chuyển kho từ Công ty mẹ (US-WMS-11)
+# Tính năng: Planner nhập phiếu điều chuyển nội bộ (US-WMS-11)
 
-## 1. Context and Goal
-Planner nhận chỉ đạo điều chuyển hàng từ Công ty mẹ, bộ phận điều phối trung tâm, hoặc một yêu cầu điều chuyển do Trưởng kho đề xuất đã được CEO phê duyệt, sau đó nhập phiếu điều chuyển vào hệ thống WMS để kho nguồn kiểm tra, phê duyệt và thực thi. Công ty mẹ không phải user trong hệ thống ở Sprint 1; mọi lệnh điều chuyển từ Công ty mẹ được nhập trung gian qua Planner. Sprint 1 không có nghiệp vụ kho tự quyết định xuất/điều chuyển hàng khi chưa có CEO duyệt hoặc chỉ đạo điều phối hợp lệ, và không có gợi ý điều chuyển tự động dựa trên tồn kho.
+## 1. Bối cảnh và mục tiêu
 
-Planner thao tác trên man hinh dieu chuyen noi bo dung chung (`/inter-warehouse-transfers`). Luong nay tach rieng khoi man hinh phieu nhap `RN` tu nha cung cap.
-Trong Sprint 1, man nay dong vai tro la workspace van hanh chinh cho transfer. Bao cao/dashboard chuyen sau cho transfer moi o muc co ban: list theo trang thai, route, dong hang, tai xe/chuyen neu da co. Cac KPI tong hop chuyen sau co the bo sung sau.
+Planner nhận lệnh điều chuyển từ Công ty mẹ, bộ phận điều phối trung tâm hoặc từ một `TRQ` đã được CEO duyệt. Planner nhập phiếu `TRF-*` trong màn **Điều chuyển nội bộ** tại `/inter-warehouse-transfers` để kho nguồn kiểm tra tồn, phê duyệt và thực thi.
 
-Phiếu điều chuyển có thể gồm nhiều dòng hàng vì lệnh điều chuyển thực tế có thể yêu cầu gửi nhiều SKU trong cùng một chuyến chứng từ, ví dụ 50 cái chảo và 30 nồi từ kho Hải Phòng sang kho Hà Nội.
+Công ty mẹ không phải user trong hệ thống ở Sprint 1. Hệ thống không tự gợi ý điều chuyển theo tồn kho và không cho kho tự ý xuất hàng nếu chưa có lệnh điều phối hợp lệ hoặc `TRQ` đã duyệt.
 
-## 2. Actors
-* **Planner (Người lập kế hoạch)**: Nhập phiếu điều chuyển theo lệnh từ Công ty mẹ, bộ phận điều phối trung tâm, hoặc yêu cầu điều chuyển đã được CEO phê duyệt.
+Phiếu điều chuyển có thể có nhiều dòng hàng, ví dụ 50 chảo và 30 nồi từ kho Hải Phòng sang kho Hà Nội trong cùng một chứng từ.
 
-## 3. Functional Requirements (EARS)
-* **Ubiquitous:**
-  * The system SHALL NOT generate transfer suggestions or automatically decide source/destination/quantity for inter-warehouse transfers in Sprint 1.
-  * The system SHALL create transfer records only from explicit Planner input based on an external transfer instruction or an approved manager transfer request.
-  * The system SHALL require `externalInstructionCode` for every transfer so the WMS transfer can be traced back to the instruction from Công ty mẹ, the central coordination team, or the approved transfer request.
-  * The system SHALL reject duplicate active transfers with the same `externalInstructionCode`, source warehouse, destination warehouse, and `documentDate`; transfers in `REJECTED` or `CANCELLED` status SHALL NOT block creating a corrected transfer for the same external instruction.
-  * The system SHALL enforce Planner authorization before transfer create/update/cancel; Planner can create and edit transfers but SHALL NOT assign trips.
-  * The system SHALL support multiple transfer item lines in one transfer.
-  * The system SHALL store each created transfer with status `NEW`.
-  * The system SHALL create a `TRANSFER_CREATE` audit log entry when a Planner creates a transfer.
-  * The system SHALL NOT require upload/attachment for the external transfer instruction in Sprint 1.
-  * The system SHALL keep the Planner view focused on transfer-document operations; trip dispatching, departure, and destination receiving are handled by later role-specific stages.
-* **Event-driven:**
-  * WHEN a Planner creates a transfer manually, the system SHALL require source warehouse, destination warehouse, planned date, document date, external instruction code, and at least one item line.
-  * WHEN a Planner adds an item line, the system SHALL require product and planned quantity.
-  * WHEN a Planner enters `documentDate`, the system SHALL reject dates before the backend local business date.
-  * WHEN a Planner enters `plannedDate`, the system SHALL reject dates before `documentDate` and reject past planned dates.
-  * WHEN a Planner submits duplicate product lines in the same transfer, the system SHALL reject the request and require the Planner to consolidate the quantity into one line.
-  * WHEN a Planner submits a transfer where source warehouse equals destination warehouse, the system SHALL reject the request.
-  * WHEN a Planner submits a transfer with inactive product, inactive warehouse, zero quantity, or negative quantity, the system SHALL reject the request.
-  * WHEN a Planner submits a transfer with decimal/fractional quantity for household-goods SKU, the system SHALL reject the request because Sprint 1 transfer quantities are whole units.
-  * WHEN a Planner opens a transfer edit screen, the system SHALL load the current transfer header and item list so the Planner edits the existing list instead of re-entering it from scratch.
-  * WHEN a Planner updates a transfer in `NEW` status, the system SHALL allow editing header fields and adding/updating/removing item lines, then save the full current transfer state after editing.
-  * WHEN a Planner updates a `NEW` transfer with a full item list, the system SHALL remove existing transfer item lines that are omitted from the payload.
-  * WHEN a Planner attempts to update a transfer after it is `APPROVED`, `REJECTED`, `IN_TRANSIT`, `COMPLETED`, `COMPLETED_WITH_DISCREPANCY`, or `CANCELLED`, the system SHALL reject the update.
-  * WHEN a Planner cancels a transfer in `NEW` status, the system SHALL set status to `CANCELLED`, keep inventory unchanged, and create a `TRANSFER_CANCEL` audit log entry.
-* **State-driven:**
-  * WHILE a transfer is in `NEW` status, Trưởng kho nguồn is responsible for checking available inventory and approving or rejecting by the shipment feature flow.
-  * WHILE a transfer is in `NEW` status, Planner MAY edit header fields, add/update/remove transfer item lines, or cancel the transfer.
-  * WHILE a transfer is in any status after `NEW`, Planner SHALL NOT edit transfer header fields or item lines.
-  * WHILE a transfer is `REJECTED`, Planner SHALL NOT revise or resubmit the same transfer; Planner MUST create a new transfer if the external instruction still needs to be executed.
+## 2. Tác nhân
 
-## 4. API Endpoints
-* `POST /api/v1/inter-warehouse-transfers` - Planner tạo phiếu điều chuyển nhiều dòng hàng theo lệnh từ Công ty mẹ.
-* `GET /api/v1/inter-warehouse-transfers/{id}` - Tải lại phiếu hiện tại để Planner sửa trên danh sách đã có.
-* `PUT /api/v1/inter-warehouse-transfers/{id}` - Planner lưu lại header và danh sách item sau chỉnh sửa khi phiếu còn `NEW`; server xem payload là trạng thái hiện tại mong muốn của phiếu.
-* `POST /api/v1/inter-warehouse-transfers/{id}/cancel` - Endpoint hủy dùng chung; Planner chỉ được hủy phiếu `NEW`, còn phiếu `APPROVED` chỉ được hủy bởi Trưởng kho nguồn/manager theo shipment flow.
+- **Planner**: Tạo, sửa, hủy phiếu `TRF` khi phiếu còn `NEW`; không gán xe và không phê duyệt tồn.
 
-### Request Payload
+## 3. Yêu cầu chức năng
+
+- Hệ thống không được tự sinh đề xuất điều chuyển trong Sprint 1.
+- Hệ thống chỉ tạo transfer từ input rõ ràng của Planner dựa trên lệnh ngoài hoặc `TRQ` đã duyệt.
+- Mỗi transfer bắt buộc có `externalInstructionCode` để truy vết về lệnh gốc.
+- Không được tạo hai transfer đang hoạt động có cùng `externalInstructionCode`, kho nguồn, kho đích và `documentDate`.
+- Transfer đã `REJECTED` hoặc `CANCELLED` không chặn tạo lại chứng từ sửa cho cùng lệnh ngoài.
+- Planner phải có quyền trước khi tạo/sửa/hủy phiếu.
+- Một transfer phải có ít nhất một item line.
+- Transfer mới tạo có status `NEW`.
+- Khi tạo transfer, hệ thống ghi audit `TRANSFER_CREATE`.
+- Sprint 1 không bắt buộc upload file lệnh điều chuyển ngoài.
+- Khi Planner mở màn sửa, hệ thống phải load header và item hiện có để sửa trên dữ liệu cũ.
+- Planner chỉ được sửa/hủy khi transfer còn `NEW`.
+- Khi sửa transfer `NEW`, payload item hiện tại là danh sách cuối cùng; item bị bỏ khỏi payload sẽ bị xóa khỏi phiếu.
+- Nếu transfer đã `APPROVED`, `REJECTED`, `IN_TRANSIT`, `COMPLETED`, `COMPLETED_WITH_DISCREPANCY` hoặc `CANCELLED`, hệ thống phải chặn sửa.
+- Nếu Planner hủy transfer `NEW`, hệ thống đặt status `CANCELLED`, không đổi tồn kho và ghi audit `TRANSFER_CANCEL`.
+
+## 4. API endpoint
+
+- `POST /api/v1/inter-warehouse-transfers` - Planner tạo phiếu điều chuyển.
+- `GET /api/v1/inter-warehouse-transfers/{id}` - Tải chi tiết phiếu để xem/sửa.
+- `PUT /api/v1/inter-warehouse-transfers/{id}` - Planner lưu header và danh sách item khi phiếu còn `NEW`.
+- `POST /api/v1/inter-warehouse-transfers/{id}/cancel` - Hủy phiếu; Planner chỉ được hủy `NEW`.
+
+### Payload request
+
 ```json
 {
   "sourceWarehouseId": 1,
@@ -57,7 +46,7 @@ Phiếu điều chuyển có thể gồm nhiều dòng hàng vì lệnh điều 
   "plannedDate": "2026-06-20",
   "documentDate": "2026-06-13",
   "externalInstructionCode": "HQ-TRF-20260613-001",
-  "notes": "Lenh dieu chuyen tu cong ty me",
+  "notes": "Lệnh điều chuyển từ công ty mẹ",
   "items": [
     {
       "productId": 101,
@@ -71,7 +60,8 @@ Phiếu điều chuyển có thể gồm nhiều dòng hàng vì lệnh điều 
 }
 ```
 
-### Response Payload
+### Payload response
+
 ```json
 {
   "id": 10,
@@ -82,7 +72,7 @@ Phiếu điều chuyển có thể gồm nhiều dòng hàng vì lệnh điều 
   "plannedDate": "2026-06-20",
   "documentDate": "2026-06-13",
   "externalInstructionCode": "HQ-TRF-20260613-001",
-  "notes": "Lenh dieu chuyen tu cong ty me",
+  "notes": "Lệnh điều chuyển từ công ty mẹ",
   "items": [
     {
       "id": 1001,
@@ -99,81 +89,35 @@ Phiếu điều chuyển có thể gồm nhiều dòng hàng vì lệnh điều 
 }
 ```
 
-## 5. Validation and Error Handling
-* `SAME_WAREHOUSE` (HTTP 422): `sourceWarehouseId = destinationWarehouseId`.
-* `TRANSFER_ITEMS_REQUIRED` (HTTP 400): no item lines provided.
-* `INVALID_TRANSFER_QTY` (HTTP 400): `plannedQty <= 0`.
-* `PRODUCT_INACTIVE` (HTTP 422): product is inactive or unavailable for transaction.
-* `WAREHOUSE_INACTIVE` (HTTP 422): source or destination warehouse is inactive.
-* `EXTERNAL_INSTRUCTION_CODE_REQUIRED` (HTTP 400): `externalInstructionCode` is blank or missing.
-* `DUPLICATE_EXTERNAL_INSTRUCTION` (HTTP 409): another active transfer already uses the same `externalInstructionCode`, source warehouse, destination warehouse, and `documentDate`.
-* `ACCOUNTING_PERIOD_CLOSED` (HTTP 409): `documentDate` falls in a closed accounting period.
-* `DOCUMENT_DATE_MUST_NOT_BE_PAST` (HTTP 400): `documentDate` is earlier than the backend local business date.
-* `PLANNED_DATE_MUST_NOT_BE_PAST` (HTTP 400): `plannedDate` is earlier than the backend local business date.
-* `PLANNED_DATE_BEFORE_DOCUMENT_DATE` (HTTP 400): `plannedDate` is earlier than `documentDate`.
-* `DUPLICATE_TRANSFER_ITEM` (HTTP 400): the same product appears more than once in the transfer item list.
-* `TRANSFER_QTY_MUST_BE_WHOLE_NUMBER` (HTTP 400): transfer quantity contains a fractional value.
-* `TRANSFER_UPDATE_NOT_ALLOWED` (HTTP 409): transfer is no longer in `NEW` status.
-* `TRANSFER_CANCEL_NOT_ALLOWED` (HTTP 409): Planner attempts to cancel a transfer after it is no longer `NEW`.
+## 5. Validation và xử lý lỗi
 
-## 6. Acceptance Criteria
-* **Scenario: Create multi-item transfer from external instruction**
-  * Given Planner receives an external instruction to move 50 pans and 30 pots from warehouse HP to warehouse HN
-  * When Planner submits the transfer form with external instruction code and two item lines
-  * Then the system SHALL create one `NEW` transfer with two transfer items, source warehouse HP, destination warehouse HN, planned date, document date, external instruction code, and a `TRANSFER_CREATE` audit log entry.
+- `SAME_WAREHOUSE` (HTTP 422): Kho nguồn trùng kho đích.
+- `TRANSFER_ITEMS_REQUIRED` (HTTP 400): Không có dòng hàng.
+- `INVALID_TRANSFER_QTY` (HTTP 400): `plannedQty <= 0`.
+- `PRODUCT_INACTIVE` (HTTP 422): Sản phẩm inactive hoặc không được giao dịch.
+- `WAREHOUSE_INACTIVE` (HTTP 422): Kho nguồn hoặc kho đích inactive.
+- `EXTERNAL_INSTRUCTION_CODE_REQUIRED` (HTTP 400): Thiếu `externalInstructionCode`.
+- `DUPLICATE_EXTERNAL_INSTRUCTION` (HTTP 409): Trùng lệnh ngoài trên phiếu đang hoạt động.
+- `ACCOUNTING_PERIOD_CLOSED` (HTTP 409): `documentDate` thuộc kỳ kế toán đã đóng.
+- `DOCUMENT_DATE_MUST_NOT_BE_PAST` (HTTP 400): Ngày chứng từ ở quá khứ.
+- `PLANNED_DATE_MUST_NOT_BE_PAST` (HTTP 400): Ngày dự kiến ở quá khứ.
+- `PLANNED_DATE_BEFORE_DOCUMENT_DATE` (HTTP 400): Ngày dự kiến trước ngày chứng từ.
+- `DUPLICATE_TRANSFER_ITEM` (HTTP 400): Một sản phẩm xuất hiện nhiều lần trong phiếu.
+- `TRANSFER_QTY_MUST_BE_WHOLE_NUMBER` (HTTP 400): Số lượng điều chuyển là số lẻ/thập phân.
+- `TRANSFER_UPDATE_NOT_ALLOWED` (HTTP 409): Phiếu không còn `NEW`.
+- `TRANSFER_CANCEL_NOT_ALLOWED` (HTTP 409): Planner hủy phiếu sau khi không còn `NEW`.
 
-* **Scenario: Reject missing external instruction code**
-  * Given Planner enters source warehouse, destination warehouse, planned date, document date, and item lines
-  * When Planner submits the transfer without `externalInstructionCode`
-  * Then the system SHALL reject the request with `EXTERNAL_INSTRUCTION_CODE_REQUIRED`.
+## 6. Tiêu chí chấp nhận
 
-* **Scenario: Reject duplicate active external instruction**
-  * Given an active transfer already exists for external instruction `HQ-TRF-20260613-001`, source warehouse HP, destination warehouse HN, and document date `2026-06-13`
-  * When Planner creates another transfer with the same external instruction code, source warehouse, destination warehouse, and document date
-  * Then the system SHALL reject the request with `DUPLICATE_EXTERNAL_INSTRUCTION`.
-
-* **Scenario: Reject same source and destination warehouse**
-  * Given Planner selects HP as both source and destination warehouse
-  * When Planner submits the transfer
-  * Then the system SHALL reject the request with `SAME_WAREHOUSE`.
-
-* **Scenario: Reject past document or planned date**
-  * Given the backend local business date is `2026-07-28`
-  * When Planner creates or edits a `NEW` transfer with `documentDate = 2026-07-27` or `plannedDate = 2026-07-27`
-  * Then the system SHALL reject the request with the matching date validation message and keep the transfer unchanged.
-
-* **Scenario: Reject duplicate SKU lines**
-  * Given Planner adds product X twice in the same transfer form
-  * When Planner submits the transfer
-  * Then the system SHALL reject the request with `DUPLICATE_TRANSFER_ITEM` and ask the Planner to combine quantities.
-
-* **Scenario: Reject empty item list**
-  * Given Planner enters source warehouse, destination warehouse, and planned date
-  * When Planner submits the transfer without item lines
-  * Then the system SHALL reject the request with `TRANSFER_ITEMS_REQUIRED`.
-
-* **Scenario: Edit transfer while NEW**
-  * Given a transfer is in `NEW` status with two item lines
-  * When Planner opens the edit screen, the system loads the current transfer header and item list
-  * And Planner changes the quantity of one line and removes the other line
-  * Then the system SHALL save the updated transfer, remove the omitted item line, keep status `NEW`, and create an audit entry for the change.
-
-* **Scenario: Cancel transfer while NEW**
-  * Given a transfer is in `NEW` status and no inventory has been reserved
-  * When Planner cancels the transfer
-  * Then the system SHALL set status to `CANCELLED`, create a `TRANSFER_CANCEL` audit entry, and keep inventory unchanged.
-
-* **Scenario: Block edit after approval or rejection**
-  * Given a transfer is already `APPROVED` or `REJECTED`
-  * When Planner tries to change item quantity or remove an item line
-  * Then the system SHALL reject the request with `TRANSFER_UPDATE_NOT_ALLOWED`.
-
-* **Scenario: Recreate instead of resubmitting rejected transfer**
-  * Given a transfer was rejected by Trưởng kho nguồn with a rejection reason
-  * When Planner needs to continue the external transfer instruction after correction
-  * Then Planner SHALL create a new transfer, and the rejected transfer SHALL remain unchanged for audit traceability.
-
-* **Scenario: Planner sees lightweight transfer dashboard**
-  * Given Planner opens the shared transfer workspace
-  * When transfer records already exist
-  * Then the screen SHALL at minimum show transfer code, route, status, and line count so Planner can identify which document to continue or review.
+- **Tạo transfer nhiều dòng từ lệnh ngoài**: Khi Planner gửi form có lệnh ngoài và hai dòng hàng, hệ thống tạo một transfer `NEW`, có hai item và audit `TRANSFER_CREATE`.
+- **Chặn thiếu mã lệnh ngoài**: Nếu thiếu `externalInstructionCode`, hệ thống trả `EXTERNAL_INSTRUCTION_CODE_REQUIRED`.
+- **Chặn trùng lệnh ngoài đang hoạt động**: Nếu đã có phiếu active cùng lệnh ngoài, nguồn, đích và ngày chứng từ, hệ thống trả `DUPLICATE_EXTERNAL_INSTRUCTION`.
+- **Chặn nguồn trùng đích**: Nếu source và destination giống nhau, hệ thống trả `SAME_WAREHOUSE`.
+- **Chặn ngày quá khứ**: Nếu `documentDate` hoặc `plannedDate` trước ngày nghiệp vụ backend, hệ thống reject và giữ phiếu không đổi.
+- **Chặn SKU trùng**: Nếu cùng product xuất hiện nhiều lần trong form, hệ thống trả `DUPLICATE_TRANSFER_ITEM`.
+- **Chặn item rỗng**: Nếu không có item, hệ thống trả `TRANSFER_ITEMS_REQUIRED`.
+- **Sửa phiếu khi `NEW`**: Planner sửa quantity hoặc bỏ dòng hàng, hệ thống lưu danh sách mới, giữ status `NEW` và ghi audit.
+- **Hủy phiếu khi `NEW`**: Hệ thống đặt `CANCELLED`, ghi `TRANSFER_CANCEL` và không đổi tồn kho.
+- **Chặn sửa sau duyệt/từ chối**: Phiếu đã `APPROVED` hoặc `REJECTED` không được sửa item.
+- **Tạo lại thay vì submit lại phiếu bị từ chối**: Phiếu bị từ chối giữ nguyên để audit; Planner tạo phiếu mới nếu vẫn cần thực thi lệnh.
+- **Dashboard nhẹ cho Planner**: Workspace tối thiểu hiển thị mã transfer, tuyến, trạng thái và số dòng hàng.
