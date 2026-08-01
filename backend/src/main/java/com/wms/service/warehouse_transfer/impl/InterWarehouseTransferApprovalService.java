@@ -38,14 +38,16 @@ import org.springframework.transaction.annotation.Transactional;
 public class InterWarehouseTransferApprovalService {
 
     /*
-     * Bước duyệt của kho nguồn. Khi phiếu còn mới, trưởng kho nguồn quyết định cho chuyển hàng hay không.
-     * Duyệt là thời điểm giữ hàng thật trong kho; từ chối thì không động tới tồn kho.
+     * LUỒNG DUYỆT PHIẾU ĐIỀU CHUYỂN:
+     * - Các hàm public là hành động chính của trưởng kho nguồn/CEO/Admin: duyệt hoặc từ chối phiếu NEW.
+     * - Không có helper riêng trong file này; các rule giữ/trả hàng, kiểm quyền và audit dùng InterWarehouseTransferHelper.
      */
     private final InterWarehouseTransferRepository transferRepository;
     private final InterWarehouseTransferHelper helper;
 
     @Transactional
     public InterWarehouseTransferResponse approveTransfer(Long id, User actor) {
+        // HÀM CHÍNH: duyệt phiếu điều chuyển và giữ hàng khả dụng tại kho nguồn.
         // Phiếu mới -> đã duyệt: giữ hàng khả dụng theo nguyên tắc xuất trước trước khi điều phối viên gán xe.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.requireStatus(transfer, InterWarehouseTransferStatus.NEW);
@@ -66,6 +68,7 @@ public class InterWarehouseTransferApprovalService {
 
     @Transactional
     public InterWarehouseTransferResponse rejectTransfer(Long id, InterWarehouseTransferReasonRequest request, User actor) {
+        // HÀM CHÍNH: từ chối phiếu điều chuyển khi còn NEW, không làm thay đổi tồn kho.
         // Phiếu mới -> bị từ chối: không động tồn kho, bắt buộc có lý do để truy vết quyết định của trưởng kho.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.requireStatus(transfer, InterWarehouseTransferStatus.NEW);

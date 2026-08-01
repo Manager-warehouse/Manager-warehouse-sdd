@@ -52,7 +52,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class InterWarehouseTransferPlanningService {
 
     /*
-     * Giai đoạn lập phiếu: tạo/sửa/hủy phiếu điều chuyển trước khi kho nguồn duyệt.
+     * LUỒNG LẬP PHIẾU:
+     * - Các hàm public là hành động chính của Planner: tạo phiếu, tạo từ yêu cầu đã duyệt, sửa phiếu, hủy phiếu.
+     * - Các hàm private là hàm hỗ trợ: kiểm quyền, validate kho/ngày/dòng hàng/vị trí, sinh dữ liệu entity.
+     *
+     * Giai đoạn lập phiếu tạo/sửa/hủy phiếu điều chuyển trước khi kho nguồn duyệt.
      * Các kiểm tra ở đây bảo đảm phiếu hợp lệ về kho phụ trách, ngày chứng từ,
      * kho vật lý, dòng hàng không trùng, số lượng nguyên và vị trí đúng kho.
      */
@@ -63,6 +67,7 @@ public class InterWarehouseTransferPlanningService {
 
     @Transactional
     public InterWarehouseTransferResponse createTransfer(InterWarehouseTransferCreateRequest request, User actor) {
+        // HÀM CHÍNH: Planner tạo phiếu điều chuyển thủ công.
         // Luồng tạo thủ công: người lập phiếu phải thuộc kho nguồn.
         return createTransfer(request, actor, false);
     }
@@ -70,6 +75,7 @@ public class InterWarehouseTransferPlanningService {
     @Transactional
     public InterWarehouseTransferResponse createTransferFromApprovedRequest(InterWarehouseTransferCreateRequest request,
             User actor) {
+        // HÀM CHÍNH: tạo phiếu điều chuyển từ yêu cầu đã được CEO/Admin duyệt.
         // Luồng sinh từ yêu cầu điều chuyển đã duyệt: người lập phiếu có thể thuộc kho nguồn hoặc kho đích liên quan.
         return createTransfer(request, actor, true);
     }
@@ -121,6 +127,7 @@ public class InterWarehouseTransferPlanningService {
 
     @Transactional
     public InterWarehouseTransferResponse updateTransfer(Long id, InterWarehouseTransferUpdateRequest request, User actor) {
+        // HÀM CHÍNH: sửa phiếu khi còn NEW, trước khi kho nguồn duyệt/giữ hàng.
         // Chỉ phiếu mới được sửa; nếu đã duyệt thì phải hủy hoặc gỡ số lượng đã chốt gửi thay vì sửa trực tiếp.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.requireStatus(transfer, InterWarehouseTransferStatus.NEW);
@@ -145,6 +152,7 @@ public class InterWarehouseTransferPlanningService {
 
     @Transactional
     public InterWarehouseTransferResponse cancelTransfer(Long id, InterWarehouseTransferReasonRequest request, User actor) {
+        // HÀM CHÍNH: hủy phiếu NEW hoặc APPROVED nhưng chưa xếp/chốt gửi.
         // Hủy phiếu mới trực tiếp; phiếu đã duyệt chỉ được hủy khi chưa chốt số lượng gửi và phải trả lại hàng đang giữ chỗ.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.ensureWarehouseScope(actor, transfer.getSourceWarehouse().getId());

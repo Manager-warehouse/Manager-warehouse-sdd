@@ -24,6 +24,11 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class DiscrepancyIncidentServiceImpl implements DiscrepancyIncidentService {
 
+    /*
+     * LUỒNG HỒ SƠ CHÊNH LỆCH ĐIỀU CHUYỂN:
+     * - Các hàm public là hành động chính: xem danh sách incident và xử lý/đóng incident.
+     * - Các hàm private là hàm hỗ trợ: kiểm quyền xem/xử lý, snapshot audit và kiểm chuỗi rỗng.
+     */
     private static final String OPEN = "OPEN";
     private static final Set<String> RESOLUTION_STATUSES = Set.of(
             "RESOLVED_ACCEPTED",
@@ -47,6 +52,7 @@ public class DiscrepancyIncidentServiceImpl implements DiscrepancyIncidentServic
     @Override
     @Transactional(readOnly = true)
     public List<DiscrepancyIncidentResponse> listIncidents(String status, User actor) {
+        // HÀM CHÍNH: liệt kê hồ sơ chênh lệch mà người dùng được phép xem.
         Sort sort = Sort.by(Sort.Direction.DESC, "createdAt");
         List<DiscrepancyIncident> incidents = isBlank(status)
                 ? incidentRepository.findAllWithDetails(sort)
@@ -63,6 +69,7 @@ public class DiscrepancyIncidentServiceImpl implements DiscrepancyIncidentServic
     public DiscrepancyIncidentResponse resolveIncident(Long id,
                                                        DiscrepancyIncidentResolveRequest request,
                                                        User actor) {
+        // HÀM CHÍNH: người có quyền kết luận và đóng hồ sơ chênh lệch.
         DiscrepancyIncident incident = incidentRepository.findWithDetailsById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("DISCREPANCY_INCIDENT_NOT_FOUND"));
 
@@ -99,6 +106,7 @@ public class DiscrepancyIncidentServiceImpl implements DiscrepancyIncidentServic
     }
 
     private boolean canAccess(DiscrepancyIncident incident, User actor) {
+        // HÀM HỖ TRỢ: kiểm người dùng có được xem incident theo vai trò và kho liên quan không.
         if (actor == null || actor.getRole() == null) {
             return false;
         }
@@ -116,6 +124,7 @@ public class DiscrepancyIncidentServiceImpl implements DiscrepancyIncidentServic
     }
 
     private boolean canResolve(User actor) {
+        // HÀM HỖ TRỢ: kiểm vai trò được phép xử lý/kết luận incident.
         if (actor == null || actor.getRole() == null) {
             return false;
         }
@@ -126,6 +135,7 @@ public class DiscrepancyIncidentServiceImpl implements DiscrepancyIncidentServic
     }
 
     private Map<String, Object> snapshot(DiscrepancyIncident incident) {
+        // HÀM HỖ TRỢ: lấy trạng thái trước/sau để ghi audit log khi xử lý incident.
         return Map.of(
                 "status", incident.getStatus(),
                 "resolutionNote", incident.getResolutionNote() == null ? "" : incident.getResolutionNote(),

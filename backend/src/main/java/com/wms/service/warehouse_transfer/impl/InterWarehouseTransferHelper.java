@@ -54,9 +54,10 @@ import org.springframework.stereotype.Component;
 public class InterWarehouseTransferHelper {
 
     /*
-     * Helper giữ các quy tắc dùng chung cho toàn bộ luồng điều chuyển:
-     * quyền theo kho, kiểm trạng thái phiếu, giữ/trả hàng, cập nhật tồn, ghi lịch sử và chuyển dữ liệu trả về.
-     * Các service con gọi helper để tránh mỗi giai đoạn tự viết lại rule nền tảng.
+     * HÀM HỖ TRỢ DÙNG CHUNG:
+     * File này không phải một bước nghiệp vụ người dùng bấm trực tiếp.
+     * Các service chính gọi helper để dùng chung rule nền: quyền theo kho, kiểm trạng thái phiếu,
+     * giữ/trả hàng, cập nhật tồn, deadline, audit và map response.
      */
     public static final String ENTITY = "TRANSFER";
     public static final String IN_TRANSIT_WAREHOUSE_CODE = "IN_TRANSIT";
