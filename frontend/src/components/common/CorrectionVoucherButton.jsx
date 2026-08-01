@@ -4,6 +4,7 @@ import { financeService } from '../../services/finance.service';
 import { useUiStore } from '../../stores/ui.store';
 import { useAuthStore } from '../../stores/auth.store';
 import { ROLES } from '../../utils/constants';
+import { getLocalDateString } from '../../utils/format';
 import Modal from './Modal';
 import Button from './Button';
 import Input from './Input';
@@ -31,7 +32,7 @@ const CorrectionVoucherButton = ({
   const [form, setForm] = useState({
     amountDelta: '',
     reason: '',
-    documentDate: new Date().toISOString().slice(0, 10)
+    documentDate: getLocalDateString()
   });
   // Set only when today's own period is CLOSED, to warn the accountant before they hit
   // PERIOD_CLOSED on submit - never used to silently rewrite documentDate. Auto-shifting
@@ -46,12 +47,12 @@ const CorrectionVoucherButton = ({
   }
 
   const openModal = async () => {
-    setForm({ amountDelta: '', reason: '', documentDate: new Date().toISOString().slice(0, 10) });
+    setForm({ amountDelta: '', reason: '', documentDate: getLocalDateString() });
     setOpenPeriodHint(null);
     setShowModal(true);
     try {
       const periods = await financeService.getAccountingPeriods();
-      const today = new Date().toISOString().slice(0, 10);
+      const today = getLocalDateString();
       const containingToday = (periods || []).find((p) => {
         const start = p.start_date ?? p.startDate;
         const end = p.end_date ?? p.endDate;

@@ -3,6 +3,7 @@ import { financeService } from '../../services/finance.service';
 import { useUiStore } from '../../stores/ui.store';
 import { useAuthStore } from '../../stores/auth.store';
 import { ROLES } from '../../utils/constants';
+import { getLocalDateString } from '../../utils/format';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import { Calendar, Lock, Unlock, CheckCircle2, AlertCircle, Clock, ChevronDown, ChevronRight, Wrench, Plus } from 'lucide-react';
@@ -61,7 +62,7 @@ const PeriodClosing = () => {
   // The backend now rejects closing a period that hasn't ended yet (PERIOD_NOT_YET_ENDED)
   // to prevent locking the still-live current month - mirrored here so the button doesn't
   // invite a click that's guaranteed to fail.
-  const periodHasEnded = (p) => (p.end_date ?? p.endDate) < new Date().toISOString().slice(0, 10);
+  const periodHasEnded = (p) => (p.end_date ?? p.endDate) < getLocalDateString();
 
   const handleClosePeriod = async (periodId) => {
     setClosingPeriodId(periodId);

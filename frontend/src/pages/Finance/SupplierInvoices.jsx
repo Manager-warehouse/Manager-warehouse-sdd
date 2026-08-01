@@ -4,6 +4,7 @@ import { masterDataService } from '../../services/masterData.service';
 import { useUiStore } from '../../stores/ui.store';
 import { useAuthStore } from '../../stores/auth.store';
 import { ROLES } from '../../utils/constants';
+import { formatDate } from '../../utils/format';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import PhotoCaptureInput from '../../components/common/PhotoCaptureInput';
@@ -452,7 +453,9 @@ const SupplierInvoices = () => {
                           <td className="p-4 font-bold text-ink">{notif.receiptOrderNumber || notif.receipt_number}</td>
                           <td className="p-4 font-medium text-ink">{notif.supplierName || notif.supplier_name}</td>
                           <td className="p-4 text-shade-60">Kho #{notif.warehouseId || notif.warehouse_id}</td>
-                          <td className="p-4 text-shade-60">{notif.completedAt || 'Mới hoàn tất'}</td>
+                          <td className="p-4 text-shade-60">
+                            {(notif.completedAt || notif.completed_at) ? formatDate(notif.completedAt || notif.completed_at) : 'Mới hoàn tất'}
+                          </td>
                           <td className="p-4 text-right font-bold text-ink">
                             {(notif.totalAmountEstimate || 0).toLocaleString()}đ
                           </td>
