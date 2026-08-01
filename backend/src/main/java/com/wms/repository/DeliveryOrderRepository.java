@@ -52,7 +52,7 @@ public interface DeliveryOrderRepository extends JpaRepository<DeliveryOrder, Lo
     boolean existsByDoNumber(String doNumber);
     List<DeliveryOrder> findByDealerIdAndStatus(Long dealerId, DeliveryOrderStatus status);
 
-    @EntityGraph(attributePaths = {"dealer", "warehouse", "createdBy"})
+    @EntityGraph(attributePaths = {"dealer", "warehouse", "createdBy", "packedBy", "qcBy"})
     @Query("select d from DeliveryOrder d where d.id = :id")
     Optional<DeliveryOrder> findWithDealerAndWarehouseById(@Param("id") Long id);
 
@@ -71,7 +71,7 @@ public interface DeliveryOrderRepository extends JpaRepository<DeliveryOrder, Lo
             """)
     List<DeliveryOrder> findDetailedByWarehouseIdIn(@Param("warehouseIds") Collection<Long> warehouseIds);
 
-    @EntityGraph(attributePaths = {"dealer", "warehouse", "createdBy"})
+    @EntityGraph(attributePaths = {"dealer", "warehouse", "createdBy", "packedBy", "qcBy"})
     @Query("""
             select d from DeliveryOrder d
             where d.id = :id
