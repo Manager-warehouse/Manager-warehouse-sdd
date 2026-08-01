@@ -159,6 +159,15 @@ public class StockTakeService {
         assertPeriodOpen(period);
         validateCreateDates(req, period);
 
+        // S4: check for overlapping active stocktake in same warehouse BEFORE creating a new one
+        boolean hasActive = stockTakeRepository.existsByWarehouseIdAndStatusIn(
+                req.getWarehouseId(),
+                List.of(StockTakeStatus.DRAFT, StockTakeStatus.IN_PROGRESS, StockTakeStatus.PENDING_APPROVAL));
+        if (hasActive) {
+            throw new StockTakeException("OVERLAPPING_STOCKTAKE", HttpStatus.CONFLICT,
+                    "An active stocktake already exists for warehouse " + req.getWarehouseId());
+        }
+
         String number = generateStockTakeNumber();
 
         StockTake st = StockTake.builder()
@@ -176,14 +185,6 @@ public class StockTakeService {
                 .build();
         st = stockTakeRepository.save(st);
 
-        // S4: check for overlapping active stocktake in same warehouse
-        boolean hasActive = stockTakeRepository.existsByWarehouseIdAndStatusIn(
-                req.getWarehouseId(),
-                List.of(StockTakeStatus.DRAFT, StockTakeStatus.IN_PROGRESS, StockTakeStatus.PENDING_APPROVAL));
-        if (hasActive) {
-            throw new StockTakeException("OVERLAPPING_STOCKTAKE", HttpStatus.CONFLICT,
-                    "An active stocktake already exists for warehouse " + req.getWarehouseId());
-        }
 
         // Populate items from current non-quarantine inventory
         List<Inventory> inventories = inventoryRepository.findActiveNonQuarantineByWarehouseId(req.getWarehouseId());
