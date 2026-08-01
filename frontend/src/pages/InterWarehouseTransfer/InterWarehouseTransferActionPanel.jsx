@@ -385,6 +385,17 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
     try {
       await onAction(name, payload);
       setReason('');
+      if (name === 'requestReturn') {
+        // Sau khi gửi yêu cầu quay đầu thành công, đóng form để tránh người dùng tưởng vẫn cần gửi lại lần nữa.
+        setShowWrongSkuForm(false);
+        setWrongSkuItems([]);
+        setNewWrongSku({
+          transferItemId: '',
+          actualProductId: '',
+          affectedQty: '',
+          reason: '',
+        });
+      }
     } finally {
       setBusy(false);
     }
