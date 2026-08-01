@@ -42,12 +42,12 @@ jobs:
           status=$?
           if [ "$status" -ne 0 ]; then
             echo "::group::Surefire & Failsafe error reports"
-            find target/surefire-reports target/failsafe-reports -name "TEST-*.xml" 2>/dev/null \
-              | xargs grep -lE '(errors|failures)="[1-9][0-9]*"' 2>/dev/null \
-              | while IFS= read -r report; do
-                  echo "===== $report ====="
-                  cat "$report"
-                done
+            for f in target/surefire-reports/*.txt target/failsafe-reports/*.txt target/failsafe-reports/failsafe-summary.xml; do
+              if [ -f "$f" ]; then
+                echo "===== $f ====="
+                cat "$f"
+              fi
+            done
             find target/surefire-reports target/failsafe-reports -maxdepth 1 -type f \
               \( -name '*.dump' -o -name '*.dumpstream' \) -print -exec cat {} \; 2>/dev/null
             echo "::endgroup::"
