@@ -65,6 +65,11 @@ public interface ReceiptItemRepository extends JpaRepository<ReceiptItem, Long> 
 
     /**
      * Find an item by receipt and product for batch resolution during approval.
+    @Query("SELECT COALESCE(SUM(i.actualQty), 0) FROM ReceiptItem i WHERE i.receipt.id = :receiptId")
+    BigDecimal sumActualQtyByReceiptId(@Param("receiptId") Long receiptId);
+
+    /**
+     * Find an item by receipt and product for batch resolution during approval.
      */
     Optional<ReceiptItem> findByReceiptIdAndProductId(Long receiptId, Long productId);
 
@@ -77,7 +82,7 @@ public interface ReceiptItemRepository extends JpaRepository<ReceiptItem, Long> 
            "WHERE r.warehouse.id = :warehouseId " +
            "  AND (" +
            "    (ri.quarantineQty > ri.resolvedQuarantineQty " +
-           "     AND r.status IN ('PARTIALLY_APPROVED', 'RETURN_TO_SUPPLIER_PENDING') AND NOT EXISTS (" +
+           "     AND r.status IN ('PARTIALLY_APPROVED', 'PUTAWAY_COMPLETED', 'RETURN_TO_SUPPLIER_PENDING') AND NOT EXISTS (" +
            "        SELECT 1 FROM Adjustment a " +
            "        WHERE a.referenceType = 'RECEIPT' " +
            "          AND a.referenceId = r.id " +
