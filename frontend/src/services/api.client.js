@@ -31,6 +31,7 @@ const ERROR_MESSAGE_BY_CODE = {
   CREDIT_HOLD: 'Đại lý không đạt điều kiện công nợ để tạo đơn xuất.',
   PERIOD_CLOSED: 'Kỳ kế toán của ngày chứng từ đã đóng.',
   ACCOUNTING_PERIOD_CLOSED: 'Kỳ kế toán của ngày chứng từ đã đóng.',
+  PERIOD_NOT_YET_ENDED: 'Kỳ kế toán chưa kết thúc, chỉ có thể khóa sau khi kỳ đã kết thúc.',
   UNPROCESSABLE_ENTITY: 'Dữ liệu không đủ điều kiện để xử lý.',
   INSUFFICIENT_STOCK: 'Tồn kho khả dụng không đủ trong kho đã chọn.',
   DUPLICATE_PRODUCT_ITEM: 'Một sản phẩm không được xuất hiện nhiều dòng trong cùng phiếu.',

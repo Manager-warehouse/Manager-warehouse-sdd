@@ -33,18 +33,42 @@ const CorrectionVoucherButton = ({
     reason: '',
     documentDate: new Date().toISOString().slice(0, 10)
   });
+  // Set only when today's own period is CLOSED, to warn the accountant before they hit
+  // PERIOD_CLOSED on submit - never used to silently rewrite documentDate. Auto-shifting
+  // a document's date without the user consciously choosing it is exactly what
+  // feature-accountant-period-closing.md (WHEN a document is created in a CLOSED period)
+  // says the system must never do, since it misdates the transaction silently. The human
+  // has to type the date themselves, same as everywhere else in this module.
+  const [openPeriodHint, setOpenPeriodHint] = useState(null);
 
   if (!canCorrect) {
     return null;
   }
 
-  const openModal = () => {
-    setForm({
-      amountDelta: '',
-      reason: '',
-      documentDate: new Date().toISOString().slice(0, 10)
-    });
+  const openModal = async () => {
+    setForm({ amountDelta: '', reason: '', documentDate: new Date().toISOString().slice(0, 10) });
+    setOpenPeriodHint(null);
     setShowModal(true);
+    try {
+      const periods = await financeService.getAccountingPeriods();
+      const today = new Date().toISOString().slice(0, 10);
+      const containingToday = (periods || []).find((p) => {
+        const start = p.start_date ?? p.startDate;
+        const end = p.end_date ?? p.endDate;
+        return start <= today && today <= end;
+      });
+      if (!containingToday || containingToday.status !== 'OPEN') {
+        const nextOpen = (periods || [])
+          .filter((p) => p.status === 'OPEN' && (p.start_date ?? p.startDate) > today)
+          .sort((a, b) => (a.start_date ?? a.startDate).localeCompare(b.start_date ?? b.startDate))[0];
+        setOpenPeriodHint({
+          closedPeriodName: containingToday?.period_name ?? containingToday?.periodName ?? null,
+          nextOpenPeriodName: nextOpen?.period_name ?? nextOpen?.periodName ?? null
+        });
+      }
+    } catch (err) {
+      console.error('Failed to check current accounting period status:', err);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -120,6 +144,13 @@ const CorrectionVoucherButton = ({
               onChange={(e) => setForm((prev) => ({ ...prev, documentDate: e.target.value }))}
               required
             />
+            {openPeriodHint && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded text-red-800 leading-relaxed">
+                Kỳ kế toán {openPeriodHint.closedPeriodName ? <strong>{openPeriodHint.closedPeriodName}</strong> : 'hiện tại'} đã{' '}
+                <strong>đóng</strong> — ngày hôm nay sẽ bị từ chối. Vui lòng tự chọn một ngày thuộc kỳ đang mở
+                {openPeriodHint.nextOpenPeriodName ? <> (kỳ <strong>{openPeriodHint.nextOpenPeriodName}</strong> trở đi)</> : null}.
+              </div>
+            )}
 
             <div className="flex flex-col gap-1">
               <label className="font-semibold text-ink text-xs">

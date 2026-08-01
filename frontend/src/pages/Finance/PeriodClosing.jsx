@@ -58,6 +58,11 @@ const PeriodClosing = () => {
     v => (v.original_period_id ?? v.originalPeriodId) === periodId
   );
 
+  // The backend now rejects closing a period that hasn't ended yet (PERIOD_NOT_YET_ENDED)
+  // to prevent locking the still-live current month - mirrored here so the button doesn't
+  // invite a click that's guaranteed to fail.
+  const periodHasEnded = (p) => (p.end_date ?? p.endDate) < new Date().toISOString().slice(0, 10);
+
   const handleClosePeriod = async (periodId) => {
     setClosingPeriodId(periodId);
     try {
@@ -168,21 +173,22 @@ const PeriodClosing = () => {
                   </tr>
                 ) : (
                   periods.map((p) => {
-                    const periodVouchers = p.status === 'CLOSED' ? vouchersForPeriod(p.id) : [];
+                    // A correction voucher's original_period_id can now be an OPEN period too
+                    // (same-period fat-finger fix, Session 2026-08-02) - no longer only ever
+                    // a CLOSED one, so the history expander applies to every period.
+                    const periodVouchers = vouchersForPeriod(p.id);
                     const isExpanded = expandedPeriodId === p.id;
                     return (
                     <React.Fragment key={p.id}>
                     <tr className="hover:bg-canvas-cream/50">
                       <td className="p-4 font-bold text-ink flex items-center gap-2">
-                        {p.status === 'CLOSED' && (
-                          <button
-                            onClick={() => setExpandedPeriodId(isExpanded ? null : p.id)}
-                            className="text-shade-40 hover:text-ink"
-                            title="Xem lịch sử bút toán điều chỉnh"
-                          >
-                            {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-                          </button>
-                        )}
+                        <button
+                          onClick={() => setExpandedPeriodId(isExpanded ? null : p.id)}
+                          className="text-shade-40 hover:text-ink"
+                          title="Xem lịch sử bút toán điều chỉnh"
+                        >
+                          {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                        </button>
                         {p.period_name || p.periodName}
                         {periodVouchers.length > 0 && (
                           <span className="text-[9px] bg-shade-70 text-onPrimary px-2 py-0.5 rounded-pill font-bold">
@@ -221,15 +227,24 @@ const PeriodClosing = () => {
                       </td>
                       <td className="p-4 text-center">
                         {p.status === 'OPEN' && isAccountantManager && (
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => setConfirmModalPeriod(p)}
-                            disabled={closingPeriodId === p.id}
-                          >
-                            <Lock className="w-3.5 h-3.5 mr-1" />
-                            Khóa kỳ kế toán
-                          </Button>
+                          periodHasEnded(p) ? (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => setConfirmModalPeriod(p)}
+                              disabled={closingPeriodId === p.id}
+                            >
+                              <Lock className="w-3.5 h-3.5 mr-1" />
+                              Khóa kỳ kế toán
+                            </Button>
+                          ) : (
+                            <span
+                              className="text-[10px] text-shade-40 italic"
+                              title="Chỉ được khóa sau khi kỳ đã kết thúc, để tránh khóa nhầm kỳ đang diễn ra"
+                            >
+                              Kỳ chưa kết thúc
+                            </span>
+                          )
                         )}
                       </td>
                     </tr>
