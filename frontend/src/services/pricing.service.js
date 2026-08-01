@@ -7,7 +7,7 @@ const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true';
 // ── mock data ──────────────────────────────────────────────────────────────
 const MOCK_ENTRIES = [
   {
-    id: 1, product_id: 1, product_sku: 'POT-001', product_name: 'Nồi inox 20cm',
+    id: 1, product_id: 1, product_sku: 'POT-001', product_name: 'Nồi inox 20cm', warehouse_id: 1,
     effective_date: '2026-06-01',
     cost_price: 80000, selling_price: 115000, status: 'APPROVED', notes: null,
     created_by: { id: 5, full_name: 'Nguyễn Kế Toán' },
@@ -16,7 +16,7 @@ const MOCK_ENTRIES = [
     created_at: '2026-05-25T09:00:00Z',
   },
   {
-    id: 2, product_id: 1, product_sku: 'POT-001', product_name: 'Nồi inox 20cm',
+    id: 2, product_id: 1, product_sku: 'POT-001', product_name: 'Nồi inox 20cm', warehouse_id: 1,
     effective_date: '2026-07-01',
     cost_price: 85000, selling_price: 120000, status: 'PENDING',
     notes: 'NCC tăng nguyên liệu', created_by: { id: 5, full_name: 'Nguyễn Kế Toán' },
@@ -24,7 +24,7 @@ const MOCK_ENTRIES = [
     created_at: '2026-06-20T10:00:00Z',
   },
   {
-    id: 3, product_id: 2, product_sku: 'PAN-002', product_name: 'Chảo chống dính 26cm',
+    id: 3, product_id: 2, product_sku: 'PAN-002', product_name: 'Chảo chống dính 26cm', warehouse_id: 1,
     effective_date: '2026-07-01',
     cost_price: 120000, selling_price: 175000, status: 'PENDING', notes: null,
     created_by: { id: 5, full_name: 'Nguyễn Kế Toán' },
@@ -113,6 +113,7 @@ const pricingService = {
       const entry = {
         id: nextId++,
         product_id: data.product_id,
+        warehouse_id: Number(data.warehouse_id),
         product_sku: 'SKU-' + data.product_id,
         product_name: 'Sản phẩm ' + data.product_id,
         effective_date: data.effective_date,

@@ -1,4 +1,5 @@
 import apiClient, { useMock } from './api.client';
+import pricingService from './pricing.service';
 import { masterDataService } from './masterData.service';
 
 const KEYS = {
@@ -587,20 +588,27 @@ export const inboundService = {
       };
 
       // Add items
-      const newItems = receiptData.items.map((item, index) => ({
-        id: receiptItems.length > 0 ? Math.max(...receiptItems.map(ri => ri.id)) + index + 1 : index + 1,
-        receipt_id: newReceipt.id,
-        product_id: Number(item.product_id),
-        batch_id: null,
-        location_id: null,
-        expected_qty: parseFloat(item.expected_qty),
-        actual_qty: null,
-        qc_passed_qty: null,
-        qc_failed_qty: null,
-        qc_result: 'PENDING',
-        qc_failure_reason: null,
-        unit_cost: parseFloat(item.unit_cost) || 0.0,
-        quarantine_status: 'PENDING'
+      const newItems = await Promise.all(receiptData.items.map(async (item, index) => {
+        const price = await pricingService.lookupApproved({
+          product_id: item.product_id,
+          warehouse_id: receiptData.warehouse_id,
+          date: receiptData.documentDate || receiptData.document_date,
+        });
+        return {
+          id: receiptItems.length > 0 ? Math.max(...receiptItems.map(ri => ri.id)) + index + 1 : index + 1,
+          receipt_id: newReceipt.id,
+          product_id: Number(item.product_id),
+          batch_id: null,
+          location_id: null,
+          expected_qty: parseFloat(item.expected_qty),
+          actual_qty: null,
+          qc_passed_qty: null,
+          qc_failed_qty: null,
+          qc_result: 'PENDING',
+          qc_failure_reason: null,
+          unit_cost: Number(price.cost_price ?? price.costPrice ?? 0),
+          quarantine_status: 'PENDING'
+        };
       }));
 
       receipts.push(newReceipt);
@@ -634,15 +642,20 @@ export const inboundService = {
       receipts[rIdx].updated_at = new Date().toISOString();
       receipts[rIdx].version = (receipts[rIdx].version || 0) + 1;
 
-      receiptData.items.forEach(updateItem => {
+      for (const updateItem of receiptData.items) {
         const itemId = Number(updateItem.receipt_item_id || updateItem.receiptItemId);
         const itemIdx = receiptItems.findIndex(item => item.id === itemId && item.receipt_id === Number(id));
         if (itemIdx !== -1) {
+          const price = await pricingService.lookupApproved({
+            product_id: updateItem.product_id || updateItem.productId,
+            warehouse_id: receipts[rIdx].warehouse_id,
+            date: receipts[rIdx].document_date,
+          });
           receiptItems[itemIdx].product_id = Number(updateItem.product_id || updateItem.productId);
           receiptItems[itemIdx].expected_qty = Number(updateItem.expected_qty ?? updateItem.expectedQty);
-          receiptItems[itemIdx].unit_cost = Number(updateItem.unit_cost ?? updateItem.unitCost ?? 0);
+          receiptItems[itemIdx].unit_cost = Number(price.cost_price ?? price.costPrice ?? 0);
         }
-      });
+      }
 
       saveDb(KEYS.RECEIPTS, receipts);
       saveDb(KEYS.RECEIPT_ITEMS, receiptItems);

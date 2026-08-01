@@ -87,6 +87,7 @@ import com.wms.dto.request.StorekeeperReviewRequest;
 import com.wms.dto.response.ReceiptResponse;
 import com.wms.entity.billing_payment.AccountingPeriod;
 import com.wms.entity.document_numbering.DocumentSequence;
+import com.wms.entity.price_management.PriceHistory;
 import com.wms.entity.product_catalog.Product;
 import com.wms.entity.stock_receiving.Receipt;
 import com.wms.entity.stock_receiving.ReceiptItem;
@@ -111,6 +112,8 @@ import com.wms.repository.ReceiptRepository;
 import com.wms.repository.supplier_management.SupplierRepository;
 import com.wms.repository.UserWarehouseAssignmentRepository;
 import com.wms.repository.WarehouseRepository;
+import com.wms.service.price_management.PriceHistoryService;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -147,6 +150,8 @@ class ReceiptServiceTest {
     private AccountingPeriodService accountingPeriodService;
     @Mock
     private CreditNoteRepository creditNoteRepository;
+    @Mock
+    private PriceHistoryService priceHistoryService;
 
     private ReceiptService receiptService;
     private User planner;
@@ -162,7 +167,7 @@ class ReceiptServiceTest {
         receiptService = new ReceiptService(sequenceRepository, receiptRepository, receiptItemRepository,
                 supplierRepository, warehouseRepository, productRepository,
                 assignmentRepository, auditLogService, new ReceiptMapper(), accountingPeriodService,
-                creditNoteRepository);
+                creditNoteRepository, priceHistoryService);
         planner = user(1L, UserRole.PLANNER);
         warehouseStaff = user(2L, UserRole.WAREHOUSE_STAFF);
         warehouseManager = user(3L, UserRole.WAREHOUSE_MANAGER);
@@ -185,6 +190,8 @@ class ReceiptServiceTest {
             return receipt;
         });
         when(receiptItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(priceHistoryService.lookupApproved(30L, 20L, LocalDate.of(2026, 7, 28)))
+                .thenReturn(Optional.of(price(30L, new BigDecimal("125000"))));
 
         ReceiptResponse response = receiptService.createPurchaseReceipt(validRequest(), planner);
 
@@ -192,6 +199,7 @@ class ReceiptServiceTest {
         assertEquals("PURCHASE", response.getType());
         assertEquals("PENDING_MANAGER_APPROVAL", response.getStatus());
         assertEquals(500, response.getItems().get(0).getExpectedQty());
+        assertEquals(0, new BigDecimal("125000").compareTo(response.getItems().get(0).getUnitCost()));
         assertEquals("PO-20260728-0001", response.getReceiptNumber());
         assertEquals(LocalDate.of(2026, 7, 28), response.getDocumentDate());
         ArgumentCaptor<Map<String, Object>> afterCaptor = ArgumentCaptor.forClass(Map.class);
@@ -450,6 +458,24 @@ class ReceiptServiceTest {
                 () -> receiptService.receiveReceiptCounts(100L,
                         receiveRequest(line(501L, 1)), storekeeper));
         verify(receiptRepository, never()).findByIdWithWarehouse(any());
+    }
+
+    @Test
+    void createPurchaseReceipt_requiresApprovedAccountingPrice() {
+        stubValidLookups();
+        when(sequenceRepository.findBySequenceKeyForUpdate("RECEIPT-20260728"))
+                .thenReturn(Optional.of(sequence()));
+        when(accountingPeriodService.resolveOpenPeriod(any()))
+                .thenReturn(AccountingPeriod.builder().id(1L).periodName("2026-07").build());
+        when(receiptRepository.saveAndFlush(any(Receipt.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(priceHistoryService.lookupApproved(30L, 20L, LocalDate.of(2026, 7, 28)))
+                .thenReturn(Optional.empty());
+
+        UnprocessableEntityException ex = assertThrows(UnprocessableEntityException.class,
+                () -> receiptService.createPurchaseReceipt(validRequest(), planner));
+
+        assertEquals(true, ex.getMessage().contains("APPROVED_PRICE_REQUIRED"));
+        verify(receiptItemRepository, never()).saveAll(any());
     }
 
     @Test
@@ -823,6 +849,8 @@ class ReceiptServiceTest {
         when(accountingPeriodService.resolveOpenPeriod(LocalDate.of(2026, 7, 29)))
                 .thenReturn(AccountingPeriod.builder().id(2L).periodName("2026-07").build());
         when(productRepository.findById(31L)).thenReturn(Optional.of(product(31L, true)));
+        when(priceHistoryService.lookupApproved(31L, 20L, LocalDate.of(2026, 7, 29)))
+                .thenReturn(Optional.of(price(31L, new BigDecimal("99000"))));
         when(receiptItemRepository.saveAll(any())).thenAnswer(inv -> inv.getArgument(0));
         when(receiptRepository.save(any(Receipt.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -832,6 +860,7 @@ class ReceiptServiceTest {
         assertNull(receipt.getPreReceiveRejectionReason());
         assertEquals(31L, item.getProduct().getId());
         assertEquals(200, item.getExpectedQty());
+        assertEquals(0, new BigDecimal("99000").compareTo(item.getUnitCost()));
         verify(auditLogService).log(eq(planner), eq(AuditAction.RECEIPT_PRE_RECEIVE_RESUBMIT),
                 eq("RECEIPT"), eq(100L), eq("RN-1"), eq(20L), any(Map.class), any(Map.class));
     }
@@ -896,6 +925,7 @@ class ReceiptServiceTest {
         CreateReceiptItemRequest item = new CreateReceiptItemRequest();
         item.setProductId(30L);
         item.setExpectedQty(500);
+        item.setUnitCost(new BigDecimal("1.00"));
 
         CreateReceiptRequest request = new CreateReceiptRequest();
         request.setSupplierId(10L);
@@ -945,6 +975,17 @@ class ReceiptServiceTest {
         request.setExpectedVersion(0);
         request.setItems(List.of(lines));
         return request;
+    }
+
+    private PriceHistory price(Long productId, BigDecimal costPrice) {
+        return PriceHistory.builder()
+                .id(productId)
+                .product(product(productId, true))
+                .warehouse(warehouse)
+                .costPrice(costPrice)
+                .sellingPrice(costPrice.multiply(BigDecimal.TEN))
+                .effectiveDate(LocalDate.of(2026, 7, 1))
+                .build();
     }
 
     private ReceiveQcReceiptItemRequest receiveQcLine(Long itemId,

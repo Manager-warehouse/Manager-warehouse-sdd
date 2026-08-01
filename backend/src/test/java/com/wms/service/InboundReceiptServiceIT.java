@@ -72,6 +72,7 @@ import com.wms.dto.response.ReceiptQcResponse;
 import com.wms.dto.response.ReceiptResponse;
 import com.wms.entity.billing_payment.AccountingPeriod;
 import com.wms.entity.document_numbering.DocumentSequence;
+import com.wms.entity.price_management.PriceHistory;
 import com.wms.entity.stock_control.Inventory;
 import com.wms.entity.product_catalog.Product;
 import com.wms.entity.supplier_management.Supplier;
@@ -80,6 +81,7 @@ import com.wms.entity.access_control.UserWarehouseAssignment;
 import com.wms.entity.warehouse_location.Warehouse;
 import com.wms.entity.warehouse_location.WarehouseLocation;
 import com.wms.enums.billing_payment.AccountingPeriodStatus;
+import com.wms.enums.price_management.PriceHistoryStatus;
 import com.wms.enums.warehouse_location.LocationType;
 import com.wms.enums.stock_receiving.ReceiptStatus;
 import com.wms.enums.access_control.UserRole;
@@ -89,6 +91,7 @@ import com.wms.enums.stock_receiving.QcResult;
 import com.wms.repository.AccountingPeriodRepository;
 import com.wms.repository.DocumentSequenceRepository;
 import com.wms.repository.InventoryRepository;
+import com.wms.repository.PriceHistoryRepository;
 import com.wms.repository.product_catalog.ProductRepository;
 import com.wms.repository.ReceiptItemRepository;
 import com.wms.repository.ReceiptRepository;
@@ -166,6 +169,9 @@ public class InboundReceiptServiceIT {
     @Autowired
     private AccountingPeriodRepository accountingPeriodRepository;
 
+    @Autowired
+    private PriceHistoryRepository priceHistoryRepository;
+
     private User planner;
     private User staff;
     private User storekeeper;
@@ -181,6 +187,7 @@ public class InboundReceiptServiceIT {
         inventoryRepository.deleteAll();
         receiptItemRepository.deleteAll();
         receiptRepository.deleteAll();
+        priceHistoryRepository.deleteAll();
         assignmentRepository.deleteAll();
         locationRepository.deleteAll();
         productRepository.deleteAll();
@@ -281,6 +288,19 @@ public class InboundReceiptServiceIT {
                 .sku("PROD-001").name("Nồi Inox").unit("PCS")
                 .isActive(true).weightKg(new BigDecimal("1.50")).volumeM3(new BigDecimal("0.02"))
                 .createdAt(OffsetDateTime.now()).updatedAt(OffsetDateTime.now()).build());
+        priceHistoryRepository.save(PriceHistory.builder()
+                .product(product)
+                .warehouse(warehouse)
+                .effectiveDate(LocalDate.of(2026, 7, 1))
+                .costPrice(new BigDecimal("150.00"))
+                .sellingPrice(new BigDecimal("250.00"))
+                .status(PriceHistoryStatus.APPROVED)
+                .createdBy(planner)
+                .approvedBy(planner)
+                .approvedAt(OffsetDateTime.now())
+                .createdAt(OffsetDateTime.now())
+                .updatedAt(OffsetDateTime.now())
+                .build());
     }
 
     @Test
