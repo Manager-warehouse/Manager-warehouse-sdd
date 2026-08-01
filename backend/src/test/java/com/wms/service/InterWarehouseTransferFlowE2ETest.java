@@ -305,6 +305,7 @@ class InterWarehouseTransferFlowE2ETest {
                 allocationRepository,
                 inventoryRepository,
                 locationRepository,
+                warehouseRepository,
                 assignmentRepository,
                 tripRepository,
                 mapper,
@@ -350,7 +351,8 @@ class InterWarehouseTransferFlowE2ETest {
         lenient().when(transferRepository.save(any(InterWarehouseTransfer.class))).thenAnswer(i -> i.getArgument(0));
         lenient().when(transferItemRepository.save(any(InterWarehouseTransferItem.class))).thenAnswer(i -> i.getArgument(0));
         lenient().when(transferItemRepository.findByTransferIdOrderById(anyLong())).thenAnswer(i -> List.of(transferItem));
-        lenient().when(warehouseRepository.findByCode("IN_TRANSIT")).thenReturn(Optional.of(transitWarehouse));
+        lenient().when(warehouseRepository.findFirstByTypeAndIsActiveTrue(WarehouseType.IN_TRANSIT))
+                .thenReturn(Optional.of(transitWarehouse));
         lenient().when(locationRepository.findByWarehouseIdAndTypeAndIsActiveTrue(eq(transitWarehouse.getId()), eq(LocationType.BIN)))
                 .thenReturn(List.of(transitLocation));
         lenient().when(locationRepository.findByWarehouseIdAndIsQuarantineTrueAndIsActiveTrue(anyLong()))

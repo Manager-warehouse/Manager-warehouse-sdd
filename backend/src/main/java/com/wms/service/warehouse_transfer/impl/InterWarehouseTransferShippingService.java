@@ -549,12 +549,8 @@ public class InterWarehouseTransferShippingService {
     private void moveSourceToTransit(InterWarehouseTransfer transfer) {
         // Ghi nhận tồn khi xe rời kho: giảm tồn kho nguồn và cộng đúng lô hàng sang kho ảo "đang vận chuyển".
         // Bước 1: tìm kho ảo "đang vận chuyển" và vị trí đang hoạt động để giữ hàng trên đường.
-        Warehouse transitWarehouse = warehouseRepository.findByCode(InterWarehouseTransferHelper.IN_TRANSIT_WAREHOUSE_CODE)
-                .orElseThrow(() -> new BusinessRuleViolationException("IN_TRANSIT_WAREHOUSE_NOT_CONFIGURED"));
-        WarehouseLocation transitLocation = locationRepository.findByWarehouseIdAndTypeAndIsActiveTrue(
-                        transitWarehouse.getId(), LocationType.BIN)
-                .stream().findFirst()
-                .orElseThrow(() -> new BusinessRuleViolationException("IN_TRANSIT_LOCATION_NOT_CONFIGURED"));
+        Warehouse transitWarehouse = helper.findTransitWarehouse();
+        WarehouseLocation transitLocation = helper.firstTransitLocation(transitWarehouse);
         // Bước 2: đi theo từng dòng tồn đã được giữ chỗ khi trưởng kho duyệt phiếu.
         // Làm vậy để chuyển đúng lô hàng, đúng thứ tự xuất trước và đúng giá vốn đã giữ từ đầu.
         for (InterWarehouseTransferAllocation allocation : allocationRepository.findByTransferItemTransferId(transfer.getId())) {

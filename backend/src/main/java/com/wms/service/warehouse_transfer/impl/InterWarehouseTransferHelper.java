@@ -21,6 +21,7 @@ import com.wms.entity.warehouse_transfer.*;
 import com.wms.dto.request.InterWarehouseTransferReasonRequest;
 import com.wms.dto.response.InterWarehouseTransferResponse;
 import com.wms.enums.warehouse_location.LocationType;
+import com.wms.enums.warehouse_location.WarehouseType;
 import com.wms.enums.warehouse_transfer.InterWarehouseTransferStatus;
 import com.wms.enums.audit_trail.AuditAction;
 import com.wms.enums.access_control.UserRole;
@@ -71,6 +72,7 @@ public class InterWarehouseTransferHelper {
     private final InterWarehouseTransferAllocationRepository allocationRepository;
     private final InventoryRepository inventoryRepository;
     private final WarehouseLocationRepository locationRepository;
+    private final WarehouseRepository warehouseRepository;
     private final UserWarehouseAssignmentRepository assignmentRepository;
     private final TripRepository tripRepository;
     private final InterWarehouseTransferMapper transferMapper;
@@ -83,6 +85,12 @@ public class InterWarehouseTransferHelper {
         return locationRepository.findByWarehouseIdAndIsQuarantineTrueAndIsActiveTrue(targetWarehouseId)
                 .stream().findFirst()
                 .orElseThrow(() -> new BusinessRuleViolationException("QUARANTINE_LOCATION_NOT_CONFIGURED"));
+    }
+
+    public Warehouse findTransitWarehouse() {
+        // Kho trung chuyển được nhận diện bằng loại IN_TRANSIT để admin có thể đặt mã kho thực tế như TR-01.
+        return warehouseRepository.findFirstByTypeAndIsActiveTrue(WarehouseType.IN_TRANSIT)
+                .orElseThrow(() -> new BusinessRuleViolationException("IN_TRANSIT_WAREHOUSE_NOT_CONFIGURED"));
     }
 
     public WarehouseLocation firstTransitLocation(Warehouse transitWarehouse) {
