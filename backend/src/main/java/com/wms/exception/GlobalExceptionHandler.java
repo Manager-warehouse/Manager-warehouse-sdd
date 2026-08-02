@@ -131,7 +131,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
     public ResponseEntity<ApiErrorResponse> handleOptimisticConflict(ObjectOptimisticLockingFailureException ex) {
-        return error(HttpStatus.CONFLICT, "CONCURRENT_MODIFICATION",
+        return error(HttpStatus.CONFLICT, "INVENTORY_VERSION_CONFLICT",
                 "The resource was changed by another transaction; reload and retry", null, null);
     }
 
@@ -344,6 +344,7 @@ public class GlobalExceptionHandler {
             case "QC_FAILURE_REASON_REQUIRED": return "Yêu cầu nhập lý do lỗi khi có số lượng QC không đạt.";
             case "QUARANTINE_LOCATION_NOT_CONFIGURED": return "Kho đích chưa có khu vực cách ly (Quarantine). Cần thêm ít nhất một Bin Quarantine trước khi duyệt QC lỗi.";
             case "QC_PASSED_BIN_MUST_NOT_BE_QUARANTINE": return "Hàng đạt QC không thể xếp vào khu vực cách ly. Vui lòng chọn bin lưu trữ thông thường.";
+            case "QC_PASSED_BIN_MUST_NOT_BE_STAGING": return "Hàng đạt QC không thể cất vào khu trung chuyển/staging. Vui lòng chọn kệ lưu trữ thường.";
             case "RECEIVE_CHECK_REQUIRED": return "Thủ kho cần hoàn tất kiểm tra count/QC trước khi gửi kế hoạch cất kệ.";
             case "IN_TRANSIT_STOCK_NOT_FOUND": return "Không tìm thấy tồn kho trung chuyển cho mặt hàng này. Liên hệ quản trị viên.";
             // ── Putaway ───────────────────────────────────────────────────────────

@@ -130,8 +130,9 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
     const type = loc.type;
     const active = loc.isActive ?? loc.is_active;
     const quarantine = loc.isQuarantine ?? loc.is_quarantine;
+    const staging = loc.isStaging ?? loc.is_staging;
     const targetWarehouseId = transfer?.isReturned ? transfer?.sourceWarehouseId : transfer?.destinationWarehouseId;
-    return warehouseId === targetWarehouseId && type === 'BIN' && active && !quarantine;
+    return warehouseId === targetWarehouseId && type === 'BIN' && active && !quarantine && !staging;
   }), [locations, transfer]);
 
   const destinationQuarantineBin = useMemo(() => {

@@ -240,7 +240,7 @@ const ReceiptList = () => {
             size="sm"
             colorClassName="bg-danger-50 text-danger-700 border-danger-200"
           >
-            Can chinh sua
+            Cần chỉnh sửa
           </Badge>
         );
       case "PENDING_RECEIPT":
@@ -258,7 +258,7 @@ const ReceiptList = () => {
             size="sm"
             colorClassName="bg-warning-50 text-warning-800 border-warning-300"
           >
-            Cho thu kho duyet
+            Chờ thủ kho duyệt
           </Badge>
         );
       case "RECOUNT_REQUIRED":

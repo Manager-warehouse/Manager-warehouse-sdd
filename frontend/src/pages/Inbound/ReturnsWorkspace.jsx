@@ -11,7 +11,7 @@ import Input from '../../components/common/Input';
 import Badge from '../../components/common/Badge';
 import CorrectionVoucherButton from '../../components/common/CorrectionVoucherButton';
 import { ROLES } from '../../utils/constants';
-import { Loader2, Plus, Receipt, ShieldAlert, Check, Coins, FileText, Building2, Truck } from 'lucide-react';
+import { Loader2, Plus, Receipt, ShieldAlert, Check, Coins, FileText, Building2, Truck, Eye } from 'lucide-react';
 
 const ReturnsWorkspace = () => {
   const activeWarehouse = useAuthStore((state) => state.activeWarehouse);
@@ -45,6 +45,11 @@ const ReturnsWorkspace = () => {
   const [returnItems, setReturnItems] = useState([]); // [{ productId, expectedQty, maxQty, name, sku }]
   const [returnNotes, setReturnNotes] = useState('');
 
+  // Detail View Modal State
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [selectedReturnDetail, setSelectedReturnDetail] = useState(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+
   // QC Split Modal State
   const [showQcModal, setShowQcModal] = useState(false);
   const [qcReceipt, setQcReceipt] = useState(null);
@@ -59,6 +64,26 @@ const ReturnsWorkspace = () => {
   const canManageReturnOperations = ['WAREHOUSE_STAFF', 'STOREKEEPER', 'WAREHOUSE_MANAGER', 'ADMIN', 'CEO'].includes(user?.role);
   const canConfirmSupplierReturn = ['WAREHOUSE_MANAGER', 'ADMIN'].includes(user?.role);
   const supplierReturnStatuses = ['RETURN_TO_SUPPLIER_PENDING', 'RETURNED_TO_SUPPLIER'];
+
+  const openDetailModal = async (ret) => {
+    setLoadingDetail(true);
+    setShowDetailModal(true);
+    try {
+      let details;
+      if (ret.is_supplier_rtv || ret.type === 'SUPPLIER_RETURN' || ret.supplier_id) {
+        const sourceId = ret.source_receipt_id || ret.id;
+        details = await inboundService.getReceiptById(sourceId);
+      } else {
+        details = await returnsService.getReturnById(ret.id);
+      }
+      setSelectedReturnDetail({ ...ret, ...details });
+    } catch (e) {
+      addToast('Không thể tải chi tiết phiếu hoàn trả', 'error');
+      setSelectedReturnDetail(ret);
+    } finally {
+      setLoadingDetail(false);
+    }
+  };
 
   useEffect(() => {
     if (activeWarehouse) {
@@ -564,8 +589,15 @@ const ReturnsWorkspace = () => {
                           )}
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <div className="flex justify-end gap-2">
+                          <div className="flex justify-end items-center gap-2">
                             {renderReturnAction(ret)}
+                            <button
+                              onClick={() => openDetailModal(ret)}
+                              className="p-1.5 hover:bg-canvas-cream rounded-full text-shade-50 hover:text-ink transition-colors flex items-center justify-center border border-hairline-light"
+                              title="Xem chi tiết phiếu trả hàng"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -598,7 +630,14 @@ const ReturnsWorkspace = () => {
                         <span className="font-semibold text-ink">{ret.document_date || ret.created_at?.slice(0, 10)}</span>
                       </div>
                     </div>
-                    <div className="mt-3 flex justify-end">
+                    <div className="mt-3 flex justify-between items-center">
+                      <button
+                        onClick={() => openDetailModal(ret)}
+                        className="px-2.5 py-1 rounded-pill text-xs font-medium text-shade-60 hover:text-ink bg-canvas-cream flex items-center gap-1 border border-hairline-light"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>Xem chi tiết</span>
+                      </button>
                       {renderReturnAction(ret)}
                     </div>
                   </div>
@@ -942,6 +981,142 @@ const ReturnsWorkspace = () => {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Detail Modal */}
+      <Modal
+        isOpen={showDetailModal}
+        onClose={() => setShowDetailModal(false)}
+        title="Chi tiết phiếu xuất / nhập hoàn trả"
+        maxWidth="max-w-3xl"
+      >
+        {loadingDetail ? (
+          <div className="flex flex-col items-center justify-center p-12 gap-3">
+            <Loader2 className="w-8 h-8 animate-spin text-ink" />
+            <span className="text-xs text-shade-50">Đang tải chi tiết đơn hàng...</span>
+          </div>
+        ) : selectedReturnDetail ? (
+          <div className="flex flex-col gap-5 text-xs">
+            {/* Top Header info */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-canvas-cream p-4 rounded-lg border border-hairline-light gap-2">
+              <div>
+                <span className="text-[10px] font-bold text-shade-50 uppercase tracking-wider block mb-0.5">
+                  Mã chứng từ / Phiếu
+                </span>
+                <h3 className="text-base font-bold text-ink flex items-center gap-2">
+                  {selectedReturnDetail.receipt_number || selectedReturnDetail.receiptNumber}
+                  {renderReturnStatusBadge(selectedReturnDetail)}
+                </h3>
+              </div>
+              <div className="sm:text-right">
+                <span className="text-[10px] font-bold text-shade-50 uppercase tracking-wider block mb-0.5">Ngày lập phiếu</span>
+                <span className="font-bold text-ink">{selectedReturnDetail.document_date || selectedReturnDetail.created_at?.slice(0, 10)}</span>
+              </div>
+            </div>
+
+            {/* Overview grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-canvas-light p-4 rounded-lg border border-hairline-light">
+              <div>
+                <span className="text-shade-50 block mb-0.5">Loại hoàn trả:</span>
+                <span className="font-bold text-ink">
+                  {selectedReturnDetail.dealer_id || selectedReturnDetail.type === 'RETURN'
+                    ? 'Đại lý trả hàng (Dealer Return)'
+                    : 'Xuất trả Nhà cung cấp (Supplier RTV)'}
+                </span>
+              </div>
+
+              <div>
+                <span className="text-shade-50 block mb-0.5">Đối tác:</span>
+                <span className="font-bold text-ink">
+                  {selectedReturnDetail.dealer_id
+                    ? getDealerName(selectedReturnDetail.dealer_id)
+                    : getSupplierName(selectedReturnDetail.supplier_id)}
+                </span>
+              </div>
+
+              {selectedReturnDetail.source_order_code && (
+                <div>
+                  <span className="text-shade-50 block mb-0.5">Đơn hàng / PO gốc:</span>
+                  <span className="font-mono font-bold text-ink">{selectedReturnDetail.source_order_code}</span>
+                </div>
+              )}
+
+              {(selectedReturnDetail.notes || selectedReturnDetail.rejection_reason) && (
+                <div className="sm:col-span-2 mt-1">
+                  <span className="text-shade-50 block mb-1 font-semibold">Lý do & Ghi chú xuất/nhập trả:</span>
+                  <p className="font-medium text-shade-80 bg-canvas-cream border border-hairline-light p-2.5 rounded-md italic">
+                    {selectedReturnDetail.rejection_reason || selectedReturnDetail.notes}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Items table */}
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-shade-60">
+                  Danh sách sản phẩm hoàn trả ({selectedReturnDetail.items?.length || 0})
+                </h4>
+              </div>
+              <div className="border border-hairline-light rounded-lg overflow-hidden bg-canvas-light">
+                <table className="data-table-grid w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-canvas-cream border-b border-hairline-light">
+                      <th className="px-4 py-3 font-semibold text-shade-60 uppercase">Sản phẩm</th>
+                      <th className="px-4 py-3 font-semibold text-shade-60 text-right uppercase">SL Gốc / Dự kiến</th>
+                      <th className="px-4 py-3 font-semibold text-shade-60 text-right uppercase">SL Trả / Nhận</th>
+                      <th className="px-4 py-3 font-semibold text-shade-60 text-right uppercase">Hàng QC Lỗi</th>
+                      <th className="px-4 py-3 font-semibold text-shade-60 uppercase">Kết quả & Lý do</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-hairline-light">
+                    {(selectedReturnDetail.items || []).map((item, idx) => {
+                      const expected = item.expected_qty ?? item.expectedQty ?? 0;
+                      const actual = item.actual_qty ?? item.actualQty ?? expected;
+                      const failed = item.qc_failed_qty ?? item.qcFailedQty ?? item.sample_failed_qty ?? 0;
+                      const reason = item.qc_failure_reason ?? item.qcFailureReason;
+                      return (
+                        <tr key={item.id || idx} className="hover:bg-canvas-cream/50 transition-colors">
+                          <td className="px-4 py-3">
+                            <span className="font-bold block text-ink">
+                              {item.product_name || item.name || `Sản phẩm ID: ${item.product_id}`}
+                            </span>
+                            <span className="text-[10px] text-shade-40 font-mono block mt-0.5">
+                              {item.product_sku || item.sku || `SKU-${item.product_id}`}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right font-semibold text-shade-60">{expected}</td>
+                          <td className="px-4 py-3 text-right font-bold text-ink">{actual}</td>
+                          <td className="px-4 py-3 text-right font-bold text-danger-600">
+                            {failed > 0 ? failed : '-'}
+                          </td>
+                          <td className="px-4 py-3">
+                            {failed > 0 ? (
+                              <span className="text-danger-600 font-semibold italic text-[11px]">
+                                {reason || 'Lỗi QC'}
+                              </span>
+                            ) : (
+                              <span className="text-success-700 font-semibold text-[11px]">
+                                Đạt QC / Hoàn tất
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end pt-3 border-t border-hairline-light">
+              <Button variant="outline-light" onClick={() => setShowDetailModal(false)}>
+                Đóng
+              </Button>
+            </div>
+          </div>
+        ) : null}
       </Modal>
     </div>
   );

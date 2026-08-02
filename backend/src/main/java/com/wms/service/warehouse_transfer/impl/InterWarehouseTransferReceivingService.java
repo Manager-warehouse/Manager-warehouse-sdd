@@ -503,7 +503,7 @@ public class InterWarehouseTransferReceivingService {
     }
 
     private void validateDestinationLocation(Long locationId, Long targetWarehouseId) {
-        // Hàng QC đạt phải vào vị trí thường đang hoạt động của kho nhận, không được đưa vào khu cách ly.
+        // Hàng QC đạt phải vào vị trí thường đang hoạt động của kho nhận, không được đưa vào khu cách ly/trung chuyển.
         WarehouseLocation destination = locationRepository.findById(locationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Destination location not found: " + locationId));
         // Validate: vị trí nhập phải thuộc đúng kho nhận và đang hoạt động.
@@ -514,6 +514,10 @@ public class InterWarehouseTransferReceivingService {
         // Validate: hàng QC đạt không được nhập vào vị trí cách ly.
         if (Boolean.TRUE.equals(destination.getIsQuarantine())) {
             throw new BusinessRuleViolationException("QC_PASSED_BIN_MUST_NOT_BE_QUARANTINE");
+        }
+        // Validate: zone staging/trung chuyển như ZS1 chỉ dùng để gom/chờ xử lý, không phải kệ nhập tồn chính thức.
+        if (Boolean.TRUE.equals(destination.getIsStaging())) {
+            throw new BusinessRuleViolationException("QC_PASSED_BIN_MUST_NOT_BE_STAGING");
         }
     }
 

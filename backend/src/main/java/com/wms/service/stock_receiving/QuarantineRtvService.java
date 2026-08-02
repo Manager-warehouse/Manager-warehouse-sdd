@@ -45,6 +45,7 @@ import com.wms.service.audit_trail.AuditLogService;
 import com.wms.service.billing_payment.AccountingPeriodService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -78,6 +79,7 @@ public class QuarantineRtvService {
     private final QuarantineRecordRepository quarantineRecordRepository;
     private final PriceHistoryRepository priceHistoryRepository;
     private final AccountingPeriodService accountingPeriodService;
+    private final WarehouseLocationRepository warehouseLocationRepository;
 
     public QuarantineRtvService(ReceiptRepository receiptRepository,
                                  ReceiptItemRepository receiptItemRepository,
@@ -89,6 +91,23 @@ public class QuarantineRtvService {
                                  QuarantineRecordRepository quarantineRecordRepository,
                                  PriceHistoryRepository priceHistoryRepository,
                                  AccountingPeriodService accountingPeriodService) {
+        this(receiptRepository, receiptItemRepository, adjustmentRepository, debitNoteRepository,
+             inventoryRepository, receiptValidationService, auditLogService, quarantineRecordRepository,
+             priceHistoryRepository, accountingPeriodService, null);
+    }
+
+    @Autowired
+    public QuarantineRtvService(ReceiptRepository receiptRepository,
+                                 ReceiptItemRepository receiptItemRepository,
+                                 AdjustmentRepository adjustmentRepository,
+                                 DebitNoteRepository debitNoteRepository,
+                                 InventoryRepository inventoryRepository,
+                                 ReceiptValidationService receiptValidationService,
+                                 AuditLogService auditLogService,
+                                 QuarantineRecordRepository quarantineRecordRepository,
+                                 PriceHistoryRepository priceHistoryRepository,
+                                 AccountingPeriodService accountingPeriodService,
+                                 WarehouseLocationRepository warehouseLocationRepository) {
         this.receiptRepository = receiptRepository;
         this.receiptItemRepository = receiptItemRepository;
         this.adjustmentRepository = adjustmentRepository;
@@ -99,6 +118,7 @@ public class QuarantineRtvService {
         this.quarantineRecordRepository = quarantineRecordRepository;
         this.priceHistoryRepository = priceHistoryRepository;
         this.accountingPeriodService = accountingPeriodService;
+        this.warehouseLocationRepository = warehouseLocationRepository;
     }
 
     /**
@@ -114,6 +134,7 @@ public class QuarantineRtvService {
         receiptValidationService.assertVersionMatch(receipt, request.getExpectedVersion());
 
         boolean isValidState = receipt.getStatus() == ReceiptStatus.PARTIALLY_APPROVED
+                || receipt.getStatus() == ReceiptStatus.PUTAWAY_COMPLETED
                 || receipt.getStatus() == ReceiptStatus.RETURN_TO_SUPPLIER_PENDING
                 || (receipt.getType() == ReceiptType.RETURN && receipt.getStatus() == ReceiptStatus.APPROVED);
         if (!isValidState) {
@@ -193,6 +214,10 @@ public class QuarantineRtvService {
                 .build();
         debitNoteRepository.save(debitNote);
 
+        receipt.setStatus(ReceiptStatus.RETURN_TO_SUPPLIER_PENDING);
+        receipt.setUpdatedAt(OffsetDateTime.now());
+        receiptRepository.save(receipt);
+
         auditLogService.log(
                 actor, AuditAction.QUARANTINE_RTV_CREATE, ADJUSTMENT_ENTITY,
                 firstAdjId, firstAdjNumber,
@@ -266,6 +291,7 @@ public class QuarantineRtvService {
         rtv.setApprovedAt(OffsetDateTime.now());
         adjustmentRepository.save(rtv);
 
+        receipt.setStatus(ReceiptStatus.RETURNED_TO_SUPPLIER);
         receipt.setUpdatedAt(OffsetDateTime.now());
         receiptRepository.save(receipt);
 
@@ -304,15 +330,23 @@ public class QuarantineRtvService {
             return;
         }
 
-        if (item.getLocation() == null) {
+        Long warehouseId = receipt.getWarehouse().getId();
+        Long productId = item.getProduct().getId();
+        Long batchId = item.getBatch() != null ? item.getBatch().getId() : null;
+
+        WarehouseLocation location = item.getLocation();
+        if ((location == null || !Boolean.TRUE.equals(location.getIsQuarantine())) && warehouseLocationRepository != null) {
+            location = warehouseLocationRepository
+                    .findFirstByWarehouseIdAndIsQuarantineTrueAndIsActiveTrue(warehouseId)
+                    .orElse(location);
+        }
+
+        if (location == null) {
             log.warn("Receipt item {} has no location assigned; skipping quarantine deduction", item.getId());
             return;
         }
 
-        Long warehouseId = receipt.getWarehouse().getId();
-        Long productId = item.getProduct().getId();
-        Long batchId = item.getBatch() != null ? item.getBatch().getId() : null;
-        Long locationId = item.getLocation().getId();
+        Long locationId = location.getId();
 
         if (batchId == null) {
             throw new BusinessRuleViolationException(

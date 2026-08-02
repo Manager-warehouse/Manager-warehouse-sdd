@@ -7,14 +7,18 @@ import { masterDataService } from '../../services/masterData.service';
 
 const emptyToZero = (value) => (value === '' || value === null || value === undefined ? 0 : Number(value));
 const hasQty = (value) => value !== '' && value !== null && value !== undefined;
-const computedActualQty = (item) => {
+const qualityTotalQty = (item) => {
   if (!hasQty(item.quality_passed_qty) && !hasQty(item.quality_failed_qty)) return '';
   return emptyToZero(item.quality_passed_qty) + emptyToZero(item.quality_failed_qty);
 };
 const expectedQtyOf = (item) => Number(item.expected_qty ?? item.expectedQty ?? 0);
-const isTotalMatched = (item) => hasQty(item.quality_passed_qty)
+const isQualityTotalMatched = (item) => hasQty(item.actual_qty)
+  && hasQty(item.quality_passed_qty)
   && hasQty(item.quality_failed_qty)
-  && computedActualQty(item) === expectedQtyOf(item);
+  && qualityTotalQty(item) === emptyToZero(item.actual_qty);
+const isCountMatchedExpected = (item) => hasQty(item.actual_qty) && emptyToZero(item.actual_qty) === expectedQtyOf(item);
+const requiresReason = (item) => emptyToZero(item.quality_failed_qty) > 0
+  || (hasQty(item.actual_qty) && emptyToZero(item.actual_qty) < expectedQtyOf(item));
 
 const STATUS_LABELS = {
   PENDING_MANAGER_APPROVAL: 'Chờ quản lý duyệt',
@@ -44,7 +48,7 @@ const normalizeItem = (item) => {
 
   return {
     ...item,
-    actual_qty: hasActual ? emptyToZero(passed) + emptyToZero(failed) : '',
+    actual_qty: hasActual ? actual : '',
     quality_passed_qty: passed,
     quality_failed_qty: failed,
     qc_failure_reason: item.qc_failure_reason ?? item.qcFailureReason ?? ''
@@ -95,26 +99,25 @@ const ReceiptReceive = () => {
     updateItem(itemId, (item) => {
       if (field === 'quality_failed_qty') {
         const failed = value === '' ? '' : Number(value);
-        const actual = emptyToZero(item.quality_passed_qty) + emptyToZero(failed);
+        const updated = { ...item, quality_failed_qty: failed };
         return {
-          ...item,
-          actual_qty: actual,
-          quality_failed_qty: failed,
-          qc_failure_reason: failed > 0 ? item.qc_failure_reason : ''
+          ...updated,
+          qc_failure_reason: requiresReason(updated) ? item.qc_failure_reason : ''
         };
       }
       if (field === 'quality_passed_qty') {
         const passed = value === '' ? '' : Number(value);
-        const failed = emptyToZero(item.quality_failed_qty);
-        const actual = emptyToZero(passed) + failed;
+        const updated = { ...item, quality_passed_qty: passed };
         return {
-          ...item,
-          actual_qty: actual,
-          quality_passed_qty: passed,
-          qc_failure_reason: failed > 0 ? item.qc_failure_reason : ''
+          ...updated,
+          qc_failure_reason: requiresReason(updated) ? item.qc_failure_reason : ''
         };
       }
-      return { ...item, [field]: value === '' ? '' : Number(value) };
+      const updated = { ...item, [field]: value === '' ? '' : Number(value) };
+      return {
+        ...updated,
+        qc_failure_reason: requiresReason(updated) ? item.qc_failure_reason : ''
+      };
     });
   };
 
@@ -124,28 +127,32 @@ const ReceiptReceive = () => {
 
   const rowState = (item) => {
     const failed = emptyToZero(item.quality_failed_qty);
-    if (!hasQty(item.quality_passed_qty) && !hasQty(item.quality_failed_qty)) return { type: 'pending', label: 'Chưa nhập' };
-    if (!isTotalMatched(item)) return { type: 'warning', label: 'Lệch kế hoạch' };
+    if (!hasQty(item.actual_qty) && !hasQty(item.quality_passed_qty) && !hasQty(item.quality_failed_qty)) return { type: 'pending', label: 'Chưa nhập' };
+    if (!isQualityTotalMatched(item)) return { type: 'warning', label: 'QC khác số lượng đếm thực tế' };
+    if (!isCountMatchedExpected(item)) return { type: 'warning', label: 'Lệch kế hoạch' };
     if (failed > 0) return { type: 'failed', label: 'Có lỗi' };
     return { type: 'passed', label: 'Đạt' };
   };
 
-  const canSaveResult = items.length > 0 && items.every(isTotalMatched);
+  const canSaveResult = items.length > 0
+    && items.every((item) => isQualityTotalMatched(item)
+      && (!requiresReason(item) || item.qc_failure_reason.trim()));
 
   const validateBeforeSubmit = () => {
     for (const item of items) {
       const passed = emptyToZero(item.quality_passed_qty);
       const failed = emptyToZero(item.quality_failed_qty);
-      if (!hasQty(item.quality_passed_qty) || !hasQty(item.quality_failed_qty) || passed < 0 || failed < 0) {
+      const actual = emptyToZero(item.actual_qty);
+      if (!hasQty(item.actual_qty) || !hasQty(item.quality_passed_qty) || !hasQty(item.quality_failed_qty) || actual < 0 || passed < 0 || failed < 0) {
         addToast(`Vui lòng nhập số lượng hợp lệ cho ${getProductSku(item)}`, 'warning');
         return false;
       }
-      if (computedActualQty(item) !== expectedQtyOf(item)) {
-        addToast(`Tổng số phải bằng SL dự kiến cho ${getProductSku(item)}`, 'warning');
+      if (qualityTotalQty(item) !== actual) {
+        addToast(`Số lượng đạt và lỗi phải bằng số lượng đếm cho ${getProductSku(item)}`, 'warning');
         return false;
       }
-      if (failed > 0 && !item.qc_failure_reason.trim()) {
-        addToast(`Vui lòng nhập lý do lỗi QC cho ${getProductSku(item)}`, 'warning');
+      if (requiresReason(item) && !item.qc_failure_reason.trim()) {
+        addToast(`Vui lòng nhập lý do lỗi hoặc thiếu cho ${getProductSku(item)}`, 'warning');
         return false;
       }
     }
@@ -160,7 +167,7 @@ const ReceiptReceive = () => {
       expectedVersion: receipt.version || 0,
       items: items.map((item) => ({
         receiptItemId: item.receipt_item_id,
-        actualQty: Number(computedActualQty(item)),
+        actualQty: Number(item.actual_qty),
         qualityPassedQty: Number(item.quality_passed_qty),
         qualityFailedQty: Number(item.quality_failed_qty),
         qcFailureReason: item.qc_failure_reason?.trim() || null
@@ -260,7 +267,7 @@ const ReceiptReceive = () => {
             <table className="data-table-grid w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-canvas-cream border-b border-hairline-light">
-                  {['Mã hàng', 'Tên hàng', 'SL dự kiến', 'Hàng đạt yêu cầu', 'Không đạt yêu cầu', 'Tổng số', 'Lý do lỗi', 'Kết quả'].map((heading) => (
+                  {['Mã hàng', 'Tên hàng', 'SL dự kiến', 'Đếm số lượng', 'Hàng đạt yêu cầu', 'Không đạt yêu cầu', 'Lý do lỗi/thiếu', 'Kết quả'].map((heading) => (
                     <th key={heading} className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">
                       {heading}
                     </th>
@@ -275,17 +282,16 @@ const ReceiptReceive = () => {
                       <td className="px-4 py-4 font-mono font-bold">{getProductSku(item)}</td>
                       <td className="px-4 py-4 min-w-[180px] text-shade-70">{getProductName(item)}</td>
                       <td className="px-4 py-4 text-right font-bold text-shade-60">{expectedQtyOf(item)}</td>
+                      <td className="px-4 py-3"><QtyInput value={item.actual_qty} onChange={(value) => handleQtyChange(item.receipt_item_id, 'actual_qty', value)} /></td>
                       <td className="px-4 py-3"><QtyInput value={item.quality_passed_qty} onChange={(value) => handleQtyChange(item.receipt_item_id, 'quality_passed_qty', value)} /></td>
                       <td className="px-4 py-3"><QtyInput value={item.quality_failed_qty} onChange={(value) => handleQtyChange(item.receipt_item_id, 'quality_failed_qty', value)} /></td>
-                      <td className={`px-4 py-4 text-right font-bold ${isTotalMatched(item) ? 'text-ink' : 'text-danger-600'}`}>
-                        {computedActualQty(item) || 0}
-                      </td>
                       <td className="px-4 py-3 min-w-[180px]">
                         <input
                           type="text"
                           value={item.qc_failure_reason}
                           onChange={(e) => handleReasonChange(item.receipt_item_id, e.target.value)}
-                          disabled={emptyToZero(item.quality_failed_qty) === 0}
+                          disabled={!requiresReason(item)}
+                          required={requiresReason(item)}
                           className="text-input w-full py-1.5 disabled:opacity-50"
                         />
                       </td>
@@ -317,21 +323,18 @@ const ReceiptReceive = () => {
                   </div>
                   <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
                     <ReadonlyQty label="SL dự kiến" value={expectedQtyOf(item)} />
+                    <FieldQty label="Đếm số lượng" value={item.actual_qty} onChange={(value) => handleQtyChange(item.receipt_item_id, 'actual_qty', value)} />
                     <FieldQty label="Hàng đạt yêu cầu" value={item.quality_passed_qty} onChange={(value) => handleQtyChange(item.receipt_item_id, 'quality_passed_qty', value)} />
                     <FieldQty label="Không đạt yêu cầu" value={item.quality_failed_qty} onChange={(value) => handleQtyChange(item.receipt_item_id, 'quality_failed_qty', value)} />
-                    <ReadonlyQty
-                      label="Tổng số"
-                      value={computedActualQty(item) || 0}
-                      valueClassName={isTotalMatched(item) ? 'text-ink' : 'text-danger-600'}
-                    />
                   </div>
                   <label className="mt-3 flex flex-col gap-1.5">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-shade-60">Lý do lỗi</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-shade-60">Lý do lỗi/thiếu</span>
                     <input
                       type="text"
                       value={item.qc_failure_reason}
                       onChange={(e) => handleReasonChange(item.receipt_item_id, e.target.value)}
-                      disabled={emptyToZero(item.quality_failed_qty) === 0}
+                      disabled={!requiresReason(item)}
+                      required={requiresReason(item)}
                       className="text-input min-h-[40px] disabled:opacity-50"
                     />
                   </label>
