@@ -365,6 +365,7 @@ public class GlobalExceptionHandler {
             case "DISCREPANCY_HOLD_QUANTITY_MISMATCH": return "Số lượng hàng tạm giữ không khớp với hồ sơ chênh lệch.";
             case "DISCREPANCY_HOLD_ENTRY_INCOMPLETE": return "Hàng tạm giữ thiếu lô hàng hoặc vị trí, không thể nhập tồn.";
             case "SOURCE_STOCK_NOT_ENOUGH_FOR_DISCREPANCY_RESOLUTION": return "Kho nguồn không còn đủ tồn khả dụng để trừ phần hàng thừa.";
+            case "TRANSFER_ALLOCATION_NOT_FOUND": return "Không tìm thấy thông tin giữ hàng ban đầu của phiếu điều chuyển để xử lý chênh lệch.";
             case "DUPLICATE_PUTAWAY_ITEM": return "Có dòng hàng bị trùng lặp trong kế hoạch cất kệ.";
             case "DESTINATION_LOCATION_REQUIRED": return "Yêu cầu chọn vị trí lưu trữ (Bin) cho hàng đạt QC.";
             case "DUPLICATE_PUTAWAY_LOCATION": return "Không được chọn cùng một Bin cho hai dòng phân bổ của cùng mặt hàng.";

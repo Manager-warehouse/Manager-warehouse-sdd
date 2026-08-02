@@ -114,6 +114,7 @@ class DiscrepancyIncidentServiceTest {
     @Test
     void resolveIncident_updatesOpenIncidentAndWritesAudit() {
         User ceo = user(20L, UserRole.CEO, "CEO");
+        incident.setIncidentType("OVER_RECEIPT");
         when(incidentRepository.findWithDetailsById(99L)).thenReturn(Optional.of(incident));
         when(incidentRepository.save(any(DiscrepancyIncident.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -121,27 +122,27 @@ class DiscrepancyIncidentServiceTest {
         DiscrepancyIncidentResponse response = service.resolveIncident(
                 99L,
                 new DiscrepancyIncidentResolveRequest(
-                        "RESOLVED_SOURCE_FAULT",
-                        "Đối chiếu ảnh bàn giao, thiếu do kho nguồn."
+                        "RESOLVED_DESTINATION_COUNT_ERROR",
+                        "Kho đích đếm nhầm phần thừa."
                 ),
                 ceo
         );
 
-        assertThat(response.status()).isEqualTo("RESOLVED_SOURCE_FAULT");
-        assertThat(response.resolutionNote()).isEqualTo("Đối chiếu ảnh bàn giao, thiếu do kho nguồn.");
+        assertThat(response.status()).isEqualTo("RESOLVED_DESTINATION_COUNT_ERROR");
+        assertThat(response.resolutionNote()).isEqualTo("Kho đích đếm nhầm phần thừa.");
         assertThat(response.resolvedById()).isEqualTo(ceo.getId());
         assertThat(response.resolvedAt()).isNotNull();
 
         ArgumentCaptor<DiscrepancyIncident> savedCaptor = ArgumentCaptor.forClass(DiscrepancyIncident.class);
         verify(incidentRepository).save(savedCaptor.capture());
-        assertThat(savedCaptor.getValue().getStatus()).isEqualTo("RESOLVED_SOURCE_FAULT");
+        assertThat(savedCaptor.getValue().getStatus()).isEqualTo("RESOLVED_DESTINATION_COUNT_ERROR");
 
         verify(auditLogService).log(
                 eq(ceo),
                 eq(AuditAction.STATUS_CHANGE),
                 eq("DISCREPANCY_INCIDENT"),
                 eq(99L),
-                eq("SHORTAGE-99"),
+                eq("OVER_RECEIPT-99"),
                 eq(2L),
                 any(),
                 any()
@@ -212,6 +213,47 @@ class DiscrepancyIncidentServiceTest {
                 BigDecimal.ZERO
         );
         verify(adjustmentRepository, times(2)).save(any(Adjustment.class));
+    }
+
+    @Test
+    void resolveShortageAsSourceFault_returnsMissingQtyToSourceWarehouse() {
+        User ceo = user(20L, UserRole.CEO, "CEO");
+        incident.setIncidentType("SHORTAGE");
+        incident.setQuantity(BigDecimal.valueOf(7));
+        Batch batch = new Batch();
+        batch.setId(77L);
+        WarehouseLocation sourceLocation = location(11L);
+        Inventory sourceInventory = inventory(501L, incident.getTransfer().getSourceWarehouse(),
+                incident.getProduct(), batch, sourceLocation, BigDecimal.valueOf(5893));
+        InterWarehouseTransferItem item = InterWarehouseTransferItem.builder()
+                .id(5L)
+                .transfer(incident.getTransfer())
+                .product(incident.getProduct())
+                .build();
+        InterWarehouseTransferAllocation allocation = InterWarehouseTransferAllocation.builder()
+                .id(6L)
+                .transferItem(item)
+                .inventory(sourceInventory)
+                .allocatedQty(BigDecimal.valueOf(97))
+                .build();
+
+        when(incidentRepository.findWithDetailsById(99L)).thenReturn(Optional.of(incident));
+        when(transferHelper.items(incident.getTransfer())).thenReturn(List.of(item));
+        when(allocationRepository.findByTransferItemId(5L)).thenReturn(List.of(allocation));
+        when(incidentRepository.save(any(DiscrepancyIncident.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.resolveIncident(
+                99L,
+                new DiscrepancyIncidentResolveRequest("RESOLVED_SOURCE_FAULT", "Kho nguồn chưa giao đủ 7."),
+                ceo
+        );
+
+        assertThat(sourceInventory.getTotalQty()).isEqualByComparingTo("5900");
+        verify(inventoryRepository).save(sourceInventory);
+        verify(locationRepository).save(sourceLocation);
+        verify(adjustmentRepository).save(any(Adjustment.class));
+        verify(transferHelper, never()).upsertInventory(any(), any(), any(), any(), any(), any());
     }
 
     @Test
