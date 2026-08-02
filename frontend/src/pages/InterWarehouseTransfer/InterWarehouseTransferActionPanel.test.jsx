@@ -448,7 +448,7 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
 
     expect(screen.getByText('Chờ kiểm tra count/QC')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Kiểm tra count/QC' })).toBeInTheDocument();
-    expect(screen.getByText('QC lỗi thì nhập số lượng lỗi theo từng dòng và lý do, hệ thống sẽ đưa phần lỗi vào quarantine khi quản lý xác nhận cuối.')).toBeInTheDocument();
+    expect(screen.getByText('Nếu count khớp số gửi thì có thể nhập QC lỗi; nếu count lệch, phần thiếu/thừa sẽ đi hồ sơ chênh lệch và không nhập QC lỗi ở bước này.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Từ chối & Cách ly toàn bộ' })).not.toBeInTheDocument();
   });
 
@@ -516,7 +516,7 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
       items: [{
         transferItemId: 101,
         confirmedQty: 20,
-        qcPassedQty: 20,
+        qcPassedQty: 10,
         qcFailedQty: 0,
         checkerNote: null,
         qcFailureReason: null,

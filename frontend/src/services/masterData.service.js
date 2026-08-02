@@ -130,6 +130,7 @@ const INITIAL_LOCATIONS = [
     current_volume_m3: 2.15,
     current_weight_kg: 350.0,
     is_quarantine: false,
+    is_staging: false,
     is_active: true,
   },
   {
@@ -143,6 +144,7 @@ const INITIAL_LOCATIONS = [
     current_volume_m3: 0.0,
     current_weight_kg: 0.0,
     is_quarantine: true,
+    is_staging: false,
     is_active: true,
   },
   {
@@ -156,6 +158,7 @@ const INITIAL_LOCATIONS = [
     current_volume_m3: 4.5,
     current_weight_kg: 900.0,
     is_quarantine: false,
+    is_staging: false,
     is_active: true,
   },
 ];
@@ -647,6 +650,7 @@ export const masterDataService = {
         current_volume_m3: 0.0,
         current_weight_kg: 0.0,
         is_quarantine: !!binData.is_quarantine,
+        is_staging: !!binData.is_staging,
         is_active: true,
       };
 

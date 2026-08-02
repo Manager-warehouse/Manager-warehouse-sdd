@@ -121,6 +121,10 @@ public class DiscrepancyIncidentServiceImpl implements DiscrepancyIncidentServic
             applySourceFaultOverReceipt(incident, request.resolutionNote().trim(), actor);
         }
         if ("SHORTAGE".equals(incident.getIncidentType())
+                && "RESOLVED_SOURCE_FAULT".equals(resolutionStatus)) {
+            applySourceFaultShortage(incident, request.resolutionNote().trim(), actor);
+        }
+        if ("SHORTAGE".equals(incident.getIncidentType())
                 && "RESOLVED_DESTINATION_COUNT_ERROR".equals(resolutionStatus)) {
             applyDestinationCountErrorShortage(incident, request.resolutionNote().trim(), actor);
         }
@@ -218,13 +222,53 @@ public class DiscrepancyIncidentServiceImpl implements DiscrepancyIncidentServic
         }
     }
 
+    private void applySourceFaultShortage(DiscrepancyIncident incident, String reason, User actor) {
+        // CEO kết luận kho nguồn giao thiếu: phần thiếu không rời kho nguồn,
+        // nên hoàn số thiếu về đúng tồn kho nguồn theo batch/kệ đã giữ cho phiếu điều chuyển.
+        InterWarehouseTransferItem item = findIncidentTransferItem(incident);
+        List<InterWarehouseTransferAllocation> allocations = allocationRepository.findByTransferItemId(item.getId());
+        if (allocations.isEmpty()) {
+            throw new BusinessRuleViolationException("TRANSFER_ALLOCATION_NOT_FOUND");
+        }
+
+        BigDecimal remainingToReturn = incident.getQuantity();
+        for (InterWarehouseTransferAllocation allocation : allocations) {
+            if (remainingToReturn.signum() <= 0) {
+                break;
+            }
+            Inventory sourceInventory = allocation.getInventory();
+            if (sourceInventory == null || sourceInventory.getBatch() == null || sourceInventory.getLocation() == null) {
+                throw new BusinessRuleViolationException("TRANSFER_ALLOCATION_NOT_FOUND");
+            }
+
+            BigDecimal allocationQty = allocation.getAllocatedQty() != null
+                    ? allocation.getAllocatedQty()
+                    : BigDecimal.ZERO;
+            if (allocationQty.signum() <= 0) {
+                continue;
+            }
+
+            BigDecimal returnedQty = allocationQty.min(remainingToReturn);
+            BigDecimal beforeQty = sourceInventory.getTotalQty();
+            sourceInventory.setTotalQty(beforeQty.add(returnedQty));
+            sourceInventory.setUpdatedAt(OffsetDateTime.now());
+            inventoryRepository.save(sourceInventory);
+            applyLocationOccupancy(sourceInventory.getLocation(), sourceInventory.getProduct(), returnedQty);
+            auditInventory(actor, sourceInventory, beforeQty, sourceInventory.getTotalQty(), returnedQty, reason);
+            createApprovedAdjustment(incident, incident.getTransfer().getSourceWarehouse(),
+                    sourceInventory.getLocation(), sourceInventory.getBatch(), returnedQty, reason, actor);
+            remainingToReturn = remainingToReturn.subtract(returnedQty);
+        }
+
+        if (remainingToReturn.signum() > 0) {
+            throw new BusinessRuleViolationException("TRANSFER_ALLOCATION_NOT_FOUND");
+        }
+    }
+
     private void applyDestinationCountErrorShortage(DiscrepancyIncident incident, String reason, User actor) {
         // CEO kết luận kho đích đếm thiếu: phần thiếu thực tế vẫn ở kho đích,
         // nên bù lại vào đúng kệ nhận hàng và tạo adjustment dương để tổng tồn quay về đúng.
-        InterWarehouseTransferItem item = transferHelper.items(incident.getTransfer()).stream()
-                .filter(row -> row.getProduct().getId().equals(incident.getProduct().getId()))
-                .findFirst()
-                .orElseThrow(() -> new BusinessRuleViolationException("TRANSFER_ITEM_NOT_FOUND"));
+        InterWarehouseTransferItem item = findIncidentTransferItem(incident);
         WarehouseLocation destinationLocation = item.getDestinationLocation();
         if (destinationLocation == null) {
             throw new BusinessRuleViolationException("DESTINATION_LOCATION_REQUIRED");
@@ -255,6 +299,13 @@ public class DiscrepancyIncidentServiceImpl implements DiscrepancyIncidentServic
         auditInventory(actor, destination, beforeDestinationQty, destination.getTotalQty(), incident.getQuantity(), reason);
         createApprovedAdjustment(incident, incident.getTransfer().getDestinationWarehouse(), destinationLocation, batch,
                 incident.getQuantity(), reason, actor);
+    }
+
+    private InterWarehouseTransferItem findIncidentTransferItem(DiscrepancyIncident incident) {
+        return transferHelper.items(incident.getTransfer()).stream()
+                .filter(row -> row.getProduct().getId().equals(incident.getProduct().getId()))
+                .findFirst()
+                .orElseThrow(() -> new BusinessRuleViolationException("TRANSFER_ITEM_NOT_FOUND"));
     }
 
     private void applyLocationOccupancy(WarehouseLocation location, Product product, BigDecimal qty) {

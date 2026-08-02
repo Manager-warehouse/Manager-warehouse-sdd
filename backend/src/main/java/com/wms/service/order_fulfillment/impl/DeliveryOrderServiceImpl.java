@@ -728,7 +728,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
 
             WarehouseLocation stagingLocation = resolveWarehouseLocation(order, row.getStagingLocationId(), false,
                     "staging");
-            if (!Boolean.TRUE.equals(stagingLocation.getIsStaging())) {
+            if (!isEffectiveStaging(stagingLocation)) {
                 throw new OutboundDeliveryException("INVENTORY_ROW_INVALID",
                         HttpStatus.UNPROCESSABLE_ENTITY,
                         "Staging location must have isStaging flag set to true");
@@ -2080,11 +2080,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                 || !inventory.getBatch().getId().equals(request.getBatchId())
                 || !inventory.getLocation().getId().equals(request.getLocationId())
                 || inventory.getLocation().getType() != LocationType.BIN
-                || !Boolean.TRUE.equals(inventory.getLocation().getIsActive())
-                || Boolean.TRUE.equals(inventory.getLocation().getIsLocked())
                 || !zone.getWarehouse().getId().equals(order.getWarehouse().getId())
-                || !Boolean.TRUE.equals(zone.getIsActive())
-                || Boolean.TRUE.equals(inventory.getLocation().getIsQuarantine())) {
+                || !isRegularPickingLocation(inventory.getLocation(), zone)) {
             throw new OutboundDeliveryException("INVENTORY_ROW_INVALID",
                     HttpStatus.UNPROCESSABLE_ENTITY,
                     "Inventory row does not match the requested product/batch/bin");
@@ -2392,10 +2389,8 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                 || !location.getId().equals(request.getReplacementLocationId())
                 || (request.getReplacementZoneId() != null && !zone.getId().equals(request.getReplacementZoneId()))
                 || location.getType() != LocationType.BIN
-                || !Boolean.TRUE.equals(location.getIsActive())
-                || Boolean.TRUE.equals(location.getIsLocked())
-                || Boolean.TRUE.equals(location.getIsQuarantine())
-                || !zone.getWarehouse().getId().equals(order.getWarehouse().getId())) {
+                || !zone.getWarehouse().getId().equals(order.getWarehouse().getId())
+                || !isRegularPickingLocation(location, zone)) {
             throw new OutboundDeliveryException("INVENTORY_ROW_INVALID",
                     HttpStatus.UNPROCESSABLE_ENTITY,
                     "Replacement inventory row is invalid");
@@ -2425,6 +2420,28 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
             }
         }
         return ZERO;
+    }
+
+    private boolean isRegularPickingLocation(WarehouseLocation bin, WarehouseLocation zone) {
+        return bin != null
+                && !Boolean.TRUE.equals(bin.getIsQuarantine())
+                && !Boolean.TRUE.equals(bin.getIsStaging())
+                && !Boolean.TRUE.equals(bin.getIsLocked())
+                && Boolean.TRUE.equals(bin.getIsActive())
+                && zone != null
+                && !Boolean.TRUE.equals(zone.getIsQuarantine())
+                && !Boolean.TRUE.equals(zone.getIsStaging())
+                && Boolean.TRUE.equals(zone.getIsActive());
+    }
+
+    private boolean isEffectiveQuarantine(WarehouseLocation location) {
+        return Boolean.TRUE.equals(location.getIsQuarantine())
+                || (location.getParent() != null && Boolean.TRUE.equals(location.getParent().getIsQuarantine()));
+    }
+
+    private boolean isEffectiveStaging(WarehouseLocation location) {
+        return Boolean.TRUE.equals(location.getIsStaging())
+                || (location.getParent() != null && Boolean.TRUE.equals(location.getParent().getIsStaging()));
     }
 
     private void validateFailedReplacementSource(DeliveryOrderItemAllocation failedAllocation,
@@ -2558,7 +2575,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                     HttpStatus.UNPROCESSABLE_ENTITY,
                     "Invalid " + label + " location for the delivery order warehouse");
         }
-        if (quarantineRequired != Boolean.TRUE.equals(location.getIsQuarantine())) {
+        if (quarantineRequired != isEffectiveQuarantine(location)) {
             throw new OutboundDeliveryException("INVENTORY_ROW_INVALID",
                     HttpStatus.UNPROCESSABLE_ENTITY,
                     "Location does not match the required " + label + " rules");
@@ -2579,7 +2596,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
             Inventory sourceInventory,
             boolean quarantineRow,
             OffsetDateTime now) {
-        if (quarantineRow != Boolean.TRUE.equals(location.getIsQuarantine())) {
+        if (quarantineRow != isEffectiveQuarantine(location)) {
             throw new OutboundDeliveryException("INVENTORY_ROW_INVALID",
                     HttpStatus.UNPROCESSABLE_ENTITY,
                     "Inventory row location does not match the required quarantine rule");
