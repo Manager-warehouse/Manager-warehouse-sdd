@@ -82,6 +82,15 @@ public class SupplierInvoiceServiceImpl implements SupplierInvoiceService {
     public SupplierInvoiceResponse createSupplierInvoice(CreateSupplierInvoiceRequest request, User actor) {
         requireAccountant(actor);
 
+        // Validated up front, before any mutation (supplier balance, document sequence),
+        // since it depends only on the request itself.
+        LocalDate issueDate = request.getDocumentDate();
+        LocalDate dueDate = request.getDueDate() != null ? request.getDueDate() : issueDate.plusDays(30);
+        if (dueDate.isBefore(issueDate)) {
+            throw new UnprocessableEntityException(
+                    "DUE_DATE_BEFORE_DOCUMENT_DATE: Due date cannot be before the document date");
+        }
+
         // 1. Validate date in open period
         accountingPeriodService.validateDateInOpenPeriod(request.getDocumentDate());
 
@@ -128,9 +137,6 @@ public class SupplierInvoiceServiceImpl implements SupplierInvoiceService {
 
         // 6. Generate invoice number
         String invoiceNumber = generateSupplierInvoiceNumber(request.getDocumentDate());
-
-        LocalDate issueDate = request.getDocumentDate();
-        LocalDate dueDate = request.getDueDate() != null ? request.getDueDate() : issueDate.plusDays(30);
 
         OffsetDateTime now = OffsetDateTime.now();
         SupplierInvoice invoice = SupplierInvoice.builder()

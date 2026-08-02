@@ -244,6 +244,22 @@ class SupplierInvoiceServiceImplTest {
     }
 
     @Test
+    @DisplayName("Lập hóa đơn mua hàng thất bại - Hạn thanh toán trước ngày hạch toán")
+    void createSupplierInvoice_failsWhenDueDateBeforeDocumentDate() {
+        // Validated before any repository lookup, so nothing else needs stubbing here.
+        CreateSupplierInvoiceRequest request = CreateSupplierInvoiceRequest.builder()
+                .receiptId(100L)
+                .supplierInvoiceNumber("VAT-NCC-001")
+                .documentDate(LocalDate.of(2026, 7, 23))
+                .dueDate(LocalDate.of(2026, 7, 20))
+                .build();
+
+        assertThatThrownBy(() -> supplierInvoiceService.createSupplierInvoice(request, accountantUser))
+                .isInstanceOf(UnprocessableEntityException.class)
+                .hasMessageContaining("DUE_DATE_BEFORE_DOCUMENT_DATE");
+    }
+
+    @Test
     @DisplayName("Lập hóa đơn mua hàng thất bại - Quyền truy cập không hợp lệ")
     void createSupplierInvoice_failsForNonAccountant() {
         CreateSupplierInvoiceRequest request = CreateSupplierInvoiceRequest.builder()

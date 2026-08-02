@@ -73,7 +73,7 @@ public class SupplierPaymentServiceImpl implements SupplierPaymentService {
         requireAccountant(actor);
 
         // 1. Validate date in open period
-        accountingPeriodService.validateDateInOpenPeriod(request.getDocumentDate());
+        accountingPeriodService.validateDateInOpenPeriod(request.getPaymentDate());
 
         // 2. Validate supplier & invoice
         Supplier supplier = supplierRepository.findById(request.getSupplierId())
@@ -105,9 +105,9 @@ public class SupplierPaymentServiceImpl implements SupplierPaymentService {
 
         // 4. Open period lookup
         AccountingPeriod period = accountingPeriodRepository
-                .findPeriodByDateAndStatus(request.getDocumentDate(), AccountingPeriodStatus.OPEN)
+                .findPeriodByDateAndStatus(request.getPaymentDate(), AccountingPeriodStatus.OPEN)
                 .orElseThrow(() -> new UnprocessableEntityException(
-                        "NO_OPEN_PERIOD: No open accounting period found for payment date " + request.getDocumentDate()));
+                        "NO_OPEN_PERIOD: No open accounting period found for payment date " + request.getPaymentDate()));
 
         // 5. Update invoice status
         BigDecimal newPaidTotal = totalPaidSoFar.add(request.getAmount());
@@ -125,7 +125,7 @@ public class SupplierPaymentServiceImpl implements SupplierPaymentService {
         supplierRepository.save(supplier);
 
         // 7. Generate payment number
-        String paymentNumber = generateSupplierPaymentNumber(request.getDocumentDate());
+        String paymentNumber = generateSupplierPaymentNumber(request.getPaymentDate());
 
         // 8. Create and save payment
         OffsetDateTime now = OffsetDateTime.now();
@@ -137,7 +137,7 @@ public class SupplierPaymentServiceImpl implements SupplierPaymentService {
                 .paymentDate(request.getPaymentDate())
                 .paymentMethod(request.getPaymentMethod())
                 .createdBy(actor)
-                .documentDate(request.getDocumentDate())
+                .documentDate(request.getPaymentDate())
                 .accountingPeriod(period)
                 .notes(request.getNotes())
                 .createdAt(now)

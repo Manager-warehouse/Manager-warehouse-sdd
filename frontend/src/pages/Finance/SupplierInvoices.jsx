@@ -13,6 +13,10 @@ import { FileText, Landmark, BellRing, ShieldAlert, Plus, CheckCircle2, Trending
 
 const OCR_LOW_CONFIDENCE_THRESHOLD = 0.75;
 
+// Real-time entry only - no backdating invoices/payments (unlike correction vouchers,
+// which exist specifically to touch a past period).
+const todayDateStr = () => new Date().toISOString().slice(0, 10);
+
 const SupplierInvoices = () => {
   const { addToast } = useUiStore();
   const { hasRole } = useAuthStore();
@@ -50,7 +54,6 @@ const SupplierInvoices = () => {
     amount: '',
     paymentDate: new Date().toISOString().slice(0, 10),
     paymentMethod: 'BANK_TRANSFER',
-    documentDate: new Date().toISOString().slice(0, 10),
     notes: ''
   });
 
@@ -133,6 +136,14 @@ const SupplierInvoices = () => {
       addToast('Số tiền hóa đơn phải lớn hơn 0', 'warning');
       return;
     }
+    if (invoiceFormData.documentDate < todayDateStr()) {
+      addToast('Ngày hạch toán không được là ngày trong quá khứ', 'error');
+      return;
+    }
+    if (invoiceFormData.dueDate < invoiceFormData.documentDate) {
+      addToast('Hạn thanh toán không được trước Ngày hạch toán', 'error');
+      return;
+    }
     setSubmittingInvoice(true);
     try {
       await financeService.createSupplierInvoice(invoiceFormData);
@@ -156,7 +167,6 @@ const SupplierInvoices = () => {
       amount: String(remaining > 0 ? remaining : (inv.total_amount || inv.totalAmount || 0)),
       paymentDate: new Date().toISOString().slice(0, 10),
       paymentMethod: 'BANK_TRANSFER',
-      documentDate: new Date().toISOString().slice(0, 10),
       notes: `Thanh toán cho hóa đơn ${inv.invoice_number || inv.invoiceNumber}`
     });
     setOcrFileName('');
@@ -189,7 +199,6 @@ const SupplierInvoices = () => {
       amount: initialAmount,
       paymentDate: new Date().toISOString().slice(0, 10),
       paymentMethod: 'BANK_TRANSFER',
-      documentDate: new Date().toISOString().slice(0, 10),
       notes: ''
     });
     setOcrFileName('');
@@ -302,6 +311,10 @@ const SupplierInvoices = () => {
     }
     if (Number(paymentFormData.amount) <= 0) {
       addToast('Số tiền chi phải lớn hơn 0', 'error');
+      return;
+    }
+    if (paymentFormData.paymentDate < todayDateStr()) {
+      addToast('Ngày chi tiền không được là ngày trong quá khứ', 'error');
       return;
     }
     if (submittingPayment) return;
@@ -695,6 +708,7 @@ const SupplierInvoices = () => {
                   id="documentDate"
                   label="Ngày hạch toán"
                   type="date"
+                  min={todayDateStr()}
                   value={invoiceFormData.documentDate}
                   onChange={e => setInvoiceFormData(prev => ({ ...prev, documentDate: e.target.value }))}
                   required
@@ -703,6 +717,7 @@ const SupplierInvoices = () => {
                   id="dueDate"
                   label="Hạn thanh toán"
                   type="date"
+                  min={invoiceFormData.documentDate || todayDateStr()}
                   value={invoiceFormData.dueDate}
                   onChange={e => setInvoiceFormData(prev => ({ ...prev, dueDate: e.target.value }))}
                   required
@@ -833,6 +848,7 @@ const SupplierInvoices = () => {
                   id="paymentDate"
                   label="Ngày chi tiền"
                   type="date"
+                  min={todayDateStr()}
                   value={paymentFormData.paymentDate}
                   onChange={e => setPaymentFormData(prev => ({ ...prev, paymentDate: e.target.value }))}
                   required

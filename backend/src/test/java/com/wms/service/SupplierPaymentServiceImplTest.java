@@ -96,7 +96,6 @@ class SupplierPaymentServiceImplTest {
                 .amount(new BigDecimal("20000000.00"))
                 .paymentDate(LocalDate.of(2026, 7, 23))
                 .paymentMethod(PaymentMethod.BANK_TRANSFER)
-                .documentDate(LocalDate.of(2026, 7, 23))
                 .build();
 
         DocumentSequence sequence = new DocumentSequence();
@@ -106,7 +105,7 @@ class SupplierPaymentServiceImplTest {
         when(supplierRepository.findById(10L)).thenReturn(Optional.of(supplier));
         when(supplierInvoiceRepository.findById(50L)).thenReturn(Optional.of(invoice));
         when(supplierPaymentRepository.findBySupplierInvoiceId(50L)).thenReturn(Collections.emptyList());
-        when(accountingPeriodRepository.findPeriodByDateAndStatus(request.getDocumentDate(), AccountingPeriodStatus.OPEN))
+        when(accountingPeriodRepository.findPeriodByDateAndStatus(request.getPaymentDate(), AccountingPeriodStatus.OPEN))
                 .thenReturn(Optional.of(openPeriod));
         when(sequenceRepository.findBySequenceKeyForUpdate(anyString())).thenReturn(Optional.of(sequence));
         when(supplierPaymentRepository.save(any(SupplierPayment.class))).thenAnswer(i -> {
@@ -136,7 +135,6 @@ class SupplierPaymentServiceImplTest {
                 .amount(new BigDecimal("20000000.00"))
                 .paymentDate(LocalDate.of(2026, 7, 23))
                 .paymentMethod(PaymentMethod.BANK_TRANSFER)
-                .documentDate(LocalDate.of(2026, 7, 23))
                 .build();
 
         DocumentSequence sequence = new DocumentSequence();
@@ -146,7 +144,7 @@ class SupplierPaymentServiceImplTest {
         when(supplierRepository.findById(10L)).thenReturn(Optional.of(supplier));
         when(supplierInvoiceRepository.findById(50L)).thenReturn(Optional.of(invoice));
         when(supplierPaymentRepository.findBySupplierInvoiceId(50L)).thenReturn(Collections.emptyList());
-        when(accountingPeriodRepository.findPeriodByDateAndStatus(request.getDocumentDate(), AccountingPeriodStatus.OPEN))
+        when(accountingPeriodRepository.findPeriodByDateAndStatus(request.getPaymentDate(), AccountingPeriodStatus.OPEN))
                 .thenReturn(Optional.of(openPeriod));
         when(sequenceRepository.findBySequenceKeyForUpdate(anyString())).thenReturn(Optional.of(sequence));
         when(supplierPaymentRepository.save(any(SupplierPayment.class))).thenAnswer(i -> {

@@ -85,7 +85,6 @@ import com.wms.dto.request.SourceLoadReportItemRequest;
 import com.wms.dto.request.SourceLoadReportRequest;
 import com.wms.dto.request.WrongSkuItemRequest;
 import com.wms.dto.request.AccountingPeriodCloseRequest;
-import com.wms.dto.request.AccountingPeriodCreateRequest;
 import com.wms.dto.response.AccountingPeriodResponse;
 import com.wms.dto.response.InterWarehouseTransferResponse;
 import com.wms.entity.billing_payment.AccountingPeriod;
@@ -273,11 +272,6 @@ class InterWarehouseTransferServiceImplTest {
         accountingPeriodService = new AccountingPeriodService() {
             @Override
             public List<AccountingPeriodResponse> getAllPeriods(User actor) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public AccountingPeriodResponse createPeriod(AccountingPeriodCreateRequest request, User actor) {
                 throw new UnsupportedOperationException();
             }
 

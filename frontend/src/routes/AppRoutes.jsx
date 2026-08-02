@@ -38,6 +38,7 @@ import DealerDebtInvoice from '../pages/Finance/DealerDebtInvoice';
 import Payments from '../pages/Finance/Payments';
 import SupplierInvoices from '../pages/Finance/SupplierInvoices';
 import PeriodClosing from '../pages/Finance/PeriodClosing';
+import PeriodDetail from '../pages/Finance/PeriodDetail';
 import CreditAgingReport from '../pages/Reports/CreditAgingReport';
 import { ROLES, getDefaultRouteByRole } from '../utils/constants';
 import { useAuthStore } from '../stores/auth.store';
@@ -188,6 +189,7 @@ const AppRoutes = () => {
         <Route path="/finance/payments" element={<DealerDebtInvoice />} />
         <Route path="/finance/supplier-invoices" element={<SupplierInvoices />} />
         <Route path="/finance/periods" element={<PeriodClosing />} />
+        <Route path="/finance/periods/:id" element={<PeriodDetail />} />
         <Route path="/reports/credit-aging" element={<CreditAgingReport />} />
       </Route>
 
