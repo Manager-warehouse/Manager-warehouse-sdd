@@ -314,6 +314,7 @@ public class GlobalExceptionHandler {
             case "REJECTION_REASON_REQUIRED": return "Vui lòng nhập lý do từ chối.";
             // ── Source Shipping ───────────────────────────────────────────────────
             case "SOURCE_LOAD_ITEMS_REQUIRED": return "Vui lòng nhập số lượng xếp cho tất cả dòng hàng.";
+            case "SOURCE_LOAD_QTY_MUST_MATCH_PLAN": return "Số lượng thực xếp phải bằng đúng kế hoạch của từng dòng. Vui lòng kiểm tra và nhập lại.";
             case "TRANSFER_ITEM_NOT_FOUND": return "Không tìm thấy dòng hàng trong phiếu điều chuyển.";
             case "SOURCE_LOAD_REPORT_REQUIRED": return "Công nhân cần báo số lượng thực xếp trước khi thủ kho QC.";
             case "SENT_QTY_MISMATCH": return "Số lượng thực xếp chưa khớp kế hoạch. Cần công nhân chỉnh lại trước khi QC đạt.";
@@ -341,6 +342,7 @@ public class GlobalExceptionHandler {
             case "CHECKER_NOTE_REQUIRED": return "Cần nhập ghi chú khi số lượng chốt khác số lượng công nhân đã báo.";
             case "OVER_RECEIPT_BLOCKED": return "Số lượng thực nhận không được lớn hơn số lượng đã gửi đi.";
             case "QC_TOTAL_MUST_MATCH_CONFIRMED_QTY": return "Tổng số lượng QC đạt và QC lỗi phải bằng số lượng thực nhận.";
+            case "COUNT_DISCREPANCY_QC_MUST_MATCH_VALID_RECEIVED_QTY": return "Khi số count lệch số gửi, chỉ được cất phần hàng hợp lệ; phần thiếu/thừa sẽ vào hồ sơ chênh lệch.";
             case "QC_FAILURE_REASON_REQUIRED": return "Yêu cầu nhập lý do lỗi khi có số lượng QC không đạt.";
             case "QUARANTINE_LOCATION_NOT_CONFIGURED": return "Kho đích chưa có khu vực cách ly (Quarantine). Cần thêm ít nhất một Bin Quarantine trước khi duyệt QC lỗi.";
             case "QC_PASSED_BIN_MUST_NOT_BE_QUARANTINE": return "Hàng đạt QC không thể xếp vào khu vực cách ly. Vui lòng chọn bin lưu trữ thông thường.";

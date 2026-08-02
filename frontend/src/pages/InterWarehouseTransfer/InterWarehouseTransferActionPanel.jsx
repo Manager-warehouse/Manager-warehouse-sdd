@@ -71,7 +71,6 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
   });
   // loadRows là số lượng công nhân kho nguồn thực xếp lên xe trước khi thủ kho QC.
   const [loadRows, setLoadRows] = useState([]);
-  const [sourceLoadReworkReason, setSourceLoadReworkReason] = useState('');
   // countRows là số lượng công nhân kho nhận đếm khi hàng xuống xe.
   const [countRows, setCountRows] = useState([]);
   // checkRows là số lượng thủ kho xác nhận sau QC nhận hàng.
@@ -104,7 +103,6 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
       plannedEndAt: toDateTimeInputValue(transfer?.tripPlannedEndAt),
     });
     setLoadRows([]);
-    setSourceLoadReworkReason('');
     setCountRows([]);
     setCheckRows([]);
     setPutawayRows([]);
@@ -234,14 +232,12 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
   const returnReceivingHandoverDone = Boolean(transfer.returnArrivedAt && returnHandoverDone);
   const countReady = countRows.length
     && countRows.every((row) => {
-      const item = transfer.items.find((line) => line.id === row.transferItemId);
       const receivedQty = Number(row.receivedQty);
-      // Receive-count là số đếm ban đầu: nếu lệch sentQty thì bắt lý do để sau này có căn cứ discrepancy.
+      // Receive-count chỉ ghi số công nhân đếm được; nếu lệch số gửi thì final receive tự tạo hồ sơ chênh lệch.
       return row.receivedQty !== ''
         && Number.isFinite(receivedQty)
         && receivedQty >= 0
-        && isWholeNumber(row.receivedQty)
-        && (receivedQty === Number(item?.sentQty) || String(row.issueReason || '').trim());
+        && isWholeNumber(row.receivedQty);
     });
   const checkReady = checkRows.length
     && Boolean(receiveQcPhotoFile)
@@ -251,6 +247,8 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
       const qcFailedQty = Number(row.qcFailedQty);
       const item = transfer.items.find((line) => line.id === row.transferItemId);
       const sentQty = Number(item?.sentQty ?? item?.plannedQty ?? 0);
+      const countMismatch = Number(item?.workerReceivedQty ?? sentQty) !== sentQty;
+      const expectedPutawayQty = Math.min(confirmedQty, sentQty);
       // Receive-check là bước thủ kho chốt QC: tổng pass/fail phải khớp số confirm
       // và mọi chênh lệch với count của công nhân phải có ghi chú; số chốt có thể thừa để final receive tạo hồ sơ chênh lệch.
       return Number.isFinite(confirmedQty)
@@ -262,7 +260,9 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
         && isWholeNumber(row.confirmedQty)
         && isWholeNumber(row.qcPassedQty)
         && isWholeNumber(row.qcFailedQty)
-        && qcPassedQty + qcFailedQty === confirmedQty
+        && (countMismatch
+          ? qcFailedQty === 0 && qcPassedQty === expectedPutawayQty
+          : qcPassedQty + qcFailedQty === confirmedQty)
         && (qcFailedQty === 0 || String(row.qcFailureReason || '').trim())
         && (confirmedQty === Number(item?.workerReceivedQty) || String(row.checkerNote || '').trim());
     });
@@ -455,7 +455,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
     const rows = transfer.items.map((item) => ({
       transferItemId: item.id,
       confirmedQty: item.workerReceivedQty ?? item.sentQty ?? item.plannedQty,
-      qcPassedQty: item.workerReceivedQty ?? item.sentQty ?? item.plannedQty,
+      qcPassedQty: Math.min(Number(item.workerReceivedQty ?? item.sentQty ?? item.plannedQty), Number(item.sentQty ?? item.plannedQty)),
       qcFailedQty: 0,
       checkerNote: '',
       qcFailureReason: '',
@@ -690,18 +690,9 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
               {sourceLoadReworkRequired || outboundQcFailed ? 'BƯỚC 1: XỬ LÝ LẠI HÀNG XẾP' : 'BƯỚC 1: CÔNG NHÂN XẾP HÀNG/BÁO SỐ LƯỢNG'}
             </div>
             <div className="text-xs text-shade-60 mt-1">
-              Nhập số lượng thực tế đã xếp lên xe theo từng dòng. QC thất bại thì hạ/đổi/xếp lại rồi báo cáo lại ở đây.
+              Nhập đúng số lượng được giao theo kế hoạch. Nếu lệch, hệ thống sẽ báo nhập sai để công nhân kiểm tra lại trước QC xuất.
             </div>
           </div>
-          {hasDisplayedLoadMismatch && (
-            <Input
-              label="Lý do thiếu/thừa so với kế hoạch"
-              value={sourceLoadReworkReason}
-              onChange={(e) => setSourceLoadReworkReason(e.target.value)}
-              placeholder={transfer.sourceLoadReworkReason || transfer.outboundQcNote || 'Ví dụ: thiếu 1 cái do hàng lỗi, cần bổ sung/đổi hàng...'}
-              maxLength={500}
-            />
-          )}
           <div className="grid grid-cols-1 gap-2">
             {displayedLoadRows.map((row) => {
               const item = transfer.items.find((line) => line.id === row.transferItemId);
@@ -722,14 +713,19 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
                   <div className={`rounded-md border px-3 py-2 text-xs ${
                     Number(row.loadedQty) === Number(item?.plannedQty)
                       ? 'border-success-200 bg-success-50 text-success-700'
-                      : 'border-warning-200 bg-warning-50 text-warning-700'
+                      : 'border-danger-200 bg-danger-50 text-danger-700'
                   }`}>
-                    {Number(row.loadedQty) === Number(item?.plannedQty) ? 'Khớp kế hoạch' : 'Cần chỉnh trước QC đạt'}
+                    {Number(row.loadedQty) === Number(item?.plannedQty) ? 'Khớp kế hoạch' : 'Nhập sai số lượng kế hoạch'}
                   </div>
                 </div>
               );
             })}
           </div>
+          {hasDisplayedLoadMismatch && (
+            <div className="rounded-md border border-danger-200 bg-danger-50 px-3 py-2 text-xs text-danger-700">
+              Số lượng thực xếp phải bằng đúng kế hoạch của từng dòng. Vui lòng kiểm tra lại trước khi báo cáo.
+            </div>
+          )}
           <Button
             loading={busy}
             icon={PackageCheck}
@@ -744,14 +740,14 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
                 addToast('Số lượng thực xếp phải là số nguyên.', 'error');
                 return;
               }
-              // Nếu xếp thiếu/thừa so với kế hoạch thì phải có lý do để thủ kho QC xử lý lại.
-              if (hasDisplayedLoadMismatch && !sourceLoadReworkReason.trim()) {
-                addToast('Vui lòng nhập lý do xử lý lại khi số lượng thực xếp lệch kế hoạch.', 'error');
+              // Công nhân phải nhập đúng số được giao; thiếu/thừa ở bước này là nhập sai hoặc chưa xếp xong.
+              if (hasDisplayedLoadMismatch) {
+                addToast('Số lượng thực xếp đang lệch kế hoạch. Vui lòng kiểm tra và nhập lại đúng số lượng được giao.', 'error');
                 return;
               }
               run('recordSourceLoadReport', {
                 items: displayedLoadRows.map((row) => ({ transferItemId: row.transferItemId, loadedQty: Number(row.loadedQty) })),
-                reworkReason: hasDisplayedLoadMismatch ? sourceLoadReworkReason.trim() : '',
+                reworkReason: '',
               });
             }}
           >
@@ -1147,23 +1143,23 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
                 <div className="text-xs font-semibold">{item.productSku}<br /><span className="text-shade-50">Gửi: {item.sentQty}</span></div>
                 <Input label="Số lượng nhận" type="number" min="0" step="1" value={row.receivedQty} onChange={(e) => setRow(countRows, setCountRows, row.transferItemId, { receivedQty: e.target.value })} />
                 {countMismatch ? (
-                  <Input label="Lý do nếu lệch" value={row.issueReason} onChange={(e) => setRow(countRows, setCountRows, row.transferItemId, { issueReason: e.target.value })} />
+                  <div className="rounded-md border border-warning-200 bg-warning-50 px-3 py-2 text-xs font-semibold text-warning-800">
+                    Lệch số gửi, phần thiếu/thừa sẽ vào hồ sơ chênh lệch.
+                  </div>
                 ) : (
                   <div className="rounded-md border border-success-200 bg-success-50 px-3 py-2 text-xs font-semibold text-success-700">
-                    Khớp số gửi, không cần lý do
+                    Khớp số gửi
                   </div>
                 )}
               </div>
             );
           })}
 	          {countRows.length > 0 && (
-	            /* Nút chỉ bật khi mỗi dòng có số nguyên không âm và có lý do nếu lệch số gửi. */
+	            /* Nút chỉ bật khi mỗi dòng có số nguyên không âm; lệch số gửi được tách sang hồ sơ chênh lệch ở final receive. */
 	            <Button loading={busy} disabled={!countReady} className="py-2.5 px-4 text-xs" onClick={() => run('receiveCount', countRows.map((row) => ({
               ...row,
               receivedQty: Number(row.receivedQty),
-              issueReason: Number(row.receivedQty) === Number(transfer.items.find((line) => line.id === row.transferItemId)?.sentQty)
-                ? null
-                : row.issueReason?.trim() || null,
+              issueReason: null,
             })))}>
               Hoàn tất báo cáo số lượng
             </Button>
@@ -1192,7 +1188,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
                   <Button variant="outline-light" icon={ClipboardCheck} onClick={ensureCheckRows}>Kiểm tra count/QC</Button>
                 </div>
                 <div className="text-xs text-shade-60">
-                  QC lỗi thì nhập số lượng lỗi theo từng dòng và lý do, hệ thống sẽ đưa phần lỗi vào quarantine khi quản lý xác nhận cuối.
+                  Nếu count khớp số gửi thì có thể nhập QC lỗi; nếu count lệch, phần thiếu/thừa sẽ đi hồ sơ chênh lệch và không nhập QC lỗi ở bước này.
                 </div>
               </div>
             {checkRows.map((row) => {
@@ -1201,6 +1197,8 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
                 const confirmedQty = Number(row.confirmedQty);
                 const workerReceivedQty = Number(item?.workerReceivedQty ?? sentQty);
                 const countAdjusted = Number.isFinite(confirmedQty) && confirmedQty !== workerReceivedQty;
+                const countMismatch = workerReceivedQty !== sentQty;
+                const expectedPutawayQty = Math.min(Number.isFinite(confirmedQty) ? confirmedQty : 0, sentQty);
                 const hasQcFailure = Number(row.qcFailedQty) > 0;
                 const isOverSent = confirmedQty > sentQty;
                 return (
@@ -1208,31 +1206,50 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
                          <div className="grid grid-cols-1 md:grid-cols-4 gap-2 items-end">
                            <div className="text-xs font-semibold">{item.productSku}<br /><span className="text-shade-50">Gửi: {sentQty} | CN nhập: {item.workerReceivedQty ?? '-'}</span></div>
                            <div>
-                             <Input label="SL chốt" type="number" min="0" step="1" value={row.confirmedQty} onChange={(e) => setRow(checkRows, setCheckRows, row.transferItemId, { confirmedQty: Number(e.target.value) })} />
+                             <Input label="SL chốt" type="number" min="0" step="1" value={row.confirmedQty} onChange={(e) => {
+                               const nextConfirmed = Number(e.target.value);
+                               const nextPassed = countMismatch ? Math.min(nextConfirmed, sentQty) : row.qcPassedQty;
+                               setRow(checkRows, setCheckRows, row.transferItemId, {
+                                 confirmedQty: nextConfirmed,
+                                 qcPassedQty: nextPassed,
+                                 qcFailedQty: countMismatch ? 0 : row.qcFailedQty,
+                               });
+                             }} />
                              {isOverSent && (
                                <div className="text-[10px] text-warning-800 bg-warning-50 border border-warning-200 rounded px-2 py-1 mt-1 leading-snug">
                                  SL chốt ({confirmedQty}) &gt; số gửi ({sentQty}). Phần thừa sẽ vào hồ sơ chênh lệch khi quản lý duyệt cuối.
                                </div>
                              )}
-                           </div>
-                           <Input label="QC đạt" type="number" min="0" step="1" value={row.qcPassedQty} onChange={(e) => setRow(checkRows, setCheckRows, row.transferItemId, { qcPassedQty: Number(e.target.value) })} />
-                           <div className="flex flex-col gap-1">
-                             <Input label="QC lỗi" type="number" min="0" step="1" value={row.qcFailedQty} onChange={(e) => setRow(checkRows, setCheckRows, row.transferItemId, { qcFailedQty: Number(e.target.value) })} />
-                             {Number(row.qcFailedQty) > 0 && (
-                               <div className="text-[10px] text-warning-700 bg-warning-50 border border-warning-200 rounded px-2 py-1 leading-snug">
-                                 {destinationQuarantineBin
-                                   ? <>{Number(row.qcFailedQty)} sp lỗi → <span className="font-mono font-bold">{destinationQuarantineBin.code ?? destinationQuarantineBin.code}</span> (tự động)</>
-                                   : '⚠ Kho đích chưa có Quarantine Bin!'}
+                             {confirmedQty < sentQty && (
+                               <div className="text-[10px] text-warning-800 bg-warning-50 border border-warning-200 rounded px-2 py-1 mt-1 leading-snug">
+                                 SL chốt ({confirmedQty}) &lt; số gửi ({sentQty}). Phần thiếu sẽ vào hồ sơ chênh lệch khi quản lý duyệt cuối.
                                </div>
                              )}
                            </div>
+                           <Input label="QC đạt" type="number" min="0" step="1" value={countMismatch ? expectedPutawayQty : row.qcPassedQty} disabled={countMismatch} onChange={(e) => setRow(checkRows, setCheckRows, row.transferItemId, { qcPassedQty: Number(e.target.value) })} />
+                           {countMismatch ? (
+                             <div className="rounded-md border border-warning-200 bg-warning-50 px-3 py-2 text-xs text-warning-800">
+                               Count lệch số gửi nên không nhập QC lỗi. Hệ thống chỉ cất {expectedPutawayQty} cái hợp lệ, phần lệch vào hồ sơ chênh lệch.
+                             </div>
+                           ) : (
+                             <div className="flex flex-col gap-1">
+                               <Input label="QC lỗi" type="number" min="0" step="1" value={row.qcFailedQty} onChange={(e) => setRow(checkRows, setCheckRows, row.transferItemId, { qcFailedQty: Number(e.target.value) })} />
+                               {Number(row.qcFailedQty) > 0 && (
+                                 <div className="text-[10px] text-warning-700 bg-warning-50 border border-warning-200 rounded px-2 py-1 leading-snug">
+                                   {destinationQuarantineBin
+                                     ? <>{Number(row.qcFailedQty)} sp lỗi → <span className="font-mono font-bold">{destinationQuarantineBin.code ?? destinationQuarantineBin.code}</span> (tự động)</>
+                                     : 'Kho đích chưa có Quarantine Bin!'}
+                                 </div>
+                               )}
+                             </div>
+                           )}
                          </div>
-                         {(countAdjusted || hasQcFailure) && (
+                         {(countAdjusted || (!countMismatch && hasQcFailure)) && (
                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                              {countAdjusted && (
                                <Input label="Checker note nếu sửa count" value={row.checkerNote} onChange={(e) => setRow(checkRows, setCheckRows, row.transferItemId, { checkerNote: e.target.value })} maxLength={500} />
                              )}
-                             {hasQcFailure && (
+                             {!countMismatch && hasQcFailure && (
                                <Input label="Lý do QC lỗi" value={row.qcFailureReason} onChange={(e) => setRow(checkRows, setCheckRows, row.transferItemId, { qcFailureReason: e.target.value })} maxLength={500} />
                              )}
                            </div>
@@ -1257,8 +1274,16 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
                     const workerReceivedQty = Number(item?.workerReceivedQty ?? item?.sentQty ?? item?.plannedQty ?? 0);
                     return {
                       ...line,
+                      qcPassedQty: Number(item?.workerReceivedQty) !== Number(item?.sentQty ?? item?.plannedQty ?? 0)
+                        ? Math.min(Number(line.confirmedQty), Number(item?.sentQty ?? item?.plannedQty ?? 0))
+                        : line.qcPassedQty,
+                      qcFailedQty: Number(item?.workerReceivedQty) !== Number(item?.sentQty ?? item?.plannedQty ?? 0)
+                        ? 0
+                        : line.qcFailedQty,
                       checkerNote: Number(line.confirmedQty) === workerReceivedQty ? null : line.checkerNote?.trim() || null,
-                      qcFailureReason: Number(line.qcFailedQty) > 0 ? line.qcFailureReason?.trim() || null : null,
+                      qcFailureReason: Number(item?.workerReceivedQty) !== Number(item?.sentQty ?? item?.plannedQty ?? 0)
+                        ? null
+                        : Number(line.qcFailedQty) > 0 ? line.qcFailureReason?.trim() || null : null,
                     };
                   }),
                   photoFile: receiveQcPhotoFile,
