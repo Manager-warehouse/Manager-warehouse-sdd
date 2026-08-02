@@ -148,7 +148,7 @@ const InterWarehouseTransferWorkspace = () => {
           ? masterDataService.getProducts()
           : Promise.resolve([]),
         needsLocationData
-          ? masterDataService.getBinLocations()
+          ? masterDataService.getBinLocations(null, false)
           : Promise.resolve([]),
         needsFleetData ? masterDataService.getVehicles() : Promise.resolve([]),
         needsFleetData ? masterDataService.getDrivers() : Promise.resolve([]),
