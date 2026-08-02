@@ -59,7 +59,7 @@ const InterWarehouseTransferWorkspace = () => {
   });
   // Planner là người lập TRF thủ công hoặc convert từ TRQ sang phiếu vận hành.
   const canCreateTransfer = hasRole(ROLES.PLANNER);
-  // CEO/Quản lý kho cần xem ảnh bằng chứng để đối chiếu khi thiếu/thừa/sai SKU.
+  // CEO/Quản lý kho cần xem ảnh bằng chứng để đối chiếu khi thiếu/thừa hoặc hàng quay đầu.
   const canViewTransferEvidence =
     hasRole(ROLES.CEO) || hasRole(ROLES.WAREHOUSE_MANAGER);
   // Chỉ load xe/tài xế cho những role cần lập chuyến hoặc giám sát chuyến.
@@ -508,9 +508,6 @@ const InterWarehouseTransferWorkspace = () => {
       finalReceive: "Đã gửi/duyệt kế hoạch cất kệ",
       returnToSource: "Đã yêu cầu quay đầu về kho nguồn",
       quarantineReject: "Đã chuyển toàn bộ hàng vào khu cách ly",
-      requestReturn: "Đã gửi yêu cầu quay đầu",
-      approveReturn: "Đã duyệt yêu cầu quay đầu",
-      rejectReturn: "Đã từ chối yêu cầu quay đầu",
       returnDepart: "Tài xế đã xác nhận xuất phát quay đầu",
       returnArrive: "Tài xế đã xác nhận về đến kho nguồn",
       returnHandover: "Đã xác nhận bàn giao hàng quay đầu",
@@ -550,11 +547,6 @@ const InterWarehouseTransferWorkspace = () => {
           interWarehouseTransferService.returnToSource(id, payload),
         quarantineReject: () =>
           interWarehouseTransferService.quarantineReject(id, payload),
-        requestReturn: () =>
-          interWarehouseTransferService.requestReturn(id, payload),
-        approveReturn: () => interWarehouseTransferService.approveReturn(id),
-        rejectReturn: () =>
-          interWarehouseTransferService.rejectReturn(id, payload),
         returnDepart: () => interWarehouseTransferService.returnDepart(id),
         returnArrive: () => interWarehouseTransferService.returnArrive(id),
         returnHandover: () =>

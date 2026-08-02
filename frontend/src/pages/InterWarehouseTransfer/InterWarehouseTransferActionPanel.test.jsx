@@ -194,8 +194,6 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
 
     expect(screen.getByText('Chờ nhập số lượng thực nhận')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Nhập số lượng thực nhận' })).toBeInTheDocument();
-    expect(screen.queryByText('Báo sai SKU & Yêu cầu quay đầu xe')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Gửi yêu cầu quay đầu' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Quay đầu về kho nguồn' })).not.toBeInTheDocument();
   });
 
@@ -216,7 +214,6 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
 
     expect(screen.getByText('Chờ nhập số lượng thực nhận')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Nhập số lượng thực nhận' })).toBeInTheDocument();
-    expect(screen.queryByText('Báo sai SKU & Yêu cầu quay đầu xe')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Quay đầu về kho nguồn' })).not.toBeInTheDocument();
   });
 
@@ -332,27 +329,7 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
     }));
   });
 
-  it('shows only wrong-SKU approval actions when a return request is pending', () => {
-    renderPanel({
-      roles: [ROLES.WAREHOUSE_MANAGER],
-      activeWarehouse: { id: 2, code: 'WH-HP' },
-      warehouseAccessIds: [2],
-      transfer: {
-        ...baseTransfer,
-        status: 'IN_TRANSIT',
-        driverArrivedAt: '2026-07-22T10:00:00Z',
-        arrivalHandoverAt: '2026-07-22T10:05:00Z',
-        returnRequested: true,
-        returnReason: 'Sai SKU',
-      },
-    });
-
-    expect(screen.getByText('YÊU CẦU QUAY ĐẦU DO SAI SKU ĐANG CHỜ PHÊ DUYỆT')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Duyệt quay xe' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Quay đầu về kho nguồn' })).not.toBeInTheDocument();
-  });
-
-  it('shows pending wrong-SKU approval before receiving handover and hides normal handover', () => {
+  it('allows normal handover even if old data still has a pending return request flag', () => {
     renderPanel({
       roles: [ROLES.WAREHOUSE_MANAGER],
       activeWarehouse: { id: 2, code: 'WH-HP' },
@@ -367,47 +344,10 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
       },
     });
 
-    expect(screen.getByText('Chờ duyệt yêu cầu quay đầu')).toBeInTheDocument();
-    expect(screen.getByText('YÊU CẦU QUAY ĐẦU DO SAI SKU ĐANG CHỜ PHÊ DUYỆT')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Duyệt quay xe' })).toBeInTheDocument();
-    expect(screen.queryByText('BƯỚC 2: BÀN GIAO TẠI KHO ĐÍCH')).not.toBeInTheDocument();
-  });
-
-  it('submits wrong-SKU return request with backend DTO fields before handover', async () => {
-    const onAction = renderPanel({
-      roles: [ROLES.STOREKEEPER],
-      activeWarehouse: { id: 2, code: 'WH-HP' },
-      warehouseAccessIds: [2],
-      transfer: {
-        ...baseTransfer,
-        status: 'IN_TRANSIT',
-        driverArrivedAt: '2026-07-22T10:00:00Z',
-        arrivalHandoverAt: null,
-        items: [{ ...baseTransfer.items[0], sentQty: 10 }],
-      },
-    });
-
-    fireEvent.click(screen.getByText('Ảnh bàn giao nhận hàng'));
-    fireEvent.click(screen.getByRole('button', { name: 'Báo sai SKU / quay đầu' }));
-    fireEvent.change(screen.getByLabelText('Dòng hàng lỗi'), { target: { value: '101' } });
-    fireEvent.change(screen.getByLabelText('SKU thực tế nhận'), { target: { value: '202' } });
-    fireEvent.change(screen.getByLabelText('Số lượng sai'), { target: { value: '2' } });
-    fireEvent.change(screen.getByLabelText('Lý do'), { target: { value: 'Nhận nhầm SKU' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Thêm dòng' }));
-    fireEvent.change(screen.getByPlaceholderText('Nhập lý do chung...'), { target: { value: 'Sai SKU cần quay đầu' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Gửi yêu cầu quay đầu' }));
-
-    await waitFor(() => expect(onAction).toHaveBeenCalledWith('requestReturn', {
-      reason: 'Sai SKU cần quay đầu',
-      wrongSkuItems: [{
-        transferItemId: 101,
-        expectedProductId: 201,
-        actualProductId: 202,
-        affectedQty: 2,
-        reason: 'Nhận nhầm SKU',
-        photoRef: null,
-      }],
-    }));
+    expect(screen.getByText('Chờ thủ kho bàn giao')).toBeInTheDocument();
+    expect(screen.getByText('BƯỚC 2: BÀN GIAO TẠI KHO ĐÍCH')).toBeInTheDocument();
+    expect(screen.queryByText('YÊU CẦU QUAY ĐẦU DO SAI SKU ĐANG CHỜ PHÊ DUYỆT')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Duyệt quay xe' })).not.toBeInTheDocument();
   });
 
   it('keeps return receiving QC scoped to source warehouse and hides full quarantine reject', () => {

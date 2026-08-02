@@ -490,7 +490,7 @@ export const interWarehouseTransferService = {
     return response.data;
   },
 
-  // Quay đầu xe: áp dụng khi hàng sai SKU/quá hạn/không thể nhận ở kho đích; sau khi về kho nguồn vẫn phải count/QC trước khi nhập lại.
+  // Quay đầu xe: chỉ còn dùng cho nhánh quá hạn/đã được hệ thống đánh dấu isReturned; khi về kho nguồn vẫn phải count/QC trước khi nhập lại.
   returnToSource: async (id, payload = {}) => {
     if (useMock) {
       return updateMockStatus(id, 'IN_TRANSIT', { isReturned: true, returnReason: payload.reason || '' });
@@ -596,53 +596,6 @@ export const interWarehouseTransferService = {
       });
     }
     const response = await apiClient.post(`/inter-warehouse-transfers/${id}/receiving-handover`, request);
-    return response.data;
-  },
-
-  // Return approval tách khỏi returnToSource để quản lý kho đích kiểm soát quyết định cho xe quay đầu.
-  requestReturn: async (id, payload) => {
-    if (useMock) {
-      const transfers = readMockTransfers();
-      const index = transfers.findIndex((t) => t.id === Number(id));
-      if (index !== -1) {
-        transfers[index].returnRequested = true;
-        transfers[index].returnReason = payload.reason;
-        transfers[index].wrongSkuItems = payload.wrongSkuItems || [];
-        writeMockTransfers(transfers);
-        return transfers[index];
-      }
-    }
-    const response = await apiClient.post(`/inter-warehouse-transfers/${id}/request-return`, payload);
-    return response.data;
-  },
-
-  approveReturn: async (id) => {
-    if (useMock) {
-      const transfers = readMockTransfers();
-      const index = transfers.findIndex((t) => t.id === Number(id));
-      if (index !== -1) {
-        transfers[index].returnRequested = false;
-        transfers[index].isReturned = true;
-        writeMockTransfers(transfers);
-        return transfers[index];
-      }
-    }
-    const response = await apiClient.post(`/inter-warehouse-transfers/${id}/approve-return`);
-    return response.data;
-  },
-
-  rejectReturn: async (id, reason) => {
-    if (useMock) {
-      const transfers = readMockTransfers();
-      const index = transfers.findIndex((t) => t.id === Number(id));
-      if (index !== -1) {
-        transfers[index].returnRequested = false;
-        transfers[index].returnRejectionReason = reason;
-        writeMockTransfers(transfers);
-        return transfers[index];
-      }
-    }
-    const response = await apiClient.post(`/inter-warehouse-transfers/${id}/reject-return`, { reason });
     return response.data;
   },
 

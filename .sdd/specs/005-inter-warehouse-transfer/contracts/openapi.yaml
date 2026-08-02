@@ -458,51 +458,6 @@ paths:
           description: Đã duyệt quay đầu do quá hạn; tài xế phải chạy chặng quay đầu
         '409':
           description: Trip chưa quá hạn hoặc không được return
-  /inter-warehouse-transfers/{id}/request-return:
-    post:
-      summary: Thủ kho kho đích báo sai SKU còn nguyên và yêu cầu quay về nguồn
-      tags: [Phiếu điều chuyển]
-      parameters:
-        - $ref: '#/components/parameters/TransferId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/WrongSkuReturnRequest'
-      responses:
-        '200':
-          description: Đã gửi yêu cầu return cho quản lý kho đích xem xét
-        '409':
-          description: Không được yêu cầu return ở trạng thái hiện tại
-  /inter-warehouse-transfers/{id}/approve-return:
-    post:
-      summary: Quản lý kho đích duyệt return sai SKU bằng cùng trip và tài xế
-      tags: [Phiếu điều chuyển]
-      parameters:
-        - $ref: '#/components/parameters/TransferId'
-      responses:
-        '200':
-          description: Đã duyệt return; phạm vi nhận hàng chuyển về kho nguồn
-        '403':
-          description: Bắt buộc scope quản lý kho đích
-        '409':
-          description: Bắt buộc có yêu cầu return đang chờ
-  /inter-warehouse-transfers/{id}/reject-return:
-    post:
-      summary: Quản lý kho đích từ chối yêu cầu return sai SKU
-      tags: [Phiếu điều chuyển]
-      parameters:
-        - $ref: '#/components/parameters/TransferId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ReturnDecisionRequest'
-      responses:
-        '200':
-          description: Yêu cầu return bị từ chối kèm lý do
   /inter-warehouse-transfers/{id}/return-depart:
     post:
       summary: Tài xế được gán xác nhận rời kho nhận để quay đầu
@@ -760,26 +715,6 @@ components:
       type: object
       properties:
         discrepancyReason: { type: string }
-    WrongSkuReturnRequest:
-      type: object
-      required: [items]
-      properties:
-        items:
-          type: array
-          minItems: 1
-          items:
-            type: object
-            required: [transferItemId, expectedProductId, actualProductId, quantity, reason]
-            properties:
-              transferItemId: { type: integer, format: int64 }
-              expectedProductId: { type: integer, format: int64 }
-              actualProductId: { type: integer, format: int64 }
-              quantity: { type: number, minimum: 0, exclusiveMinimum: true }
-              reason: { type: string, minLength: 1 }
-              photoRefs:
-                type: array
-                items:
-                  type: string
     OverdueReturnRequest:
       type: object
       required: [reason]

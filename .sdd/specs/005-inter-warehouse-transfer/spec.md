@@ -171,16 +171,16 @@ flowchart TD
 ### 5.2. Xe quay đầu về kho nguồn
 
 - Return to Source chỉ áp dụng khi phiếu còn `IN_TRANSIT`.
-- Với lỗi vận hành/quá hạn, WAREHOUSE_MANAGER có phạm vi kho nguồn hoặc kho đích, CEO hoặc ADMIN có thể cho quay đầu; Planner không có quyền.
-- Với sai SKU, thủ kho kho đích phải báo cáo sai SKU, sau đó trưởng kho đích duyệt hoặc từ chối yêu cầu quay đầu.
-- Khi quay đầu được duyệt, tài xế ghi `return-depart`, `return-arrive`, kho nguồn ghi `return-handover`.
+- Nhánh quay đầu do sai SKU tại kho đích không còn được hỗ trợ trong API/service.
+- Khi phiếu bị quá deadline trong lúc `IN_TRANSIT`, hệ thống đánh dấu `is_returned = true` với lý do `TRANSFER_REQUIRED_DATE_EXPIRED`.
+- Khi phiếu đã ở nhánh quay đầu, tài xế ghi `return-depart`, `return-arrive`, kho nguồn ghi `return-handover`.
 - Sau khi xe về, kho nguồn thực hiện lại flow nhận: count, check/QC, putaway plan, final receive.
 - Hàng đạt được nhập lại kho nguồn; hàng lỗi vào quarantine nguồn; thiếu hàng tạo discrepancy.
 
 ### 5.3. Sai SKU
 
-- Sai SKU còn nguyên vẹn được phép return to source.
-- Báo cáo sai SKU phải có dòng hàng kỳ vọng, sản phẩm thực tế, số lượng, lý do và ảnh nếu có.
+- Sai SKU không còn tạo yêu cầu quay đầu trong luồng điều chuyển Sprint 1.
+- Nếu phát hiện sai SKU ở kho đích, kho đích tiếp tục flow nhận/count/QC và xử lý qua chênh lệch hoặc quarantine theo trạng thái vật lý.
 - Hàng đã xác nhận hư hỏng vật lý không dùng return to source làm xử lý cuối; phải đi theo quarantine/disposal của Spec 009.
 
 ### 5.4. Hàng lỗi QC và quarantine
@@ -286,9 +286,6 @@ flowchart TD
 - `PUT /api/v1/inter-warehouse-transfers/{id}/receive-count`
 - `PUT /api/v1/inter-warehouse-transfers/{id}/receive-check`
 - `POST /api/v1/inter-warehouse-transfers/{id}/final-receive`
-- `POST /api/v1/inter-warehouse-transfers/{id}/request-return`
-- `POST /api/v1/inter-warehouse-transfers/{id}/approve-return`
-- `POST /api/v1/inter-warehouse-transfers/{id}/reject-return`
 - `POST /api/v1/inter-warehouse-transfers/{id}/return-to-source`
 - `POST /api/v1/inter-warehouse-transfers/{id}/return-depart`
 - `POST /api/v1/inter-warehouse-transfers/{id}/return-arrive`
@@ -369,12 +366,10 @@ flowchart TD
 | `DISCREPANCY_REASON_REQUIRED` | Có chênh lệch nhưng thiếu lý do |
 | `TRANSFER_TRIP_OVERDUE` | Chuyến điều chuyển đã quá hạn |
 | `RETURN_REASON_REQUIRED` | Quay đầu xe thiếu lý do |
-| `RETURN_REQUEST_PENDING` | Đang chờ quyết định return, không được nhận thường |
 | `TRANSFER_NOT_RETURNED_LEG` | Thao tác return leg khi phiếu chưa được duyệt quay đầu |
 | `RETURN_DEPART_REQUIRED` | Chưa có mốc xe rời kho để quay đầu |
 | `RETURN_ARRIVE_REQUIRED` | Chưa có mốc xe quay về kho nguồn |
 | `RETURN_HANDOVER_REQUIRED` | Chưa có bàn giao hàng quay về |
-| `WRONG_SKU_REASON_REQUIRED` | Báo sai SKU thiếu lý do/dòng hàng |
 | `REJECTION_REASON_REQUIRED` | Từ chối/cách ly thiếu lý do |
 | `TRANSFER_PHOTO_FILE_INVALID` | File ảnh thiếu, không phải ảnh hoặc quá dung lượng |
 | `TRANSFER_PHOTO_STORAGE_FAILED` | Không lưu được ảnh bằng chứng |
@@ -412,9 +407,6 @@ Các action chính:
 - `TRANSFER_RECEIVE_CHECK`: thủ kho kiểm đếm/QC.
 - `TRANSFER_FINAL_RECEIVE`: xác nhận nhập kho cuối.
 - `TRANSFER_DISCREPANCY_CREATE`: tạo adjustment/hồ sơ chênh lệch.
-- `TRANSFER_RETURN_REQUEST`: báo cáo sai SKU/yêu cầu quay đầu.
-- `TRANSFER_RETURN_APPROVE`: duyệt quay đầu.
-- `TRANSFER_RETURN_REJECT`: từ chối quay đầu.
 - `TRANSFER_RETURN_TO_SOURCE`: chuyển phiếu sang nhánh quay đầu.
 - `TRANSFER_RETURN_DEPART`: tài xế rời điểm nhận để quay về.
 - `TRANSFER_RETURN_ARRIVE`: tài xế về tới kho nguồn.
@@ -443,7 +435,7 @@ Các action chính:
 - Tài xế arrive, kho nhận handover.
 - Kho nhận count, check/QC, validate bin capacity.
 - Quản lý final receive, ghi tồn và audit.
-- Blocking paths: thiếu tồn, sai quyền kho, tài xế sai scope, xe quá tải, trip quá deadline, cancel sau ship chưa unship, receive trước arrival, sai SKU thiếu dòng, quarantine thiếu cấu hình, chênh lệch thiếu reason, stale concurrent update.
+- Blocking paths: thiếu tồn, sai quyền kho, tài xế sai scope, xe quá tải, trip quá deadline, cancel sau ship chưa unship, receive trước arrival, quarantine thiếu cấu hình, chênh lệch thiếu reason, stale concurrent update.
 - Migration/Flyway test phải đảm bảo status/schema đúng với spec và không có migration trùng version.
 
 ## 11. Ngoài Phạm Vi Sprint 1

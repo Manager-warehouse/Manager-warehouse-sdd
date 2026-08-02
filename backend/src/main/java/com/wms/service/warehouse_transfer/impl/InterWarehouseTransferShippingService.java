@@ -619,11 +619,6 @@ public class InterWarehouseTransferShippingService {
         if (transfer.getDriverArrivedAt() == null) {
             throw new BusinessRuleViolationException("DRIVER_ARRIVE_REQUIRED");
         }
-        // Validate: nếu đang chờ duyệt yêu cầu xe quay đầu thì không cho bàn giao nhận hàng bình thường.
-        if (!Boolean.TRUE.equals(transfer.isReturned()) && Boolean.TRUE.equals(transfer.isReturnRequested())) {
-            throw new BusinessRuleViolationException("RETURN_REQUEST_PENDING");
-        }
-
         Map<String, Object> before = helper.snapshot(transfer);
         // Bước 2: lưu ảnh bàn giao khi xe đến nơi; bước nhập số lượng nhận sẽ kiểm mốc này.
         transfer.setArrivalHandoverAt(OffsetDateTime.now());

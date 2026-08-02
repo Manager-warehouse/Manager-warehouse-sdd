@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Check, ClipboardCheck, PackageCheck, Plus, RotateCcw, Send, Trash2, Truck, X } from 'lucide-react';
+import { Check, ClipboardCheck, PackageCheck, Plus, Send, Trash2, Truck, X } from 'lucide-react';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import PhotoCaptureInput from '../../components/common/PhotoCaptureInput';
@@ -58,7 +58,7 @@ const getDriverWarehouseIds = (driver) => {
   return Array.isArray(ids) ? ids.map(Number) : [];
 };
 
-const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWarehouse, hasRole, hasWarehouseAccess, vehicles, drivers, locations, products = [], onAction }) => {
+const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWarehouse, hasRole, hasWarehouseAccess, vehicles, drivers, locations, onAction }) => {
   const { addToast } = useUiStore();
   // reason dùng chung cho từ chối, hủy, discrepancy, quay đầu; mỗi nút sẽ validate nội dung bắt buộc riêng.
   const [reason, setReason] = useState('');
@@ -84,15 +84,6 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
   const [arrivalHandoverPhotoFile, setArrivalHandoverPhotoFile] = useState(null);
   const [receiveQcPhotoFile, setReceiveQcPhotoFile] = useState(null);
   const [returnPhotoFile, setReturnPhotoFile] = useState(null);
-  // wrongSkuItems ghi các dòng sai SKU để gửi yêu cầu quay đầu có bằng chứng rõ ràng.
-  const [wrongSkuItems, setWrongSkuItems] = useState([]);
-  const [showWrongSkuForm, setShowWrongSkuForm] = useState(false);
-  const [newWrongSku, setNewWrongSku] = useState({
-    transferItemId: '',
-    actualProductId: '',
-    affectedQty: '',
-    reason: '',
-  });
 
   useEffect(() => {
     // Khi đổi phiếu đang chọn, reset toàn bộ form tạm để không mang dữ liệu thao tác của phiếu cũ sang phiếu mới.
@@ -112,14 +103,6 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
     setArrivalHandoverPhotoFile(null);
     setReceiveQcPhotoFile(null);
     setReturnPhotoFile(null);
-    setWrongSkuItems([]);
-    setShowWrongSkuForm(false);
-    setNewWrongSku({
-      transferItemId: '',
-      actualProductId: '',
-      affectedQty: '',
-      reason: '',
-    });
   }, [transfer?.id, transfer?.tripPlannedStartAt, transfer?.tripPlannedEndAt]);
 
   const destinationBins = useMemo(() => locations.filter((loc) => {
@@ -226,8 +209,6 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
     const item = transfer.items.find((line) => line.id === row.transferItemId);
     return Number(row.loadedQty) !== Number(item?.plannedQty);
   });
-  // pendingReturnRequest là trạng thái chờ quản lý kho đích duyệt yêu cầu quay đầu do sai SKU.
-  const pendingReturnRequest = transfer.status === 'IN_TRANSIT' && !transfer.isReturned && Boolean(transfer.returnRequested);
   const normalReceivingHandoverDone = Boolean(transfer.driverArrivedAt && arrivalHandoverDone);
   const returnReceivingHandoverDone = Boolean(transfer.returnArrivedAt && returnHandoverDone);
   const countReady = countRows.length
@@ -317,12 +298,6 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
         detail: `${transfer.driverName || 'Tài xế được gán'} xác nhận rời ${transfer.sourceWarehouseCode}.`,
       };
     }
-    if (pendingReturnRequest) {
-      return {
-        title: 'Chờ duyệt yêu cầu quay đầu',
-        detail: `Quản lý kho đích ${transfer.destinationWarehouseCode} duyệt hoặc từ chối yêu cầu quay đầu do sai SKU.`,
-      };
-    }
     if (transfer.status === 'IN_TRANSIT' && !transfer.isReturned && !transfer.driverArrivedAt) {
       return {
         title: 'Đang vận chuyển - chờ tài xế đến kho đích',
@@ -332,7 +307,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
     if (transfer.status === 'IN_TRANSIT' && !transfer.isReturned && transfer.driverArrivedAt && !normalReceivingHandoverDone) {
       return {
         title: 'Chờ thủ kho bàn giao',
-        detail: `Thủ kho kho đích ${transfer.destinationWarehouseCode} chụp ảnh bàn giao rồi gửi cho công nhân count, hoặc báo sai SKU để yêu cầu quay đầu.`,
+        detail: `Thủ kho kho đích ${transfer.destinationWarehouseCode} chụp ảnh bàn giao rồi gửi cho công nhân count.`,
       };
     }
     if (transfer.status === 'IN_TRANSIT' && transfer.isReturned && !transfer.returnDepartedAt) {
@@ -404,17 +379,6 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
     try {
       await onAction(name, payload);
       setReason('');
-      if (name === 'requestReturn') {
-        // Sau khi gửi yêu cầu quay đầu thành công, đóng form để tránh người dùng tưởng vẫn cần gửi lại lần nữa.
-        setShowWrongSkuForm(false);
-        setWrongSkuItems([]);
-        setNewWrongSku({
-          transferItemId: '',
-          actualProductId: '',
-          affectedQty: '',
-          reason: '',
-        });
-      }
     } finally {
       setBusy(false);
     }
@@ -882,7 +846,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
           )}
 
           {/* Receiving Handover step */}
-          {transfer.driverArrivedAt && !arrivalHandoverDone && !transfer.returnRequested && (
+          {transfer.driverArrivedAt && !arrivalHandoverDone && (
             <div className="border border-hairline-light rounded p-3 bg-canvas-cream flex flex-col gap-2">
               <div className="text-xs font-semibold text-ink">BƯỚC 2: BÀN GIAO TẠI KHO ĐÍCH</div>
               {hasAny(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse ? (
@@ -890,30 +854,15 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
                   <PhotoCaptureInput
                     label="Ảnh bàn giao nhận hàng"
                     output="file"
-                    onChange={(file) => {
-                      setArrivalHandoverPhotoFile(file);
-                      setShowWrongSkuForm(false);
-                    }}
+                    onChange={(file) => setArrivalHandoverPhotoFile(file)}
                     required
                   />
                   {arrivalHandoverPhotoFile && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      <Button loading={busy} size="sm" icon={Send} onClick={() => {
-                        run('receivingHandover', { photoFile: arrivalHandoverPhotoFile });
-                      }}>
-                        Gửi cho nhân viên nhập count
-                      </Button>
-                      <Button
-                        loading={busy}
-                        size="sm"
-                        variant="outline-light"
-                        icon={RotateCcw}
-                        className="text-danger-700 border-danger-300 hover:bg-danger-50"
-                        onClick={() => setShowWrongSkuForm((value) => !value)}
-                      >
-                        Báo sai SKU / quay đầu
-                      </Button>
-                    </div>
+                    <Button loading={busy} size="sm" icon={Send} onClick={() => {
+                      run('receivingHandover', { photoFile: arrivalHandoverPhotoFile });
+                    }}>
+                      Gửi cho nhân viên nhập count
+                    </Button>
                   )}
                 </>
               ) : (
@@ -982,156 +931,8 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
         </div>
       )}
 
-      {/* Wrong SKU return request waiting for approval */}
-      {pendingReturnRequest && (
-        <div className="rounded-md border border-danger-200 bg-danger-50 p-3 flex flex-col gap-2.5 mb-2">
-          <div className="text-xs text-danger-700 font-bold flex items-center gap-1.5">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-danger-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-danger-500"></span>
-            </span>
-            YÊU CẦU QUAY ĐẦU DO SAI SKU ĐANG CHỜ PHÊ DUYỆT
-          </div>
-          <div className="text-xs text-shade-60">
-            <span className="font-semibold text-shade-50">Lý do báo:</span> "{transfer.returnReason}"
-          </div>
-          {hasAny(hasRole, [ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && (
-            <div className="flex gap-2 mt-1">
-              <div className="flex-1 flex gap-1">
-                <Input
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                  placeholder="Lý do từ chối..."
-                  maxLength={500}
-                />
-              </div>
-	              <Button loading={busy} variant="outline-light" className="text-danger-600 border-danger-300 hover:bg-danger-50 py-1 px-3 text-xs" onClick={() => {
-	                // Từ chối quay đầu phải có lý do để kho đích chịu trách nhiệm quyết định tiếp tục nhận.
-	                if (!reason.trim()) {
-	                  addToast('Vui lòng điền lý do từ chối!', 'error');
-	                  return;
-                }
-                run('rejectReturn', reason.trim());
-              }}>
-                Từ chối
-              </Button>
-              <Button loading={busy} className="bg-danger-600 hover:bg-danger-700 text-white font-bold py-1 px-3 text-xs" onClick={() => run('approveReturn')}>
-                Duyệt quay xe
-              </Button>
-            </div>
-          )}
-          {!(hasAny(hasRole, [ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse) && (
-            <div className="text-[10px] text-shade-50 italic">Đang chờ Quản lý kho đích duyệt...</div>
-          )}
-        </div>
-      )}
-
-      {/* Wrong SKU submission form */}
-      {transfer.status === 'IN_TRANSIT' && !transfer.isReturned && !allItemsCounted && !transfer.returnRequested
-        && showWrongSkuForm && !activeReceivingHandoverDone
-        && hasAny(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && (
-        <div className="rounded-lg border border-hairline-light bg-canvas-cream p-4 text-sm flex flex-col gap-3 mb-2">
-          <div className="text-xs text-ink font-semibold flex items-center gap-1.5 text-danger-700">
-            Báo sai SKU & Yêu cầu quay đầu xe
-          </div>
-
-          {/* Form to add item */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-2 items-end border-b border-hairline-light pb-3">
-            <Input type="select" label="Dòng hàng lỗi" value={newWrongSku.transferItemId} onChange={(e) => setNewWrongSku({ ...newWrongSku, transferItemId: e.target.value })}
-              options={[
-                { value: '', label: 'Chọn dòng hàng' },
-                ...(transfer.items || []).map((item) => ({ value: item.id, label: `${item.productSku} (Yêu cầu: ${item.plannedQty})` }))
-              ]} />
-            <Input type="select" label="SKU thực tế nhận" value={newWrongSku.actualProductId} onChange={(e) => setNewWrongSku({ ...newWrongSku, actualProductId: e.target.value })}
-              options={[
-                { value: '', label: 'Chọn SKU thực tế' },
-                ...(products || []).map((product) => ({ value: product.id, label: `${product.sku} - ${product.name}` }))
-              ]} />
-            <Input label="Số lượng sai" type="number" min="1" step="1" value={newWrongSku.affectedQty} onChange={(e) => setNewWrongSku({ ...newWrongSku, affectedQty: e.target.value })} />
-            <Input label="Lý do" value={newWrongSku.reason} onChange={(e) => setNewWrongSku({ ...newWrongSku, reason: e.target.value })} placeholder="Nhập lý do..." />
-	            <div className="md:col-span-4 flex justify-end">
-	              <Button size="sm" variant="outline-light" onClick={() => {
-	                const originalItem = transfer.items.find((line) => Number(line.id) === Number(newWrongSku.transferItemId));
-	                const affectedQty = Number(newWrongSku.affectedQty);
-	                // Sai SKU phải chỉ rõ dòng dự kiến, SKU thực tế, số lượng và lý do trước khi gửi duyệt quay đầu.
-	                if (!originalItem || !newWrongSku.actualProductId || !newWrongSku.affectedQty || !newWrongSku.reason.trim()) {
-	                  addToast('Vui lòng nhập đầy đủ thông tin dòng hàng sai!', 'error');
-	                  return;
-	                }
-	                // SKU thực tế giống SKU dự kiến thì không phải lỗi sai SKU.
-	                if (Number(originalItem.productId) === Number(newWrongSku.actualProductId)) {
-	                  addToast('SKU thực tế phải khác SKU dự kiến.', 'error');
-	                  return;
-	                }
-	                // Số lượng sai không được vượt lượng đã gửi để tránh khai báo lỗi lớn hơn hàng trên xe.
-	                if (!Number.isFinite(affectedQty) || affectedQty <= 0 || affectedQty > Number(originalItem.sentQty ?? originalItem.plannedQty)) {
-	                  addToast('Số lượng sai phải lớn hơn 0 và không vượt số lượng đã gửi.', 'error');
-	                  return;
-	                }
-	                // Số lượng sai SKU cũng phải nguyên theo rule tồn kho.
-	                if (!isWholeNumber(newWrongSku.affectedQty)) {
-	                  addToast('Số lượng sai phải là số nguyên.', 'error');
-	                  return;
-                }
-                setWrongSkuItems([...wrongSkuItems, {
-                  transferItemId: Number(originalItem.id),
-                  expectedProductId: Number(originalItem.productId),
-                  actualProductId: Number(newWrongSku.actualProductId),
-                  affectedQty,
-                  reason: newWrongSku.reason.trim(),
-                  photoRef: null,
-                }]);
-                setNewWrongSku({ transferItemId: '', actualProductId: '', affectedQty: '', reason: '' });
-              }}>Thêm dòng</Button>
-            </div>
-          </div>
-
-          {/* List of items added */}
-          {wrongSkuItems.length > 0 && (
-            <div className="text-xs bg-canvas-light border border-hairline-light rounded p-2 flex flex-col gap-1.5">
-              <div className="font-semibold">Danh sách hàng sai SKU cần trả về:</div>
-              {wrongSkuItems.map((item, idx) => {
-                const orig = transfer.items.find((line) => line.id === item.transferItemId);
-                const actual = products.find((product) => Number(product.id) === Number(item.actualProductId));
-                return (
-                  <div key={idx} className="flex justify-between items-center text-[11px] text-shade-60 border-b border-hairline-light pb-1">
-                    <span>- {orig?.productSku} → {actual?.sku || item.actualProductId} (SL: {item.affectedQty}): {item.reason}</span>
-                    <button className="text-danger-600 hover:underline" onClick={() => setWrongSkuItems(wrongSkuItems.filter((_, i) => i !== idx))}>Xóa</button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          <div className="flex gap-2">
-            <Input
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="Nhập lý do chung..."
-              className="flex-1"
-              maxLength={500}
-            />
-            <Button variant="outline-light" icon={RotateCcw} className="text-danger-700 border-danger-300 hover:bg-danger-50 py-1.5 px-3 text-xs" loading={busy} onClick={() => {
-              // Gửi yêu cầu quay đầu cần lý do chung để quản lý kho đích duyệt.
-              if (!reason.trim()) {
-                addToast('Vui lòng nhập lý do chung!', 'error');
-                return;
-              }
-              // Sai SKU phải có ít nhất một dòng lỗi cụ thể, không gửi yêu cầu rỗng.
-              if (wrongSkuItems.length === 0) {
-                addToast('Vui lòng thêm ít nhất 1 dòng hàng sai SKU!', 'error');
-                return;
-              }
-              run('requestReturn', { reason: reason.trim(), wrongSkuItems });
-            }}>
-              Gửi yêu cầu quay đầu
-            </Button>
-          </div>
-        </div>
-      )}
-
 	      {/* Receive counting steps */}
-	      {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && !transfer.returnRequested && hasAny(hasRole, [ROLES.WAREHOUSE_STAFF, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && !allItemsCounted && (
+	      {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && hasAny(hasRole, [ROLES.WAREHOUSE_STAFF, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && !allItemsCounted && (
 	        <div className="flex flex-col gap-3">
 	          {/* Count chỉ ghi nhận số công nhân đếm, chưa quyết định hàng được nhập kho. */}
 	          <Button variant="outline-light" icon={ClipboardCheck} onClick={ensureCountRows}>Nhập số lượng thực nhận</Button>
@@ -1167,19 +968,19 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
         </div>
       )}
 
-      {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && !transfer.returnRequested && hasAny(hasRole, [ROLES.WAREHOUSE_STAFF, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && allItemsCounted && !allItemsChecked && !hasAny(hasRole, [ROLES.STOREKEEPER]) && (
+      {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && hasAny(hasRole, [ROLES.WAREHOUSE_STAFF, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && allItemsCounted && !allItemsChecked && !hasAny(hasRole, [ROLES.STOREKEEPER]) && (
         <div className="rounded-md border border-success-200 bg-success-50 px-3 py-2 text-xs text-success-700">
           Đã lưu số lượng thực nhận. Chờ thủ kho kiểm tra count/QC.
         </div>
       )}
 
-      {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && !transfer.returnRequested && hasRole(ROLES.STOREKEEPER) && !hasAny(hasRole, [ROLES.WAREHOUSE_STAFF, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && !allItemsCounted && (
+      {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && hasRole(ROLES.STOREKEEPER) && !hasAny(hasRole, [ROLES.WAREHOUSE_STAFF, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && !allItemsCounted && (
         <div className="rounded-md border border-hairline-light bg-canvas-cream/60 px-3 py-2 text-xs text-shade-60">
           {`Chờ công nhân ${activeReceiveWarehouseLabel} nhập số lượng thực nhận trước khi thủ kho kiểm tra count/QC.`}
         </div>
       )}
 
-      {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && !transfer.returnRequested && hasAny(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && allItemsCounted && !allItemsChecked && (
+      {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && hasAny(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && allItemsCounted && !allItemsChecked && (
         <div className="flex flex-col gap-3">
           <>
             <div className="flex flex-col md:flex-row md:items-end gap-2 border-b border-hairline-light pb-3">
@@ -1295,7 +1096,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
         </div>
       )}
 
-      {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && !transfer.returnRequested && hasAny(hasRole, [ROLES.WAREHOUSE_STAFF, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && allItemsChecked && !hasAny(hasRole, [ROLES.STOREKEEPER]) && (
+      {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && hasAny(hasRole, [ROLES.WAREHOUSE_STAFF, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && allItemsChecked && !hasAny(hasRole, [ROLES.STOREKEEPER]) && (
         <div className="rounded-md border border-success-200 bg-success-50 p-3 text-xs text-success-700 flex flex-col gap-2">
           <div className="font-semibold flex items-center gap-1">
             <Check className="w-4 h-4" /> Đã hoàn tất kiểm tra count/QC
@@ -1313,19 +1114,19 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
         </div>
       )}
 
-      {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && !transfer.returnRequested && hasRole(ROLES.WAREHOUSE_MANAGER) && !hasRole(ROLES.STOREKEEPER) && canManageDestinationWarehouse && !allItemsChecked && (
+      {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && hasRole(ROLES.WAREHOUSE_MANAGER) && !hasRole(ROLES.STOREKEEPER) && canManageDestinationWarehouse && !allItemsChecked && (
         <div className="rounded-md border border-hairline-light bg-canvas-cream/60 px-3 py-2 text-xs text-shade-60">
           {`Chờ thủ kho ${activeReceiveWarehouseLabel} hoàn tất kiểm tra count/QC trước khi quản lý xác nhận cuối.`}
         </div>
       )}
 
-      {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && !transfer.returnRequested && hasRole(ROLES.WAREHOUSE_MANAGER) && !hasRole(ROLES.STOREKEEPER) && canManageDestinationWarehouse && allItemsChecked && (
+      {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && hasRole(ROLES.WAREHOUSE_MANAGER) && !hasRole(ROLES.STOREKEEPER) && canManageDestinationWarehouse && allItemsChecked && (
         <div className="rounded-md border border-hairline-light bg-canvas-cream/60 px-3 py-2 text-xs text-shade-60">
           Chờ thủ kho {activeReceiveWarehouseLabel} {activeReceiveWarehouseCode} gửi kế hoạch cất kệ trước khi duyệt nhập kho.
         </div>
       )}
 
-      {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && !transfer.returnRequested && hasRole(ROLES.STOREKEEPER) && canManageDestinationWarehouse && allItemsChecked && (
+      {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && hasRole(ROLES.STOREKEEPER) && canManageDestinationWarehouse && allItemsChecked && (
         <div className="flex flex-col gap-3">
           {hasQcPassedStock ? (
             <>
@@ -1402,7 +1203,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
         </div>
       )}
 
-      {transfer.status === 'PUTAWAY_PENDING_APPROVAL' && !transfer.returnRequested && hasAny(hasRole, [ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && (
+      {transfer.status === 'PUTAWAY_PENDING_APPROVAL' && hasAny(hasRole, [ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && (
         <div className="rounded-md border border-warning-200 bg-warning-50 p-3 flex flex-col gap-3">
           <div>
             <div className="text-xs font-semibold text-warning-900">Kế hoạch cất kệ đang chờ duyệt</div>
@@ -1417,7 +1218,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
         </div>
       )}
 
-      {transfer.status === 'PUTAWAY_PENDING_APPROVAL' && !transfer.returnRequested && hasRole(ROLES.STOREKEEPER) && !hasAny(hasRole, [ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && (
+      {transfer.status === 'PUTAWAY_PENDING_APPROVAL' && hasRole(ROLES.STOREKEEPER) && !hasAny(hasRole, [ROLES.WAREHOUSE_MANAGER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && (
         <div className="rounded-md border border-hairline-light bg-canvas-cream/60 px-3 py-2 text-xs text-shade-60">
           Đã gửi kế hoạch cất kệ. Chờ quản lý kho {activeReceiveWarehouseCode} duyệt để nhập kho.
         </div>

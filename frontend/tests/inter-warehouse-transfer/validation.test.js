@@ -120,29 +120,6 @@ const validateReceivingHandover = (payload) => {
   return { isValid: true };
 };
 
-const validateWrongSkuReport = (payload) => {
-  if (!payload.reason || !payload.reason.trim()) {
-    return { isValid: false, error: 'Vui lòng nhập lý do chung' };
-  }
-  if (!payload.wrongSkuItems || payload.wrongSkuItems.length === 0) {
-    return { isValid: false, error: 'Vui lòng thêm ít nhất 1 dòng hàng sai SKU' };
-  }
-  for (const item of payload.wrongSkuItems) {
-    if (!item.transferItemId) {
-      return { isValid: false, error: 'Thiếu thông tin dòng hàng' };
-    }
-    if (!item.actualProductSku || !item.actualProductSku.trim()) {
-      return { isValid: false, error: 'Vui lòng nhập SKU thực tế' };
-    }
-    if (!item.quantity || Number(item.quantity) <= 0) {
-      return { isValid: false, error: 'Số lượng sai phải lớn hơn 0' };
-    }
-    if (!item.reason || !item.reason.trim()) {
-      return { isValid: false, error: 'Vui lòng nhập lý do dòng hàng' };
-    }
-  }
-  return { isValid: true };
-};
 
 // --- Test Suite ---
 
@@ -384,18 +361,5 @@ describe('Inter-Warehouse Transfer Frontend Validations', () => {
       expect(validateReceivingHandover({ photoRef: 'arrive.jpg' }).isValid).toBe(true);
     });
 
-    test('validateWrongSkuReport validates general reason and items', () => {
-      const payloadNoReason = { reason: '', wrongSkuItems: [{ transferItemId: 1, actualProductSku: 'SKU2', quantity: 2, reason: 'Wrong color' }] };
-      expect(validateWrongSkuReport(payloadNoReason).isValid).toBe(false);
-
-      const payloadNoItems = { reason: 'Wrong SKU delivered', wrongSkuItems: [] };
-      expect(validateWrongSkuReport(payloadNoItems).isValid).toBe(false);
-
-      const payloadValid = {
-        reason: 'Wrong SKU delivered',
-        wrongSkuItems: [{ transferItemId: 1, actualProductSku: 'SKU2', quantity: 2, reason: 'Wrong color' }]
-      };
-      expect(validateWrongSkuReport(payloadValid).isValid).toBe(true);
-    });
   });
 });

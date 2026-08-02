@@ -243,10 +243,10 @@
    - Nếu nhận thừa (`received_qty > sent_qty`) → Hệ thống chặn nhập kho thường và ghi nhận discrepancy hold/incident cho phần hàng vật lý thừa.
    - Nếu QC lỗi/hư hỏng → Phần lỗi được đưa vào Quarantine Zone với nguồn `INTERNAL_TRANSFER`, không tính vào tồn kho khả dụng, chỉ xử lý tiêu hủy theo Spec 009 và không tạo trả NCC/Debit Note.
    - Nếu thiếu hàng → Phần thiếu không được tạo Quarantine hoặc disposal candidate vì không có hàng vật lý.
-   - Nếu gửi nhầm SKU nhưng hàng còn nguyên → Thủ kho đích báo cáo `WRONG_SKU` theo từng line với SKU kỳ vọng, SKU thực tế, số lượng ảnh hưởng, lý do và ảnh nếu có; Trưởng kho đích duyệt xe quay về kho nguồn, hàng vẫn ở In-Transit, tài xế ghi nhận return departure/source arrival/handover và kho nguồn thực hiện lại count/check/QC/final receive.
-   - Nếu trip quá hạn khi phiếu còn `IN_TRANSIT` → Hệ thống đánh dấu quá hạn, chặn receive-count/receive-check tại kho đích và yêu cầu vai trò có thẩm quyền kích hoạt Return to Source với lý do/bằng chứng.
+   - Nếu gửi nhầm SKU nhưng hàng còn nguyên → Kho đích tiếp tục count/QC và xử lý theo chênh lệch hoặc quarantine theo trạng thái vật lý; không còn nhánh yêu cầu quay đầu do sai SKU.
+   - Nếu trip quá hạn khi phiếu còn `IN_TRANSIT` → Hệ thống đánh dấu `is_returned = true`, chặn nhận tại kho đích và yêu cầu tài xế chạy chặng quay đầu về kho nguồn.
    - Hàng đạt QC chỉ được cộng vào Bin hợp lệ của kho nhận sau khi kiểm tra sức chứa Bin.
-   - Payload receive-count, receive-check, putaway và wrong-SKU phải đủ dòng hợp lệ, không trùng dòng, số lượng nguyên/dương đúng ngữ cảnh; lỗi validate phải trả message rõ ràng và không mutate tồn kho/trạng thái nếu chưa đi vào nhánh nghiệp vụ hợp lệ.
+   - Payload receive-count, receive-check và putaway phải đủ dòng hợp lệ, không trùng dòng, số lượng nguyên/dương đúng ngữ cảnh; lỗi validate phải trả message rõ ràng và không mutate tồn kho/trạng thái nếu chưa đi vào nhánh nghiệp vụ hợp lệ.
 6. Frontend hiển thị lỗi theo đúng ngữ cảnh: lỗi ô nhập hiển thị ngay tại form, lỗi backend hiển thị toast tiếng Việt, chống trùng/chồng message, và chỉ refresh dữ liệu sau mutation thành công.
 7. Planner chỉ được hủy phiếu khi còn **NEW**; sau khi **APPROVED** Planner không được hủy. Hệ thống không hỗ trợ hủy phiếu điều chuyển sau khi trạng thái đã là **Đang vận chuyển (In-Transit)**.
 8. Luồng nhận hàng điều chuyển vẫn ở màn Điều chuyển nội bộ; không gộp vào danh sách phiếu nhập NCC `RN`.
