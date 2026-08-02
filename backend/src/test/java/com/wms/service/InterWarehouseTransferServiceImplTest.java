@@ -580,18 +580,15 @@ class InterWarehouseTransferServiceImplTest {
     }
 
     @Test
-    void sourceFlow_rejectsQcPassWhenLoadedQuantityDiffersFromPlanned() {
+    void sourceFlow_rejectsLoadReportWhenLoadedQuantityDiffersFromPlanned() {
         service.approveTransfer(1L, sourceManager);
         service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
                 VALID_TRIP_START, VALID_TRIP_END), dispatcher);
 
-        service.recordSourceLoadReport(1L, new SourceLoadReportRequest(List.of(
-                new SourceLoadReportItemRequest(transferItem.getId(), new BigDecimal("4.00"))), "short one"), sourceManager);
-
-        assertThatThrownBy(() -> service.recordOutboundQc(1L,
-                new OutboundQcRequest(true, "QC pass impossible", "qc.jpg"), sourceManager))
+        assertThatThrownBy(() -> service.recordSourceLoadReport(1L, new SourceLoadReportRequest(List.of(
+                new SourceLoadReportItemRequest(transferItem.getId(), new BigDecimal("4.00"))), ""), sourceManager))
                 .isInstanceOf(BusinessRuleViolationException.class)
-                .hasMessageContaining("SENT_QTY_MISMATCH");
+                .hasMessageContaining("SOURCE_LOAD_QTY_MUST_MATCH_PLAN");
     }
 
     @Test
@@ -761,15 +758,15 @@ class InterWarehouseTransferServiceImplTest {
                         new InterWarehouseTransferReceiveCheckItemRequest(
                                 transferItem.getId(),
                                 new BigDecimal("4.00"),
-                                new BigDecimal("3.00"),
-                                new BigDecimal("1.00"),
+                                new BigDecimal("4.00"),
+                                BigDecimal.ZERO,
                                 destinationLocation.getId(),
                                 "checker adjusted count",
-                                "one damaged")),
+                                null)),
                         "transfer/receive-qc/1.jpg"),
                 destinationStorekeeper);
         assertThat(checked.items().get(0).receivedQty()).isEqualByComparingTo("4.00");
-        assertThat(checked.items().get(0).qcPassedQty()).isEqualByComparingTo("3.00");
+        assertThat(checked.items().get(0).qcPassedQty()).isEqualByComparingTo("4.00");
 
         InterWarehouseTransferResponse pending = service.finalReceive(1L,
                 new InterWarehouseTransferFinalReceiveRequest(
@@ -777,7 +774,7 @@ class InterWarehouseTransferServiceImplTest {
                         List.of(new InterWarehouseTransferFinalPutawayItemRequest(
                                 transferItem.getId(),
                                 List.of(new InterWarehouseTransferPutawayAllocationRequest(
-                                        destinationLocation.getId(), new BigDecimal("3.00")))))),
+                                        destinationLocation.getId(), new BigDecimal("4.00")))))),
                 destinationStorekeeper);
         assertThat(pending.status()).isEqualTo(InterWarehouseTransferStatus.PUTAWAY_PENDING_APPROVAL);
         assertThat(destinationInventory).isNull();
@@ -786,9 +783,8 @@ class InterWarehouseTransferServiceImplTest {
                 new InterWarehouseTransferFinalReceiveRequest("shortage due to missing unit"), destinationManager);
         assertThat(completed.status()).isEqualTo(InterWarehouseTransferStatus.COMPLETED_WITH_DISCREPANCY);
         assertThat(destinationInventory).isNotNull();
-        assertThat(destinationInventory.getTotalQty()).isEqualByComparingTo("3.00");
-        assertThat(quarantineInventory).isNotNull();
-        assertThat(quarantineInventory.getTotalQty()).isEqualByComparingTo("1.00");
+        assertThat(destinationInventory.getTotalQty()).isEqualByComparingTo("4.00");
+        assertThat(quarantineInventory).isNull();
     }
 
     @Test
@@ -951,7 +947,7 @@ class InterWarehouseTransferServiceImplTest {
                 new InterWarehouseTransferReceiveCheckItemRequest(
                         transferItem.getId(),
                         new BigDecimal("7.00"),
-                        new BigDecimal("7.00"),
+                        new BigDecimal("5.00"),
                         BigDecimal.ZERO,
                         null,
                         null,
@@ -965,7 +961,7 @@ class InterWarehouseTransferServiceImplTest {
                         List.of(new InterWarehouseTransferFinalPutawayItemRequest(
                                 transferItem.getId(),
                                 List.of(new InterWarehouseTransferPutawayAllocationRequest(
-                                        destinationLocation.getId(), new BigDecimal("7.00")))))),
+                                        destinationLocation.getId(), new BigDecimal("5.00")))))),
                 destinationStorekeeper);
 
         assertThat(pending.status()).isEqualTo(InterWarehouseTransferStatus.PUTAWAY_PENDING_APPROVAL);

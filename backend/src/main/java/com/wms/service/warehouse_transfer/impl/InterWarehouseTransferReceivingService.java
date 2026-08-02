@@ -133,12 +133,10 @@ public class InterWarehouseTransferReceivingService {
             }
             ensureWholeQuantity(line.receivedQty());
             InterWarehouseTransferItem item = helper.requireItem(itemById, line.transferItemId());
-            // Validate: số đếm khác số đã gửi là chênh lệch tại điểm nhận, bắt buộc nhập lý do.
-            if (line.receivedQty().compareTo(item.getSentQty()) != 0 && helper.isBlank(line.issueReason())) {
-                throw new BusinessRuleViolationException("ISSUE_REASON_REQUIRED");
-            }
             item.setWorkerReceivedQty(line.receivedQty());
-            item.setIssueReason(line.issueReason());
+            item.setIssueReason(line.receivedQty().compareTo(item.getSentQty()) == 0
+                    ? null
+                    : "Số lượng công nhân đếm lệch số lượng đã gửi");
             transferItemRepository.save(item);
         }
         helper.audit(transfer, actor, AuditAction.TRANSFER_RECEIVE_COUNT, before, helper.snapshot(transfer));
@@ -425,9 +423,19 @@ public class InterWarehouseTransferReceivingService {
         if (line.confirmedQty().compareTo(item.getWorkerReceivedQty()) != 0 && helper.isBlank(line.checkerNote())) {
             throw new BusinessRuleViolationException("CHECKER_NOTE_REQUIRED");
         }
-        // Validate: tổng số đạt và số lỗi phải khớp số thủ kho xác nhận, không để thất thoát ngoài QC.
-        if (line.qcPassedQty().add(line.qcFailedQty()).compareTo(line.confirmedQty()) != 0) {
-            throw new BusinessRuleViolationException("QC_TOTAL_MUST_MATCH_CONFIRMED_QTY");
+        boolean countMismatch = item.getWorkerReceivedQty().compareTo(item.getSentQty()) != 0;
+        if (countMismatch) {
+            BigDecimal expectedPutawayQty = line.confirmedQty().min(item.getSentQty());
+            // Khi số đếm lệch số gửi, phần thiếu/thừa đi hồ sơ chênh lệch.
+            // Không cho nhập QC lỗi ở đây để tránh vừa chênh lệch vừa quarantine cùng một phần hàng.
+            if (line.qcFailedQty().signum() > 0 || line.qcPassedQty().compareTo(expectedPutawayQty) != 0) {
+                throw new BusinessRuleViolationException("COUNT_DISCREPANCY_QC_MUST_MATCH_VALID_RECEIVED_QTY");
+            }
+        } else {
+            // Validate: nếu không có chênh lệch count thì tổng số đạt/lỗi phải khớp số thủ kho xác nhận.
+            if (line.qcPassedQty().add(line.qcFailedQty()).compareTo(line.confirmedQty()) != 0) {
+                throw new BusinessRuleViolationException("QC_TOTAL_MUST_MATCH_CONFIRMED_QTY");
+            }
         }
         // Validate: có hàng lỗi QC thì bắt buộc nhập lý do để tạo hồ sơ cách ly và truy vết sau này.
         if (line.qcFailedQty().signum() > 0 && helper.isBlank(line.qcFailureReason())) {
@@ -541,7 +549,8 @@ public class InterWarehouseTransferReceivingService {
             BigDecimal remainingFailed = helper.zero(item.getQcFailedQty());
             Map<WarehouseLocation, BigDecimal> remainingPutaway = new LinkedHashMap<>();
             putawayPlans.get(item.getId()).forEach(line -> remainingPutaway.put(line.location(), line.quantity()));
-            for (InterWarehouseTransferAllocation allocation : allocationRepository.findByTransferItemId(item.getId())) {
+            List<InterWarehouseTransferAllocation> itemAllocations = allocationRepository.findByTransferItemId(item.getId());
+            for (InterWarehouseTransferAllocation allocation : itemAllocations) {
                 Inventory transit = inventoryRepository.findByStockKeyForUpdate(transitWarehouse.getId(),
                                 item.getProduct().getId(), allocation.getInventory().getBatch().getId(),
                                 helper.firstTransitLocation(transitWarehouse).getId())
@@ -621,6 +630,38 @@ public class InterWarehouseTransferReceivingService {
             BigDecimal overReceiptPassed = remainingPassed;
             BigDecimal overReceiptFailed = remainingFailed;
             BigDecimal totalOverReceipt = overReceiptPassed.add(overReceiptFailed);
+            BigDecimal countOverReceipt = helper.zero(item.getReceivedQty()).subtract(helper.zero(item.getSentQty()));
+            if (countOverReceipt.signum() > 0 && totalOverReceipt.signum() == 0) {
+                Batch batch = item.getBatch();
+                if (batch == null && !itemAllocations.isEmpty()) {
+                    batch = itemAllocations.get(0).getInventory().getBatch();
+                }
+                WarehouseLocation holdLocation = item.getDestinationLocation();
+                if (holdLocation == null && !putawayPlans.get(item.getId()).isEmpty()) {
+                    holdLocation = putawayPlans.get(item.getId()).get(0).location();
+                }
+                if (batch == null || holdLocation == null) {
+                    throw new BusinessRuleViolationException("DISCREPANCY_HOLD_ENTRY_INCOMPLETE");
+                }
+                DiscrepancyIncident incident = DiscrepancyIncident.builder()
+                        .transfer(transfer)
+                        .product(item.getProduct())
+                        .incidentType("OVER_RECEIPT")
+                        .quantity(countOverReceipt)
+                        .status("OPEN")
+                        .resolutionNote("Số lượng nhận thừa so với số lượng đã gửi")
+                        .build();
+                incident = discrepancyIncidentRepository.save(incident);
+                discrepancyHoldEntryRepository.save(DiscrepancyHoldEntry.builder()
+                        .incident(incident)
+                        .warehouse(targetWarehouse)
+                        .product(item.getProduct())
+                        .batch(batch)
+                        .holdQty(countOverReceipt)
+                        .holdLocation(holdLocation)
+                        .build());
+                continue;
+            }
             if (totalOverReceipt.signum() > 0) {
                 DiscrepancyIncident incident = DiscrepancyIncident.builder()
                         .transfer(transfer)
