@@ -35,12 +35,12 @@
 
 **Mục đích**: Làm cho tài liệu nguồn sự thật khớp luồng production mong muốn và tên controller hiện tại.
 
-- [x] T001 Cập nhật `.sdd/specs/005-inter-warehouse-transfer/spec.md` với luồng chuẩn, invariant P0, arrival/handover, chặng return, chi tiết sai SKU, trip capacity và kỳ vọng requirement-to-test.
+- [x] T001 Cập nhật `.sdd/specs/005-inter-warehouse-transfer/spec.md` với luồng chuẩn, invariant P0, arrival/handover, chặng return quá hạn, trip capacity và kỳ vọng requirement-to-test.
 - [x] T002 Cập nhật `.sdd/specs/005-inter-warehouse-transfer/plan.md` trỏ tới đúng `InterWarehouseTransfer*` backend/frontend và thứ tự triển khai sửa chữa.
-- [x] T003 Cập nhật `.sdd/specs/005-inter-warehouse-transfer/contracts/openapi.yaml` dùng `/api/v1/inter-warehouse-transfers`, `/approve`, `/final-receive`, `/request-return`, `/approve-return`, `/reject-return`, và transfer-request `/approve|reject|convert`.
-- [x] T004 [P] Cập nhật `.sdd/specs/005-inter-warehouse-transfer/data-model.md` với version fields, planned item batch nullable, QC xuất fields, timestamp arrival/handover, dòng report sai SKU, tổng capacity chuyến và entity discrepancy incident/hold.
+- [x] T003 Cập nhật `.sdd/specs/005-inter-warehouse-transfer/contracts/openapi.yaml` dùng `/api/v1/inter-warehouse-transfers`, `/approve`, `/final-receive`, chặng return quá hạn, và transfer-request `/approve|reject|convert`; endpoint request/approve/reject return do sai SKU đã được gỡ khỏi contract.
+- [x] T004 [P] Cập nhật `.sdd/specs/005-inter-warehouse-transfer/data-model.md` với version fields, planned item batch nullable, QC xuất fields, timestamp arrival/handover, chặng return quá hạn, tổng capacity chuyến và entity discrepancy incident/hold.
 - [x] T005 [P] Cập nhật `.sdd/specs/005-inter-warehouse-transfer/quickstart.md` với happy path đầy đủ, return path và checklist kiểm tra blocking-path.
-- [x] T006 [P] Cập nhật feature docs trong `.sdd/specs/005-inter-warehouse-transfer/features/` để tài liệu shipment và receiving bao gồm QC xuất, bàn giao xếp hàng, driver arrival, bin capacity, sai SKU detail, và return leg.
+- [x] T006 [P] Cập nhật feature docs trong `.sdd/specs/005-inter-warehouse-transfer/features/` để tài liệu shipment và receiving bao gồm QC xuất, bàn giao xếp hàng, driver arrival, bin capacity, xử lý sai SKU qua count/QC/discrepancy, và return leg quá hạn.
 
 ## Giai đoạn 2: Nền tảng database và concurrency
 
@@ -118,29 +118,29 @@
 - [x] T051 Thêm audit actions cho `TRANSFER_ARRIVE` và `TRANSFER_ARRIVAL_HANDOVER`.
 - [x] T052 Thêm test cho nhận trước arrival bị chặn, nhận sau handover được phép, vượt bin capacity và hold discrepancy nhận thừa.
 
-## Giai đoạn 8: Sai SKU và chặng quay đầu
+## Giai đoạn 8: Quay đầu quá hạn
 
-**Mục đích**: Thay xử lý sai SKU chỉ có lý do bằng return control cấp dòng và sự kiện trip vật lý.
+**Mục đích**: Giữ chặng quay đầu vật lý cho phiếu quá hạn và gỡ nhánh yêu cầu quay đầu thủ công do sai SKU tại kho đích.
 
-- [x] T053 Thay hoặc mở rộng `backend/src/main/java/com/wms/dto/request/TransferReturnRequest.java` với expected product, actual product, số lượng, lý do và photo refs tùy chọn ở cấp dòng.
-- [x] T054 Thêm sai SKU response data để `backend/src/main/java/com/wms/dto/response/InterWarehouseTransferResponse.java`.
-- [x] T055 Cập nhật `backend/src/main/java/com/wms/service/transfer/impl/InterWarehouseTransferReceivingService.java` để report sai SKU lưu chi tiết cấp item trong khi tồn vẫn ở `IN_TRANSIT`.
-- [x] T056 Cập nhật approve-return để bắt buộc quản lý kho đích scope và chi tiết report sai SKU đang chờ.
+- [x] T053 Gỡ request/approval return do sai SKU khỏi runtime Sprint 1; sai SKU tại kho đích tiếp tục qua count/QC/discrepancy/quarantine theo trạng thái vật lý.
+- [x] T054 Cập nhật response/frontend để không hiển thị nhánh yêu cầu quay đầu do sai SKU.
+- [x] T055 Cập nhật `InterWarehouseTransferReceivingService.java` để chỉ giữ nhận hàng và nhận hàng quay đầu quá hạn.
+- [x] T056 Gỡ approve/reject return do sai SKU khỏi service/controller/API contract.
 - [x] T057 Thêm rời điểm nhận để quay đầu và source đến nguồn khi quay đầu/handover service methods.
 - [x] T058 Chặn source return receive-count cho đến khi đã ghi return depart và return arrive/handover.
 - [x] T059 Cập nhật overdue `returnToSource` để require trip thật sự quá hạn, lý do không rỗng và photo refs tùy chọn khi có.
 - [x] T060 Thêm endpoint cho rời điểm nhận để quay đầu và đến nguồn khi quay đầu/handover trong `InterWarehouseTransferController.java`.
 - [x] T061 Thêm audit actions cho `TRANSFER_RETURN_DEPART`, `TRANSFER_RETURN_ARRIVE`, và `TRANSFER_RETURN_HANDOVER`.
-- [x] T062 Thêm test cho sai SKU thiếu chi tiết dòng, quản lý duyệt, chặn thủ kho tự duyệt, chặn nhận return trước khi về nguồn và bắt buộc lý do overdue return.
+- [x] T062 Thêm test cho chặn nhận return trước khi về nguồn, bắt buộc lý do overdue return và xác nhận UI không còn nhánh duyệt quay đầu do sai SKU.
 
 ## Giai đoạn 9: Audit và truy vết incident
 
 **Mục đích**: Đảm bảo audit log dựng lại được đầy đủ mutation tồn kho và vận tải.
 
-- [x] T063 Cập nhật `backend/src/main/java/com/wms/service/transfer/impl/InterWarehouseTransferHelper.java` logic snapshot audit để bao gồm header, items, allocations, sai SKU report lines, QC quantities, trip/resource state, và inventory movement references.
+- [x] T063 Cập nhật `backend/src/main/java/com/wms/service/transfer/impl/InterWarehouseTransferHelper.java` logic snapshot audit để bao gồm header, items, allocations, QC quantities, trip/resource state, return leg quá hạn, và inventory movement references.
 - [x] T064 Đảm bảo `TRANSFER_DISCREPANCY_CREATE` audit bao gồm số lượng thiếu, product, warehouse, transfer item, adjustment id, và lý do.
 - [x] T065 Đảm bảo quarantine rejection audit bao gồm kho đích, quarantine bin, affected item quantities, và transfer-origin references.
-- [x] T066 Thêm audit test cho approve, QC xuất, depart, arrival/handover, receive-check, final-receive, sai SKU return, overdue return, và quarantine reject.
+- [x] T066 Thêm audit test cho approve, QC xuất, depart, arrival/handover, receive-check, final-receive, overdue return, và quarantine reject.
 
 ## Giai đoạn 10: API contract và coverage controller backend
 
@@ -148,7 +148,7 @@
 
 - [x] T067 Cập nhật Swagger/OpenAPI annotation trong `backend/src/main/java/com/wms/controller/InterWarehouseTransferController.java` cho mọi transfer endpoint.
 - [x] T068 Cập nhật Swagger/OpenAPI annotation trong `backend/src/main/java/com/wms/controller/TransferRequestController.java` cho `/approve`, `/reject`, `/convert` và `/stock-lookup`.
-- [x] T069 Thêm controller test cho `/api/v1/inter-warehouse-transfers/{id}/approve`, `/final-receive`, `/request-return`, `/approve-return`, và `/reject-return`.
+- [x] T069 Thêm controller test cho `/api/v1/inter-warehouse-transfers/{id}/approve`, `/final-receive`, và xác nhận các endpoint request/approve/reject return do sai SKU không còn trong contract runtime.
 - [x] T070 Thêm controller test cho endpoint QC xuất, bàn giao xếp hàng, arrival/handover, return depart và return arrive mới.
 - [x] T071 Thêm contract smoke test hoặc bước review có tài liệu chứng minh `.sdd/.../contracts/openapi.yaml` tên path match path controller.
 
@@ -175,7 +175,7 @@
 - [x] T083 Thêm Testcontainers PostgreSQL hoặc integration test DB thật tương đương cho Flyway + core transfer flow.
 - [x] T084 Thêm happy-path integration test từ `TRQ` đến final receive với arrival/handover và kiểm bin capacity.
 - [x] T085 Thêm manual `TRF` happy-path integration test từ planner tạo phiếu đến final receive.
-- [x] T086 Thêm exception-path test cho thiếu hàng incident + adjustment, nhận thừa hold, QC fail để Quarantine, sai SKU return, và overdue return.
+- [x] T086 Thêm exception-path test cho thiếu hàng incident + adjustment, nhận thừa hold, QC fail để Quarantine, sai SKU qua discrepancy/quarantine, và overdue return.
 - [x] T087 Chạy targeted backend test cho transfer services/controllers và migration test.
 - [x] T088 Chạy `mvn compile` cho backend.
 - [x] T089 Chạy frontend test/build cho module điều chuyển nội bộ.
@@ -186,7 +186,7 @@
 - [x] T094 Thêm frontend action-nút coverage test cho mọi transfer workspace nút in `frontend/src/pages/InterWarehouseTransfer/InterWarehouseTransferActionPanel.test.jsx`.
 - [x] T095 Thêm frontend transfer-request nút coverage test cho create, submit, approve, reject, convert, validation failure, API failure và refresh state in `frontend/src/pages/InterWarehouseTransfer/TransferRequestWorkspace.test.jsx`.
 - [x] T096 Thêm smoke frontend-to-backend test cho `TRQ -> CEO approve -> convert -> approve -> trip -> QC xuất photo -> ship -> bàn giao xếp hàng photo -> depart -> arrive -> handover -> receive-count -> receive-check -> final-receive`.
-- [x] T097 Thêm smoke frontend-to-backend test cho sai SKU return bao gồm chi tiết dòng report, quản lý kho đích approval, rời điểm nhận để quay đầu, source arrival/handover, và final receive tại nguồn.
+- [x] T097 Thêm smoke frontend-to-backend test cho overdue return bao gồm rời điểm nhận để quay đầu, source arrival/handover, và final receive tại nguồn; nhánh sai SKU return đã được loại khỏi smoke runtime.
 - [x] T098 Thêm smoke frontend-to-backend test cho blocker deploy unhappy: invalid driver scope, overloaded trip, missing QC xuất photo, receive trước arrival, bin capacity exceeded, và stale version conflict.
 - [x] T099 Thêm Tài liệu xác minh CI/deploy ghi rõ command bắt buộc cho backend test, DB migration test, frontend test, frontend build, backend compile, và full-stack smoke test.
 - [x] T100 Chặn đánh dấu spec 005 deploy-ready cho đến khi mọi dòng requirement-to-test trong file này có tham chiếu test pass được ghi trong `.sdd/specs/005-inter-warehouse-transfer/quickstart.md`.

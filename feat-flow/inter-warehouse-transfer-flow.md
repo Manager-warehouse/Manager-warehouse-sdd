@@ -46,7 +46,7 @@ flowchart TD
 | [InterWarehouseTransferPlanningService.java](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferPlanningService.java:69) | 69 | Tạo/sửa/hủy `TRF` |
 | [InterWarehouseTransferApprovalService.java](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferApprovalService.java:48) | 48 | Duyệt/từ chối `TRF`, giữ hàng FIFO |
 | [InterWarehouseTransferShippingService.java](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferShippingService.java:83) | 83 | Gán xe, xếp hàng, QC xuất, ship, depart, arrive, quay đầu |
-| [InterWarehouseTransferReceivingService.java](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferReceivingService.java:89) | 89 | Count/QC nhận, cất kệ, nhập kho cuối, thiếu/thừa, sai SKU |
+| [InterWarehouseTransferReceivingService.java](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferReceivingService.java:89) | 89 | Count/QC nhận, cất kệ, nhập kho cuối, thiếu/thừa |
 | [DiscrepancyIncidentServiceImpl.java](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/DiscrepancyIncidentServiceImpl.java:83) | 83 | CEO xem/chốt hồ sơ chênh lệch |
 | [InterWarehouseTransferHelper.java](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferHelper.java:80) | 80 | Helper quyền kho, status, reservation, tồn kho, deadline, response |
 
@@ -325,30 +325,19 @@ File chính:
 
 ---
 
-## 8. Luồng Chính 6: Sai SKU / Quay Đầu Xe
+## 8. Luồng Chính 6: Quay Đầu Xe
 
-### 8.1. Kho đích báo sai SKU
+### 8.1. Điều kiện quay đầu hiện còn
 
-File: [InterWarehouseTransferReceivingService.java:896](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferReceivingService.java:896)
-
-Chức năng chính:
-
-- Chỉ báo sai SKU khi xe đã đến kho đích nhưng chưa bàn giao/count.
-- Phải có danh sách dòng sai SKU.
-- Mỗi dòng sai phải có sản phẩm kỳ vọng, sản phẩm thực tế, số lượng bị ảnh hưởng và lý do.
-- Sau khi báo, phiếu vào trạng thái đang yêu cầu quay đầu.
-
-### 8.2. Quản lý kho đích duyệt/từ chối quay đầu
-
-File: [InterWarehouseTransferReceivingService.java:941](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferReceivingService.java:941)
+Nhánh quay đầu do kho đích báo sai SKU đã được gỡ khỏi API/service.
 
 Chức năng chính:
 
-- Chỉ quản lý kho đích được quyết định.
-- Nếu duyệt, xe quay đầu về kho nguồn.
-- Nếu từ chối, phiếu tiếp tục xử lý nhận hàng bình thường.
+- Nếu phiếu đang `IN_TRANSIT` bị quá ngày cần hàng, hệ thống tự đặt `returned = true`.
+- Nếu phiếu đã có `returned = true`, các bước nhận tiếp theo diễn ra tại kho nguồn.
+- Không còn endpoint tạo/duyệt/bác yêu cầu quay đầu do sai SKU tại kho đích.
 
-### 8.3. Quay đầu về kho nguồn
+### 8.2. Quay đầu về kho nguồn
 
 File: [InterWarehouseTransferShippingService.java:644](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferShippingService.java:644)
 
@@ -466,23 +455,10 @@ Chức năng chính:
 | Final receive | Có chênh lệch nhưng thiếu lý do | `DISCREPANCY_REASON_REQUIRED` | [InterWarehouseTransferReceivingService.java:224](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferReceivingService.java:224) |
 | Final receive | Không thấy tồn `IN_TRANSIT` | `IN_TRANSIT_STOCK_NOT_FOUND` | [InterWarehouseTransferReceivingService.java:592](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferReceivingService.java:592) |
 
-### 9.6. Exception Flow Sai SKU / Quay Đầu
+### 9.6. Exception Flow Quay Đầu
 
 | Giai đoạn | Điều kiện lỗi | Exception | Code |
 |---|---|---|---|
-| Kho nguồn yêu cầu quay đầu | Không phải quản lý kho | `WAREHOUSE_MANAGER_ROLE_REQUIRED` | [InterWarehouseTransferReceivingService.java:363](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferReceivingService.java:363) |
-| Kho nguồn yêu cầu quay đầu | Không nhập lý do | `RETURN_REASON_REQUIRED` | [InterWarehouseTransferReceivingService.java:363](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferReceivingService.java:363) |
-| Kho nguồn yêu cầu quay đầu | Xe đã đến kho đích | `SOURCE_RETURN_ONLY_BEFORE_DESTINATION_ARRIVAL` | [InterWarehouseTransferReceivingService.java:363](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferReceivingService.java:363) |
-| Yêu cầu quay đầu | Đã có yêu cầu quay đầu | `RETURN_ALREADY_IN_PROGRESS` | [InterWarehouseTransferReceivingService.java:1041](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferReceivingService.java:1041) |
-| Báo sai SKU | Xe chưa đến kho đích | `DRIVER_ARRIVE_REQUIRED` | [InterWarehouseTransferReceivingService.java:896](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferReceivingService.java:896) |
-| Báo sai SKU | Đã bàn giao | `RETURN_REQUEST_ONLY_BEFORE_HANDOVER` | [InterWarehouseTransferReceivingService.java:896](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferReceivingService.java:896) |
-| Báo sai SKU | Đã count/QC | `RETURN_REQUEST_ONLY_BEFORE_COUNT` | [InterWarehouseTransferReceivingService.java:1049](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferReceivingService.java:1049) |
-| Báo sai SKU | Không có dòng sai SKU | `WRONG_SKU_ITEMS_REQUIRED` | [InterWarehouseTransferReceivingService.java:896](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferReceivingService.java:896) |
-| Báo sai SKU | SKU thực tế trùng SKU kỳ vọng | `ACTUAL_PRODUCT_MUST_DIFFER` | [InterWarehouseTransferReceivingService.java:1086](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferReceivingService.java:1086) |
-| Báo sai SKU | Số lượng sai <= 0 | `AFFECTED_QTY_MUST_BE_POSITIVE` | [InterWarehouseTransferReceivingService.java:1086](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferReceivingService.java:1086) |
-| Báo sai SKU | Số lượng sai > số đã gửi | `AFFECTED_QTY_EXCEEDS_SENT_QTY` | [InterWarehouseTransferReceivingService.java:1086](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferReceivingService.java:1086) |
-| Duyệt/từ chối quay đầu | Không có yêu cầu quay đầu | `NO_RETURN_REQUESTED` | [InterWarehouseTransferReceivingService.java:941](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferReceivingService.java:941) |
-| Duyệt/từ chối quay đầu | Actor không phải quản lý kho đích | `WAREHOUSE_MANAGER_ROLE_REQUIRED` | [InterWarehouseTransferReceivingService.java:954](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferReceivingService.java:954) |
 | Return leg | Chưa depart chiều về | `RETURN_DEPART_REQUIRED` | [InterWarehouseTransferShippingService.java:644](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferShippingService.java:644) |
 | Return leg | Chưa arrive kho nguồn | `RETURN_ARRIVE_REQUIRED` | [InterWarehouseTransferShippingService.java:701](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferShippingService.java:701) |
 | Return leg | Chưa bàn giao kho nguồn | `RETURN_HANDOVER_REQUIRED` | [InterWarehouseTransferReceivingService.java:89](../backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferReceivingService.java:89) |
@@ -530,7 +506,7 @@ stateDiagram-v2
 3. `Approval`: trưởng kho nguồn duyệt và giữ hàng FIFO.
 4. `Shipping`: gán xe, xếp, QC xuất, depart.
 5. `Receiving`: arrive, count, QC nhận, cất kệ, nhập cuối.
-6. `Discrepancy/return`: xử lý thiếu/thừa, sai SKU, quay đầu.
+6. `Discrepancy/return`: xử lý thiếu/thừa và nhận hàng quay đầu.
 
 Exception flow quan trọng nhất nằm ở 4 điểm:
 

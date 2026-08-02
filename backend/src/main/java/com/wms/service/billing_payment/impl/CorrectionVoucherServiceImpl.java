@@ -83,8 +83,9 @@ public class CorrectionVoucherServiceImpl implements CorrectionVoucherService {
     }
 
     // Resolves the original document by referenceType/referenceId, together with its
-    // accounting period and the dealer/supplier whose balance the voucher will adjust.
-    private record ResolvedReference(AccountingPeriod originalPeriod, Dealer dealer, Supplier supplier) {
+    // accounting period, the dealer/supplier whose balance the voucher will adjust, and
+    // the document's own human-readable code (e.g. "SINV-20260621-0002").
+    private record ResolvedReference(AccountingPeriod originalPeriod, Dealer dealer, Supplier supplier, String referenceNumber) {
     }
 
     @Override
@@ -152,7 +153,7 @@ public class CorrectionVoucherServiceImpl implements CorrectionVoucherService {
                 Map.of("balance", oldBalance),
                 snapshot(adjustment, oldBalance, newBalance));
 
-        return toResponse(adjustment, resolved.dealer(), resolved.supplier(), resolved.originalPeriod());
+        return toResponse(adjustment, resolved.dealer(), resolved.supplier(), resolved.originalPeriod(), resolved.referenceNumber());
     }
 
     // Same balance-transition logic as PaymentReceiptServiceImpl's unlock check and
@@ -181,35 +182,35 @@ public class CorrectionVoucherServiceImpl implements CorrectionVoucherService {
                         .orElseThrow(() -> new ResourceNotFoundException("Invoice not found with id: " + referenceId));
                 Dealer dealer = dealerRepository.findByIdForUpdate(invoice.getDealer().getId())
                         .orElseThrow(() -> new ResourceNotFoundException("Dealer not found with id: " + invoice.getDealer().getId()));
-                yield new ResolvedReference(invoice.getAccountingPeriod(), dealer, null);
+                yield new ResolvedReference(invoice.getAccountingPeriod(), dealer, null, invoice.getInvoiceNumber());
             }
             case PAYMENT_RECEIPT -> {
                 PaymentReceipt paymentReceipt = paymentReceiptRepository.findById(referenceId)
                         .orElseThrow(() -> new ResourceNotFoundException("Payment receipt not found with id: " + referenceId));
                 Dealer dealer = dealerRepository.findByIdForUpdate(paymentReceipt.getDealer().getId())
                         .orElseThrow(() -> new ResourceNotFoundException("Dealer not found with id: " + paymentReceipt.getDealer().getId()));
-                yield new ResolvedReference(paymentReceipt.getAccountingPeriod(), dealer, null);
+                yield new ResolvedReference(paymentReceipt.getAccountingPeriod(), dealer, null, paymentReceipt.getPaymentNumber());
             }
             case SUPPLIER_INVOICE -> {
                 SupplierInvoice supplierInvoice = supplierInvoiceRepository.findById(referenceId)
                         .orElseThrow(() -> new ResourceNotFoundException("Supplier invoice not found with id: " + referenceId));
                 Supplier supplier = supplierRepository.findById(supplierInvoice.getSupplier().getId())
                         .orElseThrow(() -> new ResourceNotFoundException("Supplier not found with id: " + supplierInvoice.getSupplier().getId()));
-                yield new ResolvedReference(supplierInvoice.getAccountingPeriod(), null, supplier);
+                yield new ResolvedReference(supplierInvoice.getAccountingPeriod(), null, supplier, supplierInvoice.getInvoiceNumber());
             }
             case SUPPLIER_PAYMENT -> {
                 SupplierPayment supplierPayment = supplierPaymentRepository.findById(referenceId)
                         .orElseThrow(() -> new ResourceNotFoundException("Supplier payment not found with id: " + referenceId));
                 Supplier supplier = supplierRepository.findById(supplierPayment.getSupplier().getId())
                         .orElseThrow(() -> new ResourceNotFoundException("Supplier not found with id: " + supplierPayment.getSupplier().getId()));
-                yield new ResolvedReference(supplierPayment.getAccountingPeriod(), null, supplier);
+                yield new ResolvedReference(supplierPayment.getAccountingPeriod(), null, supplier, supplierPayment.getPaymentNumber());
             }
             case CREDIT_NOTE -> {
                 CreditNote creditNote = creditNoteRepository.findById(referenceId)
                         .orElseThrow(() -> new ResourceNotFoundException("Credit note not found with id: " + referenceId));
                 Dealer dealer = dealerRepository.findByIdForUpdate(creditNote.getDealer().getId())
                         .orElseThrow(() -> new ResourceNotFoundException("Dealer not found with id: " + creditNote.getDealer().getId()));
-                yield new ResolvedReference(creditNote.getAccountingPeriod(), dealer, null);
+                yield new ResolvedReference(creditNote.getAccountingPeriod(), dealer, null, creditNote.getCreditNoteNumber());
             }
         };
     }
@@ -236,12 +237,14 @@ public class CorrectionVoucherServiceImpl implements CorrectionVoucherService {
         Dealer dealer = null;
         Supplier supplier = null;
         AccountingPeriod originalPeriod = null;
+        String referenceNumber = null;
         switch (referenceType) {
             case INVOICE -> {
                 Invoice invoice = invoiceRepository.findById(adjustment.getReferenceId()).orElse(null);
                 if (invoice != null) {
                     dealer = invoice.getDealer();
                     originalPeriod = invoice.getAccountingPeriod();
+                    referenceNumber = invoice.getInvoiceNumber();
                 }
             }
             case PAYMENT_RECEIPT -> {
@@ -249,6 +252,7 @@ public class CorrectionVoucherServiceImpl implements CorrectionVoucherService {
                 if (paymentReceipt != null) {
                     dealer = paymentReceipt.getDealer();
                     originalPeriod = paymentReceipt.getAccountingPeriod();
+                    referenceNumber = paymentReceipt.getPaymentNumber();
                 }
             }
             case SUPPLIER_INVOICE -> {
@@ -256,6 +260,7 @@ public class CorrectionVoucherServiceImpl implements CorrectionVoucherService {
                 if (supplierInvoice != null) {
                     supplier = supplierInvoice.getSupplier();
                     originalPeriod = supplierInvoice.getAccountingPeriod();
+                    referenceNumber = supplierInvoice.getInvoiceNumber();
                 }
             }
             case SUPPLIER_PAYMENT -> {
@@ -263,6 +268,7 @@ public class CorrectionVoucherServiceImpl implements CorrectionVoucherService {
                 if (supplierPayment != null) {
                     supplier = supplierPayment.getSupplier();
                     originalPeriod = supplierPayment.getAccountingPeriod();
+                    referenceNumber = supplierPayment.getPaymentNumber();
                 }
             }
             case CREDIT_NOTE -> {
@@ -270,10 +276,11 @@ public class CorrectionVoucherServiceImpl implements CorrectionVoucherService {
                 if (creditNote != null) {
                     dealer = creditNote.getDealer();
                     originalPeriod = creditNote.getAccountingPeriod();
+                    referenceNumber = creditNote.getCreditNoteNumber();
                 }
             }
         }
-        return toResponse(adjustment, dealer, supplier, originalPeriod);
+        return toResponse(adjustment, dealer, supplier, originalPeriod, referenceNumber);
     }
 
     private String generateAdjustmentNumber() {
@@ -292,12 +299,14 @@ public class CorrectionVoucherServiceImpl implements CorrectionVoucherService {
     }
 
     private CorrectionVoucherResponse toResponse(
-            Adjustment adjustment, Dealer dealer, Supplier supplier, AccountingPeriod originalPeriod) {
+            Adjustment adjustment, Dealer dealer, Supplier supplier, AccountingPeriod originalPeriod,
+            String referenceNumber) {
         return CorrectionVoucherResponse.builder()
                 .id(adjustment.getId())
                 .adjustmentNumber(adjustment.getAdjustmentNumber())
                 .referenceType(CorrectionVoucherReferenceType.valueOf(adjustment.getReferenceType()))
                 .referenceId(adjustment.getReferenceId())
+                .referenceNumber(referenceNumber)
                 .dealerId(dealer != null ? dealer.getId() : null)
                 .dealerName(dealer != null ? dealer.getName() : null)
                 .supplierId(supplier != null ? supplier.getId() : null)

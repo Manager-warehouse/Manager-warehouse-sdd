@@ -132,7 +132,7 @@ const Sidebar = () => {
       roles: [ROLES.STOREKEEPER, ROLES.WAREHOUSE_MANAGER, ROLES.CEO],
     },
     {
-      title: "Trả hàng cho NCC và Đại lý trả hàng",
+      title: "Trả hàng cho NCC",
       path: "/inbound/returns",
       icon: ArrowRightLeft,
       roles: [

@@ -43,8 +43,14 @@ import com.wms.enums.stock_counting.StockTakeStatus;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * DTO response chi tiết phiếu kiểm kê — dùng cho tất cả API trả về phiếu đầy đủ.
+ * Chứa header (số phiếu, kho, người thực hiện, trạng thái, ngày...) + danh sách items + approval_warnings.
+ * Dùng bởi: StockTakeService → StockTakeController cho create/start/count/complete/approve/reject/cancel/getById.
+ */
 public class StockTakeResponse {
 
     @JsonProperty("id")
@@ -110,6 +116,9 @@ public class StockTakeResponse {
     @JsonProperty("items")
     private List<StockTakeItemResponse> items;
 
+    @JsonProperty("approval_warnings")
+    private List<String> approvalWarnings;
+
     public static StockTakeResponse from(StockTake st, List<StockTakeItemResponse> items) {
         StockTakeResponse r = new StockTakeResponse();
         r.id = st.getId();
@@ -162,4 +171,6 @@ public class StockTakeResponse {
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public OffsetDateTime getUpdatedAt() { return updatedAt; }
     public List<StockTakeItemResponse> getItems() { return items; }
+    public List<String> getApprovalWarnings() { return approvalWarnings; }
+    public void setApprovalWarnings(List<String> approvalWarnings) { this.approvalWarnings = approvalWarnings; }
 }

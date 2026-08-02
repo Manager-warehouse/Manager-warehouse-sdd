@@ -241,29 +241,6 @@ public class InterWarehouseTransferController {
         return transferService.quarantineReject(id, request, currentUser());
     }
 
-    @PostMapping("/{id}/request-return")
-    @PreAuthorize("hasAnyRole('STOREKEEPER','ADMIN','CEO')")
-    @Operation(summary = "Storekeeper reports wrong SKU delivery (request return to source)")
-    public InterWarehouseTransferResponse requestReturn(@PathVariable Long id,
-                                                        @Valid @RequestBody TransferReturnRequest request) {
-        return transferService.requestReturn(id, request, currentUser());
-    }
-
-    @PostMapping("/{id}/approve-return")
-    @PreAuthorize("hasAnyRole('WAREHOUSE_MANAGER','ADMIN','CEO')")
-    @Operation(summary = "Manager approves the return to source")
-    public InterWarehouseTransferResponse approveReturn(@PathVariable Long id) {
-        return transferService.approveReturn(id, currentUser());
-    }
-
-    @PostMapping("/{id}/reject-return")
-    @PreAuthorize("hasAnyRole('WAREHOUSE_MANAGER','ADMIN','CEO')")
-    @Operation(summary = "Manager rejects the return request")
-    public InterWarehouseTransferResponse rejectReturn(@PathVariable Long id,
-                                                       @Valid @RequestBody TransferReturnRejectRequest request) {
-        return transferService.rejectReturn(id, request, currentUser());
-    }
-
     @PostMapping("/{id}/return-depart")
     @PreAuthorize("hasRole('DRIVER')")
     @Operation(summary = "Assigned driver confirms departure for return leg")

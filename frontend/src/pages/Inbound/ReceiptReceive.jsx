@@ -267,7 +267,7 @@ const ReceiptReceive = () => {
             <table className="data-table-grid w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-canvas-cream border-b border-hairline-light">
-                  {['Mã hàng', 'Tên hàng', 'SL dự kiến', 'Đếm số lượng', 'Hàng đạt yêu cầu', 'Không đạt yêu cầu', 'Lý do lỗi/thiếu', 'Kết quả'].map((heading) => (
+                  {['Mã hàng', 'Tên hàng', 'SL dự kiến', 'SL thực tế', 'Hàng đạt yêu cầu', 'Không đạt yêu cầu', 'Lý do lỗi/thiếu', 'Kết quả'].map((heading) => (
                     <th key={heading} className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">
                       {heading}
                     </th>

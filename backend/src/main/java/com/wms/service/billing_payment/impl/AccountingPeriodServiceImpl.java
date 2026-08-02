@@ -35,9 +35,7 @@ import com.wms.enums.warehouse_location.*;
 import com.wms.enums.warehouse_transfer.*;
 
 import com.wms.dto.request.AccountingPeriodCloseRequest;
-import com.wms.dto.request.AccountingPeriodCreateRequest;
 import com.wms.dto.response.AccountingPeriodResponse;
-import com.wms.exception.DuplicateResourceException;
 import com.wms.exception.ResourceNotFoundException;
 import com.wms.exception.UnprocessableEntityException;
 import com.wms.repository.AccountingPeriodRepository;
@@ -84,26 +82,6 @@ public class AccountingPeriodServiceImpl implements AccountingPeriodService {
 
     @Override
     @Transactional
-    public AccountingPeriodResponse createPeriod(AccountingPeriodCreateRequest request, User actor) {
-        requireAccountantManager(actor);
-
-        if (accountingPeriodRepository.findByPeriodName(request.getPeriodName()).isPresent()) {
-            throw new DuplicateResourceException("Accounting period already exists: " + request.getPeriodName());
-        }
-
-        AccountingPeriod saved = accountingPeriodRepository.save(buildPeriod(
-                YearMonth.parse(request.getPeriodName()), request.getNotes()));
-
-        auditLogService.log(actor, AuditAction.CREATE, "ACCOUNTING_PERIOD",
-                saved.getId(), saved.getPeriodName(), null, null,
-                Map.of("periodName", saved.getPeriodName(),
-                        "startDate", saved.getStartDate(), "endDate", saved.getEndDate()));
-
-        return toResponse(saved);
-    }
-
-    @Override
-    @Transactional
     public AccountingPeriodResponse closePeriod(Long id, AccountingPeriodCloseRequest request, User actor) {
         requireAccountantManager(actor);
 
@@ -125,6 +103,16 @@ public class AccountingPeriodServiceImpl implements AccountingPeriodService {
             throw new UnprocessableEntityException(
                     "PERIOD_NOT_YET_ENDED: Accounting period " + period.getPeriodName()
                             + " has not ended yet (end date " + period.getEndDate() + ") and cannot be closed");
+        }
+
+        // Periods must close in chronological order: an out-of-order close would let a
+        // later period's reported figures look final while an earlier, still-open period
+        // can still accept postings (including corrections) that never make it into any
+        // report anyone will look at again.
+        if (accountingPeriodRepository.existsByStatusAndStartDateBefore(
+                AccountingPeriodStatus.OPEN, period.getStartDate())) {
+            throw new UnprocessableEntityException(
+                    "PREVIOUS_PERIOD_NOT_CLOSED: An earlier accounting period is still OPEN and must be closed first");
         }
 
         // Kiểm tra tính toàn vẹn: không còn chứng từ dở dang trong kỳ
@@ -265,7 +253,12 @@ public class AccountingPeriodServiceImpl implements AccountingPeriodService {
                     .setParameter("periodId", periodId)
                     .setMaxResults(PENDING_SAMPLE_LIMIT)
                     .getResultList();
-            throw new UnprocessableEntityException("Cannot close period: " + count + " " + docLabel
+            // PENDING_DOCUMENTS_EXIST prefix lets GlobalExceptionHandler.extractLeadingCode
+            // pull out a real error code instead of falling back to generic
+            // UNPROCESSABLE_ENTITY - this message had never had one since the original
+            // Spec 008 implementation, so every rejection here showed the same unhelpful
+            // "Dữ liệu không đủ điều kiện để xử lý." toast regardless of which check fired.
+            throw new UnprocessableEntityException("PENDING_DOCUMENTS_EXIST: " + count + " " + docLabel
                     + " exist in this period (e.g. " + String.join(", ", sample) + ").");
         }
     }

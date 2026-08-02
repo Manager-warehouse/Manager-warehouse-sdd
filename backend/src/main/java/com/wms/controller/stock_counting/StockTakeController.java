@@ -58,7 +58,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 /**
- * REST controller for StockTake & Adjustment operations (Spec 006, US-WMS-13).
+ * Controller REST cho Kiểm kê & Điều chỉnh tồn kho (Spec 006, US-WMS-13).
  */
 @RestController
 @RequestMapping("/api/v1/stocktakes")

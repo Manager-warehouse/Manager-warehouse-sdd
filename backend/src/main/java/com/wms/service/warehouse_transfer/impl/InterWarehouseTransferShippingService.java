@@ -203,8 +203,7 @@ public class InterWarehouseTransferShippingService {
         boolean wasReworkRequired = transfer.isSourceLoadReworkRequired();
         Map<String, Object> before = helper.snapshot(transfer);
         OffsetDateTime now = OffsetDateTime.now();
-        boolean hasLoadedQtyMismatch = false;
-        // Bước 3: ghi số lượng đã xếp cho từng dòng và phát hiện dòng nào lệch số lượng dự kiến.
+        // Bước 3: ghi số lượng đã xếp cho từng dòng; công nhân phải nhập đúng kế hoạch được giao.
         for (var row : request.items()) {
             // Validate: số lượng xếp lên xe phải là số nguyên.
             if (row.loadedQty().stripTrailingZeros().scale() > 0) {
@@ -216,7 +215,7 @@ public class InterWarehouseTransferShippingService {
                 throw new BusinessRuleViolationException("TRANSFER_ITEM_NOT_FOUND");
             }
             if (row.loadedQty().compareTo(item.getPlannedQty()) != 0) {
-                hasLoadedQtyMismatch = true;
+                throw new BusinessRuleViolationException("SOURCE_LOAD_QTY_MUST_MATCH_PLAN");
             }
             // Nếu báo cáo lại sau khi xếp lại, số lượng đã chốt gửi cũ bị xóa để thủ kho QC/chốt lại từ đầu.
             item.setLoadedQty(row.loadedQty());
@@ -225,17 +224,12 @@ public class InterWarehouseTransferShippingService {
             item.setSentQty(null);
             transferItemRepository.save(item);
         }
-        // Validate: nếu số lượng đã xếp lệch số lượng dự kiến thì bắt buộc có lý do xếp lại/giải trình.
-        if (hasLoadedQtyMismatch && helper.isBlank(request.reworkReason())) {
-            throw new BusinessRuleViolationException("SOURCE_LOAD_REWORK_REASON_REQUIRED");
-        }
-
         // Bước 4: cập nhật trạng thái cần xếp lại của phiếu và xóa toàn bộ kết quả QC/bàn giao cũ.
         // Lý do: khi số lượng xếp thay đổi, ảnh QC và ảnh bàn giao cũ không còn đại diện cho hàng hiện tại.
         transfer.setSourceLoadedReportedBy(actor);
         transfer.setSourceLoadedReportedAt(now);
-        transfer.setSourceLoadReworkRequired(hasLoadedQtyMismatch);
-        transfer.setSourceLoadReworkReason(hasLoadedQtyMismatch ? request.reworkReason() : null);
+        transfer.setSourceLoadReworkRequired(false);
+        transfer.setSourceLoadReworkReason(null);
         transfer.setOutboundQcPassed(null);
         transfer.setOutboundQcNote(null);
         transfer.setOutboundQcPhotoRef(null);
@@ -625,11 +619,6 @@ public class InterWarehouseTransferShippingService {
         if (transfer.getDriverArrivedAt() == null) {
             throw new BusinessRuleViolationException("DRIVER_ARRIVE_REQUIRED");
         }
-        // Validate: nếu đang chờ duyệt yêu cầu xe quay đầu thì không cho bàn giao nhận hàng bình thường.
-        if (!Boolean.TRUE.equals(transfer.isReturned()) && Boolean.TRUE.equals(transfer.isReturnRequested())) {
-            throw new BusinessRuleViolationException("RETURN_REQUEST_PENDING");
-        }
-
         Map<String, Object> before = helper.snapshot(transfer);
         // Bước 2: lưu ảnh bàn giao khi xe đến nơi; bước nhập số lượng nhận sẽ kiểm mốc này.
         transfer.setArrivalHandoverAt(OffsetDateTime.now());

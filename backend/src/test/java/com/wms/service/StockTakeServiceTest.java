@@ -635,7 +635,7 @@ class StockTakeServiceTest {
     }
 
     @Test
-    void approveStockTake_actualQtyBelowReserved_throwsInventoryInvariant() {
+    void approveStockTake_actualQtyBelowReserved_capsToReservedWithWarning() {
         StockTake st = stockTake(StockTakeStatus.PENDING_APPROVAL);
         st.setApprovalLevel(ApprovalLevel.MANAGER);
         when(stockTakeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(st));
@@ -646,13 +646,18 @@ class StockTakeServiceTest {
 
         Inventory inv = new Inventory();
         inv.setTotalQty(new BigDecimal("100"));
-        inv.setReservedQty(new BigDecimal("10")); // actual(5) - reserved(10) < 0
+        inv.setReservedQty(new BigDecimal("10")); // actual(5) < reserved(10) → cap to 10
         when(inventoryRepository.findByWarehouseProductBatchLocationForUpdate(WH_ID, 100L, 200L, 300L))
                 .thenReturn(Optional.of(inv));
+        when(locationRepository.findByLockedByStockTakeId(1L)).thenReturn(List.of());
 
-        BusinessRuleViolationException ex = assertThrows(BusinessRuleViolationException.class,
-                () -> service.approveStockTake(1L, manager));
-        assertTrue(ex.getMessage().contains("INVENTORY_INVARIANT_VIOLATED"));
+        StockTakeResponse res = service.approveStockTake(1L, manager);
+
+        assertEquals(StockTakeStatus.APPROVED, res.getStatus());
+        assertEquals(0, inv.getTotalQty().compareTo(new BigDecimal("10")));
+        assertNotNull(res.getApprovalWarnings());
+        assertEquals(1, res.getApprovalWarnings().size());
+        assertTrue(res.getApprovalWarnings().get(0).contains("SKU-001"));
     }
 
     @Test

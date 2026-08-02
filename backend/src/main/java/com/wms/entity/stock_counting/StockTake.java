@@ -43,6 +43,15 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
+/**
+ * Entity phiếu kiểm kê hàng hóa — bảng stock_takes.
+ *
+ * Luồng trạng thái: DRAFT → IN_PROGRESS → PENDING_APPROVAL → APPROVED/REJECTED → CANCELLED
+ * Quan hệ: warehouse (kho kiểm), conductedBy (thủ kho thực hiện), approvedBy (trưởng kho duyệt),
+ *           accountingPeriod (kỳ kế toán), items (StockTakeItem — 1:N).
+ *
+ * Dùng bởi: StockTakeService, StockTakeRepository
+ */
 @Entity
 @Table(name = "stock_takes")
 @Getter

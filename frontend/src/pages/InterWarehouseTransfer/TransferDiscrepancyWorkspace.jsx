@@ -15,15 +15,10 @@ const STATUS_OPTIONS = [
 ];
 
 // Điều chuyển nội bộ: final receive chỉ tạo hồ sơ và giữ phần lệch; CEO chốt trách nhiệm ở màn này.
-// Với nhận thừa, quyết định của CEO mới quyết định có cộng phần tạm giữ vào kho đích và trừ thêm kho nguồn hay không.
+// Dropdown chỉ chọn bên chịu lỗi để hồ sơ thiếu/thừa hiển thị nhất quán; cách cộng/trừ tồn do backend xử lý theo loại hồ sơ.
 const RESOLUTION_OPTIONS = [
   { value: 'RESOLVED_SOURCE_FAULT', label: 'Lỗi kho nguồn' },
   { value: 'RESOLVED_DESTINATION_COUNT_ERROR', label: 'Lỗi kho đích' },
-];
-
-const OVER_RECEIPT_RESOLUTION_OPTIONS = [
-  { value: 'RESOLVED_SOURCE_FAULT', label: 'Lỗi kho nguồn - nhập phần thừa vào kho đích' },
-  { value: 'RESOLVED_DESTINATION_COUNT_ERROR', label: 'Lỗi kho đích - không nhập phần thừa' },
 ];
 
 const statusMeta = {
@@ -126,11 +121,7 @@ const TransferDiscrepancyWorkspace = () => {
 
   const openResolveModal = (incident) => {
     setSelectedIncident(incident);
-    setResolutionStatus(
-      incident.incidentType === 'OVER_RECEIPT'
-        ? OVER_RECEIPT_RESOLUTION_OPTIONS[0].value
-        : RESOLUTION_OPTIONS[0].value
-    );
+    setResolutionStatus(RESOLUTION_OPTIONS[0].value);
     setResolutionNote('');
   };
 
@@ -341,9 +332,7 @@ const TransferDiscrepancyWorkspace = () => {
               label="Hướng xử lý"
               value={resolutionStatus}
               onChange={(event) => setResolutionStatus(event.target.value)}
-              options={selectedIncident.incidentType === 'OVER_RECEIPT'
-                ? OVER_RECEIPT_RESOLUTION_OPTIONS
-                : RESOLUTION_OPTIONS}
+              options={RESOLUTION_OPTIONS}
             />
 
             <div className="flex flex-col gap-1.5">

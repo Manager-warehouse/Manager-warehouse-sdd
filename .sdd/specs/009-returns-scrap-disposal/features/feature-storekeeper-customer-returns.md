@@ -27,6 +27,7 @@
     * IF goods pass QC: add to regular inventories, update location_id to a regular bin.
     * IF goods fail QC: move to Quarantine locations.
   * WHEN Kế toán viên creates a Credit Note for returned goods, the system SHALL:
+    * Compute the credit note amount from **only the QC-passed quantity** (`receipt_items.sample_passed_qty`) of each line, multiplied by `unit_cost` — **not** `actual_qty` (the total counted quantity before the QC split). Goods that fail QC go to Quarantine, not regular stock, so the system never actually accepted them back; refunding for `actual_qty` would credit the dealer for units still sitting in Quarantine (unresolved as of Session 2026-08-02 — "kế toán tính tiền lúc nhập hàng xong... chỉ trả tiền sản phẩm đã cất kệ").
     * Create a `credit_notes` record referencing the receipt.
     * Decrease dealer's `current_balance` by the credit note amount.
 
@@ -55,6 +56,11 @@ Return receipt list/detail responses SHALL include:
 * Given a dealer has a current balance of `100M`
 * When Kế toán viên creates a Credit Note of `5M` for them
 * Then the dealer's `current_balance` SHALL be reduced to `95M`.
+
+**Scenario 2b: Credit Note excludes QC-failed (Quarantined) quantity**
+* Given the Scenario 1 split (8 units passed QC and shelved, 2 units failed QC and went to Quarantine), `unit_cost = 150,000` VNĐ.
+* When Kế toán viên creates a Credit Note for this return receipt.
+* Then the amount SHALL be `8 × 150,000 = 1,200,000` VNĐ (passed quantity only) — **not** `10 × 150,000 = 1,500,000` VNĐ. The 2 units still in Quarantine are not credited until they leave Quarantine through a separate resolution (RTV/disposal per Spec 009), since the dealer's return was never actually accepted for that portion.
 
 **Scenario 3: Accountant cannot create or QC return receipt**
 * Given the authenticated user has role `ACCOUNTANT` or `CHIEF_ACCOUNTANT`

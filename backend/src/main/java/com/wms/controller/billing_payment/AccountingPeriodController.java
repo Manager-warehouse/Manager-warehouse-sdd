@@ -36,11 +36,12 @@ import com.wms.enums.user_configuration.*;
 import com.wms.enums.warehouse_location.*;
 import com.wms.enums.warehouse_transfer.*;
 import com.wms.dto.request.AccountingPeriodCloseRequest;
-import com.wms.dto.request.AccountingPeriodCreateRequest;
 import com.wms.dto.response.AccountingPeriodResponse;
+import com.wms.dto.response.PeriodSummaryResponse;
 import com.wms.entity.access_control.User;
 import com.wms.repository.UserRepository;
 import com.wms.service.billing_payment.AccountingPeriodService;
+import com.wms.service.billing_payment.PeriodSummaryService;
 import jakarta.validation.Valid;
 import java.security.Principal;
 import java.util.List;
@@ -57,6 +58,7 @@ import org.springframework.http.HttpStatus;
 public class AccountingPeriodController {
 
     private final AccountingPeriodService accountingPeriodService;
+    private final PeriodSummaryService periodSummaryService;
     private final UserRepository userRepository;
 
     @GetMapping
@@ -64,16 +66,6 @@ public class AccountingPeriodController {
     public ResponseEntity<List<AccountingPeriodResponse>> getAllPeriods(Principal principal) {
         User actor = getActor(principal);
         return ResponseEntity.ok(accountingPeriodService.getAllPeriods(actor));
-    }
-
-    @PostMapping
-    @PreAuthorize("hasAnyRole('ACCOUNTANT_MANAGER', 'ADMIN')")
-    public ResponseEntity<AccountingPeriodResponse> createPeriod(
-            @Valid @RequestBody AccountingPeriodCreateRequest request,
-            Principal principal) {
-        User actor = getActor(principal);
-        AccountingPeriodResponse response = accountingPeriodService.createPeriod(request, actor);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @PutMapping("/{id}/close")
@@ -85,6 +77,25 @@ public class AccountingPeriodController {
         User actor = getActor(principal);
         AccountingPeriodResponse response = accountingPeriodService.closePeriod(id, request, actor);
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/{id}/summary")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT', 'ACCOUNTANT_MANAGER', 'ADMIN', 'CEO')")
+    public ResponseEntity<PeriodSummaryResponse> getPeriodSummary(@PathVariable Long id, Principal principal) {
+        User actor = getActor(principal);
+        return ResponseEntity.ok(periodSummaryService.getPeriodSummary(id, actor));
+    }
+
+    @GetMapping("/{id}/summary/export")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT', 'ACCOUNTANT_MANAGER', 'ADMIN', 'CEO')")
+    public ResponseEntity<byte[]> exportPeriodSummary(@PathVariable Long id, Principal principal) {
+        User actor = getActor(principal);
+        byte[] content = periodSummaryService.exportPeriodSummaryXlsx(id, actor);
+        String filename = "ky-ke-toan-" + id + ".xlsx";
+        return ResponseEntity.ok()
+                .header("Content-Disposition", "attachment; filename=" + filename)
+                .header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                .body(content);
     }
 
     private User getActor(Principal principal) {

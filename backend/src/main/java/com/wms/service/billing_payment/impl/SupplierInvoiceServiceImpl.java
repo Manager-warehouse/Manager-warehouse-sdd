@@ -82,6 +82,15 @@ public class SupplierInvoiceServiceImpl implements SupplierInvoiceService {
     public SupplierInvoiceResponse createSupplierInvoice(CreateSupplierInvoiceRequest request, User actor) {
         requireAccountant(actor);
 
+        // Validated up front, before any mutation (supplier balance, document sequence),
+        // since it depends only on the request itself.
+        LocalDate issueDate = request.getDocumentDate();
+        LocalDate dueDate = request.getDueDate() != null ? request.getDueDate() : issueDate.plusDays(30);
+        if (dueDate.isBefore(issueDate)) {
+            throw new UnprocessableEntityException(
+                    "DUE_DATE_BEFORE_DOCUMENT_DATE: Due date cannot be before the document date");
+        }
+
         // 1. Validate date in open period
         accountingPeriodService.validateDateInOpenPeriod(request.getDocumentDate());
 
@@ -100,13 +109,14 @@ public class SupplierInvoiceServiceImpl implements SupplierInvoiceService {
 
         Supplier supplier = receipt.getSupplier();
         if (supplier == null) {
-            throw new UnprocessableEntityException("Receipt does not have an associated supplier");
+            throw new UnprocessableEntityException("RECEIPT_NO_SUPPLIER: Receipt does not have an associated supplier");
         }
 
         // 3. Find Open Accounting Period
         AccountingPeriod period = accountingPeriodRepository
                 .findPeriodByDateAndStatus(request.getDocumentDate(), AccountingPeriodStatus.OPEN)
-                .orElseThrow(() -> new UnprocessableEntityException("No open accounting period found for date " + request.getDocumentDate()));
+                .orElseThrow(() -> new UnprocessableEntityException(
+                        "NO_OPEN_PERIOD: No open accounting period found for date " + request.getDocumentDate()));
 
         // 4. Calculate total amount from approved, putaway-unlocked quantity x unit cost per line.
         BigDecimal calculatedAmount = calculateTotalAmount(receipt.getId());
@@ -127,9 +137,6 @@ public class SupplierInvoiceServiceImpl implements SupplierInvoiceService {
 
         // 6. Generate invoice number
         String invoiceNumber = generateSupplierInvoiceNumber(request.getDocumentDate());
-
-        LocalDate issueDate = request.getDocumentDate();
-        LocalDate dueDate = request.getDueDate() != null ? request.getDueDate() : issueDate.plusDays(30);
 
         OffsetDateTime now = OffsetDateTime.now();
         SupplierInvoice invoice = SupplierInvoice.builder()
@@ -205,7 +212,7 @@ public class SupplierInvoiceServiceImpl implements SupplierInvoiceService {
     private BigDecimal calculateTotalAmount(Long receiptId) {
         List<ReceiptItem> items = receiptItemRepository.findByReceiptId(receiptId);
         if (items.isEmpty()) {
-            throw new UnprocessableEntityException("Receipt has no items to invoice");
+            throw new UnprocessableEntityException("RECEIPT_NO_ITEMS: Receipt has no items to invoice");
         }
         BigDecimal total = BigDecimal.ZERO;
         for (ReceiptItem item : items) {

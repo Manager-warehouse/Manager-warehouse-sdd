@@ -40,6 +40,11 @@ import com.wms.entity.stock_counting.StockTakeItem;
 
 import java.math.BigDecimal;
 
+/**
+ * DTO response cho từng dòng hàng trong phiếu kiểm kê.
+ * Chứa: thông tin sản phẩm, lô, vị trí kệ, số lượng hệ thống/thực tế, chênh lệch, ghi chú.
+ * Dùng bởi: StockTakeResponse.items[] — hiển thị bảng chi tiết trên frontend.
+ */
 public class StockTakeItemResponse {
 
     @JsonProperty("id")

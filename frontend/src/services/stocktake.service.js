@@ -134,9 +134,16 @@ const SEED_STOCKTAKES = [
 ];
 
 // ─── Service ──────────────────────────────────────────────────────────────────
+// Tất cả hàm đều hỗ trợ 2 mode: mock (localStorage) và real (apiClient → backend).
+// Mock mode bật khi VITE_USE_MOCK=true — dùng để phát triển frontend độc lập.
 
 export const stocktakeService = {
 
+  /**
+   * Lấy danh sách phiếu kiểm kê (có phân trang).
+   * Gọi bởi: StocktakeList.jsx (load khi mount + đổi tab/filter/page)
+   * API: GET /api/v1/stocktakes?warehouse_id=X&status=Y&page=0&size=10
+   */
   getStockTakes: async (warehouseId, status, page = 0, size = 10) => {
     if (useMock) {
       await delay();
@@ -155,6 +162,11 @@ export const stocktakeService = {
     return res.data;
   },
 
+  /**
+   * Lấy chi tiết phiếu kiểm kê kèm items.
+   * Gọi bởi: StocktakeDetail.jsx (load khi mount)
+   * API: GET /api/v1/stocktakes/{id}
+   */
   getStockTakeById: async (id) => {
     if (useMock) {
       await delay();
@@ -167,6 +179,12 @@ export const stocktakeService = {
     return res.data;
   },
 
+  /**
+   * Tạo phiếu kiểm kê mới (trạng thái DRAFT).
+   * Gọi bởi: StocktakeForm.jsx (submit form tạo phiếu)
+   * API: POST /api/v1/stocktakes
+   * Body: { warehouse_id, stock_take_date, document_date, accounting_period_id }
+   */
   createStockTake: async (data) => {
     if (useMock) {
       await delay();
@@ -206,6 +224,11 @@ export const stocktakeService = {
     return res.data;
   },
 
+  /**
+   * Bắt đầu kiểm kê: DRAFT → IN_PROGRESS (khóa location).
+   * Gọi bởi: StocktakeDetail.jsx (nút "Bắt đầu kiểm kê")
+   * API: PUT /api/v1/stocktakes/{id}/start
+   */
   startStockTake: async (id) => {
     if (useMock) {
       await delay();
@@ -222,6 +245,12 @@ export const stocktakeService = {
     return res.data;
   },
 
+  /**
+   * Nhập số đếm thực tế cho từng dòng hàng.
+   * Gọi bởi: StocktakeDetail.jsx (submit form nhập số đếm)
+   * API: PUT /api/v1/stocktakes/{id}/count
+   * Body: { items: [{ item_id, actual_qty, is_employee_fault, notes }] }
+   */
   recordCount: async (id, items) => {
     if (useMock) {
       await delay();
@@ -248,6 +277,11 @@ export const stocktakeService = {
     return res.data;
   },
 
+  /**
+   * Hoàn tất đếm → gửi chờ Trưởng kho duyệt (PENDING_APPROVAL).
+   * Gọi bởi: StocktakeDetail.jsx (nút "Hoàn tất & gửi duyệt")
+   * API: PUT /api/v1/stocktakes/{id}/complete
+   */
   completeStockTake: async (id) => {
     if (useMock) {
       await delay();
@@ -268,6 +302,11 @@ export const stocktakeService = {
     return res.data;
   },
 
+  /**
+   * Hủy phiếu kiểm kê (chỉ khi DRAFT hoặc IN_PROGRESS).
+   * Gọi bởi: StocktakeList.jsx (nút hủy), StocktakeDetail.jsx
+   * API: PUT /api/v1/stocktakes/{id}/cancel
+   */
   cancelStockTake: async (id) => {
     if (useMock) {
       await delay();
@@ -286,6 +325,12 @@ export const stocktakeService = {
     return res.data;
   },
 
+  /**
+   * Trưởng kho phê duyệt phiếu kiểm kê.
+   * Response có thể chứa approval_warnings nếu có item bị cap qty do reserved.
+   * Gọi bởi: StocktakeList.jsx (nút phê duyệt), StocktakeDetail.jsx (nút phê duyệt)
+   * API: PUT /api/v1/stocktakes/{id}/approve
+   */
   approveStockTake: async (id) => {
     if (useMock) {
       await delay();
@@ -304,6 +349,12 @@ export const stocktakeService = {
     return res.data;
   },
 
+  /**
+   * Trưởng kho trả lại phiếu kiểm kê (REJECTED) — thủ kho có thể sửa và nộp lại.
+   * Gọi bởi: StocktakeList.jsx (modal reject), StocktakeDetail.jsx (modal reject)
+   * API: PUT /api/v1/stocktakes/{id}/reject
+   * Body: { rejection_reason: "..." }
+   */
   rejectStockTake: async (id, rejectionReason) => {
     if (useMock) {
       await delay();

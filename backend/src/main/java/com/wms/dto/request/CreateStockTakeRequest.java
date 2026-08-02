@@ -41,6 +41,11 @@ import jakarta.validation.constraints.NotNull;
 
 import java.time.LocalDate;
 
+/**
+ * DTO request tạo phiếu kiểm kê mới.
+ * Dùng bởi: POST /api/v1/stocktakes (StockTakeController.createStockTake)
+ * → StockTakeService.createStockTake()
+ */
 @JsonIgnoreProperties(ignoreUnknown = false)
 public class CreateStockTakeRequest {
 

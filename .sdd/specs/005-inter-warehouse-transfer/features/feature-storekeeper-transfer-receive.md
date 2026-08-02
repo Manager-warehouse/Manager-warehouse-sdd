@@ -67,15 +67,12 @@ Luồng này xử lý trong màn **Điều chuyển nội bộ** cho mã `TRF-*`
 - Chặn supplier RTV và supplier Debit Note với tồn này.
 - Release vehicle/driver/trip và ghi audit `TRANSFER_QUARANTINE_REJECT`.
 
-### 3.6. Wrong SKU và Return to Source
+### 3.6. Sai SKU
 
-- Nếu phát hiện sai SKU nhưng hàng còn nguyên, thủ kho kho đích tạo report `WRONG_SKU`.
-- Report bắt buộc có expected SKU, actual SKU, affected quantity và reason.
-- Actual SKU phải tồn tại, khác expected SKU và quantity không vượt sent quantity của item.
-- Khi report wrong-SKU, hàng vẫn ở `IN_TRANSIT`, không nhập kho thường và không vào quarantine.
-- Quản lý kho đích duyệt hoặc từ chối return.
-- Khi duyệt, transfer set `is_returned = true`, giữ nguyên trip/vehicle/driver/`IN_TRANSIT` và chỉ đạo tài xế quay về kho nguồn.
-- Tài xế ghi `return-depart`, `return-arrive`; kho nguồn handover rồi lặp lại receive-count, receive-check/QC và final-receive.
+- Nhánh wrong-SKU return do kho đích báo cáo đã được gỡ khỏi Sprint 1 runtime.
+- Kho đích tiếp tục nhận/count/QC và xử lý sai SKU qua chênh lệch hoặc quarantine theo trạng thái vật lý.
+- Return leg chỉ còn dùng khi transfer đã được đánh dấu `is_returned = true`, ví dụ quá hạn khi đang `IN_TRANSIT`.
+- Khi đã quay đầu, tài xế ghi `return-depart`, `return-arrive`; kho nguồn handover rồi lặp lại receive-count, receive-check/QC và final-receive.
 
 ## 4. API endpoint
 
@@ -85,9 +82,6 @@ Luồng này xử lý trong màn **Điều chuyển nội bộ** cho mã `TRF-*`
 - `PUT /api/v1/inter-warehouse-transfers/{id}/receive-check` - Thủ kho kiểm count, QC và chọn vị trí.
 - `POST /api/v1/inter-warehouse-transfers/{id}/final-receive` - Trưởng kho duyệt nhập kho cuối.
 - `POST /api/v1/inter-warehouse-transfers/{id}/quarantine-reject` - Từ chối toàn bộ và đưa vào quarantine.
-- `POST /api/v1/inter-warehouse-transfers/{id}/request-return` - Báo wrong-SKU còn nguyên.
-- `POST /api/v1/inter-warehouse-transfers/{id}/approve-return` - Duyệt cho xe quay đầu.
-- `POST /api/v1/inter-warehouse-transfers/{id}/reject-return` - Từ chối quay đầu.
 - `POST /api/v1/inter-warehouse-transfers/{id}/return-depart` - Tài xế bắt đầu chặng quay về nguồn.
 - `POST /api/v1/inter-warehouse-transfers/{id}/return-arrive` - Tài xế về đến kho nguồn.
 
@@ -163,15 +157,6 @@ Luồng này xử lý trong màn **Điều chuyển nội bộ** cho mã `TRF-*`
 - `DUPLICATE_PUTAWAY_ITEM` / `DUPLICATE_PUTAWAY_LOCATION` (HTTP 400): Putaway trùng item/location.
 - `PUTAWAY_QUANTITY_MUST_MATCH_QC_PASSED` (HTTP 422): Putaway vượt hoặc không khớp QC pass.
 - `DISCREPANCY_REQUIRES_REASON` (HTTP 400): Thiếu reason cho shortage hoặc issue cuối.
-- `RETURN_REQUEST_NOT_ALLOWED` (HTTP 409): Không được tạo wrong-SKU return ở trạng thái hiện tại.
-- `WRONG_SKU_REASON_REQUIRED` (HTTP 400): Thiếu SKU/quantity/reason.
-- `ACTUAL_WRONG_SKU_PRODUCT_NOT_FOUND` (HTTP 422): Actual SKU không tồn tại hoặc inactive.
-- `WRONG_SKU_MUST_DIFFER_FROM_EXPECTED` (HTTP 400): Actual SKU trùng expected SKU.
-- `AFFECTED_QTY_MUST_BE_POSITIVE` (HTTP 400): Quantity sai SKU không dương.
-- `WRONG_SKU_QTY_EXCEEDS_SENT` (HTTP 422): Quantity sai SKU vượt số gửi.
-- `RETURN_REQUEST_REQUIRED` (HTTP 409): Manager duyệt return khi chưa có report.
-- `RETURN_APPROVAL_NOT_ALLOWED` (HTTP 403): Actor không phải quản lý kho đích hoặc ngoài scope.
-
 ## 6. Tiêu chí chấp nhận
 
 - **Nhận thiếu hàng**: Gửi 30, nhận 28, có reason; hệ thống nhập 28 theo QC, clear 30 khỏi `IN_TRANSIT`, tạo discrepancy 2 và status `COMPLETED_WITH_DISCREPANCY`.
@@ -180,8 +165,7 @@ Luồng này xử lý trong màn **Điều chuyển nội bộ** cho mã `TRF-*`
 - **Chặn duplicate count/check item**: Payload trùng transfer item bị reject.
 - **QC fail vào quarantine**: Hàng vật lý QC fail được đưa vào quarantine với origin `INTERNAL_TRANSFER`.
 - **Thiếu hàng không vào quarantine**: Số thiếu không có mặt vật lý, không tạo quarantine/disposal.
-- **Wrong-SKU nguyên vẹn quay đầu**: Thủ kho báo sai SKU, quản lý duyệt, tài xế quay về, kho nguồn nhận lại theo ba bước.
-- **Chặn thủ kho tự duyệt return**: Thủ kho báo wrong-SKU không được tự approve.
+- **Quay đầu quá hạn**: Transfer quá hạn trong `IN_TRANSIT` được đánh dấu quay đầu, tài xế quay về và kho nguồn nhận lại theo ba bước.
 - **Chặn sửa count sau receive-check**: Sau khi thủ kho duyệt check, công nhân không sửa count.
 - **Thủ kho sửa count phải note**: Nếu confirmed khác worker count mà thiếu `checkerNote`, hệ thống reject.
 - **Chặn QC fail thiếu reason/quarantine bin**: Có `qcFailedQty > 0` mà thiếu reason hoặc kho không có quarantine bin active thì reject.

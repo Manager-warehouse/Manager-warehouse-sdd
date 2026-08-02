@@ -15,4 +15,5 @@ public interface SupplierInvoiceRepository extends JpaRepository<SupplierInvoice
     Optional<SupplierInvoice> findByReceiptId(Long receiptId);
     List<SupplierInvoice> findBySupplierId(Long supplierId);
     List<SupplierInvoice> findBySupplierIdAndStatus(Long supplierId, InvoiceStatus status);
+    List<SupplierInvoice> findByAccountingPeriodId(Long accountingPeriodId);
 }

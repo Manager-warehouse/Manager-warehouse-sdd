@@ -94,7 +94,7 @@
     - Thiếu hàng bắt buộc có `discrepancyReason` và tạo `TRANSFER_DISCREPANCY`.
     - Số lượng vật lý QC fail chuyển vào quarantine với origin `INTERNAL_TRANSFER` và bàn giao cho Spec 009 xử lý disposal.
     - Số lượng thiếu không tạo quarantine stock.
-    - Wrong SKU nguyên vẹn dùng Return to Source thay vì disposal.
+    - Sai SKU không còn dùng Return to Source; kho nhận xử lý qua count/QC/chênh lệch hoặc quarantine theo trạng thái vật lý.
     - Quarantine stock có origin điều chuyển không được dùng supplier RTV.
 
 15. Kiểm định giá trị shortage với 30 gửi và 28 nhận:
@@ -102,10 +102,9 @@
     - `TRANSFER_DISCREPANCY` ghi 2 đơn vị thiếu chỉ theo số lượng; 2 đơn vị đó không có giá trị nhập kho đích.
     - Không tạo invoice, revenue, receivable, payable, supplier Debit Note hoặc tự động charge tài xế.
 
-16. Báo cáo và duyệt return do wrong-SKU nguyên vẹn:
-    - Thủ kho kho đích gửi `POST /api/v1/inter-warehouse-transfers/{id}/request-return` với transfer item, expected SKU, actual SKU, số lượng ảnh hưởng, reason và photo refs nếu có.
-    - Quản lý kho đích duyệt qua `POST /api/v1/inter-warehouse-transfers/{id}/approve-return`.
-    - Kỳ vọng `isReturned = true`; cùng transfer/trip/vehicle/driver và stock `IN_TRANSIT` vẫn active.
+16. Quay đầu do quá hạn khi hàng đang vận chuyển:
+    - Khi transfer quá deadline trong lúc `IN_TRANSIT`, hệ thống đánh dấu `isReturned = true` với lý do `TRANSFER_REQUIRED_DATE_EXPIRED`.
+    - Kỳ vọng cùng transfer/trip/vehicle/driver và stock `IN_TRANSIT` vẫn active.
     - Tài xế được gán xác nhận `POST /api/v1/inter-warehouse-transfers/{id}/return-depart` và `POST /api/v1/inter-warehouse-transfers/{id}/return-arrive`.
     - Nhân viên kho nguồn receive-count, thủ kho nguồn receive-check/QC, quản lý kho nguồn final-receive.
     - Kỳ vọng terminal `COMPLETED` với nhãn UI “Đã hoàn về kho nguồn”.
@@ -151,7 +150,7 @@ Chạy các case sau trước khi chấp nhận thay đổi transfer-flow:
 8. Submit receive-count trước arrival/handover, có dòng item trùng, thiếu dòng item, số âm/lẻ, vượt sent quantity hoặc shortage thiếu reason. Kỳ vọng receive-count validation và chưa ghi tồn.
 9. Submit receive-check với item trùng, checker quantity khác mà thiếu note, tổng QC sai, QC failure thiếu reason, QC failure mà không có quarantine bin active, chọn quarantine bin cho QC-passed goods, bin inactive/sai kho hoặc vượt capacity. Kỳ vọng message validation trực tiếp.
 10. Submit final receive trước receive-check, thiếu cấu hình `IN_TRANSIT`, putaway item/location trùng, putaway quantity bằng 0/âm, putaway vượt QC-passed, hoặc putaway thiếu mà không có discrepancy reason. Kỳ vọng validation trước mọi mutation `IN_TRANSIT`/destination/quarantine inventory.
-11. Submit wrong-SKU return thiếu expected/actual SKU, actual SKU không tồn tại, actual SKU bằng expected SKU, affected quantity bằng 0/âm, affected quantity vượt sent quantity hoặc thiếu reason. Kỳ vọng validation trước khi đổi `returnRequested` hoặc trạng thái wrong-SKU report.
+11. Submit return leg khi phiếu chưa `isReturned = true` hoặc chưa có mốc return trước đó. Kỳ vọng validation đúng thứ tự và không đổi tồn kho.
 12. Kiểm frontend chỉ hiển thị tối đa một message rõ ràng cho mỗi action fail: inline field errors cho field biết trước, một toast đã dịch cho backend rejection, toast stack deduplicate và giới hạn để không chồng lấn, chỉ auto-refresh sau mutation thành công.
 
 ## Kiểm tra bắt buộc trước khi xem là xong code
@@ -173,6 +172,6 @@ Chạy các case sau trước khi chấp nhận thay đổi transfer-flow:
 - Shortage điều chuyển không bao giờ thành quantity quarantine/disposal.
 - Quarantine stock có origin điều chuyển giữ traceability đến transfer item và không tạo RTV hoặc supplier Debit Note.
 - Số lượng và giá trị tồn kho đích chỉ gồm hàng nhận vật lý và được chấp nhận.
-- Wrong-SKU return yêu cầu Storekeeper report, destination Manager approval, assigned-driver return và source receiving ba bước.
+- Quay đầu quá hạn yêu cầu assigned-driver return và source receiving ba bước.
 - Real PostgreSQL/Flyway migration tests pass cho migration cộng thêm mới nhất.
 - Có requirement-to-test mapping cho mọi P0 item và nhánh ngoại lệ trong `tasks.md`.

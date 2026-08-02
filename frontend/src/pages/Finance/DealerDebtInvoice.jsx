@@ -14,6 +14,10 @@ import { FileText, Landmark, BellRing, ShieldAlert, Plus, Eye, Image as ImageIco
 
 const OCR_LOW_CONFIDENCE_THRESHOLD = 0.75;
 
+// Real-time entry only - no backdating invoices/payments (unlike correction vouchers,
+// which exist specifically to touch a past period).
+const todayDateStr = () => new Date().toISOString().slice(0, 10);
+
 const DealerDebtInvoice = () => {
   const { addToast } = useUiStore();
   const { hasRole } = useAuthStore();
@@ -120,6 +124,10 @@ const DealerDebtInvoice = () => {
   const handleSubmitInvoice = async (e) => {
     e.preventDefault();
     if (submittingInvoice) return;
+    if (invoiceFormData.documentDate < todayDateStr()) {
+      addToast('Ngày hạch toán không được là ngày trong quá khứ', 'error');
+      return;
+    }
     setSubmittingInvoice(true);
     try {
       await financeService.createInvoice(invoiceFormData.doId, invoiceFormData.documentDate, invoiceFormData.notes);
@@ -286,6 +294,10 @@ const DealerDebtInvoice = () => {
     }
     if (Number(paymentFormData.amount) <= 0) {
       addToast('Số tiền thu phải lớn hơn 0', 'error');
+      return;
+    }
+    if (paymentFormData.paymentDate < todayDateStr()) {
+      addToast('Ngày thu tiền không được là ngày trong quá khứ', 'error');
       return;
     }
     if (submittingPayment) return;
@@ -633,10 +645,52 @@ const DealerDebtInvoice = () => {
                 />
               </div>
 
+              {/* Bằng chứng POD phải được kiểm tra TRƯỚC khi lập hóa đơn, không phải sau */}
+              <div className="flex flex-col gap-2 border border-hairline-light rounded p-3 bg-canvas-cream/40">
+                <span className="font-semibold text-shade-60 uppercase tracking-wider text-[10px]">
+                  Bằng chứng Bàn giao (POD) — kiểm tra trước khi lập hóa đơn
+                </span>
+                {(selectedNotif?.otp_verified_at || selectedNotif?.otpVerifiedAt) && (
+                  <div className="flex items-center gap-2 p-2 bg-aloe-10/20 border border-aloe-10 rounded">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-ink shrink-0" />
+                    <span className="text-[11px]">Mã OTP đã được đại lý xác nhận giao hàng thành công.</span>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-3">
+                  {(selectedNotif?.pod_image_url || selectedNotif?.podImageUrl) ? (
+                    <div className="flex flex-col gap-1">
+                      <label className="font-semibold text-shade-60 flex items-center gap-1 text-[10px]">
+                        <ImageIcon className="w-3 h-3" /> Ảnh giao nhận thực tế
+                      </label>
+                      <img
+                        src={selectedNotif.pod_image_url || selectedNotif.podImageUrl}
+                        alt="POD"
+                        className="rounded border border-hairline-light max-h-32 object-cover w-full"
+                      />
+                    </div>
+                  ) : (
+                    <span className="text-shade-40 italic text-[11px]">Không có ảnh chụp POD.</span>
+                  )}
+                  {(selectedNotif?.pod_signature_url || selectedNotif?.podSignatureUrl) && (
+                    <div className="flex flex-col gap-1">
+                      <label className="font-semibold text-shade-60 flex items-center gap-1 text-[10px]">
+                        <PenTool className="w-3 h-3" /> Chữ ký đại lý
+                      </label>
+                      <img
+                        src={selectedNotif.pod_signature_url || selectedNotif.podSignatureUrl}
+                        alt="Signature"
+                        className="rounded border border-hairline-light max-h-24 object-contain bg-canvas-cream p-1 w-full"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <Input
                 id="documentDate"
                 label="Ngày hạch toán"
                 type="date"
+                min={todayDateStr()}
                 value={invoiceFormData.documentDate}
                 onChange={e => setInvoiceFormData(prev => ({ ...prev, documentDate: e.target.value }))}
                 required
@@ -766,6 +820,7 @@ const DealerDebtInvoice = () => {
                   id="paymentDate"
                   label="Ngày thu tiền"
                   type="date"
+                  min={todayDateStr()}
                   value={paymentFormData.paymentDate}
                   onChange={e => setPaymentFormData(prev => ({ ...prev, paymentDate: e.target.value }))}
                   required

@@ -211,24 +211,6 @@ public class InterWarehouseTransferServiceImpl implements InterWarehouseTransfer
     }
 
     @Override
-    public InterWarehouseTransferResponse requestReturn(Long id, TransferReturnRequest request, User actor) {
-        // Thủ kho kho đích báo sai mã hàng trước khi bàn giao; hệ thống tạo hồ sơ chờ trưởng kho duyệt.
-        return receivingService.requestReturn(id, request, actor);
-    }
-
-    @Override
-    public InterWarehouseTransferResponse approveReturn(Long id, User actor) {
-        // Trưởng kho đích duyệt yêu cầu quay đầu, phiếu chuyển sang nhánh xe quay về kho nguồn.
-        return receivingService.approveReturn(id, actor);
-    }
-
-    @Override
-    public InterWarehouseTransferResponse rejectReturn(Long id, TransferReturnRejectRequest request, User actor) {
-        // Trưởng kho đích bác yêu cầu quay đầu; phiếu tiếp tục luồng nhận bình thường.
-        return receivingService.rejectReturn(id, request, actor);
-    }
-
-    @Override
     public InterWarehouseTransferResponse recordOutboundQc(Long id, OutboundQcRequest request, User actor) {
         // QC xuất kho nguồn: nếu không đạt thì bắt buộc có lý do và khóa bước bàn giao/rời kho cho tới khi xử lý lại.
         return shippingService.recordOutboundQc(id, request, actor);

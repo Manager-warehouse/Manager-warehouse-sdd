@@ -326,11 +326,11 @@ const QuarantineWorkspace = () => {
               <table className="data-table-grid w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="bg-canvas-cream border-b border-hairline-light">
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Nhà cung cấp</th>
                     <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Sản phẩm</th>
                     <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Số lượng hủy</th>
                     <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Trị giá</th>
                     <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Lý do tiêu hủy</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Thẩm quyền duyệt</th>
                     <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right">Hành động</th>
                   </tr>
                 </thead>
@@ -343,6 +343,7 @@ const QuarantineWorkspace = () => {
                     const isAuthorized = getDisposalApprovalAuthority(totalVal);
                     return (
                       <tr key={adj.id} className="hover:bg-canvas-cream/50 transition-colors">
+                        <td className="px-6 py-4 font-semibold text-ink">{adj.supplier_name ?? adj.supplierName ?? getSupplierName(adj.supplier_id ?? adj.supplierId)}</td>
                         <td className="px-6 py-4">
                           <span className="font-bold block">{sku}</span>
                           <span className="text-shade-50 block">{name}</span>
@@ -350,7 +351,6 @@ const QuarantineWorkspace = () => {
                         <td className="px-6 py-4 text-right font-semibold text-danger-600">{failedQty}</td>
                         <td className="px-6 py-4 text-right font-bold">{totalVal.toLocaleString('vi-VN')} VND</td>
                         <td className="px-6 py-4 text-shade-60 italic">{adj.cause}</td>
-                        <td className="px-6 py-4">{getDisposalThresholdBadge(totalVal)}</td>
                         <td className="px-6 py-4 text-right whitespace-nowrap">
                           {isAuthorized ? (
                             <button
@@ -381,8 +381,10 @@ const QuarantineWorkspace = () => {
                 return (
                   <div key={adj.id} className="rounded-lg border border-hairline-light bg-canvas-cream/30 overflow-hidden">
                     <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center gap-2">
-                      <span className="font-bold text-xs">{sku}</span>
-                      {getDisposalThresholdBadge(totalVal)}
+                      <div>
+                        <span className="font-bold text-xs block">{sku}</span>
+                        <span className="text-shade-50 text-[11px]">{adj.supplier_name ?? adj.supplierName ?? getSupplierName(adj.supplier_id ?? adj.supplierId)}</span>
+                      </div>
                     </div>
                     <div className="p-4 flex flex-col gap-2 text-xs">
                       <div className="text-shade-50">{name}</div>

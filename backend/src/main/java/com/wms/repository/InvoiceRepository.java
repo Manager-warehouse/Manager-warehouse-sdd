@@ -68,6 +68,8 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
 
     List<Invoice> findByStatusOrderByCreatedAtDesc(InvoiceStatus status);
 
+    List<Invoice> findByAccountingPeriodId(Long accountingPeriodId);
+
     @Query("select i from Invoice i where i.dealer.id = :dealerId and i.status in :statuses order by i.dueDate asc")
     List<Invoice> findUnpaidInvoicesByDealer(
             @Param("dealerId") Long dealerId,

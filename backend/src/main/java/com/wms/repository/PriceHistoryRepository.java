@@ -53,6 +53,11 @@ public interface PriceHistoryRepository extends JpaRepository<PriceHistory, Long
         // separate endpoint from the filterable getAll() below (Specification-based).
         List<PriceHistory> findByProductIdOrderByCreatedAtDesc(Long productId);
 
+        // Prices effective within a given date range (e.g. an accounting period) -
+        // used by the period financial summary to list price changes for that period.
+        List<PriceHistory> findByEffectiveDateBetweenAndStatus(
+                        LocalDate start, LocalDate end, PriceHistoryStatus status);
+
         /**
          * Non-CANCELLED (PENDING or APPROVED) entries conflicting with a candidate
          * effective_date for (product, warehouse). A PENDING entry already occupying
