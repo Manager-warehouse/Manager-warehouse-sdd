@@ -260,7 +260,7 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
     expect(screen.queryByRole('button', { name: 'Duyệt QC' })).not.toBeInTheDocument();
   });
 
-  it('keeps direct return-to-source action for source manager only', async () => {
+  it('hides direct return-to-source action while the truck is in transit', async () => {
     renderPanel({
       roles: [ROLES.WAREHOUSE_MANAGER],
       activeWarehouse: { id: 2, code: 'WH-HP' },
@@ -274,7 +274,7 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
 
     expect(screen.queryByRole('button', { name: 'Quay đầu về kho nguồn' })).not.toBeInTheDocument();
 
-    const onAction = renderPanel({
+    renderPanel({
       roles: [ROLES.WAREHOUSE_MANAGER],
       activeWarehouse: { id: 1, code: 'WH-HN' },
       warehouseAccessIds: [1],
@@ -285,15 +285,8 @@ describe('InterWarehouseTransferActionPanel source load report workflow', () => 
       },
     });
 
-    fireEvent.change(screen.getByPlaceholderText('Lý do quay đầu bắt buộc...'), {
-      target: { value: 'Xe gap su co' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Quay đầu về kho nguồn' }));
-
-    await waitFor(() => expect(onAction).toHaveBeenCalledWith('returnToSource', {
-      reason: 'Xe gap su co',
-      wrongSkuItems: [],
-    }));
+    expect(screen.queryByPlaceholderText('Lý do quay đầu bắt buộc...')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Quay đầu về kho nguồn' })).not.toBeInTheDocument();
   });
 
   it('keeps return handover photo confirmation for source storekeeper, not warehouse staff', async () => {

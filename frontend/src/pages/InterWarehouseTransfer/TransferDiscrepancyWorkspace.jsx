@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Clock3, FileSearch, Loader2, RefreshCw, Save } from 'lucide-react';
+import { AlertTriangle, Clock3, FileSearch, Loader2, RefreshCw, Save } from 'lucide-react';
 import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
@@ -10,24 +10,20 @@ import { useUiStore } from '../../stores/ui.store';
 const STATUS_OPTIONS = [
   { value: '', label: 'Tất cả hồ sơ' },
   { value: 'OPEN', label: 'Đang mở' },
-  { value: 'RESOLVED_ACCEPTED', label: 'Đã chấp nhận hao hụt' },
   { value: 'RESOLVED_SOURCE_FAULT', label: 'Lỗi kho nguồn' },
-  { value: 'RESOLVED_CARRIER_FAULT', label: 'Lỗi vận chuyển' },
-  { value: 'RESOLVED_DESTINATION_COUNT_ERROR', label: 'Đếm sai kho đích' },
+  { value: 'RESOLVED_DESTINATION_COUNT_ERROR', label: 'Lỗi kho đích' },
 ];
 
 // Điều chuyển nội bộ: final receive chỉ tạo hồ sơ và giữ phần lệch; CEO chốt trách nhiệm ở màn này.
 // Với nhận thừa, quyết định của CEO mới quyết định có cộng phần tạm giữ vào kho đích và trừ thêm kho nguồn hay không.
 const RESOLUTION_OPTIONS = [
-  { value: 'RESOLVED_ACCEPTED', label: 'Chấp nhận hao hụt' },
   { value: 'RESOLVED_SOURCE_FAULT', label: 'Lỗi kho nguồn' },
-  { value: 'RESOLVED_CARRIER_FAULT', label: 'Lỗi vận chuyển / tài xế' },
-  { value: 'RESOLVED_DESTINATION_COUNT_ERROR', label: 'Đếm sai kho đích' },
+  { value: 'RESOLVED_DESTINATION_COUNT_ERROR', label: 'Lỗi kho đích' },
 ];
 
 const OVER_RECEIPT_RESOLUTION_OPTIONS = [
   { value: 'RESOLVED_SOURCE_FAULT', label: 'Lỗi kho nguồn - nhập phần thừa vào kho đích' },
-  { value: 'RESOLVED_DESTINATION_COUNT_ERROR', label: 'Lỗi đếm kho đích - không nhập phần thừa' },
+  { value: 'RESOLVED_DESTINATION_COUNT_ERROR', label: 'Lỗi kho đích - không nhập phần thừa' },
 ];
 
 const statusMeta = {
@@ -36,23 +32,13 @@ const statusMeta = {
     badge: 'bg-warning-50 text-warning-700 border-warning-200',
     icon: Clock3,
   },
-  RESOLVED_ACCEPTED: {
-    label: 'Chấp nhận hao hụt',
-    badge: 'bg-success-50 text-success-700 border-success-200',
-    icon: CheckCircle2,
-  },
   RESOLVED_SOURCE_FAULT: {
     label: 'Lỗi kho nguồn',
     badge: 'bg-danger-50 text-danger-700 border-danger-200',
     icon: AlertTriangle,
   },
-  RESOLVED_CARRIER_FAULT: {
-    label: 'Lỗi vận chuyển',
-    badge: 'bg-danger-50 text-danger-700 border-danger-200',
-    icon: AlertTriangle,
-  },
   RESOLVED_DESTINATION_COUNT_ERROR: {
-    label: 'Đếm sai kho đích',
+    label: 'Lỗi kho đích',
     badge: 'bg-info-50 text-info-700 border-info-200',
     icon: FileSearch,
   },
@@ -369,10 +355,10 @@ const TransferDiscrepancyWorkspace = () => {
                 onChange={(event) => setResolutionNote(event.target.value)}
                 rows={5}
                 className="w-full bg-canvas-light text-ink text-sm px-3 py-2.5 rounded-md border border-hairline-light focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink transition-all resize-none"
-                placeholder="VD: Đối chiếu ảnh bàn giao, seal nguyên vẹn; chấp nhận hao hụt theo biên bản..."
+                placeholder="VD: Đối chiếu ảnh bàn giao, xác định lỗi thuộc kho nguồn hoặc kho đích..."
               />
               <p className="text-[11px] text-shade-50">
-                Nếu thừa hàng do lỗi kho nguồn, hệ thống trừ thêm kho nguồn và nhập phần tạm giữ vào kho đích; nếu do đếm sai kho đích thì chỉ đóng hồ sơ.
+                Thiếu hoặc thừa hàng chỉ được kết luận do kho nguồn hoặc kho đích. Nếu thừa do kho nguồn, hệ thống trừ thêm kho nguồn và nhập phần tạm giữ vào kho đích.
               </p>
             </div>
 
