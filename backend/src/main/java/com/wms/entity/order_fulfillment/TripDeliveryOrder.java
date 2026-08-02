@@ -66,4 +66,8 @@ public class TripDeliveryOrder {
     @Column(name = "is_active", nullable = false)
     @Builder.Default
     private Boolean isActive = true;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "split_plan_id")
+    private SplitDeliveryPlan splitPlan;
 }
