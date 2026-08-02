@@ -38,6 +38,7 @@ const ReceiptList = () => {
   const [selectedReceipt, setSelectedReceipt] = useState(null);
   const [approvalNotes, setApprovalNotes] = useState("");
   const [rejectionReason, setRejectionReason] = useState("");
+  const [recountReason, setRecountReason] = useState("");
   const [submittingApproval, setSubmittingApproval] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
 
@@ -724,12 +725,9 @@ const ReceiptList = () => {
 
   const handleStorekeeperReview = async (receipt, decision) => {
     try {
-      const reason =
-        decision === "REQUEST_RECOUNT"
-          ? window.prompt("Nhập lý do từ chối kết quả QC/kiểm đếm") || ""
-          : "";
+      const reason = decision === "REQUEST_RECOUNT" ? recountReason : "";
       if (decision === "REQUEST_RECOUNT" && !reason.trim()) {
-        addToast("Cần nhập lý do từ chối kết quả", "error");
+        addToast("Vui lòng nhập lý do từ chối vào ô Ghi chú bên trên", "error");
         return;
       }
       const updatedReceipt = await inboundService.reviewStorekeeperCountQc(
@@ -743,6 +741,8 @@ const ReceiptList = () => {
       if (selectedReceipt?.id === receipt.id) {
         setSelectedReceipt(updatedReceipt);
       }
+      setShowApprovalModal(false);
+      setRecountReason("");
       addToast(
         decision === "APPROVE"
           ? "Đã duyệt kết quả QC/kiểm đếm"
@@ -787,10 +787,9 @@ const ReceiptList = () => {
           <button
             aria-label="receive-receipt"
             onClick={() => navigate(`/inbound/receive/${receipt.id}`)}
-            className="inline-flex items-center justify-center rounded-full border border-ink bg-canvas-light text-ink hover:bg-canvas-cream px-3 py-1 text-[0px] font-semibold whitespace-nowrap transition-colors duration-150"
+            className="inline-flex items-center justify-center rounded-full border border-ink bg-canvas-light text-ink hover:bg-canvas-cream px-3 py-1 text-xs font-semibold whitespace-nowrap transition-colors duration-150"
           >
-            <span className="text-xs">Nhận hàng & QC</span>
-            Đếm số lượng
+            Nhận hàng & QC
           </button>
         )}
 
@@ -799,30 +798,26 @@ const ReceiptList = () => {
           <button
             aria-label="receive-qc-receipt"
             onClick={() => navigate(`/inbound/receive/${receipt.id}`)}
-            className="inline-flex items-center justify-center rounded-full border border-ink bg-canvas-light text-ink hover:bg-canvas-cream px-3 py-1 text-[0px] font-semibold whitespace-nowrap transition-colors duration-150"
+            className={`inline-flex items-center justify-center rounded-full border px-3 py-1 text-xs font-semibold whitespace-nowrap transition-colors duration-150 ${
+              receipt.status === "RECOUNT_REQUIRED"
+                ? "border-danger-500 bg-danger-50 text-danger-700 hover:bg-danger-100 font-bold"
+                : "border-ink bg-canvas-light text-ink hover:bg-canvas-cream"
+            }`}
           >
-            <span className="text-xs">Nhận hàng & QC</span>
-            Đếm số lượng
+            {receipt.status === "RECOUNT_REQUIRED"
+              ? "Kiểm tra & QC lại"
+              : "Nhận hàng & QC"}
           </button>
         )}
 
       {canStorekeeperReview(receipt) && (
-        <>
-          <button
-            aria-label="approve-storekeeper-review"
-            onClick={() => handleStorekeeperReview(receipt, "APPROVE")}
-            className="inline-flex items-center justify-center rounded-full bg-aloe-10 text-success-950 border border-success-300 hover:bg-success-100 px-3 py-1 text-xs font-bold whitespace-nowrap transition-colors duration-150"
-          >
-            Duyệt kết quả
-          </button>
-          <button
-            aria-label="request-recount"
-            onClick={() => handleStorekeeperReview(receipt, "REQUEST_RECOUNT")}
-            className="inline-flex items-center justify-center rounded-full border border-danger-300 bg-danger-50 text-danger-700 hover:bg-danger-100 px-3 py-1 text-xs font-semibold whitespace-nowrap transition-colors duration-150"
-          >
-            Từ chối kết quả
-          </button>
-        </>
+        <button
+          aria-label="approve-storekeeper-review"
+          onClick={() => handleOpenApproval(receipt.id)}
+          className="inline-flex items-center justify-center rounded-full bg-aloe-10 text-success-950 border border-success-300 hover:bg-success-100 px-3 py-1 text-xs font-bold whitespace-nowrap transition-colors duration-150"
+        >
+          Duyệt kết quả
+        </button>
       )}
 
       {false &&
@@ -1413,6 +1408,23 @@ const ReceiptList = () => {
                     )}
                   </div>
                 )}
+
+              {canStorekeeperReview(selectedReceipt) && (
+                <div className="bg-canvas-light p-4 border border-hairline-light rounded-lg shadow-level-3">
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-bold text-ink">
+                      Ghi chú / Lý do từ chối (Bắt buộc khi từ chối kết quả)
+                    </label>
+                    <input
+                      type="text"
+                      value={recountReason}
+                      onChange={(e) => setRecountReason(e.target.value)}
+                      placeholder="Nhập lý do từ chối hoặc ý kiến kiểm đếm/QC (ví dụ: cần kiểm tra đếm lại)..."
+                      className="text-input text-xs border-hairline-light focus:border-ink"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Modal Footer */}
@@ -1427,6 +1439,18 @@ const ReceiptList = () => {
               {canStorekeeperReview(selectedReceipt) && (
                 <div className="flex gap-2">
                   <button
+                    aria-label="request-recount-detail"
+                    onClick={() =>
+                      handleStorekeeperReview(
+                        selectedReceipt,
+                        "REQUEST_RECOUNT",
+                      )
+                    }
+                    className="btn-pill btn-pill-outline-light border-danger-500 hover:bg-danger-50 text-danger-600 text-xs py-1.5 px-4 font-semibold"
+                  >
+                    Từ chối
+                  </button>
+                  <button
                     aria-label="approve-storekeeper-review-detail"
                     onClick={() =>
                       handleStorekeeperReview(selectedReceipt, "APPROVE")
@@ -1435,20 +1459,31 @@ const ReceiptList = () => {
                   >
                     Duyệt kết quả
                   </button>
-                  <button
-                    aria-label="request-recount-detail"
-                    onClick={() =>
-                      handleStorekeeperReview(
-                        selectedReceipt,
-                        "REQUEST_RECOUNT",
-                      )
-                    }
-                    className="btn-pill btn-pill-outline-light border-danger-500 hover:bg-danger-50 text-danger-600 text-xs py-1.5 px-4"
-                  >
-                    Từ chối kết quả
-                  </button>
                 </div>
               )}
+
+              {(selectedReceipt.status === "RECOUNT_REQUIRED" ||
+                selectedReceipt.status === "DRAFT" ||
+                selectedReceipt.status === "PENDING_RECEIPT") &&
+                !canStorekeeperReview(selectedReceipt) &&
+                !isAwaitingPreReceiveApproval(selectedReceipt) &&
+                (hasRole(ROLES.WAREHOUSE_STAFF) || hasRole(ROLES.ADMIN)) && (
+                  <button
+                    onClick={() => {
+                      setShowApprovalModal(false);
+                      navigate(`/inbound/receive/${selectedReceipt.id}`);
+                    }}
+                    className={`btn-pill text-xs py-1.5 px-4 font-bold ${
+                      selectedReceipt.status === "RECOUNT_REQUIRED"
+                        ? "btn-pill-primary"
+                        : "btn-pill-outline-light"
+                    }`}
+                  >
+                    {selectedReceipt.status === "RECOUNT_REQUIRED"
+                      ? "Kiểm tra & QC lại"
+                      : "Nhận hàng & QC"}
+                  </button>
+                )}
 
               {false &&
                 (selectedReceipt.status === "DRAFT" ||

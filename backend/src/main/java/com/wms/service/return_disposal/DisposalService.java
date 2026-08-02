@@ -184,7 +184,8 @@ public class DisposalService {
                 .createdAt(OffsetDateTime.now())
                 .build();
 
-        boolean autoApproved = totalValue.compareTo(AUTO_APPROVAL_THRESHOLD) < 0;
+        // All disposal requests require Warehouse Manager / CEO approval
+        boolean autoApproved = false;
         if (autoApproved) {
             adjustment.setApprovedBy(actor);
             adjustment.setApprovedAt(OffsetDateTime.now());
@@ -295,7 +296,8 @@ public class DisposalService {
                 .createdAt(OffsetDateTime.now())
                 .build();
 
-        boolean autoApproved = totalValue.compareTo(AUTO_APPROVAL_THRESHOLD) < 0;
+        // All disposal requests require Warehouse Manager / CEO approval
+        boolean autoApproved = false;
         if (autoApproved) {
             adjustment.setApprovedBy(actor);
             adjustment.setApprovedAt(OffsetDateTime.now());
