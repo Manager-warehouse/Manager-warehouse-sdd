@@ -69,6 +69,8 @@ public class MasterDataMapper {
         if (entity.getParent() != null) {
             response.setParentId(entity.getParent().getId());
             response.setParentCode(entity.getParent().getCode());
+            response.setParentIsQuarantine(entity.getParent().getIsQuarantine());
+            response.setParentIsStaging(entity.getParent().getIsStaging());
         }
         return response;
     }

@@ -80,11 +80,21 @@ public class WarehouseLocationServiceImpl implements WarehouseLocationService {
         List<WarehouseLocation> list = locationRepository.findAll().stream()
                 .filter(loc -> warehouseId == null || loc.getWarehouse().getId().equals(warehouseId))
                 .filter(loc -> type == null || loc.getType().name().equals(type))
-                .filter(loc -> isQuarantine == null || loc.getIsQuarantine().equals(isQuarantine))
-                .filter(loc -> isStaging == null || loc.getIsStaging().equals(isStaging))
+                .filter(loc -> isQuarantine == null || isEffectiveQuarantine(loc) == isQuarantine)
+                .filter(loc -> isStaging == null || isEffectiveStaging(loc) == isStaging)
                 .filter(loc -> isActive == null || loc.getIsActive().equals(isActive))
                 .collect(Collectors.toList());
         return list.stream().map(mapper::toResponse).collect(Collectors.toList());
+    }
+
+    private boolean isEffectiveQuarantine(WarehouseLocation location) {
+        return Boolean.TRUE.equals(location.getIsQuarantine())
+                || (location.getParent() != null && Boolean.TRUE.equals(location.getParent().getIsQuarantine()));
+    }
+
+    private boolean isEffectiveStaging(WarehouseLocation location) {
+        return Boolean.TRUE.equals(location.getIsStaging())
+                || (location.getParent() != null && Boolean.TRUE.equals(location.getParent().getIsStaging()));
     }
 
     @Override

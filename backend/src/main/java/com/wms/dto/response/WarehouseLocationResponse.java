@@ -50,6 +50,8 @@ public class WarehouseLocationResponse {
     private String type;
     private Long parentId;
     private String parentCode;
+    private Boolean parentIsQuarantine;
+    private Boolean parentIsStaging;
     private BigDecimal capacityM3;
     private BigDecimal capacityKg;
     private BigDecimal currentVolumeM3;
