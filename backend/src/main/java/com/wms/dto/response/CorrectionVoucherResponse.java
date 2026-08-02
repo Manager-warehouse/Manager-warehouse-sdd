@@ -30,6 +30,11 @@ public class CorrectionVoucherResponse {
     @JsonProperty("reference_id")
     private Long referenceId;
 
+    // The human-readable code of the referenced document (e.g. "SINV-20260621-0002"),
+    // not just its raw DB id - lets the UI show a real reference instead of "{Label} #{id}".
+    @JsonProperty("reference_number")
+    private String referenceNumber;
+
     @JsonProperty("dealer_id")
     private Long dealerId;
 

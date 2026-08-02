@@ -13,4 +13,5 @@ public interface SupplierPaymentRepository extends JpaRepository<SupplierPayment
     Optional<SupplierPayment> findByPaymentNumber(String paymentNumber);
     List<SupplierPayment> findBySupplierId(Long supplierId);
     List<SupplierPayment> findBySupplierInvoiceId(Long supplierInvoiceId);
+    List<SupplierPayment> findByAccountingPeriodId(Long accountingPeriodId);
 }

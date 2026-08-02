@@ -249,7 +249,9 @@ class ReturnsServiceTest {
 
         ReceiptItem item1 = ReceiptItem.builder()
                 .actualQty(10)
-                .unitCost(BigDecimal.valueOf(150000)) // refund amount = 10 * 150K = 1.5M
+                .samplePassedQty(10)
+                .sampleFailedQty(0)
+                .unitCost(BigDecimal.valueOf(150000)) // refund amount = 10 passed * 150K = 1.5M
                 .build();
 
         when(receiptRepository.findById(100L)).thenReturn(Optional.of(approvedReceipt));
@@ -272,9 +274,50 @@ class ReturnsServiceTest {
         assertThat(response).isNotNull();
         assertThat(response.getAmount()).isEqualByComparingTo(BigDecimal.valueOf(1500000));
         assertThat(dealer.getCurrentBalance()).isEqualByComparingTo(BigDecimal.valueOf(8500000)); // 10M - 1.5M = 8.5M
-        
+
         verify(dealerRepository).save(dealer);
         verify(creditNoteRepository).save(any(CreditNote.class));
+    }
+
+    @Test
+    void createCreditNote_refundsOnlyQcPassedQuantity_excludesQuarantinedFailedQty() {
+        // 10 units returned, 8 pass QC (shelved), 2 fail QC (go to Quarantine) - the dealer
+        // was never credited for the 2 failed units under the old actualQty-based calculation.
+        Receipt approvedReceipt = Receipt.builder()
+                .id(103L)
+                .receiptNumber("REC-RET-004")
+                .type(ReceiptType.RETURN)
+                .warehouse(warehouse)
+                .dealer(dealer)
+                .status(ReceiptStatus.APPROVED)
+                .build();
+
+        ReceiptItem item1 = ReceiptItem.builder()
+                .actualQty(10)
+                .samplePassedQty(8)
+                .sampleFailedQty(2)
+                .unitCost(BigDecimal.valueOf(150000)) // refund = 8 passed * 150K = 1.2M, NOT 10 * 150K = 1.5M
+                .build();
+
+        when(receiptRepository.findById(103L)).thenReturn(Optional.of(approvedReceipt));
+        when(creditNoteRepository.findByReceiptId(103L)).thenReturn(Optional.empty());
+        when(receiptItemRepository.findByReceiptId(103L)).thenReturn(List.of(item1));
+        when(dealerRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(dealer));
+        when(accountingPeriodService.resolveOpenPeriod(any()))
+                .thenReturn(AccountingPeriod.builder().id(1L).periodName("2026-06").build());
+        when(creditNoteRepository.save(any(CreditNote.class))).thenAnswer(invocation -> {
+            CreditNote cn = invocation.getArgument(0);
+            cn.setId(603L);
+            return cn;
+        });
+
+        CreateCreditNoteRequest req = CreateCreditNoteRequest.builder().reason("Trả hàng, một phần lỗi QC").build();
+        User accountant = User.builder().id(4L).role(UserRole.ACCOUNTANT).build();
+
+        CreditNoteResponse response = returnsService.createCreditNote(103L, req, accountant);
+
+        assertThat(response.getAmount()).isEqualByComparingTo(BigDecimal.valueOf(1200000));
+        assertThat(dealer.getCurrentBalance()).isEqualByComparingTo(BigDecimal.valueOf(8800000)); // 10M - 1.2M = 8.8M
     }
 
     @Test
@@ -294,6 +337,8 @@ class ReturnsServiceTest {
 
         ReceiptItem item1 = ReceiptItem.builder()
                 .actualQty(10)
+                .samplePassedQty(10)
+                .sampleFailedQty(0)
                 .unitCost(BigDecimal.valueOf(200000)) // refund = 2M -> new balance 7M < 8M threshold
                 .build();
 
@@ -337,6 +382,8 @@ class ReturnsServiceTest {
 
         ReceiptItem item1 = ReceiptItem.builder()
                 .actualQty(1)
+                .samplePassedQty(1)
+                .sampleFailedQty(0)
                 .unitCost(BigDecimal.valueOf(100000)) // refund = 100K -> new balance 8.9M, still >= 8M threshold
                 .build();
 

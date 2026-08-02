@@ -36,7 +36,6 @@ import com.wms.enums.user_configuration.*;
 import com.wms.enums.warehouse_location.*;
 import com.wms.enums.warehouse_transfer.*;
 import com.wms.dto.request.AccountingPeriodCloseRequest;
-import com.wms.dto.request.AccountingPeriodCreateRequest;
 import com.wms.dto.response.AccountingPeriodResponse;
 import com.wms.entity.billing_payment.AccountingPeriod;
 import com.wms.entity.access_control.User;
@@ -45,7 +44,6 @@ import java.util.List;
 
 public interface AccountingPeriodService {
     List<AccountingPeriodResponse> getAllPeriods(User actor);
-    AccountingPeriodResponse createPeriod(AccountingPeriodCreateRequest request, User actor);
     AccountingPeriodResponse closePeriod(Long id, AccountingPeriodCloseRequest request, User actor);
     void validateDateInOpenPeriod(LocalDate date);
 

@@ -61,4 +61,7 @@ public interface AccountingPeriodRepository extends JpaRepository<AccountingPeri
     Optional<AccountingPeriod> findPeriodByDateAndStatus(
             @Param("date") LocalDate date,
             @Param("status") AccountingPeriodStatus status);
+
+    // Chronological close order: a period cannot close while an earlier one is still OPEN.
+    boolean existsByStatusAndStartDateBefore(AccountingPeriodStatus status, LocalDate startDate);
 }
