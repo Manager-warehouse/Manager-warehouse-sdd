@@ -58,4 +58,6 @@ public class PendingDisposalResponse {
     private String reportedByName;
     private LocalDate documentDate;
     private OffsetDateTime createdAt;
+    private Long supplierId;
+    private String supplierName;
 }

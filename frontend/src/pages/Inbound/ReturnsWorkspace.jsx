@@ -2,16 +2,15 @@ import React, { useEffect, useState } from 'react';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
 import returnsService from '../../services/returns.service';
-import { outboundService } from '../../services/outbound.service';
+
 import { inboundService } from '../../services/inbound.service';
 import { masterDataService } from '../../services/masterData.service';
 import Modal from '../../components/common/Modal';
 import Button from '../../components/common/Button';
-import Input from '../../components/common/Input';
 import Badge from '../../components/common/Badge';
 import CorrectionVoucherButton from '../../components/common/CorrectionVoucherButton';
 import { ROLES } from '../../utils/constants';
-import { Loader2, Plus, Receipt, ShieldAlert, Check, Coins, FileText, Building2, Truck, Eye } from 'lucide-react';
+import { Loader2, Receipt, ShieldAlert, Check, Coins, FileText, Truck, Eye } from 'lucide-react';
 
 const ReturnsWorkspace = () => {
   const activeWarehouse = useAuthStore((state) => state.activeWarehouse);
@@ -22,28 +21,14 @@ const ReturnsWorkspace = () => {
 
   const [returns, setReturns] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('LIST'); // LIST or CREATE
-  const [listFilter, setListFilter] = useState('ALL'); // ALL, DEALER, SUPPLIER
-
   // Dropdown lists
   const [dealers, setDealers] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
-  const [deliveryOrders, setDeliveryOrders] = useState([]);
   const [inboundReceipts, setInboundReceipts] = useState([]);
   const [regularBins, setRegularBins] = useState([]);
   const [quarantineBins, setQuarantineBins] = useState([]);
 
-  // Create Return Form State
-  const [returnType, setReturnType] = useState('DEALER'); // 'DEALER' or 'SUPPLIER'
-  const [selectedDoId, setSelectedDoId] = useState('');
-  const [selectedDoDetails, setSelectedDoDetails] = useState(null);
-  const [selectedDealerId, setSelectedDealerId] = useState('');
 
-  const [selectedSupplierId, setSelectedSupplierId] = useState('');
-  const [selectedReceiptId, setSelectedReceiptId] = useState('');
-
-  const [returnItems, setReturnItems] = useState([]); // [{ productId, expectedQty, maxQty, name, sku }]
-  const [returnNotes, setReturnNotes] = useState('');
 
   // Detail View Modal State
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -89,7 +74,7 @@ const ReturnsWorkspace = () => {
     if (activeWarehouse) {
       fetchData();
     }
-  }, [activeWarehouse, activeTab]);
+  }, [activeWarehouse]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -122,10 +107,6 @@ const ReturnsWorkspace = () => {
         const locs = await masterDataService.getBinLocations(activeWarehouse.id);
         setRegularBins(locs.filter(l => !l.is_quarantine));
         setQuarantineBins(locs.filter(l => l.is_quarantine));
-
-        const doData = await outboundService.getDeliveryOrders(activeWarehouse.id);
-        const completedDos = doData.filter(d => d.status === 'DELIVERED' || d.status === 'COMPLETED');
-        setDeliveryOrders(completedDos);
       }
     } catch (e) {
       addToast('Lỗi tải dữ liệu hàng trả', 'error');
@@ -134,125 +115,7 @@ const ReturnsWorkspace = () => {
     }
   };
 
-  const handleReturnTypeChange = (type) => {
-    setReturnType(type);
-    setSelectedDoId('');
-    setSelectedDoDetails(null);
-    setSelectedDealerId('');
-    setSelectedSupplierId('');
-    setSelectedReceiptId('');
-    setReturnItems([]);
-  };
 
-  const handleDoChange = async (doId) => {
-    setSelectedDoId(doId);
-    if (!doId) {
-      setSelectedDoDetails(null);
-      setSelectedDealerId('');
-      setReturnItems([]);
-      return;
-    }
-    try {
-      const details = await outboundService.getDeliveryOrderById(doId);
-      setSelectedDoDetails(details);
-      setSelectedDealerId(details.dealer_id);
-      const items = details.items.map(item => ({
-        productId: item.product_id,
-        sku: item.sku,
-        name: item.product_name,
-        maxQty: item.issued_qty || item.requested_qty,
-        expectedQty: 0
-      }));
-      setReturnItems(items);
-    } catch (e) {
-      addToast('Không thể tải chi tiết DO', 'error');
-    }
-  };
-
-  const handleSupplierChange = (supplierId) => {
-    setSelectedSupplierId(supplierId);
-    setSelectedReceiptId('');
-    setReturnItems([]);
-  };
-
-  const handleReceiptChange = async (receiptId) => {
-    setSelectedReceiptId(receiptId);
-    if (!receiptId) {
-      setReturnItems([]);
-      return;
-    }
-    try {
-      const details = await inboundService.getReceiptById(receiptId);
-      const items = (details.items || []).map(item => ({
-        productId: item.product_id,
-        sku: item.product_sku || item.sku || `SKU-${item.product_id}`,
-        name: item.product_name || item.name || `Sản phẩm ${item.product_id}`,
-        maxQty: item.expected_qty || item.actual_qty || 999,
-        expectedQty: 0
-      }));
-      setReturnItems(items);
-    } catch (e) {
-      addToast('Không thể tải chi tiết phiếu nhập gốc', 'error');
-    }
-  };
-
-  const handleReturnQtyChange = (productId, qty) => {
-    setReturnItems(prev => prev.map(item => {
-      if (item.productId === productId) {
-        const val = Math.min(item.maxQty, Math.max(0, parseInt(qty) || 0));
-        return { ...item, expectedQty: val };
-      }
-      return item;
-    }));
-  };
-
-  const handleCreateReturnReceipt = async (e) => {
-    e.preventDefault();
-    const itemsToSubmit = returnItems.filter(item => item.expectedQty > 0);
-    if (itemsToSubmit.length === 0) {
-      addToast('Vui lòng nhập ít nhất một sản phẩm cần trả', 'warning');
-      return;
-    }
-    setSubmitting(true);
-    try {
-      if (returnType === 'DEALER') {
-        const payload = {
-          warehouseId: activeWarehouse.id,
-          dealerId: Number(selectedDealerId),
-          deliveryOrderId: Number(selectedDoId),
-          notes: returnNotes,
-          items: itemsToSubmit.map(item => ({
-            productId: item.productId,
-            expectedQty: item.expectedQty
-          }))
-        };
-        await returnsService.createReturn(payload);
-        addToast('Lập phiếu đại lý trả hàng thành công', 'success');
-      } else {
-        // Supplier RTV Return
-        if (selectedReceiptId) {
-          await inboundService.handleRtv(selectedReceiptId, 0, returnNotes);
-          addToast('Lập phiếu xuất trả hàng NCC thành công. Debit Note đã được khởi tạo!', 'success');
-        } else {
-          addToast('Vui lòng chọn phiếu nhập gốc (PO) của NCC', 'warning');
-          setSubmitting(false);
-          return;
-        }
-      }
-      setActiveTab('LIST');
-      setSelectedDoId('');
-      setSelectedDoDetails(null);
-      setSelectedDealerId('');
-      setSelectedSupplierId('');
-      setSelectedReceiptId('');
-      setReturnItems([]);
-      setReturnNotes('');
-    } catch (e) {
-      addToast(e.message || 'Lỗi lập phiếu trả hàng', 'error');
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   const openQcSplit = async (receipt) => {
     try {
@@ -383,11 +246,7 @@ const ReturnsWorkspace = () => {
     return s ? s.company_name : `NCC ID: ${supplierId}`;
   };
 
-  const filteredReturns = returns.filter(ret => {
-    if (listFilter === 'DEALER') return ret.dealer_id || ret.type === 'RETURN';
-    if (listFilter === 'SUPPLIER') return ret.supplier_id || ret.type === 'SUPPLIER_RETURN';
-    return true;
-  });
+  const filteredReturns = returns.filter(ret => ret.supplier_id || ret.type === 'SUPPLIER_RETURN');
 
   const renderReturnStatusBadge = (ret) => {
     if (ret.status === 'RETURN_TO_SUPPLIER_PENDING') {
@@ -467,62 +326,18 @@ const ReturnsWorkspace = () => {
         <div>
           <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">Vận hành / Nhập kho</span>
           <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">
-            Trả hàng cho NCC và Đại lý trả hàng
+            Trả hàng cho NCC
           </h1>
           <p className="text-xs text-shade-50 font-light mt-1">
             {isAccountingRole
-              ? 'Sinh Credit Note/Debit Note khấu trừ công nợ cho các phiếu trả hàng đã được duyệt.'
-              : 'Tiếp nhận hàng Đại lý trả lại hoặc Lập phiếu xuất trả hàng hỏng về cho Nhà cung cấp.'}
+              ? 'Sinh Debit Note khấu trừ công nợ cho các phiếu xuất trả NCC đã được duyệt.'
+              : 'Danh sách phiếu xuất trả hàng về Nhà cung cấp (RTV).'}
           </p>
         </div>
-        {!isAccountingRole && (
-          <Button
-            variant={activeTab === 'CREATE' ? 'outline-light' : 'primary'}
-            icon={activeTab === 'CREATE' ? null : Plus}
-            onClick={() => setActiveTab(activeTab === 'LIST' ? 'CREATE' : 'LIST')}
-            disabled={!canManageReturnOperations}
-          >
-            {activeTab === 'CREATE' ? 'Quay lại danh sách' : 'Lập phiếu trả hàng mới'}
-          </Button>
-        )}
       </div>
 
-      {activeTab === 'LIST' || isAccountingRole ? (
-        <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden flex flex-col">
-          {/* List Filter Tabs */}
-          <div className="flex items-center gap-2 p-4 border-b border-hairline-light bg-canvas-cream/50">
-            <span className="text-xs font-semibold text-shade-60 mr-2">Lọc theo đối tác:</span>
-            <button
-              onClick={() => setListFilter('ALL')}
-              className={`px-3 py-1 rounded-pill text-xs font-semibold transition-all ${
-                listFilter === 'ALL'
-                  ? 'bg-ink text-onPrimary shadow-level-1'
-                  : 'bg-canvas-light text-shade-60 hover:bg-canvas-cream border border-hairline-light'
-              }`}
-            >
-              Tất cả
-            </button>
-            <button
-              onClick={() => setListFilter('DEALER')}
-              className={`px-3 py-1 rounded-pill text-xs font-semibold transition-all ${
-                listFilter === 'DEALER'
-                  ? 'bg-ink text-onPrimary shadow-level-1'
-                  : 'bg-canvas-light text-shade-60 hover:bg-canvas-cream border border-hairline-light'
-              }`}
-            >
-              Đại lý trả hàng
-            </button>
-            <button
-              onClick={() => setListFilter('SUPPLIER')}
-              className={`px-3 py-1 rounded-pill text-xs font-semibold transition-all ${
-                listFilter === 'SUPPLIER'
-                  ? 'bg-ink text-onPrimary shadow-level-1'
-                  : 'bg-canvas-light text-shade-60 hover:bg-canvas-cream border border-hairline-light'
-              }`}
-            >
-               Trả hàng cho NCC
-            </button>
-          </div>
+      <div className="bg-canvas-light rounded-lg border border-hairline-light shadow-level-3 overflow-hidden flex flex-col">
+          {/* No filter tabs needed — only NCC returns shown */}
 
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
@@ -646,200 +461,6 @@ const ReturnsWorkspace = () => {
             </>
           )}
         </div>
-      ) : (
-        <div className="card-premium flex flex-col gap-6">
-          <div className="pb-4 border-b border-hairline-light flex flex-col gap-1">
-            <h2 className="text-base font-semibold text-ink">Tạo phiếu trả hàng mới</h2>
-            <p className="text-xs text-shade-50">Lựa chọn đối tác cần thực hiện nghiệp vụ hoàn trả.</p>
-          </div>
-
-          <form onSubmit={handleCreateReturnReceipt} className="flex flex-col gap-6">
-            {/* Return Type Selector */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">
-                Đối tác hoàn trả <span className="text-danger-500">*</span>
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => handleReturnTypeChange('DEALER')}
-                  className={`p-3.5 rounded-lg border text-xs font-bold flex items-center justify-center gap-2 transition-all ${
-                    returnType === 'DEALER'
-                      ? 'border-ink bg-canvas-night text-onPrimary shadow-level-2'
-                      : 'border-hairline-light bg-canvas-light text-shade-60 hover:bg-canvas-cream'
-                  }`}
-                >
-                  <Building2 className="w-4 h-4" />
-                  Đại lý trả hàng (Dealer Return)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleReturnTypeChange('SUPPLIER')}
-                  className={`p-3.5 rounded-lg border text-xs font-bold flex items-center justify-center gap-2 transition-all ${
-                    returnType === 'SUPPLIER'
-                      ? 'border-ink bg-canvas-night text-onPrimary shadow-level-2'
-                      : 'border-hairline-light bg-canvas-light text-shade-60 hover:bg-canvas-cream'
-                  }`}
-                >
-                  <Truck className="w-4 h-4" />
-                  Trả hàng cho Nhà cung cấp (RTV)
-                </button>
-              </div>
-            </div>
-
-            {/* Dynamic Form Controls */}
-            {returnType === 'DEALER' ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Chọn đơn xuất hàng gốc (DO) <span className="text-danger-500">*</span></label>
-                  <Input
-                    type="select"
-                    required
-                    value={selectedDoId}
-                    onChange={(e) => handleDoChange(e.target.value)}
-                    options={[
-                      { value: '', label: '-- Chọn DO đã giao thành công --' },
-                      ...deliveryOrders.map(d => ({ value: d.id, label: `${d.do_number} (Đại lý: ${d.dealer_name})` })),
-                    ]}
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Đại lý nhận hoàn trả</label>
-                  <input
-                    type="text"
-                    disabled
-                    value={selectedDealerId ? getDealerName(Number(selectedDealerId)) : ''}
-                    placeholder="Đại lý sẽ tự động điền khi chọn DO"
-                    className="w-full bg-canvas-light text-sm px-3 py-2.5 rounded-md border border-hairline-light text-shade-50 min-h-[44px] disabled:bg-canvas-cream/60 disabled:cursor-not-allowed font-semibold"
-                  />
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Nhà cung cấp nhận lại hàng <span className="text-danger-500">*</span></label>
-                  <Input
-                    type="select"
-                    required
-                    value={selectedSupplierId}
-                    onChange={(e) => handleSupplierChange(e.target.value)}
-                    options={[
-                      { value: '', label: '-- Chọn Nhà cung cấp --' },
-                      ...suppliers.map(s => ({ value: s.id, label: `${s.company_name} (${s.code})` })),
-                    ]}
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Chọn phiếu nhập gốc (PO) <span className="text-danger-500">*</span></label>
-                  <Input
-                    type="select"
-                    required
-                    value={selectedReceiptId}
-                    onChange={(e) => handleReceiptChange(e.target.value)}
-                    disabled={!selectedSupplierId}
-                    options={[
-                      { value: '', label: selectedSupplierId ? '-- Chọn phiếu nhập PO --' : '-- Chọn NCC trước --' },
-                      ...inboundReceipts
-                        .filter(r => r.supplier_id === Number(selectedSupplierId))
-                        .map(r => ({ value: r.id, label: r.receipt_number })),
-                    ]}
-                  />
-                </div>
-              </div>
-            )}
-
-            {returnItems.length > 0 && (
-              <div className="flex flex-col gap-3">
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-shade-60">Danh sách sản phẩm hoàn trả</h3>
-                <div className="border border-hairline-light rounded-lg overflow-hidden">
-                  <table className="data-table-grid hidden w-full text-left border-collapse md:table">
-                    <thead>
-                      <tr className="bg-canvas-cream border-b border-hairline-light">
-                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Sản phẩm</th>
-                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Số lượng đã giao/nhập</th>
-                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 w-40">Số lượng trả</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-hairline-light">
-                      {returnItems.map(item => (
-                        <tr key={item.productId} className="hover:bg-canvas-cream/50 transition-colors">
-                          <td className="px-6 py-4">
-                            <div className="font-semibold text-ink text-sm">{item.name}</div>
-                            <div className="text-shade-60 font-mono text-[10px] mt-0.5">{item.sku}</div>
-                          </td>
-                          <td className="px-6 py-4 text-shade-60 font-semibold text-sm">{item.maxQty}</td>
-                          <td className="px-6 py-4">
-                            <input
-                              type="number"
-                              min="0"
-                              max={item.maxQty}
-                              value={item.expectedQty || ''}
-                              onChange={(e) => handleReturnQtyChange(item.productId, e.target.value)}
-                              className="w-full px-3 py-1.5 bg-canvas-light border border-hairline-light rounded-md text-ink focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink text-center font-semibold text-sm transition-all"
-                            />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-
-                  <div className="flex flex-col gap-3 p-4 md:hidden">
-                    {returnItems.map(item => (
-                      <div key={item.productId} className="rounded-lg border border-hairline-light bg-canvas-light p-4 shadow-level-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="text-sm font-semibold text-ink">{item.name}</div>
-                            <div className="mt-1 font-mono text-[11px] text-shade-60">{item.sku}</div>
-                          </div>
-                          <div className="shrink-0 rounded-pill bg-canvas-cream px-3 py-1 text-[11px] font-bold text-shade-60">
-                            Gốc: {item.maxQty}
-                          </div>
-                        </div>
-
-                        <label className="mt-4 flex flex-col gap-1.5">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-shade-60">
-                            Số lượng hoàn trả
-                          </span>
-                          <input
-                            type="number"
-                            min="0"
-                            max={item.maxQty}
-                            value={item.expectedQty || ''}
-                            onChange={(e) => handleReturnQtyChange(item.productId, e.target.value)}
-                            className="text-input min-h-[44px] text-center text-base font-semibold"
-                          />
-                        </label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold uppercase tracking-wider text-shade-60">Ghi chú hoàn trả</label>
-              <textarea
-                value={returnNotes}
-                onChange={(e) => setReturnNotes(e.target.value)}
-                placeholder={returnType === 'DEALER' ? "Lý do đại lý yêu cầu trả hàng..." : "Lý do xuất trả hàng về Nhà cung cấp..."}
-                rows="3"
-                className="w-full px-3 py-2.5 bg-canvas-light border border-hairline-light rounded-md text-ink focus:outline-none focus:ring-1 focus:ring-ink focus:border-ink text-sm transition-all"
-              />
-            </div>
-
-            <div className="flex flex-col-reverse gap-3 border-t border-hairline-light pt-4 sm:flex-row sm:justify-end">
-              <Button type="button" variant="outline-light" onClick={() => setActiveTab('LIST')}>
-                Hủy
-              </Button>
-              <Button type="submit" variant="primary" loading={submitting} disabled={submitting}>
-                {returnType === 'DEALER' ? 'Lập phiếu Đại lý trả hàng' : 'Lập phiếu xuất trả NCC'}
-              </Button>
-            </div>
-          </form>
-        </div>
-      )}
 
       {/* QC Split Modal */}
       <Modal

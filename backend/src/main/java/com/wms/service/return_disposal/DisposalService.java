@@ -352,15 +352,43 @@ public class DisposalService {
         for (Adjustment adj : pendingAdjustments) {
             BigDecimal failedQty = adj.getQuantityAdjustment().abs();
             BigDecimal unitCost = BigDecimal.ZERO;
+            Long supplierId = null;
+            String supplierName = null;
 
             if (adj.getReferenceId() != null) {
                 if ("RECEIPT_ITEM".equals(adj.getReferenceType())) {
                     var receiptItemOpt = receiptItemRepository.findById(adj.getReferenceId());
                     if (receiptItemOpt.isPresent()) {
-                        BigDecimal cost = receiptItemOpt.get().getUnitCost();
+                        ReceiptItem ri = receiptItemOpt.get();
+                        BigDecimal cost = ri.getUnitCost();
                         if (cost != null) {
                             unitCost = cost;
                         }
+                    }
+                    supplierId = receiptItemRepository.findSupplierIdByReceiptItemId(adj.getReferenceId()).orElse(null);
+                    supplierName = receiptItemRepository.findSupplierNameByReceiptItemId(adj.getReferenceId()).orElse(null);
+                } else if ("QUARANTINE_RECORD".equals(adj.getReferenceType())) {
+                    if (adj.getBatch() != null) {
+                        supplierId = receiptItemRepository.findSupplierIdByBatchId(adj.getBatch().getId()).orElse(null);
+                        supplierName = receiptItemRepository.findSupplierNameByBatchId(adj.getBatch().getId()).orElse(null);
+                    }
+                }
+            }
+
+            // Fallback 1: Try batch ID if supplier is still null
+            if (supplierName == null && adj.getBatch() != null) {
+                supplierId = receiptItemRepository.findSupplierIdByBatchId(adj.getBatch().getId()).orElse(supplierId);
+                supplierName = receiptItemRepository.findSupplierNameByBatchId(adj.getBatch().getId()).orElse(supplierName);
+            }
+
+            // Fallback 2: Try product ID lookup if supplier is still null
+            if (supplierName == null && adj.getProduct() != null) {
+                var sNames = receiptItemRepository.findSupplierNamesByProductId(adj.getProduct().getId());
+                if (!sNames.isEmpty()) {
+                    supplierName = sNames.get(0);
+                    var sIds = receiptItemRepository.findSupplierIdsByProductId(adj.getProduct().getId());
+                    if (!sIds.isEmpty()) {
+                        supplierId = sIds.get(0);
                     }
                 }
             }
@@ -389,6 +417,8 @@ public class DisposalService {
                     .reportedByName(adj.getCreatedBy().getFullName())
                     .documentDate(adj.getDocumentDate())
                     .createdAt(adj.getCreatedAt())
+                    .supplierId(supplierId)
+                    .supplierName(supplierName)
                     .build());
         }
 
