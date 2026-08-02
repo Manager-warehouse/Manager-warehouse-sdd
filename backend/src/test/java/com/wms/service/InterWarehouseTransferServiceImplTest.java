@@ -78,12 +78,10 @@ import com.wms.dto.request.InterWarehouseTransferTripAssignRequest;
 import com.wms.dto.request.InterWarehouseTransferUpdateRequest;
 import com.wms.dto.request.InterWarehouseTransferRejectRequest;
 import com.wms.dto.request.TransferReturnRequest;
-import com.wms.dto.request.TransferReturnRejectRequest;
 import com.wms.dto.request.LoadHandoverRequest;
 import com.wms.dto.request.OutboundQcRequest;
 import com.wms.dto.request.SourceLoadReportItemRequest;
 import com.wms.dto.request.SourceLoadReportRequest;
-import com.wms.dto.request.WrongSkuItemRequest;
 import com.wms.dto.request.AccountingPeriodCloseRequest;
 import com.wms.dto.request.AccountingPeriodCreateRequest;
 import com.wms.dto.response.AccountingPeriodResponse;
@@ -160,9 +158,6 @@ class InterWarehouseTransferServiceImplTest {
     private QuarantineRecordRepository quarantineRecordRepository;
     private com.wms.repository.DiscrepancyIncidentRepository discrepancyIncidentRepository;
     private com.wms.repository.DiscrepancyHoldEntryRepository discrepancyHoldEntryRepository;
-    private com.wms.repository.product_catalog.ProductRepository productRepository;
-    private com.wms.repository.WrongSkuReportRepository wrongSkuReportRepository;
-    private com.wms.repository.WrongSkuReportItemRepository wrongSkuReportItemRepository;
     private TrackingAuditUtil auditUtil;
     private EntityManager entityManager;
     private AccountingPeriodService accountingPeriodService;
@@ -177,7 +172,6 @@ class InterWarehouseTransferServiceImplTest {
     private WarehouseLocation destinationLocation2;
     private WarehouseLocation quarantineLocation;
     private Product product;
-    private Product actualWrongSkuProduct;
     private User planner;
     private User sourceManager;
     private User destinationWorker;
@@ -216,7 +210,6 @@ class InterWarehouseTransferServiceImplTest {
         destinationLocation2 = location(14L, destinationWarehouse, "HN-01-B02", false);
         quarantineLocation = location(13L, destinationWarehouse, "HN-01-Q01", true);
         product = product(21L, "SKU-001", "Nồi inox");
-        actualWrongSkuProduct = product(22L, "SKU-002", "Chảo chống dính");
         planner = user(7L, UserRole.PLANNER);
         sourceManager = user(8L, UserRole.WAREHOUSE_MANAGER);
         destinationWorker = user(9L, UserRole.WAREHOUSE_STAFF);
@@ -265,9 +258,6 @@ class InterWarehouseTransferServiceImplTest {
         quarantineRecordRepository = proxy(QuarantineRecordRepository.class, new QuarantineRecordRepoHandler());
         discrepancyIncidentRepository = proxy(com.wms.repository.DiscrepancyIncidentRepository.class, new DefaultRepoHandler());
         discrepancyHoldEntryRepository = proxy(com.wms.repository.DiscrepancyHoldEntryRepository.class, new DefaultRepoHandler());
-        productRepository = proxy(com.wms.repository.product_catalog.ProductRepository.class, new ProductRepoHandler());
-        wrongSkuReportRepository = proxy(com.wms.repository.WrongSkuReportRepository.class, new DefaultRepoHandler());
-        wrongSkuReportItemRepository = proxy(com.wms.repository.WrongSkuReportItemRepository.class, new DefaultRepoHandler());
         auditUtil = new TrackingAuditUtil();
         entityManager = proxy(EntityManager.class, new EntityManagerHandler());
         accountingPeriodService = new AccountingPeriodService() {
@@ -320,8 +310,7 @@ class InterWarehouseTransferServiceImplTest {
                 transferRepository, transferItemRepository, allocationRepository,
                 inventoryRepository, warehouseRepository, locationRepository,
                 adjustmentRepository, auditUtil, helper, quarantineRecordRepository,
-                discrepancyIncidentRepository, discrepancyHoldEntryRepository,
-                productRepository, wrongSkuReportRepository, wrongSkuReportItemRepository);
+                discrepancyIncidentRepository, discrepancyHoldEntryRepository);
 
         service = new InterWarehouseTransferServiceImpl(
                 transferRepository, helper, planningService,
@@ -1389,64 +1378,6 @@ class InterWarehouseTransferServiceImplTest {
                 .hasMessageContaining("BIN_CAPACITY_EXCEEDED");
     }
 
-    @Test
-    void rejectReturn_rejectsPendingWrongSkuReports() {
-        service.approveTransfer(1L, sourceManager);
-        service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
-                VALID_TRIP_START, VALID_TRIP_END), dispatcher);
-        recordPassingOutboundQcAndHandover();
-        service.shipTransfer(1L, sourceManager);
-        service.departTransfer(1L, driverUser);
-        transfer.setDriverArrivedAt(OffsetDateTime.now());
-        transfer.setArrivalHandoverAt(null);
-
-        // 1. Request return first
-        TransferReturnRequest req = new TransferReturnRequest("Giao sai mã SKU chảo", List.of(
-                new WrongSkuItemRequest(
-                        transferItem.getId(),
-                        product.getId(),
-                        actualWrongSkuProduct.getId(),
-                        new BigDecimal("1.00"),
-                        "Nhận thực tế SKU chảo",
-                        null)));
-        service.requestReturn(1L, req, destinationStorekeeper);
-
-        assertThat(transfer.isReturnRequested()).isTrue();
-
-        // 2. Destination Manager rejects return
-        TransferReturnRejectRequest rejectReq = new TransferReturnRejectRequest("Rejecting because wrong SKU claims are incorrect");
-        service.rejectReturn(1L, rejectReq, destinationManager);
-
-        assertThat(transfer.isReturnRequested()).isFalse();
-        assertThat(transfer.getReturnRejectionReason()).isEqualTo("Rejecting because wrong SKU claims are incorrect");
-    }
-
-    @Test
-    void requestReturn_rejectsUnknownActualWrongSkuProduct() {
-        service.approveTransfer(1L, sourceManager);
-        service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
-                VALID_TRIP_START, VALID_TRIP_END), dispatcher);
-        recordPassingOutboundQcAndHandover();
-        service.shipTransfer(1L, sourceManager);
-        service.departTransfer(1L, driverUser);
-        transfer.setDriverArrivedAt(OffsetDateTime.now());
-        transfer.setArrivalHandoverAt(null);
-
-        TransferReturnRequest req = new TransferReturnRequest("Giao sai mã SKU không tồn tại", List.of(
-                new WrongSkuItemRequest(
-                        transferItem.getId(),
-                        product.getId(),
-                        999_999L,
-                        new BigDecimal("1.00"),
-                        "Nhận thực tế SKU lạ",
-                        null)));
-
-        assertThatThrownBy(() -> service.requestReturn(1L, req, destinationStorekeeper))
-                .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessageContaining("Product not found");
-        assertThat(transfer.isReturnRequested()).isFalse();
-    }
-
     private InterWarehouseTransfer transfer() {
         InterWarehouseTransfer value = new InterWarehouseTransfer();
         value.setId(1L);
@@ -1867,20 +1798,4 @@ class InterWarehouseTransferServiceImplTest {
         }
     }
 
-    private final class ProductRepoHandler implements InvocationHandler {
-        @Override
-        public Object invoke(Object proxy, Method method, Object[] args) {
-            if ("findById".equals(method.getName())) {
-                Long id = (Long) args[0];
-                if (product.getId().equals(id)) {
-                    return Optional.of(product);
-                }
-                if (actualWrongSkuProduct.getId().equals(id)) {
-                    return Optional.of(actualWrongSkuProduct);
-                }
-                return Optional.empty();
-            }
-            return defaultValue(method.getReturnType());
-        }
-    }
 }

@@ -39,7 +39,6 @@ import com.wms.dto.response.InterWarehouseTransferResponse;
 import com.wms.exception.BusinessRuleViolationException;
 import com.wms.exception.ResourceNotFoundException;
 import com.wms.repository.*;
-import com.wms.repository.product_catalog.ProductRepository;
 import com.wms.util.PartnerAuditUtil;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -56,7 +55,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Phụ trách giai đoạn nhận hàng và xử lý ngoại lệ tại kho nhận hoặc kho nguồn khi xe quay đầu.
  * Class này xử lý các bước: đếm hàng nhận, QC tại kho nhận, đề xuất vị trí nhập kho,
- * duyệt nhập kho cuối, đưa hàng lỗi vào khu cách ly, ghi hồ sơ chênh lệch và xử lý xe quay đầu khi giao sai mã hàng.
+ * duyệt nhập kho cuối, đưa hàng lỗi vào khu cách ly, ghi hồ sơ chênh lệch và xử lý nhận lại hàng khi xe quay đầu.
  */
 @Service
 @RequiredArgsConstructor
@@ -64,8 +63,8 @@ public class InterWarehouseTransferReceivingService {
     private static final String PUTAWAY_PLAN_PREFIX = "TRANSFER_PUTAWAY_PLAN:";
 
     /*
-     * LUỒNG NHẬN HÀNG, QC NHẬN, NHẬP KHO VÀ QUAY ĐẦU:
-     * - Các hàm public là hành động chính trên giao diện: đếm hàng, QC nhận, nhập kho cuối, cách ly, yêu cầu/duyệt/bác quay đầu.
+     * LUỒNG NHẬN HÀNG, QC NHẬN, NHẬP KHO VÀ NHẬN HÀNG QUAY ĐẦU:
+     * - Các hàm public là hành động chính trên giao diện: đếm hàng, QC nhận, nhập kho cuối, cách ly.
      * - Các hàm private là hàm hỗ trợ: validate từng dòng, kiểm deadline, resolve putaway, chuyển tồn từ transit về kho/quarantine.
      *
      * Xử lý phiếu đang trên đường. Nếu luồng bình thường thì kho đích nhận hàng;
@@ -85,9 +84,6 @@ public class InterWarehouseTransferReceivingService {
     private final QuarantineRecordRepository quarantineRecordRepository;
     private final DiscrepancyIncidentRepository discrepancyIncidentRepository;
     private final DiscrepancyHoldEntryRepository discrepancyHoldEntryRepository;
-    private final ProductRepository productRepository;
-    private final WrongSkuReportRepository wrongSkuReportRepository;
-    private final WrongSkuReportItemRepository wrongSkuReportItemRepository;
 
     @Transactional
     public InterWarehouseTransferResponse receiveCount(Long id, InterWarehouseTransferReceiveCountRequest request, User actor) {
@@ -355,7 +351,7 @@ public class InterWarehouseTransferReceivingService {
     @Transactional
     public InterWarehouseTransferResponse returnToSource(Long id, TransferReturnRequest request, User actor) {
         // HÀM CHÍNH: luồng chủ động quay đầu khi xe đang chạy đã bị khóa theo nghiệp vụ mới.
-        // Nếu kho đích phát hiện sai SKU, thủ kho kho đích phải gửi yêu cầu sai SKU để quản lý kho đích duyệt.
+        // Nhánh quay đầu qua yêu cầu sai SKU tại kho đích đã được gỡ; chỉ còn nhánh tự động khi quá hạn transit.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.requireStatus(transfer, InterWarehouseTransferStatus.IN_TRANSIT);
         throw new BusinessRuleViolationException("SOURCE_RETURN_DISABLED");
@@ -884,217 +880,9 @@ public class InterWarehouseTransferReceivingService {
         }
     }
 
-    @Transactional
-    public InterWarehouseTransferResponse requestReturn(Long id, TransferReturnRequest request, User actor) {
-        // HÀM CHÍNH: kho đích báo sai SKU và tạo yêu cầu quay đầu chờ quản lý duyệt.
-        // Kho đích báo giao sai mã hàng trước khi nhận bàn giao hoặc đếm hàng.
-        // Hệ thống tạo hồ sơ chờ quản lý kho đích quyết định có cho xe quay đầu hay không.
-        InterWarehouseTransfer transfer = helper.findTransfer(id);
-        helper.requireStatus(transfer, InterWarehouseTransferStatus.IN_TRANSIT);
-        helper.ensureWarehouseScope(actor, transfer.getDestinationWarehouse().getId());
-        ensureReturnNotAlreadyInProgress(transfer);
-        // Validate: chỉ được báo sai mã hàng/quay đầu sau khi tài xế đã đến kho đích.
-        if (transfer.getDriverArrivedAt() == null) {
-            throw new BusinessRuleViolationException("DRIVER_ARRIVE_REQUIRED");
-        }
-        // Validate: chỉ được báo sai mã hàng trước khi kho đích đã nhận bàn giao hoặc đếm hàng.
-        if (transfer.getArrivalHandoverAt() != null) {
-            throw new BusinessRuleViolationException("RETURN_REQUEST_ONLY_BEFORE_HANDOVER");
-        }
-        ensureNoReceiveCountOrCheck(transfer);
-        // Validate: yêu cầu báo sai mã hàng phải chỉ rõ những dòng hàng nào bị sai.
-        if (request.wrongSkuItems() == null || request.wrongSkuItems().isEmpty()) {
-            throw new BusinessRuleViolationException("WRONG_SKU_ITEMS_REQUIRED");
-        }
-        validateWrongSkuItems(transfer, request.wrongSkuItems());
-
-        Map<String, Object> before = helper.snapshot(transfer);
-        transfer.setReturnRequested(true);
-        transfer.setReturnReason(request.reason());
-        transfer.setReturnRequestedBy(actor);
-        transfer.setReturnRequestedAt(OffsetDateTime.now());
-        transfer.setUpdatedAt(OffsetDateTime.now());
-
-        WrongSkuReport report = WrongSkuReport.builder()
-                .transfer(transfer)
-                .status("PENDING")
-                .reportedBy(actor)
-                .reportedAt(OffsetDateTime.now())
-                .build();
-        report = wrongSkuReportRepository.save(report);
-        saveWrongSkuItems(transfer, report, request.wrongSkuItems());
-
-        InterWarehouseTransfer saved = transferRepository.save(transfer);
-        helper.audit(saved, actor, AuditAction.UPDATE, before, helper.snapshot(saved));
-        return helper.toResponse(saved);
-    }
-
-    @Transactional
-    public InterWarehouseTransferResponse approveReturn(Long id, User actor) {
-        // HÀM CHÍNH: quản lý kho đích duyệt yêu cầu quay đầu do sai SKU.
-        // Quản lý duyệt yêu cầu quay đầu do sai mã hàng. Phiếu vẫn đang vận chuyển,
-        // nhưng được đánh dấu là hàng quay về để các bước nhận tiếp theo diễn ra tại kho nguồn.
-        InterWarehouseTransfer transfer = helper.findTransfer(id);
-        helper.requireStatus(transfer, InterWarehouseTransferStatus.IN_TRANSIT);
-        // Validate: chỉ được duyệt khi đang có yêu cầu quay đầu chờ xử lý.
-        if (!transfer.isReturnRequested()) {
-            throw new BusinessRuleViolationException("NO_RETURN_REQUESTED");
-        }
-        ensureNoReceiveCountOrCheck(transfer);
-        // Validate: nếu kho đích đã nhận bàn giao thì không còn được duyệt quay đầu theo nhánh sai mã hàng.
-        if (transfer.getArrivalHandoverAt() != null) {
-            throw new BusinessRuleViolationException("RETURN_REQUEST_ONLY_BEFORE_HANDOVER");
-        }
-        helper.ensureWarehouseScope(actor, transfer.getDestinationWarehouse().getId());
-        // Validate: chỉ quản lý kho/CEO/Admin được duyệt yêu cầu quay đầu.
-        if (actor.getRole() != UserRole.WAREHOUSE_MANAGER && actor.getRole() != UserRole.ADMIN && actor.getRole() != UserRole.CEO) {
-            throw new BusinessRuleViolationException("WAREHOUSE_MANAGER_ROLE_REQUIRED");
-        }
-
-        Map<String, Object> before = helper.snapshot(transfer);
-        transfer.setReturnApprovedBy(actor);
-        transfer.setReturnApprovedAt(OffsetDateTime.now());
-        transfer.setReturned(true);
-        transfer.setReturnRequested(false);
-        transfer.setUpdatedAt(OffsetDateTime.now());
-
-        // Cập nhật các hồ sơ sai mã hàng đang chờ thành đã duyệt.
-        List<WrongSkuReport> pendingReports = wrongSkuReportRepository.findByTransferId(transfer.getId());
-        for (WrongSkuReport report : pendingReports) {
-            if ("PENDING".equals(report.getStatus())) {
-                report.setStatus("APPROVED");
-                report.setManagerDecisionBy(actor);
-                report.setManagerDecisionAt(OffsetDateTime.now());
-                wrongSkuReportRepository.save(report);
-            }
-        }
-
-        InterWarehouseTransfer saved = transferRepository.save(transfer);
-        helper.audit(saved, actor, AuditAction.TRANSFER_RETURN_TO_SOURCE, before, helper.snapshot(saved));
-        return helper.toResponse(saved);
-    }
-
-    @Transactional
-    public InterWarehouseTransferResponse rejectReturn(Long id, TransferReturnRejectRequest request, User actor) {
-        // HÀM CHÍNH: quản lý kho đích bác yêu cầu quay đầu để tiếp tục nhận hàng bình thường.
-        // Quản lý bác yêu cầu quay đầu; phiếu tiếp tục luồng nhận hàng tại kho đích.
-        InterWarehouseTransfer transfer = helper.findTransfer(id);
-        helper.requireStatus(transfer, InterWarehouseTransferStatus.IN_TRANSIT);
-        // Validate: chỉ được bác khi đang có yêu cầu quay đầu chờ xử lý.
-        if (!transfer.isReturnRequested()) {
-            throw new BusinessRuleViolationException("NO_RETURN_REQUESTED");
-        }
-        ensureNoReceiveCountOrCheck(transfer);
-        // Validate: nếu kho đích đã nhận bàn giao thì yêu cầu quay đầu không còn ở trạng thái có thể duyệt/bác.
-        if (transfer.getArrivalHandoverAt() != null) {
-            throw new BusinessRuleViolationException("RETURN_REQUEST_ONLY_BEFORE_HANDOVER");
-        }
-        helper.ensureWarehouseScope(actor, transfer.getDestinationWarehouse().getId());
-        // Validate: chỉ quản lý kho/CEO/Admin được bác yêu cầu quay đầu.
-        if (actor.getRole() != UserRole.WAREHOUSE_MANAGER && actor.getRole() != UserRole.ADMIN && actor.getRole() != UserRole.CEO) {
-            throw new BusinessRuleViolationException("WAREHOUSE_MANAGER_ROLE_REQUIRED");
-        }
-
-        Map<String, Object> before = helper.snapshot(transfer);
-        transfer.setReturnRejectedBy(actor);
-        transfer.setReturnRejectedAt(OffsetDateTime.now());
-        transfer.setReturnRejectionReason(request.reason());
-        transfer.setReturnRequested(false);
-        transfer.setUpdatedAt(OffsetDateTime.now());
-
-        // Cập nhật các hồ sơ sai mã hàng đang chờ thành đã bị bác.
-        List<WrongSkuReport> pendingReports = wrongSkuReportRepository.findByTransferId(transfer.getId());
-        for (WrongSkuReport report : pendingReports) {
-            if ("PENDING".equals(report.getStatus())) {
-                report.setStatus("REJECTED");
-                report.setManagerDecisionBy(actor);
-                report.setManagerDecisionAt(OffsetDateTime.now());
-                report.setManagerNote(request.reason());
-                wrongSkuReportRepository.save(report);
-            }
-        }
-
-        InterWarehouseTransfer saved = transferRepository.save(transfer);
-        helper.audit(saved, actor, AuditAction.UPDATE, before, helper.snapshot(saved));
-        return helper.toResponse(saved);
-    }
-
-    private void validateWrongSkuItems(InterWarehouseTransfer transfer, List<WrongSkuItemRequest> lines) {
-        // Validate danh sách sai mã hàng trước khi lưu hồ sơ để không có mã thực tế hoặc số lượng không hợp lệ.
-        Map<Long, InterWarehouseTransferItem> itemById = helper.itemMap(transfer);
-        for (WrongSkuItemRequest line : lines) {
-            InterWarehouseTransferItem item = helper.requireItem(itemById, line.transferItemId());
-            validateWrongSkuItem(item, line);
-            productRepository.findById(line.actualProductId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + line.actualProductId()));
-        }
-    }
-
     private String generateAdjustmentNumber() {
         return "ADJ-" + java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd"))
                + "-" + java.util.UUID.randomUUID().toString().substring(0, 6).toUpperCase();
-    }
-
-    private void ensureReturnNotAlreadyInProgress(InterWarehouseTransfer transfer) {
-        // Một phiếu chỉ được có một nhánh quay đầu hoặc một yêu cầu quay đầu đang chờ xử lý.
-        // Validate: chặn tạo yêu cầu quay đầu lặp.
-        if (Boolean.TRUE.equals(transfer.isReturned()) || Boolean.TRUE.equals(transfer.isReturnRequested())) {
-            throw new BusinessRuleViolationException("RETURN_ALREADY_IN_PROGRESS");
-        }
-    }
-
-    private void ensureNoReceiveCountOrCheck(InterWarehouseTransfer transfer) {
-        // Nếu đã bắt đầu đếm hoặc QC nhận thì không được quay đầu nhanh theo nhánh sai mã hàng nữa.
-        // Validate: lúc này phải xử lý tiếp bằng hồ sơ chênh lệch hoặc khu cách ly.
-        if (helper.items(transfer).stream().anyMatch(item -> item.getWorkerReceivedQty() != null
-                || item.getReceivedQty() != null
-                || item.getQcPassedQty() != null
-                || item.getQcFailedQty() != null)) {
-            throw new BusinessRuleViolationException("RETURN_REQUEST_ONLY_BEFORE_COUNT");
-        }
-    }
-
-    private void saveWrongSkuItems(InterWarehouseTransfer transfer, WrongSkuReport report, List<WrongSkuItemRequest> lines) {
-        // Lưu từng dòng sai mã hàng kèm sản phẩm dự kiến, sản phẩm thực tế, số lượng ảnh hưởng và ảnh bằng chứng.
-        Map<Long, InterWarehouseTransferItem> itemById = helper.itemMap(transfer);
-        for (WrongSkuItemRequest line : lines) {
-            InterWarehouseTransferItem item = helper.requireItem(itemById, line.transferItemId());
-            validateWrongSkuItem(item, line);
-            Product actual = productRepository.findById(line.actualProductId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + line.actualProductId()));
-
-            WrongSkuReportItem reportItem = WrongSkuReportItem.builder()
-                    .report(report)
-                    .transferItem(item)
-                    .expectedProduct(item.getProduct())
-                    .actualProduct(actual)
-                    .affectedQty(line.affectedQty())
-                    .reason(line.reason())
-                    .photoRef(line.photoRef())
-                    .build();
-            wrongSkuReportItemRepository.save(reportItem);
-        }
-    }
-
-    private void validateWrongSkuItem(InterWarehouseTransferItem item, WrongSkuItemRequest line) {
-        // Số lượng bị ảnh hưởng không được vượt số đã gửi; sản phẩm thực tế phải khác sản phẩm dự kiến.
-        // Validate: dữ liệu gửi lên phải khớp sản phẩm dự kiến của dòng hàng để tránh báo nhầm dòng.
-        if (!Objects.equals(item.getProduct().getId(), line.expectedProductId())) {
-            throw new BusinessRuleViolationException("EXPECTED_PRODUCT_MISMATCH");
-        }
-        // Validate: sản phẩm thực tế phải khác sản phẩm dự kiến thì mới được coi là sai mã hàng.
-        if (Objects.equals(line.expectedProductId(), line.actualProductId())) {
-            throw new BusinessRuleViolationException("ACTUAL_PRODUCT_MUST_DIFFER");
-        }
-        // Validate: số lượng bị ảnh hưởng phải dương.
-        if (line.affectedQty() == null || line.affectedQty().signum() <= 0) {
-            throw new BusinessRuleViolationException("AFFECTED_QTY_MUST_BE_POSITIVE");
-        }
-        BigDecimal maxQty = item.getSentQty() != null ? item.getSentQty() : item.getPlannedQty();
-        // Validate: số lượng sai mã hàng không được lớn hơn số lượng đã gửi hoặc dự kiến gửi của dòng đó.
-        if (line.affectedQty().compareTo(maxQty) > 0) {
-            throw new BusinessRuleViolationException("AFFECTED_QTY_EXCEEDS_SENT_QTY");
-        }
     }
 
     private void assertLocationCapacity(WarehouseLocation location, Product product, BigDecimal qty) {

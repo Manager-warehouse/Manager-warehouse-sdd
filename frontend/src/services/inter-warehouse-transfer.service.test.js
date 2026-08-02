@@ -29,11 +29,10 @@ describe('interWarehouseTransferService', () => {
     const { interWarehouseTransferService } = await import('./inter-warehouse-transfer.service');
     mocks.post.mockResolvedValue({ data: { id: 7, isReturned: true } });
 
-    await interWarehouseTransferService.returnToSource(7, { reason: 'Xe gap su co', wrongSkuItems: [] });
+    await interWarehouseTransferService.returnToSource(7, { reason: 'Xe gap su co' });
 
     expect(mocks.post).toHaveBeenCalledWith('/inter-warehouse-transfers/7/return-to-source', {
       reason: 'Xe gap su co',
-      wrongSkuItems: [],
     });
   });
 });
