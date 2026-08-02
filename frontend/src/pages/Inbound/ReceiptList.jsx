@@ -240,7 +240,7 @@ const ReceiptList = () => {
             size="sm"
             colorClassName="bg-danger-50 text-danger-700 border-danger-200"
           >
-            Can chinh sua
+            Cần chỉnh sửa
           </Badge>
         );
       case "PENDING_RECEIPT":
@@ -258,7 +258,7 @@ const ReceiptList = () => {
             size="sm"
             colorClassName="bg-warning-50 text-warning-800 border-warning-300"
           >
-            Cho thu kho duyet
+            Chờ thủ kho duyệt
           </Badge>
         );
       case "RECOUNT_REQUIRED":
@@ -267,7 +267,7 @@ const ReceiptList = () => {
             size="sm"
             colorClassName="bg-danger-50 text-danger-700 border-danger-200"
           >
-            Can dem lai
+            Staff kiểm tra QC lại
           </Badge>
         );
       case "DRAFT":
@@ -726,10 +726,10 @@ const ReceiptList = () => {
     try {
       const reason =
         decision === "REQUEST_RECOUNT"
-          ? window.prompt("Nhap ly do yeu cau dem lai") || ""
+          ? window.prompt("Nhập lý do từ chối kết quả QC/kiểm đếm") || ""
           : "";
       if (decision === "REQUEST_RECOUNT" && !reason.trim()) {
-        addToast("Can nhap ly do dem lai", "error");
+        addToast("Cần nhập lý do từ chối kết quả", "error");
         return;
       }
       const updatedReceipt = await inboundService.reviewStorekeeperCountQc(
@@ -744,7 +744,9 @@ const ReceiptList = () => {
         setSelectedReceipt(updatedReceipt);
       }
       addToast(
-        decision === "APPROVE" ? "Da duyet kiem dem/QC" : "Da yeu cau dem lai",
+        decision === "APPROVE"
+          ? "Đã duyệt kết quả QC/kiểm đếm"
+          : "Đã từ chối kết quả và yêu cầu staff nhập lại",
         "success",
       );
       fetchData();
@@ -753,7 +755,7 @@ const ReceiptList = () => {
         error.response?.data?.message ||
         error.response?.data?.error ||
         error.message;
-      addToast(serverMessage || "Loi duyet kiem dem/QC", "error");
+      addToast(serverMessage || "Lỗi duyệt kết quả QC/kiểm đếm", "error");
     }
   };
 
@@ -811,14 +813,14 @@ const ReceiptList = () => {
             onClick={() => handleStorekeeperReview(receipt, "APPROVE")}
             className="inline-flex items-center justify-center rounded-full bg-aloe-10 text-success-950 border border-success-300 hover:bg-success-100 px-3 py-1 text-xs font-bold whitespace-nowrap transition-colors duration-150"
           >
-            Duyet kiem dem
+            Duyệt kết quả
           </button>
           <button
             aria-label="request-recount"
             onClick={() => handleStorekeeperReview(receipt, "REQUEST_RECOUNT")}
             className="inline-flex items-center justify-center rounded-full border border-danger-300 bg-danger-50 text-danger-700 hover:bg-danger-100 px-3 py-1 text-xs font-semibold whitespace-nowrap transition-colors duration-150"
           >
-            Bat dem lai
+            Từ chối kết quả
           </button>
         </>
       )}
@@ -998,7 +1000,7 @@ const ReceiptList = () => {
                   value: "PENDING_STOREKEEPER_REVIEW",
                   label: "Cho thu kho duyet",
                 },
-                { value: "RECOUNT_REQUIRED", label: "Can dem lai" },
+                { value: "RECOUNT_REQUIRED", label: "Staff kiểm tra QC lại" },
                 { value: "DRAFT", label: "Đã đếm (Nháp)" },
                 { value: "QC_COMPLETED", label: "Đã QC" },
                 { value: "QC_FAILED", label: "QC có hàng lỗi" },
@@ -1431,7 +1433,7 @@ const ReceiptList = () => {
                     }
                     className="btn-pill btn-pill-aloe text-xs py-1.5 px-4 font-bold"
                   >
-                    Duyet kiem dem
+                    Duyệt kết quả
                   </button>
                   <button
                     aria-label="request-recount-detail"
@@ -1443,7 +1445,7 @@ const ReceiptList = () => {
                     }
                     className="btn-pill btn-pill-outline-light border-danger-500 hover:bg-danger-50 text-danger-600 text-xs py-1.5 px-4"
                   >
-                    Bat dem lai
+                    Từ chối kết quả
                   </button>
                 </div>
               )}

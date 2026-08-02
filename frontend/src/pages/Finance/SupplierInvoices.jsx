@@ -4,6 +4,7 @@ import { masterDataService } from '../../services/masterData.service';
 import { useUiStore } from '../../stores/ui.store';
 import { useAuthStore } from '../../stores/auth.store';
 import { ROLES } from '../../utils/constants';
+import { formatDate } from '../../utils/format';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import PhotoCaptureInput from '../../components/common/PhotoCaptureInput';
@@ -26,7 +27,6 @@ const SupplierInvoices = () => {
   const [notifications, setNotifications] = useState([]);
   const [supplierInvoices, setSupplierInvoices] = useState([]);
   const [supplierPayments, setSupplierPayments] = useState([]);
-  const [closedPeriodIds, setClosedPeriodIds] = useState(new Set());
 
   // Modal States
   const [showCreateInvoiceModal, setShowCreateInvoiceModal] = useState(false);
@@ -65,10 +65,9 @@ const SupplierInvoices = () => {
     setLoading(true);
     setLoadError('');
 
-    const [supplierResult, invoiceResult, periodResult] = await Promise.allSettled([
+    const [supplierResult, invoiceResult] = await Promise.allSettled([
       masterDataService.getSuppliers(),
-      financeService.getSupplierInvoices(),
-      financeService.getAccountingPeriods()
+      financeService.getSupplierInvoices()
     ]);
 
     if (supplierResult.status === 'fulfilled') {
@@ -82,14 +81,6 @@ const SupplierInvoices = () => {
     } else {
       setSupplierInvoices([]);
       setLoadError('Không tải được sổ hóa đơn mua hàng. Kiểm tra quyền kế toán hoặc thử tải lại.');
-    }
-
-    if (periodResult.status === 'fulfilled') {
-      setClosedPeriodIds(new Set(
-        (periodResult.value || []).filter(p => p.status === 'CLOSED').map(p => p.id)
-      ));
-    } else {
-      setClosedPeriodIds(new Set());
     }
 
     if (activeTab === 'notifications') {
@@ -462,7 +453,9 @@ const SupplierInvoices = () => {
                           <td className="p-4 font-bold text-ink">{notif.receiptOrderNumber || notif.receipt_number}</td>
                           <td className="p-4 font-medium text-ink">{notif.supplierName || notif.supplier_name}</td>
                           <td className="p-4 text-shade-60">Kho #{notif.warehouseId || notif.warehouse_id}</td>
-                          <td className="p-4 text-shade-60">{notif.completedAt || 'Mới hoàn tất'}</td>
+                          <td className="p-4 text-shade-60">
+                            {(notif.completedAt || notif.completed_at) ? formatDate(notif.completedAt || notif.completed_at) : 'Mới hoàn tất'}
+                          </td>
                           <td className="p-4 text-right font-bold text-ink">
                             {(notif.totalAmountEstimate || 0).toLocaleString()}đ
                           </td>
@@ -569,7 +562,6 @@ const SupplierInvoices = () => {
                               referenceType="SUPPLIER_INVOICE"
                               referenceId={inv.id}
                               documentLabel={inv.invoice_number}
-                              isPeriodClosed={closedPeriodIds.has(inv.accounting_period_id ?? inv.accountingPeriodId)}
                               onSuccess={loadData}
                             />
                           </td>
@@ -629,7 +621,6 @@ const SupplierInvoices = () => {
                               referenceType="SUPPLIER_PAYMENT"
                               referenceId={sp.id}
                               documentLabel={sp.payment_number}
-                              isPeriodClosed={closedPeriodIds.has(sp.accounting_period_id ?? sp.accountingPeriodId)}
                               onSuccess={loadData}
                             />
                           </td>

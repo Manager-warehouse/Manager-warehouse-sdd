@@ -81,6 +81,7 @@ import com.wms.repository.AccountingPeriodRepository;
 import com.wms.service.billing_payment.impl.AccountingPeriodServiceImpl;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -113,6 +114,7 @@ class AccountingPeriodServiceImplTest {
                 .id(10L)
                 .periodName("2026-06")
                 .status(AccountingPeriodStatus.OPEN)
+                .endDate(LocalDate.of(2026, 6, 30))
                 .build();
     }
 
@@ -174,6 +176,38 @@ class AccountingPeriodServiceImplTest {
 
         assertTrue(ex.getMessage().contains("2 pending/unapproved inbound receipts"));
         assertTrue(ex.getMessage().contains("RN-1, RN-2"));
+    }
+
+    @Test
+    void closePeriod_rejectsCurrentPeriodStillOngoing() {
+        AccountingPeriod currentPeriod = AccountingPeriod.builder()
+                .id(11L)
+                .periodName("2026-08")
+                .status(AccountingPeriodStatus.OPEN)
+                .endDate(LocalDate.now().plusDays(5))
+                .build();
+        when(accountingPeriodRepository.findById(11L)).thenReturn(Optional.of(currentPeriod));
+
+        UnprocessableEntityException ex = assertThrows(UnprocessableEntityException.class,
+                () -> service.closePeriod(11L, new AccountingPeriodCloseRequest(), accountantManager));
+
+        assertTrue(ex.getMessage().contains("PERIOD_NOT_YET_ENDED"));
+    }
+
+    @Test
+    void closePeriod_rejectsFuturePeriod() {
+        AccountingPeriod futurePeriod = AccountingPeriod.builder()
+                .id(12L)
+                .periodName("2027-01")
+                .status(AccountingPeriodStatus.OPEN)
+                .endDate(LocalDate.now().plusMonths(5))
+                .build();
+        when(accountingPeriodRepository.findById(12L)).thenReturn(Optional.of(futurePeriod));
+
+        UnprocessableEntityException ex = assertThrows(UnprocessableEntityException.class,
+                () -> service.closePeriod(12L, new AccountingPeriodCloseRequest(), accountantManager));
+
+        assertTrue(ex.getMessage().contains("PERIOD_NOT_YET_ENDED"));
     }
 
     @Test

@@ -108,6 +108,7 @@ public class DisposalService {
 
         boolean isValidState = receipt.getStatus() == ReceiptStatus.QC_FAILED
                 || receipt.getStatus() == ReceiptStatus.PARTIALLY_APPROVED
+                || receipt.getStatus() == ReceiptStatus.PUTAWAY_COMPLETED
                 || receipt.getStatus() == ReceiptStatus.RETURN_TO_SUPPLIER_PENDING
                 || (receipt.getType() == com.wms.enums.stock_receiving.ReceiptType.RETURN && receipt.getStatus() == ReceiptStatus.APPROVED);
         if (!isValidState) {

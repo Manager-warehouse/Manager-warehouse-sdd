@@ -4,6 +4,7 @@ import com.wms.dto.request.CorrectionVoucherCreateRequest;
 import com.wms.dto.response.CorrectionVoucherResponse;
 import com.wms.entity.access_control.User;
 import com.wms.entity.billing_payment.AccountingPeriod;
+import com.wms.entity.billing_payment.CreditNote;
 import com.wms.entity.billing_payment.Invoice;
 import com.wms.entity.billing_payment.PaymentReceipt;
 import com.wms.entity.billing_payment.SupplierInvoice;
@@ -20,6 +21,7 @@ import com.wms.enums.stock_control.AdjustmentType;
 import com.wms.exception.ResourceNotFoundException;
 import com.wms.exception.UnprocessableEntityException;
 import com.wms.repository.AdjustmentRepository;
+import com.wms.repository.CreditNoteRepository;
 import com.wms.repository.InvoiceRepository;
 import com.wms.repository.PaymentReceiptRepository;
 import com.wms.repository.SupplierInvoiceRepository;
@@ -55,6 +57,7 @@ class CorrectionVoucherServiceTest {
     @Mock private PaymentReceiptRepository paymentReceiptRepository;
     @Mock private SupplierInvoiceRepository supplierInvoiceRepository;
     @Mock private SupplierPaymentRepository supplierPaymentRepository;
+    @Mock private CreditNoteRepository creditNoteRepository;
     @Mock private DealerRepository dealerRepository;
     @Mock private SupplierRepository supplierRepository;
     @Mock private AccountingPeriodService accountingPeriodService;
@@ -69,6 +72,7 @@ class CorrectionVoucherServiceTest {
     private Supplier supplier;
     private Invoice invoice;
     private SupplierInvoice supplierInvoice;
+    private CreditNote creditNote;
     private AccountingPeriod closedPeriod;
     private AccountingPeriod openPeriod;
 
@@ -76,7 +80,7 @@ class CorrectionVoucherServiceTest {
     void setUp() {
         correctionVoucherService = new CorrectionVoucherServiceImpl(
                 adjustmentRepository, invoiceRepository, paymentReceiptRepository,
-                supplierInvoiceRepository, supplierPaymentRepository,
+                supplierInvoiceRepository, supplierPaymentRepository, creditNoteRepository,
                 dealerRepository, supplierRepository, accountingPeriodService,
                 systemConfigService, auditLogService);
 
@@ -127,6 +131,13 @@ class CorrectionVoucherServiceTest {
         supplierInvoice.setInvoiceNumber("SINV-202606-0001");
         supplierInvoice.setSupplier(supplier);
         supplierInvoice.setAccountingPeriod(closedPeriod);
+
+        creditNote = new CreditNote();
+        creditNote.setId(70L);
+        creditNote.setCreditNoteNumber("CN-202607-0001");
+        creditNote.setDealer(dealer);
+        creditNote.setAmount(BigDecimal.valueOf(5_000_000));
+        creditNote.setAccountingPeriod(openPeriod);
     }
 
     private CorrectionVoucherCreateRequest requestFor(CorrectionVoucherReferenceType type, Long refId, BigDecimal delta) {
@@ -207,20 +218,41 @@ class CorrectionVoucherServiceTest {
     }
 
     @Test
-    @DisplayName("Từ chối tạo bút toán điều chỉnh khi kỳ của chứng từ gốc chưa CLOSED")
-    void createCorrectionVoucher_originalPeriodStillOpen_rejected() {
+    @DisplayName("Chấp nhận bút toán điều chỉnh khi chứng từ gốc thuộc kỳ đang OPEN (gõ nhầm số tiền, phát hiện ngay)")
+    void createCorrectionVoucher_originalPeriodStillOpen_accepted() {
         invoice.setAccountingPeriod(openPeriod);
         CorrectionVoucherCreateRequest request = requestFor(
-                CorrectionVoucherReferenceType.INVOICE, 101L, BigDecimal.valueOf(-2_000_000));
+                CorrectionVoucherReferenceType.INVOICE, 101L, BigDecimal.valueOf(-500_000));
 
         when(invoiceRepository.findById(101L)).thenReturn(Optional.of(invoice));
         when(dealerRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(dealer));
+        when(accountingPeriodService.resolveOpenPeriod(request.getDocumentDate())).thenReturn(openPeriod);
+        when(adjustmentRepository.save(any(Adjustment.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        assertThatThrownBy(() -> correctionVoucherService.createCorrectionVoucher(request, accountantManager))
-                .isInstanceOf(UnprocessableEntityException.class)
-                .hasMessageContaining("ORIGINAL_PERIOD_NOT_CLOSED");
+        CorrectionVoucherResponse response = correctionVoucherService.createCorrectionVoucher(request, accountantManager);
 
-        verifyNoInteractions(adjustmentRepository);
+        assertThat(response.getOriginalPeriodId()).isEqualTo(openPeriod.getId());
+        assertThat(dealer.getCurrentBalance()).isEqualByComparingTo(BigDecimal.valueOf(47_500_000));
+        verify(adjustmentRepository).save(any(Adjustment.class));
+    }
+
+    @Test
+    @DisplayName("Lập bút toán điều chỉnh cho Credit Note - tăng lại dư nợ đại lý bị trừ thừa")
+    void createCorrectionVoucher_creditNoteReference_success() {
+        CorrectionVoucherCreateRequest request = requestFor(
+                CorrectionVoucherReferenceType.CREDIT_NOTE, 70L, BigDecimal.valueOf(500_000));
+
+        when(creditNoteRepository.findById(70L)).thenReturn(Optional.of(creditNote));
+        when(dealerRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(dealer));
+        when(accountingPeriodService.resolveOpenPeriod(request.getDocumentDate())).thenReturn(openPeriod);
+        when(adjustmentRepository.save(any(Adjustment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        CorrectionVoucherResponse response = correctionVoucherService.createCorrectionVoucher(request, accountantManager);
+
+        assertThat(response.getDealerId()).isEqualTo(10L);
+        assertThat(dealer.getCurrentBalance()).isEqualByComparingTo(BigDecimal.valueOf(48_500_000));
+        assertThat(creditNote.getAmount()).isEqualByComparingTo(BigDecimal.valueOf(5_000_000));
+        verify(dealerRepository).save(dealer);
     }
 
     @Test

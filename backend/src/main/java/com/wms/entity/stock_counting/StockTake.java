@@ -102,6 +102,10 @@ public class StockTake {
     @JoinColumn(name = "accounting_period_id")
     private AccountingPeriod accountingPeriod;
 
+    @Version
+    @Column(name = "version")
+    private Long version;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 

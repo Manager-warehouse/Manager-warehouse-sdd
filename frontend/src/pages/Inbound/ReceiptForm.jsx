@@ -43,7 +43,9 @@ const ReceiptForm = () => {
 
   const receiptNumberPreview = useMemo(() => {
     if (isRevisionMode) {
-      return revisionReceipt?.receipt_number || revisionReceipt?.receiptNumber || "";
+      return (
+        revisionReceipt?.receipt_number || revisionReceipt?.receiptNumber || ""
+      );
     }
     const dateStr = (
       documentDate || new Date().toISOString().slice(0, 10)
@@ -160,7 +162,10 @@ const ReceiptForm = () => {
         date: documentDate,
       });
     } catch (error) {
-      addToast(`SKU ${product.sku} chưa có giá vốn đã duyệt cho kho/ngày này`, "warning");
+      addToast(
+        `SKU ${product.sku} chưa có giá vốn đã duyệt cho kho/ngày này`,
+        "warning",
+      );
       return;
     }
 
@@ -257,10 +262,10 @@ const ReceiptForm = () => {
         receiptNumber
           ? isRevisionMode
             ? `Đã chỉnh sửa và gửi lại phiếu: ${receiptNumber}`
-            : `Lap lenh nhap kho thanh cong: ${receiptNumber}`
+            : `Nhập kho thành công: ${receiptNumber}`
           : isRevisionMode
             ? "Đã chỉnh sửa và gửi lại phiếu"
-            : "Lap lenh nhap kho thanh cong",
+            : "Nhập kho thành công",
         "success",
       );
       navigate("/inbound/receipts");
@@ -369,7 +374,11 @@ const ReceiptForm = () => {
             <input
               type="date"
               value={documentDate}
-              min={isRevisionMode ? undefined : new Date().toISOString().slice(0, 10)}
+              min={
+                isRevisionMode
+                  ? undefined
+                  : new Date().toISOString().slice(0, 10)
+              }
               onChange={(e) => setDocumentDate(e.target.value)}
               className="text-input"
               required
@@ -393,51 +402,51 @@ const ReceiptForm = () => {
         <div className="w-full lg:w-2/3 flex flex-col gap-6">
           {/* Product Search & Selector */}
           {!isRevisionMode && (
-          <div className="bg-canvas-light border border-hairline-light rounded-lg p-6 shadow-level-3 card-premium relative">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-shade-40 mb-4 border-b border-hairline-light pb-2">
-              Thêm sản phẩm
-            </h3>
+            <div className="bg-canvas-light border border-hairline-light rounded-lg p-6 shadow-level-3 card-premium relative">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-shade-40 mb-4 border-b border-hairline-light pb-2">
+                Thêm sản phẩm
+              </h3>
 
-            <div className="relative">
-              <Input
-                type="text"
-                leftIcon={Search}
-                placeholder="Tìm kiếm sản phẩm theo tên, SKU..."
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  setShowSearchResults(true);
-                }}
-                onFocus={() => setShowSearchResults(true)}
-              />
+              <div className="relative">
+                <Input
+                  type="text"
+                  leftIcon={Search}
+                  placeholder="Tìm kiếm sản phẩm theo tên, SKU..."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setShowSearchResults(true);
+                  }}
+                  onFocus={() => setShowSearchResults(true)}
+                />
 
-              {/* Search results dropdown */}
-              {showSearchResults && searchQuery.trim() !== "" && (
-                <div className="absolute left-0 right-0 mt-1.5 bg-canvas-light border border-hairline-light rounded-lg shadow-level-4 max-h-60 overflow-y-auto z-40">
-                  {searchResults.length === 0 ? (
-                    <div className="p-4 text-xs text-shade-50 text-center">
-                      Không tìm thấy sản phẩm hợp lệ
-                    </div>
-                  ) : (
-                    searchResults.map((prod) => (
-                      <div
-                        key={prod.id}
-                        onClick={() => handleAddItem(prod)}
-                        className="p-3 hover:bg-canvas-cream cursor-pointer transition-colors border-b border-hairline-light last:border-0 flex items-center justify-between text-xs"
-                      >
-                        <div>
-                          <span className="font-bold block">{prod.sku}</span>
-                          <span className="text-shade-50 block">
-                            {prod.name}
-                          </span>
-                        </div>
+                {/* Search results dropdown */}
+                {showSearchResults && searchQuery.trim() !== "" && (
+                  <div className="absolute left-0 right-0 mt-1.5 bg-canvas-light border border-hairline-light rounded-lg shadow-level-4 max-h-60 overflow-y-auto z-40">
+                    {searchResults.length === 0 ? (
+                      <div className="p-4 text-xs text-shade-50 text-center">
+                        Không tìm thấy sản phẩm hợp lệ
                       </div>
-                    ))
-                  )}
-                </div>
-              )}
+                    ) : (
+                      searchResults.map((prod) => (
+                        <div
+                          key={prod.id}
+                          onClick={() => handleAddItem(prod)}
+                          className="p-3 hover:bg-canvas-cream cursor-pointer transition-colors border-b border-hairline-light last:border-0 flex items-center justify-between text-xs"
+                        >
+                          <div>
+                            <span className="font-bold block">{prod.sku}</span>
+                            <span className="text-shade-50 block">
+                              {prod.name}
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
           )}
 
           {/* Selected Items Table */}

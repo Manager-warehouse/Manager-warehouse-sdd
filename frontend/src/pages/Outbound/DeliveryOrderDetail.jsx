@@ -812,6 +812,15 @@ export default function DeliveryOrderDetail() {
         </div>
       )}
 
+      {['WAREHOUSE_APPROVED', 'IN_TRANSIT', 'COMPLETED', 'RETURNED', 'DELIVERY_FAILED'].includes(currentStatus) && (
+        <div className="bg-success-50 border border-success-200 rounded-lg p-4 flex items-center gap-3">
+          <CheckCircle2 className="w-4 h-4 text-success-700 shrink-0" />
+          <p className="text-xs font-semibold text-success-900">
+            Trưởng kho <span className="font-bold">{order.approved_by_name || 'N/A'}</span> đã phê duyệt xuất kho.
+          </p>
+        </div>
+      )}
+
       {canPlanReplacement && (
         <div className="bg-warning-50 border border-warning-200 rounded-lg p-4 flex items-start gap-3">
           <AlertTriangle className="w-4 h-4 text-warning-700 shrink-0 mt-0.5" />

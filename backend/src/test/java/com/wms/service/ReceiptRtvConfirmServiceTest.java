@@ -242,7 +242,7 @@ class ReceiptRtvConfirmServiceTest {
                 // Quarantine inventory must be reduced to 0
                 verify(inventoryRepository).save(argThat(inv -> inv.getTotalQty().compareTo(BigDecimal.ZERO) == 0));
 
-                verify(receiptRepository).save(argThat(r -> r.getStatus() == ReceiptStatus.PARTIALLY_APPROVED));
+                verify(receiptRepository).save(argThat(r -> r.getStatus() == ReceiptStatus.RETURNED_TO_SUPPLIER));
 
                 // RTV adjustment marked confirmed
                 verify(adjustmentRepository)
@@ -404,6 +404,6 @@ class ReceiptRtvConfirmServiceTest {
 
                 receiptService.confirmRtv(1L, request, storekeeper);
 
-                verify(receiptRepository).save(argThat(r -> r.getStatus() == ReceiptStatus.PARTIALLY_APPROVED));
+                verify(receiptRepository).save(argThat(r -> r.getStatus() == ReceiptStatus.RETURNED_TO_SUPPLIER));
         }
 }

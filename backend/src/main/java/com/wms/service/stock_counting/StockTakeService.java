@@ -55,10 +55,12 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -110,20 +112,31 @@ public class StockTakeService {
         return list.stream().map(StockTakeSummaryResponse::from).collect(Collectors.toList());
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public Page<StockTakeSummaryResponse> getStockTakes(Long warehouseId, StockTakeStatus status, User actor, Pageable pageable) {
         requireWarehouseAccess(actor, warehouseId);
         Page<StockTake> page = (status != null)
                 ? stockTakeRepository.findByWarehouseIdAndStatusOrderByCreatedAtDesc(warehouseId, status, pageable)
                 : stockTakeRepository.findByWarehouseIdOrderByCreatedAtDesc(warehouseId, pageable);
+
+        Map<String, Object> filters = new LinkedHashMap<>();
+        filters.put("warehouse_id", warehouseId);
+        if (status != null) filters.put("status", status);
+        auditLogService.log(actor, AuditAction.STOCKTAKE_REPORT_VIEW, ENTITY_TYPE,
+                null, null, warehouseId, null, filters);
+
         return page.map(StockTakeSummaryResponse::from);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public StockTakeResponse getStockTakeById(Long id, User actor) {
         StockTake st = stockTakeRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new ResourceNotFoundException("StockTake not found: " + id));
         requireWarehouseAccess(actor, st.getWarehouse().getId());
+
+        auditLogService.log(actor, AuditAction.STOCKTAKE_REPORT_VIEW, ENTITY_TYPE,
+                st.getId(), st.getStockTakeNumber(), st.getWarehouse().getId(), null, null);
+
         List<StockTakeItemResponse> items = stockTakeItemRepository
                 .findByStockTakeIdWithDetails(id)
                 .stream().map(StockTakeItemResponse::from).collect(Collectors.toList());
@@ -146,6 +159,15 @@ public class StockTakeService {
         assertPeriodOpen(period);
         validateCreateDates(req, period);
 
+        // S4: check for overlapping active stocktake in same warehouse BEFORE creating a new one
+        boolean hasActive = stockTakeRepository.existsByWarehouseIdAndStatusIn(
+                req.getWarehouseId(),
+                List.of(StockTakeStatus.DRAFT, StockTakeStatus.IN_PROGRESS, StockTakeStatus.PENDING_APPROVAL));
+        if (hasActive) {
+            throw new StockTakeException("OVERLAPPING_STOCKTAKE", HttpStatus.CONFLICT,
+                    "An active stocktake already exists for warehouse " + req.getWarehouseId());
+        }
+
         String number = generateStockTakeNumber();
 
         StockTake st = StockTake.builder()
@@ -163,8 +185,16 @@ public class StockTakeService {
                 .build();
         st = stockTakeRepository.save(st);
 
+
         // Populate items from current non-quarantine inventory
         List<Inventory> inventories = inventoryRepository.findActiveNonQuarantineByWarehouseId(req.getWarehouseId());
+
+        // V4: validate stocktake has items
+        if (inventories.isEmpty()) {
+            throw new StockTakeException("EMPTY_STOCKTAKE", HttpStatus.UNPROCESSABLE_ENTITY,
+                    "No inventory found in warehouse " + req.getWarehouseId() + " to create stocktake");
+        }
+
         List<StockTakeItem> items = new ArrayList<>();
         for (Inventory inv : inventories) {
             StockTakeItem item = StockTakeItem.builder()
@@ -239,6 +269,15 @@ public class StockTakeService {
             lockLocations(st);
         }
 
+        // V5: validate no duplicate itemId
+        Set<Long> seenItemIds = new HashSet<>();
+        for (StockTakeCountItemRequest countReq : req.getItems()) {
+            if (!seenItemIds.add(countReq.getItemId())) {
+                throw new StockTakeException("DUPLICATE_ITEM", HttpStatus.BAD_REQUEST,
+                        "Duplicate itemId in request: " + countReq.getItemId());
+            }
+        }
+
         boolean anyEmployeeFault = false;
         for (StockTakeCountItemRequest countReq : req.getItems()) {
             if (countReq.getActualQty().compareTo(BigDecimal.ZERO) < 0) {
@@ -272,8 +311,10 @@ public class StockTakeService {
             Inventory inv = inventoryRepository.findByWarehouseIdAndProductIdAndBatchIdAndLocationId(
                     st.getWarehouse().getId(), item.getProduct().getId(),
                     item.getBatch().getId(), item.getLocation().getId())
-                    .orElse(null);
-            BigDecimal costPrice = (inv != null) ? inv.getCostPrice() : BigDecimal.ZERO;
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Inventory not found for product " + item.getProduct().getSku()
+                                    + " at location " + item.getLocation().getId()));
+            BigDecimal costPrice = inv.getCostPrice();
 
             BigDecimal varianceQty = countReq.getActualQty().subtract(item.getSystemQty());
             BigDecimal varianceValue = varianceQty.multiply(costPrice);
@@ -326,10 +367,12 @@ public class StockTakeService {
             Inventory inv = inventoryRepository.findByWarehouseIdAndProductIdAndBatchIdAndLocationId(
                     st.getWarehouse().getId(), item.getProduct().getId(),
                     item.getBatch().getId(), item.getLocation().getId())
-                    .orElse(null);
-            BigDecimal currentSystemQty = (inv != null) ? inv.getTotalQty() : BigDecimal.ZERO;
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Inventory not found for product " + item.getProduct().getSku()
+                                    + " at location " + item.getLocation().getId()));
+            BigDecimal currentSystemQty = inv.getTotalQty();
             item.setSystemQty(currentSystemQty);
-            BigDecimal costPrice = (inv != null) ? inv.getCostPrice() : BigDecimal.ZERO;
+            BigDecimal costPrice = inv.getCostPrice();
             BigDecimal varianceQty = item.getActualQty().subtract(currentSystemQty);
             item.setVarianceQty(varianceQty);
             item.setVarianceValue(varianceQty.multiply(costPrice));
@@ -392,7 +435,7 @@ public class StockTakeService {
 
     @Transactional
     public StockTakeResponse cancelStockTake(Long id, User actor) {
-        requireStockTakeRole(actor);
+        requireCancelRole(actor);
         StockTake st = loadStockTake(id);
         requireWarehouseAccess(actor, st.getWarehouse().getId());
 
@@ -562,6 +605,11 @@ public class StockTakeService {
                 .map(i -> i.getLocation().getId()).distinct().collect(Collectors.toList());
         List<WarehouseLocation> locations = locationRepository.findByIdIn(locationIds);
         for (WarehouseLocation loc : locations) {
+            if (Boolean.TRUE.equals(loc.getIsLocked()) && !st.getId().equals(loc.getLockedByStockTakeId())) {
+                throw new StockTakeException("LOCATION_LOCKED", HttpStatus.CONFLICT,
+                        "Location " + loc.getCode() + " is already locked by another stocktake (ID: "
+                                + loc.getLockedByStockTakeId() + ")");
+            }
             loc.setIsLocked(true);
             loc.setLockedByStockTakeId(st.getId());
         }
@@ -637,6 +685,14 @@ public class StockTakeService {
         }
     }
 
+    private void requireCancelRole(User actor) {
+        UserRole role = actor.getRole();
+        if (role != UserRole.STOREKEEPER && role != UserRole.WAREHOUSE_MANAGER && role != UserRole.ADMIN) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "Role " + role + " is not authorized for stocktake cancel operations");
+        }
+    }
+
     private void requireWarehouseAccess(User actor, Long warehouseId) {
         if (actor.getRole() == UserRole.ADMIN || actor.getRole() == UserRole.CEO) {
             return;
@@ -644,7 +700,7 @@ public class StockTakeService {
         boolean assigned = assignmentRepository.findWarehouseIdsByUserId(actor.getId())
                 .contains(warehouseId);
         if (!assigned) {
-            throw new org.springframework.security.access.AccessDeniedException(
+            throw new StockTakeException("FORBIDDEN_WAREHOUSE", HttpStatus.FORBIDDEN,
                     "User is not assigned to warehouse: " + warehouseId);
         }
     }

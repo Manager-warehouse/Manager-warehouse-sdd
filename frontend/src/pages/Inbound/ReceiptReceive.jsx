@@ -1,11 +1,24 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { AlertTriangle, ArrowLeft, CheckCircle2, Loader2 } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Loader2 } from 'lucide-react';
 import { useUiStore } from '../../stores/ui.store';
 import { inboundService } from '../../services/inbound.service';
 import { masterDataService } from '../../services/masterData.service';
 
 const emptyToZero = (value) => (value === '' || value === null || value === undefined ? 0 : Number(value));
+const hasQty = (value) => value !== '' && value !== null && value !== undefined;
+const qualityTotalQty = (item) => {
+  if (!hasQty(item.quality_passed_qty) && !hasQty(item.quality_failed_qty)) return '';
+  return emptyToZero(item.quality_passed_qty) + emptyToZero(item.quality_failed_qty);
+};
+const expectedQtyOf = (item) => Number(item.expected_qty ?? item.expectedQty ?? 0);
+const isQualityTotalMatched = (item) => hasQty(item.actual_qty)
+  && hasQty(item.quality_passed_qty)
+  && hasQty(item.quality_failed_qty)
+  && qualityTotalQty(item) === emptyToZero(item.actual_qty);
+const isCountMatchedExpected = (item) => hasQty(item.actual_qty) && emptyToZero(item.actual_qty) === expectedQtyOf(item);
+const requiresReason = (item) => emptyToZero(item.quality_failed_qty) > 0
+  || (hasQty(item.actual_qty) && emptyToZero(item.actual_qty) < expectedQtyOf(item));
 
 const STATUS_LABELS = {
   PENDING_MANAGER_APPROVAL: 'Chờ quản lý duyệt',
@@ -26,16 +39,16 @@ const normalizeItem = (item) => {
   const actual = item.actual_qty ?? item.actualQty ?? '';
   const hasActual = actual !== '' && actual !== null && actual !== undefined;
   const savedFailed = item.quality_failed_qty ?? item.qualityFailedQty ?? item.qc_failed_qty ?? item.qcFailedQty;
-  const failed = hasActual && savedFailed !== null && savedFailed !== undefined ? savedFailed : '';
+  const failed = hasActual ? (savedFailed ?? 0) : '';
   const savedPassed = item.quality_passed_qty
     ?? item.qualityPassedQty
     ?? item.qc_passed_qty
     ?? item.qcPassedQty;
-  const passed = hasActual && savedPassed !== null && savedPassed !== undefined ? savedPassed : '';
+  const passed = hasActual ? (savedPassed ?? actual) : '';
 
   return {
     ...item,
-    actual_qty: actual,
+    actual_qty: hasActual ? actual : '',
     quality_passed_qty: passed,
     quality_failed_qty: failed,
     qc_failure_reason: item.qc_failure_reason ?? item.qcFailureReason ?? ''
@@ -84,21 +97,27 @@ const ReceiptReceive = () => {
   const handleQtyChange = (itemId, field, value) => {
     if (value !== '' && !/^\d+$/.test(value)) return;
     updateItem(itemId, (item) => {
-      if (field === 'actual_qty') {
-        const actual = value === '' ? '' : Number(value);
-        return {
-          ...item,
-          actual_qty: actual
-        };
-      }
       if (field === 'quality_failed_qty') {
         const failed = value === '' ? '' : Number(value);
+        const updated = { ...item, quality_failed_qty: failed };
         return {
-          ...item,
-          quality_failed_qty: failed
+          ...updated,
+          qc_failure_reason: requiresReason(updated) ? item.qc_failure_reason : ''
         };
       }
-      return { ...item, [field]: value === '' ? '' : Number(value) };
+      if (field === 'quality_passed_qty') {
+        const passed = value === '' ? '' : Number(value);
+        const updated = { ...item, quality_passed_qty: passed };
+        return {
+          ...updated,
+          qc_failure_reason: requiresReason(updated) ? item.qc_failure_reason : ''
+        };
+      }
+      const updated = { ...item, [field]: value === '' ? '' : Number(value) };
+      return {
+        ...updated,
+        qc_failure_reason: requiresReason(updated) ? item.qc_failure_reason : ''
+      };
     });
   };
 
@@ -107,32 +126,33 @@ const ReceiptReceive = () => {
   };
 
   const rowState = (item) => {
-    const actual = emptyToZero(item.actual_qty);
-    const passed = emptyToZero(item.quality_passed_qty);
     const failed = emptyToZero(item.quality_failed_qty);
-    if (item.actual_qty === '') return { type: 'pending', label: 'Chưa nhập' };
-    if (passed + failed !== actual) return { type: 'warning', label: 'Lệch QC' };
+    if (!hasQty(item.actual_qty) && !hasQty(item.quality_passed_qty) && !hasQty(item.quality_failed_qty)) return { type: 'pending', label: 'Chưa nhập' };
+    if (!isQualityTotalMatched(item)) return { type: 'warning', label: 'QC khác số lượng đếm thực tế' };
+    if (!isCountMatchedExpected(item)) return { type: 'warning', label: 'Lệch kế hoạch' };
     if (failed > 0) return { type: 'failed', label: 'Có lỗi' };
     return { type: 'passed', label: 'Đạt' };
   };
 
-  const hasMismatch = useMemo(() => items.some((item) => rowState(item).type === 'warning'), [items]);
+  const canSaveResult = items.length > 0
+    && items.every((item) => isQualityTotalMatched(item)
+      && (!requiresReason(item) || item.qc_failure_reason.trim()));
 
   const validateBeforeSubmit = () => {
     for (const item of items) {
-      const actual = emptyToZero(item.actual_qty);
       const passed = emptyToZero(item.quality_passed_qty);
       const failed = emptyToZero(item.quality_failed_qty);
-      if (item.actual_qty === '' || item.quality_passed_qty === '' || actual < 0 || passed < 0 || failed < 0) {
+      const actual = emptyToZero(item.actual_qty);
+      if (!hasQty(item.actual_qty) || !hasQty(item.quality_passed_qty) || !hasQty(item.quality_failed_qty) || actual < 0 || passed < 0 || failed < 0) {
         addToast(`Vui lòng nhập số lượng hợp lệ cho ${getProductSku(item)}`, 'warning');
         return false;
       }
-      if (passed + failed !== actual) {
-        addToast(`QC đạt + QC lỗi phải bằng SL thực nhận cho ${getProductSku(item)}`, 'warning');
+      if (qualityTotalQty(item) !== actual) {
+        addToast(`Số lượng đạt và lỗi phải bằng số lượng đếm cho ${getProductSku(item)}`, 'warning');
         return false;
       }
-      if (failed > 0 && !item.qc_failure_reason.trim()) {
-        addToast(`Vui lòng nhập lý do lỗi QC cho ${getProductSku(item)}`, 'warning');
+      if (requiresReason(item) && !item.qc_failure_reason.trim()) {
+        addToast(`Vui lòng nhập lý do lỗi hoặc thiếu cho ${getProductSku(item)}`, 'warning');
         return false;
       }
     }
@@ -242,19 +262,12 @@ const ReceiptReceive = () => {
           </div>
         </div>
 
-        {hasMismatch && (
-          <div className="flex items-start gap-3 rounded-lg border border-warning-300 bg-warning-50 px-4 py-3 text-xs font-semibold text-warning-800">
-            <AlertTriangle className="w-4 h-4 shrink-0" />
-            <span>Tổng QC đạt + QC lỗi đang khác SL thực nhận ở một hoặc nhiều dòng.</span>
-          </div>
-        )}
-
         <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 overflow-hidden">
           <div className="hidden lg:block overflow-x-auto">
             <table className="data-table-grid w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-canvas-cream border-b border-hairline-light">
-                  {['Mã hàng', 'Tên hàng', 'SL dự kiến', 'SL thực nhận', 'QC đạt', 'QC lỗi', 'Lý do lỗi', 'Kết quả'].map((heading) => (
+                  {['Mã hàng', 'Tên hàng', 'SL dự kiến', 'Đếm số lượng', 'Hàng đạt yêu cầu', 'Không đạt yêu cầu', 'Lý do lỗi/thiếu', 'Kết quả'].map((heading) => (
                     <th key={heading} className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">
                       {heading}
                     </th>
@@ -268,7 +281,7 @@ const ReceiptReceive = () => {
                     <tr key={item.receipt_item_id} className="hover:bg-canvas-cream/50 transition-colors align-top">
                       <td className="px-4 py-4 font-mono font-bold">{getProductSku(item)}</td>
                       <td className="px-4 py-4 min-w-[180px] text-shade-70">{getProductName(item)}</td>
-                      <td className="px-4 py-4 text-right font-bold text-shade-60">{item.expected_qty}</td>
+                      <td className="px-4 py-4 text-right font-bold text-shade-60">{expectedQtyOf(item)}</td>
                       <td className="px-4 py-3"><QtyInput value={item.actual_qty} onChange={(value) => handleQtyChange(item.receipt_item_id, 'actual_qty', value)} /></td>
                       <td className="px-4 py-3"><QtyInput value={item.quality_passed_qty} onChange={(value) => handleQtyChange(item.receipt_item_id, 'quality_passed_qty', value)} /></td>
                       <td className="px-4 py-3"><QtyInput value={item.quality_failed_qty} onChange={(value) => handleQtyChange(item.receipt_item_id, 'quality_failed_qty', value)} /></td>
@@ -277,7 +290,8 @@ const ReceiptReceive = () => {
                           type="text"
                           value={item.qc_failure_reason}
                           onChange={(e) => handleReasonChange(item.receipt_item_id, e.target.value)}
-                          disabled={emptyToZero(item.quality_failed_qty) === 0}
+                          disabled={!requiresReason(item)}
+                          required={requiresReason(item)}
                           className="text-input w-full py-1.5 disabled:opacity-50"
                         />
                       </td>
@@ -308,18 +322,19 @@ const ReceiptReceive = () => {
                     </span>
                   </div>
                   <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
-                    <ReadonlyQty label="SL dự kiến" value={item.expected_qty} />
-                    <FieldQty label="SL thực nhận" value={item.actual_qty} onChange={(value) => handleQtyChange(item.receipt_item_id, 'actual_qty', value)} />
-                    <FieldQty label="QC đạt" value={item.quality_passed_qty} onChange={(value) => handleQtyChange(item.receipt_item_id, 'quality_passed_qty', value)} />
-                    <FieldQty label="QC lỗi" value={item.quality_failed_qty} onChange={(value) => handleQtyChange(item.receipt_item_id, 'quality_failed_qty', value)} />
+                    <ReadonlyQty label="SL dự kiến" value={expectedQtyOf(item)} />
+                    <FieldQty label="Đếm số lượng" value={item.actual_qty} onChange={(value) => handleQtyChange(item.receipt_item_id, 'actual_qty', value)} />
+                    <FieldQty label="Hàng đạt yêu cầu" value={item.quality_passed_qty} onChange={(value) => handleQtyChange(item.receipt_item_id, 'quality_passed_qty', value)} />
+                    <FieldQty label="Không đạt yêu cầu" value={item.quality_failed_qty} onChange={(value) => handleQtyChange(item.receipt_item_id, 'quality_failed_qty', value)} />
                   </div>
                   <label className="mt-3 flex flex-col gap-1.5">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-shade-60">Lý do lỗi</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-shade-60">Lý do lỗi/thiếu</span>
                     <input
                       type="text"
                       value={item.qc_failure_reason}
                       onChange={(e) => handleReasonChange(item.receipt_item_id, e.target.value)}
-                      disabled={emptyToZero(item.quality_failed_qty) === 0}
+                      disabled={!requiresReason(item)}
+                      required={requiresReason(item)}
                       className="text-input min-h-[40px] disabled:opacity-50"
                     />
                   </label>
@@ -333,7 +348,7 @@ const ReceiptReceive = () => {
           <button type="button" onClick={() => navigate('/inbound/receipts')} className="btn-pill btn-pill-outline-light">
             Hủy
           </button>
-          <button type="submit" disabled={submitting || hasMismatch} className="btn-pill btn-pill-primary flex items-center gap-2 disabled:opacity-50">
+          <button type="submit" disabled={submitting || !canSaveResult} className="btn-pill btn-pill-primary flex items-center gap-2 disabled:opacity-50">
             {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
             <span>{submitting ? 'Đang lưu...' : 'Lưu nhận hàng & QC'}</span>
           </button>
@@ -355,10 +370,10 @@ const QtyInput = ({ value, onChange }) => (
   />
 );
 
-const ReadonlyQty = ({ label, value }) => (
+const ReadonlyQty = ({ label, value, valueClassName = 'text-ink' }) => (
   <div className="rounded-lg border border-hairline-light bg-canvas-cream px-3 py-2">
     <span className="block text-[10px] font-bold uppercase tracking-wider text-shade-60">{label}</span>
-    <span className="mt-1 block text-right text-sm font-bold text-ink">{value}</span>
+    <span className={`mt-1 block text-right text-sm font-bold ${valueClassName}`}>{value}</span>
   </div>
 );
 

@@ -21,6 +21,7 @@ WH_MANAGER reviews only Storekeeper-approved QC results and makes an official re
 2. `QC_FAILED -> PARTIALLY_APPROVED`, `approved_qty = quality_passed_qty`, failed quantity becomes finalized Quarantine stock.
 3. `QC_COMPLETED/QC_FAILED -> RETURN_TO_SUPPLIER_PENDING` only when WH_MANAGER rejects with reason.
 4. Given receipt `PENDING_STOREKEEPER_REVIEW` or `RECOUNT_REQUIRED`, when WH_MANAGER tries to approve/reject, then the request is rejected because Storekeeper review is not approved.
+5. Confirming whole-receipt handover (`RETURN_TO_SUPPLIER_PENDING -> RETURNED_TO_SUPPLIER`) creates exactly one `PENDING` Debit Note for the full receipt value; it has no effect on `suppliers.current_balance` until an `ACCOUNTANT` applies it per [Feature 06](../feature-06-quarantine-rtv/spec.md#api-endpoints).
 
 ## Functional Requirements
 
@@ -31,6 +32,8 @@ WH_MANAGER reviews only Storekeeper-approved QC results and makes an official re
 - **F04-FR-005**: `WH_MANAGER` approval SHALL resolve batch lineage but SHALL NOT increase regular inventory.
 - **F04-FR-006**: `WH_MANAGER` handover confirmation SHALL move `RETURN_TO_SUPPLIER_PENDING -> RETURNED_TO_SUPPLIER`; STOREKEEPER SHALL NOT see or execute the supplier-return confirmation action.
 - **F04-FR-007**: `WH_MANAGER` decision SHALL be allowed only after STOREKEEPER review approval has moved the receipt to `QC_COMPLETED` or `QC_FAILED`.
+- **F04-FR-008**: WHEN `WH_MANAGER` confirms handover (`RETURN_TO_SUPPLIER_PENDING -> RETURNED_TO_SUPPLIER`), the system SHALL, in the same transaction, create one Debit Note with `status = PENDING` for the whole rejected receipt (`amount = Σ receipt_items.actual_qty × receipt_items.unit_cost`), referencing the receipt. This uses the same `debit_notes` shape and the same `ACCOUNTANT` apply action defined in [Feature 06](../feature-06-quarantine-rtv/spec.md) — whole-receipt rejection and quarantine RTV are two different physical paths to the same supplier-payable claim, and SHALL NOT diverge into separate accounting mechanisms.
+- **F04-FR-009**: Handover confirmation SHALL NOT itself change `suppliers.current_balance` — only the `ACCOUNTANT` apply action does, and only after this Debit Note exists.
 
 ## Errors
 
