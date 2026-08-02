@@ -41,6 +41,11 @@ import jakarta.validation.constraints.NotNull;
 
 import java.math.BigDecimal;
 
+/**
+ * DTO cho từng dòng hàng khi nhập số đếm thực tế.
+ * Chứa: item_id (ID dòng StockTakeItem), actual_qty (số thực đếm), is_employee_fault, notes.
+ * Dùng bởi: StockTakeCountRequest.items[]
+ */
 public class StockTakeCountItemRequest {
 
     @NotNull(message = "item_id is required")

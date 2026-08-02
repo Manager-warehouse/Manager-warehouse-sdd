@@ -36,16 +36,16 @@ const StocktakeDetail = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // count edits: itemId -> { actual_qty, is_employee_fault, notes }
+  // Lưu chỉnh sửa số đếm: itemId -> { actual_qty, is_employee_fault, notes }
   const [countEdits, setCountEdits] = useState({});
 
-  // reject modal
+  // Modal trả lại phiếu
   const [rejectModal, setRejectModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
 
   // STOREKEEPER: tạo phiếu, bắt đầu đếm, nhập số liệu, hoàn tất & trình duyệt
   const canCount = hasRole(ROLES.STOREKEEPER) || hasRole(ROLES.ADMIN);
-  // WAREHOUSE_MANAGER is the checker for every stocktake, regardless of variance value.
+  // WAREHOUSE_MANAGER là người duyệt mọi phiếu kiểm kê, không phân biệt giá trị chênh lệch.
   const canApprove = hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.ADMIN);
 
   const load = useCallback(async () => {
@@ -53,7 +53,7 @@ const StocktakeDetail = () => {
     try {
       const data = await stocktakeService.getStockTakeById(id);
       setStocktake(data);
-      // Pre-fill edits with existing actual_qty
+      // Điền sẵn số đếm thực tế hiện có vào form
       const edits = {};
       (data.items || []).forEach((item) => {
         edits[item.id] = {
@@ -136,8 +136,13 @@ const StocktakeDetail = () => {
 
   const handleApprove = async () => {
     try {
-      await stocktakeService.approveStockTake(id);
-      showToast?.('success', 'Phiếu kiểm kê đã được phê duyệt');
+      const result = await stocktakeService.approveStockTake(id);
+      if (result?.approval_warnings?.length > 0) {
+        result.approval_warnings.forEach((w) => showToast?.('warning', w));
+        showToast?.('success', 'Phiếu kiểm kê đã được phê duyệt (có cảnh báo)');
+      } else {
+        showToast?.('success', 'Phiếu kiểm kê đã được phê duyệt');
+      }
       load();
     } catch (err) {
       showToast?.('error', err.message);
