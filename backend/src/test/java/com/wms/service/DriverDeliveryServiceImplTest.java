@@ -103,7 +103,6 @@ import com.wms.enums.fleet_management.VehicleStatus;
 import com.wms.enums.warehouse_location.WarehouseType;
 import com.wms.exception.OutboundDeliveryException;
 import com.wms.exception.ResourceNotFoundException;
-import com.wms.repository.BillingNotificationRepository;
 import com.wms.repository.DeliveryOrderItemRepository;
 import com.wms.repository.DeliveryOrderRepository;
 import com.wms.repository.DeliveryOtpAttemptRepository;
@@ -142,7 +141,7 @@ class DriverDeliveryServiceImplTest {
     @Mock private DeliveryOrderItemRepository deliveryOrderItemRepository;
     @Mock private InventoryRepository inventoryRepository;
     @Mock private InterWarehouseTransferRepository interWarehouseTransferRepository;
-    @Mock private BillingNotificationRepository billingNotificationRepository;
+    @Mock private AutoInvoiceService autoInvoiceService;
     @Mock private AuditLogService auditLogService;
     @Mock private JavaMailSender mailSender;
 
@@ -158,7 +157,7 @@ class DriverDeliveryServiceImplTest {
         service = new DriverDeliveryServiceImpl(tripRepository, tripDeliveryOrderRepository, deliveryRepository,
                 otpRepository, deliveryOrderRepository, deliveryOrderItemRepository, inventoryRepository,
                 interWarehouseTransferRepository,
-                billingNotificationRepository, auditLogService, mailSender);
+                autoInvoiceService, auditLogService, mailSender);
         actor = User.builder().id(10L).fullName("Driver").role(UserRole.DRIVER).build();
         warehouse = Warehouse.builder().id(20L).code("HP").name("Hai Phong")
                 .type(WarehouseType.PHYSICAL).isActive(true).build();
@@ -336,7 +335,7 @@ class DriverDeliveryServiceImplTest {
     }
 
     @Test
-    void confirmDelivery_updatesAttemptInventoryAndOrderWithPendingBillingNotification() {
+    void confirmDelivery_updatesAttemptInventoryOrderAndCreatesInvoice() {
         delivery.setPodImageUrl("/uploads/pod/goods.jpg");
         delivery.setPodSignatureUrl("/uploads/pod/sign.jpg");
         DeliveryOtpAttempt otp = otp(DeliveryOtpStatus.ACTIVE, OffsetDateTime.now().plusMinutes(2), 0, "123456");
@@ -359,11 +358,7 @@ class DriverDeliveryServiceImplTest {
         assertThat(otp.getStatus()).isEqualTo(DeliveryOtpStatus.VERIFIED);
         verify(inventoryRepository).save(transit);
 
-        // Invoicing is manual (mirrors the AP supplier-invoice flow): confirmDelivery only
-        // creates the pending accountant worklist entry, it never invoices automatically.
-        ArgumentCaptor<BillingNotification> notifCaptor = ArgumentCaptor.forClass(BillingNotification.class);
-        verify(billingNotificationRepository).save(notifCaptor.capture());
-        assertThat(notifCaptor.getValue().getDeliveryOrder()).isSameAs(order);
+        verify(autoInvoiceService).createForConfirmedDelivery(order, actor);
     }
 
     @Test
@@ -394,7 +389,7 @@ class DriverDeliveryServiceImplTest {
     }
 
     @Test
-    void confirmDelivery_scopesBillingNotificationToConfirmedDeliveryOrderOnly() {
+    void confirmDelivery_scopesInvoiceToConfirmedDeliveryOrderOnly() {
         delivery.setPodImageUrl("/uploads/pod/goods.jpg");
         delivery.setPodSignatureUrl("/uploads/pod/sign.jpg");
         DeliveryOrder sibling = DeliveryOrder.builder().id(71L).doNumber("DO-2").dealer(order.getDealer())
@@ -413,9 +408,8 @@ class DriverDeliveryServiceImplTest {
         request.setOtp("123456");
         service.confirmDelivery(50L, 70L, request, actor);
 
-        ArgumentCaptor<BillingNotification> notifCaptor = ArgumentCaptor.forClass(BillingNotification.class);
-        verify(billingNotificationRepository, times(1)).save(notifCaptor.capture());
-        assertThat(notifCaptor.getValue().getDeliveryOrder()).isSameAs(order).isNotSameAs(sibling);
+        verify(autoInvoiceService, times(1)).createForConfirmedDelivery(order, actor);
+        verify(autoInvoiceService, never()).createForConfirmedDelivery(sibling, actor);
     }
 
     @Test
@@ -436,7 +430,7 @@ class DriverDeliveryServiceImplTest {
         request.setOtp("123456");
         service.confirmDelivery(50L, 70L, request, actor);
 
-        verify(billingNotificationRepository, times(1)).save(any(BillingNotification.class));
+        verify(autoInvoiceService).createForConfirmedDelivery(order, actor);
         verify(mailSender, never()).send(any(SimpleMailMessage.class));
     }
 
@@ -456,7 +450,7 @@ class DriverDeliveryServiceImplTest {
         assertThatThrownBy(() -> service.confirmDelivery(50L, 70L, request, actor))
                 .isInstanceOf(OutboundDeliveryException.class)
                 .hasMessageContaining("In-transit stock");
-        verify(billingNotificationRepository, never()).save(any());
+        verify(autoInvoiceService, never()).createForConfirmedDelivery(any(), any());
     }
 
     @Test

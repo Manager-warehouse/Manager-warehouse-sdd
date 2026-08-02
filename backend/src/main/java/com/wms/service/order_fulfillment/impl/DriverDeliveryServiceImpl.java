@@ -44,7 +44,6 @@ import com.wms.dto.response.DeliveryAttemptResponse;
 import com.wms.dto.response.DeliveryOtpResponse;
 import com.wms.dto.response.DriverDeliveryOrderResponse;
 import com.wms.dto.response.TripDriverViewResponse;
-import com.wms.entity.billing_payment.BillingNotification;
 import com.wms.entity.dealer_management.Dealer;
 import com.wms.entity.order_fulfillment.Delivery;
 import com.wms.entity.order_fulfillment.DeliveryOrder;
@@ -66,7 +65,6 @@ import com.wms.enums.order_fulfillment.TripType;
 import com.wms.enums.fleet_management.VehicleStatus;
 import com.wms.exception.OutboundDeliveryException;
 import com.wms.exception.ResourceNotFoundException;
-import com.wms.repository.BillingNotificationRepository;
 import com.wms.repository.DeliveryOrderItemRepository;
 import com.wms.repository.DeliveryOrderRepository;
 import com.wms.repository.DeliveryOtpAttemptRepository;
@@ -76,6 +74,7 @@ import com.wms.repository.InterWarehouseTransferRepository;
 import com.wms.repository.TripDeliveryOrderRepository;
 import com.wms.repository.TripRepository;
 import com.wms.service.audit_trail.AuditLogService;
+import com.wms.service.billing_payment.AutoInvoiceService;
 import com.wms.service.order_fulfillment.DriverDeliveryService;
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -125,7 +124,7 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
     private final DeliveryOrderItemRepository deliveryOrderItemRepository;
     private final InventoryRepository inventoryRepository;
     private final InterWarehouseTransferRepository interWarehouseTransferRepository;
-    private final BillingNotificationRepository billingNotificationRepository;
+    private final AutoInvoiceService autoInvoiceService;
     private final AuditLogService auditLogService;
     private final JavaMailSender mailSender;
     private final SecureRandom secureRandom = new SecureRandom();
@@ -138,7 +137,7 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
                                      DeliveryOrderItemRepository deliveryOrderItemRepository,
                                      InventoryRepository inventoryRepository,
                                      InterWarehouseTransferRepository interWarehouseTransferRepository,
-                                     BillingNotificationRepository billingNotificationRepository,
+                                     AutoInvoiceService autoInvoiceService,
                                      AuditLogService auditLogService,
                                      JavaMailSender mailSender) {
         this.tripRepository = tripRepository;
@@ -149,7 +148,7 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
         this.deliveryOrderItemRepository = deliveryOrderItemRepository;
         this.inventoryRepository = inventoryRepository;
         this.interWarehouseTransferRepository = interWarehouseTransferRepository;
-        this.billingNotificationRepository = billingNotificationRepository;
+        this.autoInvoiceService = autoInvoiceService;
         this.auditLogService = auditLogService;
         this.mailSender = mailSender;
     }
@@ -256,7 +255,7 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
         verifyOtp(otp, request.getOtp());
         Map<String, Object> before = attemptSnapshot(delivery);
         decrementTransitInventory(delivery.getDeliveryOrder());
-        createBillingNotification(delivery.getDeliveryOrder());
+        autoInvoiceService.createForConfirmedDelivery(delivery.getDeliveryOrder(), actor);
         OffsetDateTime now = OffsetDateTime.now();
         otp.setStatus(DeliveryOtpStatus.VERIFIED);
         otp.setConsumedAt(now);
@@ -432,35 +431,6 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
             transit.setUpdatedAt(OffsetDateTime.now());
             saveInventory(transit);
         }
-    }
-
-    // Tạo việc chờ cho kế toán sau khi giao thành công.
-    // Hệ thống không tự xuất hóa đơn ngay; kế toán xem thông báo này rồi tạo hóa đơn ở màn hóa đơn.
-    // Số tiền ước tính chỉ để tham khảo, không chặn xác nhận giao hàng nếu giá bán chưa đủ.
-    private void createBillingNotification(DeliveryOrder order) {
-        List<DeliveryOrderItem> items = deliveryOrderItemRepository.findByDeliveryOrderId(order.getId());
-        BigDecimal estimate = items.stream()
-                .map(this::estimateLineAmount)
-                .reduce(ZERO, BigDecimal::add);
-        Dealer dealer = order.getDealer();
-        BillingNotification notification = BillingNotification.builder()
-                .deliveryOrder(order)
-                .doNumber(order.getDoNumber())
-                .dealer(dealer)
-                .dealerName(dealer.getName())
-                .warehouse(order.getWarehouse())
-                .deliveredAt(OffsetDateTime.now())
-                .totalAmountEstimate(estimate)
-                .build();
-        billingNotificationRepository.save(notification);
-    }
-
-    private BigDecimal estimateLineAmount(DeliveryOrderItem item) {
-        BigDecimal quantity = value(item.getIssuedQty()).compareTo(ZERO) > 0
-                ? value(item.getIssuedQty())
-                : value(item.getRequestedQty());
-        BigDecimal unitPrice = value(item.getUnitPrice());
-        return quantity.multiply(unitPrice);
     }
 
     private TripDriverViewResponse toTripDriverView(Trip trip) {
