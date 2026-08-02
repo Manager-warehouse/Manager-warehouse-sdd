@@ -1,3 +1,9 @@
+/**
+ * Trang cấu hình tham số hệ thống (Spec 001).
+ * Chức năng: thiết lập hạn mức tín dụng, thời hạn công nợ, ngày khóa sổ,
+ * ngưỡng cảnh báo tồn kho. Chỉ ADMIN mới truy cập được.
+ * Dữ liệu validate phía client trước khi gửi API.
+ */
 import React, { useState, useEffect, useCallback } from 'react';
 import { adminService } from '../../services/admin.service';
 import { useUiStore } from '../../stores/ui.store';
@@ -5,10 +11,11 @@ import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import { Save, Settings, CreditCard, CalendarDays, BarChart3, Loader2 } from 'lucide-react';
 
-
+// Chuẩn hóa giá trị số: thay dấu phẩy thành dấu chấm
 const normalizeNumericValue = (value) => String(value ?? '').replace(',', '.').trim();
 const toNumber = (value) => Number(normalizeNumericValue(value));
 
+// Validate toàn bộ form cấu hình — trả về object lỗi theo từng field
 export const validate = (form) => {
   const errs = {};
 
@@ -46,6 +53,7 @@ export const validate = (form) => {
 };
 
 
+// Component nhóm các trường cấu hình theo chủ đề (icon + tiêu đề)
 const Section = ({ icon: Icon, title, children }) => (
   <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 p-6 md:p-8 flex flex-col gap-6">
     <div className="flex items-center gap-3 pb-4 border-b border-hairline-light">
@@ -60,6 +68,7 @@ const Hint = ({ children }) => (
   <span className="text-[11px] text-shade-50 italic mt-1">{children}</span>
 );
 
+// Giá trị mặc định khi chưa tải được cấu hình từ API
 const DEFAULTS = {
   defaultCreditLimit: 500000000,
   defaultPaymentTermDays: 30,
@@ -76,6 +85,7 @@ const SystemConfig = () => {
   const [form, setForm] = useState(DEFAULTS);
   const [errors, setErrors] = useState({});
 
+  // Tải cấu hình hiện tại từ API, fallback về DEFAULTS nếu field bị null
   const loadConfig = useCallback(async () => {
     setLoading(true);
     try {
@@ -98,6 +108,7 @@ const SystemConfig = () => {
 
   useEffect(() => { loadConfig(); }, [loadConfig]);
 
+  // Xử lý thay đổi giá trị input — chuẩn hóa số và xóa lỗi field tương ứng
   const handleChange = (field) => (e) => {
     const nextValue = typeof e.target.value === 'string'
       ? normalizeNumericValue(e.target.value)
@@ -106,6 +117,7 @@ const SystemConfig = () => {
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: undefined }));
   };
 
+  // Lưu cấu hình — validate trước, convert sang số rồi gọi API
   const handleSave = async (e) => {
     e.preventDefault();
     const errs = validate(form);

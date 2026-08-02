@@ -50,6 +50,12 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 
+/**
+ * Filter xác thực JWT cho mọi request (Spec 001).
+ * Chạy trước UsernamePasswordAuthenticationFilter.
+ * Luồng: lấy token từ header Authorization → parse email → load UserDetails → set SecurityContext.
+ * Chặn user bị khóa (isEnabled = false) dù JWT còn hạn.
+ */
 @Component
 @RequiredArgsConstructor
 public class JwtAuthFilter extends OncePerRequestFilter {

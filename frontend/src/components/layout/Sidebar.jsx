@@ -1,3 +1,9 @@
+/**
+ * Sidebar menu điều hướng (Spec 001 — layout).
+ * Hiển thị danh sách menu theo nhóm nghiệp vụ, lọc theo role (hasRole).
+ * Trên mobile: drawer overlay, tự đóng khi chuyển trang.
+ * Footer sidebar hiển thị vai trò hiện tại của user.
+ */
 import React, { useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
@@ -36,7 +42,7 @@ const Sidebar = () => {
   const isMobile = useMediaQuery("(max-width: 767px)");
   const location = useLocation();
 
-  // Close the drawer after navigating on mobile so the destination page is visible.
+  // Tự đóng sidebar sau khi chuyển trang trên mobile
   useEffect(() => {
     if (isMobile) setSidebarOpen(false);
   }, [location.pathname]);

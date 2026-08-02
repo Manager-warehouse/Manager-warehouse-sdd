@@ -5,6 +5,7 @@ import lombok.*;
 
 import java.time.OffsetDateTime;
 
+/** Entity lưu refresh token JWT — hỗ trợ token rotation khi làm mới phiên đăng nhập (Spec 001). */
 @Entity
 @Table(name = "user_refresh_tokens")
 @Getter

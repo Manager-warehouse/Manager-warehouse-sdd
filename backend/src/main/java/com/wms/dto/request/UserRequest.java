@@ -43,6 +43,7 @@ import lombok.*;
 
 import java.util.List;
 
+/** DTO tạo/cập nhật tài khoản — chứa thông tin nhân viên, role, kho được gán (Spec 001). */
 @Getter
 @Setter
 @NoArgsConstructor

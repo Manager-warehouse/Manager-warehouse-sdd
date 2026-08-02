@@ -1,3 +1,9 @@
+/**
+ * Trang đăng nhập hệ thống (Spec 001).
+ * Nhập email + mật khẩu → gọi authService.login → lưu token vào store → chuyển trang theo role.
+ * Xử lý lỗi: sai mật khẩu, tài khoản bị khóa.
+ * Có link "Quên mật khẩu" dẫn đến ForgotPassword.
+ */
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
@@ -18,6 +24,7 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Xử lý submit form đăng nhập — gọi API, lưu token, chuyển trang theo role
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!email || !password) {

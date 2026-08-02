@@ -1,3 +1,9 @@
+/**
+ * Header điều hướng chính (Spec 001 — layout).
+ * Chức năng: menu hamburger (toggle sidebar), chọn kho làm việc (dropdown),
+ * thông báo kế toán, dropdown profile (xem hồ sơ / đăng xuất).
+ * Kho hiển thị theo phân quyền: ADMIN/CEO thấy tất cả, các role khác chỉ thấy kho được gán.
+ */
 import React, { useState, useEffect, useMemo } from 'react';
 import { Menu, LogOut, User, Warehouse, ChevronDown } from 'lucide-react';
 import { useAuthStore } from '../../stores/auth.store';
@@ -10,8 +16,10 @@ import { useNavigate, useLocation } from 'react-router-dom';
 
 import BillingNotificationMenu from './BillingNotificationMenu';
 
+// Các role được xem toàn bộ danh sách kho
 const ADMIN_WAREHOUSE_ROLES = new Set(['ADMIN', 'CEO']);
 
+// Xây dựng danh sách kho từ thông tin user (assignedWarehouses hoặc warehouse IDs)
 const enrichWarehousesFromUser = (user) => {
   if (!user) return WAREHOUSES;
   const assignedIds = Array.isArray(user.warehouses) ? user.warehouses.map(Number) : [];
@@ -74,14 +82,14 @@ const Header = () => {
     return () => window.removeEventListener('warehouse_list_updated', handleUpdate);
   }, [user?.role, userWarehouseIdsKey, userAssignedWarehousesKey]);
 
-  // Filter only physical active warehouses (exclude virtual IN_TRANSIT warehouse)
+  // Chỉ lấy kho vật lý đang hoạt động (loại bỏ kho ảo IN_TRANSIT)
   const physicalWarehouses = useMemo(() => {
     return warehousesList.filter(
       (w) => w.type !== 'IN_TRANSIT' && w.code !== 'IN_TRANSIT' && w.is_active !== false
     );
   }, [warehousesList]);
 
-  // Determine allowed warehouses for this user
+  // Xác định danh sách kho được phép chọn theo role và warehouse assignment
   const allowedWarehouses = useMemo(() => {
     if (!user) return [];
     if (user.role === 'ADMIN' || user.role === 'CEO') {
@@ -116,12 +124,14 @@ const Header = () => {
   const isSelectorInteractive = allowedWarehouses.length > 1;
 
 
+  // Chuyển kho làm việc hiện tại
   const handleWarehouseChange = (wh) => {
     setActiveWarehouse(wh);
     setWarehouseDropdownOpen(false);
     addToast(`Đã chuyển làm việc sang ${wh.name}`, 'info');
   };
 
+  // Đăng xuất — gọi API logout rồi xóa session local
   const handleLogout = async () => {
     try {
       await authService.logout();

@@ -59,6 +59,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+/**
+ * Triển khai quản lý cấu hình hệ thống (Spec 001).
+ * CRUD tham số hệ thống (bảng system_configs), validate giá trị theo từng key, ghi audit log.
+ * Cung cấp getIntValue/getDecimalValue cho các service khác đọc config an toàn.
+ */
 @Service
 @RequiredArgsConstructor
 public class SystemConfigServiceImpl implements SystemConfigService {
@@ -70,6 +75,7 @@ public class SystemConfigServiceImpl implements SystemConfigService {
 
     @Override
     @Transactional(readOnly = true)
+    /** Lấy tất cả tham số cấu hình hệ thống. */
     public List<SystemConfigResponse> getAllConfigs() {
         return systemConfigRepository.findAll()
                 .stream()
@@ -79,6 +85,10 @@ public class SystemConfigServiceImpl implements SystemConfigService {
 
     @Override
     @Transactional
+    /**
+     * Cập nhật giá trị cấu hình theo key. Validate giá trị theo loại key.
+     * Nếu key chưa tồn tại trong DB → tạo mới. Ghi audit log.
+     */
     public SystemConfigResponse updateConfig(String configKey, SystemConfigUpdateRequest request, Long adminUserId) {
         String newValue = request.getConfigValue();
         SystemConfigKey configEnum;
@@ -126,6 +136,7 @@ public class SystemConfigServiceImpl implements SystemConfigService {
 
     @Override
     @Transactional(readOnly = true)
+    /** Đọc config dạng số nguyên — trả defaultValue nếu key chưa có hoặc format sai. */
     public int getIntValue(String configKey, int defaultValue) {
         return systemConfigRepository.findByConfigKey(configKey)
                 .map(SystemConfig::getConfigValue)
@@ -141,6 +152,7 @@ public class SystemConfigServiceImpl implements SystemConfigService {
 
     @Override
     @Transactional(readOnly = true)
+    /** Đọc config dạng BigDecimal — trả defaultValue nếu key chưa có hoặc format sai. */
     public BigDecimal getDecimalValue(String configKey, BigDecimal defaultValue) {
         return systemConfigRepository.findByConfigKey(configKey)
                 .map(SystemConfig::getConfigValue)
@@ -154,6 +166,7 @@ public class SystemConfigServiceImpl implements SystemConfigService {
                 .orElse(defaultValue);
     }
 
+    /** Tạo mô tả mặc định tiếng Việt cho config key — dùng khi tạo config mới. */
     private String resolveDefaultDescription(String configKey) {
         try {
             SystemConfigKey key = SystemConfigKey.valueOf(configKey);
@@ -170,6 +183,7 @@ public class SystemConfigServiceImpl implements SystemConfigService {
         }
     }
 
+    /** Validate giá trị config theo từng key: kiểm tra kiểu dữ liệu, phạm vi hợp lệ. */
     private void validateConfigValue(SystemConfigKey key, String value) {
         if (value == null || value.trim().isEmpty()) {
             throw new IllegalArgumentException("Value cannot be empty");

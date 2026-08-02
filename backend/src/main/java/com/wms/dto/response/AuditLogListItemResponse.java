@@ -41,6 +41,7 @@ import lombok.Setter;
 
 import java.time.OffsetDateTime;
 
+/** DTO một dòng trong danh sách audit log — tóm tắt (Spec 001). */
 @Getter
 @Setter
 public class AuditLogListItemResponse {

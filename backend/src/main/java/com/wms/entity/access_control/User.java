@@ -40,6 +40,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import java.time.OffsetDateTime;
 
+/** Entity tài khoản người dùng — lưu thông tin đăng nhập, role, trạng thái, OTP quên mật khẩu (Spec 001). */
 @Entity
 @Table(name = "users")
 @Getter

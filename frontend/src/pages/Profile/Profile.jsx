@@ -1,3 +1,9 @@
+/**
+ * Trang hồ sơ cá nhân (Spec 001).
+ * Chức năng: hiển thị thông tin RBAC (role, kho được gán, trạng thái),
+ * cập nhật thông tin cá nhân (tên, email, SĐT),
+ * đổi mật khẩu (validate: 8 ký tự, chữ hoa/thường/số).
+ */
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../../stores/auth.store';
 import { useUiStore } from '../../stores/ui.store';
@@ -9,6 +15,7 @@ import { WAREHOUSES } from '../../utils/constants';
 import { getAvatarFallback, formatDate } from '../../utils/format';
 import { User, KeyRound, Warehouse, ShieldAlert } from 'lucide-react';
 
+// Lấy sessionStorage an toàn (tránh lỗi SSR hoặc private browsing)
 const getAuthStorage = () => {
   try {
     return typeof window !== 'undefined' && window.sessionStorage ? window.sessionStorage : null;
@@ -21,7 +28,7 @@ const Profile = () => {
   const { user, login } = useAuthStore();
   const { addToast } = useUiStore();
 
-  // Profile Form States
+  // State form cập nhật thông tin cá nhân
   const [fullName, setFullName] = useState(user?.fullName || '');
   const [email, setEmail] = useState(user?.email || '');
   const [phone, setPhone] = useState(user?.phone || '');
@@ -55,16 +62,17 @@ const Profile = () => {
     fetchProfile();
   }, []);
 
-  // Password Change States
+  // State form đổi mật khẩu
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passLoading, setPassLoading] = useState(false);
   const [passError, setPassError] = useState('');
 
-  // Find user's warehouse details
+  // Lấy danh sách kho được gán cho user hiện tại
   const userWarehouses = WAREHOUSES.filter((w) => user?.warehouses?.includes(w.id));
 
+  // Cập nhật thông tin cá nhân — gọi API rồi refresh user trong store
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
     if (!fullName) {
@@ -86,6 +94,7 @@ const Profile = () => {
     }
   };
 
+  // Đổi mật khẩu — validate độ mạnh (8 ký tự, hoa/thường/số) rồi gọi API
   const handleChangePassword = async (e) => {
     e.preventDefault();
     setPassError('');

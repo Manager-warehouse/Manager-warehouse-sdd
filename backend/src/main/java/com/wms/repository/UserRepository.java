@@ -43,6 +43,7 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
 
+/** Repository truy vấn bảng users — tìm theo email, mã NV, kiểm tra trùng lặp (Spec 001). */
 @Repository
 public interface UserRepository extends JpaRepository<User, Long> {
 

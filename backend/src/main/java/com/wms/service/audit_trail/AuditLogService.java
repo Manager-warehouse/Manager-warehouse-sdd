@@ -71,6 +71,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Service nhật ký hoạt động hệ thống (Spec 001).
+ * Cung cấp 2 chức năng chính:
+ * 1. Ghi log: các service nghiệp vụ gọi log() khi thực hiện mutation
+ * 2. Đọc log: AuditLogController gọi getAuditLogs/getAuditLogById cho ADMIN xem
+ * Mỗi entry ghi: actor, role, action, entity, warehouse, trạng thái trước/sau, IP client.
+ */
 @Service
 public class AuditLogService {
 
@@ -94,6 +101,7 @@ public class AuditLogService {
         this.httpServletRequestProvider = httpServletRequestProvider;
     }
 
+    /** Ghi audit log — tự động lấy actor từ SecurityContext. Dùng khi không có sẵn User entity. */
     @Transactional
     public void log(AuditAction action,
                     String entityType,
@@ -106,6 +114,7 @@ public class AuditLogService {
                 warehouseId, oldValue, newValue);
     }
 
+    /** Ghi audit log — truyền actor trực tiếp. Dùng bởi các service đã có User entity sẵn. */
     @Transactional
     public void log(User actor,
                     AuditAction action,
@@ -127,6 +136,7 @@ public class AuditLogService {
                 warehouseId, oldValue, newValue);
     }
 
+    /** Truy vấn danh sách audit log có phân trang, lọc theo thời gian và kho. Gọi bởi: AuditLogController */
     @Transactional(readOnly = true)
     public AuditLogPageResponse getAuditLogs(
             Integer page,
@@ -156,6 +166,7 @@ public class AuditLogService {
         return buildPageResponse(result, resolvedPage, resolvedPageSize, !hasFilter);
     }
 
+    /** Xem chi tiết 1 audit log (kèm trạng thái trước/sau). Gọi bởi: AuditLogController */
     @Transactional(readOnly = true)
     public AuditLogDetailResponse getAuditLogById(Long id) {
         AuditLog auditLog = auditLogRepository.findById(id)
@@ -164,6 +175,7 @@ public class AuditLogService {
         return AuditLogDetailResponse.from(auditLog);
     }
 
+    /** Tạo và lưu 1 entry audit log vào DB. Lọc trường nhạy cảm (password, token) trước khi lưu. */
     private void saveAuditLog(User actor,
                               AuditAction action,
                               String entityType,
@@ -195,6 +207,7 @@ public class AuditLogService {
                 action, entityType, entityId, actor.getId());
     }
 
+    /** Tạo JPA Specification cho filter: from/to (timestamp) và warehouseId. */
     private Specification<AuditLog> buildSpecification(
             OffsetDateTime from,
             OffsetDateTime to,
@@ -231,6 +244,7 @@ public class AuditLogService {
                 result.hasPrevious(), requiresFilter);
     }
 
+    /** Lấy User entity của người đang đăng nhập từ SecurityContext — dùng cho ghi audit log tự động. */
     private User resolveCurrentActor() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated()) {
@@ -320,6 +334,7 @@ public class AuditLogService {
         return values;
     }
 
+    /** Lấy IP client từ header X-Forwarded-For hoặc remoteAddr — ghi vào audit log. */
     private String resolveClientIp() {
         try {
             HttpServletRequest request = httpServletRequestProvider.getIfAvailable();

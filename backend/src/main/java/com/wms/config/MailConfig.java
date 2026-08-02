@@ -43,6 +43,7 @@ import org.springframework.mail.javamail.JavaMailSenderImpl;
 
 import java.util.Properties;
 
+/** Cấu hình JavaMailSender — gửi email OTP quên mật khẩu (Spec 001). */
 @Configuration
 public class MailConfig {
 

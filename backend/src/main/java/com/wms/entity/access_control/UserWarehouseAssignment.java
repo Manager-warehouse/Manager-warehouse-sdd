@@ -39,6 +39,7 @@ import lombok.*;
 import jakarta.persistence.*;
 import java.time.OffsetDateTime;
 
+/** Entity phân công kho cho user — mỗi user được gán một hoặc nhiều kho làm việc (Spec 001). */
 @Entity
 @Table(name = "user_warehouse_assignments",
         uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "warehouse_id"}))

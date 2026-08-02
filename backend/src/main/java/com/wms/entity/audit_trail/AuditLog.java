@@ -43,6 +43,7 @@ import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+/** Entity nhật ký hoạt động — ghi lại mọi thao tác nghiệp vụ (ai, khi nào, làm gì, giá trị cũ/mới) (Spec 001). */
 @Entity
 @Table(name = "audit_logs")
 @Getter

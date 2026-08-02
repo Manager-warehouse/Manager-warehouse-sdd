@@ -42,6 +42,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.stereotype.Component;
 
+/** Tiện ích ghi audit log cho đối tác (Dealer/Supplier) — tách riêng vì logic diff phức tạp hơn. */
 @Component
 public class PartnerAuditUtil {
 

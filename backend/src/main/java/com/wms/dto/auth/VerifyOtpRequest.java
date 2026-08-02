@@ -42,6 +42,7 @@ import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 
+/** DTO xác thực OTP và đặt mật khẩu mới (Spec 001). */
 @Getter
 @Setter
 public class VerifyOtpRequest {

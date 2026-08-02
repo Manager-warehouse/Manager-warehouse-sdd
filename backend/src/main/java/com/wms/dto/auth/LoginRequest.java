@@ -40,6 +40,7 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
 import lombok.Setter;
 
+/** DTO đăng nhập — chứa email và mật khẩu (Spec 001). */
 @Getter
 @Setter
 public class LoginRequest {

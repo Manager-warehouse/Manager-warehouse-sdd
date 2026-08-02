@@ -35,6 +35,7 @@ import com.wms.enums.supplier_management.*;
 import com.wms.enums.user_configuration.*;
 import com.wms.enums.warehouse_location.*;
 import com.wms.enums.warehouse_transfer.*;
+/** Enum vai trò người dùng trong hệ thống RBAC (ADMIN, CEO, WAREHOUSE_MANAGER, ...) (Spec 001). */
 public enum UserRole {
     ADMIN,
     CEO,

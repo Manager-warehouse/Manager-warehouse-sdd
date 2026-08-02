@@ -55,6 +55,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
 
+/** Xử lý exception toàn cục — trả về ApiErrorResponse chuẩn cho mọi lỗi REST API (Spec 001). */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 

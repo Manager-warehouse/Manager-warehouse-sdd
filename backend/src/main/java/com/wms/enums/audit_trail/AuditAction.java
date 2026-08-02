@@ -35,6 +35,7 @@ import com.wms.enums.supplier_management.*;
 import com.wms.enums.user_configuration.*;
 import com.wms.enums.warehouse_location.*;
 import com.wms.enums.warehouse_transfer.*;
+/** Enum loại hành động audit (CREATED, UPDATED, DELETED, DEACTIVATED, ...) (Spec 001). */
 public enum AuditAction {
     LOGIN,
     LOGOUT,

@@ -1,6 +1,13 @@
+/**
+ * Service xác thực người dùng (Spec 001).
+ * Cung cấp: đăng nhập, đăng xuất, lấy thông tin user, cập nhật hồ sơ,
+ * đổi mật khẩu, quên mật khẩu (gửi OTP), kiểm tra OTP, xác thực OTP + đặt mật khẩu mới.
+ * Hỗ trợ mock mode (VITE_USE_MOCK=true) để dev frontend độc lập.
+ */
 import apiClient, { useMock } from './api.client';
 import { MOCK_USERS } from '../utils/constants';
 
+// Lấy sessionStorage an toàn — trả null nếu không khả dụng (SSR/test)
 const getAuthStorage = () => {
   try {
     return typeof window !== 'undefined' && window.sessionStorage ? window.sessionStorage : null;
@@ -10,6 +17,7 @@ const getAuthStorage = () => {
 };
 
 export const authService = {
+  /** Đăng nhập — trả về accessToken, refreshToken, user. Throw INVALID_CREDENTIALS / USER_INACTIVE. */
   login: async (email, password) => {
     if (useMock) {
       // Simulate network delay
@@ -39,6 +47,7 @@ export const authService = {
     }
   },
 
+  /** Đăng xuất — gửi refreshToken để backend vô hiệu hóa phiên. */
   logout: async () => {
     if (useMock) {
       await new Promise(resolve => setTimeout(resolve, 300));
@@ -50,6 +59,7 @@ export const authService = {
     }
   },
 
+  /** Lấy thông tin user hiện tại từ JWT (GET /auth/me). */
   getMe: async () => {
     if (useMock) {
       await new Promise(resolve => setTimeout(resolve, 200));
@@ -61,6 +71,7 @@ export const authService = {
     }
   },
 
+  /** Cập nhật hồ sơ cá nhân (tên, email, SĐT). */
   updateProfile: async (fullName, email, phone) => {
     if (useMock) {
       await new Promise(resolve => setTimeout(resolve, 600));
@@ -91,6 +102,7 @@ export const authService = {
     }
   },
 
+  /** Đổi mật khẩu — yêu cầu mật khẩu hiện tại + mới (tối thiểu 8 ký tự, 1 hoa, 1 thường, 1 số). */
   changePassword: async (currentPassword, newPassword) => {
     if (useMock) {
       await new Promise(resolve => setTimeout(resolve, 800));
@@ -105,6 +117,7 @@ export const authService = {
     }
   },
 
+  /** Gửi yêu cầu quên mật khẩu — backend gửi OTP 6 số qua email. */
   forgotPassword: async (email) => {
     if (useMock) {
       await new Promise(resolve => setTimeout(resolve, 800));
@@ -115,6 +128,7 @@ export const authService = {
     }
   },
 
+  /** Xác thực OTP + đặt mật khẩu mới — bước cuối trong luồng quên mật khẩu. */
   verifyOtp: async (email, otp, newPassword) => {
     if (useMock) {
       await new Promise(resolve => setTimeout(resolve, 800));
@@ -126,6 +140,7 @@ export const authService = {
     }
   },
 
+  /** Kiểm tra OTP hợp lệ (chưa đặt mật khẩu mới) — dùng ở bước 2 quên mật khẩu. */
   checkOtp: async (email, otp) => {
     if (useMock) {
       await new Promise(resolve => setTimeout(resolve, 400));
