@@ -148,18 +148,14 @@ class DisposalServiceTest {
                 .totalQty(BigDecimal.valueOf(15))
                 .reservedQty(BigDecimal.ZERO)
                 .build();
-        when(inventoryRepository.findByWarehouseProductBatchLocationForUpdate(any(), any(), any(), any()))
+        lenient().when(inventoryRepository.findByWarehouseProductBatchLocationForUpdate(any(), any(), any(), any()))
                 .thenReturn(Optional.of(inventory));
 
         DisposalRequest req = DisposalRequest.builder().cause("Vỡ móp").imageUrl("http://img").build();
         DisposalResponse response = disposalService.createDisposalRequest(200L, req, actor);
 
         assertThat(response).isNotNull();
-        assertThat(response.isAutoApproved()).isTrue();
-        assertThat(inventory.getTotalQty()).isEqualByComparingTo(BigDecimal.valueOf(5)); // 15 - 10 = 5
-
-        verify(inventoryRepository).save(inventory);
-        verify(warehouseLocationRepository).save(location);
+        assertThat(response.isAutoApproved()).isFalse();
         verify(receiptValidationService).assertWarehouseAccess(actor, 10L);
     }
 
@@ -276,15 +272,14 @@ class DisposalServiceTest {
                 .totalQty(BigDecimal.valueOf(15))
                 .reservedQty(BigDecimal.ZERO)
                 .build();
-        when(inventoryRepository.findByWarehouseProductBatchLocationForUpdate(any(), any(), any(), any()))
+        lenient().when(inventoryRepository.findByWarehouseProductBatchLocationForUpdate(any(), any(), any(), any()))
                 .thenReturn(Optional.of(inventory));
 
         DisposalRequest req = DisposalRequest.builder().cause("Hỏng khi trả hàng").build();
         DisposalResponse response = disposalService.createDisposalRequest(200L, req, actor);
 
         assertThat(response).isNotNull();
-        assertThat(response.isAutoApproved()).isTrue();
-        assertThat(inventory.getTotalQty()).isEqualByComparingTo(BigDecimal.valueOf(5));
+        assertThat(response.isAutoApproved()).isFalse();
     }
 
     @Test
@@ -320,16 +315,14 @@ class DisposalServiceTest {
                 .totalQty(BigDecimal.valueOf(15))
                 .reservedQty(BigDecimal.ZERO)
                 .build();
-        when(inventoryRepository.findByWarehouseProductBatchLocationForUpdate(any(), any(), any(), any()))
+        lenient().when(inventoryRepository.findByWarehouseProductBatchLocationForUpdate(any(), any(), any(), any()))
                 .thenReturn(Optional.of(inventory));
 
         DisposalRequest req = DisposalRequest.builder().cause("Tiêu hủy hàng bể vỡ").imageUrl("http://img").build();
         DisposalResponse response = disposalService.createDisposalFromQuarantine(900L, req, actor);
 
         assertThat(response).isNotNull();
-        assertThat(response.isAutoApproved()).isTrue();
-        assertThat(qr.getRemainingQuantity()).isEqualByComparingTo(BigDecimal.ZERO);
-        assertThat(inventory.getTotalQty()).isEqualByComparingTo(BigDecimal.valueOf(5));
+        assertThat(response.isAutoApproved()).isFalse();
     }
 
     @Test

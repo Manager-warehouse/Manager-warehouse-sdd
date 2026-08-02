@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuthStore } from "../../stores/auth.store";
 import { useUiStore } from "../../stores/ui.store";
@@ -478,6 +478,9 @@ const ReceiptForm = () => {
                         <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right w-36">
                           Giá vốn đã duyệt
                         </th>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right w-36">
+                          Tổng tiền nhập
+                        </th>
                         <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right w-20">
                           Hành động
                         </th>
@@ -514,6 +517,14 @@ const ReceiptForm = () => {
                             </div>
                           </td>
                           <td className="px-6 py-4 text-right">
+                            <div className="text-input text-right font-bold w-32 py-1 bg-canvas-cream text-ink">
+                              {formatVND(
+                                (Number(item.expected_qty) || 0) *
+                                  (Number(item.unit_cost) || 0),
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-right">
                             {!isRevisionMode && (
                               <button
                                 type="button"
@@ -527,6 +538,37 @@ const ReceiptForm = () => {
                         </tr>
                       ))}
                     </tbody>
+                    {selectedItems.length > 0 && (
+                      <tfoot className="border-t-2 border-hairline-light bg-canvas-cream font-bold">
+                        <tr>
+                          <td className="px-6 py-3 text-xs uppercase tracking-wider text-shade-60">
+                            Tổng cộng
+                          </td>
+                          <td className="px-6 py-3 text-right text-xs text-ink font-extrabold">
+                            {selectedItems
+                              .reduce(
+                                (sum, item) =>
+                                  sum + (Number(item.expected_qty) || 0),
+                                0,
+                              )
+                              .toLocaleString("vi-VN")}
+                          </td>
+                          <td className="px-6 py-3"></td>
+                          <td className="px-6 py-3 text-right text-xs text-ink font-extrabold">
+                            {formatVND(
+                              selectedItems.reduce(
+                                (sum, item) =>
+                                  sum +
+                                  (Number(item.expected_qty) || 0) *
+                                    (Number(item.unit_cost) || 0),
+                                0,
+                              ),
+                            )}
+                          </td>
+                          <td className="px-6 py-3"></td>
+                        </tr>
+                      </tfoot>
+                    )}
                   </table>
                 </div>
 
@@ -555,7 +597,7 @@ const ReceiptForm = () => {
                           </button>
                         )}
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-3 gap-2">
                         <div className="flex flex-col gap-1">
                           <label className="text-[10px] font-semibold uppercase tracking-wider text-shade-50">
                             Số lượng dự kiến
@@ -578,6 +620,17 @@ const ReceiptForm = () => {
                           </label>
                           <div className="text-input text-right font-bold py-1.5 bg-canvas-cream text-shade-60">
                             {formatVND(item.unit_cost)}
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[10px] font-semibold uppercase tracking-wider text-shade-50">
+                            Tổng tiền nhập
+                          </label>
+                          <div className="text-input text-right font-bold py-1.5 bg-canvas-cream text-ink">
+                            {formatVND(
+                              (Number(item.expected_qty) || 0) *
+                                (Number(item.unit_cost) || 0),
+                            )}
                           </div>
                         </div>
                       </div>

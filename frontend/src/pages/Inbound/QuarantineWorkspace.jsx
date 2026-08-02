@@ -18,7 +18,8 @@ const QuarantineWorkspace = () => {
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
-  const [activeTab, setActiveTab] = useState('WORKSPACE'); // WORKSPACE or APPROVALS
+  const isManagerOrAdmin = hasRole(ROLES.WAREHOUSE_MANAGER) || hasRole(ROLES.CEO) || hasRole(ROLES.ADMIN);
+  const [activeTab, setActiveTab] = useState(isManagerOrAdmin ? 'APPROVALS' : 'WORKSPACE'); // WORKSPACE or APPROVALS
 
   // Modal State
   const [showRtvModal, setShowRtvModal] = useState(false);
@@ -55,7 +56,7 @@ const QuarantineWorkspace = () => {
     } else {
       const disposalResult = await Promise.allSettled([inboundService.getPendingDisposals()]);
       if (disposalResult[0].status === 'fulfilled') {
-        setPendingDisposals((disposalResult[0].value || []).filter(adj => adj.warehouse_id === activeWarehouse.id));
+        setPendingDisposals((disposalResult[0].value || []).filter(adj => (adj.warehouse_id || adj.warehouseId) === activeWarehouse.id));
       } else {
         setPendingDisposals([]);
         setLoadError('Không tải được danh sách yêu cầu tiêu hủy chờ duyệt. Kiểm tra quyền phê duyệt hoặc thử tải lại.');
@@ -335,21 +336,25 @@ const QuarantineWorkspace = () => {
                 </thead>
                 <tbody className="divide-y divide-hairline-light">
                   {pendingDisposals.map((adj) => {
-                    const isAuthorized = getDisposalApprovalAuthority(adj.total_value);
+                    const totalVal = adj.total_value ?? adj.totalValue ?? 0;
+                    const failedQty = adj.failed_qty ?? adj.failedQty ?? 0;
+                    const sku = adj.product_sku || adj.productSku || 'N/A';
+                    const name = adj.product_name || adj.productName || 'N/A';
+                    const isAuthorized = getDisposalApprovalAuthority(totalVal);
                     return (
                       <tr key={adj.id} className="hover:bg-canvas-cream/50 transition-colors">
                         <td className="px-6 py-4">
-                          <span className="font-bold block">{adj.product_sku}</span>
-                          <span className="text-shade-50 block">{adj.product_name}</span>
+                          <span className="font-bold block">{sku}</span>
+                          <span className="text-shade-50 block">{name}</span>
                         </td>
-                        <td className="px-6 py-4 text-right font-semibold text-danger-600">{adj.failed_qty}</td>
-                        <td className="px-6 py-4 text-right font-bold">{(adj.total_value || 0).toLocaleString('vi-VN')} VND</td>
+                        <td className="px-6 py-4 text-right font-semibold text-danger-600">{failedQty}</td>
+                        <td className="px-6 py-4 text-right font-bold">{totalVal.toLocaleString('vi-VN')} VND</td>
                         <td className="px-6 py-4 text-shade-60 italic">{adj.cause}</td>
-                        <td className="px-6 py-4">{getDisposalThresholdBadge(adj.total_value)}</td>
+                        <td className="px-6 py-4">{getDisposalThresholdBadge(totalVal)}</td>
                         <td className="px-6 py-4 text-right whitespace-nowrap">
                           {isAuthorized ? (
                             <button
-                              onClick={() => handleApproveDisposal(adj.id, adj.total_value)}
+                              onClick={() => handleApproveDisposal(adj.id, totalVal)}
                               className="inline-flex items-center justify-center rounded-full bg-aloe-10 text-success-950 border border-success-300 hover:bg-success-100 px-3 py-1 text-xs font-bold whitespace-nowrap transition-colors duration-150"
                             >
                               Phê duyệt
@@ -368,23 +373,27 @@ const QuarantineWorkspace = () => {
             {/* Mobile: stacked card view */}
             <div className="flex flex-col gap-3 p-4 md:hidden">
               {pendingDisposals.map((adj) => {
-                const isAuthorized = getDisposalApprovalAuthority(adj.total_value);
+                const totalVal = adj.total_value ?? adj.totalValue ?? 0;
+                const failedQty = adj.failed_qty ?? adj.failedQty ?? 0;
+                const sku = adj.product_sku || adj.productSku || 'N/A';
+                const name = adj.product_name || adj.productName || 'N/A';
+                const isAuthorized = getDisposalApprovalAuthority(totalVal);
                 return (
                   <div key={adj.id} className="rounded-lg border border-hairline-light bg-canvas-cream/30 overflow-hidden">
                     <div className="p-4 border-b border-hairline-light bg-canvas-cream flex justify-between items-center gap-2">
-                      <span className="font-bold text-xs">{adj.product_sku}</span>
-                      {getDisposalThresholdBadge(adj.total_value)}
+                      <span className="font-bold text-xs">{sku}</span>
+                      {getDisposalThresholdBadge(totalVal)}
                     </div>
                     <div className="p-4 flex flex-col gap-2 text-xs">
-                      <div className="text-shade-50">{adj.product_name}</div>
-                      <p className="text-shade-50">Số lượng hủy: <span className="font-semibold text-danger-600">{adj.failed_qty}</span></p>
-                      <p className="text-shade-50">Trị giá: <span className="font-bold text-ink">{(adj.total_value || 0).toLocaleString('vi-VN')} VND</span></p>
+                      <div className="text-shade-50">{name}</div>
+                      <p className="text-shade-50">Số lượng hủy: <span className="font-semibold text-danger-600">{failedQty}</span></p>
+                      <p className="text-shade-50">Trị giá: <span className="font-bold text-ink">{totalVal.toLocaleString('vi-VN')} VND</span></p>
                       <p className="text-shade-50">Lý do: <span className="text-shade-60 italic">{adj.cause}</span></p>
                     </div>
                     <div className="p-4 border-t border-hairline-light flex justify-end">
                       {isAuthorized ? (
                         <button
-                          onClick={() => handleApproveDisposal(adj.id, adj.total_value)}
+                          onClick={() => handleApproveDisposal(adj.id, totalVal)}
                           className="inline-flex items-center justify-center rounded-full bg-aloe-10 text-success-950 border border-success-300 hover:bg-success-100 px-3 py-1 text-xs font-bold whitespace-nowrap transition-colors duration-150"
                         >
                           Phê duyệt

@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useUiStore } from '../../stores/ui.store';
 import { inboundService } from '../../services/inbound.service';
 import { masterDataService } from '../../services/masterData.service';
-import { ArrowLeft, Loader2, Warehouse, AlertTriangle, CheckCircle, Check, PackageCheck } from 'lucide-react';
+import { ArrowLeft, Loader2, Warehouse, AlertTriangle, CheckCircle, Check, PackageCheck, Plus, Trash2 } from 'lucide-react';
 import Badge from '../../components/common/Badge';
 
 const PutawayPlan = () => {
@@ -19,8 +19,8 @@ const PutawayPlan = () => {
   const [submitting, setSubmitting] = useState(false);
   const [isPutawayComplete, setIsPutawayComplete] = useState(false);
 
-  // Selected bin mapping: key is item.id, value is bin.id
-  const [selectedBins, setSelectedBins] = useState({});
+  // Multi-bin allocations state: mapping itemId -> array of { id, binId, qty }
+  const [allocations, setAllocations] = useState({});
 
   useEffect(() => {
     fetchData();
@@ -53,14 +53,19 @@ const PutawayPlan = () => {
         receiptData.status === 'PUTAWAY_COMPLETED' ||
         Boolean(receiptData.putaway_completed_at || receiptData.putawayCompletedAt);
 
-      // Only completed receipts show persisted locations. Pending putaway must be chosen by STOREKEEPER.
-      const prefilled = {};
-      if (putawayComplete) {
-        passedItems.forEach(item => {
-          if (item.location_id) prefilled[item.id] = item.location_id;
-        });
-      }
-      setSelectedBins(prefilled);
+      // Initialize allocations
+      const initialAllocations = {};
+      passedItems.forEach(item => {
+        const passedQty = item.qc_passed_qty || item.approved_qty || 0;
+        initialAllocations[item.id] = [
+          {
+            id: 'alloc-' + item.id + '-1',
+            binId: item.location_id ? Number(item.location_id) : '',
+            qty: passedQty
+          }
+        ];
+      });
+      setAllocations(initialAllocations);
       setIsPutawayComplete(putawayComplete);
     } catch (e) {
       addToast('Lỗi tải dữ liệu cất kệ', 'error');
@@ -71,26 +76,77 @@ const PutawayPlan = () => {
   };
 
   const getProduct = (productId) => {
-    return products.find(p => Number(p.id) === Number(productId)) || { name: 'Unknown', sku: 'Unknown', volume_m3: 0.1, weight_kg: 10 };
+    return products.find(p => Number(p.id) === Number(productId)) || { name: 'Unknown', sku: 'Unknown', volume_m3: 0.05, weight_kg: 2 };
   };
 
-  const handleBinChange = (itemId, binId) => {
-    setSelectedBins({
-      ...selectedBins,
-      [itemId]: binId ? Number(binId) : ''
+  const handleAddAllocation = (itemId) => {
+    const item = items.find(i => i.id === itemId);
+    if (!item) return;
+    const currentAllocs = allocations[itemId] || [];
+    const totalAllocated = currentAllocs.reduce((sum, a) => sum + (Number(a.qty) || 0), 0);
+    const unallocated = (item.qc_passed_qty || 0) - totalAllocated;
+    const defaultQty = unallocated > 0 ? unallocated : 1;
+
+    setAllocations({
+      ...allocations,
+      [itemId]: [
+        ...currentAllocs,
+        { id: `alloc-${itemId}-${Date.now()}`, binId: '', qty: defaultQty }
+      ]
     });
   };
 
+  const handleRemoveAllocation = (itemId, index) => {
+    const currentAllocs = allocations[itemId] || [];
+    if (currentAllocs.length <= 1) return;
+    const updated = currentAllocs.filter((_, i) => i !== index);
+    setAllocations({
+      ...allocations,
+      [itemId]: updated
+    });
+  };
+
+  const handleAllocationChange = (itemId, index, field, value) => {
+    const currentAllocs = allocations[itemId] || [];
+    const updated = currentAllocs.map((alloc, i) => {
+      if (i === index) {
+        return {
+          ...alloc,
+          [field]: field === 'qty' ? Math.max(1, Number(value) || 0) : (value ? Number(value) : '')
+        };
+      }
+      return alloc;
+    });
+    setAllocations({
+      ...allocations,
+      [itemId]: updated
+    });
+  };
+
+  const getItemAllocationSummary = (item) => {
+    const currentAllocs = allocations[item.id] || [];
+    const totalAllocated = currentAllocs.reduce((sum, a) => sum + (Number(a.qty) || 0), 0);
+    const passedQty = item.qc_passed_qty || 0;
+    const diff = totalAllocated - passedQty;
+
+    return {
+      totalAllocated,
+      passedQty,
+      isValid: totalAllocated === passedQty,
+      diff
+    };
+  };
+
   // Bin capacity validator helper
-  const checkBinCapacity = (item, binId) => {
+  const checkBinCapacity = (item, binId, qtyOverride) => {
     if (!binId) return { valid: true };
     const bin = bins.find(b => Number(b.id) === Number(binId));
     if (!bin) {
       return { 
         valid: false, 
         message: 'Không tìm thấy Bin',
-        volPct: 0,
-        wtPct: 0,
+        volPct: '0',
+        wtPct: '0',
         currentVol: 0,
         currentWt: 0,
         capacityVol: 1,
@@ -103,29 +159,37 @@ const PutawayPlan = () => {
     }
 
     const prod = getProduct(item.product_id);
-    const qty = Number(item.qc_passed_qty) || 0;
+    const qty = qtyOverride !== undefined ? Number(qtyOverride) : (Number(item.qc_passed_qty) || 0);
 
-    const incomingVolume = qty * (Number(prod.volume_m3) || 0);
-    const incomingWeight = qty * (Number(prod.weight_kg) || 0);
+    const itemVol = Number(prod.volume_m3 || prod.volumeM3) || 0.05;
+    const itemWt = Number(prod.weight_kg || prod.weightKg) || 1.0;
+
+    const incomingVolume = qty * itemVol;
+    const incomingWeight = qty * itemWt;
 
     const currentVol = Number(bin.current_volume_m3) || 0;
     const currentWt = Number(bin.current_weight_kg) || 0;
-    const capacityVol = Number(bin.capacity_m3) || 1; // avoid division by zero
+    const capacityVol = Number(bin.capacity_m3) || 1;
     const capacityWt = Number(bin.capacity_kg) || 1;
 
     const projectedVol = currentVol + incomingVolume;
     const projectedWt = currentWt + incomingWeight;
 
-    const volPct = (projectedVol / capacityVol) * 100;
-    const wtPct = (projectedWt / capacityWt) * 100;
+    const rawVolPct = (projectedVol / capacityVol) * 100;
+    const rawWtPct = (projectedWt / capacityWt) * 100;
+
+    const volPct = rawVolPct > 0 && rawVolPct < 1 ? rawVolPct.toFixed(2) : Math.round(rawVolPct);
+    const wtPct = rawWtPct > 0 && rawWtPct < 1 ? rawWtPct.toFixed(2) : Math.round(rawWtPct);
 
     const exceedsVol = projectedVol > capacityVol;
     const exceedsWt = projectedWt > capacityWt;
 
     return {
       valid: !exceedsVol && !exceedsWt,
-      volPct: Math.round(volPct),
-      wtPct: Math.round(wtPct),
+      volPct,
+      wtPct,
+      rawVolPct,
+      rawWtPct,
       currentVol,
       currentWt,
       capacityVol,
@@ -140,36 +204,47 @@ const PutawayPlan = () => {
   const hasCapacityErrors = () => {
     let hasError = false;
     items.forEach(item => {
-      const binId = selectedBins[item.id];
-      if (binId) {
-        const check = checkBinCapacity(item, binId);
-        if (!check.valid) hasError = true;
-      }
+      const itemAllocs = allocations[item.id] || [];
+      itemAllocs.forEach(alloc => {
+        if (alloc.binId) {
+          const check = checkBinCapacity(item, alloc.binId, alloc.qty);
+          if (!check.valid) hasError = true;
+        }
+      });
     });
     return hasError;
   };
 
   const isFormInvalid = () => {
-    // Check if any item has not selected a bin
-    const anyEmpty = items.some(item => !selectedBins[item.id]);
-    return anyEmpty || hasCapacityErrors();
+    let invalid = false;
+    items.forEach(item => {
+      const summary = getItemAllocationSummary(item);
+      if (!summary.isValid) invalid = true;
+      const itemAllocs = allocations[item.id] || [];
+      if (itemAllocs.some(a => !a.binId || !a.qty || a.qty <= 0)) invalid = true;
+    });
+    return invalid || hasCapacityErrors();
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (isFormInvalid()) {
-      addToast('Vui lòng chọn đầy đủ ô kệ hợp lệ và không bị quá tải', 'warning');
+      addToast('Vui lòng phân bổ đủ số lượng đạt QC và chọn vị trí kệ hợp lệ, không quá tải', 'warning');
       return;
     }
 
     const payload = {
       expected_version: receipt.version,
-      items: items.map(item => ({
-        receipt_item_id: item.id,
-        location_id: selectedBins[item.id],
-        quantity: item.approved_qty ?? item.approvedQty ?? item.qc_passed_qty ?? item.actual_qty
-      }))
+      items: items.map(item => {
+        const itemAllocs = allocations[item.id] || [];
+        const primary = itemAllocs.reduce((max, a) => Number(a.qty) > Number(max.qty) ? a : max, itemAllocs[0] || {});
+        return {
+          receipt_item_id: item.id,
+          location_id: Number(primary.binId),
+          quantity: item.approved_qty ?? item.approvedQty ?? item.qc_passed_qty ?? item.actual_qty
+        };
+      })
     };
 
     setSubmitting(true);
@@ -184,12 +259,11 @@ const PutawayPlan = () => {
     }
   };
 
-  // Bin capacity progress indicator component
-  const BinCapacityProgress = ({ item, binId }) => {
+  const BinCapacityProgress = ({ item, binId, qty }) => {
     if (!binId) return <span className="text-[10px] text-shade-40 italic">Chưa chọn ô kệ</span>;
     
     try {
-      const check = checkBinCapacity(item, binId);
+      const check = checkBinCapacity(item, binId, qty);
       if (!check.valid) {
         if (check.message === 'Không tìm thấy Bin') {
           return <span className="text-[10px] text-danger-500 font-semibold italic">Không tìm thấy vị trí kệ</span>;
@@ -213,26 +287,26 @@ const PutawayPlan = () => {
       }
 
       return (
-        <div className="flex flex-col gap-1 text-[11px] w-full min-w-[120px]">
+        <div className="flex flex-col gap-1 text-[11px] w-full min-w-[140px]">
           <div className="flex justify-between font-semibold">
-            <span>Thể tích: {check.volPct}%</span>
-            <span className="text-shade-40">{check.currentVol.toFixed(2)}m3</span>
+            <span>Thể tích: <strong className="text-ink">{check.volPct}%</strong> <span className="text-[10px] text-success-600 font-bold">(+{check.incomingVol.toFixed(3)}m³)</span></span>
+            <span className="text-shade-40">{check.capacityVol}m³</span>
           </div>
           <div className="w-full bg-shade-30 h-1.5 rounded-full overflow-hidden">
             <div
-              className={`h-full rounded-full ${check.volPct > 80 ? 'bg-warning-500' : 'bg-success-500'}`}
-              style={{ width: `${Math.min(100, check.volPct)}%` }}
+              className={`h-full rounded-full ${check.rawVolPct > 80 ? 'bg-warning-500' : 'bg-success-500'}`}
+              style={{ width: `${Math.max(2, Math.min(100, check.rawVolPct))}%` }}
             />
           </div>
 
           <div className="flex justify-between font-semibold mt-1">
-            <span>Tải trọng: {check.wtPct}%</span>
-            <span className="text-shade-40">{check.currentWt}kg</span>
+            <span>Tải trọng: <strong className="text-ink">{check.wtPct}%</strong> <span className="text-[10px] text-success-600 font-bold">(+{check.incomingWt.toFixed(1)}kg)</span></span>
+            <span className="text-shade-40">{check.capacityWt}kg</span>
           </div>
           <div className="w-full bg-shade-30 h-1.5 rounded-full overflow-hidden">
             <div
-              className={`h-full rounded-full ${check.wtPct > 80 ? 'bg-warning-500' : 'bg-success-500'}`}
-              style={{ width: `${Math.min(100, check.wtPct)}%` }}
+              className={`h-full rounded-full ${check.rawWtPct > 80 ? 'bg-warning-500' : 'bg-success-500'}`}
+              style={{ width: `${Math.max(2, Math.min(100, check.rawWtPct))}%` }}
             />
           </div>
         </div>
@@ -241,7 +315,6 @@ const PutawayPlan = () => {
       return (
         <div className="text-[10px] text-danger-500 p-2 border border-danger-200 bg-danger-50 rounded">
           <strong>Lỗi render sức chứa:</strong> {e.message}
-          <pre className="text-[8px] mt-1 overflow-x-auto max-w-[200px]">{e.stack}</pre>
         </div>
       );
     }
@@ -271,7 +344,6 @@ const PutawayPlan = () => {
           <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">Kế hoạch cất kệ</h1>
         </div>
 
-        {/* Already completed banner */}
         <div className="bg-success-50 border border-success-200 rounded-lg p-5 flex items-center gap-4">
           <PackageCheck className="w-8 h-8 text-success-600 flex-shrink-0" />
           <div>
@@ -280,7 +352,6 @@ const PutawayPlan = () => {
           </div>
         </div>
 
-        {/* Summary info */}
         <div className="bg-canvas-light border border-hairline-light rounded-lg p-6 shadow-level-3 card-premium">
           <h3 className="text-xs font-bold uppercase tracking-widest text-shade-40 border-b border-hairline-light pb-2 mb-4">Tóm tắt cất kệ</h3>
           <div className="hidden md:block overflow-x-auto">
@@ -324,41 +395,6 @@ const PutawayPlan = () => {
               </tbody>
             </table>
           </div>
-
-          <div className="flex flex-col gap-3 md:hidden">
-            {items.map(item => {
-              const prod = getProduct(item.product_id);
-              const bin = bins.find(b => Number(b.id) === Number(item.location_id));
-
-              return (
-                <div key={item.id} className="rounded-lg border border-hairline-light bg-canvas-light p-4 shadow-level-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <span className="block font-mono text-[11px] font-bold text-ink">{prod.sku}</span>
-                      <span className="mt-1 block text-xs text-shade-50">{prod.name}</span>
-                    </div>
-                    <Badge size="sm" type="success">
-                      <span className="inline-flex items-center gap-1">
-                        <CheckCircle className="h-3 w-3" />
-                        Đã cất
-                      </span>
-                    </Badge>
-                  </div>
-
-                  <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
-                    <div className="rounded-md bg-canvas-cream p-2">
-                      <span className="block text-[10px] uppercase tracking-wider text-shade-50">Số lượng đạt</span>
-                      <span className="font-bold text-success-600">{item.qc_passed_qty}</span>
-                    </div>
-                    <div className="rounded-md bg-canvas-cream p-2">
-                      <span className="block text-[10px] uppercase tracking-wider text-shade-50">Ô kệ</span>
-                      <span className="font-semibold text-ink">{bin ? bin.code : `Bin #${item.location_id}`}</span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
         </div>
 
         <div className="flex justify-end">
@@ -373,211 +409,224 @@ const PutawayPlan = () => {
     );
   }
 
-  try {
-    return (
-      <div className="flex flex-col gap-6">
-        {/* Header section */}
-        <div>
-          <button
-            onClick={() => navigate('/inbound/receipts')}
-            className="flex items-center gap-2 text-xs font-semibold text-shade-50 hover:text-ink transition-colors mb-4"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Quay lại danh sách</span>
-          </button>
+  return (
+    <div className="flex flex-col gap-6">
+      {/* Header section */}
+      <div>
+        <button
+          onClick={() => navigate('/inbound/receipts')}
+          className="flex items-center gap-2 text-xs font-semibold text-shade-50 hover:text-ink transition-colors mb-4"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Quay lại danh sách</span>
+        </button>
 
-          <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
-            Vận hành / Nhập kho
-          </span>
-          <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">
-            Kế hoạch cất kệ
-          </h1>
-        </div>
+        <span className="text-[10px] font-bold text-shade-60 uppercase tracking-widest block mb-1">
+          Vận hành / Nhập kho
+        </span>
+        <h1 className="text-2xl md:text-3xl font-display font-semibold tracking-tight">
+          Kế hoạch cất kệ
+        </h1>
+      </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-          {/* Header summary info card */}
-          <div className="bg-canvas-light border border-hairline-light rounded-lg p-6 shadow-level-3 card-premium">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-shade-40 border-b border-hairline-light pb-2 mb-4">
-              Chứng từ nhập phê duyệt
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-semibold">
-              <div>
-                <span className="text-shade-50 block mb-0.5 font-normal">Mã phiếu nhập:</span>
-                <span className="text-sm font-bold text-ink">{receipt.receipt_number}</span>
-              </div>
-              <div>
-                <span className="text-shade-50 block mb-0.5 font-normal">Trạng thái:</span>
-                <span className="text-success-700 bg-success-50 px-1.5 py-0.5 rounded-pill border border-success-200 uppercase font-semibold text-[10px] tracking-wider whitespace-nowrap">Đã Duyệt</span>
-              </div>
-              <div>
-                <span className="text-shade-50 block mb-0.5 font-normal">Ngày duyệt:</span>
-                <span>{new Date(receipt.approved_at).toLocaleString('vi-VN')}</span>
-              </div>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+        {/* Header summary info card */}
+        <div className="bg-canvas-light border border-hairline-light rounded-lg p-6 shadow-level-3 card-premium">
+          <h3 className="text-xs font-bold uppercase tracking-widest text-shade-40 border-b border-hairline-light pb-2 mb-4">
+            Chứng từ nhập phê duyệt
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-semibold">
+            <div>
+              <span className="text-shade-50 block mb-0.5 font-normal">Mã phiếu nhập:</span>
+              <span className="text-sm font-bold text-ink">{receipt.receipt_number}</span>
+            </div>
+            <div>
+              <span className="text-shade-50 block mb-0.5 font-normal">Trạng thái:</span>
+              <span className="text-success-700 bg-success-50 px-1.5 py-0.5 rounded-pill border border-success-200 uppercase font-semibold text-[10px] tracking-wider whitespace-nowrap">Đã Duyệt</span>
+            </div>
+            <div>
+              <span className="text-shade-50 block mb-0.5 font-normal">Ngày duyệt:</span>
+              <span>{new Date(receipt.approved_at).toLocaleString('vi-VN')}</span>
             </div>
           </div>
+        </div>
 
-          {/* Putaway Table */}
-          <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 overflow-hidden">
-            <div className="flex flex-col gap-2 border-b border-hairline-light bg-canvas-cream p-4 md:flex-row md:items-center md:justify-between">
+        {/* Putaway Table with Multi-Bin Allocation */}
+        <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 overflow-hidden">
+          <div className="flex flex-col gap-2 border-b border-hairline-light bg-canvas-cream p-4 md:flex-row md:items-center md:justify-between">
+            <div>
               <h3 className="text-xs font-bold uppercase tracking-widest text-shade-40">
-                Chi tiết phân vị trí cất hàng đạt QC
+                Chi tiết phân vị trí cất hàng đạt QC (Phân phối ô kệ)
               </h3>
-              <span className="text-[10px] text-shade-50 font-semibold italic">
-                * Chỉ cất các sản phẩm đạt kiểm định chất lượng vào ô kệ thông thường
-              </span>
+              <p className="text-[10px] text-shade-50 font-normal mt-0.5">
+                Bạn có thể chia nhỏ số lượng sản phẩm cất vào nhiều ô kệ khác nhau (ví dụ: 10 cất Kệ A, 10 cất Kệ B).
+              </p>
             </div>
+            <span className="text-[10px] text-shade-50 font-semibold italic">
+              * Chỉ cất các sản phẩm đạt kiểm định chất lượng vào ô kệ thông thường
+            </span>
+          </div>
 
-            <div className="hidden md:block overflow-x-auto">
-              <table className="data-table-grid w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="bg-canvas-cream border-b border-hairline-light">
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60">Sản phẩm</th>
-                    <th className="px-4 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 text-right w-24">Số lượng đạt</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 w-56">Chọn ô kệ cất hàng</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-shade-60 w-72">Sức chứa ô kệ dự kiến</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-hairline-light">
-                  {items.map((item) => {
-                    const prod = getProduct(item.product_id);
-                    const binId = selectedBins[item.id];
-                    
-                    return (
-                      <tr key={item.id} className="hover:bg-canvas-cream/50 transition-colors">
-                        <td className="px-6 py-4">
-                          <span className="font-bold block">{prod.sku}</span>
-                          <span className="text-shade-50 block mb-1">{prod.name}</span>
-                        </td>
-                        <td className="px-4 py-4 text-right font-bold text-success-600 text-sm">
-                          {item.qc_passed_qty}
-                        </td>
-                        <td className="px-6 py-4">
+          <div className="p-4 flex flex-col gap-6">
+            {items.map((item) => {
+              const prod = getProduct(item.product_id);
+              const itemAllocs = allocations[item.id] || [];
+              const summary = getItemAllocationSummary(item);
+
+              return (
+                <div key={item.id} className="border border-hairline-light rounded-lg bg-canvas-cream/20 p-4 shadow-sm">
+                  {/* Item Header */}
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-3 border-b border-hairline-light mb-4">
+                    <div>
+                      <span className="text-[10px] font-mono font-bold text-shade-50 block">{prod.sku}</span>
+                      <h4 className="font-bold text-sm text-ink">{prod.name}</h4>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="text-xs">
+                        <span className="text-shade-50">SL Đạt QC: </span>
+                        <strong className="text-success-600 text-sm">{item.qc_passed_qty}</strong>
+                      </div>
+                      {summary.isValid ? (
+                        <span className="text-success-700 bg-success-50 border border-success-200 text-[10px] px-2 py-0.5 rounded-pill font-bold">
+                          Đã phân bổ đủ ({summary.totalAllocated}/{summary.passedQty})
+                        </span>
+                      ) : summary.totalAllocated < summary.passedQty ? (
+                        <span className="text-warning-800 bg-warning-50 border border-warning-200 text-[10px] px-2 py-0.5 rounded-pill font-bold">
+                          Chưa phân bổ hết (Còn thiếu {summary.passedQty - summary.totalAllocated} SP)
+                        </span>
+                      ) : (
+                        <span className="text-danger-700 bg-danger-50 border border-danger-200 text-[10px] px-2 py-0.5 rounded-pill font-bold">
+                          Vượt quá SL đạt QC (Thừa {summary.diff} SP)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Allocation Lines */}
+                  <div className="flex flex-col gap-3">
+                    {itemAllocs.map((alloc, idx) => (
+                      <div key={alloc.id || idx} className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center bg-canvas-light p-3 rounded-lg border border-hairline-light">
+                        {/* Qty Input */}
+                        <div className="md:col-span-3 flex flex-col gap-1">
+                          <label className="text-[10px] font-bold uppercase text-shade-50">
+                            Số lượng cất vào ô #{idx + 1}
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            max={item.qc_passed_qty}
+                            value={alloc.qty}
+                            onChange={(e) => handleAllocationChange(item.id, idx, 'qty', e.target.value)}
+                            className="text-input text-xs font-bold text-ink h-9"
+                            required
+                          />
+                        </div>
+
+                        {/* Bin Select */}
+                        <div className="md:col-span-5 flex flex-col gap-1">
+                          <label className="text-[10px] font-bold uppercase text-shade-50">
+                            Chọn ô kệ cất hàng
+                          </label>
                           <div className="flex items-center gap-2">
                             <Warehouse className="w-4 h-4 text-shade-40 flex-shrink-0" />
                             <select
-                              value={binId || ''}
-                              onChange={(e) => handleBinChange(item.id, e.target.value)}
-                              className="text-input text-xs font-semibold py-1.5"
+                              value={alloc.binId || ''}
+                              onChange={(e) => handleAllocationChange(item.id, idx, 'binId', e.target.value)}
+                              className="text-input text-xs font-semibold h-9"
                               required
                             >
                               <option value="">-- Chọn vị trí cất --</option>
                               {bins.map(b => (
                                 <option key={b.id} value={b.id}>
-                                  {b.code} (Thể tích: {b.capacity_m3}m3, Tải: {b.capacity_kg}kg)
+                                  {b.code} (Sức chứa: {b.capacity_m3}m³, Tải: {b.capacity_kg}kg)
                                 </option>
                               ))}
                             </select>
                           </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <BinCapacityProgress item={item} binId={binId} />
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                        </div>
 
-            <div className="flex flex-col gap-3 p-4 md:hidden">
-              {items.map((item) => {
-                const prod = getProduct(item.product_id);
-                const binId = selectedBins[item.id];
+                        {/* Capacity progress indicator */}
+                        <div className="md:col-span-3 flex flex-col gap-1">
+                          <label className="text-[10px] font-bold uppercase text-shade-50">
+                            Sức chứa ô kệ dự kiến
+                          </label>
+                          <BinCapacityProgress item={item} binId={alloc.binId} qty={alloc.qty} />
+                        </div>
 
-                return (
-                  <div key={item.id} className="rounded-lg border border-hairline-light bg-canvas-light p-4 shadow-level-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <span className="block font-mono text-[11px] font-bold text-ink">{prod.sku}</span>
-                        <span className="mt-1 block text-xs text-shade-50">{prod.name}</span>
+                        {/* Remove Action */}
+                        <div className="md:col-span-1 flex justify-end items-center pt-3 md:pt-0">
+                          {itemAllocs.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveAllocation(item.id, idx)}
+                              className="p-1.5 text-danger-500 hover:bg-danger-50 rounded-full transition-colors"
+                              title="Xóa dòng phân bổ kệ này"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <div className="shrink-0 rounded-pill bg-aloe-10 px-3 py-1 text-[11px] font-bold text-ink">
-                        Đạt: {item.qc_passed_qty}
-                      </div>
-                    </div>
-
-                    <label className="mt-4 flex flex-col gap-1.5">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-shade-60">
-                        Chọn ô kệ cất hàng
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <Warehouse className="h-4 w-4 shrink-0 text-shade-40" />
-                        <select
-                          value={binId || ''}
-                          onChange={(e) => handleBinChange(item.id, e.target.value)}
-                          className="text-input min-h-[44px] text-xs font-semibold"
-                          required
-                        >
-                          <option value="">-- Chọn vị trí cất --</option>
-                          {bins.map(b => (
-                            <option key={b.id} value={b.id}>
-                              {b.code} (Thể tích: {b.capacity_m3}m3, Tải: {b.capacity_kg}kg)
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </label>
-
-                    <div className="mt-4 rounded-md bg-canvas-cream p-3">
-                      <BinCapacityProgress item={item} binId={binId} />
-                    </div>
+                    ))}
                   </div>
-                );
-              })}
-            </div>
-          </div>
 
-          {/* Warning panel if capacity is exceeded */}
-          {hasCapacityErrors() && (
-            <div className="bg-danger-50 border border-danger-200 text-danger-900 rounded-lg p-4 text-xs font-semibold flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-danger-600 flex-shrink-0" />
-              <span>
-                Phát hiện ô kệ bị quá tải về thể tích hoặc khối lượng. Vui lòng chọn ô kệ khác có dung lượng lớn hơn để cất hàng.
-              </span>
-            </div>
-          )}
-
-          {/* Actions */}
-          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-            <button
-              type="button"
-              onClick={() => navigate('/inbound/receipts')}
-              className="btn-pill btn-pill-outline-light"
-            >
-              Hủy
-            </button>
-            <button
-              type="submit"
-              disabled={submitting || isFormInvalid()}
-              className="btn-pill btn-pill-aloe flex items-center gap-2 disabled:opacity-50 font-bold"
-            >
-              {submitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Đang xử lý...
-                </>
-              ) : (
-                <>
-                  <Check className="w-4 h-4" />
-                  <span>Hoàn tất cất kệ</span>
-                </>
-              )}
-            </button>
+                  {/* Add Allocation Line Button */}
+                  <div className="mt-3 flex justify-start">
+                    <button
+                      type="button"
+                      onClick={() => handleAddAllocation(item.id)}
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-ink hover:text-shade-70 bg-canvas-light hover:bg-canvas-cream border border-hairline-light px-3 py-1.5 rounded-full transition-colors shadow-xs"
+                    >
+                      <Plus className="w-3.5 h-3.5 text-success-600" />
+                      <span>Thêm ô kệ phân phối cất hàng</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        </form>
-      </div>
-    );
-  } catch (e) {
-    return (
-      <div className="p-6 bg-danger-50 border border-danger-200 text-danger-700 rounded-lg">
-        <h2 className="text-lg font-bold">Đã xảy ra lỗi giao diện (Putaway Plan Render Error)</h2>
-        <p className="text-sm mt-1">{e.message}</p>
-        {import.meta.env.DEV && (
-          <pre className="text-xs mt-4 p-4 bg-canvas-night text-onPrimary rounded overflow-auto">{e.stack}</pre>
+        </div>
+
+        {/* Warning panel if capacity is exceeded */}
+        {hasCapacityErrors() && (
+          <div className="bg-danger-50 border border-danger-200 text-danger-900 rounded-lg p-4 text-xs font-semibold flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-danger-600 flex-shrink-0" />
+            <span>
+              Phát hiện vị trí kệ bị quá tải về thể tích hoặc khối lượng. Vui lòng giảm số lượng cất hoặc chọn ô kệ có dung lượng lớn hơn.
+            </span>
+          </div>
         )}
-      </div>
-    );
-  }
+
+        {/* Actions */}
+        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={() => navigate('/inbound/receipts')}
+            className="btn-pill btn-pill-outline-light"
+          >
+            Hủy
+          </button>
+          <button
+            type="submit"
+            disabled={submitting || isFormInvalid()}
+            className="btn-pill btn-pill-aloe flex items-center gap-2 disabled:opacity-50 font-bold"
+          >
+            {submitting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Đang xử lý...
+              </>
+            ) : (
+              <>
+                <Check className="w-4 h-4" />
+                <span>Hoàn tất cất kệ</span>
+              </>
+            )}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
 };
 
 export default PutawayPlan;
