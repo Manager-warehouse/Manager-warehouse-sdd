@@ -83,11 +83,11 @@ public class SupplierPaymentServiceImpl implements SupplierPaymentService {
                 .orElseThrow(() -> new ResourceNotFoundException("Supplier invoice not found with id: " + request.getSupplierInvoiceId()));
 
         if (!invoice.getSupplier().getId().equals(supplier.getId())) {
-            throw new UnprocessableEntityException("Supplier invoice does not belong to the specified supplier");
+            throw new UnprocessableEntityException("SUPPLIER_INVOICE_MISMATCH: Supplier invoice does not belong to the specified supplier");
         }
 
         if (invoice.getStatus() == InvoiceStatus.PAID) {
-            throw new UnprocessableEntityException("Supplier invoice is already fully paid");
+            throw new UnprocessableEntityException("SUPPLIER_INVOICE_ALREADY_PAID: Supplier invoice is already fully paid");
         }
 
         // 3. Calculate remaining balance of invoice
@@ -99,13 +99,15 @@ public class SupplierPaymentServiceImpl implements SupplierPaymentService {
 
         BigDecimal remainingAmount = invoice.getTotalAmount().subtract(totalPaidSoFar);
         if (request.getAmount().compareTo(remainingAmount) > 0) {
-            throw new UnprocessableEntityException("Payment amount exceeds remaining invoice balance of " + remainingAmount);
+            throw new UnprocessableEntityException(
+                    "PAYMENT_EXCEEDS_BALANCE: Payment amount exceeds remaining invoice balance of " + remainingAmount);
         }
 
         // 4. Open period lookup
         AccountingPeriod period = accountingPeriodRepository
                 .findPeriodByDateAndStatus(request.getDocumentDate(), AccountingPeriodStatus.OPEN)
-                .orElseThrow(() -> new UnprocessableEntityException("No open accounting period found for payment date " + request.getDocumentDate()));
+                .orElseThrow(() -> new UnprocessableEntityException(
+                        "NO_OPEN_PERIOD: No open accounting period found for payment date " + request.getDocumentDate()));
 
         // 5. Update invoice status
         BigDecimal newPaidTotal = totalPaidSoFar.add(request.getAmount());
@@ -180,7 +182,7 @@ public class SupplierPaymentServiceImpl implements SupplierPaymentService {
         requireAccountant(actor);
 
         if (file == null || file.isEmpty()) {
-            throw new UnprocessableEntityException("Uploaded file is empty");
+            throw new UnprocessableEntityException("EMPTY_FILE: Uploaded file is empty");
         }
 
         String rawText = ocrService.extractRawText(file);
