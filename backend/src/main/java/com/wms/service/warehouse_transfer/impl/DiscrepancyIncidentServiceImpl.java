@@ -11,6 +11,8 @@ import com.wms.entity.warehouse_location.WarehouseLocation;
 import com.wms.entity.warehouse_transfer.DiscrepancyHoldEntry;
 import com.wms.entity.warehouse_transfer.DiscrepancyIncident;
 import com.wms.entity.warehouse_transfer.InterWarehouseTransfer;
+import com.wms.entity.warehouse_transfer.InterWarehouseTransferAllocation;
+import com.wms.entity.warehouse_transfer.InterWarehouseTransferItem;
 import com.wms.enums.access_control.UserRole;
 import com.wms.enums.audit_trail.AuditAction;
 import com.wms.enums.stock_control.AdjustmentStatus;
@@ -21,6 +23,7 @@ import com.wms.repository.AdjustmentRepository;
 import com.wms.repository.DiscrepancyHoldEntryRepository;
 import com.wms.repository.DiscrepancyIncidentRepository;
 import com.wms.repository.InventoryRepository;
+import com.wms.repository.InterWarehouseTransferAllocationRepository;
 import com.wms.repository.WarehouseLocationRepository;
 import com.wms.service.audit_trail.AuditLogService;
 import com.wms.service.warehouse_transfer.DiscrepancyIncidentService;
@@ -45,14 +48,13 @@ public class DiscrepancyIncidentServiceImpl implements DiscrepancyIncidentServic
      */
     private static final String OPEN = "OPEN";
     private static final Set<String> RESOLUTION_STATUSES = Set.of(
-            "RESOLVED_ACCEPTED",
             "RESOLVED_SOURCE_FAULT",
-            "RESOLVED_CARRIER_FAULT",
             "RESOLVED_DESTINATION_COUNT_ERROR"
     );
 
     private final DiscrepancyIncidentRepository incidentRepository;
     private final DiscrepancyHoldEntryRepository holdEntryRepository;
+    private final InterWarehouseTransferAllocationRepository allocationRepository;
     private final InventoryRepository inventoryRepository;
     private final WarehouseLocationRepository locationRepository;
     private final AdjustmentRepository adjustmentRepository;
@@ -62,6 +64,7 @@ public class DiscrepancyIncidentServiceImpl implements DiscrepancyIncidentServic
 
     public DiscrepancyIncidentServiceImpl(DiscrepancyIncidentRepository incidentRepository,
                                           DiscrepancyHoldEntryRepository holdEntryRepository,
+                                          InterWarehouseTransferAllocationRepository allocationRepository,
                                           InventoryRepository inventoryRepository,
                                           WarehouseLocationRepository locationRepository,
                                           AdjustmentRepository adjustmentRepository,
@@ -70,6 +73,7 @@ public class DiscrepancyIncidentServiceImpl implements DiscrepancyIncidentServic
                                           InterWarehouseTransferHelper transferHelper) {
         this.incidentRepository = incidentRepository;
         this.holdEntryRepository = holdEntryRepository;
+        this.allocationRepository = allocationRepository;
         this.inventoryRepository = inventoryRepository;
         this.locationRepository = locationRepository;
         this.adjustmentRepository = adjustmentRepository;
@@ -115,6 +119,10 @@ public class DiscrepancyIncidentServiceImpl implements DiscrepancyIncidentServic
         if ("OVER_RECEIPT".equals(incident.getIncidentType())
                 && "RESOLVED_SOURCE_FAULT".equals(resolutionStatus)) {
             applySourceFaultOverReceipt(incident, request.resolutionNote().trim(), actor);
+        }
+        if ("SHORTAGE".equals(incident.getIncidentType())
+                && "RESOLVED_DESTINATION_COUNT_ERROR".equals(resolutionStatus)) {
+            applyDestinationCountErrorShortage(incident, request.resolutionNote().trim(), actor);
         }
         incident.setStatus(resolutionStatus);
         incident.setResolutionNote(request.resolutionNote().trim());
@@ -208,6 +216,45 @@ public class DiscrepancyIncidentServiceImpl implements DiscrepancyIncidentServic
             createApprovedAdjustment(incident, hold.getWarehouse(), location, hold.getBatch(),
                     hold.getHoldQty(), reason, actor);
         }
+    }
+
+    private void applyDestinationCountErrorShortage(DiscrepancyIncident incident, String reason, User actor) {
+        // CEO kết luận kho đích đếm thiếu: phần thiếu thực tế vẫn ở kho đích,
+        // nên bù lại vào đúng kệ nhận hàng và tạo adjustment dương để tổng tồn quay về đúng.
+        InterWarehouseTransferItem item = transferHelper.items(incident.getTransfer()).stream()
+                .filter(row -> row.getProduct().getId().equals(incident.getProduct().getId()))
+                .findFirst()
+                .orElseThrow(() -> new BusinessRuleViolationException("TRANSFER_ITEM_NOT_FOUND"));
+        WarehouseLocation destinationLocation = item.getDestinationLocation();
+        if (destinationLocation == null) {
+            throw new BusinessRuleViolationException("DESTINATION_LOCATION_REQUIRED");
+        }
+        List<InterWarehouseTransferAllocation> allocations = allocationRepository.findByTransferItemId(item.getId());
+        if (allocations.isEmpty() || allocations.get(0).getInventory() == null
+                || allocations.get(0).getInventory().getBatch() == null) {
+            throw new BusinessRuleViolationException("TRANSFER_ALLOCATION_NOT_FOUND");
+        }
+
+        var batch = allocations.get(0).getInventory().getBatch();
+        BigDecimal beforeDestinationQty = inventoryRepository.findByStockKeyForUpdate(
+                        incident.getTransfer().getDestinationWarehouse().getId(),
+                        incident.getProduct().getId(),
+                        batch.getId(),
+                        destinationLocation.getId())
+                .map(Inventory::getTotalQty)
+                .orElse(BigDecimal.ZERO);
+        applyLocationOccupancy(destinationLocation, incident.getProduct(), incident.getQuantity());
+        transferHelper.upsertInventory(incident.getTransfer().getDestinationWarehouse(), incident.getProduct(), batch,
+                destinationLocation, incident.getQuantity(), BigDecimal.ZERO);
+        Inventory destination = inventoryRepository.findByStockKeyForUpdate(
+                        incident.getTransfer().getDestinationWarehouse().getId(),
+                        incident.getProduct().getId(),
+                        batch.getId(),
+                        destinationLocation.getId())
+                .orElseThrow(() -> new BusinessRuleViolationException("INVENTORY_ROW_NOT_FOUND"));
+        auditInventory(actor, destination, beforeDestinationQty, destination.getTotalQty(), incident.getQuantity(), reason);
+        createApprovedAdjustment(incident, incident.getTransfer().getDestinationWarehouse(), destinationLocation, batch,
+                incident.getQuantity(), reason, actor);
     }
 
     private void applyLocationOccupancy(WarehouseLocation location, Product product, BigDecimal qty) {
