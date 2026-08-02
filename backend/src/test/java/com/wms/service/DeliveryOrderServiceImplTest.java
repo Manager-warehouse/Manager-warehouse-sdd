@@ -774,6 +774,29 @@ class DeliveryOrderServiceImplTest {
     }
 
     @Test
+    void saveDeliveryOrderPickingPlan_rejectsStagingZoneAsSource() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.NEW);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("10.00"));
+        zone.setIsStaging(true);
+
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
+        when(deliveryOrderItemRepository.findByDeliveryOrderId(100L)).thenReturn(List.of(item));
+        when(allocationRepository.findByDeliveryOrderItemDeliveryOrderId(100L)).thenReturn(List.of());
+        when(inventoryRepository.findByIdInWithLock(List.of(501L))).thenReturn(List.of(inventory));
+
+        DeliveryOrderPickingPlanRequest request = new DeliveryOrderPickingPlanRequest();
+        request.setAllocations(new ArrayList<>(List.of(
+                allocationRequest(200L, 501L, 71L, 801L, 31L, new BigDecimal("10.00")))));
+
+        assertThatThrownBy(() -> service.saveDeliveryOrderPickingPlan(100L, request, storekeeper))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code")
+                .isEqualTo("INVENTORY_ROW_INVALID");
+        verify(inventoryRepository, never()).save(any(Inventory.class));
+    }
+
+    @Test
     void getPickingCandidates_allowsQcPendingApprovalForReplacementPlanning() {
         DeliveryOrder order = order(100L, DeliveryOrderStatus.QC_PENDING_APPROVAL);
         DeliveryOrderItem item = item(order, product, new BigDecimal("10.00"));
@@ -1107,6 +1130,36 @@ class DeliveryOrderServiceImplTest {
     }
 
     @Test
+    void saveDeliveryOrderReplacementPlan_rejectsStagingZoneAsSource() {
+        DeliveryOrder order = order(100L, DeliveryOrderStatus.QC_PENDING_APPROVAL);
+        DeliveryOrderItem item = item(order, product, new BigDecimal("10.00"));
+        item.setQcFailQty(new BigDecimal("2.00"));
+        DeliveryOrderItemAllocation failedAllocation = allocation(900L, item, inventory, zone,
+                new BigDecimal("10.00"), new BigDecimal("8.00"), false);
+
+        WarehouseLocation stagingZone = zone(32L, warehouse);
+        stagingZone.setIsStaging(true);
+        WarehouseLocation stagingBin = bin(802L, warehouse, stagingZone);
+        Batch batch2 = batch(72L, product, warehouse);
+        Inventory replacementInventory = inventory(502L, warehouse, product, batch2, stagingBin,
+                new BigDecimal("10.00"), ZERO);
+
+        when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
+        when(assignmentRepository.findWarehouseIdsByUserId(3L)).thenReturn(List.of(20L));
+        when(deliveryOrderItemRepository.findByDeliveryOrderId(100L)).thenReturn(List.of(item));
+        when(allocationRepository.findByDeliveryOrderItemDeliveryOrderId(100L)).thenReturn(List.of(failedAllocation));
+        when(outboundQcRecordRepository.findByAllocationIdIn(List.of(900L)))
+                .thenReturn(List.of(failedQcRecord(failedAllocation, new BigDecimal("2.00"))));
+        when(inventoryRepository.findByIdInWithLock(List.of(502L))).thenReturn(List.of(replacementInventory));
+
+        assertThatThrownBy(() -> service.saveDeliveryOrderReplacementPlan(100L, replacementPlanRequest(), storekeeper))
+                .isInstanceOf(OutboundDeliveryException.class)
+                .extracting("code")
+                .isEqualTo("INVENTORY_ROW_INVALID");
+        verify(inventoryRepository, never()).save(any(Inventory.class));
+    }
+
+    @Test
     void saveDeliveryOrderReplacementPlan_translatesOptimisticLockConflict() {
         DeliveryOrder order = order(100L, DeliveryOrderStatus.QC_PENDING_APPROVAL);
         DeliveryOrderItem item = item(order, product, new BigDecimal("10.00"));
@@ -1271,12 +1324,12 @@ class DeliveryOrderServiceImplTest {
         inventory.setCostPrice(new BigDecimal("1.50"));
         DeliveryOrderItemAllocation allocation = allocation(900L, item, inventory, zone,
                 new BigDecimal("10.00"), ZERO, false);
-        WarehouseLocation stagingBin = bin(880L, warehouse, zone);
-        stagingBin.setIsStaging(true);
+        WarehouseLocation stagingZone = zone(92L, warehouse);
+        stagingZone.setIsStaging(true);
+        WarehouseLocation stagingBin = bin(880L, warehouse, stagingZone);
         WarehouseLocation quarantineZone = zone(91L, warehouse);
         quarantineZone.setIsQuarantine(true);
         WarehouseLocation quarantineBin = bin(990L, warehouse, quarantineZone);
-        quarantineBin.setIsQuarantine(true);
 
         when(deliveryOrderRepository.findWithDealerAndWarehouseById(100L)).thenReturn(Optional.of(order));
         when(assignmentRepository.findWarehouseIdsByUserId(4L)).thenReturn(List.of(20L));
@@ -2112,6 +2165,7 @@ class DeliveryOrderServiceImplTest {
         zone.setType(LocationType.ZONE);
         zone.setIsActive(true);
         zone.setIsQuarantine(false);
+        zone.setIsStaging(false);
         return zone;
     }
 
@@ -2123,6 +2177,8 @@ class DeliveryOrderServiceImplTest {
         bin.setParent(parent);
         bin.setIsActive(true);
         bin.setIsQuarantine(false);
+        bin.setIsStaging(false);
+        bin.setIsLocked(false);
         return bin;
     }
 

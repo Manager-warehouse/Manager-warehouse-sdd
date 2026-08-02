@@ -136,7 +136,6 @@ const Sidebar = () => {
       path: "/inbound/returns",
       icon: ArrowRightLeft,
       roles: [
-        ROLES.WAREHOUSE_STAFF,
         ROLES.STOREKEEPER,
         ROLES.WAREHOUSE_MANAGER,
         ROLES.ACCOUNTANT,

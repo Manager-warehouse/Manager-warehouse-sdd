@@ -708,8 +708,25 @@ class InterWarehouseTransferFlowE2ETest {
 
         DisposalResponse disposalResponse = disposalService.createDisposalFromQuarantine(99L, disposalReq, manager);
         
-        // Assert: Auto-approved as value of 5 items is low (5 * 0 = 0 VND < 5M)
-        assertThat(disposalResponse.isAutoApproved()).isTrue();
+        // Assert: All disposal requests require approval (autoApproved = false)
+        assertThat(disposalResponse.isAutoApproved()).isFalse();
+
+        // 3. Manager approves disposal request
+        Adjustment disposalAdj = new Adjustment();
+        disposalAdj.setId(777L);
+        disposalAdj.setType(AdjustmentType.DISPOSAL);
+        disposalAdj.setWarehouse(destinationWarehouse);
+        disposalAdj.setProduct(product);
+        disposalAdj.setBatch(batch);
+        disposalAdj.setLocation(quarantineLocation);
+        disposalAdj.setQuantityAdjustment(new BigDecimal("-5.00"));
+        disposalAdj.setQuarantineRecord(mockRecord);
+        disposalAdj.setReferenceId(99L);
+        disposalAdj.setReferenceType("QUARANTINE_RECORD");
+
+        when(adjustmentRepository.findById(777L)).thenReturn(Optional.of(disposalAdj));
+        disposalService.approveDisposal(777L, manager);
+
         assertThat(mockRecord.getRemainingQuantity()).isEqualByComparingTo(BigDecimal.ZERO);
     }
 

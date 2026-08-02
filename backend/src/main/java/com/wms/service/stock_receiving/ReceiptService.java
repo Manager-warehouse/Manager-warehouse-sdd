@@ -342,7 +342,7 @@ public class ReceiptService {
         assertVersion(receipt, request.getExpectedVersion());
 
         List<ReceiptItem> items = receiptItemRepository.findByReceiptIdOrderByIdAsc(receiptId);
-        ensureReceiveQcEditable(items);
+        ensureReceiveQcEditable(receipt, items);
         Map<String, Object> before = receiveSnapshot(receipt, items);
         Map<Long, ReceiveQcReceiptItemRequest> counts = validateReceiveQcCoverage(request, items);
 
@@ -884,6 +884,8 @@ public class ReceiptService {
             item.setQualityFailedQty(0);
             item.setApprovedQty(0);
             item.setQuarantineReadyQty(0);
+            item.setQuarantineQty(0);
+            item.setResolvedQuarantineQty(0);
             item.setQcSamplingMethod(null);
             item.setQcFailureReason(null);
             item.setQcBy(null);
@@ -987,7 +989,12 @@ public class ReceiptService {
         }
     }
 
-    private void ensureReceiveQcEditable(List<ReceiptItem> items) {
+    private void ensureReceiveQcEditable(Receipt receipt, List<ReceiptItem> items) {
+        if (receipt != null && (receipt.getStatus() == ReceiptStatus.DRAFT
+                || receipt.getStatus() == ReceiptStatus.PENDING_RECEIPT
+                || receipt.getStatus() == ReceiptStatus.RECOUNT_REQUIRED)) {
+            return;
+        }
         boolean managerDecisionStarted = items.stream().anyMatch(item ->
                 positive(item.getApprovedQty())
                         || positive(item.getQuarantineQty())
@@ -1068,6 +1075,8 @@ public class ReceiptService {
         item.setQualityFailedQty(0);
         item.setApprovedQty(0);
         item.setQuarantineReadyQty(0);
+        item.setQuarantineQty(0);
+        item.setResolvedQuarantineQty(0);
         item.setQcSamplingMethod(null);
         item.setQcFailureReason(null);
         item.setQcBy(null);
