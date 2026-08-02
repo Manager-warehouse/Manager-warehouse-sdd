@@ -87,7 +87,7 @@ const getStatusBadge = (status) => {
 const TransferDiscrepancyWorkspace = () => {
   const addToast = useUiStore((state) => state.addToast);
   const [incidents, setIncidents] = useState([]);
-  const [statusFilter, setStatusFilter] = useState('OPEN');
+  const [statusFilter, setStatusFilter] = useState('');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -100,9 +100,9 @@ const TransferDiscrepancyWorkspace = () => {
     setLoading(true);
     setLoadError('');
     try {
-      const data = await interWarehouseTransferService.getDiscrepancyIncidents(
-        statusFilter ? { status: statusFilter } : {}
-      );
+      // Màn này là màn CEO hậu kiểm, nên luôn tải toàn bộ hồ sơ để hồ sơ đã chốt vẫn tra cứu được.
+      // Bộ lọc trạng thái chỉ áp dụng ở client, tránh làm các thẻ thống kê bị đếm sai theo filter hiện tại.
+      const data = await interWarehouseTransferService.getDiscrepancyIncidents();
       setIncidents(data || []);
     } catch (error) {
       setLoadError(error.response?.data?.message || error.message || 'Không tải được hồ sơ chênh lệch.');
@@ -113,13 +113,16 @@ const TransferDiscrepancyWorkspace = () => {
 
   useEffect(() => {
     fetchIncidents();
-  }, [statusFilter]);
+  }, []);
 
   const visibleIncidents = useMemo(() => {
     // Lọc client-side để người dùng tra nhanh theo TRF/SKU/kho; không thay đổi trạng thái hồ sơ.
     const keyword = search.trim().toLowerCase();
-    if (!keyword) return incidents;
-    return incidents.filter((incident) => [
+    const filteredByStatus = statusFilter
+      ? incidents.filter((incident) => incident.status === statusFilter)
+      : incidents;
+    if (!keyword) return filteredByStatus;
+    return filteredByStatus.filter((incident) => [
       incident.transferNumber,
       incident.sourceWarehouseCode,
       incident.destinationWarehouseCode,
@@ -127,7 +130,7 @@ const TransferDiscrepancyWorkspace = () => {
       incident.productName,
       incident.resolutionNote,
     ].some((value) => String(value || '').toLowerCase().includes(keyword)));
-  }, [incidents, search]);
+  }, [incidents, search, statusFilter]);
 
   const stats = useMemo(() => ({
     total: incidents.length,
