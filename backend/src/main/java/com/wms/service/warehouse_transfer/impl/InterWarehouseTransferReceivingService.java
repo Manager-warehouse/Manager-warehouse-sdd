@@ -356,59 +356,11 @@ public class InterWarehouseTransferReceivingService {
 
     @Transactional
     public InterWarehouseTransferResponse returnToSource(Long id, TransferReturnRequest request, User actor) {
-        // HÀM CHÍNH: quản lý kho nguồn chủ động yêu cầu xe quay đầu trước khi kho đích nhận bàn giao.
-        // Quản lý kho nguồn chủ động cho xe quay đầu khi hàng còn trên đường,
-        // trước khi kho đích xác nhận xe đến hoặc nhận bàn giao.
+        // HÀM CHÍNH: luồng chủ động quay đầu khi xe đang chạy đã bị khóa theo nghiệp vụ mới.
+        // Nếu kho đích phát hiện sai SKU, thủ kho kho đích phải gửi yêu cầu sai SKU để quản lý kho đích duyệt.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.requireStatus(transfer, InterWarehouseTransferStatus.IN_TRANSIT);
-        // Validate: chỉ trưởng kho nguồn được chủ động yêu cầu xe quay đầu; CEO/Admin không tạo yêu cầu thay nghiệp vụ kho.
-        if (actor.getRole() != UserRole.WAREHOUSE_MANAGER) {
-            throw new BusinessRuleViolationException("WAREHOUSE_MANAGER_ROLE_REQUIRED");
-        }
-        ensureManagerCanRequestReturn(transfer, actor);
-
-        // Validate: quay đầu xe luôn cần lý do để lưu trên phiếu và lịch sử thao tác.
-        if (helper.isBlank(request.reason())) {
-            throw new BusinessRuleViolationException("RETURN_REASON_REQUIRED");
-        }
-        ensureReturnNotAlreadyInProgress(transfer);
-        // Validate: kho nguồn chỉ được cho xe quay đầu khi kho đích chưa xác nhận xe đến và chưa nhận bàn giao.
-        if (transfer.getDriverArrivedAt() != null || transfer.getArrivalHandoverAt() != null) {
-            throw new BusinessRuleViolationException("SOURCE_RETURN_ONLY_BEFORE_DESTINATION_ARRIVAL");
-        }
-
-        Map<String, Object> before = helper.snapshot(transfer);
-        transfer.setReturned(true);
-        transfer.setReturnReason(request.reason());
-        transfer.setUpdatedAt(OffsetDateTime.now());
-
-        if (request.wrongSkuItems() != null && !request.wrongSkuItems().isEmpty()) {
-            WrongSkuReport report = WrongSkuReport.builder()
-                    .transfer(transfer)
-                    .status("APPROVED") // Tự duyệt vì yêu cầu này do quản lý kho nguồn hoặc người lập phiếu tạo ra.
-                    .reportedBy(actor)
-                    .reportedAt(OffsetDateTime.now())
-                    .managerDecisionBy(actor)
-                    .managerDecisionAt(OffsetDateTime.now())
-                    .build();
-            report = wrongSkuReportRepository.save(report);
-
-            saveWrongSkuItems(transfer, report, request.wrongSkuItems());
-        }
-
-        InterWarehouseTransfer saved = transferRepository.save(transfer);
-        helper.audit(saved, actor, AuditAction.TRANSFER_RETURN_TO_SOURCE, before, helper.snapshot(saved));
-        return helper.toResponse(saved);
-    }
-
-    private void ensureManagerCanRequestReturn(InterWarehouseTransfer transfer, User actor) {
-        // Quản lý chỉ được yêu cầu quay đầu cho phiếu thuộc kho nguồn mình phụ trách.
-        List<Long> warehouseIds = helper.loadWarehouseIds(actor);
-        Long sourceWarehouseId = transfer.getSourceWarehouse().getId();
-        // Validate: quản lý không thuộc kho nguồn thì không được yêu cầu quay đầu xe.
-        if (!warehouseIds.contains(sourceWarehouseId)) {
-            throw new BusinessRuleViolationException("WAREHOUSE_SCOPE_REQUIRED");
-        }
+        throw new BusinessRuleViolationException("SOURCE_RETURN_DISABLED");
     }
 
     @Transactional

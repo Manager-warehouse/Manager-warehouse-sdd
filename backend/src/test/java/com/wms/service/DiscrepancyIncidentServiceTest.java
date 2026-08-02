@@ -12,11 +12,14 @@ import com.wms.entity.warehouse_location.WarehouseLocation;
 import com.wms.entity.warehouse_transfer.DiscrepancyHoldEntry;
 import com.wms.entity.warehouse_transfer.DiscrepancyIncident;
 import com.wms.entity.warehouse_transfer.InterWarehouseTransfer;
+import com.wms.entity.warehouse_transfer.InterWarehouseTransferAllocation;
+import com.wms.entity.warehouse_transfer.InterWarehouseTransferItem;
 import com.wms.enums.access_control.UserRole;
 import com.wms.enums.audit_trail.AuditAction;
 import com.wms.exception.BusinessRuleViolationException;
 import com.wms.repository.DiscrepancyIncidentRepository;
 import com.wms.repository.DiscrepancyHoldEntryRepository;
+import com.wms.repository.InterWarehouseTransferAllocationRepository;
 import com.wms.repository.InventoryRepository;
 import com.wms.repository.WarehouseLocationRepository;
 import com.wms.repository.AdjustmentRepository;
@@ -53,6 +56,8 @@ class DiscrepancyIncidentServiceTest {
     @Mock
     private DiscrepancyHoldEntryRepository holdEntryRepository;
     @Mock
+    private InterWarehouseTransferAllocationRepository allocationRepository;
+    @Mock
     private InventoryRepository inventoryRepository;
     @Mock
     private WarehouseLocationRepository locationRepository;
@@ -74,6 +79,7 @@ class DiscrepancyIncidentServiceTest {
         service = new DiscrepancyIncidentServiceImpl(
                 incidentRepository,
                 holdEntryRepository,
+                allocationRepository,
                 inventoryRepository,
                 locationRepository,
                 adjustmentRepository,
@@ -115,20 +121,20 @@ class DiscrepancyIncidentServiceTest {
         DiscrepancyIncidentResponse response = service.resolveIncident(
                 99L,
                 new DiscrepancyIncidentResolveRequest(
-                        "RESOLVED_CARRIER_FAULT",
-                        "Đối chiếu ảnh bàn giao, thiếu do vận chuyển."
+                        "RESOLVED_SOURCE_FAULT",
+                        "Đối chiếu ảnh bàn giao, thiếu do kho nguồn."
                 ),
                 ceo
         );
 
-        assertThat(response.status()).isEqualTo("RESOLVED_CARRIER_FAULT");
-        assertThat(response.resolutionNote()).isEqualTo("Đối chiếu ảnh bàn giao, thiếu do vận chuyển.");
+        assertThat(response.status()).isEqualTo("RESOLVED_SOURCE_FAULT");
+        assertThat(response.resolutionNote()).isEqualTo("Đối chiếu ảnh bàn giao, thiếu do kho nguồn.");
         assertThat(response.resolvedById()).isEqualTo(ceo.getId());
         assertThat(response.resolvedAt()).isNotNull();
 
         ArgumentCaptor<DiscrepancyIncident> savedCaptor = ArgumentCaptor.forClass(DiscrepancyIncident.class);
         verify(incidentRepository).save(savedCaptor.capture());
-        assertThat(savedCaptor.getValue().getStatus()).isEqualTo("RESOLVED_CARRIER_FAULT");
+        assertThat(savedCaptor.getValue().getStatus()).isEqualTo("RESOLVED_SOURCE_FAULT");
 
         verify(auditLogService).log(
                 eq(ceo),
@@ -150,7 +156,7 @@ class DiscrepancyIncidentServiceTest {
 
         assertThatThrownBy(() -> service.resolveIncident(
                 99L,
-                new DiscrepancyIncidentResolveRequest("RESOLVED_ACCEPTED", "Đã xử lý"),
+                new DiscrepancyIncidentResolveRequest("RESOLVED_SOURCE_FAULT", "Đã xử lý"),
                 ceo
         ))
                 .isInstanceOf(BusinessRuleViolationException.class)
@@ -206,6 +212,57 @@ class DiscrepancyIncidentServiceTest {
                 BigDecimal.ZERO
         );
         verify(adjustmentRepository, times(2)).save(any(Adjustment.class));
+    }
+
+    @Test
+    void resolveShortageAsDestinationCountError_addsMissingQtyToDestination() {
+        User ceo = user(20L, UserRole.CEO, "CEO");
+        incident.setIncidentType("SHORTAGE");
+        incident.setQuantity(BigDecimal.valueOf(4));
+        Batch batch = new Batch();
+        batch.setId(77L);
+        WarehouseLocation sourceLocation = location(11L);
+        WarehouseLocation destinationLocation = location(22L);
+        Inventory sourceInventory = inventory(501L, incident.getTransfer().getSourceWarehouse(),
+                incident.getProduct(), batch, sourceLocation, BigDecimal.valueOf(4900));
+        Inventory destinationInventory = inventory(502L, incident.getTransfer().getDestinationWarehouse(),
+                incident.getProduct(), batch, destinationLocation, BigDecimal.valueOf(96));
+        InterWarehouseTransferItem item = InterWarehouseTransferItem.builder()
+                .id(5L)
+                .transfer(incident.getTransfer())
+                .product(incident.getProduct())
+                .destinationLocation(destinationLocation)
+                .build();
+        InterWarehouseTransferAllocation allocation = InterWarehouseTransferAllocation.builder()
+                .id(6L)
+                .transferItem(item)
+                .inventory(sourceInventory)
+                .allocatedQty(BigDecimal.valueOf(100))
+                .build();
+
+        when(incidentRepository.findWithDetailsById(99L)).thenReturn(Optional.of(incident));
+        when(transferHelper.items(incident.getTransfer())).thenReturn(List.of(item));
+        when(allocationRepository.findByTransferItemId(5L)).thenReturn(List.of(allocation));
+        when(inventoryRepository.findByStockKeyForUpdate(2L, 7L, 77L, 22L))
+                .thenReturn(Optional.of(destinationInventory));
+        when(incidentRepository.save(any(DiscrepancyIncident.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.resolveIncident(
+                99L,
+                new DiscrepancyIncidentResolveRequest("RESOLVED_DESTINATION_COUNT_ERROR", "Kho đích đếm thiếu 4."),
+                ceo
+        );
+
+        verify(transferHelper).upsertInventory(
+                incident.getTransfer().getDestinationWarehouse(),
+                incident.getProduct(),
+                batch,
+                destinationLocation,
+                BigDecimal.valueOf(4),
+                BigDecimal.ZERO
+        );
+        verify(adjustmentRepository).save(any(Adjustment.class));
     }
 
     private DiscrepancyIncident incident(Long id, Long sourceId, Long destinationId) {

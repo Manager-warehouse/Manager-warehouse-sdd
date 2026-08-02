@@ -1134,25 +1134,6 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
         </div>
       )}
 
-      {transfer.status === 'IN_TRANSIT' && !transfer.isReturned && !transfer.returnRequested && !transfer.driverArrivedAt && hasRole(ROLES.WAREHOUSE_MANAGER) && canManageSourceWarehouse && (
-        <div className="rounded-md border border-warning-200 bg-warning-50/50 p-3 flex flex-col gap-2 mb-2">
-          <div className="text-xs text-warning-800 font-medium">Chuyến xe có sự cố hoặc cần quay đầu về kho nguồn? (Yêu cầu lý do)</div>
-          <div className="flex gap-2">
-            <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Lý do quay đầu bắt buộc..." className="flex-1" maxLength={500} />
-            <Button variant="outline-light" icon={RotateCcw} className="text-warning-700 border-warning-300 hover:bg-warning-100" loading={busy} onClick={() => {
-              // Quay đầu do sự cố trước khi đến kho đích luôn phải có lý do để audit.
-              if (!reason.trim()) {
-                addToast('Vui lòng nhập lý do quay đầu!', 'error');
-                return;
-              }
-              run('returnToSource', { reason: reason.trim(), wrongSkuItems: [] });
-            }}>
-              Quay đầu về kho nguồn
-            </Button>
-          </div>
-        </div>
-      )}
-
 	      {/* Receive counting steps */}
 	      {transfer.status === 'IN_TRANSIT' && activeReceivingHandoverDone && !transfer.returnRequested && hasAny(hasRole, [ROLES.WAREHOUSE_STAFF, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse && !allItemsCounted && (
 	        <div className="flex flex-col gap-3">

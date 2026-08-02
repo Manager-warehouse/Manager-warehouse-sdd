@@ -371,6 +371,7 @@ public class GlobalExceptionHandler {
             case "BIN_CAPACITY_EXCEEDED": return "Bin đã đầy, không còn đủ sức chứa cho số lượng này.";
             // ── Return Flow ───────────────────────────────────────────────────────
             case "SOURCE_RETURN_ONLY_BEFORE_DESTINATION_ARRIVAL": return "Chỉ có thể quay đầu về kho nguồn trước khi tài xế đến kho đích.";
+            case "SOURCE_RETURN_DISABLED": return "Không cho phép quản lý kho nguồn tự yêu cầu quay đầu khi xe đang vận chuyển.";
             case "RETURN_ALREADY_IN_PROGRESS": return "Xe đang trong quá trình quay đầu, không thể thực hiện thêm.";
             case "RETURN_REQUEST_ONLY_BEFORE_HANDOVER": return "Chỉ có thể yêu cầu quay đầu trước khi thực hiện bàn giao nhận hàng.";
             case "RETURN_REQUEST_ONLY_BEFORE_COUNT": return "Chỉ có thể yêu cầu quay đầu trước khi công nhân count hàng.";

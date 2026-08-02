@@ -1111,7 +1111,7 @@ class InterWarehouseTransferServiceImplTest {
     }
 
     @Test
-    void returnToSource_allowsOnlySourceWarehouseManagerThenRestrictsReceivingToSourceWarehouse() {
+    void returnToSource_blocksDirectSourceManagerReturnWhileTruckInTransit() {
         service.approveTransfer(1L, sourceManager);
         service.assignTrip(1L, new InterWarehouseTransferTripAssignRequest(vehicle.getId(), driver.getId(),
                 VALID_TRIP_START, VALID_TRIP_END), dispatcher);
@@ -1121,60 +1121,30 @@ class InterWarehouseTransferServiceImplTest {
         transfer.setDriverArrivedAt(null);
         transfer.setArrivalHandoverAt(null);
 
-        // Driver must be blocked
         TransferReturnRequest req = new TransferReturnRequest("Overdue return");
         assertThatThrownBy(() -> service.returnToSource(1L, req, driverUser))
                 .isInstanceOf(BusinessRuleViolationException.class)
-                .hasMessageContaining("WAREHOUSE_MANAGER_ROLE_REQUIRED");
+                .hasMessageContaining("SOURCE_RETURN_DISABLED");
 
         assertThatThrownBy(() -> service.returnToSource(1L, req, planner))
                 .isInstanceOf(BusinessRuleViolationException.class)
-                .hasMessageContaining("WAREHOUSE_MANAGER_ROLE_REQUIRED");
+                .hasMessageContaining("SOURCE_RETURN_DISABLED");
 
         assertThatThrownBy(() -> service.returnToSource(1L, req, destinationManager))
                 .isInstanceOf(BusinessRuleViolationException.class)
-                .hasMessageContaining("WAREHOUSE_SCOPE_REQUIRED");
+                .hasMessageContaining("SOURCE_RETURN_DISABLED");
 
         assertThatThrownBy(() -> service.returnToSource(1L, req, user(14L, UserRole.CEO)))
                 .isInstanceOf(BusinessRuleViolationException.class)
-                .hasMessageContaining("WAREHOUSE_MANAGER_ROLE_REQUIRED");
+                .hasMessageContaining("SOURCE_RETURN_DISABLED");
 
         assertThatThrownBy(() -> service.returnToSource(1L, req, user(15L, UserRole.ADMIN)))
                 .isInstanceOf(BusinessRuleViolationException.class)
-                .hasMessageContaining("WAREHOUSE_MANAGER_ROLE_REQUIRED");
+                .hasMessageContaining("SOURCE_RETURN_DISABLED");
 
-        // Source Manager can request the operational return while the truck is in transit.
-        InterWarehouseTransferResponse response = service.returnToSource(1L, req, sourceManager);
-        assertThat(response.isReturned()).isTrue();
-
-        // T058: Execute return leg steps: driver departs, arrives, and storekeeper hands over back to source warehouse
-        service.returnDepart(1L, driverUser);
-        service.returnArrive(1L, driverUser);
-
-        User sourceWorker = user(999L, UserRole.WAREHOUSE_STAFF);
-        User sourceStorekeeper = user(1000L, UserRole.STOREKEEPER);
-        assignments.put(sourceWorker.getId(), List.of(sourceWarehouse.getId()));
-        assignments.put(sourceStorekeeper.getId(), List.of(sourceWarehouse.getId()));
-
-        assertThatThrownBy(() -> service.returnHandover(1L, new LoadHandoverRequest("return_handover.jpg"), sourceWorker))
+        assertThatThrownBy(() -> service.returnToSource(1L, req, sourceManager))
                 .isInstanceOf(BusinessRuleViolationException.class)
-                .hasMessageContaining("RETURN_HANDOVER_STOREKEEPER_REQUIRED");
-
-        service.returnHandover(1L, new LoadHandoverRequest("return_handover.jpg"), sourceStorekeeper);
-
-        assertThatThrownBy(() -> service.receiveCount(1L, new InterWarehouseTransferReceiveCountRequest(List.of(
-                new InterWarehouseTransferReceiveCountItemRequest(transferItem.getId(), new BigDecimal("5.00"),
-                        "returning"))),
-                destinationWorker))
-                .isInstanceOf(BusinessRuleViolationException.class)
-                .hasMessageContaining("WAREHOUSE_SCOPE_REQUIRED");
-
-        InterWarehouseTransferResponse counted = service.receiveCount(1L,
-                new InterWarehouseTransferReceiveCountRequest(List.of(
-                        new InterWarehouseTransferReceiveCountItemRequest(transferItem.getId(), new BigDecimal("5.00"),
-                                "shortage during return"))),
-                sourceWorker);
-        assertThat(counted.items().get(0).workerReceivedQty()).isEqualByComparingTo("5.00");
+                .hasMessageContaining("SOURCE_RETURN_DISABLED");
     }
 
     @Test
