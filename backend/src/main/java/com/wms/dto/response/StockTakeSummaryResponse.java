@@ -44,6 +44,11 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
+/**
+ * DTO response tóm tắt phiếu kiểm kê — dùng cho danh sách (không chứa items).
+ * Chứa: số phiếu, kho, người kiểm, trạng thái, tổng chênh lệch, ngày tạo.
+ * Dùng bởi: StockTakeService.getStockTakes() → StockTakeController (GET /api/v1/stocktakes).
+ */
 public class StockTakeSummaryResponse {
 
     @JsonProperty("id")

@@ -152,6 +152,77 @@ Expected result:
 - Keep returned Delivery Orders in `RETURNED` until staff count/QC, Storekeeper approval, Storekeeper putaway planning, and staff putaway completion close them as `DELIVERY_FAILED`.
 - Write `COMPLETE_TRIP` audit.
 
+### 6. Create a split delivery plan for one overloaded Delivery Order
+
+```http
+POST /api/v1/split-delivery-plans
+Authorization: Bearer <jwt>
+Content-Type: application/json
+```
+
+```json
+{
+  "deliveryOrderId": 101,
+  "plannedDepartureAt": "2026-06-22T08:00:00+07:00",
+  "leadDriverId": 401,
+  "notes": "Split heavy order across two trucks",
+  "legs": [
+    {
+      "vehicleId": 301,
+      "driverId": 401,
+      "stopOrder": 1,
+      "items": [
+        { "deliveryOrderItemId": 1001, "productId": 501, "batchId": 701, "quantity": 60 }
+      ]
+    },
+    {
+      "vehicleId": 302,
+      "driverId": 402,
+      "stopOrder": 2,
+      "items": [
+        { "deliveryOrderItemId": 1001, "productId": 501, "batchId": 701, "quantity": 40 }
+      ]
+    }
+  ]
+}
+```
+
+Expected result:
+
+- Validate Dispatcher warehouse scope and Delivery Order readiness.
+- Validate every requested item quantity is fully allocated across all legs.
+- Validate each vehicle/driver is unique, ready, in the same warehouse, and not actively assigned elsewhere.
+- Validate each leg stays within its selected vehicle capacity.
+- Create one `PLANNED` split plan and one linked `PLANNED` trip per leg.
+- Keep the Delivery Order in `WAREHOUSE_APPROVED`.
+- Write `SPLIT_DELIVERY_PLAN_CREATE` audit.
+
+### 7. Split drivers confirm readiness and lead driver departs all vehicles
+
+```http
+PUT /api/v1/split-delivery-plans/7001/driver-readiness
+Authorization: Bearer <driver-jwt>
+```
+
+Expected result:
+
+- Mark only the authenticated driver's split leg as ready.
+- Keep the plan `PLANNED` until every active leg is ready.
+
+```http
+PUT /api/v1/split-delivery-plans/7001/depart
+Authorization: Bearer <lead-driver-jwt>
+```
+
+Expected result:
+
+- Validate all active legs have readiness confirmations.
+- Revalidate all vehicles/drivers are still ready.
+- Move the full Delivery Order staged quantity to virtual `IN_TRANSIT` once.
+- Create one current Delivery attempt for the Delivery Order.
+- Mark every leg trip `IN_TRANSIT`, every vehicle/driver `ON_TRIP`, and the Delivery Order `IN_TRANSIT`.
+- Write `SPLIT_DELIVERY_DEPART` audit.
+
 ## Required tests
 
 - Service test: create trip rejects cross-warehouse Delivery Orders.
@@ -167,6 +238,11 @@ Expected result:
 - Controller integration test: list endpoint returns scoped trips with warehouse and status filters.
 - Controller integration test: create and update endpoints return trip detail for happy path.
 - Controller integration test: cancel, depart, and complete endpoints return expected business errors and status transitions.
+- Service test: split plan rejects incomplete allocation and duplicate vehicle/driver assignment.
+- Service test: split plan rejects per-leg vehicle overload.
+- Service test: split departure requires all drivers ready and lead-driver scope.
+- Service test: split departure rejects unavailable vehicle/driver and tells Dispatcher to wait for a ready vehicle when no valid replacement exists.
+- Controller integration test: split create, update, cancel, driver-readiness, and depart endpoints return expected success and business-error responses.
 
 ## Definition of done reminders
 

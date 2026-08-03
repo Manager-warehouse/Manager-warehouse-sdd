@@ -35,7 +35,8 @@ import com.wms.enums.supplier_management.*;
 import com.wms.enums.user_configuration.*;
 import com.wms.enums.warehouse_location.*;
 import com.wms.enums.warehouse_transfer.*;
-import com.wms.enums.order_fulfillment.DeliveryOrderStatus;
+import com.wms.enums.order_fulfillment.SplitDeliveryPlanStatus;
+import java.time.OffsetDateTime;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -49,4 +50,14 @@ public class DriverDeliveryOrderResponse {
     private DeliveryOrderStatus status;
     private Integer stopOrder;
     private DeliveryAttemptResponse currentAttempt;
+
+    // Split Delivery Milestone Data (US6)
+    private Long splitPlanId;
+    private Long splitLegId;
+    private SplitDeliveryPlanStatus splitPlanStatus;
+    private Boolean isSplitLead;
+    private SplitDeliveryPlanStatus splitLegStatus;
+    private OffsetDateTime readinessConfirmedAt;
+    private OffsetDateTime dealerArrivedAt;
+    private OffsetDateTime handoverConfirmedAt;
 }

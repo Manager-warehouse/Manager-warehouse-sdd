@@ -38,6 +38,7 @@ import com.wms.enums.warehouse_transfer.*;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
 
+/** DTO bật/tắt trạng thái tài khoản (Spec 001). */
 @Getter
 @Setter
 @NoArgsConstructor

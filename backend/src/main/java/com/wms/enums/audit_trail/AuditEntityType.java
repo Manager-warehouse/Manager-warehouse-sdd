@@ -35,6 +35,7 @@ import com.wms.enums.supplier_management.*;
 import com.wms.enums.user_configuration.*;
 import com.wms.enums.warehouse_location.*;
 import com.wms.enums.warehouse_transfer.*;
+/** Enum loại đối tượng được ghi audit log (USER, SYSTEM_CONFIG, RECEIPT, ...) (Spec 001). */
 public enum AuditEntityType {
     RECEIPT,
     ISSUE,

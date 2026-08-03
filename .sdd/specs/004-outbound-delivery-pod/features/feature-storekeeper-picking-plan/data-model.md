@@ -157,7 +157,7 @@
 
 ## Inventory
 
-**Purpose**: Concrete stock source for FIFO ranking, reservation, return-to-bin, and replacement planning.
+**Purpose**: Concrete stock source for received-date display ordering, reservation, return-to-bin, and replacement planning.
 
 **Fields used**
 
@@ -167,7 +167,7 @@
 - `batch_id`
 - `location_id`
 - `zone_id`
-- `received_date` or equivalent FIFO sort field
+- `received_date` or equivalent candidate display sort field
 - `total_qty`
 - `reserved_qty`
 - `version`
@@ -176,7 +176,8 @@
 **Validation rules**
 
 - Candidate list includes only rows in the Delivery Order warehouse with valid regular quality-passed stock.
-- FIFO consumes older received dates first; rows sharing the same received date have equal priority across bins.
+- Candidate queries display older received dates first; rows sharing the same received date have equal display priority across bins.
+- Allocation validation does not enforce received-date consumption order; any valid row with sufficient available quantity may be selected.
 - Exclude quarantine, outbound staging, In-Transit, inactive locations, and rows where `total_qty - reserved_qty <= 0`.
 - Initial plan save increments `reserved_qty` on selected rows while decrementing planner reservation.
 - Revised plan adjusts only the changed rows by delta.

@@ -40,6 +40,7 @@ import lombok.Getter;
 
 import java.util.List;
 
+/** DTO phản hồi đăng nhập — chứa thông tin user, access token và refresh token (Spec 001). */
 @Getter
 @Builder
 public class LoginResponse {

@@ -39,6 +39,7 @@ import lombok.Builder;
 import lombok.Data;
 import java.time.OffsetDateTime;
 
+/** DTO phản hồi cấu hình hệ thống hiện tại (Spec 001). */
 @Data
 @Builder
 public class SystemConfigResponse {

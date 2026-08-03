@@ -35,6 +35,7 @@ import com.wms.enums.supplier_management.*;
 import com.wms.enums.user_configuration.*;
 import com.wms.enums.warehouse_location.*;
 import com.wms.enums.warehouse_transfer.*;
+/** Enum loại hành động audit (CREATED, UPDATED, DELETED, DEACTIVATED, ...) (Spec 001). */
 public enum AuditAction {
     LOGIN,
     LOGOUT,
@@ -58,6 +59,14 @@ public enum AuditAction {
     TRIP_DEPART,
     DELIVERY_ATTEMPT_CREATE,
     COMPLETE_TRIP,
+    SPLIT_DELIVERY_PLAN_CREATE,
+    SPLIT_DELIVERY_PLAN_UPDATE,
+    SPLIT_DELIVERY_DRIVER_READY,
+    SPLIT_LEG_ARRIVAL_CONFIRM,
+    SPLIT_LEG_HANDOVER_CONFIRM,
+    SPLIT_LEG_DELIVERY_FAIL,
+    SPLIT_DELIVERY_PLAN_CANCEL,
+    SPLIT_DELIVERY_DEPART,
     PICKING_PLAN_SAVE,
     PICKED_GOODS_RETURN_TO_BIN,
     PICKING_REPLACEMENT_SAVE,

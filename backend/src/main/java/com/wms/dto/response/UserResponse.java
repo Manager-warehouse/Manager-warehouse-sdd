@@ -41,6 +41,7 @@ import lombok.*;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+/** DTO phản hồi thông tin tài khoản — danh sách/chi tiết (Spec 001). */
 @Getter
 @Setter
 @NoArgsConstructor

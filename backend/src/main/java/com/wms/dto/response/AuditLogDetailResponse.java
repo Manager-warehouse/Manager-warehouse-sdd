@@ -43,6 +43,7 @@ import lombok.Setter;
 import java.time.OffsetDateTime;
 import java.util.Map;
 
+/** DTO chi tiết một bản ghi audit log — bao gồm oldValue/newValue (Spec 001). */
 @Getter
 @Setter
 public class AuditLogDetailResponse {

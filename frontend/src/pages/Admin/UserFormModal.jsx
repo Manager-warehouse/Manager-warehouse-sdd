@@ -1,3 +1,10 @@
+/**
+ * Modal tạo/sửa tài khoản (Spec 001).
+ * Tạo mới: bắt buộc mã NV, tên, email, mật khẩu, vai trò, kho.
+ * Sửa: cho phép đổi thông tin + reset mật khẩu (để trống = không đổi).
+ * Validate mật khẩu: >= 8 ký tự, có cả chữ và số.
+ * ADMIN/CEO không cần chọn kho (truy cập toàn bộ).
+ */
 import React, { useState, useEffect } from 'react';
 import Modal from '../../components/common/Modal';
 import Input from '../../components/common/Input';
@@ -8,7 +15,7 @@ import { masterDataService } from '../../services/masterData.service';
 const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }) => {
   const modalType = user ? 'edit' : 'create';
 
-  // Form Fields State
+  // State các trường nhập liệu của form
   const [code, setCode] = useState('');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -37,10 +44,10 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
     (w) => w.type !== 'IN_TRANSIT' && w.code !== 'IN_TRANSIT' && w.is_active !== false
   );
 
-  // Check if current role doesn't need warehouse selection (Only ADMIN and CEO access all warehouses)
+  // ADMIN và CEO không cần chọn kho — tự động truy cập tất cả kho
   const noWarehouseSelection = selectedRole === ROLES.ADMIN || selectedRole === ROLES.CEO;
 
-  // Reset or fill form when user or isOpen changes
+  // Reset form (tạo mới) hoặc điền dữ liệu (sửa) khi mở modal
   useEffect(() => {
     if (isOpen) {
       setError('');
@@ -70,6 +77,7 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
     }
   }, [isOpen, user, physicalWarehouses.length]);
 
+  // Submit form — validate, build payload, gọi onSave, xử lý lỗi (EMAIL_TAKEN, WEAK_PASSWORD)
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -163,7 +171,7 @@ const UserFormModal = ({ isOpen, onClose, onSave, user = null, loading = false }
     }
   };
 
-  // Options mapping for inputs
+  // Chuyển đổi danh sách role và kho thành options cho dropdown
   const roleOptions = Object.keys(ROLES).map((key) => ({
     value: ROLES[key],
     label: ROLE_LABELS[ROLES[key]]

@@ -827,7 +827,7 @@ DebitNote (Phiếu đòi bồi hoàn)
 | No negative inventory      | DB CHECK on `total_qty`, `reserved_qty`, and available quantity + service validation |
 | Household goods traceability | Track by SKU, receipt document/date, batch, quantity, and location; no per-unit tracking, expiry dates, or quality tiers |
 | Household goods default    | Products such as pots, pans, and plastic goods use receipt date traceability |
-| FIFO default               | `FIFOSelector` picks batch by receivedDate ASC for the current household-goods domain |
+| Batch display order        | Candidate batches are displayed by `receivedDate ASC`; Storekeeper may select any valid batch |
 | Quarantine excluded        | WHERE clause filters `zone != 'QUARANTINE'`     |
 | In-Transit tracking        | Virtual warehouse `IN_TRANSIT` for transfers    |
 | Credit Check Control       | Auto-block if balance + new > limit OR >30 days overdue; balance equal to limit is allowed. Buffer 20% to unlock |
@@ -928,7 +928,7 @@ Trong Spec 003, xử lý Quarantine chỉ bao gồm RTV bằng nút "Trả NCC".
 
 ### 2. Quy trình Xuất hàng (Issue Process)
 
-Quy trình xử lý đơn xuất hàng bán cho Đại lý bao phủ toàn bộ Spec 004: Planner lập DO và hệ thống kiểm tra công nợ/tồn kho/phạm vi kho; Thủ kho lập picking plan FIFO; Nhân viên kho lấy hàng và QC outbound; Thủ kho duyệt chất lượng hoặc chọn replacement; Trưởng kho duyệt/từ chối xuất kho; Dispatcher lập chuyến xe; Tài xế giao hàng bằng POD + OTP; hệ thống tự động tạo invoice/công nợ sau khi giao thành công. Thanh toán, cấn trừ công nợ và chuyển `CLOSED` thuộc luồng tài chính riêng.
+Quy trình xử lý đơn xuất hàng bán cho Đại lý bao phủ toàn bộ Spec 004: Planner lập DO và hệ thống kiểm tra công nợ/tồn kho/phạm vi kho; Thủ kho lập picking plan từ danh sách lô sắp theo ngày nhận cũ đến mới và được chọn bất kỳ lô hợp lệ; Nhân viên kho lấy hàng và QC outbound; Thủ kho duyệt chất lượng hoặc chọn replacement; Trưởng kho duyệt/từ chối xuất kho; Dispatcher lập chuyến xe; Tài xế giao hàng bằng POD + OTP; hệ thống tự động tạo invoice/công nợ sau khi giao thành công. Thanh toán, cấn trừ công nợ và chuyển `CLOSED` thuộc luồng tài chính riêng.
 
 **Swimlane 004-A — tạo DO, picking, QC, duyệt kho:**
 
@@ -944,7 +944,7 @@ Quy trình xử lý đơn xuất hàng bán cho Đại lý bao phủ toàn bộ 
 │             │    reserve cấp tổng          │                │                │                │
 │             │                              │◄──────────────►│                │                │
 │             │                              │ Lập picking   │                │                │
-│             │                              │ plan FIFO theo│                │                │
+│             │                              │ plan theo lô  │                │                │
 │             │                              │ batch/bin/zone│                │                │
 │             │                              │ set [WAITING] │                │                │
 │             │                              │                │◄──────────────►│                │
@@ -1003,7 +1003,7 @@ Quy trình xử lý đơn xuất hàng bán cho Đại lý bao phủ toàn bộ 
 ```
 
 **Luồng trạng thái đơn xuất:**
-`NEW` (Planner lập đơn; System check công nợ, tồn kho khả dụng và phạm vi kho đạt; hệ thống reserve cấp `warehouse_product_reservations`, chưa gán batch/bin/zone và chưa tăng `inventories.reserved_qty`) → `WAITING_PICKING` (Thủ kho lưu kế hoạch lấy hàng đầy đủ từ một hoặc nhiều batch/bin/zone FIFO; hệ thống chuyển reserve cấp warehouse/product sang concrete inventory reservation và snapshot `unit_price`) → `QC_PENDING_APPROVAL` (Nhân viên kho lấy hàng và nhập kết quả QC một lần theo item/allocation/batch/location/zone; hàng pass vào outbound staging, hàng fail vào Quarantine, tạo quarantine record/inventory adjustment và xóa reserve allocation fail; trạng thái này vẫn dùng khi pass chưa đủ để Thủ kho chọn replacement) → `QC_COMPLETED` (Thủ kho duyệt chất lượng khi đủ hàng đạt sau mọi replacement cần thiết) → `WAREHOUSE_APPROVED` (Trưởng kho phê duyệt xuất kho, DO đủ điều kiện cho Dispatcher lập trip) → `IN_TRANSIT` (Dispatcher lập trip `DELIVERY`, Tài xế xác nhận nhận hàng/rời kho; hệ thống chuyển QC-passed goods từ outbound staging sang kho ảo In-Transit và tạo delivery attempt hiện tại) → `COMPLETED` (Tài xế upload đủ `goodsImage` + `signDocumentImage`, Đại lý xác thực OTP email, delivery attempt chuyển `DELIVERED`; hệ thống trừ In-Transit cho đúng DO, tự động tạo invoice/công nợ theo giá snapshot và tăng `Dealer.current_balance`) / `RETURNED` (Đại lý từ chối hoặc giao thất bại; delivery attempt `FAILED`, hàng vẫn ở In-Transit đến luồng hoàn hàng riêng) → `DELIVERY_FAILED` (luồng hoàn hàng riêng xác nhận hàng returned đã quay lại kho). `CLOSED` chỉ xảy ra trong luồng tài chính/thanh toán riêng sau khi công nợ được tất toán/phê duyệt.
+`NEW` (Planner lập đơn; System check công nợ, tồn kho khả dụng và phạm vi kho đạt; hệ thống reserve cấp `warehouse_product_reservations`, chưa gán batch/bin/zone và chưa tăng `inventories.reserved_qty`) → `WAITING_PICKING` (Thủ kho lưu kế hoạch lấy hàng đầy đủ từ một hoặc nhiều batch/bin/zone hợp lệ; danh sách hiển thị theo ngày nhận cũ đến mới nhưng không bắt buộc lấy lô cũ trước; hệ thống chuyển reserve cấp warehouse/product sang concrete inventory reservation và snapshot `unit_price`) → `QC_PENDING_APPROVAL` (Nhân viên kho lấy hàng và nhập kết quả QC một lần theo item/allocation/batch/location/zone; hàng pass vào outbound staging, hàng fail vào Quarantine, tạo quarantine record/inventory adjustment và xóa reserve allocation fail; trạng thái này vẫn dùng khi pass chưa đủ để Thủ kho chọn replacement) → `QC_COMPLETED` (Thủ kho duyệt chất lượng khi đủ hàng đạt sau mọi replacement cần thiết) → `WAREHOUSE_APPROVED` (Trưởng kho phê duyệt xuất kho, DO đủ điều kiện cho Dispatcher lập trip) → `IN_TRANSIT` (Dispatcher lập trip `DELIVERY`, Tài xế xác nhận nhận hàng/rời kho; hệ thống chuyển QC-passed goods từ outbound staging sang kho ảo In-Transit và tạo delivery attempt hiện tại) → `COMPLETED` (Tài xế upload đủ `goodsImage` + `signDocumentImage`, Đại lý xác thực OTP email, delivery attempt chuyển `DELIVERED`; hệ thống trừ In-Transit cho đúng DO, tự động tạo invoice/công nợ theo giá snapshot và tăng `Dealer.current_balance`) / `RETURNED` (Đại lý từ chối hoặc giao thất bại; delivery attempt `FAILED`, hàng vẫn ở In-Transit đến luồng hoàn hàng riêng) → `DELIVERY_FAILED` (luồng hoàn hàng riêng xác nhận hàng returned đã quay lại kho). `CLOSED` chỉ xảy ra trong luồng tài chính/thanh toán riêng sau khi công nợ được tất toán/phê duyệt.
 
 **Nhánh kiểm soát chính của Spec 004:** Warehouse Manager có thể hủy DO trước `WAREHOUSE_APPROVED` và hệ thống phải giải phóng reservation phù hợp; sau `QC_COMPLETED`, Trưởng kho có thể reject và hệ thống phải trả toàn bộ hàng pass ở outbound staging về bin gốc, giữ hàng fail trong Quarantine và kết thúc DO ở `REJECTED`; Dispatcher chỉ được update/cancel trip khi trip còn `PLANNED`; delivery confirmation chỉ áp dụng full DO, chỉ invoice đúng DO được xác nhận trong cùng trip, idempotent theo DO và rollback toàn bộ nếu tạo invoice/công nợ lỗi.
 

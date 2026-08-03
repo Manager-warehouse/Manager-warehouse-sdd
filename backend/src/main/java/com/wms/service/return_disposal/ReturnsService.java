@@ -467,7 +467,11 @@ public class ReturnsService {
         BigDecimal totalRefundAmount = BigDecimal.ZERO;
 
         for (ReceiptItem item : items) {
-            BigDecimal qty = item.getActualQty() != null ? BigDecimal.valueOf(item.getActualQty()) : BigDecimal.ZERO;
+            // Refund only the QC-passed (shelved) portion - samplePassedQty, not actualQty.
+            // A dealer return that fails QC goes to Quarantine, not regular stock, so it was
+            // never actually accepted back; crediting the full actualQty would refund for units
+            // we didn't take ownership of.
+            BigDecimal qty = item.getSamplePassedQty() != null ? BigDecimal.valueOf(item.getSamplePassedQty()) : BigDecimal.ZERO;
             BigDecimal returnPrice = item.getUnitCost() != null ? item.getUnitCost() : BigDecimal.ZERO; // unitCost contains the original DO unitPrice
             totalRefundAmount = totalRefundAmount.add(qty.multiply(returnPrice));
         }

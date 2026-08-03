@@ -24,14 +24,14 @@ public class CreateSupplierPaymentRequest {
     @DecimalMin(value = "0.01", message = "Payment amount must be greater than 0")
     private BigDecimal amount;
 
+    // Sole date on this request - drives both the payment record and which accounting
+    // period it posts into (matches how PaymentReceiptCreateRequest works for AR; there
+    // is no separate "document date" hidden behind this one).
     @NotNull(message = "Payment date is required")
     private LocalDate paymentDate;
 
     @NotNull(message = "Payment method is required")
     private PaymentMethod paymentMethod;
-
-    @NotNull(message = "Document date is required")
-    private LocalDate documentDate;
 
     private String notes;
 }

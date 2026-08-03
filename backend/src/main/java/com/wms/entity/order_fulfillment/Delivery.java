@@ -1,6 +1,5 @@
 package com.wms.entity.order_fulfillment;
 
-
 import com.wms.entity.access_control.*;
 import com.wms.entity.audit_trail.*;
 import com.wms.entity.billing_payment.*;
@@ -84,6 +83,36 @@ public class Delivery {
 
     @Column(name = "pod_signature_url", length = 500)
     private String podSignatureUrl;
+
+    @Column(name = "goods_image_object_key", length = 500)
+    private String goodsImageObjectKey;
+
+    @Column(name = "goods_image_original_filename", length = 255)
+    private String goodsImageOriginalFilename;
+
+    @Column(name = "goods_image_content_type", length = 100)
+    private String goodsImageContentType;
+
+    @Column(name = "goods_image_size_bytes")
+    private Long goodsImageSizeBytes;
+
+    @Column(name = "goods_image_uploaded_at")
+    private OffsetDateTime goodsImageUploadedAt;
+
+    @Column(name = "signed_document_object_key", length = 500)
+    private String signedDocumentObjectKey;
+
+    @Column(name = "signed_document_original_filename", length = 255)
+    private String signedDocumentOriginalFilename;
+
+    @Column(name = "signed_document_content_type", length = 100)
+    private String signedDocumentContentType;
+
+    @Column(name = "signed_document_size_bytes")
+    private Long signedDocumentSizeBytes;
+
+    @Column(name = "signed_document_uploaded_at")
+    private OffsetDateTime signedDocumentUploadedAt;
 
     @Column(name = "pod_timestamp")
     private OffsetDateTime podTimestamp;

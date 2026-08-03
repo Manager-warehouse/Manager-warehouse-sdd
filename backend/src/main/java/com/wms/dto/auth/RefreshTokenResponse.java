@@ -38,6 +38,7 @@ import com.wms.enums.warehouse_transfer.*;
 import lombok.Builder;
 import lombok.Getter;
 
+/** DTO phản hồi làm mới token — chứa access token và refresh token mới (Spec 001). */
 @Getter
 @Builder
 public class RefreshTokenResponse {

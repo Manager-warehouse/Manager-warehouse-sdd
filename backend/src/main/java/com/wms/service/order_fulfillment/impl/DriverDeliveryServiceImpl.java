@@ -76,11 +76,7 @@ import com.wms.repository.TripRepository;
 import com.wms.service.audit_trail.AuditLogService;
 import com.wms.service.billing_payment.AutoInvoiceService;
 import com.wms.service.order_fulfillment.DriverDeliveryService;
-import java.io.IOException;
 import java.math.BigDecimal;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
@@ -91,7 +87,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
@@ -100,10 +95,26 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.wms.repository.SplitDeliveryLegRepository;
+import com.wms.repository.SplitDeliveryPlanRepository;
+import com.wms.repository.UserWarehouseAssignmentRepository;
+import com.wms.service.order_fulfillment.PodEvidenceStorageService;
+import com.wms.service.order_fulfillment.PodEvidenceStorageService.StoredPodContent;
+import com.wms.service.order_fulfillment.PodEvidenceStorageService.StoredPodObject;
+import com.wms.entity.order_fulfillment.SplitDeliveryPlan;
+import com.wms.entity.order_fulfillment.SplitDeliveryLeg;
+import com.wms.enums.order_fulfillment.SplitDeliveryPlanStatus;
+import com.wms.exception.OtpDeliveryFailedException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class DriverDeliveryServiceImpl implements DriverDeliveryService {
+
+    private static final Logger log = LoggerFactory.getLogger(DriverDeliveryServiceImpl.class);
 
     /*
      * Service cho màn "Giao hàng của tôi" của tài xế.
@@ -115,6 +126,8 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
     private static final List<DeliveryStatus> CURRENT_ATTEMPT_STATUSES = List.of(DeliveryStatus.IN_TRANSIT);
     private static final List<DeliveryOrderStatus> TERMINAL_DO_STATUSES =
             List.of(DeliveryOrderStatus.COMPLETED, DeliveryOrderStatus.RETURNED);
+    private static final List<DeliveryOtpStatus> POD_REPLACEMENT_EXPIRABLE_OTP_STATUSES =
+            List.of(DeliveryOtpStatus.PENDING, DeliveryOtpStatus.ACTIVE, DeliveryOtpStatus.SEND_FAILED);
 
     private final TripRepository tripRepository;
     private final TripDeliveryOrderRepository tripDeliveryOrderRepository;
@@ -129,6 +142,11 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
     private final JavaMailSender mailSender;
     private final SecureRandom secureRandom = new SecureRandom();
 
+    private final SplitDeliveryLegRepository splitDeliveryLegRepository;
+    private final SplitDeliveryPlanRepository splitDeliveryPlanRepository;
+    private final UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
+    private final PodEvidenceStorageService podStorageService;
+
     public DriverDeliveryServiceImpl(TripRepository tripRepository,
                                      TripDeliveryOrderRepository tripDeliveryOrderRepository,
                                      DeliveryRepository deliveryRepository,
@@ -137,9 +155,13 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
                                      DeliveryOrderItemRepository deliveryOrderItemRepository,
                                      InventoryRepository inventoryRepository,
                                      InterWarehouseTransferRepository interWarehouseTransferRepository,
+                                     SplitDeliveryLegRepository splitDeliveryLegRepository,
+                                     SplitDeliveryPlanRepository splitDeliveryPlanRepository,
+                                     UserWarehouseAssignmentRepository userWarehouseAssignmentRepository,
                                      AutoInvoiceService autoInvoiceService,
                                      AuditLogService auditLogService,
-                                     JavaMailSender mailSender) {
+                                     JavaMailSender mailSender,
+                                     PodEvidenceStorageService podStorageService) {
         this.tripRepository = tripRepository;
         this.tripDeliveryOrderRepository = tripDeliveryOrderRepository;
         this.deliveryRepository = deliveryRepository;
@@ -148,9 +170,13 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
         this.deliveryOrderItemRepository = deliveryOrderItemRepository;
         this.inventoryRepository = inventoryRepository;
         this.interWarehouseTransferRepository = interWarehouseTransferRepository;
+        this.splitDeliveryLegRepository = splitDeliveryLegRepository;
+        this.splitDeliveryPlanRepository = splitDeliveryPlanRepository;
+        this.userWarehouseAssignmentRepository = userWarehouseAssignmentRepository;
         this.autoInvoiceService = autoInvoiceService;
         this.auditLogService = auditLogService;
         this.mailSender = mailSender;
+        this.podStorageService = podStorageService;
     }
 
     @Override
@@ -181,46 +207,99 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
                                                      MultipartFile signDocumentImage,
                                                      String notes,
                                                      User actor) {
-        // Tài xế upload bằng chứng giao hàng: ảnh hàng giao và ảnh ký nhận/chứng từ.
-        // Hai ảnh này là điều kiện bắt buộc trước khi xin OTP xác nhận giao thành công.
         Trip trip = assignedTrip(tripId, actor);
+        TripDeliveryOrder row = tripDeliveryOrderRepository.findByTripIdAndDeliveryOrderId(trip.getId(), deliveryOrderId)
+                .orElseThrow(() -> new OutboundDeliveryException("DELIVERY_ORDER_NOT_IN_TRIP", HttpStatus.FORBIDDEN, "Delivery order not in trip"));
+        requireSplitLeadAndAllHandovers(row, actor);
         Delivery delivery = currentAttempt(trip, deliveryOrderId);
+        java.util.Map<String, Object> before = attemptSnapshot(delivery);
+        requireCompletePodPair(goodsImage, signDocumentImage);
         validatePodFile(goodsImage);
         validatePodFile(signDocumentImage);
-        Map<String, Object> before = attemptSnapshot(delivery);
-        delivery.setPodImageUrl(storePodFile(goodsImage, "goods"));
-        delivery.setPodSignatureUrl(storePodFile(signDocumentImage, "signature"));
-        delivery.setPodTimestamp(OffsetDateTime.now());
-        delivery.setUpdatedAt(OffsetDateTime.now());
-        Delivery saved = deliveryRepository.save(delivery);
-        audit(actor, AuditAction.UPLOAD_POD, saved, before, attemptSnapshot(saved));
-        return toAttemptResponse(saved);
+
+        String oldGoodsKey = delivery.getGoodsImageObjectKey();
+        String oldSignKey = delivery.getSignedDocumentObjectKey();
+        StoredPodPair pair = uploadPodPair(delivery.getId(), goodsImage, signDocumentImage);
+        delivery.setGoodsImageObjectKey(pair.goods().objectKey());
+        delivery.setGoodsImageOriginalFilename(pair.goods().originalFilename());
+        delivery.setGoodsImageContentType(pair.goods().contentType());
+        delivery.setGoodsImageSizeBytes(pair.goods().sizeBytes());
+        delivery.setGoodsImageUploadedAt(OffsetDateTime.now());
+        delivery.setSignedDocumentObjectKey(pair.signedDocument().objectKey());
+        delivery.setSignedDocumentOriginalFilename(pair.signedDocument().originalFilename());
+        delivery.setSignedDocumentContentType(pair.signedDocument().contentType());
+        delivery.setSignedDocumentSizeBytes(pair.signedDocument().sizeBytes());
+        delivery.setSignedDocumentUploadedAt(OffsetDateTime.now());
+        delivery.setPodImageUrl(null);
+        delivery.setPodSignatureUrl(null);
+        delivery.setPodTimestamp(java.time.OffsetDateTime.now());
+        registerPodFileLifecycle(oldGoodsKey, oldSignKey, pair);
+        otpRepository.findByDeliveryId(delivery.getId()).ifPresent(otp -> {
+            if (POD_REPLACEMENT_EXPIRABLE_OTP_STATUSES.contains(otp.getStatus())) {
+                otp.setStatus(DeliveryOtpStatus.EXPIRED);
+                otpRepository.save(otp);
+            }
+        });
+
+        try {
+            Delivery saved = deliveryRepository.save(delivery);
+            auditLogService.log(actor, AuditAction.UPLOAD_POD, "DELIVERY", saved.getId(),
+                    saved.getDeliveryNumber(), trip.getWarehouse().getId(), before, attemptSnapshot(saved));
+            return toAttemptResponse(saved);
+        } catch (RuntimeException ex) {
+            if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+                safeDeletePod(pair.goods().objectKey());
+                safeDeletePod(pair.signedDocument().objectKey());
+            }
+            throw ex;
+        }
     }
 
     @Override
-    @Transactional
-    public DeliveryOtpResponse requestDeliveryOtp(Long tripId, Long deliveryOrderId,
-                                                  DeliveryOtpRequest request,
-                                                  User actor) {
-        // Sau khi có ảnh POD, tài xế xin OTP gửi tới email đại lý để xác nhận người nhận hàng.
+    @Transactional(readOnly = true)
+    public StoredPodContent getPodEvidence(Long deliveryOrderId, String evidenceType, User actor) {
+        Delivery delivery = deliveryRepository
+                .findFirstByDeliveryOrderIdAndStatusOrderByAttemptNumberDesc(
+                        deliveryOrderId, DeliveryStatus.DELIVERED)
+                .orElseThrow(() -> new OutboundDeliveryException(
+                        "POD_EVIDENCE_NOT_FOUND", HttpStatus.NOT_FOUND, "POD evidence was not found"));
+        requireDeliveryOrderDetailAccess(actor, delivery.getDeliveryOrder());
+        if ("GOODS".equalsIgnoreCase(evidenceType)) {
+            return podStorageService.read(delivery.getGoodsImageObjectKey(),
+                    delivery.getGoodsImageOriginalFilename(), delivery.getGoodsImageContentType());
+        }
+        if ("SIGNED_DOCUMENT".equalsIgnoreCase(evidenceType)) {
+            return podStorageService.read(delivery.getSignedDocumentObjectKey(),
+                    delivery.getSignedDocumentOriginalFilename(), delivery.getSignedDocumentContentType());
+        }
+        throw new OutboundDeliveryException(
+                "POD_EVIDENCE_NOT_FOUND", HttpStatus.NOT_FOUND, "POD evidence was not found");
+    }
+
+    @Override
+    @Transactional(noRollbackFor = OtpDeliveryFailedException.class)
+    public DeliveryOtpResponse requestDeliveryOtp(Long tripId, Long deliveryOrderId, DeliveryOtpRequest request, User actor) {
         Trip trip = assignedTrip(tripId, actor);
+        TripDeliveryOrder row = tripDeliveryOrderRepository.findByTripIdAndDeliveryOrderId(trip.getId(), deliveryOrderId)
+                .orElseThrow(() -> new OutboundDeliveryException("DELIVERY_ORDER_NOT_IN_TRIP", HttpStatus.FORBIDDEN, "Delivery order not in trip"));
+        requireSplitLeadAndAllHandovers(row, actor);
         Delivery delivery = currentAttempt(trip, deliveryOrderId);
         requirePod(delivery);
         Dealer dealer = delivery.getDeliveryOrder().getDealer();
-        // Validate: đại lý phải có email thì hệ thống mới gửi được OTP xác nhận giao hàng.
         if (dealer.getEmail() == null || dealer.getEmail().isBlank()) {
-            throw rule("DEALER_EMAIL_MISSING", "Dealer email is required before requesting delivery OTP");
+            throw rule("DEALER_EMAIL_MISSING", "Dealer email is required");
         }
+
         DeliveryOtpAttempt otp = otpRepository.findByDeliveryId(delivery.getId()).orElse(null);
-        OffsetDateTime now = OffsetDateTime.now();
-        if (otp != null && otp.getStatus() == DeliveryOtpStatus.LOCKED) {
-            throw locked("OTP_RESET_REQUIRED", "OTP is locked and requires admin reset");
+        java.time.OffsetDateTime now = java.time.OffsetDateTime.now();
+        if (otp != null && otp.getStatus() == com.wms.enums.order_fulfillment.DeliveryOtpStatus.LOCKED) {
+            throw locked("OTP_RESET_REQUIRED", "OTP is locked");
         }
-        // Validate: nếu OTP cũ còn hiệu lực thì không tạo OTP mới để tránh nhiều mã song song.
-        if (otp != null && otp.getStatus() == DeliveryOtpStatus.ACTIVE && otp.getExpiresAt().isAfter(now)) {
+        if (otp != null && otp.getStatus() == com.wms.enums.order_fulfillment.DeliveryOtpStatus.ACTIVE && otp.getExpiresAt().isAfter(now)) {
             throw conflict("OTP_STILL_ACTIVE", "Current OTP is still active");
         }
-        Map<String, Object> before = otp == null ? null : otpSnapshot(otp);
+
+        java.util.Map<String, Object> before = otp == null ? null : otpSnapshot(otp);
         String code = sixDigitOtp();
         if (otp == null) {
             otp = new DeliveryOtpAttempt();
@@ -231,95 +310,130 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
         otp.setRecipientEmail(dealer.getEmail());
         otp.setExpiresAt(now.plusMinutes(5));
         otp.setConsumedAt(null);
-        otp.setStatus(DeliveryOtpStatus.ACTIVE);
+        otp.setStatus(com.wms.enums.order_fulfillment.DeliveryOtpStatus.PENDING);
         otp.setAttemptCount(0);
+        
         DeliveryOtpAttempt saved = otpRepository.save(otp);
-        sendOtpEmail(dealer.getEmail(), code);
-        auditLogService.log(actor, AuditAction.REQUEST_OTP, "DELIVERY_OTP_ATTEMPT",
-                saved.getId(), "OTP-" + delivery.getDeliveryNumber(), trip.getWarehouse().getId(),
-                before, otpSnapshot(saved));
-        return toOtpResponse(saved);
+
+        try {
+            sendOtpEmail(dealer.getEmail(), code);
+            saved.setStatus(com.wms.enums.order_fulfillment.DeliveryOtpStatus.ACTIVE);
+            saved.setIssuedAt(java.time.OffsetDateTime.now());
+            saved = otpRepository.save(saved);
+            auditLogService.log(actor, AuditAction.REQUEST_OTP, "DELIVERY_OTP_ATTEMPT", saved.getId(), "OTP-" + delivery.getDeliveryNumber(), trip.getWarehouse().getId(), before, otpSnapshot(saved));
+            return toOtpResponse(saved);
+        } catch (Exception e) {
+            saved.setStatus(com.wms.enums.order_fulfillment.DeliveryOtpStatus.SEND_FAILED);
+            otpRepository.save(saved);
+            throw new OtpDeliveryFailedException("Failed to send OTP via email");
+        }
     }
 
     @Override
     @Transactional
-    public DeliveryAttemptResponse confirmDelivery(Long tripId, Long deliveryOrderId,
-                                                   ConfirmDeliveryRequest request,
-                                                   User actor) {
-        // Xác nhận giao thành công: phải có POD, OTP hợp lệ, sau đó trừ tồn khỏi kho ảo đang vận chuyển.
+    public DeliveryAttemptResponse confirmDelivery(Long tripId, Long deliveryOrderId, ConfirmDeliveryRequest request, User actor) {
         Trip trip = assignedTrip(tripId, actor);
+        TripDeliveryOrder row = tripDeliveryOrderRepository.findByTripIdAndDeliveryOrderId(trip.getId(), deliveryOrderId)
+                .orElseThrow(() -> new OutboundDeliveryException("DELIVERY_ORDER_NOT_IN_TRIP", HttpStatus.FORBIDDEN,
+                        "Delivery order not in trip"));
+        requireSplitLeadAndAllHandovers(row, actor);
         Delivery delivery = currentAttempt(trip, deliveryOrderId);
         requirePod(delivery);
+
         DeliveryOtpAttempt otp = otpRepository.findByDeliveryId(delivery.getId())
                 .orElseThrow(() -> rule("OTP_NOT_REQUESTED", "Delivery OTP was not requested"));
         verifyOtp(otp, request.getOtp());
-        Map<String, Object> before = attemptSnapshot(delivery);
+
+        java.util.Map<String, Object> before = attemptSnapshot(delivery);
         decrementTransitInventory(delivery.getDeliveryOrder());
         autoInvoiceService.createForConfirmedDelivery(delivery.getDeliveryOrder(), actor);
-        OffsetDateTime now = OffsetDateTime.now();
-        otp.setStatus(DeliveryOtpStatus.VERIFIED);
+
+        java.time.OffsetDateTime now = java.time.OffsetDateTime.now();
+        otp.setStatus(com.wms.enums.order_fulfillment.DeliveryOtpStatus.VERIFIED);
         otp.setConsumedAt(now);
         otpRepository.save(otp);
+
         delivery.setStatus(DeliveryStatus.DELIVERED);
         delivery.setOtpVerifiedAt(now);
         delivery.setDeliveredAt(now);
         delivery.setUpdatedAt(now);
+        
         delivery.getDeliveryOrder().setStatus(DeliveryOrderStatus.COMPLETED);
         delivery.getDeliveryOrder().setUpdatedAt(now);
         deliveryOrderRepository.save(delivery.getDeliveryOrder());
+
         Delivery saved = deliveryRepository.save(delivery);
-        audit(actor, AuditAction.CONFIRM_DELIVERY, saved, before, attemptSnapshot(saved));
-        completeTripIfAllStopsTerminal(trip, actor, now);
+        auditLogService.log(actor, AuditAction.CONFIRM_DELIVERY, "DELIVERY", saved.getId(), saved.getDeliveryNumber(), trip.getWarehouse().getId(), before, attemptSnapshot(saved));
+        
         return toAttemptResponse(saved);
     }
 
     @Override
     @Transactional
-    public DeliveryAttemptResponse failDelivery(Long tripId, Long deliveryOrderId,
-                                                FailDeliveryRequest request,
-                                                User actor) {
-        // Tài xế báo giao thất bại. Đơn chuyển sang trạng thái trả về để xử lý luồng hàng quay lại.
+    public DeliveryAttemptResponse failDelivery(Long tripId, Long deliveryOrderId, FailDeliveryRequest request, User actor) {
         Trip trip = assignedTrip(tripId, actor);
         Delivery delivery = currentAttempt(trip, deliveryOrderId);
-        Map<String, Object> before = attemptSnapshot(delivery);
-        OffsetDateTime now = OffsetDateTime.now();
+        java.util.Map<String, Object> before = attemptSnapshot(delivery);
+
+        java.time.OffsetDateTime now = java.time.OffsetDateTime.now();
         delivery.setStatus(DeliveryStatus.FAILED);
         delivery.setFailureReason(request.getFailureReason());
         delivery.setUpdatedAt(now);
+
         delivery.getDeliveryOrder().setStatus(DeliveryOrderStatus.RETURNED);
         delivery.getDeliveryOrder().setUpdatedAt(now);
         deliveryOrderRepository.save(delivery.getDeliveryOrder());
+
         Delivery saved = deliveryRepository.save(delivery);
-        audit(actor, AuditAction.FAIL_DELIVERY, saved, before, attemptSnapshot(saved));
-        completeTripIfAllStopsTerminal(trip, actor, now);
+        auditLogService.log(actor, AuditAction.FAIL_DELIVERY, "DELIVERY", saved.getId(), saved.getDeliveryNumber(), trip.getWarehouse().getId(), before, attemptSnapshot(saved));
+        
         return toAttemptResponse(saved);
     }
 
     @Override
     @Transactional
     public TripDriverViewResponse completeTrip(Long tripId, TripCompleteRequest request, User actor) {
-        // Tài xế đóng chuyến khi mọi đơn trong chuyến đã giao thành công hoặc đã đánh dấu trả về.
         Trip trip = assignedTrip(tripId, actor);
         if (trip.getStatus() != TripStatus.IN_TRANSIT) {
-            throw rule("TRIP_NOT_READY_TO_COMPLETE", "Trip must be IN_TRANSIT before completion");
+            throw rule("TRIP_NOT_READY_TO_COMPLETE", "Trip must be IN_TRANSIT");
         }
-        List<TripDeliveryOrder> rows = tripDeliveryOrderRepository.findByTripIdOrderByStopOrderAsc(tripId);
+
+        java.util.List<TripDeliveryOrder> rows = tripDeliveryOrderRepository.findByTripIdOrderByStopOrderAsc(tripId);
         boolean notReady = rows.stream().map(TripDeliveryOrder::getDeliveryOrder)
                 .anyMatch(order -> !TERMINAL_DO_STATUSES.contains(order.getStatus()));
-        // Validate: chưa được đóng chuyến nếu còn điểm giao chưa có kết quả cuối.
         if (notReady) {
-            throw rule("TRIP_NOT_READY_TO_COMPLETE", "All delivery orders must be COMPLETED or RETURNED");
+            throw new OutboundDeliveryException("TRIP_NOT_READY_TO_COMPLETE", HttpStatus.BAD_REQUEST, "All delivery orders must be COMPLETED or RETURNED");
         }
-        Map<String, Object> before = tripSnapshot(trip);
-        OffsetDateTime now = request.getReturnedAt() == null ? OffsetDateTime.now() : request.getReturnedAt();
+
+        java.util.Map<String, Object> before = tripSnapshot(trip);
+        java.time.OffsetDateTime now = request.getReturnedAt() == null ? java.time.OffsetDateTime.now() : request.getReturnedAt();
+        
         trip.setStatus(TripStatus.COMPLETED);
         trip.setCompletedAt(now);
-        trip.getVehicle().setStatus(VehicleStatus.AVAILABLE);
-        trip.getDriver().setStatus(DriverStatus.AVAILABLE);
         trip.setUpdatedAt(now);
+        
+        java.util.Optional<SplitDeliveryLeg> splitLegOpt = splitDeliveryLegRepository.findByTripId(trip.getId());
+        if (splitLegOpt.isPresent()) {
+            SplitDeliveryLeg leg = splitLegOpt.get();
+            leg.setStatus(SplitDeliveryPlanStatus.COMPLETED);
+            splitDeliveryLegRepository.save(leg);
+            trip.getVehicle().setStatus(VehicleStatus.AVAILABLE);
+            trip.getDriver().setStatus(DriverStatus.AVAILABLE);
+
+            SplitDeliveryPlan plan = leg.getSplitPlan();
+            boolean allLegsCompleted = splitDeliveryLegRepository.findBySplitPlanIdOrderByStopOrderAsc(plan.getId()).stream()
+                    .allMatch(l -> l.getStatus() == SplitDeliveryPlanStatus.COMPLETED);
+            if (allLegsCompleted) {
+                plan.setStatus(SplitDeliveryPlanStatus.COMPLETED);
+                splitDeliveryPlanRepository.save(plan);
+            }
+        } else {
+            trip.getVehicle().setStatus(VehicleStatus.AVAILABLE);
+            trip.getDriver().setStatus(DriverStatus.AVAILABLE);
+        }
+
         Trip saved = tripRepository.save(trip);
-        auditLogService.log(actor, AuditAction.COMPLETE_TRIP, "TRIP", saved.getId(), saved.getTripNumber(),
-                saved.getWarehouse().getId(), before, tripSnapshot(saved));
+        auditLogService.log(actor, AuditAction.COMPLETE_TRIP, "TRIP", saved.getId(), saved.getTripNumber(), saved.getWarehouse().getId(), before, tripSnapshot(saved));
         return toTripDriverView(saved);
     }
 
@@ -364,29 +478,7 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
                 .orElseThrow(() -> notFound("Current delivery attempt not found"));
     }
 
-    private void completeTripIfAllStopsTerminal(Trip trip, User actor, OffsetDateTime completedAt) {
-        // Sau mỗi lần giao thành công/thất bại, nếu mọi điểm giao đã có kết quả cuối thì tự đóng chuyến.
-        if (trip.getStatus() != TripStatus.IN_TRANSIT) {
-            return;
-        }
-        List<TripDeliveryOrder> rows = tripDeliveryOrderRepository.findByTripIdOrderByStopOrderAsc(trip.getId());
-        boolean allTerminal = !rows.isEmpty() && rows.stream()
-                .map(TripDeliveryOrder::getDeliveryOrder)
-                .allMatch(order -> TERMINAL_DO_STATUSES.contains(order.getStatus()));
-        if (!allTerminal) {
-            return;
-        }
 
-        Map<String, Object> before = tripSnapshot(trip);
-        trip.setStatus(TripStatus.COMPLETED);
-        trip.setCompletedAt(completedAt);
-        trip.getVehicle().setStatus(VehicleStatus.AVAILABLE);
-        trip.getDriver().setStatus(DriverStatus.AVAILABLE);
-        trip.setUpdatedAt(completedAt);
-        Trip saved = tripRepository.save(trip);
-        auditLogService.log(actor, AuditAction.COMPLETE_TRIP, "TRIP", saved.getId(), saved.getTripNumber(),
-                saved.getWarehouse().getId(), before, tripSnapshot(saved));
-    }
 
     private void verifyOtp(DeliveryOtpAttempt otp, String rawOtp) {
         // Validate OTP: phải đang hiệu lực, chưa hết hạn, sai quá 3 lần thì khóa để tránh dò mã.
@@ -474,6 +566,9 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
                         .map(row -> {
                             DeliveryOrder order = row.getDeliveryOrder();
                             Dealer dealer = order.getDealer();
+                       SplitDeliveryPlan splitPlan = row.getSplitPlan();
+                       SplitDeliveryLeg splitLeg = splitPlan == null ? null
+                               : splitDeliveryLegRepository.findByTripId(trip.getId()).orElse(null);
                             return DriverDeliveryOrderResponse.builder()
                                     .doId(order.getId())
                                     .doNumber(order.getDoNumber())
@@ -481,8 +576,16 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
                                     .dealerAddress(dealer == null ? null : dealer.getDefaultDeliveryAddress())
                                     .status(order.getStatus())
                                     .stopOrder(row.getStopOrder())
-                                    .currentAttempt(toAttemptResponseOrNull(attempts.get(order.getId())))
-                                    .build();
+                               .currentAttempt(toAttemptResponseOrNull(attempts.get(order.getId())))
+                               .splitPlanId(splitPlan == null ? null : splitPlan.getId())
+                               .splitLegId(splitLeg == null ? null : splitLeg.getId())
+                               .splitPlanStatus(splitPlan == null ? null : splitPlan.getStatus())
+                               .isSplitLead(splitPlan != null && splitPlan.getLeadDriver() != null && splitPlan.getLeadDriver().getId().equals(trip.getDriver().getId()))
+                               .splitLegStatus(splitLeg == null ? null : splitLeg.getStatus())
+                               .readinessConfirmedAt(splitLeg == null ? null : splitLeg.getReadinessConfirmedAt())
+                               .dealerArrivedAt(splitLeg == null ? null : splitLeg.getDealerArrivedAt())
+                               .handoverConfirmedAt(splitLeg == null ? null : splitLeg.getHandoverConfirmedAt())
+                               .build();
                         })
                         .toList())
                 .build();
@@ -528,8 +631,8 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
                 .deliveryId(delivery.getId())
                 .attemptNumber(delivery.getAttemptNumber())
                 .status(delivery.getStatus())
-                .podImageUrl(delivery.getPodImageUrl())
-                .podSignatureUrl(delivery.getPodSignatureUrl())
+                .goodsImageAvailable(delivery.getGoodsImageObjectKey() != null)
+                .signedDocumentImageAvailable(delivery.getSignedDocumentObjectKey() != null)
                 .podTimestamp(delivery.getPodTimestamp())
                 .otpVerifiedAt(delivery.getOtpVerifiedAt())
                 .failureReason(delivery.getFailureReason())
@@ -559,31 +662,11 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
         }
     }
 
-    private String storePodFile(MultipartFile file, String prefix) {
-        // Lưu ảnh POD xuống thư mục uploads/pod và trả đường dẫn để frontend hiển thị lại.
-        try {
-            Files.createDirectories(Path.of("uploads", "pod"));
-            String ext = extension(file.getOriginalFilename());
-            String filename = prefix + "-" + UUID.randomUUID() + ext;
-            Path target = Path.of("uploads", "pod", filename);
-            Files.copy(file.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
-            return "/uploads/pod/" + filename;
-        } catch (IOException ex) {
-            throw new OutboundDeliveryException("POD_STORAGE_FAILED",
-                    HttpStatus.INTERNAL_SERVER_ERROR, "Could not store POD evidence");
-        }
-    }
-
-    private String extension(String filename) {
-        if (filename == null || !filename.contains(".")) {
-            return ".bin";
-        }
-        return filename.substring(filename.lastIndexOf('.'));
-    }
-
     private void requirePod(Delivery delivery) {
         // Trước khi xin OTP hoặc xác nhận giao thành công phải có đủ ảnh hàng và ảnh ký nhận/chứng từ.
-        if (delivery.getPodImageUrl() == null || delivery.getPodSignatureUrl() == null) {
+        boolean hasObjectKeys = delivery.getGoodsImageObjectKey() != null
+                && delivery.getSignedDocumentObjectKey() != null;
+        if (!hasObjectKeys) {
             throw new OutboundDeliveryException("MISSING_POD",
                     HttpStatus.BAD_REQUEST, "Both POD images are required");
         }
@@ -595,6 +678,96 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
         message.setSubject("Delivery confirmation OTP");
         message.setText("Your delivery confirmation OTP is: " + otp + "\nThis code is valid for 5 minutes.");
         mailSender.send(message);
+    }
+
+    private void requireSplitLeadAndAllHandovers(TripDeliveryOrder row, User actor) {
+        SplitDeliveryPlan plan = row.getSplitPlan();
+        if (plan == null) {
+            return;
+        }
+        Driver lead = plan.getLeadDriver();
+        if (lead == null || lead.getUser() == null || !lead.getUser().getId().equals(actor.getId())) {
+            throw new OutboundDeliveryException("SPLIT_LEAD_DRIVER_REQUIRED", HttpStatus.FORBIDDEN,
+                    "Only the lead driver can manage shared POD and OTP");
+        }
+        boolean incomplete = splitDeliveryLegRepository.findBySplitPlanIdOrderByStopOrderAsc(plan.getId()).stream()
+                .anyMatch(leg -> leg.getHandoverConfirmedAt() == null);
+        if (incomplete) {
+            throw rule("SPLIT_DELIVERY_INCOMPLETE", "Every split leg must confirm handover first");
+        }
+    }
+
+    private void requireCompletePodPair(MultipartFile goodsImage, MultipartFile signDocumentImage) {
+        if (goodsImage == null || goodsImage.isEmpty()
+                || signDocumentImage == null || signDocumentImage.isEmpty()) {
+            throw rule("POD_EVIDENCE_INCOMPLETE", "Goods and signed-document images are both required");
+        }
+    }
+
+    private StoredPodPair uploadPodPair(Long deliveryId, MultipartFile goodsImage,
+            MultipartFile signDocumentImage) {
+        StoredPodObject goods = podStorageService.upload(deliveryId, "GOODS", goodsImage);
+        try {
+            StoredPodObject signedDocument = podStorageService.upload(
+                    deliveryId, "SIGNED_DOCUMENT", signDocumentImage);
+            return new StoredPodPair(goods, signedDocument);
+        } catch (RuntimeException ex) {
+            podStorageService.delete(goods.objectKey());
+            throw ex;
+        }
+    }
+
+    private void registerPodFileLifecycle(String oldGoodsKey, String oldSignKey, StoredPodPair pair) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            deleteIfReplaced(oldGoodsKey, pair.goods().objectKey());
+            deleteIfReplaced(oldSignKey, pair.signedDocument().objectKey());
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status == STATUS_COMMITTED) {
+                    deleteIfReplaced(oldGoodsKey, pair.goods().objectKey());
+                    deleteIfReplaced(oldSignKey, pair.signedDocument().objectKey());
+                } else {
+                    safeDeletePod(pair.goods().objectKey());
+                    safeDeletePod(pair.signedDocument().objectKey());
+                }
+            }
+        });
+    }
+
+    private void deleteIfReplaced(String oldObjectKey, String newObjectKey) {
+        if (oldObjectKey != null && !oldObjectKey.equals(newObjectKey)) {
+            safeDeletePod(oldObjectKey);
+        }
+    }
+
+    private void safeDeletePod(String objectKey) {
+        try {
+            podStorageService.delete(objectKey);
+        } catch (RuntimeException ex) {
+            log.warn("Unable to clean up POD evidence file {}", objectKey, ex);
+        }
+    }
+
+    private void requireDeliveryOrderDetailAccess(User actor, DeliveryOrder order) {
+        if (actor == null || actor.getRole() == null || actor.getRole() == UserRole.DRIVER) {
+            throw new OutboundDeliveryException(
+                    "WAREHOUSE_SCOPE_FORBIDDEN", HttpStatus.FORBIDDEN, "Delivery Order access denied");
+        }
+        boolean warehouseScoped = actor.getRole() == UserRole.STOREKEEPER
+                || actor.getRole() == UserRole.WAREHOUSE_MANAGER
+                || actor.getRole() == UserRole.WAREHOUSE_STAFF
+                || actor.getRole() == UserRole.DISPATCHER;
+        if (warehouseScoped && !userWarehouseAssignmentRepository
+                .findWarehouseIdsByUserId(actor.getId()).contains(order.getWarehouse().getId())) {
+            throw new OutboundDeliveryException(
+                    "WAREHOUSE_SCOPE_FORBIDDEN", HttpStatus.FORBIDDEN, "Delivery Order access denied");
+        }
+    }
+
+    private record StoredPodPair(StoredPodObject goods, StoredPodObject signedDocument) {
     }
 
     private String sixDigitOtp() {
@@ -626,26 +799,28 @@ public class DriverDeliveryServiceImpl implements DriverDeliveryService {
                 delivery.getDeliveryNumber(), delivery.getDeliveryOrder().getWarehouse().getId(), before, after);
     }
 
-    private Map<String, Object> attemptSnapshot(Delivery delivery) {
-        Map<String, Object> values = new LinkedHashMap<>();
-        values.put("deliveryId", delivery.getId());
-        values.put("deliveryOrderId", delivery.getDeliveryOrder().getId());
-        values.put("status", delivery.getStatus());
-        values.put("podImageUrl", delivery.getPodImageUrl());
-        values.put("podSignatureUrl", delivery.getPodSignatureUrl());
-        values.put("failureReason", delivery.getFailureReason());
-        return values;
+    private java.util.Map<String, Object> attemptSnapshot(com.wms.entity.order_fulfillment.Delivery delivery) {
+        java.util.Map<String, Object> map = new java.util.HashMap<>();
+        map.put("status", delivery.getStatus());
+        map.put("goodsImageObjectKey", delivery.getGoodsImageObjectKey());
+        map.put("goodsImageOriginalFilename", delivery.getGoodsImageOriginalFilename());
+        map.put("goodsImageContentType", delivery.getGoodsImageContentType());
+        map.put("goodsImageSizeBytes", delivery.getGoodsImageSizeBytes());
+        map.put("signedDocumentObjectKey", delivery.getSignedDocumentObjectKey());
+        map.put("signedDocumentOriginalFilename", delivery.getSignedDocumentOriginalFilename());
+        map.put("signedDocumentContentType", delivery.getSignedDocumentContentType());
+        map.put("signedDocumentSizeBytes", delivery.getSignedDocumentSizeBytes());
+        return map;
     }
 
-    private Map<String, Object> otpSnapshot(DeliveryOtpAttempt otp) {
-        return Map.of(
-                "id", otp.getId(),
-                "deliveryId", otp.getDelivery().getId(),
-                "status", otp.getStatus(),
-                "attemptCount", otp.getAttemptCount(),
-                "expiresAt", otp.getExpiresAt());
+    private java.util.Map<String, Object> otpSnapshot(com.wms.entity.order_fulfillment.DeliveryOtpAttempt otp) {
+        java.util.Map<String, Object> map = new java.util.HashMap<>();
+        map.put("status", otp.getStatus());
+        map.put("attemptCount", otp.getAttemptCount());
+        map.put("expiresAt", otp.getExpiresAt());
+        map.put("issuedAt", otp.getIssuedAt());
+        return map;
     }
-
     private Map<String, Object> tripSnapshot(Trip trip) {
         return Map.of(
                 "tripId", trip.getId(),

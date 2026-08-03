@@ -50,7 +50,7 @@ Mọi spec và mã nguồn trong dự án phải tuân thủ tuyệt đối các
 
 ### 3.1 Quy Tắc Quản Lý Tồn Kho (Inventory Rules)
 1. **Ràng buộc tồn kho không âm:** `inventories.total_qty >= 0` và `total_qty - reserved_qty >= 0` phải luôn đúng trước và sau mọi thao tác. Được kiểm soát bằng DB Constraint (`CHECK (total_qty >= 0)`) và application-level validation.
-2. **Quy tắc FIFO (First In First Out):** Với domain hàng gia dụng Sprint 1, hệ thống bắt buộc tự động chọn lô hàng có ngày nhập (`received_date`) cũ nhất khi xuất kho.
+2. **Thứ tự lô theo ngày nhận:** Với domain hàng gia dụng Sprint 1, hệ thống hiển thị lô theo `received_date` từ cũ đến mới để tra cứu và gợi ý; Storekeeper được chọn bất kỳ lô hợp lệ nào có đủ tồn khả dụng.
 3. **Không quản lý hạn sử dụng:** Sản phẩm và batch hàng gia dụng không yêu cầu hạn dùng hoặc chọn lô theo hạn dùng.
 4. **Không cập nhật tồn kho trực tiếp:** Mọi biến động tồn kho phải thông qua các quy trình nghiệp vụ chính thức: nhập kho (receipts), xuất kho (delivery_orders), điều chuyển (transfers), điều chỉnh (adjustments) hoặc kiểm kê (stock_takes). Tuyệt đối không thực hiện sửa đổi trực tiếp trường số lượng tồn kho trên thực thể Inventory.
 5. **Khóa lạc quan (Optimistic Locking):** Mọi thao tác cập nhật tồn kho phải sử dụng cơ chế `@Version` trong bảng `inventories` để ngăn ngừa ghi đè dữ liệu cạnh tranh. Nếu xảy ra xung đột, hệ thống trả về lỗi `HTTP 409 Conflict` và thực hiện retry.

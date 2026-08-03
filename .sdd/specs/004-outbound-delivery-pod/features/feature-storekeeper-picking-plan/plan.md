@@ -6,7 +6,7 @@
 
 ## Summary
 
-Storekeeper converts planner-level Delivery Order reservations into concrete FIFO-ranked batch/bin/zone allocations for each item, saving a complete picking plan before the order can move from `NEW` to `WAITING_PICKING`. The same feature also supports plan revision while `WAITING_PICKING`, mandatory return-to-bin handling for changed picked allocations, and replacement planning after outbound QC fail while preserving optimistic locking, warehouse scope, and audit trail requirements.
+Storekeeper converts planner-level Delivery Order reservations into concrete batch/bin/zone allocations for each item from a valid-stock list displayed by received date ascending. The display order is advisory and Storekeeper may choose any valid batch. The same feature also supports plan revision while `WAITING_PICKING`, mandatory return-to-bin handling for changed picked allocations, and replacement planning after outbound QC fail while preserving optimistic locking, warehouse scope, and audit trail requirements.
 
 ## Technical Context
 
@@ -22,9 +22,9 @@ Storekeeper converts planner-level Delivery Order reservations into concrete FIF
 
 **Project Type**: Full-stack web application with REST backend; this feature is primarily backend domain and API work.
 
-**Performance Goals**: Picking-plan save should complete in a single transaction, fetch FIFO candidates with indexed warehouse/product/location lookups, and avoid N+1 reads when validating multi-allocation payloads.
+**Performance Goals**: Picking-plan save should complete in a single transaction, fetch received-date-ranked candidates with indexed warehouse/product/location lookups, and avoid N+1 reads when validating multi-allocation payloads.
 
-**Constraints**: FIFO only for current household-goods domain; exclude quarantine, outbound staging, In-Transit, inactive, and non-available stock; no negative inventory or over-reservation; optimistic locking required on `warehouse_product_reservations` and `inventories`; audit log required for picking plan save, return-to-bin, and replacement save; RBAC must check both role and assigned warehouse.
+**Constraints**: Candidate lists sort by received date ascending for display only and MUST allow selection of any valid batch; exclude quarantine, outbound staging, In-Transit, inactive, and non-available stock; no negative inventory or over-reservation; optimistic locking required on `warehouse_product_reservations` and `inventories`; audit log required for picking plan save, return-to-bin, and replacement save; RBAC must check both role and assigned warehouse.
 
 **Scale/Scope**: Sprint 1 outbound flow for three warehouses, multi-bin allocation per Delivery Order item, and coordination with downstream warehouse-staff QC and warehouse-manager approval flows.
 
@@ -36,7 +36,7 @@ Storekeeper converts planner-level Delivery Order reservations into concrete FIF
 |-----------|--------|-------|
 | Layered Architecture | PASS | Controller accepts picking payloads, dedicated service owns allocation/revision/replacement rules, repositories remain persistence-only. |
 | Inventory Integrity | PASS | Planner reservation decreases and concrete reservation increases are transaction-scoped with optimistic locking and non-negative checks. |
-| FIFO Batch Selection | PASS | Feature explicitly ranks oldest received valid inventory first and does not introduce FEFO for the current domain. |
+| Batch Candidate Ordering | PASS | Feature displays oldest received valid inventory first but does not enforce consumption order or introduce FEFO. |
 | QC Gate & Quarantine | PASS | Candidate inventory excludes quarantine and replacement only uses quality-valid regular stock. |
 | In-Transit Tracking | PASS | Picking-plan feature must exclude In-Transit stock and does not bypass later outbound movement stages. |
 | Auth & RBAC | PASS | Storekeeper mutations require both storekeeper role and assigned warehouse scope. |
@@ -106,7 +106,7 @@ See [data-model.md](data-model.md), [quickstart.md](quickstart.md), and [contrac
 |-----------|--------|-------|
 | Layered Architecture | PASS | Contracts and data model map cleanly to Controller -> Service -> Repository -> Entity. |
 | Inventory Integrity | PASS | Allocation diffing, return-to-bin validation, and replacement reservation all preserve non-negative quantities and versioned updates. |
-| FIFO Batch Selection | PASS | Research and contracts keep FIFO ranking on valid regular stock and reject FEFO assumptions for this domain. |
+| Batch Candidate Ordering | PASS | Research and contracts keep received-date display ordering while explicitly allowing Storekeeper to choose any valid batch. |
 | QC Gate & Quarantine | PASS | Returned goods go back to original valid rows; replacements never consume quarantine or staging stock. |
 | In-Transit Tracking | PASS | Contracts explicitly exclude In-Transit candidate stock and leave departure movement to later features. |
 | Auth & RBAC | PASS | Both endpoints require Storekeeper role and warehouse assignment check against the Delivery Order warehouse. |

@@ -39,12 +39,18 @@ import jakarta.persistence.*;
 import java.time.OffsetDateTime;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.Builder;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
 import com.wms.enums.order_fulfillment.DeliveryOtpStatus;
 
 @Entity
 @Table(name = "delivery_otp_attempts")
 @Getter
 @Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class DeliveryOtpAttempt {
 
     @Id
@@ -76,4 +82,10 @@ public class DeliveryOtpAttempt {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
+
+    @Column(name = "updated_at", nullable = false)
+    private OffsetDateTime updatedAt;
+
+    @Column(name = "issued_at")
+    private OffsetDateTime issuedAt;
 }

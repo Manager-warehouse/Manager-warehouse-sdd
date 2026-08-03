@@ -46,10 +46,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * Utility for audit log operations: sensitive field filtering,
- * diff building, and description generation.
- */
+/** Tiện ích ghi audit log — tự động lấy user hiện tại, tính diff oldValue/newValue (Spec 001). */
 public final class AuditLogUtil {
 
     private static final ObjectMapper MAPPER = new ObjectMapper()

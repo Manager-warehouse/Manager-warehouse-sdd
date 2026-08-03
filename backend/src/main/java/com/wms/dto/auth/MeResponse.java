@@ -40,6 +40,7 @@ import lombok.Getter;
 
 import java.util.List;
 
+/** DTO phản hồi thông tin user hiện tại — GET /me (Spec 001). */
 @Getter
 @Builder
 public class MeResponse {

@@ -1,6 +1,5 @@
 package com.wms.enums.order_fulfillment;
 
-
 import com.wms.entity.access_control.*;
 import com.wms.entity.audit_trail.*;
 import com.wms.entity.billing_payment.*;
@@ -35,9 +34,12 @@ import com.wms.enums.supplier_management.*;
 import com.wms.enums.user_configuration.*;
 import com.wms.enums.warehouse_location.*;
 import com.wms.enums.warehouse_transfer.*;
+
 public enum DeliveryOtpStatus {
+    PENDING,
     ACTIVE,
     VERIFIED,
     EXPIRED,
-    LOCKED
+    LOCKED,
+    SEND_FAILED
 }

@@ -39,6 +39,7 @@ import com.wms.dto.response.SystemConfigResponse;
 import com.wms.entity.user_configuration.SystemConfig;
 import org.springframework.stereotype.Component;
 
+/** Mapper chuyển đổi giữa SystemConfig entity và DTO request/response (Spec 001). */
 @Component
 public class SystemConfigMapper {
 

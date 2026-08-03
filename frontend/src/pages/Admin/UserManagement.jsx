@@ -1,3 +1,8 @@
+/**
+ * Trang quản trị tài khoản & phân quyền (Spec 001).
+ * Chức năng: danh sách user (tìm kiếm, phân trang), tạo/sửa user (modal),
+ * bật/tắt trạng thái tài khoản. Chỉ ADMIN mới truy cập được.
+ */
 import React, { useEffect, useState } from 'react';
 import { Plus, Search } from 'lucide-react';
 import { adminService } from '../../services/admin.service';
@@ -11,21 +16,21 @@ import UserFormModal from './UserFormModal';
 const UserManagement = () => {
   const { addToast } = useUiStore();
 
-  // Users Data States
+  // State dữ liệu user
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
 
-  // Pagination States for Users
+  // State phân trang
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  // Form Modal States
+  // State modal tạo/sửa user
   const [modalOpen, setModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [formLoading, setFormLoading] = useState(false);
 
-  // Load All Data
+  // Tải danh sách user từ API
   const loadData = async () => {
     setLoading(true);
     try {
@@ -42,7 +47,7 @@ const UserManagement = () => {
     loadData();
   }, []);
 
-  // Filter users
+  // Lọc user theo tên, email hoặc mã nhân viên
   const filteredUsers = users.filter((u) => {
     const searchLower = search.toLowerCase();
     return (
@@ -52,12 +57,12 @@ const UserManagement = () => {
     );
   });
 
-  // Reset page to 1 when search changes
+  // Reset về trang 1 khi thay đổi từ khóa tìm kiếm
   useEffect(() => {
     setCurrentPage(1);
   }, [search]);
 
-  // Paginated Users
+  // Tính toán phân trang
   const totalItems = filteredUsers.length;
   const totalPages = Math.ceil(totalItems / pageSize) || 1;
   const paginatedUsers = filteredUsers.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -72,6 +77,7 @@ const UserManagement = () => {
     setModalOpen(true);
   };
 
+  // Lưu user (tạo mới hoặc cập nhật) — re-throw lỗi để modal xử lý validate
   const handleSaveUser = async (payload) => {
     setFormLoading(true);
     try {
@@ -104,6 +110,7 @@ const UserManagement = () => {
     }
   };
 
+  // Bật/tắt trạng thái tài khoản (kích hoạt hoặc khóa)
   const handleToggleUserStatus = async (user) => {
     const nextStatus = !user.isActive;
     try {

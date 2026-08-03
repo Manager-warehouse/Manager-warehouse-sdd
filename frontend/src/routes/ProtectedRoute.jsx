@@ -1,3 +1,9 @@
+/**
+ * Route Guard bảo vệ (Spec 001).
+ * Kiểm tra: đã đăng nhập (có token) → có role phù hợp → render layout (Header + Sidebar + Outlet).
+ * Chưa đăng nhập → redirect /login. Không đủ quyền → redirect /forbidden.
+ * Tự động cố định kho làm việc cho WAREHOUSE_MANAGER theo warehouse assignment.
+ */
 import React, { useCallback, useEffect } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../stores/auth.store';
@@ -5,7 +11,6 @@ import { WAREHOUSES } from '../utils/constants';
 import Header from '../components/layout/Header';
 import Sidebar from '../components/layout/Sidebar';
 import Footer from '../components/layout/Footer';
-
 
 const ProtectedRoute = ({ allowedRoles = [] }) => {
   const location = useLocation();
@@ -45,12 +50,12 @@ const ProtectedRoute = ({ allowedRoles = [] }) => {
   }, [location.pathname, user, activeWarehouse, setActiveWarehouse]);
 
 
-// Send unauthenticated users back to login page to acquire a session token
+// Chưa đăng nhập → chuyển về trang login
   if (!token || !user) {
     return <Navigate to="/login" replace />;
   }
 
-  // Prevent users without authorized roles from accessing this route to enforce RBAC
+  // Không có role phù hợp → chuyển đến trang cấm truy cập
   if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
     return <Navigate to="/forbidden" replace />;
   }

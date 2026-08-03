@@ -78,8 +78,18 @@ const CorrectionVoucherButton = ({
       addToast('Vui lòng nhập số tiền điều chỉnh khác 0', 'error');
       return;
     }
+    // Matches adjustments.amount_delta NUMERIC(18,2) / backend @Digits(integer = 16) -
+    // catch it here instead of letting the user hit a generic 400 after submitting.
+    if (Math.abs(Number(form.amountDelta)) >= 1e16) {
+      addToast('Số tiền điều chỉnh vượt quá giới hạn cho phép', 'error');
+      return;
+    }
     if (!form.reason.trim()) {
       addToast('Vui lòng nhập lý do điều chỉnh', 'error');
+      return;
+    }
+    if (form.reason.trim().length > 2000) {
+      addToast('Lý do điều chỉnh không được vượt quá 2000 ký tự', 'error');
       return;
     }
     setSubmitting(true);
@@ -162,6 +172,7 @@ const CorrectionVoucherButton = ({
                 onChange={(e) => setForm((prev) => ({ ...prev, reason: e.target.value }))}
                 className="bg-canvas-light border border-hairline-light rounded p-2 text-ink min-h-[70px] text-xs"
                 placeholder="ví dụ: Hóa đơn ghi nhầm đơn giá, kỳ đã chốt sổ"
+                maxLength={2000}
                 required
               />
             </div>

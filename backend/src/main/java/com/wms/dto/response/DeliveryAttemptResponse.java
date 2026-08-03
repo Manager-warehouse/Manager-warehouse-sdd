@@ -48,6 +48,8 @@ public class DeliveryAttemptResponse {
     private DeliveryStatus status;
     private String podImageUrl;
     private String podSignatureUrl;
+    private Boolean goodsImageAvailable;
+    private Boolean signedDocumentImageAvailable;
     private OffsetDateTime podTimestamp;
     private OffsetDateTime otpVerifiedAt;
     private String failureReason;

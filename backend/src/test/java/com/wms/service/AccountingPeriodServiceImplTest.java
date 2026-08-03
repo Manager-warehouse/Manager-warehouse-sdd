@@ -211,6 +211,25 @@ class AccountingPeriodServiceImplTest {
     }
 
     @Test
+    void closePeriod_rejectsWhenEarlierPeriodStillOpen() {
+        AccountingPeriod period = AccountingPeriod.builder()
+                .id(20L)
+                .periodName("2026-07")
+                .status(AccountingPeriodStatus.OPEN)
+                .startDate(LocalDate.of(2026, 7, 1))
+                .endDate(LocalDate.of(2026, 7, 31))
+                .build();
+        when(accountingPeriodRepository.findById(20L)).thenReturn(Optional.of(period));
+        when(accountingPeriodRepository.existsByStatusAndStartDateBefore(
+                AccountingPeriodStatus.OPEN, LocalDate.of(2026, 7, 1))).thenReturn(true);
+
+        UnprocessableEntityException ex = assertThrows(UnprocessableEntityException.class,
+                () -> service.closePeriod(20L, new AccountingPeriodCloseRequest(), accountantManager));
+
+        assertTrue(ex.getMessage().contains("PREVIOUS_PERIOD_NOT_CLOSED"));
+    }
+
+    @Test
     void closePeriod_rejectsAlreadyClosedPeriod() {
         AccountingPeriod closed = AccountingPeriod.builder()
                 .id(10L)

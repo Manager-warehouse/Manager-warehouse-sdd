@@ -41,3 +41,21 @@
 **Rationale**: Vehicle entities already store `maxWeightKg` and optional `maxVolumeM3`. The dispatch workflow should always enforce weight, and only apply volume validation when the vehicle has a configured volume limit, matching the feature spec exactly.
 
 **Alternatives considered**: Requiring volume for every vehicle was rejected because some vehicles intentionally omit `maxVolumeM3`.
+
+## Decision: Use a dedicated split delivery plan aggregate for one overloaded Delivery Order
+
+**Rationale**: A regular trip groups one or more Delivery Orders onto one vehicle. A split delivery plan is the inverse: one Delivery Order is allocated across multiple vehicles. Modeling this as `SplitDeliveryPlan`, `SplitDeliveryLeg`, and `SplitDeliveryLegItem` keeps dispatcher planning, per-leg resource assignment, and coordinated departure explicit without weakening existing active-trip rules.
+
+**Alternatives considered**: Allowing one Delivery Order to appear in multiple regular trips was rejected because it would make delivery attempt ownership, POD/OTP, full-order delivery status, and resource release ambiguous.
+
+## Decision: Require full split allocation in one Dispatcher submission
+
+**Rationale**: Dispatcher must assign all goods in one planning operation and vehicles must depart together. Therefore partial split plans are invalid; the sum of all leg item quantities must exactly match the Delivery Order requested quantities before the plan can be saved or departed.
+
+**Alternatives considered**: Incremental partial assignment was deferred because it creates unclear intermediate reservation, readiness, and customer-communication states.
+
+## Decision: All split legs depart together after every driver is ready
+
+**Rationale**: A split delivery represents one customer Delivery Order. Coordinated departure avoids one vehicle leaving with only part of the order while another vehicle is unavailable. If a vehicle breaks or becomes unavailable before departure, Dispatcher can revise the plan to a ready replacement. If no replacement is available, the workflow must surface a wait-for-ready-vehicle error instead of dispatching partially.
+
+**Alternatives considered**: Independent leg departure was rejected because it conflicts with the clarified requirement that all vehicles must leave together.

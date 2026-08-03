@@ -56,6 +56,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+/**
+ * Controller nhật ký hoạt động hệ thống (Spec 001) — chỉ đọc, chỉ ADMIN.
+ * Hỗ trợ: phân trang, lọc theo thời gian và kho, xem chi tiết trước/sau thay đổi.
+ */
 @RestController
 @RequestMapping("/api/v1/admin/audit-logs")
 @Tag(name = "Audit Log", description = "Read-only system audit log endpoints")
@@ -104,6 +108,7 @@ public class AuditLogController {
         return auditLogService.getAuditLogById(id);
     }
 
+    /** Kiểm tra user hiện tại có role ADMIN — throw 401/403 nếu không. */
     private void ensureAdmin(Authentication authentication) {
         User currentUser = resolveCurrentUser(authentication);
         if (currentUser == null) {
@@ -116,6 +121,7 @@ public class AuditLogController {
         }
     }
 
+    /** Tìm User entity từ Authentication — tra theo email hoặc code. */
     private User resolveCurrentUser(Authentication authentication) {
         Authentication auth = authentication != null
                 ? authentication

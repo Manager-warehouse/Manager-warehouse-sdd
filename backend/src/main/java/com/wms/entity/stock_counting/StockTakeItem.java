@@ -39,6 +39,16 @@ import lombok.*;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 
+/**
+ * Entity dòng hàng trong phiếu kiểm kê — bảng stock_take_items.
+ *
+ * Mỗi dòng = 1 tổ hợp (product + batch + location) trong kho.
+ * system_qty: số lượng hệ thống tại thời điểm tạo/refresh.
+ * actual_qty: số lượng thực tế đếm được (null khi chưa đếm).
+ * variance_qty = actual_qty - system_qty, variance_value = variance_qty × cost_price.
+ *
+ * Dùng bởi: StockTakeService, StockTakeItemRepository
+ */
 @Entity
 @Table(name = "stock_take_items")
 @Getter

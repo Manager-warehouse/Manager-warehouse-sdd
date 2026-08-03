@@ -96,4 +96,25 @@ public interface ReceiptItemRepository extends JpaRepository<ReceiptItem, Long> 
            "    ))" +
            "  )")
     List<ReceiptItem> findQuarantineItemsByWarehouseId(@Param("warehouseId") Long warehouseId);
+
+    Optional<ReceiptItem> findFirstByBatchId(Long batchId);
+
+    @Query("SELECT ri.receipt.supplier.id FROM ReceiptItem ri WHERE ri.id = :receiptItemId AND ri.receipt.supplier IS NOT NULL")
+    Optional<Long> findSupplierIdByReceiptItemId(@Param("receiptItemId") Long receiptItemId);
+
+    @Query("SELECT ri.receipt.supplier.companyName FROM ReceiptItem ri WHERE ri.id = :receiptItemId AND ri.receipt.supplier IS NOT NULL")
+    Optional<String> findSupplierNameByReceiptItemId(@Param("receiptItemId") Long receiptItemId);
+
+    @Query("SELECT ri.receipt.supplier.id FROM ReceiptItem ri WHERE ri.batch.id = :batchId AND ri.receipt.supplier IS NOT NULL")
+    Optional<Long> findSupplierIdByBatchId(@Param("batchId") Long batchId);
+
+    @Query("SELECT ri.receipt.supplier.companyName FROM ReceiptItem ri WHERE ri.batch.id = :batchId AND ri.receipt.supplier IS NOT NULL")
+    Optional<String> findSupplierNameByBatchId(@Param("batchId") Long batchId);
+
+    @Query("SELECT ri.receipt.supplier.id FROM ReceiptItem ri WHERE ri.product.id = :productId AND ri.receipt.supplier IS NOT NULL ORDER BY ri.id DESC")
+    List<Long> findSupplierIdsByProductId(@Param("productId") Long productId);
+
+    @Query("SELECT ri.receipt.supplier.companyName FROM ReceiptItem ri WHERE ri.product.id = :productId AND ri.receipt.supplier IS NOT NULL ORDER BY ri.id DESC")
+    List<String> findSupplierNamesByProductId(@Param("productId") Long productId);
 }
+

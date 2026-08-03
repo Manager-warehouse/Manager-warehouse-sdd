@@ -2,13 +2,13 @@
 
 ## 1. Context and Goal
 
-Thủ kho nhận Delivery Order mới và lập kế hoạch lấy hàng trước khi nhân viên kho thao tác thực tế. Delivery Order giữ trạng thái `NEW` cho đến khi Thủ kho lưu kế hoạch lấy hàng đầu tiên. Hệ thống hiển thị danh sách tồn kho hợp lệ trong kho được gán cho Thủ kho, theo product, batch, bin, zone, và ưu tiên hàng nhập kho sớm hơn lên đầu danh sách theo FIFO. Domain hiện tại là đồ gia dụng không quản lý hạn sử dụng, vì vậy feature này không áp dụng FEFO và không yêu cầu expiry date.
+Thủ kho nhận Delivery Order mới và lập kế hoạch lấy hàng trước khi nhân viên kho thao tác thực tế. Delivery Order giữ trạng thái `NEW` cho đến khi Thủ kho lưu kế hoạch lấy hàng đầu tiên. Hệ thống hiển thị danh sách tồn kho hợp lệ trong kho được gán theo product, batch, bin, zone và sắp lô có ngày nhận cũ hơn lên trước để dễ tra cứu. Thứ tự hiển thị này không bắt buộc thứ tự xuất hàng: Thủ kho được chọn bất kỳ lô hợp lệ nào. Domain hiện tại là đồ gia dụng không quản lý hạn sử dụng, vì vậy feature này không áp dụng FEFO và không yêu cầu expiry date.
 
 Thủ kho có thể chọn hàng của một dòng Delivery Order từ nhiều bin khác nhau. Tổng số lượng planned cho mỗi dòng hàng bắt buộc bằng số lượng yêu cầu trên phiếu xuất kho trước khi hệ thống chuyển phiếu sang trạng thái chờ nhân viên kho lấy hàng.
 
 ## 2. Actors
 
-* **Thủ kho**: Chọn batch/bin/zone từ danh sách FIFO trong kho được gán, lưu hoặc điều chỉnh kế hoạch lấy hàng, và chọn hàng thay thế khi có hàng fail QC.
+* **Thủ kho**: Chọn tự do batch/bin/zone hợp lệ từ danh sách được sắp theo ngày nhận cũ đến mới trong kho được gán, lưu hoặc điều chỉnh kế hoạch lấy hàng, và chọn hàng thay thế khi có hàng fail QC.
 
 ## 3. Functional Requirements (EARS)
 
@@ -17,7 +17,8 @@ Thủ kho có thể chọn hàng của một dòng Delivery Order từ nhiều b
   * The system SHALL show storekeepers a ranked inventory list by product, batch, bin, and zone for each Delivery Order item.
   * The ranked inventory list SHALL include only valid regular stock inside the selected warehouse's quality-passed storage/picking zones.
   * The ranked inventory list SHALL exclude quarantine, outbound staging, In-Transit, inactive locations, and any inventory row where `total_qty - reserved_qty <= 0`.
-  * The ranked inventory list SHALL place the oldest received date first using FIFO because the current household-goods domain does not track expiry dates; inventory rows sharing the same received date SHALL have equal FIFO priority regardless of row ID or bin.
+  * The ranked inventory list SHALL place the oldest received date first for display; rows sharing the same received date SHALL have equal display priority regardless of row ID or bin.
+  * The received-date ordering SHALL NOT be a mandatory allocation rule. Storekeeper MAY select any valid inventory row with sufficient available quantity, and the system SHALL NOT reject an initial, revised, or replacement plan merely because an older batch remains available.
   * The system SHALL allow a single Delivery Order item to be planned from multiple batch/bin/zone rows.
   * The total planned quantity for each Delivery Order item SHALL equal the requested quantity on that item before the picking plan can be saved.
   * The system SHALL create `PICKING_PLAN_SAVE` audit log entries whenever a storekeeper saves or changes the picking plan.
@@ -49,7 +50,7 @@ Thủ kho có thể chọn hàng của một dòng Delivery Order từ nhiều b
     * Create a `PICKED_GOODS_RETURN_TO_BIN` audit log with actor, quantity, product, original allocation, source state/location, original batch/bin/zone, before inventory state, and after inventory state.
     * Apply the revised picking plan only after all required returns are valid and recorded.
     * Preserve removed allocations as transaction history with `status = CANCELLED`; active planning, QC, and operational reports SHALL exclude cancelled allocations.
-  * WHEN QC fail quantity requires replacement and the Delivery Order is in `QC_PENDING_APPROVAL`, the system SHALL allow the storekeeper to select replacement goods from the same FIFO-ranked valid regular inventory list.
+  * WHEN QC fail quantity requires replacement and the Delivery Order is in `QC_PENDING_APPROVAL`, the system SHALL allow the storekeeper to select replacement goods freely from the same received-date-ranked valid regular inventory list.
   * WHEN the storekeeper saves replacement goods, the system SHALL:
     * Update the Delivery Order item plan with replacement batch/bin/zone details.
     * Store replacement history including failed source, replacement source, quantity, reason, and actor.
@@ -89,9 +90,15 @@ For each `doItemId`, the sum of `allocations[].plannedQty` SHALL equal the Deliv
 * **Scenario: Save initial picking plan from NEW**
   * Given a delivery order in `NEW` status
   * And the storekeeper is assigned to the delivery order warehouse
-  * When the storekeeper selects FIFO-ranked valid inventory from one or more bins for each item
+  * When the storekeeper selects any valid inventory from one or more bins for each item, including a newer batch while an older batch remains available
   * And each item's total planned quantity equals its requested quantity
   * Then the system SHALL save the picking plan, move reservation from `warehouse_product_reservations` to concrete `inventories.reserved_qty`, create a `PICKING_PLAN_SAVE` audit log, and move the order to `WAITING_PICKING`.
+
+* **Scenario: Allow Storekeeper to skip an older batch**
+  * Given valid stock for the same product exists in both an older and a newer batch
+  * When the Storekeeper allocates sufficient quantity from the newer batch
+  * Then the system SHALL save the plan if all other inventory and quantity validations pass
+  * And the system SHALL NOT return `FIFO_VIOLATION` or require allocation from the older batch.
 
 * **Scenario: Block incomplete picking plan**
   * Given a delivery order item has requested quantity 10

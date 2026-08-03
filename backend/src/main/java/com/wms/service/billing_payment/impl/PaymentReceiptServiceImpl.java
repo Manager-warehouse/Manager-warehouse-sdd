@@ -121,7 +121,7 @@ public class PaymentReceiptServiceImpl implements PaymentReceiptService {
                 .orElseThrow(() -> new ResourceNotFoundException("Invoice not found with id: " + request.getInvoiceId()));
 
         if (!invoice.getDealer().getId().equals(dealer.getId())) {
-            throw new UnprocessableEntityException("Invoice does not belong to the specified dealer");
+            throw new UnprocessableEntityException("INVOICE_DEALER_MISMATCH: Invoice does not belong to the specified dealer");
         }
 
         if (invoice.getStatus() == InvoiceStatus.PAID) {
@@ -149,7 +149,8 @@ public class PaymentReceiptServiceImpl implements PaymentReceiptService {
         // 4. Tìm kỳ kế toán cho Ngày Nhập Hàng
         AccountingPeriod period = accountingPeriodRepository
                 .findPeriodByDateAndStatus(request.getPaymentDate(), AccountingPeriodStatus.OPEN)
-                .orElseThrow(() -> new UnprocessableEntityException("No open accounting period found for payment date"));
+                .orElseThrow(() -> new UnprocessableEntityException(
+                        "NO_OPEN_PERIOD: No open accounting period found for payment date"));
 
         // 5. Cập nhật trạng thái hóa đơn
         BigDecimal newPaidAmount = totalPaidSoFar.add(request.getAmount());

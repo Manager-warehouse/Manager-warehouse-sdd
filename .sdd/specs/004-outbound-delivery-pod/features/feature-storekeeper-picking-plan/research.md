@@ -18,11 +18,11 @@
 
 **Alternatives considered**: Keeping both planner-level and concrete reservations in parallel was rejected because it double-counts stock and breaks availability rules.
 
-## Decision: Rank candidate inventory with FIFO over valid regular stock only
+## Decision: Sort valid candidate inventory by received date for display only
 
-**Rationale**: The current domain is household goods without expiry management. Candidate inventory should therefore be ordered by oldest received stock first while excluding quarantine, outbound staging, In-Transit, inactive locations, and any row whose `total_qty - reserved_qty <= 0`.
+**Rationale**: The current domain is household goods without expiry management. Candidate inventory is displayed with oldest received stock first while excluding quarantine, outbound staging, In-Transit, inactive locations, and any row whose `total_qty - reserved_qty <= 0`. This ordering improves scanning but does not constrain allocation: Storekeeper may choose any valid row with sufficient quantity.
 
-**Alternatives considered**: FEFO ordering was rejected because expiry is out of scope for this domain and would introduce a rule that conflicts with the constitution and feature spec.
+**Alternatives considered**: Mandatory FIFO and FEFO enforcement were rejected. The business requires date-ranked presentation without rejecting a newer valid batch selected by Storekeeper, and expiry remains out of scope.
 
 ## Decision: Require return-to-bin only for changed picked allocations
 
