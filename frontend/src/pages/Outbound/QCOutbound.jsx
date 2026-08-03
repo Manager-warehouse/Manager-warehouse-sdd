@@ -219,7 +219,7 @@ export default function QCOutbound() {
         </div>
       )}
 
-      {planMismatches.length > 0 && (
+      {/* {planMismatches.length > 0 && (
         <div className="flex flex-col gap-3 rounded-lg border border-warning-300 bg-warning-50 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
             <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-warning-700" />
@@ -239,7 +239,7 @@ export default function QCOutbound() {
             <RotateCcw className="h-3.5 w-3.5" /> Yêu cầu Storekeeper phân bổ lại
           </button>
         </div>
-      )}
+      )} */}
 
       {failCount > 0 && (
         <div className="bg-danger-50 border border-danger-200 rounded-lg p-4 flex items-center gap-3">
