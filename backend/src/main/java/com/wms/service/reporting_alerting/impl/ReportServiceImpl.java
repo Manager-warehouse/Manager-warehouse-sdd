@@ -112,7 +112,8 @@ public class ReportServiceImpl implements ReportService {
 
         // 3. QC Failure Rate trong tháng
         // Lấy số liệu outbound QC
-        List<OutboundQcRecord> outboundQcRecords = outboundQcRecordRepository.findAll().stream()
+        List<OutboundQcRecord> outboundQcRecords = outboundQcRecordRepository
+                .findAllByIsActiveTrueAndInventoryMovedAtIsNotNull().stream()
                 .filter(r -> r.getCreatedAt().isAfter(startOfMonthDateTime) && r.getCreatedAt().isBefore(endOfMonthDateTime))
                 .collect(Collectors.toList());
 

@@ -27,7 +27,7 @@ paths:
               $ref: "#/components/schemas/PickQcResultRequest"
       responses:
         "200":
-          description: Pick/QC result saved and Delivery Order moved to QC_PENDING_APPROVAL
+          description: Pick/QC result saved without inventory movement and Delivery Order moved to QC_PENDING_APPROVAL
           content:
             application/json:
               schema:
@@ -51,7 +51,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: Optimistic-lock conflict or idempotency key conflict
+          description: Idempotency key conflict
           content:
             application/json:
               schema:
@@ -64,7 +64,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
   /api/v1/delivery-orders/{id}/quality-approval:
     put:
-      summary: Approve outbound quality after QC review
+      summary: Accept outbound quality or reject it for Warehouse Staff recount
       operationId: approveDeliveryOrderQuality
       tags:
         - Delivery Orders
@@ -85,7 +85,7 @@ paths:
               $ref: "#/components/schemas/QualityApprovalRequest"
       responses:
         "200":
-          description: Quality approved and Delivery Order moved to QC_COMPLETED
+          description: Quality accepted and moved to QC_COMPLETED, or rejected and returned to WAITING_PICKING
           content:
             application/json:
               schema:
@@ -102,8 +102,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Inventory version or row conflict while applying approved QC movement
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "422":
-          description: Quality approval validation failed
+          description: Quality decision, destination state, or capacity failed validation
           content:
             application/json:
               schema:
@@ -277,6 +283,15 @@ components:
     QualityApprovalRequest:
       type: object
       properties:
+        decision:
+          type: string
+          enum: [ACCEPT, REJECT]
+          default: ACCEPT
+        rejectionReason:
+          type: string
+          minLength: 1
+          maxLength: 1000
+          description: Required when decision is REJECT
         notes:
           type: string
           maxLength: 1000

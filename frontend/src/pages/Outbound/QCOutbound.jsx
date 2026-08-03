@@ -181,6 +181,16 @@ export default function QCOutbound() {
         </div>
       </div>
 
+      {order.cancel_reason && (
+        <div className="flex items-start gap-3 rounded-lg border border-warning-200 bg-warning-50 p-4">
+          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-warning-700" />
+          <div>
+            <p className="text-sm font-semibold text-warning-800">Storekeeper yêu cầu đếm/QC lại</p>
+            <p className="mt-1 text-sm text-warning-700">{order.cancel_reason}</p>
+          </div>
+        </div>
+      )}
+
       {failCount > 0 && (
         <div className="bg-danger-50 border border-danger-200 rounded-lg p-4 flex items-center gap-3">
           <AlertCircle className="w-5 h-5 text-danger-600 shrink-0" />

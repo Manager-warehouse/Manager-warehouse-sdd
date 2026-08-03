@@ -6,7 +6,7 @@
 
 ## Summary
 
-Warehouse staff records one-shot picking and QC results against the concrete allocations prepared by Storekeeper while the Delivery Order stays in `WAITING_PICKING`. The feature must move QC-passed goods into outbound staging, move QC-failed goods into quarantine with adjustment and quarantine records, prevent duplicate submission through allocation-level QC records and idempotency, and support downstream quality approval plus warehouse approval/reject flows without violating optimistic locking, warehouse RBAC, or inventory integrity.
+Warehouse staff records one-shot picking and QC results against the concrete allocations prepared by Storekeeper while the Delivery Order stays in `WAITING_PICKING`. Staff submission must keep inventory reserved at source; Storekeeper approval moves QC-passed goods into outbound staging and QC-failed goods into quarantine with adjustment and quarantine records. The feature must prevent duplicate submission through allocation-level QC records and idempotency and support downstream warehouse approval/reject flows without violating optimistic locking, warehouse RBAC, or inventory integrity.
 
 ## Technical Context
 
@@ -22,7 +22,7 @@ Warehouse staff records one-shot picking and QC results against the concrete all
 
 **Project Type**: Full-stack web application with REST backend; this feature is primarily backend workflow, inventory mutation, and API work.
 
-**Performance Goals**: Pick/QC submission should finish in a single transaction, validate the full allocation set without N+1 queries, and apply staging/quarantine inventory movement with deterministic allocation-level writes.
+**Performance Goals**: Pick/QC submission should persist the full allocation set without inventory mutation or N+1 queries; Storekeeper approval should apply staging/quarantine movement with deterministic allocation-level writes in one transaction.
 
 **Constraints**: No `PICKING` status; Delivery Order remains `WAITING_PICKING` until one complete pick/QC submission succeeds. Every affected inventory row must remain non-negative, pass optimistic locking, and create audit plus supporting business records. Duplicate allocation-level QC submission must be blocked unless the request is a safe idempotent retry with the same payload.
 

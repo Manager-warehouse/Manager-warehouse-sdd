@@ -484,6 +484,21 @@ class DeliveryOrderControllerTest {
 
     @Test
     @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
+    void rejectQualityForRecount_success() throws Exception {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(storekeeper);
+        when(deliveryOrderService.approveDeliveryOrderQuality(eq(100L), any(), eq(storekeeper)))
+                .thenReturn(response(DeliveryOrderStatus.WAITING_PICKING));
+
+        mockMvc.perform(put("/api/v1/delivery-orders/100/quality-approval")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"decision\":\"REJECT\",\"rejectionReason\":\"So luong thuc te khong khop\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("WAITING_PICKING"));
+    }
+
+    @Test
+    @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
     void approveQuality_rejectsReplacementRequired() throws Exception {
         when(currentUserService.getRequiredCurrentUser()).thenReturn(storekeeper);
         when(deliveryOrderService.approveDeliveryOrderQuality(eq(100L), any(), eq(storekeeper)))

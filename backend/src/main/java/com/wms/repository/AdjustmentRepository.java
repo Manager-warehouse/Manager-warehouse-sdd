@@ -58,6 +58,8 @@ public interface AdjustmentRepository extends JpaRepository<Adjustment, Long> {
 
     Optional<Adjustment> findByAdjustmentNumber(String adjustmentNumber);
 
+    Optional<Adjustment> findByOutboundQcRecordId(Long outboundQcRecordId);
+
     /**
      * List correction vouchers (type = CORRECTION_VOUCHER), optionally filtered by
      * referenceType, newest first. Used by GET /api/v1/correction-vouchers.

@@ -166,6 +166,7 @@ public class DeliveryOrderController {
     @Operation(
             summary = "Save one complete outbound pick and QC result set",
             description = "Stores one full active pick/QC cycle for the delivery order. "
+                    + "Inventory remains reserved at source until Storekeeper quality approval. "
                     + "Duplicate allocation submission is blocked unless the same idempotency key "
                     + "and exact same payload are replayed after a previous success."
     )
@@ -174,8 +175,8 @@ public class DeliveryOrderController {
             @ApiResponse(responseCode = "400", description = "Invalid pick/QC payload", content = @Content),
             @ApiResponse(responseCode = "403", description = "Warehouse staff is not assigned to the delivery order warehouse", content = @Content),
             @ApiResponse(responseCode = "404", description = "Delivery order, allocation, or location not found", content = @Content),
-            @ApiResponse(responseCode = "409", description = "Inventory version/row, adjustment number, or idempotency conflict", content = @Content),
-            @ApiResponse(responseCode = "422", description = "Pick/QC validation, location state, or bin capacity failed", content = @Content)
+            @ApiResponse(responseCode = "409", description = "Idempotency conflict", content = @Content),
+            @ApiResponse(responseCode = "422", description = "Pick/QC validation or destination location state failed", content = @Content)
     })
     public DeliveryOrderResponse saveDeliveryOrderPickQcResult(@PathVariable Long id,
                                                                @Valid @RequestBody DeliveryOrderPickQcResultRequest request) {
@@ -210,12 +211,17 @@ public class DeliveryOrderController {
 
     @PutMapping("/{id}/quality-approval")
     @PreAuthorize("hasRole('STOREKEEPER')")
-    @Operation(summary = "Approve outbound quality after QC review")
+    @Operation(summary = "Accept outbound quality or reject it for Warehouse Staff recount")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Quality approved and delivery order moved to QC_COMPLETED"),
+            @ApiResponse(responseCode = "200",
+                    description = "Quality accepted and moved to QC_COMPLETED, or rejected and returned to WAITING_PICKING"),
             @ApiResponse(responseCode = "400", description = "Invalid quality-approval payload", content = @Content),
             @ApiResponse(responseCode = "403", description = "Storekeeper is not assigned to the delivery order warehouse", content = @Content),
-            @ApiResponse(responseCode = "422", description = "Quality approval validation failed, such as QC_REPLACEMENT_REQUIRED or DELIVERY_ORDER_STATUS_INVALID", content = @Content)
+            @ApiResponse(responseCode = "409", description = "Inventory version or row conflict while applying approved QC movement", content = @Content),
+            @ApiResponse(responseCode = "422",
+                    description = "Validation, destination state, or capacity failed, such as QC_REPLACEMENT_REQUIRED, "
+                            + "OUTBOUND_QC_REJECTION_REASON_REQUIRED, or DELIVERY_ORDER_STATUS_INVALID",
+                    content = @Content)
     })
     public DeliveryOrderResponse approveDeliveryOrderQuality(@PathVariable Long id,
                                                              @Valid @RequestBody DeliveryOrderQualityApprovalRequest request) {

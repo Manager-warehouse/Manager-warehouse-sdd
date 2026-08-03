@@ -82,6 +82,11 @@ _Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đ
 - `document_date` (DATE, NOT NULL)
 - `accounting_period_id` (BIGINT, FK→accounting_periods)
 - `notes` (TEXT)
+- `is_active` (BOOLEAN, NOT NULL, DEFAULT TRUE)
+- `rejected_by` (BIGINT, FK→users)
+- `rejected_at` (TIMESTAMPTZ)
+- `rejection_reason` (TEXT)
+- `inventory_moved_at` (TIMESTAMPTZ) -- null while Staff result is pending; set after Storekeeper approval moves inventory
 - `created_at` (TIMESTAMPTZ)
 - `updated_at` (TIMESTAMPTZ)
 
@@ -185,7 +190,7 @@ _Vui lòng xem chi tiết yêu cầu chức năng EARS tại các tài liệu đ
 - `CHECK(picked_qty >= 0)`
 - `CHECK(qc_pass_qty >= 0)`
 - `CHECK(qc_fail_qty >= 0)`
-- `UNIQUE(allocation_id)`
+- Partial unique index on `allocation_id` where `is_active = TRUE`
 
 ### delivery_order_warehouse_approvals
 
@@ -326,8 +331,8 @@ All outbound mutations that update `inventories.total_qty`, `inventories.reserve
 - Warehouse staff SHALL record picked/QC results while the Delivery Order is `WAITING_PICKING`; the system SHALL NOT use a `PICKING` status.
 - Warehouse staff picking/QC result SHALL be submitted exactly once for the complete currently planned allocation set; partial submission is not allowed.
 - When a Delivery Order returns to `WAITING_PICKING` due to replacement planning, warehouse staff picking/QC result SHALL include only replacement allocations or allocations that are still `PLANNED` and do not yet have QC records; previously QC-passed allocations already in outbound staging SHALL NOT be submitted again.
-- Warehouse staff picking/QC result SHALL move QC-passed quantity from the planned batch/bin/location/zone to an outbound staging location inside the same warehouse by decreasing source inventory `total_qty` and `reserved_qty`, then increasing staging inventory `total_qty` and `reserved_qty` for the same product/batch; all affected inventory rows SHALL pass version checks.
-- Outbound QC fail SHALL move failed quantity from the planned batch/bin/location/zone to quarantine by decreasing source inventory `total_qty` and `reserved_qty`, increasing quarantine inventory `total_qty` with `reserved_qty = 0`, creating a quarantine record, creating a `QC_FAIL_OUTBOUND` inventory adjustment with negative quantity against regular source inventory and references to the Delivery Order/allocation/QC/quarantine records, removing failed quantity from concrete reservation, and keeping failed quantity out of available regular inventory.
+- Warehouse staff picking/QC result SHALL persist the complete QC result and selected staging/quarantine destinations, keep source inventory `total_qty` and `reserved_qty` unchanged, and move the Delivery Order to `QC_PENDING_APPROVAL` without creating quarantine or adjustment records.
+- Storekeeper quality approval SHALL atomically move QC-passed quantity from reserved source inventory to reserved outbound staging and QC-failed quantity from reserved source inventory to quarantine, create linked quarantine and approved `QC_FAIL_OUTBOUND` adjustment records, preserve version/non-negative/capacity invariants, and set `outbound_qc_records.inventory_moved_at`.
 - Pick/QC submissions SHALL be duplicate-safe: each allocation may have at most one successful QC record per pick/QC cycle; a retry with the same idempotency key and exact same payload SHALL return the previous successful result without applying inventory movement again, while duplicate submissions without a matching idempotency key SHALL be rejected.
 - Replacement picking SHALL update the Delivery Order item plan, create replacement history, move the Delivery Order back to `WAITING_PICKING`, and require the replacement goods to go through warehouse staff picking and QC again.
 - Warehouse manager rejection SHALL require returned quantity to equal all QC-passed goods in outbound staging, move QC-passed goods back to their original batch/bin/location/zone, increase available regular inventory, release reservations for returned goods, create `PICKED_GOODS_RETURN_TO_BIN` audit entries, keep failed goods in quarantine, and end the Delivery Order as `REJECTED`.
@@ -377,7 +382,8 @@ All outbound mutations that update `inventories.total_qty`, `inventories.reserve
 - Warehouse staff QC result payload SHALL validate `staging_location_id` belongs to an outbound staging zone in the Delivery Order warehouse and `quarantine_location_id` belongs to a quarantine zone in the same warehouse when QC fail exists; if the warehouse has exactly one default location of the required zone type, the backend MAY resolve the missing location automatically.
 - Warehouse staff QC result SHALL move the Delivery Order to `QC_PENDING_APPROVAL` even when QC-passed quantity is lower than requested quantity, so Storekeeper can review the fail result and plan replacement goods.
 - If QC fail requires replacement, Storekeeper replacement planning from `QC_PENDING_APPROVAL` SHALL move the Delivery Order back to `WAITING_PICKING`; after replacement goods are picked and QC-passed, the Delivery Order SHALL move again to `QC_PENDING_APPROVAL`.
-- Storekeeper quality approval SHALL accept optional `notes`, create `DELIVERY_ORDER_QC_APPROVE` audit with before/after state, and move the Delivery Order to `QC_COMPLETED` only when all requested quantities have QC-passed goods available after any required replacements.
+- Storekeeper quality approval SHALL accept optional `notes`, create `DELIVERY_ORDER_QC_APPROVE` audit with before/after state, and move the Delivery Order to `QC_COMPLETED` only when submitted QC-passed quantities cover every requested quantity after any required replacements.
+- Storekeeper quality rejection SHALL require a reason, leave inventory unchanged in its reserved source rows, retain rejected QC rows as inactive history, reset current QC summaries, and move the Delivery Order to `WAITING_PICKING` for Warehouse Staff recount. Inactive and not-yet-approved rows SHALL be excluded from approved QC reporting and downstream delivery quantities.
 - Warehouse manager approval SHALL accept optional `notes`, create `DELIVERY_ORDER_WAREHOUSE_APPROVE` audit with before/after state, and move the Delivery Order to `WAREHOUSE_APPROVED`, making it eligible for dispatcher trip planning.
 - Dispatcher trip planning SHALL only group Delivery Orders from the same warehouse, SHALL require the Dispatcher, vehicle, and driver to belong to that warehouse, SHALL prevent assigning a Delivery Order to more than one active trip, and SHALL validate vehicle capacity before creating or updating a trip.
 - Dispatcher MAY update or cancel a trip only while the trip is `PLANNED`; updates MAY add/remove Delivery Orders by submitting the final revised Delivery Order list and SHALL re-run all trip validations while ignoring the current trip for active-trip checks. Cancellation keeps Delivery Orders in `WAREHOUSE_APPROVED`, keeps historical vehicle/driver references, and releases vehicle/driver from active assignment.
@@ -461,6 +467,9 @@ _Vui lòng xem chi tiết API endpoints tại các tài liệu đặc tả tính
 | DRIVER_NOT_ASSIGNED_TO_TRIP  | 403  | Authenticated driver is not assigned to the trip                                                                                            |
 | STOP_ORDER_DUPLICATED        | 422  | Stop order values are duplicated within the trip                                                                                            |
 | QC_REPLACEMENT_REQUIRED      | 422  | QC pass quantity is lower than requested quantity and replacement is not completed                                                          |
+| OUTBOUND_QC_REJECTION_REASON_REQUIRED | 422 | Storekeeper rejected outbound QC without a non-blank recount reason                                                              |
+| OUTBOUND_QC_RESULT_NOT_FOUND | 422  | No active outbound QC result exists to return for recount                                                                                    |
+| OUTBOUND_QC_RECOUNT_INVALID  | 409  | Recorded staging, quarantine, source inventory, or quantity state cannot be reversed safely                                                  |
 | QC_RESULT_QTY_INVALID        | 422  | Picked/QC quantities are negative, inconsistent, do not equal planned allocation quantity, or do not match allocation/batch/location/zone   |
 | QC_RESULT_ALREADY_RECORDED   | 409  | Pick/QC result for the submitted allocation has already been recorded                                                                       |
 | IDEMPOTENCY_KEY_CONFLICT     | 409  | Same idempotency key is reused with a different payload                                                                                     |

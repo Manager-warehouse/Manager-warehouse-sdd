@@ -92,4 +92,16 @@ describe('QCOutbound', () => {
       })],
     }));
   });
+
+  it('shows the Storekeeper reason when the order is returned for recount', async () => {
+    outboundService.getDeliveryOrderById.mockResolvedValue({
+      ...order,
+      cancel_reason: 'So luong thuc te khong khop',
+    });
+
+    renderPage();
+
+    expect(await screen.findByText('Storekeeper yêu cầu đếm/QC lại')).toBeInTheDocument();
+    expect(screen.getByText('So luong thuc te khong khop')).toBeInTheDocument();
+  });
 });
