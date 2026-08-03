@@ -20,9 +20,10 @@
 | P0-C5 cấp dòng audit | test assert audit cho header, items, allocations, QC, trip và inventory movement |
 | P0-C6 DB thật/frontend coverage | Testcontainers/Flyway test và frontend workflow test |
 | Arrival/handover | receive-count bị chặn trước arrival/handover và được phép sau handover |
-| Sai SKU detail | validation test cho expected SKU, actual SKU, dòng hàng, số lượng, lý do và photo refs tùy chọn |
+| Sai SKU runtime | test xác nhận không còn nhánh request/approve/reject return do sai SKU; sai SKU đi qua count/QC/discrepancy/quarantine theo trạng thái vật lý |
 | Trip capacity/reassignment/resource release | capacity exceed test, reassignment trước departure, lock sau departure, resource release guard |
 | Overdue return-to-source | chỉ transfer `IN_TRANSIT` quá hạn mới được return, bắt buộc lý do, hỗ trợ photo refs khi có |
+| TRQ vượt đội xe | service/controller test cho create/update `TRQ DRAFT` reject `TRANSFER_REQUEST_TOO_LARGE_FOR_FLEET` khi tổng tải vượt mọi xe active |
 | Contract alignment | test/review OpenAPI path khớp với path controller |
 | Nút action frontend | test hiển thị theo role/state, click thành công, API trả lỗi và refresh sau thành công cho mọi nút transfer chính |
 | Transfer request edit/delete | backend service/controller test cho cập nhật `DRAFT` và soft-cancel; frontend test hiển thị nút và hành vi lưu/hủy modal |
@@ -51,12 +52,12 @@
 - [x] T009 Trong migration mới, cho planned transfer item `batch_id` nullable nhưng vẫn giữ traceability batch trên `inter_warehouse_transfer_allocations`.
 - [x] T010 Trong migration mới, thêm version columns cho `inter_warehouse_transfers`, `inter_warehouse_transfer_items`, `transfer_requests`, và transfer trip/resource tables khi cần.
 - [x] T011 Trong migration mới, thêm QC xuất photo refs, bàn giao xếp hàng photo refs, driver arrival, bàn giao khi đến, rời điểm nhận để quay đầu, và đến nguồn khi quay đầu vào schema transfer.
-- [x] T012 Trong migration mới, thêm sai SKU report/report-item fields hoặc tables với expected product, actual product, số lượng, lý do, tùy chọn photo refs, status, reporter, và decision metadata.
+- [x] T012 Xác nhận schema/runtime không còn phụ thuộc nhánh wrong-SKU return; nếu còn bảng/field legacy thì chỉ giữ để tương thích dữ liệu cũ, không expose action quay đầu do sai SKU.
 - [x] T013 Trong migration mới, thêm calculated transfer trip weight/volume fields hoặc xác minh column trip hiện có tương thích.
 - [x] T014 Trong migration mới, thêm discrepancy incident/hold data cần cho theo dõi thiếu hàng và nhận thừa vật lý.
-- [x] T015 Thêm `@Version` và expose version DTO cho `backend/src/main/java/com/wms/entity/InterWarehouseTransfer.java`.
-- [x] T016 Thêm `@Version` ở nơi cần cho `backend/src/main/java/com/wms/entity/InterWarehouseTransferItem.java`.
-- [x] T017 Thêm `@Version` để `backend/src/main/java/com/wms/entity/TransferRequest.java`.
+- [x] T015 Thêm `@Version` và expose version DTO cho `backend/src/main/java/com/wms/entity/warehouse_transfer/InterWarehouseTransfer.java`.
+- [x] T016 Thêm `@Version` ở nơi cần cho `backend/src/main/java/com/wms/entity/warehouse_transfer/InterWarehouseTransferItem.java`.
+- [x] T017 Thêm `@Version` để `backend/src/main/java/com/wms/entity/warehouse_transfer/TransferRequest.java`.
 - [x] T018 Thêm xử lý stale-write và map 409 trong lớp xử lý exception dùng chung.
 - [x] T019 Thêm PostgreSQL/Flyway migration integration test tại `backend/src/test/java/com/wms/db/InterWarehouseTransferMigrationIntegrationTest.java`.
 
@@ -65,8 +66,8 @@
 **Mục đích**: Đảm bảo duyệt tại nguồn chỉ reserve tồn hợp lệ để điều chuyển.
 
 - [x] T020 Cập nhật `backend/src/main/java/com/wms/repository/InventoryRepository.java` query reservation để loại quarantine, inactive, locked, và wrong-warehouse locations.
-- [x] T021 Cập nhật `backend/src/main/java/com/wms/service/transfer/impl/InterWarehouseTransferApprovalService.java` để chỉ reserve allocation rows hợp lệ theo FIFO.
-- [x] T022 Cập nhật `backend/src/main/java/com/wms/service/transfer/impl/InterWarehouseTransferShippingService.java` để departure fail thay vì tự clamp reserved quantity không hợp lệ.
+- [x] T021 Cập nhật `backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferApprovalService.java` để chỉ reserve allocation rows hợp lệ theo FIFO.
+- [x] T022 Cập nhật `backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferShippingService.java` để departure fail thay vì tự clamp reserved quantity không hợp lệ.
 - [x] T023 Thêm service test tại `backend/src/test/java/com/wms/service/InterWarehouseTransferServiceImplTest.java` cho FIFO order, loại quarantine, loại inactive location và conflict reserved quantity.
 - [x] T024 Thêm integration test chứng minh approval không reserve inventory mà tra cứu tồn liên kho đã phải ẩn.
 
@@ -75,8 +76,8 @@
 **Mục đích**: Làm cho `TRQ` tin cậy khi approve/convert đồng thời.
 
 - [x] T025 Cập nhật `backend/src/main/java/com/wms/dto/request/TransferRequestCreateRequest.java` và `TransferRequestUpdateRequest.java` để `neededByDate`, `businessReason`, observed quantities và lý do thiếu hàng khớp spec.
-- [x] T026 Cập nhật `backend/src/main/java/com/wms/enums/TransferRequestStatus.java` dùng status đã tài liệu hóa hoặc thêm compatibility mapping nếu giữ legacy values.
-- [x] T027 Cập nhật `backend/src/main/java/com/wms/service/transfer/impl/TransferRequestServiceImpl.java` để revalidate tồn khả dụng nguồn trước submit/source approval/conversion.
+- [x] T026 Cập nhật `backend/src/main/java/com/wms/enums/warehouse_transfer/TransferRequestStatus.java` dùng status đã tài liệu hóa hoặc thêm compatibility mapping nếu giữ legacy values.
+- [x] T027 Cập nhật `backend/src/main/java/com/wms/service/warehouse_transfer/impl/TransferRequestServiceImpl.java` để revalidate tồn khả dụng nguồn trước submit/source approval/conversion.
 - [x] T028 Thêm guard unique một active transfer cho `transfer_request_id` trong migration mới và path convert repository/service.
 - [x] T029 Thêm test stale conversion tại `backend/src/test/java/com/wms/service/TransferRequestServiceImplTest.java`.
 - [x] T030 Thêm controller test tại `backend/src/test/java/com/wms/controller/TransferRequestControllerTest.java` cho path approve/reject/convert và duplicate conversion.
@@ -86,7 +87,7 @@
 **Mục đích**: Làm cho kế hoạch `TTR` khớp ràng buộc vận tải thực tế.
 
 - [x] T031 Cập nhật `backend/src/main/java/com/wms/dto/request/InterWarehouseTransferTripAssignRequest.java` để mang planned start/end và version fields.
-- [x] T032 Cập nhật `backend/src/main/java/com/wms/service/transfer/impl/InterWarehouseTransferShippingService.java` để tính weight/volume chuyến từ số lượng item và metadata sản phẩm/đóng gói.
+- [x] T032 Cập nhật `backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferShippingService.java` để tính weight/volume chuyến từ số lượng item và metadata sản phẩm/đóng gói.
 - [x] T033 Cập nhật trip assignment reject `TRIP_CAPACITY_EXCEEDED` khi tổng tính toán vượt capacity xe đã chọn.
 - [x] T034 Cập nhật trip assignment cho phép đổi xe/tài xế/lịch trước departure và audit là `TRANSFER_TRIP_REASSIGN`.
 - [x] T035 Cập nhật trip assignment reject reassignment sau departure với `TRANSFER_TRIP_LOCKED`.
@@ -99,10 +100,10 @@
 
 - [x] T038 Thêm QC xuất request/response DTOs với photo refs bắt buộc và không yêu cầu Barcode/QR trong `backend/src/main/java/com/wms/dto/request/`.
 - [x] T039 Thêm QC xuất fields để `backend/src/main/java/com/wms/dto/response/InterWarehouseTransferResponse.java`.
-- [x] T040 Triển khai `recordOutboundQc` có xác nhận ảnh tại `backend/src/main/java/com/wms/service/transfer/impl/InterWarehouseTransferShippingService.java`.
+- [x] T040 Triển khai `recordOutboundQc` có xác nhận ảnh tại `backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferShippingService.java`.
 - [x] T041 Triển khai xác nhận ảnh source load/handover trước departure tại `InterWarehouseTransferShippingService.java`.
 - [x] T042 Cập nhật `departTransfer` để bắt buộc QC xuất pass, đã ghi shipment, đã ghi bàn giao xếp hàng, đúng tài xế được gán và version hợp lệ.
-- [x] T043 Thêm endpoint trong `backend/src/main/java/com/wms/controller/InterWarehouseTransferController.java` cho QC xuất và bàn giao xếp hàng.
+- [x] T043 Thêm endpoint trong `backend/src/main/java/com/wms/controller/warehouse_transfer/InterWarehouseTransferController.java` cho QC xuất và bàn giao xếp hàng.
 - [x] T044 Thêm audit actions tại `backend/src/main/java/com/wms/enums/AuditAction.java` cho `TRANSFER_OUTBOUND_QC` và `TRANSFER_LOAD_HANDOVER`.
 - [x] T045 Thêm test chặn ship/depart khi thiếu QC xuất, QC fail hoặc thiếu photo refs bắt buộc.
 
@@ -110,9 +111,9 @@
 
 **Mục đích**: Đảm bảo kho đích/kho nguồn chỉ nhận sau khi xe đến vật lý và ngăn bin bị vượt sức chứa.
 
-- [x] T046 Thêm endpoint arrival và arrival-handover trong `backend/src/main/java/com/wms/controller/InterWarehouseTransferController.java`.
-- [x] T047 Triển khai driver arrival và receiving-warehouse handover tại `backend/src/main/java/com/wms/service/transfer/impl/InterWarehouseTransferShippingService.java`.
-- [x] T048 Cập nhật `backend/src/main/java/com/wms/service/transfer/impl/InterWarehouseTransferReceivingService.java` để chặn receive-count cho đến khi có arrival và handover.
+- [x] T046 Thêm endpoint arrival và arrival-handover trong `backend/src/main/java/com/wms/controller/warehouse_transfer/InterWarehouseTransferController.java`.
+- [x] T047 Triển khai driver arrival và receiving-warehouse handover tại `backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferShippingService.java`.
+- [x] T048 Cập nhật `backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferReceivingService.java` để chặn receive-count cho đến khi có arrival và handover.
 - [x] T049 Cập nhật receive-check/final-receive để kiểm capacity bin kho đích cho số lượng QC pass trước khi ghi tồn.
 - [x] T050 Thêm xử lý discrepancy incident/hold cho nhận thừa vật lý; phần thừa vẫn được cất theo count thực nhận và trace trách nhiệm bằng hold.
 - [x] T051 Thêm audit actions cho `TRANSFER_ARRIVE` và `TRANSFER_ARRIVAL_HANDOVER`.
@@ -137,7 +138,7 @@
 
 **Mục đích**: Đảm bảo audit log dựng lại được đầy đủ mutation tồn kho và vận tải.
 
-- [x] T063 Cập nhật `backend/src/main/java/com/wms/service/transfer/impl/InterWarehouseTransferHelper.java` logic snapshot audit để bao gồm header, items, allocations, QC quantities, trip/resource state, return leg quá hạn, và inventory movement references.
+- [x] T063 Cập nhật `backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferHelper.java` logic snapshot audit để bao gồm header, items, allocations, QC quantities, trip/resource state, return leg quá hạn, và inventory movement references.
 - [x] T064 Đảm bảo `TRANSFER_DISCREPANCY_CREATE` audit bao gồm số lượng thiếu, product, warehouse, transfer item, adjustment id, và lý do.
 - [x] T065 Đảm bảo quarantine rejection audit bao gồm kho đích, quarantine bin, affected item quantities, và transfer-origin references.
 - [x] T066 Thêm audit test cho approve, QC xuất, depart, arrival/handover, receive-check, final-receive, overdue return, và quarantine reject.
@@ -146,8 +147,8 @@
 
 **Mục đích**: Giữ OpenAPI, controller và URL frontend service đồng bộ.
 
-- [x] T067 Cập nhật Swagger/OpenAPI annotation trong `backend/src/main/java/com/wms/controller/InterWarehouseTransferController.java` cho mọi transfer endpoint.
-- [x] T068 Cập nhật Swagger/OpenAPI annotation trong `backend/src/main/java/com/wms/controller/TransferRequestController.java` cho `/approve`, `/reject`, `/convert` và `/stock-lookup`.
+- [x] T067 Cập nhật Swagger/OpenAPI annotation trong `backend/src/main/java/com/wms/controller/warehouse_transfer/InterWarehouseTransferController.java` cho mọi transfer endpoint.
+- [x] T068 Cập nhật Swagger/OpenAPI annotation trong `backend/src/main/java/com/wms/controller/warehouse_transfer/TransferRequestController.java` cho `/approve`, `/reject`, `/convert` và `/stock-lookup`.
 - [x] T069 Thêm controller test cho `/api/v1/inter-warehouse-transfers/{id}/approve`, `/final-receive`, và xác nhận các endpoint request/approve/reject return do sai SKU không còn trong contract runtime.
 - [x] T070 Thêm controller test cho endpoint QC xuất, bàn giao xếp hàng, arrival/handover, return depart và return arrive mới.
 - [x] T071 Thêm contract smoke test hoặc bước review có tài liệu chứng minh `.sdd/.../contracts/openapi.yaml` tên path match path controller.
@@ -156,12 +157,12 @@
 
 **Mục đích**: Hiển thị control mới nhưng không cho người dùng chạy sai thứ tự bước.
 
-- [x] T072 Cập nhật `frontend/src/services/inter-warehouse-transfer.service.js` với QC xuất, bàn giao xếp hàng, arrival/handover, rời điểm nhận để quay đầu, đến nguồn khi quay đầu, và expanded sai SKU APIs.
+- [x] T072 Cập nhật `frontend/src/services/inter-warehouse-transfer.service.js` với QC xuất, bàn giao xếp hàng, arrival/handover, rời điểm nhận để quay đầu, đến nguồn khi quay đầu, và bảo đảm không còn gọi API return do sai SKU.
 - [x] T073 Cập nhật `frontend/src/pages/InterWarehouseTransfer/InterWarehouseTransferActionPanel.jsx` để hiển thị QC xuất trước ship/depart.
 - [x] T074 Cập nhật `InterWarehouseTransferActionPanel.jsx` để hiển thị bàn giao xếp hàng trước driver departure.
 - [x] T075 Cập nhật `InterWarehouseTransferActionPanel.jsx` để hiển thị driver arrival và bàn giao khi đến trước receive-count.
 - [x] T076 Cập nhật `InterWarehouseTransferActionPanel.jsx` để chặn/ẩn action nhận hàng cho đến khi hoàn tất arrival/handover.
-- [x] T077 Cập nhật `InterWarehouseTransferActionPanel.jsx` form sai SKU để thu thập dòng hàng, expected SKU, actual SKU, affected số lượng, lý do, và tùy chọn photo refs.
+- [x] T077 Cập nhật `InterWarehouseTransferActionPanel.jsx` để không hiển thị form/action sai SKU quay đầu; sai SKU nếu phát sinh được xử lý qua count/QC/discrepancy/quarantine.
 - [x] T078 Cập nhật `InterWarehouseTransferActionPanel.jsx` để hiển thị trạng thái return depart và return arrive/handover cho return đã duyệt.
 - [x] T079 Cập nhật `frontend/src/pages/InterWarehouseTransfer/TransferRequestWorkspace.jsx` để hiển thị `neededByDate`, lý do nghiệp vụ, tồn quan sát ở nguồn/kho yêu cầu và trạng thái convert một lần.
 - [x] T080 Cập nhật `frontend/src/utils/interWarehouseTransferStatus.js` và `InterWarehouseTransferStatusBadge.jsx` cho nhãn status/action mới.
@@ -207,12 +208,12 @@
 
 - [x] T111 Cập nhật additive Flyway migration hoặc tạo migration tiếp theo cho các field báo cáo xếp hàng tại nguồn: transfer header `source_loaded_reported_by`, `source_loaded_reported_at`, `source_load_rework_required`, `source_load_rework_lý do`, và transfer item `loaded_qty`, `loaded_reported_by`, `loaded_reported_at` trong `backend/src/main/resources/db/migration/`.
 - [x] T112 Thêm source báo cáo xếp hàng request/response DTO trong `backend/src/main/java/com/wms/dto/request/` và `backend/src/main/java/com/wms/dto/response/`, bắt buộc cấp item `transferItemId` và `loadedQty`.
-- [x] T113 Cập nhật `backend/src/main/java/com/wms/entity/InterWarehouseTransfer.java` và `backend/src/main/java/com/wms/entity/InterWarehouseTransferItem.java` với field báo cáo xếp hàng tại nguồn và mapping an toàn version.
+- [x] T113 Cập nhật `backend/src/main/java/com/wms/entity/warehouse_transfer/InterWarehouseTransfer.java` và `backend/src/main/java/com/wms/entity/warehouse_transfer/InterWarehouseTransferItem.java` với field báo cáo xếp hàng tại nguồn và mapping an toàn version.
 - [x] T114 Thêm `TRANSFER_SOURCE_LOAD_REPORT` và `TRANSFER_SOURCE_LOAD_REWORK` vào `backend/src/main/java/com/wms/enums/AuditAction.java`.
-- [x] T115 Triển khai `recordSourceLoadReport` trong `backend/src/main/java/com/wms/service/transfer/impl/InterWarehouseTransferShippingService.java`, scope cho công nhân/nhân viên nguồn, bắt buộc `APPROVED`, lưu loaded quantity cấp item và xóa marker rework sau khi báo cáo đã sửa.
-- [x] T116 Cập nhật QC xuất logic trong `backend/src/main/java/com/wms/service/transfer/impl/InterWarehouseTransferShippingService.java` để bắt buộc có loaded quantity của công nhân nguồn trước QC, reject QC pass khi loaded quantity khác planned quantity và set rework khi QC fail.
-- [x] T117 Cập nhật guard shipment/load-handover/departure trong `backend/src/main/java/com/wms/service/transfer/impl/InterWarehouseTransferShippingService.java` để chặn khi thiếu báo cáo xếp hàng tại nguồn hoặc còn yêu cầu rework.
-- [x] T118 Thêm `POST /api/v1/inter-warehouse-transfers/{id}/source-load-report` để `backend/src/main/java/com/wms/controller/InterWarehouseTransferController.java` với validation và Swagger/OpenAPI annotations.
+- [x] T115 Triển khai `recordSourceLoadReport` trong `backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferShippingService.java`, scope cho công nhân/nhân viên nguồn, bắt buộc `APPROVED`, lưu loaded quantity cấp item và xóa marker rework sau khi báo cáo đã sửa.
+- [x] T116 Cập nhật QC xuất logic trong `backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferShippingService.java` để bắt buộc có loaded quantity của công nhân nguồn trước QC, reject QC pass khi loaded quantity khác planned quantity và set rework khi QC fail.
+- [x] T117 Cập nhật guard shipment/load-handover/departure trong `backend/src/main/java/com/wms/service/warehouse_transfer/impl/InterWarehouseTransferShippingService.java` để chặn khi thiếu báo cáo xếp hàng tại nguồn hoặc còn yêu cầu rework.
+- [x] T118 Thêm `POST /api/v1/inter-warehouse-transfers/{id}/source-load-report` để `backend/src/main/java/com/wms/controller/warehouse_transfer/InterWarehouseTransferController.java` với validation và Swagger/OpenAPI annotations.
 - [x] T119 Cập nhật Swagger/OpenAPI annotations sinh ra và test đồng bộ contract cho báo cáo xếp hàng tại nguồn, `SOURCE_LOAD_REPORT_REQUIRED`, và `SOURCE_LOAD_REWORK_REQUIRED`.
 - [x] T120 Thêm backend service/controller test tại `backend/src/test/java/com/wms/service/InterWarehouseTransferServiceImplTest.java` và `backend/src/test/java/com/wms/controller/InterWarehouseTransferControllerTest.java` cho happy path báo cáo xếp hàng, chặn QC trước report, QC fail set rework, chặn handover/depart khi rework, re-report xóa rework và mismatch reject QC pass.
 - [x] T121 Cập nhật `frontend/src/services/inter-warehouse-transfer.service.js` với API báo cáo xếp hàng tại nguồn.

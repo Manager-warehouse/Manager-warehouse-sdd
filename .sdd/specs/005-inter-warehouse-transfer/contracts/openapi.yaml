@@ -381,7 +381,7 @@ paths:
       responses:
         '200':
           description: Phiếu đã chuyển sang In-Transit
-  /inter-warehouse-transfers/{id}/arrive:
+  /inter-warehouse-transfers/{id}/driver-arrive:
     post:
       summary: Tài xế được gán ghi nhận đến kho nhận hiện tại
       tags: [Điều chuyển nội bộ]
