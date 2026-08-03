@@ -69,6 +69,11 @@ const ERROR_MESSAGE_BY_CODE = {
   INVOICE_ALREADY_PAID: 'Hóa đơn này đã được thanh toán đủ.',
   DELIVERY_ORDER_STATUS_INVALID: 'Đơn xuất phải đang giao hàng (IN_TRANSIT) trước khi có thể lập hóa đơn.',
   DELIVERY_ORDER_NOT_DELIVERED: 'Đơn xuất chưa hoàn tất xác nhận giao hàng (OTP + POD), không thể lập hóa đơn.',
+  NO_FAILED_QTY: 'Không còn số lượng hàng lỗi trong khu cách ly để tiêu hủy.',
+  ALREADY_DISPOSED: 'Mặt hàng này đã có yêu cầu tiêu hủy hoặc đã được xử lý tiêu hủy.',
+  INVALID_TYPE: 'Phiếu điều chỉnh này không phải yêu cầu tiêu hủy.',
+  ALREADY_APPROVED: 'Yêu cầu tiêu hủy này đã được phê duyệt.',
+  MISSING_STOCK_KEYS: 'Thiếu thông tin lô hoặc vị trí cách ly để trừ tồn.',
 };
 
 const looksLikeErrorCode = (value = '') => /^[A-Z][A-Z0-9_:-]+$/.test(String(value).trim());
@@ -177,7 +182,9 @@ const deliveryOrderMessageByBackendText = (code, message = '') => {
       return 'Đại lý đang bị chặn công nợ.';
     }
   }
-  if (code === 'UNPROCESSABLE_ENTITY' && message.includes('No accounting period configured')) {
+  if (code === 'UNPROCESSABLE_ENTITY' && (
+    message.includes('No accounting period configured') || message.includes('No open accounting period')
+  )) {
     return 'Chưa cấu hình kỳ kế toán cho ngày chứng từ.';
   }
   if (code === 'RESOURCE_NOT_FOUND') {

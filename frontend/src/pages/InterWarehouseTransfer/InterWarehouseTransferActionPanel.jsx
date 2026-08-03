@@ -81,7 +81,6 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
   const [outboundQcPhotoFile, setOutboundQcPhotoFile] = useState(null);
   const [outboundQcPhotoName, setOutboundQcPhotoName] = useState('');
   const [outboundQcNote, setOutboundQcNote] = useState('');
-  const [arrivalHandoverPhotoFile, setArrivalHandoverPhotoFile] = useState(null);
   const [receiveQcPhotoFile, setReceiveQcPhotoFile] = useState(null);
   const [returnPhotoFile, setReturnPhotoFile] = useState(null);
 
@@ -100,7 +99,6 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
     setOutboundQcPhotoFile(null);
     setOutboundQcPhotoName('');
     setOutboundQcNote('');
-    setArrivalHandoverPhotoFile(null);
     setReceiveQcPhotoFile(null);
     setReturnPhotoFile(null);
   }, [transfer?.id, transfer?.tripPlannedStartAt, transfer?.tripPlannedEndAt]);
@@ -850,21 +848,9 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
             <div className="border border-hairline-light rounded p-3 bg-canvas-cream flex flex-col gap-2">
               <div className="text-xs font-semibold text-ink">BƯỚC 2: BÀN GIAO TẠI KHO ĐÍCH</div>
               {hasAny(hasRole, [ROLES.STOREKEEPER, ROLES.ADMIN, ROLES.CEO]) && canManageDestinationWarehouse ? (
-                <>
-                  <PhotoCaptureInput
-                    label="Ảnh bàn giao nhận hàng"
-                    output="file"
-                    onChange={(file) => setArrivalHandoverPhotoFile(file)}
-                    required
-                  />
-                  {arrivalHandoverPhotoFile && (
-                    <Button loading={busy} size="sm" icon={Send} onClick={() => {
-                      run('receivingHandover', { photoFile: arrivalHandoverPhotoFile });
-                    }}>
-                      Gửi cho nhân viên nhập count
-                    </Button>
-                  )}
-                </>
+                <Button loading={busy} size="sm" icon={Check} onClick={() => run('receivingHandover')}>
+                  Xác nhận bàn giao hàng
+                </Button>
               ) : (
                 <div className="text-xs text-warning-700 italic">Đang chờ thủ kho kho đích xác nhận nhận bàn giao xe...</div>
               )}

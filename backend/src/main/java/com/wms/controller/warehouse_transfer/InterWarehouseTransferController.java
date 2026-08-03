@@ -1,44 +1,23 @@
 package com.wms.controller.warehouse_transfer;
 
 
-import com.wms.entity.access_control.*;
-import com.wms.entity.audit_trail.*;
-import com.wms.entity.billing_payment.*;
-import com.wms.entity.dealer_management.*;
-import com.wms.entity.document_numbering.*;
-import com.wms.entity.driver_management.*;
-import com.wms.entity.fleet_management.*;
-import com.wms.entity.notification_delivery.*;
-import com.wms.entity.order_fulfillment.*;
-import com.wms.entity.price_management.*;
-import com.wms.entity.product_catalog.*;
-import com.wms.entity.stock_control.*;
-import com.wms.entity.stock_counting.*;
-import com.wms.entity.stock_receiving.*;
-import com.wms.entity.supplier_management.*;
-import com.wms.entity.user_configuration.*;
-import com.wms.entity.warehouse_location.*;
-import com.wms.entity.warehouse_transfer.*;
-import com.wms.enums.access_control.*;
-import com.wms.enums.audit_trail.*;
-import com.wms.enums.billing_payment.*;
-import com.wms.enums.dealer_management.*;
-import com.wms.enums.driver_management.*;
-import com.wms.enums.fleet_management.*;
-import com.wms.enums.notification_delivery.*;
-import com.wms.enums.order_fulfillment.*;
-import com.wms.enums.price_management.*;
-import com.wms.enums.stock_control.*;
-import com.wms.enums.stock_counting.*;
-import com.wms.enums.stock_receiving.*;
-import com.wms.enums.supplier_management.*;
-import com.wms.enums.user_configuration.*;
-import com.wms.enums.warehouse_location.*;
-import com.wms.enums.warehouse_transfer.*;
-import com.wms.dto.request.*;
+import com.wms.dto.request.InterWarehouseTransferCreateRequest;
+import com.wms.dto.request.InterWarehouseTransferFinalReceiveRequest;
+import com.wms.dto.request.InterWarehouseTransferReasonRequest;
+import com.wms.dto.request.InterWarehouseTransferReceiveCheckRequest;
+import com.wms.dto.request.InterWarehouseTransferReceiveCountRequest;
+import com.wms.dto.request.InterWarehouseTransferRejectRequest;
+import com.wms.dto.request.InterWarehouseTransferTripAssignRequest;
+import com.wms.dto.request.InterWarehouseTransferUpdateRequest;
+import com.wms.dto.request.LoadHandoverRequest;
+import com.wms.dto.request.OutboundQcRequest;
+import com.wms.dto.request.ReceivingHandoverRequest;
+import com.wms.dto.request.SourceLoadReportRequest;
+import com.wms.dto.request.TransferReturnRequest;
 import com.wms.dto.response.InterWarehouseTransferResponse;
 import com.wms.dto.response.TransferPhotoUploadResponse;
 import com.wms.entity.access_control.User;
+import com.wms.entity.warehouse_location.Warehouse;
 import com.wms.service.user_context.CurrentUserService;
 import com.wms.service.warehouse_transfer.InterWarehouseTransferService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -53,9 +32,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 
 @RestController
@@ -195,9 +174,9 @@ public class InterWarehouseTransferController {
 
     @PostMapping("/{id}/receiving-handover")
     @PreAuthorize("hasAnyRole('STOREKEEPER','WAREHOUSE_MANAGER','ADMIN','CEO')")
-    @Operation(summary = "Record arrival handover check and photo at destination warehouse")
+    @Operation(summary = "Record arrival handover confirmation at destination warehouse")
     public InterWarehouseTransferResponse receivingHandover(@PathVariable Long id,
-                                                            @Valid @RequestBody LoadHandoverRequest request) {
+                                                            @RequestBody(required = false) ReceivingHandoverRequest request) {
         return transferService.receivingHandover(id, request, currentUser());
     }
 

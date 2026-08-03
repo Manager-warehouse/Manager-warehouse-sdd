@@ -366,31 +366,47 @@ class TransferRequestServiceImplTest {
     }
 
     @Test
-    void approveRequest_successByCeo() {
+    void approveRequest_successBySourceManagerAndReservesTransfer() {
         request.setStatus(TransferRequestStatus.SUBMITTED);
 
         when(requestRepository.findById(request.getId())).thenReturn(Optional.of(request));
+        when(assignmentRepository.findWarehouseIdsByUserId(manager.getId())).thenReturn(List.of(sourceWarehouse.getId()));
         when(inventoryRepository.sumValidAvailableQty(sourceWarehouse.getId(), product.getId()))
                 .thenReturn(new BigDecimal("10.00"));
+        InterWarehouseTransferResponse transferResponse = new InterWarehouseTransferResponse(
+                88L, "TRF-20260628-8888", null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, false, false, null,
+                null, null, null, null, false, null, null, List.of()
+        );
+        when(transferService.createTransferFromApprovedRequest(any(InterWarehouseTransferCreateRequest.class), eq(manager)))
+                .thenReturn(transferResponse);
+        when(transferService.approveTransfer(88L, manager)).thenReturn(transferResponse);
+        InterWarehouseTransfer transfer = new InterWarehouseTransfer();
+        transfer.setId(88L);
+        transfer.setTransferNumber("TRF-20260628-8888");
+        when(interWarehouseTransferRepository.findById(88L)).thenReturn(Optional.of(transfer));
         when(requestRepository.save(any(TransferRequest.class))).thenReturn(request);
 
-        TransferRequestResponse response = service.approveRequest(request.getId(), ceo);
+        TransferRequestResponse response = service.approveRequest(request.getId(), manager);
 
         assertThat(response.status()).isEqualTo(TransferRequestStatus.APPROVED);
-        assertThat(request.getApprovedBy()).isEqualTo(ceo);
+        assertThat(request.getApprovedBy()).isEqualTo(manager);
         assertThat(request.getApprovedAt()).isNotNull();
+        assertThat(request.getConvertedTransfer()).isEqualTo(transfer);
+        verify(transferService).approveTransfer(88L, manager);
     }
 
     @Test
-    void rejectRequest_successByCeo() {
+    void rejectRequest_successBySourceManager() {
         request.setStatus(TransferRequestStatus.SUBMITTED);
 
         when(requestRepository.findById(request.getId())).thenReturn(Optional.of(request));
+        when(assignmentRepository.findWarehouseIdsByUserId(manager.getId())).thenReturn(List.of(sourceWarehouse.getId()));
         when(requestRepository.save(any(TransferRequest.class))).thenReturn(request);
 
         TransferRequestRejectRequest rejectReq = new TransferRequestRejectRequest("Not needed now");
 
-        TransferRequestResponse response = service.rejectRequest(request.getId(), rejectReq, ceo);
+        TransferRequestResponse response = service.rejectRequest(request.getId(), rejectReq, manager);
 
         assertThat(response.status()).isEqualTo(TransferRequestStatus.REJECTED);
         assertThat(request.getRejectionReason()).isEqualTo("Not needed now");
@@ -409,6 +425,7 @@ class TransferRequestServiceImplTest {
         );
         when(transferService.createTransferFromApprovedRequest(any(InterWarehouseTransferCreateRequest.class), eq(planner)))
                 .thenReturn(transferResponse);
+        when(transferService.approveTransfer(88L, planner)).thenReturn(transferResponse);
         InterWarehouseTransfer transfer = new InterWarehouseTransfer();
         transfer.setId(88L);
         transfer.setTransferNumber("TRF-20260628-8888");
@@ -424,22 +441,26 @@ class TransferRequestServiceImplTest {
         assertThat(transfer.getTransferRequest()).isEqualTo(request);
         verify(transferService, times(1))
                 .createTransferFromApprovedRequest(any(InterWarehouseTransferCreateRequest.class), eq(planner));
-        verify(interWarehouseTransferRepository).save(transfer);
+        verify(transferService).approveTransfer(88L, planner);
+        verify(interWarehouseTransferRepository, times(2)).save(transfer);
     }
 
     @Test
-    void convertToTransfer_failsWhenAlreadyConverted() {
+    void convertToTransfer_usesPreparedTransferWhenAlreadyReserved() {
         request.setStatus(TransferRequestStatus.APPROVED);
         InterWarehouseTransfer transfer = new InterWarehouseTransfer();
         transfer.setId(88L);
+        transfer.setTransferNumber("TRF-20260628-8888");
         request.setConvertedTransfer(transfer);
         when(requestRepository.findById(request.getId())).thenReturn(Optional.of(request));
+        when(requestRepository.save(any(TransferRequest.class))).thenReturn(request);
 
-        assertThatThrownBy(() -> service.convertToTransfer(request.getId(), planner))
-                .isInstanceOf(BusinessRuleViolationException.class)
-                .hasMessageContaining("TRANSFER_REQUEST_ALREADY_CONVERTED");
+        TransferRequestResponse response = service.convertToTransfer(request.getId(), planner);
 
+        assertThat(response.status()).isEqualTo(TransferRequestStatus.CONVERTED);
+        assertThat(response.convertedTransferId()).isEqualTo(88L);
         verify(transferService, never()).createTransferFromApprovedRequest(any(), any());
+        verify(interWarehouseTransferRepository).save(transfer);
     }
 
     @Test

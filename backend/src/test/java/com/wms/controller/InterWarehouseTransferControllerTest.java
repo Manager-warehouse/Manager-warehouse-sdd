@@ -325,11 +325,11 @@ class InterWarehouseTransferControllerTest {
     @Test
     @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
     void receivingHandover_success() throws Exception {
-        LoadHandoverRequest request = new LoadHandoverRequest("/uploads/transfer/arrival.jpg");
+        ReceivingHandoverRequest request = new ReceivingHandoverRequest(null);
         InterWarehouseTransferResponse response = createMockResponse(1L, "TRF-20260711-0001", InterWarehouseTransferStatus.IN_TRANSIT);
 
         when(currentUserService.getRequiredCurrentUser()).thenReturn(storekeeper);
-        when(transferService.receivingHandover(eq(1L), any(LoadHandoverRequest.class), eq(storekeeper)))
+        when(transferService.receivingHandover(eq(1L), any(ReceivingHandoverRequest.class), eq(storekeeper)))
                 .thenReturn(response);
 
         mockMvc.perform(post("/api/v1/inter-warehouse-transfers/1/receiving-handover")
@@ -341,12 +341,18 @@ class InterWarehouseTransferControllerTest {
 
     @Test
     @WithMockUser(username = "storekeeper@wms.com", roles = "STOREKEEPER")
-    void receivingHandover_validationFailure_missingPhotoRef() throws Exception {
+    void receivingHandover_successWithoutPhotoRef() throws Exception {
+        InterWarehouseTransferResponse response = createMockResponse(1L, "TRF-20260711-0001", InterWarehouseTransferStatus.IN_TRANSIT);
+
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(storekeeper);
+        when(transferService.receivingHandover(eq(1L), any(ReceivingHandoverRequest.class), eq(storekeeper)))
+                .thenReturn(response);
+
         mockMvc.perform(post("/api/v1/inter-warehouse-transfers/1/receiving-handover")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"photoRef\":\"\"}")
                 .accept(MediaType.APPLICATION_JSON))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isOk());
     }
 
     @Test

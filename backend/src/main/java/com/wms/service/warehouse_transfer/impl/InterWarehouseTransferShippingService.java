@@ -1,47 +1,39 @@
 package com.wms.service.warehouse_transfer.impl;
-import com.wms.entity.access_control.*;
-import com.wms.entity.audit_trail.*;
-import com.wms.entity.billing_payment.*;
-import com.wms.entity.dealer_management.*;
-import com.wms.entity.document_numbering.*;
-import com.wms.entity.driver_management.*;
-import com.wms.entity.fleet_management.*;
-import com.wms.entity.notification_delivery.*;
-import com.wms.entity.order_fulfillment.*;
-import com.wms.entity.price_management.*;
-import com.wms.entity.product_catalog.*;
-import com.wms.entity.stock_control.*;
-import com.wms.entity.stock_counting.*;
-import com.wms.entity.stock_receiving.*;
-import com.wms.entity.supplier_management.*;
-import com.wms.entity.user_configuration.*;
-import com.wms.entity.warehouse_location.*;
-import com.wms.entity.warehouse_transfer.*;
-import com.wms.enums.access_control.*;
-import com.wms.enums.audit_trail.*;
-import com.wms.enums.billing_payment.*;
-import com.wms.enums.dealer_management.*;
-import com.wms.enums.driver_management.*;
-import com.wms.enums.fleet_management.*;
-import com.wms.enums.notification_delivery.*;
-import com.wms.enums.order_fulfillment.*;
-import com.wms.enums.price_management.*;
-import com.wms.enums.stock_control.*;
-import com.wms.enums.stock_counting.*;
-import com.wms.enums.stock_receiving.*;
-import com.wms.enums.supplier_management.*;
-import com.wms.enums.user_configuration.*;
-import com.wms.enums.warehouse_location.*;
-import com.wms.enums.warehouse_transfer.*;
-
 import com.wms.dto.request.InterWarehouseTransferTripAssignRequest;
-import com.wms.dto.request.OutboundQcRequest;
 import com.wms.dto.request.LoadHandoverRequest;
+import com.wms.dto.request.OutboundQcRequest;
+import com.wms.dto.request.ReceivingHandoverRequest;
 import com.wms.dto.request.SourceLoadReportRequest;
 import com.wms.dto.response.InterWarehouseTransferResponse;
+import com.wms.entity.access_control.User;
+import com.wms.entity.access_control.UserWarehouseAssignment;
+import com.wms.entity.driver_management.Driver;
+import com.wms.entity.fleet_management.Vehicle;
+import com.wms.entity.order_fulfillment.Trip;
+import com.wms.entity.stock_control.Inventory;
+import com.wms.entity.warehouse_location.Warehouse;
+import com.wms.entity.warehouse_location.WarehouseLocation;
+import com.wms.entity.warehouse_transfer.InterWarehouseTransfer;
+import com.wms.entity.warehouse_transfer.InterWarehouseTransferAllocation;
+import com.wms.entity.warehouse_transfer.InterWarehouseTransferItem;
+import com.wms.enums.access_control.UserRole;
+import com.wms.enums.audit_trail.AuditAction;
+import com.wms.enums.driver_management.DriverStatus;
+import com.wms.enums.fleet_management.VehicleStatus;
+import com.wms.enums.order_fulfillment.TripStatus;
+import com.wms.enums.order_fulfillment.TripType;
+import com.wms.enums.warehouse_transfer.InterWarehouseTransferStatus;
 import com.wms.exception.BusinessRuleViolationException;
 import com.wms.exception.ResourceNotFoundException;
-import com.wms.repository.*;
+import com.wms.repository.InterWarehouseTransferAllocationRepository;
+import com.wms.repository.InterWarehouseTransferItemRepository;
+import com.wms.repository.InterWarehouseTransferRepository;
+import com.wms.repository.InventoryRepository;
+import com.wms.repository.TripRepository;
+import com.wms.repository.UserWarehouseAssignmentRepository;
+import com.wms.repository.VehicleRepository;
+import com.wms.repository.WarehouseLocationRepository;
+import com.wms.repository.WarehouseRepository;
 import com.wms.repository.driver_management.DriverRepository;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -602,9 +594,8 @@ public class InterWarehouseTransferShippingService {
     }
 
     @Transactional
-    public InterWarehouseTransferResponse receivingHandover(Long id, LoadHandoverRequest request, User actor) {
-        // HÀM CHÍNH: kho nhận ghi bằng chứng bàn giao khi xe đến.
-        // Kho nhận xác nhận bàn giao với ảnh; đây là bước bắt buộc trước khi nhập số lượng nhận.
+    public InterWarehouseTransferResponse receivingHandover(Long id, ReceivingHandoverRequest request, User actor) {
+        // HÀM CHÍNH: kho nhận xác nhận bàn giao khi xe đến.
         // Bước 1: xác định kho được phép bàn giao. Nếu xe quay đầu thì kho nhận lại chính là kho nguồn.
         InterWarehouseTransfer transfer = helper.findTransfer(id);
         helper.requireStatus(transfer, InterWarehouseTransferStatus.IN_TRANSIT);
@@ -620,9 +611,9 @@ public class InterWarehouseTransferShippingService {
             throw new BusinessRuleViolationException("DRIVER_ARRIVE_REQUIRED");
         }
         Map<String, Object> before = helper.snapshot(transfer);
-        // Bước 2: lưu ảnh bàn giao khi xe đến nơi; bước nhập số lượng nhận sẽ kiểm mốc này.
+        // Bước 2: lưu mốc bàn giao; ảnh không bắt buộc ở kho đích để mở nhanh bước count.
         transfer.setArrivalHandoverAt(OffsetDateTime.now());
-        transfer.setArrivalHandoverPhotoRef(request.photoRef());
+        transfer.setArrivalHandoverPhotoRef(request != null ? request.photoRef() : null);
         transfer.setArrivalHandoverBy(actor);
         transfer.setUpdatedAt(OffsetDateTime.now());
 

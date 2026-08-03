@@ -1,44 +1,33 @@
 package com.wms.service.warehouse_transfer.impl;
-import com.wms.entity.access_control.*;
-import com.wms.entity.audit_trail.*;
-import com.wms.entity.billing_payment.*;
-import com.wms.entity.dealer_management.*;
-import com.wms.entity.document_numbering.*;
-import com.wms.entity.driver_management.*;
-import com.wms.entity.fleet_management.*;
-import com.wms.entity.notification_delivery.*;
-import com.wms.entity.order_fulfillment.*;
-import com.wms.entity.price_management.*;
-import com.wms.entity.product_catalog.*;
-import com.wms.entity.stock_control.*;
-import com.wms.entity.stock_counting.*;
-import com.wms.entity.stock_receiving.*;
-import com.wms.entity.supplier_management.*;
-import com.wms.entity.user_configuration.*;
-import com.wms.entity.warehouse_location.*;
-import com.wms.entity.warehouse_transfer.*;
-import com.wms.enums.access_control.*;
-import com.wms.enums.audit_trail.*;
-import com.wms.enums.billing_payment.*;
-import com.wms.enums.dealer_management.*;
-import com.wms.enums.driver_management.*;
-import com.wms.enums.fleet_management.*;
-import com.wms.enums.notification_delivery.*;
-import com.wms.enums.order_fulfillment.*;
-import com.wms.enums.price_management.*;
-import com.wms.enums.stock_control.*;
-import com.wms.enums.stock_counting.*;
-import com.wms.enums.stock_receiving.*;
-import com.wms.enums.supplier_management.*;
-import com.wms.enums.user_configuration.*;
-import com.wms.enums.warehouse_location.*;
-import com.wms.enums.warehouse_transfer.*;
-
-import com.wms.dto.request.*;
-import com.wms.dto.response.*;
+import com.wms.dto.request.InterWarehouseTransferCreateRequest;
+import com.wms.dto.request.InterWarehouseTransferItemRequest;
+import com.wms.dto.request.TransferRequestCreateRequest;
+import com.wms.dto.request.TransferRequestItemRequest;
+import com.wms.dto.request.TransferRequestRejectRequest;
+import com.wms.dto.request.TransferRequestUpdateRequest;
+import com.wms.dto.response.InterWarehouseTransferResponse;
+import com.wms.dto.response.TransferRequestItemResponse;
+import com.wms.dto.response.TransferRequestResponse;
+import com.wms.dto.response.WarehouseStockLookupResponse;
+import com.wms.entity.access_control.User;
+import com.wms.entity.product_catalog.Product;
+import com.wms.entity.warehouse_location.Warehouse;
+import com.wms.entity.warehouse_transfer.InterWarehouseTransfer;
+import com.wms.entity.warehouse_transfer.TransferRequest;
+import com.wms.entity.warehouse_transfer.TransferRequestItem;
+import com.wms.enums.access_control.UserRole;
+import com.wms.enums.audit_trail.AuditAction;
+import com.wms.enums.warehouse_location.WarehouseType;
+import com.wms.enums.warehouse_transfer.InterWarehouseTransferStatus;
+import com.wms.enums.warehouse_transfer.TransferRequestStatus;
 import com.wms.exception.BusinessRuleViolationException;
 import com.wms.exception.ResourceNotFoundException;
-import com.wms.repository.*;
+import com.wms.repository.InterWarehouseTransferRepository;
+import com.wms.repository.InventoryRepository;
+import com.wms.repository.TransferRequestItemRepository;
+import com.wms.repository.TransferRequestRepository;
+import com.wms.repository.UserWarehouseAssignmentRepository;
+import com.wms.repository.WarehouseRepository;
 import com.wms.repository.product_catalog.ProductRepository;
 import com.wms.service.warehouse_transfer.InterWarehouseTransferService;
 import com.wms.service.warehouse_transfer.TransferRequestService;
@@ -47,7 +36,14 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -64,7 +60,7 @@ public class TransferRequestServiceImpl implements TransferRequestService {
 
     /*
      * LUỒNG YÊU CẦU ĐIỀU CHUYỂN:
-     * - Các hàm public là hành động chính của người dùng: tạo nháp, gửi duyệt, CEO duyệt/từ chối, Planner chuyển thành phiếu TRF.
+     * - Các hàm public là hành động chính của người dùng: tạo nháp, gửi duyệt, nguồn duyệt/từ chối, Planner chuyển thành phiếu TRF.
      * - Các hàm private cuối file là hàm hỗ trợ: tìm request, kiểm quyền kho, kiểm tồn, tự hủy quá hạn, sinh mã và map response.
      */
     private final TransferRequestRepository requestRepository;
@@ -199,7 +195,7 @@ public class TransferRequestServiceImpl implements TransferRequestService {
     @Override
     @Transactional
     public TransferRequestResponse submitRequest(Long id, User actor) {
-        // HÀM CHÍNH: gửi yêu cầu từ nháp sang chờ CEO/Admin duyệt.
+        // HÀM CHÍNH: gửi yêu cầu từ nháp sang chờ Quản lý kho nguồn/Admin duyệt.
         TransferRequest req = findRequest(id);
         if (autoCancelExpiredRequest(req, actor)) {
             return toResponse(req);
@@ -228,9 +224,9 @@ public class TransferRequestServiceImpl implements TransferRequestService {
     @Override
     @Transactional
     public TransferRequestResponse approveRequest(Long id, User actor) {
-        // HÀM CHÍNH: CEO/Admin duyệt yêu cầu sau khi kiểm tồn kho nguồn còn đủ.
-        if (actor.getRole() != UserRole.CEO && actor.getRole() != UserRole.ADMIN) {
-            throw new BusinessRuleViolationException("CEO_ROLE_REQUIRED");
+        // HÀM CHÍNH: Quản lý kho nguồn/Admin duyệt yêu cầu và giữ hàng nguồn ngay.
+        if (actor.getRole() != UserRole.WAREHOUSE_MANAGER && actor.getRole() != UserRole.ADMIN) {
+            throw new BusinessRuleViolationException("SOURCE_MANAGER_ROLE_REQUIRED");
         }
 
         TransferRequest req = findRequest(id);
@@ -240,17 +236,20 @@ public class TransferRequestServiceImpl implements TransferRequestService {
         if (req.getStatus() != TransferRequestStatus.SUBMITTED) {
             throw new BusinessRuleViolationException("ONLY_SUBMITTED_CAN_BE_APPROVED");
         }
+        ensureWarehouseScope(actor, req.getSourceWarehouse().getId());
         validateSourceAvailability(req);
 
         Map<String, Object> before = snapshot(req);
+        InterWarehouseTransfer preparedTransfer = prepareReservedTransfer(req, actor);
         req.setStatus(TransferRequestStatus.APPROVED);
+        req.setConvertedTransfer(preparedTransfer);
         req.setApprovedBy(actor);
         req.setApprovedAt(OffsetDateTime.now());
         req.setUpdatedAt(OffsetDateTime.now());
 
         TransferRequest saved = requestRepository.save(req);
 
-        auditUtil.logChange(actor, AuditAction.TRANSFER_REQUEST_CEO_APPROVE, "TRANSFER_REQUEST",
+        auditUtil.logChange(actor, AuditAction.TRANSFER_REQUEST_SOURCE_APPROVE, "TRANSFER_REQUEST",
                 saved.getId(), saved.getRequestNumber(), before, snapshot(saved));
 
         return toResponse(saved);
@@ -259,15 +258,16 @@ public class TransferRequestServiceImpl implements TransferRequestService {
     @Override
     @Transactional
     public TransferRequestResponse rejectRequest(Long id, TransferRequestRejectRequest request, User actor) {
-        // HÀM CHÍNH: CEO/Admin từ chối yêu cầu và lưu lý do.
-        if (actor.getRole() != UserRole.CEO && actor.getRole() != UserRole.ADMIN) {
-            throw new BusinessRuleViolationException("CEO_ROLE_REQUIRED");
+        // HÀM CHÍNH: Quản lý kho nguồn/Admin từ chối yêu cầu và lưu lý do.
+        if (actor.getRole() != UserRole.WAREHOUSE_MANAGER && actor.getRole() != UserRole.ADMIN) {
+            throw new BusinessRuleViolationException("SOURCE_MANAGER_ROLE_REQUIRED");
         }
 
         TransferRequest req = findRequest(id);
         if (req.getStatus() != TransferRequestStatus.SUBMITTED) {
             throw new BusinessRuleViolationException("ONLY_SUBMITTED_CAN_BE_REJECTED");
         }
+        ensureWarehouseScope(actor, req.getSourceWarehouse().getId());
 
         if (request.reason() == null || request.reason().trim().isEmpty()) {
             throw new BusinessRuleViolationException("REJECTION_REASON_REQUIRED");
@@ -282,7 +282,7 @@ public class TransferRequestServiceImpl implements TransferRequestService {
 
         TransferRequest saved = requestRepository.save(req);
 
-        auditUtil.logChange(actor, AuditAction.TRANSFER_REQUEST_CEO_REJECT, "TRANSFER_REQUEST",
+        auditUtil.logChange(actor, AuditAction.TRANSFER_REQUEST_SOURCE_REJECT, "TRANSFER_REQUEST",
                 saved.getId(), saved.getRequestNumber(), before, snapshot(saved));
 
         return toResponse(saved);
@@ -303,46 +303,19 @@ public class TransferRequestServiceImpl implements TransferRequestService {
         if (req.getStatus() != TransferRequestStatus.APPROVED) {
             throw new BusinessRuleViolationException("ONLY_APPROVED_CAN_BE_CONVERTED");
         }
-        if (req.getConvertedTransfer() != null) {
-            throw new BusinessRuleViolationException("TRANSFER_REQUEST_ALREADY_CONVERTED");
-        }
-        // Chặn tạo trùng phiếu điều chuyển từ cùng một yêu cầu đã được duyệt.
-        if (interWarehouseTransferRepository.existsByTransferRequestIdAndStatusNotIn(req.getId(),
-                List.of(InterWarehouseTransferStatus.CANCELLED, InterWarehouseTransferStatus.REJECTED))) {
-            throw new BusinessRuleViolationException("TRANSFER_REQUEST_ALREADY_CONVERTED");
-        }
-
-        // Chuyển yêu cầu đã duyệt thành phiếu điều chuyển nội bộ để tiếp tục luồng duyệt, gán xe và xuất kho.
-        List<InterWarehouseTransferItemRequest> itemRequests = req.getItems().stream()
-                .map(item -> new InterWarehouseTransferItemRequest(
-                        item.getProduct().getId(),
-                        null, // Vị trí xuất sẽ được chọn sau ở bước xuất hàng.
-                        null, // Vị trí nhập sẽ được chọn sau ở bước QC/nhập kho nhận.
-                        item.getRequestedQty()
-                ))
-                .toList();
-
-        // Ngày cần hàng là deadline cứng: phiếu sinh ra phải dự kiến giao trong đúng ngày đó, không được lùi sang hôm sau.
-        LocalDate plannedDate = req.getNeededByDate() != null ? req.getNeededByDate() : LocalDate.now().plusDays(2);
-
-        InterWarehouseTransferCreateRequest createRequest = new InterWarehouseTransferCreateRequest(
-                req.getRequestNumber(), // Dùng mã yêu cầu làm mã tham chiếu bên ngoài để truy ngược nguồn tạo phiếu.
-                req.getSourceWarehouse().getId(),
-                req.getDestinationWarehouse().getId(),
-                LocalDate.now(),
-                plannedDate,
-                req.getNotes(),
-                itemRequests
-        );
-
-        // Gọi service tạo phiếu điều chuyển thật, sau đó gắn ngược phiếu vừa tạo vào yêu cầu ban đầu.
-        InterWarehouseTransferResponse transferResponse = transferService.createTransferFromApprovedRequest(createRequest,
-                actor);
-
         Map<String, Object> before = snapshot(req);
+        InterWarehouseTransfer transfer = req.getConvertedTransfer();
+        if (transfer == null) {
+            // Tương thích dữ liệu cũ: nếu request đã APPROVED trước luồng mới, convert vẫn phải tạo TRF đã giữ hàng.
+            transfer = createTransferForRequest(req, actor);
+            transfer.setTransferRequest(req);
+            transfer.setUpdatedAt(OffsetDateTime.now());
+            interWarehouseTransferRepository.save(transfer);
+            InterWarehouseTransferResponse approved = transferService.approveTransfer(transfer.getId(), actor);
+            transfer = interWarehouseTransferRepository.findById(approved.id())
+                    .orElseThrow(() -> new ResourceNotFoundException("Transfer not found: " + approved.id()));
+        }
         req.setStatus(TransferRequestStatus.CONVERTED);
-        InterWarehouseTransfer transfer = interWarehouseTransferRepository.findById(transferResponse.id())
-                .orElseThrow(() -> new ResourceNotFoundException("Transfer not found: " + transferResponse.id()));
         transfer.setTransferRequest(req);
         transfer.setUpdatedAt(OffsetDateTime.now());
         interWarehouseTransferRepository.save(transfer);
@@ -426,6 +399,51 @@ public class TransferRequestServiceImpl implements TransferRequestService {
                 throw new BusinessRuleViolationException("TRANSFER_REQUEST_QTY_EXCEEDS_SOURCE_AVAILABLE");
             }
         }
+    }
+
+    private InterWarehouseTransfer prepareReservedTransfer(TransferRequest req, User actor) {
+        InterWarehouseTransfer existing = req.getConvertedTransfer();
+        if (existing != null) {
+            return existing;
+        }
+        if (interWarehouseTransferRepository.existsByTransferRequestIdAndStatusNotIn(req.getId(),
+                List.of(InterWarehouseTransferStatus.CANCELLED, InterWarehouseTransferStatus.REJECTED))) {
+            throw new BusinessRuleViolationException("TRANSFER_REQUEST_ALREADY_CONVERTED");
+        }
+        InterWarehouseTransfer transfer = createTransferForRequest(req, actor);
+        transfer.setTransferRequest(req);
+        transfer.setUpdatedAt(OffsetDateTime.now());
+        interWarehouseTransferRepository.save(transfer);
+        InterWarehouseTransferResponse approved = transferService.approveTransfer(transfer.getId(), actor);
+        return interWarehouseTransferRepository.findById(approved.id())
+                .orElseThrow(() -> new ResourceNotFoundException("Transfer not found: " + approved.id()));
+    }
+
+    private InterWarehouseTransfer createTransferForRequest(TransferRequest req, User actor) {
+        List<InterWarehouseTransferItemRequest> itemRequests = req.getItems().stream()
+                .map(item -> new InterWarehouseTransferItemRequest(
+                        item.getProduct().getId(),
+                        null,
+                        null,
+                        item.getRequestedQty()
+                ))
+                .toList();
+
+        LocalDate plannedDate = req.getNeededByDate() != null ? req.getNeededByDate() : LocalDate.now().plusDays(2);
+        InterWarehouseTransferCreateRequest createRequest = new InterWarehouseTransferCreateRequest(
+                req.getRequestNumber(),
+                req.getSourceWarehouse().getId(),
+                req.getDestinationWarehouse().getId(),
+                LocalDate.now(),
+                plannedDate,
+                req.getNotes(),
+                itemRequests
+        );
+
+        InterWarehouseTransferResponse transferResponse = transferService.createTransferFromApprovedRequest(createRequest,
+                actor);
+        return interWarehouseTransferRepository.findById(transferResponse.id())
+                .orElseThrow(() -> new ResourceNotFoundException("Transfer not found: " + transferResponse.id()));
     }
 
     private void ensureNeededByDateIsNotPast(LocalDate neededByDate) {
