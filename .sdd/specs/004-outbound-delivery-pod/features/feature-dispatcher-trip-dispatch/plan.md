@@ -6,7 +6,7 @@
 
 ## Summary
 
-Dispatcher groups warehouse-approved Delivery Orders into a warehouse-scoped outbound trip, assigns one in-warehouse vehicle and driver, and keeps the trip editable only while it remains `PLANNED`. When one Delivery Order exceeds a single vehicle capacity, Dispatcher can create a coordinated split delivery plan that allocates the full Delivery Order quantity across multiple ready vehicles/drivers in one submission. Split legs share one planned departure time, depart together after every driver is ready, and create one current Delivery attempt for the Delivery Order. Trip completion returns each operational vehicle only after its driver confirms return and the downstream delivery outcome is terminal.
+Dispatcher groups warehouse-approved Delivery Orders into a warehouse-scoped outbound trip, assigns one in-warehouse vehicle and driver, and keeps the trip editable only while it remains `PLANNED`. When one Delivery Order exceeds a single vehicle capacity, Dispatcher can create a coordinated split delivery plan that allocates the full Delivery Order quantity across multiple vehicles/drivers in one submission. Split legs share one planned departure time, depart together when the lead driver confirms departure for the whole convoy, and create one current Delivery attempt for the Delivery Order. The lead driver also owns the downstream split mobile workflow and whole-convoy return completion.
 
 ## Technical Context
 
@@ -26,7 +26,7 @@ Dispatcher groups warehouse-approved Delivery Orders into a warehouse-scoped out
 
 **Constraints**: Outbound trips in Sprint 1 use `tripType = DELIVERY` only. All Delivery Orders in one trip must share the same warehouse as the Dispatcher, vehicle, and driver. No Delivery Order may belong to more than one active trip. Departure must only dispatch Delivery Orders still in `WAREHOUSE_APPROVED` and with QC-passed staged quantity equal to requested quantity. All inventory/resource changes require optimistic locking, non-negative inventory, and audit logs.
 
-**Scale/Scope**: Sprint 1 outbound dispatch flow for three warehouses, multi-DO planned trips, one-DO multi-vehicle split plans, driver readiness, coordinated departure, delivery-attempt initialization, and trip completion after downstream delivery outcomes.
+**Scale/Scope**: Sprint 1 outbound dispatch flow for three warehouses, multi-DO planned trips, one-DO multi-vehicle split plans, lead-driver coordinated departure, delivery-attempt initialization, and trip completion after downstream delivery outcomes.
 
 ## Constitution Check
 

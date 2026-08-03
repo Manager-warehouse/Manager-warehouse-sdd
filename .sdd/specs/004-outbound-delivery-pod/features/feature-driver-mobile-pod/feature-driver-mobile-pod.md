@@ -17,12 +17,12 @@ Nếu Đại lý từ chối nhận hàng hoặc giao hàng thất bại, tài x
 - Q: Ảnh POD được lưu ở dịch vụ object storage hay local storage trên VPS? -> A: Lưu file trong persistent local storage trên VPS; database chỉ lưu relative storage path và metadata, còn frontend xem ảnh qua backend có kiểm tra quyền.
 - Q: Sau khi Driver giao hàng thành công, bằng chứng POD được xem lại ở đâu? -> A: Màn hình chi tiết Delivery Order ở trạng thái `COMPLETED` hoặc `CLOSED` phải hiển thị đúng hai ảnh POD đã được chấp nhận của lần giao thành công.
 - Q: Với một Delivery Order chia trên nhiều xe, POD và OTP được quản lý theo leg hay theo Delivery Order? -> A: Dùng chung một cặp POD và một OTP cho toàn bộ Delivery Order.
-- Q: Driver nào thực hiện POD và OTP cho Delivery Order chia nhiều xe? -> A: Chỉ lead driver thực hiện POD, yêu cầu OTP và xác nhận OTP.
-- Q: Khi nào được bắt đầu bàn giao hàng của Delivery Order chia nhiều xe? -> A: Tất cả xe/leg phải tự xác nhận đã đến điểm giao trước khi bất kỳ leg nào được bàn giao.
-- Q: Nếu một leg giao thất bại thì xử lý phần còn lại thế nào? -> A: Toàn bộ Delivery Order thất bại, tất cả leg chuyển sang hoàn hàng và dùng chung luồng hoàn hàng của Delivery Order.
+- Q: Driver nào thao tác mobile cho Delivery Order chia nhiều xe? -> A: Chỉ lead driver thao tác toàn bộ split delivery trên mobile: xác nhận xuất phát, ghi nhận đã đến/bàn giao cho toàn bộ đoàn xe, báo giao thất bại nếu có, upload/thay POD, yêu cầu/resend OTP, nhập OTP xác nhận giao hàng, và xác nhận toàn bộ đoàn xe đã quay về kho. Các xe phụ không cần và không được thực hiện thao tác mobile riêng trong flow này.
+- Q: Khi nào được bắt đầu bàn giao hàng của Delivery Order chia nhiều xe? -> A: Lead driver xác nhận khi toàn bộ xe phụ trách Delivery Order đã đến điểm giao; hệ thống không yêu cầu từng driver phụ xác nhận arrival/handover riêng.
+- Q: Nếu một xe trong split delivery không thể giao hàng thì xử lý thế nào? -> A: Lead driver báo thất bại một lần cho toàn bộ Delivery Order; toàn bộ split plan chuyển sang hoàn hàng và dùng chung luồng hoàn hàng của Delivery Order.
 - Q: Có được thay ảnh POD sau khi đã yêu cầu OTP không? -> A: Cho phép thay đồng thời cả cặp ảnh POD; OTP hiện tại bị vô hiệu hóa và phải yêu cầu mã mới.
 - Q: Nếu gửi email OTP thất bại thì xử lý thế nào? -> A: Lưu trạng thái `SEND_FAILED` và cho phép gửi lại ngay trên cùng bản ghi OTP.
-- Q: Khi OTP thành công có tự động giải phóng toàn bộ xe không? -> A: Không; mỗi driver tự xác nhận xe của mình đã về kho, chỉ leg đó được giải phóng.
+- Q: Khi OTP thành công có tự động giải phóng toàn bộ xe không? -> A: Không; lead driver xác nhận toàn bộ đoàn xe đã quay về kho bằng một thao tác hoàn tất split delivery, sau đó hệ thống giải phóng toàn bộ xe và driver thuộc split plan.
 
 ## 2. Actors
 
@@ -49,7 +49,8 @@ Nếu Đại lý từ chối nhận hàng hoặc giao hàng thất bại, tài x
   - The system SHALL NOT use `OUT_FOR_DELIVERY` in Sprint 1 delivery attempt status transitions.
   - The system SHALL require full Delivery Order delivery; partial delivery confirmation is not supported in Sprint 1.
   - A split delivery SHALL use exactly one current delivery attempt, one shared POD evidence pair, and one active OTP lifecycle for the whole Delivery Order, not separate POD/OTP records per leg.
-  - Only the split plan's lead driver SHALL upload or replace the shared POD evidence, request/resend the shared OTP, and confirm the whole Delivery Order using that OTP.
+  - A split delivery SHALL be a lead-driver-only mobile workflow: only the split plan's lead driver SHALL confirm departure, confirm dealer arrival/handover for the whole split Delivery Order, upload or replace POD evidence, request/resend OTP, confirm delivery using OTP, report delivery failure, and complete the vehicle-return step for the whole split plan.
+  - Non-lead split drivers SHALL NOT be required to confirm readiness, departure, dealer arrival, handover, POD, OTP, failure, or return in the mobile workflow.
   - The system SHALL create audit records for every user action in this flow: POD upload, OTP request/resend, OTP confirmation, delivery failure/return, and trip completion.
 
 - **Event-driven:**
@@ -104,10 +105,12 @@ Nếu Đại lý từ chối nhận hàng hoặc giao hàng thất bại, tài x
     - Never store raw OTP on `deliveries` or `delivery_otp_attempts`.
     - Create `REQUEST_OTP` audit log.
   - WHEN drivers deliver one Delivery Order through a split delivery plan, the system SHALL:
-    - Require every assigned split driver to confirm dealer arrival for their own leg.
-    - Reject handover confirmation for every leg until all active legs have confirmed dealer arrival.
-    - Allow each assigned driver to confirm handover only for their own leg after the all-arrived gate is satisfied.
-    - Allow the lead driver to upload the shared POD pair and request/confirm the shared OTP only after every active leg has confirmed handover.
+    - Treat the lead driver as the only mobile actor for the whole split Delivery Order.
+    - Allow only the lead driver to confirm departure for the split plan.
+    - Allow only the lead driver to confirm that the whole split convoy has arrived at the dealer.
+    - Allow only the lead driver to confirm that the whole Delivery Order has been handed over to the dealer.
+    - Allow the lead driver to upload the shared POD pair and request/confirm the shared OTP after the lead has confirmed whole-convoy handover.
+    - Reject non-lead driver attempts to confirm readiness, departure, arrival, handover, POD, OTP, failure, or return for the split plan with `SPLIT_LEAD_DRIVER_REQUIRED`.
   - WHEN a driver confirms delivery with the OTP read by the dealer, the system SHALL:
     - Validate the authenticated driver is assigned to the trip.
     - Validate the current delivery attempt exists and is still `IN_TRANSIT`.
@@ -143,15 +146,15 @@ Nếu Đại lý từ chối nhận hàng hoặc giao hàng thất bại, tài x
     - Update Delivery Order status to `RETURNED`.
     - NOT change inventory quantity; goods remain tracked in virtual `IN_TRANSIT` until the separate return flow receives and classifies them.
     - Create `FAIL_DELIVERY` audit log.
-    - For a split delivery plan, treat failure of any one leg as failure of the whole Delivery Order, set every active leg and the split plan to `RETURNED`, and open only one returned-goods flow for the Delivery Order.
-    - For a split delivery plan, preserve the reporting leg and failure reason in the audit trail while preventing the remaining legs from continuing handover, POD, or OTP confirmation.
-  - WHEN a split-delivery driver confirms their vehicle has returned to the source warehouse, the system SHALL:
-    - Validate the authenticated driver is assigned to that split leg.
-    - Mark only that driver's leg trip `COMPLETED` and mark only that leg's vehicle and driver `AVAILABLE`.
-    - Keep all other leg vehicles and drivers `ON_TRIP` until their assigned drivers separately confirm return.
-    - Mark the split delivery plan operationally complete only after every leg driver has confirmed return.
+    - For a split delivery plan, allow only the lead driver to report failure for the whole Delivery Order.
+    - For a split delivery plan, set every active leg and the split plan to `RETURNED`, open only one returned-goods flow for the Delivery Order, and prevent POD or OTP confirmation after the failure is recorded.
+  - WHEN the lead driver confirms a split delivery convoy has returned to the source warehouse, the system SHALL:
+    - Validate the authenticated driver is the split plan's lead driver.
+    - Validate the split Delivery Order is already `COMPLETED` or `RETURNED`.
+    - Mark every active split leg trip `COMPLETED` and mark every split leg vehicle and driver `AVAILABLE`.
+    - Mark the split delivery plan operationally complete after this single lead-driver return confirmation.
     - Never release any split vehicle or driver merely because the shared OTP was verified and the Delivery Order became `COMPLETED`.
-    - Create one vehicle-return audit log per leg confirmation.
+    - Create audit logs covering the whole split-plan return completion.
   - WHEN the assigned driver confirms the vehicle has returned to the source warehouse, the system SHALL:
     - Validate the authenticated driver is assigned to the trip.
     - Validate the trip is `IN_TRANSIT`.
@@ -236,10 +239,10 @@ Nếu Đại lý từ chối nhận hàng hoặc giao hàng thất bại, tài x
 - `PUT /api/v1/trips/{tripId}/delivery-orders/{doId}/confirm-delivery` - Confirm full Delivery Order delivery using dealer OTP.
 - `PUT /api/v1/trips/{tripId}/delivery-orders/{doId}/fail-delivery` - Record dealer refusal or delivery failure.
 - `PUT /api/v1/trips/{tripId}/complete` - Assigned driver confirms the vehicle has returned to the source warehouse.
-- `PUT /api/v1/split-delivery-plans/{planId}/legs/{legId}/dealer-arrival` - Assigned leg driver confirms their vehicle has arrived at the dealer.
-- `PUT /api/v1/split-delivery-plans/{planId}/legs/{legId}/handover` - Assigned leg driver confirms their goods were handed over after all legs arrived.
-- `PUT /api/v1/split-delivery-plans/{planId}/legs/{legId}/fail-delivery` - Assigned leg driver reports failure; the whole Delivery Order and all legs enter return handling.
-- `PUT /api/v1/trips/{tripId}/complete` - For a split leg trip, the assigned leg driver confirms only their own vehicle has returned; every leg driver calls this endpoint separately.
+- `PUT /api/v1/split-delivery-plans/{planId}/dealer-arrival` - Lead driver confirms the whole split convoy has arrived at the dealer.
+- `PUT /api/v1/split-delivery-plans/{planId}/handover` - Lead driver confirms the whole split Delivery Order was handed over to the dealer.
+- `PUT /api/v1/split-delivery-plans/{planId}/fail-delivery` - Lead driver reports failure; the whole Delivery Order and all legs enter return handling.
+- `PUT /api/v1/split-delivery-plans/{planId}/complete` - Lead driver confirms the whole split convoy has returned; all split leg trips, drivers, and vehicles are released together.
 - `GET /api/v1/delivery-orders/{doId}/returned-goods` - Warehouse-scoped viewer reads the current returned-goods flow state so frontend can resume the correct staff/storekeeper step.
 - `PUT /api/v1/delivery-orders/{doId}/returned-goods/receive` - Storekeeper confirms the returned goods have physically arrived back at the warehouse and opens staff count/QC.
 - `PUT /api/v1/delivery-orders/{doId}/returned-goods/count-qc` - Warehouse staff submit or resubmit actual, quality-passed, and quality-failed returned quantities with failure reasons for a `RETURNED` Delivery Order.
@@ -369,9 +372,9 @@ The Driver UI SHALL use this response metadata rather than maintaining its own a
 | `OTP_MAX_ATTEMPTS_EXCEEDED`    | 423  | OTP has been entered incorrectly 3 times and requires Admin reset.                                                         |
 | `OTP_RESET_REQUIRED`           | 423  | OTP is locked and must be reset by Admin before a new code can be generated.                                               |
 | `OTP_DELIVERY_FAILED`          | 502  | OTP email could not be sent; the OTP row is `SEND_FAILED` and may be retried immediately.                                  |
-| `SPLIT_LEAD_DRIVER_REQUIRED`   | 403  | A non-lead split driver attempted the shared POD or OTP action.                                                            |
-| `SPLIT_DELIVERY_INCOMPLETE`    | 422  | Handover, POD, or OTP was attempted before all required split-leg arrival/handover confirmations were complete.            |
-| `SPLIT_LEG_DRIVER_MISMATCH`    | 403  | Driver attempted to confirm arrival, handover, or failure for another driver's split leg.                                  |
+| `SPLIT_LEAD_DRIVER_REQUIRED`   | 403  | A non-lead split driver attempted a lead-only split delivery action.                                                       |
+| `SPLIT_DELIVERY_INCOMPLETE`    | 422  | POD or OTP was attempted before the lead driver confirmed whole-convoy arrival and handover.                               |
+| `SPLIT_LEG_DRIVER_MISMATCH`    | 403  | Driver attempted to mutate a split leg outside the lead-driver-only workflow.                                              |
 | `PARTIAL_DELIVERY_NOT_ALLOWED` | 422  | Request attempts to deliver less than the full Delivery Order.                                                             |
 | `IN_TRANSIT_STOCK_NOT_FOUND`   | 422  | Required In-Transit inventory rows are missing or insufficient for this DO.                                                |
 | `INVOICE_ALREADY_EXISTS`       | 409  | Invoice already exists for the Delivery Order.                                                                             |
@@ -465,21 +468,19 @@ The Driver UI SHALL use this response metadata rather than maintaining its own a
   - When Driver records dealer refusal with `failureReason`
   - Then the system SHALL close the current attempt as `FAILED`, move the Delivery Order to `RETURNED`, and keep goods in virtual In-Transit for the separate return flow.
 
-- **Scenario: Split delivery waits for every vehicle before handover**
+- **Scenario: Split delivery is operated only by the lead driver**
   - Given one Delivery Order is being delivered by two or more split legs
-  - And at least one assigned vehicle has not confirmed dealer arrival
-  - When any assigned driver attempts to confirm handover
-  - Then the system SHALL reject the request with `SPLIT_DELIVERY_INCOMPLETE`.
-  - When every assigned driver has confirmed arrival
-  - Then each assigned driver MAY confirm handover for their own leg.
-  - And only the lead driver MAY upload the one shared POD pair and request the one shared OTP after every leg has confirmed handover.
+  - And the authenticated driver is the split plan's lead driver
+  - When the lead driver confirms departure, whole-convoy dealer arrival, and whole-Delivery-Order handover
+  - Then the lead driver MAY upload the one shared POD pair and request the one shared OTP.
+  - And no non-lead driver SHALL need or be allowed to confirm readiness, arrival, handover, POD, OTP, failure, or return.
 
-- **Scenario: One failed split leg returns the whole Delivery Order**
+- **Scenario: Lead driver reports split delivery failure for the whole Delivery Order**
   - Given a split Delivery Order is `IN_TRANSIT`
-  - When any assigned leg driver reports delivery failure with a reason
+  - When the lead driver reports delivery failure with a reason
   - Then the system SHALL mark the current delivery attempt `FAILED`, the Delivery Order and split plan `RETURNED`, and every active leg `RETURNED`.
   - And the system SHALL keep all quantities in virtual In-Transit for one Delivery Order-level returned-goods flow.
-  - And no remaining leg SHALL continue handover, POD, or OTP confirmation.
+  - And no split leg SHALL continue handover, POD, or OTP confirmation.
 
 - **Scenario: Replacing POD invalidates the current OTP**
   - Given the lead driver uploaded both POD images and an OTP is current
@@ -495,12 +496,12 @@ The Driver UI SHALL use this response metadata rather than maintaining its own a
   - When the lead driver retries immediately
   - Then the system SHALL update that same row with a newly generated OTP and attempt email delivery again without waiting for the previous expiry time.
 
-- **Scenario: Each split driver releases only their own vehicle**
+- **Scenario: Lead driver releases the whole split convoy**
   - Given a split Delivery Order has been completed by the shared OTP or moved to `RETURNED` after failure
-  - When one assigned driver calls `PUT /api/v1/trips/{tripId}/complete` for their own split leg trip
-  - Then the system SHALL complete only that leg trip and mark only that leg's driver and vehicle `AVAILABLE`.
-  - And all other drivers and vehicles SHALL remain `ON_TRIP` until they separately confirm return.
-  - And successful shared OTP confirmation SHALL NOT automatically release any split driver or vehicle.
+  - When the lead driver confirms the split convoy has returned
+  - Then the system SHALL complete every split leg trip and mark every split leg driver and vehicle `AVAILABLE`.
+  - And non-lead drivers SHALL NOT need to confirm vehicle return separately.
+  - And successful shared OTP confirmation SHALL NOT automatically release split drivers or vehicles before the lead confirms return.
 
 - **Scenario: Driver completes trip after vehicle returns**
   - Given a trip is `IN_TRANSIT`

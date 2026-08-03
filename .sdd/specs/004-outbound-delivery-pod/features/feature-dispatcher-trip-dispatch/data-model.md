@@ -218,7 +218,6 @@
 - `SPLIT_DELIVERY_PLAN_CREATE`: split plan header, full quantity allocation, legs, resources, and linked planned trips.
 - `SPLIT_DELIVERY_PLAN_UPDATE`: revised split plan leg allocation, lead driver, planned departure, resources, and cancellation of old planned leg trips.
 - `SPLIT_DELIVERY_PLAN_CANCEL`: split plan cancellation reason and release of planned active assignment.
-- `SPLIT_DELIVERY_DRIVER_READY`: individual split driver readiness confirmation.
 - `SPLIT_DELIVERY_DEPART`: coordinated departure for every split leg plus Delivery Order move to `IN_TRANSIT`.
 
 ## SplitDeliveryPlan
@@ -255,8 +254,8 @@
 
 - `PLANNED -> PLANNED`: valid dispatcher update.
 - `PLANNED -> CANCELLED`: dispatcher cancels before departure.
-- `PLANNED -> IN_TRANSIT`: all drivers ready and lead driver confirms coordinated departure.
-- `IN_TRANSIT -> COMPLETED`: all leg trips are completed after downstream delivery terminal outcome.
+- `PLANNED -> IN_TRANSIT`: lead driver confirms coordinated departure for the whole split plan.
+- `IN_TRANSIT -> COMPLETED`: lead driver confirms whole-convoy return after downstream delivery terminal outcome.
 
 ## SplitDeliveryLeg
 

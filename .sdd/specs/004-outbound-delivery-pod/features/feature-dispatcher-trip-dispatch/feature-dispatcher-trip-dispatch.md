@@ -206,8 +206,8 @@ This restored scope covers the Dispatcher workflow for one Delivery Order that c
 * Each leg SHALL pass the same capacity validation as a normal trip: weight is mandatory, volume is validated only when `vehicle.maxVolumeM3` is configured.
 * The selected `leadDriverId` SHALL be one of the assigned split-leg drivers.
 * A Delivery Order assigned to an active split delivery plan SHALL NOT be assigned to a regular active trip or another active split delivery plan.
-* All split drivers SHALL confirm readiness before coordinated departure.
-* The lead driver SHALL be the only driver allowed to trigger coordinated departure for the split plan.
+* Support-vehicle drivers SHALL NOT be required to confirm readiness before coordinated departure.
+* The lead driver SHALL be the only driver allowed to confirm coordinated departure for the whole split plan.
 * At coordinated departure, the backend SHALL revalidate all vehicles and drivers are still ready. If a vehicle becomes unavailable before departure, Dispatcher MAY update the plan to use another eligible vehicle.
 * When no eligible replacement vehicle exists, the system SHALL reject creation/departure with a clear wait-for-ready-vehicle business message such as `SPLIT_NO_READY_VEHICLE`.
 * Coordinated departure SHALL move the Delivery Order's staged quantity to virtual `IN_TRANSIT` once and create exactly one current Delivery attempt for the Delivery Order.
@@ -218,8 +218,7 @@ This restored scope covers the Dispatcher workflow for one Delivery Order that c
 * `POST /api/v1/split-delivery-plans` - Dispatcher creates a coordinated multi-vehicle plan for one overloaded Delivery Order.
 * `PUT /api/v1/split-delivery-plans/{id}` - Dispatcher revises a planned split delivery plan before departure.
 * `PUT /api/v1/split-delivery-plans/{id}/cancel` - Dispatcher cancels a planned split delivery plan.
-* `PUT /api/v1/split-delivery-plans/{id}/driver-readiness` - Assigned split driver confirms that their vehicle/leg is ready.
-* `PUT /api/v1/split-delivery-plans/{id}/depart` - Lead driver confirms all vehicles depart together after every split leg is ready.
+* `PUT /api/v1/split-delivery-plans/{id}/depart` - Lead driver confirms all planned split vehicles depart together.
 
 ### Split create/update payload
 
@@ -314,7 +313,7 @@ Validation rules:
   * Then the system SHALL reject the plan with `SPLIT_ALLOCATION_INCOMPLETE`.
 
 * **Scenario: Coordinated split departure**
-  * Given every split driver has confirmed readiness
+  * Given a split delivery plan is ready to depart
   * When the lead driver confirms departure
   * Then all leg trips SHALL depart together, all vehicles/drivers SHALL become `ON_TRIP`, the Delivery Order SHALL move to `IN_TRANSIT`, and exactly one current Delivery attempt SHALL be created for the Delivery Order.
 

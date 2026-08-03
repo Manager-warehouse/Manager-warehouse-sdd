@@ -1471,35 +1471,34 @@ export const outboundService = {
     return response.data;
   },
 
-  confirmSplitDriverReadiness: async (planId) => {
-    const response = await apiClient.put(`/split-delivery-plans/${planId}/driver-readiness`);
-    return response.data;
-  },
-
   departSplitDeliveryPlan: async (planId) => {
     const response = await apiClient.put(`/split-delivery-plans/${planId}/depart`);
     return response.data;
   },
 
-  confirmSplitDealerArrival: async (planId, legId) => {
-    const response = await apiClient.put(
-      `/split-delivery-plans/${planId}/legs/${legId}/dealer-arrival`,
-    );
+  confirmSplitDealerArrival: async (planId) => {
+    const response = await apiClient.put(`/split-delivery-plans/${planId}/dealer-arrival`);
     return response.data;
   },
 
-  confirmSplitHandover: async (planId, legId) => {
-    const response = await apiClient.put(
-      `/split-delivery-plans/${planId}/legs/${legId}/handover`,
-    );
+  confirmSplitHandover: async (planId) => {
+    const response = await apiClient.put(`/split-delivery-plans/${planId}/handover`);
     return response.data;
   },
 
-  failSplitDeliveryLeg: async (planId, legId, failureReason) => {
+  failSplitDelivery: async (planId, failureReason) => {
     const response = await apiClient.put(
-      `/split-delivery-plans/${planId}/legs/${legId}/fail-delivery`,
+      `/split-delivery-plans/${planId}/fail-delivery`,
       { failureReason },
     );
+    return response.data;
+  },
+
+  completeSplitDeliveryPlan: async (planId, { returnedAt, notes } = {}) => {
+    const response = await apiClient.put(`/split-delivery-plans/${planId}/complete`, {
+      returnedAt: returnedAt || new Date().toISOString(),
+      notes: notes || '',
+    });
     return response.data;
   },
 
