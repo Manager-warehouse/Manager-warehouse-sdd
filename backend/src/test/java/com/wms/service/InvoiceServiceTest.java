@@ -99,6 +99,7 @@ class InvoiceServiceTest {
     @Mock private DeliveryRepository deliveryRepository;
     @Mock private AutoInvoiceService autoInvoiceService;
     @Mock private PaymentReceiptRepository paymentReceiptRepository;
+    @Mock private UserWarehouseAssignmentRepository userWarehouseAssignmentRepository;
 
     @InjectMocks
     private InvoiceServiceImpl invoiceService;
