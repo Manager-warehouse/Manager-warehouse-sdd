@@ -23,6 +23,7 @@ import com.wms.repository.DocumentSequenceRepository;
 import com.wms.repository.InvoiceRepository;
 import com.wms.repository.PaymentReceiptRepository;
 import com.wms.repository.UserRepository;
+import com.wms.repository.UserWarehouseAssignmentRepository;
 import com.wms.repository.dealer_management.DealerRepository;
 import com.wms.service.audit_trail.AuditLogService;
 import com.wms.service.billing_payment.AccountingPeriodService;

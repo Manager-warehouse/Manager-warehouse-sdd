@@ -5,12 +5,11 @@ import { masterDataService } from '../../services/masterData.service';
 import { useUiStore } from '../../stores/ui.store';
 import { useAuthStore } from '../../stores/auth.store';
 import { ROLES } from '../../utils/constants';
-import { formatDate } from '../../utils/format';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import PhotoCaptureInput from '../../components/common/PhotoCaptureInput';
 import CorrectionVoucherButton from '../../components/common/CorrectionVoucherButton';
-import { FileText, Landmark, BellRing, ShieldAlert, Plus, Eye, Image as ImageIcon, PenTool, UploadCloud, CheckCircle2 } from 'lucide-react';
+import { FileText, Landmark, ShieldAlert, UploadCloud } from 'lucide-react';
 
 const OCR_LOW_CONFIDENCE_THRESHOLD = 0.75;
 
@@ -20,28 +19,14 @@ const DealerDebtInvoice = () => {
   const isAccountant = hasRole(ROLES.ACCOUNTANT) || hasRole(ROLES.ADMIN);
 
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialTab = searchParams.get('tab') || 'notifications';
-  const [activeTab, setActiveTab] = useState(initialTab); // 'notifications' | 'invoices' | 'payments'
+  const initialTab = searchParams.get('tab') || 'invoices';
+  const [activeTab, setActiveTab] = useState(initialTab); // 'invoices' | 'payments'
   const [loading, setLoading] = useState(false);
 
   // Data States
   const [dealers, setDealers] = useState([]);
-  const [notifications, setNotifications] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [paymentReceipts, setPaymentReceipts] = useState([]);
-
-  // Modal States - Create Invoice from Delivery Notification
-  const [showCreateInvoiceModal, setShowCreateInvoiceModal] = useState(false);
-  const [submittingInvoice, setSubmittingInvoice] = useState(false);
-  const [selectedNotif, setSelectedNotif] = useState(null);
-  const [invoiceFormData, setInvoiceFormData] = useState({
-    doId: '',
-    documentDate: new Date().toISOString().slice(0, 10)
-  });
-
-  // Modal States - POD View
-  const [showPodModal, setShowPodModal] = useState(false);
-  const [selectedInvoice, setSelectedInvoice] = useState(null);
 
   // Modal States - Create Payment Receipt & OCR
   const [showCreatePaymentModal, setShowCreatePaymentModal] = useState(false);
@@ -66,7 +51,7 @@ const DealerDebtInvoice = () => {
   // Sync tab with search param if changed externally
   useEffect(() => {
     const tabParam = searchParams.get('tab');
-    if (tabParam && ['notifications', 'invoices', 'payments'].includes(tabParam)) {
+    if (tabParam && ['invoices', 'payments'].includes(tabParam)) {
       setActiveTab(tabParam);
     }
   }, [searchParams]);
@@ -87,10 +72,7 @@ const DealerDebtInvoice = () => {
       setDealers(dealersList || []);
       setInvoices(invs || []);
 
-      if (activeTab === 'notifications') {
-        const notifs = await financeService.getBillingNotifications();
-        setNotifications(notifs || []);
-      } else if (activeTab === 'payments') {
+      if (activeTab === 'payments') {
         const pmts = await financeService.getPaymentReceipts({ warehouseId });
         setPaymentReceipts(pmts || []);
       }
@@ -105,33 +87,6 @@ const DealerDebtInvoice = () => {
   useEffect(() => {
     loadData();
   }, [loadData]);
-
-  // Open modal to create invoice from delivery notification
-  const handleOpenCreateInvoice = (notif) => {
-    setSelectedNotif(notif);
-    setInvoiceFormData({
-      doId: notif.do_id || notif.doId,
-      documentDate: new Date().toISOString().slice(0, 10)
-    });
-    setShowCreateInvoiceModal(true);
-  };
-
-  const handleSubmitInvoice = async (e) => {
-    e.preventDefault();
-    if (submittingInvoice) return;
-    setSubmittingInvoice(true);
-    try {
-      await financeService.createInvoice(invoiceFormData.doId, invoiceFormData.documentDate);
-      addToast('Lập Hóa đơn Bán hàng & Ghi nhận nợ Đại lý thành công!', 'success');
-      setShowCreateInvoiceModal(false);
-      loadData();
-    } catch (err) {
-      console.error('Create invoice failed:', err);
-      addToast(err.message || 'Không thể tạo hóa đơn bán hàng', 'error');
-    } finally {
-      setSubmittingInvoice(false);
-    }
-  };
 
   // Open modal to create payment receipt for specific invoice
   const handleOpenCreatePayment = (inv) => {
@@ -318,7 +273,7 @@ const DealerDebtInvoice = () => {
             Hóa đơn Bán hàng & Công nợ Đại lý
           </h1>
           <p className="text-xs text-shade-50 font-light mt-1">
-            Tiếp nhận thông báo đơn xuất `DELIVERED`, lập Hóa đơn Bán hàng ghi nhận nợ Đại lý, quét OCR hóa đơn thu tiền và lập Phiếu thu cấn trừ công nợ.
+            Theo dõi Hóa đơn Bán hàng tự động lập khi giao hàng thành công, quét OCR hóa đơn thu tiền và lập Phiếu thu cấn trừ công nợ.
           </p>
         </div>
         {isAccountant && (
@@ -337,17 +292,6 @@ const DealerDebtInvoice = () => {
 
       {/* Navigation Tabs */}
       <div className="flex border-b border-hairline-light">
-        <button
-          className={`flex items-center gap-2 px-5 py-3 text-xs font-semibold uppercase tracking-wider border-b-2 transition-colors ${
-            activeTab === 'notifications'
-              ? 'border-ink text-ink font-bold'
-              : 'border-transparent text-shade-40 hover:text-ink'
-          }`}
-          onClick={() => handleTabChange('notifications')}
-        >
-          <BellRing className="w-4 h-4" />
-          Thông báo Lập Hóa đơn Bán
-        </button>
         <button
           className={`flex items-center gap-2 px-5 py-3 text-xs font-semibold uppercase tracking-wider border-b-2 transition-colors ${
             activeTab === 'invoices'
@@ -382,81 +326,7 @@ const DealerDebtInvoice = () => {
         </div>
       ) : (
         <>
-          {/* TAB 1: WORKLIST THÔNG BÁO LẬP HÓA ĐƠN BÁN */}
-          {activeTab === 'notifications' && (
-            <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 overflow-hidden">
-              <div className="p-4 bg-canvas-cream border-b border-hairline-light flex items-center justify-between">
-                <span className="text-xs font-semibold text-shade-60 uppercase tracking-wider">
-                  Danh sách Đơn xuất kho đã giao (DELIVERED) chờ lập Hóa đơn
-                </span>
-                <span className="text-[10px] bg-shade-70 text-onPrimary px-2.5 py-0.5 rounded-pill font-bold">
-                  {notifications.filter(n => n.invoice_status === 'NOT_INVOICED').length} Đơn chờ
-                </span>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse text-left text-xs">
-                  <thead>
-                    <tr className="bg-canvas-light border-b border-hairline-light text-shade-60 font-semibold uppercase tracking-wider">
-                      <th className="p-4">Số Đơn Xuất Kho (DO)</th>
-                      <th className="p-4">Đại lý</th>
-                      <th className="p-4">Kho xuất</th>
-                      <th className="p-4">Thời gian giao</th>
-                      <th className="p-4 text-right">Ước tính giá trị</th>
-                      <th className="p-4 text-center">Trạng thái HĐ</th>
-                      <th className="p-4 text-center">Thao tác</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-hairline-light">
-                    {notifications.length === 0 ? (
-                      <tr>
-                        <td colSpan="7" className="p-8 text-center text-shade-40 italic">
-                          Không có thông báo lập hóa đơn bán hàng nào cần xử lý.
-                        </td>
-                      </tr>
-                    ) : (
-                      notifications.map(notif => (
-                        <tr key={notif.id} className="hover:bg-canvas-cream/50">
-                          <td className="p-4 font-bold text-ink">{notif.do_number || notif.doNumber}</td>
-                          <td className="p-4 font-medium text-ink">{notif.dealer_name || notif.dealerName}</td>
-                          <td className="p-4 text-shade-60">Kho #{notif.warehouse_id || notif.warehouseId}</td>
-                          <td className="p-4 text-shade-60">
-                            {(notif.delivered_at || notif.deliveredAt) ? formatDate(notif.delivered_at || notif.deliveredAt) : 'Mới hoàn tất'}
-                          </td>
-                          <td className="p-4 text-right font-bold text-ink">
-                            {(notif.total_amount_estimate || 0).toLocaleString()}đ
-                          </td>
-                          <td className="p-4 text-center">
-                            <span className={`px-2.5 py-0.5 rounded-pill text-[9px] font-bold uppercase ${
-                              notif.invoice_status === 'INVOICED'
-                                ? 'bg-aloe-10 text-ink'
-                                : 'bg-amber-100 text-amber-800 border border-amber-200'
-                            }`}>
-                              {notif.invoice_status === 'INVOICED' ? 'Đã lập HĐ' : 'Chưa lập HĐ'}
-                            </span>
-                          </td>
-                          <td className="p-4 text-center">
-                            {notif.invoice_status !== 'INVOICED' && isAccountant && (
-                              <Button
-                                size="sm"
-                                variant="primary"
-                                onClick={() => handleOpenCreateInvoice(notif)}
-                              >
-                                <Plus className="w-3.5 h-3.5 mr-1" />
-                                Lập Hóa đơn Bán
-                              </Button>
-                            )}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 2: SỔ HÓA ĐƠN BÁN HÀNG */}
+          {/* TAB 1: SỔ HÓA ĐƠN BÁN HÀNG */}
           {activeTab === 'invoices' && (
             <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 overflow-hidden">
               <div className="p-4 bg-canvas-cream border-b border-hairline-light flex items-center justify-between">
@@ -509,13 +379,6 @@ const DealerDebtInvoice = () => {
                             </span>
                           </td>
                           <td className="p-4 text-center flex items-center justify-center gap-2">
-                            <button
-                              onClick={() => { setSelectedInvoice(inv); setShowPodModal(true); }}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-canvas-cream text-ink text-[11px] font-semibold hover:bg-hairline-light"
-                            >
-                              <Eye className="w-3 h-3" />
-                              POD
-                            </button>
                             {inv.status !== 'PAID' && isAccountant && (
                               <Button
                                 size="sm"
@@ -542,7 +405,7 @@ const DealerDebtInvoice = () => {
             </div>
           )}
 
-          {/* TAB 3: PHIẾU THU AR & QUÉT OCR */}
+          {/* TAB 2: PHIẾU THU AR & QUÉT OCR */}
           {activeTab === 'payments' && (
             <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-3 overflow-hidden">
               <div className="p-4 bg-canvas-cream border-b border-hairline-light flex items-center justify-between">
@@ -603,99 +466,7 @@ const DealerDebtInvoice = () => {
         </>
       )}
 
-      {/* MODAL 1: LẬP HÓA ĐƠN BÁN HÀNG */}
-      {showCreateInvoiceModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-4 w-full max-w-lg p-6 flex flex-col gap-4">
-            <h2 className="text-base font-bold uppercase tracking-wider text-ink pb-2 border-b border-hairline-light">
-              Lập Hóa đơn Bán hàng từ Đơn giao hàng (DO)
-            </h2>
-
-            <form onSubmit={handleSubmitInvoice} className="flex flex-col gap-4 text-xs">
-              <div>
-                <label className="font-semibold text-shade-60">Số đơn giao hàng (DO)</label>
-                <input
-                  type="text"
-                  value={selectedNotif?.do_number || selectedNotif?.doNumber || ''}
-                  disabled
-                  className="w-full bg-canvas-cream border border-hairline-light rounded p-2 text-ink font-bold mt-1"
-                />
-              </div>
-
-              <div>
-                <label className="font-semibold text-shade-60">Đại lý mua hàng</label>
-                <input
-                  type="text"
-                  value={selectedNotif?.dealer_name || selectedNotif?.dealerName || ''}
-                  disabled
-                  className="w-full bg-canvas-cream border border-hairline-light rounded p-2 text-ink mt-1"
-                />
-              </div>
-
-              {/* Bằng chứng POD phải được kiểm tra TRƯỚC khi lập hóa đơn, không phải sau */}
-              <div className="flex flex-col gap-2 border border-hairline-light rounded p-3 bg-canvas-cream/40">
-                <span className="font-semibold text-shade-60 uppercase tracking-wider text-[10px]">
-                  Bằng chứng Bàn giao (POD) — kiểm tra trước khi lập hóa đơn
-                </span>
-                {(selectedNotif?.otp_verified_at || selectedNotif?.otpVerifiedAt) && (
-                  <div className="flex items-center gap-2 p-2 bg-aloe-10/20 border border-aloe-10 rounded">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-ink shrink-0" />
-                    <span className="text-[11px]">Mã OTP đã được đại lý xác nhận giao hàng thành công.</span>
-                  </div>
-                )}
-                <div className="grid grid-cols-2 gap-3">
-                  {(selectedNotif?.pod_image_url || selectedNotif?.podImageUrl) ? (
-                    <div className="flex flex-col gap-1">
-                      <label className="font-semibold text-shade-60 flex items-center gap-1 text-[10px]">
-                        <ImageIcon className="w-3 h-3" /> Ảnh giao nhận thực tế
-                      </label>
-                      <img
-                        src={selectedNotif.pod_image_url || selectedNotif.podImageUrl}
-                        alt="POD"
-                        className="rounded border border-hairline-light max-h-32 object-cover w-full"
-                      />
-                    </div>
-                  ) : (
-                    <span className="text-shade-40 italic text-[11px]">Không có ảnh chụp POD.</span>
-                  )}
-                  {(selectedNotif?.pod_signature_url || selectedNotif?.podSignatureUrl) && (
-                    <div className="flex flex-col gap-1">
-                      <label className="font-semibold text-shade-60 flex items-center gap-1 text-[10px]">
-                        <PenTool className="w-3 h-3" /> Chữ ký đại lý
-                      </label>
-                      <img
-                        src={selectedNotif.pod_signature_url || selectedNotif.podSignatureUrl}
-                        alt="Signature"
-                        className="rounded border border-hairline-light max-h-24 object-contain bg-canvas-cream p-1 w-full"
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <Input
-                id="documentDate"
-                label="Ngày hạch toán"
-                type="date"
-                value={invoiceFormData.documentDate}
-                onChange={e => setInvoiceFormData(prev => ({ ...prev, documentDate: e.target.value }))}
-                required
-              />
-
-              <div className="flex justify-end gap-3 mt-4 pt-3 border-t border-hairline-light">
-                <Button type="button" variant="secondary" onClick={() => setShowCreateInvoiceModal(false)} disabled={submittingInvoice}>
-                  Hủy bỏ
-                </Button>
-                <Button type="submit" variant="primary" disabled={submittingInvoice}>
-                  {submittingInvoice ? 'Đang xử lý...' : 'Lưu Hóa đơn & Ghi nợ'}
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 2: GHI NHẬN PHIẾU THU & QUÉT OCR HÓA ĐƠN */}
+      {/* MODAL 1: GHI NHẬN PHIẾU THU & QUÉT OCR HÓA ĐƠN */}
       {showCreatePaymentModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-4 w-full max-w-xl p-6 flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
@@ -832,51 +603,6 @@ const DealerDebtInvoice = () => {
                 </Button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 3: XEM BẰNG CHỨNG GIAO HÀNG POD */}
-      {showPodModal && selectedInvoice && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-canvas-light border border-hairline-light rounded-lg shadow-level-4 w-full max-w-lg p-6 flex flex-col gap-4 max-h-[85vh] overflow-y-auto">
-            <h2 className="text-base font-bold uppercase tracking-wider text-ink pb-2 border-b border-hairline-light flex items-center justify-between">
-              <span>Bằng chứng Bàn giao POD</span>
-              <span className="text-xs text-shade-50">DO: {selectedInvoice.do_number}</span>
-            </h2>
-
-            <div className="flex flex-col gap-4 text-xs">
-              <div className="flex items-center gap-2 p-3 bg-aloe-10/20 border border-aloe-10 rounded">
-                <CheckCircle2 className="w-4 h-4 text-ink shrink-0" />
-                <span>Mã OTP đã được đại lý xác nhận giao hàng thành công.</span>
-              </div>
-
-              {selectedInvoice.pod_image_url ? (
-                <div className="flex flex-col gap-1">
-                  <label className="font-semibold text-shade-60 flex items-center gap-1">
-                    <ImageIcon className="w-3.5 h-3.5" /> Ảnh giao nhận thực tế
-                  </label>
-                  <img src={selectedInvoice.pod_image_url} alt="POD" className="rounded border border-hairline-light max-h-48 object-cover w-full" />
-                </div>
-              ) : (
-                <span className="text-shade-40 italic">Không có ảnh chụp POD.</span>
-              )}
-
-              {selectedInvoice.pod_signature_url && (
-                <div className="flex flex-col gap-1">
-                  <label className="font-semibold text-shade-60 flex items-center gap-1">
-                    <PenTool className="w-3.5 h-3.5" /> Chữ ký đại lý
-                  </label>
-                  <img src={selectedInvoice.pod_signature_url} alt="Signature" className="rounded border border-hairline-light max-h-24 object-contain bg-canvas-cream p-2" />
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-end mt-4 pt-3 border-t border-hairline-light">
-              <Button variant="secondary" onClick={() => setShowPodModal(false)}>
-                Đóng
-              </Button>
-            </div>
           </div>
         </div>
       )}

@@ -13,6 +13,7 @@ import com.wms.repository.DeliveryOrderRepository;
 import com.wms.repository.DeliveryRepository;
 import com.wms.repository.InvoiceRepository;
 import com.wms.repository.PaymentReceiptRepository;
+import com.wms.repository.UserWarehouseAssignmentRepository;
 import com.wms.service.billing_payment.AutoInvoiceService;
 import com.wms.service.billing_payment.InvoiceService;
 import java.math.BigDecimal;
