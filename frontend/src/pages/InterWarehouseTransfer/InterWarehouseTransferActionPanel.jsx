@@ -1177,11 +1177,7 @@ const InterWarehouseTransferActionPanel = ({ transfer, currentUser, activeWareho
                              )}
                            </div>
                            <Input label="QC đạt" type="number" min="0" step="1" value={countMismatch ? expectedPutawayQty : row.qcPassedQty} disabled={countMismatch} onChange={(e) => setRow(checkRows, setCheckRows, row.transferItemId, { qcPassedQty: Number(e.target.value) })} />
-                           {countMismatch ? (
-                             <div className="rounded-md border border-warning-200 bg-warning-50 px-3 py-2 text-xs text-warning-800">
-                               Count lệch số gửi nên không nhập QC lỗi. Hệ thống sẽ cất đủ {expectedPutawayQty} cái công nhân đã nhập, phần lệch vào hồ sơ chênh lệch.
-                             </div>
-                           ) : (
+                           {countMismatch ? null : (
                              <div className="flex flex-col gap-1">
                                <Input label="QC lỗi" type="number" min="0" step="1" value={row.qcFailedQty} onChange={(e) => setRow(checkRows, setCheckRows, row.transferItemId, { qcFailedQty: Number(e.target.value) })} />
                                {Number(row.qcFailedQty) > 0 && (

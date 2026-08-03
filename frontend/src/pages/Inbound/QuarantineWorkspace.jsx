@@ -116,11 +116,15 @@ const QuarantineWorkspace = () => {
     setSubmitting(true);
     try {
       const quarantineRecordId = selectedItem.quarantine_record_id || selectedItem.quarantineRecordId;
+      const quarantineRecordIds = selectedItem.quarantine_record_ids || selectedItem.quarantineRecordIds || [];
+      const recordIds = quarantineRecordIds.length
+        ? quarantineRecordIds
+        : quarantineRecordId ? [quarantineRecordId] : [];
       const receiptItemId = selectedItem.receipt_item_id || selectedItem.receiptItemId || selectedItem.id;
-      const res = quarantineRecordId
-        ? await inboundService.handleDisposalFromQuarantine(quarantineRecordId, actionNotes, disposalImageUrl)
-        : await inboundService.handleDisposal(receiptItemId, actionNotes, disposalImageUrl);
-      if (res.autoApproved) {
+      const results = recordIds.length
+        ? await Promise.all(recordIds.map(id => inboundService.handleDisposalFromQuarantine(id, actionNotes, disposalImageUrl)))
+        : [await inboundService.handleDisposal(receiptItemId, actionNotes, disposalImageUrl)];
+      if (results.every(res => res?.autoApproved)) {
         addToast('Đã tiêu hủy sản phẩm thành công', 'success');
       } else {
         addToast('Đã gửi yêu cầu tiêu hủy hàng hỏng lên Warehouse Manager chờ phê duyệt', 'info');

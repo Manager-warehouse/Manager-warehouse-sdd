@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Getter
 @Setter
@@ -62,4 +63,7 @@ public class QuarantineItemResponse {
 
     @JsonProperty("quarantine_record_id")
     private Long quarantineRecordId;
+
+    @JsonProperty("quarantine_record_ids")
+    private List<Long> quarantineRecordIds;
 }

@@ -14,6 +14,8 @@ import com.wms.entity.stock_control.Inventory;
 import com.wms.entity.stock_receiving.QuarantineRecord;
 import com.wms.entity.warehouse_location.Warehouse;
 import com.wms.entity.warehouse_location.WarehouseLocation;
+import com.wms.entity.warehouse_transfer.InterWarehouseTransfer;
+import com.wms.entity.warehouse_transfer.InterWarehouseTransferItem;
 import com.wms.repository.AdjustmentRepository;
 import com.wms.repository.DebitNoteRepository;
 import com.wms.repository.InventoryRepository;
@@ -100,6 +102,7 @@ class QuarantineRtvServiceTest {
 
         assertThat(result).singleElement().satisfies(item -> {
             assertThat(item.getQuarantineRecordId()).isEqualTo(60L);
+            assertThat(item.getQuarantineRecordIds()).containsExactly(60L);
             assertThat(item.getOriginType()).isEqualTo("OUTBOUND_QC");
             assertThat(item.getQcFailedQty()).isEqualByComparingTo("0.50");
             assertThat(item.getTotalValue()).isEqualByComparingTo("50000.0000");
@@ -108,5 +111,81 @@ class QuarantineRtvServiceTest {
             assertThat(item.getDealerName()).isEqualTo("Đại lý A");
         });
         verify(receiptValidationService).assertWarehouseAccess(actor, 1L);
+    }
+
+    @Test
+    void getQuarantineItems_groupsInternalTransferRecordsForSameTransferItem() {
+        User actor = new User();
+        actor.setId(10L);
+        Warehouse warehouse = new Warehouse();
+        warehouse.setId(1L);
+        Product product = new Product();
+        product.setId(20L);
+        product.setSku("SKU-GD-004");
+        product.setName("Bộ lau nhà xoay 360 độ");
+        product.setUnit("Hộp");
+        Batch batch = new Batch();
+        batch.setId(30L);
+        WarehouseLocation location = new WarehouseLocation();
+        location.setId(40L);
+        InterWarehouseTransfer transfer = new InterWarehouseTransfer();
+        transfer.setId(50L);
+        transfer.setTransferNumber("TRF-20260803-0005");
+        InterWarehouseTransferItem transferItem = new InterWarehouseTransferItem();
+        transferItem.setId(70L);
+        transferItem.setTransfer(transfer);
+        transferItem.setProduct(product);
+
+        QuarantineRecord firstRecord = internalTransferQuarantineRecord(
+                60L, warehouse, product, batch, location, transfer, transferItem, "hàng lỗi", "10");
+        QuarantineRecord secondRecord = internalTransferQuarantineRecord(
+                61L, warehouse, product, batch, location, transfer, transferItem, "hàng lỗi", "90");
+
+        Inventory inventory = new Inventory();
+        inventory.setCostPrice(new BigDecimal("10000.00"));
+        when(receiptItemRepository.findQuarantineItemsByWarehouseId(1L)).thenReturn(List.of());
+        when(quarantineRecordRepository
+                .findByWarehouseIdAndRemainingQuantityGreaterThanOrderByCreatedAtDesc(1L, BigDecimal.ZERO))
+                .thenReturn(List.of(firstRecord, secondRecord));
+        when(inventoryRepository.findByWarehouseProductBatchLocation(1L, 20L, 30L, 40L))
+                .thenReturn(Optional.of(inventory));
+
+        List<QuarantineItemResponse> result = service.getQuarantineItems(1L, actor);
+
+        assertThat(result).singleElement().satisfies(item -> {
+            assertThat(item.getId()).isEqualTo(60L);
+            assertThat(item.getQuarantineRecordId()).isEqualTo(60L);
+            assertThat(item.getQuarantineRecordIds()).containsExactly(60L, 61L);
+            assertThat(item.getOriginType()).isEqualTo("INTERNAL_TRANSFER");
+            assertThat(item.getReceiptNumber()).isEqualTo("TRF-20260803-0005");
+            assertThat(item.getQcFailedQty()).isEqualByComparingTo("100");
+            assertThat(item.getTotalValue()).isEqualByComparingTo("1000000.0000");
+        });
+    }
+
+    private QuarantineRecord internalTransferQuarantineRecord(
+            Long id,
+            Warehouse warehouse,
+            Product product,
+            Batch batch,
+            WarehouseLocation location,
+            InterWarehouseTransfer transfer,
+            InterWarehouseTransferItem transferItem,
+            String reason,
+            String remainingQty) {
+        QuarantineRecord record = new QuarantineRecord();
+        record.setId(id);
+        record.setWarehouse(warehouse);
+        record.setProduct(product);
+        record.setBatch(batch);
+        record.setLocation(location);
+        record.setTransfer(transfer);
+        record.setTransferItem(transferItem);
+        record.setOriginType("INTERNAL_TRANSFER");
+        record.setQuantity(new BigDecimal(remainingQty));
+        record.setRemainingQuantity(new BigDecimal(remainingQty));
+        record.setReason(reason);
+        record.setCreatedAt(OffsetDateTime.now());
+        return record;
     }
 }
