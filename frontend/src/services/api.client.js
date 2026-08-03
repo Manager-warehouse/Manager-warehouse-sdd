@@ -23,6 +23,8 @@ const ERROR_MESSAGE_BY_CODE = {
   WAREHOUSE_SCOPE_FORBIDDEN: 'Bạn không được phân quyền thao tác trên kho đã chọn.',
   RESOURCE_NOT_FOUND: 'Không tìm thấy dữ liệu liên quan. Vui lòng tải lại trang và thử lại.',
   WAREHOUSE_INACTIVE: 'Kho đã chọn đang ngừng hoạt động.',
+  WAREHOUSE_HAS_STOCK: 'Không thể tắt kho vì kho vẫn đang còn hàng tồn kho.',
+  LOCATION_HAS_STOCK: 'Không thể tắt vị trí lưu trữ (bin) vì vẫn đang còn hàng tồn kho.',
   WAREHOUSE_TYPE_INVALID: 'Không thể tạo phiếu xuất từ kho trung chuyển.',
   DELIVERY_ORDER_TYPE_INVALID: 'Loại phiếu không hợp lệ. Màn này chỉ tạo phiếu xuất bán.',
   INVALID_DELIVERY_DATE: 'Ngày giao hàng dự kiến không hợp lệ.',
@@ -144,11 +146,11 @@ export const buildBackendErrorMessage = (status, data, fallbackMessage) => {
   if (translatedByMessageCode) {
     return translatedByMessageCode;
   }
-  if (code && ERROR_MESSAGE_BY_CODE[code]) {
-    return ERROR_MESSAGE_BY_CODE[code];
-  }
   if (message && hasVietnameseText(message)) {
     return message;
+  }
+  if (code && ERROR_MESSAGE_BY_CODE[code]) {
+    return ERROR_MESSAGE_BY_CODE[code];
   }
   if (message && !looksLikeErrorCode(message) && !/^[\x00-\x7F]+$/.test(message)) {
     return message;
